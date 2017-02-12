@@ -48,12 +48,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Consumes an attribute value and if it is non-empty then prepends it with
-//! attribute key.
+//! the attribute key.
 class TAttributeValueConsumer
     : public IAsyncYsonConsumer
 {
 public:
-    TAttributeValueConsumer(IAsyncYsonConsumer* underlyingConsumer, const Stroka& key);
+    TAttributeValueConsumer(
+        IAsyncYsonConsumer* underlyingConsumer,
+        const TStringBuf& key);
 
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnInt64Scalar(i64 value) override;
@@ -75,7 +77,7 @@ public:
 
 private:
     IAsyncYsonConsumer* const UnderlyingConsumer_;
-    const Stroka Key_;
+    const TStringBuf Key_;
     bool Empty_ = true;
 
     void ProduceKeyIfNeeded();

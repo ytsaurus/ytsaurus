@@ -70,9 +70,9 @@ public:
     virtual void WriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
-        bool sortKeys) override
+        bool stable) override
     {
-        GetTargetProxy()->WriteAttributesFragment(consumer, attributeKeys, sortKeys);
+        GetTargetProxy()->WriteAttributesFragment(consumer, attributeKeys, stable);
     }
 
 private:

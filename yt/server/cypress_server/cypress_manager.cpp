@@ -733,7 +733,7 @@ public:
         NTransactionServer::TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         // Fast path -- no transaction.
         if (!transaction) {
@@ -749,7 +749,7 @@ public:
         TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         auto* currentTransaction = transaction;
         while (true) {
@@ -766,7 +766,7 @@ public:
         TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         const auto& handler = GetHandler(trunkNode);
         return handler->GetProxy(trunkNode, transaction);
@@ -780,7 +780,7 @@ public:
         bool recursive = false)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
         YCHECK(request.Mode != ELockMode::None && request.Mode != ELockMode::Snapshot);
         YCHECK(!recursive || request.Key.Kind == ELockKeyKind::None);
 
@@ -825,7 +825,7 @@ public:
         bool waitable)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
         YCHECK(transaction);
         YCHECK(request.Mode != ELockMode::None);
 
@@ -867,7 +867,7 @@ public:
         TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         AccessTracker_->SetModified(trunkNode, transaction);
     }
@@ -875,7 +875,7 @@ public:
     void SetAccessed(TCypressNodeBase* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         if (HydraManager_->IsLeader() || HydraManager_->IsFollower() && !HasMutationContext()) {
             AccessTracker_->SetAccessed(trunkNode);
@@ -885,7 +885,7 @@ public:
     void SetExpirationTime(TCypressNodeBase* trunkNode, TNullable<TInstant> time)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         trunkNode->SetExpirationTime(time);
         ExpirationTracker_->OnNodeExpirationTimeUpdated(trunkNode);
@@ -897,6 +897,9 @@ public:
         TTransaction* transaction,
         bool includeRoot)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Y_ASSERT(trunkNode->IsTrunk());
+
         TSubtreeNodes result;
         ListSubtreeNodes(trunkNode, transaction, includeRoot, &result);
         return result;
@@ -906,6 +909,9 @@ public:
         TCypressNodeBase* trunkNode,
         TTransaction* transaction)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Y_ASSERT(trunkNode->IsTrunk());
+
         SmallVector<TTransaction*, 16> transactions;
 
         auto addLock = [&] (const TLock* lock) {
@@ -941,6 +947,8 @@ public:
 
     void AbortSubtreeTransactions(INodePtr node)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto* cypressNode = ICypressNodeProxy::FromNode(node.Get());
         AbortSubtreeTransactions(cypressNode->GetTrunkNode(), cypressNode->GetTransaction());
     }
@@ -948,6 +956,9 @@ public:
 
     bool IsOrphaned(TCypressNodeBase* trunkNode)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Y_ASSERT(trunkNode->IsTrunk());
+
         auto* currentNode = trunkNode;
         while (true) {
             if (!IsObjectAlive(currentNode)) {
@@ -1045,7 +1056,8 @@ public:
         TTransaction* transaction,
         TCypressNodeBase* trunkNode)
     {
-        YCHECK(trunkNode->IsTrunk());
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Y_ASSERT(trunkNode->IsTrunk());
 
         // Fast path.
         if (!transaction) {
@@ -1067,6 +1079,9 @@ public:
         TTransaction* transaction,
         TCypressNodeBase* trunkNode)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Y_ASSERT(trunkNode->IsTrunk());
+
         auto result = GetNodeOriginators(transaction, trunkNode);
         std::reverse(result.begin(), result.end());
         return result;
@@ -1361,7 +1376,7 @@ private:
     void DestroyNode(TCypressNodeBase* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         const auto& lockingState = trunkNode->LockingState();
 
@@ -1446,7 +1461,7 @@ private:
         TTransaction* transaction,
         const TLockRequest& request)
     {
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
         YCHECK(transaction || request.Mode != ELockMode::Snapshot);
 
         const auto& lockingState = trunkNode->LockingState();
@@ -1574,7 +1589,7 @@ private:
         const TLockRequest& request,
         const TLock* lockToIgnore = nullptr)
     {
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
         YCHECK(request.Mode != ELockMode::None && request.Mode != ELockMode::Snapshot);
 
         if (!transaction) {
@@ -1893,7 +1908,7 @@ private:
         bool includeRoot,
         TSubtreeNodes* subtreeNodes)
     {
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         if (includeRoot) {
             subtreeNodes->push_back(trunkNode);
@@ -2071,7 +2086,7 @@ private:
         TCypressNodeBase* trunkNode,
         TTransaction* transaction)
     {
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         auto proxy = GetNodeProxy(trunkNode, transaction);
         return proxy->GetResolver()->GetPath(proxy);
