@@ -62,7 +62,7 @@ void Deserilize(
 class TAccessControlDescriptor
 {
     DEFINE_BYREF_RO_PROPERTY(TAccessControlList, Acl);
-    DEFINE_BYVAL_RW_PROPERTY(bool, Inherit);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Inherit, true);
     DEFINE_BYVAL_RO_PROPERTY(NObjectServer::TObjectBase*, Object);
 
 public:
@@ -82,7 +82,7 @@ public:
     void Load(NCellMaster::TLoadContext& context);
 
 private:
-    TSubject* Owner_;
+    TSubject* Owner_ = nullptr;
 
 };
 
