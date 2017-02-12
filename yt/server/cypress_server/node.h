@@ -43,17 +43,17 @@ class TCypressNodeBase
 public:
     //! For external nodes, this is the tag of the cell were the node
     //! was delegated to. For non-external nodes, this is #NotReplicatedCellTag.
-    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag);
+    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag, NObjectClient::NotReplicatedCellTag);
 
     //! If |false| then resource accounting ignores this node completely.
     //! Used by upload transactions, live preview etc.
-    DEFINE_BYVAL_RW_PROPERTY(bool, AccountingEnabled);
+    DEFINE_BYVAL_RW_PROPERTY(bool, AccountingEnabled, true);
 
     //! Contains all nodes with parent pointing here.
     //! When a node dies parent pointers of its immediate descendants are reset.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TCypressNodeBase*>, ImmediateDescendants);
 
-    DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode);
+    DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode, ELockMode::None);
 
     DEFINE_BYVAL_RW_PROPERTY(TCypressNodeBase*, TrunkNode);
 
@@ -72,6 +72,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, Account);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TClusterResources, CachedResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
+
+    DEFINE_BYVAL_RW_PROPERTY(bool, Opaque);
 
     explicit TCypressNodeBase(const TVersionedNodeId& id);
     virtual ~TCypressNodeBase();
@@ -116,8 +118,8 @@ public:
     virtual void Load(NCellMaster::TLoadContext& context);
 
 private:
-    TCypressNodeBase* Parent_;
-    TCypressNodeBase* Originator_;
+    TCypressNodeBase* Parent_ = nullptr;
+    TCypressNodeBase* Originator_ = nullptr;
     std::unique_ptr<TCypressNodeLockingState> LockingState_;
     NTransactionServer::TTransactionId TransactionId_;
 

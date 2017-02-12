@@ -71,91 +71,6 @@ static const auto& Logger = ObjectServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectProxyBase::TCustomAttributeDictionary
-    : public IAttributeDictionary
-{
-public:
-    explicit TCustomAttributeDictionary(TObjectProxyBase* proxy)
-        : Proxy_(proxy)
-    { }
-
-    // IAttributeDictionary members
-    virtual std::vector<Stroka> List() const override
-    {
-        const auto* object = Proxy_->Object_;
-        const auto* attributes = object->GetAttributes();
-        std::vector<Stroka> keys;
-        if (attributes) {
-            for (const auto& pair : attributes->Attributes()) {
-                // Attribute cannot be empty (i.e. deleted) in null transaction.
-                Y_ASSERT(pair.second);
-                keys.push_back(pair.first);
-            }
-        }
-        return keys;
-    }
-
-    virtual TYsonString FindYson(const Stroka& key) const override
-    {
-        const auto* object = Proxy_->Object_;
-        const auto* attributes = object->GetAttributes();
-        if (!attributes) {
-            return TYsonString();
-        }
-
-        auto it = attributes->Attributes().find(key);
-        if (it == attributes->Attributes().end()) {
-            return TYsonString();
-        }
-
-        // Attribute cannot be empty (i.e. deleted) in null transaction.
-        Y_ASSERT(it->second);
-        return it->second;
-    }
-
-    virtual void SetYson(const Stroka& key, const TYsonString& value) override
-    {
-        auto oldValue = FindYson(key);
-        Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
-
-        auto* object = Proxy_->Object_;
-        auto* attributes = object->GetMutableAttributes();
-        attributes->Attributes()[key] = value;
-    }
-
-    virtual bool Remove(const Stroka& key) override
-    {
-        auto oldValue = FindYson(key);
-        Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, TYsonString());
-
-        auto* object = Proxy_->Object_;
-        auto* attributes = object->GetMutableAttributes();
-        if (!attributes) {
-            return false;
-        }
-
-        auto it = attributes->Attributes().find(key);
-        if (it == attributes->Attributes().end()) {
-            return false;
-        }
-
-        // Attribute cannot be empty (i.e. deleted) in null transaction.
-        Y_ASSERT(it->second);
-        attributes->Attributes().erase(it);
-        if (attributes->Attributes().empty()) {
-            object->ClearAttributes();
-        }
-
-        return true;
-    }
-
-private:
-    TObjectProxyBase* const Proxy_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TObjectProxyBase::TObjectProxyBase(
     TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
@@ -280,18 +195,12 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
 void TObjectProxyBase::WriteAttributesFragment(
     IAsyncYsonConsumer* consumer,
     const TNullable<std::vector<Stroka>>& attributeKeys,
-    bool sortKeys)
+    bool stable)
 {
     const auto& customAttributes = Attributes();
 
     if (attributeKeys) {
-        auto keys = *attributeKeys;
-
-        if (sortKeys) {
-            std::sort(keys.begin(), keys.end());
-        }
-
-        for (const auto& key : keys) {
+        for (const auto& key : *attributeKeys) {
             TAttributeValueConsumer attributeValueConsumer(consumer, key);
 
             auto value = customAttributes.FindYson(key);
@@ -300,8 +209,9 @@ void TObjectProxyBase::WriteAttributesFragment(
                 continue;
             }
 
-            if (GetBuiltinAttribute(key, &attributeValueConsumer))
+            if (GetBuiltinAttribute(key, &attributeValueConsumer)) {
                 continue;
+            }
 
             auto asyncValue = GetBuiltinAttributeAsync(key);
             if (asyncValue) {
@@ -315,8 +225,7 @@ void TObjectProxyBase::WriteAttributesFragment(
 
         auto userKeys = customAttributes.List();
 
-        // TODO(babenko): this is not exactly totally sorted keys, but should be fine.
-        if (sortKeys) {
+        if (stable) {
             std::sort(
                 userKeys.begin(),
                 userKeys.end());
@@ -344,8 +253,9 @@ void TObjectProxyBase::WriteAttributesFragment(
                 continue;
             }
 
-            if (GetBuiltinAttribute(descriptor.Key, &attributeValueConsumer))
+            if (GetBuiltinAttribute(key, &attributeValueConsumer)) {
                 continue;
+            }
 
             auto asyncValue = GetBuiltinAttributeAsync(key);
             if (asyncValue) {
@@ -411,20 +321,13 @@ void TObjectProxyBase::ReplicateAttributeUpdate(IServiceContextPtr context)
 
 IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
 {
-    if (!CustomAttributes_) {
-        CustomAttributes_ = DoCreateCustomAttributes();
-    }
-    return CustomAttributes_.get();
+    Y_ASSERT(CustomAttributes_);
+    return CustomAttributes_;
 }
 
 ISystemAttributeProvider* TObjectProxyBase::GetBuiltinAttributeProvider()
 {
     return this;
-}
-
-std::unique_ptr<IAttributeDictionary> TObjectProxyBase::DoCreateCustomAttributes()
-{
-    return std::unique_ptr<IAttributeDictionary>(new TCustomAttributeDictionary(this));
 }
 
 void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
@@ -731,12 +634,91 @@ void TObjectProxyBase::PostToMaster(IServiceContextPtr context, TCellTag cellTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::TCustomAttributeDictionary(
+    TNontemplateNonversionedObjectProxyBase* proxy)
+    : Proxy_(proxy)
+{ }
+
+std::vector<Stroka> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::List() const
+{
+    const auto* object = Proxy_->Object_;
+    const auto* attributes = object->GetAttributes();
+    std::vector<Stroka> keys;
+    if (attributes) {
+        for (const auto& pair : attributes->Attributes()) {
+            // Attribute cannot be empty (i.e. deleted) in null transaction.
+            Y_ASSERT(pair.second);
+            keys.push_back(pair.first);
+        }
+    }
+    return keys;
+}
+
+TYsonString TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::FindYson(const Stroka& key) const
+{
+    const auto* object = Proxy_->Object_;
+    const auto* attributes = object->GetAttributes();
+    if (!attributes) {
+        return TYsonString();
+    }
+
+    auto it = attributes->Attributes().find(key);
+    if (it == attributes->Attributes().end()) {
+        return TYsonString();
+    }
+
+    // Attribute cannot be empty (i.e. deleted) in null transaction.
+    Y_ASSERT(it->second);
+    return it->second;
+}
+
+void TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::SetYson(const Stroka& key, const TYsonString& value)
+{
+    auto oldValue = FindYson(key);
+    Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
+
+    auto* object = Proxy_->Object_;
+    auto* attributes = object->GetMutableAttributes();
+    attributes->Attributes()[key] = value;
+}
+
+bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove(const Stroka& key)
+{
+    auto oldValue = FindYson(key);
+    Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, TYsonString());
+
+    auto* object = Proxy_->Object_;
+    auto* attributes = object->GetMutableAttributes();
+    if (!attributes) {
+        return false;
+    }
+
+    auto it = attributes->Attributes().find(key);
+    if (it == attributes->Attributes().end()) {
+        return false;
+    }
+
+    // Attribute cannot be empty (i.e. deleted) in null transaction.
+    Y_ASSERT(it->second);
+    attributes->Attributes().erase(it);
+    if (attributes->Attributes().empty()) {
+        object->ClearAttributes();
+    }
+
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
     TObjectBase* object)
     : TObjectProxyBase(bootstrap, metadata, object)
-{ }
+    , CustomAttributesImpl_(this)
+{
+    CustomAttributes_ = &CustomAttributesImpl_;
+}
 
 bool TNontemplateNonversionedObjectProxyBase::DoInvoke(const IServiceContextPtr& context)
 {

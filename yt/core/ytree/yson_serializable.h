@@ -99,7 +99,7 @@ public:
 
     void Save(
         NYson::IYsonConsumer* consumer,
-        bool sortKeys = false) const;
+        bool stable = false) const;
 
     DEFINE_BYVAL_RW_PROPERTY(bool, KeepOptions);
     NYTree::IMapNodePtr GetOptions() const;

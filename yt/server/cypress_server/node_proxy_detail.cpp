@@ -29,6 +29,8 @@
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/ypath_detail.h>
 
+#include <yt/core/yson/async_writer.h>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -45,108 +47,121 @@ using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary
-    : public IAttributeDictionary
+namespace {
+
+bool CheckItemReadPermissions(
+    TCypressNodeBase* node,
+    const TSecurityManagerPtr& securityManager)
 {
-public:
-    explicit TCustomAttributeDictionary(TNontemplateCypressNodeProxyBase* proxy)
-        : Proxy_(proxy)
-    { }
-
-    virtual std::vector<Stroka> List() const override
-    {
-        auto keys = ListNodeAttributes(
-            Proxy_->Bootstrap_->GetCypressManager(),
-            Proxy_->TrunkNode,
-            Proxy_->Transaction);
-        return std::vector<Stroka>(keys.begin(), keys.end());
-    }
-
-    virtual TYsonString FindYson(const Stroka& name) const override
-    {
-        const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
-        auto originators = cypressManager->GetNodeOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
-        for (const auto* node : originators) {
-            const auto* userAttributes = node->GetAttributes();
-            if (userAttributes) {
-                auto it = userAttributes->Attributes().find(name);
-                if (it != userAttributes->Attributes().end()) {
-                    return it->second;
-                }
-            }
-        }
-
-        return TYsonString();
-    }
-
-    virtual void SetYson(const Stroka& key, const TYsonString& value) override
-    {
-        Y_ASSERT(value);
-
-        auto oldValue = FindYson(key);
-        Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
-
-        const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
-        auto* node = cypressManager->LockNode(
-            Proxy_->TrunkNode,
-            Proxy_->Transaction,
-            TLockRequest::MakeSharedAttribute(key));
-
-        auto* userAttributes = node->GetMutableAttributes();
-        userAttributes->Attributes()[key] = value;
-
-        cypressManager->SetModified(Proxy_->TrunkNode, Proxy_->Transaction);
-    }
-
-    virtual bool Remove(const Stroka& key) override
-    {
-        const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
-        auto originators = cypressManager->GetNodeReverseOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
-
-        auto oldValue = FindYson(key);
-        Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, TYsonString());
-
-        const TTransaction* containingTransaction = nullptr;
-        bool contains = false;
-        for (const auto* node : originators) {
-            const auto* userAttributes = node->GetAttributes();
-            if (userAttributes) {
-                auto it = userAttributes->Attributes().find(key);
-                if (it != userAttributes->Attributes().end()) {
-                    contains = it->second.operator bool();
-                    if (contains) {
-                        containingTransaction = node->GetTransaction();
-                    }
-                    break;
-                }
-            }
-        }
-
-        if (!contains) {
-            return false;
-        }
-
-        auto* node = cypressManager->LockNode(
-            Proxy_->TrunkNode,
-            Proxy_->Transaction,
-            TLockRequest::MakeSharedAttribute(key));
-
-        auto* userAttributes = node->GetMutableAttributes();
-        if (containingTransaction == Proxy_->Transaction) {
-            YCHECK(userAttributes->Attributes().erase(key) == 1);
-        } else {
-            YCHECK(!containingTransaction);
-            userAttributes->Attributes()[key] = TYsonString();
-        }
-
-        cypressManager->SetModified(Proxy_->TrunkNode, Proxy_->Transaction);
+    // Fast path.
+    const auto& acd = node->Acd();
+    if (acd.GetInherit() && acd.Acl().Entries.empty()) {
         return true;
     }
 
-protected:
-    TNontemplateCypressNodeProxyBase* const Proxy_;
+    // Slow path.
+    auto* user = securityManager->GetAuthenticatedUser();
+    return securityManager->CheckPermission(node, user, EPermission::Read).Action == ESecurityAction::Allow;
+}
 
-};
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::TCustomAttributeDictionary(
+    TNontemplateCypressNodeProxyBase* proxy)
+    : Proxy_(proxy)
+{ }
+
+std::vector<Stroka> TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::List() const
+{
+    auto keys = ListNodeAttributes(
+        Proxy_->Bootstrap_->GetCypressManager(),
+        Proxy_->TrunkNode,
+        Proxy_->Transaction);
+    return std::vector<Stroka>(keys.begin(), keys.end());
+}
+
+TYsonString TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::FindYson(const Stroka& name) const
+{
+    const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
+    auto originators = cypressManager->GetNodeOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
+    for (const auto* node : originators) {
+        const auto* userAttributes = node->GetAttributes();
+        if (userAttributes) {
+            auto it = userAttributes->Attributes().find(name);
+            if (it != userAttributes->Attributes().end()) {
+                return it->second;
+            }
+        }
+    }
+
+    return TYsonString();
+}
+
+void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const Stroka& key, const TYsonString& value)
+{
+    Y_ASSERT(value);
+
+    auto oldValue = FindYson(key);
+    Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
+
+    const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
+    auto* node = cypressManager->LockNode(
+        Proxy_->TrunkNode,
+        Proxy_->Transaction,
+        TLockRequest::MakeSharedAttribute(key));
+
+    auto* userAttributes = node->GetMutableAttributes();
+    userAttributes->Attributes()[key] = value;
+
+    cypressManager->SetModified(Proxy_->TrunkNode, Proxy_->Transaction);
+}
+
+bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const Stroka& key)
+{
+    const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
+    auto originators = cypressManager->GetNodeReverseOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
+
+    auto oldValue = FindYson(key);
+    Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, TYsonString());
+
+    const TTransaction* containingTransaction = nullptr;
+    bool contains = false;
+    for (const auto* node : originators) {
+        const auto* userAttributes = node->GetAttributes();
+        if (userAttributes) {
+            auto it = userAttributes->Attributes().find(key);
+            if (it != userAttributes->Attributes().end()) {
+                contains = it->second.operator bool();
+                if (contains) {
+                    containingTransaction = node->GetTransaction();
+                }
+                break;
+            }
+        }
+    }
+
+    if (!contains) {
+        return false;
+    }
+
+    auto* node = cypressManager->LockNode(
+        Proxy_->TrunkNode,
+        Proxy_->Transaction,
+        TLockRequest::MakeSharedAttribute(key));
+
+    auto* userAttributes = node->GetMutableAttributes();
+    if (containingTransaction == Proxy_->Transaction) {
+        YCHECK(userAttributes->Attributes().erase(key) == 1);
+    } else {
+        YCHECK(!containingTransaction);
+        userAttributes->Attributes()[key] = TYsonString();
+    }
+
+    cypressManager->SetModified(Proxy_->TrunkNode, Proxy_->Transaction);
+    return true;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -213,11 +228,14 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     TTransaction* transaction,
     TCypressNodeBase* trunkNode)
     : TObjectProxyBase(bootstrap, metadata, trunkNode)
+    , CustomAttributesImpl_(this)
     , Transaction(transaction)
     , TrunkNode(trunkNode)
 {
     Y_ASSERT(TrunkNode);
     Y_ASSERT(TrunkNode->IsTrunk());
+
+    CustomAttributes_ = &CustomAttributesImpl_;
 }
 
 std::unique_ptr<ITransactionalNodeFactory> TNontemplateCypressNodeProxyBase::CreateFactory() const
@@ -377,6 +395,19 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
         return true;
     }
 
+
+    if (key == "opaque") {
+        ValidateNoTransaction();
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+        // NB: No locking, intentionally.
+        auto* node = GetThisImpl();
+        auto opaque = ConvertTo<bool>(value);
+        node->SetOpaque(opaque);
+
+        return true;
+    }
+
     return TObjectProxyBase::SetBuiltinAttribute(key, value);
 }
 
@@ -388,6 +419,17 @@ bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(const Stroka& key)
         auto* node = GetThisImpl();
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetExpirationTime(node, Null);
+
+        return true;
+    }
+
+    if (key == "opaque") {
+        ValidateNoTransaction();
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+        // NB: No locking, intentionally.
+        auto* node = GetThisImpl();
+        node->SetOpaque(false);
 
         return true;
     }
@@ -413,7 +455,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
 
     const auto* node = GetThisImpl();
     const auto* trunkNode = node->GetTrunkNode();
-    bool hasKey = NodeHasKey(Bootstrap_->GetCypressManager(), node);
+    bool hasKey = NodeHasKey(node);
     bool isExternal = node->IsExternal();
 
     descriptors->push_back(TAttributeDescriptor("parent_id")
@@ -444,6 +486,8 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor("account")
         .SetReplicated(true));
     descriptors->push_back("user_attribute_keys");
+    descriptors->push_back(TAttributeDescriptor("opaque")
+        .SetRemovable(true));
 }
 
 bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
@@ -452,7 +496,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 {
     const auto* node = GetThisImpl();
     const auto* trunkNode = node->GetTrunkNode();
-    bool hasKey = NodeHasKey(Bootstrap_->GetCypressManager(), node);
+    bool hasKey = NodeHasKey(node);
     bool isExternal = node->IsExternal();
 
     if (key == "parent_id" && node->GetParent()) {
@@ -601,6 +645,12 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
         return true;
     }
 
+    if (key == "opaque") {
+        BuildYsonFluently(consumer)
+            .Value(node->GetOpaque());
+        return true;
+    }
+
     return TObjectProxyBase::GetBuiltinAttribute(key, consumer);
 }
 
@@ -636,6 +686,159 @@ bool TNontemplateCypressNodeProxyBase::DoInvoke(const NRpc::IServiceContextPtr& 
     }
 
     return false;
+}
+
+void TNontemplateCypressNodeProxyBase::GetSelf(
+    TReqGet* request,
+    TRspGet* response,
+    const TCtxGetPtr& context)
+{
+    class TVisitor
+    {
+    public:
+        TVisitor(
+            TCypressManagerPtr cypressManager,
+            TSecurityManagerPtr securityManager,
+            TTransaction* transaction,
+            TNullable<std::vector<Stroka>> attributeKeys)
+            : CypressManager_(std::move(cypressManager))
+            , SecurityManager_(std::move(securityManager))
+            , Transaction_(transaction)
+            , AttributeKeys_(std::move(attributeKeys))
+        { }
+
+        void Run(TCypressNodeBase* root)
+        {
+            VisitAny(root, true);
+        }
+
+        TFuture<TYsonString> Finish()
+        {
+            return Writer_.Finish();
+        }
+
+    private:
+        const TCypressManagerPtr CypressManager_;
+        const TSecurityManagerPtr SecurityManager_;
+        TTransaction* const Transaction_;
+        const TNullable<std::vector<Stroka>> AttributeKeys_;
+
+        TAsyncYsonWriter Writer_;
+
+
+        void VisitAny(TCypressNodeBase* trunkNode, bool isRoot = false)
+        {
+            if (!isRoot && !CheckItemReadPermissions(trunkNode, SecurityManager_)) {
+                Writer_.OnEntity();
+                return;
+            }
+
+            auto proxy = CypressManager_->GetNodeProxy(trunkNode, Transaction_);
+            proxy->WriteAttributes(&Writer_, AttributeKeys_, false);
+
+            if (!isRoot && trunkNode->GetOpaque()) {
+                Writer_.OnEntity();
+                return;
+            }
+
+            switch (trunkNode->GetNodeType()) {
+                case ENodeType::List:
+                    VisitList(trunkNode->As<TListNode>());
+                    break;
+                case ENodeType::Map:
+                    VisitMap(trunkNode->As<TMapNode>());
+                    break;
+                default:
+                    VisitOther(trunkNode);
+                    break;
+            }
+        }
+
+        void VisitOther(TCypressNodeBase* trunkNode)
+        {
+            auto* node = CypressManager_->GetVersionedNode(trunkNode, Transaction_);
+            switch (node->GetType()) {
+                case EObjectType::StringNode:
+                    Writer_.OnStringScalar(node->As<TStringNode>()->Value());
+                    break;
+                case EObjectType::Int64Node:
+                    Writer_.OnInt64Scalar(node->As<TInt64Node>()->Value());
+                    break;
+                case EObjectType::Uint64Node:
+                    Writer_.OnUint64Scalar(node->As<TUint64Node>()->Value());
+                    break;
+                case EObjectType::DoubleNode:
+                    Writer_.OnDoubleScalar(node->As<TDoubleNode>()->Value());
+                    break;
+                case EObjectType::BooleanNode:
+                    Writer_.OnBooleanScalar(node->As<TBooleanNode>()->Value());
+                    break;
+                default:
+                    Writer_.OnEntity();
+                    break;
+            }
+        }
+
+        void VisitList(TCypressNodeBase* node)
+        {
+            Writer_.OnBeginList();
+            const auto& childList = GetListNodeChildList(
+                CypressManager_,
+                node,
+                Transaction_);
+            for (auto* child : childList) {
+                Writer_.OnListItem();
+                VisitAny(child);
+            }
+            Writer_.OnEndList();
+        }
+
+        void VisitMap(TCypressNodeBase* node)
+        {
+            Writer_.OnBeginMap();
+            yhash_map<Stroka, TCypressNodeBase*> keyToChildMapStorage;
+            const auto& keyToChildMap = GetMapNodeChildMap(
+                CypressManager_,
+                node,
+                Transaction_,
+                &keyToChildMapStorage);
+            for (const auto& pair : keyToChildMap) {
+                Writer_.OnKeyedItem(pair.first);
+                VisitAny(pair.second);
+            }
+            Writer_.OnEndMap();
+        }
+    };
+
+    auto attributeKeys = request->has_attributes()
+        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
+        : Null;
+
+    // TODO(babenko): make use of limit
+    auto limit = request->has_limit()
+        ? MakeNullable(request->limit())
+        : Null;
+
+    context->SetRequestInfo("AttributeKeys: %v, Limit: %v",
+        attributeKeys,
+        limit);
+
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
+    TVisitor visitor(
+        Bootstrap_->GetCypressManager(),
+        Bootstrap_->GetSecurityManager(),
+        Transaction,
+        std::move(attributeKeys));
+    visitor.Run(TrunkNode);
+    visitor.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+        if (resultOrError.IsOK()) {
+            response->set_value(resultOrError.Value().GetData());
+            context->Reply();
+        } else {
+            context->Reply(resultOrError);
+        }
+    }));
 }
 
 void TNontemplateCypressNodeProxyBase::RemoveSelf(
@@ -744,11 +947,6 @@ ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNodeBase
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     return cypressManager->GetNodeProxy(trunkNode, Transaction);
-}
-
-std::unique_ptr<IAttributeDictionary> TNontemplateCypressNodeProxyBase::DoCreateCustomAttributes()
-{
-    return std::unique_ptr<IAttributeDictionary>(new TCustomAttributeDictionary(this));
 }
 
 void TNontemplateCypressNodeProxyBase::ValidatePermission(
@@ -1430,6 +1628,75 @@ void TMapNodeProxy::DoRemoveChild(
         DetachChild(objectManager, TrunkNode, childImpl, true);
     }
     --impl->ChildCountDelta();
+}
+
+void TMapNodeProxy::ListSelf(
+    TReqList* request,
+    TRspList* response,
+    const TCtxListPtr& context)
+{
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
+    auto attributeKeys = request->has_attributes()
+        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
+        : Null;
+
+    auto limit = request->has_limit()
+        ? MakeNullable(request->limit())
+        : Null;
+
+    context->SetRequestInfo("AttributeKeys: %v, Limit: %v",
+        attributeKeys,
+        limit);
+
+    TAsyncYsonWriter writer;
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+    yhash_map<Stroka, TCypressNodeBase*> keyToChildMapStorage;
+    const auto& keyToChildMap = GetMapNodeChildMap(
+        cypressManager,
+        TrunkNode,
+        Transaction,
+        &keyToChildMapStorage);
+
+    if (limit && keyToChildMap.size() > *limit) {
+        writer.OnBeginAttributes();
+        writer.OnKeyedItem("incomplete");
+        writer.OnBooleanScalar(true);
+        writer.OnEndAttributes();
+    }
+
+    i64 counter = 0;
+
+    writer.OnBeginList();
+    for (const auto& pair : keyToChildMap) {
+        const auto& key = pair.first;
+        auto* trunkNode = pair.second;
+        writer.OnListItem();
+
+        if (CheckItemReadPermissions(trunkNode, securityManager)) {
+            auto proxy = cypressManager->GetNodeProxy(trunkNode, Transaction);
+            proxy->WriteAttributes(&writer, attributeKeys, false);
+        }
+
+        writer.OnStringScalar(key);
+
+        if (limit && ++counter >= *limit) {
+            break;
+        }
+    }
+    writer.OnEndList();
+
+    writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+        if (resultOrError.IsOK()) {
+            response->set_value(resultOrError.Value().GetData());
+            context->Reply();
+        } else {
+            context->Reply(resultOrError);
+        }
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

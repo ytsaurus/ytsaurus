@@ -99,7 +99,12 @@ public:
     virtual void WriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
         const TNullable<std::vector<Stroka>>& /*attributeKeys*/,
-        bool /*sortKeys*/) override
+        bool /*stable*/) override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual bool ShouldHideAttributes() override
     {
         Y_UNREACHABLE();
     }

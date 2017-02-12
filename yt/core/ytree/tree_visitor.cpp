@@ -25,10 +25,10 @@ public:
     TTreeVisitor(
         IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
-        bool sortKeys)
+        bool stable)
         : Consumer(consumer)
         , AttributeKeys(attributeKeys)
-        , SortKeys(sortKeys)
+        , Stable_(stable)
     { }
 
     void Visit(const INodePtr& root)
@@ -39,11 +39,11 @@ public:
 private:
     IAsyncYsonConsumer* const Consumer;
     const TNullable<std::vector<Stroka>> AttributeKeys;
-    const bool SortKeys;
+    const bool Stable_;
 
     void VisitAny(const INodePtr& node, bool isRoot = false)
     {
-        node->WriteAttributes(Consumer, AttributeKeys, SortKeys);
+        node->WriteAttributes(Consumer, AttributeKeys, Stable_);
 
         static const Stroka opaqueAttributeName("opaque");
         if (!isRoot &&
@@ -127,7 +127,7 @@ private:
     {
         Consumer->OnBeginMap();
         auto children = node->GetChildren();
-        if (SortKeys) {
+        if (Stable_) {
             typedef std::pair<Stroka, INodePtr> TPair;
             std::sort(
                 children.begin(),
@@ -151,26 +151,26 @@ void VisitTree(
     INodePtr root,
     IYsonConsumer* consumer,
     const TNullable<std::vector<Stroka>>& attributeKeys,
-    bool sortKeys)
+    bool stable)
 {
     TAsyncYsonConsumerAdapter adapter(consumer);
     VisitTree(
         std::move(root),
         &adapter,
         attributeKeys,
-        sortKeys);
+        stable);
 }
 
 void VisitTree(
     INodePtr root,
     IAsyncYsonConsumer* consumer,
     const TNullable<std::vector<Stroka>>& attributeKeys,
-    bool sortKeys)
+    bool stable)
 {
     TTreeVisitor treeVisitor(
         consumer,
         attributeKeys,
-        sortKeys);
+        stable);
     treeVisitor.Visit(root);
 }
 

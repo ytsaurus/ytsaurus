@@ -147,6 +147,7 @@ protected:
         bool Foreign : 1;
         bool Destroyed : 1;
         bool Disposed : 1;
+        bool Trunk : 1;
     } Flags_ = {};
 
     std::unique_ptr<TAttributeSet> Attributes_;
