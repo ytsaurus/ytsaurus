@@ -290,7 +290,8 @@ void IYPathService::WriteAttributes(
     bool stable)
 {
     if (!attributeKeys && ShouldHideAttributes() ||
-        attributeKeys && attributeKeys->empty()) {
+        attributeKeys && attributeKeys->empty())
+    {
         return;
     }
 
