@@ -1,7 +1,7 @@
 IF(YMAKE)
 
 SET(CMAKE_CURRENT_LIST_DIR .)
-SET(YT_ABI 19_1)
+SET(YT_ABI 19_2)
 
 PROGRAM(ytserver-master)
 
