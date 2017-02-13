@@ -82,7 +82,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.profiler                                   | ✔                 | ✘                |                  |
 | pyspark.rdd                                        | ✘                 | ✔                |                  |
 | pyspark.rddsampler                                 | ✔                 | ✘                |                  |
-| pyspark.resultiterable                             | ✔                 | ✘                |                  |
+| pyspark.resultiterable                             | ✘                 | ✔                |                  |
 | pyspark.serializers                                | ✔                 | ✘                |                  |
 | <s>pyspark.shell</s>                               | ✘                 | ✘                | Internal         |
 | <s>pyspark.shuffle</s>                             | ✘                 | ✘                | Internal         |
