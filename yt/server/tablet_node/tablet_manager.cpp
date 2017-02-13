@@ -612,7 +612,7 @@ private:
                     TWireProtocolReader reader(record.Data);
                     const auto& storeManager = tablet->GetStoreManager();
                     while (!reader.IsFinished()) {
-                        storeManager->ExecuteAtomicWrite(transaction, &reader, false);
+                        storeManager->ExecuteWrite(transaction, &reader, NullTimestamp, false);
                         ++rowCount;
                     }
                 }
@@ -1078,8 +1078,9 @@ private:
         TWireProtocolReader reader(recordData);
         int rowCount = 0;
         const auto& storeManager = tablet->GetStoreManager();
+        auto commitTimestamp = TimestampFromTransactionId(transactionId);
         while (!reader.IsFinished()) {
-            storeManager->ExecuteNonAtomicWrite(transactionId, &reader);
+            storeManager->ExecuteWrite(nullptr, &reader, commitTimestamp, false);
             ++rowCount;
         }
 
@@ -1132,7 +1133,7 @@ private:
                     false);
 
                 while (!reader.IsFinished()) {
-                    storeManager->ExecuteAtomicWrite(transaction, &reader, false);
+                    storeManager->ExecuteWrite(transaction, &reader, NullTimestamp, false);
                     ++rowCount;
                 }
 
@@ -1141,8 +1142,9 @@ private:
             }
 
             case EAtomicity::None: {
+                auto commitTimestamp = TimestampFromTransactionId(transactionId);
                 while (!reader.IsFinished()) {
-                    storeManager->ExecuteNonAtomicWrite(transactionId, &reader);
+                    storeManager->ExecuteWrite(nullptr, &reader, commitTimestamp, false);
                     ++rowCount;
                 }
                 break;
@@ -2019,7 +2021,7 @@ private:
                 reader->SetCurrent(readerCheckpoint);
             };
             try {
-                storeManager->ExecuteAtomicWrite(transaction, reader, true);
+                storeManager->ExecuteWrite(transaction, reader, NullTimestamp, true);
             } catch (const TRowBlockedException& ex) {
                 rewindReader();
                 rowBlockedEx = ex;

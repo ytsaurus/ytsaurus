@@ -29,28 +29,22 @@ public:
         NApi::INativeClientPtr client = nullptr);
 
     // IStoreManager overrides.
-    virtual void ExecuteAtomicWrite(
+    virtual void ExecuteWrite(
         TTransaction* transaction,
         NTabletClient::TWireProtocolReader* reader,
+        TTimestamp commitTimestamp,
         bool prelock) override;
-    virtual void ExecuteNonAtomicWrite(
-        const TTransactionId& transactionId,
-        NTabletClient::TWireProtocolReader* reader) override;
 
-    TSortedDynamicRowRef WriteRowAtomic(
+    TSortedDynamicRowRef WriteRow(
         TTransaction* transaction,
         TUnversionedRow row,
-        bool prelock);
-    void WriteRowNonAtomic(
         TTimestamp commitTimestamp,
-        TUnversionedRow row);
-    TSortedDynamicRowRef DeleteRowAtomic(
+        bool prelock);
+    TSortedDynamicRowRef DeleteRow(
         TTransaction* transaction,
         TKey key,
-        bool prelock);
-    void DeleteRowNonAtomic(
         TTimestamp commitTimestamp,
-        TKey key);
+        bool prelock);
 
     virtual void StartEpoch(TTabletSlotPtr slot) override;
     virtual void StopEpoch() override;
