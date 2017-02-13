@@ -839,60 +839,6 @@ private:
                 addGroup();
             });
 
-        // CHECK
-#if 0
-        auto mergeAdjacentRanges = [&] (const auto& ranges) {
-            auto size = ranges.end() - ranges.begin();
-
-            YCHECK(size > 0);
-
-            TKey lastLowerBound = ranges[0].first;
-            TKey lastUpperBound = ranges[0].second;
-
-            std::vector<TRowRange> mergedRanges;
-            for (size_t index = 1; index < size; ++index) {
-                const auto& keyRange = ranges[index];
-                if (lastUpperBound != keyRange.first) {
-                    if (lastLowerBound != lastUpperBound) {
-                        mergedRanges.emplace_back(lastLowerBound, lastUpperBound);
-                    }
-                    lastLowerBound = keyRange.first;
-                }
-                lastUpperBound = keyRange.second;
-            }
-
-            if (lastLowerBound != lastUpperBound) {
-                mergedRanges.emplace_back(lastLowerBound, lastUpperBound);
-            }
-
-            return mergedRanges;
-        };
-
-        std::vector<TRowRange> flatResult;
-        for (const auto& group : groupedSplits) {
-            flatResult.insert(flatResult.end(), group.begin(), group.end());
-        }
-
-        auto source = mergeAdjacentRanges(keyRanges);
-        auto result = mergeAdjacentRanges(flatResult);
-
-        for (size_t index = 0; index < source.size() && index < result.size(); ++index) {
-            if (source[index].first != result[index].first) {
-                LOG_FATAL("XXX    %v != %v",
-                    source[index].first,
-                    result[index].first);
-            }
-
-            if (source[index].second != result[index].second) {
-                LOG_FATAL("XXX    %v != %v",
-                    source[index].second,
-                    result[index].second);
-            }
-        }
-
-        YCHECK(source.size() == result.size());
-#endif
-
         return groupedSplits;
     }
 
