@@ -88,7 +88,9 @@ public:
 
     virtual bool IsExplicitJobCount() const override
     {
-        return static_cast<bool>(Spec_->JobCount);
+        // If #DataSizePerJob == 1, we guarantee #JobCount == #RowCount (if row count doesn't exceed #MaxJobCount).
+        return static_cast<bool>(Spec_->JobCount) ||
+            (static_cast<bool>(Spec_->DataSizePerJob) && Spec_->DataSizePerJob.Get() == 1);
     }
 
     virtual int GetJobCount() const override
