@@ -8,13 +8,12 @@ TEST_SRCS(
     test.py
 )
 
-TIMEOUT(100)
 
 PEERDIR(
     mapreduce/yt/python/v19
 )
 
-DATA(sbr://193093075)
+DATA(sbr://206623562)
 
 TAG(ya:external)
 
