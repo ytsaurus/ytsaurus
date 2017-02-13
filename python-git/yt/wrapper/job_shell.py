@@ -57,7 +57,7 @@ class JobShell(object):
         self.sync = HTTPClient()
         self.async = AsyncHTTPClient()
         self.terminal_mode = True
-        self.output = FileIO(sys.stdout.fileno(), mode='w')
+        self.output = FileIO(sys.stdout.fileno(), mode='w', closefd=False)
 
         proxy_url = get_proxy_url(client=client)
         proxy = "http://{0}/api/{1}"\
