@@ -6,6 +6,10 @@
 
 #include <yt/server/transaction_server/transaction.h>
 
+// COMPAT(babenko)
+#include <yt/core/ytree/convert.h>
+#include <yt/server/object_server/object.h>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -18,22 +22,13 @@ using namespace NCellMaster;
 
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     : TObjectBase(id.ObjectId)
-    , ExternalCellTag_(NotReplicatedCellTag)
-    , AccountingEnabled_(true)
-    , LockMode_(ELockMode::None)
-    , TrunkNode_(nullptr)
-    , Transaction_(nullptr)
-    , CreationTime_(0)
-    , ModificationTime_(0)
-    , AccessTime_(0)
-    , AccessCounter_(0)
-    , Revision_(0)
-    , Account_(nullptr)
     , Acd_(this)
-    , Parent_(nullptr)
-    , Originator_(nullptr)
     , TransactionId_(id.TransactionId)
-{ }
+{
+    if (TransactionId_) {
+        Flags_.Trunk = false;
+    }
+}
 
 TCypressNodeBase::~TCypressNodeBase() = default;
 
@@ -137,6 +132,7 @@ void TCypressNodeBase::Save(TSaveContext& context) const
     Save(context, Account_);
     Save(context, CachedResourceUsage_);
     Save(context, Acd_);
+    Save(context, Opaque_);
     Save(context, AccessTime_);
     Save(context, AccessCounter_);
 }
@@ -168,6 +164,24 @@ void TCypressNodeBase::Load(TLoadContext& context)
     Load(context, Account_);
     Load(context, CachedResourceUsage_);
     Load(context, Acd_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 505) {
+        Load(context, Opaque_);
+    } else {
+        if (Attributes_) {
+            auto& attributes = Attributes_->Attributes();
+            static const Stroka opaqueAttributeName("opaque");
+            auto it = attributes.find(opaqueAttributeName);
+            if (it != attributes.end()) {
+                const auto& value = it->second;
+                try {
+                    SetOpaque(NYTree::ConvertTo<bool>(value));
+                } catch (...) {
+                }
+                attributes.erase(it);
+            }
+        }
+    }
     Load(context, AccessTime_);
     Load(context, AccessCounter_);
 }

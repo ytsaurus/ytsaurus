@@ -39,6 +39,8 @@ DECLARE_ENTITY_TYPE(TAccount, TAccountId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TUser, TUserId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TGroup, TGroupId, NObjectClient::TDirectObjectIdHash)
 
+DECLARE_REFCOUNTED_CLASS(TSerializableClusterResources)
+
 class TSubject;
 
 struct TAccessControlEntry;

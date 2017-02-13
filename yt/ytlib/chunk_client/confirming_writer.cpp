@@ -230,20 +230,13 @@ void TConfirmingWriter::OpenSession()
 
 TChunkId TConfirmingWriter::CreateChunk() const
 {
-    try {
-        return NChunkClient::CreateChunk(
-            Client_,
-            CellTag_,
-            Options_,
-            TransactionId_,
-            ParentChunkListId_,
-            Logger);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::MasterCommunicationFailed,
-            "Error creating chunk")
-            << ex;
-    }
+    return NChunkClient::CreateChunk(
+        Client_,
+        CellTag_,
+        Options_,
+        TransactionId_,
+        ParentChunkListId_,
+        Logger);
 }
 
 IChunkWriterPtr TConfirmingWriter::CreateUnderlyingWriter() const

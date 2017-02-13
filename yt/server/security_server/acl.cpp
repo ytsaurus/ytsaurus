@@ -144,9 +144,7 @@ void Deserilize(
 ////////////////////////////////////////////////////////////////////////////////
 
 TAccessControlDescriptor::TAccessControlDescriptor(TObjectBase* object)
-    : Inherit_(true)
-    , Object_(object)
-    , Owner_(nullptr)
+    : Object_(object)
 { }
 
 void TAccessControlDescriptor::Clear()

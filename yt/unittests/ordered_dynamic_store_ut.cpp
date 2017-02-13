@@ -46,7 +46,7 @@ protected:
         const TUnversionedOwningRow& row,
         bool prelock)
     {
-        auto dynamicRow = Store_->WriteRow(transaction, row);
+        auto dynamicRow = Store_->WriteRow(transaction, row, NullTimestamp);
         LockRow(transaction, prelock, dynamicRow);
         return dynamicRow;
     }

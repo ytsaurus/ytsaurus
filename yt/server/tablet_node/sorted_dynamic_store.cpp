@@ -836,24 +836,30 @@ void TSortedDynamicStore::WaitOnBlockedRow(
     }
 }
 
-TSortedDynamicRow TSortedDynamicStore::WriteRowAtomic(
+TSortedDynamicRow TSortedDynamicStore::WriteRow(
     TTransaction* transaction,
     TUnversionedRow row,
+    TTimestamp commitTimestamp,
     ui32 lockMask)
 {
-    Y_ASSERT(Atomicity_ == EAtomicity::Full);
-    Y_ASSERT(lockMask != 0);
     Y_ASSERT(FlushRevision_ != MaxRevision);
 
     TSortedDynamicRow result;
+
+    ui32 revision = commitTimestamp == NullTimestamp
+        ? UncommittedRevision
+        : RegisterRevision(commitTimestamp);
 
     auto addValues = [&] (TSortedDynamicRow dynamicRow) {
         for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
             const auto& value = row[index];
             auto list = PrepareFixedValue(dynamicRow, value.Id);
             auto& uncommittedValue = list.GetUncommitted();
-            uncommittedValue.Revision = UncommittedRevision;
+            uncommittedValue.Revision = revision;
             CaptureUnversionedValue(&uncommittedValue, value);
+            if (commitTimestamp != NullTimestamp) {
+                list.Commit();
+            }
         }
     };
 
@@ -865,8 +871,10 @@ TSortedDynamicRow TSortedDynamicStore::WriteRowAtomic(
         // Copy keys.
         SetKeys(dynamicRow, row.Begin());
 
-        // Acquire the lock.
-        AcquireRowLocks(dynamicRow, transaction, lockMask, false);
+        if (commitTimestamp == NullTimestamp) {
+            // Acquire the lock.
+            AcquireRowLocks(dynamicRow, transaction, lockMask, false);
+        }
 
         // Copy values.
         addValues(dynamicRow);
@@ -878,12 +886,14 @@ TSortedDynamicRow TSortedDynamicStore::WriteRowAtomic(
     };
 
     auto existingKeyConsumer = [&] (TSortedDynamicRow dynamicRow) {
-        // Make sure the row is not blocked.
-        ValidateRowNotBlocked(dynamicRow, lockMask, transaction->GetStartTimestamp());
+        if (commitTimestamp == NullTimestamp) {
+            // Make sure the row is not blocked.
+            ValidateRowNotBlocked(dynamicRow, lockMask, transaction->GetStartTimestamp());
 
-        // Check for lock conflicts and acquire the lock.
-        CheckRowLocks(dynamicRow, transaction, lockMask);
-        AcquireRowLocks(dynamicRow, transaction, lockMask, false);
+            // Check for lock conflicts and acquire the lock.
+            CheckRowLocks(dynamicRow, transaction, lockMask);
+            AcquireRowLocks(dynamicRow, transaction, lockMask, false);
+        }
 
         // Copy values.
         addValues(dynamicRow);
@@ -893,6 +903,12 @@ TSortedDynamicRow TSortedDynamicStore::WriteRowAtomic(
 
     Rows_->Insert(TRowWrapper{row}, newKeyProvider, existingKeyConsumer);
 
+    if (commitTimestamp != NullTimestamp) {
+        auto& primaryLock = result.BeginLocks(KeyColumnCount_)[TSortedDynamicRow::PrimaryLockIndex];
+        AddWriteRevision(primaryLock, revision);
+        UpdateTimestampRange(commitTimestamp);
+    }
+
     OnMemoryUsageUpdated();
 
     ++PerformanceCounters_->DynamicRowWriteCount;
@@ -900,69 +916,16 @@ TSortedDynamicRow TSortedDynamicStore::WriteRowAtomic(
     return result;
 }
 
-TSortedDynamicRow TSortedDynamicStore::WriteRowNonAtomic(
-    TUnversionedRow row,
+TSortedDynamicRow TSortedDynamicStore::DeleteRow(
+    TTransaction* transaction,
+    NTableClient::TKey key,
     TTimestamp commitTimestamp)
 {
-    Y_ASSERT(Atomicity_ == EAtomicity::None);
     Y_ASSERT(FlushRevision_ != MaxRevision);
 
-    TSortedDynamicRow result;
-
-    ui32 commitRevision = RegisterRevision(commitTimestamp);
-
-    auto addValues = [&] (TSortedDynamicRow dynamicRow) {
-        for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
-            const auto& value = row[index];
-            auto list = PrepareFixedValue(dynamicRow, value.Id);
-            auto& uncommittedValue = list.GetUncommitted();
-            uncommittedValue.Revision = commitRevision;
-            CaptureUnversionedValue(&uncommittedValue, value);
-            list.Commit();
-        }
-    };
-
-    auto newKeyProvider = [&] () -> TSortedDynamicRow {
-        Y_ASSERT(StoreState_ == EStoreState::ActiveDynamic);
-
-        auto dynamicRow = AllocateRow();
-
-        // Copy keys.
-        SetKeys(dynamicRow, row.Begin());
-
-        // Copy values.
-        addValues(dynamicRow);
-
-        InsertIntoLookupHashTable(row.Begin(), dynamicRow);
-
-        result = dynamicRow;
-        return dynamicRow;
-    };
-
-    auto existingKeyConsumer = [&] (TSortedDynamicRow dynamicRow) {
-        // Copy values.
-        addValues(dynamicRow);
-
-        result = dynamicRow;
-    };
-
-    Rows_->Insert(TRowWrapper{row}, newKeyProvider, existingKeyConsumer);
-
-    AddWriteRevisionNonAtomic(result, commitTimestamp, commitRevision);
-
-    OnMemoryUsageUpdated();
-
-    ++PerformanceCounters_->DynamicRowWriteCount;
-
-    return result;
-}
-
-TSortedDynamicRow TSortedDynamicStore::DeleteRowAtomic(
-    TTransaction* transaction,
-    NTableClient::TKey key)
-{
-    Y_ASSERT(Atomicity_ == EAtomicity::Full);
-    Y_ASSERT(FlushRevision_ != MaxRevision);
+    ui32 revision = commitTimestamp == NullTimestamp
+        ? UncommittedRevision
+        : RegisterRevision(commitTimestamp);
 
     TSortedDynamicRow result;
 
@@ -974,8 +937,10 @@ TSortedDynamicRow TSortedDynamicStore::DeleteRowAtomic(
         // Copy keys.
         SetKeys(dynamicRow, key.Begin());
 
-        // Acquire the lock.
-        AcquireRowLocks(dynamicRow, transaction, TSortedDynamicRow::PrimaryLockMask, true);
+        if (commitTimestamp == NullTimestamp) {
+            // Acquire the lock.
+            AcquireRowLocks(dynamicRow, transaction, TSortedDynamicRow::PrimaryLockMask, true);
+        }
 
         // Insert row in hash table.
         InsertIntoLookupHashTable(key.Begin(), dynamicRow);
@@ -985,59 +950,24 @@ TSortedDynamicRow TSortedDynamicStore::DeleteRowAtomic(
     };
 
     auto existingKeyConsumer = [&] (TSortedDynamicRow dynamicRow) {
-        // Make sure the row is not blocked.
-        ValidateRowNotBlocked(dynamicRow, TSortedDynamicRow::PrimaryLockMask, transaction->GetStartTimestamp());
+        if (commitTimestamp == NullTimestamp) {
+            // Make sure the row is not blocked.
+            ValidateRowNotBlocked(dynamicRow, TSortedDynamicRow::PrimaryLockMask, transaction->GetStartTimestamp());
 
-        // Check for lock conflicts and acquire the lock.
-        CheckRowLocks(dynamicRow, transaction, TSortedDynamicRow::PrimaryLockMask);
-        AcquireRowLocks(dynamicRow, transaction, TSortedDynamicRow::PrimaryLockMask, true);
+            // Check for lock conflicts and acquire the lock.
+            CheckRowLocks(dynamicRow, transaction, TSortedDynamicRow::PrimaryLockMask);
+            AcquireRowLocks(dynamicRow, transaction, TSortedDynamicRow::PrimaryLockMask, true);
+        }
 
         result = dynamicRow;
     };
 
     Rows_->Insert(TRowWrapper{key}, newKeyProvider, existingKeyConsumer);
 
-    OnMemoryUsageUpdated();
-
-    ++PerformanceCounters_->DynamicRowDeleteCount;
-
-    return result;
-}
-
-TSortedDynamicRow TSortedDynamicStore::DeleteRowNonAtomic(
-    NTableClient::TKey key,
-    TTimestamp commitTimestamp)
-{
-    Y_ASSERT(Atomicity_ == EAtomicity::None);
-    Y_ASSERT(FlushRevision_ != MaxRevision);
-
-    ui32 commitRevision = RegisterRevision(commitTimestamp);
-
-    TSortedDynamicRow result;
-
-    auto newKeyProvider = [&] () -> TSortedDynamicRow {
-        Y_ASSERT(StoreState_ == EStoreState::ActiveDynamic);
-
-        auto dynamicRow = AllocateRow();
-
-        // Copy keys.
-        SetKeys(dynamicRow, key.Begin());
-
-        InsertIntoLookupHashTable(key.Begin(), dynamicRow);
-
-        result = dynamicRow;
-        return dynamicRow;
-    };
-
-    auto existingKeyConsumer = [&] (TSortedDynamicRow dynamicRow) {
-        result = dynamicRow;
-    };
-
-    Rows_->Insert(TRowWrapper{key}, newKeyProvider, existingKeyConsumer);
-
-    AddDeleteRevisionNonAtomic(result, commitTimestamp, commitRevision);
-
-    UpdateTimestampRange(commitTimestamp);
+    if (commitTimestamp != NullTimestamp) {
+        AddDeleteRevision(result, revision);
+        UpdateTimestampRange(commitTimestamp);
+    }
 
     OnMemoryUsageUpdated();
 
@@ -1434,29 +1364,6 @@ void TSortedDynamicStore::AddWriteRevision(TLockDescriptor& lock, ui32 revision)
     list.Push(revision);
 }
 
-void TSortedDynamicStore::AddDeleteRevisionNonAtomic(
-    TSortedDynamicRow row,
-    TTimestamp commitTimestamp,
-    ui32 commitRevision)
-{
-    Y_ASSERT(Atomicity_ == EAtomicity::None);
-
-    AddDeleteRevision(row, commitRevision);
-    UpdateTimestampRange(commitTimestamp);
-}
-
-void TSortedDynamicStore::AddWriteRevisionNonAtomic(
-    TSortedDynamicRow row,
-    TTimestamp commitTimestamp,
-    ui32 commitRevision)
-{
-    Y_ASSERT(Atomicity_ == EAtomicity::None);
-
-    auto& lock = row.BeginLocks(KeyColumnCount_)[TSortedDynamicRow::PrimaryLockIndex];
-    AddWriteRevision(lock, commitRevision);
-    UpdateTimestampRange(commitTimestamp);
-}
-
 void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, const TUnversionedValue* srcKeys)
 {
     ui32 nullKeyMask = 0;
@@ -1829,8 +1736,8 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             chunkReader,
             GetNullBlockCache(),
             cachedMeta,
-            NChunkClient::TReadLimit(),
-            NChunkClient::TReadLimit(),
+            MinKey(),
+            MaxKey(),
             TColumnFilter(),
             New<TChunkReaderPerformanceCounters>(),
             AllCommittedTimestamp);

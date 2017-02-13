@@ -46,17 +46,15 @@ public:
     virtual void WriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
-        bool sortKeys) override;
+        bool stable) override;
 
 
 protected:
-    class TCustomAttributeDictionary;
-
     NCellMaster::TBootstrap* const Bootstrap_;
     TObjectTypeMetadata* const Metadata_;
     TObjectBase* const Object_;
 
-    std::unique_ptr<NYTree::IAttributeDictionary> CustomAttributes_;
+    NYTree::IAttributeDictionary* CustomAttributes_ = nullptr;
 
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
@@ -89,8 +87,6 @@ protected:
 
     virtual NYTree::IAttributeDictionary* GetCustomAttributes() override;
     virtual NYTree::ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
-
-    virtual std::unique_ptr<NYTree::IAttributeDictionary> DoCreateCustomAttributes();
 
     // NYTree::ISystemAttributeProvider members
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
@@ -161,6 +157,23 @@ public:
         TObjectBase* object);
 
 protected:
+    class TCustomAttributeDictionary
+        : public NYTree::IAttributeDictionary
+    {
+    public:
+        explicit TCustomAttributeDictionary(TNontemplateNonversionedObjectProxyBase* proxy);
+
+        // IAttributeDictionary members
+        virtual std::vector<Stroka> List() const override;
+        virtual NYson::TYsonString FindYson(const Stroka& key) const override;
+        virtual void SetYson(const Stroka& key, const NYson::TYsonString& value) override;
+        virtual bool Remove(const Stroka& key) override;
+
+    private:
+        TNontemplateNonversionedObjectProxyBase* const Proxy_;
+
+    } CustomAttributesImpl_;
+
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
     virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;

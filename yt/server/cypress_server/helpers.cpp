@@ -200,16 +200,13 @@ void DetachChild(
     }
 }
 
-bool NodeHasKey(
-    const TCypressManagerPtr& cypressManager,
-    const TCypressNodeBase* node)
+bool NodeHasKey(const TCypressNodeBase* node)
 {
     auto* parent = node->GetParent();
     if (!parent) {
         return false;
     }
-    const auto& handler = cypressManager->GetHandler(parent);
-    return handler->GetNodeType() == ENodeType::Map;
+    return parent->GetNodeType() == ENodeType::Map;
 }
 
 bool IsParentOf(

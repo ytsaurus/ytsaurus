@@ -76,7 +76,7 @@ struct TDiskSpaceStatistics
 TDiskSpaceStatistics GetDiskSpaceStatistics(const Stroka& path);
 
 //! Creates the #path and parent directories if they don't exists.
-void ForcePath(const Stroka& path, int mode = 0777);
+void MakeDirRecursive(const Stroka& path, int mode = 0777);
 
 struct TFileStatistics
 {
