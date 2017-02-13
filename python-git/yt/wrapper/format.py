@@ -464,7 +464,8 @@ class YsonFormat(Format):
 
     def __init__(self, format=None, process_table_index=None, control_attributes_mode="iterator",
                  ignore_inner_attributes=None, boolean_as_string=None, table_index_column="@table_index",
-                 attributes=None, raw=None, always_create_attributes=None, encoding=_ENCODING_SENTINEL):
+                 attributes=None, raw=None, always_create_attributes=None, encoding=_ENCODING_SENTINEL,
+                 require_yson_bindings=True):
         """
         :param str format: output format (must be one of ["text", "pretty", "binary"], "text" be default).
         :param bool process_table_index: DEPRECATED! process input and output table switchers in `dump_rows`\
@@ -493,12 +494,14 @@ class YsonFormat(Format):
         self.process_table_index = process_table_index
         self.control_attributes_mode = control_attributes_mode
         self.table_index_column = table_index_column
+        self.require_yson_bindings = require_yson_bindings
 
         self._coerced_table_index_column = self._coerce_column_key(table_index_column)
 
     def _check_bindings(self):
-        if yson.TYPE != "BINARY":
-            raise YtFormatError('Yson bindings required. Bindings are shipped as additional package and '
+        if self.require_yson_bindings and yson.TYPE != "BINARY":
+            raise YtFormatError('YSON bindings required. Try to use other format or install bindings. '
+                                'Bindings are shipped as additional package and '
                                 'can be installed as Debian package "yandex-yt-python-yson" or as pip '
                                 'package "yandex-yt-yson-bindings"')
 

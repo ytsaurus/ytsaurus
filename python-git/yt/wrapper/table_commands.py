@@ -47,7 +47,7 @@ def _get_format_from_tables(tables, ignore_unexisting_tables):
             return None
 
         if has_attribute(table, "_format"):
-            format_name = get(table + "/@_format", format=YsonFormat())
+            format_name = get(table + "/@_format", format=YsonFormat(require_yson_bindings=False))
             return create_format(format_name)
         return None
 

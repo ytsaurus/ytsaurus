@@ -22,7 +22,7 @@ def parse_ypath(path, client=None):
     else:
         result = loads(make_request(
             "parse_ypath",
-            {"path": path, "output_format": YsonFormat().to_yson_type()},
+            {"path": path, "output_format": YsonFormat(require_yson_bindings=False).to_yson_type()},
             client=client,
             decode_content=False))
 

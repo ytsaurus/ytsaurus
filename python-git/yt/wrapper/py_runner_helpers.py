@@ -154,10 +154,8 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
 
     raw = attributes.get("is_raw", False)
 
-    if isinstance(input_format, YsonFormat) and yt.yson.TYPE != "BINARY" and not is_local_mode:
-        sys.stderr.write("YSON bindings not found. To resolve the problem "
-                         "try to use JsonFormat format or install yandex-yt-python-yson package.")
-        sys.exit(1)
+    if not is_local_mode and isinstance(input_format, YsonFormat):
+        input_format._check_bindings()
 
     rows = input_format.load_rows(get_binary_std_stream(sys.stdin), raw=raw)
 
