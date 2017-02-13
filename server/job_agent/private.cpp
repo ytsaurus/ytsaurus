@@ -1,0 +1,14 @@
+#include "private.h"
+
+namespace NYT {
+namespace NJobAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const NLogging::TLogger JobTrackerServerLogger("JobTracker");
+const NProfiling::TProfiler Profiler("/job_controller");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NJobAgent
+} // namespace NYT

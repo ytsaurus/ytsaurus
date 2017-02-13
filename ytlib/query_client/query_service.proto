@@ -1,0 +1,44 @@
+package NYT.NQueryClient.NProto;
+
+import "yt/ytlib/node_tracker_client/node_directory.proto";
+import "yt/ytlib/query_client/query_statistics.proto";
+import "yt/ytlib/query_client/query.proto";
+import "yt/core/misc/guid.proto";
+import "yt/ytlib/query_client/functions_cache.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqExecute
+{
+    required TQuery query = 1;
+    repeated TExternalFunctionImpl external_functions = 5;
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;
+    required TQueryOptions options = 2;
+    repeated TDataRanges data_sources = 3;
+    required int32 response_codec = 4; // ECodec
+}
+
+message TRspExecute
+{
+    required TQueryStatistics query_statistics = 1;
+    // Attachements contains wire-encoded data.
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRead
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 2;
+    required int64 timestamp = 3;
+    required int32 request_codec = 4; // ECodec
+    required int32 response_codec = 5; // ECodec
+    // Attachement contains wire-encoded data.
+}
+
+message TRspRead
+{
+    // Attachement contains wire-encoded data.
+}
+
+////////////////////////////////////////////////////////////////////////////////

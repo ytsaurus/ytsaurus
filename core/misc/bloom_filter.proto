@@ -1,0 +1,8 @@
+package NYT.NProto;
+
+message TBloomFilter
+{
+    required int32 version = 1;
+    required bytes bitmap = 2;
+    required int32 hash_count = 3;
+}

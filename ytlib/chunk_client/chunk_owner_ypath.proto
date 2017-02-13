@@ -1,0 +1,89 @@
+package NYT.NChunkClient.NProto;
+
+// Basic YPath RPC for all types of chunk list owners (tables, files, and journals).
+
+import "yt/core/misc/guid.proto";
+import "yt/ytlib/node_tracker_client/node_directory.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
+import "yt/ytlib/chunk_client/schema.proto";
+import "yt/ytlib/chunk_client/chunk_spec.proto";
+import "yt/ytlib/chunk_client/data_statistics.proto";
+import "yt/ytlib/table_client/chunk_meta.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqBeginUpload
+{
+    required int32 update_mode = 1;
+    required int32 lock_mode = 2;
+    // Only used during primary-to-secondary replication.
+    optional NYT.NProto.TGuid upload_transaction_id = 3;
+    optional string upload_transaction_title = 4;
+    optional int64 upload_transaction_timeout = 5;
+    // If the node is external, the upload transaction will automatically
+    // be replicated to the corresponding secondary cell. This list
+    // may provide additional cells to replicate the transaction to.
+    // This is useful, e.g., in implementing "concat" command.
+    repeated int32 upload_transaction_secondary_cell_tags = 6;
+}
+
+message TRspBeginUpload
+{
+    required NYT.NProto.TGuid upload_transaction_id = 1;
+    required int32 cell_tag = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetUploadParams
+{
+    optional bool fetch_last_key = 1 [default = false];
+}
+
+message TRspGetUploadParams
+{
+    optional NYT.NProto.TGuid chunk_list_id = 1;
+    optional bytes last_key = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqEndUpload
+{
+    optional TDataStatistics statistics = 1;
+    optional bool chunk_properties_update_needed = 4 [default = false];
+    optional NYT.NTableClient.NProto.TTableSchemaExt table_schema = 6;
+    optional int32 schema_mode = 7;
+}
+
+message TRspEndUpload
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Returns info describing a given portion of table.
+message TReqFetch
+{
+    optional bool fetch_all_meta_extensions = 2 [default = false];
+
+    // Not yet supported.
+    repeated int32 extension_tags = 3;
+
+    // Deprecated = 5;
+    // Deprecated = 6;
+    optional NChunkClient.NProto.TChannel channel = 7;
+    // Deprecated = 8;
+    // Deprecated = 9;
+
+    optional bool fetch_parity_replicas = 10 [default = false];
+
+    repeated TReadRange ranges = 11;
+}
+
+message TRspFetch
+{
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+    repeated NChunkClient.NProto.TChunkSpec chunks = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
