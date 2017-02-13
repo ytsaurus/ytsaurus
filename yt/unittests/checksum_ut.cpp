@@ -15,9 +15,6 @@ struct TCrcTestCase
     Stroka Data;
 };
 
-//0x74b42565ce6232d5', '0x5f02be5e81cf7b1c', '0xaadaac6d7d340c20', '0xd35b54234f7f70a0', '0xe729d85f050fa861',
-//'0x4852bb31b666ae4f', '0xab31ee2e0fe39abb', '0x3dc543531acca62b', '0x43c501e26fc35778', '0x4cc4843d59c1373e',
-//'0x481ac76eee0d3ebd
 static std::vector<TCrcTestCase> Cases = {
     {
         0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
