@@ -233,3 +233,4 @@ def remove_nones_from_dict(obj):
         if isinstance(value, Mapping):
             result[key] = remove_nones_from_dict(value)
     return result
+

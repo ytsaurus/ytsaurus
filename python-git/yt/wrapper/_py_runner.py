@@ -1,3 +1,14 @@
+def get_platform_version():
+    import sys
+    import platform
+
+    version = []
+    name = sys.platform
+    version.append(name)
+    if name in ("linux", "linux2"):
+        version.append(platform.linux_distribution())
+    return tuple(version)
+
 def main():
     # We should use local imports because of replacing __main__ module cause cleaning globals.
     import os
@@ -23,7 +34,7 @@ def main():
             modules_info = standard_pickle.load(fin)
 
         __python_eggs = []
-        for info in modules_info:
+        for info in modules_info["modules"]:
             destination = "modules"
             if info.get("tmpfs") and os.path.exists("tmpfs"):
                 destination = "tmpfs/modules"
@@ -38,7 +49,18 @@ def main():
             __zip.extractall(destination)
             __zip.close()
 
-        sys.path = __python_eggs + ["./modules", "./tmpfs/modules"] + sys.path
+        module_locations = ["./modules", "./tmpfs/modules"]
+        sys.path = __python_eggs + module_locations + sys.path
+
+        client_version = modules_info["platform_version"]
+        server_version = get_platform_version()
+
+        if client_version is not None and client_version != server_version:
+            from shutil import rmtree
+            for location in module_locations:
+                yson_bindings_path = os.path.join(location, "yt_yson_bindings")
+                if os.path.exists(yson_bindings_path):
+                    rmtree(yson_bindings_path)
 
         main_module = imp.load_module(__main_module_name,
                                       open(__main_filename, 'rb'),
