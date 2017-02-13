@@ -8,6 +8,7 @@
 #include <yt/server/cell_master/bootstrap.h>
 
 #include <yt/server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/medium.h>
 
 #include <yt/server/cypress_server/node_proxy_detail.h>
 #include <yt/server/cypress_server/virtual.h>
@@ -39,8 +40,10 @@ using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
+using namespace NChunkClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NObjectServer;
+using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -167,6 +170,8 @@ private:
             .SetOpaque(true));
         descriptors->push_back("available_space");
         descriptors->push_back("used_space");
+        descriptors->push_back("available_space_per_medium");
+        descriptors->push_back("used_space_per_medium");
         descriptors->push_back("chunk_replica_count");
         descriptors->push_back("online_node_count");
         descriptors->push_back("offline_node_count");
@@ -179,6 +184,7 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         if (key == "offline" || key == "registered" || key == "online" || key == "unregistered" || key == "mixed") {
             auto state =
@@ -201,13 +207,35 @@ private:
 
         if (key == "available_space") {
             BuildYsonFluently(consumer)
-                .Value(statistics.AvailableSpace);
+                .Value(statistics.TotalSpace.Available);
             return true;
         }
 
         if (key == "used_space") {
             BuildYsonFluently(consumer)
-                .Value(statistics.UsedSpace);
+                .Value(statistics.TotalSpace.Used);
+            return true;
+        }
+
+        if (key == "available_space_per_medium") {
+            BuildYsonFluently(consumer)
+                .DoMapFor(chunkManager->Media(),
+                    [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
+                        const auto* medium = pair.second;
+                        fluent
+                            .Item(medium->GetName()).Value(statistics.SpacePerMedium[medium->GetIndex()].Available);
+                    });
+            return true;
+        }
+
+        if (key == "used_space_per_medium") {
+            BuildYsonFluently(consumer)
+                .DoMapFor(chunkManager->Media(),
+                    [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
+                        const auto* medium = pair.second;
+                        fluent
+                            .Item(medium->GetName()).Value(statistics.SpacePerMedium[medium->GetIndex()].Used);
+                    });
             return true;
         }
 
