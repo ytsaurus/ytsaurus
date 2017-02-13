@@ -21,6 +21,15 @@ message TCredentialsExt
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TRowsetColumnDescriptor
+{
+    required int32 id = 1;
+    optional int32 type = 2;
+    optional string name = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqGetNode
 {
     required string path = 1;
@@ -29,6 +38,24 @@ message TReqGetNode
 message TRspGetNode
 {
     required bytes data = 1;
+}
+
+// Wire Format V1:
+//   - rowset schema is passed via `rowset_column_descriptor`,
+//   - rowset data is passed via attachments in unversioned wire format a-la YT.
+
+message TReqLookupRows
+{
+    required string path = 1;
+
+    optional int32 wire_format_version = 2 [default = 1];
+    repeated TRowsetColumnDescriptor rowset_column_descriptor = 3;
+}
+
+message TRspLookupRows
+{
+    optional int32 wire_format_version = 2 [default = 1];
+    repeated TRowsetColumnDescriptor rowset_column_descriptor = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
