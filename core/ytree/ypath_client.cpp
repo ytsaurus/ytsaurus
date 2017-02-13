@@ -1,0 +1,835 @@
+#include "ypath_client.h"
+#include "helpers.h"
+#include "exception_helpers.h"
+#include "ypath_detail.h"
+#include "ypath_proxy.h"
+
+#include <yt/core/misc/serialize.h>
+
+#include <yt/core/rpc/message.h>
+#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/rpc/server_detail.h>
+
+#include <yt/core/ypath/token.h>
+#include <yt/core/ypath/tokenizer.h>
+
+#include <yt/core/yson/format.h>
+#include <yt/core/yson/tokenizer.h>
+
+#include <yt/core/ytree/ypath.pb.h>
+
+#include <cmath>
+
+namespace NYT {
+namespace NYTree {
+
+using namespace NBus;
+using namespace NRpc;
+using namespace NRpc::NProto;
+using namespace NYPath;
+using namespace NYson;
+
+using NYT::FromProto;
+using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYPathRequest::TYPathRequest(const TRequestHeader& header)
+    : Header_(header)
+{ }
+
+TYPathRequest::TYPathRequest(
+    const Stroka& service,
+    const Stroka& method,
+    const TYPath& path,
+    bool mutating)
+{
+    Header_.set_service(service);
+    Header_.set_method(method);
+
+    auto* ypathExt = Header_.MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    ypathExt->set_mutating(mutating);
+    ypathExt->set_path(path);
+}
+
+bool TYPathRequest::IsOneWay() const
+{
+    return false;
+}
+
+bool TYPathRequest::IsHeavy() const
+{
+    return false;
+}
+
+TRequestId TYPathRequest::GetRequestId() const
+{
+    return NullRequestId;
+}
+
+TRealmId TYPathRequest::GetRealmId() const
+{
+    return NullRealmId;
+}
+
+const Stroka& TYPathRequest::GetMethod() const
+{
+    return Header_.method();
+}
+
+const Stroka& TYPathRequest::GetService() const
+{
+    return Header_.service();
+}
+
+void TYPathRequest::SetUser(const Stroka& /*user*/)
+{
+    Y_UNREACHABLE();
+}
+
+const Stroka& TYPathRequest::GetUser() const
+{
+    Y_UNREACHABLE();
+}
+
+bool TYPathRequest::GetRetry() const
+{
+    Y_UNREACHABLE();
+}
+
+void TYPathRequest::SetRetry(bool /*value*/)
+{
+    Y_UNREACHABLE();
+}
+
+NRpc::TMutationId TYPathRequest::GetMutationId() const
+{
+    Y_UNREACHABLE();
+}
+
+void TYPathRequest::SetMutationId(const NRpc::TMutationId& /*id*/)
+{
+    Y_UNREACHABLE();
+}
+
+const NRpc::NProto::TRequestHeader& TYPathRequest::Header() const
+{
+    return Header_;
+}
+
+NRpc::NProto::TRequestHeader& TYPathRequest::Header()
+{
+    return Header_;
+}
+
+TSharedRefArray TYPathRequest::Serialize()
+{
+    auto bodyData = SerializeBody();
+    return CreateRequestMessage(
+        Header_,
+        std::move(bodyData),
+        Attachments_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TYPathResponse::Deserialize(TSharedRefArray message)
+{
+    Y_ASSERT(message);
+
+    NRpc::NProto::TResponseHeader header;
+    if (!ParseResponseHeader(message, &header)) {
+        THROW_ERROR_EXCEPTION("Error parsing response header");
+    }
+
+    if (header.has_error()) {
+        auto error = NYT::FromProto<TError>(header.error());
+        error.ThrowOnError();
+    }
+
+    // Deserialize body.
+    Y_ASSERT(message.Size() >= 2);
+    DeserializeBody(message[1]);
+
+    // Load attachments.
+    Attachments_ = std::vector<TSharedRef>(message.Begin() + 2, message.End());
+}
+
+void TYPathResponse::DeserializeBody(const TRef& data)
+{
+    Y_UNUSED(data);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header)
+{
+    const auto& ext = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    return ext.path();
+}
+
+void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path)
+{
+    auto* ext = header->MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    ext->set_path(path);
+}
+
+void ResolveYPath(
+    const IYPathServicePtr& rootService,
+    const IServiceContextPtr& context,
+    IYPathServicePtr* suffixService,
+    TYPath* suffixPath)
+{
+    Y_ASSERT(rootService);
+    Y_ASSERT(suffixService);
+    Y_ASSERT(suffixPath);
+
+    auto currentService = rootService;
+
+    const auto& path = GetRequestYPath(context->RequestHeader());
+    auto currentPath = path;
+
+    int iteration = 0;
+    while (true) {
+        if (++iteration > MaxYPathResolveIterations) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "Path %v exceeds resolve depth limit",
+                path)
+                << TErrorAttribute("limit", MaxYPathResolveIterations);
+        }
+
+        IYPathService::TResolveResult result;
+        try {
+            result = currentService->Resolve(currentPath, context);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "Error resolving path %v",
+                path)
+                << TErrorAttribute("method", context->GetMethod())
+                << ex;
+        }
+
+        if (result.IsHere()) {
+            *suffixService = currentService;
+            *suffixPath = result.GetPath();
+            break;
+        }
+
+        currentService = result.GetService();
+        currentPath = result.GetPath();
+    }
+}
+
+TFuture<TSharedRefArray> ExecuteVerb(
+    const IYPathServicePtr& service,
+    const TSharedRefArray& requestMessage)
+{
+    IYPathServicePtr suffixService;
+    TYPath suffixPath;
+    try {
+        auto resolveContext = CreateYPathContext(requestMessage);
+        ResolveYPath(
+            service,
+            resolveContext,
+            &suffixService,
+            &suffixPath);
+    } catch (const std::exception& ex) {
+        return MakeFuture(CreateErrorResponseMessage(ex));
+    }
+
+    NRpc::NProto::TRequestHeader requestHeader;
+    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
+    SetRequestYPath(&requestHeader, suffixPath);
+
+    auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
+
+    auto invokeContext = CreateYPathContext(std::move(updatedRequestMessage));
+
+    // NB: Calling GetAsyncResponseMessage after Invoke is not allowed.
+    auto asyncResponseMessage = invokeContext->GetAsyncResponseMessage();
+
+    // This should never throw.
+    suffixService->Invoke(invokeContext);
+
+    return asyncResponseMessage;
+}
+
+void ExecuteVerb(
+    const IYPathServicePtr& service,
+    const IServiceContextPtr& context)
+{
+    IYPathServicePtr suffixService;
+    TYPath suffixPath;
+    try {
+        ResolveYPath(
+            service,
+            context,
+            &suffixService,
+            &suffixPath);
+    } catch (const std::exception& ex) {
+        context->Reply(ex);
+        return;
+    }
+
+    auto requestMessage = context->GetRequestMessage();
+    NRpc::NProto::TRequestHeader requestHeader;
+    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
+    SetRequestYPath(&requestHeader, suffixPath);
+
+    auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
+
+    class TInvokeContext
+        : public TServiceContextBase
+    {
+    public:
+        TInvokeContext(
+            TSharedRefArray requestMessage,
+            IServiceContextPtr underlyingContext)
+            : TServiceContextBase(
+                std::move(requestMessage),
+                underlyingContext->GetLogger(),
+                underlyingContext->GetLogLevel())
+            , UnderlyingContext_(std::move(underlyingContext))
+        { }
+
+        virtual void SetRawRequestInfo(const Stroka& info) override
+        {
+            UnderlyingContext_->SetRawRequestInfo(info);
+        }
+
+        virtual void SetRawResponseInfo(const Stroka& info) override
+        {
+            UnderlyingContext_->SetRawResponseInfo(info);
+        }
+
+    private:
+        const IServiceContextPtr UnderlyingContext_;
+
+
+        virtual void LogRequest() override
+        {
+            Y_UNREACHABLE();
+        }
+
+        virtual void LogResponse(const TError& /*error*/) override
+        { }
+
+        virtual void DoReply() override
+        {
+            UnderlyingContext_->Reply(GetResponseMessage());
+        }
+    };
+
+    auto invokeContext = New<TInvokeContext>(
+        std::move(updatedRequestMessage),
+        context);
+
+    // This should never throw.
+    suffixService->Invoke(std::move(invokeContext));
+}
+
+TFuture<TYsonString> AsyncYPathGet(
+    const IYPathServicePtr& service,
+    const TYPath& path,
+    const TNullable<std::vector<Stroka>>& attributeKeys)
+{
+    auto request = TYPathProxy::Get(path);
+    if (attributeKeys) {
+        ToProto(request->mutable_attributes()->mutable_keys(), *attributeKeys);
+    }
+    return ExecuteVerb(service, request)
+        .Apply(BIND([] (TYPathProxy::TRspGetPtr response) {
+            return TYsonString(response->value());
+        }));
+}
+
+Stroka SyncYPathGetKey(const IYPathServicePtr& service, const TYPath& path)
+{
+    auto request = TYPathProxy::GetKey(path);
+    return ExecuteVerb(service, request)
+        .Get()
+        .ValueOrThrow()->value();
+}
+
+TYsonString SyncYPathGet(
+    const IYPathServicePtr& service,
+    const TYPath& path,
+    const TNullable<std::vector<Stroka>>& attributeKeys)
+{
+    return
+        AsyncYPathGet(
+            service,
+            path,
+            attributeKeys)
+        .Get()
+        .ValueOrThrow();
+}
+
+TFuture<bool> AsyncYPathExists(
+    const IYPathServicePtr& service,
+    const TYPath& path)
+{
+    auto request = TYPathProxy::Exists(path);
+    return ExecuteVerb(service, request)
+        .Apply(BIND([] (TYPathProxy::TRspExistsPtr response) {
+            return response->value();
+        }));
+}
+
+bool SyncYPathExists(
+    const IYPathServicePtr& service,
+    const TYPath& path)
+{
+    return AsyncYPathExists(service, path)
+        .Get()
+        .ValueOrThrow();
+}
+
+void SyncYPathSet(
+    const IYPathServicePtr& service,
+    const TYPath& path,
+    const TYsonString& value)
+{
+    auto request = TYPathProxy::Set(path);
+    request->set_value(value.GetData());
+    ExecuteVerb(service, request)
+        .Get()
+        .ThrowOnError();
+}
+
+void SyncYPathRemove(
+    const IYPathServicePtr& service,
+    const TYPath& path,
+    bool recursive,
+    bool force)
+{
+    auto request = TYPathProxy::Remove(path);
+    request->set_recursive(recursive);
+    request->set_force(force);
+    ExecuteVerb(service, request)
+        .Get()
+        .ThrowOnError();
+}
+
+std::vector<Stroka> SyncYPathList(
+    const IYPathServicePtr& service,
+    const TYPath& path,
+    TNullable<i64> limit)
+{
+    return AsyncYPathList(service, path, limit)
+        .Get()
+        .ValueOrThrow();
+}
+
+TFuture<std::vector<Stroka>> AsyncYPathList(
+    const IYPathServicePtr& service,
+    const TYPath& path,
+    TNullable<i64> limit)
+{
+    auto request = TYPathProxy::List(path);
+    if (limit) {
+        request->set_limit(*limit);
+    }
+    return ExecuteVerb(service, request)
+        .Apply(BIND([] (TYPathProxy::TRspListPtr response) {
+            return ConvertTo<std::vector<Stroka>>(TYsonString(response->value()));
+        }));
+}
+
+void ApplyYPathOverride(
+    const INodePtr& root,
+    const TStringBuf& overrideString)
+{
+    // TODO(babenko): this effectively forbids override path from containing "="
+    int eqIndex = overrideString.find('=');
+    if (eqIndex == TStringBuf::npos) {
+        THROW_ERROR_EXCEPTION("Missing \"=\" in override string");
+    }
+
+    TYPath path(overrideString.begin(), overrideString.begin() + eqIndex);
+    TYsonString value(Stroka(overrideString.begin() + eqIndex + 1, overrideString.end()));
+
+    ForceYPath(root, path);
+    SyncYPathSet(root, path, value);
+}
+
+static INodePtr WalkNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path,
+    std::function<INodePtr(const IMapNodePtr&, const Stroka&)> handleMissingChildKey,
+    std::function<INodePtr(const IListNodePtr&, int)> handleMissingChildIndex)
+{
+    auto currentNode = root;
+    NYPath::TTokenizer tokenizer(path);
+    while (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
+        tokenizer.Skip(NYPath::ETokenType::Ampersand);
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+        switch (currentNode->GetType()) {
+            case ENodeType::Map: {
+                auto currentMap = currentNode->AsMap();
+                auto key = tokenizer.GetLiteralValue();
+                currentNode = currentMap->FindChild(key);
+                if (!currentNode) {
+                    return handleMissingChildKey(currentMap, key);
+                }
+                break;
+            }
+            case ENodeType::List: {
+                auto currentList = currentNode->AsList();
+                const auto& token = tokenizer.GetToken();
+                int index = ParseListIndex(token);
+                int adjustedIndex = currentList->AdjustChildIndex(index);
+                currentNode = currentList->FindChild(adjustedIndex);
+                if (!currentNode) {
+                    return handleMissingChildIndex(currentList, adjustedIndex);
+                }
+                break;
+            }
+            default:
+                ThrowCannotHaveChildren(currentNode);
+                Y_UNREACHABLE();
+        }
+    }
+    return currentNode;
+}
+
+INodePtr GetNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path)
+{
+    return WalkNodeByYPath(
+        root,
+        path,
+        [] (const IMapNodePtr& node, const Stroka& key) {
+            ThrowNoSuchChildKey(node, key);
+            return nullptr;
+        },
+        [] (const IListNodePtr& node, int index) {
+            ThrowNoSuchChildIndex(node, index);
+            return nullptr;
+        }
+    );
+}
+
+INodePtr FindNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path)
+{
+    return WalkNodeByYPath(
+        root,
+        path,
+        [] (const IMapNodePtr& node, const Stroka& key) {
+            return nullptr;
+        },
+        [] (const IListNodePtr& node, int index) {
+            return nullptr;
+        }
+    );
+}
+
+void SetNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path,
+    const INodePtr& value)
+{
+    auto currentNode = root;
+
+    NYPath::TTokenizer tokenizer(path);
+
+    Stroka currentToken;
+    Stroka currentLiteralValue;
+    auto nextSegment = [&] () {
+        tokenizer.Skip(NYPath::ETokenType::Ampersand);
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+        currentToken = Stroka(tokenizer.GetToken());
+        currentLiteralValue = tokenizer.GetLiteralValue();
+    };
+
+    tokenizer.Advance();
+    nextSegment();
+
+    while (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
+        switch (currentNode->GetType()) {
+            case ENodeType::Map: {
+                const auto& key = currentLiteralValue;
+                auto currentMap = currentNode->AsMap();
+                currentNode = currentMap->GetChild(key);
+                break;
+            }
+
+            case ENodeType::List: {
+                auto currentList = currentNode->AsList();
+                int index = ParseListIndex(currentToken);
+                int adjustedIndex = currentList->AdjustChildIndex(index);
+                currentNode = currentList->GetChild(adjustedIndex);
+                break;
+            }
+
+            default:
+                ThrowCannotHaveChildren(currentNode);
+                Y_UNREACHABLE();
+        }
+        nextSegment();
+    }
+
+    // Set value.
+    switch (currentNode->GetType()) {
+        case ENodeType::Map: {
+            const auto& key = currentLiteralValue;
+            auto currentMap = currentNode->AsMap();
+            auto child = currentMap->FindChild(key);
+            if (child) {
+                currentMap->ReplaceChild(child, value);
+            } else {
+                YCHECK(currentMap->AddChild(value, key));
+            }
+            break;
+        }
+
+        case ENodeType::List: {
+            auto currentList = currentNode->AsList();
+            int index = ParseListIndex(currentToken);
+            int adjustedIndex = currentList->AdjustChildIndex(index);
+            auto child = currentList->GetChild(adjustedIndex);
+            currentList->ReplaceChild(child, value);
+            break;
+        }
+
+        default:
+            ThrowCannotHaveChildren(currentNode);
+            Y_UNREACHABLE();
+    }
+}
+
+void ForceYPath(
+    const INodePtr& root,
+    const TYPath& path)
+{
+    auto currentNode = root;
+
+    NYPath::TTokenizer tokenizer(path);
+
+    Stroka currentToken;
+    Stroka currentLiteralValue;
+    auto nextSegment = [&] () {
+        tokenizer.Skip(NYPath::ETokenType::Ampersand);
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+        currentToken = Stroka(tokenizer.GetToken());
+        currentLiteralValue = tokenizer.GetLiteralValue();
+    };
+
+    tokenizer.Advance();
+    nextSegment();
+
+    auto factory = root->CreateFactory();
+
+    while (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
+        INodePtr child;
+        switch (currentNode->GetType()) {
+            case ENodeType::Map: {
+                auto currentMap = currentNode->AsMap();
+                const auto& key = currentLiteralValue;
+                child = currentMap->AsMap()->FindChild(key);
+                if (!child) {
+                    child = factory->CreateMap();
+                    YCHECK(currentMap->AddChild(child, key));
+                }
+                break;
+            }
+
+            case ENodeType::List: {
+                auto currentList = currentNode->AsList();
+                int index = ParseListIndex(currentToken);
+                int adjustedIndex = currentList->AdjustChildIndex(index);
+                child = currentList->GetChild(adjustedIndex);
+                break;
+            }
+
+            default:
+                ThrowCannotHaveChildren(currentNode);
+                Y_UNREACHABLE();
+        }
+
+        nextSegment();
+        currentNode = child;
+    }
+
+    factory->Commit();
+}
+
+TYPath GetNodeYPath(
+    const INodePtr& node,
+    INodePtr* root)
+{
+    std::vector<Stroka> tokens;
+    auto current = node;
+    while (true) {
+        auto parent = current->GetParent();
+        if (!parent) {
+            break;
+        }
+        Stroka token;
+        switch (parent->GetType()) {
+            case ENodeType::List: {
+                auto index = parent->AsList()->GetChildIndex(current);
+                token = ToYPathLiteral(index);
+                break;
+            }
+            case ENodeType::Map: {
+                auto key = parent->AsMap()->GetChildKey(current);
+                token = ToYPathLiteral(key);
+                break;
+            }
+            default:
+                Y_UNREACHABLE();
+        }
+        tokens.push_back(token);
+        current = parent;
+    }
+    if (root) {
+        *root = current;
+    }
+    std::reverse(tokens.begin(), tokens.end());
+    TYPath path;
+    for (const auto& token : tokens) {
+        path.append('/');
+        path.append(token);
+    }
+    return path;
+}
+
+INodePtr CloneNode(const INodePtr& node)
+{
+    return ConvertToNode(node);
+}
+
+INodePtr UpdateNode(const INodePtr& base, const INodePtr& patch)
+{
+    if (base->GetType() == ENodeType::Map && patch->GetType() == ENodeType::Map) {
+        auto result = CloneNode(base);
+        auto resultMap = result->AsMap();
+        auto patchMap = patch->AsMap();
+        auto baseMap = base->AsMap();
+        for (const auto& key : patchMap->GetKeys()) {
+            if (baseMap->FindChild(key)) {
+                resultMap->RemoveChild(key);
+                YCHECK(resultMap->AddChild(UpdateNode(baseMap->GetChild(key), patchMap->GetChild(key)), key));
+            } else {
+                YCHECK(resultMap->AddChild(CloneNode(patchMap->GetChild(key)), key));
+            }
+        }
+        result->MutableAttributes()->MergeFrom(patch->Attributes());
+        return result;
+    } else {
+        auto result = CloneNode(patch);
+        auto* resultAttributes = result->MutableAttributes();
+        resultAttributes->Clear();
+        if (base->GetType() == patch->GetType()) {
+            resultAttributes->MergeFrom(base->Attributes());
+        }
+        resultAttributes->MergeFrom(patch->Attributes());
+        return result;
+    }
+}
+
+bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs)
+{
+    // Check types.
+    auto lhsType = lhs->GetType();
+    auto rhsType = rhs->GetType();
+    if (lhsType != rhsType) {
+        return false;
+    }
+
+    // Check attributes.
+    const auto& lhsAttributes = lhs->Attributes();
+    const auto& rhsAttributes = rhs->Attributes();
+    if (lhsAttributes != rhsAttributes) {
+        return false;
+    }
+
+    // Check content.
+    switch (lhsType) {
+        case ENodeType::Map: {
+            auto lhsMap = lhs->AsMap();
+            auto rhsMap = rhs->AsMap();
+
+            auto lhsKeys = lhsMap->GetKeys();
+            auto rhsKeys = rhsMap->GetKeys();
+
+            if (lhsKeys.size() != rhsKeys.size()) {
+                return false;
+            }
+
+            std::sort(lhsKeys.begin(), lhsKeys.end());
+            std::sort(rhsKeys.begin(), rhsKeys.end());
+
+            for (size_t index = 0; index < lhsKeys.size(); ++index) {
+                const auto& lhsKey = lhsKeys[index];
+                const auto& rhsKey = rhsKeys[index];
+                if (lhsKey != rhsKey) {
+                    return false;
+                }
+                if (!AreNodesEqual(lhsMap->FindChild(lhsKey), rhsMap->FindChild(rhsKey))) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        case ENodeType::List: {
+            auto lhsList = lhs->AsList();
+            auto lhsChildren = lhsList->GetChildren();
+
+            auto rhsList = rhs->AsList();
+            auto rhsChildren = rhsList->GetChildren();
+
+            if (lhsChildren.size() != rhsChildren.size()) {
+                return false;
+            }
+
+            for (size_t index = 0; index < lhsChildren.size(); ++index) {
+                if (!AreNodesEqual(lhsList->FindChild(index), rhsList->FindChild(index))) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        case ENodeType::String:
+            return lhs->GetValue<Stroka>() == rhs->GetValue<Stroka>();
+
+        case ENodeType::Int64:
+            return lhs->GetValue<i64>() == rhs->GetValue<i64>();
+
+        case ENodeType::Uint64:
+            return lhs->GetValue<ui64>() == rhs->GetValue<ui64>();
+
+        case ENodeType::Double:
+            return std::abs(lhs->GetValue<double>() - rhs->GetValue<double>()) < 1e-6;
+
+        case ENodeType::Boolean:
+            return lhs->GetValue<bool>() == rhs->GetValue<bool>();
+
+        case ENodeType::Entity:
+            return true;
+
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYTree
+} // namespace NYT

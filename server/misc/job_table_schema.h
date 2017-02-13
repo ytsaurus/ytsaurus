@@ -1,0 +1,15 @@
+#pragma once
+
+#include <yt/ytlib/table_client/blob_table_writer.h>
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NTableClient::TBlobTableSchema GetStderrBlobTableSchema();
+
+NTableClient::TBlobTableSchema GetCoreBlobTableSchema();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

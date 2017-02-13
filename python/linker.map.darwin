@@ -1,0 +1,4 @@
+_init*_lib
+_init*_lib_d
+_PyInit_*_lib
+_PyInit_*_lib_d
