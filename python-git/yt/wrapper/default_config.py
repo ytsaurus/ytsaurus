@@ -204,7 +204,9 @@ default_config = {
         "dynamic_libraries": {
             "enable_auto_collection": False,
             "library_filter": None
-        }
+        },
+        # Ignore client yt_yson_bindings if platform on the cluster differs from client platform.
+        "ignore_yson_bindings_for_incompatible_platforms": True
     },
 
     # Enables special behavior if client works with local mode cluster.

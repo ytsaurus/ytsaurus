@@ -6,7 +6,7 @@ from .pickling import Pickler
 from .common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value, which, get_disk_size
 from .py_runner_helpers import process_rows
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
-from ._py_runner import main as run_py_runner
+from ._py_runner import get_platform_version, main as run_py_runner
 
 from yt.zip import ZipFile
 import yt.logger as logger
@@ -436,6 +436,11 @@ def build_modules_arguments(modules_info, create_temp_file, file_argument_builde
 
     for info in modules_info:
         info["filename"] = file_argument_builder({"filename": info["filename"], "hash": info["hash"]})
+
+    platform_version = None
+    if config["pickling"]["ignore_yson_bindings_for_incompatible_platforms"]:
+        platform_version = get_platform_version()
+    modules_info = {"modules": modules_info, "platform_version": platform_version}
 
     modules_info_filename = create_temp_file(prefix="_modules_info")
     with open(modules_info_filename, "wb") as fout:
