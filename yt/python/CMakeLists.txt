@@ -6,7 +6,7 @@ LIBRARY()
 
 OWNER(sandello)
 
-SET(YT_ABI 19_1)
+SET(YT_ABI 19_2)
 
 PEERDIR(
   yt/${YT_ABI}/yt/python/driver
