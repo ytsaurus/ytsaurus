@@ -41,10 +41,7 @@ public:
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TKey>& keys,
-        const NApi::TLookupRowsOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
+        const NApi::TLookupRowsOptions& options) override;
 
 
     virtual TFuture<NApi::TSelectRowsResult> SelectRows(
