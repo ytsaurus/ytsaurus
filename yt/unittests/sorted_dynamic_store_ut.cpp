@@ -44,7 +44,7 @@ protected:
         bool prelock,
         ui32 lockMask = TSortedDynamicRow::PrimaryLockMask)
     {
-        auto dynamicRow = Store_->WriteRowAtomic(transaction, row, lockMask);
+        auto dynamicRow = Store_->WriteRow(transaction, row, NullTimestamp, lockMask);
         LockRow(transaction, prelock, dynamicRow);
         return dynamicRow;
     }
@@ -64,7 +64,7 @@ protected:
 
     TSortedDynamicRow WriteRowNonAtomic(const TUnversionedOwningRow& row, TTimestamp timestamp)
     {
-        return Store_->WriteRowNonAtomic(row, timestamp);
+        return Store_->WriteRow(nullptr, row, timestamp, 0);
     }
 
     TSortedDynamicRow DeleteRow(
@@ -72,7 +72,7 @@ protected:
         const TOwningKey& key,
         bool prelock)
     {
-        auto dynamicRow = Store_->DeleteRowAtomic(transaction, key);
+        auto dynamicRow = Store_->DeleteRow(transaction, key, NullTimestamp);
         LockRow(transaction, prelock, dynamicRow);
         return dynamicRow;
     }
@@ -90,7 +90,7 @@ protected:
 
     TSortedDynamicRow DeleteRowNonAtomic(const TOwningKey& key, TTimestamp timestamp)
     {
-        return Store_->DeleteRowNonAtomic(key, timestamp);
+        return Store_->DeleteRow(nullptr, key, timestamp);
     }
 
     TUnversionedOwningRow LookupRow(const TOwningKey& key, TTimestamp timestamp)

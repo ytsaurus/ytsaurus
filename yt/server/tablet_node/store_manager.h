@@ -40,13 +40,11 @@ struct IStoreManager
     virtual void StartEpoch(TTabletSlotPtr slot) = 0;
     virtual void StopEpoch() = 0;
 
-    virtual void ExecuteAtomicWrite(
+    virtual void ExecuteWrite(
         TTransaction* transaction,
         NTabletClient::TWireProtocolReader* reader,
+        TTimestamp commitTimestamp,
         bool prelock) = 0;
-    virtual void ExecuteNonAtomicWrite(
-        const TTransactionId& transactionId,
-        NTabletClient::TWireProtocolReader* reader) = 0;
 
     virtual bool IsOverflowRotationNeeded() const = 0;
     virtual bool IsPeriodicRotationNeeded() const = 0;

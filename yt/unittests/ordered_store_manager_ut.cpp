@@ -37,14 +37,14 @@ protected:
         TUnversionedRow row,
         bool prelock)
     {
-        return StoreManager_->WriteRow(transaction, row, prelock);
+        return StoreManager_->WriteRow(transaction, row, NullTimestamp, prelock);
     }
 
     void WriteRow(const TUnversionedOwningRow& row)
     {
         auto transaction = StartTransaction();
 
-        StoreManager_->WriteRow(transaction.get(), row, false);
+        StoreManager_->WriteRow(transaction.get(), row, NullTimestamp, false);
 
         EXPECT_EQ(1, transaction->LockedOrderedRows().size());
         auto rowRef = transaction->LockedOrderedRows()[0];

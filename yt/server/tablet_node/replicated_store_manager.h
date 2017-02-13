@@ -36,13 +36,11 @@ public:
     virtual void StartEpoch(TTabletSlotPtr slot) override;
     virtual void StopEpoch() override;
 
-    virtual void ExecuteAtomicWrite(
+    virtual void ExecuteWrite(
         TTransaction* transaction,
         NTabletClient::TWireProtocolReader* reader,
+        TTimestamp commitTimestamp,
         bool prelock) override;
-    virtual void ExecuteNonAtomicWrite(
-        const TTransactionId& transactionId,
-        NTabletClient::TWireProtocolReader* reader) override;
 
     virtual bool IsOverflowRotationNeeded() const override;
     virtual bool IsPeriodicRotationNeeded() const override;
@@ -101,14 +99,15 @@ public:
         TPartition* partition,
         const TSharedRange<TKey>& keys) override;
 
-
     TOrderedDynamicRowRef WriteRow(
         TTransaction* transaction,
         TUnversionedRow row,
+        TTimestamp commitTimestamp,
         bool prelock);
     TOrderedDynamicRowRef DeleteRow(
         TTransaction* transaction,
         TKey key,
+        TTimestamp commitTimestamp,
         bool prelock);
 
 private:
