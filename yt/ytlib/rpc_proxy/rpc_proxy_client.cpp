@@ -37,7 +37,7 @@ TRpcProxyClient::TRpcProxyClient(
             localAddressString = localAddressString.substr(0, index);
         }
     }
-    if (localAddressString.StartsWith("[") && localAddressString.has_suffix("]")) {
+    if (localAddressString.StartsWith("[") && localAddressString.EndsWith("]")) {
         localAddressString = localAddressString.substr(1, localAddressString.length() - 2);
     }
 
