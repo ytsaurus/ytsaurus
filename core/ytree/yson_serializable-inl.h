@@ -38,6 +38,7 @@ void LoadFromNode(
     const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy)
 {
+    Y_UNUSED(mergeStrategy);
     try {
         Deserialize(parameter, node);
     } catch (const std::exception& ex) {
@@ -54,6 +55,7 @@ inline void LoadFromNode(
     const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy)
 {
+    Y_UNUSED(path);
     switch (mergeStrategy) {
         case EMergeStrategy::Default:
         case EMergeStrategy::Overwrite: {
