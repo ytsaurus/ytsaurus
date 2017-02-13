@@ -1907,8 +1907,10 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
 {
     rows->clear();
     if (Interrupting_) {
+        RowCount_ = RowIndex_.load();
         return false;
     }
+
     if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
         return true;
     }
