@@ -188,6 +188,7 @@ private:
             host,
             port,
             timeout);
+        LOG_DEBUG("Real URL is %v", realUrl);
 
         {
             TSimpleHttpClient httpClient(host, port, timeout, timeout);

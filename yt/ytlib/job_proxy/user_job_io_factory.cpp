@@ -458,7 +458,9 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(const IJobSpecHelperPtr& jobSpecHelp
             return New<TPartitionReduceJobIOFactory>(jobSpecHelper);
 
         default:
-            THROW_ERROR_EXCEPTION("Not a user job: %v", jobType);
+            THROW_ERROR_EXCEPTION(
+                "Job has an invalid type %Qlv while a user job is expected",
+                jobType);
     }
 }
 

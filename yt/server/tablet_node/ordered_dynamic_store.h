@@ -33,7 +33,8 @@ public:
 
     TOrderedDynamicRow WriteRow(
         TTransaction* transaction,
-        NTableClient::TUnversionedRow row);
+        NTableClient::TUnversionedRow row,
+        TTimestamp commitTimestamp);
 
     TOrderedDynamicRow MigrateRow(TTransaction* transaction, TOrderedDynamicRow row);
     void PrepareRow(TTransaction* transaction, TOrderedDynamicRow row);
@@ -85,6 +86,7 @@ private:
     TOrderedDynamicRow DoWriteSchemafulRow(NTableClient::TUnversionedRow row);
     TOrderedDynamicRow DoWriteSchemalessRow(NTableClient::TUnversionedRow row);
     void DoCommitRow(TOrderedDynamicRow row);
+    void SetRowCommitTimestamp(TOrderedDynamicRow row, TTimestamp commitTimestamp);
     void LoadRow(NTableClient::TUnversionedRow row);
 
     NTableClient::ISchemafulReaderPtr DoCreateReader(

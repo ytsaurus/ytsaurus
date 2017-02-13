@@ -31,17 +31,16 @@ public:
     virtual void Mount(
         const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) override;
 
-    virtual void ExecuteAtomicWrite(
+    virtual void ExecuteWrite(
         TTransaction* transaction,
         NTabletClient::TWireProtocolReader* reader,
+        TTimestamp commitTimestamp,
         bool prelock) override;
-    virtual void ExecuteNonAtomicWrite(
-        const TTransactionId& transactionId,
-        NTabletClient::TWireProtocolReader* reader) override;
 
     TOrderedDynamicRowRef WriteRow(
         TTransaction* transaction,
         TUnversionedRow row,
+        TTimestamp commitTimestamp,
         bool prelock);
 
     static void LockRow(TTransaction* transaction, bool prelock, const TOrderedDynamicRowRef& rowRef);

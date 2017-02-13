@@ -99,6 +99,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     branchedNode->SetTransaction(transaction);
     branchedNode->SetOriginator(originatingNode);
     branchedNode->SetExternalCellTag(originatingNode->GetExternalCellTag());
+    branchedNode->SetOpaque(originatingNode->GetOpaque());
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     securityManager->SetNodeResourceAccounting(branchedNode, originatingNode->GetAccountingEnabled());
@@ -164,13 +165,15 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     for (const auto& ace : sourceNode->Acd().Acl().Entries) {
         clonedNode->Acd().AddEntry(ace);
     }
+
+    // Copy "opaque" flag.
+    clonedNode->SetOpaque(sourceNode->GetOpaque());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TMapNode::TMapNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
-    , ChildCountDelta_(0)
 { }
 
 ENodeType TMapNode::GetNodeType() const

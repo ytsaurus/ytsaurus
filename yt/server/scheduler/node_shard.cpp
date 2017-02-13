@@ -281,6 +281,7 @@ void TNodeShard::RemoveOutdatedSchedulingTagFilter(const TSchedulingTagFilter& f
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
+    TWriterGuard guard(ResourcesLock_);
     SchedulingTagFilterToResources_.erase(filter);
 }
 

@@ -84,7 +84,8 @@ public:
     virtual void WriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
-        bool sortKeys) override;
+        bool stable) override;
+    virtual bool ShouldHideAttributes() override;
 
 protected:
     virtual void BeforeInvoke(const NRpc::IServiceContextPtr& context);

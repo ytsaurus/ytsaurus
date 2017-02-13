@@ -16,7 +16,7 @@ struct ICookieAuthenticator
         const Stroka& sessionId,
         const Stroka& sslSessionId,
         const Stroka& host,
-        const Stroka& userIp) = 0;
+        const Stroka& userIP) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICookieAuthenticator);

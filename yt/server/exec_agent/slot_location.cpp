@@ -93,7 +93,7 @@ TSlotLocation::TSlotLocation(
         Logger);
 
     try {
-        NFS::ForcePath(Config_->Path, 0755);
+        NFS::MakeDirRecursive(Config_->Path, 0755);
         HealthChecker_->RunCheck();
 
         ValidateMinimumSpace();
@@ -117,11 +117,11 @@ TFuture<void> TSlotLocation::CreateSandboxDirectories(int slotIndex)
 
          auto slotPath = GetSlotPath(slotIndex);
          try {
-             NFS::ForcePath(slotPath, 0755);
+             NFS::MakeDirRecursive(slotPath, 0755);
 
              for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                  auto sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
-                 NFS::ForcePath(sandboxPath, 0777);
+                 NFS::MakeDirRecursive(sandboxPath, 0777);
              }
          } catch (const std::exception& ex) {
             // Job will be aborted.
@@ -268,7 +268,7 @@ TFuture<Stroka> TSlotLocation::MakeSandboxTmpfs(
                 ValidateNotExists(tmpfsPath);
             }
 
-            NFS::ForcePath(tmpfsPath);
+            NFS::MakeDirRecursive(tmpfsPath);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to create directory %Qv for tmpfs in sandbox %v", path, sandboxPath)
                 << ex;

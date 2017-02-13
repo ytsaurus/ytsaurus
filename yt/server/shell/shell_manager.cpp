@@ -42,9 +42,6 @@ static const char* Bashrc =
     "alias mv='mv -i'\n"
     "alias rm='rm -i'\n"
     "alias perf_top='sudo /usr/bin/perf top -u \"$USER\"'\n"
-    "export TMPDIR=\"$HOME/tmp\"\n"
-    "mkdir -p \"$TMPDIR\"\n"
-    "export G_HOME=\"$HOME\"\n"
     "echo\n"
     "[ -f .motd ] && cat .motd\n"
     "echo\n"
@@ -68,7 +65,15 @@ public:
         , FreezerFullPath_(freezerFullPath)
         , MessageOfTheDay_(messageOfTheDay)
         , Environment_(std::move(environment))
-    { }
+    {
+        Environment_.emplace_back(Format("HOME=%v", WorkingDir_));
+        Environment_.emplace_back(Format("G_HOME=%v", WorkingDir_));
+        auto tmpDirPath = NFS::CombinePaths(WorkingDir_, "tmp");
+        try {
+            NFS::MakeDirRecursive(tmpDirPath, 0755);
+        } catch (...) { }
+        Environment_.emplace_back(Format("TMPDIR=%v", tmpDirPath));
+    }
 
     virtual TYsonString PollJobShell(const TYsonString& serializedParameters) override
     {
@@ -107,12 +112,15 @@ public:
                     Environment_.end(),
                     parameters.Environment.begin(),
                     parameters.Environment.end());
-                Environment_.emplace_back(Format("HOME=%v", WorkingDir_));
                 options->Environment = Environment_;
                 options->WorkingDir = WorkingDir_;
-                options->Bashrc = Bashrc;
-                options->MessageOfTheDay = MessageOfTheDay_;
-                options->InactivityTimeout = parameters.InactivityTimeout;
+                if (parameters.Command) {
+                    options->Command = parameters.Command;
+                } else {
+                    options->Bashrc = Bashrc;
+                    options->MessageOfTheDay = MessageOfTheDay_;
+                    options->InactivityTimeout = parameters.InactivityTimeout;
+                }
 
                 shell = CreateShell(std::move(options));
                 Register(shell);

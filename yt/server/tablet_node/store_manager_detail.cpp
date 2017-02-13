@@ -538,6 +538,14 @@ bool TStoreManagerBase::IsRecovery() const
     return HydraManager_ ? HydraManager_->IsRecovery() : false;
 }
 
+TTimestamp TStoreManagerBase::GenerateMonotonicCommitTimestamp(TTimestamp timestampHint)
+{
+    auto lastCommitTimestamp = Tablet_->GetLastCommitTimestamp();
+    auto monotonicTimestamp = std::max(lastCommitTimestamp + 1, timestampHint);
+    UpdateLastCommitTimestamp(monotonicTimestamp);
+    return monotonicTimestamp;
+}
+
 void TStoreManagerBase::UpdateLastCommitTimestamp(TTimestamp timestamp)
 {
     if (Tablet_->GetAtomicity() == EAtomicity::Full &&
@@ -549,16 +557,6 @@ void TStoreManagerBase::UpdateLastCommitTimestamp(TTimestamp timestamp)
     Tablet_->SetLastCommitTimestamp(std::max(
         Tablet_->GetLastCommitTimestamp(),
         timestamp));
-}
-
-TTimestamp TStoreManagerBase::EnsureMonotonicCommitTimestamp(const TTransactionId& transactionId)
-{
-    auto lastCommitTimestamp = Tablet_->GetLastCommitTimestamp();
-    auto monotonicTimestamp = std::max(
-        lastCommitTimestamp + 1,
-        TimestampFromTransactionId(transactionId));
-    UpdateLastCommitTimestamp(monotonicTimestamp);
-    return monotonicTimestamp;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

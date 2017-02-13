@@ -734,19 +734,13 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 chunkState->ChunkMeta->GetChunkId(),
                 chunkState->PreloadedBlockCache);
 
-            TReadLimit lowerLimit;
-            lowerLimit.SetKey(std::move(lowerBound));
-
-            TReadLimit upperLimit;
-            upperLimit.SetKey(std::move(upperBound));
-
             return CreateVersionedChunkReader(
                 New<TChunkReaderConfig>(),
                 std::move(underlyingReader),
                 chunkState->PreloadedBlockCache,
                 chunkState->ChunkMeta,
-                std::move(lowerLimit),
-                std::move(upperLimit),
+                std::move(lowerBound),
+                std::move(upperBound),
                 columnFilter,
                 chunkState->PerformanceCounters,
                 timestamp);
