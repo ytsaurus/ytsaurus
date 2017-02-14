@@ -36,8 +36,8 @@ int Main(int argc, const char* argv[])
             Cerr << "error: test " << testName << " is not registered" << Endl;
             return 1;
         }
-
-        test->second();
+        NUnitTest::TTestContext context;
+        test->second(context);
         return 0;
     }
 
