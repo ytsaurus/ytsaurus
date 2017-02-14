@@ -139,6 +139,9 @@ namespace NYT {
     template <class T, class = void>
     class TTableReader;
 
+    template <class T, class = void>
+    class TTableRangesReader;
+
     template <class T>
     using TTableReaderPtr = TIntrusivePtr<TTableReader<T>>;
 

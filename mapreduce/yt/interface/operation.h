@@ -162,7 +162,8 @@ class IJob
 public:
     enum EType {
         Mapper,
-        Reducer
+        Reducer,
+        ReducerAggregator,
     };
 
     virtual void Save(TOutputStream& stream) const
@@ -229,6 +230,35 @@ public:
     }
 
     void Break(); // do not process other keys
+};
+
+//
+// IAggregatorReducer jobs are used inside reduce operations.
+// Unlike IReduce jobs their `Do' method is called only once
+// and takes whole range of records split by key boundaries.
+//
+// Template argument TR must be TTableRangesReader.
+template <class TR, class TW>
+class IAggregatorReducer
+    : public IJob
+{
+public:
+    static const EType JobType = EType::ReducerAggregator;
+
+    using TReader = TR;
+    using TWriter = TW;
+
+    virtual void Start(TWriter* writer)
+    {
+        Y_UNUSED(writer);
+    }
+
+    virtual void Do(TReader* reader, TWriter* writer) = 0;
+
+    virtual void Finish(TWriter* writer)
+    {
+        Y_UNUSED(writer);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -56,6 +56,18 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, class>
+class TTableRangesReader
+    : public TThrRefBase
+{
+public:
+    TTableReader<T>& GetRange();
+    bool IsValid() const;
+    void Next();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T, class>
 class TTableWriter
     : public TThrRefBase
 {

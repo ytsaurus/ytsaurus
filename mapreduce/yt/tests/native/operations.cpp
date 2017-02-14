@@ -11,6 +11,52 @@ namespace NNativeTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::pair<Stroka, Stroka> GetKeyValuePair(const TNode& row)
+{
+    return std::make_pair(row["key"].AsString(), row["value"].AsString());
+}
+
+std::pair<Stroka, Stroka> GetKeyValuePair(const TYaMRProto& row)
+{
+    return std::make_pair(row.key(), row.value());
+}
+
+std::pair<Stroka, Stroka> GetKeyValuePair(const TYaMRRow& row)
+{
+    return std::make_pair(row.Key.ToString(), row.Value.ToString());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+void AddKeyValueRow(TTableWriter<T>* writer, const Stroka& key, const Stroka& value);
+
+template<>
+void AddKeyValueRow<TNode>(TTableWriter<TNode>* writer, const Stroka& key, const Stroka& value)
+{
+    writer->AddRow(TNode()("key", key)("value", value));
+}
+
+template<>
+void AddKeyValueRow<TYaMRProto>(TTableWriter<TYaMRProto>* writer, const Stroka& key, const Stroka& value)
+{
+    TYaMRProto proto;
+    proto.Setkey(key);
+    proto.Setvalue(value);
+    writer->AddRow(proto);
+}
+
+template<>
+void AddKeyValueRow<TYaMRRow>(TTableWriter<TYaMRRow>* writer, const Stroka& key, const Stroka& value)
+{
+    TYaMRRow row;
+    row.Key = key;
+    row.Value = value;
+    writer->AddRow(row);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperation
     : public NTest::TTest
 {
@@ -453,6 +499,96 @@ YT_TEST(TOperationSkippingReduce, YaMR)
 }
 
 YT_TEST(TOperationSkippingReduce, Proto)
+{
+    Do<TYaMRProto>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRow>
+class TAggregatorReducer
+    : public IAggregatorReducer<TTableRangesReader<TRow>, TTableWriter<TRow>>
+{
+public:
+    virtual void Do(
+        TTableRangesReader<TRow>* input,
+        TTableWriter<TRow>* output) override
+    {
+        for (; input->IsValid(); input->Next()) {
+            TStringStream str;
+            for (auto& rangeIter = input->GetRange(); rangeIter.IsValid(); rangeIter.Next()) {
+                auto kv = GetKeyValuePair(rangeIter.GetRow());
+                str << kv.first << ": " << kv.second << "; ";
+            }
+            AddKeyValueRow(output, "key", str.Str());
+        }
+    }
+};
+
+REGISTER_REDUCER(TAggregatorReducer<TNode>);
+REGISTER_REDUCER(TAggregatorReducer<TYaMRRow>);
+REGISTER_REDUCER(TAggregatorReducer<TYaMRProto>);
+
+class TOperationAggregatorReduce
+    : public TOperation
+{
+protected:
+    template <class TRow>
+    void Do()
+    {
+        {
+            auto writer = Client()->CreateTableWriter<TNode>(
+                TRichYPath(Input()).SortedBy("key"));
+            writer->AddRow(TNode()("key", "0")("value", "a"));
+            writer->AddRow(TNode()("key", "0")("value", "b"));
+            writer->AddRow(TNode()("key", "1")("value", "c"));
+            writer->AddRow(TNode()("key", "1")("value", "d"));
+            writer->Finish();
+        }
+        {
+            auto writer = Client()->CreateTableWriter<TNode>(
+                TRichYPath(Input2()).SortedBy("key"));
+            writer->AddRow(TNode()("key", "0")("value", "w"));
+            writer->AddRow(TNode()("key", "0")("value", "x"));
+            writer->AddRow(TNode()("key", "1")("value", "y"));
+            writer->AddRow(TNode()("key", "1")("value", "z"));
+            writer->Finish();
+        }
+
+        Client()->Reduce(
+            TReduceOperationSpec()
+                .template AddInput<TRow>(Input())
+                .template AddInput<TRow>(Input2())
+                .template AddOutput<TRow>(TRichYPath(Output()).SortedBy("key"))
+                .ReduceBy("key")
+                .SortBy("key"),
+            new TAggregatorReducer<TRow>
+        );
+
+        auto reader = Client()->CreateTableReader<TNode>(Output());
+        yvector<Stroka> values;
+        for (; reader->IsValid(); reader->Next()) {
+            values.emplace_back(reader->GetRow()["value"].AsString());
+        }
+        const yvector<Stroka> expectedValues = {
+            "0: a; 0: b; 0: w; 0: x; ",
+            "1: c; 1: d; 1: y; 1: z; ",
+        };
+        UNIT_ASSERT_VALUES_EQUAL(values, expectedValues);
+    }
+};
+
+YT_TEST(TOperationAggregatorReduce, Node)
+{
+    Do<TNode>();
+}
+
+YT_TEST(TOperationAggregatorReduce, YaMR)
+{
+    Do<TYaMRRow>();
+}
+
+YT_TEST(TOperationAggregatorReduce, Proto)
 {
     Do<TYaMRProto>();
 }

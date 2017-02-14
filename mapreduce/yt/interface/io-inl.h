@@ -88,8 +88,9 @@ public:
     using TRowType = T;
     using IReaderImpl = typename TRowTraits<T>::IReaderImpl;
 
-    TTableReaderBase() : Lock_(MakeAtomicShared<TMutex>()) {
-    }
+    TTableReaderBase()
+        : Lock_(MakeAtomicShared<TMutex>())
+    { }
 
     explicit TTableReaderBase(TIntrusivePtr<IReaderImpl> reader)
         : Reader_(reader)
@@ -254,6 +255,49 @@ inline TTableReaderPtr<T> IIOClient::CreateTableReader(
     TAutoPtr<T> prototype(new T);
     return TReaderCreator<T>::Create(CreateProtoReader(path, options, prototype.Get()));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+class TTableRangesReader<T>
+    : public TThrRefBase
+{
+public:
+    using TRowType = T;
+
+private:
+    using TReaderImpl = typename TRowTraits<TRowType>::IReaderImpl;
+
+public:
+    TTableRangesReader(TIntrusivePtr<TReaderImpl> readerImpl)
+        : ReaderImpl_(readerImpl)
+        , Reader_(MakeIntrusive<TTableReader<TRowType>>(readerImpl))
+        , IsValid_(Reader_->IsValid())
+    { }
+
+    TTableReader<T>& GetRange()
+    {
+        return *Reader_;
+    }
+
+    bool IsValid() const
+    {
+        return IsValid_;
+    }
+
+    void Next()
+    {
+        ReaderImpl_->NextKey();
+        if (IsValid_ = Reader_->IsValid()) {
+            Reader_->Next();
+        }
+    }
+
+private:
+    TIntrusivePtr<TReaderImpl> ReaderImpl_;
+    TIntrusivePtr<TTableReader<TRowType>> Reader_;
+    bool IsValid_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
