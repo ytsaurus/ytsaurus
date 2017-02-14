@@ -2250,7 +2250,7 @@ void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
     }
 }
 
-void TOperationControllerBase::OnIntermediateChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+void TOperationControllerBase::SafeOnIntermediateChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
 {
     // Intermediate chunks are always replicated.
     if (IsUnavailable(replicas, NErasure::ECodec::None)) {
@@ -2258,7 +2258,7 @@ void TOperationControllerBase::OnIntermediateChunkLocated(const TChunkId& chunkI
     }
 }
 
-void TOperationControllerBase::OnInputChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+void TOperationControllerBase::SafeOnInputChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
 {
     auto it = InputChunkMap.find(chunkId);
     YCHECK(it != InputChunkMap.end());
