@@ -118,7 +118,7 @@ private:
             response->Attachments(),
             CodecId_,
             Schema_,
-            true,
+            response->schemaful_response(),
             Logger);
         return FromProto(response->query_statistics());
     }

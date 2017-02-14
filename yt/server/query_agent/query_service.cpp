@@ -125,6 +125,7 @@ private:
 
                 response->Attachments() = writer->GetCompressedBlocks();
                 ToProto(response->mutable_query_statistics(), result);
+                response->set_schemaful_response(request->schemaful_response());
                 context->Reply();
             });
     }
