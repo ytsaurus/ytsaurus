@@ -22,6 +22,8 @@ message TReqExecute
 message TRspExecute
 {
     required TQueryStatistics query_statistics = 1;
+    optional bool schemaful_response = 2 [default=false];
+
     // Attachements contains wire-encoded data.
 }
 
