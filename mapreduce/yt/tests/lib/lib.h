@@ -12,7 +12,7 @@ namespace NTest {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTestMap
-    : public yhash_map<Stroka, std::function<void()>>
+    : public yhash_map<Stroka, std::function<void(NUnitTest::TTestContext&)>>
 {
     static TTestMap* Get()
     {
@@ -22,7 +22,7 @@ struct TTestMap
 
 struct TTestRegistrator
 {
-    inline TTestRegistrator(const Stroka& name, std::function<void()> func) {
+    inline TTestRegistrator(const Stroka& name, std::function<void(NUnitTest::TTestContext&)> func) {
         TTestMap::Get()->insert({name, func});
     }
 };
@@ -69,7 +69,7 @@ int Main(int argc, const char* argv[]);
 } // namespace NYT
 
 #define YT_TEST(N, NN) \
-void Test##N##NN(); \
+void Test##N##NN(NUnitTest::TTestContext&); \
 static NYT::NTest::TTestRegistrator RegisterTest##N##NN(#N#NN, Test##N##NN); \
 TEST_F(N, NN)
 
