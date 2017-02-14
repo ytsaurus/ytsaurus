@@ -70,7 +70,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.mllib.linalg.distributed                   | ✘                 | ✔                |                  |
 | pyspark.mllib.random                               | ✘                 | ✔                |                  |
 | pyspark.mllib.recommendation                       | ✔                 | ✘                |                  |
-| pyspark.mllib.regression                           | ✔                 | ✘                |                  |
+| pyspark.mllib.regression                           | ✘                 | ✔                |                  |
 | pyspark.mllib.stat                                 | ✔                 | ✘                |                  |
 | pyspark.mllib.stat.KernelDensity                   | ✔                 | ✘                |                  |
 | pyspark.mllib.stat._statistics                     | ✔                 | ✘                |                  |
