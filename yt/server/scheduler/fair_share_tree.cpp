@@ -1501,14 +1501,16 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributes
 {
     YCHECK(!Cloned_);
 
-    TSchedulerElement::UpdateBottomUp(dynamicAttributesList);
-
     Schedulable_ = Operation_->IsSchedulable();
     ResourceDemand_ = ComputeResourceDemand();
     ResourceLimits_ = ComputeResourceLimits();
     MaxPossibleResourceUsage_ = ComputeMaxPossibleResourceUsage();
     PendingJobCount_ = ComputePendingJobCount();
     StartTime_ = Operation_->GetStartTime();
+
+    // It should be called after update of ResourceDemand_ and MaxPossibleResourceUsage_ since
+    // these fields are used to calculate dominant resource.
+    TSchedulerElement::UpdateBottomUp(dynamicAttributesList);
 
     auto allocationLimits = GetAdjustedResourceLimits(
         ResourceDemand_,
