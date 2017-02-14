@@ -247,24 +247,50 @@ int RunReduceJob(size_t outputTableCount, TInputStream& jobStateStream)
 
     try {
         auto readerImpl = CreateJobReaderImpl<TInputRow>();
-        auto reader = MakeIntrusive<TTableReader<TInputRow>>(readerImpl);
+        auto rangesReader = MakeIntrusive<TTableRangesReader<TInputRow>>(readerImpl);
         auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
 
         auto reducer = MakeIntrusive<TReducer>();
         reducer->Load(jobStateStream);
 
         reducer->Start(writer.Get());
-        while (reader->IsValid()) {
-            reducer->Do(reader.Get(), writer.Get());
+        for (; rangesReader->IsValid(); rangesReader->Next()) {
+            reducer->Do(&rangesReader->GetRange(), writer.Get());
             if (TReducerContext::Get()->Break) {
                 break;
             }
-            readerImpl->NextKey();
-            if (reader->IsValid()) {
-                reader->Next();
-            }
         }
         reducer->Finish(writer.Get());
+        writer->Finish();
+
+    } catch (const TWithBackTrace<yexception>& e) {
+        Cerr << "Exception caught: " << e.what() << Endl;
+        e.BackTrace()->PrintTo(Cerr);
+        return 1;
+    }
+    //skip other exceptions: bt_terminate_handler will print exception trace for this cases
+
+    return 0;
+}
+
+template <class TReducer>
+int RunAggregatorReducer(size_t outputTableCount, TInputStream& jobStateStream)
+{
+    using TInputRow = typename TReducer::TReader::TRowType;
+    using TOutputRow = typename TReducer::TWriter::TRowType;
+
+    try {
+        auto readerImpl = CreateJobReaderImpl<TInputRow>();
+        auto rangesReader = MakeIntrusive<TTableRangesReader<TInputRow>>(readerImpl);
+        auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
+
+        auto reducer = MakeIntrusive<TReducer>();
+        reducer->Load(jobStateStream);
+
+        reducer->Start(writer.Get());
+        reducer->Do(rangesReader.Get(), writer.Get());
+        reducer->Finish(writer.Get());
+
         writer->Finish();
 
     } catch (const TWithBackTrace<yexception>& e) {
@@ -302,15 +328,21 @@ public:
     }
 
     template <class TReducer>
-    void RegisterReducer(const char* name)
+    void RegisterReducer(const char* name, typename std::enable_if_t<TReducer::JobType == IJob::EType::Reducer>* = nullptr)
     {
-        static_assert(TReducer::JobType == IJob::EType::Reducer,
-            "REGISTER_REDUCER is not compatible with this job class");
-
         const auto* typeInfoPtr = &typeid(TReducer);
         CheckNotRegistered(typeInfoPtr, name);
         JobNames[typeInfoPtr] = name;
         JobFunctions[name] = RunReduceJob<TReducer>;
+    }
+
+    template <class TReducer>
+    void RegisterReducer(const char* name, typename std::enable_if_t<TReducer::JobType == IJob::EType::ReducerAggregator>* = nullptr)
+    {
+        const auto* typeInfoPtr = &typeid(TReducer);
+        CheckNotRegistered(typeInfoPtr, name);
+        JobNames[typeInfoPtr] = name;
+        JobFunctions[name] = RunAggregatorReducer<TReducer>;
     }
 
     Stroka GetJobName(IJob* job)
@@ -449,7 +481,9 @@ TOperationId IOperationClient::Reduce(
     TReducer* reducer,
     const TOperationOptions& options)
 {
-    static_assert(TReducer::JobType == IJob::EType::Reducer,
+    static_assert(
+        TReducer::JobType == IJob::EType::Reducer
+        || TReducer::JobType == IJob::EType::ReducerAggregator,
         "This class cannot be used as a reducer");
 
     using TReduceInputRow = typename TReducer::TReader::TRowType;
