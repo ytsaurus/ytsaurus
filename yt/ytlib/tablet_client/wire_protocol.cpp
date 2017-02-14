@@ -664,7 +664,7 @@ auto TWireProtocolReader::GetSchemaData(
     const TColumnFilter& filter) -> TSchemaData
 {
     TSchemaData schemaData;
-    auto addColumn = [&](int id) {
+    auto addColumn = [&] (int id) {
         auto value = MakeUnversionedValueHeader(schema.Columns()[id].Type, id);
         schemaData.push_back(*reinterpret_cast<ui32*>(&value));
     };
@@ -748,9 +748,11 @@ public:
             SchemaChecked_ = true;
         }
 
+        auto schemaData = WireReader_->GetSchemaData(Schema_, TColumnFilter());
+
         rows->clear();
         while (!WireReader_->IsFinished()) {
-            auto row = WireReader_->ReadUnversionedRow(false);
+            auto row = WireReader_->ReadSchemafulRow(schemaData, false);
             rows->push_back(row);
         }
         ++BlockIndex_;
@@ -832,7 +834,7 @@ public:
                     SchemaWritten_ = true;
                 }
             }
-            WireWriter_->WriteUnversionedRow(row);
+            WireWriter_->WriteSchemafulRow(row);
             if (WireWriter_->GetByteSize() >= DesiredUncompressedBlockSize_) {
                 FlushBlock();
             }

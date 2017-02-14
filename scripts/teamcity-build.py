@@ -52,6 +52,7 @@ def prepare(options):
     options.build_enable_python_2_7 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_2_7", "YES"))
     options.build_enable_python_skynet = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_SKYNET", "YES"))
     options.build_enable_perl = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PERL", "YES"))
+    options.build_enable_asan = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_ASAN", "NO"))
 
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
     options.branch = options.branch.split("/")[0]
@@ -133,6 +134,7 @@ def configure(options):
         "-DYT_BUILD_ENABLE_PYTHON_2_7={0}".format(format_yes_no(options.build_enable_python_2_7)),
         "-DYT_BUILD_ENABLE_PYTHON_SKYNET={0}".format(format_yes_no(options.build_enable_python_skynet)),
         "-DYT_BUILD_ENABLE_PERL={0}".format(format_yes_no(options.build_enable_perl)),
+        "-DYT_BUILD_ENABLE_ASAN={0}".format(format_yes_no(options.build_enable_asan)),
         "-DYT_USE_LTO={0}".format(options.use_lto),
         "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
         "-DCMAKE_C_COMPILER={0}".format(options.cc),
@@ -209,6 +211,10 @@ def run_prepare(options):
 
 @build_step
 def run_unit_tests(options):
+    if options.disable_tests:
+        teamcity_message("Skipping unit tests since tests are disabled")
+        return
+
     sandbox_current = os.path.join(options.sandbox_directory, "unit_tests")
     sandbox_archive = os.path.join(options.failed_tests_path,
         "__".join([options.btid, options.build_number, "unit_tests"]))
@@ -244,7 +250,7 @@ def run_unit_tests(options):
 
 @build_step
 def run_javascript_tests(options):
-    if not options.build_enable_nodejs:
+    if not options.build_enable_nodejs or options.disable_tests:
         return
 
     tests_path = "{0}/yt/nodejs".format(options.working_directory)
@@ -349,6 +355,10 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
 
 @build_step
 def run_integration_tests(options):
+    if options.disable_tests:
+        teamcity_message("Integration tests are skipped since all tests are disabled")
+        return
+
     pytest_args = []
     if options.enable_parallel_testing:
         pytest_args.extend(["--process-count", "6"])
@@ -359,6 +369,10 @@ def run_integration_tests(options):
 
 @build_step
 def run_python_libraries_tests(options):
+    if options.disable_tests:
+        teamcity_message("Python tests are skipped since all tests are disabled")
+        return
+
     pytest_args = []
     if options.enable_parallel_testing:
         pytest_args.extend(["--process-count", "4"])
@@ -375,7 +389,7 @@ def run_python_libraries_tests(options):
 
 @build_step
 def run_perl_tests(options):
-    if not options.build_enable_perl:
+    if not options.build_enable_perl or options.disable_tests:
         return
     run_pytest(options, "perl", "{0}/perl/tests".format(options.checkout_directory))
 
@@ -461,6 +475,10 @@ def main():
 
     parser.add_argument(
         "--package",
+        type=parse_bool, action="store", default=False)
+
+    parser.add_argument(
+        "--disable_tests",
         type=parse_bool, action="store", default=False)
 
     parser.add_argument(
