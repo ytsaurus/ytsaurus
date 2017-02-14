@@ -186,7 +186,6 @@ public:
     virtual void UpdateConfig(TSchedulerConfigPtr config) override;
 
     virtual TCancelableContextPtr GetCancelableContext() const override;
-    virtual IInvokerPtr GetCancelableControlInvoker() const override;
     virtual IInvokerPtr GetCancelableInvoker() const override;
     virtual IInvokerPtr GetInvoker() const override;
 
@@ -254,7 +253,6 @@ protected:
     mutable NLogging::TLogger Logger;
 
     TCancelableContextPtr CancelableContext;
-    IInvokerPtr CancelableControlInvoker;
     IInvokerPtr Invoker;
     ISuspendableInvokerPtr SuspendableInvoker;
     IInvokerPtr CancelableInvoker;

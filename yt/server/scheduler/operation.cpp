@@ -27,6 +27,7 @@ TOperation::TOperation(
     const Stroka& authenticatedUser,
     const std::vector<Stroka>& owners,
     TInstant startTime,
+    IInvokerPtr controlInvoker,
     EOperationState state,
     bool suspended,
     const std::vector<TOperationEvent>& events)
@@ -46,6 +47,8 @@ TOperation::TOperation(
     , StderrCount_(0)
     , JobNodeCount_(0)
     , CodicilData_(MakeOperationCodicilString(Id_))
+    , CancelableContext_(New<TCancelableContext>())
+    , CancelableInvoker_(CancelableContext_->CreateInvoker(controlInvoker))
 {
     auto parsedSpec = ConvertTo<TOperationSpecBasePtr>(Spec_);
     MaxStderrCount_ = parsedSpec->MaxStderrCount;
@@ -117,6 +120,16 @@ void TOperation::SetState(EOperationState state)
 {
     State_ = state;
     Events_.emplace_back(TOperationEvent({TInstant::Now(), state}));
+}
+
+const IInvokerPtr& TOperation::GetCancelableControlInvoker()
+{
+    return CancelableInvoker_;
+}
+
+void TOperation::Cancel()
+{
+    CancelableContext_->Cancel();
 }
 
 void Serialize(const TOperationEvent& event, IYsonConsumer* consumer)

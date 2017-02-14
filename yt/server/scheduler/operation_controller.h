@@ -220,9 +220,6 @@ struct IOperationController
     //! Returns the context that gets invalidated by #Abort.
     virtual TCancelableContextPtr GetCancelableContext() const = 0;
 
-    //! Returns the control invoker wrapped by the context provided by #GetCancelableContext.
-    virtual IInvokerPtr GetCancelableControlInvoker() const = 0;
-
     /*!
      *  Returns the operation controller invoker wrapped by the context provided by #GetCancelableContext.
      *  Most of non-const controller methods are expected to be run in this invoker.
