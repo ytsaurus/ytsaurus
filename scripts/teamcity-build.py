@@ -335,10 +335,10 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
             failed = True
             teamcity_message("Failed to parse pytest output:\n" + open(handle.name).read())
 
-    find_and_report_core_dumps(options, suite_name, suite_path)
+    cores_found = find_and_report_core_dumps(options, suite_name, suite_path)
 
     try:
-        if failed:
+        if failed or cores_found:
             save_failed_test(options, suite_name, suite_path)
             raise StepFailedWithNonCriticalError("Tests '{0}' failed".format(suite_name))
     finally:
