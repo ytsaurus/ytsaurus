@@ -502,9 +502,10 @@ private:
         }
     }
 
-    void Swap(TNode& r) {
+    void Swap(TNode& r)
+    {
         using unsafe_ptr = std::array<size_t, sizeof(TNode)/sizeof(size_t)>*;
-        static_assert(sizeof(TNode) == sizeof(*(unsafe_ptr{})), "can't performunsafe swap");
+        static_assert(sizeof(TNode) == sizeof(*(unsafe_ptr{})), "can't perform unsafe swap");
         unsafe_ptr me = (unsafe_ptr)(void*)this;
         unsafe_ptr other = (unsafe_ptr)(void*)&r;
         std::swap(*me, *other);
