@@ -166,6 +166,7 @@ IWireProtocolRowsetReaderPtr CreateWireProtocolRowsetReader(
     const std::vector<TSharedRef>& compressedBlocks,
     NCompression::ECodec codecId,
     const NTableClient::TTableSchema& schema,
+    bool isSchemaful,
     const NLogging::TLogger& logger);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -182,6 +183,7 @@ IWireProtocolRowsetWriterPtr CreateWireProtocolRowsetWriter(
     NCompression::ECodec codecId,
     size_t desiredUncompressedBlockSize,
     const NTableClient::TTableSchema& schema,
+    bool isSchemaful,
     const NLogging::TLogger& logger);
 
 ///////////////////////////////////////////////////////////////////////////////

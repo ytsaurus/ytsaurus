@@ -703,10 +703,12 @@ public:
         const std::vector<TSharedRef>& compressedBlocks,
         NCompression::ECodec codecId,
         const TTableSchema& schema,
+        bool isSchemaful,
         const NLogging::TLogger& logger)
         : CompressedBlocks_(compressedBlocks)
           , Codec_(NCompression::GetCodec(codecId))
           , Schema_(schema)
+          , IsSchemaful(isSchemaful)
           , Logger(
             NLogging::TLogger(logger)
                 .AddTag("ReaderId: %v", TGuid::Create()))
@@ -752,7 +754,9 @@ public:
 
         rows->clear();
         while (!WireReader_->IsFinished()) {
-            auto row = WireReader_->ReadSchemafulRow(schemaData, false);
+            auto row = IsSchemaful
+                ? WireReader_->ReadSchemafulRow(schemaData, false)
+                : WireReader_->ReadUnversionedRow(false);
             rows->push_back(row);
         }
         ++BlockIndex_;
@@ -769,6 +773,7 @@ private:
     const std::vector<TSharedRef> CompressedBlocks_;
     NCompression::ICodec* const Codec_;
     const TTableSchema Schema_;
+    bool IsSchemaful;
     const NLogging::TLogger Logger;
 
     int BlockIndex_ = 0;
@@ -782,12 +787,14 @@ IWireProtocolRowsetReaderPtr CreateWireProtocolRowsetReader(
     const std::vector<TSharedRef>& compressedBlocks,
     NCompression::ECodec codecId,
     const TTableSchema& schema,
+    bool isSchemaful,
     const NLogging::TLogger& logger)
 {
     return New<TWireProtocolRowsetReader>(
         compressedBlocks,
         codecId,
         schema,
+        isSchemaful,
         logger);
 }
 
@@ -801,10 +808,12 @@ public:
         NCompression::ECodec codecId,
         size_t desiredUncompressedBlockSize,
         const TTableSchema& schema,
+        bool isSchemaful,
         const NLogging::TLogger& logger)
         : Codec_(NCompression::GetCodec(codecId))
         , DesiredUncompressedBlockSize_(desiredUncompressedBlockSize)
         , Schema_(schema)
+        , IsSchemaful(isSchemaful)
         , Logger(NLogging::TLogger(logger)
             .AddTag("WriterId: %v", TGuid::Create()))
     {
@@ -834,7 +843,11 @@ public:
                     SchemaWritten_ = true;
                 }
             }
-            WireWriter_->WriteSchemafulRow(row);
+            if (IsSchemaful) {
+                WireWriter_->WriteSchemafulRow(row);
+            } else {
+                WireWriter_->WriteUnversionedRow(row);
+            }
             if (WireWriter_->GetByteSize() >= DesiredUncompressedBlockSize_) {
                 FlushBlock();
             }
@@ -857,6 +870,7 @@ private:
     NCompression::ICodec* const Codec_;
     const size_t DesiredUncompressedBlockSize_;
     const TTableSchema Schema_;
+    bool IsSchemaful;
     const NLogging::TLogger Logger;
 
     std::vector<TSharedRef> CompressedBlocks_;
@@ -890,12 +904,14 @@ IWireProtocolRowsetWriterPtr CreateWireProtocolRowsetWriter(
     NCompression::ECodec codecId,
     size_t desiredUncompressedBlockSize,
     const NTableClient::TTableSchema& schema,
+    bool isSchemaful,
     const NLogging::TLogger& logger)
 {
     return New<TWireProtocolRowsetWriter>(
         codecId,
         desiredUncompressedBlockSize,
         schema,
+        isSchemaful,
         logger);
 }
 

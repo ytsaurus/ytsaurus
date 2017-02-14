@@ -110,6 +110,7 @@ private:
                     codecId,
                     Config_->DesiredUncompressedResponseBlockSize,
                     query->GetTableSchema(),
+                    request->schemaful_response(),
                     Logger);
 
                 const auto& executor = Bootstrap_->GetQueryExecutor();
