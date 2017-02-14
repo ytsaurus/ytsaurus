@@ -118,6 +118,7 @@ private:
             response->Attachments(),
             CodecId_,
             Schema_,
+            true,
             Logger);
         return FromProto(response->query_statistics());
     }
@@ -606,6 +607,7 @@ private:
                 ToProto(req->mutable_options(), options);
                 ToProto(req->mutable_data_sources(), dataSources);
                 req->set_response_codec(static_cast<int>(config->QueryResponseCodec));
+                req->set_schemaful_response(true);
             }
 
             auto queryFingerprint = InferName(query, true);
