@@ -129,6 +129,12 @@ public:
     //! Sets operation state and adds corresponding event.
     void SetState(EOperationState state);
 
+    //! Returns a cancelable control invoker corresponding to this operation.
+    const IInvokerPtr& GetCancelableControlInvoker();
+
+    //! Cancels the context of the invoker returned by #GetCancelableControlInvoker.
+    void Cancel();
+
     TOperation(
         const TOperationId& operationId,
         EOperationType type,
@@ -138,12 +144,15 @@ public:
         const Stroka& authenticatedUser,
         const std::vector<Stroka>& owners,
         TInstant startTime,
+        IInvokerPtr controlInvoker,
         EOperationState state = EOperationState::None,
         bool suspended = false,
         const std::vector<TOperationEvent>& events = {});
 
 private:
     const Stroka CodicilData_;
+    const TCancelableContextPtr CancelableContext_;
+    const IInvokerPtr CancelableInvoker_;
 
     TPromise<void> StartedPromise_ = NewPromise<void>();
     TPromise<void> FinishedPromise_ = NewPromise<void>();

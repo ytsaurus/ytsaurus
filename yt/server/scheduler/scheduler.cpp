@@ -538,7 +538,8 @@ public:
             spec,
             user,
             operationSpec->Owners,
-            TInstant::Now());
+            TInstant::Now(),
+            GetControlInvoker());
         operation->SetState(EOperationState::Initializing);
 
         WaitFor(Strategy_->ValidateOperationStart(operation))
@@ -836,7 +837,7 @@ public:
                     }
                 }
             })
-            .Via(controller->GetCancelableControlInvoker()));
+            .Via(operation->GetCancelableControlInvoker()));
     }
 
 
@@ -1319,6 +1320,7 @@ private:
             auto operation = pair.second;
             LOG_INFO("Forgetting operation (OperationId: %v)", operation->GetId());
             if (!operation->IsFinishedState()) {
+                operation->Cancel();
                 operation->GetController()->Forget();
                 SetOperationFinalState(
                     operation,
@@ -1690,7 +1692,7 @@ private:
         // fashion.
         auto controller = operation->GetController();
         BIND(&TImpl::DoPrepareOperation, MakeStrong(this), operation)
-            .AsyncVia(controller->GetCancelableControlInvoker())
+            .AsyncVia(operation->GetCancelableControlInvoker())
             .Run();
 
         operation->SetStarted(TError());
@@ -1795,7 +1797,7 @@ private:
 
         auto controller = operation->GetController();
         BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation, controllerTransactions)
-            .Via(controller->GetCancelableControlInvoker())
+            .Via(operation->GetCancelableControlInvoker())
             .Run();
     }
 
@@ -2175,6 +2177,7 @@ private:
         }
 
         {
+            operation->Cancel();
             auto controller = operation->GetController();
             if (controller) {
                 controller->Abort();

@@ -854,6 +854,7 @@ private:
             attributes.Get<Stroka>("authenticated_user"),
             operationSpec->Owners,
             attributes.Get<TInstant>("start_time"),
+            Bootstrap->GetControlInvoker(),
             attributes.Get<EOperationState>("state"),
             attributes.Get<bool>("suspended"),
             attributes.Get<std::vector<TOperationEvent>>("events", {}));

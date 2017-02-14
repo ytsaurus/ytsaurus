@@ -1072,7 +1072,6 @@ TOperationControllerBase::TOperationControllerBase(
     , AuthenticatedOutputMasterClient(AuthenticatedMasterClient)
     , Logger(OperationLogger)
     , CancelableContext(New<TCancelableContext>())
-    , CancelableControlInvoker(CancelableContext->CreateInvoker(Host->GetControlInvoker()))
     , Invoker(Host->CreateOperationControllerInvoker())
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
@@ -2981,13 +2980,6 @@ TCancelableContextPtr TOperationControllerBase::GetCancelableContext() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return CancelableContext;
-}
-
-IInvokerPtr TOperationControllerBase::GetCancelableControlInvoker() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return CancelableControlInvoker;
 }
 
 IInvokerPtr TOperationControllerBase::GetCancelableInvoker() const
@@ -5670,11 +5662,6 @@ public:
     virtual TCancelableContextPtr GetCancelableContext() const override
     {
         return Underlying_->GetCancelableContext();
-    }
-
-    virtual IInvokerPtr GetCancelableControlInvoker() const override
-    {
-        return Underlying_->GetCancelableControlInvoker();
     }
 
     virtual IInvokerPtr GetCancelableInvoker() const override
