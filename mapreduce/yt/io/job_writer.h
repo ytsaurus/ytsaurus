@@ -4,9 +4,8 @@
 
 #include <util/generic/vector.h>
 #include <util/generic/ptr.h>
-
-class TPipedOutput;
-class TBufferedOutput;
+#include <util/stream/file.h>
+#include <util/stream/buffered.h>
 
 namespace NYT {
 
@@ -24,15 +23,17 @@ public:
 
 private:
     struct TStream {
-        TSimpleSharedPtr<TPipedOutput> PipedOutput;
-        TSimpleSharedPtr<TBufferedOutput> BufferedOutput;
+        TFile FdFile;
+        TFileOutput FdOutput;
+        TBufferedOutput BufferedOutput;
 
         explicit TStream(int fd);
+        ~TStream();
 
         static const size_t BUFFER_SIZE = 1 << 20;
     };
 
-    yvector<TStream> Streams_;
+    yvector<THolder<TStream>> Streams_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,22 +2,26 @@
 
 #include <mapreduce/yt/interface/io.h>
 
-#include <util/stream/pipe.h>
-#include <util/stream/buffered.h>
+#include <util/system/file.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobWriter::TStream::TStream(int fd)
-    : PipedOutput(new TPipedOutput(fd))
-    , BufferedOutput(new TBufferedOutput(PipedOutput.Get(), BUFFER_SIZE))
+    : FdFile(Duplicate(fd))
+    , FdOutput(FdFile)
+    , BufferedOutput(&FdOutput, BUFFER_SIZE)
 { }
+
+TJobWriter::TStream::~TStream()
+{
+}
 
 TJobWriter::TJobWriter(size_t outputTableCount)
 {
     for (size_t i = 0; i < outputTableCount; ++i) {
-        Streams_.emplace_back(i * 3 + 1);
+        Streams_.emplace_back(MakeHolder<TStream>(int(i * 3 + 1)));
     }
 }
 
@@ -33,7 +37,7 @@ TOutputStream* TJobWriter::GetStream(size_t tableIndex) const
             "Table index " << tableIndex <<
             " is out of range [0, " << Streams_.size() << ")";
     }
-    return Streams_[tableIndex].BufferedOutput.Get();
+    return &Streams_[tableIndex]->BufferedOutput;
 }
 
 void TJobWriter::OnRowFinished(size_t)

@@ -3,7 +3,8 @@
 #include "proxy_input.h"
 
 #include <util/stream/buffered.h>
-#include <util/stream/pipe.h>
+#include <util/stream/file.h>
+#include <util/system/file.h>
 
 namespace NYT {
 
@@ -28,7 +29,8 @@ protected:
 
 private:
     int Fd_;
-    TPipedInput PipedInput_;
+    TFile FdFile_;
+    TFileInput FdInput_;
     TBufferedInput BufferedInput_;
 
     static const size_t BUFFER_SIZE = 64 << 10;
