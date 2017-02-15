@@ -18,6 +18,7 @@ from yt.packages.six import iteritems, Iterator, add_metaclass, PY3, binary_type
                             indexbytes, int2byte
 from yt.packages.six.moves import xrange, map as imap, zip as izip, filter as ifilter
 
+import os
 from abc import ABCMeta, abstractmethod
 from codecs import getwriter
 import copy
@@ -462,7 +463,7 @@ class YsonFormat(Format):
     .. seealso:: `YSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yson>`_
     """
 
-    def __init__(self, format=None, process_table_index=None, control_attributes_mode="iterator",
+    def __init__(self, format=None, process_table_index=None, control_attributes_mode=None,
                  ignore_inner_attributes=None, boolean_as_string=None, table_index_column="@table_index",
                  attributes=None, raw=None, always_create_attributes=None, encoding=_ENCODING_SENTINEL,
                  require_yson_bindings=None):
@@ -487,6 +488,12 @@ class YsonFormat(Format):
 
         all_attributes = Format._make_attributes(get_value(attributes, {}), defaults, options)
         super(YsonFormat, self).__init__("yson", all_attributes, raw, encoding)
+
+        if control_attributes_mode is None:
+            # Deprecated, only for transition period.
+            control_attributes_mode = os.environ.get("YT_YSON_CONTROL_ATTRIBUTES_MODE")
+        if control_attributes_mode is None:
+            control_attributes_mode = "iterator"
 
         if control_attributes_mode not in ["row_fields", "iterator", "none"]:
             raise YtFormatError("Incorrect control attributes mode: {0}".format(control_attributes_mode))
