@@ -137,7 +137,7 @@ class TestJobCommands(object):
         op.wait()
 
     def test_job_shell_command(self, yt_env):
-        if yt.config["backend"] == "native":
+        if yt.config["backend"] == "native" or yt_env.version <= "19.0":
             pytest.skip()
 
         commands = get_api_commands()
