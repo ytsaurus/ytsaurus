@@ -49,8 +49,6 @@ using NChunkClient::TDataSliceDescriptor;
 
 using NYT::ToProto;
 
-static const auto& Logger = TableClientLogger;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static const i64 CacheSize = 32 * 1024;

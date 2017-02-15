@@ -768,8 +768,8 @@ private:
             : 0;
         size_t cappedSampleCount = std::min(freeSlotCount, totalSampleCount);
 
-        LOG_DEBUG_IF(verboseLogging, "totalSampleCount: %v", totalSampleCount);
-        LOG_DEBUG_IF(verboseLogging, "CappedSampleCount: %v", cappedSampleCount);
+        LOG_DEBUG_IF(verboseLogging, "Total sample count: %v", totalSampleCount);
+        LOG_DEBUG_IF(verboseLogging, "Capped sample count: %v", cappedSampleCount);
 
         size_t sampleIndex = 0;
         size_t nextSampleCount;
