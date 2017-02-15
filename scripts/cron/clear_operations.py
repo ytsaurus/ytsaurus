@@ -3,10 +3,6 @@
 import yt.tools.operations_archive as operations_archive
 
 from yt.wrapper.http_helpers import get_token, get_proxy_url
-try:
-    from yt.wrapper.retries import run_with_retries
-except ImportError:
-    from yt.wrapper.common import run_with_retries
 from yt.common import datetime_to_string
 
 import yt.logger as logger
@@ -36,6 +32,8 @@ operations_archive.JOBS = "{}/jobs".format(operations_archive.OPERATIONS_ARCHIVE
 Operation = namedtuple("Operation", ["start_time", "finish_time", "id", "user", "state", "spec"])
 
 logger.set_formatter(Formatter("%(asctime)-15s\t{}\t%(message)s".format(yt.config["proxy"]["url"])))
+
+yt.config["proxy"]["heavy_request_timeout"] = 20 * 1000
 
 class Timer(object):
     def __init__(self):
@@ -364,8 +362,8 @@ class OperationArchiver(object):
                 archived_op_ids.append(op_id)
 
         try:
-            run_with_retries(lambda: self.yt.insert_rows(operations_archive.BY_ID_ARCHIVE, by_id_rows))
-            run_with_retries(lambda: self.yt.insert_rows(operations_archive.BY_START_TIME_ARCHIVE, by_start_time_rows))
+            self.yt.insert_rows(operations_archive.BY_ID_ARCHIVE, by_id_rows)
+            self.yt.insert_rows(operations_archive.BY_START_TIME_ARCHIVE, by_start_time_rows)
         except:
             failed_count += len(by_id_rows)
             raise
@@ -448,7 +446,7 @@ class JobInfoFetcher(object):
         logger.info("Inserting %d jobs", len(rows))
 
         try:
-            run_with_retries(lambda: self.yt.insert_rows(operations_archive.JOBS, rows))
+            self.yt.insert_rows(operations_archive.JOBS, rows)
         except:
             failed_count += len(rows)
             raise
@@ -467,7 +465,7 @@ class StderrInserter(object):
         logger.info("Inserting %d stderrs", len(rowset))
 
         try:
-            run_with_retries(lambda: self.yt.insert_rows(operations_archive.STDERRS, rowset))
+            self.yt.insert_rows(operations_archive.STDERRS, rowset)
         except:
             self.metrics.add("failed_to_archive_stderr_count", 1)
             raise
