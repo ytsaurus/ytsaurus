@@ -25,10 +25,8 @@ TSchemafulRowMerger::TSchemafulRowMerger(
     , KeyColumnCount_(keyColumnCount)
     , ColumnEvaluator_(std::move(columnEvaluator))
 {
-    auto schemaColumnCount = ColumnCount_;
-
     if (columnFilter.All) {
-        for (int id = 0; id < schemaColumnCount; ++id) {
+        for (int id = 0; id < ColumnCount_; ++id) {
             ColumnIds_.push_back(id);
         }
     } else {
@@ -37,8 +35,8 @@ TSchemafulRowMerger::TSchemafulRowMerger(
         }
     }
 
-    ColumnIdToIndex_.resize(schemaColumnCount);
-    for (int id = 0; id < schemaColumnCount; ++id) {
+    ColumnIdToIndex_.resize(ColumnCount_);
+    for (int id = 0; id < ColumnCount_; ++id) {
         ColumnIdToIndex_[id] = -1;
     }
     for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
@@ -48,7 +46,7 @@ TSchemafulRowMerger::TSchemafulRowMerger(
         }
     }
 
-    MergedTimestamps_.resize(schemaColumnCount);
+    MergedTimestamps_.resize(ColumnCount_);
 
     Cleanup();
 }
@@ -219,9 +217,8 @@ TUnversionedRowMerger::TUnversionedRowMerger(
     , ColumnCount_(columnCount)
     , KeyColumnCount_(keyColumnCount)
     , ColumnEvaluator_(std::move(columnEvaluator))
+    , ValidValues_(size_t(ColumnCount_), false)
 {
-    ValidValues_.resize(ColumnCount_);
-
     Cleanup();
 }
 
@@ -351,7 +348,7 @@ TVersionedRowMerger::TVersionedRowMerger(
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
     TColumnEvaluatorPtr columnEvaluator)
-    : RowBuffer_(rowBuffer)
+    : RowBuffer_(std::move(rowBuffer))
     , KeyColumnCount_(keyColumnCount)
     , Config_(std::move(config))
     , CurrentTimestamp_(currentTimestamp)
@@ -618,29 +615,30 @@ TSamplingRowMerger::TSamplingRowMerger(
     TRowBufferPtr rowBuffer,
     const TTableSchema& schema)
     : RowBuffer_(std::move(rowBuffer))
-    , Schema_(schema)
-    , LatestTimestamps_(schema.GetColumnCount(), NullTimestamp)
-    , IdMapping_(Schema_.GetColumnCount(), -1)
+    , KeyColumnCount_(schema.GetKeyColumnCount())
+    , SampledColumnCount_(0)
+    , LatestTimestamps_(size_t(schema.GetColumnCount()), NullTimestamp)
+    , IdMapping_(size_t(schema.GetColumnCount()), -1)
 {
-    ColumnCount_ = 0;
-    for (const auto& column : Schema_.Columns()) {
+    SampledColumnCount_ = 0;
+    for (const auto& column : schema.Columns()) {
         if (!column.Aggregate) {
-            IdMapping_[Schema_.GetColumnIndex(column)] = ColumnCount_;
-            ++ColumnCount_;
+            IdMapping_[schema.GetColumnIndex(column)] = SampledColumnCount_;
+            ++SampledColumnCount_;
         }
     }
 }
 
 TUnversionedRow TSamplingRowMerger::MergeRow(TVersionedRow row)
 {
-    auto mergedRow = RowBuffer_->Allocate(ColumnCount_);
+    auto mergedRow = RowBuffer_->Allocate(SampledColumnCount_);
 
-    YCHECK(row.GetKeyCount() == Schema_.GetKeyColumnCount());
+    YCHECK(row.GetKeyCount() == KeyColumnCount_);
     for (int index = 0; index < row.GetKeyCount(); ++index) {
         mergedRow[index] = row.BeginKeys()[index];
     }
 
-    for (int index = row.GetKeyCount(); index < ColumnCount_; ++index) {
+    for (int index = row.GetKeyCount(); index < SampledColumnCount_; ++index) {
         mergedRow[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
     }
 
@@ -650,7 +648,6 @@ TUnversionedRow TSamplingRowMerger::MergeRow(TVersionedRow row)
 
     for (int index = 0; index < row.GetValueCount(); ++index) {
         const auto& value = row.BeginValues()[index];
-        YCHECK(value.Id < Schema_.GetColumnCount());
 
         if (value.Timestamp < deleteTimestamp || value.Timestamp < LatestTimestamps_[value.Id]) {
             continue;
@@ -669,9 +666,7 @@ TUnversionedRow TSamplingRowMerger::MergeRow(TVersionedRow row)
 void TSamplingRowMerger::Reset()
 {
     RowBuffer_->Clear();
-    for (auto& timestamp : LatestTimestamps_) {
-        timestamp = NullTimestamp;
-    }
+    std::fill(LatestTimestamps_.begin(), LatestTimestamps_.end(), NullTimestamp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
