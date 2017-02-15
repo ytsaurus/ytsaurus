@@ -221,12 +221,12 @@ class TSchemafulRowMergerTest
     : public TRowMergerTestBase
 {
 public:
-    TSchemafulRowMergerPtr GetTypicalMerger(
+    std::unique_ptr<TSchemafulRowMerger> GetTypicalMerger(
         TColumnFilter filter = TColumnFilter(),
         TTableSchema schema = GetTypicalSchema())
     {
         auto evaluator = ColumnEvaluatorCache_->Find(GetKeyedSchema(schema, 1));
-        return New<TSchemafulRowMerger>(MergedRowBuffer_, schema.Columns().size(), 1, filter, evaluator);
+        return std::make_unique<TSchemafulRowMerger>(MergedRowBuffer_, schema.Columns().size(), 1, filter, evaluator);
     }
 
 protected:
@@ -445,11 +445,11 @@ class TUnversionedRowMergerTest
     : public TRowMergerTestBase
 {
 public:
-    TUnversionedRowMergerPtr GetTypicalMerger(
+    std::unique_ptr<TUnversionedRowMerger> GetTypicalMerger(
         TTableSchema schema = GetTypicalSchema())
     {
         auto evaluator = ColumnEvaluatorCache_->Find(GetKeyedSchema(schema, 1));
-        return New<TUnversionedRowMerger>(MergedRowBuffer_, schema.Columns().size(), 1, evaluator);
+        return std::make_unique<TUnversionedRowMerger>(MergedRowBuffer_, schema.Columns().size(), 1, evaluator);
     }
 
 protected:
@@ -588,14 +588,14 @@ class TVersionedRowMergerTest
     : public TRowMergerTestBase
 {
 public:
-    TVersionedRowMergerPtr GetTypicalMerger(
+    std::unique_ptr<TVersionedRowMerger> GetTypicalMerger(
         TRetentionConfigPtr config,
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp,
         TTableSchema schema = GetTypicalSchema())
     {
         auto evaluator = ColumnEvaluatorCache_->Find(GetKeyedSchema(schema, 1));
-        return New<TVersionedRowMerger>(
+        return std::make_unique<TVersionedRowMerger>(
             MergedRowBuffer_,
             1,
             config,

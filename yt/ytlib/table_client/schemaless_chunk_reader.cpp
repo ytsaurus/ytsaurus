@@ -2252,32 +2252,30 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     struct TSchemalessMergingMultiChunkReaderBufferTag
     { };
 
-    auto rowMerger = New<TSchemafulRowMerger>(
+    auto rowMerger = std::make_unique<TSchemafulRowMerger>(
         New<TRowBuffer>(TSchemalessMergingMultiChunkReaderBufferTag()),
         tableSchema.Columns().size(),
         tableSchema.GetKeyColumnCount(),
         columnFilter,
         client->GetNativeConnection()->GetColumnEvaluatorCache()->Find(tableSchema));
 
-    auto schemafulReaderFactory = [&] (const TTableSchema&, const TColumnFilter&) {
-        return CreateSchemafulOverlappingRangeReader(
-            std::move(boundaries),
-            std::move(rowMerger),
-            createVersionedReader,
-            [] (
-                const TUnversionedValue* lhsBegin,
-                const TUnversionedValue* lhsEnd,
-                const TUnversionedValue* rhsBegin,
-                const TUnversionedValue* rhsEnd)
-            {
-                return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
-            });
-    };
+    auto schemafulReader = CreateSchemafulOverlappingRangeReader(
+        std::move(boundaries),
+        std::move(rowMerger),
+        createVersionedReader,
+        [] (
+            const TUnversionedValue* lhsBegin,
+            const TUnversionedValue* lhsEnd,
+            const TUnversionedValue* rhsBegin,
+            const TUnversionedValue* rhsEnd)
+        {
+            return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
+        });
 
     auto reader = CreateSchemalessReaderAdapter(
-        schemafulReaderFactory,
-        options,
-        nameTable,
+        std::move(schemafulReader),
+        std::move(options),
+        std::move(nameTable),
         tableSchema,
         columnFilter,
         chunkSpecs.empty() ? -1 : chunkSpecs[0].table_index(),
@@ -2286,7 +2284,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     i64 rowCount = NChunkClient::GetCumulativeRowCount(chunkSpecs);
 
     return New<TSchemalessMergingMultiChunkReader>(
-        std::move(reader),
+        std::move(schemalessReader),
         dataSliceDescriptor,
         tableSchema.GetKeyColumnCount(),
         rowCount);

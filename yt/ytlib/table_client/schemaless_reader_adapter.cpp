@@ -159,7 +159,7 @@ DEFINE_REFCOUNTED_TYPE(TSchemalessReaderAdapter)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessReaderPtr CreateSchemalessReaderAdapter(
-    TSchemafulReaderFactory createReader,
+    ISchemafulReaderPtr underlyingReader,
     TTableReaderOptionsPtr options,
     TNameTablePtr nameTable,
     const TTableSchema& schema,
@@ -177,8 +177,6 @@ ISchemalessReaderPtr CreateSchemalessReaderAdapter(
         THROW_ERROR_EXCEPTION("Failed to update name table for schemaless reader adapter")
             << ex;
     }
-
-    auto underlyingReader = createReader(schema, columnFilter);
 
     auto result = New<TSchemalessReaderAdapter>(
         std::move(underlyingReader),
