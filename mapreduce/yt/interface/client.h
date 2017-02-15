@@ -30,11 +30,14 @@ struct TStartTransactionOptions
     FLUENT_FIELD_OPTION(TNode, Attributes);
 };
 
+// https://wiki.yandex-team.ru/yt/userdoc/api/#lock
 struct TLockOptions
 {
     using TSelf = TLockOptions;
 
     FLUENT_FIELD_DEFAULT(bool, Waitable, false);
+    FLUENT_FIELD_OPTION(Stroka, AttributeKey);
+    FLUENT_FIELD_OPTION(Stroka, ChildKey);
 };
 
 template <class TDerived>

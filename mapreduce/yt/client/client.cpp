@@ -564,6 +564,12 @@ public:
         header.AddMutationId();
 
         header.AddParam("waitable", options.Waitable_);
+        if (options.AttributeKey_) {
+            header.AddParam("attribute_key", *options.AttributeKey_);
+        }
+        if (options.ChildKey_) {
+            header.AddParam("child_key", *options.ChildKey_);
+        }
         return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
