@@ -41,6 +41,7 @@ Simple examples::
 from .common import YsonError
 from . import yson_types
 
+from yt.packages.six.moves import map as imap
 from yt.packages.six import integer_types, text_type, binary_type, iteritems, PY3
 
 import re
@@ -80,6 +81,26 @@ def dump(object, stream, yson_format=None, indent=None, check_circular=True, enc
     stream.write(dumps(object, yson_format=yson_format, check_circular=check_circular, encoding=encoding,
                        indent=indent, yson_type=yson_type, boolean_as_string=boolean_as_string))
 
+class YsonContext(object):
+    def __init__(self):
+        self.path_parts = []
+        self.row_index = None
+
+    def push(self, key_or_index):
+        self.path_parts.append(key_or_index)
+
+    def pop(self):
+        self.path_parts.pop()
+
+def _raise_error_with_context(message, context):
+    attributes = {}
+    if context.row_index is not None:
+        attributes["row_index"] = context.row_index
+
+    path_parts = imap(str, context.path_parts)
+    if context.path_parts:
+        attributes["row_key_path"] = "/" + "/".join(path_parts)
+    raise YsonError(message, attributes=attributes)
 
 def dumps(object, yson_format=None, indent=None, check_circular=True, encoding="utf-8", yson_type=None,
           boolean_as_string=False):
@@ -101,8 +122,7 @@ def dumps(object, yson_format=None, indent=None, check_circular=True, encoding="
         yson_type = "node"
 
     d = Dumper(check_circular, encoding, indent, yson_type, boolean_as_string)
-    return d.dumps(object)
-
+    return d.dumps(object, YsonContext())
 
 class Dumper(object):
     def __init__(self, check_circular, encoding, indent, yson_type, boolean_as_string):
@@ -120,15 +140,14 @@ class Dumper(object):
         else:
             self._level = -2  # Stream elements are one level deep, but need not be indented
 
-    def dumps(self, obj):
+    def dumps(self, obj, context):
         self._level += 1
-
         attributes = b""
         if hasattr(obj, "attributes") and obj.attributes is not None:
             if not isinstance(obj.attributes, dict):
-                raise YsonError("Invalid field 'attributes': it must be string or None")
+                _raise_error_with_context("Invalid field 'attributes': it must be string or None", context)
             if obj.attributes:
-                attributes = self._dump_attributes(obj.attributes)
+                attributes = self._dump_attributes(obj.attributes, context)
 
         result = None
         if obj is False or (isinstance(obj, yson_types.YsonBoolean) and not obj):
@@ -143,14 +162,14 @@ class Dumper(object):
                 result = b"%true"
         elif isinstance(obj, integer_types):
             if obj < -2 ** 63 or obj >= 2 ** 64:
-                raise YsonError("Integer {0} cannot be represented in YSON "
-                                "since it is out of range [-2^63, 2^64 - 1])".format(obj))
+                _raise_error_with_context("Integer {0} cannot be represented in YSON "
+                                          "since it is out of range [-2^63, 2^64 - 1])".format(obj), context)
 
             greater_than_max_int64 = obj >= 2 ** 63
             if isinstance(obj, yson_types.YsonUint64) and obj < 0:
-                raise YsonError("Can not dump negative integer as YSON uint64")
+                _raise_error_with_context("Can not dump negative integer as YSON uint64", context)
             if isinstance(obj, yson_types.YsonInt64) and greater_than_max_int64:
-                raise YsonError("Can not dump integer greater than 2^63-1 as YSON int64")
+                _raise_error_with_context("Can not dump integer greater than 2^63-1 as YSON int64", context)
 
             result = str(obj).encode("ascii")
             if not PY3:
@@ -160,52 +179,57 @@ class Dumper(object):
         elif isinstance(obj, float):
             result = str(obj).encode("ascii")
         elif isinstance(obj, (text_type, binary_type)):
-            result = self._dump_string(obj)
+            result = self._dump_string(obj, context)
         elif isinstance(obj, Mapping):
-            result = self._dump_map(obj)
+            result = self._dump_map(obj, context)
         elif isinstance(obj, Iterable):
-            result = self._dump_list(obj)
+            result = self._dump_list(obj, context)
         elif isinstance(obj, yson_types.YsonEntity) or obj is None:
             result = b"#"
         else:
-            raise YsonError(repr(obj) + " is not Yson serializable.")
+            _raise_error_with_context(repr(obj) + " is not Yson serializable.", context)
         self._level -= 1
         return attributes + result
 
-    def _dump_string(self, obj):
+    def _dump_string(self, obj, context):
         result = [b'"']
         if isinstance(obj, binary_type):
             if self._encoding is not None and PY3:
-                raise YsonError('Bytes object {0} cannot be encoded to {1}. To disable this behaviour '
-                                'and allow byte string dumping set "encoding" parameter to None'
-                                .format(repr(obj), self._encoding))
+                _raise_error_with_context('Bytes object {0} cannot be encoded to {1}. To disable this behaviour '
+                                          'and allow byte string dumping set "encoding" '
+                                          'parameter to None'.format(repr(obj), self._encoding),
+                                          context)
             result.append(_escape_bytes(obj))
         elif isinstance(obj, text_type):
             if self._encoding is None:
-                raise YsonError('Cannot encode unicode object {0} to bytes since "encoding" parameter '
-                                'is None. Consider using byte strings instead or specify encoding'.format(repr(obj)))
+                _raise_error_with_context('Cannot encode unicode object {0} to bytes since "encoding" '
+                                          'parameter is None. Consider using byte strings '
+                                          'instead or specify encoding'.format(repr(obj)),
+                                          context)
             result.append(_escape_bytes(obj.encode(self._encoding)))
         else:
             assert False
         result.append(b'"')
         return b"".join(result)
 
-    def _dump_map(self, obj):
+    def _dump_map(self, obj, context):
         is_stream = self.yson_type == "map_fragment" and self._level == -1
         result = []
-
         if not is_stream:
             result += [b'{', self._format.nextline()]
 
         for k, v in iteritems(obj):
             if not isinstance(k, (text_type, binary_type)):
-                raise YsonError("Only string can be Yson map key. Key: %s" % repr(k))
+                _raise_error_with_context("Only string can be Yson map key. Key: %s" % repr(k), context)
 
             @self._circular_check(v)
             def process_item():
-                return [self._format.prefix(self._level + 1),
-                        self._dump_string(k), self._format.space(), b'=',
-                        self._format.space(), self.dumps(v), b';', self._format.nextline(is_stream)]
+                context.push(k)
+                item = [self._format.prefix(self._level + 1),
+                        self._dump_string(k, context), self._format.space(), b'=',
+                        self._format.space(), self.dumps(v, context), b';', self._format.nextline(is_stream)]
+                context.pop()
+                return item
 
             result += process_item()
 
@@ -214,18 +238,24 @@ class Dumper(object):
 
         return b"".join(result)
 
-    def _dump_list(self, obj):
+    def _dump_list(self, obj, context):
         is_stream = self.yson_type == "list_fragment" and self._level == -1
         result = []
-
         if not is_stream:
             result += [b'[', self._format.nextline()]
 
-        for v in obj:
+        for index, v in enumerate(obj):
             @self._circular_check(v)
             def process_item():
-                return [self._format.prefix(self._level + 1),
-                        self.dumps(v), b';', self._format.nextline(is_stream)]
+                if is_stream:
+                    context.row_index = index
+                else:
+                    context.push(index)
+                item = [self._format.prefix(self._level + 1),
+                        self.dumps(v, context), b';', self._format.nextline(is_stream)]
+                if not is_stream:
+                    context.pop()
+                return item
 
             result += process_item()
 
@@ -234,20 +264,22 @@ class Dumper(object):
 
         return b"".join(result)
 
-    def _dump_attributes(self, obj):
+    def _dump_attributes(self, obj, context):
         result = [b'<', self._format.nextline()]
         for k, v in obj.items():
             if not isinstance(k, (text_type, binary_type)):
-                raise YsonError("Only string can be Yson map key. Key: %s" % repr(obj))
+                _raise_error_with_context("Only string can be Yson map key. Key: %s" % repr(obj), context)
 
             @self._circular_check(v)
             def process_item():
-                return [self._format.prefix(self._level + 1),
-                        self._dump_string(k), self._format.space(), b'=',
-                        self._format.space(), self.dumps(v), b';', self._format.nextline()]
+                context.push("@" + k)
+                item = [self._format.prefix(self._level + 1),
+                        self._dump_string(k, context), self._format.space(), b'=',
+                        self._format.space(), self.dumps(v, context), b';', self._format.nextline()]
+                context.pop()
+                return item
 
             result += process_item()
-
         result += [self._format.prefix(self._level), b'>']
         return b''.join(result)
 

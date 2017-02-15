@@ -5,7 +5,7 @@ from __future__ import absolute_import
 import pytest
 
 import yt.yson.writer
-from yt.yson import YsonUint64, YsonInt64, YsonEntity, YsonMap
+from yt.yson import YsonUint64, YsonInt64, YsonEntity, YsonMap, YsonError
 from yt.packages.six import b, PY3
 
 try:
@@ -47,6 +47,33 @@ class YsonWriterTestBase(object):
             self.dumps(YsonUint64(-2 ** 63))
         with pytest.raises(Exception):
             self.dumps(YsonInt64(2 ** 63 + 1))
+
+    def test_context_in_errors(self):
+        try:
+            self.dumps([0, 1, 2, 2 ** 64])
+        except YsonError as error:
+            assert error.attributes.get("row_key_path") == "/3"
+            assert "row_index" not in error.attributes
+
+        try:
+            self.dumps([0, 1, 2, 2 ** 64], yson_type="list_fragment")
+        except YsonError as error:
+            assert "row_key_path" not in error.attributes
+            assert error.attributes.get("row_index") == 3
+
+        try:
+            self.dumps([0, 1, 2, {"a": [5, 6, {"b": {1:2}}]}])
+        except YsonError as error:
+            assert error.attributes.get("row_key_path") == "/3/a/2/b"
+            assert "row_index" not in error.attributes
+
+        try:
+            obj = YsonEntity()
+            obj.attributes["a"] = [2 ** 65]
+            self.dumps(obj)
+        except YsonError as error:
+            assert error.attributes.get("row_key_path") == "/@a/0"
+            assert "row_index" not in error.attributes
 
     def test_list_fragment_text(self):
         assert self.dumps(
