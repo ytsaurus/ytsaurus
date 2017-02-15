@@ -200,6 +200,9 @@ public:
         header.AddParam("recursive", options.Recursive_);
         header.AddParam("force", options.Force_);
         header.AddParam("preserve_account", options.PreserveAccount_);
+        if (options.PreserveExpirationTime_) {
+            header.AddParam("preserve_expiration_time", *options.PreserveExpirationTime_);
+        }
         return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
@@ -217,6 +220,9 @@ public:
         header.AddParam("recursive", options.Recursive_);
         header.AddParam("force", options.Force_);
         header.AddParam("preserve_account", options.PreserveAccount_);
+        if (options.PreserveExpirationTime_) {
+            header.AddParam("preserve_expiration_time", *options.PreserveExpirationTime_);
+        }
         return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
