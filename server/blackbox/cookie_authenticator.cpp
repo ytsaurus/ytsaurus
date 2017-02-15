@@ -30,7 +30,7 @@ public:
         const Stroka& sessionId,
         const Stroka& sslSessionId,
         const Stroka& host,
-        const Stroka& userIp) override
+        const Stroka& userIP) override
     {
         auto sessionIdMD5 = ComputeMD5(sessionId);
         auto sslSessionIdMD5 = ComputeMD5(sslSessionId);
@@ -40,7 +40,7 @@ public:
             sslSessionIdMD5);
         return Blackbox_->Call("sessionid", {
                 {"sessionid", sessionId}, {"sslsessionid", sslSessionId},
-                {"host", host}, {"userip", userIp}})
+                {"host", host}, {"userip", userIP}})
             .Apply(BIND(
                 &TCookieAuthenticator::OnCallResult,
                 MakeStrong(this),

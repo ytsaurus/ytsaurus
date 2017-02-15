@@ -88,14 +88,14 @@ void TYsonSerializableLite::Load(
 
 void TYsonSerializableLite::Save(
     IYsonConsumer* consumer,
-    bool sortKeys) const
+    bool stable) const
 {
     std::vector<std::pair<Stroka, IParameterPtr>> parameters;
     for (const auto& pair : Parameters) {
         parameters.push_back(pair);
     }
 
-    if (sortKeys) {
+    if (stable) {
         typedef std::pair<Stroka, IParameterPtr> TPair;
         std::sort(
             parameters.begin(),

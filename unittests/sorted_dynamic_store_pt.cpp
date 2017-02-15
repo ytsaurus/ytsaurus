@@ -58,9 +58,10 @@ public:
             builder.AddValue(MakeUnversionedStringValue("hello from YT", 3));
             auto row = builder.FinishRow();
 
-            auto dynamicRow = Store_->WriteRowAtomic(
+            auto dynamicRow = Store_->WriteRow(
                 transaction.get(),
                 row,
+                NullTimestamp,
                 TSortedDynamicRow::PrimaryLockMask);
             transaction->LockedSortedRows().push_back(TSortedDynamicRowRef(Store_.Get(), nullptr, dynamicRow, true));
 

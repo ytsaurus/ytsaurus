@@ -53,6 +53,7 @@ public:
         , CurrentHeight_(Options_->Height)
         , CurrentWidth_(Options_->Width)
         , InactivityTimeout_(Options_->InactivityTimeout)
+        , Command_(Options_->Command)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -70,14 +71,15 @@ public:
         auto user = SafeGetUsernameByUid(uid);
         auto home = Options_->WorkingDir;
 
-        LOG_INFO("Spawning TTY (Term: %v, Height: %v, Width: %v, Uid: %v, Username: %v, Home: %v, InactivityTimeout: %v)",
+        LOG_INFO("Spawning TTY (Term: %v, Height: %v, Width: %v, Uid: %v, Username: %v, Home: %v, InactivityTimeout: %v, Command: %v)",
             Options_->Term,
             CurrentHeight_,
             CurrentWidth_,
             uid,
             user,
             home,
-            InactivityTimeout_);
+            InactivityTimeout_,
+            Command_);
 
         TPty pty(CurrentHeight_, CurrentWidth_);
 
@@ -91,6 +93,9 @@ public:
 
         Process_->SetWorkingDirectory(home);
 
+        if (Options_->Command) {
+            Process_->AddArguments({"--command", *Options_->Command});
+        }
         Process_->AddArguments({"--pty", ::ToString(pty.GetSlaveFD())});
         Process_->AddArguments({"--uid", ::ToString(uid)});
 
@@ -208,7 +213,6 @@ public:
 
         TDelayedExecutor::CancelAndClear(InactivityCookie_);
         Writer_->Abort();
-        Reader_->Abort();
         CleanupShellProcesses();
         TerminatedPromise_.TrySet();
         LOG_INFO(error, "Shell terminated");
@@ -256,6 +260,8 @@ private:
     TDelayedExecutorCookie InactivityCookie_;
     TError InactivityError_;
     TPromise<void> TerminatedPromise_ = NewPromise<void>();
+
+    TNullable<Stroka> Command_;
 
     NLogging::TLogger Logger = ShellLogger;
 

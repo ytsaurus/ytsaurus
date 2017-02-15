@@ -59,15 +59,15 @@ struct IYPathService
 
     //! Writes a map fragment consisting of attributes conforming to #filter into #consumer.
     /*!
-     *  If #sortKeys is |true| then the implementation must ensure a stable ordering of keys.
+     *  If #stable is |true| then the implementation must ensure a stable result.
      */
     virtual void WriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
-        bool sortKeys) = 0;
+        bool stable) = 0;
 
     //! Manages strategy of writing attributes if attribute keys are null.
-    virtual bool ShouldHideAttributes();
+    virtual bool ShouldHideAttributes() = 0;
 
     // Extension methods
 
@@ -103,7 +103,7 @@ struct IYPathService
     void WriteAttributes(
         NYson::IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
-        bool sortKeys);
+        bool stable);
 };
 
 DEFINE_REFCOUNTED_TYPE(IYPathService)

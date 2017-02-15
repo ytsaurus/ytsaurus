@@ -118,7 +118,7 @@ public:
     {
         LOG_DEBUG("Preparing changelog store");
 
-        NFS::ForcePath(Config_->Path);
+        NFS::MakeDirRecursive(Config_->Path);
         NFS::CleanTempFiles(Config_->Path);
     }
 

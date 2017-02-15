@@ -212,6 +212,30 @@ Function* CodegenGroupComparerFunction(
     });
 }
 
+Value* CodegenFingerprint64(TCGIRBuilderPtr& builder, Value* x)
+{
+    Value* kMul = builder->getInt64(0x9ddfea08eb382d69ULL);
+    Value* b = builder->CreateMul(x, kMul);
+    b = builder->CreateXor(b, builder->CreateLShr(b, builder->getInt64(44)));
+    b = builder->CreateMul(b, kMul);
+    b = builder->CreateXor(b, builder->CreateLShr(b, builder->getInt64(41)));
+    b = builder->CreateMul(b, kMul);
+    return b;
+};
+
+Value* CodegenFingerprint128(TCGIRBuilderPtr& builder, Value* x, Value* y)
+{
+    Value* kMul = builder->getInt64(0x9ddfea08eb382d69ULL);
+    Value* a = builder->CreateMul(builder->CreateXor(x, y), kMul);
+    a = builder->CreateXor(a, builder->CreateLShr(a, builder->getInt64(47)));
+    Value* b = builder->CreateMul(builder->CreateXor(y, a), kMul);
+    b = builder->CreateXor(b, builder->CreateLShr(b, builder->getInt64(44)));
+    b = builder->CreateMul(b, kMul);
+    b = builder->CreateXor(b, builder->CreateLShr(b, builder->getInt64(41)));
+    b = builder->CreateMul(b, kMul);
+    return b;
+};
+
 Function* CodegenGroupHasherFunction(
     const std::vector<EValueType>& types,
     const TCGModule& module)
@@ -246,15 +270,12 @@ Function* CodegenGroupHasherFunction(
                 case EValueType::Boolean:
                 case EValueType::Int64:
                 case EValueType::Uint64:
-                    thenResult = builder->CreateCall(
-                        module.GetRoutine("FarmHashUint64"),
-                        {value.Cast(builder, EValueType::Uint64).GetData()});
+                    thenResult = CodegenFingerprint64(builder, value.Cast(builder, EValueType::Uint64).GetData());
                     break;
 
                 case EValueType::Double:
-                    thenResult = builder->CreateCall(
-                        module.GetRoutine("FarmHashUint64"),
-                        {value.Cast(builder, EValueType::Uint64, true).GetData()});
+                    thenResult = CodegenFingerprint64(builder, value.Cast(builder, EValueType::Uint64, true)
+                        .GetData());
                     break;
 
                 case EValueType::String:

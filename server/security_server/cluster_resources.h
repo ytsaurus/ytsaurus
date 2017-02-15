@@ -43,18 +43,14 @@ struct TClusterResources
     void Load(NCellMaster::TLoadContext& context);
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 //! A helper for (de)serializing TClusterResources.
 //! This cannot be done directly as serialization requires converting medium
 //! indexes to names, which is impossible without the chunk manager.
-struct TSerializableClusterResources
+class TSerializableClusterResources
     : public NYTree::TYsonSerializable
 {
-private:
-    int NodeCount_ = 0;
-    int ChunkCount_ = 0;
-    yhash_map<Stroka, i64> DiskSpacePerMedium_;
-    i64 DiskSpace_; // Compatibility.
-
 public:
     // For deserialization.
     TSerializableClusterResources();
@@ -66,10 +62,16 @@ public:
     TClusterResources ToClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager) const;
 
 private:
-    void ValidateDiskSpaceOrThrow(i64 diskSpace) const;
+    int NodeCount_ = 0;
+    int ChunkCount_ = 0;
+    yhash_map<Stroka, i64> DiskSpacePerMedium_;
+    i64 DiskSpace_; // Compatibility.
+
 };
 
-DECLARE_REFCOUNTED_TYPE(TSerializableClusterResources)
+DEFINE_REFCOUNTED_TYPE(TSerializableClusterResources)
+
+////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TClusterResources* protoResources, const TClusterResources& resources);
 void FromProto(TClusterResources* resources, const NProto::TClusterResources& protoResources);

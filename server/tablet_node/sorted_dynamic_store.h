@@ -87,42 +87,29 @@ public:
         ui32 lockMask,
         TTimestamp timestamp);
 
-    //! Writes the row taking the needed locks.
+    //! Writes the row.
     /*!
-     *  Only applies to atomic transactions.
+     *  If #commitTimestamp is not null then no locks are checked or taken.
+     *  #transaction could be null.
+     *  The row is committed immediately.
      *
+     *  If #commitTimstamp is null then checks and takes the locks.
+     *  #transaction cannot be null.
      *  On lock failure, throws TErrorException explaining the cause.
      *  If a blocked row is encountered, throws TRowBlockedException.
      */
-    TSortedDynamicRow WriteRowAtomic(
+    TSortedDynamicRow WriteRow(
         TTransaction* transaction,
         NTableClient::TUnversionedRow row,
+        TTimestamp commitTimestamp,
         ui32 lockMask);
 
-    //! Writes and immediately commits the row.
+    //! Deletes the row.
     /*!
-     *  Only applies to non-atomic transactions. No locks are checked or taken.
+     *  \see WriteRow
      */
-    TSortedDynamicRow WriteRowNonAtomic(
-        NTableClient::TUnversionedRow row,
-        TTimestamp commitTimestamp);
-
-    //! Deletes the row taking the needed locks.
-    /*!
-     *  Only applies to atomic transactions.
-     *
-     *  On lock failure, throws TErrorException explaining the cause.
-     *  If a blocked row is encountered, throws TRowBlockedException.
-     */
-    TSortedDynamicRow DeleteRowAtomic(
+    TSortedDynamicRow DeleteRow(
         TTransaction* transaction,
-        TKey key);
-
-    //! Deletes and immediately commits the row.
-    /*!
-     *  Only applies to non-atomic transactions. No locks are checked or taken.
-     */
-    TSortedDynamicRow DeleteRowNonAtomic(
         TKey key,
         TTimestamp commitTimestamp);
 
@@ -221,8 +208,6 @@ private:
     TValueList PrepareFixedValue(TSortedDynamicRow row, int index);
     void AddDeleteRevision(TSortedDynamicRow row, ui32 revision);
     void AddWriteRevision(TLockDescriptor& lock, ui32 revision);
-    void AddDeleteRevisionNonAtomic(TSortedDynamicRow row, TTimestamp commitTimestamp, ui32 commitRevision);
-    void AddWriteRevisionNonAtomic(TSortedDynamicRow row, TTimestamp commitTimestamp, ui32 commitRevision);
     void SetKeys(TSortedDynamicRow dstRow, const TUnversionedValue* srcKeys);
     void SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow srcRow);
 

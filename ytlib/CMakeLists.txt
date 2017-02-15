@@ -244,6 +244,12 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/query_client/query_statistics.proto
   ${CMAKE_CURRENT_LIST_DIR}/query_client/range_inferrer.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/api_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/credentials_injecting_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_client.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_connection.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/private.cpp
+
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job.proto
