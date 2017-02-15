@@ -1,5 +1,3 @@
-#include "node_dbg.h"
-
 #include <mapreduce/yt/tests/lib/lib.h>
 
 #include <mapreduce/yt/interface/client.h>
@@ -158,27 +156,6 @@ YT_TEST(TCypress, Copy)
     EXPECT_EQ(Client()->Exists(Node2()), true);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-YT_TEST(TCypress, Copy_PreserveExpirationTime)
-{
-    const Stroka expirationTime = "2042-02-15T18:45:19.591902Z";
-    for (Stroka path : {"//tmp/table_default", "//tmp/table_false", "//tmp/table_true"}) {
-        Client()->Create(path, NT_TABLE);
-        Client()->Set(path + "/@expiration_time", expirationTime);
-    }
-
-    Client()->Copy("//tmp/table_default", "//tmp/copy_table_default");
-    Client()->Copy("//tmp/table_true", "//tmp/copy_table_true", TCopyOptions().PreserveExpirationTime(true));
-    Client()->Copy("//tmp/table_false", "//tmp/copy_table_false", TCopyOptions().PreserveExpirationTime(false));
-
-    EXPECT_THROW(Client()->Get("//tmp/copy_table_default/@expiration_time"), yexception);
-    ASSERT_EQ(Client()->Get("//tmp/copy_table_true/@expiration_time"), TNode(expirationTime));
-    EXPECT_THROW(Client()->Get("//tmp/copy_table_false/@expiration_time"), yexception);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 YT_TEST(TCypress, Move)
 {
     Client()->Create(Node(), NT_STRING);
@@ -187,27 +164,6 @@ YT_TEST(TCypress, Move)
     EXPECT_EQ(Client()->Exists(Node()), false);
     EXPECT_EQ(Client()->Exists(Node2()), true);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-YT_TEST(TCypress, Move_PreserveExpirationTime)
-{
-    const Stroka expirationTime = "2042-02-15T18:45:19.591902Z";
-    for (Stroka path : {"//tmp/table_default", "//tmp/table_false", "//tmp/table_true"}) {
-        Client()->Create(path, NT_TABLE);
-        Client()->Set(path + "/@expiration_time", expirationTime);
-    }
-
-    Client()->Move("//tmp/table_default", "//tmp/moved_table_default");
-    Client()->Move("//tmp/table_true", "//tmp/moved_table_true", TMoveOptions().PreserveExpirationTime(true));
-    Client()->Move("//tmp/table_false", "//tmp/moved_table_false", TMoveOptions().PreserveExpirationTime(false));
-
-    ASSERT_EQ(Client()->Get("//tmp/moved_table_default/@expiration_time"), TNode(expirationTime));
-    ASSERT_EQ(Client()->Get("//tmp/moved_table_true/@expiration_time"), TNode(expirationTime));
-    EXPECT_THROW(Client()->Get("//tmp/moved_table_false/@expiration_time"), yexception);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 YT_TEST(TCypress, Link)
 {

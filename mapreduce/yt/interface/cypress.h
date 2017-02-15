@@ -58,7 +58,6 @@ struct TListOptions
     FLUENT_FIELD_OPTION(i64, MaxSize); // TODO: rename to limit
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#copy
 struct TCopyOptions
 {
     using TSelf = TCopyOptions;
@@ -66,10 +65,8 @@ struct TCopyOptions
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
     FLUENT_FIELD_DEFAULT(bool, Force, false);
     FLUENT_FIELD_DEFAULT(bool, PreserveAccount, false);
-    FLUENT_FIELD_OPTION(bool, PreserveExpirationTime);
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#move
 struct TMoveOptions
 {
     using TSelf = TMoveOptions;
@@ -77,7 +74,6 @@ struct TMoveOptions
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
     FLUENT_FIELD_DEFAULT(bool, Force, false);
     FLUENT_FIELD_DEFAULT(bool, PreserveAccount, false);
-    FLUENT_FIELD_OPTION(bool, PreserveExpirationTime);
 };
 
 struct TLinkOptions
