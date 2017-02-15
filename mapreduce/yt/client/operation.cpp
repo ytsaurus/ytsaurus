@@ -42,6 +42,12 @@ namespace NYT {
 
 namespace {
 
+ui64 RoundUpFileSize(ui64 size)
+{
+    constexpr ui64 roundUpTo = 4ull << 10;
+    return (size + roundUpTo - 1) & ~(roundUpTo - 1);
+}
+
 Stroka ToString(EMergeMode mode)
 {
     switch (mode) {
@@ -323,12 +329,6 @@ private:
             break;
         }
         return cypressPath;
-    }
-
-    static ui64 RoundUpFileSize(ui64 size)
-    {
-        constexpr ui64 roundUpTo = 4ull << 10;
-        return (size + roundUpTo - 1) & ~(roundUpTo - 1);
     }
 
     void UploadFilesFromSpec()
@@ -633,6 +633,11 @@ void BuildUserJobFluently(
     auto tmpfsSize = preparer.GetSpec().ExtraTmpfsSize_.GetOrElse(0LL);
     if (preparer.ShouldMountSandbox()) {
         tmpfsSize += preparer.GetTotalFileSize();
+        if (tmpfsSize == 0) {
+            // This can be a case for example when it is local mode and we don't upload binary.
+            // NOTE: YT doesn't like zero tmpfs size.
+            tmpfsSize = RoundUpFileSize(1);
+        }
         memoryLimit = memoryLimit.GetOrElse(512ll << 20) + tmpfsSize;
     }
 
