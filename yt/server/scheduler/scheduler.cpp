@@ -1666,8 +1666,9 @@ private:
             registered = true;
 
             controller->Initialize();
+            auto initializeResult = controller->GetInitializeResult();
 
-            WaitFor(MasterConnector_->CreateOperationNode(operation))
+            WaitFor(MasterConnector_->CreateOperationNode(operation, initializeResult))
                 .ThrowOnError();
 
             if (operation->GetState() != EOperationState::Initializing) {

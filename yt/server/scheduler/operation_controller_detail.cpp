@@ -1226,6 +1226,15 @@ void TOperationControllerBase::Initialize()
     LOG_INFO("Operation initialized");
 }
 
+TOperationControllerInitializeResult TOperationControllerBase::GetInitializeResult() const
+{
+    TOperationControllerInitializeResult result;
+    result.BriefSpec = BuildYsonStringFluently().BeginMap()
+            .Do(BIND(&TOperationControllerBase::BuildBriefSpec, MakeStrong(this)))
+        .EndMap();
+    return result;
+}
+
 void TOperationControllerBase::InitializeStructures()
 {
     InputNodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
@@ -5609,6 +5618,11 @@ public:
         Underlying_->Initialize();
     }
 
+    virtual TOperationControllerInitializeResult GetInitializeResult() const override
+    {
+        return Underlying_->GetInitializeResult();
+    }
+
     virtual void InitializeReviving(TControllerTransactionsPtr controllerTransactions) override
     {
         Underlying_->InitializeReviving(controllerTransactions);
@@ -5759,11 +5773,6 @@ public:
     virtual void BuildMemoryDigestStatistics(IYsonConsumer* consumer) const override
     {
         Underlying_->BuildMemoryDigestStatistics(consumer);
-    }
-
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
-    {
-        Underlying_->BuildBriefSpec(consumer);
     }
 
     virtual TYsonString BuildInputPathYson(const TJobId& jobId) const override

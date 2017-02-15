@@ -62,7 +62,7 @@ public:
 
     bool IsConnected() const;
 
-    TFuture<void> CreateOperationNode(TOperationPtr operation);
+    TFuture<void> CreateOperationNode(TOperationPtr operation, const TOperationControllerInitializeResult& initializeResult);
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation);
     TFuture<void> FlushOperationNode(TOperationPtr operation);
 

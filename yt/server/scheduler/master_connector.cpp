@@ -95,7 +95,7 @@ public:
         return CancelableControlInvoker;
     }
 
-    TFuture<void> CreateOperationNode(TOperationPtr operation)
+    TFuture<void> CreateOperationNode(TOperationPtr operation, const TOperationControllerInitializeResult& initializeResult)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
@@ -112,15 +112,13 @@ public:
         owners.push_back(operation->GetAuthenticatedUser());
 
         {
-            auto controller = operation->GetController();
-
             auto req = TYPathProxy::Set(GetOperationPath(operationId));
             req->set_value(BuildYsonStringFluently()
                 .BeginAttributes()
                     .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
                     .Do(BIND(&BuildInitializingOperationAttributes, operation))
                     .Item("brief_spec").BeginMap()
-                        .Do(BIND(&IOperationController::BuildBriefSpec, operation->GetController()))
+                        .Items(ConvertToNode(initializeResult.BriefSpec)->AsMap())
                         .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))
                     .EndMap()
                     .Item("progress").BeginMap().EndMap()
@@ -2041,9 +2039,9 @@ IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const
     return Impl->GetCancelableControlInvoker();
 }
 
-TFuture<void> TMasterConnector::CreateOperationNode(TOperationPtr operation)
+TFuture<void> TMasterConnector::CreateOperationNode(TOperationPtr operation, const TOperationControllerInitializeResult& initializeResult)
 {
-    return Impl->CreateOperationNode(operation);
+    return Impl->CreateOperationNode(operation, initializeResult);
 }
 
 TFuture<void> TMasterConnector::ResetRevivingOperationNode(TOperationPtr operation)

@@ -177,9 +177,10 @@ public:
     // moving it to the section above.
 
     virtual void Initialize() override;
+    virtual TOperationControllerInitializeResult GetInitializeResult() const override;
 
-    void InitializeReviving(TControllerTransactionsPtr operationTransactions);
-    void Revive();
+    virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) override;
+    virtual void Revive() override;
 
     virtual std::vector<NApi::ITransactionPtr> GetTransactions() override;
 
@@ -201,7 +202,6 @@ public:
     virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
-    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
 
     virtual NYson::TYsonString GetProgress() const override;
@@ -1086,6 +1086,8 @@ protected:
     void InferSchemaFromInput(const NTableClient::TKeyColumns& keyColumns = NTableClient::TKeyColumns());
     void InferSchemaFromInputOrdered();
     void ValidateOutputSchemaOrdered() const;
+
+    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const;
 
 private:
     typedef TOperationControllerBase TThis;

@@ -51,6 +51,13 @@ DEFINE_REFCOUNTED_TYPE(TControllerTransactions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TOperationControllerInitializeResult
+{
+    NYson::TYsonString BriefSpec;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IOperationHost
 {
     virtual ~IOperationHost() = default;
@@ -155,6 +162,9 @@ struct IOperationController
      *  \note Invoker affinity: Control invoker
      */
     virtual void Initialize() = 0;
+
+    //! Returns controller initialization result. Scheduler uses it to build operation attributes in Cypress.
+    virtual TOperationControllerInitializeResult GetInitializeResult() const = 0;
 
     //! Performs controller inner state initialization for reviving operation.
     /*
@@ -328,13 +338,6 @@ struct IOperationController
 
     //! Called to construct a YSON representing the current state of memory digests for jobs of each type.
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const = 0;
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    //! Called for a just initialized operation to construct its brief spec
-    //! to be used by UI.
-    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const = 0;
 
     /*!
      *  \note Thread affinity: Controller invoker
