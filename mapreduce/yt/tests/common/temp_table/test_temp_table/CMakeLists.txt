@@ -1,4 +1,4 @@
-PROGRAM(library)
+PROGRAM(test_temp_table)
 
 OWNER(
     ermolovd
@@ -12,11 +12,8 @@ SRCS(
 
 PEERDIR(
     mapreduce/yt/tests/lib
-    mapreduce/yt/tests/util
     mapreduce/lib
     mapreduce/library/temptable
 )
 
 END()
-
-RECURSE(test)

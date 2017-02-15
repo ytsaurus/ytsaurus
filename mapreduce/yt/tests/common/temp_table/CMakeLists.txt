@@ -9,24 +9,18 @@ TEST_SRCS(
     test.py
 )
 
-DATA(
-    arcadia/kikimr/yql/ci/stuff
-    arcadia/devtools/swag
-)
-
 PEERDIR(
     mapreduce/yt/python
 )
 
 DEPENDS(
+    mapreduce/yt/tests/common/temp_table/test_temp_table
     yt/packages
-    mapreduce/yt/tests/library
-    quality/mapreduce
 )
 
-TIMEOUT(300)
+TIMEOUT(60)
 
-SIZE(MEDIUM)
+SIZE(FAT)
 
 NO_LINT()
 
