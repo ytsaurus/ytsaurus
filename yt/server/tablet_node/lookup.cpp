@@ -45,6 +45,7 @@ public:
     TLookupSession(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
+        const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
@@ -52,25 +53,18 @@ public:
         , Timestamp_(timestamp)
         , Reader_(reader)
         , Writer_(writer)
-        , KeyColumnCount_ (TabletSnapshot_->PhysicalSchema.GetKeyColumnCount())
-        , SchemaColumnCount_(TabletSnapshot_->PhysicalSchema.Columns().size())
+        , ColumnFilter_(columnFilter)
         , WorkloadDescriptor_(workloadDescriptor)
+        , Merger_(
+            New<TRowBuffer>(TLookupSessionBufferTag()),
+            TabletSnapshot_->PhysicalSchema.Columns().size(),
+            TabletSnapshot_->PhysicalSchema.GetKeyColumnCount(),
+            ColumnFilter_,
+            TabletSnapshot_->ColumnEvaluator)
     { }
 
     void Run()
     {
-        TReqLookupRows req;
-        Reader_->ReadMessage(&req);
-
-        TColumnFilter columnFilter;
-        if (req.has_column_filter()) {
-            columnFilter.All = false;
-            columnFilter.Indexes = FromProto<SmallVector<int, TypicalColumnCount>>(req.column_filter().indexes());
-        }
-
-        ValidateColumnFilter(columnFilter, TabletSnapshot_->PhysicalSchema.Columns().size());
-        ColumnFilter_ = std::move(columnFilter);
-
         auto schemaData = TWireProtocolReader::GetSchemaData(TabletSnapshot_->PhysicalSchema);
         LookupKeys_ = Reader_->ReadSchemafulRowset(schemaData, false);
 
@@ -78,13 +72,6 @@ public:
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
             LookupKeys_.Size());
-
-        Merger_ = New<TSchemafulRowMerger>(
-            RowBuffer_,
-            SchemaColumnCount_,
-            KeyColumnCount_,
-            ColumnFilter_,
-            TabletSnapshot_->ColumnEvaluator);
 
         CreateReadSessions(&EdenSessions_, TabletSnapshot_->GetEdenStores(), LookupKeys_);
 
@@ -155,11 +142,6 @@ private:
     TWireProtocolReader* const Reader_;
     TWireProtocolWriter* const Writer_;
 
-    const int KeyColumnCount_;
-    const int SchemaColumnCount_;
-
-    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TLookupSessionBufferTag());
-
     TSharedRange<TUnversionedRow> LookupKeys_;
 
     static const int TypicalSessionCount = 16;
@@ -167,10 +149,11 @@ private:
     TReadSessionList EdenSessions_;
     TReadSessionList PartitionSessions_;
 
-    TColumnFilter ColumnFilter_;
+    const TColumnFilter& ColumnFilter_;
     const TWorkloadDescriptor& WorkloadDescriptor_;
 
-    TSchemafulRowMergerPtr Merger_;
+    TSchemafulRowMerger Merger_;
+
     int FoundRowCount_ = 0;
 
     void CreateReadSessions(
@@ -217,7 +200,7 @@ private:
 
         auto processSessions = [&] (TReadSessionList& sessions) {
             for (auto& session : sessions) {
-                Merger_->AddPartialRow(session.FetchRow());
+                Merger_.AddPartialRow(session.FetchRow());
             }
         };
 
@@ -225,7 +208,7 @@ private:
             processSessions(PartitionSessions_);
             processSessions(EdenSessions_);
 
-            auto mergedRow = Merger_->BuildMergedRow();
+            auto mergedRow = Merger_.BuildMergedRow();
             Writer_->WriteSchemafulRow(mergedRow);
             ++FoundRowCount_;
         }
@@ -239,12 +222,25 @@ void LookupRows(
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
+    TReqLookupRows req;
+    reader->ReadMessage(&req);
+
+    TColumnFilter columnFilter;
+    if (req.has_column_filter()) {
+        columnFilter.All = false;
+        columnFilter.Indexes = FromProto<SmallVector<int, TypicalColumnCount>>(req.column_filter().indexes());
+    }
+
+    ValidateColumnFilter(columnFilter, tabletSnapshot->PhysicalSchema.Columns().size());
+
     TLookupSession session(
         tabletSnapshot,
         timestamp,
+        columnFilter,
         workloadDescriptor,
         reader,
         writer);
+
     session.Run();
 }
 

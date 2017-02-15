@@ -16,7 +16,6 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulRowMerger
-    : public TIntrinsicRefCounted
 {
 public:
     using TResultingRow = TUnversionedRow;
@@ -53,12 +52,9 @@ private:
     void Cleanup();
 };
 
-DEFINE_REFCOUNTED_TYPE(TSchemafulRowMerger)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnversionedRowMerger
-    : public TIntrinsicRefCounted
 {
 public:
     using TResultingRow = TUnversionedRow;
@@ -90,12 +86,9 @@ private:
     void Cleanup();
 };
 
-DEFINE_REFCOUNTED_TYPE(TUnversionedRowMerger)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedRowMerger
-    : public TIntrinsicRefCounted
 {
 public:
     using TResultingRow = TVersionedRow;
@@ -136,15 +129,11 @@ private:
     void Cleanup();
 };
 
-DEFINE_REFCOUNTED_TYPE(TVersionedRowMerger)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSamplingRowMerger
-    : public TIntrinsicRefCounted
 {
 public:
-
     TSamplingRowMerger(
         TRowBufferPtr rowBuffer,
         const TTableSchema& schema);
@@ -159,8 +148,6 @@ private:
     std::vector<int> IdMapping_;
     int ColumnCount_;
 };
-
-DEFINE_REFCOUNTED_TYPE(TSamplingRowMerger)
 
 ////////////////////////////////////////////////////////////////////////////////
 
