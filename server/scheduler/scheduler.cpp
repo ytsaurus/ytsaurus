@@ -42,6 +42,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/throttler_manager.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -125,6 +126,10 @@ public:
         , TotalFailedJobTimeCounter_("/total_failed_job_time")
         , TotalAbortedJobTimeCounter_("/total_aborted_job_time")
         , CoreSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSafeCoreDumps))
+        , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
+            Config_->ChunkLocationThrottler,
+            Logger,
+            Profiler))
     {
         YCHECK(config);
         YCHECK(bootstrap);
@@ -863,7 +868,7 @@ public:
 
     virtual const TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const override
     {
-        return Bootstrap_->GetChunkLocationThrottlerManager();
+        return ChunkLocationThrottlerManager_;
     }
 
     virtual IYsonConsumer* GetEventLogConsumer() override
@@ -1016,6 +1021,8 @@ private:
     TPeriodicExecutorPtr UpdateNodeShardsExecutor_;
 
     const TAsyncSemaphorePtr CoreSemaphore_;
+
+    NChunkClient::TThrottlerManagerPtr ChunkLocationThrottlerManager_;
 
     Stroka ServiceAddress_;
 

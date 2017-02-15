@@ -36,9 +36,8 @@ void LoadFromNode(
     T& parameter,
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
-    EMergeStrategy mergeStrategy)
+    EMergeStrategy /* mergeStrategy */)
 {
-    Y_UNUSED(mergeStrategy);
     try {
         Deserialize(parameter, node);
     } catch (const std::exception& ex) {
@@ -52,10 +51,9 @@ template <>
 inline void LoadFromNode(
     NYTree::INodePtr& parameter,
     NYTree::INodePtr node,
-    const NYPath::TYPath& path,
+    const NYPath::TYPath& /* path */,
     EMergeStrategy mergeStrategy)
 {
-    Y_UNUSED(path);
     switch (mergeStrategy) {
         case EMergeStrategy::Default:
         case EMergeStrategy::Overwrite: {

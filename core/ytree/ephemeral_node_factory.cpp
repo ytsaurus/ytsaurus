@@ -92,14 +92,16 @@ public:
     virtual void WriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
-        bool sortKeys) override
+        bool stable) override
     {
-        if (!HasAttributes())
+        if (!HasAttributes()) {
             return;
+        }
 
         const auto& attributes = Attributes();
+
         auto keys = attributes.List();
-        if (sortKeys) {
+        if (stable) {
             std::sort(keys.begin(), keys.end());
         }
 

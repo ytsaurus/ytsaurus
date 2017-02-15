@@ -430,12 +430,6 @@ protected:
 
 };
 
-typedef TScalarNodeTypeHandler<Stroka> TStringNodeTypeHandler;
-typedef TScalarNodeTypeHandler<i64>    TInt64NodeTypeHandler;
-typedef TScalarNodeTypeHandler<ui64>   TUint64NodeTypeHandler;
-typedef TScalarNodeTypeHandler<double> TDoubleNodeTypeHandler;
-typedef TScalarNodeTypeHandler<bool>   TBooleanNodeTypeHandler;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapNode

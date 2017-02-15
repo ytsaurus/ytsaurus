@@ -437,7 +437,7 @@ public:
 
         LOG_DEBUG("Preparing snapshot directory");
 
-        NFS::ForcePath(path);
+        NFS::MakeDirRecursive(path);
         NFS::CleanTempFiles(path);
 
         LOG_DEBUG("Looking for snapshots");

@@ -65,9 +65,10 @@ void TReplicatedStoreManager::StopEpoch()
     Underlying_->StopEpoch();
 }
 
-void TReplicatedStoreManager::ExecuteAtomicWrite(
+void TReplicatedStoreManager::ExecuteWrite(
     TTransaction* transaction,
     TWireProtocolReader* reader,
+    TTimestamp commitTimestamp,
     bool prelock)
 {
     auto command = reader->ReadCommand();
@@ -77,6 +78,7 @@ void TReplicatedStoreManager::ExecuteAtomicWrite(
             WriteRow(
                 transaction,
                 row,
+                commitTimestamp,
                 prelock);
             break;
         }
@@ -86,6 +88,7 @@ void TReplicatedStoreManager::ExecuteAtomicWrite(
             DeleteRow(
                 transaction,
                 key,
+                commitTimestamp,
                 prelock);
             break;
         }
@@ -94,13 +97,6 @@ void TReplicatedStoreManager::ExecuteAtomicWrite(
             THROW_ERROR_EXCEPTION("Unsupported write command %v",
                 command);
     }
-}
-
-void TReplicatedStoreManager::ExecuteNonAtomicWrite(
-    const TTransactionId& /*transactionId*/,
-    TWireProtocolReader* /*reader*/)
-{
-    THROW_ERROR_EXCEPTION("Non-atomic writes to replicated tables are not supported");
 }
 
 bool TReplicatedStoreManager::IsOverflowRotationNeeded() const
@@ -278,22 +274,26 @@ void TReplicatedStoreManager::UpdatePartitionSampleKeys(
 TOrderedDynamicRowRef  TReplicatedStoreManager::WriteRow(
     TTransaction* transaction,
     TUnversionedRow row,
+    TTimestamp commitTimestamp,
     bool prelock)
 {
     return Underlying_->WriteRow(
         transaction,
         BuildLogRow(row, ERowModificationType::Write),
+        commitTimestamp,
         prelock);
 }
 
 TOrderedDynamicRowRef TReplicatedStoreManager::DeleteRow(
     TTransaction* transaction,
     TKey key,
+    TTimestamp commitTimestamp,
     bool prelock)
 {
     return Underlying_->WriteRow(
         transaction,
         BuildLogRow(key, ERowModificationType::Delete),
+        commitTimestamp,
         prelock);
 }
 

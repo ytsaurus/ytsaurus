@@ -25,6 +25,7 @@ struct TShellOptions
     TNullable<Stroka> Bashrc;
     TNullable<Stroka> MessageOfTheDay;
     TDuration InactivityTimeout;
+    TNullable<Stroka> Command;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

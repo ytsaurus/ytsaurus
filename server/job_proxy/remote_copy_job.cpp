@@ -176,21 +176,13 @@ private:
         LOG_INFO("Creating output chunk");
 
         // Create output chunk.
-        TChunkId outputChunkId;
-        try {
-            outputChunkId = CreateChunk(
-                Host_->GetClient(),
-                CellTagFromId(OutputChunkListId_),
-                writerOptions,
-                transactionId,
-                OutputChunkListId_,
-                Logger);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::ChunkCreationFailed,
-                "Error creating chunk")
-                << ex;
-        }
+        auto outputChunkId = CreateChunk(
+            Host_->GetClient(),
+            CellTagFromId(OutputChunkListId_),
+            writerOptions,
+            transactionId,
+            OutputChunkListId_,
+            Logger);
 
         LOG_INFO("Output chunk created (ChunkId: %v)",
             outputChunkId);

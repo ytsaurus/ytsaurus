@@ -20,6 +20,7 @@ class TServiceContextBase
     : public IServiceContext
 {
 public:
+    virtual const NProto::TRequestHeader& GetRequestHeader() const override;
     virtual TSharedRefArray GetRequestMessage() const override;
 
     virtual TRequestId GetRequestId() const override;
@@ -143,6 +144,7 @@ class TServiceContextWrapper
 public:
     explicit TServiceContextWrapper(IServiceContextPtr underlyingContext);
 
+    virtual const NProto::TRequestHeader& GetRequestHeader() const override;
     virtual TSharedRefArray GetRequestMessage() const override;
 
     virtual NRpc::TRequestId GetRequestId() const override;
