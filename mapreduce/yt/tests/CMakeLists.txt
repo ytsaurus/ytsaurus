@@ -3,6 +3,5 @@ RECURSE(
     util
 
     common
-    library
     native
 )
