@@ -32,10 +32,10 @@ public:
     void Reset();
 
 private:
-    TRowBufferPtr RowBuffer_;
-    int ColumnCount_;
-    int KeyColumnCount_;
-    NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
+    const TRowBufferPtr RowBuffer_;
+    const int ColumnCount_;
+    const int KeyColumnCount_;
+    const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
     TMutableUnversionedRow MergedRow_;
     SmallVector<TTimestamp, TypicalColumnCount> MergedTimestamps_;
@@ -71,10 +71,10 @@ public:
     void Reset();
 
 private:
-    TRowBufferPtr RowBuffer_;
-    int ColumnCount_;
-    int KeyColumnCount_;
-    NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
+    const TRowBufferPtr RowBuffer_;
+    const int ColumnCount_;
+    const int KeyColumnCount_;
+    const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
     bool Started_;
     bool Deleted_;
@@ -143,10 +143,11 @@ public:
 
 private:
     const TRowBufferPtr RowBuffer_;
-    const TTableSchema Schema_;
-    std::vector<TTimestamp> LatestTimestamps_;
-    std::vector<int> IdMapping_;
-    int ColumnCount_;
+    const int KeyColumnCount_;
+    int SampledColumnCount_;
+
+    SmallVector<TTimestamp, TypicalColumnCount> LatestTimestamps_;
+    SmallVector<int, TypicalColumnCount> IdMapping_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
