@@ -75,7 +75,7 @@ sets OAuth token by which user will be authenticated on cluster.
 Special `getting started <https://wiki.yandex-team.ru/yt/gettingstarted/>`_ page answers such questions as
 how to obtain token or network access.
 
-All config options can be found on `Configuration <configuration>`_ page.
+All config options can be found on :ref:`Configuration <configuration>` page.
 
 Other lines are obvious: code creates table `//tmp/my_table` and writes row with key `x` and value `1` to it.
 
