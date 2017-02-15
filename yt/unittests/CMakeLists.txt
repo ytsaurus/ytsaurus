@@ -17,6 +17,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/batch_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bind_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/blackbox_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/boolean_formula_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/boolean_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bus_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/callback_ut.cpp

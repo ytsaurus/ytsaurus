@@ -438,6 +438,23 @@ class TestDynamicTables(YTEnvSetup):
         with pytest.raises(YtError): freeze_table("//tmp/t")
         with pytest.raises(YtError): unfreeze_table("//tmp/t")
 
+    def test_cell_bundle_node_tag_filter(self):
+        node = list(get("//sys/nodes"))[0]
+        with pytest.raises(YtError):
+            set("//sys/nodes/{0}/@user_tags".format(node), ["custom!"])
+        set("//sys/nodes/{0}/@user_tags".format(node), ["custom"])
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "!custom")
+
+        create_tablet_cell_bundle("custom", attributes={"node_tag_filter": "custom"})
+        default_cell = self.sync_create_cells(1)[0]
+        custom_cell = self.sync_create_cells(1, tablet_cell_bundle="custom")[0]
+
+        for peer in get("#{0}/@peers".format(custom_cell)):
+            assert peer["address"] == node
+
+        for peer in get("#{0}/@peers".format(default_cell)):
+            assert peer["address"] != node
+
 ##################################################################
 
 class TestDynamicTablesMulticell(TestDynamicTables):
