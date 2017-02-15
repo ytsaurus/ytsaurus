@@ -16,8 +16,11 @@ SRCS(
 )
 
 PEERDIR(
+    library/dbg_output
     mapreduce/yt/tests/lib
     mapreduce/yt/client
+    mapreduce/yt/common
+    mapreduce/yt/interface
 )
 
 END()
