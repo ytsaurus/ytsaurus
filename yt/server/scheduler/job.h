@@ -109,7 +109,7 @@ class TJob
     //! Last time when brief statistics changed in comparison to their previous values.
     DEFINE_BYVAL_RO_PROPERTY(TInstant, LastActivityTime);
 
-    //! Account for node in cypress.
+    //! Account for node in Cypress.
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Account);
 
     //! Cookie for timeout on interrupted job.
