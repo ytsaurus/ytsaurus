@@ -81,7 +81,8 @@ void TEncodingWriter::EnsureOpen()
             if (!error.IsOK()) {
                 CompletionError_.TrySet(error);
             } else {
-                Logger.AddTag("ChunkId: %v", ChunkWriter_->GetChunkId());
+                LOG_DEBUG("Underlying session for encoding writer opened (ChunkId: %v)",
+                    ChunkWriter_->GetChunkId());
                 PendingBlocks_.Dequeue().Subscribe(
                     WritePendingBlockCallback_.Via(CompressionInvoker_));
             }
@@ -111,9 +112,9 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock)
 
     if (Any(BlockCache_->GetSupportedBlockTypes() & EBlockType::UncompressedData)) {
         OpenFuture_.Apply(BIND(
-            &TEncodingWriter::CacheUncompressedBlock, 
-            MakeWeak(this), 
-            uncompressedBlock, 
+            &TEncodingWriter::CacheUncompressedBlock,
+            MakeWeak(this),
+            uncompressedBlock,
             AddedBlockIndex_));
     }
 
@@ -141,9 +142,9 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompress
             ? compressedBlock
             : MergeRefsToRef<TMergedTag>(uncompressedVectorizedBlock);
         OpenFuture_.Apply(BIND(
-            &TEncodingWriter::CacheUncompressedBlock, 
-            MakeWeak(this), 
-            uncompressedBlock, 
+            &TEncodingWriter::CacheUncompressedBlock,
+            MakeWeak(this),
+            uncompressedBlock,
             AddedBlockIndex_));
     }
 
