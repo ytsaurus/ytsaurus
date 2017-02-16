@@ -157,6 +157,7 @@ NODE_CONFIG_PATCHES = [
             }
         },
         "exec_agent": {
+            "job_proxy_heartbeat_period": 100,
             "scheduler_connector": {
                 "heartbeat_period": 100,
                 "heartbeat_splay": 50

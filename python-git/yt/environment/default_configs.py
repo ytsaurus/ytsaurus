@@ -221,6 +221,8 @@ b"""
             heartbeat_period = 200;
         };
 
+        job_proxy_heartbeat_period = 200;
+
         job_proxy_logging = {
             rules = [
                 {
