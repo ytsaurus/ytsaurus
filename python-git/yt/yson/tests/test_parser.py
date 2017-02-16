@@ -6,7 +6,7 @@ from io import BytesIO, StringIO
 
 import yt.yson
 from yt.yson.yson_types import YsonEntity, YsonMap, YsonList, YsonInt64, YsonString, YsonUnicode
-from yt.yson import to_yson_type
+from yt.yson import to_yson_type, YsonError
 from yt.packages.six import PY3
 
 import pytest
@@ -158,9 +158,9 @@ class YsonParserTestBase(object):
 
     def test_parse_from_non_binary_stream(self):
         if PY3:
-            with pytest.raises(TypeError):
+            with pytest.raises(YsonError):
                 self.loads(u"1")
-            with pytest.raises(RuntimeError):
+            with pytest.raises(YsonError):
                 self.load(StringIO(u"abcdef"))
         else:  # COMPAT
             assert self.loads(u"1") == 1

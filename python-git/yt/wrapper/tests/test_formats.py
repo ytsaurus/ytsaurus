@@ -291,6 +291,6 @@ if PY3:
         check(yt.DsvFormat(encoding=None), {b"x": b"y"}, {"x": "y"}, b"x=y\n")
         check(yt.YamredDsvFormat(encoding=None), yt.Record(b"1", b"2"), yt.Record("1", "2"), b"1\t2\n")
         check(yt.YsonFormat(format="text", encoding=None), {b"x": b"y"}, {"x": "y"}, b'{"x"="y";};\n',
-              fail_exc=RuntimeError)
+              fail_exc=yson.YsonError)
         check(yt.SchemafulDsvFormat(encoding=None, columns=["x"]), {b"x": b"y"}, {"x": "y"}, b"y\n",
               fail_exc=KeyError)
