@@ -79,6 +79,20 @@ int TError::GetInnerCode() const
     return 0;
 }
 
+bool TError::ContainsErrorCode(int code) const
+{
+    if (Code_ == code) {
+        return true;
+    }
+    for (const auto& error : InnerErrors_) {
+        if (error.ContainsErrorCode(code)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
 bool TError::ContainsText(const TStringBuf& text) const
 {
     if (Message_.Contains(text)) {
@@ -139,13 +153,47 @@ TDuration TErrorResponse::GetRetryInterval() const
 
 bool TErrorResponse::IsResolveError() const
 {
-    return Error_.GetInnerCode() == 500;
+    return Error_.ContainsErrorCode(500);
+}
+
+bool TErrorResponse::IsAccessDenied() const
+{
+    return Error_.ContainsErrorCode(901);
+}
+
+bool TErrorResponse::IsConcurrentTransactionLockConflict() const
+{
+    return Error_.ContainsErrorCode(402);
+}
+
+bool TErrorResponse::IsRequestRateLimitExceeded() const
+{
+    return Error_.ContainsErrorCode(904);
+}
+
+bool TErrorResponse::IsRequestQueueSizeLimitExceeded() const
+{
+    return Error_.ContainsErrorCode(108);
+}
+
+bool TErrorResponse::IsChunkUnavailable() const
+{
+    return Error_.ContainsErrorCode(716);
+}
+
+bool TErrorResponse::IsRequestTimedOut() const
+{
+    return Error_.ContainsErrorCode(3);
+}
+
+bool TErrorResponse::IsNoSuchTransaction() const
+{
+    return Error_.ContainsErrorCode(11000);
 }
 
 bool TErrorResponse::IsConcurrentOperationsLimitReached() const
 {
-    return (Error_.GetInnerCode() == 202 ||
-        Error_.ContainsText("Limit for the number of concurrent operations"));
+    return Error_.ContainsErrorCode(202);
 }
 
 void TErrorResponse::Setup()
