@@ -654,6 +654,9 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
 std::vector<TDataSliceDescriptor> THorizontalSchemalessRangeChunkReader::GetUnreadDataSliceDescriptors(
     const TRange<TUnversionedRow>& unreadRows) const
 {
+    if (BlockIndexes_.size() == 0) {
+        return std::vector<TDataSliceDescriptor>();
+    }
     return GetUnreadDataSliceDescriptorsImpl(
         unreadRows,
         GetProtoExtension<TMiscExt>(ChunkMeta_.extensions()),
@@ -1028,6 +1031,9 @@ public:
     virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
         const TRange<TUnversionedRow>& unreadRows) const override
     {
+        if (Completed_ && unreadRows.Size() == 0) {
+            return std::vector<TDataSliceDescriptor>();
+        }
         return GetUnreadDataSliceDescriptorsImpl(
             unreadRows,
             ChunkMeta_->Misc(),
@@ -1907,8 +1913,10 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
 {
     rows->clear();
     if (Interrupting_) {
+        RowCount_ = RowIndex_.load();
         return false;
     }
+
     if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
         return true;
     }
@@ -2246,8 +2254,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             std::move(chunkReader),
             blockCache,
             std::move(chunkMeta),
-            lowerLimit,
-            upperLimit,
+            lowerLimit.GetKey(),
+            upperLimit.GetKey(),
             columnFilter,
             performanceCounters,
             timestamp);

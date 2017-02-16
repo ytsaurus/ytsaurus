@@ -356,6 +356,17 @@ class TestJobProber(YTEnvSetup):
             output += r["output"]
         return output
 
+    def _poll_until_shell_exited(self, job_id, shell_id):
+        output = ""
+        try:
+            while True:
+                r = poll_job_shell(job_id, operation="poll", shell_id=shell_id)
+                output += r["output"]
+        except YtResponseError as e:
+            if e.is_shell_exited():
+                return output
+            raise
+
     def _send_keys(self, job_id, shell_id, keys, input_offset):
         poll_job_shell(
             job_id,
@@ -388,6 +399,37 @@ class TestJobProber(YTEnvSetup):
 
         expected = "{0}\nscreen-256color\r\n50\r\n132\r\n1".format(command)
         assert output.startswith(expected) == True
+
+        r = poll_job_shell(job_id, operation="terminate", shell_id=shell_id)
+        with pytest.raises(YtError):
+            output = self._poll_until_prompt(job_id, shell_id)
+
+        abandon_job(job_id)
+
+        op.resume_jobs()
+        op.track()
+        assert len(read_table("//tmp/t2")) == 0
+
+    def test_poll_job_shell_command(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"key": "foo"})
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="poll_job_shell",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="sleep 10; cat")
+
+        job_id = op.jobs[0]
+        r = poll_job_shell(job_id, operation="spawn", command="echo $TERM; tput lines; tput cols; env | grep -c YT_OPERATION_ID")
+        shell_id = r["shell_id"]
+        output = self._poll_until_shell_exited(job_id, shell_id)
+
+        expected = "xterm\r\n24\r\n80\r\n1\r\n"
+        assert output == expected
 
         r = poll_job_shell(job_id, operation="terminate", shell_id=shell_id)
         with pytest.raises(YtError):

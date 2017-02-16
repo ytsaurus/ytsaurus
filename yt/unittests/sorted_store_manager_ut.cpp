@@ -40,14 +40,14 @@ protected:
         TUnversionedRow row,
         bool prelock)
     {
-        return StoreManager_->WriteRowAtomic(transaction, row, prelock);
+        return StoreManager_->WriteRow(transaction, row, NullTimestamp, prelock);
     }
 
     void WriteRow(const TUnversionedOwningRow& row, bool prelock = false)
     {
         auto transaction = StartTransaction();
 
-        StoreManager_->WriteRowAtomic(transaction.get(), row, prelock);
+        StoreManager_->WriteRow(transaction.get(), row, NullTimestamp, prelock);
 
         TSortedDynamicRowRef rowRef;
         if (prelock) {
@@ -70,7 +70,7 @@ protected:
         TUnversionedRow row,
         bool prelock)
     {
-        return StoreManager_->DeleteRowAtomic(transaction, row, prelock);
+        return StoreManager_->DeleteRow(transaction, row, NullTimestamp, prelock);
     }
 
     void DeleteRow(const TOwningKey& key)

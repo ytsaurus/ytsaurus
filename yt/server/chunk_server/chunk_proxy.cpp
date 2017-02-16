@@ -216,7 +216,7 @@ private:
                     MaxMediumCount,
                     [&] (TFluentMap fluent, int mediumIndex) {
                         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                        if (!medium) {
+                        if (!medium || medium->GetCache()) {
                             return;
                         }
 

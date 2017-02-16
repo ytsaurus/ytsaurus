@@ -693,7 +693,7 @@ public:
     IMPLEMENT_METHOD(void, ConcatenateNodes, (
         const std::vector<TYPath>& srcPaths,
         const TYPath& dstPath,
-        TConcatenateNodesOptions options),
+        const TConcatenateNodesOptions& options),
         (srcPaths, dstPath, options))
     IMPLEMENT_METHOD(bool, NodeExists, (
         const TYPath& path,
@@ -3003,7 +3003,7 @@ public:
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, ConcatenateNodes, (
         const std::vector<TYPath>& srcPaths,
         const TYPath& dstPath,
-        TConcatenateNodesOptions options),
+        const TConcatenateNodesOptions& options),
         (srcPaths, dstPath, options))
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<bool>, NodeExists, (
         const TYPath& path,

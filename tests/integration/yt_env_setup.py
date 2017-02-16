@@ -301,7 +301,14 @@ class YTEnvSetup(object):
                 continue
 
             self._abort_transactions(driver=driver)
-            yt_commands.set('//tmp', {}, driver=driver)
+            yt_commands.remove("//tmp", driver=driver)
+            yt_commands.create("map_node", "//tmp",
+                               attributes={
+                                "account": "tmp",
+                                "acl": [{"action": "allow", "permissions": ["read", "write", "remove"], "subjects": ["users"]}],
+                                "opaque": True
+                               },
+                               driver=driver)
             self._remove_operations(driver=driver)
             self._wait_jobs_to_abort(driver=driver)
             yt_commands.gc_collect(driver=driver)

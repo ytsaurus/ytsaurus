@@ -61,9 +61,7 @@ void DetachChild(
     TCypressNodeBase* child,
     bool unref);
 
-bool NodeHasKey(
-    const TCypressManagerPtr& cypressManager,
-    const TCypressNodeBase* node);
+bool NodeHasKey(const TCypressNodeBase* node);
 
 bool IsParentOf(
     const TCypressNodeBase* parent,
