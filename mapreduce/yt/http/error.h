@@ -25,6 +25,7 @@ public:
     void ParseFrom(const Stroka& jsonError);
 
     int GetInnerCode() const;
+    bool ContainsErrorCode(int code) const;
 
     bool ContainsText(const TStringBuf& text) const;
 
@@ -54,7 +55,16 @@ public:
     bool IsRetriable() const;
     TDuration GetRetryInterval() const;
 
+    const TError& GetError() const;
+
     bool IsResolveError() const;
+    bool IsAccessDenied() const;
+    bool IsConcurrentTransactionLockConflict() const;
+    bool IsRequestRateLimitExceeded() const;
+    bool IsRequestQueueSizeLimitExceeded() const;
+    bool IsChunkUnavailable() const;
+    bool IsRequestTimedOut() const;
+    bool IsNoSuchTransaction() const;
     bool IsConcurrentOperationsLimitReached() const;
 
 private:
