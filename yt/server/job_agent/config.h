@@ -81,13 +81,15 @@ public:
             .DefaultNew();
         RegisterParameter("statistics_throttler", StatisticsThrottler)
             .DefaultNew();
+
+        // Make it greater than interrupt preemption timeout.
         RegisterParameter("waiting_jobs_timeout", WaitingJobsTimeout)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Seconds(30));
 
         RegisterInitializer([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to
             // approximate incoming bandwidth of 1Gbit/sec of the scheduler.
-            StatisticsThrottler->Limit = 100 * 1024; 
+            StatisticsThrottler->Limit = 100 * 1024;
         });
     }
 };
