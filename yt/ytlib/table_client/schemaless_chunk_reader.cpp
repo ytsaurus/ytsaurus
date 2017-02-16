@@ -654,6 +654,9 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
 std::vector<TDataSliceDescriptor> THorizontalSchemalessRangeChunkReader::GetUnreadDataSliceDescriptors(
     const TRange<TUnversionedRow>& unreadRows) const
 {
+    if (BlockIndexes_.size() == 0) {
+        return std::vector<TDataSliceDescriptor>();
+    }
     return GetUnreadDataSliceDescriptorsImpl(
         unreadRows,
         GetProtoExtension<TMiscExt>(ChunkMeta_.extensions()),
@@ -1028,6 +1031,9 @@ public:
     virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
         const TRange<TUnversionedRow>& unreadRows) const override
     {
+        if (Completed_ && unreadRows.Size() == 0) {
+            return std::vector<TDataSliceDescriptor>();
+        }
         return GetUnreadDataSliceDescriptorsImpl(
             unreadRows,
             ChunkMeta_->Misc(),

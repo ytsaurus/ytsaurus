@@ -117,7 +117,7 @@ class TOperationControllerBase
 #define VERIFY_EVALUATOR(affinity) VERIFY_PASTER(affinity)
 #define IMPLEMENT_SAFE_METHOD(returnType, method, signature, args, affinity, defaultValue) \
 public: \
-    virtual returnType method signature override final \
+    virtual returnType method signature final \
     { \
         VERIFY_EVALUATOR(affinity); \
         TSafeAssertionsGuard guard(Host->GetCoreDumper(), Host->GetCoreSemaphore()); \
@@ -156,6 +156,20 @@ private: \
         (context, jobLimits),
         INVOKER_AFFINITY(CancelableInvoker),
         New<TScheduleJobResult>())
+
+    //! Callback called by TChunkScraper when get information on some chunk.
+    IMPLEMENT_SAFE_VOID_METHOD(
+        OnInputChunkLocated,
+        (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas),
+        (chunkId, replicas),
+        THREAD_AFFINITY_ANY())
+
+    //! Called by #IntermediateChunkScraper.
+    IMPLEMENT_SAFE_VOID_METHOD(
+        OnIntermediateChunkLocated,
+        (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas),
+        (chunkId, replicas),
+        THREAD_AFFINITY_ANY())
 
 public:
     // These are "pure" interface methods, i. e. those that do not involve YCHECKs.
@@ -857,9 +871,6 @@ protected:
     //! Gets the list of all intermediate chunks that are not lost.
     yhash_set<NChunkClient::TChunkId> GetAliveIntermediateChunks() const;
 
-    //! Called by #IntermediateChunkScraper.
-    void OnIntermediateChunkLocated(const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas);
-
     //! Called when a job is unable to read an intermediate chunk
     //! (i.e. that is not a part of the input).
     //! Returns false if the chunk was already considered lost.
@@ -898,11 +909,6 @@ protected:
         void Persist(const TPersistenceContext& context);
 
     };
-
-    //! Callback called by TChunkScraper when get information on some chunk.
-    void OnInputChunkLocated(
-        const NChunkClient::TChunkId& chunkId,
-        const NChunkClient::TChunkReplicaList& replicas);
 
     //! Called when a job is unable to read an input chunk or
     //! chunk scraper has encountered unavailable chunk.
