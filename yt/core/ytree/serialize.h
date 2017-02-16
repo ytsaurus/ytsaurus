@@ -130,10 +130,6 @@ void Serialize(const std::tuple<T...>& value, NYson::IYsonConsumer* consumer);
 template <template<typename...> class C, class... T, class K = typename C<T...>::key_type>
 void Serialize(const C<T...>& value, NYson::IYsonConsumer* consumer);
 
-// TEnumIndexedVector
-template <class T, class E>
-void Serialize(const TEnumIndexedVector<T, E>& value, NYson::IYsonConsumer* consumer);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
