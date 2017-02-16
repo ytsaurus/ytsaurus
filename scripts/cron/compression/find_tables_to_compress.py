@@ -1,24 +1,25 @@
-#!/usr/bin/env python
-
-from yt.tools.atomic import process_tasks_from_list
-from yt.tools.conversion_tools import convert_to_erasure
+#!/usr/bin/python2
 
 from yt.common import date_string_to_timestamp
-
-from yt.wrapper.cli_helpers import die
 from yt.wrapper.common import parse_bool, get_value, filter_dict
 
 import yt.logger as logger
-import yt.wrapper as yt
 import yt.yson as yson
 
-from copy import deepcopy
-from argparse import ArgumentParser
-import time
+from yt.packages.six.moves import xrange
+
+import yt.wrapper as yt
+
 from collections import defaultdict
+from copy import deepcopy
+import argparse
+import time
 
 DEFAULT_COMPRESSION_CODEC = "gzip_best_compression"
 DEFAULT_ERASURE_CODEC = "lrc_12_2_2"
+
+DEFAULT_QUEUE_NAME = "default"
+DEFAULT_POOL = "cron_compression"
 
 # XXX(asaitgalin): See https://st.yandex-team.ru/YT-5015
 CODECS_SYNONYMS = {
@@ -31,8 +32,7 @@ CODECS_SYNONYMS = {
     "brotli8": ["brotli_8"]
 }
 
-DEFAULT_QUEUE_NAME = "default"
-DEFAULT_POOL = "cron"
+WORKER_TASKS_SET_ATTEMPT_COUNT = 3
 
 def has_proper_codecs(table, erasure_codec, compression_codec):
     compression_stats = table.attributes["compression_statistics"]
@@ -54,52 +54,6 @@ def has_proper_codecs(table, erasure_codec, compression_codec):
 
     return False
 
-def compress(task):
-    table = task["table"]
-    try:
-        if not yt.exists(table):
-            return
-
-        if yt.check_permission("cron", "write", table)["action"] != "allow":
-            logger.warning("Have no permission to write table %s", table)
-            return
-
-        revision = yt.get_attribute(table, "revision")
-        spec = {"pool": task["pool"]}
-
-        logger.info("Compressing table %s", table)
-
-        temp_table = yt.create_temp_table(prefix="compress")
-        try:
-            # To copy all attributes of node
-            yt.remove(temp_table)
-            yt.copy(table, temp_table, preserve_account=True)
-            yt.run_erase(temp_table)
-
-            convert_to_erasure(table,
-                               temp_table,
-                               erasure_codec=task["erasure_codec"],
-                               compression_codec=task["compression_codec"],
-                               spec=spec)
-
-            if yt.exists(table):
-                client = yt.YtClient(config=yt.config.config)
-                client.config["start_operation_retries"]["retry_count"] = 1
-                with client.Transaction():
-                    client.lock(table)
-                    if client.get_attribute(table, "revision") == revision:
-                        client.run_merge(temp_table, table, spec=spec)
-                        if client.has_attribute(table, "force_nightly_compress"):
-                            client.remove(table + "/@force_nightly_compress")
-                        client.set_attribute(table, "nightly_compressed", True)
-                        for codec in ("compression", "erasure"):
-                            client.set_attribute(table, codec + "_codec", task[codec + "_codec"])
-                    else:
-                        logger.info("Table %s has changed while compression", table)
-        finally:
-            yt.remove(temp_table, force=True)
-    except yt.YtError:
-        logger.exception("Failed to merge table %s", table)
 
 def safe_get(path, **kwargs):
     try:
@@ -123,17 +77,19 @@ def make_compression_task(table, compression_codec=None, erasure_codec=None, poo
         "pool": pool
     }
 
-def find(root):
+def find_tables_to_compress(root):
     compression_queues = defaultdict(list)
 
     ignore_nodes = ["//sys", "//home/qe"]
 
-    requested_attributes = ["type", "opaque", "force_nightly_compress", "uncompressed_data_size",
-                            "nightly_compression_settings", "nightly_compressed", "compression_statistics",
+    requested_attributes = ["type", "opaque", "force_nightly_compress",
+                            "uncompressed_data_size", "nightly_compression_settings",
+                            "nightly_compressed", "compression_statistics",
                             "erasure_statistics", "chunk_count", "creation_time"]
 
-    compression_settings_allowed_keys = set(["min_table_size", "min_table_age", "enabled", "compression_codec",
-                                             "erasure_codec", "force_recompress_to_specified_codecs",
+    compression_settings_allowed_keys = set(["min_table_size", "min_table_age", "enabled",
+                                             "compression_codec", "erasure_codec",
+                                             "force_recompress_to_specified_codecs",
                                              "queue", "pool"])
 
     def walk(path, object, compression_settings=None):
@@ -191,22 +147,60 @@ def find(root):
     return compression_queues, total_table_count
 
 def main():
-    parser = ArgumentParser(description="Find tables to compress and run compression")
-    parser.add_argument("action", help="Action should be 'find' or 'run'")
-    parser.add_argument("--queues-root-path", required=True, help="Path to compression queues root")
-    parser.add_argument("--queue", default=DEFAULT_QUEUE_NAME, help="Queue to process tasks from")
-    parser.add_argument("--path", default="/", help='Search path. Default is cypress root "/"')
+    parser = argparse.ArgumentParser(description="Script finds tables to compress on cluster")
+    parser.add_argument("--search-root", default="/", help='path to search tables, default is "/"')
+    parser.add_argument("--tasks-root", required=True, help="compression task lists root path")
+
     args = parser.parse_args()
 
-    if args.action == "find":
-        compression_queues, total_table_count = find(args.path)
-        yt.set(args.queues_root_path, compression_queues)
-        yt.set_attribute(args.queues_root_path, "total_table_count", total_table_count)
-    elif args.action == "run":
-        list_path = yt.ypath_join(args.queues_root_path, args.queue)
-        process_tasks_from_list(list_path, compress)
-    else:
-        die("Incorrect action: " + args.action)
+    compression_queues, total_table_count = find_tables_to_compress(args.search_root)
+    if total_table_count == 0:
+        logger.info("Nothing to compress, exiting")
+        return
+
+    alive_worker_ids = yt.get_attribute(args.tasks_root, "alive_workers", None)
+    if alive_worker_ids is None:
+        logger.warning("No alive workers detected, exiting")
+        return
+
+    # NOTE: Tasks scheduling algorithm below assumes this.
+    assert len(alive_worker_ids) >= len(compression_queues)
+
+    tasks = []
+    for queue_name, queue in compression_queues.iteritems():
+        ratio = 1.0 * len(queue) / total_table_count
+        worker_count = int(max(1.0, ratio * len(alive_worker_ids)))
+
+        tasks_per_worker = max(1, len(queue) / worker_count)
+        for i in xrange(worker_count):
+            begin_index = i * tasks_per_worker
+            end_index = begin_index + tasks_per_worker
+
+            tasks.append(queue[begin_index:end_index])
+
+    for worker_id, task_list in zip(alive_worker_ids, tasks):
+        set_successfully = False
+        # Worker can extract tasks atomically under exclusive lock so
+        # this request should be retried.
+        for _ in xrange(WORKER_TASKS_SET_ATTEMPT_COUNT):
+            try:
+                yt.set(yt.ypath_join(args.tasks_root, worker_id), task_list)
+                set_successfully = True
+                break
+            except yt.YtResponseError as err:
+                if err.is_concurrent_transaction_lock_conflict():
+                    logger.warning('Failed to set tasks for worker "%s"', worker_id)
+                    time.sleep(1.0)
+                else:
+                    raise
+
+        if not set_successfully:
+            raise yt.YtError('Failed to set tasks for worker "%s" after %d attempts',
+                             worker_id, WORKER_TASKS_SET_ATTEMPT_COUNT)
+
+        logger.info('Successfully set %d tasks for worker "%s"', len(task_list), worker_id)
+
+    logger.info("All tasks are successfully assigned to workers")
 
 if __name__ == "__main__":
     main()
