@@ -81,7 +81,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.mllib.util                                 | ✔                 | ✘                |                  |
 | pyspark.profiler                                   | ✔                 | ✘                |                  |
 | pyspark.rdd                                        | ✘                 | ✔                |                  |
-| pyspark.rddsampler                                 | ✔                 | ✘                |                  |
+| pyspark.rddsampler                                 | ✘                 | ✔                |                  |
 | pyspark.resultiterable                             | ✘                 | ✔                |                  |
 | pyspark.serializers                                | ✔                 | ✘                |                  |
 | <s>pyspark.shell</s>                               | ✘                 | ✘                | Internal         |
