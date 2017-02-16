@@ -171,7 +171,7 @@ protected:
             TUnversionedOwningRowBuilder builder;
 
             std::vector<TOwningKey> owningKeys;
-            
+
             expected.clear();
 
             // Before the first key.
@@ -354,19 +354,13 @@ protected:
             TWorkloadDescriptor(),
             readSchema).Get().ValueOrThrow();
 
-        TReadLimit lowerLimit;
-        lowerLimit.SetKey(lowerKey);
-
-        TReadLimit upperLimit;
-        upperLimit.SetKey(upperKey);
-
         auto chunkReader = CreateVersionedChunkReader(
             New<TChunkReaderConfig>(),
             memoryReader,
             GetNullBlockCache(),
             chunkMeta,
-            lowerLimit,
-            upperLimit,
+            lowerKey,
+            upperKey,
             TColumnFilter(),
             New<TChunkReaderPerformanceCounters>(),
             timestamp);

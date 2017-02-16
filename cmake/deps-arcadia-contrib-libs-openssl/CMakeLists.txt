@@ -695,6 +695,9 @@ set(ASMS
 )
 
 if(UNIX AND NOT APPLE)
+  set(SRCS ${SRCS}
+    ${BASE}/crypto/bn/bn_asm.c
+  )
   set(ASMS ${ASMS}
     ${BASE}/crypto/rc4/rc4-md5-x86_64.s
     ${BASE}/crypto/rc4/rc4-x86_64.s
@@ -750,7 +753,12 @@ add_definitions(
 
 if(UNIX AND NOT APPLE)
   add_definitions(-DRC4_ASM)
+else()
+  set(SRCS ${SRCS}
+    ${BASE}/crypto/rc4/rc4_enc.c
+    ${BASE}/crypto/rc4/rc4_skey.c)
 endif()
+
 
 include_directories(
   ${BASE}

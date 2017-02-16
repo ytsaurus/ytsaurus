@@ -73,7 +73,7 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = NodeTrackerServerLogger;
-static const auto ProfilingPeriod = TDuration::Seconds(1);
+static const auto ProfilingPeriod = TDuration::Seconds(10);
 static const auto TotalNodeStatisticsUpdatePeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -720,10 +720,15 @@ public:
             TotalNodeStatistics_.OnlineNodeCount += 1;
 
             const auto& statistics = node->Statistics();
-            if (!node->GetDecommissioned()) {
-                TotalNodeStatistics_.AvailableSpace += statistics.total_available_space();
+            for (const auto& location : statistics.locations()) {
+                int mediumIndex = location.medium_index();
+                if (!node->GetDecommissioned()) {
+                    TotalNodeStatistics_.SpacePerMedium[mediumIndex].Available += location.available_space();
+                    TotalNodeStatistics_.TotalSpace.Available += location.available_space();
+                }
+                TotalNodeStatistics_.SpacePerMedium[mediumIndex].Used += location.used_space();
+                TotalNodeStatistics_.TotalSpace.Used += location.used_space();
             }
-            TotalNodeStatistics_.UsedSpace += statistics.total_used_space();
             TotalNodeStatistics_.ChunkReplicaCount += statistics.total_stored_chunk_count();
             TotalNodeStatistics_.FullNodeCount += statistics.full() ? 1 : 0;
         }
@@ -1578,8 +1583,19 @@ private:
         }
 
         auto statistics = GetTotalNodeStatistics();
-        Profiler.Enqueue("/available_space", statistics.AvailableSpace, EMetricType::Gauge);
-        Profiler.Enqueue("/used_space", statistics.UsedSpace, EMetricType::Gauge);
+
+        Profiler.Enqueue("/available_space", statistics.TotalSpace.Available, EMetricType::Gauge);
+        Profiler.Enqueue("/used_space", statistics.TotalSpace.Used, EMetricType::Gauge);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        for (const auto& pair : chunkManager->Media()) {
+            const auto* medium = pair.second;
+            auto tag = TProfileManager::Get()->RegisterTag("medium", medium->GetName());
+            int mediumIndex = medium->GetIndex();
+            Profiler.Enqueue("/available_space_per_medium", statistics.SpacePerMedium[mediumIndex].Available, EMetricType::Gauge, {tag});
+            Profiler.Enqueue("/used_space_per_medium", statistics.SpacePerMedium[mediumIndex].Used, EMetricType::Gauge, {tag});
+        }
+
         Profiler.Enqueue("/chunk_replica_count", statistics.ChunkReplicaCount, EMetricType::Gauge);
 
         Profiler.Enqueue("/online_node_count", statistics.OnlineNodeCount, EMetricType::Gauge);

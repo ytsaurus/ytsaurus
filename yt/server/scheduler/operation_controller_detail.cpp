@@ -1399,9 +1399,20 @@ void TOperationControllerBase::SafeMaterialize()
             LOG_INFO("No jobs needed");
             OnOperationCompleted(false /* interrupted */);
             return;
-        }
+        } else {
+            YCHECK(UnavailableInputChunkCount == 0);
+            for (const auto& pair : InputChunkMap) {
+                const auto& chunkDescriptor = pair.second;
+                if (chunkDescriptor.State == EInputChunkState::Waiting) {
+                    ++UnavailableInputChunkCount;
+                }
+            }
 
-        SuspendUnavailableInputStripes();
+            if (UnavailableInputChunkCount > 0) {
+                LOG_INFO("Found unavailable input chunks during materialization (UnavailableInputChunkCount: %v)",
+                    UnavailableInputChunkCount);
+            }
+        }
 
         AddAllTaskPendingHints();
 
@@ -1654,25 +1665,6 @@ yhash_set<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
     }
 
     return intermediateChunks;
-}
-
-void TOperationControllerBase::SuspendUnavailableInputStripes()
-{
-    YCHECK(UnavailableInputChunkCount == 0);
-
-    for (const auto& pair : InputChunkMap) {
-        const auto& chunkDescriptor = pair.second;
-        if (chunkDescriptor.State == EInputChunkState::Waiting) {
-            LOG_TRACE("Input chunk is unavailable (ChunkId: %v)", pair.first);
-            for (const auto& inputStripe : chunkDescriptor.InputStripes) {
-                if (inputStripe.Stripe->WaitingChunkCount == 0) {
-                    inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
-                }
-                ++inputStripe.Stripe->WaitingChunkCount;
-            }
-            ++UnavailableInputChunkCount;
-        }
-    }
 }
 
 void TOperationControllerBase::ReinstallLivePreview()
@@ -2258,7 +2250,7 @@ void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
     }
 }
 
-void TOperationControllerBase::OnIntermediateChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+void TOperationControllerBase::SafeOnIntermediateChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
 {
     // Intermediate chunks are always replicated.
     if (IsUnavailable(replicas, NErasure::ECodec::None)) {
@@ -2266,7 +2258,7 @@ void TOperationControllerBase::OnIntermediateChunkLocated(const TChunkId& chunkI
     }
 }
 
-void TOperationControllerBase::OnInputChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+void TOperationControllerBase::SafeOnInputChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
 {
     auto it = InputChunkMap.find(chunkId);
     YCHECK(it != InputChunkMap.end());
@@ -4786,9 +4778,18 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
             }
 
             if (visitedChunks.insert(chunkId).second) {
+                // If this is first slice with given chunkId in this stripe.
                 chunkDescriptor.InputStripes.push_back(stripeDescriptor);
+
+                if (chunkDescriptor.State == EInputChunkState::Waiting) {
+                    ++stripe->WaitingChunkCount;
+                }
             }
         }
+    }
+
+    if (stripe->WaitingChunkCount > 0) {
+        task->GetChunkPoolInput()->Suspend(stripeDescriptor.Cookie);
     }
 }
 

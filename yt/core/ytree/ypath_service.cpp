@@ -287,19 +287,16 @@ IYPathServicePtr IYPathService::Cached(TDuration updatePeriod)
 void IYPathService::WriteAttributes(
     IAsyncYsonConsumer* consumer,
     const TNullable<std::vector<Stroka>>& attributeKeys,
-    bool sortKeys)
+    bool stable)
 {
-    if ((!attributeKeys && ShouldHideAttributes()) || (attributeKeys && attributeKeys->empty())) {
+    if (!attributeKeys && ShouldHideAttributes() ||
+        attributeKeys && attributeKeys->empty())
+    {
         return;
     }
 
     TAttributeFragmentConsumer attributesConsumer(consumer);
-    WriteAttributesFragment(&attributesConsumer, attributeKeys, sortKeys);
-}
-
-bool IYPathService::ShouldHideAttributes()
-{
-    return false;
+    WriteAttributesFragment(&attributesConsumer, attributeKeys, stable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

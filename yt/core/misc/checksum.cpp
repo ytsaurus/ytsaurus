@@ -20,6 +20,8 @@ using namespace NCrc;
 
 namespace NCrcSSE0xE543279765927881 {
 
+// http://www.intel.com/content/dam/www/public/us/en/documents/white-papers/fast-crc-computation-generic-polynomials-pclmulqdq-paper.pdf
+
 const ui64 Poly = ULL(0xE543279765927881);
 const ui64 Mu = ULL(0x9d9034581c0766b0); // DivXPow_64(128, poly)
 

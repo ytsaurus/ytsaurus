@@ -415,7 +415,7 @@ void TLocation::ForceHashDirectories(const Stroka& rootPath)
 {
     for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
         auto hashDirectory = Format("%02x", hashByte);
-        NFS::ForcePath(NFS::CombinePaths(rootPath, hashDirectory), ChunkFilesPermissions);
+        NFS::MakeDirRecursive(NFS::CombinePaths(rootPath, hashDirectory), ChunkFilesPermissions);
     }
 }
 
@@ -448,7 +448,7 @@ void TLocation::ValidateLockFile()
 
 void TLocation::ValidateWritable()
 {
-    NFS::ForcePath(GetPath(), ChunkFilesPermissions);
+    NFS::MakeDirRecursive(GetPath(), ChunkFilesPermissions);
 
     // Run first health check before to sort out read-only drives.
     HealthChecker_->RunCheck()

@@ -2,17 +2,28 @@
 
 #include "public.h"
 
+#include <yt/ytlib/chunk_client/public.h>
+
 #include <yt/ytlib/node_tracker_client/node.pb.h>
+
+#include <array>
 
 namespace NYT {
 namespace NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDiskSpaceStatistics
+{
+    i64 Available = 0;
+    i64 Used = 0;
+};
+
 struct TTotalNodeStatistics
 {
-    i64 AvailableSpace = 0;
-    i64 UsedSpace = 0;
+    TDiskSpaceStatistics TotalSpace;
+    std::array<TDiskSpaceStatistics, NChunkClient::MaxMediumCount> SpacePerMedium = {};
+
     int ChunkReplicaCount = 0;
 
     int OnlineNodeCount = 0;

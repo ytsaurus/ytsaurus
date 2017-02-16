@@ -9,6 +9,8 @@ from yt_commands import *
 from yt.environment.helpers import assert_items_equal
 from yt.yson import YsonList
 
+from flaky import flaky
+
 from random import randint, shuffle
 
 ##################################################################
@@ -539,6 +541,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("avg_udaf(a) as x from [//tmp/ua] group by 1")
         assert_items_equal(actual, expected)
 
+    @flaky(max_runs=5)
     def test_udf_cache(self):
         self.sync_create_cells(1)
         self._sample_data(path="//tmp/u")
