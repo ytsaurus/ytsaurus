@@ -13,9 +13,55 @@
 #include <stack>
 
 namespace NYT {
+
+///////////////////////////////////////////////////////////////////////////////
+
+struct TPathPart
+{
+    TStringBuf Key;
+    int Index = -1;
+    bool InAttributes = false;
+};
+
+struct TContext
+{
+    SmallVector<TPathPart, 2> PathParts;
+    TNullable<size_t> RowIndex;
+
+    void Push(TStringBuf& key)
+    {
+        TPathPart pathPart;
+        pathPart.Key = key;
+        PathParts.push_back(pathPart);
+    }
+
+    void Push(int index)
+    {
+        TPathPart pathPart;
+        pathPart.Index = index;
+        PathParts.push_back(pathPart);
+    }
+
+    void PushAttributesStarted()
+    {
+        TPathPart pathPart;
+        pathPart.InAttributes = true;
+        PathParts.push_back(pathPart);
+    }
+
+    void Pop()
+    {
+        PathParts.pop_back();
+    }
+
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
 namespace NYTree {
 
 ///////////////////////////////////////////////////////////////////////////////
+
 
 // This methods allow use methods ConvertTo* with Py::Object.
 void Serialize(
@@ -24,7 +70,8 @@ void Serialize(
     const TNullable<Stroka>& encoding = Null,
     bool ignoreInnerAttributes = false,
     NYson::EYsonType ysonType = NYson::EYsonType::Node,
-    int depth = 0);
+    int depth = 0,
+    TContext* context = new TContext());
 
 void Deserialize(Py::Object& obj, NYTree::INodePtr node, const TNullable<Stroka>& encoding = Null);
 

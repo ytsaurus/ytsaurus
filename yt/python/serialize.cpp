@@ -39,14 +39,51 @@ Py::Callable GetYsonType(const std::string& name)
     return Py::Callable(GetAttr(ysonTypesModule, name));
 }
 
-Py::Exception CreateYsonError(const std::string& message)
+Py::Exception CreateYsonError(const std::string& message, TContext* context)
 {
     static Py::Callable ysonErrorClass;
     if (ysonErrorClass.isNone()) {
         auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), true);
         ysonErrorClass = Py::Callable(GetAttr(ysonModule, "YsonError"));
     }
-    return Py::Exception(*ysonErrorClass, message);
+    Py::Dict attributes;
+    if (context->RowIndex) {
+        attributes.setItem("row_index", Py::Long(context->RowIndex.Get()));
+    }
+
+    bool endedWithDelimiter = false;
+    TStringBuilder builder;
+    for (const auto& pathPart : context->PathParts) {
+        if (pathPart.InAttributes) {
+            YCHECK(!endedWithDelimiter);
+            builder.AppendString("/@");
+            endedWithDelimiter = true;
+        } else {
+            if (!endedWithDelimiter) {
+                builder.AppendChar('/');
+            }
+            if (!pathPart.Key.empty()) {
+                builder.AppendString(pathPart.Key);
+            }
+            if (pathPart.Index != -1) {
+                builder.AppendFormat("%v", pathPart.Index);
+            }
+            endedWithDelimiter = false;
+        }
+    }
+
+    Stroka contextRowKeyPath = builder.Flush();
+    if (!contextRowKeyPath.empty()) {
+        attributes.setItem("row_key_path", Py::ConvertToPythonString(contextRowKeyPath));
+    }
+
+    Py::Dict options;
+    options.setItem("message", Py::ConvertToPythonString(Stroka(message)));
+    options.setItem("code", Py::Long(1));
+    options.setItem("attributes", attributes);
+
+    auto ysonError = ysonErrorClass.apply(Py::Tuple(), options);
+    return Py::Exception(*ysonError.type(), ysonError);
 }
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -70,19 +107,31 @@ namespace NYTree {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<Stroka>& encoding)
+Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<Stroka>& encoding, TContext* context)
 {
     if (PyUnicode_Check(obj.ptr())) {
         if (!encoding) {
-            throw CreateYsonError(Format("Cannot encode unicode object %s to bytes since 'encoding' parameter "
-                                         "is None", Py::Repr(obj)));
+            throw CreateYsonError(
+                Format(
+                    "Cannot encode unicode object %s to bytes "
+                    "since 'encoding' parameter is None",
+                    Py::Repr(obj)
+                ),
+                context);
         }
         return Py::Bytes(PyUnicode_AsEncodedString(obj.ptr(), ~encoding.Get(), "strict"), true);
     } else {
 #if PY_MAJOR_VERSION >= 3
         if (encoding) {
-            throw CreateYsonError(Format("Bytes object %s cannot be encoded to %s. Only unicode strings are "
-                                         "expected if 'encoding' parameter is not None", Py::Repr(obj), encoding));
+            throw CreateYsonError(
+                Format(
+                    "Bytes object %s cannot be encoded to %s. "
+                    "Only unicode strings are expected if 'encoding' "
+                    "parameter is not None",
+                    Py::Repr(obj),
+                    encoding
+                ),
+                context);
         }
 #endif
         return Py::Bytes(PyObject_Bytes(*obj), true);
@@ -95,7 +144,8 @@ void SerializeMapFragment(
     const TNullable<Stroka> &encoding,
     bool ignoreInnerAttributes,
     EYsonType ysonType,
-    int depth)
+    int depth,
+    TContext* context)
 {
     auto items = Py::Object(PyDict_CheckExact(*map) ? PyDict_Items(*map) : PyMapping_Items(*map), true);
     auto iterator = Py::Object(PyObject_GetIter(*items), true);
@@ -106,15 +156,19 @@ void SerializeMapFragment(
         auto value = Py::Object(PyTuple_GET_ITEM(item, 1), false);
 
         if (!PyBytes_Check(key.ptr()) && !PyUnicode_Check(key.ptr())) {
-            throw CreateYsonError(Format("Map key should be string, found '%s'", Py::Repr(key)));
+            throw CreateYsonError(Format("Map key should be string, found '%s'", Py::Repr(key)), context);
         }
 
-        consumer->OnKeyedItem(ConvertToStringBuf(EncodeStringObject(key, encoding)));
-        Serialize(value, consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1);
+        auto encodedKey = EncodeStringObject(key, encoding, context);
+        auto mapKey = ConvertToStringBuf(encodedKey);
+        consumer->OnKeyedItem(mapKey);
+        context->Push(mapKey);
+        Serialize(value, consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1, context);
+        context->Pop();
     }
 }
 
-void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
+void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TContext* context)
 {
     static Py::Callable YsonBooleanClass = GetYsonType("YsonBoolean");
     static Py::Callable YsonUint64Class = GetYsonType("YsonUint64");
@@ -127,8 +181,11 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
         PyObject_RichCompareBool(obj.ptr(), SignedInt64Min.ptr(), Py_LT) == 1)
     {
         throw CreateYsonError(
-            "Integer " + Py::Repr(obj) +
-            " cannot be serialized to YSON since it is out of range [-2^63, 2^64 - 1]");
+            Format(
+                "Integer %s cannot be serialized to YSON since it is out of range [-2^63, 2^64 - 1]",
+                Py::Repr(obj)
+            ),
+            context);
     }
 
     auto consumeAsLong = [&] {
@@ -159,13 +216,13 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
     } else if (IsInstance(obj, YsonUint64Class)) {
         auto value = static_cast<ui64>(Py::LongLong(obj));
         if (PyErr_Occurred()) {
-            throw CreateYsonError("Can not dump negative integer as YSON uint64");
+            throw CreateYsonError("Can not dump negative integer as YSON uint64", context);
         }
         consumer->OnUint64Scalar(value);
     } else if (IsInstance(obj, YsonInt64Class)) {
         auto value = static_cast<i64>(Py::LongLong(obj));
         if (PyErr_Occurred()) {
-            throw CreateYsonError("Can not dump integer as YSON int64");
+            throw CreateYsonError("Can not dump integer as YSON int64", context);
         }
         consumer->OnInt64Scalar(value);
     } else {
@@ -179,7 +236,8 @@ void Serialize(
     const TNullable<Stroka>& encoding,
     bool ignoreInnerAttributes,
     EYsonType ysonType,
-    int depth)
+    int depth,
+    TContext* context)
 {
     static Py::Callable YsonEntityClass = GetYsonType("YsonEntity");
 
@@ -187,20 +245,22 @@ void Serialize(
     if ((!ignoreInnerAttributes || depth == 0) && obj.hasAttr(attributesStr)) {
         auto attributeObject = obj.getAttr(attributesStr);
         if ((!attributeObject.isMapping() && !attributeObject.isNone()) || attributeObject.isSequence())  {
-            throw CreateYsonError("Invalid field 'attributes', it is neither mapping nor None");
+            throw CreateYsonError("Invalid field 'attributes', it is neither mapping nor None", context);
         }
         if (!attributeObject.isNone()) {
             auto attributes = Py::Mapping(attributeObject);
             if (attributes.length() > 0) {
                 consumer->OnBeginAttributes();
-                SerializeMapFragment(attributes, consumer, encoding, ignoreInnerAttributes, ysonType, depth);
+                context->PushAttributesStarted();
+                SerializeMapFragment(attributes, consumer, encoding, ignoreInnerAttributes, ysonType, depth, context);
+                context->Pop();
                 consumer->OnEndAttributes();
             }
         }
     }
 
     if (PyBytes_Check(obj.ptr()) || PyUnicode_Check(obj.ptr())) {
-        consumer->OnStringScalar(ConvertToStringBuf(EncodeStringObject(obj, encoding)));
+        consumer->OnStringScalar(ConvertToStringBuf(EncodeStringObject(obj, encoding, context)));
 #if PY_MAJOR_VERSION < 3
     // Fast check for simple integers (python 3 has only long integers)
     } else if (PyInt_CheckExact(obj.ptr())) {
@@ -209,22 +269,26 @@ void Serialize(
     } else if (obj.isBoolean()) {
         consumer->OnBooleanScalar(Py::Boolean(obj));
     } else if (Py::IsInteger(obj)) {
-        SerializePythonInteger(obj, consumer);
+        SerializePythonInteger(obj, consumer, context);
     } else if (obj.isMapping() && obj.hasAttr("items")) {
         bool allowBeginEnd =  depth > 0 || ysonType != NYson::EYsonType::MapFragment;
         if (allowBeginEnd) {
             consumer->OnBeginMap();
         }
-        SerializeMapFragment(obj, consumer, encoding, ignoreInnerAttributes, ysonType, depth);
+        SerializeMapFragment(obj, consumer, encoding, ignoreInnerAttributes, ysonType, depth, context);
         if (allowBeginEnd) {
             consumer->OnEndMap();
         }
     } else if (obj.isSequence()) {
         const auto& objList = Py::Sequence(obj);
         consumer->OnBeginList();
+        int index = 0;
         for (auto it = objList.begin(); it != objList.end(); ++it) {
             consumer->OnListItem();
-            Serialize(*it, consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1);
+            context->Push(index);
+            Serialize(*it, consumer, encoding, ignoreInnerAttributes, ysonType, depth + 1, context);
+            context->Pop();
+            ++index;
         }
         consumer->OnEndList();
     } else if (Py::IsFloat(obj)) {
@@ -233,8 +297,11 @@ void Serialize(
         consumer->OnEntity();
     } else {
         throw CreateYsonError(
-            "Value " + Py::Repr(obj) +
-            " cannot be serialized to YSON since it has unsupported type");
+            Format(
+                "Value %s cannot be serialized to YSON since it has unsupported type",
+                Py::Repr(obj)
+            ),
+            context);
     }
 }
 

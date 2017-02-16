@@ -482,8 +482,12 @@ private:
 
             case NYson::EYsonType::ListFragment: {
                 auto iterator = Py::Object(PyObject_GetIter(obj.ptr()), true);
+                size_t rowIndex = 0;
+                TContext context;
                 while (auto* item = PyIter_Next(*iterator)) {
-                    Serialize(Py::Object(item, true), writer.get(), encoding, ignoreInnerAttributes);
+                    context.RowIndex = rowIndex;
+                    Serialize(Py::Object(item, true), writer.get(), encoding, ignoreInnerAttributes, NYson::EYsonType::Node, 0, &context);
+                    ++rowIndex;
                 }
                 if (PyErr_Occurred()) {
                     throw Py::Exception();
