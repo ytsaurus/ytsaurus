@@ -400,7 +400,7 @@ def main():
     next_version = current_version + 1
 
     target_version = args.target_version
-    init_operation_archive.transform_archive(next_version, target_version, args.force, archive_path)
+    transform_archive(next_version, target_version, args.force, archive_path)
 
 if __name__ == "__main__":
     main()
