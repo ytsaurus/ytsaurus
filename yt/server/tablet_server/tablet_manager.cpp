@@ -573,7 +573,6 @@ public:
                 (treeStatistics.RegularDiskSpace + treeStatistics.ErasureDiskSpace);
         }
         tabletStatistics.ChunkCount = treeStatistics.ChunkCount;
-        tabletStatistics.TabletCountPerMemoryMode[tablet->GetInMemoryMode()] = 1;
         return tabletStatistics;
     }
 
@@ -2704,23 +2703,18 @@ private:
 
         auto getCellSize = [&] (const TTabletCell* cell) -> i64 {
             i64 result = 0;
-            i64 tabletCount;
             switch (mountConfig->InMemoryMode) {
                 case EInMemoryMode::None:
                     result += cell->TotalStatistics().UncompressedDataSize;
-                    tabletCount = cell->Tablets().size();
                     break;
                 case EInMemoryMode::Uncompressed:
-                case EInMemoryMode::Compressed: {
+                case EInMemoryMode::Compressed:
                     result += cell->TotalStatistics().MemorySize;
-                    tabletCount = cell->TotalStatistics().TabletCountPerMemoryMode[EInMemoryMode::Uncompressed] +
-                        cell->TotalStatistics().TabletCountPerMemoryMode[EInMemoryMode::Compressed];
                     break;
-                }
                 default:
                     Y_UNREACHABLE();
             }
-            result += tabletCount * Config_->TabletDataSizeFootprint;
+            result += cell->Tablets().size() * Config_->TabletDataSizeFootprint;
             return result;
         };
 
