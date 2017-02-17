@@ -61,15 +61,6 @@ TEST_P(TBooleanFormulaParseErrorTest, Test)
 {
     const auto& formula = GetParam();
 
-#if 0
-    // View error messages.
-    try {
-        MakeBooleanFormula(formula);
-    } catch (const TError& error) {
-        std::cout << ToString(error) << std::endl;
-    }
-#endif
-
     EXPECT_THROW(MakeBooleanFormula(formula), std::exception)
         << "formula: " << formula;
 }
