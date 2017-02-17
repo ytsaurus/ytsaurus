@@ -14,6 +14,7 @@ class ResponseStream(Iterator):
         self._close = close
         self._process_error = process_error
 
+        self._is_closed = False
         self._stream_finished = False
         self._fetch()
 
@@ -107,6 +108,7 @@ class ResponseStream(Iterator):
         except StopIteration:
             self._process_error(self._get_response())
             self._stream_finished = True
+            self.close()
 
     def __iter__(self):
         return self
@@ -118,7 +120,9 @@ class ResponseStream(Iterator):
         return line
 
     def close(self):
-        self._close()
+        if not self._is_closed:
+            self._close()
+            self._is_closed = True
 
 class EmptyResponseStream(Iterator):
     def read(self, length=None):
@@ -138,4 +142,11 @@ class EmptyResponseStream(Iterator):
 
     def __next__(self):
         raise StopIteration()
+
+class ResponseStreamWithDel(ResponseStream):
+    def __init__(self, *args, **kwargs):
+        super(ResponseStreamWithDel, self).__init__(*args, **kwargs)
+
+    def __del__(self):
+        self.close()
 
