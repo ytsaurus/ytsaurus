@@ -47,7 +47,9 @@ INSTANTIATE_TEST_CASE_P(
         std::make_tuple("(a|b)&(!a&b)", std::vector<Stroka>{"b"}, true),
         std::make_tuple("a&b", std::vector<Stroka>{"a", "b"}, true),
         std::make_tuple("(a|c)&(b|c)", std::vector<Stroka>{"a", "b"}, true),
-        std::make_tuple("(a|b)&c", std::vector<Stroka>{"a", "b"}, false)
+        std::make_tuple("(a|b)&c", std::vector<Stroka>{"a", "b"}, false),
+        std::make_tuple("a|b|c", std::vector<Stroka>{"b"}, true),
+        std::make_tuple("!a & b & !c", std::vector<Stroka>{"b"}, true)
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
