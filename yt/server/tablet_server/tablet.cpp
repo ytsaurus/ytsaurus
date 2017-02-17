@@ -41,7 +41,7 @@ void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, PreloadCompletedStoreCount);
     Persist(context, PreloadFailedStoreCount);
     // COMPAT(savrus)
-    if (context.LoadContext().GetVersion() >= 506) {
+    if (context.GetVersion() >= 506) {
         Persist(context, TabletCountPerMemoryMode);
     }
 }
