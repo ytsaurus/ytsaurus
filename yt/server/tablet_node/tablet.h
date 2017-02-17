@@ -139,6 +139,10 @@ DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTabletPerformanceCounters
     : public TChunkReaderPerformanceCounters
 {
