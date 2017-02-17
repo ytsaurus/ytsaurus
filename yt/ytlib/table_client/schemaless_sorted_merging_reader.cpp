@@ -447,11 +447,13 @@ TSchemalessJoiningReader::TSchemalessJoiningReader(
     LOG_INFO("Opening schemaless sorted joining reader (SessionCount: %v)",
         SessionHolder_.size());
 
-    ReadyEvent_ = CombineCompletionError(BIND(
+    // NB: we don't combine completion error here, because reader opening must not be interrupted.
+    // Otherwise, race condition may occur between reading in DoOpen and GetUnreadDataSliceDescriptors.
+    ReadyEvent_ = BIND(
         &TSchemalessJoiningReader::DoOpen,
         MakeStrong(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-            .Run());
+            .Run();
 }
 
 bool TSchemalessJoiningReader::Read(std::vector<TUnversionedRow>* rows)
