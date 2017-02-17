@@ -263,16 +263,23 @@ def make_request(command_name,
         proxy_provider=proxy_provider,
         client=client)
 
+    def process_error(response):
+        trailers = response.trailers()
+        if trailers is None:
+            return
+
+        error = parse_error_from_headers(trailers)
+        if error is not None:
+            raise YtHttpResponseError(error=error, **response.request_info)
+
     # Determine type of response data and return it
     if return_content:
-        return response.text if (decode_content and PY3) else response.content
+        response_content = response.text if (decode_content and PY3) else response.content
+        # NOTE: Should be called after accessing "text" or "content" attribute
+        # to ensure that all response is read and trailers are processed and can be accessed.
+        process_error(response)
+        return response_content
     else:
-        def process_error(response):
-            trailers = response.trailers()
-            error = parse_error_from_headers(trailers)
-            if error is not None:
-                raise YtHttpResponseError(error=error, **response.request_info)
-
         return ResponseStream(
             lambda: response,
             response.iter_content(get_config(client)["read_buffer_size"]),
