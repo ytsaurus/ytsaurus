@@ -1276,11 +1276,11 @@ class TestSchedulingTags(YTEnvSetup):
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
-            spec={"scheduling_tag_filter": [{"include": ["tagA"], "exclude": ["tagC"]}]})
+            spec={"scheduling_tag_filter": "tagA & !tagC"})
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
         with pytest.raises(YtError):
             map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
-                spec={"scheduling_tag_filter": [{"include": ["tagA"], "exclude": ["tagB"]}]})
+                spec={"scheduling_tag_filter": "tagA & !tagB"})
 
         set("//sys/nodes/{0}/@user_tags".format(self.node), [])
         time.sleep(1.0)
