@@ -116,7 +116,7 @@ void TSchemalessSortedMergingReaderBase::DoOpen()
         try {
             tableIndexId = nameTable->GetIdOrRegisterName(TableIndexColumnName);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to add system column to name table for schemaless merging reader") 
+            THROW_ERROR_EXCEPTION("Failed to add system column to name table for schemaless merging reader")
                 << ex;
         }
 
@@ -270,11 +270,13 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
     LOG_INFO("Opening schemaless sorted merging reader (SessionCount: %v)",
         SessionHolder_.size());
 
-    ReadyEvent_ = CombineCompletionError(BIND(
+    // NB: we don't combine completion error here, because reader opening must not be interrupted.
+    // Otherwise, race condition may occur between reading in DoOpen and GetUnreadDataSliceDescriptors.
+    ReadyEvent_ = BIND(
         &TSchemalessSortedMergingReader::DoOpen,
         MakeStrong(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-            .Run());
+            .Run();
 }
 
 bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
