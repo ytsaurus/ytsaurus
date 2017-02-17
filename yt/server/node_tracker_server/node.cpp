@@ -663,14 +663,14 @@ void TNode::SetDisableWriteSessions(bool value)
 
 void TNode::SetNodeTags(const std::vector<Stroka>& tags)
 {
-    ValidateTags(tags);
+    ValidateNodeTags(tags);
     NodeTags_ = tags;
     RebuildTags();
 }
 
 void TNode::SetUserTags(const std::vector<Stroka>& tags)
 {
-    ValidateTags(tags);
+    ValidateNodeTags(tags);
     UserTags_ = tags;
     RebuildTags();
 }
@@ -685,18 +685,6 @@ void TNode::RebuildTags()
         Tags_.insert(Rack_->GetName());
         if (auto* dc = Rack_->GetDataCenter()) {
             Tags_.insert(dc->GetName());
-        }
-    }
-}
-
-void TNode::ValidateTags(const std::vector<Stroka>& tags) const
-{
-    for (const auto& tag : tags) {
-        try {
-            ValidateBooleanFormulaVariable(tag);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Invalid node tag %Qv", tag)
-                << ex;
         }
     }
 }

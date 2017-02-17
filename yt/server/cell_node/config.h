@@ -19,6 +19,7 @@
 #include <yt/ytlib/api/config.h>
 
 #include <yt/ytlib/node_tracker_client/config.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/core/concurrency/config.h>
 
@@ -148,6 +149,10 @@ public:
             .Default();
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();
+
+        RegisterValidator([&] () {
+            NNodeTrackerClient::ValidateNodeTags(Tags);
+        });
     }
 
     virtual void OnLoaded() override

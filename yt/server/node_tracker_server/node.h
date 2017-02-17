@@ -271,7 +271,6 @@ private:
     void SetNodeTags(const std::vector<Stroka>& tags);
     void SetUserTags(const std::vector<Stroka>& tags);
     void RebuildTags();
-    void ValidateTags(const std::vector<Stroka>& tags) const;
 
 };
 
