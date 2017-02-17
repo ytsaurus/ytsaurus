@@ -15,7 +15,7 @@ using NJobTrackerClient::TOperationId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
 
-static const int MaxSchedulingTagRuleCount = 10;
+static const int MaxSchedulingTagRuleCount = 100;
 
 DEFINE_ENUM(EOperationType,
     (Map)
