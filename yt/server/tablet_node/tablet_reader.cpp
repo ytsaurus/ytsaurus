@@ -237,6 +237,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTimestamp timestamp,
     const TWorkloadDescriptor& workloadDescriptor)
 {
+    ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
+
     if (tabletSnapshot->PhysicalSchema.IsSorted()) {
         return CreateSchemafulSortedTabletReader(
             std::move(tabletSnapshot),
@@ -330,6 +332,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     int concurrency,
     TRowBufferPtr rowBuffer)
 {
+    ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
+
     YCHECK(!rowBuffer || concurrency == 1);
 
     if (!tabletSnapshot->PhysicalSchema.IsSorted()) {

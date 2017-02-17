@@ -42,6 +42,18 @@ using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
+{
+    if (timestamp < tabletSnapshot->RetainedTimestamp) {
+        THROW_ERROR_EXCEPTION("Timestamp %v is less than tablet %v retained timestamp %v",
+            timestamp,
+            tabletSnapshot->TabletId,
+            tabletSnapshot->RetainedTimestamp);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TRuntimeTableReplicaData::Populate(TTableReplicaStatistics* statistics) const
 {
     statistics->set_current_replication_row_index(CurrentReplicationRowIndex.load());
