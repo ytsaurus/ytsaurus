@@ -691,7 +691,7 @@ def main():
                         help="leave no more than N completed (without stderr) or aborted operations")
     parser.add_argument("--hard-limit", metavar="N", type=int, default=2000,
                         help="leave no more that N operations totally")
-    parser.add_argument("--grace-timeout", metavar="N", type=int, default=30,
+    parser.add_argument("--grace-timeout", metavar="N", type=int, default=120,
                         help="do not touch operations within N seconds of their completion to avoid races")
     parser.add_argument("--archive-timeout", metavar="N", type=int, default=2,
                         help="remove all failed operation older than N days")
