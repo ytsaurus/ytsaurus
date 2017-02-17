@@ -1981,7 +1981,7 @@ protected:
 
                     currentDataSize += sliceWeight.second;
 
-                    if (currentDataSize > > 2 * MaxDataSizePerJob && HasActiveTask()) {
+                    if (currentDataSize > 2 * MaxDataSizePerJob && HasActiveTask()) {
                         breakpointKey = GetKeyPrefixSuccessor(sliceWeight.first, ForeignKeyColumnCount, RowBuffer);
                         currentDataSize = 0;
                         EndTaskAtKey(breakpointKey);
