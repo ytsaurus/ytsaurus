@@ -39,29 +39,15 @@ TTestingOperationOptions::TTestingOperationOptions()
 
 TSupportsSchedulingTagsConfig::TSupportsSchedulingTagsConfig()
 {
-    RegisterParameter("scheduling_tag", SchedulingTag)
-        .Default();
-
     RegisterParameter("scheduling_tag_filter", SchedulingTagFilter)
+        .Alias("scheduling_tag")
         .Default();
 }
 
 void TSupportsSchedulingTagsConfig::OnLoaded()
 {
-    if (SchedulingTag) {
-        if (!SchedulingTagFilter.Clauses().empty()) {
-            THROW_ERROR_EXCEPTION("Options \"scheduling_tag\" and \"scheduling_tag_filter\" "
-                "cannot be specified simultanously")
-                << TErrorAttribute("scheduling_tag", *SchedulingTag)
-                << TErrorAttribute("scheduling_tag_filter", SchedulingTagFilter);
-        }
-        TConjunctiveClause clause;
-        clause.Include() = std::vector<Stroka>({*SchedulingTag});
-        SchedulingTagFilter.Clauses().push_back(clause);
-        SchedulingTag = Null;
-    }
-    if (SchedulingTagFilter.Clauses().size() > MaxSchedulingTagRuleCount) {
-        THROW_ERROR_EXCEPTION("Specifying more than %v scheduling tag filters is not allowed",
+    if (SchedulingTagFilter.Size() > MaxSchedulingTagRuleCount) {
+        THROW_ERROR_EXCEPTION("Specifying more than %v tokens in scheduling tag filter is not allowed",
             MaxSchedulingTagRuleCount);
     }
 }

@@ -20,9 +20,22 @@ class TBooleanFormula
 {
 public:
     TBooleanFormula();
+    TBooleanFormula(const TBooleanFormula& other);
     TBooleanFormula(TBooleanFormula&& other);
+    TBooleanFormula& operator=(const TBooleanFormula& other);
     TBooleanFormula& operator=(TBooleanFormula&& other);
     ~TBooleanFormula();
+
+    bool operator==(const TBooleanFormula& other) const;
+
+    //! Returns true if formula is empty.
+    bool IsEmpty() const;
+
+    //! Returns number of tokens in parsed formula.
+    int Size() const;
+
+    //! Returns hash based on parsed formula.
+    size_t GetHash() const;
 
     //! Returns a human-readable representation of the formula.
     Stroka GetFormula() const;
@@ -36,7 +49,7 @@ public:
 
 private:
     class TImpl;
-    std::unique_ptr<TImpl> Impl_;
+    std::shared_ptr<TImpl> Impl_;
 
     explicit TBooleanFormula(std::unique_ptr<TImpl> impl);
 

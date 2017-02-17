@@ -42,15 +42,32 @@ struct TBooleanFormulaToken
     Stroka Name;
 };
 
+bool operator==(const TBooleanFormulaToken& lhs, const TBooleanFormulaToken& rhs)
+{
+    return lhs.Type == rhs.Type && lhs.Name == rhs.Name;
+}
+
+bool operator!=(const TBooleanFormulaToken& lhs, const TBooleanFormulaToken& rhs)
+{
+    return !(lhs == rhs);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBooleanFormula::TImpl
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Formula);
+    DEFINE_BYVAL_RO_PROPERTY(size_t, Hash);
 
 public:
-    TImpl(const Stroka& formula, std::vector<TBooleanFormulaToken> parsedFormula);
+    TImpl(const Stroka& formula, size_t hash, std::vector<TBooleanFormulaToken> parsedFormula);
+
+    bool operator==(const TImpl& other) const;
+
+    bool IsEmpty() const;
+
+    int Size() const;
 
     bool IsSatisfiedBy(const std::vector<Stroka>& value) const;
     bool IsSatisfiedBy(const yhash_set<Stroka>& value) const;
@@ -62,16 +79,93 @@ private:
     static std::vector<TBooleanFormulaToken> Parse(
         const Stroka& formula,
         const std::vector<TBooleanFormulaToken>& tokens);
+    static size_t CalculateHash(const std::vector<TBooleanFormulaToken> tokens);
 
     friend std::unique_ptr<TImpl> MakeBooleanFormulaImpl(const Stroka& formula);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBooleanFormula::TImpl::TImpl(const Stroka& formula, std::vector<TBooleanFormulaToken> parsedFormula)
+TBooleanFormula::TImpl::TImpl(const Stroka& formula, size_t hash, std::vector<TBooleanFormulaToken> parsedFormula)
     : Formula_(formula)
+    , Hash_(hash)
     , ParsedFormula_(std::move(parsedFormula))
 { }
+
+bool TBooleanFormula::TImpl::operator==(const TImpl& other) const
+{
+    if (ParsedFormula_.size() != other.ParsedFormula_.size()) {
+        return false;
+    }
+
+    for (int index = 0; index < ParsedFormula_.size(); ++index) {
+        if (ParsedFormula_[index] != other.ParsedFormula_[index]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool TBooleanFormula::TImpl::IsEmpty() const
+{
+    return ParsedFormula_.empty();
+}
+
+int TBooleanFormula::TImpl::Size() const
+{
+    return ParsedFormula_.size();
+}
+
+bool TBooleanFormula::TImpl::IsSatisfiedBy(const std::vector<Stroka>& value) const
+{
+    yhash_set<Stroka> set(value.begin(), value.end());
+    return IsSatisfiedBy(set);
+}
+
+bool TBooleanFormula::TImpl::IsSatisfiedBy(const yhash_set<Stroka>& value) const
+{
+    std::vector<bool> stack;
+
+    for (const auto& token : ParsedFormula_) {
+        switch (token.Type) {
+            case EBooleanFormulaTokenType::Variable:
+                stack.push_back(value.find(token.Name) != value.end());
+                break;
+
+            case EBooleanFormulaTokenType::Or: {
+                YCHECK(stack.size() >= 2);
+                bool lhs = stack[stack.size() - 2];
+                bool rhs = stack[stack.size() - 1];
+                stack.pop_back();
+                stack.pop_back();
+                stack.push_back(lhs || rhs);
+                break;
+            }
+
+            case EBooleanFormulaTokenType::And: {
+                YCHECK(stack.size() >= 2);
+                bool lhs = stack[stack.size() - 2];
+                bool rhs = stack[stack.size() - 1];
+                stack.pop_back();
+                stack.pop_back();
+                stack.push_back(lhs && rhs);
+                break;
+            }
+
+            case EBooleanFormulaTokenType::Not:
+                YCHECK(stack.size() >= 1);
+                stack.back() = !stack.back();
+                break;
+
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+
+    YCHECK(stack.size() <= 1);
+    return stack.empty() ? true : stack[0];
+}
 
 std::vector<TBooleanFormulaToken> TBooleanFormula::TImpl::Tokenize(const Stroka& formula)
 {
@@ -209,61 +303,24 @@ std::vector<TBooleanFormulaToken> TBooleanFormula::TImpl::Parse(
     return result;
 }
 
-bool TBooleanFormula::TImpl::IsSatisfiedBy(const std::vector<Stroka>& value) const
+size_t TBooleanFormula::TImpl::CalculateHash(const std::vector<TBooleanFormulaToken> tokens)
 {
-    yhash_set<Stroka> set(value.begin(), value.end());
-    return IsSatisfiedBy(set);
-}
+    const size_t multiplier = 1000003;
+    size_t result = 10000005;
 
-bool TBooleanFormula::TImpl::IsSatisfiedBy(const yhash_set<Stroka>& value) const
-{
-    std::vector<bool> stack;
-
-    for (const auto& token : ParsedFormula_) {
-        switch (token.Type) {
-            case EBooleanFormulaTokenType::Variable:
-                stack.push_back(value.find(token.Name) != value.end());
-                break;
-
-            case EBooleanFormulaTokenType::Or: {
-                YCHECK(stack.size() >= 2);
-                bool lhs = stack[stack.size() - 2];
-                bool rhs = stack[stack.size() - 1];
-                stack.pop_back();
-                stack.pop_back();
-                stack.push_back(lhs || rhs);
-                break;
-            }
-
-            case EBooleanFormulaTokenType::And: {
-                YCHECK(stack.size() >= 2);
-                bool lhs = stack[stack.size() - 2];
-                bool rhs = stack[stack.size() - 1];
-                stack.pop_back();
-                stack.pop_back();
-                stack.push_back(lhs && rhs);
-                break;
-            }
-
-            case EBooleanFormulaTokenType::Not:
-                YCHECK(stack.size() >= 1);
-                stack.back() = !stack.back();
-                break;
-
-            default:
-                Y_UNREACHABLE();
-        }
+    for (const auto& token : tokens) {
+        result = result * multiplier + static_cast<size_t>(token.Type) + token.Name.hash();
     }
 
-    YCHECK(stack.size() <= 1);
-    return stack.empty() ? true : stack[0];
+    return result;
 }
 
 std::unique_ptr<TBooleanFormula::TImpl> MakeBooleanFormulaImpl(const Stroka& formula)
 {
     auto tokens = TBooleanFormula::TImpl::Tokenize(formula);
     auto parsed = TBooleanFormula::TImpl::Parse(formula, tokens);
-    return std::make_unique<TBooleanFormula::TImpl>(formula, parsed);
+    auto hash = TBooleanFormula::TImpl::CalculateHash(parsed);
+    return std::make_unique<TBooleanFormula::TImpl>(formula, hash, parsed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -276,11 +333,36 @@ TBooleanFormula::TBooleanFormula(std::unique_ptr<TBooleanFormula::TImpl> impl)
     : Impl_(std::move(impl))
 { }
 
+TBooleanFormula::TBooleanFormula(const TBooleanFormula& other) = default;
 TBooleanFormula::TBooleanFormula(TBooleanFormula&& other) = default;
-
+TBooleanFormula& TBooleanFormula::operator=(const TBooleanFormula& other) = default;
 TBooleanFormula& TBooleanFormula::operator=(TBooleanFormula&& other) = default;
-
 TBooleanFormula::~TBooleanFormula() = default;
+
+bool TBooleanFormula::operator==(const TBooleanFormula& other) const
+{
+    return *Impl_ == *other.Impl_;
+}
+
+bool TBooleanFormula::IsEmpty() const
+{
+    return Impl_->IsEmpty();
+}
+
+int TBooleanFormula::Size() const
+{
+    return Impl_->Size();
+}
+
+size_t TBooleanFormula::GetHash() const
+{
+    return Impl_->GetHash();
+}
+
+Stroka TBooleanFormula::GetFormula() const
+{
+    return Impl_->GetFormula();
+}
 
 bool TBooleanFormula::IsSatisfiedBy(const std::vector<Stroka>& value) const
 {
@@ -290,11 +372,6 @@ bool TBooleanFormula::IsSatisfiedBy(const std::vector<Stroka>& value) const
 bool TBooleanFormula::IsSatisfiedBy(const yhash_set<Stroka>& value) const
 {
     return Impl_->IsSatisfiedBy(value);
-}
-
-Stroka TBooleanFormula::GetFormula() const
-{
-    return Impl_->GetFormula();
 }
 
 TBooleanFormula MakeBooleanFormula(const Stroka& formula)

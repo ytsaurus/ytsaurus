@@ -20,7 +20,7 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/misc/dnf.h>
+#include <yt/core/misc/boolean_formula.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -72,8 +72,7 @@ class TSupportsSchedulingTagsConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    TNullable<Stroka> SchedulingTag;
-    TDnfFormula SchedulingTagFilter;
+    TBooleanFormula SchedulingTagFilter;
 
     TSupportsSchedulingTagsConfig();
 
