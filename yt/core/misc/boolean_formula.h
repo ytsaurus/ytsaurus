@@ -49,11 +49,11 @@ public:
 
 private:
     class TImpl;
-    std::shared_ptr<TImpl> Impl_;
+    TIntrusivePtr<TImpl> Impl_;
 
-    explicit TBooleanFormula(std::unique_ptr<TImpl> impl);
+    explicit TBooleanFormula(TIntrusivePtr<TImpl> impl);
 
-    friend std::unique_ptr<TImpl> MakeBooleanFormulaImpl(const Stroka& formula);
+    friend TIntrusivePtr<TImpl> MakeBooleanFormulaImpl(const Stroka& formula);
     friend TBooleanFormula MakeBooleanFormula(const Stroka& formula);
 };
 
