@@ -466,15 +466,15 @@ bool TSchemalessJoiningReader::Read(std::vector<TUnversionedRow>* rows)
         return true;
     }
 
+    if (SessionHeap_.empty()) {
+        return false;
+    }
+
     bool interrupting = Interrupting_;
     if (interrupting && SessionHeap_.front() == PrimarySession_ && !InterruptAtKeyEdge_) {
         // Extract primary session from session heap.
         ExtractHeap(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions_);
         SessionHeap_.pop_back();
-    }
-
-    if (SessionHeap_.empty()) {
-        return false;
     }
 
     auto* session = SessionHeap_.front();
