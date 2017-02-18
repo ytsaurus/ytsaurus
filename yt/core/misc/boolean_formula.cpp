@@ -55,6 +55,7 @@ bool operator!=(const TBooleanFormulaToken& lhs, const TBooleanFormulaToken& rhs
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBooleanFormula::TImpl
+    : public TIntrinsicRefCounted
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Formula);
@@ -81,7 +82,7 @@ private:
         const std::vector<TBooleanFormulaToken>& tokens);
     static size_t CalculateHash(const std::vector<TBooleanFormulaToken> tokens);
 
-    friend std::unique_ptr<TImpl> MakeBooleanFormulaImpl(const Stroka& formula);
+    friend TIntrusivePtr<TImpl> MakeBooleanFormulaImpl(const Stroka& formula);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,21 +136,17 @@ bool TBooleanFormula::TImpl::IsSatisfiedBy(const yhash_set<Stroka>& value) const
 
             case EBooleanFormulaTokenType::Or: {
                 YCHECK(stack.size() >= 2);
-                bool lhs = stack[stack.size() - 2];
-                bool rhs = stack[stack.size() - 1];
+                bool top = stack.back();
                 stack.pop_back();
-                stack.pop_back();
-                stack.push_back(lhs || rhs);
+                stack.back() = stack.back() || top;
                 break;
             }
 
             case EBooleanFormulaTokenType::And: {
                 YCHECK(stack.size() >= 2);
-                bool lhs = stack[stack.size() - 2];
-                bool rhs = stack[stack.size() - 1];
+                bool top = stack.back();
                 stack.pop_back();
-                stack.pop_back();
-                stack.push_back(lhs && rhs);
+                stack.back() = stack.back() && top;
                 break;
             }
 
@@ -315,12 +312,12 @@ size_t TBooleanFormula::TImpl::CalculateHash(const std::vector<TBooleanFormulaTo
     return result;
 }
 
-std::unique_ptr<TBooleanFormula::TImpl> MakeBooleanFormulaImpl(const Stroka& formula)
+TIntrusivePtr<TBooleanFormula::TImpl> MakeBooleanFormulaImpl(const Stroka& formula)
 {
     auto tokens = TBooleanFormula::TImpl::Tokenize(formula);
     auto parsed = TBooleanFormula::TImpl::Parse(formula, tokens);
     auto hash = TBooleanFormula::TImpl::CalculateHash(parsed);
-    return std::make_unique<TBooleanFormula::TImpl>(formula, hash, parsed);
+    return New<TBooleanFormula::TImpl>(formula, hash, parsed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -329,7 +326,7 @@ TBooleanFormula::TBooleanFormula()
     : Impl_(MakeBooleanFormulaImpl(Stroka()))
 { }
 
-TBooleanFormula::TBooleanFormula(std::unique_ptr<TBooleanFormula::TImpl> impl)
+TBooleanFormula::TBooleanFormula(TIntrusivePtr<TBooleanFormula::TImpl> impl)
     : Impl_(std::move(impl))
 { }
 
