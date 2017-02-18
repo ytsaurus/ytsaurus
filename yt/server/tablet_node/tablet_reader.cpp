@@ -58,6 +58,8 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
     TTimestamp timestamp,
     const TWorkloadDescriptor& workloadDescriptor)
 {
+    ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
+
     std::vector<ISortedStorePtr> stores;
 
     // Pick stores which intersect [lowerBound, upperBound) (excluding upperBound).
@@ -237,8 +239,6 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTimestamp timestamp,
     const TWorkloadDescriptor& workloadDescriptor)
 {
-    ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
-
     if (tabletSnapshot->PhysicalSchema.IsSorted()) {
         return CreateSchemafulSortedTabletReader(
             std::move(tabletSnapshot),
