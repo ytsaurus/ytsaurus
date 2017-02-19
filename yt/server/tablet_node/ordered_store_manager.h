@@ -31,23 +31,13 @@ public:
     virtual void Mount(
         const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) override;
 
-    virtual void ExecuteWrite(
-        TTransaction* transaction,
+    virtual bool ExecuteWrites(
         NTabletClient::TWireProtocolReader* reader,
-        TTimestamp commitTimestamp,
-        bool prelock) override;
+        TWriteContext* context) override;
 
     TOrderedDynamicRowRef WriteRow(
-        TTransaction* transaction,
         TUnversionedRow row,
-        TTimestamp commitTimestamp,
-        bool prelock);
-
-    static void LockRow(TTransaction* transaction, bool prelock, const TOrderedDynamicRowRef& rowRef);
-    void ConfirmRow(TTransaction* transaction, const TOrderedDynamicRowRef& rowRef);
-    void PrepareRow(TTransaction* transaction, const TOrderedDynamicRowRef& rowRef);
-    void CommitRow(TTransaction* transaction, const TOrderedDynamicRowRef& rowRef);
-    void AbortRow(TTransaction* transaction, const TOrderedDynamicRowRef& rowRef);
+        TWriteContext* context);
 
     virtual bool IsStoreCompactable(IStorePtr store) const override;
     virtual bool IsStoreFlushable(IStorePtr store) const override;
@@ -66,8 +56,6 @@ private:
         TTabletSnapshotPtr tabletSnapshot) override;
 
     virtual void CreateActiveStore() override;
-
-    void ValidateOnWrite(const TTransactionId& transactionId, TUnversionedRow row);
 
 };
 

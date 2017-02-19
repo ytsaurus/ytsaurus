@@ -340,8 +340,6 @@ public:
 
     TTimestamp GetLastCommitTimestamp() const;
     void SetLastCommitTimestamp(TTimestamp value);
-    TTimestamp GenerateMonotonicCommitTimestamp(TTimestamp hintTimestamp) const;
-    void UpdateLastCommitTimestamp(TTimestamp timestamp);
 
     TTimestamp GetUnflushedTimestamp() const;
 

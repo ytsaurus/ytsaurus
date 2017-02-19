@@ -11,7 +11,7 @@ using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
-
+/*
 class TOrderedStoreManagerTest
     : public TStoreManagerTestBase<TOrderedDynamicStoreTestBase>
 {
@@ -419,7 +419,7 @@ TEST_F(TOrderedStoreManagerTest, WriteRotateWrite)
     EXPECT_EQ(0, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 }
-
+*/
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace

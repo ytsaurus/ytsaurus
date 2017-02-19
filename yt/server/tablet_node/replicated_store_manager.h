@@ -36,11 +36,9 @@ public:
     virtual void StartEpoch(TTabletSlotPtr slot) override;
     virtual void StopEpoch() override;
 
-    virtual void ExecuteWrite(
-        TTransaction* transaction,
+    virtual bool ExecuteWrites(
         NTabletClient::TWireProtocolReader* reader,
-        TTimestamp commitTimestamp,
-        bool prelock) override;
+        TWriteContext* context) override;
 
     virtual bool IsOverflowRotationNeeded() const override;
     virtual bool IsPeriodicRotationNeeded() const override;
@@ -99,17 +97,6 @@ public:
         TPartition* partition,
         const TSharedRange<TKey>& keys) override;
 
-    TOrderedDynamicRowRef WriteRow(
-        TTransaction* transaction,
-        TUnversionedRow row,
-        TTimestamp commitTimestamp,
-        bool prelock);
-    TOrderedDynamicRowRef DeleteRow(
-        TTransaction* transaction,
-        TKey key,
-        TTimestamp commitTimestamp,
-        bool prelock);
-
 private:
     const TTabletManagerConfigPtr Config_;
     TTablet* const Tablet_;
@@ -119,7 +106,7 @@ private:
     const NApi::INativeClientPtr Client_;
 
     const NLogging::TLogger Logger;
-    const TOrderedStoreManagerPtr Underlying_;
+    const TOrderedStoreManagerPtr LogStoreManager_;
 
     NTableClient::TUnversionedRowBuilder LogRowBuilder_;
 
