@@ -118,7 +118,7 @@ public:
                     .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
                     .Do(BIND(&BuildInitializingOperationAttributes, operation))
                     .Item("brief_spec").BeginMap()
-                        .Items(ConvertToNode(initializeResult.BriefSpec)->AsMap())
+                        .Items(initializeResult.BriefSpec)
                         .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))
                     .EndMap()
                     .Item("progress").BeginMap().EndMap()
