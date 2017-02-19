@@ -869,15 +869,6 @@ void TTablet::SetLastCommitTimestamp(TTimestamp value)
     RuntimeData_->LastCommitTimestamp = value;
 }
 
-TTimestamp TTablet::GenerateMonotonicCommitTimestamp(TTimestamp hintTimestamp) const
-{
-    return 0;
-}
-
-void TTablet::UpdateLastCommitTimestamp(TTimestamp timestamp)
-{
-}
-
 TTimestamp TTablet::GetUnflushedTimestamp() const
 {
     return RuntimeData_->UnflushedTimestamp;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "dynamic_store_bits.h"
 
 #include <yt/server/cell_node/public.h>
 
@@ -40,11 +40,9 @@ struct IStoreManager
     virtual void StartEpoch(TTabletSlotPtr slot) = 0;
     virtual void StopEpoch() = 0;
 
-    virtual void ExecuteWrite(
-        TTransaction* transaction,
+    virtual bool ExecuteWrites(
         NTabletClient::TWireProtocolReader* reader,
-        TTimestamp commitTimestamp,
-        bool prelock) = 0;
+        TWriteContext* context) = 0;
 
     virtual bool IsOverflowRotationNeeded() const = 0;
     virtual bool IsPeriodicRotationNeeded() const = 0;

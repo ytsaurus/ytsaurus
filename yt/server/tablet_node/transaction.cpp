@@ -48,13 +48,6 @@ i64 TTransactionWriteRecord::GetByteSize() const
 
 TTransaction::TTransaction(const TTransactionId& id)
     : TTransactionBase(id)
-    , Transient_(true)
-    , StartTimestamp_(NullTimestamp)
-    , PrepareTimestamp_(NullTimestamp)
-    , CommitTimestamp_(NullTimestamp)
-    , PersistentSignature_(InitialTransactionSignature)
-    , TransientSignature_(InitialTransactionSignature)
-    , Finished_(NewPromise<void>())
 { }
 
 void TTransaction::Save(TSaveContext& context) const
@@ -91,11 +84,13 @@ void TTransaction::Load(TLoadContext& context)
 TCallback<void(TSaveContext&)> TTransaction::AsyncSave()
 {
     return BIND([
-        immediateWriteLogSnapshot = ImmediateWriteLog_.MakeSnapshot(),
+        immediateLockedWriteLogSnapshot = ImmediateLockedWriteLog_.MakeSnapshot(),
+        immediateLocklessWriteLogSnapshot = ImmediateLocklessWriteLog_.MakeSnapshot(),
         delayedWriteLogSnapshot = DelayedWriteLog_.MakeSnapshot()
     ] (TSaveContext& context) {
         using NYT::Save;
-        Save(context, immediateWriteLogSnapshot);
+        Save(context, immediateLockedWriteLogSnapshot);
+        Save(context, immediateLocklessWriteLogSnapshot);
         Save(context, delayedWriteLogSnapshot);
     });
 }
@@ -103,7 +98,8 @@ TCallback<void(TSaveContext&)> TTransaction::AsyncSave()
 void TTransaction::AsyncLoad(TLoadContext& context)
 {
     using NYT::Load;
-    Load(context, ImmediateWriteLog_);
+    Load(context, ImmediateLockedWriteLog_);
+    Load(context, ImmediateLocklessWriteLog_);
     Load(context, DelayedWriteLog_);
 }
 
@@ -154,7 +150,8 @@ bool TTransaction::IsCommitted() const
 
 bool TTransaction::IsPrepared() const
 {
-    return State_ == ETransactionState::TransientCommitPrepared ||
+    return
+        State_ == ETransactionState::TransientCommitPrepared ||
         State_ == ETransactionState::PersistentCommitPrepared;
 }
 

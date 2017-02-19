@@ -522,7 +522,11 @@ private:
                     .Item("start_timestamp").Value(transaction->GetStartTimestamp())
                     .Item("prepare_timestamp").Value(transaction->GetPrepareTimestamp())
                     // Omit CommitTimestamp, it's typically null.
-                    .Item("locked_row_count").Value(transaction->LockedSortedRows().size())
+                    .Item("locked_row_count").Value(transaction->LockedRows().size())
+                    .Item("prelocked_locked_row_count").Value(transaction->PrelockedRows().size())
+                    .Item("immediate_locked_write_log_size").Value(transaction->ImmediateLockedWriteLog().Size())
+                    .Item("immediate_lockless_write_log_size").Value(transaction->ImmediateLocklessWriteLog().Size())
+                    .Item("delayed_write_log_size").Value(transaction->DelayedWriteLog().Size())
                 .EndMap();
         };
         BuildYsonFluently(consumer)

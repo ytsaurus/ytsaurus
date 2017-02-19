@@ -78,99 +78,51 @@ void TOrderedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDe
     }
 }
 
-void TOrderedStoreManager::ExecuteWrite(
-    TTransaction* transaction,
+bool TOrderedStoreManager::ExecuteWrites(
     TWireProtocolReader* reader,
-    TTimestamp commitTimestamp,
-    bool prelock)
+    TWriteContext* context)
 {
-    auto command = reader->ReadCommand();
-    switch (command) {
-        case EWireProtocolCommand::WriteRow: {
-            auto row = reader->ReadUnversionedRow(false);
-            WriteRow(
-                transaction,
-                row,
-                commitTimestamp,
-                prelock);
+    switch (context->Phase) {
+        case EWritePhase::Prelock:
+        case EWritePhase::Lock:
+            // Skip until EOS.
+            reader->SetCurrent(reader->GetEnd());
             break;
-        }
+
+        case EWritePhase::Commit:
+            while (!reader->IsFinished()) {
+                auto command = reader->ReadCommand();
+                switch (command) {
+                    case EWireProtocolCommand::WriteRow: {
+                        auto row = reader->ReadUnversionedRow(false);
+                        WriteRow(row, context);
+                        break;
+                    }
+
+                    default:
+                        THROW_ERROR_EXCEPTION("Unsupported write command %v",
+                            command);
+                }
+            }
+            break;
 
         default:
-            THROW_ERROR_EXCEPTION("Unsupported write command %v",
-                command);
+            Y_UNREACHABLE();
     }
+    return true;
 }
 
 TOrderedDynamicRowRef TOrderedStoreManager::WriteRow(
-    TTransaction* transaction,
     TUnversionedRow row,
-    TTimestamp commitTimestamp,
-    bool prelock)
+    TWriteContext* context)
 {
-    if (commitTimestamp == NullTimestamp) {
-        if (prelock) {
-            // TODO(sandello): YT-4148
-            ValidateOnWrite(transaction->GetId(), row);
-        }
-    }
-
-    auto dynamicRow = ActiveStore_->WriteRow(transaction, row, commitTimestamp);
-    auto dynamicRowRef = TOrderedDynamicRowRef(
+    auto dynamicRow = ActiveStore_->WriteRow(row, context);
+    Tablet_->SetTotalRowCount(Tablet_->GetTotalRowCount() + 1);
+    UpdateLastCommitTimestamp(context->CommitTimestamp);
+    return TOrderedDynamicRowRef(
         ActiveStore_.Get(),
         this,
-        dynamicRow,
-        Tablet_->GetCommitOrdering() == ECommitOrdering::Weak);
-
-    if (commitTimestamp == NullTimestamp) {
-        LockRow(transaction, prelock, dynamicRowRef);
-    }
-
-    return dynamicRowRef;
-}
-
-void TOrderedStoreManager::LockRow(
-    TTransaction* transaction,
-    bool prelock,
-    const TOrderedDynamicRowRef& rowRef)
-{
-    if (prelock) {
-        transaction->PrelockedOrderedRows().push(rowRef);
-    } else {
-        transaction->LockedOrderedRows().push_back(rowRef);
-    }
-}
-
-void TOrderedStoreManager::ConfirmRow(TTransaction* transaction, const TOrderedDynamicRowRef& rowRef)
-{
-    transaction->LockedOrderedRows().push_back(rowRef);
-}
-
-void TOrderedStoreManager::PrepareRow(TTransaction* transaction, const TOrderedDynamicRowRef& rowRef)
-{
-    rowRef.Store->PrepareRow(transaction, rowRef.Row);
-}
-
-void TOrderedStoreManager::CommitRow(TTransaction* transaction, const TOrderedDynamicRowRef& rowRef)
-{
-    if (rowRef.Store == ActiveStore_) {
-        ActiveStore_->CommitRow(transaction, rowRef.Row);
-    } else {
-        auto migratedRow = ActiveStore_->MigrateRow(transaction, rowRef.Row);
-        // NB: In contrast to sorted tablets, for ordered ones we don't commit row in
-        // the original store that row has just migrated from.
-        rowRef.Store->AbortRow(transaction, rowRef.Row);
-        CheckForUnlockedStore(rowRef.Store);
-        ActiveStore_->CommitRow(transaction, migratedRow);
-    }
-    Tablet_->SetTotalRowCount(Tablet_->GetTotalRowCount() + 1);
-    UpdateLastCommitTimestamp(transaction->GetCommitTimestamp());
-}
-
-void TOrderedStoreManager::AbortRow(TTransaction* transaction, const TOrderedDynamicRowRef& rowRef)
-{
-    rowRef.Store->AbortRow(transaction, rowRef.Row);
-    CheckForUnlockedStore(rowRef.Store);
+        dynamicRow);
 }
 
 void TOrderedStoreManager::CreateActiveStore()
@@ -306,21 +258,6 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         descriptor.set_starting_row_index(orderedDynamicStore->GetStartingRowIndex());
         return std::vector<TAddStoreDescriptor>{descriptor};
     });
-}
-
-void TOrderedStoreManager::ValidateOnWrite(
-    const TTransactionId& transactionId,
-    TUnversionedRow row)
-{
-    try {
-        ValidateServerDataRow(row, Tablet_->PhysicalSchema());
-    } catch (TErrorException& ex) {
-        auto& errorAttributes = ex.Error().Attributes();
-        errorAttributes.Set("transaction_id", transactionId);
-        errorAttributes.Set("tablet_id", Tablet_->GetId());
-        errorAttributes.Set("row", row);
-        throw ex;
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
