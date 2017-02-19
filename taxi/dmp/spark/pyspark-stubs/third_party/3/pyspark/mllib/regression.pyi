@@ -4,13 +4,13 @@
 from typing import overload
 from typing import Any, Iterable, Optional, Tuple, TypeVar, Union
 from pyspark.rdd import RDD
+from pyspark.mllib._typing import VectorLike
 from pyspark.context import SparkContext
 from pyspark.mllib.linalg import Vector
 from pyspark.mllib.util import Saveable, Loader
 from pyspark.streaming.dstream import DStream
 from numpy import ndarray  # type: ignore
 
-VectorLike = Union[ndarray, Vector, List[float]]
 K = TypeVar('K')
 
 class LabeledPoint:
