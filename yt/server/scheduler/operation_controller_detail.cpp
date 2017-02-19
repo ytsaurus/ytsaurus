@@ -1256,9 +1256,9 @@ void TOperationControllerBase::Initialize()
 TOperationControllerInitializeResult TOperationControllerBase::GetInitializeResult() const
 {
     TOperationControllerInitializeResult result;
-    result.BriefSpec = BuildYsonStringFluently().BeginMap()
-            .Do(BIND(&TOperationControllerBase::BuildBriefSpec, MakeStrong(this)))
-        .EndMap();
+    result.BriefSpec = BuildYsonStringFluently<EYsonType::MapFragment>()
+        .Do(BIND(&TOperationControllerBase::BuildBriefSpec, MakeStrong(this)))
+        .Finish();
     return result;
 }
 
