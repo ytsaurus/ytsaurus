@@ -241,7 +241,8 @@ private:
         NErasure::ICodec* codec,
         bool allMediaTransient,
         bool allMediaDataPartsOnly,
-        const TPerMediumArray<NErasure::TPartIndexSet>& mediumToErasedIndexes);
+        const TPerMediumArray<NErasure::TPartIndexSet>& mediumToErasedIndexes,
+        const TMediumSet& activeMedia);
 
     bool IsReplicaDecommissioned(TNodePtrWithIndexes replica);
 
