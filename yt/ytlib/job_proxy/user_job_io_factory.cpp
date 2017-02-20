@@ -263,7 +263,8 @@ public:
         auto readerFactory = InterruptAtKeyEdge_ ? CreateSchemalessSortedJoiningReader : CreateSchemalessJoinReduceJoiningReader;
 
         const auto primaryKeyColumnCount = reduceJobSpecExt.key_columns_size();
-        return readerFactory(primaryReaders, primaryKeyColumnCount, foreignReaders, foreignKeyColumnCount);
+        const auto reduceKeyColumnCount = reduceJobSpecExt.reduce_key_column_count();
+        return readerFactory(primaryReaders, primaryKeyColumnCount, reduceKeyColumnCount, foreignReaders, foreignKeyColumnCount);
     }
 
     virtual NTableClient::ISchemalessMultiChunkWriterPtr CreateWriter(

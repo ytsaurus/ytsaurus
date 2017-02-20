@@ -317,6 +317,45 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         sleep(1.0)
         assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"hash": 2, "key": 12, "value": 12}]
 
+    def test_shard_replication(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA, attributes={"pivot_keys": [[], [10]]})
+        self._create_replica_table("//tmp/r", schema=self.SIMPLE_SCHEMA)
+
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+        enable_table_replica(replica_id)
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "v", "value2": 2}])
+        sleep(1.0)
+        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "v", "value2": 2}]
+
+        # ensuring that we have correctly populated data here
+        tablets = get("//tmp/t/@tablets")
+        assert len(tablets) == 2
+        assert tablets[0]["index"] == 0
+        assert tablets[0]["pivot_key"] == []
+        assert tablets[1]["index"] == 1
+        assert tablets[1]["pivot_key"] == [10]
+
+    def test_reshard_replication(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA, mount=False)
+        self._create_replica_table("//tmp/r", schema=self.SIMPLE_SCHEMA)
+
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+        enable_table_replica(replica_id)
+
+        tablets = get("//tmp/t/@tablets")
+        assert len(tablets) == 1
+
+        reshard_table("//tmp/t", [[], [10]])
+        tablets = get("//tmp/t/@tablets")
+        assert len(tablets) == 2
+
+        reshard_table("//tmp/t", [[], [10], [20]])
+        tablets = get("//tmp/t/@tablets")
+        assert len(tablets) == 3
+
     def test_replica_ops_require_exclusive_lock(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", mount=False)
