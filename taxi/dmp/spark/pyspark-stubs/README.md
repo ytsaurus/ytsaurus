@@ -63,7 +63,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.mllib.classification                       | ✔                 | ✘                |                  |
 | pyspark.mllib.clustering                           | ✔                 | ✘                |                  |
 | pyspark.mllib.common                               | ✔                 | ✘                |                  |
-| pyspark.mllib.evaluation                           | ✔                 | ✘                |                  |
+| pyspark.mllib.evaluation                           | ✘                 | ✔                |                  |
 | pyspark.mllib.feature                              | ✘                 | ✔                |                  |
 | pyspark.mllib.fpm                                  | ✘                 | ✔                |                  |
 | pyspark.mllib.linalg                               | ✘                 | ✔                |                  |
