@@ -161,7 +161,7 @@ void TVirtualMulticellMapBase::GetSelf(
             writer.OnBeginMap();
             for (const auto& item : session->Items) {
                 writer.OnKeyedItem(item.Key);
-                if (!item.Attributes.GetData().empty()) {
+                if (item.Attributes {
                     writer.OnBeginAttributes();
                     writer.OnRaw(item.Attributes);
                     writer.OnEndAttributes();
