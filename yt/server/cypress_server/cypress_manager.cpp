@@ -521,8 +521,7 @@ public:
         , ExpirationTracker_(New<TExpirationTracker>(config, bootstrap))
         , NodeMap_(TNodeMapTraits(this))
     {
-        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-        VERIFY_INVOKER_THREAD_AFFINITY(hydraFacade->GetAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
         RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, Bootstrap_->GetCellTag());
 
