@@ -411,6 +411,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     bool allMediaTransient = true;
     bool allMediaDataPartsOnly = true;
     TPerMediumArray<NErasure::TPartIndexSet> mediumToErasedIndexes{};
+    TMediumSet activeMedia;
 
     auto chunkProperties = chunk->ComputeProperties();
 
@@ -437,6 +438,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         allMediaTransient = allMediaTransient && mediumTransient;
         allMediaDataPartsOnly = allMediaDataPartsOnly && dataPartsOnly;
 
+        activeMedia.set(mediumIndex);
+        
         ComputeErasureChunkStatisticsForMedium(
             result.PerMediumStatistics[mediumIndex],
             codec,
@@ -452,7 +455,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         codec,
         allMediaTransient,
         allMediaDataPartsOnly,
-        mediumToErasedIndexes);
+        mediumToErasedIndexes,
+        activeMedia);
 
     return result;
 }
@@ -524,7 +528,8 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
     NErasure::ICodec* codec,
     bool allMediaTransient,
     bool allMediaDataPartsOnly,
-    const TPerMediumArray<NErasure::TPartIndexSet>& mediumToErasedIndexes)
+    const TPerMediumArray<NErasure::TPartIndexSet>& mediumToErasedIndexes,
+    const TMediumSet& activeMedia)
 {
     // In contrast to regular chunks, erasure chunk being "lost" on every medium
     // doesn't mean it's lost for good: across all media, there still may be
@@ -549,7 +554,11 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
     NErasure::TPartIndexSet crossMediumErasedIndexesNoTransient;
     crossMediumErasedIndexes.flip();
     crossMediumErasedIndexesNoTransient.flip();
+
     for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+        if (!activeMedia[mediumIndex]) {
+            continue;
+        }
         const auto& erasedIndexes = mediumToErasedIndexes[mediumIndex];
         crossMediumErasedIndexes &= erasedIndexes;
         if (!transientMedia.test(mediumIndex)) {

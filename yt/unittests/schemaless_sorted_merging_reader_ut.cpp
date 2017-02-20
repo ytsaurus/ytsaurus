@@ -287,7 +287,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedMergingReaderSingleTable)
         std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
         primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData0, 0, &(*resultStorage)[0]));
 
-        return CreateSchemalessSortedMergingReader(primaryReaders, 2);
+        return CreateSchemalessSortedMergingReader(primaryReaders, 2, 2);
     };
 
     std::vector<TResultStorage> resultStorage;
@@ -316,7 +316,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedMergingReaderMultipleTables)
         primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 0, &(*resultStorage)[0]));
         primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 1, &(*resultStorage)[1]));
 
-        return CreateSchemalessSortedMergingReader(primaryReaders, 2);
+        return CreateSchemalessSortedMergingReader(primaryReaders, 2, 2);
     };
 
     std::vector<TResultStorage> resultStorage;
@@ -364,7 +364,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforePrima
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 0));
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 1));
 
-        return CreateSchemalessSortedJoiningReader(primaryReaders, 2, foreignReaders, 1);
+        return CreateSchemalessSortedJoiningReader(primaryReaders, 2, 2, foreignReaders, 1);
     };
 
     // Expected sequence of rows:
@@ -458,7 +458,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeForei
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 1));
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 2));
 
-        return CreateSchemalessSortedJoiningReader(primaryReaders, 2, foreignReaders, 1);
+        return CreateSchemalessSortedJoiningReader(primaryReaders, 2, 2, foreignReaders, 1);
     };
 
     // Expected sequence of rows:
@@ -554,7 +554,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderForeignBeforeP
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 0));
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 1));
 
-        return CreateSchemalessJoinReduceJoiningReader(primaryReaders, 2, foreignReaders, 1);
+        return CreateSchemalessJoinReduceJoiningReader(primaryReaders, 1, 1, foreignReaders, 1);
     };
 
     // Expected sequence of rows:
@@ -648,7 +648,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderPrimaryBeforeF
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 1));
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 2));
 
-        return CreateSchemalessJoinReduceJoiningReader(primaryReaders, 2, foreignReaders, 1);
+        return CreateSchemalessJoinReduceJoiningReader(primaryReaders, 1, 1, foreignReaders, 1);
     };
 
     // Expected sequence of rows:
