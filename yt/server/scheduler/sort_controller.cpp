@@ -348,6 +348,17 @@ protected:
             return Controller->PartitionPool.get();
         }
 
+        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        {
+            return Controller->GetPartitionUserJobSpec();
+        }
+
+        virtual EJobType GetJobType() const override
+        {
+            return Controller->GetPartitionJobType();
+        }
+
+
         virtual void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
@@ -444,16 +455,6 @@ protected:
         virtual bool IsIntermediateOutput() const override
         {
             return true;
-        }
-
-        virtual EJobType GetJobType() const override
-        {
-            return Controller->GetPartitionJobType();
-        }
-
-        virtual TUserJobSpecPtr GetUserJobSpec() const override
-        {
-            return Controller->GetPartitionUserJobSpec();
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -687,6 +688,13 @@ protected:
                 : Partition->ChunkPoolOutput;
         }
 
+        virtual EJobType GetJobType() const override
+        {
+            return Controller->IsSortedMergeNeeded(Partition)
+                ? Controller->GetIntermediateSortJobType()
+                : Controller->GetFinalSortJobType();
+        }
+
     protected:
         TExtendedJobResources GetNeededResourcesForChunkStripe(
             const TChunkStripeStatistics& stat) const
@@ -718,13 +726,6 @@ protected:
         virtual bool IsIntermediateOutput() const override
         {
             return Controller->IsSortedMergeNeeded(Partition);
-        }
-
-        virtual EJobType GetJobType() const override
-        {
-            return Controller->IsSortedMergeNeeded(Partition)
-                ? Controller->GetIntermediateSortJobType()
-                : Controller->GetFinalSortJobType();
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -894,13 +895,13 @@ protected:
             }
         }
 
-    private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionSortTask, 0x4f9a6cd9);
-
         virtual TUserJobSpecPtr GetUserJobSpec() const override
         {
             return Controller->GetPartitionSortUserJobSpec(Partition);
         }
+
+    private:
+        DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionSortTask, 0x4f9a6cd9);
 
         virtual bool IsActive() const override
         {
@@ -1049,6 +1050,16 @@ protected:
             Persist(context, ChunkPool);
         }
 
+        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        {
+            return Controller->GetSortedMergeUserJobSpec();
+        }
+
+        virtual EJobType GetJobType() const override
+        {
+            return Controller->GetSortedMergeJobType();
+        }
+
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeTask, 0x4ab19c75);
 
@@ -1070,16 +1081,6 @@ protected:
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
             return ChunkPool.get();
-        }
-
-        virtual EJobType GetJobType() const override
-        {
-            return Controller->GetSortedMergeJobType();
-        }
-
-        virtual TUserJobSpecPtr GetUserJobSpec() const override
-        {
-            return Controller->GetSortedMergeUserJobSpec();
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -1170,6 +1171,11 @@ protected:
             return Partition->ChunkPoolOutput;
         }
 
+        virtual EJobType GetJobType() const override
+        {
+            return EJobType::UnorderedMerge;
+        }
+
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeTask, 0xbba17c0f);
 
@@ -1189,11 +1195,6 @@ protected:
         virtual bool HasInputLocality() const override
         {
             return false;
-        }
-
-        virtual EJobType GetJobType() const override
-        {
-            return EJobType::UnorderedMerge;
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override

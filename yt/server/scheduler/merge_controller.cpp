@@ -208,6 +208,16 @@ protected:
             Persist(context, PartitionIndex);
         }
 
+        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        {
+            return Controller->GetUserJobSpec();
+        }
+
+        virtual EJobType GetJobType() const override
+        {
+            return Controller->GetJobType();
+        }
+
     protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
@@ -259,16 +269,6 @@ protected:
         virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
         {
             return Controller->TableReaderOptions;
-        }
-
-        virtual EJobType GetJobType() const override
-        {
-            return Controller->GetJobType();
-        }
-
-        virtual TUserJobSpecPtr GetUserJobSpec() const override
-        {
-            return Controller->GetUserJobSpec();
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override

@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup, unix_only, require_ytserver_root_privileges
 from yt.environment.helpers import assert_almost_equal
 from yt_commands import *
 
@@ -2352,3 +2352,57 @@ class TestMaxTotalSliceCount(YTEnvSetup):
                 out="//tmp/t_out",
                 join_by=["key"],
                 command="cat > /dev/null")
+
+class TestSchedulerOperationAlerts(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 3
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "heartbeat_period": 200
+            }
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operation_progress_analysis_period": 200,
+            "tmpfs_alert_min_unutilized_space_threshold": 200,
+            "tmpfs_alert_max_unutilized_space_ratio": 0.3
+        }
+    }
+
+    @require_ytserver_root_privileges
+    @unix_only
+    def test_unused_tmpfs_size_alert(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", [{"x": "y"}])
+
+        op = map(
+            command="echo abcdef >local_file; sleep 1.5; cat",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 5 * 1024 * 1024,
+                    "tmpfs_path": "."
+                }
+            })
+
+        assert "unused_tmpfs_space" in get("//sys/operations/{0}/@alerts".format(op.id))
+
+        op = map(
+            command="printf '=%.0s' {1..768} >local_file; sleep 1.5; cat",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024,
+                    "tmpfs_path": "."
+                }
+            })
+
+        assert "unused_tmpfs_space" not in get("//sys/operations/{0}/@alerts".format(op.id))

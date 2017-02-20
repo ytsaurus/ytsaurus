@@ -547,6 +547,8 @@ public:
 
     TDuration AvailableExecNodesCheckPeriod;
 
+    TDuration OperationProgressAnalysisPeriod;
+
     TDuration OperationBuildProgressPeriod;
 
     TDuration TaskUpdatePeriod;
@@ -740,6 +742,13 @@ public:
     // Total number of data slices in operation, summed up over all jobs.
     i64 MaxTotalSliceCount;
 
+    // Maximum allowed ratio of unutilized tmpfs size.
+    double TmpfsAlertMaxUnutilizedSpaceRatio;
+
+    // Min unutilized space threshold. If unutilized space is less than
+    // this threshold then operation alert will not be set.
+    i64 TmpfsAlertMinUnutilizedSpaceThreshold;
+
     TSchedulerConfig()
     {
         RegisterParameter("controller_thread_count", ControllerThreadCount)
@@ -811,6 +820,9 @@ public:
 
         RegisterParameter("available_exec_nodes_check_period", AvailableExecNodesCheckPeriod)
             .Default(TDuration::Seconds(5));
+
+        RegisterParameter("operation_progress_analysis_period", OperationProgressAnalysisPeriod)
+            .Default(TDuration::Seconds(10));
 
         RegisterParameter("operation_build_progress_period", OperationBuildProgressPeriod)
             .Default(TDuration::Seconds(3));
@@ -1026,6 +1038,14 @@ public:
 
         RegisterParameter("max_total_slice_count", MaxTotalSliceCount)
             .Default((i64) 10 * 1000 * 1000)
+            .GreaterThan(0);
+
+        RegisterParameter("tmpfs_alert_max_unutilized_space_ratio", TmpfsAlertMaxUnutilizedSpaceRatio)
+            .InRange(0.0, 1.0)
+            .Default(0.2);
+
+        RegisterParameter("tmpfs_alert_min_unutilized_space_threshold", TmpfsAlertMinUnutilizedSpaceThreshold)
+            .Default((i64) 512 * 1024 * 1024)
             .GreaterThan(0);
 
         RegisterInitializer([&] () {

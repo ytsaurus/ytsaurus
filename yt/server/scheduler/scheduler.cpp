@@ -440,6 +440,33 @@ public:
         return CoreSemaphore_;
     }
 
+    void DoSetOperationAlert(
+        const TOperationId& operationId,
+        EOperationAlertType alertType,
+        const TError& alert)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+        if (!operation) {
+            return;
+        }
+
+        operation->Alerts()[alertType] = alert;
+    }
+
+    virtual void SetOperationAlert(
+        const TOperationId& operationId,
+        EOperationAlertType alertType,
+        const TError& alert) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert)
+            .AsyncVia(GetControlInvoker())
+            .Run();
+    }
+
     virtual void ValidatePoolPermission(
         const TYPath& path,
         const Stroka& user,
