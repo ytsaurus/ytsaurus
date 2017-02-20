@@ -150,6 +150,7 @@ public:
     const THttpHeaders& Headers() const;
 
     void CheckErrorResponse() const;
+    bool IsExhausted() const;
 
 private:
     size_t DoRead(void* buf, size_t len) override;
@@ -164,6 +165,7 @@ private:
     const Stroka HostName_;
     int HttpCode_ = 0;
     TMaybe<TErrorResponse> ErrorResponse_;
+    bool IsExhausted_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
