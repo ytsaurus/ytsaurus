@@ -1245,6 +1245,21 @@ private:
             batchReq->AddRequest(req, "update_op_node");
         }
 
+        // Set alerts.
+        {
+            auto req = TYPathProxy::Set(operationPath + "/@alerts");
+            const auto& alerts = operation->Alerts();
+            req->set_value(BuildYsonStringFluently()
+                .DoMapFor(TEnumTraits<EOperationAlertType>::GetDomainValues(),
+                    [&] (TFluentMap fluent, EOperationAlertType alertType) {
+                        if (!alerts[alertType].IsOK()) {
+                            fluent.Item(FormatEnum(alertType)).Value(alerts[alertType]);
+                        }
+                    })
+                .GetData());
+            batchReq->AddRequest(req, "update_op_node");
+        }
+
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
     }

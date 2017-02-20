@@ -12,6 +12,7 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/core/misc/enum.h>
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref.h>
@@ -39,6 +40,8 @@ class TOperation
     : public TIntrinsicRefCounted
 {
 public:
+    using TAlertsArray = TEnumIndexedVector<TError, EOperationAlertType>;
+
     DEFINE_BYVAL_RO_PROPERTY(TOperationId, Id);
 
     DEFINE_BYVAL_RO_PROPERTY(EOperationType, Type);
@@ -73,6 +76,9 @@ public:
 
     //! List of events that happened to operation.
     DEFINE_BYVAL_RO_PROPERTY(std::vector<TOperationEvent>, Events);
+
+    //! List of operation alerts.
+    DEFINE_BYREF_RW_PROPERTY(TAlertsArray, Alerts);
 
     //! Number of stderrs generated so far.
     DEFINE_BYVAL_RW_PROPERTY(int, StderrCount);

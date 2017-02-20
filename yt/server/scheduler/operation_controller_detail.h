@@ -592,6 +592,8 @@ protected:
         i64 GetCompletedDataSize() const;
         i64 GetPendingDataSize() const;
 
+        TNullable<i64> GetMaximumUsedTmpfsSize() const;
+
         virtual IChunkPoolInput* GetChunkPoolInput() const = 0;
         virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;
 
@@ -600,11 +602,16 @@ protected:
 
         virtual void Persist(const TPersistenceContext& context) override;
 
+        virtual TUserJobSpecPtr GetUserJobSpec() const;
+
+        virtual EJobType GetJobType() const = 0;
     private:
         TOperationControllerBase* Controller;
 
         int CachedPendingJobCount;
         int CachedTotalJobCount;
+
+        TNullable<i64> MaximumUsedTmfpsSize;
 
         TJobResources CachedTotalNeededResources;
         mutable TNullable<TExtendedJobResources> CachedMinNeededResources;
@@ -617,6 +624,7 @@ protected:
 
         TJobResources ApplyMemoryReserve(const TExtendedJobResources& jobResources) const;
 
+        void UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics);
     protected:
         NLogging::TLogger Logger;
 
@@ -628,8 +636,6 @@ protected:
 
         virtual void OnTaskCompleted();
 
-        virtual EJobType GetJobType() const = 0;
-        virtual TUserJobSpecPtr GetUserJobSpec() const;
         virtual void PrepareJoblet(TJobletPtr joblet);
         virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
 
@@ -756,6 +762,9 @@ protected:
     void CheckTimeLimit();
 
     void CheckAvailableExecNodes();
+
+    void AnalyzeTmpfsUsage();
+    void AnalyzeOperationProgess();
 
     void DoScheduleJob(
         ISchedulingContext* context,
@@ -1148,6 +1157,9 @@ private:
 
     //! Runs periodic checks to verify that compatible nodes are present in the cluster.
     NConcurrency::TPeriodicExecutorPtr ExecNodesCheckExecutor;
+
+    //! Periodically checks operation progress and registers operation alerts if necessary.
+    NConcurrency::TPeriodicExecutorPtr AnalyzeOperationProgressExecutor;
 
     //! Exec node count do not consider scheduling tag.
     //! But descriptors do.

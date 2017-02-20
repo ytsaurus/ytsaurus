@@ -146,6 +146,15 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const = 0;
+
+    //! Sets operation alert.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual void SetOperationAlert(
+        const TOperationId& operationId,
+        EOperationAlertType alertType,
+        const TError& alert) = 0;
 };
 
 /*!

@@ -324,6 +324,11 @@ int TOperationControllerBase::TTask::GetTotalJobCountDelta()
     return newValue - oldValue;
 }
 
+TNullable<i64> TOperationControllerBase::TTask::GetMaximumUsedTmpfsSize() const
+{
+    return MaximumUsedTmfpsSize;
+}
+
 const TProgressCounter& TOperationControllerBase::TTask::GetJobCounter() const
 {
     return GetChunkPoolOutput()->GetJobCounter();
@@ -656,6 +661,8 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
 
     Controller->RegisterStderr(joblet, jobSummary);
     Controller->RegisterCores(joblet, jobSummary);
+
+    UpdateMaximumUsedTmpfsSize(jobSummary.Statistics);
 }
 
 void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason)
@@ -703,6 +710,8 @@ void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet, const TFail
 
     Controller->RegisterStderr(joblet, jobSummary);
     Controller->RegisterCores(joblet, jobSummary);
+
+    UpdateMaximumUsedTmpfsSize(jobSummary.Statistics);
 }
 
 void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& /* jobSummary */)
@@ -958,6 +967,20 @@ TJobResources TOperationControllerBase::TTask::ApplyMemoryReserve(const TExtende
     return result;
 }
 
+void TOperationControllerBase::TTask::UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics) {
+    auto maxUsedTmpfsSize = FindNumericValue(
+        statistics,
+        "/user_job/max_tmpfs_size");
+
+    if (!maxUsedTmpfsSize) {
+        return;
+    }
+
+    if (!MaximumUsedTmfpsSize || *MaximumUsedTmfpsSize < *maxUsedTmpfsSize) {
+        MaximumUsedTmfpsSize = *maxUsedTmpfsSize;
+    }
+}
+
 void TOperationControllerBase::TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const
 {
     jobResources.SetFootprintMemory(GetFootprintMemorySize());
@@ -1091,6 +1114,10 @@ TOperationControllerBase::TOperationControllerBase(
         GetCancelableInvoker(),
         BIND(&TThis::CheckAvailableExecNodes, MakeWeak(this)),
         Config->AvailableExecNodesCheckPeriod))
+    , AnalyzeOperationProgressExecutor(New<TPeriodicExecutor>(
+        GetCancelableInvoker(),
+        BIND(&TThis::AnalyzeOperationProgess, MakeWeak(this)),
+        Config->OperationProgressAnalysisPeriod))
     , EventLogValueConsumer_(Host->CreateLogConsumer())
     , EventLogTableConsumer_(new TTableConsumer(EventLogValueConsumer_.get()))
     , CodicilData_(MakeOperationCodicilString(OperationId))
@@ -1439,6 +1466,7 @@ void TOperationControllerBase::SafeMaterialize()
         CheckTimeLimitExecutor->Start();
         ProgressBuildExecutor_->Start();
         ExecNodesCheckExecutor->Start();
+        AnalyzeOperationProgressExecutor->Start();
 
         State = EControllerState::Running;
     } catch (const std::exception& ex) {
@@ -1494,6 +1522,7 @@ void TOperationControllerBase::Revive()
     CheckTimeLimitExecutor->Start();
     ProgressBuildExecutor_->Start();
     ExecNodesCheckExecutor->Start();
+    AnalyzeOperationProgressExecutor->Start();
 
     State = EControllerState::Running;
 }
@@ -2539,6 +2568,81 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     } else {
         AvaialableNodesLastSeenTime_ = TInstant::Now();
     }
+}
+
+void TOperationControllerBase::AnalyzeTmpfsUsage()
+{
+    if (!Config->EnableTmpfs) {
+        return;
+    }
+
+    yhash_map<EJobType, i64> maximumUsedTmfpsSizePerJobType;
+    yhash_map<EJobType, TUserJobSpecPtr> userJobSpecPerJobType;
+
+    for (const auto& task : Tasks) {
+        const auto& userJobSpecPtr = task->GetUserJobSpec();
+        if (!userJobSpecPtr || !userJobSpecPtr->TmpfsPath || !userJobSpecPtr->TmpfsSize) {
+            continue;
+        }
+
+        auto maxUsedTmpfsSize = task->GetMaximumUsedTmpfsSize();
+        if (!maxUsedTmpfsSize) {
+            continue;
+        }
+
+        auto jobType = task->GetJobType();
+
+        auto it = maximumUsedTmfpsSizePerJobType.find(jobType);
+        if (it == maximumUsedTmfpsSizePerJobType.end()) {
+            maximumUsedTmfpsSizePerJobType[jobType] = *maxUsedTmpfsSize;
+        } else {
+            it->second = std::max(it->second, *maxUsedTmpfsSize);
+        }
+
+        userJobSpecPerJobType.insert(std::make_pair(jobType, userJobSpecPtr));
+    }
+
+    std::vector<TError> innerErrors;
+
+    double minUtilizedSpaceRatio = 1.0 - Config->TmpfsAlertMaxUnutilizedSpaceRatio;
+
+    for (const auto& pair : maximumUsedTmfpsSizePerJobType) {
+        const auto& userJobSpecPtr = userJobSpecPerJobType[pair.first];
+        auto maxUsedTmpfsSize = pair.second;
+
+        bool minUnutilizedSpaceThresholdOvercome = userJobSpecPtr->TmpfsSize.Get() - maxUsedTmpfsSize >
+            Config->TmpfsAlertMinUnutilizedSpaceThreshold;
+        bool minUtilizedSpaceRatioViolated = maxUsedTmpfsSize <
+            minUtilizedSpaceRatio * userJobSpecPtr->TmpfsSize.Get();
+
+        if (minUnutilizedSpaceThresholdOvercome && minUtilizedSpaceRatioViolated) {
+            auto error = TError("Jobs of type \"%Qlv\" utilize less than %.1f%% of requested tmpfs size",
+                                pair.first, minUtilizedSpaceRatio * 100.0);
+            innerErrors.push_back(error
+                << TErrorAttribute("max_used_tmpfs_size", maxUsedTmpfsSize)
+                << TErrorAttribute("tmpfs_size", *userJobSpecPtr->TmpfsSize));
+        }
+    }
+
+    TError error;
+    if (!innerErrors.empty()) {
+        error = TError("Operation has jobs that utilize less than %.1f%% of requested tmpfs size; "
+                       "consider specifying tmpfs size closer to actual utilization",
+                       minUtilizedSpaceRatio * 100.0)
+            << innerErrors;
+    }
+
+    Host->SetOperationAlert(
+        OperationId,
+        EOperationAlertType::UnusedTmpfsSpace,
+        error);
+}
+
+void TOperationControllerBase::AnalyzeOperationProgess()
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    AnalyzeTmpfsUsage();
 }
 
 TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(

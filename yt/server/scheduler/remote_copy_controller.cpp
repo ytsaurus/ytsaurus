@@ -146,6 +146,11 @@ private:
             return ChunkPool_.get();
         }
 
+        virtual EJobType GetJobType() const override
+        {
+            return EJobType::RemoteCopy;
+        }
+
         virtual void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
@@ -203,11 +208,6 @@ private:
             result += maxBlockSize;
 
             return result;
-        }
-
-        virtual EJobType GetJobType() const override
-        {
-            return EJobType::RemoteCopy;
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
