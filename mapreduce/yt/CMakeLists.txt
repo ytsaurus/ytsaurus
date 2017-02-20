@@ -2,6 +2,7 @@ RECURSE(
     interface
     common
     http
+    http/ut
     io
     client
     examples

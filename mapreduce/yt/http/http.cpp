@@ -346,9 +346,6 @@ void TConnectionPool::Refresh()
 {
     TWriteGuard guard(Lock_);
 
-    auto removeCount = static_cast<int>(Connections_.size()) -
-        TConfig::Get()->ConnectionPoolSize;
-
     // simple, since we don't expect too many connections
     using TItem = std::pair<TInstant, TConnectionMap::iterator>;
     std::vector<TItem> sortedConnections;
@@ -365,7 +362,9 @@ void TConnectionPool::Refresh()
             return a.first < b.first;
         });
 
-    auto now = TInstant::Now();
+    auto removeCount = static_cast<int>(Connections_.size()) - TConfig::Get()->ConnectionPoolSize;
+
+    const auto now = TInstant::Now();
     for (const auto& item : sortedConnections) {
         const auto& mapIterator = item.second;
         auto connection = mapIterator->second;
@@ -520,6 +519,11 @@ void THttpResponse::CheckErrorResponse() const
     }
 }
 
+bool THttpResponse::IsExhausted() const
+{
+    return IsExhausted_;
+}
+
 TMaybe<TErrorResponse> THttpResponse::ParseError(const THttpHeaders& headers)
 {
     for (const auto& header : headers) {
@@ -544,6 +548,7 @@ size_t THttpResponse::DoRead(void* buf, size_t len)
         Y_VERIFY(HttpInput_.Trailers().Defined(),
             "trailers MUST be defined for exhausted stream");
         CheckTrailers(HttpInput_.Trailers().GetRef());
+        IsExhausted_ = true;
     }
     return read;
 }
@@ -557,6 +562,7 @@ size_t THttpResponse::DoSkip(size_t len)
         Y_VERIFY(HttpInput_.Trailers().Defined(),
             "trailers MUST be defined for exhausted stream");
         CheckTrailers(HttpInput_.Trailers().GetRef());
+        IsExhausted_ = true;
     }
     return skipped;
 }
@@ -586,14 +592,18 @@ THttpRequest::~THttpRequest()
     }
 
     bool keepAlive = false;
-    for (const auto& header : Input->Headers()) {
-        if (header.Name() == "Connection" && header.Value() == "keep-alive") {
-            keepAlive = true;
-            break;
+    if (Input) {
+        for (const auto& header : Input->Headers()) {
+            if (header.Name() == "Connection" && to_lower(header.Value()) == "keep-alive") {
+                keepAlive = true;
+                break;
+            }
         }
     }
 
-    if (keepAlive) {
+    if (keepAlive && Input && Input->IsExhausted()) {
+        // We should return to the pool only connections were HTTP response was fully read.
+        // Otherwise next reader might read our remaining data and misinterpret them (YT-6510).
         TConnectionPool::Get()->Release(Connection);
     } else {
         TConnectionPool::Get()->Invalidate(HostName, Connection);
