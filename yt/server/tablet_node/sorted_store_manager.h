@@ -29,6 +29,8 @@ public:
         NApi::INativeClientPtr client = nullptr);
 
     // IStoreManager overrides.
+    virtual bool IsLockless() override;
+
     virtual bool ExecuteWrites(
         NTabletClient::TWireProtocolReader* reader,
         TWriteContext* context) override;

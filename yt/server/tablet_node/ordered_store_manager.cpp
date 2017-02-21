@@ -78,6 +78,11 @@ void TOrderedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDe
     }
 }
 
+bool TOrderedStoreManager::IsLockless()
+{
+    return true;
+}
+
 bool TOrderedStoreManager::ExecuteWrites(
     TWireProtocolReader* reader,
     TWriteContext* context)
