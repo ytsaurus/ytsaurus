@@ -268,6 +268,8 @@ public:
             ValidateClientTimestamp(transactionId);
         }
 
+        bool lockless = storeManager->IsLockless();
+
         while (!reader->IsFinished()) {
             TTransaction* transaction = nullptr;
             bool transactionIsFresh = false;
@@ -286,7 +288,12 @@ public:
             context.Transaction = transaction;
 
             auto readerBefore = reader->GetCurrent();
-            storeManager->ExecuteWrites(reader, &context);
+            if (lockless) {
+                // Skip the whole message.
+                reader->SetCurrent(reader->GetEnd());
+            } else {
+                storeManager->ExecuteWrites(reader, &context);
+            }
             auto readerAfter = reader->GetCurrent();
 
             auto adjustedSignature = reader->IsFinished() ? signature : 0;
@@ -295,7 +302,7 @@ public:
                 transaction->SetTransientSignature(transaction->GetTransientSignature() + adjustedSignature);
             }
 
-            LOG_DEBUG_IF(context.RowCount > 0, "Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v, Signature: %x)",
+            LOG_DEBUG_UNLESS(lockless, "Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v, Signature: %x)",
                 transactionId,
                 tabletId,
                 context.RowCount,
@@ -322,6 +329,7 @@ public:
                         tablet->GetMountRevision(),
                         transactionId,
                         adjustedSignature,
+                        lockless,
                         context.RowCount,
                         writeRecord))
                     ->Commit()
@@ -1077,6 +1085,7 @@ private:
         i64 mountRevision,
         const TTransactionId& transactionId,
         TTransactionSignature signature,
+        bool lockless,
         int prelockedRowCount,
         const TTransactionWriteRecord& writeRecord,
         TMutationContext* /*context*/)
@@ -1098,36 +1107,37 @@ private:
                 const auto& transactionManager = Slot_->GetTransactionManager();
                 transaction = transactionManager->MakeTransactionPersistent(transactionId);
 
-                auto& prelockedRows = transaction->PrelockedRows();
-                for (int index = 0; index < prelockedRowCount; ++index) {
-                    Y_ASSERT(!prelockedRows.empty());
-                    auto rowRef = prelockedRows.front();
-                    prelockedRows.pop();
-                    if (ValidateAndDiscardRowRef(rowRef)) {
-                        rowRef.StoreManager->ConfirmRow(transaction, rowRef);
+                if (prelockedRowCount > 0) {
+                    auto& prelockedRows = transaction->PrelockedRows();
+                    for (int index = 0; index < prelockedRowCount; ++index) {
+                        Y_ASSERT(!prelockedRows.empty());
+                        auto rowRef = prelockedRows.front();
+                        prelockedRows.pop();
+                        if (ValidateAndDiscardRowRef(rowRef)) {
+                            rowRef.StoreManager->ConfirmRow(transaction, rowRef);
+                        }
                     }
-                }
 
-                LOG_DEBUG_UNLESS(IsRecovery() || prelockedRowCount == 0, "Prelocked rows confirmed (TabletId: %v, TransactionId: %v, "
-                    "PrelockedRowCount: %v)",
-                    writeRecord.TabletId,
-                    transactionId,
-                    prelockedRowCount);
+                    LOG_DEBUG_UNLESS(IsRecovery(), "Prelocked rows confirmed (TabletId: %v, TransactionId: %v, "
+                        "PrelockedRowCount: %v)",
+                        writeRecord.TabletId,
+                        transactionId,
+                        prelockedRowCount);
+                }
 
                 bool immediate = tablet->GetCommitOrdering() == ECommitOrdering::Weak;
                 auto* writeLog = immediate
-                    ? (prelockedRowCount == 0
-                        ? &transaction->ImmediateLocklessWriteLog()
-                        : &transaction->ImmediateLockedWriteLog())
+                    ? (lockless ? &transaction->ImmediateLocklessWriteLog() : &transaction->ImmediateLockedWriteLog())
                     : &transaction->DelayedWriteLog();
                 EnqueueTransactionWriteRecord(transaction, writeLog, writeRecord, signature);
 
-                LOG_DEBUG_UNLESS(IsRecovery() || prelockedRowCount > 0, "Rows batched (TabletId: %v, TransactionId: %v, "
-                    "WriteRecordSize: %v, Immediate: %v)",
+                LOG_DEBUG_UNLESS(IsRecovery() || writeLog == &transaction->ImmediateLockedWriteLog(),
+                    "Rows batched (TabletId: %v, TransactionId: %v, WriteRecordSize: %v, Immediate: %v, Lockless: %v)",
                     writeRecord.TabletId,
                     transactionId,
                     writeRecord.GetByteSize(),
-                    immediate);
+                    immediate,
+                    lockless);
                 break;
             }
 

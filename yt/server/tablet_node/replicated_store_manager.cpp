@@ -65,46 +65,39 @@ void TReplicatedStoreManager::StopEpoch()
     LogStoreManager_->StopEpoch();
 }
 
+bool TReplicatedStoreManager::IsLockless()
+{
+    return true;
+}
+
 bool TReplicatedStoreManager::ExecuteWrites(
     TWireProtocolReader* reader,
     TWriteContext* context)
 {
-    switch (context->Phase) {
-        case EWritePhase::Prelock:
-        case EWritePhase::Lock:
-            // Skip until EOS.
-            reader->SetCurrent(reader->GetEnd());
-            break;
-
-        case EWritePhase::Commit:
-            while (!reader->IsFinished()) {
-                auto command = reader->ReadCommand();
-                switch (command) {
-                    case EWireProtocolCommand::WriteRow: {
-                        auto row = reader->ReadUnversionedRow(false);
-                        LogStoreManager_->WriteRow(
-                            BuildLogRow(row, ERowModificationType::Write),
-                            context);
-                        break;
-                    }
-
-                    case EWireProtocolCommand::DeleteRow: {
-                        auto key = reader->ReadUnversionedRow(false);
-                        LogStoreManager_->WriteRow(
-                            BuildLogRow(key, ERowModificationType::Delete),
-                            context);
-                        break;
-                    }
-
-                    default:
-                        THROW_ERROR_EXCEPTION("Unsupported write command %v",
-                            command);
-                }
+    Y_ASSERT(context->Phase == EWritePhase::Commit);
+    while (!reader->IsFinished()) {
+        auto command = reader->ReadCommand();
+        switch (command) {
+            case EWireProtocolCommand::WriteRow: {
+                auto row = reader->ReadUnversionedRow(false);
+                LogStoreManager_->WriteRow(
+                    BuildLogRow(row, ERowModificationType::Write),
+                    context);
+                break;
             }
-            break;
 
-        default:
-            Y_UNREACHABLE();
+            case EWireProtocolCommand::DeleteRow: {
+                auto key = reader->ReadUnversionedRow(false);
+                LogStoreManager_->WriteRow(
+                    BuildLogRow(key, ERowModificationType::Delete),
+                    context);
+                break;
+            }
+
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported write command %v",
+                    command);
+        }
     }
     return true;
 }

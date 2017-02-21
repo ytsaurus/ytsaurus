@@ -87,39 +87,39 @@ TSortedStoreManager::TSortedStoreManager(
     }
 }
 
+bool TSortedStoreManager::IsLockless()
+{
+    return Tablet_->GetAtomicity() == EAtomicity::None;
+}
+
 bool TSortedStoreManager::ExecuteWrites(
     TWireProtocolReader* reader,
     TWriteContext* context)
 {
-    if (Tablet_->GetAtomicity() == EAtomicity::None && context->Phase == EWritePhase::Prelock) {
-        // Skip until EOS.
-        reader->SetCurrent(reader->GetEnd());
-    } else {
-        while (!reader->IsFinished()) {
-            TSortedDynamicRowRef rowRef;
-            auto readerCheckpoint = reader->GetCurrent();
-            auto command = reader->ReadCommand();
-            switch (command) {
-                case EWireProtocolCommand::WriteRow: {
-                    auto row = reader->ReadUnversionedRow(false);
-                    rowRef = ModifyRow(row, ERowModificationType::Write, context);
-                    break;
-                }
-
-                case EWireProtocolCommand::DeleteRow: {
-                    auto key = reader->ReadUnversionedRow(false);
-                    rowRef = ModifyRow(key, ERowModificationType::Delete, context);
-                    break;
-                }
-
-                default:
-                    THROW_ERROR_EXCEPTION("Unsupported write command %v",
-                        command);
+    while (!reader->IsFinished()) {
+        TSortedDynamicRowRef rowRef;
+        auto readerCheckpoint = reader->GetCurrent();
+        auto command = reader->ReadCommand();
+        switch (command) {
+            case EWireProtocolCommand::WriteRow: {
+                auto row = reader->ReadUnversionedRow(false);
+                rowRef = ModifyRow(row, ERowModificationType::Write, context);
+                break;
             }
-            if (!rowRef) {
-                reader->SetCurrent(readerCheckpoint);
-                return false;
+
+            case EWireProtocolCommand::DeleteRow: {
+                auto key = reader->ReadUnversionedRow(false);
+                rowRef = ModifyRow(key, ERowModificationType::Delete, context);
+                break;
             }
+
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported write command %v",
+                    command);
+        }
+        if (!rowRef) {
+            reader->SetCurrent(readerCheckpoint);
+            return false;
         }
     }
     return true;

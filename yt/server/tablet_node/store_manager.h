@@ -40,6 +40,8 @@ struct IStoreManager
     virtual void StartEpoch(TTabletSlotPtr slot) = 0;
     virtual void StopEpoch() = 0;
 
+    virtual bool IsLockless() = 0;
+
     virtual bool ExecuteWrites(
         NTabletClient::TWireProtocolReader* reader,
         TWriteContext* context) = 0;
