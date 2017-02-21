@@ -23,8 +23,11 @@ PYTHONPATH = os.path.abspath(os.path.join(TESTS_LOCATION, "../../../"))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
 ENABLE_JOB_CONTROL = bool(int(os.environ.get("TESTS_JOB_CONTROL", False)))
 
+def get_test_dir_path():
+    return os.path.join(TESTS_LOCATION, "files")
+
 def get_test_file_path(name):
-    return os.path.join(TESTS_LOCATION, "files", name)
+    return os.path.join(get_test_dir_path(), name)
 
 @contextmanager
 def set_config_option(name, value, final_action=None):

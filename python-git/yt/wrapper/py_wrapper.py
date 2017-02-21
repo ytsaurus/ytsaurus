@@ -451,6 +451,7 @@ def build_modules_arguments(modules_info, create_temp_file, file_argument_builde
 def build_main_file_arguments(function, create_temp_file, file_argument_builder):
     main_filename = create_temp_file(prefix="_main_module", suffix=".py")
     main_module_type = "PY_SOURCE"
+    module_import_path = "_main_module"
     if is_running_interactively():
         try:
             function_source_filename = inspect.getfile(function)
@@ -467,14 +468,17 @@ def build_main_file_arguments(function, create_temp_file, file_argument_builder)
         if not hasattr(sys.modules["__main__"], "__file__"):
             function_source_filename = None
         else:
-            function_source_filename = sys.modules["__main__"].__file__
+            main_module = sys.modules["__main__"]
+            function_source_filename = main_module.__file__
+            if main_module.__package__ is not None:
+                module_import_path = "{0}.{1}".format(main_module.__package__, main_module.__name__)
             if function_source_filename.endswith("pyc"):
                 main_module_type = "PY_COMPILED"
 
     if function_source_filename:
         shutil.copy(function_source_filename, main_filename)
 
-    return [file_argument_builder(main_filename), "_main_module", main_module_type]
+    return [file_argument_builder(main_filename), module_import_path, main_module_type]
 
 def do_wrap(function, operation_type, tempfiles_manager, input_format, output_format, group_by, local_mode, uploader, client):
     assert operation_type in ["mapper", "reducer", "reduce_combiner"]

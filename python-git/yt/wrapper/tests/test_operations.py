@@ -1,7 +1,7 @@
 from __future__ import print_function
 
-from .helpers import TEST_DIR, PYTHONPATH, get_test_file_path, check, set_config_option, \
-                     build_python_egg, TESTS_SANDBOX, run_python_script_with_check, \
+from .helpers import TEST_DIR, PYTHONPATH, get_test_dir_path, get_test_file_path, check, \
+                     set_config_option, build_python_egg, TESTS_SANDBOX, run_python_script_with_check, \
                      ENABLE_JOB_CONTROL, dumps_yt_config
 
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
@@ -61,6 +61,10 @@ class CreateModulesArchive(object):
 class TestOperations(object):
     def setup(self):
         yt.config["tabular_data_format"] = yt.format.JsonFormat()
+        self.env = {
+            "YT_CONFIG_PATCHES": dumps_yt_config(),
+            "PYTHONPATH": PYTHONPATH
+        }
 
     def teardown(self):
         yt.config["tabular_data_format"] = None
@@ -262,11 +266,7 @@ class TestOperations(object):
 
         binary = get_test_file_path("standalone_binary.py")
 
-        env = {
-            "YT_CONFIG_PATCHES": dumps_yt_config(),
-            "PYTHONPATH": PYTHONPATH
-        }
-        subprocess.check_call(["python", binary, table, other_table], env=env, stderr=sys.stderr)
+        subprocess.check_call(["python", binary, table, other_table], env=self.env, stderr=sys.stderr)
         check([{"x": 1}, {"x": 2}], yt.read_table(other_table))
 
     @add_failed_operation_stderrs_to_error_message
@@ -674,13 +674,8 @@ print(op.id)
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}])
 
-        env = {
-            "PYTHONPATH": PYTHONPATH,
-            "YT_CONFIG_PATCHES": dumps_yt_config()
-        }
-
         op_id = subprocess.check_output([sys.executable, file.name, table, table, PYTHONPATH],
-                                        env=env, stderr=sys.stderr).strip()
+                                        env=self.env, stderr=sys.stderr).strip()
         time.sleep(3)
 
         assert yt.get("//sys/operations/{0}/@state".format(op_id)) == "aborted"
@@ -1243,3 +1238,10 @@ if __name__ == "__main__":
                       format=yt.YsonFormat(),
                       spec={"job_io": {"control_attributes": {"enable_row_index": True}}})
         check(yt.read_table(output), [{"row_index": index} for index in xrange(3)], ordered=True)
+
+    def test_relative_imports_with_run_module(self, yt_env):
+        yt.write_table("//tmp/input_table", [{"value": 0}])
+        subprocess.check_call([sys.executable, "-m", "test_rel_import_module.run"],
+                               cwd=get_test_dir_path(), env=self.env)
+        check(yt.read_table("//tmp/output_table"), [{"value": 0, "constant": 10}])
+
