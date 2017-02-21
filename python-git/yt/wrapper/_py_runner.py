@@ -62,6 +62,9 @@ def main():
                 if os.path.exists(yson_bindings_path):
                     rmtree(yson_bindings_path)
 
+        if "." in __main_module_name:
+            __main_module_package = __main_module_name.rsplit(".", 1)[0]
+            __import__(__main_module_package)
         main_module = imp.load_module(__main_module_name,
                                       open(__main_filename, 'rb'),
                                       __main_filename,
