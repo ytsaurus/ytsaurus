@@ -169,6 +169,11 @@ class RequestRetrier(Retrier):
         self.client = client
         self.kwargs = kwargs
 
+        if self.proxy_provider is None:
+            self.request_url = self.url
+        else:
+            self.request_url = "'undiscovered'"
+
         configure_ip(_get_session(client),
                      get_config(client)["proxy"]["force_ipv4"],
                      get_config(client)["proxy"]["force_ipv6"])
@@ -204,7 +209,7 @@ class RequestRetrier(Retrier):
         if self.proxy_provider is not None:
             proxy = self.proxy_provider()
             url = self.url.format(proxy=proxy)
-        self.request_url = url
+            self.request_url = url
 
         logger.debug("Request url: %r", url)
         logger.debug("Headers: %r", self.headers)
