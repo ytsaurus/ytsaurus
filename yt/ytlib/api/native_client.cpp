@@ -3084,21 +3084,47 @@ private:
 
         void Run()
         {
-            auto schemaKind = Options_.PushToReplica ? ETableSchemaKind::Primary : ETableSchemaKind::Write;
+            auto writeSchemaKind = Options_.PushToReplica ? ETableSchemaKind::Primary : ETableSchemaKind::Write;
+            auto deleteSchemaKind = Options_.PushToReplica ? ETableSchemaKind::Primary : ETableSchemaKind::Delete;
+
             auto tableInfo = Transaction_->Client_->SyncGetTableInfo(Path_);
+
             const auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
             const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Primary);
-            const auto& writeSchema = tableInfo->Schemas[schemaKind];
-            const auto& writeIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, schemaKind);
+
+            const auto& writeSchema = tableInfo->Schemas[writeSchemaKind];
+            const auto& writeIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, writeSchemaKind);
+
+            const auto& deleteSchema = tableInfo->Schemas[deleteSchemaKind];
+            const auto& deleteIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, deleteSchemaKind);
+
             const auto& rowBuffer = Transaction_->RowBuffer_;
+
             auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
             auto evaluator = (tableInfo->NeedKeyEvaluation && !Options_.PushToReplica)
                 ? evaluatorCache->Find(primarySchema)
                 : nullptr;
+
             auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
 
             for (const auto& modification : Modifications_) {
                 ValidateModification(modification, tableInfo, writeSchema, writeIdMapping);
+                switch (modification.Type) {
+                    case ERowModificationType::Write:
+                        ValidateClientDataRow(modification.Row, writeSchema, writeIdMapping, NameTable_);
+                        break;
+
+                    case ERowModificationType::Delete:
+                        if (!tableInfo->IsSorted()) {
+                            THROW_ERROR_EXCEPTION("Cannot delete rows from a non-sorted table %v",
+                                tableInfo->Path);
+                        }
+                        ValidateClientKey(modification.Row, deleteSchema, deleteIdMapping, NameTable_);
+                        break;
+
+                    default:
+                        Y_UNREACHABLE();
+                }
 
                 auto capturedRow = rowBuffer->CaptureAndPermuteRow(modification.Row, primarySchema, primaryIdMapping);
 
@@ -3107,7 +3133,6 @@ private:
                     if (evaluator) {
                         evaluator->EvaluateKeys(capturedRow, rowBuffer);
                     }
-
                     tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow);
                 } else {
                     tabletInfo = GetOrderedTabletForRow(tableInfo, randomTabletInfo, TabletIndexColumnId_, modification.Row);
