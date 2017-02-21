@@ -265,7 +265,9 @@ private:
 
                 tableInfo->Schemas[ETableSchemaKind::Primary] = FromProto<TTableSchema>(rsp->schema());
                 tableInfo->Schemas[ETableSchemaKind::Write] = tableInfo->Schemas[ETableSchemaKind::Primary].ToWrite();
+                tableInfo->Schemas[ETableSchemaKind::ReplicaWrite] = tableInfo->Schemas[ETableSchemaKind::Primary].ToReplicaWrite();
                 tableInfo->Schemas[ETableSchemaKind::Delete] = tableInfo->Schemas[ETableSchemaKind::Primary].ToDelete();
+                tableInfo->Schemas[ETableSchemaKind::ReplicaDelete] = tableInfo->Schemas[ETableSchemaKind::Primary].ToReplicaDelete();
 
                 auto physicalSchema = tableInfo->Replicated
                     ? tableInfo->Schemas[ETableSchemaKind::Primary].ToReplicationLog()

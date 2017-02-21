@@ -3084,8 +3084,8 @@ private:
 
         void Run()
         {
-            auto writeSchemaKind = Options_.PushToReplica ? ETableSchemaKind::Primary : ETableSchemaKind::Write;
-            auto deleteSchemaKind = Options_.PushToReplica ? ETableSchemaKind::Primary : ETableSchemaKind::Delete;
+            auto writeSchemaKind = Options_.PushToReplica ? ETableSchemaKind::ReplicaWrite : ETableSchemaKind::Write;
+            auto deleteSchemaKind = Options_.PushToReplica ? ETableSchemaKind::ReplicaDelete : ETableSchemaKind::Delete;
 
             auto tableInfo = Transaction_->Client_->SyncGetTableInfo(Path_);
 

@@ -50,10 +50,14 @@ DEFINE_ENUM(ETableSchemaKind,
     (Primary)
     // Schema used for inserting rows.
     (Write)
+    // Schema used for inserting rows into replicas.
+    (ReplicaWrite)
     // Schema used for querying rows.
     (Query)
     // Schema used for deleting rows.
     (Delete)
+    // Schema used for deleting rows from replicas.
+    (ReplicaDelete)
     // Schema used for looking up rows.
     (Lookup)
 );
