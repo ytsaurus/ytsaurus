@@ -74,10 +74,16 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         THROW_ERROR_EXCEPTION("\"schema\" is mandatory for dynamic tables");
     }
 
-    if (maybeSchema) {
-        if (replicated && !maybeSchema->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Replicated table schema must be sorted");
+    if (replicated) {
+        if (!dynamic) {
+            THROW_ERROR_EXCEPTION("Replicated table must be dynamic");
         }
+        if (!maybeSchema->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Replicated table must be sorted");
+        }
+    }
+
+    if (maybeSchema) {
         // NB: Sorted dynamic tables contain unique keys, set this for user.
         if (dynamic && maybeSchema->IsSorted() && !maybeSchema->GetUniqueKeys()) {
              maybeSchema = maybeSchema->ToUniqueKeys();
@@ -90,6 +96,19 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto maybePivotKeys = attributes->FindAndRemove<std::vector<TOwningKey>>("pivot_keys");
     if (maybeTabletCount && maybePivotKeys) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"tablet_count\" and \"pivot_keys\"");
+    }
+
+    auto maybeReplicationMode = attributes->FindAndRemove<ETableReplicationMode>("replication_mode");
+    if (maybeReplicationMode) {
+        if (!dynamic) {
+            THROW_ERROR_EXCEPTION("Table replication mode can only be set for dynamic tables");
+        }
+        if (!maybeSchema->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Table replication mode can only be set for sorted tables");
+        }
+        if (replicated) {
+            THROW_ERROR_EXCEPTION("Table replication mode can be explicitly set for replicated tables");
+        }
     }
 
     TBase::InitializeAttributes(attributes);
@@ -106,6 +125,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             // NB: This setting is not visible in attributes but crucial for replication
             // to work properly.
             node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Strong);
+            node->SetReplicationMode(ETableReplicationMode::Source);
         }
 
         if (maybeSchema) {
@@ -123,7 +143,11 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                 tabletManager->ReshardTable(node, 0, 0, maybePivotKeys->size(), *maybePivotKeys);
             }
         }
-    } catch (...) {
+
+        if (maybeReplicationMode) {
+            node->SetReplicationMode(*maybeReplicationMode);
+        }
+    } catch (const std::exception&) {
         DoDestroy(node);
         throw;
     }
@@ -152,6 +176,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
     branchedNode->SetRetainedTimestamp(originatingNode->GetCurrentRetainedTimestamp());
     branchedNode->SetUnflushedTimestamp(originatingNode->GetCurrentUnflushedTimestamp());
+    branchedNode->SetReplicationMode(originatingNode->GetReplicationMode());
 
     TBase::DoBranch(originatingNode, branchedNode, mode);
 }
@@ -192,6 +217,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     clonedNode->SetLastCommitTimestamp(sourceNode->GetLastCommitTimestamp());
     clonedNode->SetRetainedTimestamp(sourceNode->GetRetainedTimestamp());
     clonedNode->SetUnflushedTimestamp(sourceNode->GetUnflushedTimestamp());
+    clonedNode->SetReplicationMode(sourceNode->GetReplicationMode());
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
     tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());

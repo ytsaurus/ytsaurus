@@ -183,7 +183,7 @@ void TTableMountInfo::ValidateOrdered() const
 
 void TTableMountInfo::ValidateNotReplicated() const
 {
-    if (Replicated) {
+    if (ReplicationMode == ETableReplicationMode::Source) {
         THROW_ERROR_EXCEPTION("Table %v is replicated", Path);
     }
 }
@@ -269,13 +269,13 @@ private:
                 tableInfo->Schemas[ETableSchemaKind::Delete] = tableInfo->Schemas[ETableSchemaKind::Primary].ToDelete();
                 tableInfo->Schemas[ETableSchemaKind::ReplicaDelete] = tableInfo->Schemas[ETableSchemaKind::Primary].ToReplicaDelete();
 
-                auto physicalSchema = tableInfo->Replicated
+                auto physicalSchema = tableInfo->ReplicationMode == ETableReplicationMode::Source
                     ? tableInfo->Schemas[ETableSchemaKind::Primary].ToReplicationLog()
                     : tableInfo->Schemas[ETableSchemaKind::Primary];
                 tableInfo->Schemas[ETableSchemaKind::Query] = physicalSchema.ToQuery();
                 tableInfo->Schemas[ETableSchemaKind::Lookup] = physicalSchema.ToLookup();
 
-                tableInfo->Replicated = TypeFromId(tableInfo->TableId) == EObjectType::ReplicatedTable;
+                tableInfo->ReplicationMode = ETableReplicationMode(rsp->replication_mode());
                 tableInfo->Dynamic = rsp->dynamic();
                 tableInfo->NeedKeyEvaluation = tableInfo->Schemas[ETableSchemaKind::Primary].HasComputedColumns();
 
