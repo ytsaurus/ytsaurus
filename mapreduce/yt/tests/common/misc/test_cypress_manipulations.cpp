@@ -96,7 +96,7 @@ class TCypressManipulations
             return *Server;
         }
 
-        void SetOpaque(const Stroka& path, EOpaqueType type)
+        void SetOpaque(const Stroka& path, EOpaqueType type, bool value)
         {
             if (!IsYt()) {
                 return;
@@ -105,9 +105,9 @@ class TCypressManipulations
             TNode opaqueValue;
             switch (type) {
                 case OT_STRING:
-                    opaqueValue = TNode("true");
+                    opaqueValue = TNode(value ? "true" : "false");
                 case OT_BOOL:
-                    opaqueValue = TNode(true);
+                    opaqueValue = TNode(value);
                     break;
                 default:
                     Y_FAIL("unkwnown opaque type");
@@ -141,19 +141,41 @@ YT_TEST(TCypressManipulations, GetTableList_Prefix_Simple)
     }
 }
 
-YT_TEST(TCypressManipulations, GetTableList_Prefix_OpaqueBoolean)
+YT_TEST(TCypressManipulations, GetTableList_Prefix_Opaque)
 {
-    CreatePath("home/testing/tt/foo");
-    CreatePath("home/testing/tt/bar");
-    CreatePath("home/testing/tt/baz");
-    SetOpaque("home/testing/tt/baz", OT_BOOL);
+
+    const yvector<Stroka> expectedPaths = {
+        "home/testing/bool_false/1",
+        "home/testing/bool_false/2",
+        "home/testing/bool_false/3",
+        "home/testing/bool_true/4",
+        "home/testing/bool_true/5",
+        "home/testing/bool_true/6",
+        "home/testing/none/7",
+        "home/testing/none/8",
+        "home/testing/none/9",
+        "home/testing/string_false/10",
+        "home/testing/string_false/11",
+        "home/testing/string_false/12",
+        "home/testing/string_true/13",
+        "home/testing/string_true/14",
+        "home/testing/string_true/15",
+    };
+
+    for (const auto& path : expectedPaths) {
+        CreatePath(path);
+    }
+
+    SetOpaque("home/testing/bool_false", OT_BOOL, false);
+    SetOpaque("home/testing/bool_true", OT_BOOL, true);
+    SetOpaque("home/testing/string_false", OT_STRING, false);
+    SetOpaque("home/testing/string_true", OT_STRING, true);
 
     yvector<Stroka> tableList;
     NMR::TClient client(GetServer());
     client.GetTableList(&tableList, NMR::GT_PREFIX_MATCH, "home/testing");
-    for (const auto& table : tableList) {
-        Cout << MaybeStripPrefix(table) << Endl;
-    }
+    Sort(tableList.begin(), tableList.end());
+    UNIT_ASSERT_VALUES_EQUAL(tableList, expectedPaths);
 }
 
 YT_TEST(TCypressManipulations, GetTableList_Prefix_OpaqueString)
@@ -161,7 +183,7 @@ YT_TEST(TCypressManipulations, GetTableList_Prefix_OpaqueString)
     CreatePath("home/testing/tt/foo");
     CreatePath("home/testing/tt/bar");
     CreatePath("home/testing/tt/baz");
-    SetOpaque("home/testing/tt/baz", OT_STRING);
+    SetOpaque("home/testing/tt", OT_STRING, true);
 
     yvector<Stroka> tableList;
     NMR::TClient client(GetServer());
