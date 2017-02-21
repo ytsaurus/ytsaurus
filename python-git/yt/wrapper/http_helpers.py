@@ -62,7 +62,6 @@ def _cleanup_http_session(client=None):
 def configure_ip(session, force_ipv4=False, force_ipv6=False):
     lazy_import_requests()
     if force_ipv4 or force_ipv6:
-        import socket
         protocol = socket.AF_INET if force_ipv4 else socket.AF_INET6
 
         class HTTPAdapter(requests.adapters.HTTPAdapter):
@@ -205,6 +204,8 @@ class RequestRetrier(Retrier):
         if self.proxy_provider is not None:
             proxy = self.proxy_provider()
             url = self.url.format(proxy=proxy)
+        self.request_url = url
+
         logger.debug("Request url: %r", url)
         logger.debug("Headers: %r", self.headers)
         if self.log_body and "data" in self.kwargs and self.kwargs["data"] is not None:
@@ -247,7 +248,7 @@ class RequestRetrier(Retrier):
     def except_action(self, error, attempt):
         message = error.message if hasattr(error, "message") else str(error)
         logger.warning("HTTP %s request %s has failed with error %s, message: '%s', headers: %s",
-                       self.method, self.url, str(type(error)), message, str(hide_token(dict(self.headers))))
+                       self.method, self.request_url, str(type(error)), message, str(hide_token(dict(self.headers))))
         if isinstance(error, YtError):
             logger.info("Full error message:\n%s", str(error))
         if self.proxy_provider is not None:
