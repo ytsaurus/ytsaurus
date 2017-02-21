@@ -17,4 +17,5 @@ def test(yt_stuff, test_name):
         [BINARY_PATH, "--run", yt_stuff.get_server(), test_name],
         env={"WRITE_TO_LOG": "1", "MR_RUNTIME": "YT"}
     )
-    return yt_res.std_out
+    if yt_res.std_out:
+        return yt_res.std_out
