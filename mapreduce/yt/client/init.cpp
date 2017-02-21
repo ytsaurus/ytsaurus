@@ -47,7 +47,9 @@ void Initialize(int argc, const char* argv[])
     ILogger::ELevel logLevel;
     if (logLevelStr == "fatal") {
         logLevel = ILogger::FATAL;
-    } else if (logLevelStr == "error") {
+    } else if (logLevelStr == "error" || logLevelStr == "warning") {
+        // We don't have such level as warning, but we support it for
+        // compatibility with other APIs.
         logLevel = ILogger::ERROR;
     } else if (logLevelStr == "info") {
         logLevel = ILogger::INFO;
