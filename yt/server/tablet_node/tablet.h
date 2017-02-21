@@ -243,6 +243,7 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::ECommitOrdering, CommitOrdering);
+    DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableReplicationMode, ReplicationMode);
 
     DEFINE_BYVAL_RO_PROPERTY(int, HashTableSize);
 
@@ -274,7 +275,8 @@ public:
         TOwningKey pivotKey,
         TOwningKey nextPivotKey,
         NTransactionClient::EAtomicity atomicity,
-        NTransactionClient::ECommitOrdering commitOrdering);
+        NTransactionClient::ECommitOrdering commitOrdering,
+        NTableClient::ETableReplicationMode replicationMode);
 
     ETabletState GetPersistentState() const;
 

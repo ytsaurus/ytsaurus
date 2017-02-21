@@ -93,6 +93,12 @@ DEFINE_ENUM(EOptimizeFor,
     ((Scan)    (1))
 );
 
+DEFINE_ENUM(ETableReplicationMode,
+    ((None)                (0))
+    ((Source)              (1))
+    ((AsynchronousSink)    (2))
+);
+
 DEFINE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)  (300))
     ((SortOrderViolation)         (301))

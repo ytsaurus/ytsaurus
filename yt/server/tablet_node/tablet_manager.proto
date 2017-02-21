@@ -48,6 +48,7 @@ message TReqMountTablet
     required int64 trimmed_row_count = 12;
     required bool freeze = 13;
     repeated TTableReplicaDescriptor replicas = 14;
+    required int32 replication_mode = 18; // ETableReplicationMode
 }
 
 message TReqUnmountTablet

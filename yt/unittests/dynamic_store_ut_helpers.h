@@ -131,7 +131,8 @@ protected:
             sorted ? MinKey() : TOwningKey(),
             sorted ? MaxKey() : TOwningKey(),
             GetAtomicity(),
-            GetCommitOrdering());
+            GetCommitOrdering(),
+            ETableReplicationMode::None);
 
         auto storeManager = CreateStoreManager(Tablet_.get());
         Tablet_->SetStoreManager(storeManager);
