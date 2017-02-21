@@ -512,3 +512,29 @@ class TestTableCommands(object):
                 else:
                     yt.write_table(TEST_DIR + "/table", f, format="dsv", is_stream_compressed=True, raw=True)
                     check([{"x": "1"}, {"x": "2"}, {"x": "3"}], yt.read_table(TEST_DIR + "/table"))
+
+    def test_incorrect_dynamic_table_commands(self):
+        table = TEST_DIR + "/dyn_table"
+        yt.create_table(table, attributes={
+            "dynamic": True,
+            "schema": [
+                {"name": "x", "type": "string", "sort_order": "ascending"},
+                {"name": "y", "type": "string"}
+            ]})
+
+        tablet_id = yt.create("tablet_cell", attributes={"size": 1})
+        while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
+            time.sleep(0.1)
+
+        yt.mount_table(table)
+        while yt.get("{0}/@tablets/0/state".format(table)) != "mounted":
+            time.sleep(0.1)
+
+        with pytest.raises(yt.YtResponseError):
+            yt.select_rows("* from [//none]")
+
+        with pytest.raises(yt.YtResponseError):
+            yt.select_rows("abcdef")
+
+        with pytest.raises(yt.YtResponseError):
+            yt.insert_rows(table, [{"a": "b"}])
