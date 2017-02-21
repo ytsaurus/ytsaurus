@@ -373,6 +373,12 @@ TEST_F(TYPathTest, ParseRichYPath8)
             ConvertToNode(TYsonString("{a=b}"))));
 }
 
+TEST_F(TYPathTest, ParseRichYPath9)
+{
+    auto path = NYPath::TRichYPath::Parse("@home");
+    EXPECT_EQ(path.GetPath(), "@home");
+}
+
 TEST_F(TYPathTest, IgnoreAmpersand1)
 {
     Set("&/a", "b");
