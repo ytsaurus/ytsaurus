@@ -175,9 +175,12 @@ class TestCypressCommands(object):
         assert yt.row_count(table) == 2
         assert not yt.is_sorted(table)
 
+        assert yt.get_attribute(table, "non_existing", default=0) == 0
+
         yt.set_attribute(table, "my_attribute", {})
         yt.set_attribute(table, "my_attribute/000", 10)
         assert yt.get_attribute(table, "my_attribute/000") == 10
+        assert yt.get_attribute(table, "my_attribute/001", default=2) == 2
         assert yt.list_attributes(table, "my_attribute") == ["000"]
         assert yt.get_attribute(table, "user_attribute_keys") == ["my_attribute"]
         assert yt.get(table + "/@my_attribute") == {"000": 10}
