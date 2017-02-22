@@ -1,18 +1,18 @@
 set(BASE ${CMAKE_SOURCE_DIR}/contrib/benchmark/src)
 set(SRCS
   ${BASE}/benchmark.cc
+  ${BASE}/benchmark_register.cc
   ${BASE}/colorprint.cc
   ${BASE}/commandlineflags.cc
+  ${BASE}/complexity.cc
   ${BASE}/console_reporter.cc
   ${BASE}/csv_reporter.cc
   ${BASE}/json_reporter.cc
-  ${BASE}/log.cc
   ${BASE}/reporter.cc
-  ${BASE}/re_posix.cc
   ${BASE}/sleep.cc
   ${BASE}/string_util.cc
   ${BASE}/sysinfo.cc
-  ${BASE}/walltime.cc
+  ${BASE}/timers.cc
 )
 
 check_include_files(regex HAVE_STD_REGEX)
@@ -21,13 +21,10 @@ check_include_files(regex.h HAVE_POSIX_REGEX)
 
 # Set regular expression engine.
 if(HAVE_STD_REGEX)
-  set(SRCS ${SRCS} ${BASE}/re_std.cc)
   add_definitions(-DHAVE_STD_REGEX)
 elseif(HAVE_GNU_POSIX_REGEX)
-  set(SRCS ${SRCS} ${BASE}/re_posix.cc)
   add_definitions(-DHAVE_GNU_POSIX_REGEX)
 elseif(HAVE_POSIX_REGEX)
-  set(SRCS ${SRCS} ${BASE}/re_posix.cc)
   add_definitions(-DHAVE_POSIX_REGEX)
 endif()
 
