@@ -107,7 +107,7 @@ def make_formatted_request(command_name, params, format, **kwargs):
     has_yson_bindings = (yson.TYPE == "BINARY")
     if format is None:
         if get_config(client)["force_using_yson_for_formatted_requests"] or has_yson_bindings:
-            params["output_format"] = yson.to_yson_type("yson", attributes={"format": "text"})
+            params["output_format"] = "yson"
             response_format = "yson"
         else:
             params["output_format"] = "json"
