@@ -402,6 +402,56 @@ TEST_F(TYPathTest, IgnoreAmpersand3)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TEmbeddedYPathOpsTest
+    : public ::testing::Test
+{
+public:
+    static INodePtr ParseNode(const Stroka& data)
+    {
+        return ConvertToNode(TYsonString(data));
+    }
+
+    static void ExpectEqual(INodePtr node, const Stroka& ysonString)
+    {
+        EXPECT_EQ(ConvertToYsonString(node, EYsonFormat::Text).GetData(), ysonString);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TEmbeddedYPathOpsTest, SimpleMap)
+{
+    const auto node = ParseNode(R""({foo={bar="baz"}})"");
+    ExpectEqual(GetNodeByYPath(node, "/foo/bar"), R""("baz")"");
+
+    EXPECT_THROW(GetNodeByYPath(node, "/foo/qux"), std::exception);
+    EXPECT_THROW(GetNodeByYPath(node, "/foo/bar/qux"), std::exception);
+}
+
+TEST_F(TEmbeddedYPathOpsTest, SimpleList)
+{
+    const auto node = ParseNode(R""({home={roizner={list=[100; 500; {foo=bar}; 42]}}})"");
+    ExpectEqual(GetNodeByYPath(node, "/home/roizner/list/1"), "500");
+    ExpectEqual(GetNodeByYPath(node, "/home/roizner/list/-1"), "42");
+    ExpectEqual(GetNodeByYPath(node, "/home/roizner/list/2/foo"), R""("bar")"");
+
+    EXPECT_THROW(GetNodeByYPath(node, "/home/roizner/list/4"), std::exception);
+    EXPECT_THROW(GetNodeByYPath(node, "/home/roizner/list/-5"), std::exception);
+}
+
+TEST_F(TEmbeddedYPathOpsTest, attributes)
+{
+    const auto node = ParseNode(R""({home=<account=sys>{dir1=<account=root;user_attr=<omg="embedded attributes">{foo=bar}>{};dir2={}}})"");
+    ExpectEqual(GetNodeByYPath(node, "/home/dir1/@account"), R""("root")"");
+    ExpectEqual(GetNodeByYPath(node, "/home/dir1/@user_attr/foo"), R""("bar")"");
+    ExpectEqual(GetNodeByYPath(node, "/home/dir1/@user_attr/@omg"), R""("embedded attributes")"");
+
+    EXPECT_THROW(GetNodeByYPath(node, "/home/dir1/@user_attr/bar"), std::exception);
+    EXPECT_THROW(GetNodeByYPath(node, "/home/dir2/@account"), std::exception);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYTree
 } // namespace NYT
