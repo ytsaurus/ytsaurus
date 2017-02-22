@@ -96,9 +96,8 @@ class Retrier(object):
             raise YtError("Incorrect retry backoff policy '{0}'".format(backoff_config["policy"]))
 
     def backoff_action(self, attempt, backoff):
-        if backoff:
-            logger.warning("Sleep for %.2lf seconds before next retry", backoff)
-            time.sleep(backoff)
+        logger.warning("Sleep for %.2lf seconds before next retry", backoff)
+        time.sleep(backoff)
         logger.warning("New retry (%d) ...", attempt + 1)
 
     def except_action(self, exception, attempt):
