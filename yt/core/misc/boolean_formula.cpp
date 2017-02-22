@@ -237,12 +237,9 @@ std::vector<TBooleanFormulaToken> TBooleanFormula::TImpl::Parse(
     std::vector<TBooleanFormulaToken> stack;
     bool expectSubformula = true;
 
-    auto finishSubformula = [&] () {
-        while (!stack.empty() && stack.back().Type != EBooleanFormulaTokenType::LeftBracket) {
-            result.push_back(stack.back());
-            stack.pop_back();
-        }
-    };
+    if (tokens.size() == 0) {
+        return result;
+    }
 
     auto throwError = [&] (int position, const Stroka& message) {
         TStringBuilder builder;
@@ -252,6 +249,26 @@ std::vector<TBooleanFormulaToken> TBooleanFormula::TImpl::Parse(
         THROW_ERROR_EXCEPTION(builder.Flush());
     };
 
+    auto finishSubformula = [&] () {
+        while (!stack.empty() && stack.back().Type != EBooleanFormulaTokenType::LeftBracket) {
+            result.push_back(stack.back());
+            stack.pop_back();
+        }
+    };
+
+    auto processBinaryOp = [&] (const TBooleanFormulaToken& token) {
+        while (!stack.empty() && stack.back().Type == EBooleanFormulaTokenType::Not) {
+            result.push_back(stack.back());
+            stack.pop_back();
+        }
+        if (!stack.empty() &&
+            stack.back().Type != EBooleanFormulaTokenType::LeftBracket &&
+            stack.back().Type != token.Type)
+        {
+            throwError(token.Position, "Mixed binary operators '&' and '|'. Please use brackets to specify priority");
+        }
+    };
+
     for (const auto& token : tokens) {
         switch (token.Type) {
             case EBooleanFormulaTokenType::Variable:
@@ -259,15 +276,15 @@ std::vector<TBooleanFormulaToken> TBooleanFormula::TImpl::Parse(
                     throwError(token.Position, "Unexpected variable");
                 }
                 result.push_back(token);
-                finishSubformula();
                 expectSubformula = false;
                 break;
 
             case EBooleanFormulaTokenType::Or:
             case EBooleanFormulaTokenType::And:
-                if (expectSubformula || (!stack.empty() && stack.back().Type != EBooleanFormulaTokenType::LeftBracket)) {
+                if (expectSubformula) {
                     throwError(token.Position, "Unexpected token");
                 }
+                processBinaryOp(token);
                 stack.push_back(token);
                 expectSubformula = true;
                 break;
@@ -281,11 +298,14 @@ std::vector<TBooleanFormulaToken> TBooleanFormula::TImpl::Parse(
                 break;
 
             case EBooleanFormulaTokenType::RightBracket:
-                if (expectSubformula || stack.empty() || stack.back().Type != EBooleanFormulaTokenType::LeftBracket) {
+                if (expectSubformula) {
                     throwError(token.Position, "Unexpected token");
                 }
-                stack.pop_back();
                 finishSubformula();
+                if (stack.empty()) {
+                    throwError(token.Position, "Unmatched ')'");
+                }
+                stack.pop_back();
                 break;
 
             default:
@@ -293,8 +313,12 @@ std::vector<TBooleanFormulaToken> TBooleanFormula::TImpl::Parse(
         }
     }
 
-    if (!stack.empty()) {
+    if (expectSubformula) {
         throwError(formula.Size(), "Unfinished formula");
+    }
+    finishSubformula();
+    if (!stack.empty()) {
+        throwError(stack.back().Position, "Unmatched '('");
     }
 
     return result;
