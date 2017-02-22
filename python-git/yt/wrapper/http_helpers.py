@@ -155,7 +155,7 @@ def _raise_for_status(response, request_info):
 
 
 class RequestRetrier(Retrier):
-    def __init__(self, method, url = None, make_retries = True, response_format = None,
+    def __init__(self, method, url=None, make_retries=True, response_format=None,
                  params=None, timeout=None, retry_action=None, log_body=True, is_ping=False,
                  proxy_provider=None, client=None, **kwargs):
         self.method = method
@@ -188,7 +188,7 @@ class RequestRetrier(Retrier):
         retry_config = update(get_config(client)["proxy"]["retries"], retry_config)
         if timeout is None:
             timeout = get_value(get_config(client)["proxy"]["request_retry_timeout"],
-                                get_config(client)["proxy"]["request_timeout"]) / 1000.0
+                                get_config(client)["proxy"]["request_timeout"])
         self.timeout = timeout
 
         retriable_errors = list(get_retriable_errors())
@@ -222,7 +222,7 @@ class RequestRetrier(Retrier):
 
         try:
             session = _get_session(client=self.client)
-            response = create_response(session.request(self.method, url, timeout=self.timeout, **self.kwargs),
+            response = create_response(session.request(self.method, url, timeout=self.timeout / 1000.0, **self.kwargs),
                                        request_info, self.client)
 
         except requests.ConnectionError as error:
