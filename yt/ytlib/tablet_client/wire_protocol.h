@@ -127,7 +127,6 @@ class TWireProtocolReader
 {
 public:
     using TIterator = const char*;
-    using TSchemaData = std::vector<ui32>;
 
     //! Initializes the instance.
     /*!

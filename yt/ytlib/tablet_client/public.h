@@ -110,6 +110,8 @@ DECLARE_REFCOUNTED_CLASS(TTableMountCacheConfig)
 class TWireProtocolReader;
 class TWireProtocolWriter;
 
+using TSchemaData = std::vector<ui32>;
+
 DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetReader)
 DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetWriter)
 
