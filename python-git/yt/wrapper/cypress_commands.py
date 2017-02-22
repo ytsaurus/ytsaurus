@@ -301,9 +301,10 @@ def get_attribute(path, attribute, default=_KWARG_SENTINEL, client=None):
     :param str attribute: attribute.
     :param default: if node hasn't attribute `attribute` this value will be returned.
     """
-    if default is not _KWARG_SENTINEL and attribute not in list_attributes(path, client=client):
+    attribute_path = "{0}/@{1}".format(path, attribute)
+    if default is not _KWARG_SENTINEL and not exists(attribute_path, client=client):
         return default
-    return get("%s/@%s" % (path, attribute), client=client)
+    return get(attribute_path, client=client)
 
 def has_attribute(path, attribute, client=None):
     """Checks if Cypress node has attribute.
