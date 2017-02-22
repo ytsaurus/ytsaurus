@@ -13,6 +13,7 @@
 #include <yt/ytlib/table_client/schema.h>
 
 #include <yt/ytlib/tablet_client/config.h>
+#include <yt/ytlib/tablet_client/wire_protocol.h>
 
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/helpers.h>
@@ -939,6 +940,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->TableSchema = TableSchema_;
     snapshot->PhysicalSchema = PhysicalSchema_;
     snapshot->QuerySchema = PhysicalSchema_.ToQuery();
+    snapshot->PhysicalSchemaData = TWireProtocolReader::GetSchemaData(snapshot->PhysicalSchema);
     snapshot->Atomicity = Atomicity_;
     snapshot->HashTableSize = HashTableSize_;
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;

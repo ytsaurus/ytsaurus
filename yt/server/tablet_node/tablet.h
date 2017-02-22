@@ -86,6 +86,7 @@ struct TTabletSnapshot
     NTableClient::TTableSchema TableSchema;
     NTableClient::TTableSchema PhysicalSchema;
     NTableClient::TTableSchema QuerySchema;
+    NTabletClient::TSchemaData PhysicalSchemaData;
     NTransactionClient::EAtomicity Atomicity;
     int HashTableSize = 0;
     int OverlappingStoreCount = 0;
