@@ -265,6 +265,9 @@ class TestLocalMode(object):
 
             assert set(client.search("//test")) == set(["//test", "//test/folder", table])
 
+        with yt_local.LocalYt(path="test_path"):
+            pass
+
     def test_local_cypress_synchronization(self):
         local_cypress_path = os.path.join(TESTS_LOCATION, "local_cypress_tree")
         with local_yt(local_cypress_dir=local_cypress_path) as environment:
