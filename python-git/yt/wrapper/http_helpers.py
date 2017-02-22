@@ -80,9 +80,6 @@ def get_header_format(client):
     return get_value(get_config(client)["proxy"]["header_format"], "yson")
 
 def check_response_is_decodable(response, format):
-    if response.status_code // 100 != 2:
-        return
-
     if format == "json":
         try:
             response.json()
