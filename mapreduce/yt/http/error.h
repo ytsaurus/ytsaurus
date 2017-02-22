@@ -57,14 +57,31 @@ public:
 
     const TError& GetError() const;
 
+    // Path is cypress can't be resolved.
     bool IsResolveError() const;
+
+    // User don't have enough permissions to execute request.
     bool IsAccessDenied() const;
+
+    // Can't take lock since object is already locked by another transaction.
     bool IsConcurrentTransactionLockConflict() const;
+
+    // User sends requests too often.
     bool IsRequestRateLimitExceeded() const;
+
+    // YT can't serve request because it is overloaded.
     bool IsRequestQueueSizeLimitExceeded() const;
+
+    // Some chunk is (hopefully temporary) lost.
     bool IsChunkUnavailable() const;
+
+    // YT experienced some sort of internal timeout.
     bool IsRequestTimedOut() const;
+
+    // User tries to use transaction that was finished or never existed.
     bool IsNoSuchTransaction() const;
+
+    // User reached their limit of concurrently running operations.
     bool IsConcurrentOperationsLimitReached() const;
 
 private:
