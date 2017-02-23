@@ -240,7 +240,11 @@ class RequestRetrier(Retrier):
         # Sometimes (quite often) we obtain incomplete response with body expected to be JSON.
         # So we should retry such requests.
         if self.response_format is not None and get_config(self.client)["proxy"]["check_response_format"]:
-            check_response_is_decodable(response, self.response_format)
+            if str(response.status_code).startswith("2"):
+                response_format = self.response_format
+            else:
+                response_format = "json"
+            check_response_is_decodable(response, response_format)
 
         logger.debug("Response headers %r", response.headers)
 
