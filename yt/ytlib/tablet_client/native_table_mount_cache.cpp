@@ -15,6 +15,7 @@
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/versioned_row.h>
 
 #include <yt/ytlib/tablet_client/public.h>
 
@@ -130,19 +131,37 @@ bool TTableMountInfo::IsOrdered() const
     return !IsSorted();
 }
 
-TTabletInfoPtr TTableMountInfo::GetTabletForRow(TUnversionedRow row) const
+TTabletInfoPtr TTableMountInfo::GetTabletForRow(const TRange<TUnversionedValue>& row) const
 {
-    ValidateDynamic();
-
     int keyColumnCount = Schemas[ETableSchemaKind::Primary].GetKeyColumnCount();
+    YCHECK(row.Size() >= keyColumnCount);
+    ValidateDynamic();
     auto it = std::upper_bound(
         Tablets.begin(),
         Tablets.end(),
         row,
-        [&] (TUnversionedRow lhs, const TTabletInfoPtr& rhs) {
-            return CompareRows(lhs, rhs->PivotKey, keyColumnCount) < 0;
+        [&] (const TRange<TUnversionedValue>& key, const TTabletInfoPtr& rhs) {
+            return CompareRows(
+                key.Begin(),
+                key.Begin() + keyColumnCount,
+                rhs->PivotKey.Begin(),
+                rhs->PivotKey.End()) < 0;
         });
     return it == Tablets.begin() ? nullptr : *(--it);
+}
+
+TTabletInfoPtr TTableMountInfo::GetTabletForRow(TUnversionedRow row) const
+{
+    int keyColumnCount = Schemas[ETableSchemaKind::Primary].GetKeyColumnCount();
+    YCHECK(row.GetCount() >= keyColumnCount);
+    return GetTabletForRow(MakeRange(row.Begin(), row.Begin() + keyColumnCount));
+}
+
+TTabletInfoPtr TTableMountInfo::GetTabletForRow(TVersionedRow row) const
+{
+    int keyColumnCount = Schemas[ETableSchemaKind::Primary].GetKeyColumnCount();
+    YCHECK(row.GetKeyCount() == keyColumnCount);
+    return GetTabletForRow(MakeRange(row.BeginKeys(), row.EndKeys()));
 }
 
 TTabletInfoPtr TTableMountInfo::GetRandomMountedTablet() const

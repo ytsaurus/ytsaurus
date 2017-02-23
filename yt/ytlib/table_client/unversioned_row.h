@@ -362,6 +362,7 @@ void ValidateRowCount(int count);
  *  3. Value types must either be null or match those given in #schema.
  *  4. For values marked with #TUnversionedValue::Aggregate flag, the corresponding columns in #schema must
  *  be aggregating.
+ *  5. Versioned values must be sorted by |id| (in ascending order) and then by |timestamp| (in descending order).
  */
 void ValidateClientDataRow(
     TUnversionedRow row,
@@ -409,6 +410,15 @@ void ValidateServerKey(
 
 //! Checks if #timestamp is sane and can be used for reading data.
 void ValidateReadTimestamp(TTimestamp timestamp);
+
+//! Checks if #timestamp is sane and can be used for writing (versioned) data.
+void ValidateWriteTimestamp(TTimestamp timestamp);
+
+//! An internal helper used by validators.
+int ApplyIdMapping(
+    const TUnversionedValue& value,
+    const TTableSchema& schema,
+    const TNameTableToSchemaIdMapping* idMapping);
 
 //! Returns the successor of |key|, i.e. the key obtained from |key|
 //! by appending a |EValueType::Min| sentinel.

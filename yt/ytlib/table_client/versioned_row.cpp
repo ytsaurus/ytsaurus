@@ -1,5 +1,6 @@
 #include "versioned_row.h"
 #include "row_buffer.h"
+#include "name_table.h"
 
 #include <yt/core/misc/format.h>
 
@@ -222,6 +223,105 @@ Stroka ToString(TMutableVersionedRow row)
 Stroka ToString(const TVersionedOwningRow& row)
 {
     return ToString(row.Get());
+}
+
+void ValidateClientDataRow(
+    TVersionedRow row,
+    const TTableSchema& schema,
+    const TNameTableToSchemaIdMapping& idMapping,
+    const TNameTablePtr& nameTable)
+{
+    int keyCount = row.GetKeyCount();
+    if (keyCount != schema.GetKeyColumnCount()) {
+        THROW_ERROR_EXCEPTION("Invalid key count: expected %v, got %v",
+            schema.GetKeyColumnCount(),
+            keyCount);
+    }
+
+    ValidateKeyColumnCount(keyCount);
+    ValidateRowValueCount(row.GetValueCount());
+
+    if (nameTable->GetSize() < keyCount) {
+        THROW_ERROR_EXCEPTION("Name table size is too small to contain all keys: expected >=%v, got %v",
+            row.GetKeyCount(),
+            nameTable->GetSize());
+    }
+
+    for (int index = 0; index < keyCount; ++index) {
+        const auto& expectedName = schema.Columns()[index].Name;
+        auto actualName = nameTable->GetName(index);
+        if (expectedName != actualName) {
+            THROW_ERROR_EXCEPTION("Invalid key column %v in name table: expected %Qv, got %Qv",
+                index,
+                expectedName,
+                actualName);
+        }
+        ValidateKeyValue(row.BeginKeys()[index]);
+    }
+
+    auto validateTimestamps = [&] (const TTimestamp* begin, const TTimestamp* end) {
+        for (const auto* current = begin; current != end; ++current) {
+            ValidateWriteTimestamp(*current);
+            if (current != begin && *current >= *(current - 1)) {
+                THROW_ERROR_EXCEPTION("Timestamps are not monotonically decreasing: %v >= %v",
+                    *current,
+                    *(current - 1));
+            }
+        }
+    };
+    validateTimestamps(row.BeginWriteTimestamps(), row.EndWriteTimestamps());
+    validateTimestamps(row.BeginDeleteTimestamps(), row.EndDeleteTimestamps());
+
+    for (const auto* current = row.BeginValues(); current != row.EndValues(); ++current) {
+        if (current != row.BeginValues()) {
+            auto* prev = current - 1;
+            if (current->Id < prev->Id) {
+                THROW_ERROR_EXCEPTION("Value ids must be non-decreasing: %v < %v",
+                    current->Id,
+                    prev->Id);
+            }
+            if (current->Id == prev->Id && current->Timestamp >= prev->Timestamp) {
+                THROW_ERROR_EXCEPTION("Value timestamps must be decreasing: %v >= %v",
+                    current->Timestamp,
+                    prev->Timestamp);
+            }
+        }
+
+        const auto& value = *current;
+        int mappedId = ApplyIdMapping(value, schema, &idMapping);
+
+        if (mappedId < 0 || mappedId > schema.Columns().size()) {
+            int size = nameTable->GetSize();
+            if (value.Id < 0 || value.Id >= size) {
+                THROW_ERROR_EXCEPTION("Expected value id in range [0:%v] but got %v",
+                    size - 1,
+                    value.Id);
+            }
+
+            THROW_ERROR_EXCEPTION("Unexpected column %Qv", nameTable->GetName(value.Id));
+        }
+
+        if (mappedId < keyCount) {
+            THROW_ERROR_EXCEPTION("Key component %Qv appears in value part",
+                schema.Columns()[mappedId].Name);
+        }
+
+        const auto& column = schema.Columns()[mappedId];
+        ValidateValueType(value, schema, mappedId);
+
+        if (value.Aggregate && !column.Aggregate) {
+            THROW_ERROR_EXCEPTION(
+                "\"aggregate\" flag is set for value in column %Qv which is not aggregating",
+                column.Name);
+        }
+
+        if (mappedId < schema.GetKeyColumnCount()) {
+            THROW_ERROR_EXCEPTION("Key column %Qv in values",
+                column.Name);
+        }
+
+        ValidateDataValue(value);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

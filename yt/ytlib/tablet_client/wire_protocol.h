@@ -52,6 +52,15 @@ DEFINE_ENUM(EWireProtocolCommand,
     //   * Key
     // Output:
     //   None
+
+    ((WriteVersionedRow)(102))
+    // Writes a versioned row (possibly inserting new values and/or delete timestamps).
+    // Currently only used by replicator.
+    //
+    // Input:
+    //   * Versioned row
+    // Output:
+    //   None
 );
 
 ////////////////////////////////////////////////////////////////////////////////
