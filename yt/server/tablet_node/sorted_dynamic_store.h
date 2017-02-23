@@ -84,6 +84,14 @@ public:
         NApi::ERowModificationType modificationType,
         TWriteContext* context);
 
+    //! Writes a versioned row into the store.
+    /*!
+     *  No locks are checked. Timestamps are taken directly from #row.
+     */
+    TSortedDynamicRow ModifyRow(
+        NTableClient::TVersionedRow row,
+        TWriteContext* context);
+
     TSortedDynamicRow MigrateRow(TTransaction* transaction, TSortedDynamicRow row);
     void PrepareRow(TTransaction* transaction, TSortedDynamicRow row);
     void CommitRow(TTransaction* transaction, TSortedDynamicRow row);
@@ -150,6 +158,8 @@ private:
     NConcurrency::TReaderWriterSpinLock RowBlockedLock_;
     TRowBlockedHandler RowBlockedHandler_;
 
+    // Reused between ModifyRow calls.
+    std::vector<ui32> WriteRevisions_;
 
     virtual void OnSetPassive() override;
 

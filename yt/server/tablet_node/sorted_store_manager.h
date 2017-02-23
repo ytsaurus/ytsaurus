@@ -40,6 +40,10 @@ public:
         NApi::ERowModificationType modificationType,
         TWriteContext* context);
 
+    TSortedDynamicRowRef ModifyRow(
+        TVersionedRow row,
+        TWriteContext* context);
+
     virtual void StartEpoch(TTabletSlotPtr slot) override;
     virtual void StopEpoch() override;
 

@@ -5,10 +5,10 @@
 #include "row_comparer_generator.h"
 
 #include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/versioned_row.h>
 
 #include <yt/core/misc/chunked_memory_pool.h>
 #include <yt/core/misc/enum.h>
-#include <yt/core/misc/intrusive_ptr.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -27,9 +27,14 @@ namespace NTabletNode {
  * wrappers on top of TUnversionedRow.
  */
 
-struct TRowWrapper
+struct TUnversionedRowWrapper
 {
     TUnversionedRow Row;
+};
+
+struct TVersionedRowWrapper
+{
+    TVersionedRow Row;
 };
 
 struct TKeyWrapper
@@ -48,7 +53,8 @@ public:
     TSortedDynamicRowKeyComparer() = default;
 
     int operator()(TSortedDynamicRow lhs, TSortedDynamicRow rhs) const;
-    int operator()(TSortedDynamicRow lhs, TRowWrapper rhs) const;
+    int operator()(TSortedDynamicRow lhs, TUnversionedRowWrapper rhs) const;
+    int operator()(TSortedDynamicRow lhs, TVersionedRowWrapper rhs) const;
     int operator()(TSortedDynamicRow lhs, TKeyWrapper rhs) const;
     int operator()(TUnversionedRow lhs, TUnversionedRow rhs) const;
     int operator()(

@@ -88,6 +88,7 @@ struct TTabletSnapshot
     NTableClient::TTableSchema QuerySchema;
     NTabletClient::TSchemaData PhysicalSchemaData;
     NTransactionClient::EAtomicity Atomicity;
+    NTableClient::ETableReplicationMode ReplicationMode;
     int HashTableSize = 0;
     int OverlappingStoreCount = 0;
     NTransactionClient::TTimestamp RetainedTimestamp = NTransactionClient::MinTimestamp;
@@ -228,6 +229,7 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, TableSchema);
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, PhysicalSchema);
+    DEFINE_BYREF_RO_PROPERTY(NTabletClient::TSchemaData, PhysicalSchemaData);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<int>, ColumnIndexToLockIndex);
     DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, LockIndexToName);
