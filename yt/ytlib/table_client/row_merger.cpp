@@ -62,7 +62,7 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
 
     if (!Started_) {
         if (!MergedRow_) {
-            MergedRow_ = RowBuffer_->Allocate(ColumnIds_.size());
+            MergedRow_ = RowBuffer_->AllocateUnversioned(ColumnIds_.size());
         }
 
         const auto* keyBegin = row.BeginKeys();
@@ -225,7 +225,7 @@ TUnversionedRowMerger::TUnversionedRowMerger(
 void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
 {
     if (!Started_) {
-        MergedRow_ = RowBuffer_->Allocate(ColumnCount_);
+        MergedRow_ = RowBuffer_->AllocateUnversioned(ColumnCount_);
 
         for (int index = 0; index < ColumnCount_; ++index) {
             if (index < KeyColumnCount_) {
@@ -311,7 +311,7 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
     if (fullRow) {
         mergedRow = MergedRow_;
     } else {
-        mergedRow = RowBuffer_->Allocate(ColumnCount_);
+        mergedRow = RowBuffer_->AllocateUnversioned(ColumnCount_);
         int currentIndex = 0;
         for (int index = 0; index < MergedRow_.GetCount(); ++index) {
             if (ValidValues_[index]) {
@@ -570,8 +570,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
     }
 
     // Construct output row.
-    auto row = TMutableVersionedRow::Allocate(
-        RowBuffer_->GetPool(),
+    auto row = RowBuffer_->AllocateVersioned(
         KeyColumnCount_,
         MergedValues_.size(),
         WriteTimestamps_.size(),
@@ -629,7 +628,7 @@ TSamplingRowMerger::TSamplingRowMerger(
 
 TUnversionedRow TSamplingRowMerger::MergeRow(TVersionedRow row)
 {
-    auto mergedRow = RowBuffer_->Allocate(SampledColumnCount_);
+    auto mergedRow = RowBuffer_->AllocateUnversioned(SampledColumnCount_);
 
     YCHECK(row.GetKeyCount() == KeyColumnCount_);
     for (int index = 0; index < row.GetKeyCount(); ++index) {

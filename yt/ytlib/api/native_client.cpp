@@ -2494,7 +2494,7 @@ private:
             auto rowBuffer = New<TRowBuffer>();
 
             std::vector<TUnversionedRow> keys;
-            auto key = rowBuffer->Allocate(4);
+            auto key = rowBuffer->AllocateUnversioned(4);
             key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], ids.OperationIdHi);
             key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], ids.OperationIdLo);
             key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], ids.JobIdHi);

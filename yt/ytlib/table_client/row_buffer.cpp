@@ -22,9 +22,23 @@ TChunkedMemoryPool* TRowBuffer::GetPool()
     return &Pool_;
 }
 
-TMutableUnversionedRow TRowBuffer::Allocate(int count)
+TMutableUnversionedRow TRowBuffer::AllocateUnversioned(int valueCount)
 {
-    return TMutableUnversionedRow::Allocate(&Pool_, count);
+    return TMutableUnversionedRow::Allocate(&Pool_, valueCount);
+}
+
+TMutableVersionedRow TRowBuffer::AllocateVersioned(
+    int keyCount,
+    int valueCount,
+    int writeTimestampCount,
+    int deleteTimestampCount)
+{
+    return TMutableVersionedRow::Allocate(
+        &Pool_,
+        keyCount,
+        valueCount,
+        writeTimestampCount,
+        deleteTimestampCount);
 }
 
 void TRowBuffer::Capture(TUnversionedValue* value)

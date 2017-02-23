@@ -209,7 +209,7 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
     Y_ASSERT(context->Phase == EWritePhase::Commit);
 
     int columnCount = static_cast<int>(Schema_.Columns().size());
-    auto dynamicRow = RowBuffer_->Allocate(columnCount);
+    auto dynamicRow = RowBuffer_->AllocateUnversioned(columnCount);
 
     for (int index = 0; index < columnCount; ++index) {
         dynamicRow[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
