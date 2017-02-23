@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "unversioned_row.h"
+#include "versioned_row.h"
 
 #include <yt/core/misc/chunked_memory_pool.h>
 
@@ -51,6 +52,13 @@ public:
     //! Skips values that map to negative ids with via #idMapping.
     TMutableUnversionedRow CaptureAndPermuteRow(
         TUnversionedRow row,
+        const TTableSchema& tableSchema,
+        const TNameTableToSchemaIdMapping& idMapping);
+
+    //! Captures the row applying #idMapping to value ids.
+    //! Skips values that map to negative ids with via #idMapping.
+    TMutableVersionedRow CaptureAndPermuteRow(
+        TVersionedRow row,
         const TTableSchema& tableSchema,
         const TNameTableToSchemaIdMapping& idMapping);
 

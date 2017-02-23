@@ -4,6 +4,7 @@
 #include "client.h"
 
 #include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/versioned_row.h>
 
 #include <yt/ytlib/tablet_client/public.h>
 
@@ -33,6 +34,8 @@ struct TRowModification
     ERowModificationType Type;
     //! Either a row (for write) or a key (for delete).
     NTableClient::TUnversionedRow Row;
+    // TODO(babenko): this is a temporary workarond
+    NTableClient::TVersionedRow VersionedRow;
 };
 
 struct TModifyRowsOptions
@@ -79,6 +82,12 @@ struct ITransaction
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TUnversionedRow> rows,
+        const TWriteRowsOptions& options = TWriteRowsOptions()) = 0;
+
+    virtual void WriteRows(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        TSharedRange<NTableClient::TVersionedRow> rows,
         const TWriteRowsOptions& options = TWriteRowsOptions()) = 0;
 
     virtual void DeleteRows(

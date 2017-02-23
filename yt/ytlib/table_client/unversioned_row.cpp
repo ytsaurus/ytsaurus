@@ -723,25 +723,6 @@ void ValidateDynamicValue(const TUnversionedValue& value)
     }
 }
 
-int ApplyIdMapping(
-    const TUnversionedValue& value,
-    const TTableSchema& schema,
-    const TNameTableToSchemaIdMapping* idMappingPtr)
-{
-    auto valueId = value.Id;
-    if (idMappingPtr) {
-        const auto& idMapping = *idMappingPtr;
-        if (valueId >= idMapping.size()) {
-            THROW_ERROR_EXCEPTION("Invalid column id: actual %v, expected in range [0,%v]",
-                valueId,
-                idMapping.size() - 1);
-        }
-        return idMapping[valueId];
-    } else {
-        return valueId;
-    }
-}
-
 void ValidateKeyPart(
     TUnversionedRow row,
     const TTableSchema& schema)
@@ -1099,7 +1080,33 @@ void ValidateReadTimestamp(TTimestamp timestamp)
         timestamp != AsyncLastCommittedTimestamp &&
         (timestamp < MinTimestamp || timestamp > MaxTimestamp))
     {
-        THROW_ERROR_EXCEPTION("Invalid timestamp %v", timestamp);
+        THROW_ERROR_EXCEPTION("Invalid read timestamp %v", timestamp);
+    }
+}
+
+void ValidateWriteTimestamp(TTimestamp timestamp)
+{
+    if (timestamp < MinTimestamp || timestamp > MaxTimestamp) {
+        THROW_ERROR_EXCEPTION("Invalid write timestamp %v", timestamp);
+    }
+}
+
+int ApplyIdMapping(
+    const TUnversionedValue& value,
+    const TTableSchema& schema,
+    const TNameTableToSchemaIdMapping* idMapping)
+{
+    auto valueId = value.Id;
+    if (idMapping) {
+        const auto& idMapping_ = *idMapping;
+        if (valueId >= idMapping_.size()) {
+            THROW_ERROR_EXCEPTION("Invalid column id: actual %v, expected in range [0,%v]",
+                valueId,
+                idMapping_.size() - 1);
+        }
+        return idMapping_[valueId];
+    } else {
+        return valueId;
     }
 }
 

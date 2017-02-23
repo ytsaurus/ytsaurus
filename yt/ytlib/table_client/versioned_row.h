@@ -244,6 +244,25 @@ Stroka ToString(TVersionedRow row);
 Stroka ToString(TMutableVersionedRow row);
 Stroka ToString(const TVersionedOwningRow& row);
 
+//! Checks that #row is a valid client-side versioned data row. Throws on failure.
+/*!
+ *  Value ids in the row are first mapped via #idMapping.
+ *  The row must obey the following properties:
+ *  1. Its value count must pass #ValidateRowValueCount checks.
+ *  2. Its key count must match the number of keys in #schema.
+ *  3. Name table must contain all key columns in the same order as in the schema.
+ *  4. Write and delete timestamps must pass #ValidateWriteTimestamp test and must be decreasing.
+ *  5. Value part must not contain key components.
+ *  6. Value types must either be null or match those given in #schema.
+ *  7. For values marked with #TUnversionedValue::Aggregate flag, the corresponding columns in #schema must
+ *  be aggregating.
+ */
+void ValidateClientDataRow(
+    TVersionedRow row,
+    const TTableSchema& schema,
+    const TNameTableToSchemaIdMapping& idMapping,
+    const TNameTablePtr& nameTable);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A variant of TVersionedRow that enables mutating access to its content.

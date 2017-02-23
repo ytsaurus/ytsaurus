@@ -136,7 +136,7 @@ struct TColumnIdMapping
 };
 
 //! NB: |int| is important since we use negative values to indicate that
-//! certain values need to be dropped. Cf. TRowBuffer::CaptureAndPermuteRow.
+//! certain values need to be dropped. Cf. #TRowBuffer::CaptureAndPermuteRow.
 typedef SmallVector<int, TypicalColumnCount> TNameTableToSchemaIdMapping;
 
 union TUnversionedValueData;

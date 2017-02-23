@@ -28,8 +28,9 @@ DEFINE_ENUM(EErrorCode,
 );
 
 DEFINE_ENUM(ERowModificationType,
-    ((Write) (0))
-    ((Delete)(1))
+    ((Write)            (0))
+    ((Delete)           (1))
+    ((VersionedWrite)   (2))
 );
 
 ///////////////////////////////////////////////////////////////////////////////
