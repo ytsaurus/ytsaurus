@@ -3110,26 +3110,24 @@ private:
 
         void Run()
         {
-            auto writeSchemaKind = Options_.PushToReplica ? ETableSchemaKind::ReplicaWrite : ETableSchemaKind::Write;
-            auto deleteSchemaKind = Options_.PushToReplica ? ETableSchemaKind::ReplicaDelete : ETableSchemaKind::Delete;
-
             auto tableInfo = Transaction_->Client_->SyncGetTableInfo(Path_);
 
             const auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
             const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Primary);
 
-            const auto& writeSchema = tableInfo->Schemas[writeSchemaKind];
-            const auto& writeIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, writeSchemaKind);
+            const auto& writeSchema = tableInfo->Schemas[ETableSchemaKind::Write];
+            const auto& writeIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Write);
 
-            const auto& deleteSchema = tableInfo->Schemas[deleteSchemaKind];
-            const auto& deleteIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, deleteSchemaKind);
+            const auto& versionedWriteSchema = tableInfo->Schemas[ETableSchemaKind::VersionedWrite];
+            const auto& versionedWriteIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::VersionedWrite);
+
+            const auto& deleteSchema = tableInfo->Schemas[ETableSchemaKind::Delete];
+            const auto& deleteIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Delete);
 
             const auto& rowBuffer = Transaction_->RowBuffer_;
 
             auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
-            auto evaluator = (tableInfo->NeedKeyEvaluation && !Options_.PushToReplica)
-                ? evaluatorCache->Find(primarySchema)
-                : nullptr;
+            auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
 
             auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
 
@@ -3144,7 +3142,7 @@ private:
                             THROW_ERROR_EXCEPTION("Cannot perform versioned writes into a non-sorted table %v",
                                 tableInfo->Path);
                         }
-                        ValidateClientDataRow(modification.VersionedRow, writeSchema, writeIdMapping, NameTable_);
+                        ValidateClientDataRow(modification.VersionedRow, versionedWriteSchema, versionedWriteIdMapping, NameTable_);
                         break;
 
                     case ERowModificationType::Delete:
