@@ -955,7 +955,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
         result = dynamicRow;
     };
 
-    Rows_->Insert(TRowWrapper{row}, newKeyProvider, existingKeyConsumer);
+    Rows_->Insert(TUnversionedRowWrapper{row}, newKeyProvider, existingKeyConsumer);
 
     if (!result) {
         return TSortedDynamicRow();
@@ -969,6 +969,76 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
             AddDeleteRevision(result, revision);
         }
         UpdateTimestampRange(commitTimestamp);
+    }
+
+    OnMemoryUsageUpdated();
+
+    ++PerformanceCounters_->DynamicRowWriteCount;
+    ++context->RowCount;
+
+    return result;
+}
+
+TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContext* context)
+{
+    Y_ASSERT(FlushRevision_ != MaxRevision);
+
+    TSortedDynamicRow result;
+
+    auto newKeyProvider = [&] () -> TSortedDynamicRow {
+        Y_ASSERT(StoreState_ == EStoreState::ActiveDynamic);
+
+        auto dynamicRow = AllocateRow();
+
+        // Copy keys.
+        SetKeys(dynamicRow, row.BeginKeys());
+
+        InsertIntoLookupHashTable(row.BeginKeys(), dynamicRow);
+
+        result = dynamicRow;
+        return dynamicRow;
+    };
+
+    auto existingKeyConsumer = [&] (TSortedDynamicRow dynamicRow) {
+        result = dynamicRow;
+    };
+
+    Rows_->Insert(TVersionedRowWrapper{row}, newKeyProvider, existingKeyConsumer);
+
+    WriteRevisions_.clear();
+    for (const auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
+        auto revision = RegisterRevision(value->Timestamp);
+        WriteRevisions_.push_back(revision);
+        auto list = PrepareFixedValue(result, value->Id);
+        auto& uncommittedValue = list.GetUncommitted();
+        uncommittedValue.Revision = revision;
+        CaptureUnversionedValue(&uncommittedValue, *value);
+        list.Commit();
+    }
+
+    std::sort(
+        WriteRevisions_.begin(),
+        WriteRevisions_.end(),
+        [&] (ui32 lhs, ui32 rhs) {
+            return TimestampFromRevision(lhs) < TimestampFromRevision(rhs);
+        });
+    WriteRevisions_.erase(std::unique(
+        WriteRevisions_.begin(),
+        WriteRevisions_.end(),
+        [&] (ui32 lhs, ui32 rhs) {
+            return TimestampFromRevision(lhs) == TimestampFromRevision(rhs);
+        }),
+        WriteRevisions_.end());
+    auto& primaryLock = result.BeginLocks(KeyColumnCount_)[TSortedDynamicRow::PrimaryLockIndex];
+    for (auto revision : WriteRevisions_) {
+        AddWriteRevision(primaryLock, revision);
+        UpdateTimestampRange(TimestampFromRevision(revision));
+    }
+
+    for (const auto* timestamp = row.EndDeleteTimestamps() - 1; timestamp >= row.BeginDeleteTimestamps(); --timestamp) {
+        auto revision = RegisterRevision(*timestamp);
+        AddDeleteRevision(result, revision);
+        UpdateTimestampRange(TimestampFromRevision(revision));
     }
 
     OnMemoryUsageUpdated();
@@ -1660,7 +1730,7 @@ TError TSortedDynamicStore::CheckRowLocks(
     TTransaction* transaction,
     ui32 lockMask)
 {
-    auto it = Rows_->FindEqualTo(TRowWrapper{row});
+    auto it = Rows_->FindEqualTo(TUnversionedRowWrapper{row});
     if (!it.IsValid()) {
         return TError();
     }

@@ -89,7 +89,9 @@ TSortedStoreManager::TSortedStoreManager(
 
 bool TSortedStoreManager::IsLockless()
 {
-    return Tablet_->GetAtomicity() == EAtomicity::None;
+    return
+        Tablet_->GetAtomicity() == EAtomicity::None ||
+        Tablet_->GetReplicationMode() == ETableReplicationMode::AsynchronousSink;
 }
 
 bool TSortedStoreManager::ExecuteWrites(
@@ -100,6 +102,29 @@ bool TSortedStoreManager::ExecuteWrites(
         TSortedDynamicRowRef rowRef;
         auto readerCheckpoint = reader->GetCurrent();
         auto command = reader->ReadCommand();
+
+
+        switch (command) {
+            case EWireProtocolCommand::WriteRow:
+            case EWireProtocolCommand::DeleteRow:
+                if (Tablet_->GetReplicationMode() != ETableReplicationMode::None) {
+                    THROW_ERROR_EXCEPTION("Unversioned writes in %Qlv replication mode are not allowed",
+                        Tablet_->GetReplicationMode());
+                }
+                break;
+
+            case EWireProtocolCommand::WriteVersionedRow:
+                if (Tablet_->GetReplicationMode() != ETableReplicationMode::AsynchronousSink) {
+                    THROW_ERROR_EXCEPTION("Versioned writes in %Qlv replication mode are not allowed",
+                        Tablet_->GetReplicationMode());
+                }
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported write command %v",
+                    command);
+        }
+
         switch (command) {
             case EWireProtocolCommand::WriteRow: {
                 auto row = reader->ReadUnversionedRow(false);
@@ -113,10 +138,16 @@ bool TSortedStoreManager::ExecuteWrites(
                 break;
             }
 
+            case EWireProtocolCommand::WriteVersionedRow: {
+                auto row = reader->ReadVersionedRow(Tablet_->PhysicalSchemaData(), false);
+                rowRef = ModifyRow(row, context);
+                break;
+            }
+
             default:
-                THROW_ERROR_EXCEPTION("Unsupported write command %v",
-                    command);
+                Y_UNREACHABLE();
         }
+
         if (!rowRef) {
             reader->SetCurrent(readerCheckpoint);
             return false;
@@ -161,6 +192,14 @@ TSortedDynamicRowRef TSortedStoreManager::ModifyRow(
     }
 
     return dynamicRowRef;
+}
+
+TSortedDynamicRowRef TSortedStoreManager::ModifyRow(
+    TVersionedRow row,
+    TWriteContext* context)
+{
+    auto dynamicRow = ActiveStore_->ModifyRow(row, context);
+    return TSortedDynamicRowRef(ActiveStore_.Get(), this, dynamicRow);
 }
 
 void TSortedStoreManager::LockRow(TTransaction* transaction, bool prelock, const TSortedDynamicRowRef& rowRef)

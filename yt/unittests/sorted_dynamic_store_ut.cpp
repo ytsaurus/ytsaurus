@@ -293,7 +293,7 @@ private:
             return Compare(lhs, rhs);
         }
 
-        int operator()(TSortedDynamicRow lhs, TRowWrapper rhs) const
+        int operator()(TSortedDynamicRow lhs, TUnversionedRowWrapper rhs) const
         {
             Y_ASSERT(rhs.Row.GetCount() >= KeyColumnCount_);
             return Compare(lhs, rhs.Row.Begin(), KeyColumnCount_);

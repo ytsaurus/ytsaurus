@@ -940,8 +940,9 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->TableSchema = TableSchema_;
     snapshot->PhysicalSchema = PhysicalSchema_;
     snapshot->QuerySchema = PhysicalSchema_.ToQuery();
-    snapshot->PhysicalSchemaData = TWireProtocolReader::GetSchemaData(snapshot->PhysicalSchema);
+    snapshot->PhysicalSchemaData = PhysicalSchemaData_;
     snapshot->Atomicity = Atomicity_;
+    snapshot->ReplicationMode = ReplicationMode_;
     snapshot->HashTableSize = HashTableSize_;
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
     snapshot->RetainedTimestamp = RetainedTimestamp_;
@@ -1011,6 +1012,7 @@ void TTablet::Initialize()
     PerformanceCounters_ = New<TTabletPerformanceCounters>();
 
     PhysicalSchema_ = IsReplicated() ? TableSchema_.ToReplicationLog() : TableSchema_;
+    PhysicalSchemaData_ = TWireProtocolReader::GetSchemaData(PhysicalSchema_);
 
     int keyColumnCount = PhysicalSchema_.GetKeyColumnCount();
 
