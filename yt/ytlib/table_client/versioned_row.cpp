@@ -388,8 +388,7 @@ TMutableVersionedRow TVersionedRowBuilder::FinishRow()
         std::unique(DeleteTimestamps_.begin(), DeleteTimestamps_.end()),
         DeleteTimestamps_.end());
 
-    auto row = TMutableVersionedRow::Allocate(
-        Buffer_->GetPool(),
+    auto row = Buffer_->AllocateVersioned(
         Keys_.size(),
         Values_.size(),
         WriteTimestamps_.size(),

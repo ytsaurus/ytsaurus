@@ -541,8 +541,7 @@ private:
                         ++replicationValueCount;
                     }
                 }
-                auto mutableReplicationRow = TMutableVersionedRow::Allocate(
-                    rowBuffer->GetPool(),
+                auto mutableReplicationRow = rowBuffer->AllocateVersioned(
                     keyColumnCount,
                     replicationValueCount,
                     1,  // writeTimestampCount
@@ -572,8 +571,7 @@ private:
             }
 
             case ERowModificationType::Delete: {
-                auto mutableReplicationRow = TMutableVersionedRow::Allocate(
-                    rowBuffer->GetPool(),
+                auto mutableReplicationRow = rowBuffer->AllocateVersioned(
                     keyColumnCount,
                     0,  // valueCount
                     0,  // writeTimestampCount
