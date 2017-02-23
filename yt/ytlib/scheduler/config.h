@@ -60,6 +60,7 @@ class TTestingOperationOptions
 {
 public:
     TDuration SchedulingDelay;
+    ESchedulingDelayType SchedulingDelayType;
 
     TTestingOperationOptions();
 };

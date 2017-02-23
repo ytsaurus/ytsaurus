@@ -2537,6 +2537,14 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContextPtr context,
     const TJobResources& jobLimits)
 {
+    if (Spec->TestingOperationOptions) {
+        if (Spec->TestingOperationOptions->SchedulingDelayType == ESchedulingDelayType::Async) {
+            WaitFor(TDelayedExecutor::MakeDelayed(Spec->TestingOperationOptions->SchedulingDelay));
+        } else {
+            Sleep(Spec->TestingOperationOptions->SchedulingDelay);
+        }
+    }
+
     // SafeScheduleJob must be synchronous; context switches are prohibited.
     TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
 
@@ -2734,10 +2742,6 @@ void TOperationControllerBase::DoScheduleJob(
     TScheduleJobResult* scheduleJobResult)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    if (Spec->TestingOperationOptions) {
-        Sleep(Spec->TestingOperationOptions->SchedulingDelay);
-    }
 
     if (!IsRunning()) {
         LOG_TRACE("Operation is not running, scheduling request ignored");
