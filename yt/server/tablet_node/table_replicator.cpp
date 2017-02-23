@@ -210,7 +210,7 @@ private:
                 localTransaction->GetId());
 
             TRowBufferPtr rowBuffer;
-            std::vector<TRowModification> modifications;
+            std::vector<TVersionedRow> replicationRows;
 
             i64 startRowIndex = lastReplicationRowIndex;
             i64 newReplicationRowIndex;
@@ -222,7 +222,7 @@ private:
                     tabletSnapshot,
                     replicaSnapshot,
                     startRowIndex,
-                    &modifications,
+                    &replicationRows,
                     &rowBuffer,
                     &newReplicationRowIndex,
                     &newReplicationTimestamp);
@@ -236,13 +236,10 @@ private:
                 YCHECK(readReplicationBatch());
             }
 
-            TModifyRowsOptions modifyOptions;
-            modifyOptions.PushToReplica = true;
-            foreignTransaction->ModifyRows(
+            foreignTransaction->WriteRows(
                 ReplicaPath_,
                 TNameTable::FromSchema(TableSchema_),
-                MakeSharedRange(std::move(modifications), std::move(rowBuffer)),
-                modifyOptions);
+                MakeSharedRange(std::move(replicationRows), std::move(rowBuffer)));
             
             {
                 NProto::TReqReplicateRows req;
@@ -385,7 +382,7 @@ private:
         const TTabletSnapshotPtr& tabletSnapshot,
         const TTableReplicaSnapshotPtr& replicaSnapshot,
         i64 startRowIndex,
-        std::vector<TRowModification>* modifications,
+        std::vector<TVersionedRow>* replicationRows,
         TRowBufferPtr* rowBuffer,
         i64* newReplicationRowIndex,
         TTimestamp* newReplicationTimestamp)
@@ -406,7 +403,7 @@ private:
         i64 dataWeight = 0;
 
         *rowBuffer = New<TRowBuffer>();
-        modifications->clear();
+        replicationRows->clear();
 
         std::vector<TUnversionedRow> readerRows;
         readerRows.reserve(TabletRowsPerRead);
@@ -433,7 +430,7 @@ private:
                 readerRows.size());
 
             for (auto row : readerRows) {
-                TRowModification modification;
+                TVersionedRow replicationRow;
                 i64 rowIndex;
                 TTimestamp timestamp;
                 ParseLogRow(
@@ -441,7 +438,7 @@ private:
                     mountConfig,
                     row,
                     *rowBuffer,
-                    &modification,
+                    &replicationRow,
                     &rowIndex,
                     &timestamp);
 
@@ -472,7 +469,7 @@ private:
                 ++currentRowIndex;
                 ++rowCount;
                 dataWeight += GetDataWeight(row);
-                modifications->push_back(modification);
+                replicationRows->push_back(replicationRow);
                 prevTimestamp = timestamp;
             }
         }
@@ -510,7 +507,7 @@ private:
         const TTableMountConfigPtr& mountConfig,
         TUnversionedRow logRow,
         const TRowBufferPtr& rowBuffer,
-        TRowModification* modification,
+        TVersionedRow* replicationRow,
         i64* rowIndex,
         TTimestamp* timestamp)
     {
@@ -520,7 +517,7 @@ private:
         Y_ASSERT(logRow[2].Type == EValueType::Uint64);
         *timestamp = logRow[2].Data.Uint64;
 
-        if (!modification) {
+        if (!replicationRow) {
             return;
         }
 
@@ -535,49 +532,58 @@ private:
         switch (changeType) {
             case ERowModificationType::Write: {
                 Y_ASSERT(logRow.GetCount() >= keyColumnCount + 4);
-                int columnCount = keyColumnCount;
-                for (int index = 0; index < valueColumnCount; ++index) {
-                    const auto& value = logRow[index * 2 + keyColumnCount + 5];
+                int replicationValueCount = 0;
+                for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
+                    const auto& value = logRow[logValueIndex * 2 + keyColumnCount + 5];
                     Y_ASSERT(value.Type == EValueType::Uint64);
                     auto flags = static_cast<EReplicationLogDataFlags>(value.Data.Uint64);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
-                        ++columnCount;
+                        ++replicationValueCount;
                     }
                 }
-                auto row = rowBuffer->Allocate(columnCount);
-                int currentIndex = 0;
-                for (int index = 0; index < keyColumnCount; ++index) {
-                    auto value = rowBuffer->Capture(logRow[index + 4]);
-                    value.Id = index;
-                    row[currentIndex++] = value; 
+                auto mutableReplicationRow = TMutableVersionedRow::Allocate(
+                    rowBuffer->GetPool(),
+                    keyColumnCount,
+                    replicationValueCount,
+                    1,  // writeTimestampCount
+                    0); // deleteTimestampCount
+                for (int keyIndex = 0; keyIndex < keyColumnCount; ++keyIndex) {
+                    mutableReplicationRow.BeginKeys()[keyIndex] = rowBuffer->Capture(logRow[keyIndex + 4]);
                 }
-                for (int index = 0; index < valueColumnCount; ++index) {
-                    const auto& flagsValue  = logRow[index * 2 + keyColumnCount + 5];
+                int replicationValueIndex = 0;
+                for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
+                    const auto& flagsValue  = logRow[logValueIndex * 2 + keyColumnCount + 5];
                     Y_ASSERT(flagsValue.Type == EValueType::Uint64);
                     auto flags = static_cast<EReplicationLogDataFlags>(flagsValue.Data.Uint64);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
-                        auto dataValue = rowBuffer->Capture(logRow[index * 2 + keyColumnCount + 4]);\
-                        dataValue.Id = index + keyColumnCount;
-                        dataValue.Aggregate = Any(flags & EReplicationLogDataFlags::Aggregate);
-                        row[currentIndex++] = dataValue;
+                        TVersionedValue value;
+                        static_cast<TUnversionedValue&>(value) = rowBuffer->Capture(logRow[logValueIndex * 2 + keyColumnCount + 4]);
+                        value.Id = logValueIndex + keyColumnCount;
+                        value.Aggregate = Any(flags & EReplicationLogDataFlags::Aggregate);
+                        value.Timestamp = *timestamp;
+                        mutableReplicationRow.BeginValues()[replicationValueIndex++] = value;
                     }
                 }
-                modification->Type = ERowModificationType::Write;
-                modification->Row = row;
-                LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating write (Row: %v)", row);
+                YCHECK(replicationValueIndex == replicationValueCount);
+                mutableReplicationRow.BeginWriteTimestamps()[0] = *timestamp;
+                *replicationRow = mutableReplicationRow;
+                LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating write (Row: %v)", *replicationRow);
                 break;
             }
 
             case ERowModificationType::Delete: {
-                auto key = rowBuffer->Allocate(keyColumnCount);
+                auto mutableReplicationRow = TMutableVersionedRow::Allocate(
+                    rowBuffer->GetPool(),
+                    keyColumnCount,
+                    0,  // valueCount
+                    0,  // writeTimestampCount
+                    1); // deleteTimestampCount
                 for (int index = 0; index < keyColumnCount; ++index) {
-                    auto value = rowBuffer->Capture(logRow[index + 4]);
-                    value.Id = index;
-                    key[index] = value;
+                    mutableReplicationRow.BeginKeys()[index] = rowBuffer->Capture(logRow[index + 4]);
                 }
-                modification->Type = ERowModificationType::Delete;
-                modification->Row = key;
-                LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating delete (Key: %v)", key);
+                mutableReplicationRow.BeginDeleteTimestamps()[0] = *timestamp;
+                *replicationRow = mutableReplicationRow;
+                LOG_DEBUG_IF(mountConfig->EnableReplicationLogging, "Replicating delete (Row: %v)", *replicationRow);
                 break;
             }
 

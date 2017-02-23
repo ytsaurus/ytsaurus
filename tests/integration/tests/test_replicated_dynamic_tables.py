@@ -69,7 +69,9 @@ class TestReplicatedDynamicTables(YTEnvSetup):
             self.sync_mount_table(path)
 
     def _create_replica_table(self, path, schema=SIMPLE_SCHEMA, mount=True):
-        create("table", path, attributes=self._get_table_attributes(schema), driver=self.replica_driver)
+        attributes = self._get_table_attributes(schema)
+        attributes["replication_mode"] = "asynchronous_sink"
+        create("table", path, attributes=attributes, driver=self.replica_driver)
         if mount:
             self.sync_mount_table(path, driver=self.replica_driver)
 
@@ -186,7 +188,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         self.sync_disable_table_replica(replica_id)
         assert get("#{0}/@state".format(replica_id)) == "disabled"
 
-    def test_passive_replication(self):
+    def test_async_replication(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
         self._create_replica_table("//tmp/r")

@@ -355,7 +355,7 @@ TTableSchema TTableSchema::ToWrite() const
     return TTableSchema(std::move(columns), Strict_, UniqueKeys_);
 }
 
-TTableSchema TTableSchema::ToReplicaWrite() const
+TTableSchema TTableSchema::ToVersionedWrite() const
 {
     return *this;
 }
@@ -374,12 +374,6 @@ TTableSchema TTableSchema::ToLookup() const
 TTableSchema TTableSchema::ToDelete() const
 {
     return ToLookup();
-}
-
-TTableSchema TTableSchema::ToReplicaDelete() const
-{
-    std::vector<TColumnSchema> columns(Columns_.begin(), Columns_.begin() + KeyColumnCount_);
-    return TTableSchema(std::move(columns), Strict_, UniqueKeys_);
 }
 
 TTableSchema TTableSchema::ToValues() const
