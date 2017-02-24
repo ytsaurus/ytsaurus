@@ -1124,6 +1124,23 @@ void TTablet::UpdateUnflushedTimestamp() const
     RuntimeData_->UnflushedTimestamp = unflushedTimestamp;
 }
 
+i64 TTablet::Lock()
+{
+    return ++TabletLockCount_;
+}
+
+i64 TTablet::Unlock()
+{
+    Y_ASSERT(TabletLockCount_ > 0);
+
+    return --TabletLockCount_;
+}
+
+i64 TTablet::GetTabletLockCount() const
+{
+    return TabletLockCount_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode
