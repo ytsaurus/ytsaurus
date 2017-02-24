@@ -1452,18 +1452,6 @@ private:
             SchemalessReader_->ReadValues(range);
         }
 
-        // Append system columns.
-        if (Options_->EnableTableIndex) {
-            *row.End() = MakeUnversionedInt64Value(ChunkSpec_.table_index(), TableIndexId_);
-            row.SetCount(row.GetCount() + 1);
-        }
-        if (Options_->EnableRowIndex) {
-            *row.End() = MakeUnversionedInt64Value(
-                ChunkSpec_.table_row_index() + rowIndex,
-                RowIndexId_);
-            row.SetCount(row.GetCount() + 1);
-        }
-
         return row;
     }
 
@@ -2288,9 +2276,12 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     auto reader = CreateSchemalessReaderAdapter(
         schemafulReaderFactory,
+        options,
         nameTable,
         tableSchema,
-        columnFilter);
+        columnFilter,
+        chunkSpecs.empty() ? -1 : chunkSpecs[0].table_index(),
+        chunkSpecs.empty() ? -1 : chunkSpecs[0].range_index());
 
     i64 rowCount = NChunkClient::GetCumulativeRowCount(chunkSpecs);
 

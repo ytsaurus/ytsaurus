@@ -1,8 +1,9 @@
-#include "schemaless_reader_adapter.h"
+#include "config.h"
 #include "name_table.h"
 #include "schema.h"
 #include "schemaful_reader.h"
 #include "schemaless_reader.h"
+#include "schemaless_reader_adapter.h"
 
 #include <yt/ytlib/chunk_client/data_statistics.h>
 
@@ -25,15 +26,30 @@ class TSchemalessReaderAdapter
 public:
     TSchemalessReaderAdapter(
         ISchemafulReaderPtr underlyingReader,
+        TTableReaderOptionsPtr options,
         std::vector<int> idMapping,
         TNameTablePtr nameTable,
-        TKeyColumns keyColumns)
+        TKeyColumns keyColumns,
+        int tableIndex,
+        int rangeIndex)
         : UnderlyingReader_(std::move(underlyingReader))
+        , Options_(std::move(options))
         , IdMapping_(std::move(idMapping))
         , NameTable_(std::move(nameTable))
         , KeyColumns_(std::move(keyColumns))
+        , TableIndex_(tableIndex)
+        , RangeIndex_(rangeIndex)
         , MemoryPool_(TSchemalessReaderAdapterPoolTag())
-    { }
+    {
+        if (Options_->EnableRangeIndex) {
+            ++SystemColumnCount_;
+            RangeIndexId_ = NameTable_->GetIdOrRegisterName(RangeIndexColumnName);
+        }
+        if (Options_->EnableTableIndex) {
+            ++SystemColumnCount_;
+            TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
+        }
+    }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
@@ -54,13 +70,25 @@ public:
 
         try {
             for (int index = 0; index < rows->size(); ++index) {
-                auto row = TMutableUnversionedRow::Allocate(&MemoryPool_, rows_[index].GetCount());
+                auto row = TMutableUnversionedRow::Allocate(&MemoryPool_, rows_[index].GetCount() + SystemColumnCount_);
+                row.SetCount(rows_[index].GetCount());
+
                 for (int valueIndex = 0; valueIndex < row.GetCount(); ++valueIndex) {
                     const auto& value = rows_[index][valueIndex];
                     ValidateDataValue(value);
                     row[valueIndex] = value;
                     row[valueIndex].Id = IdMapping_[value.Id];
                 }
+
+                if (Options_->EnableRangeIndex) {
+                    *row.End() = MakeUnversionedInt64Value(RangeIndex_, RangeIndexId_);
+                    row.SetCount(row.GetCount() + 1);
+                }
+                if (Options_->EnableTableIndex) {
+                    *row.End() = MakeUnversionedInt64Value(TableIndex_, TableIndexId_);
+                    row.SetCount(row.GetCount() + 1);
+                }
+
                 rows_[index] = row;
             }
         } catch (const std::exception& ex) {
@@ -111,12 +139,18 @@ public:
 
 private:
     const ISchemafulReaderPtr UnderlyingReader_;
+    const TTableReaderOptionsPtr Options_;
     const std::vector<int> IdMapping_;
     const TNameTablePtr NameTable_;
     const TKeyColumns KeyColumns_;
+    const int TableIndex_;
+    const int RangeIndex_;
 
     TChunkedMemoryPool MemoryPool_;
     int RowCount_ = 0;
+    int TableIndexId_ = -1;
+    int RangeIndexId_ = -1;
+    int SystemColumnCount_ = 0;
     TPromise<void> ErrorPromise_ = NewPromise<void>();
 };
 
@@ -126,9 +160,12 @@ DEFINE_REFCOUNTED_TYPE(TSchemalessReaderAdapter)
 
 ISchemalessReaderPtr CreateSchemalessReaderAdapter(
     TSchemafulReaderFactory createReader,
+    TTableReaderOptionsPtr options,
     TNameTablePtr nameTable,
     const TTableSchema& schema,
-    const TColumnFilter& columnFilter)
+    const TColumnFilter& columnFilter,
+    int tableIndex,
+    int rangeIndex)
 {
     std::vector<int> idMapping(schema.GetColumnCount());
 
@@ -145,9 +182,12 @@ ISchemalessReaderPtr CreateSchemalessReaderAdapter(
 
     auto result = New<TSchemalessReaderAdapter>(
         std::move(underlyingReader),
+        std::move(options),
         std::move(idMapping),
         std::move(nameTable),
-        schema.GetKeyColumns());
+        schema.GetKeyColumns(),
+        tableIndex,
+        rangeIndex);
 
     return result;
 }
