@@ -158,9 +158,9 @@ class YsonParserTestBase(object):
 
     def test_parse_from_non_binary_stream(self):
         if PY3:
-            with pytest.raises(YsonError):
+            with pytest.raises(TypeError):
                 self.loads(u"1")
-            with pytest.raises(YsonError):
+            with pytest.raises(TypeError):
                 self.load(StringIO(u"abcdef"))
         else:  # COMPAT
             assert self.loads(u"1") == 1

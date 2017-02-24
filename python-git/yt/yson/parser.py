@@ -16,7 +16,7 @@ class YsonParser(object):
         # COMPAT: Before porting YSON to Python 3 it supported parsing from
         # unicode strings.
         if _is_text_reader(stream) and PY3:
-            raise RuntimeError("Only binary streams are supported by YSON parser")
+            raise TypeError("Only binary streams are supported by YSON parser")
         self._tokenizer = YsonTokenizer(stream, encoding)
         self._always_create_attributes = always_create_attributes
 
@@ -101,12 +101,12 @@ class YsonParser(object):
         if self._tokenizer.get_current_type() == TOKEN_LEFT_ANGLE:
             attributes = self._parse_attributes()
             self._tokenizer.parse_next()
-        
+
         if self._tokenizer.get_current_type() == TOKEN_END_OF_STREAM:
             raise YsonParseError(
                 "Premature end-of-stream in Yson",
                 self._tokenizer.get_position_info())
-        
+
         if self._tokenizer.get_current_type() == TOKEN_LEFT_BRACKET:
             result = self._parse_list()
 
@@ -115,7 +115,7 @@ class YsonParser(object):
 
         elif self._tokenizer.get_current_type() == TOKEN_HASH:
             result = None
-            
+
         else:
             self._tokenizer.get_current_token().expect_type((TOKEN_BOOLEAN, TOKEN_INT64, TOKEN_UINT64,
                                                   TOKEN_STRING, TOKEN_DOUBLE))
