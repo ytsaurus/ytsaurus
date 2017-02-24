@@ -360,6 +360,10 @@ public:
 
     void UpdateUnflushedTimestamp() const;
 
+    i64 Lock();
+    i64 Unlock();
+    i64 GetTabletLockCount() const;
+
 private:
     const TRuntimeTabletDataPtr RuntimeData_ = New<TRuntimeTabletData>();
 
@@ -389,6 +393,8 @@ private:
     ITabletContext* const Context_;
 
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
+
+    i64 TabletLockCount_ = 0;
 
 
     void Initialize();

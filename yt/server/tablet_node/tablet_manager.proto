@@ -93,6 +93,7 @@ message TReqWriteRows
     required int32 codec = 7;
     required bytes compressed_data = 8;
     optional uint32 signature = 9;
+    required bool lockless = 10;
 }
 
 message TReqTrimRows

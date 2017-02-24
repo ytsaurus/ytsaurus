@@ -54,8 +54,11 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TRingQueue<TSortedDynamicRowRef>, PrelockedRows);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSortedDynamicRowRef>, LockedRows);
-    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, ImmediateLockedWriteLog);
 
+    DEFINE_BYREF_RW_PROPERTY(TRingQueue<TTablet*>, PrelockedTablets);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TTablet*>, LockedTablets);
+
+    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, ImmediateLockedWriteLog);
     DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, ImmediateLocklessWriteLog);
     DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, DelayedWriteLog);
 
