@@ -371,7 +371,7 @@ TOwningRow YsonToRow(
 {
     auto tableSchema = GetTableSchemaFromDataSplit(dataSplit);
 
-    return NTableClient::YsonToRow(yson, tableSchema, treatMissingAsNull);
+    return NTableClient::YsonToSchemafulRow(yson, tableSchema, treatMissingAsNull);
 }
 
 TQueryStatistics DoExecuteQuery(
@@ -389,7 +389,7 @@ TQueryStatistics DoExecuteQuery(
     auto readerMock = New<StrictMock<TReaderMock>>();
 
     for (const auto& row : source) {
-        owningSource.push_back(NTableClient::YsonToRow(row, query->GetReadSchema(), true));
+        owningSource.push_back(NTableClient::YsonToSchemafulRow(row, query->GetReadSchema(), true));
     }
 
     sourceRows.resize(owningSource.size());

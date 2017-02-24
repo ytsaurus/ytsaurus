@@ -105,7 +105,7 @@ public:
         }
         Stroka tableIndexYson = Format("; \"@table_index\"=%d", InputTableIndex_);
         while (rows->size() < rows->capacity() && RowIndex_ < TableData_.Rows.size()) {
-            Rows_.emplace_back(YsonToRow(TableData_.Rows[RowIndex_] + tableIndexYson, TableSchema_, false));
+            Rows_.emplace_back(YsonToSchemafulRow(TableData_.Rows[RowIndex_] + tableIndexYson, TableSchema_, false));
             rows->emplace_back(Rows_.back());
             ++RowIndex_;
         }
