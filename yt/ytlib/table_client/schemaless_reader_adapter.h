@@ -11,9 +11,12 @@ typedef std::function<ISchemafulReaderPtr(const TTableSchema&, const TColumnFilt
 
 ISchemalessReaderPtr CreateSchemalessReaderAdapter(
     TSchemafulReaderFactory createReader,
+    TTableReaderOptionsPtr options,
     TNameTablePtr nameTable,
     const TTableSchema& schema,
-    const TColumnFilter& columnFilter);
+    const TColumnFilter& columnFilter,
+    int tableIndex,
+    int rangeIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

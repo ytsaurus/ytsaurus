@@ -1121,11 +1121,55 @@ echo {v = 2} >&7
             out="//tmp/t_out",
             reduce_by="key",
             join_by="key",
-            command="cat")
+            command="cat",
+            spec={
+                "reducer": {
+                   "format": yson.loads("<enable_table_index=true>dsv")
+                }
+            })
 
-        expected = [{"key": i} for i in (8, 9)] + [{"key": i, "value": str(i)} for i in (8, 9)]
+        expected = [{"key": str(i), "@table_index": "0"} for i in (8, 9)] + \
+            [{"key": str(i), "value": str(i), "@table_index": "1"} for i in (8, 9)]
 
         assert_items_equal(read_table("//tmp/t_out"), expected)
+
+    def test_dynamic_table_index(self):
+        self.sync_create_cells(1)
+        create("table", "//tmp/t1")
+        self._create_simple_dynamic_table("//tmp/t2")
+        self._create_simple_dynamic_table("//tmp/t3")
+        create("table", "//tmp/t_out")
+
+        self.sync_mount_table("//tmp/t2")
+        self.sync_mount_table("//tmp/t3")
+
+        write_table("<sorted_by=[key]>//tmp/t1", [{"key": i, "value": str(i)} for i in range(1)])
+        insert_rows("//tmp/t2", [{"key": i, "value": str(i)} for i in range(1, 2)])
+        insert_rows("//tmp/t3", [{"key": i, "value": str(i)} for i in range(2, 3)])
+
+        self.sync_flush_table("//tmp/t2")
+        self.sync_flush_table("//tmp/t3")
+
+        op = reduce(in_=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
+            out="//tmp/t_out",
+            command="cat > /dev/stderr",
+            reduce_by = "key",
+            spec={"reducer": {
+                    "enable_input_table_index": True,
+                    "format": yson.loads("<format=text>yson"),
+                }})
+
+        job_ids = ls("//sys/operations/{0}/jobs".format(op.id))
+        assert len(job_ids) == 1
+        output = read_file("//sys/operations/{0}/jobs/{1}/stderr".format(op.id, job_ids[0]))
+        assert output == \
+"""<"table_index"=0;>#;
+{"key"=0;"value"="0";};
+<"table_index"=1;>#;
+{"key"=1;"value"="1";};
+<"table_index"=2;>#;
+{"key"=2;"value"="2";};
+"""
 
     @unix_only
     @pytest.mark.parametrize("with_foreign", [False, True])
