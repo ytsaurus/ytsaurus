@@ -229,7 +229,7 @@ public:
         auto stringArgument = ExtractArgument(args, kwargs, "string");
 #if PY_MAJOR_VERSION >= 3
         if (PyUnicode_Check(stringArgument.ptr())) {
-            throw CreateYsonError("Only binary strings parsing is supported, got unicode");
+            throw Py::TypeError("Only binary strings parsing is supported, got unicode");
         }
 #endif
         auto string = ConvertStringObjectToStroka(stringArgument);
