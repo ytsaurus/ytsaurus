@@ -1,6 +1,5 @@
 from .helpers import get_cluster_version
 
-import yt.logger as logger
 import yt.wrapper as yt
 
 import os
@@ -10,12 +9,9 @@ def _has_write_permission_on_yt(client, user, dir):
         dir = dir.rsplit("/", 1)[0]
     return client.check_permission(user, "write", dir)["action"] == "allow"
 
-def perform_precheck(task, clusters_configuration, custom_logger=None):
-    if custom_logger is None:
-        custom_logger = logger
-
+def perform_precheck(task, clusters_configuration, logger):
     # TODO(ignat): add timeout for yt
-    custom_logger.info("Starting precheck")
+    logger.info("Starting precheck")
     source_client = task.get_source_client(clusters_configuration.clusters)
     destination_client = task.get_destination_client(clusters_configuration.clusters)
 
@@ -70,4 +66,4 @@ def perform_precheck(task, clusters_configuration, custom_logger=None):
         raise yt.YtError("Hadoop transmitter (airflow client) should be configured for transfer from {0} to {1}"
                          .format(source_client._type, destination_client._type))
 
-    custom_logger.info("Precheck completed")
+    logger.info("Precheck completed")

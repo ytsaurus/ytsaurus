@@ -30,8 +30,8 @@ class CountedRLock(object):
             self._acquire(blocking=blocking)
 
     def _release(self):
-        self._lock.release()
         self._counter -= 1
+        self._lock.release()
 
     def release(self, count=1):
         for i in xrange(count):

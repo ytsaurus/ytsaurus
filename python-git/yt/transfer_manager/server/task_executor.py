@@ -1,231 +1,145 @@
-from yt.transfer_manager.server import traceback_helpers
-from yt.transfer_manager.server.task_types import Task
-from yt.transfer_manager.server.logger import TaskIdLogger
-from yt.transfer_manager.server.helpers import log_yt_exception, configure_logging
-from yt.transfer_manager.server.message_queue import MessageWriter
-from yt.transfer_manager.server.precheck import perform_precheck
-from yt.transfer_manager.server.clusters_configuration import get_clusters_configuration_from_config
+import yt.packages.requests as requests
 
-from yt.tools.remote_copy_tools import \
-    copy_yt_to_kiwi, \
-    copy_yt_to_yt, \
-    copy_yt_to_yt_through_proxy, \
-    copy_file_yt_to_yt, \
-    copy_hive_to_yt, \
-    copy_hadoop_to_hadoop_with_airflow
-
-import yt.logger as logger
-from yt.wrapper.common import update, get_value
 import yt.json as json
-import yt.wrapper as yt
+
+from cherrypy import wsgiserver
+from flask import Flask, request
 
 import os
 import sys
-import time
 import prctl
 import signal
 import logging
 import traceback
-import argparse
 import subprocess
-from copy import deepcopy
+from collections import defaultdict, deque
+from multiprocessing import Process
+import cPickle as pickle
 
-def _truncate_stderrs_attributes(error, limit):
-    if hasattr(error, "attributes") and "stderrs" in error.attributes:
-        if isinstance(error, yt.YtOperationFailedError):
-            error.attributes["details"] = yt.format_operation_stderrs(error.attributes["stderrs"])[:limit]
-        del error.attributes["stderrs"]
-    if hasattr(error, "inner_errors"):
-        for inner_error in error.inner_errors:
-            _truncate_stderrs_attributes(inner_error, limit)
+logger = logging.getLogger("TM.executor_process")
 
-def execute_task(task, message_queue, config):
-    logger.LOGGER = TaskIdLogger(task.id)
+class TaskExecutorApplication(object):
+    def __init__(self, host, port):
+        self._host = host
+        self._port = port
+        self._daemon = Flask(__name__)
+        self._processes = {}
+        self._messages = defaultdict(deque)
+        self._add_rule("/start/", "start_task", methods=["POST"])
+        self._add_rule("/poll/<task_id>/", "poll_task", methods=["GET"])
+        self._add_rule("/remove/<task_id>/", "remove_task", methods=["POST"])
+        self._add_rule("/get_messages/<task_id>/", "get_messages_of_task", methods=["GET"])
+        self._add_rule("/put_message/<task_id>/", "put_message_from_task", methods=["POST"])
 
-    logger.info("Start executing task (pid %s)", os.getpid())
-    try:
-        clusters_configuration = get_clusters_configuration_from_config(config)
-        perform_precheck(task, clusters_configuration)
+    def _add_rule(self, rule, endpoint, methods):
+        func = lambda *args, **kwargs: TaskExecutorApplication.__dict__[endpoint](self, *args, **kwargs)
+        decorated_func = self._process_exception(func)
+        self._daemon.add_url_rule(rule, endpoint, decorated_func, methods=methods)
 
-        title = "Supervised by transfer task " + task.id
+    def _process_exception(self, func):
+        def decorator(*args, **kwargs):
+            logger.info("Received request %s (%r, %r)", request.url, args, kwargs)
+            try:
+                return func(*args, **kwargs)
+            except Exception:
+                logger.exception("Error while processing request")
+                return json.dumps({"code": 1, "message": "Unknown error: " + traceback.format_exc()}), 404
 
-        common_spec = {
-            "title": title,
-            "transfer_manager": {
-                "task_id": task.id,
-                "backend_tag": task.backend_tag,
-                "source_cluster": task.source_cluster,
-                "destination_cluster": task.destination_cluster
-            }
-        }
-        copy_spec = update({"pool": task.pool}, update(deepcopy(common_spec), get_value(task.copy_spec, {})))
-        postprocess_spec = update(deepcopy(common_spec), get_value(task.postprocess_spec, {}))
+        return decorator
 
-        source_client = task.get_source_client(clusters_configuration.clusters)
-        source_client.message_queue = message_queue
+    def start_task(self):
+        params = json.loads(request.data)
 
-        destination_client = task.get_destination_client(clusters_configuration.clusters)
-        destination_client.message_queue = message_queue
+        module_dir_name = os.path.dirname(os.path.realpath(__file__))
+        executor_path = os.path.join(module_dir_name, "execute_task_script.py")
 
-        clusters_configuration.kiwi_transmitter.message_queue = message_queue
-        clusters_configuration.hadoop_transmitter.message_queue = message_queue
+        proc = subprocess.Popen([
+                                    sys.executable, executor_path,
+                                    "--config-path", params["config_path"],
+                                    "--task-executor-address", params["task_executor_address"]
+                                ],
+                                stdin=subprocess.PIPE,
+                                stderr=sys.stderr,
+                                preexec_fn=lambda: prctl.set_pdeathsig(signal.SIGINT),
+                                close_fds=True)
+        proc.stdin.write(params["input"])
+        proc.stdin.close()
 
-        parameters = clusters_configuration.availability_graph[task.source_cluster][task.destination_cluster]
+        self._processes[params["task_id"]] = proc
 
-        # Calculate fastbone
-        fastbone = source_client._parameters.get("fastbone", False) and destination_client._parameters.get("fastbone", False)
-        fastbone = parameters.get("fastbone", fastbone)
+        return str(proc.pid)
 
-        force_copy_with_operation = task.force_copy_with_operation or \
-                not config.get("enable_copy_without_operation", True)
+    def poll_task(self, task_id):
+        return json.dumps(self._processes[task_id].poll())
 
-        if source_client._type == "yt" and destination_client._type == "yt":
-            logger.info("Running YT -> YT remote copy operation")
-            if source_client.get(yt.YPath(task.source_table, client=source_client).to_yson_type() + "/@type") == "file":
-                copy_file_yt_to_yt(
-                    source_client,
-                    destination_client,
-                    task.source_table,
-                    task.destination_table,
-                    fastbone=fastbone,
-                    token_storage_path=config["token_storage_path"],
-                    copy_spec_template=copy_spec,
-                    compression_codec=task.destination_compression_codec,
-                    erasure_codec=task.destination_erasure_codec,
-                    intermediate_format=task.intermediate_format,
-                    default_tmp_dir=config.get("default_tmp_dir"),
-                    small_file_size_threshold=config.get("small_table_size_threshold"),
-                    force_copy_with_operation=force_copy_with_operation,
-                    additional_attributes=task.additional_attributes,
-                    temp_files_dir=task.temp_files_dir)
-            elif task.copy_method == "proxy":
-                copy_yt_to_yt_through_proxy(
-                    source_client,
-                    destination_client,
-                    task.source_table,
-                    task.destination_table,
-                    fastbone=fastbone,
-                    token_storage_path=config["token_storage_path"],
-                    copy_spec_template=copy_spec,
-                    postprocess_spec_template=postprocess_spec,
-                    compression_codec=task.destination_compression_codec,
-                    erasure_codec=task.destination_erasure_codec,
-                    intermediate_format=task.intermediate_format,
-                    default_tmp_dir=config.get("default_tmp_dir"),
-                    small_table_size_threshold=config.get("small_table_size_threshold"),
-                    force_copy_with_operation=force_copy_with_operation,
-                    additional_attributes=task.additional_attributes,
-                    schema_inference_mode=task.schema_inference_mode)
-            else:  # native
-                network_name = "fastbone" if fastbone else "default"
-                network_name = parameters.get("network_name", network_name)
-                copy_yt_to_yt(
-                    source_client,
-                    destination_client,
-                    task.source_table,
-                    task.destination_table,
-                    network_name=network_name,
-                    copy_spec_template=copy_spec,
-                    postprocess_spec_template=postprocess_spec,
-                    compression_codec=task.destination_compression_codec,
-                    erasure_codec=task.destination_erasure_codec,
-                    additional_attributes=task.additional_attributes,
-                    schema_inference_mode=task.schema_inference_mode)
-        elif source_client._type == "yt" and destination_client._type == "kiwi":
-            dc_name = source_client._parameters.get("dc_name")
-            if dc_name is not None:
-                copy_spec = update({"scheduling_tag": dc_name}, copy_spec)
-            copy_yt_to_kiwi(
-                source_client,
-                destination_client,
-                clusters_configuration.kiwi_transmitter,
-                task.source_table,
-                token_storage_path=config["token_storage_path"],
-                fastbone=fastbone,
-                kiwi_user=task.kiwi_user,
-                kwworm_options=task.kwworm_options,
-                copy_spec_template=copy_spec,
-                table_for_errors=task.table_for_errors,
-                default_tmp_dir=config.get("default_tmp_dir"))
-        elif source_client._type == "hive" and destination_client._type == "yt":
-            copy_hive_to_yt(
-                source_client,
-                destination_client,
-                task.source_table,
-                task.destination_table,
-                copy_spec_template=copy_spec,
-                postprocess_spec_template=postprocess_spec,
-                compression_codec=task.destination_compression_codec,
-                erasure_codec=task.destination_erasure_codec,
-                json_format_attributes=task.hive_json_format_attributes)
-        elif (source_client._type == "hdfs" and destination_client._type == "hdfs") \
-                or (source_client._type == "hive" and destination_client._type == "hive") \
-                or (source_client._type == "hbase" and destination_client._type == "hbase"):
-            type_to_task_type = {"hdfs": "distcp", "hive": "hivecp", "hbase": "hbasecp"}
-            copy_hadoop_to_hadoop_with_airflow(
-                type_to_task_type[source_client._type],
-                clusters_configuration.hadoop_transmitter,
-                task.source_table,
-                source_client.airflow_name,
-                task.destination_table,
-                destination_client.airflow_name,
-                task.user)
-        else:
-            raise Exception("Incorrect cluster types: {} source and {} destination".format(
-                            source_client._type,
-                            destination_client._type))
+    def remove_task(self, task_id):
+        del self._processes[task_id]
+        return ""
 
-        logger.info("Task completed")
-        message_queue.put({"type": "completed"})
+    def get_messages_of_task(self, task_id):
+        messages = self._messages[task_id]
+        result = []
+        while messages:
+            result.append(messages.popleft())
+        return json.dumps(result)
 
-    except yt.YtError as error:
+    def put_message_from_task(self, task_id):
+        self._messages[task_id].append(pickle.loads(request.data))
+        return ""
+
+    def run(self, *args, **kwargs):
+        # Debug version
+        #self._daemon.run(host=self._host, port=self._port, debug=True)
+        dispatcher = wsgiserver.WSGIPathInfoDispatcher({'/': self._daemon})
+        # NB: TaskExecutorApplication has shared state, all methods should be implemented in thread-safe manner.
+        server = wsgiserver.CherryPyWSGIServer((self._host, self._port), dispatcher, numthreads=5)
         try:
-            _truncate_stderrs_attributes(error, config["error_details_length_limit"])
-        except Exception:
-            logger.exception("Task failed with error:")
-            raise
-        log_yt_exception(logger, "Task {} failed with error:".format(task.id))
-        message_queue.put({
-            "type": "error",
-            "error": error.simplify()
-        })
-    except BaseException as error:
-        logger.exception("Task failed with error:")
-        message_queue.put({
-            "type": "error",
-            "error": {
-                "message": str(error),
-                "code": 1,
-                "attributes": {
-                    "details": (traceback_helpers.format_exc() if config["enable_detailed_traceback"] else traceback.format_exc())
-                }
-            }
-        })
+           server.start()
+        except KeyboardInterrupt:
+           server.stop()
 
-    # NB: hack to avoid process died silently.
-    time.sleep(config["execute_task_grace_termination_sleep_timeout"] / 1000.0)
 
-def run_executor(config_path):
-    executor_path = os.path.realpath(__file__)
-    if executor_path.endswith(".pyc"):
-        executor_path = executor_path[:-1]
+class TaskExecutorProcess(Process):
+    def __init__(self, config):
+        super(TaskExecutorProcess, self).__init__()
+        self._config = config
+        self.address = "http://localhost:{0}/".format(self._config["port"])
 
-    return subprocess.Popen([sys.executable, executor_path, "--config-path", config_path],
-                            stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=sys.stderr,
-                            preexec_fn=lambda: prctl.set_pdeathsig(signal.SIGINT), close_fds=True)
+    def run(self):
+        self._app = TaskExecutorApplication(host="localhost", port=self._config["port"])
+        self._app.run()
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Transfer Manager executor")
-    parser.add_argument("--config-path", required=True)
-    args = parser.parse_args()
+class TaskProcessClient(object):
+    def __init__(self, address):
+        self._address = address
 
-    with open(args.config_path, "rb") as f:
-        config = json.load(f)
-    task = Task(**json.loads_as_bytes(sys.stdin.read().strip()))
-    message_queue = MessageWriter(sys.stdout)
+    def start(self, task_id, config_path, input):
+        params = {"task_id": task_id, "config_path": config_path, "task_executor_address": self._address, "input": input}
+        rsp = requests.post(self._address + "start/", data=json.dumps(params))
+        rsp.raise_for_status()
+        self.pid = int(rsp.content)
+        self.task_id = task_id
 
-    configure_logging(config.get("logging", {}))
-    logger.LOGGER.handlers = [logging.handlers.SocketHandler("localhost", config["port"] + 1)]
-    logger.LOGGER.setLevel(logging.INFO)
+    def poll(self):
+        rsp = requests.get(self._address + "poll/{0}/".format(self.task_id))
+        rsp.raise_for_status()
+        return rsp.json()
 
-    execute_task(task, message_queue, config)
+    def remove(self):
+        rsp = requests.post(self._address + "remove/{0}/".format(self.task_id))
+        rsp.raise_for_status()
+
+    def get_messages(self):
+        rsp = requests.get(self._address + "get_messages/{0}/".format(self.task_id))
+        rsp.raise_for_status()
+        return rsp.json()
+
+class MessageWriter(object):
+    def __init__(self, address, task_id):
+        self.address = address
+        self.task_id = task_id
+
+    def put(self, obj):
+        rsp = requests.post(self.address + "put_message/{0}/".format(self.task_id), data=pickle.dumps(obj))
+        rsp.raise_for_status()
+

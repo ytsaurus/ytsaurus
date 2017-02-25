@@ -4,8 +4,6 @@ from copy import deepcopy
 
 from .errors import IncorrectTokenError
 
-import yt.logger as logger
-
 from yt.packages.six import iteritems
 from yt.packages.six.moves import _thread as thread
 
@@ -40,6 +38,7 @@ class SafeThread(Thread):
             except:
                 print("Unknown exception", file=sys.stderr)
                 print(traceback.format_exc(), file=sys.stderr)
+                logger = logging.getLogger("TM")
                 logger.exception("Unknown exception")
                 os.kill(self._parent_pid, signal.SIGINT)
                 time.sleep(0.5)
@@ -106,21 +105,22 @@ def get_cluster_version(cluster_client):
 
     return None
 
-def configure_logging(logging_config):
+def configure_logger(logging_config, is_logger_thread=False):
     level = logging.__dict__[logging_config.get("level", "INFO")]
-    if "filename" in logging_config:
-        handler = logging.handlers.WatchedFileHandler(logging_config["filename"])
+    if is_logger_thread:
+        if "filename" in logging_config:
+            handler = logging.handlers.WatchedFileHandler(logging_config["filename"])
+        else:
+            handler = logging.StreamHandler()
     else:
-        handler = logging.StreamHandler()
+        handler = logging.handlers.SocketHandler("localhost", logging_config["port"])
 
-    handler.setFormatter(logger.BASIC_FORMATTER)
+    handler.setFormatter(logging.Formatter("%(asctime)-15s\t%(levelname)s\t%(name)s\t%(message)s"))
 
-    new_logger = logging.getLogger("Transfer Manager")
-    new_logger.propagate = False
-    new_logger.setLevel(level)
-    new_logger.handlers = [handler]
-    logger.LOGGER = new_logger
-
+    logger = logging.getLogger("TM")
+    logger.propagate = False
+    logger.setLevel(level)
+    logger.handlers = [handler]
 
 def filter_out_keys(dict_, keys):
     result = deepcopy(dict_)

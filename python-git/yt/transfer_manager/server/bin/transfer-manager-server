@@ -6,27 +6,25 @@ from yt.transfer_manager.server.logger import TaskIdLogger, RequestIdLogger
 from yt.transfer_manager.server.yt_client import clone_client
 from yt.transfer_manager.server.flask_helpers import process_gzip
 from yt.transfer_manager.server.pattern_matching import match_copy_pattern
-from yt.transfer_manager.server.message_queue import MessageReader
 from yt.transfer_manager.server.lock import CountedRLock
 from yt.transfer_manager.server.task_types import Task
 from yt.transfer_manager.server.clusters_configuration import get_clusters_configuration_from_config
 from yt.transfer_manager.server.errors import RequestFailed, SchedulingError
 from yt.transfer_manager.server.precheck import perform_precheck
 from yt.transfer_manager.server.helpers import log_yt_exception, get_token_and_user, \
-                                               SafeThread, get_cluster_version, configure_logging, filter_out_keys
-from yt.transfer_manager.server.task_executor import run_executor
+                                               SafeThread, get_cluster_version, configure_logger, filter_out_keys
+from yt.transfer_manager.server.task_executor import TaskExecutorProcess, TaskProcessClient
 
 from yt.tools.logging_server import LogRecordSocketReceiver
 
 from yt.common import remove_file
 from yt.wrapper.common import generate_uuid, get_value, update, parse_bool
 from yt.wrapper.client import Yt
-import yt.logger as logger
 import yt.json as json
 
 from yt.packages.expiringdict import ExpiringDict
 from yt.packages.six import iteritems, PY3
-from yt.packages.six.moves import queue, xrange, zip as izip
+from yt.packages.six.moves import xrange, zip as izip
 
 import yt.wrapper as yt
 
@@ -100,7 +98,10 @@ class Application(object):
         self._pid = os.getpid()
         self._daemon = Flask(__name__)
 
+        self._sleep_step = 0.5
+
         self._config_path = config_path
+
         self._config = json.load(open(config_path))
         self._last_successfully_loaded_config = deepcopy(self._config)
         self._mutex = CountedRLock()
@@ -118,17 +119,16 @@ class Application(object):
             "running_task_count": defaultdict(int)
         }
 
-        configure_logging(self._config.get("logging", {}))
-
         self._clusters_config_mutex = RLock()
         self._clusters_configuration = get_clusters_configuration_from_config(self._config)
 
         self._path = self._config["path"]
-        self._logging_port = self._config["port"] + 1
 
     def start_processes(self):
-        self._sleep_step = 0.5
+        # We should register sigterm handler only for main transfer manager process.
+        signal.signal(signal.SIGTERM, sigterm_handler)
 
+        # Starting yappi.
         if yappi is not None:
             yappi.set_clock_type("cpu")
             yappi.start()
@@ -139,7 +139,13 @@ class Application(object):
         self._logging_process.start()
 
         # Replace current logger with socket logger.
-        logger.LOGGER.handlers = [logging.handlers.SocketHandler("localhost", self._logging_port)]
+        configure_logger(self._config.get("logging", {}))
+        self.logger = logging.getLogger("TM.main")
+
+        # Run executor process.
+        task_executor_process = TaskExecutorProcess(self._config["task_executor"])
+        task_executor_process.start()
+        self._task_executor_address = task_executor_process.address
 
         # Prepare auth node if it is missing
         self._auth_path = os.path.join(self._path, "auth")
@@ -185,7 +191,7 @@ class Application(object):
         self._mutating_requests_cache = ExpiringDict(
             self._config["mutating_requests_cache_size"],
             self._config["mutating_requests_cache_expiration_timeout"] / 1000.0,
-            logger=logger.info)
+            logger=self.logger.info)
 
         # Requests in progress set.
         self._requests_in_progress = set()
@@ -249,7 +255,7 @@ class Application(object):
     def _log_request(self, func):
         def decorator(*args, **kwargs):
             id = generate_uuid()
-            request_logger = RequestIdLogger(id)
+            request_logger = RequestIdLogger(self.logger, id)
             headers = dict(request.headers)
             filtered_headers = filter_out_keys(headers, ["Content-Length", "Host", "Accept",
                                                "Content-Type", "Authorization"])
@@ -291,7 +297,7 @@ class Application(object):
     def _process_exception(self, func):
         def decorator(*args, **kwargs):
             try:
-                request_logger = RequestIdLogger(request.id)
+                request_logger = RequestIdLogger(self.logger, request.id)
                 return func(*args, **kwargs)
             except RequestFailed as error:
                 log_yt_exception(request_logger)
@@ -395,13 +401,13 @@ class Application(object):
                     break
                 except yt.YtError as err:
                     if err.is_concurrent_transaction_lock_conflict():
-                        logger.info("Failed to take lock under transaction %s", tx.transaction_id)
+                        self.logger.info("Failed to take lock under transaction %s", tx.transaction_id)
                         time.sleep(self._lock_timeout)
                         continue
-                    log_yt_exception(logger)
+                    log_yt_exception(self.logger)
                     raise
 
-            logger.info("Lock acquired under transaction %s", tx.transaction_id)
+            self.logger.info("Lock acquired under transaction %s", tx.transaction_id)
 
             self._lock_acquired = True
 
@@ -414,7 +420,7 @@ class Application(object):
 
             self._tasks_loaded = True
 
-            logger.info("Start processing requests")
+            self.logger.info("Start processing requests")
 
             # Set attribute outside of transaction
             self._yt.set_attribute(self._path, "address", socket.getfqdn())
@@ -442,7 +448,7 @@ class Application(object):
                 config = json.load(open(self._config_path))
                 with self._clusters_config_mutex:
                     if self._last_successfully_loaded_config == config:
-                        logger.debug("Config is not changed, reloading skipped")
+                        self.logger.debug("Config is not changed, reloading skipped")
                         continue
 
                 configuration = get_clusters_configuration_from_config(config)
@@ -450,18 +456,19 @@ class Application(object):
                     self._clusters_configuration = configuration
                     self._last_successfully_loaded_config = config
 
-                logger.info("Clusters configuration was successfully reloaded")
+                self.logger.info("Clusters configuration was successfully reloaded")
             except:
-                logger.exception("Failed to update clusters configuration")
+                self.logger.exception("Failed to update clusters configuration")
 
     def _run_logging_server(self):
         prctl.set_pdeathsig(signal.SIGINT)
-        socket_reciever = LogRecordSocketReceiver(lambda record: logger.LOGGER.handle(record),
-                                                  port=self._logging_port)
+        configure_logger(self._config["logging"], is_logger_thread=True)
+        socket_reciever = LogRecordSocketReceiver(lambda record: logging.getLogger("TM").handle(record),
+                                                  port=self._config["logging"]["port"])
         socket_reciever.serve_until_stopped()
 
     def _load_tasks(self, tasks_path):
-        logger.info("Loading tasks from cypress")
+        self.logger.info("Loading tasks from cypress")
 
         self._tasks_path = tasks_path
         if not self._yt.exists(self._tasks_path):
@@ -493,7 +500,7 @@ class Application(object):
             responses += self._yt.execute_batch(requests)
 
         for task_id, response in izip(task_ids, responses):
-            task_logger = TaskIdLogger(task_id)
+            task_logger = TaskIdLogger(self.logger, task_id)
 
             if "error" in response and response["error"]:
                 task_logger.warning("Failed to load task: %s", str(yt.YtResponseError(response["error"])))
@@ -532,14 +539,14 @@ class Application(object):
             if task.state == "pending":
                 self._append_pending_task(task)
 
-        logger.info("Tasks loaded from cypress")
+        self.logger.info("Tasks loaded from cypress")
 
-        self._pending_tasks.sort(key=lambda id: self._tasks[task_id].creation_time)
+        self._pending_tasks.sort(key=lambda task_id: self._tasks[task_id].creation_time)
 
         # Abort tasks operations (TM can fail but operations will go on)
         self._abort_running_operations(running_tasks)
 
-        logger.info("Tasks loaded")
+        self.logger.info("Tasks loaded")
 
     def _append_pending_task(self, task):
         self._pending_tasks.append(task.id)
@@ -564,12 +571,12 @@ class Application(object):
             node_count = get_node_size(value)
             node_count_limit = self._config.get("task_node_count_limit", 1000)
             if node_count > node_count_limit:
-                logger.info("Task %s takes %d nodes (>%d)", id, node_count, node_count_limit)
+                self.logger.info("Task %s takes %d nodes (>%d)", id, node_count, node_count_limit)
 
             object_size = asizeof(value)
             object_size_limit = self._config.get("task_object_size_limit", 1000000)
             if object_size > object_size_limit:
-                logger.info("Task %s takes %d bytes in python (>%d)", id, object_size, object_size_limit)
+                self.logger.info("Task %s takes %d bytes in python (>%d)", id, object_size, object_size_limit)
 
             os.path.join(self._tasks_path, id)
             client = Yt(**self._config["yt_backend_options"])
@@ -680,7 +687,7 @@ class Application(object):
             task_is_aborted = False
 
             if task_was_executed:
-                process, _ = self._task_processes[id]
+                process = self._task_processes[id]
                 process.aborting = True
                 process.aborting_start_time = datetime.now()
                 self._tasks[id].logger.info("Killing process with pid %d", process.pid)
@@ -724,11 +731,11 @@ class Application(object):
                 time.sleep(self._check_lock_acquired_timeout)
                 continue
 
-            logger.info("Starting new scheduling round")
+            self.logger.info("Starting new scheduling round")
             start_time = time.time()
 
             with self._mutex:
-                logger.info("Progress: %d running, %d pending tasks found", len(self._task_processes), len(self._pending_tasks))
+                self.logger.info("Progress: %d running, %d pending tasks found", len(self._task_processes), len(self._pending_tasks))
 
                 now = time.time()
                 for id in chain(self._pending_tasks, self._task_processes):
@@ -737,7 +744,7 @@ class Application(object):
                         task.logger.info("Lease of task has expired")
                         self._abort_task(id)
 
-                for id, (process, message_queue) in list(iteritems(self._task_processes)):
+                for id, process in list(iteritems(self._task_processes)):
                     task = self._tasks[id]
                     task.logger.info("Task %s", self._tasks[id].state)
 
@@ -747,13 +754,7 @@ class Application(object):
 
                     process_is_alive = process.poll() is None
 
-                    while not message_queue.empty():
-                        message = None
-                        try:
-                            message = message_queue.get_nowait()
-                        except queue.Empty:
-                            break
-
+                    for message in process.get_messages():
                         if message["type"] == "error":
                             error = message["error"]
                         elif message["type"] == "operation_started":
@@ -805,7 +806,7 @@ class Application(object):
                         if self._tmp_config_counter[process.temporary_config] == 0:
                             remove_file(process.temporary_config, force=True)
                             del self._tmp_config_counter[process.temporary_config]
-                        message_queue.delete()
+                        self._task_processes[id].remove()
                         del self._task_processes[id]
 
                         task.logger.info("Task processed")
@@ -842,15 +843,13 @@ class Application(object):
                             json.dump(self._get_config(), fout)
 
                     task.logger.info("Starting subprocess for task")
-                    task_process = run_executor(temporary_config)
+                    task_process = TaskProcessClient(self._task_executor_address)
+                    task_process.start(id, temporary_config, json.dumps(self._tasks[id].dict()))
                     task.logger.info("Subprocess for task started")
-                    task_process.stdin.write(json.dumps(self._tasks[id].dict()))
-                    task_process.stdin.close()
                     task_process.aborting = False
                     task_process.aborted = False
                     task_process.temporary_config = temporary_config
-                    message_queue = MessageReader(task_process.stdout, self._config["message_reader_sleep_timeout"] / 1000.0)
-                    self._task_processes[id] = (task_process, message_queue)
+                    self._task_processes[id] = task_process
 
                     self._tmp_config_counter[task_process.temporary_config] += 1
 
@@ -860,7 +859,7 @@ class Application(object):
 
                 self._pending_tasks = filter(lambda id: self._tasks[id].state == "pending", self._pending_tasks)
 
-            logger.info("Scheduling round takes %.2lf seconds (%.2lf for waiting mutex)", time.time() - start_time, now - start_time)
+            self.logger.info("Scheduling round takes %.2lf seconds (%.2lf for waiting mutex)", time.time() - start_time, now - start_time)
 
             time.sleep(self._sleep_step)
 
@@ -890,7 +889,7 @@ class Application(object):
         return task_description
 
     def _abort_running_operations(self, running_tasks):
-        logger.info("Aborting running operations and transactions of tasks")
+        self.logger.info("Aborting running operations and transactions of tasks")
         clusters = self._clusters_configuration.clusters
 
         def do_abort(task_id, object_dict, abort_func, type_):
@@ -944,7 +943,7 @@ class Application(object):
 
     def _create_task(self, params, token, user, dry_run, make_precheck):
         id = generate_uuid()
-        task_logger = TaskIdLogger(id, request.id)
+        task_logger = TaskIdLogger(self.logger, id, request.id)
         task_logger.info("Adding task %s", json.dumps(params))
         task_logger.request_id = None
         # Move this check to precheck function
@@ -990,7 +989,7 @@ class Application(object):
         self._set_defaults(task, clusters_configuration)
         if make_precheck:
             try:
-                perform_precheck(task, clusters_configuration, custom_logger=task_logger)
+                perform_precheck(task, clusters_configuration, task_logger)
             except yt.YtError as error:
                 raise RequestFailed("Precheck of task {} failed".format(task.id), inner_errors=[error]), None, sys.exc_info()[2]
 
@@ -1049,7 +1048,7 @@ class Application(object):
 
     # Public interface
     def run(self, *args, **kwargs):
-        logger.info("Starting transfer manager (pid %s)", self._pid)
+        self.logger.info("Starting transfer manager (pid %s)", self._pid)
 
         dispatcher = wsgiserver.WSGIPathInfoDispatcher({'/': self._daemon})
         server = wsgiserver.CherryPyWSGIServer((self._config.get("host", "::"), self._config["port"]), dispatcher,
@@ -1203,7 +1202,7 @@ class Application(object):
         if allow_cache:
             with self._cache_tasks_mutex:
                 if start_time - self._last_tasks_cache_update_time < self._tasks_cache_expiration_timeout:
-                    logger.info("Get tasks responded from cache")
+                    self.logger.info("Get tasks responded from cache")
                     return Response(self._cache_tasks_response, mimetype="application/json")
 
         # Thread safe method to save copies of dict and list shared among threads.
@@ -1249,10 +1248,10 @@ class Application(object):
             with self._cache_tasks_mutex:
                 self._last_tasks_cache_update_time = start_time
                 self._cache_tasks_response = data
-                logger.info("Updated tasks cache")
+                self.logger.info("Updated tasks cache")
 
-        logger.info("Get tasks finished timings: total=%.2lf, copy=%.2lf, processing=%.2lf",
-                    time.time() - start_time, copy_finished_time - start_time, time.time() - copy_finished_time)
+        self.logger.info("Get tasks finished timings: total=%.2lf, copy=%.2lf, processing=%.2lf",
+                         time.time() - start_time, copy_finished_time - start_time, time.time() - copy_finished_time)
 
         return Response(data, mimetype="application/json")
 
@@ -1400,9 +1399,6 @@ def main():
     parser = argparse.ArgumentParser(description="Transfer manager.")
     parser.add_argument("--config", required=True)
     args = parser.parse_args()
-
-    # We should register sigterm handler only for main transfer manager process.
-    signal.signal(signal.SIGTERM, sigterm_handler)
 
     app = Application(args.config)
     app.start_processes()
