@@ -5,13 +5,13 @@ import logging
 LOGGER = logging.getLogger("Yt")
 LOGGER.propagate = False
 LOGGER.setLevel(level=logging.__dict__[logger_config.LOG_LEVEL.upper()])
+LOGGER.addHandler(logging.StreamHandler())
 
 BASIC_FORMATTER = logging.Formatter(logger_config.LOG_PATTERN)
 
 def set_formatter(formatter):
-    if not LOGGER.handlers:
-        LOGGER.addHandler(logging.StreamHandler())
-    LOGGER.handlers[0].setFormatter(formatter)
+    for handler in LOGGER.handlers:
+        handler.setFormatter(formatter)
 
 set_formatter(BASIC_FORMATTER)
 
