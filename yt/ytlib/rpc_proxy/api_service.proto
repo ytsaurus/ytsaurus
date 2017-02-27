@@ -21,11 +21,27 @@ message TCredentialsExt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TRowsetColumnDescriptor
+enum ERowsetKind
 {
-    required int32 id = 1;
-    optional int32 type = 2;
-    optional string name = 3;
+    UNVERSIONED = 0;
+    VERSIONED = 1;
+}
+
+// Specifies how to decode rowset data passed via attachments.
+message TRowsetDescriptor
+{
+    // Currently, there is only one version. This field is reserved for future changes.
+    optional int32 wire_format_version = 1 [default = 1];
+
+    // Specifies, what kind of rows are encoded.
+    optional ERowsetKind rowset_kind = 2 [default = UNVERSIONED];
+
+    // Column id-to-name mapping.
+    repeated string column_names = 4;
+
+    // Column id-to-type mapping.
+    // Currently unused, because both unversioned and versioned rowsets are self-describing.
+    repeated int32 column_types = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,22 +56,36 @@ message TRspGetNode
     required bytes data = 1;
 }
 
-// Wire Format V1:
-//   - rowset schema is passed via `rowset_column_descriptor`,
-//   - rowset data is passed via attachments in unversioned wire format a-la YT.
-
 message TReqLookupRows
 {
     required string path = 1;
 
-    optional int32 wire_format_version = 2 [default = 1];
-    repeated TRowsetColumnDescriptor rowset_column_descriptor = 3;
+    repeated string columns = 2;
+    optional uint64 timestamp = 3 [default = 0x3fffffffffffff01];
+    optional bool keep_missing_rows = 4 [default = true];
+
+    required TRowsetDescriptor rowset_descriptor = 200;
 }
 
 message TRspLookupRows
 {
-    optional int32 wire_format_version = 2 [default = 1];
-    repeated TRowsetColumnDescriptor rowset_column_descriptor = 3;
+    required TRowsetDescriptor rowset_descriptor = 200;
+}
+
+message TReqVersionedLookupRows
+{
+    required string path = 1;
+
+    repeated string columns = 2;
+    optional uint64 timestamp = 3 [default = 0x3fffffffffffff01];
+    optional bool keep_missing_rows = 4 [default = true];
+
+    required TRowsetDescriptor rowset_descriptor = 200;
+}
+
+message TRspVersionedLookupRows
+{
+    required TRowsetDescriptor rowset_descriptor = 200;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

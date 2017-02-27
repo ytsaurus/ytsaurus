@@ -416,7 +416,9 @@ IVersionedReaderPtr CreateVersionedTabletReader(
 
     auto rowMerger = std::make_unique<TVersionedRowMerger>(
         New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
+        tabletSnapshot->QuerySchema.GetColumnCount(),
         tabletSnapshot->QuerySchema.GetKeyColumnCount(),
+        TColumnFilter(),
         tabletSnapshot->Config,
         currentTimestamp,
         majorTimestamp,

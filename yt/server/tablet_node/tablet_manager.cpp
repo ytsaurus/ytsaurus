@@ -1979,6 +1979,14 @@ private:
                     writer);
                 break;
 
+            case EWireProtocolCommand::VersionedLookupRows:
+                VersionedLookupRows(
+                    std::move(tabletSnapshot),
+                    timestamp,
+                    workloadDescriptor,
+                    reader,
+                    writer);
+
             default:
                 THROW_ERROR_EXCEPTION("Unknown read command %v",
                     command);
