@@ -25,17 +25,12 @@ struct TBitmapTraits
 
     static constexpr TChunkType GetChunkMask(size_t bitIndex, bool value)
     {
-        auto mask = (value ? TChunkType(1) : TChunkType(0)) << (bitIndex % Bits);
-        return mask;
-        // NB: Self-check to avoid nasty problems. See for example YT-5161.
-        // auto y = (TChunkType(1)) << (bitIndex % Bits);
-        // YCHECK(x & ~y == 0);
+        return (value ? TChunkType(1) : TChunkType(0)) << (bitIndex % Bits);
     }
 
     static constexpr size_t GetChunkCapacity(size_t bitCapacity)
     {
-        auto capacity = (bitCapacity + Bits - 1) / Bits;
-        return capacity;
+        return (bitCapacity + Bits - 1) / Bits;
     }
 
     static constexpr size_t GetByteCapacity(size_t bitCapacity)
