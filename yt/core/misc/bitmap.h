@@ -9,52 +9,75 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TChunkType>
-TChunkType GetChunkMask(size_t bitIndex, bool value)
+struct TBitmapTraits
 {
+    // In this case compiler can replace divisions and modulos with shifts.
     static_assert(
         !(sizeof(TChunkType) & (sizeof(TChunkType) - 1)),
         "sizeof(TChunkType) must be a power of 2.");
-    static constexpr size_t ChunkBytes = sizeof(TChunkType);
-    static constexpr size_t ChunkBits = ChunkBytes * 8;
-    auto mask = (value ? TChunkType(1) : TChunkType(0)) << (bitIndex % ChunkBits);
-    return mask;
-    // NB: Self-check to avoid nasty problems. See for example YT-5161.
-    // auto y = (TChunkType(1)) << (bitIndex % ChunkBits);
-    // YCHECK(x & ~y == 0);
-}
+    static constexpr size_t Bytes = sizeof(TChunkType);
+    static constexpr size_t Bits = Bytes * 8;
+
+    static constexpr size_t GetChunkIndex(size_t bitIndex)
+    {
+        return bitIndex / Bits;
+    }
+
+    static constexpr TChunkType GetChunkMask(size_t bitIndex, bool value)
+    {
+        auto mask = (value ? TChunkType(1) : TChunkType(0)) << (bitIndex % Bits);
+        return mask;
+        // NB: Self-check to avoid nasty problems. See for example YT-5161.
+        // auto y = (TChunkType(1)) << (bitIndex % Bits);
+        // YCHECK(x & ~y == 0);
+    }
+
+    static constexpr size_t GetChunkCapacity(size_t bitCapacity)
+    {
+        auto capacity = (bitCapacity + Bits - 1) / Bits;
+        return capacity;
+    }
+
+    static constexpr size_t GetByteCapacity(size_t bitCapacity)
+    {
+        return GetChunkCapacity(bitCapacity) * Bytes;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TChunkType, int DefaultChunkCount = 1>
 class TAppendOnlyBitmap
 {
+    using TTraits = TBitmapTraits<TChunkType>;
+
 public:
-    explicit TAppendOnlyBitmap(int bitCapacity = 0)
+    explicit TAppendOnlyBitmap(size_t bitCapacity = 0)
     {
         YCHECK(bitCapacity >= 0);
         if (bitCapacity) {
-            Data_.reserve((bitCapacity - 1) / sizeof(TChunkType) / 8 + 1);
+            Chunks_.reserve(TTraits::GetChunkCapacity(bitCapacity));
         }
     }
 
     void Append(bool value)
     {
-        if (Data_.size() * sizeof(TChunkType) * 8 == BitSize_) {
-            Data_.push_back(TChunkType());
+        if (Chunks_.size() * sizeof(TChunkType) * 8 == BitSize_) {
+            Chunks_.push_back(TChunkType());
         }
-
-        Data_.back() |= GetChunkMask<TChunkType>(BitSize_, value);
+        Chunks_.back() |= TTraits::GetChunkMask(BitSize_, value);
         ++BitSize_;
     }
 
-    bool operator[] (i64 index) const
+    bool operator[](size_t bitIndex) const
     {
-        Y_ASSERT(index < BitSize_);
-        int dataIndex = index / (sizeof(TChunkType) * 8);
-        return static_cast<bool>(Data_[dataIndex] & GetChunkMask<TChunkType>(index, true));
+        Y_ASSERT(bitIndex < BitSize_);
+        const auto chunkIndex = TTraits::GetChunkIndex(bitIndex);
+        const auto chunkMask = TTraits::GetChunkMask(bitIndex, true);
+        return (Chunks_[chunkIndex] & chunkMask) != 0;
     }
 
-    i64 GetBitSize() const
+    size_t GetBitSize() const
     {
         return BitSize_;
     }
@@ -62,24 +85,23 @@ public:
     template <class TTag>
     TSharedRef Flush()
     {
-        auto blob = TBlob(TTag(), Data_.data(), Size());
+        auto blob = TBlob(TTag(), Chunks_.data(), Size());
         return TSharedRef::FromBlob(std::move(blob));
     }
 
     const TChunkType* Data() const
     {
-        return Data_.data();
+        return Chunks_.data();
     }
 
-    int Size() const
+    size_t Size() const
     {
-        return Data_.size() * sizeof(TChunkType);
+        return Chunks_.size() * sizeof(TChunkType);
     }
 
 private:
-    i64 BitSize_ = 0;
-    SmallVector<TChunkType, DefaultChunkCount> Data_;
-
+    SmallVector<TChunkType, DefaultChunkCount> Chunks_;
+    size_t BitSize_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,12 +109,7 @@ private:
 template <class TChunkType>
 class TReadOnlyBitmap
 {
-    // In this case compiler can replace divisions and modulos with shifts.
-    static_assert(
-        !(sizeof(TChunkType) & (sizeof(TChunkType) - 1)),
-        "sizeof(TChunkType) must be a power of 2.");
-    static constexpr size_t ChunkBytes = sizeof(TChunkType);
-    static constexpr size_t ChunkBits = ChunkBytes * 8;
+    using TTraits = TBitmapTraits<TChunkType>;
 
 public:
     TReadOnlyBitmap() = default;
@@ -110,25 +127,23 @@ public:
         BitSize_ = bitSize;
     }
 
-    bool operator[] (size_t bitIndex) const
+    bool operator[](size_t bitIndex) const
     {
         Y_ASSERT(bitIndex < BitSize_);
-        auto chunkIndex = bitIndex / ChunkBits;
-        auto chunkOffset = bitIndex % ChunkBits;
-        TChunkType value = Chunks_[chunkIndex];
-        TChunkType mask = TChunkType(1) << chunkOffset;
-        return static_cast<bool>(value & mask);
+        const auto chunkIndex = TTraits::GetChunkIndex(bitIndex);
+        const auto chunkMask = TTraits::GetChunkMask(bitIndex, true);
+        return (Chunks_[chunkIndex] & chunkMask) != 0;
     }
 
-    int GetByteSize() const
+    size_t GetByteSize() const
     {
-        return ((BitSize_ + ChunkBits - 1) / ChunkBits) * ChunkBytes;
+        return TTraits::GetByteCapacity(BitSize_);
     }
 
     void Prefetch(size_t bitIndex)
     {
         Y_ASSERT(bitIndex < BitSize_);
-        auto chunkIndex = bitIndex / ChunkBits;
+        const auto chunkIndex = TTraits::GetChunkIndex(bitIndex);
         __builtin_prefetch(&Chunks_[chunkIndex], 0); // read-only prefetch
     }
 
