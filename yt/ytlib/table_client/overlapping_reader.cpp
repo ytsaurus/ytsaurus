@@ -35,6 +35,8 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override;
 
+    virtual TDataStatistics GetDataStatistics() const override;
+
 private:
     struct TSession
     {
@@ -53,6 +55,7 @@ private:
     std::vector<TSession> Sessions_;
     std::vector<TSession*> AwaitingSessions_;
     bool Exhausted_ = false;
+    i64 RowCount_ = 0;
 
     TSchemafulOverlappingLookupReader(std::unique_ptr<TSchemafulRowMerger> rowMerger);
     bool RefillSession(TSession* sessions);
@@ -98,6 +101,16 @@ TFuture<void> TSchemafulOverlappingLookupReader::GetReadyEvent()
     return ReadyEvent_;
 }
 
+TDataStatistics TSchemafulOverlappingLookupReader::GetDataStatistics() const
+{
+    TDataStatistics dataStatistics;
+    for (const auto& session : Sessions_) {
+        dataStatistics += session.Reader->GetDataStatistics();
+    }
+    dataStatistics.set_row_count(RowCount_);
+    return dataStatistics;
+}
+
 bool TSchemafulOverlappingLookupReader::Read(std::vector<TUnversionedRow>* rows)
 {
     auto readRow = [&] () {
@@ -122,6 +135,8 @@ bool TSchemafulOverlappingLookupReader::Read(std::vector<TUnversionedRow>* rows)
     while (AwaitingSessions_.empty() && !Exhausted_ && rows->size() < rows->capacity()) {
         readRow();
     }
+
+    RowCount_ += rows->size();
 
     return !rows->empty() || !AwaitingSessions_.empty();
 }
@@ -487,6 +502,7 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSession(TSession* s
         ActiveSessions_.push_back(session);
         AdjustHeapBack(ActiveSessions_.begin(), ActiveSessions_.end(), SessionComparer_);
     } else if (finished) {
+        DataStatistics_ += session->Reader->GetDataStatistics();
         session->Reader.Reset();
     } else {
         session->ReadyEvent = session->Reader->GetReadyEvent();
@@ -568,6 +584,11 @@ public:
     virtual TFuture<void> GetReadyEvent() override
     {
         return DoGetReadyEvent();
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return DoGetDataStatistics();
     }
 
 private:

@@ -25,6 +25,8 @@ namespace NTabletClient {
 
 using namespace NTableClient;
 
+using NChunkClient::NProto::TDataStatistics;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TWireProtocolWriterTag
@@ -767,6 +769,11 @@ public:
     virtual TFuture<void> GetReadyEvent() override
     {
         return VoidFuture;
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        Y_UNREACHABLE();
     }
 
 private:

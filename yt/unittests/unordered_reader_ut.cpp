@@ -16,6 +16,7 @@ namespace {
 
 using namespace NTableClient;
 using namespace NConcurrency;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +41,11 @@ struct SchemafulReaderMock
     virtual TFuture<void> GetReadyEvent()
     {
         return ReadyEvent;
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return TDataStatistics();
     }
 };
 

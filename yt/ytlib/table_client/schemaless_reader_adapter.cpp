@@ -96,8 +96,6 @@ public:
             ErrorPromise_.Set(ex);
         }
 
-        RowCount_ += rows->size();
-
         return true;
     }
 
@@ -122,9 +120,7 @@ public:
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
-        NChunkClient::NProto::TDataStatistics dataStatistics;
-        dataStatistics.set_row_count(RowCount_);
-        return dataStatistics;
+        return UnderlyingReader_->GetDataStatistics();
     }
 
     virtual bool IsFetchingCompleted() const override
@@ -147,7 +143,6 @@ private:
     const int RangeIndex_;
 
     TChunkedMemoryPool MemoryPool_;
-    int RowCount_ = 0;
     int TableIndexId_ = -1;
     int RangeIndexId_ = -1;
     int SystemColumnCount_ = 0;

@@ -44,9 +44,11 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NYPath;
-using namespace NApi;
+
+using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -346,6 +348,11 @@ class TReaderMock
 public:
     MOCK_METHOD1(Read, bool(std::vector<TUnversionedRow>*));
     MOCK_METHOD0(GetReadyEvent, TFuture<void>());
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return TDataStatistics();
+    }
 };
 
 class TWriterMock
