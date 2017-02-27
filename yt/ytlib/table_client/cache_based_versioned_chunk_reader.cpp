@@ -41,6 +41,7 @@ using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
 
 using NChunkClient::TReadLimit;
+using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -261,13 +262,16 @@ public:
         }
 
         Finished_ = !DoRead(rows);
+        RowCount_ += rows->size();
 
         return true;
     }
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    virtual TDataStatistics GetDataStatistics() const override
     {
-        Y_UNREACHABLE();
+        TDataStatistics dataStatistics;
+        dataStatistics.set_row_count(RowCount_);
+        return dataStatistics;
     }
 
     virtual bool IsFetchingCompleted() const override
@@ -285,6 +289,8 @@ protected:
     const TTimestamp Timestamp_;
 
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
+
+    ui64 RowCount_ = 0;
 
     //! Returns |false| on EOF.
     virtual bool DoRead(std::vector<TVersionedRow>* rows) = 0;

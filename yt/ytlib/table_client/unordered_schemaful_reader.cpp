@@ -10,6 +10,7 @@ namespace NYT {
 namespace NTableClient {
 
 using namespace NConcurrency;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,10 +110,22 @@ public:
         return DoGetReadyEvent();
     }
 
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        auto dataStatistics = DataStatistics_;
+        for (const auto& session : Sessions_) {
+            if (session.Reader) {
+                dataStatistics += session.Reader->GetDataStatistics();
+            }
+        }
+        return dataStatistics;
+    }
+
 private:
     std::function<ISchemafulReaderPtr()> GetNextReader_;
     std::vector<TSession> Sessions_;
     bool Exhausted_;
+    TDataStatistics DataStatistics_;
 
     TPromise<void> ReadyEvent_ = MakePromise<void>(TError());
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
@@ -133,6 +146,7 @@ private:
 
     bool RefillSession(TSession& session)
     {
+        DataStatistics_ += session.Reader->GetDataStatistics();
         session.Reader.Reset();
 
         if (Exhausted_) {

@@ -2272,7 +2272,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
         });
 
-    auto reader = CreateSchemalessReaderAdapter(
+    auto schemalessReader = CreateSchemalessReaderAdapter(
         std::move(schemafulReader),
         std::move(options),
         std::move(nameTable),

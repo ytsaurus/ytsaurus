@@ -38,6 +38,7 @@ using namespace NConcurrency;
 
 using NChunkClient::NProto::TChunkSpec;
 using NChunkClient::NProto::TChunkMeta;
+using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,6 +92,7 @@ public:
         while (rows->size() < rows->capacity() && CurrentRowIndex_ < UpperRowIndex_) {
             rows->push_back(CaptureRow(Store_->GetRow(CurrentRowIndex_)));
             ++CurrentRowIndex_;
+            ++RowCount_;
         }
         return !rows->empty();
     }
@@ -98,6 +100,13 @@ public:
     virtual TFuture<void> GetReadyEvent() override
     {
         Y_UNREACHABLE();
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        TDataStatistics dataStatistics;
+        dataStatistics.set_row_count(RowCount_);
+        return dataStatistics;
     }
 
 private:
@@ -109,6 +118,7 @@ private:
     std::unique_ptr<TChunkedMemoryPool> Pool_;
 
     i64 CurrentRowIndex_;
+    i64 RowCount_ = 0;
 
 
     TUnversionedRow CaptureRow(TOrderedDynamicRow dynamicRow)
