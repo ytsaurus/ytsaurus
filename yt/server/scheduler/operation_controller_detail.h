@@ -835,6 +835,9 @@ protected:
     void CommitTransactions();
     virtual void CustomCommit();
 
+    bool GetCommitting();
+    void SetCommitting();
+
     // Revival.
     void ReinstallLivePreview();
     void AbortAllJoblets();
