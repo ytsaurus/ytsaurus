@@ -232,6 +232,20 @@ DEFINE_REFCOUNTED_TYPE(TOperationWithUserJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(max42): remove this when YT-6547 is closed and legacy controllers are finally deprecated.
+class TOperationWithLegacyControllerSpec
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    bool UseLegacyController;
+
+    TOperationWithLegacyControllerSpec();
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationWithLegacyControllerSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSimpleOperationSpecBase
     : public TOperationSpecBase
 {
@@ -346,6 +360,7 @@ DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationSpec)
 
 class TSortedMergeOperationSpec
     : public TMergeOperationSpec
+    , public TOperationWithLegacyControllerSpec
 { };
 
 DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationSpec)
@@ -372,6 +387,7 @@ DEFINE_REFCOUNTED_TYPE(TEraseOperationSpec)
 class TReduceOperationSpecBase
     : public TSimpleOperationSpecBase
     , public TOperationWithUserJobSpec
+    , public TOperationWithLegacyControllerSpec
 {
 public:
     TUserJobSpecPtr Reducer;
