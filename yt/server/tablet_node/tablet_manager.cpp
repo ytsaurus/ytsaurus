@@ -651,7 +651,7 @@ private:
     }
 
 
-    virtual void OnAfterSnapshotLoaded() override
+    virtual void OnAfterSnapshotLoaded() noexcept override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1113,7 +1113,7 @@ private:
         bool lockless,
         int prelockedRowCount,
         const TTransactionWriteRecord& writeRecord,
-        TMutationContext* /*context*/)
+        TMutationContext* /*context*/) noexcept
     {
         auto* tablet = FindTablet(writeRecord.TabletId);
         if (!tablet) {
@@ -1121,9 +1121,10 @@ private:
             return;
         }
 
-        tablet->ValidateMountRevision(mountRevision);
-
-        const auto& storeManager = tablet->GetStoreManager();
+        if (mountRevision != tablet->GetMountRevision()) {
+            // Same as above.
+            return;
+        }
 
         TTransaction* transaction = nullptr;
         auto atomicity = AtomicityFromTransactionId(transactionId);
@@ -1179,6 +1180,7 @@ private:
                 TWriteContext context;
                 context.Phase = EWritePhase::Commit;
                 context.CommitTimestamp = TimestampFromTransactionId(transactionId);
+                const auto& storeManager = tablet->GetStoreManager();
                 YCHECK(storeManager->ExecuteWrites(&reader, &context));
 
                 LOG_DEBUG("Non-atomic rows committed (TransactionId: %v, TabletId: %v, "
@@ -1223,6 +1225,7 @@ private:
 
         auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
+            // Same as above.
             return;
         }
 
@@ -1875,7 +1878,7 @@ private:
             prelockedRowCount);
     }
 
-    void OnTransactionCommitted(TTransaction* transaction)
+    void OnTransactionCommitted(TTransaction* transaction) noexcept
     {
         YCHECK(transaction->PrelockedRows().empty());
         auto& lockedRows = transaction->LockedRows();
@@ -1924,7 +1927,7 @@ private:
         CheckIfAnyTabletFullyUnlocked();
     }
 
-    void OnTransactionSerialized(TTransaction* transaction)
+    void OnTransactionSerialized(TTransaction* transaction) noexcept
     {
         YCHECK(transaction->PrelockedRows().empty());
         YCHECK(transaction->LockedRows().empty());
