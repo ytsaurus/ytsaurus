@@ -414,7 +414,7 @@ class TestMedia(YTEnvSetup):
                 assert replication_status[medium]["lost"]
                 assert replication_status[medium]["data_missing"]
                 assert replication_status[medium]["parity_missing"]
-                len(lvc) != 1
+                len(lvc) != 0
 
     def _ban_nodes(self, nodes):
         banned = False
