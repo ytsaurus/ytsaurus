@@ -303,6 +303,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/snapshot_builder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/snapshot_downloader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/sort_controller.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/sorted_chunk_pool.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/security_server/account.cpp
   ${CMAKE_CURRENT_LIST_DIR}/security_server/account_proxy.cpp
