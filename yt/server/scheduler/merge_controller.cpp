@@ -1,4 +1,5 @@
 #include "merge_controller.h"
+#include "sorted_controller.h"
 #include "private.h"
 #include "chunk_list_pool.h"
 #include "chunk_pool.h"
@@ -14,7 +15,7 @@
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/chunk_slices_fetcher.h>
+#include <yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 
 #include <yt/core/concurrency/periodic_yielder.h>
@@ -1164,11 +1165,11 @@ DEFINE_ENUM(EEndpointType,
 );
 
 //! Handles sorted merge and reduce operations.
-class TSortedMergeControllerBase
+class TLegacySortedMergeControllerBase
     : public TMergeControllerBase
 {
 public:
-    TSortedMergeControllerBase(
+    TLegacySortedMergeControllerBase(
         TSchedulerConfigPtr config,
         TSimpleOperationSpecBasePtr spec,
         TSortedMergeOperationOptionsPtr options,
@@ -1199,7 +1200,7 @@ protected:
         { }
 
         TManiacTask(
-            TSortedMergeControllerBase* controller,
+            TLegacySortedMergeControllerBase* controller,
             int taskIndex,
             int partitionIndex)
             : TMergeTask(controller, taskIndex, partitionIndex)
@@ -1217,7 +1218,7 @@ protected:
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TManiacTask, 0xb3ed19a2);
 
-        TSortedMergeControllerBase* Controller;
+        TLegacySortedMergeControllerBase* Controller;
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
@@ -1258,7 +1259,7 @@ protected:
     //! The actual (adjusted) key columns.
     std::vector<Stroka> SortKeyColumns;
 
-    TChunkSliceFetcherPtr ChunkSliceFetcher;
+    IChunkSliceFetcherPtr ChunkSliceFetcher;
 
     TJobSpec ManiacJobSpecTemplate;
 
@@ -1302,7 +1303,7 @@ protected:
                 Logger);
         }
 
-        ChunkSliceFetcher = New<TChunkSliceFetcher>(
+        ChunkSliceFetcher = CreateChunkSliceFetcher(
             Config->Fetcher,
             ChunkSliceSize,
             SortKeyColumns,
@@ -1418,28 +1419,28 @@ protected:
     { }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeControllerBase::TManiacTask);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacySortedMergeControllerBase::TManiacTask);
 
 ////////////////////////////////////////////////////////////////////
 
-class TSortedMergeController
-    : public TSortedMergeControllerBase
+class TLegacySortedMergeController
+    : public TLegacySortedMergeControllerBase
 {
 public:
-    TSortedMergeController(
+    TLegacySortedMergeController(
         TSchedulerConfigPtr config,
         TSortedMergeOperationSpecPtr spec,
         TSortedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedMergeControllerBase(config, spec, options, host, operation)
+        : TLegacySortedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedMerge, spec->JobProxyMemoryDigest);
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController, 0xbc6daa18);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TLegacySortedMergeController, 0xbc6daa18);
 
     TSortedMergeOperationSpecPtr Spec;
 
@@ -1744,7 +1745,7 @@ private:
     virtual void PrepareOutputTables() override
     {
         // Check that all input tables are sorted by the same key columns.
-        TSortedMergeControllerBase::PrepareOutputTables();
+        TLegacySortedMergeControllerBase::PrepareOutputTables();
 
         auto& table = OutputTables[0];
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
@@ -1823,7 +1824,7 @@ private:
     }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacySortedMergeController);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -1847,12 +1848,17 @@ IOperationControllerPtr CreateMergeController(
                 operation);
         }
         case EMergeMode::Sorted: {
-            return New<TSortedMergeController>(
-                config,
-                ParseOperationSpec<TSortedMergeOperationSpec>(spec),
-                config->SortedMergeOperationOptions,
-                host,
-                operation);
+            auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(spec);
+            if (legacySpec->UseLegacyController) {
+                return New<TLegacySortedMergeController>(
+                    config,
+                    ParseOperationSpec<TSortedMergeOperationSpec>(spec),
+                    config->SortedMergeOperationOptions,
+                    host,
+                    operation);
+            } else {
+                return CreateSortedMergeController(config, host, operation);
+            }
         }
         default:
             Y_UNREACHABLE();
@@ -1861,23 +1867,23 @@ IOperationControllerPtr CreateMergeController(
 
 ////////////////////////////////////////////////////////////////////
 
-class TReduceControllerBase
-    : public TSortedMergeControllerBase
+class TLegacyReduceControllerBase
+    : public TLegacySortedMergeControllerBase
 {
 public:
-    TReduceControllerBase(
+    TLegacyReduceControllerBase(
         TSchedulerConfigPtr config,
         TReduceOperationSpecBasePtr spec,
         TReduceOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedMergeControllerBase(config, spec, options, host, operation)
+        : TLegacySortedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
     { }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
-        TSortedMergeControllerBase::BuildBriefSpec(consumer);
+        TLegacySortedMergeControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)
             .Item("reducer").BeginMap()
                 .Item("command").Value(TrimCommandForBriefSpec(Spec->Reducer->Command))
@@ -1887,7 +1893,7 @@ public:
     // Persistence.
     virtual void Persist(const TPersistenceContext& context) override
     {
-        TSortedMergeControllerBase::Persist(context);
+        TLegacySortedMergeControllerBase::Persist(context);
 
         using NYT::Persist;
         Persist(context, StartRowIndex);
@@ -1919,7 +1925,7 @@ protected:
 
     virtual void DoInitialize() override
     {
-        TSortedMergeControllerBase::DoInitialize();
+        TLegacySortedMergeControllerBase::DoInitialize();
 
         int teleportOutputCount = 0;
         for (int i = 0; i < static_cast<int>(OutputTables.size()); ++i) {
@@ -1999,7 +2005,7 @@ protected:
             }
         }
 
-        TSortedMergeControllerBase::AddPendingDataSlice(dataSlice);
+        TLegacySortedMergeControllerBase::AddPendingDataSlice(dataSlice);
     }
 
     virtual void EndTaskIfActive() override
@@ -2048,7 +2054,7 @@ protected:
         CurrentTaskMinForeignKey = TKey();
         CurrentTaskMaxForeignKey = TKey();
 
-        TSortedMergeControllerBase::EndTaskIfActive();
+        TLegacySortedMergeControllerBase::EndTaskIfActive();
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -2181,16 +2187,16 @@ protected:
 
 ////////////////////////////////////////////////////////////////////
 
-class TReduceController
-    : public TReduceControllerBase
+class TLegacyReduceController
+    : public TLegacyReduceControllerBase
 {
 public:
-    TReduceController(
+    TLegacyReduceController(
         TSchedulerConfigPtr config,
         TReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TReduceControllerBase(config, spec, config->ReduceOperationOptions, host, operation)
+        : TLegacyReduceControllerBase(config, spec, config->ReduceOperationOptions, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->JobProxyMemoryDigest);
@@ -2200,17 +2206,17 @@ public:
     // Persistence.
     virtual void Persist(const TPersistenceContext& context) override
     {
-        TReduceControllerBase::Persist(context);
+        TLegacyReduceControllerBase::Persist(context);
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceController, 0xacd16dbc);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TLegacyReduceController, 0xacd16dbc);
 
     TReduceOperationSpecPtr Spec;
 
     virtual void DoInitialize() override
     {
-        TReduceControllerBase::DoInitialize();
+        TLegacyReduceControllerBase::DoInitialize();
 
         int foreignInputCount = 0;
         for (auto& table : InputTables) {
@@ -2274,7 +2280,7 @@ private:
     virtual bool IsTeleportCandidate(TInputChunkPtr chunkSpec) const override
     {
         return
-            TSortedMergeControllerBase::IsTeleportCandidate(chunkSpec) &&
+            TLegacySortedMergeControllerBase::IsTeleportCandidate(chunkSpec) &&
             InputTables[chunkSpec->GetTableIndex()].Path.GetTeleport();
     }
 
@@ -2502,29 +2508,29 @@ private:
     }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceController);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyReduceController);
 
-IOperationControllerPtr CreateReduceController(
+IOperationControllerPtr CreateLegacyReduceController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TReduceOperationSpec>(operation->GetSpec());
-    return New<TReduceController>(config, spec, host, operation);
+    return New<TLegacyReduceController>(config, spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////
 
-class TJoinReduceController
-    : public TReduceControllerBase
+class TLegacyJoinReduceController
+    : public TLegacyReduceControllerBase
 {
 public:
-    TJoinReduceController(
+    TLegacyJoinReduceController(
         TSchedulerConfigPtr config,
         TJoinReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TReduceControllerBase(config, spec, config->JoinReduceOperationOptions, host, operation)
+        : TLegacyReduceControllerBase(config, spec, config->JoinReduceOperationOptions, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::JoinReduce, spec->JobProxyMemoryDigest);
@@ -2534,17 +2540,17 @@ public:
     // Persistence.
     virtual void Persist(const TPersistenceContext& context) override
     {
-        TReduceControllerBase::Persist(context);
+        TLegacyReduceControllerBase::Persist(context);
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TJoinReduceController, 0xc0fd3095);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TLegacyJoinReduceController, 0xc0fd3095);
 
     TJoinReduceOperationSpecPtr Spec;
 
     virtual void DoInitialize() override
     {
-        TReduceControllerBase::DoInitialize();
+        TLegacyReduceControllerBase::DoInitialize();
 
         if (InputTables.size() < 2) {
             THROW_ERROR_EXCEPTION("At least two input tables are required");
@@ -2651,15 +2657,15 @@ private:
     }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceController);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyJoinReduceController);
 
-IOperationControllerPtr CreateJoinReduceController(
+IOperationControllerPtr CreateLegacyJoinReduceController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TJoinReduceOperationSpec>(operation->GetSpec());
-    return New<TJoinReduceController>(config, spec, host, operation);
+    return New<TLegacyJoinReduceController>(config, spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////

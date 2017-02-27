@@ -7,27 +7,17 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IOperationControllerPtr CreateOrderedMapController(
+IOperationControllerPtr CreateSortedMergeController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation);
 
-IOperationControllerPtr CreateMergeController(
+IOperationControllerPtr CreateSortedReduceController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation);
 
-IOperationControllerPtr CreateEraseController(
-    TSchedulerConfigPtr config,
-    IOperationHost* host,
-    TOperation* operation);
-
-IOperationControllerPtr CreateLegacyReduceController(
-    TSchedulerConfigPtr config,
-    IOperationHost* host,
-    TOperation* operation);
-
-IOperationControllerPtr CreateLegacyJoinReduceController(
+IOperationControllerPtr CreateJoinReduceController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation);

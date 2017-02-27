@@ -288,6 +288,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/map_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/master_connector.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/merge_controller.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/sorted_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/node_shard.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/operation.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/operation_controller_detail.cpp
