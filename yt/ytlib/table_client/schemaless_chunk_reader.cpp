@@ -192,8 +192,8 @@ protected:
             }
         }
         YCHECK(upperRowIndex <= misc.row_count());
-        YCHECK(rowIndex >= lowerRowIndex && rowIndex <= upperRowIndex);
-        if (rowIndex == upperRowIndex) {
+        YCHECK(rowIndex >= lowerRowIndex);
+        if (rowIndex >= upperRowIndex) {
             return unreadDescriptors;
         }
 
