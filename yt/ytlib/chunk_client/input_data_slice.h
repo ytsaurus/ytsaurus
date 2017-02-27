@@ -22,8 +22,8 @@ struct TInputDataSlice
 public:
     using TChunkSliceList = SmallVector<TInputChunkSlicePtr, 1>;
 
-    DEFINE_BYREF_RO_PROPERTY(TInputSliceLimit, LowerLimit);
-    DEFINE_BYREF_RO_PROPERTY(TInputSliceLimit, UpperLimit);
+    DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, LowerLimit);
+    DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, UpperLimit);
 
 public:
     TInputDataSlice() = default;
@@ -42,8 +42,11 @@ public:
 
     void Persist(NTableClient::TPersistenceContext& context);
 
-    // Check that data slice is an old single-chunk slice. Used for compatibility.
+    //! Check that data slice is an old single-chunk slice. Used for compatibility.
     bool IsTrivial() const;
+
+    //! Check that lower limit >= upper limit, i.e. that slice must be empty.
+    bool IsEmpty() const;
 
     TInputChunkPtr GetSingleUnversionedChunkOrThrow() const;
 
@@ -79,9 +82,13 @@ TInputDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkSlicePtr chunkSlic
 TInputDataSlicePtr CreateVersionedInputDataSlice(
     const std::vector<TInputChunkSlicePtr>& inputChunks);
 
+void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const NTableClient::TRowBufferPtr& rowBuffer);
+
 TNullable<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool checkParityParts);
 bool CompareDataSlicesByLowerLimit(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& slice2);
 bool CanMergeSlices(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& slice2);
+
+bool DataSliceIsSuffix(const TInputDataSlicePtr& suffixSlice, const TInputDataSlicePtr& fullSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 

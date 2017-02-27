@@ -105,6 +105,11 @@ public:
             : 1;
     }
 
+    virtual i64 GetMaxPrimaryDataSlicesPerJob() const override
+    {
+        return Options_->MaxPrimaryDataSlicesPerJob;
+    }
+
     virtual i64 GetMaxChunkStripesPerJob() const override
     {
         return Options_->MaxChunkStripesPerJob;
@@ -211,6 +216,11 @@ public:
         return JobCount_ > 0
             ? DivCeil(InputDataSize_, JobCount_)
             : 1;
+    }
+
+    virtual i64 GetMaxPrimaryDataSlicesPerJob() const override
+    {
+        return Options_->MaxPrimaryDataSlicesPerJob;
     }
 
     virtual i64 GetMaxChunkStripesPerJob() const override
@@ -341,6 +351,11 @@ public:
             : 1;
     }
 
+    virtual i64 GetMaxPrimaryDataSlicesPerJob() const override
+    {
+        return Options_->MaxPrimaryDataSlicesPerJob;
+    }
+
     virtual i64 GetMaxChunkStripesPerJob() const override
     {
         return Options_->MaxChunkStripesPerJob;
@@ -406,6 +421,104 @@ DEFINE_REFCOUNTED_TYPE(TPartitionJobSizeConstraints)
 
 ////////////////////////////////////////////////////////////////////
 
+class TExplicitJobSizeConstraints
+    : public IJobSizeConstraints
+{
+public:
+    //! Used only for persistence.
+    TExplicitJobSizeConstraints()
+    { }
+
+    TExplicitJobSizeConstraints(
+        bool canAdjustDataSizePerJob,
+        bool isExplicitJobCount,
+        int jobCount,
+        i64 dataSizePerJob,
+        i64 maxDataSlicesPerJob,
+        i64 maxDataSizePerJob,
+        i64 inputSliceDataSize,
+        i64 inputSliceRowCount)
+        : CanAdjustDataSizePerJob_(canAdjustDataSizePerJob)
+        , IsExplicitJobCount_(isExplicitJobCount)
+        , JobCount_(jobCount)
+        , DataSizePerJob_(dataSizePerJob)
+        , MaxDataSlicesPerJob_(maxDataSlicesPerJob)
+        , MaxDataSizePerJob_(maxDataSizePerJob)
+        , InputSliceDataSize_(inputSliceDataSize)
+        , InputSliceRowCount_(inputSliceRowCount)
+    { }
+
+    virtual bool CanAdjustDataSizePerJob() const override
+    {
+        return CanAdjustDataSizePerJob_;
+    }
+
+    virtual bool IsExplicitJobCount() const override
+    {
+        return IsExplicitJobCount_;
+    }
+
+    virtual int GetJobCount() const override
+    {
+        return JobCount_;
+    }
+
+    virtual i64 GetDataSizePerJob() const override
+    {
+        return DataSizePerJob_;
+    }
+
+    virtual i64 GetMaxDataSlicesPerJob() const override
+    {
+        return MaxDataSlicesPerJob_;
+    }
+
+    virtual i64 GetMaxDataSizePerJob() const override
+    {
+        return MaxDataSizePerJob_;
+    }
+
+    virtual i64 GetInputSliceDataSize() const override
+    {
+        return InputSliceDataSize_;
+    }
+
+    virtual i64 GetInputSliceRowCount() const override
+    {
+        return InputSliceRowCount_;
+    }
+
+    virtual void Persist(const NPhoenix::TPersistenceContext& context) override
+    {
+        using NYT::Persist;
+        Persist(context, CanAdjustDataSizePerJob_);
+        Persist(context, IsExplicitJobCount_);
+        Persist(context, JobCount_);
+        Persist(context, DataSizePerJob_);
+        Persist(context, MaxDataSlicesPerJob_);
+        Persist(context, MaxDataSizePerJob_);
+        Persist(context, InputSliceDataSize_);
+        Persist(context, InputSliceRowCount_);
+    }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TExplicitJobSizeConstraints, 0xab6bc389);
+
+    bool CanAdjustDataSizePerJob_;
+    bool IsExplicitJobCount_;
+    int JobCount_;
+    i64 DataSizePerJob_;
+    i64 MaxDataSlicesPerJob_;
+    i64 MaxDataSizePerJob_;
+    i64 InputSliceDataSize_;
+    i64 InputSliceRowCount_;
+};
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TExplicitJobSizeConstraints);
+DEFINE_REFCOUNTED_TYPE(TExplicitJobSizeConstraints);
+
+////////////////////////////////////////////////////////////////////
+
 IJobSizeConstraintsPtr CreateSimpleJobSizeConstraints(
     const TSimpleOperationSpecBasePtr& spec,
     const TSimpleOperationOptionsPtr& options,
@@ -432,6 +545,28 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
 {
     return New<TPartitionJobSizeConstraints>(spec, options, inputDataSize, inputRowCount, compressionRatio);
 }
+
+IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
+    bool canAdjustDataSizePerJob,
+    bool isExplicitJobCount,
+    int jobCount,
+    i64 dataSizePerJob,
+    i64 maxDataSlicesPerJob,
+    i64 maxDataSizePerJob,
+    i64 inputSliceDataSize,
+    i64 inputSliceRowCount)
+{
+    return New<TExplicitJobSizeConstraints>(
+        canAdjustDataSizePerJob,
+        isExplicitJobCount,
+        jobCount,
+        dataSizePerJob,
+        maxDataSlicesPerJob,
+        maxDataSizePerJob,
+        inputSliceDataSize,
+        inputSliceRowCount);
+}
+
 
 ////////////////////////////////////////////////////////////////////
 
@@ -643,6 +778,13 @@ Stroka MakeOperationCodicilString(const TOperationId& operationId)
 TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId)
 {
     return TCodicilGuard(MakeOperationCodicilString(operationId));
+}
+
+////////////////////////////////////////////////////////////////////
+
+Stroka TLockedUserObject::GetPath() const
+{
+    return FromObjectId(ObjectId);
 }
 
 ////////////////////////////////////////////////////////////////////

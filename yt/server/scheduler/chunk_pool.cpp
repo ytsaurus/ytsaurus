@@ -4,7 +4,6 @@
 #include "private.h"
 
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
-
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
@@ -110,6 +109,13 @@ int TChunkStripe::GetChunkCount() const
     return result;
 }
 
+int TChunkStripe::GetTableIndex() const
+{
+    YCHECK(!DataSlices.empty());
+    YCHECK(!DataSlices.front()->ChunkSlices.empty());
+    return DataSlices.front()->ChunkSlices.front()->GetInputChunk()->GetTableIndex();
+}
+
 void TChunkStripe::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -153,6 +159,10 @@ TChunkStripeStatisticsVector AggregateStatistics(
 
 ////////////////////////////////////////////////////////////////////
 
+TChunkStripeList::TChunkStripeList(int stripeCount)
+    : Stripes(stripeCount)
+{ }
+
 TChunkStripeStatisticsVector TChunkStripeList::GetStatistics() const
 {
     TChunkStripeStatisticsVector result;
@@ -192,148 +202,203 @@ void TChunkStripeList::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////
 
-class TChunkPoolInputBase
-    : public virtual IChunkPoolInput
+bool TInputTable::IsForeign() const
 {
-public:
-    // IChunkPoolInput implementation.
+    return Path.GetForeign();
+}
 
-    virtual void Finish() override
-    {
-        Finished = true;
-    }
+bool TInputTable::IsPrimary() const
+{
+    return !IsForeign();
+}
 
-    // IPersistent implementation.
+void TInputTable::Persist(const TPersistenceContext& context)
+{
+    TUserObject::Persist(context);
 
-    virtual void Persist(const TPersistenceContext& context) override
-    {
-        using NYT::Persist;
-        Persist(context, Finished);
-    }
-
-protected:
-    bool Finished = false;
-};
+    using NYT::Persist;
+    Persist(context, ChunkCount);
+    Persist(context, Chunks);
+    Persist(context, Schema);
+    Persist(context, SchemaMode);
+    Persist(context, IsDynamic);
+}
 
 ////////////////////////////////////////////////////////////////////
 
-class TSuspendableStripe
+void TChunkPoolInputBase::Finish()
 {
-public:
-    DEFINE_BYVAL_RW_PROPERTY(IChunkPoolOutput::TCookie, ExtractedCookie);
+    Finished = true;
+}
 
-public:
-    TSuspendableStripe()
-        : ExtractedCookie_(IChunkPoolOutput::NullCookie)
-    { }
-
-    explicit TSuspendableStripe(TChunkStripePtr stripe)
-        : ExtractedCookie_(IChunkPoolOutput::NullCookie)
-        , Stripe(std::move(stripe))
-        , Statistics(Stripe->GetStatistics())
-    { }
-
-    const TChunkStripePtr& GetStripe() const
-    {
-        return Stripe;
-    }
-
-    const TChunkStripeStatistics& GetStatistics() const
-    {
-        return Statistics;
-    }
-
-    void Suspend()
-    {
-        YCHECK(Stripe);
-        YCHECK(!Suspended);
-
-        Suspended = true;
-    }
-
-    bool IsSuspended() const
-    {
-        return Suspended;
-    }
-
-    void Resume(TChunkStripePtr stripe)
-    {
-        YCHECK(Stripe);
-        YCHECK(Suspended);
-
-        // NB: do not update statistics on resume to preserve counters.
-        Suspended = false;
-        Stripe = stripe;
-    }
-
-    void Persist(const TPersistenceContext& context)
-    {
-        using NYT::Persist;
-        Persist(context, ExtractedCookie_);
-        Persist(context, Stripe);
-        Persist(context, Suspended);
-        Persist(context, Statistics);
-    }
-
-private:
-    TChunkStripePtr Stripe;
-    bool Suspended = false;
-    TChunkStripeStatistics Statistics;
-};
+void TChunkPoolInputBase::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Finished);
+}
 
 ////////////////////////////////////////////////////////////////////
 
-class TChunkPoolOutputBase
-    : public virtual IChunkPoolOutput
+TSuspendableStripe::TSuspendableStripe()
+    : ExtractedCookie_(IChunkPoolOutput::NullCookie)
+{ }
+
+TSuspendableStripe::TSuspendableStripe(TChunkStripePtr stripe)
+    : ExtractedCookie_(IChunkPoolOutput::NullCookie)
+    , Stripe_(std::move(stripe))
+    , OriginalStripe_(Stripe_)
+    , Statistics_(Stripe_->GetStatistics())
+{ }
+
+const TChunkStripePtr& TSuspendableStripe::GetStripe() const
 {
-public:
-    TChunkPoolOutputBase()
-        : DataSizeCounter(0)
-        , RowCounter(0)
-    { }
+    return Stripe_;
+}
 
-    // IChunkPoolOutput implementation.
+const TChunkStripeStatistics& TSuspendableStripe::GetStatistics() const
+{
+    return Statistics_;
+}
 
-    virtual i64 GetTotalDataSize() const override
-    {
-        return DataSizeCounter.GetTotal();
+void TSuspendableStripe::Suspend()
+{
+    YCHECK(Stripe_);
+    YCHECK(!Suspended_);
+
+    Suspended_ = true;
+}
+
+bool TSuspendableStripe::IsSuspended() const
+{
+    return Suspended_;
+}
+
+void TSuspendableStripe::Resume(TChunkStripePtr stripe)
+{
+    YCHECK(Stripe_);
+    YCHECK(Suspended_);
+
+    // NB: do not update statistics on resume to preserve counters.
+    Suspended_ = false;
+    Stripe_ = stripe;
+}
+
+yhash_map<TInputChunkPtr, TInputChunkPtr> TSuspendableStripe::ResumeAndBuildChunkMapping(TChunkStripePtr stripe)
+{
+    YCHECK(Stripe_);
+    YCHECK(Suspended_);
+
+    yhash_map<TInputChunkPtr, TInputChunkPtr> mapping;
+
+    // COMPAT(max42): rewrite code below using data slice ids when YT-6546 is merged.
+    // Our goal is to restore the correspondence between the old data slices and new data slices
+    // in order to be able to substitute old references to input chunks in newly created jobs with current
+    // ones.
+
+    // We suppose that the new stripe consists of data slices of the subset of original chunks following
+    // in the same order, and each particular data slice may only be shortened by taking its suffix
+    // (as happens during the job interruption). If some of the new data slices can not be matched
+    // with any of the original slices according to the rules above, this function fails with YCHECK.
+    auto addToMapping = [&mapping] (const TInputDataSlicePtr& originalDataSlice, const TInputDataSlicePtr& newDataSlice) {
+        YCHECK(!newDataSlice || originalDataSlice->ChunkSlices.size() == newDataSlice->ChunkSlices.size());
+        for (int index = 0; index < originalDataSlice->ChunkSlices.size(); ++index) {
+            mapping[originalDataSlice->ChunkSlices[index]->GetInputChunk()] = newDataSlice
+                ? newDataSlice->ChunkSlices[index]->GetInputChunk()
+                : nullptr;
+        }
+    };
+
+    int originalIndex = 0;
+    for (const auto& dataSlice : stripe->DataSlices) {
+        // We iterate over original data slices seeking for the original data slice such that
+        // the new `dataSlice` is its suffix.
+        while (originalIndex != OriginalStripe_->DataSlices.size() &&
+            !DataSliceIsSuffix(dataSlice, OriginalStripe_->DataSlices[originalIndex]))
+        {
+            // All original data slices that we skip are matched with nullptr.
+            addToMapping(OriginalStripe_->DataSlices[originalIndex++], nullptr);
+        }
+        // Contrary would mean that the new data slice does not have a corresponding original one.
+        YCHECK(originalIndex != OriginalStripe_->DataSlices.size());
+        addToMapping(OriginalStripe_->DataSlices[originalIndex++], dataSlice);
+    }
+    // Match the remaining original stripes with nullptr.
+    while (originalIndex != OriginalStripe_->DataSlices.size()) {
+        addToMapping(OriginalStripe_->DataSlices[originalIndex++], nullptr);
     }
 
-    virtual i64 GetRunningDataSize() const override
-    {
-        return DataSizeCounter.GetRunning();
-    }
+    // NB: do not update statistics on resume to preserve counters.
+    Suspended_ = false;
+    Stripe_ = stripe;
 
-    virtual i64 GetCompletedDataSize() const override
-    {
-        return DataSizeCounter.GetCompleted();
-    }
+    return mapping;
+}
 
-    virtual i64 GetPendingDataSize() const override
-    {
-        return DataSizeCounter.GetPending();
-    }
+void TSuspendableStripe::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, ExtractedCookie_);
+    Persist(context, Stripe_);
+    Persist(context, OriginalStripe_);
+    Persist(context, Teleport_);
+    Persist(context, Suspended_);
+    Persist(context, Statistics_);
+}
 
-    virtual i64 GetTotalRowCount() const override
-    {
-        return RowCounter.GetTotal();
-    }
+////////////////////////////////////////////////////////////////////
 
-    // IPersistent implementation.
 
-    virtual void Persist(const TPersistenceContext& context) override
-    {
-        using NYT::Persist;
-        Persist(context, DataSizeCounter);
-        Persist(context, RowCounter);
-        Persist(context, JobCounter);
-    }
+TChunkPoolOutputBase::TChunkPoolOutputBase()
+    : DataSizeCounter(0)
+    , RowCounter(0)
+{ }
 
-protected:
-    TProgressCounter DataSizeCounter;
-    TProgressCounter RowCounter;
-    TProgressCounter JobCounter;
-};
+// IChunkPoolOutput implementation.
+
+i64 TChunkPoolOutputBase::GetTotalDataSize() const
+{
+    return DataSizeCounter.GetTotal();
+}
+
+i64 TChunkPoolOutputBase::GetRunningDataSize() const
+{
+    return DataSizeCounter.GetRunning();
+}
+
+i64 TChunkPoolOutputBase::GetCompletedDataSize() const
+{
+    return DataSizeCounter.GetCompleted();
+}
+
+i64 TChunkPoolOutputBase::GetPendingDataSize() const
+{
+    return DataSizeCounter.GetPending();
+}
+
+i64 TChunkPoolOutputBase::GetTotalRowCount() const
+{
+    return RowCounter.GetTotal();
+}
+
+const TProgressCounter& TChunkPoolOutputBase::GetJobCounter() const
+{
+    return JobCounter;
+}
+
+// IPersistent implementation.
+
+void TChunkPoolOutputBase::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, DataSizeCounter);
+    Persist(context, RowCounter);
+    Persist(context, JobCounter);
+}
+
+const std::vector<TInputChunkPtr>& TChunkPoolOutputBase::GetTeleportChunks() const
+{
+    return TeleportChunks_;
+}
 
 ////////////////////////////////////////////////////////////////////
 
@@ -432,11 +497,6 @@ public:
             DataSizeCounter.GetPending() > 0 &&
             HasPrimaryStripes
             ? 1 : 0;
-    }
-
-    virtual const TProgressCounter& GetJobCounter() const override
-    {
-        return JobCounter;
     }
 
     virtual i64 GetLocality(TNodeId nodeId) const override
@@ -733,11 +793,6 @@ public:
         }
 
         return freePendingJobCount;
-    }
-
-    virtual const TProgressCounter& GetJobCounter() const override
-    {
-        return JobCounter;
     }
 
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
@@ -1504,11 +1559,6 @@ private:
             return static_cast<int>(PendingRuns.size());
         }
 
-        virtual const TProgressCounter& GetJobCounter() const override
-        {
-            return JobCounter;
-        }
-
         virtual i64 GetLocality(TNodeId /*nodeId*/) const override
         {
             Y_UNREACHABLE();
@@ -1735,6 +1785,50 @@ std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
     return std::unique_ptr<IShuffleChunkPool>(new TShuffleChunkPool(
         partitionCount,
         dataSizeThreshold));
+}
+
+////////////////////////////////////////////////////////////////////
+
+TDataSource::TDataSource()
+{ }
+
+TDataSource::TDataSource(bool isTeleportable, bool isPrimary, bool isVersioned)
+    : IsTeleportable_(isTeleportable)
+    , IsPrimary_(isPrimary)
+    , IsVersioned_(isVersioned)
+{ }
+
+bool TDataSource::IsTeleportable() const
+{
+    return IsTeleportable_;
+}
+
+bool TDataSource::IsForeign() const
+{
+    return !IsPrimary_;
+}
+
+bool TDataSource::IsPrimary() const
+{
+    return IsPrimary_;
+}
+
+bool TDataSource::IsVersioned() const
+{
+    return IsVersioned_;
+}
+
+bool TDataSource::IsUnversioned() const
+{
+    return !IsVersioned_;
+}
+
+void TDataSource::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, IsTeleportable_);
+    Persist(context, IsPrimary_);
+    Persist(context, IsVersioned_);
 }
 
 ////////////////////////////////////////////////////////////////////

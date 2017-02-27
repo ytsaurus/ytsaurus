@@ -83,6 +83,11 @@ bool TInputDataSlice::IsTrivial() const
     return Type == EDataSourceType::UnversionedTable && ChunkSlices.size() == 1;
 }
 
+bool TInputDataSlice::IsEmpty() const
+{
+    return LowerLimit_.Key >= UpperLimit_.Key;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TInputDataSlicePtr& dataSlice)
@@ -201,6 +206,16 @@ TInputDataSlicePtr CreateInputDataSlice(
         std::move(upperLimit));
 }
 
+void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const TRowBufferPtr& rowBuffer)
+{
+    for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+        if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
+            dataSlice->LowerLimit().MergeLowerKey(TOwningKey(boundaryKeys->MinKey));
+            dataSlice->UpperLimit().MergeUpperKey(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer));
+        }
+    }
+}
+
 TNullable<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool checkParityParts)
 {
     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
@@ -266,6 +281,30 @@ bool CanMergeSlices(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& 
         return true;
     }
     return false;
+}
+
+bool DataSliceIsSuffix(const TInputDataSlicePtr& suffixSlice, const TInputDataSlicePtr& fullSlice)
+{
+    if (suffixSlice->Type != fullSlice->Type) {
+        return false;
+    }
+    if (CompareLimits(suffixSlice->UpperLimit(), fullSlice->UpperLimit()) != 0) {
+        return false;
+    }
+    if (CompareLimits(suffixSlice->LowerLimit(), fullSlice->LowerLimit()) == -1) {
+        return false;
+    }
+
+    if (suffixSlice->Type != EDataSourceType::VersionedTable) {
+        // We need to additionally check that slices correspond to same unversioned chunk because both
+        // slices may contain the same maniac key.
+        auto suffixChunk = suffixSlice->GetSingleUnversionedChunkOrThrow();
+        auto fullChunk = fullSlice->GetSingleUnversionedChunkOrThrow();
+        if (suffixChunk->GetTableRowIndex() != fullChunk->GetTableRowIndex()) {
+            return false;
+        }
+    }
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

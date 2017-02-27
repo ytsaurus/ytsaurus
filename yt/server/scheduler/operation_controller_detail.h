@@ -273,9 +273,10 @@ protected:
     i64 TotalEstimatedCompressedDataSize = 0;
     i64 TotalEstimatedInputDataSize = 0;
 
-    // Total uncompressed data size for primary tables.
+    // Total uncompressed data size for input tables.
     // Used only during preparation, not persisted.
     i64 PrimaryInputDataSize = 0;
+    i64 ForeignInputDataSize = 0;
 
     int ChunkLocatedCallCount = 0;
     int UnavailableInputChunkCount = 0;
@@ -312,42 +313,7 @@ protected:
         void Persist(const TPersistenceContext& context);
     };
 
-    //! Common pattern in scheduler is to lock input object and
-    //! then request attributes of this object by id.
-    struct TLockedUserObject
-        : public NChunkClient::TUserObject
-    {
-        virtual Stroka GetPath() const override
-        {
-            return NObjectClient::FromObjectId(ObjectId);
-        }
-    };
-
-    struct TInputTable
-        : public TLockedUserObject
-    {
-        //! Number of chunks in the whole table (without range selectors).
-        int ChunkCount = -1;
-        std::vector<NChunkClient::TInputChunkPtr> Chunks;
-        NTableClient::TTableSchema Schema;
-        NTableClient::ETableSchemaMode SchemaMode;
-        bool IsDynamic;
-
-        bool IsForeign() const
-        {
-            return Path.GetForeign();
-        }
-
-        bool IsPrimary() const
-        {
-            return !IsForeign();
-        }
-
-        void Persist(const TPersistenceContext& context);
-    };
-
     std::vector<TInputTable> InputTables;
-
 
     struct TJobBoundaryKeys
     {
