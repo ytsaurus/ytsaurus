@@ -116,7 +116,8 @@ private:
     TTimestamp MajorTimestamp_;
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
-    bool Started_;
+    bool Started_ = false;
+
     SmallVector<TUnversionedValue, TypicalColumnCount> Keys_;
 
     std::vector<TVersionedValue> PartialValues_;
@@ -125,8 +126,6 @@ private:
 
     std::vector<TTimestamp> WriteTimestamps_;
     std::vector<TTimestamp> DeleteTimestamps_;
-
-    bool Started_ = false;
 
     void Cleanup();
 };
