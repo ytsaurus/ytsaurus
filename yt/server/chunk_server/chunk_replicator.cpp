@@ -387,7 +387,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         int replicaIndex = replica.GetReplicaIndex();
         int mediumIndex = replica.GetMediumIndex();
         auto& mediumStatistics = result.PerMediumStatistics[mediumIndex];
-        if (IsReplicaDecommissioned(replica) || node->GetVisitMark() == mark) {
+        if (IsReplicaDecommissioned(replica) || node->GetVisitMark(mediumIndex) == mark) {
             ++mediumStatistics.DecommissionedReplicaCount[replicaIndex];
             decommissionedReplicas[mediumIndex][replicaIndex].push_back(replica);
             ++totalDecommissionedReplicaCounts[mediumIndex];
@@ -395,7 +395,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
             ++mediumStatistics.ReplicaCount[replicaIndex];
             ++totalReplicaCounts[mediumIndex];
         }
-        node->SetVisitMark(mark);
+        node->SetVisitMark(mediumIndex, mark);
         const auto* rack = node->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();

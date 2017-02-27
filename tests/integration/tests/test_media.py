@@ -4,7 +4,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 import copy
-
+import __builtin__
 
 from time import sleep
 
@@ -274,7 +274,7 @@ class TestMedia(YTEnvSetup):
         write_table("//tmp/t8", {"a" : "b"})
 
         tbl_media = get("//tmp/t8/@media")
-        # Forcing chunks to be placed on twice on one node (once for each medium) by making
+        # Forcing chunks to be placed twice on one node (once for each medium) by making
         # replication factor equal to the number of nodes.
         tbl_media["default"]["replication_factor"] = TestMedia.NUM_NODES
         tbl_media[TestMedia.NON_DEFAULT_MEDIUM] = {"replication_factor": TestMedia.NUM_NODES, "data_parts_only": False}
@@ -285,7 +285,7 @@ class TestMedia(YTEnvSetup):
         assert get("//tmp/t8/@media/default/replication_factor") == TestMedia.NUM_NODES
         assert get("//tmp/t8/@media/{}/replication_factor".format(TestMedia.NON_DEFAULT_MEDIUM)) == TestMedia.NUM_NODES
 
-        sleep(60.0)
+        sleep(TestMedia.REPLICATOR_REACTION_TIME)
 
         assert self._count_chunks_on_medium("t8", "default") == TestMedia.NUM_NODES
         assert self._count_chunks_on_medium("t8", TestMedia.NON_DEFAULT_MEDIUM) == TestMedia.NUM_NODES
@@ -313,6 +313,116 @@ class TestMedia(YTEnvSetup):
         assert get("//sys/media/hdd5/@priority") == 0
         with pytest.raises(YtError): set("//sys/media/hdd5/@priority", 11)
         with pytest.raises(YtError): set("//sys/media/hdd5/@priority", -1)
+
+
+    def test_chunk_statuses_1_media(self):
+        self._ensure_max_num_of_media_created()
+
+        codec = "reed_solomon_6_3"
+        codec_replica_count = 9
+
+        create("table", "//tmp/t9")
+        set("//tmp/t9/@erasure_codec", codec)
+        write_table("//tmp/t9", {"a" : "b"})
+
+        # Actually replicating multiple data pieces takes time -
+        # single REPLICATOR_REACTION_TIME is not enough.
+        time.sleep(2*TestMedia.REPLICATOR_REACTION_TIME)
+
+        chunk_ids = get("//tmp/t9/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        self._assert_chunk_ok(True, chunk_id, {"default"})
+
+        stored_replicas = get("#{0}/@stored_replicas".format(chunk_id))
+        assert len(stored_replicas) == codec_replica_count
+
+        replicas = __builtin__.set()
+        replica_media = __builtin__.set()
+
+        for r in stored_replicas:
+            replicas.add(str(r)) # str() is for attribute stripping.
+            replica_media.add(r.attributes["medium"])
+
+        assert {"default"} == replica_media
+
+        self._ban_nodes(replicas)
+
+        time.sleep(TestMedia.REPLICATOR_REACTION_TIME)
+
+        self._assert_chunk_ok(False, chunk_id, {"default"})
+
+    def test_chunk_statuses_2_media(self):
+        self._ensure_max_num_of_media_created()
+
+        codec = "reed_solomon_6_3"
+        codec_replica_count = 9
+
+        create("table", "//tmp/t9")
+        set("//tmp/t9/@erasure_codec", codec)
+        write_table("//tmp/t9", {"a" : "b"})
+
+        tbl_media = get("//tmp/t9/@media")
+        tbl_media[TestMedia.NON_DEFAULT_MEDIUM] = {"replication_factor": 3, "data_parts_only": False}
+        set("//tmp/t9/@media", tbl_media)
+
+        relevant_media = {"default", TestMedia.NON_DEFAULT_MEDIUM}
+
+        # Actually replicating multiple data pieces takes time -
+        # single REPLICATOR_REACTION_TIME is not enough.
+        time.sleep(2*TestMedia.REPLICATOR_REACTION_TIME)
+
+        chunk_ids = get("//tmp/t9/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        self._assert_chunk_ok(True, chunk_id, relevant_media)
+
+        stored_replicas = get("#{0}/@stored_replicas".format(chunk_id))
+        assert len(stored_replicas) == len(relevant_media) * codec_replica_count
+
+        replicas = __builtin__.set()
+        replica_media = __builtin__.set()
+
+        for r in stored_replicas:
+            replicas.add(str(r)) # str() is for attribute stripping.
+            replica_media.add(r.attributes["medium"])
+
+        assert relevant_media == replica_media
+
+        self._ban_nodes(replicas)
+
+        time.sleep(TestMedia.REPLICATOR_REACTION_TIME)
+
+        self._assert_chunk_ok(False, chunk_id, relevant_media)
+
+    def _assert_chunk_ok(self, ok, chunk_id, media):
+        available = get("#%s/@available" % chunk_id)
+        replication_status = get("#%s/@replication_status" % chunk_id)
+        lvc = ls("//sys/lost_vital_chunks")
+        for medium in media:
+            if ok:
+                assert available
+                assert not replication_status[medium]["underreplicated"]
+                assert not replication_status[medium]["lost"]
+                assert not replication_status[medium]["data_missing"]
+                assert not replication_status[medium]["parity_missing"]
+                len(lvc) == 0
+            else:
+                assert not available
+                assert replication_status[medium]["lost"]
+                assert replication_status[medium]["data_missing"]
+                assert replication_status[medium]["parity_missing"]
+                len(lvc) != 1
+
+    def _ban_nodes(self, nodes):
+        banned = False
+        for node in ls("//sys/nodes"):
+            if node in nodes:
+                set("//sys/nodes/{0}/@banned".format(node), True)
+                banned = True
+        assert banned
 
 ################################################################################
 
