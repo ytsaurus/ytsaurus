@@ -248,7 +248,7 @@ TCompletedJobSummary::TCompletedJobSummary(const TJobPtr& job, bool abandoned)
 
 TAbortedJobSummary::TAbortedJobSummary(const TJobPtr& job)
     : TJobSummary(job)
-      , AbortReason(GetAbortReason(job->Status().result()))
+    , AbortReason(GetAbortReason(job->Status().result()))
 { }
 
 TAbortedJobSummary::TAbortedJobSummary(const TJobId& id, EAbortReason abortReason)
