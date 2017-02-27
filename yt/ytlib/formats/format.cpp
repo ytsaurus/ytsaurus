@@ -7,6 +7,7 @@
 #include "schemaful_dsv_writer.h"
 #include "schemaful_writer.h"
 #include "schemaless_writer_adapter.h"
+#include "versioned_writer.h"
 #include "yamr_parser.h"
 #include "yamr_writer.h"
 #include "yamred_dsv_parser.h"
@@ -206,13 +207,14 @@ std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForFormat(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemafulWriterPtr CreateSchemafulWriterForYson(
+template <class TWriter, class TConsumerAdapter>
+TIntrusivePtr<TWriter> CreateAdaptedWriterForYson(
     const IAttributeDictionary& attributes,
     const TTableSchema& schema,
     IAsyncOutputStreamPtr output)
 {
     auto config = ConvertTo<TYsonFormatConfigPtr>(&attributes);
-    return New<TSchemafulWriter>(output, schema, [=] (TOutputStream* buffer) {
+    return New<TConsumerAdapter>(std::move(output), schema, [=] (TOutputStream* buffer) {
         if (config->Format == EYsonFormat::Binary) {
             return std::unique_ptr<IFlushableYsonConsumer>(new TBufferedBinaryYsonWriter(
                 buffer,
@@ -228,14 +230,14 @@ ISchemafulWriterPtr CreateSchemafulWriterForYson(
     });
 }
 
-ISchemafulWriterPtr CreateSchemafulWriterForJson(
+template <class TWriter, class TConsumerAdapter>
+TIntrusivePtr<TWriter> CreateAdaptedWriterForJson(
     const IAttributeDictionary& attributes,
     const TTableSchema& schema,
     IAsyncOutputStreamPtr output)
 {
     auto config = ConvertTo<TJsonFormatConfigPtr>(&attributes);
-
-    return New<TSchemafulWriter>(output, schema, [&] (TOutputStream* buffer) {
+    return New<TConsumerAdapter>(std::move(output), schema, [&] (TOutputStream* buffer) {
         return CreateJsonConsumer(buffer, EYsonType::ListFragment, config);
     });
 }
@@ -247,14 +249,31 @@ ISchemafulWriterPtr CreateSchemafulWriterForFormat(
 {
     switch (format.GetType()) {
         case EFormatType::Yson:
-            return CreateSchemafulWriterForYson(format.Attributes(), schema, output);
+            return CreateAdaptedWriterForYson<ISchemafulWriter, TSchemafulWriter>(format.Attributes(), schema, output);
         case EFormatType::Json:
-            return CreateSchemafulWriterForJson(format.Attributes(), schema, output);
+            return CreateAdaptedWriterForJson<ISchemafulWriter, TSchemafulWriter>(format.Attributes(), schema, output);
         case EFormatType::SchemafulDsv:
             return CreateSchemafulWriterForSchemafulDsv(format.Attributes(), schema, output);
         default:
             THROW_ERROR_EXCEPTION("Unsupported output format %Qlv",
                 format.GetType());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IVersionedWriterPtr CreateVersionedWriterForFormat(
+    const TFormat& format,
+    const NTableClient::TTableSchema& schema,
+    NConcurrency::IAsyncOutputStreamPtr output)
+{
+    switch (format.GetType()) {
+        case EFormatType::Yson:
+            return CreateAdaptedWriterForYson<IVersionedWriter, TVersionedWriter>(format.Attributes(), schema, output);
+        case EFormatType::Json:
+            return CreateAdaptedWriterForJson<IVersionedWriter, TVersionedWriter>(format.Attributes(), schema, output);
+        default:
+            THROW_ERROR_EXCEPTION("Unsupported output format %Qlv", format.GetType());
     }
 }
 

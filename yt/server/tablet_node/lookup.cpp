@@ -4,6 +4,7 @@
 #include "tablet.h"
 #include "tablet_slot.h"
 
+#include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/row_merger.h>
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/versioned_reader.h>
@@ -18,6 +19,7 @@
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/variant.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,27 +49,18 @@ public:
         TTimestamp timestamp,
         const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor,
-        TWireProtocolReader* reader,
-        TWireProtocolWriter* writer)
+        TSharedRange<TUnversionedRow> lookupKeys)
         : TabletSnapshot_(std::move(tabletSnapshot))
         , Timestamp_(timestamp)
-        , Reader_(reader)
-        , Writer_(writer)
         , ColumnFilter_(columnFilter)
         , WorkloadDescriptor_(workloadDescriptor)
-        , Merger_(
-            New<TRowBuffer>(TLookupSessionBufferTag()),
-            TabletSnapshot_->PhysicalSchema.Columns().size(),
-            TabletSnapshot_->PhysicalSchema.GetKeyColumnCount(),
-            ColumnFilter_,
-            TabletSnapshot_->ColumnEvaluator)
+        , LookupKeys_(std::move(lookupKeys))
     { }
 
-    void Run()
+    void Run(
+        const std::function<void(TVersionedRow)>& onPartialRow,
+        const std::function<void()>& onRow)
     {
-        auto schemaData = TWireProtocolReader::GetSchemaData(TabletSnapshot_->PhysicalSchema.ToKeys());
-        LookupKeys_ = Reader_->ReadSchemafulRowset(schemaData, false);
-
         LOG_DEBUG("Tablet lookup started (TabletId: %v, CellId: %v, KeyCount: %v)",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
@@ -91,7 +84,9 @@ public:
 
             LookupInPartition(
                 *(nextPartitionIt - 1),
-                LookupKeys_.Slice(currentIt, nextIt));
+                LookupKeys_.Slice(currentIt, nextIt),
+                onPartialRow,
+                onRow);
 
             currentIt = nextIt;
         }
@@ -140,20 +135,14 @@ private:
 
     const TTabletSnapshotPtr TabletSnapshot_;
     const TTimestamp Timestamp_;
-    TWireProtocolReader* const Reader_;
-    TWireProtocolWriter* const Writer_;
-
-    TSharedRange<TUnversionedRow> LookupKeys_;
+    const TColumnFilter& ColumnFilter_;
+    const TWorkloadDescriptor& WorkloadDescriptor_;
+    const TSharedRange<TUnversionedRow> LookupKeys_;
 
     static const int TypicalSessionCount = 16;
     using TReadSessionList = SmallVector<TReadSession, TypicalSessionCount>;
     TReadSessionList EdenSessions_;
     TReadSessionList PartitionSessions_;
-
-    const TColumnFilter& ColumnFilter_;
-    const TWorkloadDescriptor& WorkloadDescriptor_;
-
-    TSchemafulRowMerger Merger_;
 
     int FoundRowCount_ = 0;
 
@@ -191,7 +180,9 @@ private:
 
     void LookupInPartition(
         const TPartitionSnapshotPtr& partitionSnapshot,
-        const TSharedRange<TKey>& keys)
+        const TSharedRange<TKey>& keys,
+        const std::function<void(TVersionedRow)>& onPartialRow,
+        const std::function<void()>& onRow)
     {
         if (keys.Empty() || !partitionSnapshot) {
             return;
@@ -201,7 +192,7 @@ private:
 
         auto processSessions = [&] (TReadSessionList& sessions) {
             for (auto& session : sessions) {
-                Merger_.AddPartialRow(session.FetchRow());
+                onPartialRow(session.FetchRow());
             }
         };
 
@@ -209,12 +200,27 @@ private:
             processSessions(PartitionSessions_);
             processSessions(EdenSessions_);
 
-            auto mergedRow = Merger_.BuildMergedRow();
-            Writer_->WriteSchemafulRow(mergedRow);
+            onRow();
+
             ++FoundRowCount_;
         }
     }
 };
+
+static NTableClient::TColumnFilter DecodeColumnFilter(
+    std::unique_ptr<NTabletClient::NProto::TColumnFilter> protoColumnFilter,
+    int columnCount)
+{
+    NTableClient::TColumnFilter columnFilter;
+    if (!protoColumnFilter) {
+        columnFilter.All = true;
+    } else {
+        columnFilter.All = false;
+        columnFilter.Indexes = FromProto<SmallVector<int, TypicalColumnCount>>(protoColumnFilter->indexes());
+    }
+    ValidateColumnFilter(columnFilter, columnCount);
+    return columnFilter;
+}
 
 void LookupRows(
     TTabletSnapshotPtr tabletSnapshot,
@@ -226,23 +232,67 @@ void LookupRows(
     TReqLookupRows req;
     reader->ReadMessage(&req);
 
-    TColumnFilter columnFilter;
-    if (req.has_column_filter()) {
-        columnFilter.All = false;
-        columnFilter.Indexes = FromProto<SmallVector<int, TypicalColumnCount>>(req.column_filter().indexes());
-    }
-
-    ValidateColumnFilter(columnFilter, tabletSnapshot->PhysicalSchema.Columns().size());
+    auto columnFilter = DecodeColumnFilter(
+        std::unique_ptr<NTabletClient::NProto::TColumnFilter>(req.release_column_filter()),
+        tabletSnapshot->PhysicalSchema.GetColumnCount());
+    auto schemaData = TWireProtocolReader::GetSchemaData(tabletSnapshot->PhysicalSchema.ToKeys());
+    auto lookupKeys = reader->ReadSchemafulRowset(schemaData, false);
 
     TLookupSession session(
         tabletSnapshot,
         timestamp,
         columnFilter,
         workloadDescriptor,
-        reader,
-        writer);
+        std::move(lookupKeys));
 
-    session.Run();
+    TSchemafulRowMerger merger(
+        New<TRowBuffer>(TLookupSessionBufferTag()),
+        tabletSnapshot->PhysicalSchema.Columns().size(),
+        tabletSnapshot->PhysicalSchema.GetKeyColumnCount(),
+        columnFilter,
+        tabletSnapshot->ColumnEvaluator);
+
+    session.Run(
+        [&] (TVersionedRow partialRow) { merger.AddPartialRow(partialRow); },
+        [&] { writer->WriteSchemafulRow(merger.BuildMergedRow()); });
+}
+
+void VersionedLookupRows(
+    TTabletSnapshotPtr tabletSnapshot,
+    TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor,
+    TWireProtocolReader* reader,
+    TWireProtocolWriter* writer)
+{
+    TReqVersionedLookupRows req;
+    reader->ReadMessage(&req);
+
+    auto columnFilter = DecodeColumnFilter(
+        std::unique_ptr<NTabletClient::NProto::TColumnFilter>(req.release_column_filter()),
+        tabletSnapshot->PhysicalSchema.GetColumnCount());
+    auto schemaData = TWireProtocolReader::GetSchemaData(tabletSnapshot->PhysicalSchema.ToKeys());
+    auto lookupKeys = reader->ReadSchemafulRowset(schemaData, false);
+
+    TLookupSession session(
+        tabletSnapshot,
+        timestamp,
+        columnFilter,
+        workloadDescriptor,
+        std::move(lookupKeys));
+
+    TVersionedRowMerger merger(
+        New<TRowBuffer>(TLookupSessionBufferTag()),
+        tabletSnapshot->PhysicalSchema.GetColumnCount(),
+        tabletSnapshot->PhysicalSchema.GetKeyColumnCount(),
+        columnFilter,
+        tabletSnapshot->Config,
+        timestamp,
+        MinTimestamp,
+        tabletSnapshot->ColumnEvaluator);
+
+    session.Run(
+        [&] (TVersionedRow partialRow) { merger.AddPartialRow(partialRow); },
+        [&] { writer->WriteVersionedRow(merger.BuildMergedRow()); });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

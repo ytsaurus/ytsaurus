@@ -12,7 +12,7 @@ namespace NApi {
 //! Represents a rowset extracted from a persistent queue via
 //! TPersistentQueue::Poll.
 struct IPersistentQueueRowset
-    : public IRowset
+    : public IUnversionedRowset
 {
     //! Confirms that the rowset has been successfully processed
     //! within #transaction and must not be consumed again.
