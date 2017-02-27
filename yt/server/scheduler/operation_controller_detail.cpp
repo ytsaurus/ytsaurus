@@ -107,20 +107,6 @@ void TOperationControllerBase::TLivePreviewTableBase::Persist(const TPersistence
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TInputTable::Persist(const TPersistenceContext& context)
-{
-    TUserObject::Persist(context);
-
-    using NYT::Persist;
-    Persist(context, ChunkCount);
-    Persist(context, Chunks);
-    Persist(context, Schema);
-    Persist(context, SchemaMode);
-    Persist(context, IsDynamic);
-}
-
-////////////////////////////////////////////////////////////////////
-
 void TOperationControllerBase::TJobBoundaryKeys::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -1371,7 +1357,7 @@ void TOperationControllerBase::SafeMaterialize()
 
         LOG_INFO("Tasks prepared (RowBufferCapacity: %v)", RowBuffer->GetCapacity());
 
-        if (InputChunkMap.empty()) {
+        if (InputChunkMap.empty() || IsCompleted()) {
             // Possible reasons:
             // - All input chunks are unavailable && Strategy == Skip
             // - Merge decided to teleport all input chunks
@@ -2049,6 +2035,10 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
             InputNodeDirectory->AddDescriptor(nodeId, *descriptor);
         }
+    }
+
+    if (jobSummary->Interrupted) {
+        ExtractInputDataSlices(*jobSummary);
     }
 
     jobSummary->ParseStatistics();
@@ -4198,6 +4188,8 @@ void TOperationControllerBase::CollectTotals()
 
             if (table.IsPrimary()) {
                 PrimaryInputDataSize += inputChunk->GetUncompressedDataSize();
+            } else {
+                ForeignInputDataSize += inputChunk->GetUncompressedDataSize();
             }
 
             TotalEstimatedInputDataSize += inputChunk->GetUncompressedDataSize();
@@ -4516,7 +4508,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
                 inputChunks.end(),
                 [&] (const TInputChunkPtr& inputChunk) -> bool {
                     return inputChunk->GetTableIndex() == protoChunkSpec.table_index() &&
-                        inputChunk->GetRangeIndex() == protoChunkSpec.range_index();
+                           inputChunk->GetRangeIndex() == protoChunkSpec.range_index();
                 });
             YCHECK(chunkIt != inputChunks.end());
             auto chunkSlice = New<TInputChunkSlice>(*chunkIt, RowBuffer, protoChunkSpec);

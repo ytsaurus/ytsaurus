@@ -262,6 +262,9 @@ public:
     //! Maximum number of chunk stripes per job.
     int MaxChunkStripesPerJob;
 
+    //! Maximum number of primary data slices per job.
+    int MaxPrimaryDataSlicesPerJob;
+
     i64 MaxSliceDataSize;
     i64 MinSliceDataSize;
 
@@ -277,6 +280,10 @@ public:
 
         RegisterParameter("max_chunk_stripes_per_job", MaxChunkStripesPerJob)
             .Default(10000)
+            .GreaterThan(0);
+
+        RegisterParameter("max_primary_data_slices_per_job", MaxPrimaryDataSlicesPerJob)
+            .Default(100000)
             .GreaterThan(0);
 
         RegisterParameter("max_slice_data_size", MaxSliceDataSize)

@@ -158,6 +158,8 @@ struct TJobSummary
 {
     explicit TJobSummary(const TJobPtr& job);
     explicit TJobSummary(const TJobId& id);
+    //! Only for testing purpose.
+    TJobSummary() = default;
 
     void ParseStatistics();
 
@@ -182,9 +184,12 @@ struct TCompletedJobSummary
     : public TJobSummary
 {
     explicit TCompletedJobSummary(const TJobPtr& job, bool abandoned = false);
+    //! Only for testing purpose.
+    TCompletedJobSummary() = default;
 
     const bool Abandoned = false;
     bool Interrupted = false;
+    std::vector<NChunkClient::TInputDataSlicePtr> UnreadInputDataSlices;
 };
 
 struct TAbortedJobSummary
