@@ -76,8 +76,8 @@ private:
     const int KeyColumnCount_;
     const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
-    bool Started_;
-    bool Deleted_;
+    bool Started_ = false;
+    bool Deleted_ = false;
 
     TMutableUnversionedRow MergedRow_;
     SmallVector<bool, TypicalColumnCount> ValidValues_;
@@ -126,6 +126,8 @@ private:
     std::vector<TTimestamp> WriteTimestamps_;
     std::vector<TTimestamp> DeleteTimestamps_;
 
+    bool Started_ = false;
+
     void Cleanup();
 };
 
@@ -144,7 +146,8 @@ public:
 private:
     const TRowBufferPtr RowBuffer_;
     const int KeyColumnCount_;
-    int SampledColumnCount_;
+
+    int SampledColumnCount_ = 0;
 
     SmallVector<TTimestamp, TypicalColumnCount> LatestTimestamps_;
     SmallVector<int, TypicalColumnCount> IdMapping_;

@@ -616,11 +616,9 @@ TSamplingRowMerger::TSamplingRowMerger(
     const TTableSchema& schema)
     : RowBuffer_(std::move(rowBuffer))
     , KeyColumnCount_(schema.GetKeyColumnCount())
-    , SampledColumnCount_(0)
     , LatestTimestamps_(size_t(schema.GetColumnCount()), NullTimestamp)
     , IdMapping_(size_t(schema.GetColumnCount()), -1)
 {
-    SampledColumnCount_ = 0;
     for (const auto& column : schema.Columns()) {
         if (!column.Aggregate) {
             IdMapping_[schema.GetColumnIndex(column)] = SampledColumnCount_;
