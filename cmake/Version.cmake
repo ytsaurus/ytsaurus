@@ -29,6 +29,9 @@ endif()
 if (YT_BUILD_ENABLE_ASAN)
   set(YT_VERSION "${YT_VERSION}~asan")
 endif()
+if (_is_clang)
+  set(YT_VERSION "${YT_VERSION}~clang")
+endif()
 set(YT_VERSION "${YT_VERSION}~${YT_BUILD_VCS_NUMBER}")
 
 # Underscore is forbidden in the version
