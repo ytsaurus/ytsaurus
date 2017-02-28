@@ -1,6 +1,8 @@
 #include "progress_counter.h"
 #include "private.h"
 
+#include <yt/ytlib/scheduler/helpers.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -93,7 +95,13 @@ i64 TProgressCounter::GetAbortedScheduled() const
 
 i64 TProgressCounter::GetAbortedNonScheduled() const
 {
-    return Aborted_[EAbortReason::SchedulingTimeout] + Aborted_[EAbortReason::SchedulingResourceOvercommit];
+    i64 sum = 0;
+    for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
+        if (IsSchedulingReason(reason)) {
+            sum += Aborted_[reason];
+        }
+    }
+    return sum;
 }
 
 i64 TProgressCounter::GetAborted(EAbortReason reason) const
@@ -139,6 +147,7 @@ void TProgressCounter::Failed(i64 count)
 
 void TProgressCounter::Aborted(i64 count, EAbortReason reason)
 {
+    YCHECK(!IsMarker(reason));
     YCHECK(Running_ >= count);
     Running_ -= count;
     Aborted_[reason] += count;
@@ -229,12 +238,20 @@ void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
                 // Fix it when UI will start using scheduled aborted job count.
                 .Item("total").Value(counter.GetAbortedScheduled())
                 //.Item("total").Value(counter.GetAbortedTotal())
-                .Item("non_scheduled").Value(counter.GetAbortedNonScheduled())
-                .Item("scheduled").Value(counter.GetAbortedScheduled())
-                .DoFor(TEnumTraits<EAbortReason>::GetDomainValues(), [&] (TFluentMap fluent, EAbortReason reason) {
-                    fluent
-                        .Item(FormatEnum(reason)).Value(counter.GetAborted(reason));
-                })
+                .Item("non_scheduled").BeginMap()
+                    .DoFor(TEnumTraits<EAbortReason>::GetDomainValues(), [&] (TFluentMap fluent, EAbortReason reason) {
+                        if (IsSchedulingReason(reason)) {
+                            fluent.Item(FormatEnum(reason)).Value(counter.GetAborted(reason));
+                        }
+                    })
+                .EndMap()
+                .Item("scheduled").BeginMap()
+                    .DoFor(TEnumTraits<EAbortReason>::GetDomainValues(), [&] (TFluentMap fluent, EAbortReason reason) {
+                        if (IsNonSchedulingReason(reason)) {
+                            fluent.Item(FormatEnum(reason)).Value(counter.GetAborted(reason));
+                        }
+                    })
+                .EndMap()
             .EndMap()
             .Item("lost").Value(counter.GetLost())
             .Item("interrupted").Value(counter.GetInterrupted())

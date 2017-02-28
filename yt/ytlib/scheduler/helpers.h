@@ -32,6 +32,10 @@ void ValidateEnvironmentVariableName(const TStringBuf& name);
 
 int GetJobSpecVersion();
 
+bool IsSchedulingReason(EAbortReason reason);
+bool IsNonSchedulingReason(EAbortReason reason);
+bool IsMarker(EAbortReason reason);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
