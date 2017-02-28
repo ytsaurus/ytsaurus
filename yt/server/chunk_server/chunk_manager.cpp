@@ -1589,7 +1589,9 @@ private:
         auto* account = securityManager->GetAccountByNameOrThrow(subrequest->account());
         TClusterResources resourceUsageIncrease(0, 1);
         resourceUsageIncrease.DiskSpace[mediumIndex] = 1;
-        securityManager->ValidateResourceUsageIncrease(account, resourceUsageIncrease);
+        if (subrequest->validate_resource_usage_increase()) {
+            securityManager->ValidateResourceUsageIncrease(account, resourceUsageIncrease);
+        }
 
         TChunkList* chunkList = nullptr;
         if (subrequest->has_chunk_list_id()) {

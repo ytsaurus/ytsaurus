@@ -1717,6 +1717,15 @@ class TestSortedDynamicTables(YTEnvSetup):
         assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
 
+    def test_resource_limits(self):
+        create_account("test_account")
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@account", "test_account")
+        set("//sys/accounts/test_account/@resource_limits/disk_space_per_medium/default", 0)
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in xrange(10)])
+        self.sync_unmount_table("//tmp/t")
 
 ##################################################################
 
