@@ -7,8 +7,6 @@ from email.mime.text import MIMEText
 from subprocess import Popen, PIPE
 import time
 
-import StringIO
-
 from argparse import ArgumentParser
 
 logger = logging.getLogger("notificator")
@@ -95,7 +93,7 @@ def main():
     logger.info("Reading configuration...")
     try:
         config = yt.get("//sys/notifications/config")
-    except Exception, err:
+    except Exception:
         logger.exception("Error while reading configuration. Didn't you forget to specify locke as YT_PROXY?")
         exit(1)
 
