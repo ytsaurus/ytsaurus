@@ -1195,6 +1195,8 @@ class Application(object):
         allow_cache = parse_bool(request.args.get("allow_cache", "true"))
         if not fields:
             fields = None
+        else:
+            fields = set(fields)
 
         if user is not None or fields is not None:
             allow_cache = False
@@ -1226,8 +1228,16 @@ class Application(object):
         if user is not None:
             tasks = dict([(id, task) for id, task in iteritems(tasks) if task.user == user])
 
+        last_check_time = time.time()
         tasks_descriptions = []
         for id, task in iteritems(tasks):
+
+            if allow_cache and time.time() - last_check_time > 1:
+                last_check_time = datetime.now()
+                with self._cache_tasks_mutex:
+                    if start_time - self._last_tasks_cache_update_time < self._tasks_cache_expiration_timeout:
+                        self.logger.info("Get tasks responded from cache")
+                        return Response(self._cache_tasks_response, mimetype="application/json")
             description = task.dict(hide_token=True, fields=fields)
             if id in tasks_direction_indexes:
                 description["direction_index"] = tasks_direction_indexes[id]
