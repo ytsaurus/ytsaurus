@@ -184,12 +184,12 @@ def main():
 
     suffix = yt.config["proxy"]["default_suffix"]
     proxy_short_address = yt.config["proxy"]["url"]
-    if proxy_short_address.endswith(suffix):
+    if proxy_short_address and suffix and proxy_short_address.endswith(suffix):
         proxy_short_address = proxy_short_address[:-len(suffix)]
 
     proxy_address = None
     ui_address = None
-    if all(ch in string.ascii_letters + string.digits for ch in proxy_short_address):
+    if proxy_short_address and all(ch in string.ascii_letters + string.digits for ch in proxy_short_address):
         proxy_address = proxy_short_address + suffix
         ui_address = "https://yt.yandex-team.ru/{0}/".format(proxy_short_address)
 
