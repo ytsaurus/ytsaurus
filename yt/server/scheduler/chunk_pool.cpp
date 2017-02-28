@@ -1093,7 +1093,7 @@ private:
         }
 
         if (freePendingJobCount == 0 && FreePendingDataSize + SuspendedDataSize > 0) {
-            // Happens when we hit MaxChunkStripesPerJob or MaxDataSizePerJob limit.
+            // Happens when we hit MaxDataSlicesPerJob or MaxDataSizePerJob limit.
             JobCounter.Increment(1);
             return;
         }
@@ -1180,7 +1180,7 @@ private:
             }
 
             // NB: We should ignore check of chunk stripe count in case of last job.
-            if (list->Stripes.size() >= JobSizeConstraints->GetMaxChunkStripesPerJob() &&
+            if (list->Stripes.size() >= JobSizeConstraints->GetMaxDataSlicesPerJob() &&
                 (!JobSizeConstraints->IsExplicitJobCount() || GetFreePendingJobCount() > 1))
             {
                 break;

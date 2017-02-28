@@ -416,7 +416,7 @@ protected:
     bool HasLargeActiveTask()
     {
         YCHECK(MaxDataSizePerJob > 0);
-        return CurrentTaskDataSize >= MaxDataSizePerJob || CurrentTaskChunkCount >= Options->MaxChunkStripesPerJob;
+        return CurrentTaskDataSize >= MaxDataSizePerJob || CurrentTaskChunkCount >= Options->MaxDataSlicesPerJob;
     }
 
     void AddSliceToStripe(const TInputDataSlicePtr& dataSlice, std::vector<TChunkStripePtr>& stripes)
@@ -1669,7 +1669,7 @@ private:
 
             auto hasLargeActiveTask = [&] () {
                 return HasLargeActiveTask() ||
-                    CurrentTaskChunkCount + globalOpenedSlices.size() >= Options->MaxChunkStripesPerJob;
+                    CurrentTaskChunkCount + globalOpenedSlices.size() >= Options->MaxDataSlicesPerJob;
             };
 
             while (!hasLargeActiveTask() && !maniacs.empty()) {
@@ -2426,7 +2426,7 @@ private:
 
         auto hasLargeActiveTask = [&] () {
             return HasLargeActiveTask() ||
-                CurrentTaskChunkCount + openedSlices.size() >= Options->MaxChunkStripesPerJob;
+                CurrentTaskChunkCount + openedSlices.size() >= Options->MaxDataSlicesPerJob;
         };
 
         int startIndex = 0;

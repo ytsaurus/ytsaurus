@@ -420,7 +420,7 @@ private:
         for (auto stripe : stripes) {
             currentStripes.push_back(stripe);
             currentDataSize += stripe->GetStatistics().DataSize;
-            if (currentDataSize >= dataSizePerJob || currentStripes.size() == Options_->MaxChunkStripesPerJob) {
+            if (currentDataSize >= dataSizePerJob || currentStripes.size() == Options_->MaxDataSlicesPerJob) {
                 addTask(currentStripes, Tasks.size());
                 currentStripes.clear();
                 currentDataSize = 0;

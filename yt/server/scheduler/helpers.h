@@ -39,15 +39,12 @@ struct IJobSizeConstraints
 
     //! Recommended upper limit on the number of chunk stripes per job.
     //! Can be overflown if exact job count is provided.
-    virtual i64 GetMaxChunkStripesPerJob() const = 0;
+    virtual i64 GetMaxDataSlicesPerJob() const = 0;
 
     //! Recommended upper limit on the data size per job.
     //! Can be overflown if exact job count is provided.
     virtual i64 GetMaxDataSizePerJob() const = 0;
-
-    //! Recommended upper limit on the number of data slices per job.
-    virtual i64 GetMaxPrimaryDataSlicesPerJob() const = 0;
-
+    
     virtual i64 GetInputSliceDataSize() const = 0;
     virtual i64 GetInputSliceRowCount() const = 0;
 

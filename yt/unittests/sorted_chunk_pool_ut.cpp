@@ -323,7 +323,7 @@ protected:
 
     //! Check that:
     //! * All teleport chunks satisfy the Options_.MinTeleportChunkSize constraint;
-    //! * All stripe lists have no more than Options_.MaxPrimaryDataSlicesPerJob + InputTables_.size() - 1 data slices in total.
+    //! * All stripe lists have no more than Options_.MaxDataSlicesPerJob + InputTables_.size() - 1 data slices in total.
     //! Unfortunately we cannot check the Options_.MaxPrimaryDataSizePerJob constraint satisfaction as this is not an absolute
     //! restriction, but only a best-effort bound.
     void TryCheckJobConstraintsSatisfaction(
@@ -1346,13 +1346,13 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
 struct TJobConstraints
 {
     i64 MinTeleportChunkSize = Inf64;
-    int MaxPrimaryDataSlicesPerJob = Inf32;
+    int MaxDataSlicesPerJob = Inf32;
     i64 MaxPrimaryDataSizePerJob = Inf64;
 };
 
 void PrintTo(TJobConstraints constraints, ::std::ostream* os) {
     *os << "{MinTeleportChunkSize = " << constraints.MinTeleportChunkSize
-        << "; MaxPrimaryDataSlicesPerJob = " << constraints.MaxPrimaryDataSlicesPerJob
+        << "; MaxDataSlicesPerJob = " << constraints.MaxDataSlicesPerJob
         << "; MaxPrimaryDataSizePerJob = " << constraints.MaxPrimaryDataSizePerJob << "}";
 }
 

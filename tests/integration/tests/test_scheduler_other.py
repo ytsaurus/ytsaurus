@@ -917,21 +917,21 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "map_operation_options" : {
-                "max_chunk_stripes_per_job" : 1,
+                "max_data_slices_per_job" : 1,
             },
             "ordered_merge_operation_options" : {
-                "max_chunk_stripes_per_job" : 1,
+                "max_data_slices_per_job" : 1,
             },
             "sorted_merge_operation_options" : {
-                "max_chunk_stripes_per_job" : 1,
+                "max_data_slices_per_job" : 1,
             },
             "reduce_operation_options" : {
-                "max_chunk_stripes_per_job" : 1,
+                "max_data_slices_per_job" : 1,
             },
         }
     }
 
-    def test_max_chunk_stripes_per_job(self):
+    def test_max_data_slices_per_job(self):
         data = [{"foo": i} for i in xrange(5)]
         create("table", "//tmp/in1")
         create("table", "//tmp/in2")

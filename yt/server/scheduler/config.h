@@ -259,11 +259,8 @@ public:
     //! Controls finer initial slicing of input data to ensure even distribution of data split sizes among jobs.
     double SliceDataSizeMultiplier;
 
-    //! Maximum number of chunk stripes per job.
-    int MaxChunkStripesPerJob;
-
     //! Maximum number of primary data slices per job.
-    int MaxPrimaryDataSlicesPerJob;
+    int MaxDataSlicesPerJob;
 
     i64 MaxSliceDataSize;
     i64 MinSliceDataSize;
@@ -278,11 +275,7 @@ public:
             .Default(0.51)
             .GreaterThan(0.0);
 
-        RegisterParameter("max_chunk_stripes_per_job", MaxChunkStripesPerJob)
-            .Default(10000)
-            .GreaterThan(0);
-
-        RegisterParameter("max_primary_data_slices_per_job", MaxPrimaryDataSlicesPerJob)
+        RegisterParameter("max_data_slices_per_job", MaxDataSlicesPerJob)
             .Default(100000)
             .GreaterThan(0);
 
