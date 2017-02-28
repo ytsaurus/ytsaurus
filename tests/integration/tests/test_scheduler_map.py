@@ -269,8 +269,8 @@ class TestJobProber(YTEnvSetup):
         op.track()
 
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/user_request".format(op.id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op.id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/scheduled/user_request".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/scheduled/other".format(op.id)) == 0
         assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
         # Can get two stderr here, either "User defined signal 1\nstderr\n" or "stderr\n"
@@ -520,8 +520,8 @@ class TestJobProber(YTEnvSetup):
 
         assert len(read_table("//tmp/t2")) == 5
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/user_request".format(op.id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op.id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/scheduled/user_request".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/scheduled/other".format(op.id)) == 0
         assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
 
         end_profiling = self.get_job_count_profiling()

@@ -69,13 +69,15 @@ DEFINE_ENUM(EAbortReason,
     (ResourceOverdraft)
     (Other)
     (Preemption)
-    (SchedulingTimeout)
-    (SchedulingResourceOvercommit)
-    (SchedulingOperationSuspended)
     (UserRequest)
     (NodeOffline)
     (WaitingTimeout)
     (Unknown)
+    (SchedulingBeginMarker)
+    (SchedulingTimeout)
+    (SchedulingResourceOvercommit)
+    (SchedulingOperationSuspended)
+    (SchedulingEndMarker)
 );
 
 DEFINE_ENUM(EJobFinalState,

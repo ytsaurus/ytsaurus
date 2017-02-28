@@ -144,6 +144,22 @@ int GetJobSpecVersion()
     return 1;
 }
 
+bool IsSchedulingReason(EAbortReason reason)
+{
+    return reason > EAbortReason::SchedulingBeginMarker && reason < EAbortReason::SchedulingEndMarker;
+}
+
+bool IsNonSchedulingReason(EAbortReason reason)
+{
+    return reason < EAbortReason::SchedulingBeginMarker;
+}
+
+bool IsMarker(EAbortReason reason)
+{
+    return reason == EAbortReason::SchedulingBeginMarker ||
+        reason == EAbortReason::SchedulingEndMarker;
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
