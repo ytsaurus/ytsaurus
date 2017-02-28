@@ -71,8 +71,7 @@ public:
 
     void CreateJobNode(const TCreateJobNodeRequest& createJobNodeRequest);
 
-    void RegisterAlert(EAlertType alertType, const TError& alert);
-    void UnregisterAlert(EAlertType alertType);
+    void SetSchedulerAlert(EAlertType alertType, const TError& alert);
 
     void AttachJobContext(
         const NYPath::TYPath& path,

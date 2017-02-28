@@ -244,18 +244,11 @@ public:
         list->JobRequests.push_back(createJobNodeRequest);
     }
 
-    void RegisterAlert(EAlertType alertType, const TError& alert)
+    void SetSchedulerAlert(EAlertType alertType, const TError& alert)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         Alerts[alertType] = alert;
-    }
-
-    void UnregisterAlert(EAlertType alertType)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        Alerts[alertType] = TError();
     }
 
     TFuture<void> AttachToLivePreview(
@@ -2084,14 +2077,9 @@ void TMasterConnector::CreateJobNode(const TCreateJobNodeRequest& createJobNodeR
     return Impl->CreateJobNode(createJobNodeRequest);
 }
 
-void TMasterConnector::RegisterAlert(EAlertType alertType, const TError& alert)
+void TMasterConnector::SetSchedulerAlert(EAlertType alertType, const TError& alert)
 {
-    Impl->RegisterAlert(alertType, alert);
-}
-
-void TMasterConnector::UnregisterAlert(EAlertType alertType)
-{
-    Impl->UnregisterAlert(alertType);
+    Impl->SetSchedulerAlert(alertType, alert);
 }
 
 void TMasterConnector::AttachJobContext(
