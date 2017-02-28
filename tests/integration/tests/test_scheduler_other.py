@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only, require_ytserver_root_privileges
+from yt_env_setup import YTEnvSetup, unix_only, require_ytserver_root_privileges, wait
 from yt.environment.helpers import assert_almost_equal
 from yt_commands import *
 
@@ -553,7 +553,7 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
 
 class TestSchedulerRevive(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_NODES = 1
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
@@ -562,6 +562,8 @@ class TestSchedulerRevive(YTEnvSetup):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "finish_operation_transition_delay": 2000,
+            "operation_build_progress_period": 100,
+            "snapshot_period": 500,
         }
     }
 
@@ -664,6 +666,40 @@ class TestSchedulerRevive(YTEnvSetup):
 
         assert "failed" == get("//sys/operations/" + op.id + "/@state")
 
+    def test_revive_failed_jobs(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = map(
+            command="sleep 1; false",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={"max_failed_job_count": 10000},
+            dont_track=True)
+
+        self._wait_state(op, "running")
+
+        failed_jobs_path = "//sys/scheduler/orchid/scheduler/operations/" + op.id + "/progress/jobs/failed"
+
+        def failed_jobs_exist():
+            return exists(failed_jobs_path) and get(failed_jobs_path) >= 3
+
+        wait(failed_jobs_exist)
+
+        suspend_op(op.id)
+
+        # Waiting until snapshot is built.
+        time.sleep(2.0)
+
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+
+        # Waiting until orchid is built.
+        time.sleep(1.0)
+        assert exists(failed_jobs_path) and get(failed_jobs_path) >= 3
+
+        abort_op(op.id)
 
 class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 3
