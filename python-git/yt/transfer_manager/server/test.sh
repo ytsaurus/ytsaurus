@@ -25,7 +25,7 @@ cleanup() {
     # TODO(ignat): how automatically determine clusters
     for cluster in "freud" "hahn" "banach"; do
         yt2 remove //tmp/tm --recursive --force --proxy $cluster
-        yt2 mkdir //tmp/tm --proxy $cluster
+        yt2 create map_node //tmp/tm --proxy $cluster
     done;
 }
 
