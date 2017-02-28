@@ -48,11 +48,6 @@
 0 * * * * TITLE="clear tmp on seneca-sas" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=seneca-sas.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_seneca-sas.log 2>&1
 0 * * * * TITLE="clear tmp on seneca-fin" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=seneca-fin.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_seneca-fin.log 2>&1
 
-
-# Import tables from yamr clusters
-#*/10 * * * * TITLE="yamr import to freud" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN_PATH=/opt/cron/token YT_PROXY=freud.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/yamr_import_lock "/opt/cron/import_to_freud.py"' >>/opt/cron/import_to_freud.log 2>&1
-#*/10 * * * * TITLE="yamr import to hahn" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN_PATH=/opt/cron/token YT_PROXY=hahn.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/yamr_import_lock "/opt/cron/import_to_hahn.py"' >>/opt/cron/import_to_hahn.log 2>&1
-
 # Setting opaques
 0 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=freud.yt.yandex.net /opt/cron/set_opaque.py >>/opt/cron/set_opaque_freud.log 2>&1
 0 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=hahn.yt.yandex.net /opt/cron/set_opaque.sh >>/opt/cron/set_opaque_hahn.log 2>&1
