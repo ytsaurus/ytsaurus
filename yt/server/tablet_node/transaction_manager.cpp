@@ -526,7 +526,7 @@ private:
                     .Item("prelocked_locked_row_count").Value(transaction->PrelockedRows().size())
                     .Item("immediate_locked_write_log_size").Value(transaction->ImmediateLockedWriteLog().Size())
                     .Item("immediate_lockless_write_log_size").Value(transaction->ImmediateLocklessWriteLog().Size())
-                    .Item("delayed_write_log_size").Value(transaction->DelayedWriteLog().Size())
+                    .Item("delayed_write_log_size").Value(transaction->DelayedLocklessWriteLog().Size())
                 .EndMap();
         };
         BuildYsonFluently(consumer)

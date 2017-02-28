@@ -60,7 +60,7 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, ImmediateLockedWriteLog);
     DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, ImmediateLocklessWriteLog);
-    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, DelayedWriteLog);
+    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, DelayedLocklessWriteLog);
 
     DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, PersistentSignature, InitialTransactionSignature);
     DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, TransientSignature, InitialTransactionSignature);

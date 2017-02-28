@@ -86,12 +86,12 @@ TCallback<void(TSaveContext&)> TTransaction::AsyncSave()
     return BIND([
         immediateLockedWriteLogSnapshot = ImmediateLockedWriteLog_.MakeSnapshot(),
         immediateLocklessWriteLogSnapshot = ImmediateLocklessWriteLog_.MakeSnapshot(),
-        delayedWriteLogSnapshot = DelayedWriteLog_.MakeSnapshot()
+        delayedLocklessWriteLogSnapshot = DelayedLocklessWriteLog_.MakeSnapshot()
     ] (TSaveContext& context) {
         using NYT::Save;
         Save(context, immediateLockedWriteLogSnapshot);
         Save(context, immediateLocklessWriteLogSnapshot);
-        Save(context, delayedWriteLogSnapshot);
+        Save(context, delayedLocklessWriteLogSnapshot);
     });
 }
 
@@ -100,7 +100,7 @@ void TTransaction::AsyncLoad(TLoadContext& context)
     using NYT::Load;
     Load(context, ImmediateLockedWriteLog_);
     Load(context, ImmediateLocklessWriteLog_);
-    Load(context, DelayedWriteLog_);
+    Load(context, DelayedLocklessWriteLog_);
 }
 
 TFuture<void> TTransaction::GetFinished() const
