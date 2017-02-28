@@ -103,7 +103,7 @@ void ValidateColumnFilter(const TColumnFilter& columnFilter, int schemaColumnCou
 template <class TValue>
 TValue MakeSentinelValue(EValueType type, int id = 0, bool aggregate = false)
 {
-    TValue result;
+    TValue result{};
     result.Id = id;
     result.Type = type;
     result.Aggregate = aggregate;
@@ -113,7 +113,7 @@ TValue MakeSentinelValue(EValueType type, int id = 0, bool aggregate = false)
 template <class TValue>
 TValue MakeInt64Value(i64 value, int id = 0, bool aggregate = false)
 {
-    TValue result;
+    TValue result{};
     result.Id = id;
     result.Type = EValueType::Int64;
     result.Aggregate = aggregate;
@@ -124,7 +124,7 @@ TValue MakeInt64Value(i64 value, int id = 0, bool aggregate = false)
 template <class TValue>
 TValue MakeUint64Value(ui64 value, int id = 0, bool aggregate = false)
 {
-    TValue result;
+    TValue result{};
     result.Id = id;
     result.Type = EValueType::Uint64;
     result.Aggregate = aggregate;
@@ -135,7 +135,7 @@ TValue MakeUint64Value(ui64 value, int id = 0, bool aggregate = false)
 template <class TValue>
 TValue MakeDoubleValue(double value, int id = 0, bool aggregate = false)
 {
-    TValue result;
+    TValue result{};
     result.Id = id;
     result.Type = EValueType::Double;
     result.Aggregate = aggregate;
@@ -146,7 +146,7 @@ TValue MakeDoubleValue(double value, int id = 0, bool aggregate = false)
 template <class TValue>
 TValue MakeBooleanValue(bool value, int id = 0, bool aggregate = false)
 {
-    TValue result;
+    TValue result{};
     result.Id = id;
     result.Type = EValueType::Boolean;
     result.Aggregate = aggregate;
@@ -157,7 +157,7 @@ TValue MakeBooleanValue(bool value, int id = 0, bool aggregate = false)
 template <class TValue>
 TValue MakeStringValue(const TStringBuf& value, int id = 0, bool aggregate = false)
 {
-    TValue result;
+    TValue result{};
     result.Id = id;
     result.Type = EValueType::String;
     result.Aggregate = aggregate;
@@ -169,7 +169,7 @@ TValue MakeStringValue(const TStringBuf& value, int id = 0, bool aggregate = fal
 template <class TValue>
 TValue MakeAnyValue(const TStringBuf& value, int id = 0, bool aggregate = false)
 {
-    TValue result;
+    TValue result{};
     result.Id = id;
     result.Type = EValueType::Any;
     result.Aggregate = aggregate;

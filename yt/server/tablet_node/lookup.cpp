@@ -65,7 +65,7 @@ public:
 
     void Run()
     {
-        auto schemaData = TWireProtocolReader::GetSchemaData(TabletSnapshot_->PhysicalSchema);
+        auto schemaData = TWireProtocolReader::GetSchemaData(TabletSnapshot_->PhysicalSchema.ToKeys());
         LookupKeys_ = Reader_->ReadSchemafulRowset(schemaData, false);
 
         LOG_DEBUG("Tablet lookup started (TabletId: %v, CellId: %v, KeyCount: %v)",
