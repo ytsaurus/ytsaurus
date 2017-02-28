@@ -456,10 +456,13 @@ class TSecurityManagerConfig
 {
 public:
     TExpiringCacheConfigPtr TablePermissionCache;
+    TExpiringCacheConfigPtr ResourceLimitsCache;
 
     TSecurityManagerConfig()
     {
         RegisterParameter("table_permission_cache", TablePermissionCache)
+            .DefaultNew();
+        RegisterParameter("resource_limits_cache", ResourceLimitsCache)
             .DefaultNew();
     }
 };

@@ -11,7 +11,7 @@ from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
-class TestSortedDynamicTables(YTEnvSetup):
+class TestSortedDynamicTablesBase(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 16
     NUM_SCHEDULERS = 0
@@ -25,17 +25,6 @@ class TestSortedDynamicTables(YTEnvSetup):
 
     DELTA_DRIVER_CONFIG = {
         "max_rows_per_write_request": 2
-    }
-
-    DELTA_NODE_CONFIG = {
-        "cluster_connection" : {
-            "timestamp_provider" : {
-                "update_period": 100
-            }
-        },
-        "tablet_manager" : {
-            "error_backoff_time" : 0
-        }
     }
 
     def _create_simple_table(self, path, atomicity=None, optimize_for=None, tablet_cell_bundle=None,
@@ -151,6 +140,22 @@ class TestSortedDynamicTables(YTEnvSetup):
             self.set_node_banned(x["address"], True)
         clear_metadata_caches()
     
+##################################################################
+
+class TestSortedDynamicTables(TestSortedDynamicTablesBase):
+    DELTA_NODE_CONFIG = {
+        "cluster_connection" : {
+            "timestamp_provider" : {
+                "update_period": 100
+            }
+        },
+        "tablet_node" : {
+            "tablet_manager": {
+                "error_backoff_time" : 0,
+            },
+        },
+    }
+
     def test_mount(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -1717,30 +1722,48 @@ class TestSortedDynamicTables(YTEnvSetup):
         assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
 
-    def test_resource_limits(self):
+
+##################################################################
+
+class TestSortedDynamicTablesResourceLimits(TestSortedDynamicTablesBase):
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "security_manager": {
+                "resource_limits_cache": {
+                    "expire_after_access_time": 0,
+                },
+            },
+        },
+        "master_cache_service": {
+            "capacity": 0
+        },
+    }
+
+    @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
+    def test_resource_limits(self, resource):
         create_account("test_account")
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         set("//tmp/t/@account", "test_account")
-        set("//sys/accounts/test_account/@resource_limits/disk_space_per_medium/default", 0)
         self.sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in xrange(10)])
+
+        set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
+        insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+        self.sync_flush_table("//tmp/t")
+
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+
+        set("//sys/accounts/test_account/@resource_limits/" + resource, 1000)
+        insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+
+        set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
         self.sync_unmount_table("//tmp/t")
+
 
 ##################################################################
 
-class TestSortedDynamicTablesMetadataCaching(YTEnvSetup):
-    NUM_MASTERS = 3
-    NUM_NODES = 16
-    NUM_SCHEDULERS = 0
-
-    DELTA_MASTER_CONFIG = {
-        "tablet_manager": {
-            "leader_reassignment_timeout" : 1000,
-            "peer_revocation_timeout" : 3000
-        }
-    }
-
+class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
     DELTA_DRIVER_CONFIG = {
         "max_rows_per_write_request": 2,
 
