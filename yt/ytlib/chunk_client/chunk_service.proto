@@ -167,6 +167,9 @@ message TReqExecuteBatch
 
         // Medium to be used to store chunk replicas on. Interpreted as primary medium.
         required string medium_name = 11;
+
+        // Validate that there is enough disk space available.
+        optional bool validate_resource_usage_increase = 12 [default = true];
     }
 
     repeated TCreateChunkSubrequest create_chunk_subrequests = 1;
