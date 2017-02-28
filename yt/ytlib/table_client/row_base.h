@@ -72,6 +72,20 @@ struct TColumnFilter
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTypeErasedRow
+{
+    const void* OpaqueHeader;
+
+    explicit operator bool() const
+    {
+        return OpaqueHeader != 0;
+    }
+};
+
+static_assert(std::is_pod<TTypeErasedRow>::value, "TTypeErasedRow must be POD.");
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Checks that #type is allowed to appear in data. Throws on failure.
 void ValidateDataValueType(EValueType type);
 

@@ -314,7 +314,7 @@ static TNullable<TUnversionedValue> TrimSentinel(TMutableRow row)
     return result;
 }
 
-void Copy(TRow source, TMutableRow dest, int count)
+void Copy(TRow source, TMutableRow dest, ui32 count)
 {
     count = std::min(count, source.GetCount());
     for (int index = 0; index < count; ++index) {
