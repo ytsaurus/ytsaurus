@@ -410,20 +410,13 @@ public:
         return result;
     }
 
-    virtual void RegisterAlert(EAlertType alertType, const TError& alert) override
+    virtual void SetSchedulerAlert(EAlertType alertType, const TError& alert) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_WARNING(alert, "Registering %v alert", alertType);
+        LOG_WARNING(alert, "Setting %v alert", alertType);
 
-        GetMasterConnector()->RegisterAlert(alertType, alert);
-    }
-
-    virtual void UnregisterAlert(EAlertType alertType) override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        GetMasterConnector()->UnregisterAlert(alertType);
+        GetMasterConnector()->SetSchedulerAlert(alertType, alert);
     }
 
     virtual const TCoreDumperPtr& GetCoreDumper() const override
@@ -1446,7 +1439,7 @@ private:
         } catch (const std::exception& ex) {
             auto error = TError("Error parsing pools configuration")
                 << ex;
-            RegisterAlert(EAlertType::UpdatePools, error);
+            SetSchedulerAlert(EAlertType::UpdatePools, error);
             return;
         }
 
@@ -1544,7 +1537,7 @@ private:
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
         if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             // No config in Cypress, just ignore.
-            UnregisterAlert(EAlertType::UpdateConfig);
+            SetSchedulerAlert(EAlertType::UpdateConfig, TError());
             return;
         }
         if (!rspOrError.IsOK()) {
@@ -1561,17 +1554,17 @@ private:
             } catch (const std::exception& ex) {
                 auto error = TError("Error updating cell scheduler configuration")
                     << ex;
-                RegisterAlert(EAlertType::UpdateConfig, error);
+                SetSchedulerAlert(EAlertType::UpdateConfig, error);
                 return;
             }
         } catch (const std::exception& ex) {
             auto error = TError("Error parsing updated scheduler configuration")
                 << ex;
-            RegisterAlert(EAlertType::UpdateConfig, error);
+            SetSchedulerAlert(EAlertType::UpdateConfig, error);
             return;
         }
 
-        UnregisterAlert(EAlertType::UpdateConfig);
+        SetSchedulerAlert(EAlertType::UpdateConfig, TError());
 
         auto oldConfigNode = ConvertToNode(Config_);
         auto newConfigNode = ConvertToNode(newConfig);
