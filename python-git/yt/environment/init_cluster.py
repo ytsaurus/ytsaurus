@@ -182,16 +182,16 @@ def main():
                         help="Use IDM system with this cluster")
     args = parser.parse_args()
 
-    suffix = yt.config["proxy"]["default_suffix"]
-    proxy_short_address = yt.config["proxy"]["url"]
-    if proxy_short_address and suffix and proxy_short_address.endswith(suffix):
-        proxy_short_address = proxy_short_address[:-len(suffix)]
-
     proxy_address = None
     ui_address = None
-    if proxy_short_address and all(ch in string.ascii_letters + string.digits for ch in proxy_short_address):
-        proxy_address = proxy_short_address + suffix
-        ui_address = "https://yt.yandex-team.ru/{0}/".format(proxy_short_address)
+    if yt.config["proxy"]["url"]:
+        suffix = yt.config["proxy"]["default_suffix"]
+        proxy_short_address = yt.config["proxy"]["url"]
+        if proxy_short_address.endswith(suffix):
+            proxy_short_address = proxy_short_address[:-len(suffix)]
+        if all(ch in string.ascii_letters + string.digits for ch in proxy_short_address):
+            proxy_address = proxy_short_address + suffix
+            ui_address = "https://yt.yandex-team.ru/{0}/".format(proxy_short_address)
 
     initialize_world(idm=args.idm, proxy_address=proxy_address, ui_address=ui_address)
 
