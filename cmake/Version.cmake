@@ -26,6 +26,9 @@ set(YT_VERSION "${YT_VERSION}-${YT_BUILD_BRANCH}")
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(YT_VERSION "${YT_VERSION}~debug")
 endif()
+if (YT_BUILD_ENABLE_ASAN)
+  set(YT_VERSION "${YT_VERSION}~asan")
+endif()
 set(YT_VERSION "${YT_VERSION}~${YT_BUILD_VCS_NUMBER}")
 
 # Underscore is forbidden in the version
