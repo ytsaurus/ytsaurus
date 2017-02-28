@@ -105,14 +105,9 @@ public:
             : 1;
     }
 
-    virtual i64 GetMaxPrimaryDataSlicesPerJob() const override
+    virtual i64 GetMaxDataSlicesPerJob() const override
     {
-        return Options_->MaxPrimaryDataSlicesPerJob;
-    }
-
-    virtual i64 GetMaxChunkStripesPerJob() const override
-    {
-        return Options_->MaxChunkStripesPerJob;
+        return Options_->MaxDataSlicesPerJob;
     }
 
     virtual i64 GetMaxDataSizePerJob() const override
@@ -218,14 +213,9 @@ public:
             : 1;
     }
 
-    virtual i64 GetMaxPrimaryDataSlicesPerJob() const override
+    virtual i64 GetMaxDataSlicesPerJob() const override
     {
-        return Options_->MaxPrimaryDataSlicesPerJob;
-    }
-
-    virtual i64 GetMaxChunkStripesPerJob() const override
-    {
-        return Options_->MaxChunkStripesPerJob;
+        return Options_->MaxDataSlicesPerJob;
     }
 
     virtual i64 GetMaxDataSizePerJob() const override
@@ -351,14 +341,9 @@ public:
             : 1;
     }
 
-    virtual i64 GetMaxPrimaryDataSlicesPerJob() const override
+    virtual i64 GetMaxDataSlicesPerJob() const override
     {
-        return Options_->MaxPrimaryDataSlicesPerJob;
-    }
-
-    virtual i64 GetMaxChunkStripesPerJob() const override
-    {
-        return Options_->MaxChunkStripesPerJob;
+        return Options_->MaxDataSlicesPerJob;
     }
 
     virtual i64 GetMaxDataSizePerJob() const override
