@@ -485,7 +485,6 @@ void TraverseChunkTree(
     auto traverser = New<TChunkTreeTraverser>(
         std::move(traverserCallbacks),
         std::move(visitor));
-
     traverser->Run(root, lowerLimit, upperLimit);
 }
 
@@ -495,19 +494,22 @@ class TPreemptableChunkTraverserCallbacks
     : public IChunkTraverserCallbacks
 {
 public:
-    explicit TPreemptableChunkTraverserCallbacks(NCellMaster::TBootstrap* bootstrap)
+    TPreemptableChunkTraverserCallbacks(
+        NCellMaster::TBootstrap* bootstrap,
+        NCellMaster::EAutomatonThreadQueue threadQueue)
         : Bootstrap_(bootstrap)
         , UserName_(Bootstrap_
             ->GetSecurityManager()
             ->GetAuthenticatedUser()
             ->GetName())
+        , ThreadQueue_(threadQueue)
     { }
 
     virtual IInvokerPtr GetInvoker() const override
     {
         return Bootstrap_
             ->GetHydraFacade()
-            ->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkTraverser);
+            ->GetEpochAutomatonInvoker(ThreadQueue_);
     }
 
     virtual void OnPop(TChunkTree* node) override
@@ -542,13 +544,17 @@ public:
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
     const Stroka UserName_;
+    const NCellMaster::EAutomatonThreadQueue ThreadQueue_;
 
 };
 
 IChunkTraverserCallbacksPtr CreatePreemptableChunkTraverserCallbacks(
-    NCellMaster::TBootstrap* bootstrap)
+    NCellMaster::TBootstrap* bootstrap,
+    NCellMaster::EAutomatonThreadQueue threadQueue)
 {
-    return New<TPreemptableChunkTraverserCallbacks>(bootstrap);
+    return New<TPreemptableChunkTraverserCallbacks>(
+        bootstrap,
+        threadQueue);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

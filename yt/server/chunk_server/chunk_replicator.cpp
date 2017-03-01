@@ -1822,7 +1822,10 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
         {
             LOG_DEBUG("Chunk tree traversal update started (ChunkList: %v)",
                 RootId_);
-            TraverseChunkTree(CreatePreemptableChunkTraverserCallbacks(Bootstrap_), this, Root_);
+            auto callbacks = CreatePreemptableChunkTraverserCallbacks(
+                Bootstrap_,
+                NCellMaster::EAutomatonThreadQueue::ChunkPropertiesUpdateTraverser);
+            TraverseChunkTree(std::move(callbacks), this, Root_);
         }
 
     private:
