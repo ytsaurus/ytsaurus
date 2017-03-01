@@ -154,6 +154,6 @@ def load(stream, yson_type=None, encoding=_ENCODING_SENTINEL, always_create_attr
 def loads(string, yson_type=None, encoding=_ENCODING_SENTINEL, always_create_attributes=True):
     """Deserializes object from YSON formatted string `string`. See :func:`load <.load>`."""
     if type(string) is text_type and PY3:
-        raise YsonError("Only binary streams are supported by YSON parser")
+        raise TypeError("Only binary streams are supported by YSON parser")
     return load(BytesIO(string), yson_type, encoding=encoding,
                 always_create_attributes=always_create_attributes)
