@@ -861,7 +861,7 @@ class JsonFormat(Format):
             yield row
 
     def _dump_rows(self, rows, stream):
-        if self.process_table_index:
+        if (self.process_table_index is None and self.control_attributes_mode == "row_fields") or self.process_table_index:
             rows = self._process_output_rows(rows)
         for row in rows:
             self.dump_row(row, stream)
