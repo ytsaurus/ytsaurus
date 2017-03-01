@@ -1820,8 +1820,6 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
 
         void Run()
         {
-            LOG_DEBUG("Chunk tree traversal update started (ChunkList: %v)",
-                RootId_);
             auto callbacks = CreatePreemptableChunkTraverserCallbacks(
                 Bootstrap_,
                 NCellMaster::EAutomatonThreadQueue::ChunkPropertiesUpdateTraverser);
@@ -1846,13 +1844,7 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
 
         virtual void OnFinish(const TError& error) override
         {
-            if (error.IsOK()) {
-                LOG_DEBUG("Chunk tree traversal completed (ChunkList: %v)",
-                    RootId_);
-            } else {
-                LOG_DEBUG(error, "Chunk tree traversal failed (ChunkList: %v)",
-                    RootId_);
-
+            if (!error.IsOK()) {
                 // Try restarting.
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 Root_ = chunkManager->FindChunkList(RootId_);
