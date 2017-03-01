@@ -4,6 +4,9 @@ from yt_commands import *
 from yt.yson import *
 from yt.wrapper import JsonFormat
 from yt.environment.helpers import assert_items_equal, assert_almost_equal
+from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
+
+import yt.environment.init_operation_archive as init_operation_archive
 
 from flaky import flaky
 
@@ -1075,6 +1078,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         self.sync_unmount_table(stderrs_archive_path)
         remove(stderrs_archive_path)
 
+    @add_failed_operation_stderrs_to_error_message
     def test_list_jobs(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1105,34 +1109,31 @@ class TestSchedulerMapCommands(YTEnvSetup):
         res = list_jobs(op.id, include_archive=False, include_cypress=True)
         assert sorted([job["job_id"] for job in res]) == sorted(job_ids)
 
-        jobs_archive_path = "//sys/operations_archive/jobs"
-
+        client = self.Env.create_native_client()
         self.sync_create_cells(1)
-        create("table", jobs_archive_path,
-            attributes={
-                "dynamic": True,
-                "optimize_for" : "scan",
-                "schema": [
-                    {"name": "operation_id_hi", "type": "uint64", "sort_order": "ascending"},
-                    {"name": "operation_id_lo", "type": "uint64", "sort_order": "ascending"},
-                    {"name": "job_id_hi", "type": "uint64", "sort_order": "ascending"},
-                    {"name": "job_id_lo", "type": "uint64", "sort_order": "ascending"},
-                    {"name": "type", "type": "string"},
-                    {"name": "state", "type": "string"},
-                    {"name": "start_time", "type": "int64"},
-                    {"name": "finish_time", "type": "int64"},
-                    {"name": "address", "type": "string"},
-                    {"name": "error", "type": "any"},
-                    {"name": "statistics", "type": "any"},
-                    {"name": "stderr_size", "type": "uint64"},
-                    {"name": "spec", "type": "string"},
-                    {"name": "spec_version", "type": "int64"},
-                    {"name": "events", "type": "any"}]
-            },
-            recursive=True)
 
-        self.sync_mount_table(jobs_archive_path)
+        driver_config_path = self.Env.config_paths["driver"]
 
+        with open(driver_config_path, "rb") as f:
+            driver_config = yson.load(f)
+
+        client_config = {
+            "backend": "native",
+            "driver_config": driver_config
+        }
+
+        init_operation_archive.transform_archive(
+            client,
+            0,
+            7,
+            False,
+            "//sys/operations_archive",
+            default_client_config=client_config,
+            shard_count=1,
+            environment={"PYTHONPATH": os.environ["PYTHONPATH"]})
+
+        jobs_archive_path = "//sys/operations_archive/jobs"
+        
         rows = []
 
         jobs = get("//sys/operations/{}/jobs".format(op.id), attributes=[
@@ -1177,8 +1178,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert len(res) == 2
         assert sorted(res, key=lambda item: item["start_time"], reverse=True) == res
 
-        self.sync_unmount_table(jobs_archive_path)
-        remove(jobs_archive_path)
+        remove("//sys/operations_archive")
 
     @unix_only
     def test_sorted_output(self):
