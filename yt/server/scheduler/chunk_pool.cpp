@@ -516,15 +516,15 @@ public:
         ExtractedList = nullptr;
     }
 
-    virtual void Aborted(IChunkPoolOutput::TCookie cookie) override
+    virtual void Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason) override
     {
         YCHECK(cookie == 0);
         YCHECK(ExtractedList);
         YCHECK(Finished);
 
-        JobCounter.Aborted(1);
-        DataSizeCounter.Aborted(DataSizeCounter.GetTotal());
-        RowCounter.Aborted(RowCounter.GetTotal());
+        JobCounter.Aborted(1, reason);
+        DataSizeCounter.Aborted(DataSizeCounter.GetTotal(), reason);
+        RowCounter.Aborted(RowCounter.GetTotal(), reason);
 
         ExtractedList = nullptr;
     }
@@ -889,16 +889,16 @@ public:
         ReinstallStripeList(extractedStripeList, cookie);
     }
 
-    virtual void Aborted(IChunkPoolOutput::TCookie cookie) override
+    virtual void Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason) override
     {
         auto it = ExtractedLists.find(cookie);
         YCHECK(it != ExtractedLists.end());
         auto& extractedStripeList = it->second;
         auto list = extractedStripeList.StripeList;
 
-        JobCounter.Aborted(1);
-        DataSizeCounter.Aborted(list->TotalDataSize);
-        RowCounter.Aborted(list->TotalRowCount);
+        JobCounter.Aborted(1, reason);
+        DataSizeCounter.Aborted(list->TotalDataSize, reason);
+        RowCounter.Aborted(list->TotalRowCount, reason);
 
         ReinstallStripeList(extractedStripeList, cookie);
     }
@@ -1577,7 +1577,7 @@ private:
             RowCounter.Failed(run.TotalRowCount);
         }
 
-        virtual void Aborted(TCookie cookie) override
+        virtual void Aborted(TCookie cookie, EAbortReason reason) override
         {
             auto& run = Runs[cookie];
             YCHECK(run.State == ERunState::Running);
@@ -1585,9 +1585,9 @@ private:
 
             UpdatePendingRunSet(run);
 
-            JobCounter.Aborted(1);
-            DataSizeCounter.Aborted(run.TotalDataSize);
-            RowCounter.Aborted(run.TotalRowCount);
+            JobCounter.Aborted(1, reason);
+            DataSizeCounter.Aborted(run.TotalDataSize, reason);
+            RowCounter.Aborted(run.TotalRowCount, reason);
         }
 
         virtual void Lost(TCookie cookie) override

@@ -462,7 +462,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
             FormatResources(jobLimits),
             FormatResources(neededResources));
         CheckResourceDemandSanity(nodeResourceLimits, neededResources);
-        chunkPoolOutput->Aborted(joblet->OutputCookie);
+        chunkPoolOutput->Aborted(joblet->OutputCookie, EAbortReason::SchedulingOther);
         // Seems like cached min needed resources are too optimistic.
         ResetCachedMinNeededResources();
         scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
@@ -565,7 +565,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
     Controller->CustomizeJoblet(joblet);
 
     Controller->RegisterJoblet(joblet);
-    Controller->UpdateEstimatedHistogram(joblet);
+    Controller->AddValueToEstimatedHistogram(joblet);
 
     OnJobStarted(joblet);
 }
@@ -665,58 +665,45 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
     UpdateMaximumUsedTmpfsSize(jobSummary.Statistics);
 }
 
-void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason)
+void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie)
 {
-    Controller->UpdateEstimatedHistogram(joblet, reason);
+    Controller->RemoveValueFromEstimatedHistogram(joblet);
     Controller->ReleaseChunkLists(joblet->ChunkListIds);
-    if (reason != EJobReinstallReason::Failed) {
-        if (joblet->StderrTableChunkListId) {
-            Controller->ReleaseChunkLists({joblet->StderrTableChunkListId});
-        }
-        if (joblet->CoreTableChunkListId) {
-            Controller->ReleaseChunkLists({joblet->CoreTableChunkListId});
-        }
-    }
-
-    auto* chunkPoolOutput = GetChunkPoolOutput();
 
     auto list = HasInputLocality()
-        ? chunkPoolOutput->GetStripeList(joblet->OutputCookie)
+        ? GetChunkPoolOutput()->GetStripeList(joblet->OutputCookie)
         : nullptr;
 
-    switch (reason) {
-        case EJobReinstallReason::Failed:
-            chunkPoolOutput->Failed(joblet->OutputCookie);
-            break;
-        case EJobReinstallReason::Aborted:
-            chunkPoolOutput->Aborted(joblet->OutputCookie);
-            break;
-        default:
-            Y_UNREACHABLE();
-    }
+    releaseOutputCookie();
 
     if (HasInputLocality()) {
         for (const auto& stripe : list->Stripes) {
             Controller->AddTaskLocalityHint(this, stripe);
         }
     }
-
     AddPendingHint();
 }
 
 void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
 {
-    ReinstallJob(joblet, EJobReinstallReason::Failed);
-
     Controller->RegisterStderr(joblet, jobSummary);
     Controller->RegisterCores(joblet, jobSummary);
 
     UpdateMaximumUsedTmpfsSize(jobSummary.Statistics);
+
+    ReinstallJob(joblet, BIND([=] {GetChunkPoolOutput()->Failed(joblet->OutputCookie);}));
 }
 
-void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& /* jobSummary */)
+void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary)
 {
-    ReinstallJob(joblet, EJobReinstallReason::Aborted);
+    if (joblet->StderrTableChunkListId) {
+        Controller->ReleaseChunkLists({joblet->StderrTableChunkListId});
+    }
+    if (joblet->CoreTableChunkListId) {
+        Controller->ReleaseChunkLists({joblet->CoreTableChunkListId});
+    }
+
+    ReinstallJob(joblet, BIND([=] {GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason);}));
 }
 
 void TOperationControllerBase::TTask::OnJobLost(TCompletedJobPtr completedJob)
@@ -2046,14 +2033,14 @@ void TOperationControllerBase::InitializeHistograms()
     }
 }
 
-void TOperationControllerBase::UpdateEstimatedHistogram(TJobletPtr joblet)
+void TOperationControllerBase::AddValueToEstimatedHistogram(TJobletPtr joblet)
 {
     if (EstimatedInputDataSizeHistogram_) {
         EstimatedInputDataSizeHistogram_->AddValue(joblet->InputStripeList->TotalDataSize);
     }
 }
 
-void TOperationControllerBase::UpdateEstimatedHistogram(TJobletPtr joblet, EJobReinstallReason reason)
+void TOperationControllerBase::RemoveValueFromEstimatedHistogram(TJobletPtr joblet)
 {
     if (EstimatedInputDataSizeHistogram_) {
         EstimatedInputDataSizeHistogram_->RemoveValue(joblet->InputStripeList->TotalDataSize);

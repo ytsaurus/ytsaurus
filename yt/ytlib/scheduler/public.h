@@ -77,6 +77,7 @@ DEFINE_ENUM(EAbortReason,
     (SchedulingTimeout)
     (SchedulingResourceOvercommit)
     (SchedulingOperationSuspended)
+    (SchedulingOther)
     (SchedulingEndMarker)
 );
 
