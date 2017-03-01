@@ -51,6 +51,17 @@ inline bool IsComparableType(EValueType type)
     return IsArithmeticType(type) || type == EValueType::String || type == EValueType::Boolean;
 }
 
+inline bool IsValueType(EValueType type)
+{
+    return
+        type == EValueType::Int64 ||
+        type == EValueType::Uint64 ||
+        type == EValueType::Double ||
+        type == EValueType::Boolean ||
+        type == EValueType::String ||
+        type == EValueType::Any;
+}
+
 inline bool IsSentinelType(EValueType type)
 {
     return type == EValueType::Min || type == EValueType::Max;
