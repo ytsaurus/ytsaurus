@@ -72,7 +72,7 @@ def main():
     args = parser.parse_args()
 
     configure_logging(args)
-    process_tasks_from_list(args.tasks_path, compress)
+    process_tasks_from_list(args.tasks_path, compress, process_forever=True)
 
 if __name__ == "__main__":
     main()
