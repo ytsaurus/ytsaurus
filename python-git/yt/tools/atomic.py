@@ -43,7 +43,8 @@ def is_hashable(obj):
     except:
         return False
 
-def process_tasks_from_list(list, action, limit=10000):
+def process_tasks_from_list(list, action, limit=10000, process_forever=False,
+                            empty_queue_sleep_delay=5.0):
     processed_values = set()
     counter = 0
     while True:
@@ -52,8 +53,14 @@ def process_tasks_from_list(list, action, limit=10000):
             value = atomic_pop(list)
 
             if value is None:
-                logger.info("Queue '%s' is empty, processing stopped", list)
-                break
+                if process_forever:
+                    logger.info("Queue '%s' is empty, sleeping for %f seconds...",
+                                list, empty_queue_sleep_delay)
+                    sleep(empty_queue_sleep_delay)
+                    continue
+                else:
+                    logger.info("Queue '%s' is empty, processing stopped", list)
+                    break
 
             hashable_value = value
             if isinstance(value, builtins.list):
