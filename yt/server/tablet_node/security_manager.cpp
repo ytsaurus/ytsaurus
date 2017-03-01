@@ -110,7 +110,9 @@ private:
             key);
 
         auto client = Bootstrap_->GetMasterClient();
-        return client->CheckPermission(key.User, FromObjectId(key.TableId), key.Permission).Apply(
+        auto options = TCheckPermissionOptions();
+        options.ReadFrom = EMasterChannelKind::Cache;
+        return client->CheckPermission(key.User, FromObjectId(key.TableId), key.Permission, options).Apply(
             BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TCheckPermissionResult>& resultOrError) {
                 if (!resultOrError.IsOK()) {
                     auto wrappedError = TError("Error checking permission for table %v",
