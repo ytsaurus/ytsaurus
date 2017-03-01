@@ -1,18 +1,19 @@
 #!/usr/bin/python
 
+import os
 import yt.yson as yson
 import yt.wrapper as yt
+from yt.wrapper.client import Yt
 
 import calendar
 import datetime
 import argparse
 import logging
 
-import yt.tools.dynamic_tables as dynamic_tables
-from yt.tools.dynamic_tables import get_dynamic_table_attributes, make_dynamic_table_attributes
+from yt.tools.dynamic_tables import get_dynamic_table_attributes, make_dynamic_table_attributes, mount_table, unmount_table, DynamicTablesClient
 
 class TableInfo(object):
-    def __init__(self, key_columns, value_columns, in_memory=False, pivot_keys=None):
+    def __init__(self, key_columns, value_columns, in_memory=False, get_pivot_keys=None):
         def make_column(name, type_name, expression=None):
             return {
                 "name": name,
@@ -29,33 +30,33 @@ class TableInfo(object):
         self.key_columns = [column["name"] for column in self.schema]
         self.schema += [make_column(*column) for column in value_columns]
         self.user_columns = [column["name"] for column in self.schema if "expression" not in column]
-        self.pivot_keys = pivot_keys
+        self.get_pivot_keys = get_pivot_keys
         self.in_memory = in_memory
 
-    def create_table(self, path):
-        attributes = make_dynamic_table_attributes(yt, self.schema, self.key_columns, "scan")
+    def create_table(self, client, path, shards):
+        attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
 
         logging.info("Creating table %s with attributes %s", path, attributes)
-        yt.create("table", path, recursive=True, attributes=attributes)
+        client.create("table", path, recursive=True, attributes=attributes)
 
-        if self.pivot_keys:
-            yt.reshard_table(path, self.pivot_keys)
+        if self.get_pivot_keys:
+            client.reshard_table(path, self.get_pivot_keys(shards))
 
-        yt.mount_table(path)
+        client.mount_table(path)
 
-    def alter_table(self, path):
+    def alter_table(self, client, path, shards):
         logging.info("Unmounting table %s", path)
-        dynamic_tables.unmount_table(path)
-        attributes = make_dynamic_table_attributes(yt, self.schema, self.key_columns, "scan")
+        unmount_table(client, path)
+        attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
 
         logging.info("Alter table %s with attributes %s", path, attributes)
-        yt.alter_table(path, schema=attributes['schema'])
+        client.alter_table(path, schema=attributes['schema'])
 
-        if self.pivot_keys:
-            yt.reshard_table(path, self.pivot_keys)
+        if self.get_pivot_keys:
+            client.reshard_table(path, self.get_pivot_keys(shards))
 
         logging.info("Mounting table %s", path)
-        dynamic_tables.mount_table(path)
+        mount_table(client, path)
 
     def get_default_mapper(self):
         column_names = self.user_columns
@@ -65,6 +66,7 @@ class TableInfo(object):
 
         return default_mapper
 
+DEFAULT_SHARD_COUNT = 100
 class Convert(object):
     def __init__(self, table, table_info=None, mapper=None, source=None, use_default_mapper=False):
         self.table = table
@@ -73,19 +75,24 @@ class Convert(object):
         self.source = source
         self.use_default_mapper = use_default_mapper
 
-    def __call__(self, table_info, target_table, source_table, base_path):
+    def __call__(self, client, table_info, target_table, source_table, base_path, shard_count=DEFAULT_SHARD_COUNT, **kwargs):
         if self.table_info:
             table_info = self.table_info
 
         if not self.use_default_mapper and not self.mapper and not self.source and source_table:
             source_table = yt.ypath_join(base_path, source_table)
-            table_info.alter_table(source_table)
+            table_info.alter_table(client, source_table, shard_count)
             return True  # in place transformation
 
-        table_info.create_table(target_table)
+        table_info.create_table(client, target_table, shard_count)
 
         source_table = self.source or source_table
-        client = dynamic_tables.DynamicTablesClient(job_count=100, job_memory_limit=4*2**30, batch_size=10000)
+        dt_client = DynamicTablesClient(
+            client,
+            job_count=100,
+            job_memory_limit=4*2**30,
+            batch_size=10000,
+            **kwargs)
 
         if source_table:
             source_table = yt.ypath_join(base_path, source_table)
@@ -93,17 +100,19 @@ class Convert(object):
             if not mapper:
                 mapper = table_info.get_default_mapper()
 
-            client.mount_table(source_table)
-            client.run_map_dynamic(mapper, source_table, target_table)
-            client.unmount_table(target_table)
-            yt.set(target_table + "/@forced_compaction_revision", yt.get(target_table + "/@revision"))
+            mount_table(client, source_table)
+            dt_client.run_map_dynamic(mapper, source_table, target_table)
+
+            unmount_table(client, target_table)
+            client.set(target_table + "/@forced_compaction_revision", client.get(target_table + "/@revision"))
             if table_info.in_memory:
-                yt.set(target_table + "/@in_memory_mode", "compressed")
-            client.mount_table(target_table)
+                client.set(target_table + "/@in_memory_mode", "compressed")
+            mount_table(client, target_table)
         return False  # need additional swap
 
-SHARD_COUNT = 100
-DEFAULT_PIVOTS = [[]] + [[yson.YsonUint64((i * 2 ** 64) / SHARD_COUNT)] for i in xrange(1, SHARD_COUNT)]
+
+def get_default_pivots(shard_count):
+    return [[]] + [[yson.YsonUint64((i * 2 ** 64) / shard_count)] for i in xrange(1, shard_count)]
 
 TRANSFORMS = {}
 
@@ -128,7 +137,7 @@ TRANSFORMS[0] = [
             ("result", "any")
         ],
         in_memory=True,
-        pivot_keys=DEFAULT_PIVOTS)),
+        get_pivot_keys=get_default_pivots)),
     Convert(
         "ordered_by_start_time",
         table_info=TableInfo([
@@ -183,7 +192,7 @@ TRANSFORMS[3] = [
             ], [
                 ("stderr", "string")
             ],
-            pivot_keys=DEFAULT_PIVOTS)),
+            get_pivot_keys=get_default_pivots)),
     Convert(
         "jobs",
         table_info=TableInfo([
@@ -200,7 +209,7 @@ TRANSFORMS[3] = [
                 ("error", "any"),
                 ("statistics", "any")
             ],
-            pivot_keys=DEFAULT_PIVOTS))
+            get_pivot_keys=get_default_pivots))
 ]
 
 TRANSFORMS[4] = [
@@ -221,7 +230,7 @@ TRANSFORMS[4] = [
                 ("statistics", "any"),
                 ("stderr_size", "uint64")
             ],
-            pivot_keys=DEFAULT_PIVOTS))
+            get_pivot_keys=get_default_pivots))
 ]
 
 TRANSFORMS[5] = [
@@ -246,7 +255,7 @@ TRANSFORMS[5] = [
                 ("events", "any")
             ],
             in_memory=True,
-            pivot_keys=DEFAULT_PIVOTS))
+            get_pivot_keys=get_default_pivots))
 ]
 
 def convert_id(id):
@@ -297,7 +306,7 @@ TRANSFORMS[6] = [
                 ("statistics", "any"),
                 ("stderr_size", "uint64")
             ],
-            pivot_keys=DEFAULT_PIVOTS),
+            get_pivot_keys=get_default_pivots),
         mapper=convert_job_id_and_job_type_mapper),
     Convert(
         "stderrs",
@@ -332,27 +341,32 @@ TRANSFORMS[7] = [
                 ("spec_version", "int64"),
                 ("events", "any")
             ],
-            pivot_keys=DEFAULT_PIVOTS),
+            get_pivot_keys=get_default_pivots),
         use_default_mapper=True)
 ]
 
-def swap_table(target, source):
-    client = dynamic_tables.DynamicTablesClient()
-
+def swap_table(client, target, source):
     backup_path = target + ".bak"
-    if yt.exists(target):
-        client.unmount_table(target)
-        yt.move(target, backup_path)
+    if client.exists(target):
+        unmount_table(client, target)
+        client.move(target, backup_path)
 
-    client.unmount_table(source)
-    yt.move(source, target)
+    unmount_table(client, source)
+    client.move(source, target)
 
-    if yt.exists(backup_path):
-        yt.move(backup_path, source)
+    if client.exists(backup_path):
+        client.move(backup_path, source)
 
-    client.mount_table(target)
+    mount_table(client, target)
 
-def transform_archive(transform_begin, transform_end, force, archive_path):
+def transform_archive(
+    client,
+    transform_begin,
+    transform_end,
+    force,
+    archive_path,
+    **kwargs):
+
     schemas = {}
     for version in xrange(0, transform_begin):
         for convertion in TRANSFORMS[version]:
@@ -366,16 +380,24 @@ def transform_archive(transform_begin, transform_end, force, archive_path):
         for convertion in TRANSFORMS[version]:
             table = convertion.table
             tmp_path = "{}/{}.tmp.{}".format(archive_path, table, version)
-            if force and yt.exists(tmp_path):
-                yt.remove(tmp_path)
-            in_place = convertion(schemas.get(table), tmp_path, table if table in schemas else None, archive_path)
+            if force and client.exists(tmp_path):
+                client.remove(tmp_path)
+            in_place = convertion(
+                client,
+                schemas.get(table),
+                tmp_path,
+                table if table in schemas else None,
+                archive_path,
+                **kwargs)
             if not in_place:
                 swap_tasks.append((yt.ypath_join(archive_path, table), tmp_path))
+            if convertion.table_info:
+                schemas[table] = convertion.table_info
 
         for target_path, tmp_path in swap_tasks:
-            swap_table(target_path, tmp_path)
+            swap_table(client, target_path, tmp_path)
 
-        yt.set_attribute(archive_path, "version", version)
+        client.set_attribute(archive_path, "version", version)
 
 
 BASE_PATH = "//sys/operations_archive"
@@ -385,6 +407,7 @@ def main():
     parser.add_argument("--target-version", type=int)
     parser.add_argument("--force", action="store_true", default=False)
     parser.add_argument("--archive-path", type=str, default=BASE_PATH)
+    parser.add_argument("--shard-count", type=int, default=DEFAULT_SHARD_COUNT)
 
     args = parser.parse_args()
 
@@ -400,7 +423,8 @@ def main():
     next_version = current_version + 1
 
     target_version = args.target_version
-    transform_archive(next_version, target_version, args.force, archive_path)
+    client = Yt(proxy=yt.config["proxy"]["url"], token=yt.config["token"])
+    transform_archive(client, next_version, target_version, args.force, archive_path, shard_count=args.shard_count)
 
 if __name__ == "__main__":
     main()
