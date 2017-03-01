@@ -197,6 +197,7 @@ private:
         }
 
         FlushPreallocated();
+
         size_t size = std::max(PreallocateBlockSize, more);
         Current_ = BeginPreallocated_ = Stream_.Preallocate(size);
         EndPreallocated_ = BeginPreallocated_ + size;
@@ -211,7 +212,7 @@ private:
     {
         memcpy(Current_, buffer, size);
         Current_ += AlignUp(size);
-        YCHECK(Current_ <= EndPreallocated_);
+        Y_ASSERT(Current_ <= EndPreallocated_);
     }
 
     template <class T>
@@ -223,7 +224,7 @@ private:
         // Both of them are constexprs.
         memcpy(Current_, &value, sizeof(T));
         Current_ += AlignUp(sizeof(T));
-        YCHECK(Current_ <= EndPreallocated_);
+        Y_ASSERT(Current_ <= EndPreallocated_);
     }
 
     void WriteUint64(ui64 value)
@@ -768,14 +769,13 @@ private:
     {
         ui64* rawValue = reinterpret_cast<ui64*>(value);
         rawValue[0] = schemaData;
-        if (IsStringLikeType(value->Type)) {
+        if (null) {
+            value->Type = EValueType::Null;
+        } else if (IsStringLikeType(value->Type)) {
             value->Length = ReadUint32();
             DoReadStringData(value->Type, value->Length, &value->Data.String, deep);
-        } else if (!null) {
-            value->Data.Uint64 = ReadUint64();
         } else {
-            value->Type = EValueType::Null;
-
+            value->Data.Uint64 = ReadUint64();
         }
     }
 

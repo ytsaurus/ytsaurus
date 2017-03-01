@@ -215,6 +215,57 @@ TEST_F(TWireProtocolTest, SchemafulRow)
     CheckEquals(canonicalBlob, blob);
 }
 
+TEST_F(TWireProtocolTest, Regression1)
+{
+    const std::vector<unsigned char> blob({
+        // value count = 4
+        0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        // null bitmap = 1 << 3
+        0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        // id = 0, type = int64, data = 0
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        // id = 1, type = int64, data = 0
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        // id = 2, type = string, data = "2"
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x32, 0xcf, 0xcf, 0xcf, 0xcf, 0xcf, 0xcf, 0xcf,
+        // id = 3, type = string, data = (null)
+    });
+
+    const std::vector<ui32> blobSchemaData({
+        0x00030000,
+        0x00030001,
+        0x00100002,
+        0x00100003,
+    });
+
+    TWireProtocolReader reader(TSharedRef::MakeCopy<TWireProtocolTestTag>(
+        TRef(blob.data(), blob.size())));
+    auto row = reader.ReadSchemafulRow(blobSchemaData, false);
+
+    ASSERT_EQ(row.GetCount(), 4);
+
+    EXPECT_EQ(row[0].Id, 0);
+    EXPECT_EQ(row[0].Type, EValueType::Int64);
+    EXPECT_EQ(row[0].Aggregate, false);
+    EXPECT_EQ(row[0].Data.Int64, 1);
+
+    EXPECT_EQ(row[1].Id, 1);
+    EXPECT_EQ(row[1].Type, EValueType::Int64);
+    EXPECT_EQ(row[1].Aggregate, false);
+    EXPECT_EQ(row[1].Data.Int64, 1);
+
+    EXPECT_EQ(row[2].Id, 2);
+    EXPECT_EQ(row[2].Type, EValueType::String);
+    EXPECT_EQ(row[2].Aggregate, false);
+    EXPECT_EQ(row[2].Length, 1);
+    EXPECT_EQ(row[2].Data.String[0], '2');
+
+    EXPECT_EQ(row[3].Id, 3);
+    EXPECT_EQ(row[3].Type, EValueType::Null);
+    EXPECT_EQ(row[3].Aggregate, false);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
