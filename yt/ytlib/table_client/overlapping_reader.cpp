@@ -7,6 +7,8 @@
 
 #include <yt/ytlib/chunk_client/data_statistics.h>
 
+#include <yt/core/concurrency/rw_spinlock.h>
+
 #include <yt/core/misc/heap.h>
 
 #include <tuple>
@@ -16,6 +18,7 @@ namespace NTableClient {
 
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -247,6 +250,8 @@ private:
     TDataStatistics DataStatistics_;
     i64 RowCount_ = 0;
 
+    TReaderWriterSpinLock SpinLock_;
+
     struct TSession
     {
         TOwningKey Key;
@@ -317,13 +322,13 @@ TSchemafulOverlappingRangeReaderBase<TRowMerger>::TSchemafulOverlappingRangeRead
 template <class TRowMerger>
 TDataStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDataStatistics() const
 {
+    TReaderGuard guard(SpinLock_);
     auto dataStatistics = DataStatistics_;
-    for (const auto& session : ActiveSessions_) {
-        dataStatistics += session->Reader->GetDataStatistics();
-    }
 
-    for (const auto& session : AwaitingSessions_) {
-        dataStatistics += session->Reader->GetDataStatistics();
+    for (const auto& session : Sessions_) {
+        if (session.Reader) {
+            dataStatistics += session.Reader->GetDataStatistics();
+        }
     }
 
     dataStatistics.set_row_count(RowCount_);
@@ -471,6 +476,7 @@ TFuture<void> TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetReadyEvent(
 template <class TRowMerger>
 void TSchemafulOverlappingRangeReaderBase<TRowMerger>::OpenSession(int index)
 {
+    TWriterGuard guard(SpinLock_);
     Sessions_[index].Reader = ReaderFactory_(Sessions_[index].Index);
     Sessions_[index].ReadyEvent = Sessions_[index].Reader->Open();
     AwaitingSessions_.push_back(&Sessions_[index]);
@@ -502,8 +508,12 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSession(TSession* s
         ActiveSessions_.push_back(session);
         AdjustHeapBack(ActiveSessions_.begin(), ActiveSessions_.end(), SessionComparer_);
     } else if (finished) {
-        DataStatistics_ += session->Reader->GetDataStatistics();
-        session->Reader.Reset();
+        auto dataStatistics = session->Reader->GetDataStatistics();
+        {
+            TWriterGuard guard(SpinLock_);
+            DataStatistics_ += dataStatistics;
+            session->Reader.Reset();
+        }
     } else {
         session->ReadyEvent = session->Reader->GetReadyEvent();
     }

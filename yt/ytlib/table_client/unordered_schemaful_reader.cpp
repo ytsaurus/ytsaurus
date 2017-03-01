@@ -112,6 +112,7 @@ public:
 
     virtual TDataStatistics GetDataStatistics() const override
     {
+        TReaderGuard guard(SpinLock_);
         auto dataStatistics = DataStatistics_;
         for (const auto& session : Sessions_) {
             if (session.Reader) {
@@ -146,8 +147,12 @@ private:
 
     bool RefillSession(TSession& session)
     {
-        DataStatistics_ += session.Reader->GetDataStatistics();
-        session.Reader.Reset();
+        auto dataStatistics = session.Reader->GetDataStatistics();
+        {
+            TWriterGuard guard(SpinLock_);
+            DataStatistics_ += dataStatistics;
+            session.Reader.Reset();
+        }
 
         if (Exhausted_) {
             return false;
@@ -159,8 +164,12 @@ private:
             return false;
         }
 
-        session.Exhausted = false;
-        session.Reader = std::move(reader);
+        {
+            TWriterGuard guard(SpinLock_);
+            session.Exhausted = false;
+            session.Reader = std::move(reader);
+        }
+
         UpdateSession(session);
         return true;
     }
