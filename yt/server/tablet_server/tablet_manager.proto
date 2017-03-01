@@ -83,5 +83,15 @@ message TRspDisableTableReplica
     required int64 mount_revision = 3;
 }
 
+message TReqCreateTabletAction
+{
+    required int32 kind = 1;
+    repeated NYT.NProto.TGuid tablet_ids = 2;
+    repeated NYT.NProto.TGuid cell_ids = 3;
+    repeated bytes pivot_keys = 4;
+    optional int32 tablet_count = 5;
+    optional bool keep_finished = 6 [default = false];
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 

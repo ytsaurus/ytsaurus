@@ -389,6 +389,10 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_cell_bundle_type_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_cell_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_cell_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_action.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_action_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_action_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_balancer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_manager.proto
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_proxy.cpp

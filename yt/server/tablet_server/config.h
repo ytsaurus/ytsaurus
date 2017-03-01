@@ -13,6 +13,72 @@ namespace NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTabletBalancerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enabled;
+    TDuration BalancePeriod;
+    TDuration EnabledCheckPeriod;
+
+    i64 MinTabletSize;
+    i64 MaxTabletSize;
+    i64 DesiredTabletSize;
+
+    i64 MinInMemoryTabletSize;
+    i64 MaxInMemoryTabletSize;
+    i64 DesiredInMemoryTabletSize;
+
+    TTabletBalancerConfig()
+    {
+        RegisterParameter("enabled", Enabled)
+            .Default(false);
+
+        RegisterParameter("balance_period", BalancePeriod)
+            .Default(TDuration::Minutes(5));
+
+        RegisterParameter("enabled_check_period", EnabledCheckPeriod)
+            .Default(TDuration::Seconds(1));
+
+        RegisterParameter("min_tablet_size", MinTabletSize)
+            .Default((i64) 1024 * 1024 * 1024);
+
+        RegisterParameter("max_tablet_size", MaxTabletSize)
+            .Default((i64) 20 * 1024 * 1024 * 1024);
+
+        RegisterParameter("desired_tablet_size", DesiredTabletSize)
+            .Default((i64) 10 * 1024 * 1024 * 1024);
+
+        RegisterParameter("min_in_memory_tablet_size", MinInMemoryTabletSize)
+            .Default((i64) 512 * 1024 * 1024);
+
+        RegisterParameter("max_in_memory_tablet_size", MaxInMemoryTabletSize)
+            .Default((i64) 2 * 1024 * 1024 * 1024);
+
+        RegisterParameter("desired_in_memory_tablet_size", DesiredInMemoryTabletSize)
+            .Default((i64) 1 * 1024 * 1024 * 1024);
+
+        RegisterValidator([&] () {
+            if (MinTabletSize > DesiredTabletSize) {
+                THROW_ERROR_EXCEPTION("\"min_tablet_size\" must be less than or equal to \"desired_tablet_size\"");
+            }
+            if (DesiredTabletSize > MaxTabletSize) {
+                THROW_ERROR_EXCEPTION("\"desired_tablet_size\" must be less than or equal to \"max_tablet_size\"");
+            }
+            if (MinInMemoryTabletSize > DesiredInMemoryTabletSize) {
+                THROW_ERROR_EXCEPTION("\"min_in_memory_tablet_size\" must be less than or equal to \"desired_in_memory_tablet_size\"");
+            }
+            if (DesiredInMemoryTabletSize > MaxInMemoryTabletSize) {
+                THROW_ERROR_EXCEPTION("\"desired_in_memory_tablet_size\" must be less than or equal to \"max_in_memory_tablet_size\"");
+            }
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletBalancerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -45,6 +111,9 @@ public:
     //! Chunk writer config for all dynamic tables.
     NTabletNode::TTabletChunkWriterConfigPtr ChunkWriter;
 
+    //! Tablet balancer (balancer) config.
+    TTabletBalancerConfigPtr TabletBalancer;
+
     TTabletManagerConfig()
     {
         RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
@@ -65,6 +134,8 @@ public:
         RegisterParameter("chunk_reader", ChunkReader)
             .DefaultNew();
         RegisterParameter("chunk_writer", ChunkWriter)
+            .DefaultNew();
+        RegisterParameter("tablet_balancer", TabletBalancer)
             .DefaultNew();
 
         RegisterInitializer([&] () {
