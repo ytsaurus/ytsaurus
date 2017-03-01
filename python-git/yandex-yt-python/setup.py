@@ -43,7 +43,7 @@ def main():
     setup(
         name = "yandex-yt",
         version = version,
-        packages = ["yt", "yt.wrapper", "yt.yson"] + recursive("yt/packages"),
+        packages = ["yt", "yt.wrapper", "yt.yson", "yt.ypath"] + recursive("yt/packages"),
         scripts = scripts,
 
         install_requires = requires,

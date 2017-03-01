@@ -1,4 +1,4 @@
-yandex-yt>=0.8.9-0
+yandex-yt>=0.8.9-1
 yandex-yt-tools>=0.2.114-0
 yandex-yt-yson-bindings>=0.3.6-1
 flask==0.10.1
