@@ -390,7 +390,7 @@ void FormatValueViaSprintf(
     char formatBuf[MaxFormatSize];
     YCHECK(format.length() >= 1 && format.length() <= MaxFormatSize - 2); // one for %, one for \0
     formatBuf[0] = '%';
-    if (format[format.length() - 1] == GenericSpecSymbol) {
+    if (format.back() == GenericSpecSymbol) {
         char* formatEnd = copyFormat(formatBuf + 1, format.begin(), format.length() - 1);
         memcpy(formatEnd, genericSpec.begin(), genericSpec.length());
         formatEnd[genericSpec.length()] = '\0';
