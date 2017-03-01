@@ -155,8 +155,11 @@ private:
 
     void TraverseCurrentRange()
     {
+        auto callbacks = CreatePreemptableChunkTraverserCallbacks(
+            Bootstrap_,
+            NCellMaster::EAutomatonThreadQueue::ChunkFetchingTraverser);
         TraverseChunkTree(
-            CreatePreemptableChunkTraverserCallbacks(Bootstrap_),
+            std::move(callbacks),
             this,
             ChunkList_,
             Ranges_[CurrentRangeIndex_].LowerLimit(),
@@ -390,8 +393,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto callbacks = CreatePreemptableChunkTraverserCallbacks(
+            Bootstrap_,
+            NCellMaster::EAutomatonThreadQueue::ChunkStatisticsTraverser);
         TraverseChunkTree(
-            CreatePreemptableChunkTraverserCallbacks(Bootstrap_),
+            std::move(callbacks),
             this,
             ChunkList_);
 
