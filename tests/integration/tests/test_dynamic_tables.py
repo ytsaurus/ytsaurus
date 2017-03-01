@@ -10,7 +10,7 @@ from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
-class TestDynamicTables(YTEnvSetup):
+class TestDynamicTablesBase(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 16
     NUM_SCHEDULERS = 0
@@ -59,7 +59,23 @@ class TestDynamicTables(YTEnvSetup):
         tablets = get(path + "/@tablets")
         return [tablet["pivot_key"] for tablet in tablets]
 
+    def _ban_all_peers(self, cell_id):
+        address_list = []
+        peers = get("#" + cell_id + "/@peers")
+        for x in peers:
+            addr = x["address"]
+            address_list.append(addr)
+            self.set_node_banned(addr, True)
+        clear_metadata_caches()
+        return address_list
 
+    def _unban_peers(self, address_list):
+        for addr in address_list:
+            self.set_node_banned(addr, False)
+
+##################################################################
+
+class TestDynamicTables(TestDynamicTablesBase):
     def test_force_unmount_on_remove(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -284,12 +300,6 @@ class TestDynamicTables(YTEnvSetup):
 
         assert lookup_rows("//tmp/t", keys) == rows
 
-    def _ban_all_peers(self, cell_id):
-        peers = get("#" + cell_id + "/@peers")
-        for x in peers:
-            self.set_node_banned(x["address"], True)
-        clear_metadata_caches()
-
     def test_run_reassign_all_peers(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
         self.sync_create_cells(1, tablet_cell_bundle="b")
@@ -454,6 +464,175 @@ class TestDynamicTables(YTEnvSetup):
 
         for peer in get("#{0}/@peers".format(default_cell)):
             assert peer["address"] != node
+
+
+##################################################################
+
+class TestTabletActions(TestDynamicTablesBase):
+    DELTA_MASTER_CONFIG = {
+        "tablet_manager": {
+            "leader_reassignment_timeout" : 1000,
+            "peer_revocation_timeout" : 3000,
+            "tablet_balancer": {
+                "enabled": True,
+                "balance_period": 100,
+                "enabled_check_period": 100,
+                "min_tablet_size": 128,
+                "max_tablet_size": 512,
+                "desired_tablet_size": 512,
+            }
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "incremental_heartbeat_period": 100
+        },
+        "tablet_node": {
+            "tablet_manager": {
+                "error_backoff_time": 100
+            }
+        }
+    }
+
+    def test_action_move(self):
+        set("//sys/@disable_tablet_balancer", True)
+        cells = self.sync_create_cells(2)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t", cell_id=cells[0])
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        action = create("tablet_action", "", attributes={
+            "kind": "move",
+            "keep_finished": True,
+            "tablet_ids": [tablet_id],
+            "cell_ids": [cells[1]]})
+        wait(lambda: get("#{0}/@state".format(action)) == "completed")
+        assert get("//tmp/t/@tablets/0/cell_id") == cells[1]
+
+    def test_action_reshard(self):
+        set("//sys/@disable_tablet_balancer", True)
+        cells = self.sync_create_cells(2)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t", cell_id=cells[0])
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        action = create("tablet_action", "", attributes={
+            "kind": "reshard",
+            "keep_finished": True,
+            "tablet_ids": [tablet_id],
+            "pivot_keys": [[], [1]]})
+        wait(lambda: get("#{0}/@state".format(action)) == "completed")
+        tablets = list(get("//tmp/t/@tablets"))
+        assert len(tablets) == 2
+        assert tablets[0]["state"] == "mounted"
+        assert tablets[1]["state"] == "mounted"
+
+    def test_tablet_cell_balance(self):
+        set("//sys/@disable_tablet_balancer", True)
+        cells = self.sync_create_cells(2)
+        self._create_simple_table("//tmp/t1")
+        self._create_simple_table("//tmp/t2")
+        set("//tmp/t1/@in_memory_mode", "compressed")
+        set("//tmp/t2/@in_memory_mode", "compressed")
+        self.sync_mount_table("//tmp/t1", cell_id=cells[0])
+        self.sync_mount_table("//tmp/t2", cell_id=cells[0])
+        insert_rows("//tmp/t1", [{"key": 0, "value": "0"}])
+        insert_rows("//tmp/t2", [{"key": 1, "value": "1"}])
+        self.sync_flush_table("//tmp/t1")
+        self.sync_flush_table("//tmp/t2")
+
+        remove("//sys/@disable_tablet_balancer")
+        sleep(1)
+        self._wait_for_tablets("//tmp/t1", "mounted")
+        self._wait_for_tablets("//tmp/t2", "mounted")
+        cell0 = get("//tmp/t1/@tablets/0/cell_id")
+        cell1 = get("//tmp/t2/@tablets/0/cell_id")
+        assert cell0 != cell1
+
+    def test_tablet_merge(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        reshard_table("//tmp/t", [[], [1]])
+        self.sync_mount_table("//tmp/t")
+        sleep(1)
+        self._wait_for_tablets("//tmp/t", "mounted")
+        assert get("//tmp/t/@tablet_count") == 1
+
+    def test_tablet_split(self):
+        set("//sys/@disable_tablet_balancer", True)
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+
+        # Create two chunks excelled from eden
+        reshard_table("//tmp/t", [[], [1]])
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": "A"*256} for i in xrange(2)])
+        self.sync_flush_table("//tmp/t")
+        self.sync_compact_table("//tmp/t")
+        chunks = get("//tmp/t/@chunk_ids")
+        assert len(chunks) == 2
+        for chunk in chunks:
+            assert not get("#{0}/@eden".format(chunk))
+
+        self.sync_unmount_table("//tmp/t")
+        reshard_table("//tmp/t", [[]])
+        self.sync_mount_table("//tmp/t")
+
+        remove("//sys/@disable_tablet_balancer")
+        sleep(1)
+        self._wait_for_tablets("//tmp/t", "mounted")
+        assert len(get("//tmp/t/@chunk_ids")) > 1
+        assert get("//tmp/t/@tablet_count") == 2
+
+    def test_action_failed_after_remove(self):
+        set("//sys/@disable_tablet_balancer", True)
+        cells = self.sync_create_cells(2)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t", cell_id=cells[0])
+        self._ban_all_peers(cells[0])
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        action = create("tablet_action", "", attributes={
+            "kind": "move",
+            "keep_finished": True,
+            "tablet_ids": [tablet_id],
+            "cell_ids": [cells[1]]})
+        remove("//tmp/t")
+        wait(lambda: get("#{}/@state".format(action)) == "failed")
+        assert get("#{}/@error".format(action))
+
+    def test_action_failed_after_unmount(self):
+        set("//sys/@disable_tablet_balancer", True)
+        cells = self.sync_create_cells(2)
+        self._create_simple_table("//tmp/t")
+        reshard_table("//tmp/t", [[], [1]])
+        self.sync_mount_table("//tmp/t", cell_id=cells[0])
+        banned_peers = self._ban_all_peers(cells[0])
+        tablet1 = get("//tmp/t/@tablets/0/tablet_id")
+        tablet2 = get("//tmp/t/@tablets/1/tablet_id")
+        action = create("tablet_action", "", attributes={
+            "kind": "move",
+            "keep_finished": True,
+            "tablet_ids": [tablet1, tablet2],
+            "cell_ids": [cells[1], cells[1]]})
+        unmount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
+        self._unban_peers(banned_peers)
+        wait(lambda: get("#{}/@state".format(action)) == "failed")
+        assert get("#{}/@error".format(action))
+
+    def test_action_failed_after_cell_destroyed(self):
+        set("//sys/@disable_tablet_balancer", True)
+        cells = self.sync_create_cells(2)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t", cell_id=cells[0])
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        action = create("tablet_action", "", attributes={
+            "kind": "move",
+            "keep_finished": True,
+            "tablet_ids": [tablet_id],
+            "cell_ids": [cells[1]]})
+        remove("#" + cells[1])
+        wait(lambda: get("#{}/@state".format(action)) == "failed")
+        assert get("#{}/@error".format(action))
+
 
 ##################################################################
 

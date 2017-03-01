@@ -95,6 +95,8 @@ extern const TTabletCellBundleId NullTabletCellBundleId;
 
 using TTableReplicaId = NObjectClient::TObjectId;
 
+using TTabletActionId = NObjectClient::TObjectId;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TTableMountInfo)

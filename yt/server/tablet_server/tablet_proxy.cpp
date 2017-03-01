@@ -68,6 +68,8 @@ private:
         descriptors->push_back("in_memory_mode");
         descriptors->push_back(TAttributeDescriptor("cell_id")
             .SetPresent(tablet->GetCell()));
+        descriptors->push_back(TAttributeDescriptor("action_id")
+            .SetPresent(tablet->GetAction()));
         descriptors->push_back("retained_timestamp");
         descriptors->push_back("unflushed_timestamp");
     }
@@ -160,12 +162,16 @@ private:
             return true;
         }
 
-        if (tablet->GetCell()) {
-            if (key == "cell_id") {
-                BuildYsonFluently(consumer)
-                    .Value(tablet->GetCell()->GetId());
-                return true;
-            }
+        if (key == "cell_id" && tablet->GetCell()) {
+            BuildYsonFluently(consumer)
+                .Value(tablet->GetCell()->GetId());
+            return true;
+        }
+
+        if (key == "action_id" && tablet->GetAction()) {
+            BuildYsonFluently(consumer)
+                .Value(tablet->GetAction()->GetId());
+            return true;
         }
 
         if (key == "retained_timestamp") {
