@@ -215,6 +215,7 @@ TEST_F(TWireProtocolTest, SchemafulRow)
     CheckEquals(canonicalBlob, blob);
 }
 
+// Test that schemaful reader/writer properly treats null bitmap.
 TEST_F(TWireProtocolTest, Regression1)
 {
     const std::vector<unsigned char> blob({
@@ -264,6 +265,35 @@ TEST_F(TWireProtocolTest, Regression1)
     EXPECT_EQ(row[3].Id, 3);
     EXPECT_EQ(row[3].Type, EValueType::Null);
     EXPECT_EQ(row[3].Aggregate, false);
+}
+
+// Test sentinel values (min & max) serializability.
+TEST_F(TWireProtocolTest, Regression2)
+{
+    const std::vector<unsigned char> blob({
+        0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // value count = 3
+        0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, // id = 0, type = null
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // id = 1, type = min
+        0x02, 0x00, 0xef, 0x00, 0x00, 0x00, 0x00, 0x00, // id = 2, type = max
+    });
+
+    TWireProtocolReader reader(TSharedRef::MakeCopy<TWireProtocolTestTag>(
+        TRef(blob.data(), blob.size())));
+    auto row = reader.ReadUnversionedRow(true);
+
+    ASSERT_EQ(row.GetCount(), 3);
+
+    EXPECT_EQ(row[0].Id, 0);
+    EXPECT_EQ(row[0].Type, EValueType::Null);
+    EXPECT_EQ(row[0].Aggregate, false);
+
+    EXPECT_EQ(row[1].Id, 1);
+    EXPECT_EQ(row[1].Type, EValueType::Min);
+    EXPECT_EQ(row[1].Aggregate, false);
+
+    EXPECT_EQ(row[2].Id, 2);
+    EXPECT_EQ(row[2].Type, EValueType::Max);
+    EXPECT_EQ(row[2].Aggregate, false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

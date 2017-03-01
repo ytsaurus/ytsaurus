@@ -252,7 +252,7 @@ private:
         if (IsStringLikeType(value.Type)) {
             UnsafeWritePod<ui64>(value.Length);
             UnsafeWriteRaw(value.Data.String, value.Length);
-        } else if (value.Type != EValueType::Null) {
+        } else if (IsValueType(value.Type)) {
             UnsafeWritePod(value.Data);
         }
     }
@@ -265,7 +265,7 @@ private:
         // Write data in-place.
         if (IsStringLikeType(value.Type)) {
             UnsafeWriteRaw(value.Data.String, value.Length);
-        } else if (value.Type != EValueType::Null) {
+        } else if (IsValueType(value.Type)) {
             UnsafeWritePod(value.Data);
         }
     }
@@ -278,7 +278,7 @@ private:
         // Write data in-place.
         if (IsStringLikeType(value.Type)) {
             UnsafeWriteRaw(value.Data.String, value.Length);
-        } else if (value.Type != EValueType::Null) {
+        } else if (IsValueType(value.Type)) {
             UnsafeWritePod(value.Data);
         }
         // Write timestamp.
@@ -774,7 +774,7 @@ private:
         } else if (IsStringLikeType(value->Type)) {
             value->Length = ReadUint32();
             DoReadStringData(value->Type, value->Length, &value->Data.String, deep);
-        } else {
+        } else if (IsValueType(value->Type)) {
             value->Data.Uint64 = ReadUint64();
         }
     }
@@ -785,7 +785,7 @@ private:
         rawValue[0] = ReadUint64();
         if (IsStringLikeType(value->Type)) {
             DoReadStringData(value->Type, value->Length, &value->Data.String, deep);
-        } else if (value->Type != EValueType::Null) {
+        } else if (IsValueType(value->Type)) {
             rawValue[1] = ReadUint64();
         }
     }
@@ -796,7 +796,7 @@ private:
         rawValue[0] = ReadUint64();
         if (IsStringLikeType(value->Type)) {
             DoReadStringData(value->Type, value->Length, &value->Data.String, deep);
-        } else if (value->Type != EValueType::Null) {
+        } else if (IsValueType(value->Type)) {
             rawValue[1] = ReadUint64();
         }
         value->Timestamp = ReadUint64();
