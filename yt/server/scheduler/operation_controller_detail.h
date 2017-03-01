@@ -71,11 +71,6 @@ DEFINE_ENUM(EInputChunkState,
     (Waiting)
 );
 
-DEFINE_ENUM(EJobReinstallReason,
-    (Failed)
-    (Aborted)
-);
-
 DEFINE_ENUM(EControllerState,
     (Preparing)
     (Running)
@@ -646,7 +641,7 @@ protected:
         void AddPendingHint();
         void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
 
-        void ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason);
+        void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie);
 
         std::unique_ptr<NNodeTrackerClient::TNodeDirectoryBuilder> MakeNodeDirectoryBuilder(
             NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpec);
@@ -1194,8 +1189,8 @@ private:
     void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics);
 
     void InitializeHistograms();
-    void UpdateEstimatedHistogram(TJobletPtr joblet);
-    void UpdateEstimatedHistogram(TJobletPtr joblet, EJobReinstallReason reason);
+    void AddValueToEstimatedHistogram(TJobletPtr joblet);
+    void RemoveValueFromEstimatedHistogram(TJobletPtr joblet);
     void UpdateActualHistogram(const NJobTrackerClient::TStatistics& statistics);
 
     void GetExecNodesInformation();
