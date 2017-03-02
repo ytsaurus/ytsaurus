@@ -19,7 +19,7 @@ class TWireProtocolTest
     : public ::testing::Test
 {
 public:
-    static std::initializer_list<EValueType> MakeValueTypes()
+    static std::vector<EValueType> MakeValueTypes()
     {
         return {
             EValueType::Null, EValueType::Int64, EValueType::Uint64, EValueType::Double, EValueType::Boolean,
