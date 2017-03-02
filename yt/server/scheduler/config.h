@@ -803,7 +803,7 @@ public:
             .Default(TDuration::Seconds(1));
 
         RegisterParameter("update_exec_node_descriptors_period", UpdateExecNodeDescriptorsPeriod)
-            .Default(TDuration::Seconds(1));
+            .Default(TDuration::Seconds(10));
 
 
         RegisterParameter("operation_time_limit_check_period", OperationTimeLimitCheckPeriod)
@@ -892,7 +892,7 @@ public:
             .Default(TDuration::Minutes(10));
 
         RegisterParameter("controller_update_exec_nodes_information_delay", ControllerUpdateExecNodesInformationDelay)
-            .Default(TDuration::Seconds(1));
+            .Default(TDuration::Seconds(30));
 
         RegisterParameter("scheduling_tag_filter_expire_timeout", SchedulingTagFilterExpireTimeout)
             .Default(TDuration::Hours(1));
