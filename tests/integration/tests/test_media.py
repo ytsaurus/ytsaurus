@@ -302,8 +302,6 @@ class TestMedia(YTEnvSetup):
             assert replica.attributes["medium"] == self.NON_DEFAULT_MEDIUM
         
     def test_chunk_statuses_1_media(self):
-        self._ensure_max_num_of_media_created()
-
         codec = "reed_solomon_6_3"
         codec_replica_count = 9
 
@@ -340,8 +338,6 @@ class TestMedia(YTEnvSetup):
         self._assert_chunk_ok(False, chunk_id, {"default"})
 
     def test_chunk_statuses_2_media(self):
-        self._ensure_max_num_of_media_created()
-
         codec = "reed_solomon_6_3"
         codec_replica_count = 9
 
