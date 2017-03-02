@@ -180,6 +180,20 @@ void LoadFromNode(
             }
             break;
         }
+        case EMergeStrategy::Combine: {
+            auto mapNode = node->AsMap();
+            for (const auto& pair : mapNode->GetChildren()) {
+                const auto& key = pair.first;
+                M value;
+                LoadFromNode(
+                    value,
+                    pair.second,
+                    path + "/" + NYPath::ToYPathLiteral(key),
+                    EMergeStrategy::Combine);
+                parameter[FromString<typename Map<T...>::key_type>(key)] = std::move(value);
+            }
+            break;
+        }
 
         default:
             Y_UNIMPLEMENTED();
