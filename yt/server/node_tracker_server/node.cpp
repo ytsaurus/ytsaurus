@@ -81,8 +81,8 @@ TNode::TNode(const TObjectId& objectId)
     , IOWeights_{}
     , FillFactorIterators_{}
     , LoadFactorIterators_{}
+    , VisitMarks_{}
 {
-    VisitMark_ = 0;
     Banned_ = false;
     Decommissioned_ = false;
     DisableWriteSessions_ = false;
@@ -548,6 +548,16 @@ ui64 TNode::GenerateVisitMark()
 {
     static std::atomic<ui64> result(0);
     return ++result;
+}
+
+ui64 TNode::GetVisitMark(int mediumIndex)
+{
+    return VisitMarks_[mediumIndex];
+}
+
+void TNode::SetVisitMark(int mediumIndex, ui64 mark)
+{
+    VisitMarks_[mediumIndex] = mark;
 }
 
 int TNode::GetTotalTabletSlots() const

@@ -235,10 +235,10 @@ DECLARE_REFCOUNTED_CLASS(TRetentionConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTypeConversionConfig)
 
-DECLARE_REFCOUNTED_CLASS(TSchemafulRowMerger)
-DECLARE_REFCOUNTED_CLASS(TUnversionedRowMerger)
-DECLARE_REFCOUNTED_CLASS(TVersionedRowMerger)
-DECLARE_REFCOUNTED_CLASS(TSamplingRowMerger)
+class TSchemafulRowMerger;
+class TUnversionedRowMerger;
+class TVersionedRowMerger;
+class TSamplingRowMerger;
 
 DECLARE_REFCOUNTED_STRUCT(IChunkLookupHashTable)
 

@@ -195,6 +195,9 @@ describe("YtAuthentication", function() {
         }, done).end();
     });
 
+    /*
+     * Disabled due to YT-6531
+     *
     it("should reject invalid token issuer id", function(done) {
         var mock = nock("http://localhost:9000")
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=obi-wan-kenobi")
@@ -210,6 +213,7 @@ describe("YtAuthentication", function() {
             mock.done();
         }, done).end();
     });
+    */
 
     it("should reject invalid token grants", function(done) {
         var mock = nock("http://localhost:9000")

@@ -99,8 +99,8 @@ public:
                 case EReaderState::Active:
                     Buffer_ = buffer;
                     Position_ = 0;
-                    if (!FDWatcher_.is_active()) {
-                        FDWatcher_.start();
+                    if (!FDWatcher_->is_active()) {
+                        FDWatcher_->start();
                     }
                     break;
 
@@ -118,12 +118,12 @@ public:
 
         AbortRequested_ = true;
         return BIND([=, this_ = MakeStrong(this)] () {
-                if (State_ == EReaderState::Active) { 
+                if (State_ == EReaderState::Active) {
                     State_ = EReaderState::Aborted;
-                    FDWatcher_.stop();
+                    FDWatcher_->stop();
 
                     if (ReadResultPromise_.TrySet(TError(EErrorCode::Aborted, "Reader aborted")
-                        << TErrorAttribute("fd", FD_))) 
+                        << TErrorAttribute("fd", FD_)))
                     {
                         UpdateDurationCounter(&TotalBusyMilliseconds_);
                     } else {
@@ -169,7 +169,7 @@ private:
     int FD_ = -1;
 
     //! \note Thread-unsafe. Must be accessed from ev-thread only.
-    ev::io FDWatcher_;
+    TNullable<ev::io> FDWatcher_;
 
     TPromise<size_t> ReadResultPromise_ = MakePromise<size_t>(0);
 
@@ -214,7 +214,7 @@ private:
         if (size == -1) {
             if (errno == EAGAIN) {
                 if (Position_ != 0) {
-                    FDWatcher_.stop();
+                    FDWatcher_->stop();
                     SetResultPromise(Position_);
                 }
                 return;
@@ -229,7 +229,7 @@ private:
             Close();
 
             State_ = EReaderState::Failed;
-            FDWatcher_.stop();
+            FDWatcher_->stop();
             if (Position_ != 0) {
                 SetResultPromise(Position_);
             } else {
@@ -243,11 +243,11 @@ private:
 
         if (size == 0) {
             State_ = EReaderState::EndOfStream;
-            FDWatcher_.stop();
+            FDWatcher_->stop();
             Close();
             SetResultPromise(Position_);
         } else if (Position_ == Buffer_.Size()) {
-            FDWatcher_.stop();
+            FDWatcher_->stop();
             SetResultPromise(Position_);
         }
 #else
@@ -272,9 +272,10 @@ private:
     void InitWatcher()
     {
         StartTime_ = GetCpuInstant();
-        FDWatcher_.set(FD_, ev::READ);
-        FDWatcher_.set(TIODispatcher::Get()->GetEventLoop());
-        FDWatcher_.set<TAsyncReaderImpl, &TAsyncReaderImpl::OnRead>(this);
+        FDWatcher_.Emplace();
+        FDWatcher_->set(FD_, ev::READ);
+        FDWatcher_->set(TIODispatcher::Get()->GetEventLoop());
+        FDWatcher_->set<TAsyncReaderImpl, &TAsyncReaderImpl::OnRead>(this);
     }
 
     void Close()

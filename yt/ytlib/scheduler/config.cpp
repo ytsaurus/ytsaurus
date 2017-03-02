@@ -35,6 +35,8 @@ TTestingOperationOptions::TTestingOperationOptions()
 {
     RegisterParameter("scheduling_delay", SchedulingDelay)
         .Default(TDuration::Seconds(0));
+    RegisterParameter("scheduling_delay_type", SchedulingDelayType)
+        .Default(ESchedulingDelayType::Sync);
 }
 
 TSupportsSchedulingTagsConfig::TSupportsSchedulingTagsConfig()

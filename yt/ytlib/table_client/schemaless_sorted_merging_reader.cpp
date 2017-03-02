@@ -273,7 +273,7 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
         RowCount_ += reader->GetTotalRowCount();
     }
 
-    LOG_INFO("Opening schemaless sorted merging reader (SessionCount: %v)",
+    LOG_DEBUG("Opening schemaless sorted merging reader (SessionCount: %v)",
         SessionHolder_.size());
 
     // NB: we don't combine completion error here, because reader opening must not be interrupted.

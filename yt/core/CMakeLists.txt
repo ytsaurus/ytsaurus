@@ -115,6 +115,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/lifecycle.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/linear_probe.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/new.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/parser_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/pattern_formatter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/phoenix.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/proc.cpp

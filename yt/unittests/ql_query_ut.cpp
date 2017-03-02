@@ -44,9 +44,11 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NYPath;
-using namespace NApi;
+
+using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -346,6 +348,11 @@ class TReaderMock
 public:
     MOCK_METHOD1(Read, bool(std::vector<TUnversionedRow>*));
     MOCK_METHOD0(GetReadyEvent, TFuture<void>());
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return TDataStatistics();
+    }
 };
 
 class TWriterMock
@@ -364,7 +371,7 @@ TOwningRow YsonToRow(
 {
     auto tableSchema = GetTableSchemaFromDataSplit(dataSplit);
 
-    return NTableClient::YsonToRow(yson, tableSchema, treatMissingAsNull);
+    return NTableClient::YsonToSchemafulRow(yson, tableSchema, treatMissingAsNull);
 }
 
 TQueryStatistics DoExecuteQuery(
@@ -382,7 +389,7 @@ TQueryStatistics DoExecuteQuery(
     auto readerMock = New<StrictMock<TReaderMock>>();
 
     for (const auto& row : source) {
-        owningSource.push_back(NTableClient::YsonToRow(row, query->GetReadSchema(), true));
+        owningSource.push_back(NTableClient::YsonToSchemafulRow(row, query->GetReadSchema(), true));
     }
 
     sourceRows.resize(owningSource.size());

@@ -14,6 +14,7 @@ namespace NYT {
 namespace NTableClient {
 
 using namespace NYson;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,6 +95,11 @@ public:
         } else {
             return UnderlyingReader_->GetReadyEvent();
         }
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return UnderlyingReader_->GetDataStatistics();
     }
 
 private:
