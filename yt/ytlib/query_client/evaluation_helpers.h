@@ -118,8 +118,7 @@ struct TJoinClosure
 {
     TRowBufferPtr Buffer;
     TJoinLookup Lookup;
-    std::vector<TRow> Keys;
-    std::vector<std::pair<TRow, i64>> ChainedRows;
+    std::vector<std::pair<TRow, int>> ChainedRows;
     int KeySize;
 
     size_t BatchSize;
