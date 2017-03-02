@@ -1,4 +1,4 @@
-# Clear operations 
+# Clear operations
 */10 * * * * TITLE="clear operations on alyx" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN_PATH=/opt/cron/token YT_PROXY=alyx.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --robot crawler --robot odin --robot cron --robot statbox_push_daemon --archive-timeout 7 --archive --archive-jobs --push-metrics"' >>/opt/cron/clear_operations_alyx.log 2>&1
 */10 * * * * TITLE="clear operations on marx" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN_PATH=/opt/cron/token YT_PROXY=marx.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations_old.py --robot cron --archive-timeout 7 --max-operations-per-user 1500 --soft-limit 200"' >>/opt/cron/clear_operations_marx.log 2>&1
 */10 * * * * TITLE="clear operations on barney" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN_PATH=/opt/cron/token YT_PROXY=barney.yt.yandex.net yt_lock.py --conflict-exit-code 0 //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --archive-timeout 7 --archive --archive-jobs --push-metrics"' >>/opt/cron/clear_operations_barney.log 2>&1
@@ -18,7 +18,7 @@
 0 3,15 * * * TITLE="merge on freud" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=freud.yt.yandex.net /opt/cron/run_merge.sh >>/opt/cron/run_merge.log 2>&1
 0 3,15 * * * TITLE="merge on banach" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=banach.yt.yandex.net /opt/cron/run_merge.sh >>/opt/cron/run_merge.log 2>&1
 0 3,15 * * * TITLE="merge on vanga" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=vanga.yt.yandex.net /opt/cron/run_merge.sh >>/opt/cron/run_merge.log 2>&1
-0 3,15 * * * TITLE="merge on hahn" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=hahn.yt.yandex.net /opt/cron/run_merge.sh >>/opt/cron/run_merge.log 2>&1
+0 3,15 * * * TITLE="merge on hahn" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=hahn.yt.yandex.net YT_POOL=cron_merge /opt/cron/run_merge.sh >>/opt/cron/run_merge.log 2>&1
 0 3,15 * * * TITLE="merge on marx" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=marx.yt.yandex.net /opt/cron/run_merge.sh >>/opt/cron/run_merge.log 2>&1
 
 
