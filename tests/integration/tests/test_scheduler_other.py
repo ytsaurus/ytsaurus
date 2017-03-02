@@ -595,7 +595,7 @@ class TestSchedulerRevive(YTEnvSetup):
             time.sleep(backoff)
 
             iter += 1
-            assert iter < 50, "Operation %s do not comes to %s state after %f seconds" % (op.id, state, iter * backoff)
+            assert iter < 50, "Operation %s did not come to %s state after %f seconds" % (op.id, state, iter * backoff)
 
     def test_missing_transactions(self):
         self._prepare_tables()
