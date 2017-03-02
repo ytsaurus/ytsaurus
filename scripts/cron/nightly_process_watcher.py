@@ -256,7 +256,7 @@ def main():
     for task_list in yt.list(args.tasks_root):
         path = yt.ypath_join(args.tasks_root, task_list)
         try:
-            yt.remove(path)
+            yt.remove(path, recursive=True)
         except yt.YtResponseError as err:
             if err.is_concurrent_transaction_lock_conflict():
                 logger.warning('Failed to remove tasks list: "%s", list is locked')
