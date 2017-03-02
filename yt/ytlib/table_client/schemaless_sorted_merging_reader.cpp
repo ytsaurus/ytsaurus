@@ -478,6 +478,10 @@ bool TSchemalessJoiningReader::Read(std::vector<TUnversionedRow>* rows)
         SessionHeap_.pop_back();
     }
 
+    if (SessionHeap_.empty()) {
+        return false;
+    }
+
     auto* session = SessionHeap_.front();
     if (session->CurrentRowIndex == session->Rows.size()) {
         session->CurrentRowIndex = 0;
