@@ -167,7 +167,6 @@ void InsertJoinRow(
     TMutableRow key = *keyPtr;
     auto inserted = closure->Lookup.insert(std::make_pair(key, std::make_pair(chainIndex, false)));
     if (inserted.second) {
-        closure->Keys.push_back(key);
         for (int index = 0; index < closure->KeySize; ++index) {
             closure->Buffer->Capture(&key[index]);
         }
@@ -202,13 +201,20 @@ void JoinOpHelper(
     TJoinClosure closure(lookupHasher, lookupEqComparer, keySize, parameters->BatchSize);
 
     closure.ProcessJoinBatch = [&] () {
-        LOG_DEBUG("Sorting %v join keys",
-            closure.Keys.size());
+        std::vector<TRow> keys;
+        keys.reserve(closure.Lookup.size());
 
-        std::sort(closure.Keys.begin(), closure.Keys.end(), lookupLessComparer);
+        for (const auto& item : closure.Lookup) {
+            keys.push_back(item.first);
+        }
+
+        LOG_DEBUG("Sorting %v join keys",
+            keys.size());
+
+        std::sort(keys.begin(), keys.end(), lookupLessComparer);
 
         LOG_DEBUG("Collected %v join keys from %v rows",
-            closure.Keys.size(),
+            keys.size(),
             closure.ChainedRows.size());
 
         // Join rowsets.
@@ -276,7 +282,7 @@ void JoinOpHelper(
             TDataRanges dataSource;
 
             std::tie(foreignQuery, dataSource) = parameters->GetForeignQuery(
-                std::move(closure.Keys),
+                std::move(keys),
                 closure.Buffer);
 
             context->ExecuteCallback(foreignQuery, dataSource, pipe->GetWriter())
@@ -360,7 +366,7 @@ void JoinOpHelper(
                 TDataRanges dataSource;
 
                 std::tie(foreignQuery, dataSource) = parameters->GetForeignQuery(
-                    std::move(closure.Keys),
+                    std::move(keys),
                     closure.Buffer);
 
                 ISchemafulWriterPtr writer;
