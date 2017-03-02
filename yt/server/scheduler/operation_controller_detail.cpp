@@ -1769,34 +1769,39 @@ void TOperationControllerBase::DoLoadSnapshot(const TSharedRef& snapshot)
     LOG_INFO("Finished loading snapshot");
 }
 
+bool TOperationControllerBase::GetCommitting()
+{
+    const auto& client = Host->GetMasterClient();
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
+    auto path = GetOperationPath(OperationId) + "/@committing";
+    auto req = TYPathProxy::Exists(path);
+    auto rsp = WaitFor(proxy.Execute(req))
+        .ValueOrThrow();
+    return ConvertTo<bool>(rsp->value());
+}
+
+void TOperationControllerBase::SetCommitting()
+{
+    const auto& client = Host->GetMasterClient();
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
+    auto path = GetOperationPath(OperationId) + "/@committing";
+    auto req = TYPathProxy::Set(path);
+    req->set_value(ConvertToYsonString(true).GetData());
+    WaitFor(proxy.Execute(req))
+        .ThrowOnError();
+}
+
 void TOperationControllerBase::SafeCommit()
 {
     // XXX(babenko): hotfix for YT-4636
-    {
-        const auto& client = Host->GetMasterClient();
-
-        // NB: use root credentials.
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
-
-        auto path = GetOperationPath(OperationId) + "/@committing";
-
-        {
-            auto req = TYPathProxy::Exists(path);
-            auto rsp = WaitFor(proxy.Execute(req))
-                .ValueOrThrow();
-            if (ConvertTo<bool>(rsp->value())) {
-                THROW_ERROR_EXCEPTION("Operation is already committing");
-            }
-        }
-
-        {
-            auto req = TYPathProxy::Set(path);
-            req->set_value(ConvertToYsonString(true).GetData());
-            WaitFor(proxy.Execute(req))
-                .ThrowOnError();
-        }
+    if (GetCommitting()) {
+        THROW_ERROR_EXCEPTION("Operation is already committing");
     }
+    SetCommitting();
 
     TeleportOutputChunks();
     AttachOutputChunks(UpdatingTables);
@@ -2477,7 +2482,7 @@ bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
 
 void TOperationControllerBase::SafeAbort()
 {
-    LOG_INFO("Aborting operation");
+    LOG_INFO("Aborting operation controller");
 
     auto abortTransaction = [&] (ITransactionPtr transaction) {
         if (transaction) {
@@ -2488,22 +2493,25 @@ void TOperationControllerBase::SafeAbort()
 
     AreTransactionsActive = false;
 
-    try {
-        if (StderrTable && StderrTable->IsBeginUploadCompleted()) {
-            AttachOutputChunks({StderrTable.GetPtr()});
-            EndUploadOutputTables({StderrTable.GetPtr()});
-        }
+    // Skip commiting anything if operation controller already tried to commit results.
+    if (!GetCommitting()) {
+        try {
+            if (StderrTable && StderrTable->IsBeginUploadCompleted()) {
+                AttachOutputChunks({StderrTable.GetPtr()});
+                EndUploadOutputTables({StderrTable.GetPtr()});
+            }
 
-        if (CoreTable && CoreTable->IsBeginUploadCompleted()) {
-            AttachOutputChunks({CoreTable.GetPtr()});
-            EndUploadOutputTables({CoreTable.GetPtr()});
-        }
+            if (CoreTable && CoreTable->IsBeginUploadCompleted()) {
+                AttachOutputChunks({CoreTable.GetPtr()});
+                EndUploadOutputTables({CoreTable.GetPtr()});
+            }
 
-        CommitTransaction(DebugOutputTransaction);
-    } catch (const std::exception& ex) {
-        // Bad luck we can't commit transaction.
-        // Such a pity can happen for example if somebody aborted our transaction manualy.
-        LOG_ERROR(ex, "Failed to commit debug output transaction");
+            CommitTransaction(DebugOutputTransaction);
+        } catch (const std::exception& ex) {
+            // Bad luck we can't commit transaction.
+            // Such a pity can happen for example if somebody aborted our transaction manualy.
+            LOG_ERROR(ex, "Failed to commit debug output transaction");
+        }
     }
 
     abortTransaction(InputTransaction);
@@ -2515,7 +2523,7 @@ void TOperationControllerBase::SafeAbort()
 
     CancelableContext->Cancel();
 
-    LOG_INFO("Operation aborted");
+    LOG_INFO("Operation controller aborted");
 }
 
 void TOperationControllerBase::SafeForget()
@@ -2649,6 +2657,14 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContextPtr context,
     const TJobResources& jobLimits)
 {
+    if (Spec->TestingOperationOptions) {
+        if (Spec->TestingOperationOptions->SchedulingDelayType == ESchedulingDelayType::Async) {
+            WaitFor(TDelayedExecutor::MakeDelayed(Spec->TestingOperationOptions->SchedulingDelay));
+        } else {
+            Sleep(Spec->TestingOperationOptions->SchedulingDelay);
+        }
+    }
+
     // SafeScheduleJob must be synchronous; context switches are prohibited.
     TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
 
@@ -2846,10 +2862,6 @@ void TOperationControllerBase::DoScheduleJob(
     TScheduleJobResult* scheduleJobResult)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    if (Spec->TestingOperationOptions) {
-        Sleep(Spec->TestingOperationOptions->SchedulingDelay);
-    }
 
     if (!IsRunning()) {
         LOG_TRACE("Operation is not running, scheduling request ignored");

@@ -1,13 +1,17 @@
 #pragma once
 
-#include "public.h"
+#include "versioned_row.h"
+#include "unversioned_row.h"
 
 #include <yt/ytlib/formats/format.h>
+
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+
 #include <yt/ytlib/cypress_client/public.h>
 
 #include <yt/core/yson/lexer.h>
 #include <yt/core/yson/public.h>
+
 #include <yt/core/misc/phoenix.h>
 
 namespace NYT {
@@ -98,10 +102,17 @@ TTableUploadOptions GetTableUploadOptions(
 //////////////////////////////////////////////////////////////////////////////////
 
 // Mostly used in unittests and for debugging purposes.
-TUnversionedOwningRow YsonToRow(
+TUnversionedOwningRow YsonToSchemafulRow(
     const Stroka& yson,
     const TTableSchema& tableSchema,
     bool treatMissingAsNull);
+TUnversionedOwningRow YsonToSchemalessRow(
+    const Stroka& yson);
+TVersionedRow YsonToVersionedRow(
+    const TRowBufferPtr& rowBuffer,
+    const Stroka& keyYson,
+    const Stroka& valueYson,
+    const std::vector<TTimestamp>& deleteTimestamps = std::vector<TTimestamp>());
 TUnversionedOwningRow YsonToKey(const Stroka& yson);
 Stroka KeyToYson(TUnversionedRow row);
 

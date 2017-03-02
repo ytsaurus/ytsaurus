@@ -7,6 +7,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/zigzag.h>
+#include <yt/core/misc/parser_helpers.h>
 
 #include <util/generic/stroka.h>
 
@@ -716,39 +717,12 @@ protected:
         TBaseStream::Advance(1);
     }
 
-    static bool IsSpaceFast(char ch)
-    {
-        static const ui8 lookupTable[] =
-        {
-            0,0,0,0,0,0,0,0, 0,1,1,1,1,1,0,0,
-            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-            1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-
-            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-
-            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-
-            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-            0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
-        };
-        return lookupTable[static_cast<ui8>(ch)];
-    }
-
     template <bool AllowFinish>
     char SkipSpaceAndGetChar()
     {
         if (!TBaseStream::IsEmpty()) {
             char ch = *TBaseStream::Begin();
-            if (!IsSpaceFast(ch)) {
+            if (!IsSpace(ch)) {
                 return ch;
             }
         }
@@ -771,7 +745,7 @@ protected:
                 TBaseStream::template Refresh<AllowFinish>();
                 continue;
             }
-            if (!IsSpaceFast(*TBaseStream::Begin())) {
+            if (!IsSpace(*TBaseStream::Begin())) {
                 break;
             }
             TBaseStream::Advance(1);

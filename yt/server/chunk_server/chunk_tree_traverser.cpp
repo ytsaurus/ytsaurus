@@ -17,6 +17,7 @@
 
 #include <yt/core/misc/singleton.h>
 
+#include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/scoped_timer.h>
 
 namespace NYT {
@@ -101,13 +102,29 @@ protected:
         { }
     };
 
+    void OnTimeSpent(TDuration elapsed)
+    {
+        CpuTime_ += elapsed;
+        Callbacks_->OnTimeSpent(elapsed);
+    }
+
+    void OnFinish(const TError& error)
+    {
+        LOG_DEBUG(error, "Chunk tree traverser finished (CpuTime: %v, WallTime: %v, ChunkCount: %v, ChunkListCount: %v)",
+            CpuTime_,
+            TInstant::Now() - StartInstant_,
+            ChunkCount_,
+            ChunkListCount_);
+        Visitor_->OnFinish(error);
+    }
+
     void DoTraverse()
     {
         try {
             GuardedTraverse();
         } catch (const std::exception& ex) {
             Shutdown();
-            Visitor_->OnFinish(TError(ex));
+            OnFinish(TError(ex));
         }
     }
 
@@ -118,9 +135,9 @@ protected:
         int visitedChunkCount = 0;
         while (visitedChunkCount < MaxChunksPerStep || !invoker) {
             if (IsStackEmpty()) {
+                OnTimeSpent(timer.GetElapsed());
                 Shutdown();
-                Callbacks_->OnTimeSpent(timer.GetElapsed());
-                Visitor_->OnFinish(TError());
+                OnFinish(TError());
                 return;
             }
 
@@ -254,6 +271,7 @@ protected:
                 case EObjectType::Chunk:
                 case EObjectType::ErasureChunk:
                 case EObjectType::JournalChunk: {
+                    ++ChunkCount_;
                     auto* childChunk = child->AsChunk();
                     if (!Visitor_->OnChunk(childChunk, rowIndex, subtreeStartLimit, subtreeEndLimit)) {
                         Shutdown();
@@ -269,7 +287,7 @@ protected:
         }
 
         // Schedule continuation.
-        Callbacks_->OnTimeSpent(timer.GetElapsed());
+        OnTimeSpent(timer.GetElapsed());
         invoker->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
     }
 
@@ -413,6 +431,7 @@ protected:
 
     void PushStack(const TStackEntry& newEntry)
     {
+        ++ChunkListCount_;
         Callbacks_->OnPush(newEntry.ChunkList);
         Stack_.push_back(newEntry);
     }
@@ -442,6 +461,13 @@ protected:
     const IChunkTraverserCallbacksPtr Callbacks_;
     const IChunkVisitorPtr Visitor_;
 
+    NLogging::TLogger Logger;
+
+    TInstant StartInstant_;
+    TDuration CpuTime_;
+    int ChunkCount_ = 0;
+    int ChunkListCount_ = 0;
+
     std::vector<TStackEntry> Stack_;
 
 public:
@@ -450,6 +476,7 @@ public:
         IChunkVisitorPtr visitor)
         : Callbacks_(std::move(callbacks))
         , Visitor_(std::move(visitor))
+        , Logger(ChunkServerLogger)
     { }
 
     void Run(
@@ -457,6 +484,12 @@ public:
         const TReadLimit& lowerBound,
         const TReadLimit& upperBound)
     {
+        Logger.AddTag("RootId: %v", chunkList->GetId());
+
+        StartInstant_ = TInstant::Now();
+
+        LOG_DEBUG("Chunk tree traversal started");
+
         int childIndex = GetStartChildIndex(chunkList, lowerBound);
         PushStack(TStackEntry(
             chunkList,
@@ -485,7 +518,6 @@ void TraverseChunkTree(
     auto traverser = New<TChunkTreeTraverser>(
         std::move(traverserCallbacks),
         std::move(visitor));
-
     traverser->Run(root, lowerLimit, upperLimit);
 }
 
@@ -495,19 +527,22 @@ class TPreemptableChunkTraverserCallbacks
     : public IChunkTraverserCallbacks
 {
 public:
-    explicit TPreemptableChunkTraverserCallbacks(NCellMaster::TBootstrap* bootstrap)
+    TPreemptableChunkTraverserCallbacks(
+        NCellMaster::TBootstrap* bootstrap,
+        NCellMaster::EAutomatonThreadQueue threadQueue)
         : Bootstrap_(bootstrap)
         , UserName_(Bootstrap_
             ->GetSecurityManager()
             ->GetAuthenticatedUser()
             ->GetName())
+        , ThreadQueue_(threadQueue)
     { }
 
     virtual IInvokerPtr GetInvoker() const override
     {
         return Bootstrap_
             ->GetHydraFacade()
-            ->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkTraverser);
+            ->GetEpochAutomatonInvoker(ThreadQueue_);
     }
 
     virtual void OnPop(TChunkTree* node) override
@@ -542,13 +577,17 @@ public:
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
     const Stroka UserName_;
+    const NCellMaster::EAutomatonThreadQueue ThreadQueue_;
 
 };
 
 IChunkTraverserCallbacksPtr CreatePreemptableChunkTraverserCallbacks(
-    NCellMaster::TBootstrap* bootstrap)
+    NCellMaster::TBootstrap* bootstrap,
+    NCellMaster::EAutomatonThreadQueue threadQueue)
 {
-    return New<TPreemptableChunkTraverserCallbacks>(bootstrap);
+    return New<TPreemptableChunkTraverserCallbacks>(
+        bootstrap,
+        threadQueue);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

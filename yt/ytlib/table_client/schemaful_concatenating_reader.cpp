@@ -4,6 +4,8 @@
 namespace NYT {
 namespace NTableClient {
 
+using namespace NChunkClient::NProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulConcatenatingReader
@@ -31,6 +33,15 @@ public:
         return CurrentReaderIndex_ < UnderlyingReaders_.size()
             ? UnderlyingReaders_[CurrentReaderIndex_]->GetReadyEvent()
             : VoidFuture;
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        TDataStatistics dataStatistics;
+        for (const auto& reader : UnderlyingReaders_) {
+            dataStatistics += reader->GetDataStatistics();
+        }
+        return dataStatistics;
     }
 
 private:

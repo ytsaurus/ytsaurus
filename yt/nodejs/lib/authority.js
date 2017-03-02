@@ -289,7 +289,12 @@ YtAuthority.prototype._asyncQueryBlackboxToken = function(context, result)
         var realm = self._findOAuthApplicationBy("client_id", data.oauth.client_id);
         if (typeof(realm) === "undefined") {
             context.logger.debug("Token was issued by the unknown realm");
+            /*
+             * Disabled due to YT-6531.
+             *
             return;
+            */
+            realm = "blackbox-" + data.oauth.client_name;
         } else {
             realm = realm.key;
         }

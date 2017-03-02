@@ -432,6 +432,19 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
         resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
         create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
 
+        def check_running_jobs(op_id, desired_running_jobs):
+            success_iter = 0
+            min_success_iteration = 10
+            for i in xrange(100):
+                running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id))
+                if running_jobs:
+                    assert len(running_jobs) <= desired_running_jobs
+                    success_iter += 1
+                    if success_iter == min_success_iteration:
+                        return
+                time.sleep(0.1)
+            assert False
+
         while True:
             pools = get("//sys/scheduler/orchid/scheduler/pools")
             if "test_pool" in pools:
@@ -449,16 +462,15 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
 
         memory_limit = 30 * 1024 * 1024
 
-        testing_options = {"scheduling_delay": 500}
+        testing_options = {"scheduling_delay": 500, "scheduling_delay_type": "async"}
 
         op = map(
             dont_track=True,
-            command="sleep 5",
+            command="sleep 100",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 3, "pool": "test_pool", "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
-        time.sleep(3)
-        assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) == 1
+        check_running_jobs(op.id, 1)
         op.abort()
 
         op = map(
@@ -467,11 +479,10 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 3, "resource_limits": resource_limits, "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
-        time.sleep(3)
+        check_running_jobs(op.id, 1)
         op_limits = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))
         for resource, limit in resource_limits.iteritems():
             assert assert_almost_equal(op_limits[resource], limit)
-        assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) == 1
         op.abort()
 
 
