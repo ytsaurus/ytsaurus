@@ -84,36 +84,35 @@ class TestCypressCommands(object):
         yt.mkdir(TEST_DIR + "/x")
         yt.mkdir(TEST_DIR + "/x/y/z", recursive=True)
 
-    def test_search(self):
+    @pytest.mark.parametrize("enable_batch_mode", [False, True])
+    def test_search(self, enable_batch_mode):
         yt.mkdir(TEST_DIR + "/dir/other_dir", recursive=True)
         yt.create_table(TEST_DIR + "/dir/table")
         yt.write_file(TEST_DIR + "/file", b"")
 
-        res = sorted([
-            TEST_DIR,
-            TEST_DIR + "/dir",
-            TEST_DIR + "/dir/other_dir",
-            TEST_DIR + "/dir/table",
-            TEST_DIR + "/file"])
-        assert list(yt.search(TEST_DIR)) == res
+        res = [TEST_DIR, TEST_DIR + "/dir", TEST_DIR + "/dir/other_dir", TEST_DIR + "/dir/table", TEST_DIR + "/file"]
+        assert list(yt.search(TEST_DIR, enable_batch_mode=enable_batch_mode)) == res
         yt.set_attribute(TEST_DIR + "/dir", "opaque", True)
 
-        assert list(yt.search(TEST_DIR)) == res
+        assert set(list(yt.search(TEST_DIR, enable_batch_mode=enable_batch_mode))) == set(res)
         yt.remove(TEST_DIR + "/dir/@opaque")
 
-        assert list(yt.search(TEST_DIR, depth_bound=1)) == sorted([
+        assert list(yt.search(TEST_DIR, depth_bound=1, enable_batch_mode=enable_batch_mode)) == sorted([
             TEST_DIR,
             TEST_DIR + "/dir",
             TEST_DIR + "/file"])
-        assert list(yt.search(TEST_DIR, exclude=[TEST_DIR + "/dir"])) == sorted([TEST_DIR, TEST_DIR + "/file"])
+        assert list(yt.search(TEST_DIR, exclude=[TEST_DIR + "/dir"],
+                              enable_batch_mode=enable_batch_mode)) == sorted([TEST_DIR, TEST_DIR + "/file"])
 
-        res = yt.search(TEST_DIR, map_node_order=lambda path, object: sorted(object))
+        res = yt.search(TEST_DIR, map_node_order=lambda path, object: sorted(object),
+                        enable_batch_mode=enable_batch_mode)
         assert list(res) == [TEST_DIR, TEST_DIR + "/dir", TEST_DIR + "/dir/other_dir",
                              TEST_DIR + "/dir/table", TEST_DIR + "/file"]
 
-        assert list(yt.search(TEST_DIR, node_type="file")) == [TEST_DIR + "/file"]
+        assert list(yt.search(TEST_DIR, node_type="file",
+                              enable_batch_mode=enable_batch_mode)) == [TEST_DIR + "/file"]
 
-        assert list(yt.search(TEST_DIR, node_type="table",
+        assert list(yt.search(TEST_DIR, node_type="table", enable_batch_mode=enable_batch_mode,
                               path_filter=lambda x: x.find("dir") != -1)) == [TEST_DIR + "/dir/table"]
 
         def subtree_filter(path, obj):
@@ -121,10 +120,11 @@ class TestCypressCommands(object):
             is_file = obj.attributes["type"] == "file"
             return not is_in_dir and not is_file
 
-        assert list(yt.search(TEST_DIR, subtree_filter=subtree_filter)) == [TEST_DIR]
+        assert list(yt.search(TEST_DIR, subtree_filter=subtree_filter,
+                              enable_batch_mode=enable_batch_mode)) == [TEST_DIR]
 
         # Search empty tables
-        res = yt.search(TEST_DIR, attributes=["row_count"],
+        res = yt.search(TEST_DIR, attributes=["row_count"], enable_batch_mode=enable_batch_mode,
                         object_filter=lambda x: x.attributes.get("row_count", -1) == 0)
         assert sorted(res) == sorted([yson.to_yson_type(TEST_DIR + "/dir/table",
                                                         {"row_count": 0})])
@@ -134,10 +134,12 @@ class TestCypressCommands(object):
         yt.set(list_node, ["x"])
         yt.create_table(list_node + "/end")
         yt.create_table(list_node + "/end")
-        assert list(yt.search(list_node, node_type="table")) == sorted([list_node + "/1", list_node + "/2"])
-        assert list(yt.search(list_node, list_node_order=lambda p, obj: [2, 0, 1])) == \
+        assert list(yt.search(list_node, enable_batch_mode=enable_batch_mode,
+                              node_type="table")) == sorted([list_node + "/1", list_node + "/2"])
+        assert list(yt.search(list_node, list_node_order=lambda p, obj: [2, 0, 1],
+                              enable_batch_mode=enable_batch_mode)) == \
                [list_node] + ["{0}/{1}".format(list_node, i) for i in [2, 0, 1]]
-        assert "//sys/accounts/tmp" in yt.search("//sys", node_type="account")
+        assert "//sys/accounts/tmp" in yt.search("//sys", node_type="account", enable_batch_mode=enable_batch_mode)
 
         yt.mkdir(TEST_DIR + "/dir_with_slash")
         yt.mkdir(TEST_DIR + "/dir_with_slash" + "/dir_\\\\_x")
@@ -147,7 +149,7 @@ class TestCypressCommands(object):
         assert [TEST_DIR + "/dir_with_slash",
                 TEST_DIR + "/dir_with_slash" + "/dir_\\\\_x",
                 TEST_DIR + "/dir_with_slash" + "/dir_\\\\_x" + "/inner_dir"] \
-                == list(yt.search(TEST_DIR + "/dir_with_slash"))
+               == list(yt.search(TEST_DIR + "/dir_with_slash", enable_batch_mode=enable_batch_mode))
 
     def test_create(self):
         with pytest.raises(yt.YtError):
