@@ -227,6 +227,13 @@ TRange<const T*> MakeRange(const ::google::protobuf::RepeatedPtrField<T>& elemen
     return TRange<const T*>(elements.data(), elements.size());
 }
 
+template <class U, class T>
+TRange<U> ReinterpretCastRange(const TRange<T>& range)
+{
+    static_assert(sizeof(T) == sizeof(U), "T and U must have equal sizes.");
+    return TRange<U>(reinterpret_cast<const U*>(range.Begin()), range.Size());
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // TMutableRange (inspired by TMutableArrayRef from LLVM)
@@ -486,6 +493,13 @@ TSharedRange<T> MakeSharedRange(const TRange<T>& range, THolders&&... holders)
 {
     return TSharedRange<T>(range, MakeHolder(std::forward<THolders>(holders)...));
 }
+
+template <class U, class T>
+TSharedRange<U> ReinterpretCastRange(const TSharedRange<T>& range)
+{
+    static_assert(sizeof(T) == sizeof(U), "T and U must have equal sizes.");
+    return TSharedRange<U>(reinterpret_cast<const U*>(range.Begin()), range.Size(), range.GetHolder());
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

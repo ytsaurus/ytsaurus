@@ -8,6 +8,7 @@
 #include <yt/ytlib/table_client/unversioned_row.h>
 
 #include <yt/core/misc/error.h>
+#include <yt/core/misc/parser_helpers.h>
 
 #include <yt/core/ypath/tokenizer.h>
 
@@ -118,16 +119,24 @@ void ThrowUnexpectedToken(const TToken& token)
 
 Stroka ParseAttributes(const Stroka& str, IAttributeDictionary* attributes)
 {
-    NYson::TTokenizer tokenizer(str);
-    if (!tokenizer.ParseNext()) {
-        return str;
-    }
-    if (tokenizer.CurrentToken().GetType() != NYson::ETokenType::LeftAngle) {
-        return str;
+    int spaceCount = 0;
+    {
+        size_t index = 0;
+        while (index < str.Size() && IsSpace(str[index])) {
+            ++index;
+        }
+        if (index == str.Size() || str[index] != TokenTypeToChar(NYson::ETokenType::LeftAngle)) {
+            return str;
+        }
+        spaceCount = index;
     }
 
+    NYson::TTokenizer tokenizer(TStringBuf(str).SubStr(spaceCount));
+    tokenizer.ParseNext();
+    YCHECK(tokenizer.CurrentToken().GetType() == NYson::ETokenType::LeftAngle);
+
     int depth = 0;
-    int attrStartPosition = tokenizer.GetPosition();
+    int attrStartPosition = spaceCount + 1;
 
     while (true) {
         switch (tokenizer.CurrentToken().GetType()) {
@@ -150,7 +159,7 @@ Stroka ParseAttributes(const Stroka& str, IAttributeDictionary* attributes)
         }
     }
 
-    int attrEndPosition = tokenizer.GetPosition() - 1;
+    int attrEndPosition = spaceCount + tokenizer.GetPosition() - 1;
     int pathStartPosition = attrEndPosition + 1;
 
     TYsonString attrYson(

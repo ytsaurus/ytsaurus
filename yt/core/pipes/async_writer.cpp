@@ -101,8 +101,8 @@ public:
                     Buffer_ = buffer;
                     Position_ = 0;
 
-                    if (!FDWatcher_.is_active()) {
-                        FDWatcher_.start();
+                    if (!FDWatcher_->is_active()) {
+                        FDWatcher_->start();
                     }
 
                     break;
@@ -128,7 +128,7 @@ public:
             }
 
             State_ = EWriterState::Closed;
-            FDWatcher_.stop();
+            FDWatcher_->stop();
             SafeClose(FD_, false);
             FD_ = TPipe::InvalidFD;
         })
@@ -146,7 +146,7 @@ public:
                 return;
 
             State_ = EWriterState::Aborted;
-            FDWatcher_.stop();
+            FDWatcher_->stop();
 
             if (WriteResultPromise_.TrySet(TError(EErrorCode::Aborted, "Writer aborted")
                << TErrorAttribute("fd", FD_)))
@@ -196,7 +196,7 @@ private:
     int FD_ = -1;
 
     //! \note Thread-unsafe. Must be accessed from ev-thread only.
-    ev::io FDWatcher_;
+    TNullable<ev::io> FDWatcher_;
 
     TPromise<void> WriteResultPromise_ = MakePromise(TError());
 
@@ -237,9 +237,10 @@ private:
     void InitWatcher()
     {
         StartTime_ = GetCpuInstant();
-        FDWatcher_.set(FD_, ev::WRITE);
-        FDWatcher_.set(TIODispatcher::Get()->GetEventLoop());
-        FDWatcher_.set<TAsyncWriterImpl, &TAsyncWriterImpl::OnWrite>(this);
+        FDWatcher_.Emplace();
+        FDWatcher_->set(FD_, ev::WRITE);
+        FDWatcher_->set(TIODispatcher::Get()->GetEventLoop());
+        FDWatcher_->set<TAsyncWriterImpl, &TAsyncWriterImpl::OnWrite>(this);
     }
 
     void OnWrite(ev::io&, int eventType)
@@ -251,7 +252,7 @@ private:
         if (Position_ < Buffer_.Size()) {
             DoWrite();
         } else {
-            FDWatcher_.stop();
+            FDWatcher_->stop();
         }
     }
 
@@ -276,7 +277,7 @@ private:
             FD_ = TPipe::InvalidFD;
 
             State_ = EWriterState::Failed;
-            FDWatcher_.stop();
+            FDWatcher_->stop();
             SetResultPromise(error);
             return;
         }

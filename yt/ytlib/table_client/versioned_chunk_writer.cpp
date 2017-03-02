@@ -71,9 +71,7 @@ public:
         , MaxTimestamp_(MinTimestamp)
         , RandomGenerator_(RandomNumber<ui64>())
         , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
-        , SamplingRowMerger_(New<TSamplingRowMerger>(
-            New<TRowBuffer>(TVersionedChunkWriterBaseTag()),
-            schema))
+        , SamplingRowMerger_(New<TRowBuffer>(TVersionedChunkWriterBaseTag()), Schema_)
 #if 0
         , KeyFilter_(Config_->MaxKeyFilterSize, Config_->KeyFilterFalsePositiveRate)
 #endif
@@ -100,7 +98,7 @@ public:
             return EncodingChunkWriter_->IsReady();
         }
 
-        SamplingRowMerger_->Reset();
+        SamplingRowMerger_.Reset();
 
         if (RowCount_ == 0) {
             auto firstRow = rows.Front();
@@ -183,7 +181,7 @@ protected:
     const ui64 SamplingThreshold_;
 
     struct TVersionedChunkWriterBaseTag { };
-    TSamplingRowMergerPtr SamplingRowMerger_;
+    TSamplingRowMerger SamplingRowMerger_;
 
 #if 0
     TBloomFilterBuilder KeyFilter_;
@@ -201,7 +199,7 @@ protected:
 
     void EmitSample(TVersionedRow row)
     {
-        auto mergedRow = SamplingRowMerger_->MergeRow(row);
+        auto mergedRow = SamplingRowMerger_.MergeRow(row);
         ToProto(SamplesExt_.add_entries(), mergedRow);
         SamplesExtSize_ += SamplesExt_.entries(SamplesExt_.entries_size() - 1).length();
     }

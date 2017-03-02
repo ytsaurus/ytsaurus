@@ -387,7 +387,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         int replicaIndex = replica.GetReplicaIndex();
         int mediumIndex = replica.GetMediumIndex();
         auto& mediumStatistics = result.PerMediumStatistics[mediumIndex];
-        if (IsReplicaDecommissioned(replica) || node->GetVisitMark() == mark) {
+        if (IsReplicaDecommissioned(replica) || node->GetVisitMark(mediumIndex) == mark) {
             ++mediumStatistics.DecommissionedReplicaCount[replicaIndex];
             decommissionedReplicas[mediumIndex][replicaIndex].push_back(replica);
             ++totalDecommissionedReplicaCounts[mediumIndex];
@@ -395,7 +395,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
             ++mediumStatistics.ReplicaCount[replicaIndex];
             ++totalReplicaCounts[mediumIndex];
         }
-        node->SetVisitMark(mark);
+        node->SetVisitMark(mediumIndex, mark);
         const auto* rack = node->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();
@@ -1836,9 +1836,10 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
 
         void Run()
         {
-            LOG_DEBUG("Chunk tree traversal update started (ChunkList: %v)",
-                RootId_);
-            TraverseChunkTree(CreatePreemptableChunkTraverserCallbacks(Bootstrap_), this, Root_);
+            auto callbacks = CreatePreemptableChunkTraverserCallbacks(
+                Bootstrap_,
+                NCellMaster::EAutomatonThreadQueue::ChunkPropertiesUpdateTraverser);
+            TraverseChunkTree(std::move(callbacks), this, Root_);
         }
 
     private:
@@ -1859,13 +1860,7 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
 
         virtual void OnFinish(const TError& error) override
         {
-            if (error.IsOK()) {
-                LOG_DEBUG("Chunk tree traversal completed (ChunkList: %v)",
-                    RootId_);
-            } else {
-                LOG_DEBUG(error, "Chunk tree traversal failed (ChunkList: %v)",
-                    RootId_);
-
+            if (!error.IsOK()) {
                 // Try restarting.
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 Root_ = chunkManager->FindChunkList(RootId_);

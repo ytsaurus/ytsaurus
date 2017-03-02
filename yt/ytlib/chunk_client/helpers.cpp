@@ -99,6 +99,7 @@ TChunkId CreateChunk(
     req->set_vital(options->ChunksVital);
     req->set_erasure_codec(static_cast<int>(options->ErasureCodec));
     req->set_medium_index(mediumDescriptor->Index);
+    req->set_validate_resource_usage_increase(options->ValidateResourceUsageIncrease);
     if (chunkListId) {
         ToProto(req->mutable_chunk_list_id(), chunkListId);
     }

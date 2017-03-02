@@ -247,6 +247,9 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     auto reader = orderedDynamicStore->CreateFlushReader();
 
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
+        auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
+        writerOptions->ValidateResourceUsageIncrease = false;
+
         auto chunkWriter = CreateConfirmingWriter(
             tabletSnapshot->WriterConfig,
             tabletSnapshot->WriterOptions,

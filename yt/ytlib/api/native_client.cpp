@@ -3287,7 +3287,7 @@ private:
             std::vector<TSubmittedRow> mergedRows;
             mergedRows.reserve(SubmittedRows_.size());
 
-            auto merger = New<TUnversionedRowMerger>(
+            TUnversionedRowMerger merger(
                 RowBuffer_,
                 ColumnCount_,
                 KeyColumnCount_,
@@ -3296,11 +3296,11 @@ private:
             auto addPartialRow = [&] (const TSubmittedRow& submittedRow) {
                 switch (submittedRow.Command) {
                     case EWireProtocolCommand::DeleteRow:
-                        merger->DeletePartialRow(submittedRow.Row);
+                        merger.DeletePartialRow(submittedRow.Row);
                         break;
 
                     case EWireProtocolCommand::WriteRow:
-                        merger->AddPartialRow(submittedRow.Row);
+                        merger.AddPartialRow(submittedRow.Row);
                         break;
 
                     default:
@@ -3320,7 +3320,7 @@ private:
                         ++index;
                         addPartialRow(SubmittedRows_[index]);
                     }
-                    SubmittedRows_[index].Row = merger->BuildMergedRow();
+                    SubmittedRows_[index].Row = merger.BuildMergedRow();
                 }
                 mergedRows.push_back(SubmittedRows_[index]);
                 ++index;

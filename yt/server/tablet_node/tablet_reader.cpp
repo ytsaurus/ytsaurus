@@ -97,7 +97,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
             << TErrorAttribute("fan_in_limit", tabletSnapshot->Config->MaxReadFanIn);
     }
 
-    auto rowMerger = New<TSchemafulRowMerger>(
+    auto rowMerger = std::make_unique<TSchemafulRowMerger>(
         New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
         tabletSnapshot->QuerySchema.Columns().size(),
         tabletSnapshot->QuerySchema.GetKeyColumnCount(),
@@ -313,7 +313,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
         MakeFormattableRange(stores, TStoreIdFormatter()),
         MakeFormattableRange(stores, TStoreRangeFormatter()));
 
-    auto rowMerger = New<TSchemafulRowMerger>(
+    auto rowMerger = std::make_unique<TSchemafulRowMerger>(
         rowBuffer
             ? std::move(rowBuffer)
             : New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
@@ -435,7 +435,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         MakeFormattableRange(stores, TStoreIdFormatter()),
         MakeFormattableRange(stores, TStoreRangeFormatter()));
 
-    auto rowMerger = New<TVersionedRowMerger>(
+    auto rowMerger = std::make_unique<TVersionedRowMerger>(
         New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
         tabletSnapshot->QuerySchema.GetKeyColumnCount(),
         tabletSnapshot->Config,
