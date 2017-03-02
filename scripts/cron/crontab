@@ -25,7 +25,6 @@
 # Nightly compression
 0 5 * * * TITLE="compression on freud" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=freud.yt.yandex.net  /opt/cron/run_compress.sh >>/opt/cron/run_compress.log 2>&1
 0 5 * * * TITLE="compression on banach" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=banach.yt.yandex.net  /opt/cron/run_compress.sh >>/opt/cron/run_compress.log 2>&1
-0 5 * * * TITLE="compression on hahn" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=hahn.yt.yandex.net  /opt/cron/run_compress.py --queues-root-path //sys/cron/compression_queues --max-process-count 100 --compression-script-path /opt/cron/tools/compress_v2.py --log-path /opt/cron/compression_log_hahn.yt.yandex.net >>/opt/cron/run_compress.log 2>&1
 0 5 * * * TITLE="compression on marx" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=marx.yt.yandex.net  /opt/cron/run_compress.sh >>/opt/cron/run_compress.log 2>&1
 
 
