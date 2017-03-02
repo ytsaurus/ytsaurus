@@ -60,7 +60,7 @@ def compress(task):
 def configure_logging(args):
     global logger
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(asctime)-15s\t%(workerid)\t%(levelname)s\t%(message)s"))
+    handler.setFormatter(logging.Formatter("%(asctime)-15s\t%(workerid)s\t%(levelname)s\t%(message)s"))
     logger.handlers = [handler]
     logger.setLevel(logging.INFO)
     logger = logging.LoggerAdapter(logger, extra={"workerid": args.id})
