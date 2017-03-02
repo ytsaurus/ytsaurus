@@ -4,7 +4,6 @@
 #include "schemaless_chunk_reader.h"
 #include "schemaless_chunk_writer.h"
 #include "private.h"
-
 #include "schemaless_reader.h"
 #include "schemaless_writer.h"
 #include "name_table.h"
@@ -398,7 +397,7 @@ TTableUploadOptions GetTableUploadOptions(
 
 //////////////////////////////////////////////////////////////////////////////////
 
-TUnversionedOwningRow YsonToRow(
+TUnversionedOwningRow YsonToSchemafulRow(
     const Stroka& yson,
     const TTableSchema& tableSchema,
     bool treatMissingAsNull)
@@ -467,6 +466,105 @@ TUnversionedOwningRow YsonToRow(
     }
 
     return rowBuilder.FinishRow();
+}
+
+TUnversionedOwningRow YsonToSchemalessRow(const Stroka& valueYson)
+{
+    TUnversionedOwningRowBuilder builder;
+
+    auto values = ConvertTo<std::vector<INodePtr>>(TYsonString(valueYson, EYsonType::ListFragment));
+    for (const auto& value : values) {
+        int id = value->Attributes().Get<int>("id");
+        bool aggregate = value->Attributes().Find<bool>("aggregate").Get(false);
+        switch (value->GetType()) {
+            case ENodeType::Entity:
+                builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id, aggregate));
+                break;
+            case ENodeType::Int64:
+                builder.AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id, aggregate));
+                break;
+            case ENodeType::Uint64:
+                builder.AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id, aggregate));
+                break;
+            case ENodeType::Double:
+                builder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id, aggregate));
+                break;
+            case ENodeType::String:
+                builder.AddValue(MakeUnversionedStringValue(value->GetValue<Stroka>(), id, aggregate));
+                break;
+            default:
+                builder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id, aggregate));
+                break;
+        }
+    }
+
+    return builder.FinishRow();
+}
+
+TVersionedRow YsonToVersionedRow(
+    const TRowBufferPtr& rowBuffer,
+    const Stroka& keyYson,
+    const Stroka& valueYson,
+    const std::vector<TTimestamp>& deleteTimestamps)
+{
+    TVersionedRowBuilder builder(rowBuffer);
+
+    auto keys = ConvertTo<std::vector<INodePtr>>(TYsonString(keyYson, EYsonType::ListFragment));
+
+    int keyId = 0;
+    for (auto key : keys) {
+        switch (key->GetType()) {
+            case ENodeType::Int64:
+                builder.AddKey(MakeUnversionedInt64Value(key->GetValue<i64>(), keyId));
+                break;
+            case ENodeType::Uint64:
+                builder.AddKey(MakeUnversionedUint64Value(key->GetValue<ui64>(), keyId));
+                break;
+            case ENodeType::Double:
+                builder.AddKey(MakeUnversionedDoubleValue(key->GetValue<double>(), keyId));
+                break;
+            case ENodeType::String:
+                builder.AddKey(MakeUnversionedStringValue(key->GetValue<Stroka>(), keyId));
+                break;
+            default:
+                Y_UNREACHABLE();
+                break;
+        }
+        ++keyId;
+    }
+
+    auto values = ConvertTo<std::vector<INodePtr>>(TYsonString(valueYson, EYsonType::ListFragment));
+    for (auto value : values) {
+        int id = value->Attributes().Get<int>("id");
+        auto timestamp = value->Attributes().Get<TTimestamp>("ts");
+        bool aggregate = value->Attributes().Find<bool>("aggregate").Get(false);
+        switch (value->GetType()) {
+            case ENodeType::Entity:
+                builder.AddValue(MakeVersionedSentinelValue(EValueType::Null, timestamp, id, aggregate));
+                break;
+            case ENodeType::Int64:
+                builder.AddValue(MakeVersionedInt64Value(value->GetValue<i64>(), timestamp, id, aggregate));
+                break;
+            case ENodeType::Uint64:
+                builder.AddValue(MakeVersionedUint64Value(value->GetValue<ui64>(), timestamp, id, aggregate));
+                break;
+            case ENodeType::Double:
+                builder.AddValue(MakeVersionedDoubleValue(value->GetValue<double>(), timestamp, id, aggregate));
+                break;
+            case ENodeType::String:
+                builder.AddValue(MakeVersionedStringValue(value->GetValue<Stroka>(), timestamp, id, aggregate));
+                break;
+            default:
+                builder.AddValue(MakeVersionedAnyValue(ConvertToYsonString(value).GetData(), timestamp, id, aggregate));
+                break;
+        }
+    }
+
+    for (auto timestamp : deleteTimestamps) {
+        builder.AddDeleteTimestamp(timestamp);
+    }
+
+    return builder.FinishRow();
 }
 
 TUnversionedOwningRow YsonToKey(const Stroka& yson)
@@ -551,4 +649,4 @@ TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer
 //////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
-} // namespace NTableClient
+} //// namespace NTableClient

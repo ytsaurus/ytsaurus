@@ -458,6 +458,7 @@ void ApplyYPathOverride(
 static INodePtr WalkNodeByYPath(
     const INodePtr& root,
     const TYPath& path,
+    std::function<INodePtr(const Stroka&)> handleMissingAttribute,
     std::function<INodePtr(const IMapNodePtr&, const Stroka&)> handleMissingChildKey,
     std::function<INodePtr(const IListNodePtr&, int)> handleMissingChildIndex)
 {
@@ -467,31 +468,42 @@ static INodePtr WalkNodeByYPath(
         tokenizer.Skip(NYPath::ETokenType::Ampersand);
         tokenizer.Expect(NYPath::ETokenType::Slash);
         tokenizer.Advance();
-        tokenizer.Expect(NYPath::ETokenType::Literal);
-        switch (currentNode->GetType()) {
-            case ENodeType::Map: {
-                auto currentMap = currentNode->AsMap();
-                auto key = tokenizer.GetLiteralValue();
-                currentNode = currentMap->FindChild(key);
-                if (!currentNode) {
-                    return handleMissingChildKey(currentMap, key);
-                }
-                break;
+        if (tokenizer.GetType() == NYPath::ETokenType::At) {
+            tokenizer.Advance();
+            tokenizer.Expect(NYPath::ETokenType::Literal);
+            const auto key = tokenizer.GetLiteralValue();
+            const auto& attributes = currentNode->Attributes();
+            currentNode = attributes.Find<INodePtr>(key);
+            if (!currentNode) {
+                return handleMissingAttribute(key);
             }
-            case ENodeType::List: {
-                auto currentList = currentNode->AsList();
-                const auto& token = tokenizer.GetToken();
-                int index = ParseListIndex(token);
-                int adjustedIndex = currentList->AdjustChildIndex(index);
-                currentNode = currentList->FindChild(adjustedIndex);
-                if (!currentNode) {
-                    return handleMissingChildIndex(currentList, adjustedIndex);
+        } else {
+            tokenizer.Expect(NYPath::ETokenType::Literal);
+            switch (currentNode->GetType()) {
+                case ENodeType::Map: {
+                    auto currentMap = currentNode->AsMap();
+                    auto key = tokenizer.GetLiteralValue();
+                    currentNode = currentMap->FindChild(key);
+                    if (!currentNode) {
+                        return handleMissingChildKey(currentMap, key);
+                    }
+                    break;
                 }
-                break;
+                case ENodeType::List: {
+                    auto currentList = currentNode->AsList();
+                    const auto& token = tokenizer.GetToken();
+                    int index = ParseListIndex(token);
+                    int adjustedIndex = currentList->AdjustChildIndex(index);
+                    currentNode = currentList->FindChild(adjustedIndex);
+                    if (!currentNode) {
+                        return handleMissingChildIndex(currentList, adjustedIndex);
+                    }
+                    break;
+                }
+                default:
+                    ThrowCannotHaveChildren(currentNode);
+                    Y_UNREACHABLE();
             }
-            default:
-                ThrowCannotHaveChildren(currentNode);
-                Y_UNREACHABLE();
         }
     }
     return currentNode;
@@ -504,6 +516,10 @@ INodePtr GetNodeByYPath(
     return WalkNodeByYPath(
         root,
         path,
+        [] (const Stroka& key) {
+            ThrowNoSuchAttribute(key);
+            return nullptr;
+        },
         [] (const IMapNodePtr& node, const Stroka& key) {
             ThrowNoSuchChildKey(node, key);
             return nullptr;
@@ -522,6 +538,9 @@ INodePtr FindNodeByYPath(
     return WalkNodeByYPath(
         root,
         path,
+        [] (const Stroka& key) {
+            return nullptr;
+        },
         [] (const IMapNodePtr& node, const Stroka& key) {
             return nullptr;
         },

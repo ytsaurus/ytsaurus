@@ -2172,6 +2172,9 @@ private:
         InitFinalOutputConfig(SortedMergeJobIOConfig);
 
         UnorderedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
+        // Since we're reading from huge number of paritition chunks, we must use larger buffers,
+        // as we do for sort jobs.
+        UnorderedMergeJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
         InitFinalOutputConfig(UnorderedMergeJobIOConfig);
     }
 

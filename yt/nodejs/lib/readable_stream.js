@@ -54,12 +54,10 @@ YtReadableStream.prototype._flow = function YtReadableStream$_flow()
         }
     }
 
-    if (i > 0) {
-        process.nextTick(this._flow.bind(this));
+    if (i === 0 && this._binding.Drain()) {
+        this._emitEnd();
     } else {
-        if (this._binding.Drain()) {
-            this._emitEnd();
-        }
+        process.nextTick(this._flow.bind(this));
     }
 };
 

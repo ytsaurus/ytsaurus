@@ -63,7 +63,7 @@ public:
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
-        Y_UNREACHABLE();
+        return UnderlyingReader_->GetDataStatistics();
     }
 
     virtual bool IsFetchingCompleted() const override

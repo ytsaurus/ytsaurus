@@ -7,6 +7,8 @@
 
 #include <yt/ytlib/chunk_client/data_statistics.h>
 
+#include <yt/core/concurrency/rw_spinlock.h>
+
 #include <yt/core/misc/heap.h>
 
 #include <tuple>
@@ -16,6 +18,7 @@ namespace NTableClient {
 
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,21 +31,16 @@ class TSchemafulOverlappingLookupReader
 {
 public:
     static ISchemafulReaderPtr Create(
-        TSchemafulRowMergerPtr rowMerger,
+        std::unique_ptr<TSchemafulRowMerger> rowMerger,
         std::function<IVersionedReaderPtr()> readerFactory);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
     virtual TFuture<void> GetReadyEvent() override;
 
-private:
-    struct TSession;
-    TSchemafulRowMergerPtr RowMerger_;
-    TFuture<void> ReadyEvent_;
-    std::vector<TSession> Sessions_;
-    std::vector<TSession*> AwaitingSessions_;
-    bool Exhausted_ = false;
+    virtual TDataStatistics GetDataStatistics() const override;
 
+private:
     struct TSession
     {
         IVersionedReaderPtr Reader;
@@ -55,7 +53,14 @@ private:
         { }
     };
 
-    TSchemafulOverlappingLookupReader(TSchemafulRowMergerPtr rowMerger);
+    std::unique_ptr<TSchemafulRowMerger> RowMerger_;
+    TFuture<void> ReadyEvent_;
+    std::vector<TSession> Sessions_;
+    std::vector<TSession*> AwaitingSessions_;
+    bool Exhausted_ = false;
+    i64 RowCount_ = 0;
+
+    TSchemafulOverlappingLookupReader(std::unique_ptr<TSchemafulRowMerger> rowMerger);
     bool RefillSession(TSession* sessions);
     void RefillSessions();
     void UpdateReadyEvent();
@@ -69,12 +74,12 @@ DEFINE_REFCOUNTED_TYPE(TSchemafulOverlappingLookupReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemafulOverlappingLookupReader::TSchemafulOverlappingLookupReader(
-    TSchemafulRowMergerPtr rowMerger)
+    std::unique_ptr<TSchemafulRowMerger> rowMerger)
     : RowMerger_(std::move(rowMerger))
 { }
 
 ISchemafulReaderPtr TSchemafulOverlappingLookupReader::Create(
-    TSchemafulRowMergerPtr rowMerger,
+    std::unique_ptr<TSchemafulRowMerger> rowMerger,
     std::function<IVersionedReaderPtr()> readerFactory)
 {
     auto this_ = New<TSchemafulOverlappingLookupReader>(std::move(rowMerger));
@@ -97,6 +102,16 @@ ISchemafulReaderPtr TSchemafulOverlappingLookupReader::Create(
 TFuture<void> TSchemafulOverlappingLookupReader::GetReadyEvent()
 {
     return ReadyEvent_;
+}
+
+TDataStatistics TSchemafulOverlappingLookupReader::GetDataStatistics() const
+{
+    TDataStatistics dataStatistics;
+    for (const auto& session : Sessions_) {
+        dataStatistics += session.Reader->GetDataStatistics();
+    }
+    dataStatistics.set_row_count(RowCount_);
+    return dataStatistics;
 }
 
 bool TSchemafulOverlappingLookupReader::Read(std::vector<TUnversionedRow>* rows)
@@ -123,6 +138,8 @@ bool TSchemafulOverlappingLookupReader::Read(std::vector<TUnversionedRow>* rows)
     while (AwaitingSessions_.empty() && !Exhausted_ && rows->size() < rows->capacity()) {
         readRow();
     }
+
+    RowCount_ += rows->size();
 
     return !rows->empty() || !AwaitingSessions_.empty();
 }
@@ -181,7 +198,7 @@ void TSchemafulOverlappingLookupReader::UpdateReadyEvent()
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemafulReaderPtr CreateSchemafulOverlappingLookupReader(
-    TSchemafulRowMergerPtr rowMerger,
+    std::unique_ptr<TSchemafulRowMerger> rowMerger,
     std::function<IVersionedReaderPtr()> readerFactory)
 {
     return TSchemafulOverlappingLookupReader::Create(
@@ -197,7 +214,7 @@ class TSchemafulOverlappingRangeReaderBase
 public:
     TSchemafulOverlappingRangeReaderBase(
         const std::vector<TOwningKey>& boundaries,
-        TIntrusivePtr<TRowMerger> rowMerger,
+        std::unique_ptr<TRowMerger> rowMerger,
         std::function<IVersionedReaderPtr(int index)> readerFactory,
         TOverlappingReaderKeyComparer keyComparer,
         int minConcurrency);
@@ -219,7 +236,7 @@ private:
     class TSessionComparer;
 
     std::function<IVersionedReaderPtr(int index)> ReaderFactory_;
-    TIntrusivePtr<TRowMerger> RowMerger_;
+    std::unique_ptr<TRowMerger> RowMerger_;
     TOverlappingReaderKeyComparer KeyComparer_;
     TFuture<void> ReadyEvent_;
     std::vector<TSession> Sessions_;
@@ -232,6 +249,8 @@ private:
 
     TDataStatistics DataStatistics_;
     i64 RowCount_ = 0;
+
+    TReaderWriterSpinLock SpinLock_;
 
     struct TSession
     {
@@ -281,7 +300,7 @@ private:
 template <class TRowMerger>
 TSchemafulOverlappingRangeReaderBase<TRowMerger>::TSchemafulOverlappingRangeReaderBase(
     const std::vector<TOwningKey>& boundaries,
-    TIntrusivePtr<TRowMerger> rowMerger,
+    std::unique_ptr<TRowMerger> rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
     int minConcurrency)
@@ -303,13 +322,13 @@ TSchemafulOverlappingRangeReaderBase<TRowMerger>::TSchemafulOverlappingRangeRead
 template <class TRowMerger>
 TDataStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDataStatistics() const
 {
+    TReaderGuard guard(SpinLock_);
     auto dataStatistics = DataStatistics_;
-    for (const auto& session : ActiveSessions_) {
-        dataStatistics += session->Reader->GetDataStatistics();
-    }
 
-    for (const auto& session : AwaitingSessions_) {
-        dataStatistics += session->Reader->GetDataStatistics();
+    for (const auto& session : Sessions_) {
+        if (session.Reader) {
+            dataStatistics += session.Reader->GetDataStatistics();
+        }
     }
 
     dataStatistics.set_row_count(RowCount_);
@@ -457,6 +476,7 @@ TFuture<void> TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetReadyEvent(
 template <class TRowMerger>
 void TSchemafulOverlappingRangeReaderBase<TRowMerger>::OpenSession(int index)
 {
+    TWriterGuard guard(SpinLock_);
     Sessions_[index].Reader = ReaderFactory_(Sessions_[index].Index);
     Sessions_[index].ReadyEvent = Sessions_[index].Reader->Open();
     AwaitingSessions_.push_back(&Sessions_[index]);
@@ -488,7 +508,12 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSession(TSession* s
         ActiveSessions_.push_back(session);
         AdjustHeapBack(ActiveSessions_.begin(), ActiveSessions_.end(), SessionComparer_);
     } else if (finished) {
-        session->Reader.Reset();
+        auto dataStatistics = session->Reader->GetDataStatistics();
+        {
+            TWriterGuard guard(SpinLock_);
+            DataStatistics_ += dataStatistics;
+            session->Reader.Reset();
+        }
     } else {
         session->ReadyEvent = session->Reader->GetReadyEvent();
     }
@@ -544,14 +569,14 @@ class TSchemafulOverlappingRangeReader
 public:
     static ISchemafulReaderPtr Create(
         const std::vector<TOwningKey>& boundaries,
-        TSchemafulRowMergerPtr rowMerger,
+        std::unique_ptr<TSchemafulRowMerger> rowMerger,
         std::function<IVersionedReaderPtr(int index)> readerFactory,
         TOverlappingReaderKeyComparer keyComparer,
         int minConcurrency)
     {
         auto this_ = New<TSchemafulOverlappingRangeReader>(
             boundaries,
-            rowMerger,
+            std::move(rowMerger),
             std::move(readerFactory),
             std::move(keyComparer),
             minConcurrency);
@@ -571,16 +596,21 @@ public:
         return DoGetReadyEvent();
     }
 
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return DoGetDataStatistics();
+    }
+
 private:
     TSchemafulOverlappingRangeReader(
         const std::vector<TOwningKey>& boundaries,
-        TSchemafulRowMergerPtr rowMerger,
+        std::unique_ptr<TSchemafulRowMerger> rowMerger,
         std::function<IVersionedReaderPtr(int index)> readerFactory,
         TOverlappingReaderKeyComparer keyComparer,
         int minConcurrency)
         : TSchemafulOverlappingRangeReaderBase<TSchemafulRowMerger>(
             boundaries,
-            rowMerger,
+            std::move(rowMerger),
             std::move(readerFactory),
             std::move(keyComparer),
             minConcurrency)
@@ -593,14 +623,14 @@ private:
 
 ISchemafulReaderPtr CreateSchemafulOverlappingRangeReader(
     const std::vector<TOwningKey>& boundaries,
-    TSchemafulRowMergerPtr rowMerger,
+    std::unique_ptr<TSchemafulRowMerger> rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
     int minConcurrentReaders)
 {
     return TSchemafulOverlappingRangeReader::Create(
         boundaries,
-        rowMerger,
+        std::move(rowMerger),
         std::move(readerFactory),
         std::move(keyComparer),
         minConcurrentReaders);
@@ -615,13 +645,13 @@ class TVersionedOverlappingRangeReader
 public:
     TVersionedOverlappingRangeReader(
         const std::vector<TOwningKey>& boundaries,
-        TVersionedRowMergerPtr rowMerger,
+        std::unique_ptr<TVersionedRowMerger> rowMerger,
         std::function<IVersionedReaderPtr(int index)> readerFactory,
         TOverlappingReaderKeyComparer keyComparer,
         int minConcurrency)
         : TSchemafulOverlappingRangeReaderBase<TVersionedRowMerger>(
             boundaries,
-            rowMerger,
+            std::move(rowMerger),
             std::move(readerFactory),
             std::move(keyComparer),
             minConcurrency)
@@ -662,14 +692,14 @@ public:
 
 IVersionedReaderPtr CreateVersionedOverlappingRangeReader(
     const std::vector<TOwningKey>& boundaries,
-    TVersionedRowMergerPtr rowMerger,
+    std::unique_ptr<TVersionedRowMerger> rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
     int minConcurrentReaders)
 {
     return New<TVersionedOverlappingRangeReader>(
         boundaries,
-        rowMerger,
+        std::move(rowMerger),
         std::move(readerFactory),
         std::move(keyComparer),
         minConcurrentReaders);
