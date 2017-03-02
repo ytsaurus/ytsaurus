@@ -102,7 +102,7 @@ def main():
 
     parent_parser = argparse.ArgumentParser(add_help=False)
     parent_parser.add_argument("--yt-proxy", required=True, help="yt proxy")
-    parent_parser.add_argument("--yt-config", default={}, help="yt config")
+    parent_parser.add_argument("--yt-config", default="{}", help="yt config")
     parent_parser.add_argument("--log-file", help="path to log file, stderr if not specified")
     parent_parser.add_argument("--log-level", help="log level")
     parent_parser.add_argument("--table-path",
