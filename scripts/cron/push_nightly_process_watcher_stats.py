@@ -11,7 +11,7 @@ import yt.wrapper as yt
 
 import simplejson as json
 import argparse
-import datetime
+from datetime import datetime
 from socket import error as SocketError
 
 SOLOMON_PUSH_URL = "http://api.solomon.search.yandex.net/push/json"
@@ -39,7 +39,7 @@ def main():
         cluster = cluster[:suffix_start]
 
     sensors = []
-    for attribute in ("total_table_count", "table_count"):
+    for attribute in ("total_table_count", "task_count"):
         value = yt.get_attribute(args.tasks_root, attribute, None)
         if value is None:
             continue
