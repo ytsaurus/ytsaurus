@@ -100,7 +100,8 @@ class Airflow(object):
 
         # XXX(asaitgalin): Retries will be added when HDPDEV-279 is done.
         logger.info("Requesting airflow by url %s, data: %s, headers: %s", self._url + "/submit", json.dumps(data), repr(self._headers))
-        response = requests.post(self._url + "/submit", data=json.dumps(data), headers=self._headers)
+        # XXX(ignat): verification is turned off since problems with HTTPS, see YT-6438.
+        response = requests.post(self._url + "/submit", data=json.dumps(data), headers=self._headers, verify=False)
         response.raise_for_status()
 
         if self.message_queue is not None:
