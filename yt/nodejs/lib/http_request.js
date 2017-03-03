@@ -153,6 +153,7 @@ YtHttpRequest.prototype.fire = function()
             host: addr,
             port: self.port,
             path: self.path,
+            agent: null,
         });
 
         req.setNoDelay(self.nodelay);
@@ -191,18 +192,22 @@ YtHttpRequest.prototype.fire = function()
             });
         });
         req.end(self.body);
+        return req;
     }
 
+    var req;
     var promise = new Q(function(resolve, reject) {
         if (self.noresolve) {
-            return impl(self.host, resolve, reject);
+            req = impl(self.host, resolve, reject);
+            return;
         } else {
             return _resolveIPv6(self.host).then(
                 function(addrs) {
                     if (addrs.length === 0) {
                         throw new YtError(self.toString() + " has resolved " + self.host + " to empty host set");
                     } else {
-                        return impl(addrs[0], resolve, reject);
+                        req = impl(addrs[0], resolve, reject);
+                        return;
                     }
                 },
                 function(err6) {
@@ -211,7 +216,8 @@ YtHttpRequest.prototype.fire = function()
                             if (addrs.length === 0) {
                                 throw new YtError(self.toString() + " has resolved " + self.host + " to empty host set");
                             } else {
-                                return impl(addrs[0], resolve, reject);
+                                req = impl(addrs[0], resolve, reject);
+                                return;
                             }
                         },
                         function(err4) {
@@ -228,7 +234,22 @@ YtHttpRequest.prototype.fire = function()
         }
     });
 
-    return promise.timeout(self.timeout * 1.05, self.toString() + " has timed out (hardly)");
+    if (!req) {
+        throw new Error("req is null");
+    }
+
+    var timeout = setTimeout(function() {
+        if (promise.isPending()) {
+            promise.reject(new YtError(self.toString() + " has timed out (hardly)"));
+            if (req.abort) {
+                req.abort();
+            }
+        }
+    }, self.timeout * 1.05);
+
+    promise.finally(function() { clearTimeout(timeout); });
+
+    return promise;
 };
 
 YtHttpRequest.prototype.toString = function()
