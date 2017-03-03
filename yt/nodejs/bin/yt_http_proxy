@@ -143,6 +143,7 @@ config = {
         cache_max_size: 5000,
         cache_max_token_age: 60 * 1000,
         cache_max_exist_age: 86400 * 1000,
+        optimism_timeout: 5000,
         create_users_on_demand: true,
         default_oauth_application_key: "",
         guest_login: "guest",
