@@ -877,7 +877,7 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return Partition->AssignedNodeId != InvalidNodeId
+            return Partition->AssignedNodeId == InvalidNodeId
                 ? Controller->Spec->SortAssignmentTimeout
                 : Controller->Spec->SortLocalityTimeout;
         }
