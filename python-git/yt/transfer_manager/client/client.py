@@ -379,7 +379,7 @@ class TransferManager(object):
         return self._make_request("POST",
                                   self.backend_url + "/tasks/",
                                   is_mutating=True,
-                                  data=json.dumps(data)).content
+                                  data=json.dumps(data)).text
 
     def add_tasks_from_src_dst_pairs(self, src_dst_pairs, source_cluster, destination_cluster, params=None,
                                      sync=None, poll_period=None, attached=False, running_tasks_limit=None,
