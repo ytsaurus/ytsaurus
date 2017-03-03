@@ -86,7 +86,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     set_param(params, "workload_descriptor", workload_descriptor)
 
     response = DynamicTableRequestRetrier(
-        get_config(client)["read_retries"],
+        get_config(client)["dynamic_table_retries"],
         "select_rows",
         params,
         client=client).run()
@@ -126,7 +126,7 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
     input_data = b"".join(_to_chunk_stream(input_stream, format, raw, split_rows=False,
                                            chunk_size=get_config(client)["write_retries"]["chunk_size"]))
 
-    retry_config = deepcopy(get_config(client)["write_retries"])
+    retry_config = deepcopy(get_config(client)["dynamic_table_retries"])
     retry_config["enable"] = retry_config["enable"] and \
         not aggregate and get_command_param("transaction_id", client) == null_transaction_id
 
@@ -164,7 +164,7 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
     input_data = b"".join(_to_chunk_stream(input_stream, format, raw, split_rows=False,
                                            chunk_size=get_config(client)["write_retries"]["chunk_size"]))
 
-    retry_config = deepcopy(get_config(client)["write_retries"])
+    retry_config = deepcopy(get_config(client)["dynamic_table_retries"])
     retry_config["enable"] = retry_config["enable"] and \
         get_command_param("transaction_id", client) == null_transaction_id
 
@@ -203,7 +203,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
                                            chunk_size=get_config(client)["write_retries"]["chunk_size"]))
 
     response = DynamicTableRequestRetrier(
-        get_config(client)["read_retries"],
+        get_config(client)["dynamic_table_retries"],
         "lookup_rows",
         params,
         data=input_data,

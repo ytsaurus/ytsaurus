@@ -102,6 +102,21 @@ default_config = {
         "check_response_format": True,
     },
 
+    # Parameters for dynamic table requests retries.
+    "dynamic_table_retries": {
+        "enable": True,
+        "count": 6,
+        "backoff": {
+            "policy": "constant_time",
+            "constant_time": 5 * 1000,
+            "exponential_policy": {
+                "start_timeout": None,
+                "base": None,
+                "max_timeout": None
+            }
+        }
+    },
+
     # This option enables logging on info level of all requests.
     "enable_request_logging": False,
 
