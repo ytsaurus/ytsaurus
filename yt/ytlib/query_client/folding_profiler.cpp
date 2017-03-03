@@ -137,10 +137,11 @@ TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const 
         return MakeCodegenLiteralExpr(index, literalExpr->Type);
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         Fold(static_cast<int>(EFoldingObjectType::ReferenceExpr));
-        Fold(referenceExpr->ColumnName.c_str());
+        auto indexInSchema = schema.GetColumnIndexOrThrow(referenceExpr->ColumnName);
+        Fold(indexInSchema);
 
         return MakeCodegenReferenceExpr(
-            schema.GetColumnIndexOrThrow(referenceExpr->ColumnName),
+            indexInSchema,
             referenceExpr->Type,
             referenceExpr->ColumnName);
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
