@@ -37,6 +37,7 @@ def make_logbroker_client(args):
 
     return LogBroker(
         args.logbroker_url,
+        args.logbroker_port,
         args.logbroker_log_type,
         args.logbroker_service_id,
         args.logbroker_source_id,
@@ -80,6 +81,8 @@ def add_push_to_logbroker_parser(subparsers, parent_parser):
                         help="Number of ranges per one task", default=10)
     parser.add_argument("--logbroker-url", required=True,
                         help="Url of logbroker")
+    parser.add_argument("--logbroker-port", type=int,
+                        help="Port to communicate with logbroker", default=80)
     parser.add_argument("--logbroker-chunk-size", type=int,
                         help="Size of chunk to split data in /rt/store command", default=1024 * 1024)
     parser.add_argument("--logbroker-source-id",

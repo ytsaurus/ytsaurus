@@ -10,6 +10,7 @@ bin/new_fennel.py push-to-logbroker \
     --yt-proxy hahn \
     --yt-config "{token=$(cat ~/.yt/token)}" \
     --logbroker-url logbroker.yandex.net \
+    --logbroker-port 8999 \
     --logbroker-source-id "test_fennel_$random_suffix" \
     --logbroker-log-type "test_fennel" \
     --session-count 2 \

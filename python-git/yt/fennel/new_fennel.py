@@ -81,8 +81,9 @@ def raise_for_status(response):
 # ================= LOGBROKER HELPERS ==========================================
 
 class LogBroker(object):
-    def __init__(self, url, log_type, service_id, source_id, chunk_size):
+    def __init__(self, url, port, log_type, service_id, source_id, chunk_size):
         self._url = url
+        self._port = port
         self._log_type = log_type
         self._service_id = service_id
         self._source_id = source_id
@@ -92,6 +93,9 @@ class LogBroker(object):
 
     def _make_source_id(self, session_index, session_count):
         return "{0}_{1}_{2}".format(self._source_id, session_count, session_index + 1)
+
+    def get_port(self):
+        return self._port
 
     def get_chunk_size(self):
         return self._chunk_size
@@ -111,7 +115,7 @@ class LogBroker(object):
 
         headers = {"ClientHost": socket.getfqdn(), "Accept-Encoding": "identity"}
         params = self._get_session_params(session_index, session_count)
-        response = requests.get("http://{0}/advise".format(self._url), params=params, headers=headers, timeout=30)
+        response = requests.get("http://{0}:{1}/advise".format(self._url, self._port), params=params, headers=headers, timeout=30)
         raise_for_status(response)
 
         host = response.text.strip()
@@ -289,7 +293,7 @@ def make_read_tasks(yt_client, table_path, session_count, range_row_count, max_r
 
 def pipe_from_yt_to_logbroker(yt_client, logbroker, table_path, ranges, session_index, session_count, seqno):
     url, params = logbroker.get_session_options(session_index, session_count)
-    session_rsp = requests.get("http://{}/rt/session".format(url), params=params, stream=True, timeout=600)
+    session_rsp = requests.get("http://{}:{}/rt/session".format(url, logbroker.get_port()), params=params, stream=True, timeout=600)
     raise_for_status(session_rsp)
 
     session_rsp_lines_iter = session_rsp.iter_lines()
