@@ -52,7 +52,7 @@ namespace NApi {
 
 struct TUserWorkloadDescriptor
 {
-    EUserWorkloadCategory Category = EUserWorkloadCategory::Batch;
+    EUserWorkloadCategory Category = EUserWorkloadCategory::Interactive;
     int Band = 0;
 
     operator TWorkloadDescriptor() const;
