@@ -47,7 +47,7 @@ struct INodeShardHost
         const TOperationId& operationId,
         const TJobId& jobId,
         bool jobFailedOrAborted,
-        NYson::TYsonString jobAttributes,
+        const NYson::TYsonString& jobAttributes,
         const NChunkClient::TChunkId& stderrChunkId,
         const NChunkClient::TChunkId& failContextChunkId,
         TFuture<NYson::TYsonString> inputPathsFuture) = 0;
