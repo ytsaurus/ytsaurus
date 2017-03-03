@@ -164,7 +164,7 @@ class Airflow(object):
     def _make_get_request(self, url, params):
         def make_request():
             logger.info("Requesting airflow by url %s, params: %s, headers: %s", url, repr(params), repr(self._headers))
-            response = requests.get(url, params=params, headers=self._headers)
+            response = requests.get(url, params=params, headers=self._headers, verify=False)
             return response
 
         return run_with_retries(make_request, exceptions=get_retriable_errors())
