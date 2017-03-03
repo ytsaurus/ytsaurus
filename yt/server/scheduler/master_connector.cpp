@@ -1311,7 +1311,6 @@ private:
         for (const auto& request : jobRequests) {
             const auto& jobId = request.JobId;
             auto jobPath = GetJobPath(operation->GetId(), jobId);
-            auto req = TYPathProxy::Set(jobPath);
             TYsonString inputPaths;
             if (request.InputPathsFuture) {
                 auto inputPathsOrError = WaitFor(request.InputPathsFuture);
@@ -1325,19 +1324,14 @@ private:
                 }
             }
 
-            req->set_value(BuildYsonStringFluently()
-                .BeginAttributes()
-                    .Do([=] (IYsonConsumer* consumer) {
-                        consumer->OnRaw(request.Attributes);
-                    })
-                    .DoIf(inputPaths.operator bool(), [=] (TFluentAttributes fluent) {
-                        fluent
-                            .Item("input_paths").Value(inputPaths);
-                    })
-                .EndAttributes()
-                .BeginMap()
-                .EndMap()
-                .GetData());
+            auto attributes = ConvertToAttributes(request.Attributes);
+            if (inputPaths) {
+                attributes->SetYson("input_paths", inputPaths);
+            }
+
+            auto req = TCypressYPathProxy::Create(jobPath);
+            req->set_type(static_cast<int>(EObjectType::MapNode));
+            ToProto(req->mutable_node_attributes(), *attributes);
             batchReq->AddRequest(req, "create");
         }
 
