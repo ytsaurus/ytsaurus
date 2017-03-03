@@ -1,4 +1,5 @@
 from yt.wrapper.common import round_up_to, bool_to_string, MB, GB, update, get_disk_size
+from yt.wrapper.local_mode import enable_local_files_usage_in_job
 from yt.wrapper.ypath import ypath_join
 from yt.tools.conversion_tools import transform
 from yt.common import get_value, set_pdeathsig
@@ -15,6 +16,7 @@ import yt.wrapper as yt
 import os
 import time
 import shutil
+import sys
 import tempfile
 import tarfile
 from copy import deepcopy
@@ -174,7 +176,7 @@ def _slice_yt_file_evenly(client, file, split_size=None):
     return [{"offset": offset, "limit": limit}
             for offset, limit in _split_file(split_size, data_size)]
 
-def _set_mapper_settings_for_read_from_yt(spec):
+def _set_mapper_settings_for_read_from_yt(spec, client):
     if "mapper" not in spec:
         spec["mapper"] = {}
     # NB: yt2 read usually consumpt less than 600 Mb, but sometimes can use more than 1Gb of memory.
@@ -184,6 +186,12 @@ def _set_mapper_settings_for_read_from_yt(spec):
     spec["mapper"]["memory_reserve_factor"] = 0.25
     if "tmpfs_size" in spec["mapper"]:
         spec["mapper"]["memory_limit"] += spec["mapper"]["tmpfs_size"]
+
+    if enable_local_files_usage_in_job(client):
+        if "environment" not in spec["mapper"]:
+            spec["mapper"]["environment"] = {}
+
+        spec["mapper"]["environment"]["PYTHONPATH"] = ":".join(sys.path)
 
 def _set_tmpfs_settings(client, spec, files, yt_files=None, reserved_size=0):
     yt_files = get_value(yt_files, [])
@@ -491,7 +499,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, dat
                     spec["data_size_per_job"] = 1
 
                     _set_tmpfs_settings(destination_client, spec, files, [yt_token_file])
-                    _set_mapper_settings_for_read_from_yt(spec)
+                    _set_mapper_settings_for_read_from_yt(spec, destination_client)
 
                     destination_client.run_map(
                         command,
@@ -604,7 +612,7 @@ def copy_file_yt_to_yt(source_client, destination_client, src, dst, data_proxy_r
                         spec = deepcopy(get_value(copy_spec_template, {}))
                         spec["data_size_per_job"] = 1
                         _set_tmpfs_settings(destination_client, spec, files, [yt_token_file])
-                        _set_mapper_settings_for_read_from_yt(spec)
+                        _set_mapper_settings_for_read_from_yt(spec, destination_client)
 
                         destination_client.run_map(
                             command,
@@ -834,7 +842,7 @@ def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, cop
         spec["data_size_per_job"] = 1
 
         _set_tmpfs_settings(yt_client, spec, [hive_client.hive_importer_library], reserved_size=6 * GB)
-        _set_mapper_settings_for_read_from_yt(spec)
+        _set_mapper_settings_for_read_from_yt(spec, yt_client)
 
         output_format_attributes = update({"encode_utf8": "false"}, json_format_attributes)
         yt_client.run_map(
