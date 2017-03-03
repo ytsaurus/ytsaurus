@@ -56,6 +56,7 @@
 
 #include <yt/core/profiling/scoped_timer.h>
 #include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/ytree/service_combiner.h>
 #include <yt/core/ytree/virtual.h>
@@ -371,17 +372,17 @@ public:
             return CachedExecNodeDescriptors_;
         }
 
-        auto now = TInstant::Now();
+        auto now = NProfiling::GetCpuInstant();
 
         {
             TReaderGuard guard(ExecNodeDescriptorsByTagLock_);
 
             auto it = CachedExecNodeDescriptorsByTags_.find(filter);
-            if (it != CachedExecNodeDescriptorsByTags_.end() &&
-                now <= it->second.LastAccessTime + Config_->UpdateExecNodeDescriptorsPeriod)
-            {
-                it->second.LastAccessTime = now;
-                return it->second.ExecNodeDescriptors;
+            if (it != CachedExecNodeDescriptorsByTags_.end()) {
+                auto& entry = it->second;
+                if (now <= entry.LastUpdateTime + NProfiling::DurationToCpuDuration(Config_->UpdateExecNodeDescriptorsPeriod)) {
+                    return entry.ExecNodeDescriptors;
+                }
             }
         }
 
@@ -399,7 +400,7 @@ public:
 
         {
             TWriterGuard guard(ExecNodeDescriptorsByTagLock_);
-            CachedExecNodeDescriptorsByTags_.emplace(filter, TExecNodeDescriptorsEntry({now, result}));
+            CachedExecNodeDescriptorsByTags_.emplace(filter, TExecNodeDescriptorsEntry({now, now, result}));
         }
 
         return result;
@@ -993,7 +994,8 @@ private:
 
     struct TExecNodeDescriptorsEntry
     {
-        TInstant LastAccessTime;
+        NProfiling::TCpuInstant LastAccessTime;
+        NProfiling::TCpuInstant LastUpdateTime;
         TExecNodeDescriptors ExecNodeDescriptors;
     };
     mutable yhash_map<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
@@ -1588,12 +1590,12 @@ private:
 
         // Remove outdated cached exec node descriptor lists.
         {
-            auto now = TInstant::Now();
+            auto deadline = NProfiling::GetCpuInstant() - NProfiling::DurationToCpuDuration(Config_->SchedulingTagFilterExpireTimeout);
             std::vector<TSchedulingTagFilter> toRemove;
             {
                 TReaderGuard guard(ExecNodeDescriptorsLock_);
                 for (const auto& pair : CachedExecNodeDescriptorsByTags_) {
-                    if (pair.second.LastAccessTime + Config_->SchedulingTagFilterExpireTimeout < now) {
+                    if (pair.second.LastAccessTime < deadline) {
                         toRemove.push_back(pair.first);
                     }
                 }
@@ -1602,7 +1604,7 @@ private:
                 TWriterGuard guard(ExecNodeDescriptorsLock_);
                 for (const auto& filter : toRemove) {
                     auto it = CachedExecNodeDescriptorsByTags_.find(filter);
-                    if (it->second.LastAccessTime + Config_->SchedulingTagFilterExpireTimeout < now) {
+                    if (it->second.LastAccessTime < deadline) {
                         CachedExecNodeDescriptorsByTags_.erase(it);
                     }
                 }
