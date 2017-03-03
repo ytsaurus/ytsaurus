@@ -79,6 +79,13 @@ SCHEDULER_CONFIG_PATCH = {
             }
         },
         "enable_tmpfs": False,
+        "environment": {
+            "TMPDIR": "$(SandboxPath)",
+            "PYTHON_EGG_CACHE": "$(SandboxPath)/.python-eggs",
+            "PYTHONUSERBASE": "$(SandboxPath)/.python-site-packages",
+            "PYTHONPATH": "$(SandboxPath)",
+            "HOME": "$(SandboxPath)",
+        },
     },
     "snapshot_timeout": 300000,
 }
