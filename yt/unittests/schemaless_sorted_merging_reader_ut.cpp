@@ -17,6 +17,7 @@ namespace NUnitTest {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NChunkClient;
+using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
 using NChunkClient::TDataSliceDescriptor;
@@ -72,8 +73,9 @@ public:
         TableSchema_ = ConvertTo<TTableSchema>(TYsonString(tableData.Schema));
         NameTable_ = New<TNameTable>();
         for (int i = 0; i < TableSchema_.GetColumnCount(); ++i) {
-            NameTable_->GetIdOrRegisterName(TableSchema_.Columns()[i].Name);
+            NameTable_->RegisterName(TableSchema_.Columns()[i].Name);
         }
+        NameTable_->RegisterName(TableIndexColumnName);
     }
 
     virtual TFuture<void> GetReadyEvent()
@@ -188,6 +190,7 @@ protected:
             reader->Interrupt();
             interrupted = true;
         }
+        WaitFor(reader->GetReadyEvent());
         while (reader->Read(&rows)) {
             if (!rows.empty()) {
                 lastReadRow = ToString(rows.back());
@@ -197,13 +200,16 @@ protected:
                 reader->Interrupt();
                 interrupted = true;
             }
+            WaitFor(reader->GetReadyEvent());
         }
         reader->GetUnreadDataSliceDescriptors(NYT::TRange<TUnversionedRow>());
         EXPECT_EQ(readRowCount, expectedReadRowCount);
         EXPECT_EQ(lastReadRow, expectedLastReadRow);
         for (int primaryTableId = 0; primaryTableId < static_cast<int>(resultStorage->size()); ++primaryTableId) {
             EXPECT_EQ((*resultStorage)[primaryTableId].GetUnreadRowCount(), expectedResult[primaryTableId].first);
-            EXPECT_EQ((*resultStorage)[primaryTableId].GetFirstUnreadRow(), expectedResult[primaryTableId].second);
+            if ((*resultStorage)[primaryTableId].GetUnreadRowCount() != 0) {
+                EXPECT_EQ((*resultStorage)[primaryTableId].GetFirstUnreadRow(), expectedResult[primaryTableId].second);
+            }
         }
     }
 
@@ -215,10 +221,12 @@ protected:
         auto reader = createReader(resultStorage);
         std::vector<TUnversionedRow> rows;
         rows.reserve(1);
+        WaitFor(reader->GetReadyEvent());
         while (reader->Read(&rows)) {
             for (const auto& row : rows) {
                 result.emplace_back(ToString(row));
             }
+            WaitFor(reader->GetReadyEvent());
         }
         return result;
     }
@@ -951,6 +959,73 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderPrimaryBeforeF
         rows[7],
         {
             {2, Stroka("[\"cb\", 3, 25u, 0]")},
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TTableData tableData3 {
+    "<strict=%false>["
+        "{name = c0; type = string; sort_order = ascending}; ]",
+    {
+        "c0=a; c1=3",
+        "c0=a; c1=3",
+        "c0=a; c1=3",
+        "c0=b; c1=3",
+        "c0=b; c1=3",
+        "c0=b; c1=3",
+    }
+};
+
+const TTableData tableData4 {
+    "<strict=%false>["
+        "{name = c0; type = string; sort_order = ascending}; ]",
+    {
+        "c0=a; c1=4",
+        "c0=b; c1=4",
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderCheckLastRows)
+{
+    auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
+        resultStorage->clear();
+        resultStorage->resize(1);
+        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
+        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData4, 1, &(*resultStorage)[0]));
+
+        std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
+        foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData3, 0));
+
+        return CreateSchemalessJoinReduceJoiningReader(primaryReaders, 1, 1, foreignReaders, 1);
+    };
+
+    // Expected sequence of rows:
+    // ["a", 3, 0]
+    // ["a", 3, 0]
+    // ["a", 3, 0]
+    // ["a", 4, 1]
+    // ["b", 3, 0]
+    // ["b", 3, 0]
+    // ["b", 3, 0]
+    // ["b", 4, 1]
+
+    std::vector<TResultStorage> resultStorage;
+    auto rows = ReadAll(createReader, &resultStorage);
+
+    int interruptRowCount = 8;
+    int rowsPerRead = 3;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        8,
+        rows[7],
+        {
+            {0, Stroka("")},
         });
 }
 
