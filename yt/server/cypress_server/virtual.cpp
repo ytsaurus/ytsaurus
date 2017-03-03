@@ -582,7 +582,8 @@ private:
         const auto& method = context->GetMethod();
         if ((Options_ & EVirtualNodeOptions::RedirectSelf) != EVirtualNodeOptions::None &&
             method != "Remove" &&
-            method != "GetBasicAttributes")
+            method != "GetBasicAttributes" &&
+            method != "CheckPermission")
         {
             return TResolveResult::There(service, path);
         } else {
