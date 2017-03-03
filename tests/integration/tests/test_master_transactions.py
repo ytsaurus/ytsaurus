@@ -2,7 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
-
+from yt.environment.helpers import assert_items_equal
 from time import sleep
 
 
@@ -176,11 +176,19 @@ class TestMasterTransactions(YTEnvSetup):
         assert exists("//sys/transactions/" + tx_inner)
         assert exists("//sys/transactions/" + tx_outer)
 
-    def test_tx_not_staged(self):
-        tx_outer = start_transaction()
-        tx_inner = start_transaction(tx = tx_outer)
-        assert get("#" + tx_outer + "/@staged_object_ids") == []
-        assert get("#" + tx_inner + "/@staged_object_ids") == []
+    def test_tx_multicell_attrs(self):
+        tx = start_transaction()
+        cell_tags = [str(x) for x in get("//sys/@registered_master_cell_tags")] + \
+                    [str(get("//sys/@cell_tag"))]
+        def check(r):
+            assert_items_equal(r.keys(), cell_tags)
+            for (k, v) in r.iteritems():
+                assert v == []
+        check(get("#" + tx + "/@staged_object_ids"))
+        check(get("#" + tx + "/@imported_object_ids"))
+        check(get("#" + tx + "/@exported_objects"))
+        assert get("#" + tx + "/@imported_object_count") == 0
+        assert get("#" + tx + "/@exported_object_count") == 0
 
     def test_transaction_maps(self):
         tx1 = start_transaction()
