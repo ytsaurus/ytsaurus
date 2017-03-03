@@ -921,7 +921,7 @@ public:
         const TOperationId& operationId,
         const TJobId& jobId,
         bool jobFailedOrAborted,
-        NYson::TYsonString jobAttributes,
+        const TYsonString& jobAttributes,
         const TChunkId& stderrChunkId,
         const TChunkId& failContextChunkId,
         TFuture<TYsonString> inputPathsFuture) override
@@ -1095,7 +1095,7 @@ private:
         const TOperationId& operationId,
         const TJobId& jobId,
         bool jobFailedOrAborted,
-        NYson::TYsonString jobAttributes,
+        const TYsonString& jobAttributes,
         const TChunkId& stderrChunkId,
         const TChunkId& failContextChunkId,
         TFuture<TYsonString> inputPathsFuture)
