@@ -182,7 +182,7 @@ private:
     TJobResources TotalResourceLimits_ = ZeroJobResources();
     TJobResources TotalResourceUsage_ = ZeroJobResources();
 
-    TInstant CachedExecNodeDescriptorsLastUpdateTime_;
+    NProfiling::TCpuInstant CachedExecNodeDescriptorsLastUpdateTime_;
     NConcurrency::TReaderWriterSpinLock CachedExecNodeDescriptorsLock_;
     std::vector<TExecNodeDescriptor> CachedExecNodeDescriptors_;
 

@@ -1481,7 +1481,7 @@ void TOperationControllerBase::Revive()
     ReinstallLivePreview();
 
     // To prevent operation failure on startup if available nodes are missing.
-    AvaialableNodesLastSeenTime_ = TInstant::Now();
+    AvaialableNodesLastSeenTime_ = NProfiling::GetCpuInstant();
 
     CheckTimeLimitExecutor->Start();
     ProgressBuildExecutor_->Start();
@@ -2531,13 +2531,14 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
 
     if (GetExecNodeDescriptors().empty()) {
-        if (AvaialableNodesLastSeenTime_ + Spec->AvailableNodesMissingTimeout < TInstant::Now()) {
+        auto timeout = NProfiling::DurationToCpuDuration(Spec->AvailableNodesMissingTimeout);
+        if (AvaialableNodesLastSeenTime_ + timeout < NProfiling::GetCpuInstant()) {
             OnOperationFailed(TError("No online nodes match operation scheduling tag filter")
                 << TErrorAttribute("operation_id", OperationId)
                 << TErrorAttribute("scheduling_tag_filter", Spec->SchedulingTagFilter));
         }
     } else {
-        AvaialableNodesLastSeenTime_ = TInstant::Now();
+        AvaialableNodesLastSeenTime_ = NProfiling::GetCpuInstant();
     }
 }
 
