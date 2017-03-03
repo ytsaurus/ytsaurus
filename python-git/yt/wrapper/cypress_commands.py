@@ -396,9 +396,9 @@ def search(root="", node_type=None,
             return get(path, attributes=request_attributes, read_from=read_from, client=client)
         except YtResponseError as rsp:
             if rsp.is_access_denied():
-                logger.warning("Cannot traverse %s, access denied" % path)
+                logger.warning("Cannot traverse %s, access denied", path)
             elif rsp.is_resolve_error() and ignore_resolve_error:
-                logger.warning("Path %s is missing" % path)
+                logger.warning("Path %s is missing", path)
             else:
                 raise
         return None
@@ -412,6 +412,13 @@ def search(root="", node_type=None,
             return
         if path in exclude or (depth_bound is not None and depth > depth_bound):
             return
+
+        # If object is YsonEntity and does not have attributes at all
+        # (even "type") then user does not have permission to access it.
+        if isinstance(object, yson.YsonEntity) and not object.attributes:
+            logger.warning("Access to %s is denied", path)
+            return
+
         if subtree_filter is not None and not subtree_filter(path, object):
             return
         if is_opaque(object) and not ignore_opaque:
