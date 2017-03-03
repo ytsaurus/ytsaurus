@@ -1158,7 +1158,7 @@ private:
     std::vector<TExecNodeDescriptor> ExecNodesDescriptors_;
     TInstant LastGetExecNodesInformationTime_;
 
-    NProfiling::TCpuInstant AvaialableNodesLastSeenTime_;
+    NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;
 
     const std::unique_ptr<NTableClient::IValueConsumer> EventLogValueConsumer_;
     const std::unique_ptr<NYson::IYsonConsumer> EventLogTableConsumer_;
