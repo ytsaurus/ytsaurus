@@ -75,25 +75,26 @@ public:
 
         CreateReadSessions(&EdenSessions_, TabletSnapshot_->GetEdenStores(), LookupKeys_);
 
-        TPartitionSnapshotPtr currentPartitionSnapshot;
-        int currentPartitionStartOffset = 0;
-        for (int index = 0; index < LookupKeys_.Size(); ++index) {
-            Y_ASSERT(index == 0 || LookupKeys_[index] >= LookupKeys_[index - 1]);
-            auto key = LookupKeys_[index];
-            ValidateServerKey(key, TabletSnapshot_->PhysicalSchema);
-            auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);
-            if (partitionSnapshot != currentPartitionSnapshot) {
-                LookupInPartition(
-                    currentPartitionSnapshot,
-                    LookupKeys_.Slice(currentPartitionStartOffset, index));
-                currentPartitionSnapshot = std::move(partitionSnapshot);
-                currentPartitionStartOffset = index;
-            }
-        }
+        auto currentIt = LookupKeys_.Begin();
+        while (currentIt != LookupKeys_.End()) {
+            auto nextPartitionIt = std::upper_bound(
+                TabletSnapshot_->PartitionList.begin(),
+                TabletSnapshot_->PartitionList.end(),
+                *currentIt,
+                [] (TKey lhs, const TPartitionSnapshotPtr& rhs) {
+                    return lhs < rhs->PivotKey;
+                });
+            YCHECK(nextPartitionIt != TabletSnapshot_->PartitionList.begin());
+            auto nextIt = nextPartitionIt == TabletSnapshot_->PartitionList.end()
+                ? LookupKeys_.End()
+                : std::lower_bound(currentIt, LookupKeys_.End(), (*nextPartitionIt)->PivotKey);
 
-        LookupInPartition(
-            currentPartitionSnapshot,
-            LookupKeys_.Slice(currentPartitionStartOffset, LookupKeys_.Size()));
+            LookupInPartition(
+                *(nextPartitionIt - 1),
+                LookupKeys_.Slice(currentIt, nextIt));
+
+            currentIt = nextIt;
+        }
 
         LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, FoundRowCount: %v)",
             TabletSnapshot_->TabletId,

@@ -136,7 +136,7 @@ private:
         auto mountRevision = request->mount_revision();
         auto timestamp = TTimestamp(request->timestamp());
         // TODO(sandello): Extract this out of RPC request.
-        auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
+        auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
         auto requestCodecId = NCompression::ECodec(request->request_codec());
         auto responseCodecId = NCompression::ECodec(request->response_codec());
 
