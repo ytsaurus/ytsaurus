@@ -152,8 +152,37 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline size_t GetDataWeight(const TUnversionedValue& value)
+{
+    switch (value.Type) {
+        case EValueType::Null:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            return 0;
+
+        case EValueType::Int64:
+            return sizeof(i64);
+
+        case EValueType::Uint64:
+            return sizeof(ui64);
+
+        case EValueType::Double:
+            return sizeof(double);
+
+        case EValueType::Boolean:
+            return 1;
+
+        case EValueType::String:
+        case EValueType::Any:
+            return value.Length;
+
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
 size_t GetByteSize(const TUnversionedValue& value);
-size_t GetDataWeight(const TUnversionedValue& value);
 size_t WriteValue(char* output, const TUnversionedValue& value);
 size_t ReadValue(const char* input, TUnversionedValue* value);
 

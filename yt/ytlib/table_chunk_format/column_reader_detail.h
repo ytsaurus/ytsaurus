@@ -175,16 +175,21 @@ private:
     i64 DoReadValues(TMutableRange<TRow> rows)
     {
         i64 rangeRowIndex = 0;
-        while (rangeRowIndex < rows.Size() && SegmentRowIndex_ < Meta_.row_count()) {
+        i64 stepSize = std::min(
+            Meta_.row_count() - SegmentRowIndex_,
+            static_cast<i64>(rows.Size()) - rangeRowIndex);
+
+        while (rangeRowIndex < stepSize) {
             auto row = rows[rangeRowIndex];
             if (row) {
                 YCHECK(GetUnversionedValueCount(row) > ColumnIndex_);
                 SetValue(&GetUnversionedValue(row, ColumnIndex_));
             }
 
-            ++SegmentRowIndex_;
             ++rangeRowIndex;
         }
+
+        SegmentRowIndex_ += stepSize;
         return rangeRowIndex;
     }
 };
@@ -340,15 +345,19 @@ private:
             NTableClient::TUnversionedValue value;
             SetValue(&value);
 
-            while (SegmentRowIndex_ < valueRowCount && rangeRowIndex < rows.Size()) {
+            i64 stepSize = std::min(
+                valueRowCount - SegmentRowIndex_,
+                static_cast<i64>(rows.Size()) - rangeRowIndex);
+
+            for (int index = 0; index < stepSize; ++index) {
                 auto row = rows[rangeRowIndex];
                 if (row) {
                     GetUnversionedValue(row, ColumnIndex_) = value;
                 }
-
-                SegmentRowIndex_ += 1;
                 rangeRowIndex += 1;
             }
+
+            SegmentRowIndex_ += stepSize;
 
             if (SegmentRowIndex_ == valueRowCount) {
                 ++ValueIndex_;
