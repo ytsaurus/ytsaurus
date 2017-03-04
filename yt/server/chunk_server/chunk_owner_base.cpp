@@ -122,6 +122,11 @@ void TChunkOwnerBase::EndUpload(
         updateStatistics = ComputeUpdateStatistics();
     }
 
+    // COMPAT(savrus)
+    if (statistics && !statistics->hash_data_weight()) {
+        THROW_ERROR_EXCEPTION("YT client version is outdated, please update to recent one");
+    }
+
     if (statistics && updateStatistics) {
         YCHECK(*statistics == *updateStatistics);
     }
@@ -171,6 +176,11 @@ TDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
         default:
             Y_UNREACHABLE();
     }
+}
+
+bool TChunkOwnerBase::HasDataWeight() const
+{
+    return SnapshotStatistics_.has_data_weight() || DeltaStatistics_.has_data_weight();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

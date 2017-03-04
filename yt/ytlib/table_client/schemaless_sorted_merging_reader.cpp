@@ -79,6 +79,7 @@ protected:
 
     i64 RowCount_ = 0;
     i64 RowIndex_ = 0;
+    i64 DataWeight_ = 0;
 
     TFuture<void> ReadyEvent_;
     TPromise<void> CompletionError_ = NewPromise<void>();
@@ -169,6 +170,7 @@ TDataStatistics TSchemalessSortedMergingReaderBase::GetDataStatistics() const
         dataStatistics += session.Reader->GetDataStatistics();
     }
     dataStatistics.set_row_count(RowIndex_);
+    dataStatistics.set_data_weight(DataWeight_);
 
     return dataStatistics;
 }
@@ -350,6 +352,7 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
     if (!rows->empty() && !interrupting) {
         LastKey_ = GetKeyPrefix(rows->back(), ReduceKeyColumnCount_);
     }
+    DataWeight_ += dataWeight;
     return true;
 }
 
@@ -560,6 +563,7 @@ bool TSchemalessJoiningReader::Read(std::vector<TUnversionedRow>* rows)
     if (lastPrimaryRow) {
         LastPrimaryKey_ = GetKeyPrefix(lastPrimaryRow, ReduceKeyColumnCount_);
     }
+    DataWeight_ += dataWeight;
     return true;
 }
 

@@ -59,6 +59,7 @@ private:
     std::vector<TSession*> AwaitingSessions_;
     bool Exhausted_ = false;
     i64 RowCount_ = 0;
+    i64 DataWeight_ = 0;
 
     TSchemafulOverlappingLookupReader(std::unique_ptr<TSchemafulRowMerger> rowMerger);
     bool RefillSession(TSession* sessions);
@@ -111,11 +112,13 @@ TDataStatistics TSchemafulOverlappingLookupReader::GetDataStatistics() const
         dataStatistics += session.Reader->GetDataStatistics();
     }
     dataStatistics.set_row_count(RowCount_);
+    dataStatistics.set_data_weight(DataWeight_);
     return dataStatistics;
 }
 
 bool TSchemafulOverlappingLookupReader::Read(std::vector<TUnversionedRow>* rows)
 {
+    i64 dataWeight = 0;
     auto readRow = [&] () {
         for (auto& session : Sessions_) {
             Y_ASSERT(session.CurrentRow >= session.Rows.begin() && session.CurrentRow < session.Rows.end());
@@ -128,6 +131,7 @@ bool TSchemafulOverlappingLookupReader::Read(std::vector<TUnversionedRow>* rows)
 
         auto row = RowMerger_->BuildMergedRow();
         rows->push_back(row);
+        dataWeight += GetDataWeight(row);
     };
 
     rows->clear();
@@ -140,6 +144,7 @@ bool TSchemafulOverlappingLookupReader::Read(std::vector<TUnversionedRow>* rows)
     }
 
     RowCount_ += rows->size();
+    DataWeight_ += dataWeight;
 
     return !rows->empty() || !AwaitingSessions_.empty();
 }
@@ -249,6 +254,7 @@ private:
 
     TDataStatistics DataStatistics_;
     i64 RowCount_ = 0;
+    i64 DataWeight_ = 0;
 
     TReaderWriterSpinLock SpinLock_;
 
@@ -332,6 +338,7 @@ TDataStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDataStati
     }
 
     dataStatistics.set_row_count(RowCount_);
+    dataStatistics.set_data_weight(DataWeight_);
     return dataStatistics;
 }
 
@@ -444,6 +451,7 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoRead(
         if (row) {
             rows->push_back(row);
             ++RowCount_;
+            DataWeight_ += GetDataWeight(row);
         }
     };
 

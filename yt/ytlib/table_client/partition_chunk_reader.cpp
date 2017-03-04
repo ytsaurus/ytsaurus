@@ -98,13 +98,6 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
     return DoOpen(blocks, GetProtoExtension<TMiscExt>(ChunkMeta_.extensions()));
 }
 
-TDataStatistics TPartitionChunkReader::GetDataStatistics() const
-{
-    auto dataStatistics = TChunkReaderBase::GetDataStatistics();
-    dataStatistics.set_row_count(RowCount_);
-    return dataStatistics;
-}
-
 void TPartitionChunkReader::InitFirstBlock()
 {
     YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
