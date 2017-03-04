@@ -2267,6 +2267,7 @@ print row + table_index
         assert get_statistics(statistics, "data.input.row_count.$.completed.map.sum") == 2
         assert get_statistics(statistics, "data.input.uncompressed_data_size.$.completed.map.sum") > 0
         assert get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum") > 0
+        assert get_statistics(statistics, "data.input.data_weight.$.completed.map.sum") > 0
 
     def test_pipe_statistics(self):
         create("table", "//tmp/t_input")

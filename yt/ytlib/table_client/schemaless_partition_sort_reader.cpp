@@ -68,8 +68,6 @@ public:
         , NameTable_(nameTable)
         , IsApproximate_(isApproximate)
         , EstimatedRowCount_(estimatedRowCount)
-        , TotalRowCount_(0)
-        , ReadRowCount_(0)
         , KeyBuffer_(this)
         , RowDescriptorBuffer_(this)
         , Buckets_(this)
@@ -153,6 +151,8 @@ public:
             ++ReadRowCount_;
         }
 
+        ReadDataWeight_ += dataWeight;
+
         YCHECK(!rows->empty());
         return true;
     }
@@ -193,6 +193,7 @@ public:
         YCHECK(UnderlyingReader_);
         auto dataStatistics = UnderlyingReader_->GetDataStatistics();
         dataStatistics.set_row_count(ReadRowCount_);
+        dataStatistics.set_data_weight(ReadDataWeight_);
         return dataStatistics;
     }
 
@@ -339,9 +340,10 @@ private:
     i64 EstimatedRowCount_;
     int EstimatedBucketCount_;
 
-    i64 TotalRowCount_;
+    i64 TotalRowCount_ = 0;
     TAtomic SortedRowCount_;
-    i64 ReadRowCount_;
+    i64 ReadRowCount_ = 0;
+    i64 ReadDataWeight_ = 0;
 
     TSafeVector<TUnversionedValue> KeyBuffer_;
     TSafeVector<TRowDescriptor> RowDescriptorBuffer_;

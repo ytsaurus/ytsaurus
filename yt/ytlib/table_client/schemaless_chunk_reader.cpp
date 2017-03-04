@@ -132,6 +132,7 @@ protected:
 
     i64 RowIndex_ = 0;
     i64 RowCount_ = 0;
+    i64 DataWeight_ = 0;
 
     std::unique_ptr<IRowSampler> RowSampler_;
     const int SystemColumnCount_;
@@ -392,6 +393,7 @@ TDataStatistics THorizontalSchemalessChunkReaderBase::GetDataStatistics() const
 {
     auto dataStatistics = TChunkReaderBase::GetDataStatistics();
     dataStatistics.set_row_count(RowCount_);
+    dataStatistics.set_data_weight(DataWeight_);
     return dataStatistics;
 }
 
@@ -613,7 +615,7 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
     }
 
     i64 dataWeight = 0;
-    while (rows->size() < rows->capacity() && dataWeight < Config_->MaxDataSizePerRead) {
+    while (rows->size() < rows->capacity() && dataWeight < Config_->MaxDataSizePerRead && !BlockEnded_) {
         if ((CheckRowLimit_ && RowIndex_ >= ReadRange_.UpperLimit().GetRowIndex()) ||
             (CheckKeyLimit_ && CompareRows(BlockReader_->GetKey(), ReadRange_.UpperLimit().GetKey()) >= 0))
         {
@@ -644,10 +646,10 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
 
         if (!BlockReader_->NextRow()) {
             BlockEnded_ = true;
-            return true;
         }
     }
 
+    DataWeight_ += dataWeight;
     return true;
 }
 
@@ -842,6 +844,7 @@ bool THorizontalSchemalessLookupChunkReader::DoRead(std::vector<TUnversionedRow>
             if (key == BlockReader_->GetKey()) {
                 auto row = BlockReader_->GetRow(&MemoryPool_);
                 rows->push_back(row);
+                DataWeight_ += GetDataWeight(row);
 
                 int blockIndex = BlockIndexes_[CurrentBlockIndex_];
                 const auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
@@ -1024,6 +1027,7 @@ public:
         }
 
         RowCount_ += rows->size();
+        DataWeight_ += dataWeight;
 
         return true;
     }
@@ -1049,6 +1053,7 @@ public:
     {
         auto dataStatistics = TColumnarRangeChunkReaderBase::GetDataStatistics();
         dataStatistics.set_row_count(RowCount_);
+        dataStatistics.set_data_weight(DataWeight_);
         return dataStatistics;
     }
 
@@ -1361,7 +1366,7 @@ public:
             return false;
         }
 
-        i64 DataWeight = 0;
+        i64 dataWeight = 0;
         while (rows->size() < rows->capacity()) {
             ResetExhaustedColumns();
 
@@ -1395,9 +1400,9 @@ public:
                 rows->push_back(TMutableUnversionedRow());
             }
 
-            DataWeight += GetDataWeight(rows->back());
+            dataWeight += GetDataWeight(rows->back());
 
-            if (++NextKeyIndex_ == Keys_.Size() || !TryFetchNextRow() || DataWeight > TSchemalessChunkReaderBase::Config_->MaxDataSizePerRead) {
+            if (++NextKeyIndex_ == Keys_.Size() || !TryFetchNextRow() || dataWeight > TSchemalessChunkReaderBase::Config_->MaxDataSizePerRead) {
                 break;
             }
         }
@@ -1407,6 +1412,7 @@ public:
         }
 
         RowCount_ += rows->size();
+        DataWeight_ += dataWeight;
 
         return true;
     }
@@ -1415,6 +1421,7 @@ public:
     {
         auto dataStatistics = TColumnarChunkReaderBase::GetDataStatistics();
         dataStatistics.set_row_count(RowCount_);
+        dataStatistics.set_data_weight(DataWeight_);
         return dataStatistics;
     }
 
