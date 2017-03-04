@@ -1250,7 +1250,6 @@ private:
         }
     }
 
-
     void OnMasterConnected(const TMasterHandshakeResult& result)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1261,18 +1260,11 @@ private:
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
 
-        for (const auto& operationReport : result.OperationReports) {
-            const auto& operation = operationReport.Operation;
-            if (operation->GetState() == EOperationState::Aborting) {
-                AbortAbortingOperation(operation, operationReport.ControllerTransactions);
-            } else {
-                if (operationReport.UserTransactionAborted) {
-                    OnUserTransactionAborted(operation);
-                } else {
-                    ReviveOperation(operation, operationReport.ControllerTransactions);
-                }
-            }
-        }
+        auto processFuture = BIND(&TImpl::ProcessOperationReports, MakeStrong(this), result.OperationReports)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+        WaitFor(processFuture)
+            .ThrowOnError();
 
         Strategy_->StartPeriodicActivity();
 
@@ -1850,6 +1842,8 @@ private:
 
     void RegisterOperation(TOperationPtr operation)
     {
+        VERIFY_INVOKER_AFFINITY(MasterConnector_->GetCancelableControlInvoker());
+
         YCHECK(IdToOperation_.insert(std::make_pair(operation->GetId(), operation)).second);
         for (auto& nodeShard : NodeShards_) {
             BIND(&TNodeShard::RegisterOperation, nodeShard)
@@ -2217,6 +2211,24 @@ private:
         WaitFor(MasterConnector_->FlushOperationNode(operation));
 
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
+    }
+
+    void ProcessOperationReports(const std::vector<TOperationReport>& operationReports)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& operationReport : operationReports) {
+            const auto& operation = operationReport.Operation;
+            if (operation->GetState() == EOperationState::Aborting) {
+                AbortAbortingOperation(operation, operationReport.ControllerTransactions);
+            } else {
+                if (operationReport.UserTransactionAborted) {
+                    OnUserTransactionAborted(operation);
+                } else {
+                    ReviveOperation(operation, operationReport.ControllerTransactions);
+                }
+            }
+        }
     }
 
     void BuildStaticOrchid(IYsonConsumer* consumer)
