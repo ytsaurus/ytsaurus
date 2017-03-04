@@ -175,21 +175,20 @@ private:
     i64 DoReadValues(TMutableRange<TRow> rows)
     {
         i64 rangeRowIndex = 0;
-        i64 stepSize = std::min(
-            Meta_.row_count() - SegmentRowIndex_,
-            static_cast<i64>(rows.Size()) - rangeRowIndex);
+        i64 segmentRowIndex = SegmentRowIndex_;
 
-        while (rangeRowIndex < stepSize) {
+        while (rangeRowIndex < rows.Size() && segmentRowIndex < Meta_.row_count()) {
             auto row = rows[rangeRowIndex];
             if (row) {
                 YCHECK(GetUnversionedValueCount(row) > ColumnIndex_);
-                SetValue(&GetUnversionedValue(row, ColumnIndex_));
+                SetValue(&GetUnversionedValue(row, ColumnIndex_), segmentRowIndex);
             }
 
+            ++segmentRowIndex;
             ++rangeRowIndex;
         }
 
-        SegmentRowIndex_ += stepSize;
+        SegmentRowIndex_ = segmentRowIndex;
         return rangeRowIndex;
     }
 };
@@ -341,24 +340,21 @@ private:
             i64 valueRowCount = ValueIndex_ + 1 == ValueExtractor_.GetValueCount()
                 ? Meta_.row_count()
                 : ValueExtractor_.GetRowIndex(ValueIndex_ + 1);
+            i64 segmentRowIndex = SegmentRowIndex_;
 
             NTableClient::TUnversionedValue value;
             SetValue(&value);
 
-            i64 stepSize = std::min(
-                valueRowCount - SegmentRowIndex_,
-                static_cast<i64>(rows.Size()) - rangeRowIndex);
-
-            for (int index = 0; index < stepSize; ++index) {
+            while (segmentRowIndex < valueRowCount && rangeRowIndex < rows.Size()) {
                 auto row = rows[rangeRowIndex];
                 if (row) {
                     GetUnversionedValue(row, ColumnIndex_) = value;
                 }
-                rangeRowIndex += 1;
+                ++rangeRowIndex;
+                ++segmentRowIndex;
             }
 
-            SegmentRowIndex_ += stepSize;
-
+            SegmentRowIndex_ = segmentRowIndex;
             if (SegmentRowIndex_ == valueRowCount) {
                 ++ValueIndex_;
             }
