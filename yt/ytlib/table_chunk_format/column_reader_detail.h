@@ -161,11 +161,6 @@ public:
 private:
     TValueExtractor ValueExtractor_;
 
-    void SetValue(NTableClient::TUnversionedValue* value) const
-    {
-        SetValue(value, SegmentRowIndex_);
-    }
-
     void SetValue(NTableClient::TUnversionedValue* value, i64 rowIndex) const
     {
         ValueExtractor_.ExtractValue(value, rowIndex, ColumnId_, false);
