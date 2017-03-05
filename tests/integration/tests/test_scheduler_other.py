@@ -932,7 +932,13 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
 
         op.resume_job(op.jobs[0])
         op.resume_job(op.jobs[1])
-        time.sleep(2)
+
+        operation_path = "//sys/operations/{0}".format(op.id)
+        for iter in xrange(100):
+            completed_jobs = get(operation_path + "/@brief_progress/jobs/completed")
+            if completed_jobs == 2:
+                break
+            time.sleep(0.1)
 
         operation_path = "//sys/operations/{0}".format(op.id)
         transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
