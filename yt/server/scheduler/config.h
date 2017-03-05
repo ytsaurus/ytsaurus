@@ -482,6 +482,42 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTestingOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    // Testing options that enables random master disconnections.
+    bool EnableRandomMasterDisconnection;
+    TDuration RandomMasterDisconnectionMaxBackoff;
+
+    // Testing option that enables sleeping during master disconnect.
+    TNullable<TDuration> MasterDisconnectDelay;
+
+    // Testing option that enables snapshot build/load cycle after operation materialization.
+    bool EnableSnapshotCycleAfterMaterialization;
+
+    // Testing option that enables sleeping between intermediate and final states of operation.
+    TNullable<TDuration> FinishOperationTransitionDelay;
+
+    TTestingOptions()
+    {
+        RegisterParameter("enable_random_master_disconnection", EnableRandomMasterDisconnection)
+            .Default(false);
+        RegisterParameter("random_master_disconnection_max_backoff", RandomMasterDisconnectionMaxBackoff)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("master_disconnect_delay", MasterDisconnectDelay)
+            .Default(Null);
+        RegisterParameter("enable_snapshot_cycle_after_materialization", EnableSnapshotCycleAfterMaterialization)
+            .Default(false);
+        RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
+            .Default(Null);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestingOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerConfig
     : public TFairShareStrategyConfig
     , public NChunkClient::TChunkTeleporterConfig
@@ -713,15 +749,6 @@ public:
     // Time fraction spent in idle state enough for job to be considered suspicious.
     double SuspiciousInputPipeIdleTimeFraction;
 
-    // Testing option that enables snapshot build/load cycle after operation materialization.
-    bool EnableSnapshotCycleAfterMaterialization;
-
-    // Testing option that enables sleeping between intermediate and final states of operation.
-    TNullable<TDuration> FinishOperationTransitionDelay;
-
-    // Testing option that enables sleeping during master disconnect.
-    TNullable<TDuration> MasterDisconnectDelay;
-
     // If user job iops threshold is exceeded, iops throttling is enabled via cgroups.
     TNullable<i32> IopsThreshold;
     TNullable<i32> IopsThrottlerLimit;
@@ -739,6 +766,9 @@ public:
 
     // Total number of data slices in operation, summed up over all jobs.
     i64 MaxTotalSliceCount;
+
+    // Some special options for testing purposes.
+    TTestingOptionsPtr TestingOptions;
 
     TSchedulerConfig()
     {
@@ -1000,16 +1030,8 @@ public:
         RegisterParameter("suspicious_input_pipe_time_idle_fraction", SuspiciousInputPipeIdleTimeFraction)
             .Default(0.95);
 
-        RegisterParameter("enable_snapshot_cycle_after_materialization", EnableSnapshotCycleAfterMaterialization)
-            .Default(false);
         RegisterParameter("static_orchid_cache_update_period", StaticOrchidCacheUpdatePeriod)
             .Default(TDuration::Seconds(1));
-
-        RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
-            .Default(Null);
-
-        RegisterParameter("master_disconnect_delay", MasterDisconnectDelay)
-            .Default(Null);
 
         RegisterParameter("iops_threshold", IopsThreshold)
             .Default(Null);
@@ -1028,6 +1050,9 @@ public:
         RegisterParameter("max_total_slice_count", MaxTotalSliceCount)
             .Default((i64) 10 * 1000 * 1000)
             .GreaterThan(0);
+
+        RegisterParameter("testing_options", TestingOptions)
+            .DefaultNew();
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;
