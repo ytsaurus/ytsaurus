@@ -86,6 +86,8 @@ SCHEDULER_CONFIG_PATCH = {
             "PYTHONPATH": "$(SandboxPath)",
             "HOME": "$(SandboxPath)",
         },
+        "enable_snapshot_cycle_after_materialization": False,
+        "testing_options": None,
     },
     "snapshot_timeout": 300000,
 }
