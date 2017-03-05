@@ -161,11 +161,6 @@ public:
 private:
     TValueExtractor ValueExtractor_;
 
-    void SetValue(NTableClient::TUnversionedValue* value) const
-    {
-        SetValue(value, SegmentRowIndex_);
-    }
-
     void SetValue(NTableClient::TUnversionedValue* value, i64 rowIndex) const
     {
         ValueExtractor_.ExtractValue(value, rowIndex, ColumnId_, false);
@@ -175,16 +170,20 @@ private:
     i64 DoReadValues(TMutableRange<TRow> rows)
     {
         i64 rangeRowIndex = 0;
-        while (rangeRowIndex < rows.Size() && SegmentRowIndex_ < Meta_.row_count()) {
+        i64 segmentRowIndex = SegmentRowIndex_;
+
+        while (rangeRowIndex < rows.Size() && segmentRowIndex < Meta_.row_count()) {
             auto row = rows[rangeRowIndex];
             if (row) {
                 YCHECK(GetUnversionedValueCount(row) > ColumnIndex_);
-                SetValue(&GetUnversionedValue(row, ColumnIndex_));
+                SetValue(&GetUnversionedValue(row, ColumnIndex_), segmentRowIndex);
             }
 
-            ++SegmentRowIndex_;
+            ++segmentRowIndex;
             ++rangeRowIndex;
         }
+
+        SegmentRowIndex_ = segmentRowIndex;
         return rangeRowIndex;
     }
 };
@@ -336,20 +335,21 @@ private:
             i64 valueRowCount = ValueIndex_ + 1 == ValueExtractor_.GetValueCount()
                 ? Meta_.row_count()
                 : ValueExtractor_.GetRowIndex(ValueIndex_ + 1);
+            i64 segmentRowIndex = SegmentRowIndex_;
 
             NTableClient::TUnversionedValue value;
             SetValue(&value);
 
-            while (SegmentRowIndex_ < valueRowCount && rangeRowIndex < rows.Size()) {
+            while (segmentRowIndex < valueRowCount && rangeRowIndex < rows.Size()) {
                 auto row = rows[rangeRowIndex];
                 if (row) {
                     GetUnversionedValue(row, ColumnIndex_) = value;
                 }
-
-                SegmentRowIndex_ += 1;
-                rangeRowIndex += 1;
+                ++rangeRowIndex;
+                ++segmentRowIndex;
             }
 
+            SegmentRowIndex_ = segmentRowIndex;
             if (SegmentRowIndex_ == valueRowCount) {
                 ++ValueIndex_;
             }

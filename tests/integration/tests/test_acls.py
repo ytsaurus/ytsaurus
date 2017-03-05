@@ -607,6 +607,9 @@ class TestAcls(YTEnvSetup):
         with pytest.raises(YtError): get("//tmp/a", authenticated_user="u")
         with pytest.raises(YtError): get("//tmp/a", authenticated_user="u", read_from="cache")
 
+    def test_check_permission_for_virtual_maps(self):
+        assert check_permission("guest", "read", "//sys/chunks")["action"] == "allow"
+
 ##################################################################
 
 class TestAclsMulticell(TestAcls):
