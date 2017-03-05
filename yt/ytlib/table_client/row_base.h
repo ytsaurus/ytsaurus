@@ -89,7 +89,7 @@ struct TTypeErasedRow
 
     explicit operator bool() const
     {
-        return OpaqueHeader != 0;
+        return OpaqueHeader != nullptr;
     }
 };
 
