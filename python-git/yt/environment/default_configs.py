@@ -141,7 +141,12 @@ b"""
         };
 
         enable_snapshot_loading = %true;
+
         enable_snapshot_cycle_after_materialization = %true;
+        testing_options = {
+            enable_snapshot_cycle_after_materialization = %true;
+        };
+
         snapshot_timeout = 1000;
 
         cluster_directory_synchronizer = {
