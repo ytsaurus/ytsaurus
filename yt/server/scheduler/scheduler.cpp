@@ -57,6 +57,7 @@
 
 #include <yt/core/profiling/scoped_timer.h>
 #include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/ytree/service_combiner.h>
 #include <yt/core/ytree/virtual.h>
@@ -379,17 +380,17 @@ public:
             return CachedExecNodeDescriptors_;
         }
 
-        auto now = TInstant::Now();
+        auto now = NProfiling::GetCpuInstant();
 
         {
             TReaderGuard guard(ExecNodeDescriptorsByTagLock_);
 
             auto it = CachedExecNodeDescriptorsByTags_.find(filter);
-            if (it != CachedExecNodeDescriptorsByTags_.end() &&
-                now <= it->second.LastAccessTime + Config_->UpdateExecNodeDescriptorsPeriod)
-            {
-                it->second.LastAccessTime = now;
-                return it->second.ExecNodeDescriptors;
+            if (it != CachedExecNodeDescriptorsByTags_.end()) {
+                auto& entry = it->second;
+                if (now <= entry.LastUpdateTime + NProfiling::DurationToCpuDuration(Config_->UpdateExecNodeDescriptorsPeriod)) {
+                    return entry.ExecNodeDescriptors;
+                }
             }
         }
 
@@ -407,7 +408,7 @@ public:
 
         {
             TWriterGuard guard(ExecNodeDescriptorsByTagLock_);
-            CachedExecNodeDescriptorsByTags_.emplace(filter, TExecNodeDescriptorsEntry({now, result}));
+            CachedExecNodeDescriptorsByTags_.emplace(filter, TExecNodeDescriptorsEntry({now, now, result}));
         }
 
         return result;
@@ -949,7 +950,7 @@ public:
         const TOperationId& operationId,
         const TJobId& jobId,
         bool jobFailedOrAborted,
-        NYson::TYsonString jobAttributes,
+        const TYsonString& jobAttributes,
         const TChunkId& stderrChunkId,
         const TChunkId& failContextChunkId,
         TFuture<TYsonString> inputPathsFuture) override
@@ -1022,7 +1023,8 @@ private:
 
     struct TExecNodeDescriptorsEntry
     {
-        TInstant LastAccessTime;
+        NProfiling::TCpuInstant LastAccessTime;
+        NProfiling::TCpuInstant LastUpdateTime;
         TExecNodeDescriptors ExecNodeDescriptors;
     };
     mutable yhash_map<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
@@ -1124,7 +1126,7 @@ private:
         const TOperationId& operationId,
         const TJobId& jobId,
         bool jobFailedOrAborted,
-        NYson::TYsonString jobAttributes,
+        const TYsonString& jobAttributes,
         const TChunkId& stderrChunkId,
         const TChunkId& failContextChunkId,
         TFuture<TYsonString> inputPathsFuture)
@@ -1282,7 +1284,6 @@ private:
         }
     }
 
-
     void OnMasterConnected(const TMasterHandshakeResult& result)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1293,18 +1294,11 @@ private:
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
 
-        for (const auto& operationReport : result.OperationReports) {
-            const auto& operation = operationReport.Operation;
-            if (operation->GetState() == EOperationState::Aborting) {
-                AbortAbortingOperation(operation, operationReport.ControllerTransactions);
-            } else {
-                if (operationReport.UserTransactionAborted) {
-                    OnUserTransactionAborted(operation);
-                } else {
-                    ReviveOperation(operation, operationReport.ControllerTransactions);
-                }
-            }
-        }
+        auto processFuture = BIND(&TImpl::ProcessOperationReports, MakeStrong(this), result.OperationReports)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+        WaitFor(processFuture)
+            .ThrowOnError();
 
         Strategy_->StartPeriodicActivity();
 
@@ -1623,12 +1617,12 @@ private:
 
         // Remove outdated cached exec node descriptor lists.
         {
-            auto now = TInstant::Now();
+            auto deadline = NProfiling::GetCpuInstant() - NProfiling::DurationToCpuDuration(Config_->SchedulingTagFilterExpireTimeout);
             std::vector<TSchedulingTagFilter> toRemove;
             {
                 TReaderGuard guard(ExecNodeDescriptorsLock_);
                 for (const auto& pair : CachedExecNodeDescriptorsByTags_) {
-                    if (pair.second.LastAccessTime + Config_->SchedulingTagFilterExpireTimeout < now) {
+                    if (pair.second.LastAccessTime < deadline) {
                         toRemove.push_back(pair.first);
                     }
                 }
@@ -1637,7 +1631,7 @@ private:
                 TWriterGuard guard(ExecNodeDescriptorsLock_);
                 for (const auto& filter : toRemove) {
                     auto it = CachedExecNodeDescriptorsByTags_.find(filter);
-                    if (it->second.LastAccessTime + Config_->SchedulingTagFilterExpireTimeout < now) {
+                    if (it->second.LastAccessTime < deadline) {
                         CachedExecNodeDescriptorsByTags_.erase(it);
                     }
                 }
@@ -1884,6 +1878,8 @@ private:
 
     void RegisterOperation(TOperationPtr operation)
     {
+        VERIFY_INVOKER_AFFINITY(MasterConnector_->GetCancelableControlInvoker());
+
         YCHECK(IdToOperation_.insert(std::make_pair(operation->GetId(), operation)).second);
         for (auto& nodeShard : NodeShards_) {
             BIND(&TNodeShard::RegisterOperation, nodeShard)
@@ -2252,6 +2248,24 @@ private:
         WaitFor(MasterConnector_->FlushOperationNode(operation));
 
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
+    }
+
+    void ProcessOperationReports(const std::vector<TOperationReport>& operationReports)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& operationReport : operationReports) {
+            const auto& operation = operationReport.Operation;
+            if (operation->GetState() == EOperationState::Aborting) {
+                AbortAbortingOperation(operation, operationReport.ControllerTransactions);
+            } else {
+                if (operationReport.UserTransactionAborted) {
+                    OnUserTransactionAborted(operation);
+                } else {
+                    ReviveOperation(operation, operationReport.ControllerTransactions);
+                }
+            }
+        }
     }
 
     void BuildStaticOrchid(IYsonConsumer* consumer)

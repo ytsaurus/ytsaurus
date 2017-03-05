@@ -597,7 +597,7 @@ class TestSchedulerRevive(YTEnvSetup):
             time.sleep(backoff)
 
             iter += 1
-            assert iter < 50, "Operation %s do not comes to %s state after %f seconds" % (op.id, state, iter * backoff)
+            assert iter < 50, "Operation %s did not come to %s state after %f seconds" % (op.id, state, iter * backoff)
 
     def test_missing_transactions(self):
         self._prepare_tables()
@@ -968,7 +968,13 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
 
         op.resume_job(op.jobs[0])
         op.resume_job(op.jobs[1])
-        time.sleep(2)
+
+        operation_path = "//sys/operations/{0}".format(op.id)
+        for iter in xrange(100):
+            completed_jobs = get(operation_path + "/@brief_progress/jobs/completed")
+            if completed_jobs == 2:
+                break
+            time.sleep(0.1)
 
         operation_path = "//sys/operations/{0}".format(op.id)
         transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
@@ -1387,7 +1393,10 @@ class TestSchedulerConfig(YTEnvSetup):
                     "data_size_per_job": 2000,
                     "max_failed_job_count": 10
                 }
-            }
+            },
+            "environment": {
+                "TEST_VAR": "10"
+            },
         },
         "addresses": [
             ("ipv4", "127.0.0.1"),
@@ -1454,12 +1463,19 @@ class TestSchedulerConfig(YTEnvSetup):
         assert get("//sys/operations/{0}/@spec/data_size_per_job".format(op.id)) == 2000
         assert get("//sys/operations/{0}/@spec/max_failed_job_count".format(op.id)) == 10
 
-        set("//sys/scheduler/config", {"map_operation_options": {"spec_template": {"max_failed_job_count": 50}}})
+        set("//sys/scheduler/config", {
+            "map_operation_options": {"spec_template": {"max_failed_job_count": 50}},
+            "environment": {"OTHER_VAR": "20"},
+        })
         time.sleep(0.5)
 
         op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out")
         assert get("//sys/operations/{0}/@spec/data_size_per_job".format(op.id)) == 2000
         assert get("//sys/operations/{0}/@spec/max_failed_job_count".format(op.id)) == 50
+
+        environment = get("//sys/scheduler/orchid/scheduler/config/environment")
+        assert environment["TEST_VAR"] == "10"
+        assert environment["OTHER_VAR"] == "20"
 
 class TestSchedulerPools(YTEnvSetup):
     NUM_MASTERS = 3

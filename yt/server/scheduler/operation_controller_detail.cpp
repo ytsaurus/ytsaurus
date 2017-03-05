@@ -1504,7 +1504,7 @@ void TOperationControllerBase::Revive()
     ReinstallLivePreview();
 
     // To prevent operation failure on startup if available nodes are missing.
-    AvaialableNodesLastSeenTime_ = TInstant::Now();
+    AvaialableNodesLastSeenTime_ = NProfiling::GetCpuInstant();
 
     CheckTimeLimitExecutor->Start();
     ProgressBuildExecutor_->Start();
@@ -2555,13 +2555,14 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
 
     if (GetExecNodeDescriptors().empty()) {
-        if (AvaialableNodesLastSeenTime_ + Spec->AvailableNodesMissingTimeout < TInstant::Now()) {
+        auto timeout = NProfiling::DurationToCpuDuration(Spec->AvailableNodesMissingTimeout);
+        if (AvaialableNodesLastSeenTime_ + timeout < NProfiling::GetCpuInstant()) {
             OnOperationFailed(TError("No online nodes match operation scheduling tag filter")
                 << TErrorAttribute("operation_id", OperationId)
                 << TErrorAttribute("scheduling_tag_filter", Spec->SchedulingTagFilter));
         }
     } else {
-        AvaialableNodesLastSeenTime_ = TInstant::Now();
+        AvaialableNodesLastSeenTime_ = NProfiling::GetCpuInstant();
     }
 }
 
@@ -4867,27 +4868,31 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
 
     for (const auto& dataSlice : stripe->DataSlices) {
         for (const auto& slice : dataSlice->ChunkSlices) {
-            auto chunkSpec = slice->GetInputChunk();
-            const auto& chunkId = chunkSpec->ChunkId();
+            auto inputChunk = slice->GetInputChunk();
+            const auto& chunkId = inputChunk->ChunkId();
+
+            if (!visitedChunks.insert(chunkId).second) {
+                continue;
+            }
 
             // Insert an empty TInputChunkDescriptor if a new chunkId is encountered.
             auto& chunkDescriptor = InputChunkMap[chunkId];
 
-            if (InputChunkSpecs.insert(chunkSpec).second) {
-                chunkDescriptor.InputChunks.push_back(chunkSpec);
+            if (InputChunkSpecs.insert(inputChunk).second) {
+                chunkDescriptor.InputChunks.push_back(inputChunk);
             }
 
-            if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
+            if (IsUnavailable(inputChunk, IsParityReplicasFetchEnabled())) {
+                // NB(psushin): there could be corner cases, where different input chunks
+                // corresponding to the same chunkId have different set of replicas.
+                // In this case, some stripes will be resumed more times than they were suspended.
                 chunkDescriptor.State = EInputChunkState::Waiting;
             }
 
-            if (visitedChunks.insert(chunkId).second) {
-                // If this is first slice with given chunkId in this stripe.
-                chunkDescriptor.InputStripes.push_back(stripeDescriptor);
+            chunkDescriptor.InputStripes.push_back(stripeDescriptor);
 
-                if (chunkDescriptor.State == EInputChunkState::Waiting) {
-                    ++stripe->WaitingChunkCount;
-                }
+            if (chunkDescriptor.State == EInputChunkState::Waiting) {
+                ++stripe->WaitingChunkCount;
             }
         }
     }

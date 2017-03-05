@@ -271,7 +271,7 @@ std::vector<TExecNodeDescriptor> TNodeShard::GetExecNodeDescriptors()
     {
         TWriterGuard guard(CachedExecNodeDescriptorsLock_);
         CachedExecNodeDescriptors_ = result;
-        CachedExecNodeDescriptorsLastUpdateTime_ = TInstant::Now();
+        CachedExecNodeDescriptorsLastUpdateTime_ = NProfiling::GetCpuInstant();
     }
 
     return result;
@@ -745,7 +745,8 @@ TJobResources TNodeShard::CalculateResourceLimits(const TSchedulingTagFilter& fi
         SchedulingTagFilterToResources_[filter] = resources;
     }
 
-    if (CachedExecNodeDescriptorsLastUpdateTime_ + Config_->NodeShardUpdateExecNodesInformationDelay < TInstant::Now()) {
+    auto delay = NProfiling::DurationToCpuDuration(Config_->NodeShardUpdateExecNodesInformationDelay);
+    if (CachedExecNodeDescriptorsLastUpdateTime_ + delay < NProfiling::GetCpuInstant()) {
         GetInvoker()->Invoke(BIND(&TNodeShard::GetExecNodeDescriptors, MakeStrong(this)));
     }
 
