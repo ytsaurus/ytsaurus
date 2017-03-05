@@ -1416,7 +1416,7 @@ void TOperationControllerBase::SafeMaterialize()
 
         AddAllTaskPendingHints();
 
-        if (Config->EnableSnapshotCycleAfterMaterialization) {
+        if (Config->TestingOptions->EnableSnapshotCycleAfterMaterialization) {
             TStringStream stringStream;
             SaveSnapshot(&stringStream);
             auto sharedRef = TSharedRef::FromString(stringStream.Str());
@@ -2495,6 +2495,8 @@ void TOperationControllerBase::SafeForget()
 
     CancelableContext->Cancel();
 
+    Forgotten = true;
+
     LOG_INFO("Operation forgotten");
 }
 
@@ -3059,6 +3061,13 @@ int TOperationControllerBase::GetTotalJobCount() const
     }
 
     return JobCounter.GetTotal();
+}
+
+bool TOperationControllerBase::IsForgotten() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Forgotten;
 }
 
 void TOperationControllerBase::IncreaseNeededResources(const TJobResources& resourcesDelta)
@@ -5722,6 +5731,11 @@ public:
     virtual int GetTotalJobCount() const override
     {
         return Underlying_->GetTotalJobCount();
+    }
+
+    virtual bool IsForgotten() const override
+    {
+        return Underlying_->IsForgotten();
     }
 
     virtual TJobResources GetNeededResources() const override

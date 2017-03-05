@@ -1285,8 +1285,8 @@ private:
 
         auto error = TError("Master disconnected");
 
-        if (Config_->MasterDisconnectDelay) {
-            Sleep(*Config_->MasterDisconnectDelay);
+        if (Config_->TestingOptions->MasterDisconnectDelay) {
+            Sleep(*Config_->TestingOptions->MasterDisconnectDelay);
         }
 
         {
@@ -2066,14 +2066,22 @@ private:
                     .Run();
                 WaitFor(asyncResult)
                     .ThrowOnError();
+                if (controller->IsForgotten()) {
+                    // Master disconnected happend while committing controller.
+                    return;
+                }
 
                 if (operation->GetState() != EOperationState::Completing) {
                     throw TFiberCanceledException();
                 }
-            }
 
-            if (Config_->FinishOperationTransitionDelay) {
-                Sleep(*Config_->FinishOperationTransitionDelay);
+                if (Config_->TestingOptions->FinishOperationTransitionDelay) {
+                    Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
+                    if (controller->IsForgotten()) {
+                        // Master disconnected happend while committing controller.
+                        return;
+                    }
+                }
             }
 
             YCHECK(operation->GetState() == EOperationState::Completing);
@@ -2159,8 +2167,14 @@ private:
                 return;
         }
 
-        if (Config_->FinishOperationTransitionDelay) {
-            Sleep(*Config_->FinishOperationTransitionDelay);
+
+        if (Config_->TestingOptions->FinishOperationTransitionDelay) {
+            auto controller = operation->GetController();
+            Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
+            if (controller->IsForgotten()) {
+                // Master disconnected happend while committing controller.
+                return;
+            }
         }
 
         {

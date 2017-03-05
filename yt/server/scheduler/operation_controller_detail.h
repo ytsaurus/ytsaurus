@@ -194,6 +194,8 @@ public:
     virtual int GetPendingJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
 
+    virtual bool IsForgotten() const override;
+
     virtual bool HasProgress() const override;
 
     virtual void Resume() override;
@@ -260,6 +262,7 @@ protected:
     IInvokerPtr CancelableInvoker;
 
     std::atomic<EControllerState> State = {EControllerState::Preparing};
+    std::atomic<bool> Forgotten = {false};
 
     bool RevivedFromSnapshot = false;
 

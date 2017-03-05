@@ -572,7 +572,9 @@ class TestSchedulerRevive(YTEnvSetup):
             "operation_time_limit_check_period" : 100,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
-            "finish_operation_transition_delay": 2000,
+            "testing_options": {
+                "finish_operation_transition_delay": 2000,
+            },
         }
     }
 
@@ -675,6 +677,65 @@ class TestSchedulerRevive(YTEnvSetup):
 
         assert "failed" == get("//sys/operations/" + op.id + "/@state")
 
+class TestSchedulerRevive2(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operation_time_limit_check_period" : 100,
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+            "testing_options": {
+                "enable_random_master_disconnection": False,
+                "random_master_disconnection_max_backoff": 10000,
+                "finish_operation_transition_delay": 1000,
+            }
+        }
+    }
+
+    OP_COUNT = 10
+
+    def _create_table(self, table):
+        create("table", table)
+        set(table + "/@replication_factor", 1)
+
+    def _prepare_tables(self):
+        self._create_table("//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        for index in xrange(self.OP_COUNT):
+            self._create_table("//tmp/t_out" + str(index))
+            self._create_table("//tmp/t_err" + str(index))
+
+    def test_many_operation(self):
+        self._prepare_tables()
+
+        ops = []
+        for index in xrange(self.OP_COUNT):
+            op = map(
+                dont_track=True,
+                command="sleep 1; echo 'AAA' >&2; cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out" + str(index),
+                spec={
+                    "stderr_table_path": "//tmp/t_err" + str(index),
+                })
+            ops.append(op)
+
+        try:
+            set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": True}})
+            for index, op in enumerate(ops):
+                try:
+                    op.track()
+                    assert read_table("//tmp/t_out" + str(index)) == [{"foo": "bar"}]
+                except YtError:
+                    assert get("//sys/operations/{0}/@state".format(op.id)) == "failed"
+        finally:
+            set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": False}})
+            time.sleep(5)
+
 
 class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 3
@@ -687,7 +748,9 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
             "snapshot_period": 500,
-            "master_disconnect_delay": 3000,
+            "testing_options": {
+                "master_disconnect_delay": 3000,
+            },
         }
     }
 
