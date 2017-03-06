@@ -268,7 +268,7 @@ private:
 
     TFuture<void> ProcessScheduledJobs(
         const ISchedulingContextPtr& schedulingContext,
-        NJobTrackerClient::NProto::TRspHeartbeat* response,
+        const TScheduler::TCtxHeartbeatPtr& rpcContext,
         yhash_set<TOperationId>* operationsToLog);
 
     void OnJobAborted(const TJobPtr& job, TJobStatus* status, bool operationTerminated = false);
