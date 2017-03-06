@@ -1,0 +1,6 @@
+# This file must be used with "source bin/activate" *from bash*
+# you cannot run it directly. It allowes to deploy standalone
+# packages and packages built by dh-virtualenv without modifying
+# sv run script.
+
+export PYTHONHOME=$(dirname $(realpath $(dirname "${BASH_SOURCE[0]}")))

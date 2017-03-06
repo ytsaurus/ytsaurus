@@ -5,7 +5,7 @@ build:
 
 install:
 	echo "Using $(DESTDIR) dir..."
-	mkdir -p "$(DESTDIR)/opt/$(PACKAGE)"
+	mkdir -p "$(DESTDIR)/opt/venvs/$(PACKAGE)"
 	for subdir in `find $(PYTHON_INSTALLDIR) -maxdepth 1 -not -path $(PYTHON_INSTALLDIR)`; do \
 		cp -r "$$subdir" "$(DESTDIR)/opt/$(PACKAGE)" ; \
 	done
