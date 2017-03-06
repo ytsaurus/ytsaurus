@@ -222,7 +222,7 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
 
                 scheduleJobsAsyncResult = ProcessScheduledJobs(
                     schedulingContext,
-                    response,
+                    context,
                     &operationsToLog);
 
                 // NB: some jobs maybe considered aborted after processing scheduled jobs.
@@ -1272,9 +1272,11 @@ void TNodeShard::EndNodeHeartbeatProcessing(TExecNodePtr node)
 
 TFuture<void> TNodeShard::ProcessScheduledJobs(
     const ISchedulingContextPtr& schedulingContext,
-    NJobTrackerClient::NProto::TRspHeartbeat* response,
+    const TScheduler::TCtxHeartbeatPtr& rpcContext,
     yhash_set<TOperationId>* operationsToLog)
 {
+    auto* response = &rpcContext->Response();
+
     std::vector<TFuture<void>> asyncResults;
 
     for (const auto& job : schedulingContext->StartedJobs()) {
@@ -1313,9 +1315,12 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
 
         // Build spec asynchronously.
         asyncResults.push_back(
-            BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
-                .AsyncVia(Host_->GetJobSpecBuilderInvoker())
-                .Run());
+            // NB: Hold the context strongly.
+            BIND([job, startInfo, rpcContext] () {
+                job->GetSpecBuilder()(startInfo->mutable_spec());
+            })
+            .AsyncVia(Host_->GetJobSpecBuilderInvoker())
+            .Run());
 
         // Release to avoid circular references.
         job->SetSpecBuilder(TJobSpecBuilder());
