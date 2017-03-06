@@ -374,7 +374,8 @@ protected:
         TotalDataSize += taskDataSize;
         TotalChunkCount += taskChunkCount;
 
-        if (TotalChunkCount > Config->MaxTotalSliceCount) {
+        // Don't validate this limit if oepration is already running.
+        if (!IsPrepared() && TotalChunkCount > Config->MaxTotalSliceCount) {
             THROW_ERROR_EXCEPTION("Total number of data slices in operation is too large. Consider reducing job count or reducing chunk count in input tables.")
                 << TErrorAttribute("actual_total_slice_count", TotalChunkCount)
                 << TErrorAttribute("max_total_slice_count", Config->MaxTotalSliceCount)
