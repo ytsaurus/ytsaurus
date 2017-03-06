@@ -865,6 +865,7 @@ TOperationId ExecuteMap(
         .DoIf(spec.Ordered_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("ordered").Value(spec.Ordered_.GetRef());
         })
+        .Item("title").Value(map.GetClassName())
         .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
@@ -938,6 +939,7 @@ TOperationId ExecuteReduce(
                 fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
             })
         .EndMap()
+        .Item("title").Value(reduce.GetClassName())
         .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
@@ -1007,6 +1009,7 @@ TOperationId ExecuteJoinReduce(
                 fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
             })
         .EndMap()
+        .Item("title").Value(reduce.GetClassName())
         .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
@@ -1088,6 +1091,8 @@ TOperationId ExecuteMapReduce(
         spec.OutputDesc_,
         options);
 
+    Stroka title;
+
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .DoIf(mapper, [&] (TFluentMap fluent) {
@@ -1108,6 +1113,8 @@ TOperationId ExecuteMapReduce(
                 spec.InputDesc_,
                 outputMapperDesc,
                 std::placeholders::_1));
+
+            title = "mapper:" + map.GetClassName() + " ";
         })
         .DoIf(reduceCombiner, [&] (TFluentMap fluent) {
             TJobPreparer combine(
@@ -1127,6 +1134,7 @@ TOperationId ExecuteMapReduce(
                 inputReduceCombinerDesc,
                 outputReduceCombinerDesc,
                 std::placeholders::_1));
+            title = "combiner:" + combine.GetClassName() + " ";
         })
         .Item("reducer").DoMap(std::bind(
             BuildUserJobFluently,
@@ -1163,6 +1171,7 @@ TOperationId ExecuteMapReduce(
                 fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
             })
         .EndMap()
+        .Item("title").Value(title + "reducer:" + reduce.GetClassName())
         .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
