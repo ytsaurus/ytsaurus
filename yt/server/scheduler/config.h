@@ -518,6 +518,74 @@ DEFINE_REFCOUNTED_TYPE(TTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TOperationAlertsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    // Maximum allowed ratio of unused tmpfs size.
+    double TmpfsAlertMaxUnusedSpaceRatio;
+
+    // Min unused space threshold. If unutilized space is less than
+    // this threshold then operation alert will not be set.
+    i64 TmpfsAlertMinUnusedSpaceThreshold;
+
+    // Maximum allowed aborted jobs time. If it is violated
+    // then operation alert will be set.
+    i64 AbortedJobsAlertMaxAbortedTime;
+
+    // Maximum allowed aborted jobs time ratio.
+    double AbortedJobsAlertMaxAbortedTimeRatio;
+
+    // Minimum desired job duration.
+    TDuration ShortJobsAlertMinJobDuration;
+
+    // Minimum number of completed jobs after which alert can be set.
+    i64 ShortJobsAlertMinJobCount;
+
+    // Minimum partition size to enable data skew check.
+    i64 IntermediateDataSkewAlertMinPartitionSize;
+
+    // Minimum interquartile range to consider data to be skewed.
+    i64 IntermediateDataSkewAlertMinInterquartileRange;
+
+    TOperationAlertsConfig()
+    {
+        RegisterParameter("tmpfs_alert_max_unused_space_ratio", TmpfsAlertMaxUnusedSpaceRatio)
+            .InRange(0.0, 1.0)
+            .Default(0.2);
+
+        RegisterParameter("tmpfs_alert_min_unused_space_threshold", TmpfsAlertMinUnusedSpaceThreshold)
+            .Default((i64) 512 * 1024 * 1024)
+            .GreaterThan(0);
+
+        RegisterParameter("aborted_jobs_alert_max_aborted_time", AbortedJobsAlertMaxAbortedTime)
+            .Default((i64) 10 * 60 * 1000)
+            .GreaterThan(0);
+
+        RegisterParameter("aborted_jobs_alert_max_aborted_time_ratio", AbortedJobsAlertMaxAbortedTimeRatio)
+            .InRange(0.0, 1.0)
+            .Default(0.25);
+
+        RegisterParameter("short_jobs_alert_min_job_duration", ShortJobsAlertMinJobDuration)
+            .Default(TDuration::Minutes(1));
+
+        RegisterParameter("short_jobs_alert_min_job_count", ShortJobsAlertMinJobCount)
+            .Default((i64) 1000);
+
+        RegisterParameter("intermediate_data_skew_alert_min_partition_size", IntermediateDataSkewAlertMinPartitionSize)
+            .Default((i64) 10 * 1024 * 1024 * 1024)
+            .GreaterThan(0);
+
+        RegisterParameter("intermediate_data_skew_alert_min_interquartile_range", IntermediateDataSkewAlertMinInterquartileRange)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationAlertsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerConfig
     : public TFairShareStrategyConfig
     , public NChunkClient::TChunkTeleporterConfig
@@ -769,12 +837,8 @@ public:
     // Total number of data slices in operation, summed up over all jobs.
     i64 MaxTotalSliceCount;
 
-    // Maximum allowed ratio of unutilized tmpfs size.
-    double TmpfsAlertMaxUnutilizedSpaceRatio;
-
-    // Min unutilized space threshold. If unutilized space is less than
-    // this threshold then operation alert will not be set.
-    i64 TmpfsAlertMinUnutilizedSpaceThreshold;
+    // Config for operation alerts.
+    TOperationAlertsConfigPtr OperationAlertsConfig;
 
     // Chunk size in per-controller row buffers.
     i64 ControllerRowBufferChunkSize;
@@ -1070,13 +1134,8 @@ public:
             .Default((i64) 10 * 1000 * 1000)
             .GreaterThan(0);
 
-        RegisterParameter("tmpfs_alert_max_unutilized_space_ratio", TmpfsAlertMaxUnutilizedSpaceRatio)
-            .InRange(0.0, 1.0)
-            .Default(0.2);
-
-        RegisterParameter("tmpfs_alert_min_unutilized_space_threshold", TmpfsAlertMinUnutilizedSpaceThreshold)
-            .Default((i64) 512 * 1024 * 1024)
-            .GreaterThan(0);
+        RegisterParameter("operation_alerts", OperationAlertsConfig)
+            .DefaultNew();
 
         RegisterParameter("controller_row_buffer_chunk_size", ControllerRowBufferChunkSize)
             .Default((i64) 64 * 1024)

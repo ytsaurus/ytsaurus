@@ -89,6 +89,17 @@ public:
         Persist<TAttributeDictionaryRefSerializer>(context, InputTableAttributes_);
     }
 
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {};
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController, 0xbac5ad82);
 

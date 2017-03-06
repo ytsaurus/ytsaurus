@@ -160,6 +160,31 @@ void Serialize(const IHistogram& histogram, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////
 
+THistogramQuartiles ComputeHistogramQuartiles(const THistogramView& histogramView)
+{
+    YCHECK(histogramView.Count.size() > 0);
+
+    int currentBucketIndex = 0;
+    i64 partialBucketSum = 0;
+    i64 totalSum = std::accumulate(histogramView.Count.begin(), histogramView.Count.end(), 0LL);
+    i64 bucketSize = (histogramView.Max - histogramView.Min) / histogramView.Count.size();
+
+    auto computeNextQuartile = [&] (double quartile) {
+        while (currentBucketIndex < histogramView.Count.size() && partialBucketSum < quartile * totalSum) {
+            partialBucketSum += histogramView.Count[currentBucketIndex];
+            ++currentBucketIndex;
+        }
+        return histogramView.Min + currentBucketIndex * bucketSize;
+    };
+
+    THistogramQuartiles result;
+    result.Q25 = computeNextQuartile(0.25);
+    result.Q50 = computeNextQuartile(0.50);
+    result.Q75 = computeNextQuartile(0.75);
+
+    return result;
+}
+
 } // namespace NScheduler
 } // namespace NYT
 

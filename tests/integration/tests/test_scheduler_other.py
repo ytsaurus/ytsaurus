@@ -2488,6 +2488,13 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         "exec_agent": {
             "scheduler_connector": {
                 "heartbeat_period": 200
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "cgroups",
+                    "supported_cgroups": ["blkio"],
+                    "block_io_watchdog_period": 200
+                }
             }
         }
     }
@@ -2495,8 +2502,21 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "operation_progress_analysis_period": 200,
-            "tmpfs_alert_min_unutilized_space_threshold": 200,
-            "tmpfs_alert_max_unutilized_space_ratio": 0.3
+            "operations_update_period": 100,
+            "operation_alerts": {
+                "tmpfs_alert_min_unused_space_threshold": 200,
+                "tmpfs_alert_max_unused_space_ratio": 0.3,
+                "aborted_jobs_alert_max_aborted_time": 100,
+                "aborted_jobs_alert_aborted_time_ratio": 0.05,
+                "intermediate_data_skew_alert_min_interquartile_range": 50,
+                "intermediate_data_skew_alert_min_partition_size": 50,
+                "short_jobs_alert_min_job_count": 3,
+                "short_jobs_alert_min_job_duration": 2000
+            },
+            "iops_threshold": 50,
+            "map_reduce_operation_options": {
+                "min_uncompressed_block_size": 1
+            }
         }
     }
 
@@ -2532,6 +2552,137 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             })
 
         assert "unused_tmpfs_space" not in get("//sys/operations/{0}/@alerts".format(op.id))
+
+    def test_missing_input_chunks_alert(self):
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_in", [{"x": "y"}])
+
+        chunk_ids = get("//tmp/t_in/@chunk_ids")
+        assert len(chunk_ids) == 1
+
+        replicas = get("#{0}/@stored_replicas".format(chunk_ids[0]))
+        set_banned_flag(True, replicas)
+
+        op = map(
+            command="sleep 1.5; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "unavailable_chunk_strategy": "wait",
+                "unavailable_chunk_tactics": "wait"
+            },
+            dont_track=True)
+
+        time.sleep(1.0)
+        assert "lost_input_chunks" in get("//sys/operations/{0}/@alerts".format(op.id))
+
+        set_banned_flag(False, replicas)
+        time.sleep(1.0)
+
+        assert "lost_input_chunks" not in get("//sys/operations/{0}/@alerts".format(op.id))
+
+        abort_op(op.id)
+
+    @require_ytserver_root_privileges
+    @unix_only
+    def test_woodpecker_jobs_alert(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(3)])
+        create("table", "//tmp/t_out")
+
+        cmd = "set -e; echo aaa >local_file; for i in {1..100}; do " \
+              "dd if=./local_file of=/dev/null iflag=nocache bs=1 count=1; done;"
+
+        op = map(
+            command=cmd,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "data_size_per_job": 1,
+                "resource_limits": {
+                    "user_slots": 1
+                }
+            })
+
+        assert "excessive_disk_usage" in get("//sys/operations/{0}/@alerts".format(op.id))
+
+    def test_long_aborted_jobs_alert(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(5)])
+        create("table", "//tmp/t_out")
+
+        op = map(
+            command="sleep 1; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "data_size_per_job": 1,
+            },
+            dont_track=True)
+
+        running_jobs_path = "//sys/scheduler/orchid/scheduler/operations/" + op.id + "/progress/jobs/running"
+
+        def running_jobs_exists():
+            return exists(running_jobs_path) and get(running_jobs_path) >= 1
+
+        wait(running_jobs_exists)
+
+        set_banned_flag(True)
+
+        time.sleep(0.2)
+
+        assert "long_aborted_jobs" in get("//sys/operations/{0}/@alerts".format(op.id))
+
+        abort_op(op.id)
+
+    def test_intermediate_data_skew_alert(self):
+        create("table", "//tmp/t_in")
+
+        mutliplier = 1
+        data = []
+        for letter in ["a", "b", "c", "d", "e"]:
+            data.extend([{"x": letter} for _ in xrange(mutliplier)])
+            mutliplier *= 10
+
+        write_table("//tmp/t_in", data)
+
+        create("table", "//tmp/t_out")
+
+        op = map_reduce(
+            mapper_command="cat",
+            reducer_command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            sort_by=["x"],
+            spec={"partition_count": 5})
+
+        assert "intermediate_data_skew" in get("//sys/operations/{0}/@alerts".format(op.id))
+
+    def test_short_jobs_alert(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(7)])
+        create("table", "//tmp/t_out")
+
+        op = map(
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "data_size_per_job": 1,
+            })
+
+        assert "short_jobs_duration" in get("//sys/operations/{0}/@alerts".format(op.id))
+
+        op = map(
+            command="sleep 2; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "data_size_per_job": 1,
+            })
+
+        assert "short_jobs_duration" not in get("//sys/operations/{0}/@alerts".format(op.id))
 
 class TestMainNodesFilter(YTEnvSetup):
     NUM_MASTERS = 1
@@ -2570,4 +2721,3 @@ class TestMainNodesFilter(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/running".format(op.id)) == 2
         assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_ratio".format(op.id)), 1.0)
         assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op.id)), 2.0)
-
