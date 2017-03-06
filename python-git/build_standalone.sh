@@ -63,7 +63,7 @@ cp standalone-package/debian/compat debian
 "$INSTALL_DIR/bin/python" -m pip install dist/*.whl --ignore-installed
 
 # Replacing python in shebangs to newly built
-grep "#\!" -R "$INSTALL_DIR/bin" -l -I | xargs sed -i '1 s/^.*$/#\!\/opt\/'"$PACKAGE"'\/bin\/python/g'
+grep "#\!" -R "$INSTALL_DIR/bin" -l -I | xargs sed -i '1 s/^.*$/#\!\/opt\/venvs\/'"$PACKAGE"'\/bin\/python/g'
 
 unset PYTHONHOME
 
