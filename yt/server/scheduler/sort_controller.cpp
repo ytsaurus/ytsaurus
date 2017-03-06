@@ -1731,6 +1731,28 @@ protected:
             .Item("partition_size_histogram").Value(*sizeHistogram);
     }
 
+    virtual void AnalyzePartitionHistogram() const override
+    {
+        TError error;
+
+        auto sizeHistogram = ComputePartitionSizeHistogram();
+        auto view = sizeHistogram->GetHistogramView();
+
+        i64 minIqr = Config->OperationAlertsConfig->IntermediateDataSkewAlertMinInterquartileRange;
+
+        if (view.Max > Config->OperationAlertsConfig->IntermediateDataSkewAlertMinPartitionSize) {
+            auto quartiles = ComputeHistogramQuartiles(view);
+            i64 iqr = quartiles.Q75 - quartiles.Q25;
+            if (iqr > minIqr && quartiles.Q50 + 2 * iqr < view.Max) {
+                error = TError(
+                    "Intermediate data skew is too high (see partitions histogram); "
+                    "operation is likely to have stragglers");
+            }
+        }
+
+        Host->SetOperationAlert(OperationId, EOperationAlertType::IntermediateDataSkew, error);
+    }
+
     virtual void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary) override
     {
         TotalOutputRowCount += GetTotalOutputDataStatistics(jobSummary.Statistics).row_count();
@@ -1821,6 +1843,24 @@ public:
         RegisterJobProxyMemoryDigest(EJobType::FinalSort, spec->SortJobProxyMemoryDigest);
         RegisterJobProxyMemoryDigest(EJobType::SortedMerge, spec->MergeJobProxyMemoryDigest);
         RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, spec->MergeJobProxyMemoryDigest);
+    }
+
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        switch (jobType) {
+            case EJobType::Partition:
+                return STRINGBUF("data_size_per_partition_job");
+            case EJobType::FinalSort:
+                return STRINGBUF("partition_data_size");
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {EJobType::Partition, EJobType::FinalSort};
     }
 
 private:
@@ -2500,6 +2540,31 @@ public:
                         .Item("command").Value(TrimCommandForBriefSpec(Spec->ReduceCombiner->Command))
                     .EndMap();
             });
+    }
+
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        switch (jobType) {
+            case EJobType::PartitionMap:
+            case EJobType::Partition:
+                return STRINGBUF("data_size_per_map_job");
+            case EJobType::PartitionReduce:
+            case EJobType::SortedReduce:
+                return STRINGBUF("partition_data_size");
+           default:
+                Y_UNREACHABLE();
+        }
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {
+            EJobType::PartitionMap,
+            EJobType::Partition,
+            EJobType::PartitionReduce,
+            EJobType::SortedReduce
+        };
     }
 
 private:

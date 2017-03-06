@@ -2580,7 +2580,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
 }
 
-void TOperationControllerBase::AnalyzeTmpfsUsage()
+void TOperationControllerBase::AnalyzeTmpfsUsage() const
 {
     if (!Config->EnableTmpfs) {
         return;
@@ -2614,20 +2614,21 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
 
     std::vector<TError> innerErrors;
 
-    double minUtilizedSpaceRatio = 1.0 - Config->TmpfsAlertMaxUnutilizedSpaceRatio;
+    double minUnusedSpaceRatio = 1.0 - Config->OperationAlertsConfig->TmpfsAlertMaxUnusedSpaceRatio;
 
     for (const auto& pair : maximumUsedTmfpsSizePerJobType) {
         const auto& userJobSpecPtr = userJobSpecPerJobType[pair.first];
         auto maxUsedTmpfsSize = pair.second;
 
-        bool minUnutilizedSpaceThresholdOvercome = userJobSpecPtr->TmpfsSize.Get() - maxUsedTmpfsSize >
-            Config->TmpfsAlertMinUnutilizedSpaceThreshold;
-        bool minUtilizedSpaceRatioViolated = maxUsedTmpfsSize <
-            minUtilizedSpaceRatio * userJobSpecPtr->TmpfsSize.Get();
+        bool minUnusedSpaceThresholdOvercome = userJobSpecPtr->TmpfsSize.Get() - maxUsedTmpfsSize >
+            Config->OperationAlertsConfig->TmpfsAlertMinUnusedSpaceThreshold;
+        bool minUnusedSpaceRatioViolated = maxUsedTmpfsSize <
+            minUnusedSpaceRatio * userJobSpecPtr->TmpfsSize.Get();
 
-        if (minUnutilizedSpaceThresholdOvercome && minUtilizedSpaceRatioViolated) {
-            auto error = TError("Jobs of type \"%Qlv\" utilize less than %.1f%% of requested tmpfs size",
-                                pair.first, minUtilizedSpaceRatio * 100.0);
+        if (minUnusedSpaceThresholdOvercome && minUnusedSpaceRatioViolated) {
+            auto error = TError(
+                "Jobs of type %Qlv use less than %.1f%% of requested tmpfs size",
+                pair.first, minUnusedSpaceRatio * 100.0);
             innerErrors.push_back(error
                 << TErrorAttribute("max_used_tmpfs_size", maxUsedTmpfsSize)
                 << TErrorAttribute("tmpfs_size", *userJobSpecPtr->TmpfsSize));
@@ -2636,10 +2637,10 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
 
     TError error;
     if (!innerErrors.empty()) {
-        error = TError("Operation has jobs that utilize less than %.1f%% of requested tmpfs size; "
-                       "consider specifying tmpfs size closer to actual utilization",
-                       minUtilizedSpaceRatio * 100.0)
-            << innerErrors;
+        error = TError(
+            "Operation has jobs that use less than %.1f%% of requested tmpfs size; "
+            "consider specifying tmpfs size closer to actual usage",
+            minUnusedSpaceRatio * 100.0) << innerErrors;
     }
 
     Host->SetOperationAlert(
@@ -2648,11 +2649,152 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
         error);
 }
 
-void TOperationControllerBase::AnalyzeOperationProgess()
+void TOperationControllerBase::AnalyzeInputStatistics() const
+{
+    TError error;
+    if (UnavailableInputChunkCount > 0) {
+        error = TError(
+            "Some input chunks are not available; "
+            "the relevant parts of computation will be suspended");
+    }
+
+    Host->SetOperationAlert(OperationId, EOperationAlertType::LostInputChunks, error);
+}
+
+void TOperationControllerBase::AnalyzeIntermediateJobsStatistics() const
+{
+    TError error;
+    if (JobCounter.GetLost() > 0) {
+        error = TError(
+            "Some intermediate outputs were lost and will be regenerated; "
+            "operation will take longer than usual");
+    }
+
+    Host->SetOperationAlert(OperationId, EOperationAlertType::LostIntermediateChunks, error);
+}
+
+void TOperationControllerBase::AnalyzePartitionHistogram() const
+{ }
+
+void TOperationControllerBase::AnalyzeAbortedJobs() const
+{
+    auto aggregateTimeForJobState = [&] (EJobState state) {
+        i64 sum = 0;
+        for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+            auto value = FindNumericValue(
+                JobStatistics,
+                Format("/time/total/$/%lv/%lv", state, type));
+
+            if (value) {
+                sum += *value;
+            }
+        }
+
+        return sum;
+    };
+
+    i64 completedJobsTime = aggregateTimeForJobState(EJobState::Completed);
+    i64 abortedJobsTime = aggregateTimeForJobState(EJobState::Aborted);
+    double abortedJobsTimeRatio = 1.0;
+    if (completedJobsTime > 0) {
+        abortedJobsTimeRatio = 1.0 * abortedJobsTime / completedJobsTime;
+    }
+
+    TError error;
+    if (abortedJobsTime > Config->OperationAlertsConfig->AbortedJobsAlertMaxAbortedTime &&
+        abortedJobsTimeRatio > Config->OperationAlertsConfig->AbortedJobsAlertMaxAbortedTimeRatio)
+    {
+        error = TError(
+            "Aborted jobs time ratio is too high, scheduling is likely to be inefficient; "
+            "consider increasing job count to make individual jobs smaller")
+                << TErrorAttribute("aborted_jobs_time_ratio", abortedJobsTimeRatio);
+    }
+
+    Host->SetOperationAlert(OperationId, EOperationAlertType::LongAbortedJobs, error);
+}
+
+void TOperationControllerBase::AnalyzeJobsIOUsage() const
+{
+    std::vector<TError> innerErrors;
+
+    for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
+        auto value = FindNumericValue(
+            JobStatistics,
+            "/user_job/woodpecker/$/completed/" + FormatEnum(jobType));
+
+        if (value && *value > 0) {
+            innerErrors.emplace_back("Detected excessive disk IO in %Qlv jobs", jobType);
+        }
+    }
+
+    TError error;
+    if (!innerErrors.empty()) {
+        error = TError("Detected excessive disk IO in jobs; consider optimizing disk usage")
+            << innerErrors;
+    }
+
+    Host->SetOperationAlert(OperationId, EOperationAlertType::ExcessiveDiskUsage, error);
+}
+
+void TOperationControllerBase::AnalyzeJobsDuration() const
+{
+    if (OperationType == EOperationType::RemoteCopy || OperationType == EOperationType::Erase) {
+        return;
+    }
+
+    auto operationDuration = TInstant::Now() - StartTime;
+
+    std::vector<TError> innerErrors;
+
+    for (auto jobType : GetSupportedJobTypesForJobsDurationAnalyzer()) {
+        auto completedJobsSummary = FindSummary(
+            JobStatistics,
+            "/time/total/$/completed/" + FormatEnum(jobType));
+
+        if (!completedJobsSummary) {
+            continue;
+        }
+
+        auto maxJobDuration = TDuration::MilliSeconds(completedJobsSummary->GetMax());
+        auto completedJobCount = completedJobsSummary->GetCount();
+
+        if (completedJobCount > Config->OperationAlertsConfig->ShortJobsAlertMinJobCount &&
+            operationDuration > maxJobDuration * 2 &&
+            maxJobDuration < Config->OperationAlertsConfig->ShortJobsAlertMinJobDuration)
+        {
+            auto error = TError(
+                "Duration of %Qlv jobs is less than %v seconds, try increasing %v in operation spec",
+                jobType,
+                Config->OperationAlertsConfig->ShortJobsAlertMinJobDuration.Seconds(),
+                GetDataSizeParameterNameForJob(jobType))
+                    << TErrorAttribute("max_job_duration", maxJobDuration);
+
+            innerErrors.push_back(error);
+        }
+    }
+
+    TError error;
+    if (!innerErrors.empty()) {
+        error = TError("Operation has jobs with duration is less than %v seconds, "
+                       "that leads to large overhead costs for scheduling",
+                       Config->OperationAlertsConfig->ShortJobsAlertMinJobDuration)
+            << innerErrors;
+    }
+
+    Host->SetOperationAlert(OperationId, EOperationAlertType::ShortJobsDuration, error);
+}
+
+void TOperationControllerBase::AnalyzeOperationProgess() const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     AnalyzeTmpfsUsage();
+    AnalyzeInputStatistics();
+    AnalyzeIntermediateJobsStatistics();
+    AnalyzePartitionHistogram();
+    AnalyzeAbortedJobs();
+    AnalyzeJobsIOUsage();
+    AnalyzeJobsDuration();
 }
 
 TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(

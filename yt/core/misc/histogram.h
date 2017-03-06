@@ -35,6 +35,17 @@ void Serialize(const IHistogram& histogram, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////
 
+struct THistogramQuartiles
+{
+    i64 Q25 = 0;
+    i64 Q50 = 0;
+    i64 Q75 = 0;
+};
+
+THistogramQuartiles ComputeHistogramQuartiles(const THistogramView& histogramView);
+
+////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT
 

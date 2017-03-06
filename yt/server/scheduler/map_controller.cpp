@@ -430,6 +430,17 @@ public:
         Persist(context, StartRowIndex);
     }
 
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        return STRINGBUF("data_size_per_job");
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {EJobType::Map};
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapController, 0xbac5fd82);
 
@@ -581,6 +592,17 @@ public:
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, spec->JobProxyMemoryDigest);
+    }
+
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        return STRINGBUF("data_size_per_job");
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {EJobType::UnorderedMerge};
     }
 
 private:

@@ -763,8 +763,14 @@ protected:
 
     void CheckAvailableExecNodes();
 
-    void AnalyzeTmpfsUsage();
-    void AnalyzeOperationProgess();
+    virtual void AnalyzePartitionHistogram() const;
+    void AnalyzeTmpfsUsage() const;
+    void AnalyzeIntermediateJobsStatistics() const;
+    void AnalyzeInputStatistics() const;
+    void AnalyzeAbortedJobs() const;
+    void AnalyzeJobsIOUsage() const;
+    void AnalyzeJobsDuration() const;
+    void AnalyzeOperationProgess() const;
 
     void DoScheduleJob(
         ISchedulingContext* context,
@@ -860,6 +866,12 @@ protected:
 
     //! Called to extract output table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetOutputTablePaths() const = 0;
+
+    //! Called in jobs duration analyzer to get proper data size parameter name in spec.
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const = 0;
+
+    //! Called in jobs duration analyzer to get interesting for analysis jobs set.
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const = 0;
 
     //! Called to extract stderr table path from the spec.
     virtual TNullable<NYPath::TRichYPath> GetStderrTablePath() const;

@@ -738,6 +738,17 @@ public:
         Persist(context, StartRowIndex);
     }
 
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        return STRINGBUF("data_size_per_job");
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {EJobType::OrderedMap};
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController, 0x1e5a7e32);
 
@@ -911,6 +922,17 @@ public:
         RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
     }
 
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        return STRINGBUF("data_size_per_job");
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {EJobType::OrderedMerge};
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController, 0x1f748c56);
 
@@ -1028,6 +1050,17 @@ public:
             // In addition to "input_table_paths" and "output_table_paths".
             // Quite messy, only needed for consistency with the regular spec.
             .Item("table_path").Value(Spec->TablePath);
+    }
+
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        Y_UNREACHABLE();
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {};
     }
 
 private:
@@ -1440,6 +1473,17 @@ public:
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedMerge, spec->JobProxyMemoryDigest);
+    }
+
+public:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        return STRINGBUF("data_size_per_job");
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {EJobType::SortedMerge};
     }
 
 private:
@@ -2202,6 +2246,17 @@ public:
         TReduceControllerBase::Persist(context);
     }
 
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        return STRINGBUF("data_size_per_job");
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {EJobType::SortedReduce};
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceController, 0xacd16dbc);
 
@@ -2534,6 +2589,17 @@ public:
     virtual void Persist(const TPersistenceContext& context) override
     {
         TReduceControllerBase::Persist(context);
+    }
+
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        return STRINGBUF("data_size_per_job");
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {EJobType::JoinReduce};
     }
 
 private:
