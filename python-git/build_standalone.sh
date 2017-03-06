@@ -32,7 +32,7 @@ prepare_dir "$INSTALL_DIR"
 
 cd "$BUILD_DIR"
 
-"$PYTHON_SOURCE_TREE_ROOT/configure" --enable-unicode=ucs4 --prefix="$INSTALL_DIR" CFLAGS="-O2 -g -DNDEBUG"
+"$PYTHON_SOURCE_TREE_ROOT/configure" --enable-unicode=ucs4 --prefix="$INSTALL_DIR" CFLAGS="-O2 -g -DNDEBUG -DCOUNT_ALLOCS"
 make -j $(grep -c ^processor /proc/cpuinfo) && make install
 
 cd "$CURRENT_DIR"
@@ -69,6 +69,7 @@ unset PYTHONHOME
 
 # Building package
 cp standalone-package/Makefile .
+cp standalone-package/activate "$INSTALL_DIR/bin"
 PACKAGE="$PACKAGE" PYTHON_INSTALLDIR="$INSTALL_DIR" dpkg-buildpackage -b
 
 cleanup
