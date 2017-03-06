@@ -57,6 +57,19 @@ class TestSchedulerSortCommands(YTEnvSetup):
                  sort_by="key",
                  spec={"merge_job_io" : {"table_writer" : {"max_key_weight" : 2}}})
 
+    def test_foreign(self):
+        v1 = {"key" : "aaa"}
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [v1])
+
+        create("table", "//tmp/t_out")
+
+        with pytest.raises(YtError):
+            sort(in_="<foreign=true>//tmp/t_in",
+                 out="//tmp/t_out",
+                 sort_by="key")
+
     def test_large_values(self):
         a = "".join(["a"] * 10 * 1024)
         b = "".join(["b"] * 100 * 1024)

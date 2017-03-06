@@ -1308,6 +1308,8 @@ void TOperationControllerBase::SafePrepare()
 {
     YCHECK(!(Config->EnableFailControllerSpecOption && Spec->FailController));
 
+    PrepareInputTables();
+
     // Process input tables.
     {
         LockInputTables();
@@ -2411,6 +2413,11 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     completedJob->SourceTask->OnJobLost(completedJob);
     AddTaskPendingHint(completedJob->SourceTask);
     return true;
+}
+
+bool TOperationControllerBase::AreForeignTablesSupported() const
+{
+    return false;
 }
 
 bool TOperationControllerBase::IsOutputLivePreviewSupported() const
@@ -3621,6 +3628,18 @@ void TOperationControllerBase::GetOutputTablesSchema()
             CoreTable->TableUploadOptions.SchemaMode = ETableSchemaMode::Strong;
             if (CoreTable->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
                 THROW_ERROR_EXCEPTION("Cannot write core table in append mode.");
+            }
+        }
+    }
+}
+
+void TOperationControllerBase::PrepareInputTables()
+{
+    if (!AreForeignTablesSupported()) {
+        for (const auto& table : InputTables) {
+            if (table.IsForeign()) {
+                THROW_ERROR_EXCEPTION("Foreign tables are not supported in %lv operation", OperationType)
+                    << TErrorAttribute("foreign_table", table.GetPath());
             }
         }
     }
