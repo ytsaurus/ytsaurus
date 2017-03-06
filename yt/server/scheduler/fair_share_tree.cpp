@@ -82,7 +82,7 @@ TSchedulerElementFixedState::TSchedulerElementFixedState(
     , MaxPossibleResourceUsage_(ZeroJobResources())
     , Host_(host)
     , StrategyConfig_(strategyConfig)
-    , TotalResourceLimits_(host->GetTotalResourceLimits())
+    , TotalResourceLimits_(host->GetMainNodesResourceLimits())
 { }
 
 ////////////////////////////////////////////////////////////////////
@@ -144,7 +144,7 @@ void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributes
 {
     YCHECK(!Cloned_);
 
-    TotalResourceLimits_ = GetHost()->GetTotalResourceLimits();
+    TotalResourceLimits_ = GetHost()->GetMainNodesResourceLimits();
     UpdateAttributes();
     dynamicAttributesList[GetTreeIndex()].Active = true;
     UpdateDynamicAttributes(dynamicAttributesList);

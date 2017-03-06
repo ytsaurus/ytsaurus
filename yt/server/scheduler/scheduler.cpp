@@ -121,6 +121,7 @@ public:
         , StatisticsAnalyzerThreadPool_(New<TThreadPool>(Config_->StatisticsAnalyzerThreadCount, "Statistics"))
         , MasterConnector_(new TMasterConnector(Config_, Bootstrap_))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
+        , MainNodesResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/main_nodes_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
         , TotalFailedJobTimeCounter_("/total_failed_job_time")
@@ -774,6 +775,13 @@ public:
         return totalResourceLimits;
     }
 
+    virtual TJobResources GetMainNodesResourceLimits() override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return GetResourceLimits(Config_->MainNodesFilter);
+    }
+
     TJobResources GetTotalResourceUsage()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1001,6 +1009,7 @@ private:
     mutable yhash_map<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
 
     TProfiler TotalResourceLimitsProfiler_;
+    TProfiler MainNodesResourceLimitsProfiler_;
     TProfiler TotalResourceUsageProfiler_;
 
     TSimpleCounter TotalCompletedJobTimeCounter_;
@@ -1212,6 +1221,7 @@ private:
         Profiler.Enqueue("/total_node_count", GetTotalNodeCount(), EMetricType::Gauge);
 
         ProfileResources(TotalResourceLimitsProfiler_, GetTotalResourceLimits());
+        ProfileResources(MainNodesResourceLimitsProfiler_, GetMainNodesResourceLimits());
         ProfileResources(TotalResourceUsageProfiler_, GetTotalResourceUsage());
 
         {
@@ -1234,6 +1244,7 @@ private:
                 .Item("exec_node_count").Value(GetExecNodeCount())
                 .Item("total_node_count").Value(GetTotalNodeCount())
                 .Item("resource_limits").Value(GetTotalResourceLimits())
+                .Item("main_nodes_resource_limits").Value(GetMainNodesResourceLimits())
                 .Item("resource_usage").Value(GetTotalResourceUsage());
         }
     }
@@ -2254,6 +2265,7 @@ private:
                 .Item("connected").Value(MasterConnector_->IsConnected())
                 .Item("cell").BeginMap()
                     .Item("resource_limits").Value(GetTotalResourceLimits())
+                    .Item("main_nodes_resource_limits").Value(GetMainNodesResourceLimits())
                     .Item("resource_usage").Value(GetTotalResourceUsage())
                     .Item("exec_node_count").Value(GetExecNodeCount())
                     .Item("total_node_count").Value(GetTotalNodeCount())

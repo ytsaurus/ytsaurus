@@ -2442,3 +2442,40 @@ class TestMaxTotalSliceCount(YTEnvSetup):
                 out="//tmp/t_out",
                 join_by=["key"],
                 command="cat > /dev/null")
+
+class TestMainNodesFilter(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "main_nodes_filter": [{"include": ["internal"]}],
+        }
+    }
+
+    def test_main_nodes_resources_limits(self):
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 2
+        set("//sys/nodes/{0}/@user_tags".format(nodes[0]), ["internal"])
+
+        time.sleep(2)
+
+        assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots", 2)
+        assert get("//sys/scheduler/orchid/scheduler/cell/main_nodes_resource_limits/user_slots", 1)
+
+        create("table", "//tmp/input", attributes={"replication_factor": 1})
+        create("table", "//tmp/output", attributes={"replication_factor": 1})
+        write_table("//tmp/input", [{"foo": i} for i in xrange(2)])
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            command="sleep 10",
+            in_="//tmp/input",
+            out="//tmp/output",
+            spec={"data_size_per_job": 1})
+
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/running".format(op.id)) == 2
+        assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_ratio".format(op.id)), 1.0)
+        assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op.id)), 2.0)
+
