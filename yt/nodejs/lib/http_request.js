@@ -195,29 +195,28 @@ YtHttpRequest.prototype.fire = function()
         return req;
     }
 
-    var req;
+    var req = new Q.defer();
     var promise = new Q(function(resolve, reject) {
         if (self.noresolve) {
-            req = impl(self.host, resolve, reject);
-            return;
+            req.resolve(impl(self.host, resolve, reject));
         } else {
-            return _resolveIPv6(self.host).then(
+            _resolveIPv6(self.host).then(
                 function(addrs) {
                     if (addrs.length === 0) {
-                        throw new YtError(self.toString() + " has resolved " + self.host + " to empty host set");
+                        reject(new YtError(self.toString() + " has resolved " + self.host + " to empty host set"));
+                        req.resolve({abort: function(){}});
                     } else {
-                        req = impl(addrs[0], resolve, reject);
-                        return;
+                        req.resolve(impl(addrs[0], resolve, reject));
                     }
                 },
                 function(err6) {
                     return _resolveIPv4(self.host).then(
                         function(addrs) {
                             if (addrs.length === 0) {
-                                throw new YtError(self.toString() + " has resolved " + self.host + " to empty host set");
+                                reject(new YtError(self.toString() + " has resolved " + self.host + " to empty host set"));
+                                req.resolve({abort: function(){}});
                             } else {
-                                req = impl(addrs[0], resolve, reject);
-                                return;
+                                req.resolve(impl(addrs[0], resolve, reject));
                             }
                         },
                         function(err4) {
@@ -228,22 +227,17 @@ YtHttpRequest.prototype.fire = function()
                             if (err4) {
                                 error.withNested(err4);
                             }
-                            throw error;
+                            req.resolve({abort: function(){}});
+                            reject(error);
                         });
                 });
         }
     });
 
-    if (!req) {
-        throw new Error("req is null");
-    }
-
     var timeout = setTimeout(function() {
         if (promise.isPending()) {
             promise.reject(new YtError(self.toString() + " has timed out (hardly)"));
-            if (req.abort) {
-                req.abort();
-            }
+            req.promise.then(function(r) { r.abort(); });
         }
     }, self.timeout * 1.05);
 
