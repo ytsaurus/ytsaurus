@@ -753,7 +753,7 @@ Stroka MergeSpec(TNode& dst, const TOperationOptions& options)
     if (options.Spec_) {
         MergeNodes(dst["spec"], *options.Spec_);
     }
-    return NodeToYsonString(dst);
+    return NodeToYsonString(dst, YF_BINARY);
 }
 
 void CreateOutputTable(
