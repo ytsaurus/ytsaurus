@@ -17,6 +17,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/batch_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bind_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/blackbox_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/boolean_formula_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/boolean_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bus_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/callback_ut.cpp
@@ -116,6 +117,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/udf/invalid_ir.h
   ${CMAKE_CURRENT_LIST_DIR}/unordered_reader_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/url_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/wire_protocol_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/variant_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/varint_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/versioned_blocks_ut.cpp

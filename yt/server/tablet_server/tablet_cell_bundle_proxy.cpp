@@ -47,14 +47,12 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
-        const auto* cellBundle = GetThisImpl();
         attributes->push_back(TAttributeDescriptor("name")
             .SetReplicated(true));
         attributes->push_back(TAttributeDescriptor("options")
             .SetReplicated(true));
-        attributes->push_back(TAttributeDescriptor("node_tag")
-            .SetReplicated(true)
-            .SetPresent(cellBundle->GetNodeTag().HasValue()));
+        attributes->push_back(TAttributeDescriptor("node_tag_filter")
+            .SetReplicated(true));
         attributes->push_back("tablet_cell_count");
         attributes->push_back(TAttributeDescriptor("tablet_cell_ids")
             .SetOpaque(true));
@@ -78,9 +76,9 @@ private:
             return true;
         }
 
-        if (key == "node_tag" && cellBundle->GetNodeTag()) {
+        if (key == "node_tag_filter") {
             BuildYsonFluently(consumer)
-                .Value(*cellBundle->GetNodeTag());
+                .Value(cellBundle->NodeTagFilter().GetFormula());
             return true;
         }
 
@@ -124,25 +122,13 @@ private:
             return true;
         }
 
-        if (key == "node_tag") {
-            auto nodeTag = ConvertTo<Stroka>(value);
-            cellBundle->SetNodeTag(nodeTag);
+        if (key == "node_tag_filter") {
+            auto formula = ConvertTo<Stroka>(value);
+            cellBundle->NodeTagFilter() = MakeBooleanFormula(formula);
             return true;
         }
 
         return TBase::SetBuiltinAttribute(key, value);
-    }
-
-    virtual bool RemoveBuiltinAttribute(const Stroka& key) override
-    {
-        auto* cellBundle = GetThisImpl();
-
-        if (key == "node_tag") {
-            cellBundle->SetNodeTag(Null);
-            return true;
-        }
-
-        return TBase::RemoveBuiltinAttribute(key);
     }
 };
 

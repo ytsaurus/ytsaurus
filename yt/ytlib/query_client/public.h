@@ -120,6 +120,7 @@ using NTableClient::TTableSchema;
 using NTableClient::TColumnSchema;
 using NTableClient::TKeyColumns;
 using NTableClient::TColumnFilter;
+using NTableClient::TRowRange;
 
 using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
@@ -144,7 +145,6 @@ typedef NTableClient::TUnversionedOwningValue TOwningValue;
 typedef NTableClient::TOwningKey TOwningKey;
 
 typedef std::pair<TOwningKey, TOwningKey> TKeyRange;
-typedef std::pair<TRow, TRow> TRowRange;
 typedef std::pair<TMutableRow, TMutableRow> TMutableRowRange;
 typedef std::vector<TRowRange> TRowRanges;
 typedef std::vector<TMutableRowRange> TMutableRowRanges;

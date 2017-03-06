@@ -239,7 +239,7 @@ public:
         auto* transaction = map.Insert(transactionId, std::move(transactionHolder));
 
         if (IsLeader()) {
-            CreateLeases(transaction);
+            CreateLease(transaction);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %v, StartTime: %v, "
@@ -258,7 +258,7 @@ public:
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
             transaction->SetTransient(false);
             if (IsLeader()) {
-                CreateLeases(transaction);
+                CreateLease(transaction);
             }
             auto transactionHolder = TransientTransactionMap_.Release(transactionId);
             PersistentTransactionMap_.Insert(transactionId, std::move(transactionHolder));
@@ -280,7 +280,7 @@ public:
         YCHECK(transaction->GetTransient());
 
         if (IsLeader()) {
-            CloseLeases(transaction);
+            CloseLease(transaction);
         }
 
         auto transactionId = transaction->GetId();
@@ -403,7 +403,7 @@ public:
         }
 
         if (IsLeader()) {
-            CloseLeases(transaction);
+            CloseLease(transaction);
         }
 
         transaction->SetCommitTimestamp(commitTimestamp);
@@ -434,7 +434,7 @@ public:
         }
 
         if (IsLeader()) {
-            CloseLeases(transaction);
+            CloseLease(transaction);
         }
 
         transaction->SetState(ETransactionState::Aborted);
@@ -532,9 +532,9 @@ private:
             .EndMap();
     }
 
-    void CreateLeases(TTransaction* transaction)
+    void CreateLease(TTransaction* transaction)
     {
-        if (transaction->GetHasLeases()) {
+        if (transaction->GetHasLease()) {
             return;
         }
 
@@ -546,29 +546,18 @@ private:
             transaction->GetTimeout(),
             BIND(&TImpl::OnTransactionExpired, MakeStrong(this))
                 .Via(invoker));
-
-        auto startInstants = TimestampToInstant(transaction->GetStartTimestamp());
-        auto deadline = startInstants.first + Config_->MaxTransactionDuration;
-
-        transaction->TimeoutCookie() = TDelayedExecutor::Submit(
-            BIND(&TImpl::OnTransactionTimedOut, MakeStrong(this), transaction->GetId())
-                .Via(invoker),
-            deadline);
-
-        transaction->SetHasLeases(true);
+        transaction->SetHasLease(true);
     }
 
-    void CloseLeases(TTransaction* transaction)
+    void CloseLease(TTransaction* transaction)
     {
-        if (!transaction->GetHasLeases()) {
+        if (!transaction->GetHasLease()) {
             return;
         }
 
         LeaseTracker_->UnregisterTransaction(transaction->GetId());
 
-        TDelayedExecutor::CancelAndClear(transaction->TimeoutCookie());
-
-        transaction->SetHasLeases(false);
+        transaction->SetHasLease(false);
     }
 
 
@@ -656,7 +645,7 @@ private:
             if (transaction->GetState() == ETransactionState::Active ||
                 transaction->GetState() == ETransactionState::PersistentCommitPrepared)
             {
-                CreateLeases(transaction);
+                CreateLease(transaction);
             }
         }
 
@@ -703,7 +692,7 @@ private:
             transaction->SetTransientSignature(transaction->GetPersistentSignature());
             transaction->ResetFinished();
             TransactionTransientReset_.Fire(transaction);
-            CloseLeases(transaction);
+            CloseLease(transaction);
         }
 
         LeaseTracker_->Stop();

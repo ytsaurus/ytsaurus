@@ -26,7 +26,7 @@ void TTabletCellBundle::Save(TSaveContext& context) const
     Save(context, Name_);
     Save(context, Acd_);
     Save(context, *Options_);
-    Save(context, NodeTag_);
+    Save(context, NodeTagFilter_);
     Save(context, TabletCells_);
 }
 
@@ -43,7 +43,14 @@ void TTabletCellBundle::Load(TLoadContext& context)
     Load(context, *Options_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 400) {
-        Load(context, NodeTag_);
+        // COMPAT(savrus)
+        if (context.GetVersion() >= 507) {
+            Load(context, NodeTagFilter_);
+        } else {
+            if (auto filter = Load<TNullable<Stroka>>(context)) {
+                NodeTagFilter_ = MakeBooleanFormula(*filter);
+            }
+        }
     }
     // COMAPT(babenko)
     if (context.GetVersion() >= 400) {

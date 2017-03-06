@@ -62,7 +62,7 @@ public:
 
     bool IsConnected() const;
 
-    TFuture<void> CreateOperationNode(TOperationPtr operation);
+    TFuture<void> CreateOperationNode(TOperationPtr operation, const TOperationControllerInitializeResult& initializeResult);
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation);
     TFuture<void> FlushOperationNode(TOperationPtr operation);
 
@@ -71,8 +71,7 @@ public:
 
     void CreateJobNode(const TCreateJobNodeRequest& createJobNodeRequest);
 
-    void RegisterAlert(EAlertType alertType, const TError& alert);
-    void UnregisterAlert(EAlertType alertType);
+    void SetSchedulerAlert(EAlertType alertType, const TError& alert);
 
     void AttachJobContext(
         const NYPath::TYPath& path,

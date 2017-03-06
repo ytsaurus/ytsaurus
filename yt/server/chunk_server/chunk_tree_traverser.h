@@ -57,7 +57,8 @@ DEFINE_REFCOUNTED_TYPE(IChunkTraverserCallbacks)
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkTraverserCallbacksPtr CreatePreemptableChunkTraverserCallbacks(
-    NCellMaster::TBootstrap* bootstrap);
+    NCellMaster::TBootstrap* bootstrap,
+    NCellMaster::EAutomatonThreadQueue threadQueue);
 
 IChunkTraverserCallbacksPtr GetNonpreemptableChunkTraverserCallbacks();
 

@@ -41,6 +41,7 @@ using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
 
 using NChunkClient::TReadLimit;
+using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -261,13 +262,16 @@ public:
         }
 
         Finished_ = !DoRead(rows);
+        RowCount_ += rows->size();
 
         return true;
     }
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    virtual TDataStatistics GetDataStatistics() const override
     {
-        Y_UNREACHABLE();
+        TDataStatistics dataStatistics;
+        dataStatistics.set_row_count(RowCount_);
+        return dataStatistics;
     }
 
     virtual bool IsFetchingCompleted() const override
@@ -285,6 +289,8 @@ protected:
     const TTimestamp Timestamp_;
 
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
+
+    ui64 RowCount_ = 0;
 
     //! Returns |false| on EOF.
     virtual bool DoRead(std::vector<TVersionedRow>* rows) = 0;
@@ -624,44 +630,65 @@ class TSimpleCacheBasedVersionedRangeChunkReader
 public:
     TSimpleCacheBasedVersionedRangeChunkReader(
         const TCacheBasedChunkStatePtr& chunkState,
-        TOwningKey lowerBound,
-        TOwningKey upperBound,
+        TSharedRange<TRowRange> ranges,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp)
         : TCacheBasedVersionedChunkReaderBase<TBlockReader>(chunkState, columnFilter, timestamp)
-        , LowerBound_(std::move(lowerBound))
-        , UpperBound_(std::move(upperBound))
+        , Ranges_(std::move(ranges))
     { }
 
 private:
-    const TOwningKey LowerBound_;
-    const TOwningKey UpperBound_;
+    TKey LowerBound_;
+    TKey UpperBound_;
+
+    TSharedRange<TRowRange> Ranges_;
+    size_t RangeIndex_ = 0;
+
+    bool UpdateLimits()
+    {
+        if (RangeIndex_ >= Ranges_.Size()) {
+            return false;
+        }
+        LowerBound_ = Ranges_[RangeIndex_].first;
+        UpperBound_ = Ranges_[RangeIndex_].second;
+        ++RangeIndex_;
+
+        // First read, not initialized yet.
+        if (LowerBound_ > this->ChunkState_->ChunkMeta->MaxKey()) {
+            return false;
+        }
+
+        auto newBlockIndex = this->GetBlockIndex(LowerBound_);
+        if (newBlockIndex != BlockIndex_) {
+            BlockIndex_ = newBlockIndex;
+            UpdateBlockReader();
+        }
+
+        if (!BlockReader_->SkipToKey(LowerBound_)) {
+            return false;
+        }
+
+        return true;
+    }
 
     int BlockIndex_ = -1;
     std::unique_ptr<TBlockReader> BlockReader_;
     bool UpperBoundCheckNeeded_ = false;
+    bool NeedLimitUpdate_ = true;
 
     virtual bool DoRead(std::vector<TVersionedRow>* rows) override
     {
-        if (BlockIndex_ < 0) {
-            // First read, not initialized yet.
-            if (this->LowerBound_ > this->ChunkState_->ChunkMeta->MaxKey()) {
-                return false;
-            }
-
-            BlockIndex_ = this->GetBlockIndex(this->LowerBound_);
-            UpdateBlockReader();
-
-            if (!BlockReader_->SkipToKey(this->LowerBound_)) {
+        if (NeedLimitUpdate_) {
+            if (UpdateLimits()) {
+                NeedLimitUpdate_ = false;
+            } else {
                 return false;
             }
         }
 
-        bool finished = false;
-
         while (rows->size() < rows->capacity()) {
-            if (this->UpperBoundCheckNeeded_ && BlockReader_->GetKey() >= this->UpperBound_.Get()) {
-                finished = true;
+            if (UpperBoundCheckNeeded_ && BlockReader_->GetKey() >= UpperBound_) {
+                NeedLimitUpdate_ = true;
                 break;
             }
 
@@ -674,7 +701,7 @@ private:
                 // End-of-block.
                 if (++BlockIndex_ >= this->ChunkState_->ChunkMeta->BlockMeta().blocks_size()) {
                     // End-of-chunk.
-                    finished = true;
+                    NeedLimitUpdate_ = true;
                     break;
                 }
                 UpdateBlockReader();
@@ -683,7 +710,7 @@ private:
 
         this->ChunkState_->PerformanceCounters->StaticChunkRowReadCount += rows->size();
 
-        return !finished;
+        return true;
     }
 
     void UpdateBlockReader()
@@ -700,11 +727,11 @@ private:
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     const TCacheBasedChunkStatePtr& chunkState,
-    TOwningKey lowerBound,
-    TOwningKey upperBound,
+    TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp)
 {
+
     switch (chunkState->ChunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::SchemalessHorizontal: {
             auto chunkTimestamp = static_cast<TTimestamp>(chunkState->ChunkMeta->Misc().min_timestamp());
@@ -714,8 +741,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
 
             return New<TSimpleCacheBasedVersionedRangeChunkReader<THorizontalSchemalessVersionedBlockReader>>(
                 chunkState,
-                std::move(lowerBound),
-                std::move(upperBound),
+                std::move(ranges),
                 columnFilter,
                 chunkTimestamp);
         }
@@ -723,8 +749,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
         case ETableChunkFormat::VersionedSimple:
             return New<TSimpleCacheBasedVersionedRangeChunkReader<TSimpleVersionedBlockReader>>(
                 chunkState,
-                std::move(lowerBound),
-                std::move(upperBound),
+                std::move(ranges),
                 columnFilter,
                 timestamp);
 
@@ -739,8 +764,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 std::move(underlyingReader),
                 chunkState->PreloadedBlockCache,
                 chunkState->ChunkMeta,
-                std::move(lowerBound),
-                std::move(upperBound),
+                std::move(ranges),
                 columnFilter,
                 chunkState->PerformanceCounters,
                 timestamp);

@@ -347,11 +347,14 @@ class YTEnvSetup(object):
                          for c in yt_commands.ls("//sys/tablet_cells", attributes=["health"], driver=driver)))
 
     def sync_create_cells(self, cell_count, tablet_cell_bundle="default", driver=None):
+        cell_ids = []
         for _ in xrange(cell_count):
-            yt_commands.create_tablet_cell(attributes={
+            cell_id = yt_commands.create_tablet_cell(attributes={
                 "tablet_cell_bundle": tablet_cell_bundle
             }, driver=driver)
+            cell_ids.append(cell_id)
         self.wait_for_cells(driver=driver)
+        return cell_ids
 
     def wait_for_tablet_state(self, path, states, driver=None):
         print "Waiting for tablets to become %s..." % ", ".join(str(state) for state in states)

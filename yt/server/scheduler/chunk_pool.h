@@ -135,7 +135,7 @@ struct IChunkPoolOutput
 
     virtual void Completed(TCookie cookie, const TCompletedJobSummary& jobSummary) = 0;
     virtual void Failed(TCookie cookie) = 0;
-    virtual void Aborted(TCookie cookie) = 0;
+    virtual void Aborted(TCookie cookie, EAbortReason reason) = 0;
     virtual void Lost(TCookie cookie) = 0;
 };
 

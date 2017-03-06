@@ -183,8 +183,7 @@ TInputChunkSlice::TInputChunkSlice(
 {
     LowerLimit_.RowIndex = lowerRowIndex;
     UpperLimit_.RowIndex = upperRowIndex;
-    SetRowCount(upperRowIndex - lowerRowIndex);
-    SetDataSize(dataSize);
+    OverrideSize(upperRowIndex - lowerRowIndex, dataSize);
 }
 
 TInputChunkSlice::TInputChunkSlice(
@@ -206,8 +205,7 @@ TInputChunkSlice::TInputChunkSlice(
     }
     UpperLimit_.MergeUpperRowIndex(upperRowIndex);
 
-    SetRowCount(*UpperLimit_.RowIndex - *LowerLimit_.RowIndex);
-    SetDataSize(dataSize);
+    OverrideSize(*UpperLimit_.RowIndex - *LowerLimit_.RowIndex, dataSize);
 }
 
 TInputChunkSlice::TInputChunkSlice(
@@ -220,11 +218,9 @@ TInputChunkSlice::TInputChunkSlice(
     UpperLimit_.MergeUpperLimit(TInputSliceLimit(protoChunkSlice.upper_limit(), rowBuffer));
     PartIndex_ = DefaultPartIndex;
 
-    if (protoChunkSlice.has_row_count_override()) {
-        SetRowCount(protoChunkSlice.row_count_override());
-    }
-    if (protoChunkSlice.has_uncompressed_data_size_override()) {
-        SetDataSize(protoChunkSlice.uncompressed_data_size_override());
+    if (protoChunkSlice.has_row_count_override() || protoChunkSlice.has_uncompressed_data_size_override()) {
+        YCHECK((protoChunkSlice.has_row_count_override() && protoChunkSlice.has_uncompressed_data_size_override()));
+        OverrideSize(protoChunkSlice.row_count_override(), protoChunkSlice.uncompressed_data_size_override());
     }
 }
 
@@ -238,11 +234,9 @@ TInputChunkSlice::TInputChunkSlice(
     UpperLimit_.MergeUpperLimit(TInputSliceLimit(protoChunkSpec.upper_limit(), rowBuffer));
     PartIndex_ = DefaultPartIndex;
 
-    if (protoChunkSpec.has_row_count_override()) {
-        SetRowCount(protoChunkSpec.row_count_override());
-    }
-    if (protoChunkSpec.has_uncompressed_data_size_override()) {
-        SetDataSize(protoChunkSpec.uncompressed_data_size_override());
+    if (protoChunkSpec.has_row_count_override() || protoChunkSpec.has_uncompressed_data_size_override()) {
+        YCHECK((protoChunkSpec.has_row_count_override() && protoChunkSpec.has_uncompressed_data_size_override()));
+        OverrideSize(protoChunkSpec.row_count_override(), protoChunkSpec.uncompressed_data_size_override());
     }
 }
 
@@ -252,7 +246,7 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataSize
     YCHECK(sliceRowCount > 0);
 
     i64 lowerRowIndex = LowerLimit_.RowIndex.Get(0);
-    i64 upperRowIndex = UpperLimit_.RowIndex.Get(GetRowCount());
+    i64 upperRowIndex = UpperLimit_.RowIndex.Get(InputChunk_->GetRowCount());
 
     i64 rowCount = upperRowIndex - lowerRowIndex;
 
@@ -311,23 +305,18 @@ bool TInputChunkSlice::GetSizeOverridden() const
 
 i64 TInputChunkSlice::GetDataSize() const
 {
-    return DataSize_;
+    return SizeOverridden_ ? DataSize_ : InputChunk_->GetUncompressedDataSize();
 }
 
 i64 TInputChunkSlice::GetRowCount() const
 {
-    return RowCount_;
+    return SizeOverridden_ ? RowCount_ : InputChunk_->GetRowCount();
 }
 
-void TInputChunkSlice::SetDataSize(i64 dataSize)
-{
-    DataSize_ = dataSize;
-    SizeOverridden_ = true;
-}
-
-void TInputChunkSlice::SetRowCount(i64 rowCount)
+void TInputChunkSlice::OverrideSize(i64 rowCount, i64 dataSize)
 {
     RowCount_ = rowCount;
+    DataSize_ = dataSize;
     SizeOverridden_ = true;
 }
 
@@ -444,13 +433,8 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
         ToProto(chunkSpec->mutable_upper_limit(), inputSlice->UpperLimit());
     }
 
-    if (inputSlice->GetSizeOverridden()) {
-        chunkSpec->set_uncompressed_data_size_override(inputSlice->GetDataSize());
-        chunkSpec->set_row_count_override(inputSlice->GetRowCount());
-    } else {
-        chunkSpec->set_uncompressed_data_size_override(inputSlice->GetInputChunk()->GetUncompressedDataSize());
-        chunkSpec->set_row_count_override(inputSlice->GetInputChunk()->GetRowCount());
-    }
+    chunkSpec->set_uncompressed_data_size_override(inputSlice->GetDataSize());
+    chunkSpec->set_row_count_override(inputSlice->GetRowCount());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

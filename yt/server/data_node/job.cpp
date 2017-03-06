@@ -22,6 +22,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/ytlib/chunk_client/erasure_reader.h>
+#include <yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/ytlib/chunk_client/job.pb.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/replication_writer.h>
@@ -364,6 +365,15 @@ private:
         auto chunkStore = Bootstrap_->GetChunkStore();
         WaitFor(chunkStore->RemoveChunk(chunk))
             .ThrowOnError();
+
+        // Wait for the removal notification to be delivered to master.
+        // Cf. YT-6532.
+        // Once we switch from push replication to pull, this code is likely
+        // to appear in TReplicateChunkJob as well.
+        LOG_INFO("Waiting for heartbeat barrier");
+        const auto& masterConnector = Bootstrap_->GetMasterConnector();
+        WaitFor(masterConnector->GetHeartbeatBarrier(CellTagFromId(chunkId)))
+            .ThrowOnError();
     }
 };
 
@@ -605,8 +615,7 @@ private:
                 erasedPartIndexes,
                 readers,
                 writers,
-                Config_->RepairReader->WorkloadDescriptor,
-                onProgress);
+                Config_->RepairReader->WorkloadDescriptor);
 
             auto repairError = WaitFor(result);
             THROW_ERROR_EXCEPTION_IF_FAILED(repairError, "Error repairing chunk %v",

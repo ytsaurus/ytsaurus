@@ -43,6 +43,16 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     NChunkClient::IChunkReaderPtr chunkReader,
     NChunkClient::IBlockCachePtr blockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
+    TSharedRange<TRowRange> ranges,
+    const TColumnFilter& columnFilter,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
+    TTimestamp timestamp = SyncLastCommittedTimestamp);
+
+IVersionedReaderPtr CreateVersionedChunkReader(
+    TChunkReaderConfigPtr config,
+    NChunkClient::IChunkReaderPtr chunkReader,
+    NChunkClient::IBlockCachePtr blockCache,
+    TCachedVersionedChunkMetaPtr chunkMeta,
     TOwningKey lowerLimit,
     TOwningKey upperLimit,
     const TColumnFilter& columnFilter,

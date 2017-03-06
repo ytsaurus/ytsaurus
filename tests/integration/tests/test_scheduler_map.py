@@ -269,8 +269,8 @@ class TestJobProber(YTEnvSetup):
         op.track()
 
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/user_request".format(op.id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op.id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/scheduled/user_request".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/scheduled/other".format(op.id)) == 0
         assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
         # Can get two stderr here, either "User defined signal 1\nstderr\n" or "stderr\n"
@@ -520,8 +520,8 @@ class TestJobProber(YTEnvSetup):
 
         assert len(read_table("//tmp/t2")) == 5
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/user_request".format(op.id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op.id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/scheduled/user_request".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/scheduled/other".format(op.id)) == 0
         assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
 
         end_profiling = self.get_job_count_profiling()
@@ -2245,6 +2245,28 @@ print row + table_index
                 in_="<timestamp=%s>//tmp/t" % generate_timestamp(),
                 out="//tmp/t_out",
                 command="cat")
+
+    def test_dynamic_table_input_data_statistics(self):
+        self.sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t")
+        create("table", "//tmp/t_out")
+
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        self.sync_unmount_table("//tmp/t")
+
+        op = map(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            command="cat")
+
+        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+        print statistics
+        assert get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum") == 1
+        assert get_statistics(statistics, "data.input.row_count.$.completed.map.sum") == 2
+        assert get_statistics(statistics, "data.input.uncompressed_data_size.$.completed.map.sum") > 0
+        assert get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum") > 0
 
     def test_pipe_statistics(self):
         create("table", "//tmp/t_input")

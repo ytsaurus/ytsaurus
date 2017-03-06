@@ -324,6 +324,11 @@ int TOperationControllerBase::TTask::GetTotalJobCountDelta()
     return newValue - oldValue;
 }
 
+TNullable<i64> TOperationControllerBase::TTask::GetMaximumUsedTmpfsSize() const
+{
+    return MaximumUsedTmfpsSize;
+}
+
 const TProgressCounter& TOperationControllerBase::TTask::GetJobCounter() const
 {
     return GetChunkPoolOutput()->GetJobCounter();
@@ -457,7 +462,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
             FormatResources(jobLimits),
             FormatResources(neededResources));
         CheckResourceDemandSanity(nodeResourceLimits, neededResources);
-        chunkPoolOutput->Aborted(joblet->OutputCookie);
+        chunkPoolOutput->Aborted(joblet->OutputCookie, EAbortReason::SchedulingOther);
         // Seems like cached min needed resources are too optimistic.
         ResetCachedMinNeededResources();
         scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
@@ -560,7 +565,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
     Controller->CustomizeJoblet(joblet);
 
     Controller->RegisterJoblet(joblet);
-    Controller->UpdateEstimatedHistogram(joblet);
+    Controller->AddValueToEstimatedHistogram(joblet);
 
     OnJobStarted(joblet);
 }
@@ -656,58 +661,49 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
 
     Controller->RegisterStderr(joblet, jobSummary);
     Controller->RegisterCores(joblet, jobSummary);
+
+    UpdateMaximumUsedTmpfsSize(jobSummary.Statistics);
 }
 
-void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason)
+void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie)
 {
-    Controller->UpdateEstimatedHistogram(joblet, reason);
+    Controller->RemoveValueFromEstimatedHistogram(joblet);
     Controller->ReleaseChunkLists(joblet->ChunkListIds);
-    if (reason != EJobReinstallReason::Failed) {
-        if (joblet->StderrTableChunkListId) {
-            Controller->ReleaseChunkLists({joblet->StderrTableChunkListId});
-        }
-        if (joblet->CoreTableChunkListId) {
-            Controller->ReleaseChunkLists({joblet->CoreTableChunkListId});
-        }
-    }
-
-    auto* chunkPoolOutput = GetChunkPoolOutput();
 
     auto list = HasInputLocality()
-        ? chunkPoolOutput->GetStripeList(joblet->OutputCookie)
+        ? GetChunkPoolOutput()->GetStripeList(joblet->OutputCookie)
         : nullptr;
 
-    switch (reason) {
-        case EJobReinstallReason::Failed:
-            chunkPoolOutput->Failed(joblet->OutputCookie);
-            break;
-        case EJobReinstallReason::Aborted:
-            chunkPoolOutput->Aborted(joblet->OutputCookie);
-            break;
-        default:
-            Y_UNREACHABLE();
-    }
+    releaseOutputCookie();
 
     if (HasInputLocality()) {
         for (const auto& stripe : list->Stripes) {
             Controller->AddTaskLocalityHint(this, stripe);
         }
     }
-
     AddPendingHint();
 }
 
 void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
 {
-    ReinstallJob(joblet, EJobReinstallReason::Failed);
-
     Controller->RegisterStderr(joblet, jobSummary);
     Controller->RegisterCores(joblet, jobSummary);
+
+    UpdateMaximumUsedTmpfsSize(jobSummary.Statistics);
+
+    ReinstallJob(joblet, BIND([=] {GetChunkPoolOutput()->Failed(joblet->OutputCookie);}));
 }
 
-void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& /* jobSummary */)
+void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary)
 {
-    ReinstallJob(joblet, EJobReinstallReason::Aborted);
+    if (joblet->StderrTableChunkListId) {
+        Controller->ReleaseChunkLists({joblet->StderrTableChunkListId});
+    }
+    if (joblet->CoreTableChunkListId) {
+        Controller->ReleaseChunkLists({joblet->CoreTableChunkListId});
+    }
+
+    ReinstallJob(joblet, BIND([=] {GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason);}));
 }
 
 void TOperationControllerBase::TTask::OnJobLost(TCompletedJobPtr completedJob)
@@ -958,6 +954,20 @@ TJobResources TOperationControllerBase::TTask::ApplyMemoryReserve(const TExtende
     return result;
 }
 
+void TOperationControllerBase::TTask::UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics) {
+    auto maxUsedTmpfsSize = FindNumericValue(
+        statistics,
+        "/user_job/max_tmpfs_size");
+
+    if (!maxUsedTmpfsSize) {
+        return;
+    }
+
+    if (!MaximumUsedTmfpsSize || *MaximumUsedTmfpsSize < *maxUsedTmpfsSize) {
+        MaximumUsedTmfpsSize = *maxUsedTmpfsSize;
+    }
+}
+
 void TOperationControllerBase::TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const
 {
     jobResources.SetFootprintMemory(GetFootprintMemorySize());
@@ -1072,7 +1082,6 @@ TOperationControllerBase::TOperationControllerBase(
     , AuthenticatedOutputMasterClient(AuthenticatedMasterClient)
     , Logger(OperationLogger)
     , CancelableContext(New<TCancelableContext>())
-    , CancelableControlInvoker(CancelableContext->CreateInvoker(Host->GetControlInvoker()))
     , Invoker(Host->CreateOperationControllerInvoker())
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
@@ -1092,6 +1101,10 @@ TOperationControllerBase::TOperationControllerBase(
         GetCancelableInvoker(),
         BIND(&TThis::CheckAvailableExecNodes, MakeWeak(this)),
         Config->AvailableExecNodesCheckPeriod))
+    , AnalyzeOperationProgressExecutor(New<TPeriodicExecutor>(
+        GetCancelableInvoker(),
+        BIND(&TThis::AnalyzeOperationProgess, MakeWeak(this)),
+        Config->OperationProgressAnalysisPeriod))
     , EventLogValueConsumer_(Host->CreateLogConsumer())
     , EventLogTableConsumer_(new TTableConsumer(EventLogValueConsumer_.get()))
     , CodicilData_(MakeOperationCodicilString(OperationId))
@@ -1225,6 +1238,15 @@ void TOperationControllerBase::Initialize()
         .ThrowOnError();
 
     LOG_INFO("Operation initialized");
+}
+
+TOperationControllerInitializeResult TOperationControllerBase::GetInitializeResult() const
+{
+    TOperationControllerInitializeResult result;
+    result.BriefSpec = BuildYsonStringFluently<EYsonType::MapFragment>()
+        .Do(BIND(&TOperationControllerBase::BuildBriefSpec, MakeStrong(this)))
+        .Finish();
+    return result;
 }
 
 void TOperationControllerBase::InitializeStructures()
@@ -1431,6 +1453,7 @@ void TOperationControllerBase::SafeMaterialize()
         CheckTimeLimitExecutor->Start();
         ProgressBuildExecutor_->Start();
         ExecNodesCheckExecutor->Start();
+        AnalyzeOperationProgressExecutor->Start();
 
         State = EControllerState::Running;
     } catch (const std::exception& ex) {
@@ -1481,11 +1504,12 @@ void TOperationControllerBase::Revive()
     ReinstallLivePreview();
 
     // To prevent operation failure on startup if available nodes are missing.
-    AvaialableNodesLastSeenTime_ = TInstant::Now();
+    AvaialableNodesLastSeenTime_ = NProfiling::GetCpuInstant();
 
     CheckTimeLimitExecutor->Start();
     ProgressBuildExecutor_->Start();
     ExecNodesCheckExecutor->Start();
+    AnalyzeOperationProgressExecutor->Start();
 
     State = EControllerState::Running;
 }
@@ -1732,34 +1756,39 @@ void TOperationControllerBase::DoLoadSnapshot(const TSharedRef& snapshot)
     LOG_INFO("Finished loading snapshot");
 }
 
+bool TOperationControllerBase::GetCommitting()
+{
+    const auto& client = Host->GetMasterClient();
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
+    auto path = GetOperationPath(OperationId) + "/@committing";
+    auto req = TYPathProxy::Exists(path);
+    auto rsp = WaitFor(proxy.Execute(req))
+        .ValueOrThrow();
+    return ConvertTo<bool>(rsp->value());
+}
+
+void TOperationControllerBase::SetCommitting()
+{
+    const auto& client = Host->GetMasterClient();
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
+    auto path = GetOperationPath(OperationId) + "/@committing";
+    auto req = TYPathProxy::Set(path);
+    req->set_value(ConvertToYsonString(true).GetData());
+    WaitFor(proxy.Execute(req))
+        .ThrowOnError();
+}
+
 void TOperationControllerBase::SafeCommit()
 {
     // XXX(babenko): hotfix for YT-4636
-    {
-        const auto& client = Host->GetMasterClient();
-
-        // NB: use root credentials.
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
-
-        auto path = GetOperationPath(OperationId) + "/@committing";
-
-        {
-            auto req = TYPathProxy::Exists(path);
-            auto rsp = WaitFor(proxy.Execute(req))
-                .ValueOrThrow();
-            if (ConvertTo<bool>(rsp->value())) {
-                THROW_ERROR_EXCEPTION("Operation is already committing");
-            }
-        }
-
-        {
-            auto req = TYPathProxy::Set(path);
-            req->set_value(ConvertToYsonString(true).GetData());
-            WaitFor(proxy.Execute(req))
-                .ThrowOnError();
-        }
+    if (GetCommitting()) {
+        THROW_ERROR_EXCEPTION("Operation is already committing");
     }
+    SetCommitting();
 
     TeleportOutputChunks();
     AttachOutputChunks(UpdatingTables);
@@ -2009,14 +2038,14 @@ void TOperationControllerBase::InitializeHistograms()
     }
 }
 
-void TOperationControllerBase::UpdateEstimatedHistogram(TJobletPtr joblet)
+void TOperationControllerBase::AddValueToEstimatedHistogram(TJobletPtr joblet)
 {
     if (EstimatedInputDataSizeHistogram_) {
         EstimatedInputDataSizeHistogram_->AddValue(joblet->InputStripeList->TotalDataSize);
     }
 }
 
-void TOperationControllerBase::UpdateEstimatedHistogram(TJobletPtr joblet, EJobReinstallReason reason)
+void TOperationControllerBase::RemoveValueFromEstimatedHistogram(TJobletPtr joblet)
 {
     if (EstimatedInputDataSizeHistogram_) {
         EstimatedInputDataSizeHistogram_->RemoveValue(joblet->InputStripeList->TotalDataSize);
@@ -2440,7 +2469,7 @@ bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
 
 void TOperationControllerBase::SafeAbort()
 {
-    LOG_INFO("Aborting operation");
+    LOG_INFO("Aborting operation controller");
 
     auto abortTransaction = [&] (ITransactionPtr transaction) {
         if (transaction) {
@@ -2451,22 +2480,25 @@ void TOperationControllerBase::SafeAbort()
 
     AreTransactionsActive = false;
 
-    try {
-        if (StderrTable && StderrTable->IsBeginUploadCompleted()) {
-            AttachOutputChunks({StderrTable.GetPtr()});
-            EndUploadOutputTables({StderrTable.GetPtr()});
-        }
+    // Skip commiting anything if operation controller already tried to commit results.
+    if (!GetCommitting()) {
+        try {
+            if (StderrTable && StderrTable->IsBeginUploadCompleted()) {
+                AttachOutputChunks({StderrTable.GetPtr()});
+                EndUploadOutputTables({StderrTable.GetPtr()});
+            }
 
-        if (CoreTable && CoreTable->IsBeginUploadCompleted()) {
-            AttachOutputChunks({CoreTable.GetPtr()});
-            EndUploadOutputTables({CoreTable.GetPtr()});
-        }
+            if (CoreTable && CoreTable->IsBeginUploadCompleted()) {
+                AttachOutputChunks({CoreTable.GetPtr()});
+                EndUploadOutputTables({CoreTable.GetPtr()});
+            }
 
-        CommitTransaction(DebugOutputTransaction);
-    } catch (const std::exception& ex) {
-        // Bad luck we can't commit transaction.
-        // Such a pity can happen for example if somebody aborted our transaction manualy.
-        LOG_ERROR(ex, "Failed to commit debug output transaction");
+            CommitTransaction(DebugOutputTransaction);
+        } catch (const std::exception& ex) {
+            // Bad luck we can't commit transaction.
+            // Such a pity can happen for example if somebody aborted our transaction manualy.
+            LOG_ERROR(ex, "Failed to commit debug output transaction");
+        }
     }
 
     abortTransaction(InputTransaction);
@@ -2478,7 +2510,7 @@ void TOperationControllerBase::SafeAbort()
 
     CancelableContext->Cancel();
 
-    LOG_INFO("Operation aborted");
+    LOG_INFO("Operation controller aborted");
 }
 
 void TOperationControllerBase::SafeForget()
@@ -2523,20 +2555,104 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
 
     if (GetExecNodeDescriptors().empty()) {
-        if (AvaialableNodesLastSeenTime_ + Spec->AvailableNodesMissingTimeout < TInstant::Now()) {
+        auto timeout = NProfiling::DurationToCpuDuration(Spec->AvailableNodesMissingTimeout);
+        if (AvaialableNodesLastSeenTime_ + timeout < NProfiling::GetCpuInstant()) {
             OnOperationFailed(TError("No online nodes match operation scheduling tag filter")
                 << TErrorAttribute("operation_id", OperationId)
                 << TErrorAttribute("scheduling_tag_filter", Spec->SchedulingTagFilter));
         }
     } else {
-        AvaialableNodesLastSeenTime_ = TInstant::Now();
+        AvaialableNodesLastSeenTime_ = NProfiling::GetCpuInstant();
     }
+}
+
+void TOperationControllerBase::AnalyzeTmpfsUsage()
+{
+    if (!Config->EnableTmpfs) {
+        return;
+    }
+
+    yhash_map<EJobType, i64> maximumUsedTmfpsSizePerJobType;
+    yhash_map<EJobType, TUserJobSpecPtr> userJobSpecPerJobType;
+
+    for (const auto& task : Tasks) {
+        const auto& userJobSpecPtr = task->GetUserJobSpec();
+        if (!userJobSpecPtr || !userJobSpecPtr->TmpfsPath || !userJobSpecPtr->TmpfsSize) {
+            continue;
+        }
+
+        auto maxUsedTmpfsSize = task->GetMaximumUsedTmpfsSize();
+        if (!maxUsedTmpfsSize) {
+            continue;
+        }
+
+        auto jobType = task->GetJobType();
+
+        auto it = maximumUsedTmfpsSizePerJobType.find(jobType);
+        if (it == maximumUsedTmfpsSizePerJobType.end()) {
+            maximumUsedTmfpsSizePerJobType[jobType] = *maxUsedTmpfsSize;
+        } else {
+            it->second = std::max(it->second, *maxUsedTmpfsSize);
+        }
+
+        userJobSpecPerJobType.insert(std::make_pair(jobType, userJobSpecPtr));
+    }
+
+    std::vector<TError> innerErrors;
+
+    double minUtilizedSpaceRatio = 1.0 - Config->TmpfsAlertMaxUnutilizedSpaceRatio;
+
+    for (const auto& pair : maximumUsedTmfpsSizePerJobType) {
+        const auto& userJobSpecPtr = userJobSpecPerJobType[pair.first];
+        auto maxUsedTmpfsSize = pair.second;
+
+        bool minUnutilizedSpaceThresholdOvercome = userJobSpecPtr->TmpfsSize.Get() - maxUsedTmpfsSize >
+            Config->TmpfsAlertMinUnutilizedSpaceThreshold;
+        bool minUtilizedSpaceRatioViolated = maxUsedTmpfsSize <
+            minUtilizedSpaceRatio * userJobSpecPtr->TmpfsSize.Get();
+
+        if (minUnutilizedSpaceThresholdOvercome && minUtilizedSpaceRatioViolated) {
+            auto error = TError("Jobs of type \"%Qlv\" utilize less than %.1f%% of requested tmpfs size",
+                                pair.first, minUtilizedSpaceRatio * 100.0);
+            innerErrors.push_back(error
+                << TErrorAttribute("max_used_tmpfs_size", maxUsedTmpfsSize)
+                << TErrorAttribute("tmpfs_size", *userJobSpecPtr->TmpfsSize));
+        }
+    }
+
+    TError error;
+    if (!innerErrors.empty()) {
+        error = TError("Operation has jobs that utilize less than %.1f%% of requested tmpfs size; "
+                       "consider specifying tmpfs size closer to actual utilization",
+                       minUtilizedSpaceRatio * 100.0)
+            << innerErrors;
+    }
+
+    Host->SetOperationAlert(
+        OperationId,
+        EOperationAlertType::UnusedTmpfsSpace,
+        error);
+}
+
+void TOperationControllerBase::AnalyzeOperationProgess()
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    AnalyzeTmpfsUsage();
 }
 
 TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContextPtr context,
     const TJobResources& jobLimits)
 {
+    if (Spec->TestingOperationOptions) {
+        if (Spec->TestingOperationOptions->SchedulingDelayType == ESchedulingDelayType::Async) {
+            WaitFor(TDelayedExecutor::MakeDelayed(Spec->TestingOperationOptions->SchedulingDelay));
+        } else {
+            Sleep(Spec->TestingOperationOptions->SchedulingDelay);
+        }
+    }
+
     // SafeScheduleJob must be synchronous; context switches are prohibited.
     TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
 
@@ -2734,10 +2850,6 @@ void TOperationControllerBase::DoScheduleJob(
     TScheduleJobResult* scheduleJobResult)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    if (Spec->TestingOperationOptions) {
-        Sleep(Spec->TestingOperationOptions->SchedulingDelay);
-    }
 
     if (!IsRunning()) {
         LOG_TRACE("Operation is not running, scheduling request ignored");
@@ -2981,13 +3093,6 @@ TCancelableContextPtr TOperationControllerBase::GetCancelableContext() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return CancelableContext;
-}
-
-IInvokerPtr TOperationControllerBase::GetCancelableControlInvoker() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return CancelableControlInvoker;
 }
 
 IInvokerPtr TOperationControllerBase::GetCancelableInvoker() const
@@ -4763,27 +4868,31 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
 
     for (const auto& dataSlice : stripe->DataSlices) {
         for (const auto& slice : dataSlice->ChunkSlices) {
-            auto chunkSpec = slice->GetInputChunk();
-            const auto& chunkId = chunkSpec->ChunkId();
+            auto inputChunk = slice->GetInputChunk();
+            const auto& chunkId = inputChunk->ChunkId();
+
+            if (!visitedChunks.insert(chunkId).second) {
+                continue;
+            }
 
             // Insert an empty TInputChunkDescriptor if a new chunkId is encountered.
             auto& chunkDescriptor = InputChunkMap[chunkId];
 
-            if (InputChunkSpecs.insert(chunkSpec).second) {
-                chunkDescriptor.InputChunks.push_back(chunkSpec);
+            if (InputChunkSpecs.insert(inputChunk).second) {
+                chunkDescriptor.InputChunks.push_back(inputChunk);
             }
 
-            if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
+            if (IsUnavailable(inputChunk, IsParityReplicasFetchEnabled())) {
+                // NB(psushin): there could be corner cases, where different input chunks
+                // corresponding to the same chunkId have different set of replicas.
+                // In this case, some stripes will be resumed more times than they were suspended.
                 chunkDescriptor.State = EInputChunkState::Waiting;
             }
 
-            if (visitedChunks.insert(chunkId).second) {
-                // If this is first slice with given chunkId in this stripe.
-                chunkDescriptor.InputStripes.push_back(stripeDescriptor);
+            chunkDescriptor.InputStripes.push_back(stripeDescriptor);
 
-                if (chunkDescriptor.State == EInputChunkState::Waiting) {
-                    ++stripe->WaitingChunkCount;
-                }
+            if (chunkDescriptor.State == EInputChunkState::Waiting) {
+                ++stripe->WaitingChunkCount;
             }
         }
     }
@@ -5617,6 +5726,11 @@ public:
         Underlying_->Initialize();
     }
 
+    virtual TOperationControllerInitializeResult GetInitializeResult() const override
+    {
+        return Underlying_->GetInitializeResult();
+    }
+
     virtual void InitializeReviving(TControllerTransactionsPtr controllerTransactions) override
     {
         Underlying_->InitializeReviving(controllerTransactions);
@@ -5670,11 +5784,6 @@ public:
     virtual TCancelableContextPtr GetCancelableContext() const override
     {
         return Underlying_->GetCancelableContext();
-    }
-
-    virtual IInvokerPtr GetCancelableControlInvoker() const override
-    {
-        return Underlying_->GetCancelableControlInvoker();
     }
 
     virtual IInvokerPtr GetCancelableInvoker() const override
@@ -5772,11 +5881,6 @@ public:
     virtual void BuildMemoryDigestStatistics(IYsonConsumer* consumer) const override
     {
         Underlying_->BuildMemoryDigestStatistics(consumer);
-    }
-
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
-    {
-        Underlying_->BuildBriefSpec(consumer);
     }
 
     virtual TYsonString BuildInputPathYson(const TJobId& jobId) const override

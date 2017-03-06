@@ -17,6 +17,7 @@ namespace NUnitTest {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NChunkClient;
+using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
 using NChunkClient::TDataSliceDescriptor;
@@ -72,8 +73,9 @@ public:
         TableSchema_ = ConvertTo<TTableSchema>(TYsonString(tableData.Schema));
         NameTable_ = New<TNameTable>();
         for (int i = 0; i < TableSchema_.GetColumnCount(); ++i) {
-            NameTable_->GetIdOrRegisterName(TableSchema_.Columns()[i].Name);
+            NameTable_->RegisterName(TableSchema_.Columns()[i].Name);
         }
+        NameTable_->RegisterName(TableIndexColumnName);
     }
 
     virtual TFuture<void> GetReadyEvent()
@@ -105,7 +107,7 @@ public:
         }
         Stroka tableIndexYson = Format("; \"@table_index\"=%d", InputTableIndex_);
         while (rows->size() < rows->capacity() && RowIndex_ < TableData_.Rows.size()) {
-            Rows_.emplace_back(YsonToRow(TableData_.Rows[RowIndex_] + tableIndexYson, TableSchema_, false));
+            Rows_.emplace_back(YsonToSchemafulRow(TableData_.Rows[RowIndex_] + tableIndexYson, TableSchema_, false));
             rows->emplace_back(Rows_.back());
             ++RowIndex_;
         }
@@ -188,6 +190,7 @@ protected:
             reader->Interrupt();
             interrupted = true;
         }
+        WaitFor(reader->GetReadyEvent());
         while (reader->Read(&rows)) {
             if (!rows.empty()) {
                 lastReadRow = ToString(rows.back());
@@ -197,13 +200,16 @@ protected:
                 reader->Interrupt();
                 interrupted = true;
             }
+            WaitFor(reader->GetReadyEvent());
         }
         reader->GetUnreadDataSliceDescriptors(NYT::TRange<TUnversionedRow>());
         EXPECT_EQ(readRowCount, expectedReadRowCount);
         EXPECT_EQ(lastReadRow, expectedLastReadRow);
         for (int primaryTableId = 0; primaryTableId < static_cast<int>(resultStorage->size()); ++primaryTableId) {
             EXPECT_EQ((*resultStorage)[primaryTableId].GetUnreadRowCount(), expectedResult[primaryTableId].first);
-            EXPECT_EQ((*resultStorage)[primaryTableId].GetFirstUnreadRow(), expectedResult[primaryTableId].second);
+            if ((*resultStorage)[primaryTableId].GetUnreadRowCount() != 0) {
+                EXPECT_EQ((*resultStorage)[primaryTableId].GetFirstUnreadRow(), expectedResult[primaryTableId].second);
+            }
         }
     }
 
@@ -215,10 +221,12 @@ protected:
         auto reader = createReader(resultStorage);
         std::vector<TUnversionedRow> rows;
         rows.reserve(1);
+        WaitFor(reader->GetReadyEvent());
         while (reader->Read(&rows)) {
             for (const auto& row : rows) {
                 result.emplace_back(ToString(row));
             }
+            WaitFor(reader->GetReadyEvent());
         }
         return result;
     }
@@ -230,7 +238,7 @@ const TTableData tableData0 {
     "<strict=%false>["
         "{name = c0; type = string; sort_order = ascending};"
         "{name = c1; type = int64; sort_order = ascending};"
-        "{name = c2; type = uint64}; ]",
+        "{name = c2; type = uint64; sort_order = ascending}; ]",
     {
         "c0=ab; c1=1; c2=21u",
         "c0=ab; c1=1; c2=22u",
@@ -245,7 +253,7 @@ const TTableData tableData1 {
     "<strict=%false>["
         "{name = c0; type = string; sort_order = ascending};"
         "{name = c1; type = int64; sort_order = ascending};"
-        "{name = c2; type = uint64}; ]",
+        "{name = c2; type = uint64; sort_order = ascending}; ]",
     {
         "c0=aa; c1=1; c2=1u",
         "c0=ab; c1=3; c2=3u",
@@ -262,7 +270,7 @@ const TTableData tableData1 {
 const TTableData tableData2 {
     "<strict=%false>["
         "{name = c0; type = string; sort_order = ascending};"
-        "{name = c1; type = int64; sort_order = ascending};"
+        "{name = c1; type = int64};"
         "{name = c2; type = uint64}; ]",
     {
         "c0=aa; c1=2; c2=2u",
@@ -287,7 +295,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedMergingReaderSingleTable)
         std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
         primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData0, 0, &(*resultStorage)[0]));
 
-        return CreateSchemalessSortedMergingReader(primaryReaders, 2);
+        return CreateSchemalessSortedMergingReader(primaryReaders, 2, 2);
     };
 
     std::vector<TResultStorage> resultStorage;
@@ -316,7 +324,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedMergingReaderMultipleTables)
         primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 0, &(*resultStorage)[0]));
         primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 1, &(*resultStorage)[1]));
 
-        return CreateSchemalessSortedMergingReader(primaryReaders, 2);
+        return CreateSchemalessSortedMergingReader(primaryReaders, 3, 2);
     };
 
     std::vector<TResultStorage> resultStorage;
@@ -352,7 +360,231 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedMergingReaderMultipleTables)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforePrimary)
+TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMultiplePrimary)
+{
+    auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
+        resultStorage->clear();
+        resultStorage->resize(2);
+        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
+        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData0, 1, &(*resultStorage)[0]));
+        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 2, &(*resultStorage)[1]));
+
+        std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
+        foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 0));
+
+        return CreateSchemalessSortedJoiningReader(primaryReaders, 3, 2, foreignReaders, 1);
+    };
+
+    // Expected sequence of rows:
+    // ["aa", 2, 2u, 0]
+    // ["aa", 1, 1u, 2]
+    // ["ab", 4, 4u, 0]
+    // ["ab", 1, 21u, 1]
+    // ["ab", 1, 22u, 1]
+    // ["ab", 3, 3u, 2]
+    // ["ac", 6, 6u, 0]
+    // ["ac", 5, 5u, 2]
+    // ["ba", 8, 8u, 0]
+    // ["ba", 7, 7u, 2]
+    // ["bb", 10, 10u, 0]
+    // ["bb", 2, 23u, 1]
+    // ["bb", 2, 24u, 1]
+    // ["bb", 9, 9u, 2]
+    // ["bc", 12, 12u, 0]
+    // ["bc", 11, 11u, 2]
+    // ["ca", 14, 14u, 0]
+    // ["ca", 13, 13u, 2]
+    // ["cb", 16, 16u, 0]
+    // ["cb", 3, 25u, 1]
+    // ["cb", 3, 26u, 1]
+    // ["cb", 15, 15u, 2]
+    // ["cc", 18, 18u, 0]
+    // ["cc", 17, 17u, 2]
+
+    std::vector<TResultStorage> resultStorage;
+    auto rows = ReadAll(createReader, &resultStorage);
+
+    int interruptRowCount = 3;
+    int rowsPerRead = 3;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        3,
+        rows[2],
+        {
+            {6, Stroka("[\"ab\", 1, 21u, 1]")},
+            {8, Stroka("[\"ab\", 3, 3u, 2]")},
+        });
+    interruptRowCount = 4;
+    rowsPerRead = 2;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        5,
+        rows[4],
+        {
+            {4, Stroka("[\"bb\", 2, 23u, 1]")},
+            {8, Stroka("[\"ab\", 3, 3u, 2]")},
+        });
+    interruptRowCount = 5;
+    rowsPerRead = 5;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        5,
+        rows[4],
+        {
+            {4, Stroka("[\"bb\", 2, 23u, 1]")},
+            {8, Stroka("[\"ab\", 3, 3u, 2]")},
+        });
+    interruptRowCount = 6;
+    rowsPerRead = 2;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        6,
+        rows[5],
+        {
+            {4, Stroka("[\"bb\", 2, 23u, 1]")},
+            {7, Stroka("[\"ac\", 5, 5u, 2]")},
+        });
+    interruptRowCount = 7;
+    rowsPerRead = 7;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        7,
+        rows[6],
+        {
+            {4, Stroka("[\"bb\", 2, 23u, 1]")},
+            {7, Stroka("[\"ac\", 5, 5u, 2]")},
+        });
+}
+
+TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBeforeForeign)
+{
+    auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
+        resultStorage->clear();
+        resultStorage->resize(2);
+        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
+        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData0, 0, &(*resultStorage)[0]));
+        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 1, &(*resultStorage)[1]));
+
+        std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
+        foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 2));
+
+        return CreateSchemalessSortedJoiningReader(primaryReaders, 3, 2, foreignReaders, 1);
+    };
+
+    // Expected sequence of rows:
+    // ["aa", 1, 1u, 1]
+    // ["aa", 2, 2u, 2]
+    // ["ab", 1, 21u, 0]
+    // ["ab", 1, 22u, 0]
+    // ["ab", 3, 3u, 1]
+    // ["ab", 4, 4u, 2]
+    // ["ac", 5, 5u, 1]
+    // ["ac", 6, 6u, 2]
+    // ["ba", 7, 7u, 1]
+    // ["ba", 8, 8u, 2]
+    // ["bb", 2, 23u, 0]
+    // ["bb", 2, 24u, 0]
+    // ["bb", 9, 9u, 1]
+    // ["bb", 10, 10u, 2]
+    // ["bc", 11, 11u, 1]
+    // ["bc", 12, 12u, 2]
+    // ["ca", 13, 13u, 1]
+    // ["ca", 14, 14u, 2]
+    // ["cb", 3, 25u, 0]
+    // ["cb", 3, 26u, 0]
+    // ["cb", 15, 15u, 1]
+    // ["cb", 16, 16u, 2]
+    // ["cc", 17, 17u, 1]
+    // ["cc", 18, 18u, 2]
+
+    std::vector<TResultStorage> resultStorage;
+    auto rows = ReadAll(createReader, &resultStorage);
+
+    int interruptRowCount = 3;
+    int rowsPerRead = 3;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        4,
+        rows[3],
+        {
+            {4, Stroka("[\"bb\", 2, 23u, 0]")},
+            {8, Stroka("[\"ab\", 3, 3u, 1]")},
+        });
+    interruptRowCount = 4;
+    rowsPerRead = 2;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        4,
+        rows[3],
+        {
+            {4, Stroka("[\"bb\", 2, 23u, 0]")},
+            {8, Stroka("[\"ab\", 3, 3u, 1]")},
+        });
+    interruptRowCount = 5;
+    rowsPerRead = 5;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        6,
+        rows[5],
+        {
+            {4, Stroka("[\"bb\", 2, 23u, 0]")},
+            {7, Stroka("[\"ac\", 5, 5u, 1]")},
+        });
+    interruptRowCount = 6;
+    rowsPerRead = 2;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        6,
+        rows[5],
+        {
+            {4, Stroka("[\"bb\", 2, 23u, 0]")},
+            {7, Stroka("[\"ac\", 5, 5u, 1]")},
+        });
+    interruptRowCount = 7;
+    rowsPerRead = 7;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        8,
+        rows[7],
+        {
+            {4, Stroka("[\"bb\", 2, 23u, 0]")},
+            {6, Stroka("[\"ba\", 7, 7u, 1]")},
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBeforePrimary)
 {
     auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
         resultStorage->clear();
@@ -364,7 +596,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforePrima
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 0));
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 1));
 
-        return CreateSchemalessSortedJoiningReader(primaryReaders, 2, foreignReaders, 1);
+        return CreateSchemalessSortedJoiningReader(primaryReaders, 3, 2, foreignReaders, 1);
     };
 
     // Expected sequence of rows:
@@ -446,7 +678,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforePrima
         });
 }
 
-TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeForeign)
+TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMultipleForeign)
 {
     auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
         resultStorage->clear();
@@ -458,7 +690,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeForei
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 1));
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 2));
 
-        return CreateSchemalessSortedJoiningReader(primaryReaders, 2, foreignReaders, 1);
+        return CreateSchemalessSortedJoiningReader(primaryReaders, 3, 2, foreignReaders, 1);
     };
 
     // Expected sequence of rows:
@@ -554,7 +786,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderForeignBeforeP
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 0));
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 1));
 
-        return CreateSchemalessJoinReduceJoiningReader(primaryReaders, 2, foreignReaders, 1);
+        return CreateSchemalessJoinReduceJoiningReader(primaryReaders, 1, 1, foreignReaders, 1);
     };
 
     // Expected sequence of rows:
@@ -648,7 +880,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderPrimaryBeforeF
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 1));
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 2));
 
-        return CreateSchemalessJoinReduceJoiningReader(primaryReaders, 2, foreignReaders, 1);
+        return CreateSchemalessJoinReduceJoiningReader(primaryReaders, 1, 1, foreignReaders, 1);
     };
 
     // Expected sequence of rows:
@@ -727,6 +959,73 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderPrimaryBeforeF
         rows[7],
         {
             {2, Stroka("[\"cb\", 3, 25u, 0]")},
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TTableData tableData3 {
+    "<strict=%false>["
+        "{name = c0; type = string; sort_order = ascending}; ]",
+    {
+        "c0=a; c1=3",
+        "c0=a; c1=3",
+        "c0=a; c1=3",
+        "c0=b; c1=3",
+        "c0=b; c1=3",
+        "c0=b; c1=3",
+    }
+};
+
+const TTableData tableData4 {
+    "<strict=%false>["
+        "{name = c0; type = string; sort_order = ascending}; ]",
+    {
+        "c0=a; c1=4",
+        "c0=b; c1=4",
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderCheckLastRows)
+{
+    auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
+        resultStorage->clear();
+        resultStorage->resize(1);
+        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
+        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData4, 1, &(*resultStorage)[0]));
+
+        std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
+        foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData3, 0));
+
+        return CreateSchemalessJoinReduceJoiningReader(primaryReaders, 1, 1, foreignReaders, 1);
+    };
+
+    // Expected sequence of rows:
+    // ["a", 3, 0]
+    // ["a", 3, 0]
+    // ["a", 3, 0]
+    // ["a", 4, 1]
+    // ["b", 3, 0]
+    // ["b", 3, 0]
+    // ["b", 3, 0]
+    // ["b", 4, 1]
+
+    std::vector<TResultStorage> resultStorage;
+    auto rows = ReadAll(createReader, &resultStorage);
+
+    int interruptRowCount = 8;
+    int rowsPerRead = 3;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        8,
+        rows[7],
+        {
+            {0, Stroka("")},
         });
 }
 
