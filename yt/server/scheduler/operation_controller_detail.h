@@ -32,7 +32,6 @@
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/value_consumer.h>
-#include <yt/ytlib/table_client/row_buffer.h>
 
 #include <yt/core/actions/cancelable_context.h>
 
@@ -296,9 +295,10 @@ protected:
     TSharedRef Snapshot;
 
     struct TRowBufferTag { };
-    const NTableClient::TRowBufferPtr RowBuffer = New<NTableClient::TRowBuffer>(TRowBufferTag());
+    const NTableClient::TRowBufferPtr RowBuffer;
 
     const NYTree::IMapNodePtr SecureVault;
+
     const std::vector<Stroka> Owners;
 
 
@@ -1183,7 +1183,7 @@ private:
     NYson::TYsonString BriefProgressString_;
 
     TSpinLock ProgressLock_;
-    NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
 
     void BuildAndSaveProgress();
 

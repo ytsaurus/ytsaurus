@@ -767,6 +767,9 @@ public:
     // Total number of data slices in operation, summed up over all jobs.
     i64 MaxTotalSliceCount;
 
+    // Chunk size in per-controller row buffers.
+    i64 ControllerRowBufferChunkSize;
+
     // Some special options for testing purposes.
     TTestingOptionsPtr TestingOptions;
 
@@ -1049,6 +1052,10 @@ public:
 
         RegisterParameter("max_total_slice_count", MaxTotalSliceCount)
             .Default((i64) 10 * 1000 * 1000)
+            .GreaterThan(0);
+
+        RegisterParameter("controller_row_buffer_chunk_size", ControllerRowBufferChunkSize)
+            .Default((i64) 64 * 1024)
             .GreaterThan(0);
 
         RegisterParameter("testing_options", TestingOptions)

@@ -34,6 +34,7 @@
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/table_consumer.h>
+#include <yt/ytlib/table_client/row_buffer.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
@@ -1078,6 +1079,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , JobCounter(0)
     , UserTransactionId(operation->GetUserTransaction() ? operation->GetUserTransaction()->GetId() : NullTransactionId)
+    , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , SecureVault(operation->GetSecureVault())
     , Owners(operation->GetOwners())
     , Spec(spec)
