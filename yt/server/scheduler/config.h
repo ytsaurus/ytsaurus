@@ -770,6 +770,10 @@ public:
     // Chunk size in per-controller row buffers.
     i64 ControllerRowBufferChunkSize;
 
+    // Filter of main nodes, used to calculate resource limits in fair share strategy.
+    TDnfFormula MainNodesFilterFormula;
+    TSchedulingTagFilter MainNodesFilter;
+
     // Some special options for testing purposes.
     TTestingOptionsPtr TestingOptions;
 
@@ -1058,6 +1062,9 @@ public:
             .Default((i64) 64 * 1024)
             .GreaterThan(0);
 
+        RegisterParameter("main_nodes_filter", MainNodesFilterFormula)
+            .Default();
+
         RegisterParameter("testing_options", TestingOptions)
             .DefaultNew();
 
@@ -1088,6 +1095,8 @@ public:
         UpdateOptions(&MapReduceOperationOptions, OperationOptions);
         UpdateOptions(&SortOperationOptions, OperationOptions);
         UpdateOptions(&RemoteCopyOperationOptions, OperationOptions);
+
+        MainNodesFilter.Reload(MainNodesFilterFormula);
     }
 
 private:

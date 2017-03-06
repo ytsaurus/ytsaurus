@@ -1232,7 +1232,7 @@ private:
         const auto& attributes = element->Attributes();
         auto dynamicAttributes = GetGlobalDynamicAttributes(element);
 
-        auto guaranteedResources = Host->GetTotalResourceLimits() * attributes.GuaranteedResourcesRatio;
+        auto guaranteedResources = Host->GetMainNodesResourceLimits() * attributes.GuaranteedResourcesRatio;
 
         BuildYsonMapFluently(consumer)
             .Item("scheduling_status").Value(element->GetStatus())
