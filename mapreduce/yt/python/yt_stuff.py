@@ -265,15 +265,11 @@ class YtStuff(object):
                 self.yt_proxy_port = int(info["proxy"]["address"].split(":")[1])
         except Exception, e:
             self._log("Failed to start local YT:\n%s", str(e))
-            pids_file = os.path.join(self.yt_work_dir, self.yt_id, "pids.txt")
-            if os.path.exists(pids_file):
-                with open(pids_file) as f:
-                    for line in f.readlines():
-                        if line.strip():
-                            try:
-                                os.kill(int(line), signal.SIGKILL)
-                            except OSError:
-                                pass
+            for pid in self.get_pids():
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass
             return False
         self.yt_wrapper.config["proxy"]["url"] = self.get_server()
         self.yt_wrapper.config["proxy"]["enable_proxy_discovery"] = False
@@ -282,6 +278,18 @@ class YtStuff(object):
         self.env["YT_PROXY"] = self.get_server()
         self._log("Local YT was started with id=%s", self.yt_id)
         return True
+
+    def get_pids(self):
+        pids_file = os.path.join(self.yt_work_dir, self.yt_id, "pids.txt")
+        pids = []
+        if os.path.exists(pids_file):
+            with open(pids_file) as f:
+                for line in f.readlines():
+                    try:
+                        pids.append(int(line))
+                    except ValueError:
+                        pass
+        return pids
 
     def get_yt_wrapper(self):
         return self.yt_wrapper
@@ -366,6 +374,7 @@ class YtStuff(object):
         if self.is_running:
             self.suspend_local_yt()
         self._save_logs(save_yt_all=yatest.common.get_param("yt_save_all_data"))
+        shutil.rmtree(self.yt_work_dir)
 
     @_timing
     def _save_logs(self, save_yt_all=None):
@@ -407,7 +416,19 @@ class YtStuff(object):
                     archive_path = "%s.tgz" % file_path
                     self._pack_tar(archive_path=archive_path, file_path=file_path)
                     os.remove(file_path)
-        shutil.rmtree(self.yt_work_dir)
+
+        cores_dir = os.path.join(yt_output_dir, "cores")
+        if not os.path.isdir(cores_dir):
+            os.mkdir(cores_dir)
+
+        for pid in self.get_pids():
+            core_file = yatest.common.cores.recover_core_dump_file(
+                os.path.join(self.yt_bins_path, 'ytserver'),
+                self.yt_work_dir,
+                pid
+            )
+            if core_file:
+                shutil.copy(core_file, cores_dir)
 
 
 @pytest.fixture(scope="module")
