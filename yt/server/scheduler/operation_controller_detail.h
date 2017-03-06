@@ -802,6 +802,7 @@ protected:
     void LockInputTables();
     void GetInputTablesAttributes();
     void GetOutputTablesSchema();
+    virtual void PrepareInputTables();
     virtual void PrepareOutputTables();
     void BeginUploadOutputTables();
     void GetOutputTablesUploadParams();
@@ -930,6 +931,7 @@ protected:
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
     virtual bool IsInputDataSizeHistogramSupported() const;
+    virtual bool AreForeignTablesSupported() const;
 
     //! Successfully terminate and finalize operation.
     /*!

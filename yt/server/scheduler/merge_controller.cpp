@@ -1087,7 +1087,6 @@ private:
                 path.SetRanges(std::vector<TReadRange>());
             }
         }
-
     }
 
     virtual void PrepareOutputTables() override
@@ -2273,6 +2272,11 @@ private:
             InputTables[chunkSpec->GetTableIndex()].Path.GetTeleport();
     }
 
+    virtual bool AreForeignTablesSupported() const override
+    {
+        return true;
+    }
+
     virtual void SortEndpoints() override
     {
         std::sort(
@@ -2628,6 +2632,11 @@ private:
     {
         // JoinReduce slices by row indexes.
         return false;
+    }
+
+    virtual bool AreForeignTablesSupported() const override
+    {
+        return true;
     }
 
     virtual EJobType GetJobType() const override
