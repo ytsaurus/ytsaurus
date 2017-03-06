@@ -1316,8 +1316,8 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
         // Build spec asynchronously.
         asyncResults.push_back(
             // NB: Hold the context strongly.
-            BIND([job, startInfo, rpcContext] () {
-                job->GetSpecBuilder()(startInfo->mutable_spec());
+            BIND([startInfo, rpcContext, specBuilder = job->GetSpecBuilder()] () {
+                specBuilder(startInfo->mutable_spec());
             })
             .AsyncVia(Host_->GetJobSpecBuilderInvoker())
             .Run());
