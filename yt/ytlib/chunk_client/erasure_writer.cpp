@@ -7,6 +7,7 @@
 #include "dispatcher.h"
 #include "replication_writer.h"
 #include "helpers.h"
+#include "erasure_helpers.h"
 #include "private.h"
 
 #include <yt/ytlib/api/client.h>
@@ -23,13 +24,17 @@
 
 #include <yt/core/erasure/codec.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
 namespace NYT {
 namespace NChunkClient {
 
+using namespace NErasure;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NChunkClient::NProto;
+using namespace NErasureHelpers;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -68,69 +73,42 @@ std::vector<std::vector<TSharedRef>> SplitBlocks(
 
 i64 RoundUp(i64 num, i64 mod)
 {
-    if (num % mod == 0) {
-        return num;
-    }
-    return num + mod - (num % mod);
+    return DivCeil(num, mod) * mod;
 }
 
-class TSlicer
+std::vector<i64> BlocksToSizes(const std::vector<TSharedRef>& blocks)
+{
+    std::vector<i64> sizes;
+    for (const auto& block : blocks) {
+        sizes.push_back(block.Size());
+    }
+    return sizes;
+}
+
+class TInMemoryBlocksReader
+    : public IBlocksReader
 {
 public:
-    explicit TSlicer(const std::vector<TSharedRef>& blocks)
+    TInMemoryBlocksReader(const std::vector<TSharedRef>& blocks)
         : Blocks_(blocks)
     { }
 
-    TSharedRef GetSlice(i64 start, i64 end) const
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
-        YCHECK(start >= 0);
-        YCHECK(start <= end);
-
-        TSharedMutableRef result;
-
-        i64 pos = 0;
-        i64 resultSize = end - start;
-
-        // We use lazy initialization.
-        auto initialize = [&] () {
-            if (!result) {
-                struct TErasureWriterSliceTag { };
-                result = TSharedMutableRef::Allocate<TErasureWriterSliceTag>(resultSize);
-            }
-        };
-
-        i64 currentStart = 0;
-
-        for (const auto& block : Blocks_) {
-            i64 innerStart = std::max(static_cast<i64>(0), start - currentStart);
-            i64 innerEnd = std::min(static_cast<i64>(block.Size()), end - currentStart);
-
-            if (innerStart < innerEnd) {
-                if (resultSize == innerEnd - innerStart) {
-                    return block.Slice(innerStart, innerEnd);
-                }
-
-                initialize();
-                std::copy(block.Begin() + innerStart, block.Begin() + innerEnd, result.Begin() + pos);
-
-                pos += (innerEnd - innerStart);
-            }
-            currentStart += block.Size();
-
-            if (pos == resultSize || currentStart >= end) {
-                break;
-            }
+        std::vector<TSharedRef> blocks;
+        for (int index = 0; index < blockIndexes.size(); ++index) {
+            int blockIndex = blockIndexes[index];
+            YCHECK(0 <= blockIndex && blockIndex < Blocks_.size());
+            blocks.push_back(Blocks_[blockIndex]);
         }
-
-        initialize();
-        return result;
+        return MakeFuture(blocks);
     }
 
 private:
-
-    // Mutable since we want to return subref of blocks.
-    mutable std::vector<TSharedRef> Blocks_;
+    const std::vector<TSharedRef>& Blocks_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TInMemoryBlocksReader)
 
 } // namespace
 
@@ -143,8 +121,8 @@ public:
     TErasureWriter(
         TErasureWriterConfigPtr config,
         const TChunkId& chunkId,
-        NErasure::ECodec codecId,
-        NErasure::ICodec* codec,
+        ECodec codecId,
+        ICodec* codec,
         const std::vector<IChunkWriterPtr>& writers)
         : Config_(config)
         , ChunkId_(chunkId)
@@ -173,18 +151,15 @@ public:
 
     virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override
     {
-        bool result = true;
         for (const auto& block : blocks) {
-            result = WriteBlock(block);
+            WriteBlock(block);
         }
-        return result;
+        return true;
     }
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        auto error = TPromise<void>();
-        error.Set(TError());
-        return error;
+        return MakeFuture(TError());
     }
 
     virtual const TChunkInfo& GetChunkInfo() const override
@@ -197,7 +172,7 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual NErasure::ECodec GetErasureCodecId() const override
+    virtual ECodec GetErasureCodecId() const override
     {
         return CodecId_;
     }
@@ -226,29 +201,10 @@ public:
     }
 
 private:
-    void PrepareBlocks();
-
-    void PrepareChunkMeta(const TChunkMeta& chunkMeta);
-
-    void DoOpen();
-
-    TFuture<void> WriteDataBlocks();
-
-    void EncodeAndWriteParityBlocks();
-
-    void WriteDataPart(IChunkWriterPtr writer, const std::vector<TSharedRef>& blocks);
-
-    TFuture<void> WriteParityBlocks(const std::vector<TSharedRef>& blocks);
-
-    TFuture<void> CloseParityWriters();
-
-    void OnClosed();
-
-
     const TErasureWriterConfigPtr Config_;
     const TChunkId ChunkId_;
-    const NErasure::ECodec CodecId_;
-    NErasure::ICodec* const Codec_;
+    const ECodec CodecId_;
+    ICodec* const Codec_;
 
     bool IsOpen_ = false;
 
@@ -258,9 +214,7 @@ private:
     // Information about blocks, necessary to write blocks
     // and encode parity parts
     std::vector<std::vector<TSharedRef>> Groups_;
-    std::vector<TSlicer> Slicers_;
-    i64 ParityDataSize_;
-    int WindowCount_;
+    TParityPartSplitInfo ParityPartSplitInfo_;
 
     // Chunk meta with information about block placement
     TChunkMeta ChunkMeta_;
@@ -268,6 +222,19 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 
+    void PrepareBlocks();
+
+    void PrepareChunkMeta(const TChunkMeta& chunkMeta);
+
+    void DoOpen();
+
+    TFuture<void> WriteDataBlocks();
+
+    void WriteDataPart(IChunkWriterPtr writer, const std::vector<TSharedRef>& blocks);
+
+    void EncodeAndWriteParityBlocks();
+
+    void OnClosed();
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -276,29 +243,17 @@ void TErasureWriter::PrepareBlocks()
 {
     Groups_ = SplitBlocks(Blocks_, Codec_->GetDataPartCount());
 
-    YCHECK(Slicers_.empty());
-
-    // Calculate size of parity blocks and form slicers
-    ParityDataSize_ = 0;
+    i64 partSize = 0;
     for (const auto& group : Groups_) {
         i64 size = 0;
-        i64 maxBlockSize = 0;
         for (const auto& block : group) {
             size += block.Size();
-            maxBlockSize = std::max(maxBlockSize, (i64)block.Size());
         }
-        ParityDataSize_ = std::max(ParityDataSize_, size);
-
-        Slicers_.push_back(TSlicer(group));
+        partSize = std::max(partSize, size);
     }
+    partSize = RoundUp(partSize, Codec_->GetWordSize());
 
-    // Calculate number of windows
-    ParityDataSize_ = RoundUp(ParityDataSize_, Codec_->GetWordSize());
-
-    WindowCount_ = ParityDataSize_ / Config_->ErasureWindowSize;
-    if (ParityDataSize_ % Config_->ErasureWindowSize != 0) {
-        WindowCount_ += 1;
-    }
+    ParityPartSplitInfo_ = TParityPartSplitInfo::Build(Config_->ErasureWindowSize, partSize);
 }
 
 void TErasureWriter::PrepareChunkMeta(const TChunkMeta& chunkMeta)
@@ -314,9 +269,9 @@ void TErasureWriter::PrepareChunkMeta(const TChunkMeta& chunkMeta)
         start += group.size();
     }
     placementExt.set_parity_part_count(Codec_->GetParityPartCount());
-    placementExt.set_parity_block_count(WindowCount_);
+    placementExt.set_parity_block_count(ParityPartSplitInfo_.BlockCount);
     placementExt.set_parity_block_size(Config_->ErasureWindowSize);
-    placementExt.set_parity_last_block_size(ParityDataSize_ - (Config_->ErasureWindowSize * (WindowCount_ - 1)));
+    placementExt.set_parity_last_block_size(ParityPartSplitInfo_.LastBlockSize);
 
     ChunkMeta_ = chunkMeta;
     SetProtoExtension(ChunkMeta_.mutable_extensions(), placementExt);
@@ -374,53 +329,38 @@ void TErasureWriter::EncodeAndWriteParityBlocks()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    for (i64 begin = 0; begin < ParityDataSize_; begin += Config_->ErasureWindowSize) {
-        i64 end = std::min(begin + Config_->ErasureWindowSize, ParityDataSize_);
-        auto asyncParityBlocks =
-            BIND([=, this_ = MakeStrong(this)] () {
-                // Generate bytes from [begin, end) for parity blocks.
-                std::vector<TSharedRef> slices;
-                for (const auto& slicer : Slicers_) {
-                    slices.push_back(slicer.GetSlice(begin, end));
-                }
-                return Codec_->Encode(slices);
-            })
-            .AsyncVia(TDispatcher::Get()->GetErasurePoolInvoker())
-            .Run();
-        auto parityBlocksOrError = WaitFor(asyncParityBlocks);
-        const auto& parityBlocks = parityBlocksOrError.ValueOrThrow();
-        WaitFor(WriteParityBlocks(parityBlocks))
-            .ThrowOnError();
+    TPartIndexList parityIndices;
+    for (int index = Codec_->GetDataPartCount(); index < Codec_->GetTotalPartCount(); ++index) {
+        parityIndices.push_back(index);
     }
 
-    WaitFor(CloseParityWriters())
+    std::vector<IPartBlockProducerPtr> blockProducers;
+    for (const auto& group : Groups_) {
+        auto blocksReader = New<TInMemoryBlocksReader>(group);
+        blockProducers.push_back(New<TPartReader>(blocksReader, BlocksToSizes(group)));
+    }
+
+    std::vector<IPartBlockConsumerPtr> blockConsumers;
+    for (auto index : parityIndices) {
+        blockConsumers.push_back(New<TPartWriter>(Writers_[index], ParityPartSplitInfo_.GetSizes()));
+    }
+
+    std::vector<TPartRange> ranges(1, TPartRange{0, ParityPartSplitInfo_.GetPartSize()});
+    auto encoder = New<TPartEncoder>(
+        Codec_,
+        parityIndices,
+        ParityPartSplitInfo_,
+        ranges,
+        blockProducers,
+        blockConsumers);
+    encoder->Run();
+
+    std::vector<TFuture<void>> asyncResults;
+    for (auto index : parityIndices) {
+        asyncResults.push_back(Writers_[index]->Close(ChunkMeta_));
+    }
+    WaitFor(Combine(asyncResults))
         .ThrowOnError();
-}
-
-TFuture<void> TErasureWriter::WriteParityBlocks(const std::vector<TSharedRef>& blocks)
-{
-    VERIFY_THREAD_AFFINITY(WriterThread);
-
-    // Write blocks of current window in parallel manner.
-    std::vector<TFuture<void>> asyncResults;
-    for (int index = 0; index < Codec_->GetParityPartCount(); ++index) {
-        const auto& writer = Writers_[Codec_->GetDataPartCount() + index];
-        writer->WriteBlock(blocks[index]);
-        asyncResults.push_back(writer->GetReadyEvent());
-    }
-    return Combine(asyncResults);
-}
-
-TFuture<void> TErasureWriter::CloseParityWriters()
-{
-    VERIFY_THREAD_AFFINITY(WriterThread);
-
-    std::vector<TFuture<void>> asyncResults;
-    for (int index = 0; index < Codec_->GetParityPartCount(); ++index) {
-        const auto& writer = Writers_[Codec_->GetDataPartCount() + index];
-        asyncResults.push_back(writer->Close(ChunkMeta_));
-    }
-    return Combine(asyncResults);
 }
 
 TFuture<void> TErasureWriter::Close(const TChunkMeta& chunkMeta)
@@ -454,7 +394,6 @@ void TErasureWriter::OnClosed()
     }
     ChunkInfo_.set_disk_space(diskSpace);
 
-    Slicers_.clear();
     Groups_.clear();
     Blocks_.clear();
 }
@@ -464,8 +403,8 @@ void TErasureWriter::OnClosed()
 IChunkWriterPtr CreateErasureWriter(
     TErasureWriterConfigPtr config,
     const TChunkId& chunkId,
-    NErasure::ECodec codecId,
-    NErasure::ICodec* codec,
+    ECodec codecId,
+    ICodec* codec,
     const std::vector<IChunkWriterPtr>& writers)
 {
     return New<TErasureWriter>(
@@ -482,7 +421,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
     const TChunkId& chunkId,
-    NErasure::ICodec* codec,
+    ICodec* codec,
     TNodeDirectoryPtr nodeDirectory,
     NApi::INativeClientPtr client,
     IThroughputThrottlerPtr throttler,

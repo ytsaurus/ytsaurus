@@ -161,7 +161,7 @@ void TVirtualMulticellMapBase::GetSelf(
             writer.OnBeginMap();
             for (const auto& item : session->Items) {
                 writer.OnKeyedItem(item.Key);
-                if (!item.Attributes.GetData().empty()) {
+                if (item.Attributes) {
                     writer.OnBeginAttributes();
                     writer.OnRaw(item.Attributes);
                     writer.OnEndAttributes();
@@ -582,7 +582,8 @@ private:
         const auto& method = context->GetMethod();
         if ((Options_ & EVirtualNodeOptions::RedirectSelf) != EVirtualNodeOptions::None &&
             method != "Remove" &&
-            method != "GetBasicAttributes")
+            method != "GetBasicAttributes" &&
+            method != "CheckPermission")
         {
             return TResolveResult::There(service, path);
         } else {

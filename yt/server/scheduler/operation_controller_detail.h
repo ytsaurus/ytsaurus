@@ -71,11 +71,6 @@ DEFINE_ENUM(EInputChunkState,
     (Waiting)
 );
 
-DEFINE_ENUM(EJobReinstallReason,
-    (Failed)
-    (Aborted)
-);
-
 DEFINE_ENUM(EControllerState,
     (Preparing)
     (Running)
@@ -177,16 +172,16 @@ public:
     // moving it to the section above.
 
     virtual void Initialize() override;
+    virtual TOperationControllerInitializeResult GetInitializeResult() const override;
 
-    void InitializeReviving(TControllerTransactionsPtr operationTransactions);
-    void Revive();
+    virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) override;
+    virtual void Revive() override;
 
     virtual std::vector<NApi::ITransactionPtr> GetTransactions() override;
 
     virtual void UpdateConfig(TSchedulerConfigPtr config) override;
 
     virtual TCancelableContextPtr GetCancelableContext() const override;
-    virtual IInvokerPtr GetCancelableControlInvoker() const override;
     virtual IInvokerPtr GetCancelableInvoker() const override;
     virtual IInvokerPtr GetInvoker() const override;
 
@@ -202,7 +197,6 @@ public:
     virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
-    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
 
     virtual NYson::TYsonString GetProgress() const override;
@@ -254,7 +248,6 @@ protected:
     mutable NLogging::TLogger Logger;
 
     TCancelableContextPtr CancelableContext;
-    IInvokerPtr CancelableControlInvoker;
     IInvokerPtr Invoker;
     ISuspendableInvokerPtr SuspendableInvoker;
     IInvokerPtr CancelableInvoker;
@@ -594,6 +587,8 @@ protected:
         i64 GetCompletedDataSize() const;
         i64 GetPendingDataSize() const;
 
+        TNullable<i64> GetMaximumUsedTmpfsSize() const;
+
         virtual IChunkPoolInput* GetChunkPoolInput() const = 0;
         virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;
 
@@ -602,11 +597,16 @@ protected:
 
         virtual void Persist(const TPersistenceContext& context) override;
 
+        virtual TUserJobSpecPtr GetUserJobSpec() const;
+
+        virtual EJobType GetJobType() const = 0;
     private:
         TOperationControllerBase* Controller;
 
         int CachedPendingJobCount;
         int CachedTotalJobCount;
+
+        TNullable<i64> MaximumUsedTmfpsSize;
 
         TJobResources CachedTotalNeededResources;
         mutable TNullable<TExtendedJobResources> CachedMinNeededResources;
@@ -619,6 +619,7 @@ protected:
 
         TJobResources ApplyMemoryReserve(const TExtendedJobResources& jobResources) const;
 
+        void UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics);
     protected:
         NLogging::TLogger Logger;
 
@@ -630,8 +631,6 @@ protected:
 
         virtual void OnTaskCompleted();
 
-        virtual EJobType GetJobType() const = 0;
-        virtual TUserJobSpecPtr GetUserJobSpec() const;
         virtual void PrepareJoblet(TJobletPtr joblet);
         virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
 
@@ -642,7 +641,7 @@ protected:
         void AddPendingHint();
         void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
 
-        void ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason);
+        void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie);
 
         std::unique_ptr<NNodeTrackerClient::TNodeDirectoryBuilder> MakeNodeDirectoryBuilder(
             NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpec);
@@ -759,6 +758,9 @@ protected:
 
     void CheckAvailableExecNodes();
 
+    void AnalyzeTmpfsUsage();
+    void AnalyzeOperationProgess();
+
     void DoScheduleJob(
         ISchedulingContext* context,
         const TJobResources& jobLimits,
@@ -834,6 +836,9 @@ protected:
     void EndUploadOutputTables(const std::vector<TOutputTable*>& tableList);
     void CommitTransactions();
     virtual void CustomCommit();
+
+    bool GetCommitting();
+    void SetCommitting();
 
     // Revival.
     void ReinstallLivePreview();
@@ -1089,6 +1094,8 @@ protected:
     void InferSchemaFromInputOrdered();
     void ValidateOutputSchemaOrdered() const;
 
+    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const;
+
 private:
     typedef TOperationControllerBase TThis;
 
@@ -1149,13 +1156,16 @@ private:
     //! Runs periodic checks to verify that compatible nodes are present in the cluster.
     NConcurrency::TPeriodicExecutorPtr ExecNodesCheckExecutor;
 
+    //! Periodically checks operation progress and registers operation alerts if necessary.
+    NConcurrency::TPeriodicExecutorPtr AnalyzeOperationProgressExecutor;
+
     //! Exec node count do not consider scheduling tag.
     //! But descriptors do.
     int ExecNodeCount_ = 0;
     std::vector<TExecNodeDescriptor> ExecNodesDescriptors_;
     TInstant LastGetExecNodesInformationTime_;
 
-    TInstant AvaialableNodesLastSeenTime_;
+    NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;
 
     const std::unique_ptr<NTableClient::IValueConsumer> EventLogValueConsumer_;
     const std::unique_ptr<NYson::IYsonConsumer> EventLogTableConsumer_;
@@ -1182,8 +1192,8 @@ private:
     void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics);
 
     void InitializeHistograms();
-    void UpdateEstimatedHistogram(TJobletPtr joblet);
-    void UpdateEstimatedHistogram(TJobletPtr joblet, EJobReinstallReason reason);
+    void AddValueToEstimatedHistogram(TJobletPtr joblet);
+    void RemoveValueFromEstimatedHistogram(TJobletPtr joblet);
     void UpdateActualHistogram(const NJobTrackerClient::TStatistics& statistics);
 
     void GetExecNodesInformation();

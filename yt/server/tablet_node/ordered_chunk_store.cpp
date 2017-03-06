@@ -23,6 +23,7 @@ using namespace NApi;
 using namespace NDataNode;
 
 using NTabletNode::NProto::TAddStoreDescriptor;
+using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,6 +92,11 @@ public:
     virtual TFuture<void> GetReadyEvent() override
     {
         return UnderlyingReader_->GetReadyEvent();
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return UnderlyingReader_->GetDataStatistics();
     }
 
 private:

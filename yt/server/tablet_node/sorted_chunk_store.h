@@ -46,8 +46,7 @@ public:
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
-        TOwningKey lowerKey,
-        TOwningKey upperKey,
+        TSharedRange<NTableClient::TRowRange> bounds,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor) override;
@@ -89,8 +88,7 @@ private:
         const TColumnFilter& columnFilter,
         const TTableSchema& schema);
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
-        TOwningKey lowerKey,
-        TOwningKey upperKey,
+        TSharedRange<NTableClient::TRowRange> bounds,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter,
         const TTableSchema& schema);

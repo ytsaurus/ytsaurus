@@ -15,7 +15,7 @@ using NJobTrackerClient::TOperationId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
 
-static const int MaxSchedulingTagRuleCount = 10;
+static const int MaxSchedulingTagRuleCount = 100;
 
 DEFINE_ENUM(EOperationType,
     (Map)
@@ -69,13 +69,16 @@ DEFINE_ENUM(EAbortReason,
     (ResourceOverdraft)
     (Other)
     (Preemption)
-    (SchedulingTimeout)
-    (SchedulingResourceOvercommit)
-    (SchedulingOperationSuspended)
     (UserRequest)
     (NodeOffline)
     (WaitingTimeout)
     (Unknown)
+    (SchedulingBeginMarker)
+    (SchedulingTimeout)
+    (SchedulingResourceOvercommit)
+    (SchedulingOperationSuspended)
+    (SchedulingOther)
+    (SchedulingEndMarker)
 );
 
 DEFINE_ENUM(EJobFinalState,
@@ -146,6 +149,13 @@ DECLARE_REFCOUNTED_CLASS(TStrategyOperationSpec);
 DECLARE_REFCOUNTED_CLASS(TOperationRuntimeParams);
 
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ESchedulingDelayType,
+    (Sync)
+    (Async)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -95,7 +95,7 @@ public:
         return CancelableControlInvoker;
     }
 
-    TFuture<void> CreateOperationNode(TOperationPtr operation)
+    TFuture<void> CreateOperationNode(TOperationPtr operation, const TOperationControllerInitializeResult& initializeResult)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
@@ -112,15 +112,13 @@ public:
         owners.push_back(operation->GetAuthenticatedUser());
 
         {
-            auto controller = operation->GetController();
-
             auto req = TYPathProxy::Set(GetOperationPath(operationId));
             req->set_value(BuildYsonStringFluently()
                 .BeginAttributes()
                     .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
                     .Do(BIND(&BuildInitializingOperationAttributes, operation))
                     .Item("brief_spec").BeginMap()
-                        .Do(BIND(&IOperationController::BuildBriefSpec, operation->GetController()))
+                        .Items(initializeResult.BriefSpec)
                         .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))
                     .EndMap()
                     .Item("progress").BeginMap().EndMap()
@@ -246,18 +244,11 @@ public:
         list->JobRequests.push_back(createJobNodeRequest);
     }
 
-    void RegisterAlert(EAlertType alertType, const TError& alert)
+    void SetSchedulerAlert(EAlertType alertType, const TError& alert)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         Alerts[alertType] = alert;
-    }
-
-    void UnregisterAlert(EAlertType alertType)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        Alerts[alertType] = TError();
     }
 
     TFuture<void> AttachToLivePreview(
@@ -854,6 +845,7 @@ private:
             attributes.Get<Stroka>("authenticated_user"),
             operationSpec->Owners,
             attributes.Get<TInstant>("start_time"),
+            Bootstrap->GetControlInvoker(),
             attributes.Get<EOperationState>("state"),
             attributes.Get<bool>("suspended"),
             attributes.Get<std::vector<TOperationEvent>>("events", {}));
@@ -1246,6 +1238,21 @@ private:
             batchReq->AddRequest(req, "update_op_node");
         }
 
+        // Set alerts.
+        {
+            auto req = TYPathProxy::Set(operationPath + "/@alerts");
+            const auto& alerts = operation->Alerts();
+            req->set_value(BuildYsonStringFluently()
+                .DoMapFor(TEnumTraits<EOperationAlertType>::GetDomainValues(),
+                    [&] (TFluentMap fluent, EOperationAlertType alertType) {
+                        if (!alerts[alertType].IsOK()) {
+                            fluent.Item(FormatEnum(alertType)).Value(alerts[alertType]);
+                        }
+                    })
+                .GetData());
+            batchReq->AddRequest(req, "update_op_node");
+        }
+
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
     }
@@ -1311,7 +1318,6 @@ private:
         for (const auto& request : jobRequests) {
             const auto& jobId = request.JobId;
             auto jobPath = GetJobPath(operation->GetId(), jobId);
-            auto req = TYPathProxy::Set(jobPath);
             TYsonString inputPaths;
             if (request.InputPathsFuture) {
                 auto inputPathsOrError = WaitFor(request.InputPathsFuture);
@@ -1325,19 +1331,14 @@ private:
                 }
             }
 
-            req->set_value(BuildYsonStringFluently()
-                .BeginAttributes()
-                    .Do([=] (IYsonConsumer* consumer) {
-                        consumer->OnRaw(request.Attributes);
-                    })
-                    .DoIf(inputPaths.operator bool(), [=] (TFluentAttributes fluent) {
-                        fluent
-                            .Item("input_paths").Value(inputPaths);
-                    })
-                .EndAttributes()
-                .BeginMap()
-                .EndMap()
-                .GetData());
+            auto attributes = ConvertToAttributes(request.Attributes);
+            if (inputPaths) {
+                attributes->SetYson("input_paths", inputPaths);
+            }
+
+            auto req = TCypressYPathProxy::Create(jobPath);
+            req->set_type(static_cast<int>(EObjectType::MapNode));
+            ToProto(req->mutable_node_attributes(), *attributes);
             batchReq->AddRequest(req, "create");
         }
 
@@ -2040,9 +2041,9 @@ IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const
     return Impl->GetCancelableControlInvoker();
 }
 
-TFuture<void> TMasterConnector::CreateOperationNode(TOperationPtr operation)
+TFuture<void> TMasterConnector::CreateOperationNode(TOperationPtr operation, const TOperationControllerInitializeResult& initializeResult)
 {
-    return Impl->CreateOperationNode(operation);
+    return Impl->CreateOperationNode(operation, initializeResult);
 }
 
 TFuture<void> TMasterConnector::ResetRevivingOperationNode(TOperationPtr operation)
@@ -2070,14 +2071,9 @@ void TMasterConnector::CreateJobNode(const TCreateJobNodeRequest& createJobNodeR
     return Impl->CreateJobNode(createJobNodeRequest);
 }
 
-void TMasterConnector::RegisterAlert(EAlertType alertType, const TError& alert)
+void TMasterConnector::SetSchedulerAlert(EAlertType alertType, const TError& alert)
 {
-    Impl->RegisterAlert(alertType, alert);
-}
-
-void TMasterConnector::UnregisterAlert(EAlertType alertType)
-{
-    Impl->UnregisterAlert(alertType);
+    Impl->SetSchedulerAlert(alertType, alert);
 }
 
 void TMasterConnector::AttachJobContext(

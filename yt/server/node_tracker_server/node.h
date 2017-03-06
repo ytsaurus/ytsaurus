@@ -58,8 +58,10 @@ public:
     using TMediumIndexSet = std::bitset<NChunkClient::MaxMediumCount>;
 
     // Transient properties.
-    DEFINE_BYVAL_RW_PROPERTY(ui64, VisitMark);
-    DEFINE_BYREF_RW_PROPERTY(NChunkServer::TPerMediumArray<double>, IOWeights);
+    DEFINE_BYREF_RW_PROPERTY(TPerMediumArray<double>, IOWeights);
+
+    ui64 GetVisitMark(int mediumIndex);
+    void SetVisitMark(int mediumIndex, ui64 mark);
 
     using TMulticellStates = yhash_map<NObjectClient::TCellTag, ENodeState>;
     DEFINE_BYREF_RO_PROPERTY(TMulticellStates, MulticellStates);
@@ -249,6 +251,8 @@ private:
     int HintedRepairSessionCount_;
 
     TPerMediumArray<TMediumReplicaSet::iterator> RandomReplicaIters_;
+
+    TPerMediumArray<ui64> VisitMarks_; // transient
 
     ENodeState* LocalStatePtr_;
     ENodeState AggregatedState_;

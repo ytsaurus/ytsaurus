@@ -36,8 +36,7 @@ struct ISchedulerStrategyHost
         const Stroka& user,
         NYTree::EPermission permission) const = 0;
 
-    virtual void RegisterAlert(EAlertType alertType, const TError& alert) = 0;
-    virtual void UnregisterAlert(EAlertType alertType) = 0;
+    virtual void SetSchedulerAlert(EAlertType alertType, const TError& alert) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

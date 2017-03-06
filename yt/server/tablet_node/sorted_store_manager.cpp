@@ -387,6 +387,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ChunksEden = true;
+        writerOptions->ValidateResourceUsageIncrease = false;
 
         auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(tabletSnapshot->Config->InMemoryMode);
 

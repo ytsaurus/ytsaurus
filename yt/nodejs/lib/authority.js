@@ -259,7 +259,7 @@ YtAuthority.prototype._asyncQueryBlackboxToken = function(context, result)
 
     var self = this;
 
-    return external_services.blackboxValidateToken(
+    var future = external_services.blackboxValidateToken(
         context.logger,
         context.party,
         context.token)
@@ -275,6 +275,10 @@ YtAuthority.prototype._asyncQueryBlackboxToken = function(context, result)
             typeof(data.login) === "string"))
         {
             context.logger.debug("Blackbox has rejected the token");
+            var optimistic_login = self.optimistic_cache[context.token];
+            if (typeof(optimistic_login) === "string") {
+                delete self.optimistic_cache[context.token];
+            }
             return;
         }
 
@@ -283,13 +287,22 @@ YtAuthority.prototype._asyncQueryBlackboxToken = function(context, result)
         if (scope.indexOf(grant) === -1) {
             context.logger.debug(
                 "Token does not provide '" + grant + "' grant");
+            var optimistic_login = self.optimistic_cache[context.token];
+            if (typeof(optimistic_login) === "string") {
+                delete self.optimistic_cache[context.token];
+            }
             return;
         }
 
         var realm = self._findOAuthApplicationBy("client_id", data.oauth.client_id);
         if (typeof(realm) === "undefined") {
             context.logger.debug("Token was issued by the unknown realm");
+            /*
+             * Disabled due to YT-6531.
+             *
             return;
+            */
+            realm = "blackbox-" + data.oauth.client_name;
         } else {
             realm = realm.key;
         }
@@ -303,15 +316,25 @@ YtAuthority.prototype._asyncQueryBlackboxToken = function(context, result)
         result.domain = true;
     })
     .catch(function(err) {
-        var optimistic_login = self.optimistic_cache[context.token];
-        if (typeof(optimistic_login) === "string") {
-            result.login = optimistic_login;
-            result.realm = "optimistic_cache";
-            result.domain = true;
-        } else {
-            return Q.reject(err);
-        }
+        return Q.reject(err);
     });
+
+    var optimistic_login = self.optimistic_cache[context.token];
+    if (typeof(optimistic_login) === "string") {
+        optimistic_future = new Q(function(resolve, reject) {
+            setTimeout(function() {
+                if (!result.login) {
+                    result.login = optimistic_login;
+                    result.realm = "optimistic_cache";
+                    result.domain = true;
+                }
+                resolve();
+            }, self.config.optimism_timeout);
+        });
+        future = Q.race([future, optimistic_future]);
+    }
+
+    return future;
 };
 
 YtAuthority.prototype._asyncQueryBlackboxCookie = function(context, result)

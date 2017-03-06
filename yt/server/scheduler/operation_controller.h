@@ -51,6 +51,13 @@ DEFINE_REFCOUNTED_TYPE(TControllerTransactions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TOperationControllerInitializeResult
+{
+    NYson::TYsonString BriefSpec;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IOperationHost
 {
     virtual ~IOperationHost() = default;
@@ -139,6 +146,15 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const = 0;
+
+    //! Sets operation alert.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual void SetOperationAlert(
+        const TOperationId& operationId,
+        EOperationAlertType alertType,
+        const TError& alert) = 0;
 };
 
 /*!
@@ -155,6 +171,9 @@ struct IOperationController
      *  \note Invoker affinity: Control invoker
      */
     virtual void Initialize() = 0;
+
+    //! Returns controller initialization result. Scheduler uses it to build operation attributes in Cypress.
+    virtual TOperationControllerInitializeResult GetInitializeResult() const = 0;
 
     //! Performs controller inner state initialization for reviving operation.
     /*
@@ -219,9 +238,6 @@ struct IOperationController
 
     //! Returns the context that gets invalidated by #Abort.
     virtual TCancelableContextPtr GetCancelableContext() const = 0;
-
-    //! Returns the control invoker wrapped by the context provided by #GetCancelableContext.
-    virtual IInvokerPtr GetCancelableControlInvoker() const = 0;
 
     /*!
      *  Returns the operation controller invoker wrapped by the context provided by #GetCancelableContext.
@@ -331,13 +347,6 @@ struct IOperationController
 
     //! Called to construct a YSON representing the current state of memory digests for jobs of each type.
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const = 0;
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    //! Called for a just initialized operation to construct its brief spec
-    //! to be used by UI.
-    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const = 0;
 
     /*!
      *  \note Thread affinity: Controller invoker

@@ -47,6 +47,8 @@ using NApi::INativeConnectionPtr;
 using NApi::ValidateTabletMountedOrFrozen;
 using NApi::GetPrimaryTabletPeerDescriptor;
 
+using NChunkClient::NProto::TDataStatistics;
+
 using NNodeTrackerClient::INodeChannelFactoryPtr;
 
 using NObjectClient::TObjectId;
@@ -93,6 +95,11 @@ public:
     TFuture<TQueryStatistics> GetQueryResult() const
     {
         return QueryResult_;
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return TDataStatistics();
     }
 
 private:

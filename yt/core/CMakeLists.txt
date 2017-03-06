@@ -90,6 +90,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/blob_output.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/bloom_filter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/bloom_filter.proto
+  ${CMAKE_CURRENT_LIST_DIR}/misc/boolean_formula.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/checkpointable_stream.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/checksum.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/chunked_memory_allocator.cpp
@@ -114,6 +115,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/lifecycle.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/linear_probe.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/new.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/parser_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/pattern_formatter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/phoenix.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/proc.cpp

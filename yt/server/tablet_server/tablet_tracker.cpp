@@ -66,7 +66,7 @@ private:
         yhash_map<TNode*, std::multimap<int, TNode*>::iterator> NodeToIterator;
     };
 
-    yhash_map<TNullable<Stroka>, TPerTagData> TagToData_;
+    yhash_map<Stroka, TPerTagData> TagToData_;
 
 
     void InsertNode(TPerTagData* data, TNode* node)
@@ -87,15 +87,15 @@ private:
 
     const TPerTagData& GetData(TTabletCellBundle* cellBundle)
     {
-        auto tag = cellBundle->GetNodeTag();
-        auto it = TagToData_.find(tag);
+        const auto& tagFilter = cellBundle->NodeTagFilter();
+        auto it = TagToData_.find(tagFilter.GetFormula());
         if (it == TagToData_.end()) {
-            it = TagToData_.insert(std::make_pair(tag, TPerTagData())).first;
+            it = TagToData_.insert(std::make_pair(tagFilter.GetFormula(), TPerTagData())).first;
             auto& data = it->second;
             const auto& nodeTracker = Bootstrap_->GetNodeTracker();
             for (const auto& pair : nodeTracker->Nodes()) {
                 auto* node = pair.second;
-                if (node->HasTag(tag)) {
+                if (tagFilter.IsSatisfiedBy(node->Tags())) {
                     InsertNode(&data, node);
                 }
             }
@@ -329,7 +329,7 @@ bool TTabletTracker::IsFailed(const TTabletCell* cell, TPeerId peerId, TDuration
             return true;
         }
 
-        if (!node->HasTag(cell->GetCellBundle()->GetNodeTag())) {
+        if (!cell->GetCellBundle()->NodeTagFilter().IsSatisfiedBy(node->Tags())) {
             return true;
         }
     }

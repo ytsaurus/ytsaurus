@@ -38,8 +38,7 @@ public:
 
             auto reader = Store_->CreateReader(
                 Tablet_->BuildSnapshot(nullptr),
-                std::move(key),
-                std::move(keySuccessor),
+                MakeSingletonRowRange(key, keySuccessor),
                 SyncLastCommittedTimestamp,
                 TColumnFilter(),
                 TWorkloadDescriptor());

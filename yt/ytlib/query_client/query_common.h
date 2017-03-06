@@ -82,13 +82,6 @@ bool IsRelationalBinaryOp(EBinaryOp opcode);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDataRange
-{
-    //! Either a chunk id or tablet id.
-    NObjectClient::TObjectId Id;
-    TRowRange Range;
-};
-
 struct TDataRanges
 {
     //! Either a chunk id or tablet id.
@@ -101,13 +94,6 @@ struct TDataRanges
     TSharedRange<TRow> Keys;
     //! If |true|, these ranges could be reclassified into a set of discrete lookup keys.
     bool LookupSupported = true;
-};
-
-struct TDataKeys
-{
-    //! Either a chunk id or tablet id.
-    NObjectClient::TObjectId Id;
-    TSharedRange<TRow> Keys;
 };
 
 struct TQueryOptions

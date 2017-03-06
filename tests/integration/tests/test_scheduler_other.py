@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup, unix_only, require_ytserver_root_privileges, wait
 from yt.environment.helpers import assert_almost_equal
 from yt_commands import *
 
@@ -432,6 +432,19 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
         resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
         create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
 
+        def check_running_jobs(op_id, desired_running_jobs):
+            success_iter = 0
+            min_success_iteration = 10
+            for i in xrange(100):
+                running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id))
+                if running_jobs:
+                    assert len(running_jobs) <= desired_running_jobs
+                    success_iter += 1
+                    if success_iter == min_success_iteration:
+                        return
+                time.sleep(0.1)
+            assert False
+
         while True:
             pools = get("//sys/scheduler/orchid/scheduler/pools")
             if "test_pool" in pools:
@@ -449,16 +462,15 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
 
         memory_limit = 30 * 1024 * 1024
 
-        testing_options = {"scheduling_delay": 500}
+        testing_options = {"scheduling_delay": 500, "scheduling_delay_type": "async"}
 
         op = map(
             dont_track=True,
-            command="sleep 5",
+            command="sleep 100",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 3, "pool": "test_pool", "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
-        time.sleep(3)
-        assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) == 1
+        check_running_jobs(op.id, 1)
         op.abort()
 
         op = map(
@@ -467,11 +479,10 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 3, "resource_limits": resource_limits, "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
-        time.sleep(3)
+        check_running_jobs(op.id, 1)
         op_limits = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))
         for resource, limit in resource_limits.iteritems():
             assert assert_almost_equal(op_limits[resource], limit)
-        assert len(get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op.id))) == 1
         op.abort()
 
 
@@ -553,7 +564,7 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
 
 class TestSchedulerRevive(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_NODES = 1
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
@@ -562,6 +573,8 @@ class TestSchedulerRevive(YTEnvSetup):
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "finish_operation_transition_delay": 2000,
+            "operation_build_progress_period": 100,
+            "snapshot_period": 500,
         }
     }
 
@@ -584,7 +597,7 @@ class TestSchedulerRevive(YTEnvSetup):
             time.sleep(backoff)
 
             iter += 1
-            assert iter < 50, "Operation %s do not comes to %s state after %f seconds" % (op.id, state, iter * backoff)
+            assert iter < 50, "Operation %s did not come to %s state after %f seconds" % (op.id, state, iter * backoff)
 
     def test_missing_transactions(self):
         self._prepare_tables()
@@ -664,6 +677,40 @@ class TestSchedulerRevive(YTEnvSetup):
 
         assert "failed" == get("//sys/operations/" + op.id + "/@state")
 
+    def test_revive_failed_jobs(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = map(
+            command="sleep 1; false",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={"max_failed_job_count": 10000},
+            dont_track=True)
+
+        self._wait_state(op, "running")
+
+        failed_jobs_path = "//sys/scheduler/orchid/scheduler/operations/" + op.id + "/progress/jobs/failed"
+
+        def failed_jobs_exist():
+            return exists(failed_jobs_path) and get(failed_jobs_path) >= 3
+
+        wait(failed_jobs_exist)
+
+        suspend_op(op.id)
+
+        # Waiting until snapshot is built.
+        time.sleep(2.0)
+
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+
+        # Waiting until orchid is built.
+        time.sleep(1.0)
+        assert exists(failed_jobs_path) and get(failed_jobs_path) >= 3
+
+        abort_op(op.id)
 
 class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 3
@@ -921,7 +968,13 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
 
         op.resume_job(op.jobs[0])
         op.resume_job(op.jobs[1])
-        time.sleep(2)
+
+        operation_path = "//sys/operations/{0}".format(op.id)
+        for iter in xrange(100):
+            completed_jobs = get(operation_path + "/@brief_progress/jobs/completed")
+            if completed_jobs == 2:
+                break
+            time.sleep(0.1)
 
         operation_path = "//sys/operations/{0}".format(op.id)
         transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
@@ -1276,11 +1329,11 @@ class TestSchedulingTags(YTEnvSetup):
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
-            spec={"scheduling_tag_filter": [{"include": ["tagA"], "exclude": ["tagC"]}]})
+            spec={"scheduling_tag_filter": "tagA & !tagC"})
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
         with pytest.raises(YtError):
             map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
-                spec={"scheduling_tag_filter": [{"include": ["tagA"], "exclude": ["tagB"]}]})
+                spec={"scheduling_tag_filter": "tagA & !tagB"})
 
         set("//sys/nodes/{0}/@user_tags".format(self.node), [])
         time.sleep(1.0)
@@ -1340,7 +1393,10 @@ class TestSchedulerConfig(YTEnvSetup):
                     "data_size_per_job": 2000,
                     "max_failed_job_count": 10
                 }
-            }
+            },
+            "environment": {
+                "TEST_VAR": "10"
+            },
         },
         "addresses": [
             ("ipv4", "127.0.0.1"),
@@ -1407,12 +1463,19 @@ class TestSchedulerConfig(YTEnvSetup):
         assert get("//sys/operations/{0}/@spec/data_size_per_job".format(op.id)) == 2000
         assert get("//sys/operations/{0}/@spec/max_failed_job_count".format(op.id)) == 10
 
-        set("//sys/scheduler/config", {"map_operation_options": {"spec_template": {"max_failed_job_count": 50}}})
+        set("//sys/scheduler/config", {
+            "map_operation_options": {"spec_template": {"max_failed_job_count": 50}},
+            "environment": {"OTHER_VAR": "20"},
+        })
         time.sleep(0.5)
 
         op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out")
         assert get("//sys/operations/{0}/@spec/data_size_per_job".format(op.id)) == 2000
         assert get("//sys/operations/{0}/@spec/max_failed_job_count".format(op.id)) == 50
+
+        environment = get("//sys/scheduler/orchid/scheduler/config/environment")
+        assert environment["TEST_VAR"] == "10"
+        assert environment["OTHER_VAR"] == "20"
 
 class TestSchedulerPools(YTEnvSetup):
     NUM_MASTERS = 3
@@ -2352,3 +2415,57 @@ class TestMaxTotalSliceCount(YTEnvSetup):
                 out="//tmp/t_out",
                 join_by=["key"],
                 command="cat > /dev/null")
+
+class TestSchedulerOperationAlerts(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 3
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "heartbeat_period": 200
+            }
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operation_progress_analysis_period": 200,
+            "tmpfs_alert_min_unutilized_space_threshold": 200,
+            "tmpfs_alert_max_unutilized_space_ratio": 0.3
+        }
+    }
+
+    @require_ytserver_root_privileges
+    @unix_only
+    def test_unused_tmpfs_size_alert(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", [{"x": "y"}])
+
+        op = map(
+            command="echo abcdef >local_file; sleep 1.5; cat",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 5 * 1024 * 1024,
+                    "tmpfs_path": "."
+                }
+            })
+
+        assert "unused_tmpfs_space" in get("//sys/operations/{0}/@alerts".format(op.id))
+
+        op = map(
+            command="printf '=%.0s' {1..768} >local_file; sleep 1.5; cat",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024,
+                    "tmpfs_path": "."
+                }
+            })
+
+        assert "unused_tmpfs_space" not in get("//sys/operations/{0}/@alerts".format(op.id))

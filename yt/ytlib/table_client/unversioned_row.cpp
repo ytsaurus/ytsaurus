@@ -10,6 +10,7 @@
 #include <yt/core/misc/hash.h>
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/varint.h>
+#include <yt/core/misc/range.h>
 
 #include <yt/core/yson/consumer.h>
 
@@ -71,36 +72,6 @@ size_t GetByteSize(const TUnversionedValue& value)
     }
 
     return result;
-}
-
-size_t GetDataWeight(const TUnversionedValue& value)
-{
-    switch (value.Type) {
-        case EValueType::Null:
-        case EValueType::Min:
-        case EValueType::Max:
-        case EValueType::TheBottom:
-            return 0;
-
-        case EValueType::Int64:
-            return sizeof(i64);
-
-        case EValueType::Uint64:
-            return sizeof(ui64);
-
-        case EValueType::Double:
-            return sizeof(double);
-
-        case EValueType::Boolean:
-            return 1;
-
-        case EValueType::String:
-        case EValueType::Any:
-            return value.Length;
-
-        default:
-            Y_UNREACHABLE();
-    }
 }
 
 size_t WriteValue(char* output, const TUnversionedValue& value)
@@ -203,7 +174,7 @@ size_t ReadValue(const char* input, TUnversionedValue* value)
             TStringBuf data(current, current + length);
             current += length;
 
-            *value = type == EValueType::String 
+            *value = type == EValueType::String
                 ? MakeUnversionedStringValue(data, id)
                 : MakeUnversionedAnyValue(data, id);
             break;
@@ -512,7 +483,7 @@ int CompareRows(
     return static_cast<int>(lhsEnd - lhsBegin) - static_cast<int>(rhsEnd - rhsBegin);
 }
 
-int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, int prefixLength)
+int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, ui32 prefixLength)
 {
     if (!lhs && !rhs) {
         return 0;
@@ -597,20 +568,20 @@ bool operator > (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ui64 GetHash(TUnversionedRow row, int keyColumnCount)
+ui64 GetHash(TUnversionedRow row, ui32 keyColumnCount)
 {
     // NB: hash function may change in future. Use fingerprints for persistent hashing.
     return GetFarmFingerprint(row, keyColumnCount);
 }
 
-TFingerprint GetFarmFingerprint(TUnversionedRow row, int keyColumnCount)
+TFingerprint GetFarmFingerprint(TUnversionedRow row, ui32 keyColumnCount)
 {
-    int partCount = std::min(row.GetCount(), keyColumnCount);
+    auto partCount = std::min(row.GetCount(), keyColumnCount);
     const auto* begin = row.Begin();
     return GetFarmFingerprint(begin, begin + partCount);
 }
 
-size_t GetUnversionedRowByteSize(int valueCount)
+size_t GetUnversionedRowByteSize(ui32 valueCount)
 {
     return sizeof(TUnversionedRowHeader) + sizeof(TUnversionedValue) * valueCount;
 }
@@ -632,13 +603,13 @@ size_t GetDataWeight(TUnversionedRow row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMutableUnversionedRow TMutableUnversionedRow::Allocate(TChunkedMemoryPool* pool, int valueCount)
+TMutableUnversionedRow TMutableUnversionedRow::Allocate(TChunkedMemoryPool* pool, ui32 valueCount)
 {
     size_t byteSize = GetUnversionedRowByteSize(valueCount);
     return Create(pool->AllocateAligned(byteSize), valueCount);
 }
 
-TMutableUnversionedRow TMutableUnversionedRow::Create(void* buffer, int valueCount)
+TMutableUnversionedRow TMutableUnversionedRow::Create(void* buffer, ui32 valueCount)
 {
     auto* header = reinterpret_cast<TUnversionedRowHeader*>(buffer);
     header->Count = valueCount;
@@ -1134,7 +1105,7 @@ void ValidateReadTimestamp(TTimestamp timestamp)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey GetKeySuccessorImpl(TKey key, int prefixLength, EValueType sentinelType)
+TOwningKey GetKeySuccessorImpl(TKey key, ui32 prefixLength, EValueType sentinelType)
 {
     auto length = std::min(prefixLength, key.GetCount());
     TUnversionedOwningRowBuilder builder(length + 1);
@@ -1145,7 +1116,7 @@ TOwningKey GetKeySuccessorImpl(TKey key, int prefixLength, EValueType sentinelTy
     return builder.FinishRow();
 }
 
-TKey GetKeySuccessorImpl(TKey key, int prefixLength, EValueType sentinelType, const TRowBufferPtr& rowBuffer)
+TKey GetKeySuccessorImpl(TKey key, ui32 prefixLength, EValueType sentinelType, const TRowBufferPtr& rowBuffer)
 {
     auto length = std::min(prefixLength, key.GetCount());
     auto result = rowBuffer->Allocate(length + 1);
@@ -1173,7 +1144,7 @@ TKey GetKeySuccessor(TKey key, const TRowBufferPtr& rowBuffer)
         rowBuffer);
 }
 
-TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength)
+TOwningKey GetKeyPrefixSuccessor(TKey key, ui32 prefixLength)
 {
     return GetKeySuccessorImpl(
         key,
@@ -1181,7 +1152,7 @@ TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength)
         EValueType::Max);
 }
 
-TKey GetKeyPrefixSuccessor(TKey key, int prefixLength, const TRowBufferPtr& rowBuffer)
+TKey GetKeyPrefixSuccessor(TKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer)
 {
     return GetKeySuccessorImpl(
         key,
@@ -1190,21 +1161,21 @@ TKey GetKeyPrefixSuccessor(TKey key, int prefixLength, const TRowBufferPtr& rowB
         rowBuffer);
 }
 
-TOwningKey GetKeyPrefix(TKey key, int prefixLength)
+TOwningKey GetKeyPrefix(TKey key, ui32 prefixLength)
 {
     return TOwningKey(
         key.Begin(),
         key.Begin() + std::min(key.GetCount(), prefixLength));
 }
 
-TKey GetKeyPrefix(TKey key, int prefixLength, const TRowBufferPtr& rowBuffer)
+TKey GetKeyPrefix(TKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer)
 {
     return rowBuffer->Capture(
         key.Begin(),
         std::min(key.GetCount(), prefixLength));
 }
 
-TKey GetStrictKey(TKey key, int keyColumnCount, const TRowBufferPtr& rowBuffer)
+TKey GetStrictKey(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer)
 {
     if (key.GetCount() > keyColumnCount) {
         return GetKeyPrefix(key, keyColumnCount, rowBuffer);
@@ -1213,7 +1184,7 @@ TKey GetStrictKey(TKey key, int keyColumnCount, const TRowBufferPtr& rowBuffer)
     }
 }
 
-TKey GetStrictKeySuccessor(TKey key, int keyColumnCount, const TRowBufferPtr& rowBuffer)
+TKey GetStrictKeySuccessor(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer)
 {
     if (key.GetCount() >= keyColumnCount) {
         return GetKeyPrefixSuccessor(key, keyColumnCount, rowBuffer);
@@ -1566,7 +1537,7 @@ TUnversionedRowHeader* TUnversionedRowBuilder::GetHeader()
     return reinterpret_cast<TUnversionedRowHeader*>(RowData_.data());
 }
 
-TUnversionedValue* TUnversionedRowBuilder::GetValue(int index)
+TUnversionedValue* TUnversionedRowBuilder::GetValue(ui32 index)
 {
     return reinterpret_cast<TUnversionedValue*>(GetHeader() + 1) + index;
 }
@@ -1647,7 +1618,7 @@ TUnversionedRowHeader* TUnversionedOwningRowBuilder::GetHeader()
     return reinterpret_cast<TUnversionedRowHeader*>(RowData_.Begin());
 }
 
-TUnversionedValue* TUnversionedOwningRowBuilder::GetValue(int index)
+TUnversionedValue* TUnversionedOwningRowBuilder::GetValue(ui32 index)
 {
     return reinterpret_cast<TUnversionedValue*>(GetHeader() + 1) + index;
 }
@@ -1692,27 +1663,27 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey WidenKey(const TOwningKey& key, int keyColumnCount)
+TOwningKey WidenKey(const TOwningKey& key, ui32 keyColumnCount)
 {
     return WidenKeyPrefix(key, key.GetCount(), keyColumnCount);
 }
 
-TKey WidenKey(const TKey& key, int keyColumnCount, const TRowBufferPtr& rowBuffer)
+TKey WidenKey(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer)
 {
     return WidenKeyPrefix(key, key.GetCount(), keyColumnCount, rowBuffer);
 }
 
-TKey WidenKeySuccessor(const TKey& key, int keyColumnCount, const TRowBufferPtr& rowBuffer)
+TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer)
 {
     YCHECK(keyColumnCount >= key.GetCount());
 
     auto wideKey = rowBuffer->Allocate(keyColumnCount + 1);
 
-    for (int index = 0; index < key.GetCount(); ++index) {
+    for (ui32 index = 0; index < key.GetCount(); ++index) {
         wideKey[index] = rowBuffer->Capture(key[index]);
     }
 
-    for (int index = key.GetCount(); index < keyColumnCount; ++index) {
+    for (ui32 index = key.GetCount(); index < keyColumnCount; ++index) {
         wideKey[index] = MakeUnversionedSentinelValue(EValueType::Null);
     }
 
@@ -1721,7 +1692,7 @@ TKey WidenKeySuccessor(const TKey& key, int keyColumnCount, const TRowBufferPtr&
     return wideKey;
 }
 
-TOwningKey WidenKeyPrefix(const TOwningKey& key, int prefixLength, int keyColumnCount)
+TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColumnCount)
 {
     YCHECK(prefixLength <= key.GetCount() && prefixLength <= keyColumnCount);
 
@@ -1730,18 +1701,18 @@ TOwningKey WidenKeyPrefix(const TOwningKey& key, int prefixLength, int keyColumn
     }
 
     TUnversionedOwningRowBuilder builder;
-    for (int index = 0; index < prefixLength; ++index) {
+    for (ui32 index = 0; index < prefixLength; ++index) {
         builder.AddValue(key[index]);
     }
 
-    for (int index = prefixLength; index < keyColumnCount; ++index) {
+    for (ui32 index = prefixLength; index < keyColumnCount; ++index) {
         builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null));
     }
 
     return builder.FinishRow();
 }
 
-TKey WidenKeyPrefix(TKey key, int prefixLength, int keyColumnCount, const TRowBufferPtr& rowBuffer)
+TKey WidenKeyPrefix(TKey key, ui32 prefixLength, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer)
 {
     YCHECK(prefixLength <= key.GetCount() && prefixLength <= keyColumnCount);
 
@@ -1751,17 +1722,27 @@ TKey WidenKeyPrefix(TKey key, int prefixLength, int keyColumnCount, const TRowBu
 
     auto wideKey = rowBuffer->Allocate(keyColumnCount);
 
-    for (int index = 0; index < prefixLength; ++index) {
+    for (ui32 index = 0; index < prefixLength; ++index) {
         wideKey[index] = rowBuffer->Capture(key[index]);
     }
 
-    for (int index = prefixLength; index < keyColumnCount; ++index) {
+    for (ui32 index = prefixLength; index < keyColumnCount; ++index) {
         wideKey[index] = MakeUnversionedSentinelValue(EValueType::Null);
     }
 
     return wideKey;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedRange<TRowRange> MakeSingletonRowRange(TKey lowerBound, TKey upperBound)
+{
+    auto rowBuffer = New<TRowBuffer>();
+    SmallVector<TRowRange, 1> ranges(1, TRowRange(
+        rowBuffer->Capture(lowerBound),
+        rowBuffer->Capture(upperBound)));
+    return MakeSharedRange(std::move(ranges), std::move(rowBuffer));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -17,8 +17,9 @@
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/address.h>
+#include <yt/core/misc/boolean_formula.h>
+#include <yt/core/misc/collection_helpers.h>
 
 #include <atomic>
 
@@ -80,8 +81,8 @@ TNode::TNode(const TObjectId& objectId)
     , IOWeights_{}
     , FillFactorIterators_{}
     , LoadFactorIterators_{}
+    , VisitMarks_{}
 {
-    VisitMark_ = 0;
     Banned_ = false;
     Decommissioned_ = false;
     DisableWriteSessions_ = false;
@@ -549,6 +550,16 @@ ui64 TNode::GenerateVisitMark()
     return ++result;
 }
 
+ui64 TNode::GetVisitMark(int mediumIndex)
+{
+    return VisitMarks_[mediumIndex];
+}
+
+void TNode::SetVisitMark(int mediumIndex, ui64 mark)
+{
+    VisitMarks_[mediumIndex] = mark;
+}
+
 int TNode::GetTotalTabletSlots() const
 {
     return
@@ -662,12 +673,14 @@ void TNode::SetDisableWriteSessions(bool value)
 
 void TNode::SetNodeTags(const std::vector<Stroka>& tags)
 {
+    ValidateNodeTags(tags);
     NodeTags_ = tags;
     RebuildTags();
 }
 
 void TNode::SetUserTags(const std::vector<Stroka>& tags)
 {
+    ValidateNodeTags(tags);
     UserTags_ = tags;
     RebuildTags();
 }
