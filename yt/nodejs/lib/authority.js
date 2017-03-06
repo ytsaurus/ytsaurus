@@ -316,6 +316,7 @@ YtAuthority.prototype._asyncQueryBlackboxToken = function(context, result)
         result.domain = true;
     })
     .catch(function(err) {
+        context.profiler.inc("yt.http_proxy.blackbox_errors", {}, 1);
         return Q.reject(err);
     });
 
@@ -377,6 +378,10 @@ YtAuthority.prototype._asyncQueryBlackboxCookie = function(context, result)
                 context.logger.debug("Blackbox has rejected the cookie");
                 break;
         }
+    })
+    .catch(function(err) {
+        context.profiler.inc("yt.http_proxy.blackbox_errors", {}, 1);
+        return Q.reject(err);
     });
 };
 
