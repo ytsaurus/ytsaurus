@@ -160,6 +160,8 @@ class Watcher(object):
             else:
                 logger.info("Collector process finished successfully")
 
+            self._collector_process = None
+
         if self._last_collector_start_time is None or \
             time.time() - self._last_collector_start_time > self._collector_period:
                 if collector_is_running and self._warn_if_collector_is_running:
