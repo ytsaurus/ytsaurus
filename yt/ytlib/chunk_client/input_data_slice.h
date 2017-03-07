@@ -18,6 +18,7 @@ namespace NChunkClient {
 struct TInputDataSlice
     : public TIntrinsicRefCounted
 {
+public:
     using TChunkSliceList = SmallVector<TInputChunkSlicePtr, 1>;
 
     DEFINE_BYREF_RO_PROPERTY(TInputSliceLimit, LowerLimit);

@@ -109,8 +109,10 @@ void ToProto(
     }
 
     TDataSliceDescriptor descriptor(inputDataSlice->Type, std::move(chunkSpecs));
-    descriptor.Schema = schema;
-    descriptor.Timestamp = timestamp;
+    if (inputDataSlice->Type == EDataSliceDescriptorType::VersionedTable) {
+        descriptor.Schema = schema;
+        descriptor.Timestamp = timestamp;
+    }
 
     ToProto(dataSliceDescriptor, descriptor);
 }

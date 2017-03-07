@@ -328,8 +328,8 @@ public:
     void UpdateConfig(const TSchedulerConfigPtr& config)
     {
         Config = config;
+        OnConfigUpdated();
     }
-
 
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DEFINE_SIGNAL(void(), MasterDisconnected);
@@ -398,6 +398,20 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+    void OnConfigUpdated()
+    {
+        ScheduleTestingDisconnection();
+    }
+
+    void ScheduleTestingDisconnection()
+    {
+        if (Config->TestingOptions->EnableRandomMasterDisconnection) {
+            TDelayedExecutor::Submit(
+                BIND(&TImpl::Disconnect, MakeStrong(this))
+                    .Via(Bootstrap->GetControlInvoker()),
+                RandomDuration(Config->TestingOptions->RandomMasterDisconnectionMaxBackoff));
+        }
+    }
 
     void StartConnecting()
     {
@@ -446,6 +460,8 @@ private:
         StartPeriodicActivities();
 
         MasterConnected_.Fire(result);
+
+        ScheduleTestingDisconnection();
     }
 
     void OnLockTransactionAborted()

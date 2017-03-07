@@ -44,9 +44,13 @@ private:
     //! Number of slices in SlicesByChunkIndex_.
     i64 SliceCount_ = 0;
 
+    i64 TotalKeySize_ = 0;
+
     virtual TFuture<void> FetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,
         std::vector<int> chunkIndexes) override;
+
+    virtual void OnFetchingCompleted() override;
 
     TFuture<void> DoFetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,

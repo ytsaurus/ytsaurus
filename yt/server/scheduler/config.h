@@ -482,6 +482,42 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTestingOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    // Testing options that enables random master disconnections.
+    bool EnableRandomMasterDisconnection;
+    TDuration RandomMasterDisconnectionMaxBackoff;
+
+    // Testing option that enables sleeping during master disconnect.
+    TNullable<TDuration> MasterDisconnectDelay;
+
+    // Testing option that enables snapshot build/load cycle after operation materialization.
+    bool EnableSnapshotCycleAfterMaterialization;
+
+    // Testing option that enables sleeping between intermediate and final states of operation.
+    TNullable<TDuration> FinishOperationTransitionDelay;
+
+    TTestingOptions()
+    {
+        RegisterParameter("enable_random_master_disconnection", EnableRandomMasterDisconnection)
+            .Default(false);
+        RegisterParameter("random_master_disconnection_max_backoff", RandomMasterDisconnectionMaxBackoff)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("master_disconnect_delay", MasterDisconnectDelay)
+            .Default(Null);
+        RegisterParameter("enable_snapshot_cycle_after_materialization", EnableSnapshotCycleAfterMaterialization)
+            .Default(false);
+        RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
+            .Default(Null);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestingOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerConfig
     : public TFairShareStrategyConfig
     , public NChunkClient::TChunkTeleporterConfig
@@ -715,15 +751,6 @@ public:
     // Time fraction spent in idle state enough for job to be considered suspicious.
     double SuspiciousInputPipeIdleTimeFraction;
 
-    // Testing option that enables snapshot build/load cycle after operation materialization.
-    bool EnableSnapshotCycleAfterMaterialization;
-
-    // Testing option that enables sleeping between intermediate and final states of operation.
-    TNullable<TDuration> FinishOperationTransitionDelay;
-
-    // Testing option that enables sleeping during master disconnect.
-    TNullable<TDuration> MasterDisconnectDelay;
-
     // If user job iops threshold is exceeded, iops throttling is enabled via cgroups.
     TNullable<i32> IopsThreshold;
     TNullable<i32> IopsThrottlerLimit;
@@ -748,6 +775,16 @@ public:
     // Min unutilized space threshold. If unutilized space is less than
     // this threshold then operation alert will not be set.
     i64 TmpfsAlertMinUnutilizedSpaceThreshold;
+
+    // Chunk size in per-controller row buffers.
+    i64 ControllerRowBufferChunkSize;
+
+    // Filter of main nodes, used to calculate resource limits in fair share strategy.
+    TBooleanFormula MainNodesFilterFormula;
+    TSchedulingTagFilter MainNodesFilter;
+
+    // Some special options for testing purposes.
+    TTestingOptionsPtr TestingOptions;
 
     TSchedulerConfig()
     {
@@ -1012,16 +1049,8 @@ public:
         RegisterParameter("suspicious_input_pipe_time_idle_fraction", SuspiciousInputPipeIdleTimeFraction)
             .Default(0.95);
 
-        RegisterParameter("enable_snapshot_cycle_after_materialization", EnableSnapshotCycleAfterMaterialization)
-            .Default(false);
         RegisterParameter("static_orchid_cache_update_period", StaticOrchidCacheUpdatePeriod)
             .Default(TDuration::Seconds(1));
-
-        RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
-            .Default(Null);
-
-        RegisterParameter("master_disconnect_delay", MasterDisconnectDelay)
-            .Default(Null);
 
         RegisterParameter("iops_threshold", IopsThreshold)
             .Default(Null);
@@ -1048,6 +1077,16 @@ public:
         RegisterParameter("tmpfs_alert_min_unutilized_space_threshold", TmpfsAlertMinUnutilizedSpaceThreshold)
             .Default((i64) 512 * 1024 * 1024)
             .GreaterThan(0);
+
+        RegisterParameter("controller_row_buffer_chunk_size", ControllerRowBufferChunkSize)
+            .Default((i64) 64 * 1024)
+            .GreaterThan(0);
+
+        RegisterParameter("main_nodes_filter", MainNodesFilterFormula)
+            .Default();
+
+        RegisterParameter("testing_options", TestingOptions)
+            .DefaultNew();
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;
@@ -1076,6 +1115,8 @@ public:
         UpdateOptions(&MapReduceOperationOptions, OperationOptions);
         UpdateOptions(&SortOperationOptions, OperationOptions);
         UpdateOptions(&RemoteCopyOperationOptions, OperationOptions);
+
+        MainNodesFilter.Reload(MainNodesFilterFormula);
     }
 
 private:
