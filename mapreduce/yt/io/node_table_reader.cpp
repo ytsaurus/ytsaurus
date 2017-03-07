@@ -396,10 +396,8 @@ void TNodeTableReader::FetchThread()
             Parser_->Parse();
             Builder_->Finalize();
             break;
-
         } catch (TStopException&) {
             break;
-
         } catch (yexception& e) {
             Exception_ = e;
             Builder_->OnStreamError();
