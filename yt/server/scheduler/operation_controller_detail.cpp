@@ -1395,6 +1395,8 @@ void TOperationControllerBase::SafeMaterialize()
 
         InitializeHistograms();
 
+        LOG_INFO("Tasks prepared (RowBufferCapacity: %v)", RowBuffer->GetCapacity());
+
         if (InputChunkMap.empty()) {
             // Possible reasons:
             // - All input chunks are unavailable && Strategy == Skip
@@ -3345,6 +3347,11 @@ void TOperationControllerBase::LockLivePreviewTables()
 
 void TOperationControllerBase::FetchInputTables()
 {
+    i64 totalChunkCount = 0;
+    i64 totalExtensionSize = 0;
+
+    LOG_INFO("Started fetching input tables");
+
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
         auto& table = InputTables[tableIndex];
         auto objectIdPath = FromObjectId(table.ObjectId);
@@ -3447,6 +3454,10 @@ void TOperationControllerBase::FetchInputTables()
                 auto inputChunk = New<TInputChunk>(chunkSpec);
                 inputChunk->SetTableIndex(tableIndex);
                 table.Chunks.emplace_back(std::move(inputChunk));
+                ++totalChunkCount;
+                for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
+                    totalExtensionSize += extension.data().size();
+                }
             }
         }
 
@@ -3454,6 +3465,10 @@ void TOperationControllerBase::FetchInputTables()
             path,
             table.Chunks.size());
     }
+
+    LOG_INFO("Finished fetching input tables (TotalChunkCount: %v, TotalExtensionSize: %v)",
+        totalChunkCount,
+        totalExtensionSize);
 }
 
 void TOperationControllerBase::LockInputTables()

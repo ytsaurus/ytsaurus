@@ -1338,8 +1338,13 @@ protected:
 
         FinishPreparation();
 
+        LOG_INFO("Tasks prepared (TaskCount: %v, EndpointCount: %v, TotalSliceCount: %v)",
+            Tasks.size(),
+            Endpoints.size(),
+            TotalChunkCount);
+
         // Clear unused data, especially keys, to minimize memory footprint.
-        Endpoints.resize(0);
+        Endpoints.clear();
         ClearInputChunkBoundaryKeys();
     }
 
