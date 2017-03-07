@@ -34,6 +34,7 @@
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/table_consumer.h>
+#include <yt/ytlib/table_client/row_buffer.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
@@ -1087,6 +1088,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , JobCounter(0)
     , UserTransactionId(operation->GetUserTransaction() ? operation->GetUserTransaction()->GetId() : NullTransactionId)
+    , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , SecureVault(operation->GetSecureVault())
     , Owners(operation->GetOwners())
     , Spec(spec)
@@ -1330,6 +1332,8 @@ void TOperationControllerBase::SafePrepare()
 {
     YCHECK(!(Config->EnableFailControllerSpecOption && Spec->FailController));
 
+    PrepareInputTables();
+
     // Process input tables.
     {
         LockInputTables();
@@ -1413,6 +1417,8 @@ void TOperationControllerBase::SafeMaterialize()
 
         InitializeHistograms();
 
+        LOG_INFO("Tasks prepared (RowBufferCapacity: %v)", RowBuffer->GetCapacity());
+
         if (InputChunkMap.empty()) {
             // Possible reasons:
             // - All input chunks are unavailable && Strategy == Skip
@@ -1438,7 +1444,7 @@ void TOperationControllerBase::SafeMaterialize()
 
         AddAllTaskPendingHints();
 
-        if (Config->EnableSnapshotCycleAfterMaterialization) {
+        if (Config->TestingOptions->EnableSnapshotCycleAfterMaterialization) {
             TStringStream stringStream;
             SaveSnapshot(&stringStream);
             auto sharedRef = TSharedRef::FromString(stringStream.Str());
@@ -2437,6 +2443,11 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     return true;
 }
 
+bool TOperationControllerBase::AreForeignTablesSupported() const
+{
+    return false;
+}
+
 bool TOperationControllerBase::IsOutputLivePreviewSupported() const
 {
     return false;
@@ -2518,6 +2529,8 @@ void TOperationControllerBase::SafeForget()
     LOG_INFO("Forgetting operation");
 
     CancelableContext->Cancel();
+
+    Forgotten = true;
 
     LOG_INFO("Operation forgotten");
 }
@@ -3153,6 +3166,13 @@ int TOperationControllerBase::GetTotalJobCount() const
     return JobCounter.GetTotal();
 }
 
+bool TOperationControllerBase::IsForgotten() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Forgotten;
+}
+
 void TOperationControllerBase::IncreaseNeededResources(const TJobResources& resourcesDelta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -3419,6 +3439,11 @@ void TOperationControllerBase::LockLivePreviewTables()
 
 void TOperationControllerBase::FetchInputTables()
 {
+    i64 totalChunkCount = 0;
+    i64 totalExtensionSize = 0;
+
+    LOG_INFO("Started fetching input tables");
+
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
         auto& table = InputTables[tableIndex];
         auto objectIdPath = FromObjectId(table.ObjectId);
@@ -3521,6 +3546,10 @@ void TOperationControllerBase::FetchInputTables()
                 auto inputChunk = New<TInputChunk>(chunkSpec);
                 inputChunk->SetTableIndex(tableIndex);
                 table.Chunks.emplace_back(std::move(inputChunk));
+                ++totalChunkCount;
+                for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
+                    totalExtensionSize += extension.data().size();
+                }
             }
         }
 
@@ -3528,6 +3557,10 @@ void TOperationControllerBase::FetchInputTables()
             path,
             table.Chunks.size());
     }
+
+    LOG_INFO("Finished fetching input tables (TotalChunkCount: %v, TotalExtensionSize: %v)",
+        totalChunkCount,
+        totalExtensionSize);
 }
 
 void TOperationControllerBase::LockInputTables()
@@ -3704,6 +3737,18 @@ void TOperationControllerBase::GetOutputTablesSchema()
             CoreTable->TableUploadOptions.SchemaMode = ETableSchemaMode::Strong;
             if (CoreTable->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
                 THROW_ERROR_EXCEPTION("Cannot write core table in append mode.");
+            }
+        }
+    }
+}
+
+void TOperationControllerBase::PrepareInputTables()
+{
+    if (!AreForeignTablesSupported()) {
+        for (const auto& table : InputTables) {
+            if (table.IsForeign()) {
+                THROW_ERROR_EXCEPTION("Foreign tables are not supported in %Qlv operation", OperationType)
+                    << TErrorAttribute("foreign_table", table.GetPath());
             }
         }
     }
@@ -5814,6 +5859,11 @@ public:
     virtual int GetTotalJobCount() const override
     {
         return Underlying_->GetTotalJobCount();
+    }
+
+    virtual bool IsForgotten() const override
+    {
+        return Underlying_->IsForgotten();
     }
 
     virtual TJobResources GetNeededResources() const override

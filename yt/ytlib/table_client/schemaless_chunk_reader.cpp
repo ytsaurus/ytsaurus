@@ -89,6 +89,9 @@ public:
         , ColumnFilter_(columnFilter)
         , KeyColumns_(keyColumns)
         , SystemColumnCount_(GetSystemColumnCount(options))
+        , Logger(NLogging::TLogger(TableClientLogger)
+            .AddTag("ChunkReaderId: %v", TGuid::Create())
+            .AddTag("ChunkId: %v", chunkId))
     {
         if (Config_->SamplingRate) {
             RowSampler_ = CreateChunkRowSampler(
@@ -119,7 +122,6 @@ public:
         Y_UNREACHABLE();
     }
 
-
 protected:
     const TChunkSpec ChunkSpec_;
 
@@ -140,6 +142,8 @@ protected:
     int RowIndexId_ = -1;
     int RangeIndexId_ = -1;
     int TableIndexId_ = -1;
+
+    NLogging::TLogger Logger;
 
     void InitializeSystemColumnIds()
     {
@@ -256,6 +260,7 @@ public:
 
 protected:
     using TSchemalessChunkReaderBase::Config_;
+    using TSchemalessChunkReaderBase::Logger;
 
     TNameTablePtr ChunkNameTable_ = New<TNameTable>();
 
@@ -909,6 +914,8 @@ public:
             underlyingReader,
             blockCache)
     {
+        LOG_DEBUG("Reading range %v", readRange);
+
         LowerLimit_ = readRange.LowerLimit();
         UpperLimit_ = readRange.UpperLimit();
 
@@ -1125,7 +1132,9 @@ private:
         minKeyColumnCount = std::min(minKeyColumnCount, ChunkMeta_->ChunkSchema().GetKeyColumnCount());
 
         if (UpperLimit_.HasKey() || LowerLimit_.HasKey()) {
-            ChunkMeta_->InitBlockLastKeys(KeyColumns_);
+            ChunkMeta_->InitBlockLastKeys(KeyColumns_.empty()
+                ? ChunkMeta_->ChunkSchema().GetKeyColumns()
+                : KeyColumns_);
         }
 
         // Define columns to read.
@@ -1213,6 +1222,11 @@ private:
         InitLowerRowIndex();
         InitUpperRowIndex();
 
+        LOG_DEBUG("Initialized row index limits (LowerRowIndex: %v, SafeUpperRowIndex: %v, HardUpperRowIndex: %v)",
+            LowerRowIndex_,
+            SafeUpperRowIndex_,
+            HardUpperRowIndex_);
+
         if (LowerRowIndex_ < HardUpperRowIndex_) {
             // We must continue initialization and set RowIndex_ before
             // ReadyEvent is set for the first time.
@@ -1224,6 +1238,10 @@ private:
             Initialize(MakeRange(KeyColumnReaders_));
             RowIndex_ = LowerRowIndex_;
             LowerKeyLimitReached_ = !LowerLimit_.HasKey();
+
+            LOG_DEBUG("Initialized start row index (LowerKeyLimitReached: %v, RowIndex: %v)",
+                LowerKeyLimitReached_,
+                RowIndex_);
 
             if (RowIndex_ >= HardUpperRowIndex_) {
                 Completed_ = true;

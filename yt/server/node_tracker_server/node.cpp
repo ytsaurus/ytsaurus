@@ -187,8 +187,10 @@ void TNode::SetLocalState(ENodeState state)
 
 void TNode::SetState(TCellTag cellTag, ENodeState state)
 {
-    if (MulticellStates_[cellTag] != state) {
-        MulticellStates_[cellTag] = state;
+    auto it = MulticellStates_.find(cellTag);
+    YCHECK(it != MulticellStates_.end());
+    if (it->second != state) {
+        it->second = state;
         ComputeAggregatedState();
     }
 }

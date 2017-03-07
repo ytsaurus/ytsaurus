@@ -323,12 +323,16 @@ void TFetcherBase::OnFetchingRoundCompleted(const TError& error)
 
     if (UnfetchedChunkIndexes_.empty()) {
         LOG_DEBUG("Fetching complete");
+        OnFetchingCompleted();
         Promise_.Set(TError());
         return;
     }
 
     StartFetchingRound();
 }
+
+void TFetcherBase::OnFetchingCompleted()
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

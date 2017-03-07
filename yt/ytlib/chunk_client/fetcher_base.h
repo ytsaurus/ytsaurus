@@ -62,6 +62,8 @@ protected:
         NNodeTrackerClient::TNodeId nodeId,
         std::vector<int> chunkIndexes) = 0;
 
+    virtual void OnFetchingCompleted();
+
     NRpc::IChannelPtr GetNodeChannel(NNodeTrackerClient::TNodeId nodeId);
 
     void StartFetchingRound();

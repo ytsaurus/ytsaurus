@@ -1020,19 +1020,6 @@ def make_schema(columns, **attributes):
         schema.attributes[attr] = value
     return schema
 
-def make_ace(action, subjects, permissions, inheritance_mode="object_and_descendants"):
-    def _to_list(x):
-        if isinstance(x, str):
-            return [x]
-        else:
-            return x
-    return {
-        "action": action,
-        "subjects": _to_list(subjects),
-        "permissions": _to_list(permissions),
-        "inheritance_mode": inheritance_mode
-    }
-
 #########################################
 
 def total_seconds(td):

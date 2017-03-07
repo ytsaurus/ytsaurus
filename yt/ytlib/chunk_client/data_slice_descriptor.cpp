@@ -43,12 +43,11 @@ void ToProto(NProto::TDataSliceDescriptor* protoDataSliceDescriptor, const TData
     for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
         *protoDataSliceDescriptor->add_chunks() = chunkSpec;
     }
-    if (dataSliceDescriptor.Type == EDataSliceDescriptorType::UnversionedTable ||
-        dataSliceDescriptor.Type == EDataSliceDescriptorType::VersionedTable)
-    {
-        auto* tableSliceDescriptor = protoDataSliceDescriptor->MutableExtension(NProto::TTableSliceDescriptor::table_slice_descriptor);
-        ToProto(tableSliceDescriptor->mutable_schema(), dataSliceDescriptor.Schema);
-        tableSliceDescriptor->set_timestamp(static_cast<i64>(dataSliceDescriptor.Timestamp));
+
+    // Currently schema is required only for versioned slices.
+    if (dataSliceDescriptor.Type == EDataSliceDescriptorType::VersionedTable) {
+        ToProto(protoDataSliceDescriptor->mutable_schema(), dataSliceDescriptor.Schema);
+        protoDataSliceDescriptor->set_timestamp(static_cast<i64>(dataSliceDescriptor.Timestamp));
     }
 }
 
@@ -56,12 +55,16 @@ void FromProto(TDataSliceDescriptor* dataSliceDescriptor, const NProto::TDataSli
 {
     dataSliceDescriptor->Type = EDataSliceDescriptorType(protoDataSliceDescriptor.type());
     dataSliceDescriptor->ChunkSpecs = std::vector<NProto::TChunkSpec>(protoDataSliceDescriptor.chunks().begin(), protoDataSliceDescriptor.chunks().end());
-    if (dataSliceDescriptor->Type == EDataSliceDescriptorType::UnversionedTable ||
-        dataSliceDescriptor->Type == EDataSliceDescriptorType::VersionedTable)
-    {
-        auto tableSliceDescriptor = protoDataSliceDescriptor.GetExtension(NProto::TTableSliceDescriptor::table_slice_descriptor);
-        FromProto(&dataSliceDescriptor->Schema, tableSliceDescriptor.schema());
-        dataSliceDescriptor->Timestamp = NTableClient::TTimestamp(tableSliceDescriptor.timestamp());
+    if (dataSliceDescriptor->Type == EDataSliceDescriptorType::VersionedTable) {
+        if (protoDataSliceDescriptor.HasExtension(NProto::TTableSliceDescriptor::table_slice_descriptor)) {
+            // COMPAT(psushin)
+            auto tableSliceDescriptor = protoDataSliceDescriptor.GetExtension(NProto::TTableSliceDescriptor::table_slice_descriptor);
+            FromProto(&dataSliceDescriptor->Schema, tableSliceDescriptor.schema());
+            dataSliceDescriptor->Timestamp = NTableClient::TTimestamp(tableSliceDescriptor.timestamp());
+        } else {
+            FromProto(&dataSliceDescriptor->Schema, protoDataSliceDescriptor.schema());
+            dataSliceDescriptor->Timestamp = NTableClient::TTimestamp(protoDataSliceDescriptor.timestamp());
+        }
     }
 }
 

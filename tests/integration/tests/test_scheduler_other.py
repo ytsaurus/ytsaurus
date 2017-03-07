@@ -572,9 +572,11 @@ class TestSchedulerRevive(YTEnvSetup):
             "operation_time_limit_check_period" : 100,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
-            "finish_operation_transition_delay": 2000,
             "operation_build_progress_period": 100,
             "snapshot_period": 500,
+            "testing_options": {
+                "finish_operation_transition_delay": 2000,
+            },
         }
     }
 
@@ -712,6 +714,65 @@ class TestSchedulerRevive(YTEnvSetup):
 
         abort_op(op.id)
 
+class TestSchedulerRevive2(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operation_time_limit_check_period" : 100,
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+            "testing_options": {
+                "enable_random_master_disconnection": False,
+                "random_master_disconnection_max_backoff": 10000,
+                "finish_operation_transition_delay": 1000,
+            }
+        }
+    }
+
+    OP_COUNT = 10
+
+    def _create_table(self, table):
+        create("table", table)
+        set(table + "/@replication_factor", 1)
+
+    def _prepare_tables(self):
+        self._create_table("//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        for index in xrange(self.OP_COUNT):
+            self._create_table("//tmp/t_out" + str(index))
+            self._create_table("//tmp/t_err" + str(index))
+
+    def test_many_operation(self):
+        self._prepare_tables()
+
+        ops = []
+        for index in xrange(self.OP_COUNT):
+            op = map(
+                dont_track=True,
+                command="sleep 1; echo 'AAA' >&2; cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out" + str(index),
+                spec={
+                    "stderr_table_path": "//tmp/t_err" + str(index),
+                })
+            ops.append(op)
+
+        try:
+            set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": True}})
+            for index, op in enumerate(ops):
+                try:
+                    op.track()
+                    assert read_table("//tmp/t_out" + str(index)) == [{"foo": "bar"}]
+                except YtError:
+                    assert get("//sys/operations/{0}/@state".format(op.id)) == "failed"
+        finally:
+            set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": False}})
+            time.sleep(5)
+
 class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 3
     NUM_NODES = 3
@@ -723,7 +784,9 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
             "snapshot_period": 500,
-            "master_disconnect_delay": 3000,
+            "testing_options": {
+                "master_disconnect_delay": 3000,
+            },
         }
     }
 
@@ -2469,3 +2532,40 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             })
 
         assert "unused_tmpfs_space" not in get("//sys/operations/{0}/@alerts".format(op.id))
+
+class TestMainNodesFilter(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "main_nodes_filter": "internal",
+        }
+    }
+
+    def test_main_nodes_resources_limits(self):
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 2
+        set("//sys/nodes/{0}/@user_tags".format(nodes[0]), ["internal"])
+
+        time.sleep(2)
+
+        assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots", 2)
+        assert get("//sys/scheduler/orchid/scheduler/cell/main_nodes_resource_limits/user_slots", 1)
+
+        create("table", "//tmp/input", attributes={"replication_factor": 1})
+        create("table", "//tmp/output", attributes={"replication_factor": 1})
+        write_table("//tmp/input", [{"foo": i} for i in xrange(2)])
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            command="sleep 10",
+            in_="//tmp/input",
+            out="//tmp/output",
+            spec={"data_size_per_job": 1})
+
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/running".format(op.id)) == 2
+        assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_ratio".format(op.id)), 1.0)
+        assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op.id)), 2.0)
+
