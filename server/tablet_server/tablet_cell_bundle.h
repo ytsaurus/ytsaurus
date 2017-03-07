@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <yt/core/misc/ref_tracked.h>
-#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/boolean_formula.h>
 
 #include <yt/server/object_server/object.h>
 
@@ -30,7 +30,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellOptionsPtr, Options);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<Stroka>, NodeTag);
+    DEFINE_BYREF_RW_PROPERTY(TBooleanFormula, NodeTagFilter);
 
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTabletCell*>, TabletCells);
 

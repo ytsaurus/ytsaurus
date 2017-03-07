@@ -356,16 +356,16 @@ public:
         } catch (const std::exception& ex) {
             auto error = TError("Error updating pools")
                 << ex;
-            Host->RegisterAlert(EAlertType::UpdatePools, error);
+            Host->SetSchedulerAlert(EAlertType::UpdatePools, error);
             return;
         }
 
         if (!errors.empty()) {
             auto combinedError = TError("Found pool configuration issues");
             combinedError.InnerErrors() = std::move(errors);
-            Host->RegisterAlert(EAlertType::UpdatePools, combinedError);
+            Host->SetSchedulerAlert(EAlertType::UpdatePools, combinedError);
         } else {
-            Host->UnregisterAlert(EAlertType::UpdatePools);
+            Host->SetSchedulerAlert(EAlertType::UpdatePools, TError());
             LOG_INFO("Pools updated");
         }
     }
@@ -531,11 +531,11 @@ public:
             const auto& rootElementAlerts = RootElement->UpdateFairShareAlerts();
             alerts.insert(alerts.end(), rootElementAlerts.begin(), rootElementAlerts.end());
             if (alerts.empty()) {
-                Host->UnregisterAlert(EAlertType::UpdateFairShare);
+                Host->SetSchedulerAlert(EAlertType::UpdateFairShare, TError());
             } else {
                 auto error = TError("Found pool configuration issues during fair share update");
                 error.InnerErrors() = std::move(alerts);
-                Host->RegisterAlert(EAlertType::UpdateFairShare, error);
+                Host->SetSchedulerAlert(EAlertType::UpdateFairShare, error);
             }
 
             // Update starvation flags for all operations.
@@ -1129,7 +1129,7 @@ private:
             // NB: root element is not a pool, so we should suppress warning in this special case.
             if (Config->DefaultParentPool != RootPoolName) {
                 auto error = TError("Default parent pool %Qv is not registered", Config->DefaultParentPool);
-                Host->RegisterAlert(EAlertType::UpdatePools, error);
+                Host->SetSchedulerAlert(EAlertType::UpdatePools, error);
             }
             SetPoolParent(pool, RootElement);
         } else {
@@ -1232,7 +1232,7 @@ private:
         const auto& attributes = element->Attributes();
         auto dynamicAttributes = GetGlobalDynamicAttributes(element);
 
-        auto guaranteedResources = Host->GetTotalResourceLimits() * attributes.GuaranteedResourcesRatio;
+        auto guaranteedResources = Host->GetMainNodesResourceLimits() * attributes.GuaranteedResourcesRatio;
 
         BuildYsonMapFluently(consumer)
             .Item("scheduling_status").Value(element->GetStatus())

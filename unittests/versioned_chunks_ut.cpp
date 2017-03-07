@@ -242,7 +242,7 @@ protected:
 
             EXPECT_TRUE(chunkReader->Open().Get().IsOK());
             EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
-            CheckResult(expected, chunkReader);
+            CheckResult(&expected, chunkReader);
         }
     }
 
@@ -365,7 +365,7 @@ protected:
             New<TChunkReaderPerformanceCounters>(),
             timestamp);
 
-        CheckResult(expected, chunkReader);
+        CheckResult(&expected, chunkReader);
     }
 
     Stroka NextStringValue(std::vector<char>& value)

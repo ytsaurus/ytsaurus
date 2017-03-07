@@ -52,6 +52,7 @@ void Serialize(const TSummary& summary, NYson::IYsonConsumer* consumer);
 
 class TStatistics
 {
+public:
     using TSummaryMap = std::map<NYPath::TYPath, TSummary>;
     DEFINE_BYREF_RO_PROPERTY(TSummaryMap, Data);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, Timestamp);

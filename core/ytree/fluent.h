@@ -77,24 +77,32 @@ public:
     class TFluentBase
     {
     public:
+        typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
+
         operator NYson::IYsonConsumer* () const
         {
             return Consumer;
         }
 
+        TUnwrappedParent Finish()
+        {
+            return GetUnwrappedParent();
+        }
+
     protected:
         NYson::IYsonConsumer* Consumer;
         TParent Parent;
+        bool Unwrapped_ = false;
 
         TFluentBase(NYson::IYsonConsumer* consumer, TParent parent)
             : Consumer(consumer)
             , Parent(std::move(parent))
         { }
 
-        typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
-
         TUnwrappedParent GetUnwrappedParent()
         {
+            YCHECK(!Unwrapped_);
+            Unwrapped_ = true;
             return TFluentYsonUnwrapper<TParent>::Unwrap(std::move(Parent));
         }
     };
@@ -350,6 +358,13 @@ public:
             return *this;
         }
 
+        TThis& Items(const NYson::TYsonString& attributes)
+        {
+            YCHECK(attributes.GetType() == NYson::EYsonType::MapFragment);
+            this->Consumer->OnRaw(attributes);
+            return *this;
+        }
+
         TUnwrappedParent EndAttributes()
         {
             this->Consumer->OnEndAttributes();
@@ -434,6 +449,13 @@ public:
             return *this;
         }
 
+        TThis& Items(const NYson::TYsonString& attributes)
+        {
+            YCHECK(attributes.GetType() == NYson::EYsonType::MapFragment);
+            this->Consumer->OnRaw(attributes);
+            return *this;
+        }
+
         TUnwrappedParent EndMap()
         {
             this->Consumer->OnEndMap();
@@ -442,9 +464,35 @@ public:
     };
 };
 
-typedef TFluentYsonBuilder::TList<TFluentYsonVoid> TFluentList;
-typedef TFluentYsonBuilder::TMap<TFluentYsonVoid> TFluentMap;
-typedef TFluentYsonBuilder::TAttributes<TFluentYsonVoid> TFluentAttributes;
+////////////////////////////////////////////////////////////////////////////////
+
+template <NYson::EYsonType>
+struct TFluentType;
+
+template <>
+struct TFluentType<NYson::EYsonType::Node>
+{
+    template <class T>
+    using TValue = TFluentYsonBuilder::TAny<T>;
+};
+
+template <>
+struct TFluentType<NYson::EYsonType::MapFragment>
+{
+    template <class T>
+    using TValue = TFluentYsonBuilder::TMap<T>;
+};
+
+template <>
+struct TFluentType<NYson::EYsonType::ListFragment>
+{
+    template <class T>
+    using TValue = TFluentYsonBuilder::TList<T>;
+};
+
+using TFluentList = TFluentYsonBuilder::TList<TFluentYsonVoid>;
+using TFluentMap = TFluentYsonBuilder::TMap<TFluentYsonVoid>;
+using TFluentAttributes = TFluentYsonBuilder::TAttributes<TFluentYsonVoid>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -476,13 +524,14 @@ class TFluentYsonWriterState
 public:
     typedef NYson::TYsonString TValue;
 
-    explicit TFluentYsonWriterState(NYson::EYsonFormat format)
-        : Writer(&Output, format)
+    TFluentYsonWriterState(NYson::EYsonFormat format, NYson::EYsonType type)
+        : Writer(&Output, format, type)
+        , Type(type)
     { }
 
     NYson::TYsonString GetValue()
     {
-        return NYson::TYsonString(Output.Str());
+        return NYson::TYsonString(Output.Str(), Type);
     }
 
     NYson::IYsonConsumer* GetConsumer()
@@ -493,6 +542,7 @@ public:
 private:
     TStringStream Output;
     NYson::TYsonWriter Writer;
+    NYson::EYsonType Type;
 
 };
 
@@ -558,25 +608,24 @@ struct TFluentYsonUnwrapper<TFluentYsonHolder<TState>>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TState>
-TFluentYsonBuilder::TAny<TFluentYsonHolder<TState>> BuildYsonFluentlyWithState(
-    TIntrusivePtr<TState> state)
+template <class TState, NYson::EYsonType type>
+auto BuildYsonFluentlyWithState(TIntrusivePtr<TState> state)
 {
-    return TFluentYsonBuilder::TAny<TFluentYsonHolder<TState>>(
+    typedef typename TFluentType<type>::template TValue<TFluentYsonHolder<TState>> TReturnType;
+    return TReturnType(
         state->GetConsumer(),
         TFluentYsonHolder<TState>(state));
 }
 
-inline TFluentYsonBuilder::TAny<TFluentYsonHolder<TFluentYsonWriterState>> BuildYsonStringFluently(
-    NYson::EYsonFormat format = NYson::EYsonFormat::Binary)
+template <NYson::EYsonType type = NYson::EYsonType::Node>
+auto BuildYsonStringFluently(NYson::EYsonFormat format = NYson::EYsonFormat::Binary)
 {
-    return BuildYsonFluentlyWithState(New<TFluentYsonWriterState>(format));
+    return BuildYsonFluentlyWithState<TFluentYsonWriterState, type>(New<TFluentYsonWriterState>(format, type));
 }
 
-inline TFluentYsonBuilder::TAny<TFluentYsonHolder<TFluentYsonBuilderState>> BuildYsonNodeFluently(
-    INodeFactory* factory = GetEphemeralNodeFactory())
+inline auto BuildYsonNodeFluently(INodeFactory* factory = GetEphemeralNodeFactory())
 {
-    return BuildYsonFluentlyWithState(New<TFluentYsonBuilderState>(factory));
+    return BuildYsonFluentlyWithState<TFluentYsonBuilderState, NYson::EYsonType::Node>(New<TFluentYsonBuilderState>(factory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

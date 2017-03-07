@@ -39,7 +39,7 @@ protected:
     NChunkClient::TSequentialBlockFetcherPtr SequentialBlockFetcher_;
     NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
     TFuture<void> ReadyEvent_ = VoidFuture;
-    TFuture<TSharedRef> CurrentBlock_; 
+    TFuture<TSharedRef> CurrentBlock_;
 
     bool BlockEnded_ = false;
     bool InitFirstBlockNeeded_ = false;
@@ -49,9 +49,6 @@ protected:
     bool CheckKeyLimit_ = false;
 
     TChunkedMemoryPool MemoryPool_;
-
-    const NLogging::TLogger Logger;
-
 
     bool BeginRead();
     bool OnBlockEnded();
@@ -64,6 +61,11 @@ protected:
         TKey key,
         const TSharedRange<TKey>& blockIndexKeys,
         int beginBlockIndex = 0);
+
+    void CheckBlockUpperKeyLimit(
+        const NProto::TBlockMeta& blockMeta,
+        TKey upperLimit,
+        TNullable<int> keyColumnCount = Null);
 
     void CheckBlockUpperLimits(
         const NProto::TBlockMeta& blockMeta,
@@ -84,8 +86,9 @@ protected:
     virtual void InitNextBlock() = 0;
 
 private:
-    std::vector<TUnversionedValue> WidenKey(const TOwningKey& key, int keyColumnCount) const;
+    const NLogging::TLogger Logger;
 
+    std::vector<TUnversionedValue> WidenKey(const TOwningKey& key, int keyColumnCount) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

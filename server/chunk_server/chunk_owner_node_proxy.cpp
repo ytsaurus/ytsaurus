@@ -155,8 +155,11 @@ private:
 
     void TraverseCurrentRange()
     {
+        auto callbacks = CreatePreemptableChunkTraverserCallbacks(
+            Bootstrap_,
+            NCellMaster::EAutomatonThreadQueue::ChunkFetchingTraverser);
         TraverseChunkTree(
-            CreatePreemptableChunkTraverserCallbacks(Bootstrap_),
+            std::move(callbacks),
             this,
             ChunkList_,
             Ranges_[CurrentRangeIndex_].LowerLimit(),
@@ -390,8 +393,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto callbacks = CreatePreemptableChunkTraverserCallbacks(
+            Bootstrap_,
+            NCellMaster::EAutomatonThreadQueue::ChunkStatisticsTraverser);
         TraverseChunkTree(
-            CreatePreemptableChunkTraverserCallbacks(Bootstrap_),
+            std::move(callbacks),
             this,
             ChunkList_);
 
@@ -520,6 +526,7 @@ private:
                         .Item("chunk_count").Value(statistics.ChunkCount)
                         .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
                         .Item("compressed_data_size").Value(statistics.CompressedDataSize)
+                        .Item("data_weight").Value(statistics.DataWeight)
                     .EndMap();
             });
         Promise_.Set(result);
@@ -608,6 +615,8 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back("chunk_count");
     descriptors->push_back("uncompressed_data_size");
     descriptors->push_back("compressed_data_size");
+    descriptors->push_back(TAttributeDescriptor("data_weight")
+        .SetPresent(node->HasDataWeight()));
     descriptors->push_back("compression_ratio");
     descriptors->push_back(TAttributeDescriptor("compression_codec")
         .SetCustom(true));
@@ -655,6 +664,12 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
     if (key == "compressed_data_size") {
         BuildYsonFluently(consumer)
             .Value(statistics.compressed_data_size());
+        return true;
+    }
+
+    if (key == "data_weight" && node->HasDataWeight()) {
+        BuildYsonFluently(consumer)
+            .Value(statistics.data_weight());
         return true;
     }
 

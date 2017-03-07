@@ -390,6 +390,8 @@ private:
 
     i64 CumulativeMemoryUsageMbSec_ = 0;
 
+    std::atomic<i64> MaximumTmpfsSize_ = {0};
+
     TDuration MemoryWatchdogPeriod_;
 
     const TThreadPoolPtr PipeIOPool_;
@@ -948,6 +950,7 @@ private:
         }
 
         statistics.AddSample("/user_job/tmpfs_size", GetTmpfsSize());
+        statistics.AddSample("/user_job/max_tmpfs_size", MaximumTmpfsSize_);
 
         statistics.AddSample("/user_job/memory_limit", UserJobSpec_.memory_limit());
         statistics.AddSample("/user_job/memory_reserve", UserJobSpec_.memory_reserve());
@@ -1218,6 +1221,8 @@ private:
             JobErrorPromise_.TrySet(error);
             CleanupUserProcesses(error);
         }
+
+        MaximumTmpfsSize_ = std::max(MaximumTmpfsSize_.load(), tmpfsSize);
 
         Host_->SetUserJobMemoryUsage(rss);
     }

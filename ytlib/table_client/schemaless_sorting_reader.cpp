@@ -36,7 +36,6 @@ public:
         : RowReorderer_(nameTable, keyColumns)
         , UnderlyingReader_(underlyingReader)
         , KeyColumns_(keyColumns)
-        , ReadRowCount_(0)
     { 
         ReadyEvent_ = BIND(&TSchemalessSortingReader::DoOpen,
             MakeWeak(this))
@@ -88,6 +87,7 @@ public:
             dataWeight += GetDataWeight(rows->back());
             ++ReadRowCount_;
         }
+        ReadDataWeight_ += dataWeight;
 
         YCHECK(!rows->empty());
         return true;
@@ -109,6 +109,7 @@ public:
         YCHECK(UnderlyingReader_);
         auto dataStatistics = UnderlyingReader_->GetDataStatistics();
         dataStatistics.set_row_count(ReadRowCount_);
+        dataStatistics.set_data_weight(ReadDataWeight_);
         return dataStatistics;
     }
 
@@ -161,7 +162,8 @@ private:
     TKeyColumns KeyColumns_;
 
     std::vector<TUnversionedOwningRow> Rows_;
-    i64 ReadRowCount_;
+    i64 ReadRowCount_ = 0;
+    i64 ReadDataWeight_ = 0;
 
     TFuture<void> ReadyEvent_;
 

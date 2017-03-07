@@ -222,7 +222,7 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
 
                 scheduleJobsAsyncResult = ProcessScheduledJobs(
                     schedulingContext,
-                    response,
+                    context,
                     &operationsToLog);
 
                 // NB: some jobs maybe considered aborted after processing scheduled jobs.
@@ -271,7 +271,7 @@ std::vector<TExecNodeDescriptor> TNodeShard::GetExecNodeDescriptors()
     {
         TWriterGuard guard(CachedExecNodeDescriptorsLock_);
         CachedExecNodeDescriptors_ = result;
-        CachedExecNodeDescriptorsLastUpdateTime_ = TInstant::Now();
+        CachedExecNodeDescriptorsLastUpdateTime_ = NProfiling::GetCpuInstant();
     }
 
     return result;
@@ -745,7 +745,8 @@ TJobResources TNodeShard::CalculateResourceLimits(const TSchedulingTagFilter& fi
         SchedulingTagFilterToResources_[filter] = resources;
     }
 
-    if (CachedExecNodeDescriptorsLastUpdateTime_ + Config_->NodeShardUpdateExecNodesInformationDelay < TInstant::Now()) {
+    auto delay = NProfiling::DurationToCpuDuration(Config_->NodeShardUpdateExecNodesInformationDelay);
+    if (CachedExecNodeDescriptorsLastUpdateTime_ + delay < NProfiling::GetCpuInstant()) {
         GetInvoker()->Invoke(BIND(&TNodeShard::GetExecNodeDescriptors, MakeStrong(this)));
     }
 
@@ -1271,9 +1272,11 @@ void TNodeShard::EndNodeHeartbeatProcessing(TExecNodePtr node)
 
 TFuture<void> TNodeShard::ProcessScheduledJobs(
     const ISchedulingContextPtr& schedulingContext,
-    NJobTrackerClient::NProto::TRspHeartbeat* response,
+    const TScheduler::TCtxHeartbeatPtr& rpcContext,
     yhash_set<TOperationId>* operationsToLog)
 {
+    auto* response = &rpcContext->Response();
+
     std::vector<TFuture<void>> asyncResults;
 
     for (const auto& job : schedulingContext->StartedJobs()) {
@@ -1312,9 +1315,12 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
 
         // Build spec asynchronously.
         asyncResults.push_back(
-            BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
-                .AsyncVia(Host_->GetJobSpecBuilderInvoker())
-                .Run());
+            // NB: Hold the context strongly.
+            BIND([startInfo, rpcContext, specBuilder = job->GetSpecBuilder()] () {
+                specBuilder(startInfo->mutable_spec());
+            })
+            .AsyncVia(Host_->GetJobSpecBuilderInvoker())
+            .Run());
 
         // Release to avoid circular references.
         job->SetSpecBuilder(TJobSpecBuilder());

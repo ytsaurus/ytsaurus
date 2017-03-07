@@ -805,7 +805,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, DeleteSameRow)
 TEST_F(TSingleLockSortedDynamicStoreTest, Update1)
 {
     auto key = BuildKey("1");
-    
+
     auto ts = WriteRow(BuildRow("key=1;a=1", false));
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), nullptr));
@@ -1100,8 +1100,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ArbitraryKeyLength)
 
     auto reader = Store_->CreateReader(
         Tablet_->BuildSnapshot(nullptr),
-        BuildKey("1"),
-        BuildKey("1;<type=max>#"),
+        MakeSingletonRowRange(BuildKey("1"), BuildKey("1;<type=max>#")),
         AsyncLastCommittedTimestamp,
         TColumnFilter(),
         TWorkloadDescriptor());

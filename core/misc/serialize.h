@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "align.h"
 #include "assert.h"
 #include "enum.h"
 #include "guid.h"
@@ -18,40 +19,6 @@
 #include <contrib/libs/protobuf/repeated_field.h>
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Alignment size; measured in bytes and must be a power of two.
-const size_t SerializationAlignment = 8;
-static_assert(
-    (SerializationAlignment & (SerializationAlignment - 1)) == 0,
-    "SerializationAlignment should be a power of two.");
-
-namespace NDetail {
-
-const ui8 SerializationPadding[SerializationAlignment] = {};
-
-} // namespace NDetail
-
-//! Returns the minimum number whose addition to #size makes
-//! the result divisible by #SerializationAlignment.
-Y_FORCE_INLINE size_t GetPaddingSize(size_t size)
-{
-    return
-        (SerializationAlignment - (size & (SerializationAlignment - 1))) &
-        (SerializationAlignment - 1);
-}
-
-//! Rounds up #size to the nearest factor of #SerializationAlignment.
-Y_FORCE_INLINE size_t AlignUp(size_t size, size_t align = SerializationAlignment)
-{
-    return (size + align - 1) & ~(align - 1);
-}
-
-Y_FORCE_INLINE char* AlignUp(char* ptr, size_t align = SerializationAlignment)
-{
-    return reinterpret_cast<char*>((reinterpret_cast<uintptr_t>(ptr) + align - 1) & ~(align - 1));
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

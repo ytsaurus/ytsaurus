@@ -186,11 +186,18 @@ void TChunkSliceFetcher::OnResponse(
             SlicesByChunkIndex_.resize(index + 1, std::vector<NChunkClient::TInputChunkSlicePtr>());
         }
         for (const auto& protoChunkSlice : slices.chunk_slices()) {
+            TotalKeySize_ += protoChunkSlice.lower_limit().key().size();
+            TotalKeySize_ += protoChunkSlice.upper_limit().key().size();
             auto slice = CreateInputChunkSlice(chunk, RowBuffer_, protoChunkSlice);
             SlicesByChunkIndex_[index].push_back(slice);
             SliceCount_++;
         }
     }
+}
+
+void TChunkSliceFetcher::OnFetchingCompleted()
+{
+    LOG_INFO("Chunk slice fetching completed (TotalKeySize: %v)", TotalKeySize_);
 }
 
 ////////////////////////////////////////////////////////////////////

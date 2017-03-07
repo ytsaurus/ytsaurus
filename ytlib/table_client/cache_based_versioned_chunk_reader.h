@@ -85,8 +85,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     const TCacheBasedChunkStatePtr& state,
-    TOwningKey lowerBound,
-    TOwningKey upperBound,
+    TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp = SyncLastCommittedTimestamp);
 

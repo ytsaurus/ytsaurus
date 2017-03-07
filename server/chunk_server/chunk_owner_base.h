@@ -53,6 +53,8 @@ public:
     NChunkClient::NProto::TDataStatistics ComputeTotalStatistics() const;
     NChunkClient::NProto::TDataStatistics ComputeUpdateStatistics() const;
 
+    bool HasDataWeight() const;
+
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
 

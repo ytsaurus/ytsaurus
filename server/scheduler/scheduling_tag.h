@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/dnf.h>
+#include <yt/core/misc/boolean_formula.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -13,17 +13,19 @@ class TSchedulingTagFilter
 {
 public:
     TSchedulingTagFilter();
-    explicit TSchedulingTagFilter(const TDnfFormula& dnf);
+    explicit TSchedulingTagFilter(const TBooleanFormula& formula);
+
+    void Reload(const TBooleanFormula& formula);
 
     bool CanSchedule(const yhash_set<Stroka>& nodeTags) const;
 
     bool IsEmpty() const;
 
     size_t GetHash() const;
-    const TDnfFormula& GetDnf() const;
+    const TBooleanFormula& GetBooleanFormula() const;
 
 private:
-    TDnfFormula Dnf_;
+    TBooleanFormula BooleanFormula_;
     size_t Hash_;
 };
 

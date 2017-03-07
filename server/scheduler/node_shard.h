@@ -47,7 +47,7 @@ struct INodeShardHost
         const TOperationId& operationId,
         const TJobId& jobId,
         bool jobFailedOrAborted,
-        NYson::TYsonString jobAttributes,
+        const NYson::TYsonString& jobAttributes,
         const NChunkClient::TChunkId& stderrChunkId,
         const NChunkClient::TChunkId& failContextChunkId,
         TFuture<NYson::TYsonString> inputPathsFuture) = 0;
@@ -182,7 +182,7 @@ private:
     TJobResources TotalResourceLimits_ = ZeroJobResources();
     TJobResources TotalResourceUsage_ = ZeroJobResources();
 
-    TInstant CachedExecNodeDescriptorsLastUpdateTime_;
+    NProfiling::TCpuInstant CachedExecNodeDescriptorsLastUpdateTime_ = 0;
     NConcurrency::TReaderWriterSpinLock CachedExecNodeDescriptorsLock_;
     std::vector<TExecNodeDescriptor> CachedExecNodeDescriptors_;
 
@@ -268,7 +268,7 @@ private:
 
     TFuture<void> ProcessScheduledJobs(
         const ISchedulingContextPtr& schedulingContext,
-        NJobTrackerClient::NProto::TRspHeartbeat* response,
+        const TScheduler::TCtxHeartbeatPtr& rpcContext,
         yhash_set<TOperationId>* operationsToLog);
 
     void OnJobAborted(const TJobPtr& job, TJobStatus* status, bool operationTerminated = false);

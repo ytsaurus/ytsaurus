@@ -62,8 +62,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     }
 
     bool dynamic = attributes->GetAndRemove<bool>("dynamic", false);
+    bool replicated = TypeFromId(id.ObjectId) == EObjectType::ReplicatedTable;
 
-    if (TypeFromId(id.ObjectId) == EObjectType::ReplicatedTable && !dynamic) {
+    if (replicated && !dynamic) {
         THROW_ERROR_EXCEPTION("Replicated table must be dynamic");
     }
 
@@ -74,6 +75,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     }
 
     if (maybeSchema) {
+        if (replicated && !maybeSchema->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Replicated table schema must be sorted");
+        }
         // NB: Sorted dynamic tables contain unique keys, set this for user.
         if (dynamic && maybeSchema->IsSorted() && !maybeSchema->GetUniqueKeys()) {
              maybeSchema = maybeSchema->ToUniqueKeys();

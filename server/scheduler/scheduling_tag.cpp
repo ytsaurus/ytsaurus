@@ -11,19 +11,25 @@ TSchedulingTagFilter::TSchedulingTagFilter()
     : Hash_(0)
 { }
 
-TSchedulingTagFilter::TSchedulingTagFilter(const TDnfFormula& dnf)
-    : Dnf_(dnf)
-    , Hash_(Dnf_.GetHash())
+TSchedulingTagFilter::TSchedulingTagFilter(const TBooleanFormula& formula)
+    : BooleanFormula_(formula)
+    , Hash_(BooleanFormula_.GetHash())
 { }
+
+void TSchedulingTagFilter::Reload(const TBooleanFormula& formula)
+{
+    BooleanFormula_ = formula;
+    Hash_ = BooleanFormula_.GetHash();
+}
 
 bool TSchedulingTagFilter::CanSchedule(const yhash_set<Stroka>& nodeTags) const
 {
-    return Dnf_.IsSatisfiedBy(nodeTags);
+    return BooleanFormula_.IsSatisfiedBy(nodeTags);
 }
 
 bool TSchedulingTagFilter::IsEmpty() const
 {
-    return Dnf_.Clauses().empty();
+    return BooleanFormula_.IsEmpty();
 };
 
 size_t TSchedulingTagFilter::GetHash() const
@@ -31,14 +37,14 @@ size_t TSchedulingTagFilter::GetHash() const
     return Hash_;
 };
 
-const TDnfFormula& TSchedulingTagFilter::GetDnf() const
+const TBooleanFormula& TSchedulingTagFilter::GetBooleanFormula() const
 {
-    return Dnf_;
+    return BooleanFormula_;
 }
 
 bool operator==(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs)
 {
-    return lhs.GetDnf() == rhs.GetDnf();
+    return lhs.GetBooleanFormula() == rhs.GetBooleanFormula();
 }
 
 const TSchedulingTagFilter EmptySchedulingTagFilter;

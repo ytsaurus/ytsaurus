@@ -23,6 +23,7 @@ struct ISchedulerStrategyHost
     virtual ~ISchedulerStrategyHost() = default;
 
     virtual TJobResources GetTotalResourceLimits() = 0;
+    virtual TJobResources GetMainNodesResourceLimits() = 0;
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) = 0;
 
     virtual void ActivateOperation(const TOperationId& operationId) = 0;
@@ -36,8 +37,7 @@ struct ISchedulerStrategyHost
         const Stroka& user,
         NYTree::EPermission permission) const = 0;
 
-    virtual void RegisterAlert(EAlertType alertType, const TError& alert) = 0;
-    virtual void UnregisterAlert(EAlertType alertType) = 0;
+    virtual void SetSchedulerAlert(EAlertType alertType, const TError& alert) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
