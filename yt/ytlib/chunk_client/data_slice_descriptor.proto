@@ -13,9 +13,17 @@ message TDataSliceDescriptor
     // Chunks comprising the input.
     repeated TChunkSpec chunks = 2;
 
+    // Table schema (for table slices).
+    optional NYT.NTableClient.NProto.TTableSchemaExt schema = 3;
+
+    // Timestamp (for versioned table).
+    optional int64 timestamp = 4 [default = 0];
+
     extensions 100 to max;
 }
 
+
+// COMPAT(psushin).
 message TTableSliceDescriptor
 {
     extend TDataSliceDescriptor
@@ -31,4 +39,3 @@ message TTableSliceDescriptor
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
