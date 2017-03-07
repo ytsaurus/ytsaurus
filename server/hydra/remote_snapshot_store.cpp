@@ -7,12 +7,12 @@
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/config.h>
 #include <yt/ytlib/api/connection.h>
-#include <yt/ytlib/api/file_reader.h>
 #include <yt/ytlib/api/file_writer.h>
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 
+#include <yt/core/concurrency/async_stream.h>
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/logging/log.h>
@@ -130,7 +130,7 @@ private:
 
         TSnapshotParams Params_;
 
-        IFileReaderPtr UnderlyingReader_;
+        IAsyncZeroCopyInputStreamPtr UnderlyingReader_;
 
         NLogging::TLogger Logger = HydraLogger;
 
@@ -161,10 +161,8 @@ private:
                 {
                     TFileReaderOptions options;
                     options.Config = Store_->Config_->Reader;
-                    UnderlyingReader_ = Store_->Client_->CreateFileReader(Store_->GetSnapshotPath(SnapshotId_), options);
-
-                    WaitFor(UnderlyingReader_->Open())
-                        .ThrowOnError();
+                    UnderlyingReader_ = WaitFor(Store_->Client_->CreateFileReader(Store_->GetSnapshotPath(SnapshotId_), options))
+                        .ValueOrThrow();
                 }
                 LOG_DEBUG("Remote snapshot reader opened");
             } catch (const std::exception& ex) {
@@ -185,7 +183,6 @@ private:
                     << ex;
             }
         }
-
     };
 
     class TWriter

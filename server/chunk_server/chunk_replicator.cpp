@@ -387,7 +387,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         int replicaIndex = replica.GetReplicaIndex();
         int mediumIndex = replica.GetMediumIndex();
         auto& mediumStatistics = result.PerMediumStatistics[mediumIndex];
-        if (IsReplicaDecommissioned(replica) || node->GetVisitMark() == mark) {
+        if (IsReplicaDecommissioned(replica) || node->GetVisitMark(mediumIndex) == mark) {
             ++mediumStatistics.DecommissionedReplicaCount[replicaIndex];
             decommissionedReplicas[mediumIndex][replicaIndex].push_back(replica);
             ++totalDecommissionedReplicaCounts[mediumIndex];
@@ -395,7 +395,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
             ++mediumStatistics.ReplicaCount[replicaIndex];
             ++totalReplicaCounts[mediumIndex];
         }
-        node->SetVisitMark(mark);
+        node->SetVisitMark(mediumIndex, mark);
         const auto* rack = node->GetRack();
         if (rack) {
             int rackIndex = rack->GetIndex();
@@ -411,6 +411,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     bool allMediaTransient = true;
     bool allMediaDataPartsOnly = true;
     TPerMediumArray<NErasure::TPartIndexSet> mediumToErasedIndexes{};
+    TMediumSet activeMedia;
 
     auto chunkProperties = chunk->ComputeProperties();
 
@@ -437,6 +438,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         allMediaTransient = allMediaTransient && mediumTransient;
         allMediaDataPartsOnly = allMediaDataPartsOnly && dataPartsOnly;
 
+        activeMedia.set(mediumIndex);
+        
         ComputeErasureChunkStatisticsForMedium(
             result.PerMediumStatistics[mediumIndex],
             codec,
@@ -452,7 +455,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         codec,
         allMediaTransient,
         allMediaDataPartsOnly,
-        mediumToErasedIndexes);
+        mediumToErasedIndexes,
+        activeMedia);
 
     return result;
 }
@@ -524,7 +528,8 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
     NErasure::ICodec* codec,
     bool allMediaTransient,
     bool allMediaDataPartsOnly,
-    const TPerMediumArray<NErasure::TPartIndexSet>& mediumToErasedIndexes)
+    const TPerMediumArray<NErasure::TPartIndexSet>& mediumToErasedIndexes,
+    const TMediumSet& activeMedia)
 {
     // In contrast to regular chunks, erasure chunk being "lost" on every medium
     // doesn't mean it's lost for good: across all media, there still may be
@@ -549,7 +554,11 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
     NErasure::TPartIndexSet crossMediumErasedIndexesNoTransient;
     crossMediumErasedIndexes.flip();
     crossMediumErasedIndexesNoTransient.flip();
+
     for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+        if (!activeMedia[mediumIndex]) {
+            continue;
+        }
         const auto& erasedIndexes = mediumToErasedIndexes[mediumIndex];
         crossMediumErasedIndexes &= erasedIndexes;
         if (!transientMedia.test(mediumIndex)) {
@@ -1666,7 +1675,7 @@ bool TChunkReplicator::IsEnabled()
 
 void TChunkReplicator::OnCheckEnabled()
 {
-    auto worldInitializer = Bootstrap_->GetWorldInitializer();
+    const auto& worldInitializer = Bootstrap_->GetWorldInitializer();
     if (!worldInitializer->IsInitialized()) {
         return;
     }
@@ -1811,9 +1820,10 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
 
         void Run()
         {
-            LOG_DEBUG("Chunk tree traversal update started (ChunkList: %v)",
-                RootId_);
-            TraverseChunkTree(CreatePreemptableChunkTraverserCallbacks(Bootstrap_), this, Root_);
+            auto callbacks = CreatePreemptableChunkTraverserCallbacks(
+                Bootstrap_,
+                NCellMaster::EAutomatonThreadQueue::ChunkPropertiesUpdateTraverser);
+            TraverseChunkTree(std::move(callbacks), this, Root_);
         }
 
     private:
@@ -1834,13 +1844,7 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
 
         virtual void OnFinish(const TError& error) override
         {
-            if (error.IsOK()) {
-                LOG_DEBUG("Chunk tree traversal completed (ChunkList: %v)",
-                    RootId_);
-            } else {
-                LOG_DEBUG(error, "Chunk tree traversal failed (ChunkList: %v)",
-                    RootId_);
-
+            if (!error.IsOK()) {
                 // Try restarting.
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 Root_ = chunkManager->FindChunkList(RootId_);

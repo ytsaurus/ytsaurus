@@ -11,7 +11,7 @@
 
 #include <yt/core/yson/string.h>
 
-#include <util/stream/output.h>
+#include <util/stream/ios.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -20,11 +20,13 @@ namespace NTableClient {
 
 struct TBlobTableSchema
 {
+    // Names of special blob columns.
+    static const Stroka PartIndexColumn;
+    static const Stroka DataColumn;
+
     // Do not specify anything except name and value
     // type in all column schemas.
     std::vector<TColumnSchema> BlobIdColumns;
-    Stroka PartIndexColumn = "part_index";
-    Stroka DataColumn = "data";
 
     TTableSchema ToTableSchema() const;
 };

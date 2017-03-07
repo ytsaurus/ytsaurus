@@ -138,7 +138,7 @@ public:
             .GreaterThanOrEqual(0);
 
         RegisterParameter("chunk_refresh_delay", ChunkRefreshDelay)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Seconds(30));
         RegisterParameter("chunk_refresh_period", ChunkRefreshPeriod)
             .Default(TDuration::MilliSeconds(100));
         RegisterParameter("max_chunks_per_refresh", MaxChunksPerRefresh)

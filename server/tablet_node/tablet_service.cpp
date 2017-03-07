@@ -110,6 +110,10 @@ private:
                 tabletSnapshot->Atomicity);
         }
 
+        securityManager->ValidateResourceLimits(
+            tabletSnapshot->WriterOptions->Account,
+            tabletSnapshot->WriterOptions->MediumName);
+
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto requestData = requestCodec->Decompress(request->Attachments()[0]);
         struct TWriteBufferTag { };

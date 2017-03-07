@@ -234,7 +234,7 @@ void TNonOwningCGroup::EnsureExistance() const
     YCHECK(!IsNull());
 
 #ifdef _linux_
-    NFS::ForcePath(FullPath_, 0755);
+    NFS::MakeDirRecursive(FullPath_, 0755);
 #endif
 }
 
@@ -557,7 +557,7 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
             item.Type = values[3 * lineNumber + 1];
             item.Value = FromString<ui64>(values[3 * lineNumber + 2]);
 
-            YCHECK(item.DeviceId.StartsWith("8:"));
+            YCHECK(item.DeviceId.has_prefix("8:"));
 
             {
                 auto guard = Guard(SpinLock_);
@@ -709,9 +709,9 @@ std::map<Stroka, Stroka> ParseProcessCGroups(const Stroka& str)
         yvector<Stroka> subsystems;
         Split(subsystemsSet.data(), ",", subsystems);
         for (const auto& subsystem : subsystems) {
-            if (!subsystem.StartsWith("name=")) {
+            if (!subsystem.has_prefix("name=")) {
                 int start = 0;
-                if (name.StartsWith("/")) {
+                if (name.has_prefix("/")) {
                     start = 1;
                 }
                 result[subsystem] = name.substr(start);

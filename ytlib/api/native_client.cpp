@@ -75,6 +75,7 @@
 #include <yt/core/compression/codec.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
+#include <yt/core/concurrency/async_stream.h>
 #include <yt/core/concurrency/async_stream_pipe.h>
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/scheduler.h>
@@ -128,20 +129,28 @@ DECLARE_REFCOUNTED_CLASS(TNativeTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+EWorkloadCategory FromUserWorkloadCategory(EUserWorkloadCategory category)
+{
+    switch (category) {
+        case EUserWorkloadCategory::Realtime:
+            return EWorkloadCategory::UserRealtime;
+        case EUserWorkloadCategory::Interactive:
+            return EWorkloadCategory::UserInteractive;
+        case EUserWorkloadCategory::Batch:
+            return EWorkloadCategory::UserBatch;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+} // namespace
 
 TUserWorkloadDescriptor::operator TWorkloadDescriptor() const
 {
     TWorkloadDescriptor result;
-    switch (Category) {
-        case EUserWorkloadCategory::Realtime:
-            result.Category = EWorkloadCategory::UserRealtime;
-            break;
-        case EUserWorkloadCategory::Batch:
-            result.Category = EWorkloadCategory::UserBatch;
-            break;
-        default:
-            Y_UNREACHABLE();
-    }
+    result.Category = FromUserWorkloadCategory(Category);
     result.Band = Band;
     return result;
 }
@@ -308,7 +317,7 @@ TError TCheckPermissionResult::ToError(const Stroka& user, EPermission permissio
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobInputReader
-    : public IFileReader
+    : public NConcurrency::IAsyncZeroCopyInputStream
 {
 public:
     TJobInputReader(NJobProxy::TUserJobReadControllerPtr userJobReadController, IInvokerPtr invoker)
@@ -322,13 +331,12 @@ public:
         TransferResultFuture_.Cancel();
     }
 
-    virtual TFuture<void> Open() override
+    void Open()
     {
         auto transferClosure = UserJobReadController_->PrepareJobInputTransfer(AsyncStreamPipe_);
         TransferResultFuture_ = transferClosure
             .AsyncVia(Invoker_)
             .Run();
-        return VoidFuture;
     }
 
     virtual TFuture<TSharedRef> Read() override
@@ -340,9 +348,8 @@ private:
     const IInvokerPtr Invoker_;
     const NJobProxy::TUserJobReadControllerPtr UserJobReadController_;
     const NConcurrency::TAsyncStreamPipePtr AsyncStreamPipe_;
-    
-    TFuture<void> TransferResultFuture_;
 
+    TFuture<void> TransferResultFuture_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobInputReader);
@@ -685,7 +692,7 @@ public:
     IMPLEMENT_METHOD(void, ConcatenateNodes, (
         const std::vector<TYPath>& srcPaths,
         const TYPath& dstPath,
-        TConcatenateNodesOptions options),
+        const TConcatenateNodesOptions& options),
         (srcPaths, dstPath, options))
     IMPLEMENT_METHOD(bool, NodeExists, (
         const TYPath& path,
@@ -699,7 +706,7 @@ public:
         (type, options))
 
 
-    virtual IFileReaderPtr CreateFileReader(
+    virtual TFuture<IAsyncZeroCopyInputStreamPtr> CreateFileReader(
         const TYPath& path,
         const TFileReaderOptions& options) override
     {
@@ -779,7 +786,7 @@ public:
         const TYPath& path,
         const TDumpJobContextOptions& options),
         (jobId, path, options))
-    IMPLEMENT_METHOD(IFileReaderPtr, GetJobInput, (
+    IMPLEMENT_METHOD(IAsyncZeroCopyInputStreamPtr, GetJobInput, (
         const TOperationId& operationId,
         const TJobId& jobId,
         const TGetJobInputOptions& options),
@@ -1790,6 +1797,7 @@ private:
         SetMutationId(req, options);
         req->set_source_path(srcPath);
         req->set_preserve_account(options.PreserveAccount);
+        req->set_preserve_expiration_time(options.PreserveExpirationTime);
         req->set_recursive(options.Recursive);
         req->set_force(options.Force);
         batchReq->AddRequest(req);
@@ -1815,6 +1823,7 @@ private:
         SetMutationId(req, options);
         req->set_source_path(srcPath);
         req->set_preserve_account(options.PreserveAccount);
+        req->set_preserve_expiration_time(options.PreserveExpirationTime);
         req->set_remove_source(true);
         req->set_recursive(options.Recursive);
         req->set_force(options.Force);
@@ -2077,6 +2086,7 @@ private:
 
                 auto req = TChunkOwnerYPathProxy::EndUpload(dstIdPath);
                 *req->mutable_statistics() = dataStatistics;
+                req->set_chunk_properties_update_needed(true);
                 NCypressClient::SetTransactionId(req, uploadTransactionId);
                 NRpc::GenerateMutationId(req);
 
@@ -2265,7 +2275,7 @@ private:
             .ThrowOnError();
     }
 
-    IFileReaderPtr DoGetJobInput(
+    IAsyncZeroCopyInputStreamPtr DoGetJobInput(
         const TOperationId& operationId,
         const TJobId& jobId,
         const TGetJobInputOptions& /*options*/)
@@ -2368,7 +2378,7 @@ private:
 
         auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
 
-        auto userJobReader = New<NJobProxy::TUserJobReadController>(
+        auto userJobReader = CreateUserJobReadController(
             jobSpecHelper,
             MakeStrong(this),
             GetConnection()->GetHeavyInvoker(),
@@ -2377,7 +2387,7 @@ private:
             Null);
 
         auto jobInputReader = New<TJobInputReader>(userJobReader, GetConnection()->GetHeavyInvoker());
-
+        jobInputReader->Open();
         return jobInputReader;
     }
 
@@ -2419,9 +2429,8 @@ private:
             auto path = NScheduler::GetStderrPath(operationId, jobId);
 
             std::vector<TSharedRef> blocks;
-            auto fileReader = static_cast<IClientBase*>(this)->CreateFileReader(path);
-            WaitFor(fileReader->Open())
-                .ThrowOnError();
+            auto fileReader = WaitFor(static_cast<IClientBase*>(this)->CreateFileReader(path))
+                .ValueOrThrow();
 
             while (true) {
                 auto block = WaitFor(fileReader->Read())
@@ -2988,7 +2997,7 @@ public:
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, ConcatenateNodes, (
         const std::vector<TYPath>& srcPaths,
         const TYPath& dstPath,
-        TConcatenateNodesOptions options),
+        const TConcatenateNodesOptions& options),
         (srcPaths, dstPath, options))
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<bool>, NodeExists, (
         const TYPath& path,
@@ -3002,7 +3011,7 @@ public:
         (type, options))
 
 
-    DELEGATE_TRANSACTIONAL_METHOD(IFileReaderPtr, CreateFileReader, (
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<IAsyncZeroCopyInputStreamPtr>, CreateFileReader, (
         const TYPath& path,
         const TFileReaderOptions& options),
         (path, options))
@@ -3069,14 +3078,17 @@ private:
 
         void Run()
         {
+            auto schemaKind = Options_.PushToReplica ? ETableSchemaKind::Primary : ETableSchemaKind::Write;
             auto tableInfo = Transaction_->Client_->SyncGetTableInfo(Path_);
             const auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
             const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Primary);
-            const auto& writeSchema = tableInfo->Schemas[ETableSchemaKind::Write];
-            const auto& writeIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Write);
+            const auto& writeSchema = tableInfo->Schemas[schemaKind];
+            const auto& writeIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, schemaKind);
             const auto& rowBuffer = Transaction_->RowBuffer_;
             auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
-            auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
+            auto evaluator = (tableInfo->NeedKeyEvaluation && !Options_.PushToReplica)
+                ? evaluatorCache->Find(primarySchema)
+                : nullptr;
             auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
 
             for (const auto& modification : Modifications_) {
@@ -3269,7 +3281,7 @@ private:
             std::vector<TSubmittedRow> mergedRows;
             mergedRows.reserve(SubmittedRows_.size());
 
-            auto merger = New<TUnversionedRowMerger>(
+            TUnversionedRowMerger merger(
                 RowBuffer_,
                 ColumnCount_,
                 KeyColumnCount_,
@@ -3278,11 +3290,11 @@ private:
             auto addPartialRow = [&] (const TSubmittedRow& submittedRow) {
                 switch (submittedRow.Command) {
                     case EWireProtocolCommand::DeleteRow:
-                        merger->DeletePartialRow(submittedRow.Row);
+                        merger.DeletePartialRow(submittedRow.Row);
                         break;
 
                     case EWireProtocolCommand::WriteRow:
-                        merger->AddPartialRow(submittedRow.Row);
+                        merger.AddPartialRow(submittedRow.Row);
                         break;
 
                     default:
@@ -3302,7 +3314,7 @@ private:
                         ++index;
                         addPartialRow(SubmittedRows_[index]);
                     }
-                    SubmittedRows_[index].Row = merger->BuildMergedRow();
+                    SubmittedRows_[index].Row = merger.BuildMergedRow();
                 }
                 mergedRows.push_back(SubmittedRows_[index]);
                 ++index;

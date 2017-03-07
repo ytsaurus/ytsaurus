@@ -53,7 +53,8 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
     TTableWriterOptionsPtr options,
     const TChunkListId& chunkListId,
     const TTransactionId& transactionId,
-    const TTableSchema& tableSchema)
+    const TTableSchema& tableSchema,
+    const TChunkTimestamps& chunkTimestamps)
 {
     auto nameTable = New<TNameTable>();
     nameTable->SetEnableColumnNameValidation();
@@ -67,7 +68,8 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
         std::move(client),
         CellTagFromId(chunkListId),
         transactionId,
-        chunkListId);
+        chunkListId,
+        chunkTimestamps);
 }
 
 ISchemalessMultiChunkReaderPtr CreateTableReader(
@@ -169,7 +171,8 @@ public:
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
         const TTransactionId& transactionId,
-        const TTableSchema& tableSchema) override
+        const TTableSchema& tableSchema,
+        const TChunkTimestamps& chunkTimestamps) override
     {
         return CreateTableWriter(
             JobSpecHelper_,
@@ -178,7 +181,8 @@ public:
             std::move(options),
             chunkListId,
             transactionId,
-            tableSchema);
+            tableSchema,
+            chunkTimestamps);
     }
 
 private:
@@ -259,7 +263,8 @@ public:
         auto readerFactory = InterruptAtKeyEdge_ ? CreateSchemalessSortedJoiningReader : CreateSchemalessJoinReduceJoiningReader;
 
         const auto primaryKeyColumnCount = reduceJobSpecExt.key_columns_size();
-        return readerFactory(primaryReaders, primaryKeyColumnCount, foreignReaders, foreignKeyColumnCount);
+        const auto reduceKeyColumnCount = reduceJobSpecExt.reduce_key_column_count();
+        return readerFactory(primaryReaders, primaryKeyColumnCount, reduceKeyColumnCount, foreignReaders, foreignKeyColumnCount);
     }
 
     virtual NTableClient::ISchemalessMultiChunkWriterPtr CreateWriter(
@@ -268,7 +273,8 @@ public:
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
         const TTransactionId& transactionId,
-        const TTableSchema& tableSchema) override
+        const TTableSchema& tableSchema,
+        const TChunkTimestamps& chunkTimestamps) override
     {
         return CreateTableWriter(
             JobSpecHelper_,
@@ -277,7 +283,8 @@ public:
             std::move(options),
             chunkListId,
             transactionId,
-            tableSchema);
+            tableSchema,
+            chunkTimestamps);
     }
 
 private:
@@ -319,7 +326,8 @@ public:
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
         const TTransactionId& transactionId,
-        const TTableSchema& tableSchema) override
+        const TTableSchema& tableSchema,
+        const TChunkTimestamps& /* chunkTimestamps */) override
     {
         const auto& jobSpec = JobSpecHelper_->GetJobSpec();
         const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
@@ -402,7 +410,8 @@ public:
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
         const TTransactionId& transactionId,
-        const TTableSchema& tableSchema) override
+        const TTableSchema& tableSchema,
+        const TChunkTimestamps& chunkTimestamps) override
     {
         return CreateTableWriter(
             JobSpecHelper_,
@@ -411,7 +420,8 @@ public:
             std::move(options),
             chunkListId,
             transactionId,
-            tableSchema);
+            tableSchema,
+            chunkTimestamps);
     }
 
 private:
@@ -426,7 +436,8 @@ private:
 
 IUserJobIOFactoryPtr CreateUserJobIOFactory(const IJobSpecHelperPtr& jobSpecHelper)
 {
-    switch (jobSpecHelper->GetJobType()) {
+    const auto jobType = jobSpecHelper->GetJobType();
+    switch (jobType) {
         case EJobType::Map:
             return New<TMapJobIOFactory>(jobSpecHelper, true);
 
@@ -448,7 +459,9 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(const IJobSpecHelperPtr& jobSpecHelp
             return New<TPartitionReduceJobIOFactory>(jobSpecHelper);
 
         default:
-            Y_UNREACHABLE();
+            THROW_ERROR_EXCEPTION(
+                "Job has an invalid type %Qlv while a user job is expected",
+                jobType);
     }
 }
 

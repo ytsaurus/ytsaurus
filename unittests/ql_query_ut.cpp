@@ -1,13 +1,8 @@
 #include "framework.h"
 #include "ql_helpers.h"
 #include "udf/invalid_ir.h"
-
-#ifndef YT_IN_ARCADIA
-#include "udf/malloc_udf.h" // Y_IGNORE
-#include "udf/test_udfs.h"  // Y_IGNORE
-#else
-#include <library/resource/resource.h>
-#endif
+#include "udf/malloc_udf.h"
+#include "udf/test_udfs.h"
 
 #include <yt/ytlib/query_client/callbacks.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
@@ -49,9 +44,11 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NYPath;
-using namespace NApi;
+
+using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -351,6 +348,11 @@ class TReaderMock
 public:
     MOCK_METHOD1(Read, bool(std::vector<TUnversionedRow>*));
     MOCK_METHOD0(GetReadyEvent, TFuture<void>());
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return TDataStatistics();
+    }
 };
 
 class TWriterMock
@@ -369,7 +371,7 @@ TOwningRow YsonToRow(
 {
     auto tableSchema = GetTableSchemaFromDataSplit(dataSplit);
 
-    return NTableClient::YsonToRow(yson, tableSchema, treatMissingAsNull);
+    return NTableClient::YsonToSchemafulRow(yson, tableSchema, treatMissingAsNull);
 }
 
 TQueryStatistics DoExecuteQuery(
@@ -387,7 +389,7 @@ TQueryStatistics DoExecuteQuery(
     auto readerMock = New<StrictMock<TReaderMock>>();
 
     for (const auto& row : source) {
-        owningSource.push_back(NTableClient::YsonToRow(row, query->GetReadSchema(), true));
+        owningSource.push_back(NTableClient::YsonToSchemafulRow(row, query->GetReadSchema(), true));
     }
 
     sourceRows.resize(owningSource.size());
@@ -476,14 +478,10 @@ protected:
 
         ActionQueue_ = New<TActionQueue>("Test");
 
-#ifndef YT_IN_ARCADIA
         auto bcImplementations = TSharedRef(
             test_udfs_bc,
             test_udfs_bc_len,
             nullptr);
-#else
-        auto bcImplementations = TSharedRef::FromString(::NResource::Find("/llvm_bc/test_udfs"));
-#endif
 
         MergeFrom(TypeInferers_.Get(), *BuiltinTypeInferrersMap);
         MergeFrom(FunctionProfilers_.Get(), *BuiltinFunctionCG);

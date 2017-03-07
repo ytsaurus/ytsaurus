@@ -81,7 +81,7 @@ private:
 
         for (int i = descriptor.Fields.size(); i < NameTable_->GetSize(); ++i) {
             auto name = Stroka(NameTable_->GetName(i));
-            if (name.StartsWith(SystemColumnNamePrefix)) {
+            if (name.has_prefix(SystemColumnNamePrefix)) {
                 descriptor.Fields.push_back(TDescriptor::TField());
                 continue;
             }

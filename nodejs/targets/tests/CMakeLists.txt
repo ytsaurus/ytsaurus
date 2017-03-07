@@ -19,7 +19,7 @@ DEPENDS(
   yt/${YT_ABI}/yt/nodejs/targets/bin
 )
 
-SIZE(MEDIUM)
+TIMEOUT(600)
 
 END()
 

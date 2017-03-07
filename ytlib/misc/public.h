@@ -30,10 +30,12 @@ DEFINE_ENUM(EWorkloadCategory,
     ((SystemTabletCompaction)      (6))
     ((SystemTabletPartitioning)    (7))
     ((SystemTabletPreload)         (8))
-    ((UserBatch)                   (3))
-    ((UserRealtime)                (4))
-    ((SystemRealtime)              (5))
+    ((SystemTabletLogging)         (5))
     ((SystemArtifactCacheDownload) (9))
+    ((SystemTabletRecovery)       (10))
+    ((UserBatch)                   (3))
+    ((UserInteractive)            (11))
+    ((UserRealtime)                (4))
 );
 
 struct TWorkloadDescriptor;

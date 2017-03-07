@@ -34,6 +34,12 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TNodeFactoryOptions
+{
+    bool PreserveAccount = false;
+    bool PreserveExpirationTime = false;
+};
+
 class TCypressManager
     : public TRefCounted
 {
@@ -57,7 +63,7 @@ public:
     std::unique_ptr<ICypressNodeFactory> CreateNodeFactory(
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
-        bool preserveAccount);
+        const TNodeFactoryOptions& options);
 
     //! Creates a new node and registers it.
     TCypressNodeBase* CreateNode(

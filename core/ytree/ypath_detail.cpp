@@ -105,10 +105,15 @@ void TYPathServiceBase::AfterInvoke(const IServiceContextPtr& /*context*/)
 { }
 
 void TYPathServiceBase::WriteAttributesFragment(
-    NYson::IAsyncYsonConsumer* /* consumer */,
-    const TNullable<std::vector<Stroka>>& /* attributeKeys */,
-    bool /* sortKeys */)
+    NYson::IAsyncYsonConsumer* /*consumer*/,
+    const TNullable<std::vector<Stroka>>& /*attributeKeys*/,
+    bool /*stable*/)
 { }
+
+bool TYPathServiceBase::ShouldHideAttributes()
+{
+    return false;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -404,7 +409,7 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(
         writer.OnBeginMap();
 
         if (attributeKeys) {
-            WriteAttributesFragment(&writer, attributeKeys, /* sortKeys */ false);
+            WriteAttributesFragment(&writer, attributeKeys, /*stable*/false);
         } else {
             if (builtinAttributeProvider) {
                 std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinDescriptors;
@@ -414,7 +419,7 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(
                         continue;
 
                     auto key = Stroka(descriptor.Key);
-                    TAttributeValueConsumer attributeValueConsumer(&writer, key);
+                    TAttributeValueConsumer attributeValueConsumer(&writer, descriptor.Key);
 
                     if (descriptor.Opaque) {
                         attributeValueConsumer.OnEntity();
@@ -1041,16 +1046,13 @@ TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)
     : Node_(node)
     , TreeBuilder_(builder)
     , NodeFactory_(node->CreateFactory())
-{
-    Node_->MutableAttributes()->Clear();
-}
-
-TNodeSetterBase::~TNodeSetterBase()
 { }
+
+TNodeSetterBase::~TNodeSetterBase() = default;
 
 void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
 {
-    THROW_ERROR_EXCEPTION("Invalid node type: expected %Qlv, actual %Qlv",
+    THROW_ERROR_EXCEPTION("Cannot update %Qlv node with %Qlv value; types must match",
         GetExpectedType(),
         actualType);
 }
@@ -1267,13 +1269,17 @@ public:
         return TResolveResult::There(UnderlyingService_, tokenizer.GetSuffix());
     }
 
-    // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void WriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
-        bool sortKeys) override
+        bool stable) override
     {
-        UnderlyingService_->WriteAttributesFragment(consumer, attributeKeys, sortKeys);
+        UnderlyingService_->WriteAttributesFragment(consumer, attributeKeys, stable);
+    }
+
+    virtual bool ShouldHideAttributes() override
+    {
+        return false;
     }
 
 private:

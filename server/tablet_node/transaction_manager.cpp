@@ -34,6 +34,7 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/heap.h>
+#include <yt/core/misc/ring_queue.h>
 
 #include <set>
 
@@ -48,6 +49,43 @@ using namespace NHydra;
 using namespace NHiveServer;
 using namespace NCellNode;
 using namespace NTabletClient::NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Maintains a set of transaction ids of bounded capacity.
+//! Expires old ids in FIFO order.
+class TTransactionIdPool
+{
+public:
+    explicit TTransactionIdPool(int maxSize)
+        : MaxSize_(maxSize)
+    { }
+
+    void Register(const TTransactionId& id)
+    {
+        if (IdSet_.insert(id).second) {
+            IdQueue_.push(id);
+        }
+
+        if (IdQueue_.size() > MaxSize_) {
+            auto idToExpire = IdQueue_.front();
+            IdQueue_.pop();
+            YCHECK(IdSet_.erase(idToExpire) == 1);
+        }
+    }
+
+    bool IsRegistered(const TTransactionId& id) const
+    {
+        return IdSet_.find(id) != IdSet_.end();
+    }
+
+private:
+    const int MaxSize_;
+
+    yhash_set<TTransactionId> IdSet_;
+    TRingQueue<TTransactionId> IdQueue_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,6 +117,7 @@ public:
         , LeaseTracker_(New<TTransactionLeaseTracker>(
             Bootstrap_->GetTransactionTrackerInvoker(),
             Logger))
+        , AbortTransactionIdPool_(Config_->MaxAbortedTransactionPoolSize)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -181,6 +220,11 @@ public:
             return transaction;
         }
 
+        if (transient && AbortTransactionIdPool_.IsRegistered(transactionId)) {
+            THROW_ERROR_EXCEPTION("Abort was requested for transaction %v",
+                transactionId);
+        }
+
         if (fresh) {
             *fresh = true;
         }
@@ -195,7 +239,7 @@ public:
         auto* transaction = map.Insert(transactionId, std::move(transactionHolder));
 
         if (IsLeader()) {
-            CreateLeases(transaction);
+            CreateLease(transaction);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %v, StartTime: %v, "
@@ -213,7 +257,9 @@ public:
     {
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
             transaction->SetTransient(false);
-            CreateLeases(transaction);
+            if (IsLeader()) {
+                CreateLease(transaction);
+            }
             auto transactionHolder = TransientTransactionMap_.Release(transactionId);
             PersistentTransactionMap_.Insert(transactionId, std::move(transactionHolder));
             LOG_DEBUG_UNLESS(IsRecovery(), "Transaction became persistent (TransactionId: %v)",
@@ -232,6 +278,10 @@ public:
     void DropTransaction(TTransaction* transaction)
     {
         YCHECK(transaction->GetTransient());
+
+        if (IsLeader()) {
+            CloseLease(transaction);
+        }
 
         auto transactionId = transaction->GetId();
         TransientTransactionMap_.Remove(transactionId);
@@ -317,6 +367,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        AbortTransactionIdPool_.Register(transactionId);
+
         auto* transaction = GetTransactionOrThrow(transactionId);
 
         if (!transaction->IsActive() && !force) {
@@ -351,7 +403,7 @@ public:
         }
 
         if (IsLeader()) {
-            CloseLeases(transaction);
+            CloseLease(transaction);
         }
 
         transaction->SetCommitTimestamp(commitTimestamp);
@@ -382,7 +434,7 @@ public:
         }
 
         if (IsLeader()) {
-            CloseLeases(transaction);
+            CloseLease(transaction);
         }
 
         transaction->SetState(ETransactionState::Aborted);
@@ -451,6 +503,8 @@ private:
 
     std::set<std::pair<TTimestamp, TTransaction*>> PreparedTransactions_;
 
+    TTransactionIdPool AbortTransactionIdPool_;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -478,9 +532,9 @@ private:
             .EndMap();
     }
 
-    void CreateLeases(TTransaction* transaction)
+    void CreateLease(TTransaction* transaction)
     {
-        if (transaction->GetHasLeases()) {
+        if (transaction->GetHasLease()) {
             return;
         }
 
@@ -492,29 +546,18 @@ private:
             transaction->GetTimeout(),
             BIND(&TImpl::OnTransactionExpired, MakeStrong(this))
                 .Via(invoker));
-
-        auto startInstants = TimestampToInstant(transaction->GetStartTimestamp());
-        auto deadline = startInstants.first + Config_->MaxTransactionDuration;
-
-        transaction->TimeoutCookie() = TDelayedExecutor::Submit(
-            BIND(&TImpl::OnTransactionTimedOut, MakeStrong(this), transaction->GetId())
-                .Via(invoker),
-            deadline);
-
-        transaction->SetHasLeases(true);
+        transaction->SetHasLease(true);
     }
 
-    void CloseLeases(TTransaction* transaction)
+    void CloseLease(TTransaction* transaction)
     {
-        if (!transaction->GetHasLeases()) {
+        if (!transaction->GetHasLease()) {
             return;
         }
 
         LeaseTracker_->UnregisterTransaction(transaction->GetId());
 
-        TDelayedExecutor::CancelAndClear(transaction->TimeoutCookie());
-
-        transaction->SetHasLeases(false);
+        transaction->SetHasLease(false);
     }
 
 
@@ -602,7 +645,7 @@ private:
             if (transaction->GetState() == ETransactionState::Active ||
                 transaction->GetState() == ETransactionState::PersistentCommitPrepared)
             {
-                CreateLeases(transaction);
+                CreateLease(transaction);
             }
         }
 
@@ -649,7 +692,7 @@ private:
             transaction->SetTransientSignature(transaction->GetPersistentSignature());
             transaction->ResetFinished();
             TransactionTransientReset_.Fire(transaction);
-            CloseLeases(transaction);
+            CloseLease(transaction);
         }
 
         LeaseTracker_->Stop();

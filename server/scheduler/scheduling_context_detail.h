@@ -33,7 +33,7 @@ public:
     virtual TJobPtr GetStartedJob(const TJobId& jobId) const override;
 
     virtual bool CanStartMoreJobs() const override;
-    virtual bool CanSchedule(const TNullable<Stroka>& tag) const override;
+    virtual bool CanSchedule(const TSchedulingTagFilter& filter) const override;
 
     virtual TJobPtr StartJob(const TOperationId& operationId, const TJobStartRequest& jobStartRequest) override;
 
@@ -49,7 +49,6 @@ private:
     const TExecNodePtr Node_;
     const TExecNodeDescriptor NodeDescriptor_;
     const yhash_set<Stroka> NodeTags_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

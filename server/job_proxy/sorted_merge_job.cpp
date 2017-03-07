@@ -66,12 +66,13 @@ public:
             readers.push_back(reader);
         }
 
-        Reader_ = CreateSchemalessSortedMergingReader(readers, keyColumns.size());
+        Reader_ = CreateSchemalessSortedMergingReader(readers, keyColumns.size(), keyColumns.size());
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         auto writerConfig = GetWriterConfig(outputSpec);
+        auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
         auto schema = FromProto<TTableSchema>(outputSpec.table_schema());
 
         Writer_ = CreateSchemalessMultiChunkWriter(
@@ -83,7 +84,8 @@ public:
             Host_->GetClient(),
             CellTagFromId(chunkListId),
             transactionId,
-            chunkListId);
+            chunkListId,
+            TChunkTimestamps{timestamp, timestamp});
     }
 
 private:

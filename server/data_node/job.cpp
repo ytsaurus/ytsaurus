@@ -364,6 +364,15 @@ private:
         auto chunkStore = Bootstrap_->GetChunkStore();
         WaitFor(chunkStore->RemoveChunk(chunk))
             .ThrowOnError();
+
+        // Wait for the removal notification to be delivered to master.
+        // Cf. YT-6532.
+        // Once we switch from push replication to pull, this code is likely
+        // to appear in TReplicateChunkJob as well.
+        LOG_INFO("Waiting for heartbeat barrier");
+        const auto& masterConnector = Bootstrap_->GetMasterConnector();
+        WaitFor(masterConnector->GetHeartbeatBarrier(CellTagFromId(chunkId)))
+            .ThrowOnError();
     }
 };
 

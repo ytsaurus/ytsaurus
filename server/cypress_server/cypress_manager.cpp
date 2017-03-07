@@ -63,23 +63,41 @@ public:
         TCypressManagerConfigPtr config,
         TTransaction* transaction,
         TAccount* account,
-        bool preserveAccount)
+        const TNodeFactoryOptions& options)
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
         , Transaction_(transaction)
         , Account_(account)
-        , PreserveAccount_(preserveAccount)
+        , Options_(options)
     {
         YCHECK(Bootstrap_);
         YCHECK(Account_);
-
-        RegisterCommitHandler([&] () { OnCommit(); });
-        RegisterRollbackHandler([&] () { OnRollback(); });
     }
 
     virtual ~TNodeFactory() override
     {
         RollbackIfNeeded();
+    }
+
+    virtual void Commit() noexcept override
+    {
+        TTransactionalNodeFactoryBase::Commit();
+
+        if (Transaction_) {
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            for (auto* node : CreatedNodes_) {
+                transactionManager->StageNode(Transaction_, node);
+            }
+        }
+
+        ReleaseCreatedNodes();
+    }
+
+    virtual void Rollback() noexcept override
+    {
+        TTransactionalNodeFactoryBase::Rollback();
+
+        ReleaseCreatedNodes();
     }
 
     virtual IStringNodePtr CreateString() override
@@ -122,20 +140,24 @@ public:
         THROW_ERROR_EXCEPTION("Entity nodes cannot be created inside Cypress");
     }
 
-    virtual NTransactionServer::TTransaction* GetTransaction() override
+    virtual NTransactionServer::TTransaction* GetTransaction() const override
     {
         return Transaction_;
     }
 
-    virtual TAccount* GetNewNodeAccount() override
+    virtual bool ShouldPreserveExpirationTime() const override
+    {
+        return Options_.PreserveExpirationTime;
+    }
+
+    virtual TAccount* GetNewNodeAccount() const override
     {
         return Account_;
     }
 
-    virtual TAccount* GetClonedNodeAccount(
-        TCypressNodeBase* sourceNode) override
+    virtual TAccount* GetClonedNodeAccount(TCypressNodeBase* sourceNode) const override
     {
-        return PreserveAccount_ ? sourceNode->GetAccount() : Account_;
+        return Options_.PreserveAccount ? sourceNode->GetAccount() : Account_;
     }
 
     virtual ICypressNodeProxyPtr CreateNode(
@@ -304,26 +326,10 @@ private:
     const TCypressManagerConfigPtr Config_;
     TTransaction* const Transaction_;
     TAccount* const Account_;
-    const bool PreserveAccount_;
+    const TNodeFactoryOptions Options_;
 
     std::vector<TCypressNodeBase*> CreatedNodes_;
 
-
-    void OnCommit()
-    {
-        if (Transaction_) {
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            for (auto* node : CreatedNodes_) {
-                transactionManager->StageNode(Transaction_, node);
-            }
-        }
-        ReleaseCreatedNodes();
-    }
-
-    void OnRollback()
-    {
-        ReleaseCreatedNodes();
-    }
 
     void ValidateCreatedNodeType(EObjectType type)
     {
@@ -515,8 +521,7 @@ public:
         , ExpirationTracker_(New<TExpirationTracker>(config, bootstrap))
         , NodeMap_(TNodeMapTraits(this))
     {
-        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-        VERIFY_INVOKER_THREAD_AFFINITY(hydraFacade->GetAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
         RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, Bootstrap_->GetCellTag());
 
@@ -612,14 +617,16 @@ public:
     std::unique_ptr<ICypressNodeFactory> CreateNodeFactory(
         TTransaction* transaction,
         TAccount* account,
-        bool preserveAccount)
+        const TNodeFactoryOptions& options)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         return std::unique_ptr<ICypressNodeFactory>(new TNodeFactory(
             Bootstrap_,
             Config_,
             transaction,
             account,
-            preserveAccount));
+            options));
     }
 
     TCypressNodeBase* CreateNode(
@@ -631,6 +638,7 @@ public:
         TTransaction* transaction,
         IAttributeDictionary* attributes)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(handler);
         YCHECK(account);
         YCHECK(attributes);
@@ -660,6 +668,8 @@ public:
         const TNodeId& id,
         TCellTag externalCellTag)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        
         auto type = TypeFromId(id);
         const auto& handler = GetHandler(type);
         auto nodeHolder = handler->Instantiate(TVersionedNodeId(id), externalCellTag);
@@ -671,6 +681,7 @@ public:
         ICypressNodeFactory* factory,
         ENodeCloneMode mode)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(sourceNode);
         YCHECK(factory);
 
@@ -689,7 +700,7 @@ public:
 
     TMapNode* GetRootNode() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         return RootNode_;
     }
@@ -721,7 +732,7 @@ public:
         NTransactionServer::TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         // Fast path -- no transaction.
         if (!transaction) {
@@ -737,7 +748,7 @@ public:
         TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         auto* currentTransaction = transaction;
         while (true) {
@@ -754,7 +765,7 @@ public:
         TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         const auto& handler = GetHandler(trunkNode);
         return handler->GetProxy(trunkNode, transaction);
@@ -768,7 +779,7 @@ public:
         bool recursive = false)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
         YCHECK(request.Mode != ELockMode::None && request.Mode != ELockMode::Snapshot);
         YCHECK(!recursive || request.Key.Kind == ELockKeyKind::None);
 
@@ -813,7 +824,7 @@ public:
         bool waitable)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
         YCHECK(transaction);
         YCHECK(request.Mode != ELockMode::None);
 
@@ -855,7 +866,7 @@ public:
         TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         AccessTracker_->SetModified(trunkNode, transaction);
     }
@@ -863,7 +874,7 @@ public:
     void SetAccessed(TCypressNodeBase* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         if (HydraManager_->IsLeader() || HydraManager_->IsFollower() && !HasMutationContext()) {
             AccessTracker_->SetAccessed(trunkNode);
@@ -873,7 +884,7 @@ public:
     void SetExpirationTime(TCypressNodeBase* trunkNode, TNullable<TInstant> time)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         trunkNode->SetExpirationTime(time);
         ExpirationTracker_->OnNodeExpirationTimeUpdated(trunkNode);
@@ -885,6 +896,9 @@ public:
         TTransaction* transaction,
         bool includeRoot)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Y_ASSERT(trunkNode->IsTrunk());
+
         TSubtreeNodes result;
         ListSubtreeNodes(trunkNode, transaction, includeRoot, &result);
         return result;
@@ -894,6 +908,9 @@ public:
         TCypressNodeBase* trunkNode,
         TTransaction* transaction)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Y_ASSERT(trunkNode->IsTrunk());
+
         SmallVector<TTransaction*, 16> transactions;
 
         auto addLock = [&] (const TLock* lock) {
@@ -929,6 +946,8 @@ public:
 
     void AbortSubtreeTransactions(INodePtr node)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto* cypressNode = ICypressNodeProxy::FromNode(node.Get());
         AbortSubtreeTransactions(cypressNode->GetTrunkNode(), cypressNode->GetTransaction());
     }
@@ -936,6 +955,9 @@ public:
 
     bool IsOrphaned(TCypressNodeBase* trunkNode)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Y_ASSERT(trunkNode->IsTrunk());
+
         auto* currentNode = trunkNode;
         while (true) {
             if (!IsObjectAlive(currentNode)) {
@@ -1033,7 +1055,8 @@ public:
         TTransaction* transaction,
         TCypressNodeBase* trunkNode)
     {
-        YCHECK(trunkNode->IsTrunk());
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Y_ASSERT(trunkNode->IsTrunk());
 
         // Fast path.
         if (!transaction) {
@@ -1055,6 +1078,9 @@ public:
         TTransaction* transaction,
         TCypressNodeBase* trunkNode)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        Y_ASSERT(trunkNode->IsTrunk());
+
         auto result = GetNodeOriginators(transaction, trunkNode);
         std::reverse(result.begin(), result.end());
         return result;
@@ -1227,7 +1253,7 @@ private:
                 if (node->GetType() == EObjectType::Link) {
                     auto* linkNode = node->As<TLinkNode>();
                     const auto& targetPath = linkNode->GetTargetPath();
-                    if (targetPath.StartsWith(ObjectIdPathPrefix)) {
+                    if (targetPath.has_prefix(ObjectIdPathPrefix)) {
                         TObjectId objectId;
                         TStringBuf objectIdString(targetPath.begin() + ObjectIdPathPrefix.length(), targetPath.end());
                         if (TObjectId::FromString(objectIdString, &objectId)) {
@@ -1349,7 +1375,7 @@ private:
     void DestroyNode(TCypressNodeBase* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         const auto& lockingState = trunkNode->LockingState();
 
@@ -1434,7 +1460,7 @@ private:
         TTransaction* transaction,
         const TLockRequest& request)
     {
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
         YCHECK(transaction || request.Mode != ELockMode::Snapshot);
 
         const auto& lockingState = trunkNode->LockingState();
@@ -1562,7 +1588,7 @@ private:
         const TLockRequest& request,
         const TLock* lockToIgnore = nullptr)
     {
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
         YCHECK(request.Mode != ELockMode::None && request.Mode != ELockMode::Snapshot);
 
         if (!transaction) {
@@ -1881,7 +1907,7 @@ private:
         bool includeRoot,
         TSubtreeNodes* subtreeNodes)
     {
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         if (includeRoot) {
             subtreeNodes->push_back(trunkNode);
@@ -2059,7 +2085,7 @@ private:
         TCypressNodeBase* trunkNode,
         TTransaction* transaction)
     {
-        YCHECK(trunkNode->IsTrunk());
+        Y_ASSERT(trunkNode->IsTrunk());
 
         auto proxy = GetNodeProxy(trunkNode, transaction);
         return proxy->GetResolver()->GetPath(proxy);
@@ -2091,7 +2117,7 @@ private:
 
         // Copy expiration time.
         auto expirationTime = sourceNode->GetTrunkNode()->GetExpirationTime(); 
-        if (expirationTime) {
+        if (factory->ShouldPreserveExpirationTime() && expirationTime) {
             SetExpirationTime(clonedNode, *expirationTime);
         }
 
@@ -2199,7 +2225,10 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccount(accountId);
 
-        auto factory = CreateNodeFactory(clonedTransaction, account, false);
+        auto factory = CreateNodeFactory(
+            clonedTransaction,
+            account,
+            TNodeFactoryOptions());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Cloning foreign node (SourceNodeId: %v, ClonedNodeId: %v, Account: %v)",
             TVersionedNodeId(sourceNodeId, sourceTransactionId),
@@ -2343,9 +2372,12 @@ const INodeTypeHandlerPtr& TCypressManager::GetHandler(const TCypressNodeBase* n
 std::unique_ptr<ICypressNodeFactory> TCypressManager::CreateNodeFactory(
     TTransaction* transaction,
     TAccount* account,
-    bool preserveAccount)
+    const TNodeFactoryOptions& options)
 {
-    return Impl_->CreateNodeFactory(transaction, account, preserveAccount);
+    return Impl_->CreateNodeFactory(
+        transaction,
+        account,
+        options);
 }
 
 TCypressNodeBase* TCypressManager::CreateNode(

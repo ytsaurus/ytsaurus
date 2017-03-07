@@ -139,6 +139,10 @@ DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTabletPerformanceCounters
     : public TChunkReaderPerformanceCounters
 {
@@ -309,8 +313,10 @@ public:
     void RemoveStore(IStorePtr store);
     IStorePtr FindStore(const TStoreId& id);
     IStorePtr GetStore(const TStoreId& id);
+    IStorePtr GetStoreOrThrow(const TStoreId& id);
 
     TTableReplicaInfo* FindReplicaInfo(const TTableReplicaId& id);
+    TTableReplicaInfo* GetReplicaInfoOrThrow(const TTableReplicaId& id);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
@@ -334,6 +340,8 @@ public:
 
     TTimestamp GetLastCommitTimestamp() const;
     void SetLastCommitTimestamp(TTimestamp value);
+    TTimestamp GenerateMonotonicCommitTimestamp(TTimestamp hintTimestamp) const;
+    void UpdateLastCommitTimestamp(TTimestamp timestamp);
 
     TTimestamp GetUnflushedTimestamp() const;
 

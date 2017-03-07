@@ -12,7 +12,10 @@ namespace NObjectServer {
 
 inline TObjectBase::TObjectBase(const TObjectId& id)
     : Id_(id)
-{ }
+{
+    // This is reset to false in TCypressNodeBase ctor for non-trunk nodes.
+    Flags_.Trunk = true;
+}
 
 inline TObjectBase::~TObjectBase()
 {
@@ -111,6 +114,11 @@ inline bool TObjectBase::IsDestroyed() const
 inline bool TObjectBase::IsLocked() const
 {
     return WeakRefCounter_ > 0;
+}
+
+inline bool TObjectBase::IsTrunk() const
+{
+    return Flags_.Trunk;
 }
 
 inline bool TObjectBase::IsForeign() const

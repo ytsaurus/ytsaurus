@@ -203,7 +203,7 @@ protected:
 
     TUnversionedOwningRow BuildRow(const Stroka& yson, bool treatMissingAsNull = true)
     {
-        return NTableClient::YsonToRow(yson, Tablet_->PhysicalSchema(), treatMissingAsNull);
+        return NTableClient::YsonToSchemafulRow(yson, Tablet_->PhysicalSchema(), treatMissingAsNull);
     }
 
     bool AreRowsEqual(TUnversionedRow row, const Stroka& yson)

@@ -54,10 +54,12 @@ i64 GetBasicPriority(EWorkloadCategory category)
         case EWorkloadCategory::SystemRepair:
             return CategoryPriorityFactor * 2;
 
-        case EWorkloadCategory::UserRealtime:
+        case EWorkloadCategory::UserInteractive:
+        case EWorkloadCategory::SystemTabletRecovery:
             return CategoryPriorityFactor * 3;
 
-        case EWorkloadCategory::SystemRealtime:
+        case EWorkloadCategory::UserRealtime:
+        case EWorkloadCategory::SystemTabletLogging:
             return CategoryPriorityFactor * 4;
 
         // Graceful fallback for possible future extensions of categories.

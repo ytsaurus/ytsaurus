@@ -50,6 +50,7 @@ public:
         IInvokerPtr invoker,
         NNodeTrackerClient::TNodeDescriptor nodeDescriptor,
         TClosure onNetworkRelease,
+        IUserJobIOFactoryPtr userJobIOFactory,
         TNullable<Stroka> udfDirectory);
 
     //! Returns closure that launches data transfer to given async output.
@@ -92,6 +93,16 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserJobReadController);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUserJobReadControllerPtr CreateUserJobReadController(
+        IJobSpecHelperPtr jobSpecHelper,
+        NApi::INativeClientPtr client,
+        IInvokerPtr invoker,
+        NNodeTrackerClient::TNodeDescriptor nodeDescriptor,
+        TClosure onNetworkRelease,
+        TNullable<Stroka> udfDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

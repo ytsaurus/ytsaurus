@@ -332,7 +332,6 @@ DEFINE_REFCOUNTED_TYPE(IEntityNode)
  *  The factory also acts as a "transaction context" that holds all created nodes.
  *
  *  One must call #Commit at the end if the operation was a success.
- *  This also invokes all handlers installed via #RegisterCommitHandler.
  *
  *  Releasing the instance without calling #Commit or calling #Rollback abandons all changes
  *  and invokes all handlers installed via #RegisterRollbackHandler.
@@ -373,43 +372,33 @@ struct INodeFactory
  *  The factory also acts as a "transaction context" that holds all created nodes.
  *
  *  One must call #Commit at the end if the operation was a success.
- *  This also invokes all handlers installed via #RegisterCommitHandler.
- *
- *  Releasing the instance without calling #Commit or calling #Rollback abandons all changes
- *  and invokes all handlers installed via #RegisterRollbackHandler.
+ *  Releasing the instance without calling #Commit or calling #Rollback abandons all changes.
  */
 struct ITransactionalNodeFactory
     : public INodeFactory
 {
-
     //! Must be called before releasing the factory to indicate that all created nodes
     //! must persist.
     virtual void Commit() = 0;
 
     //! Invokes all rollback handlers.
     virtual void Rollback() = 0;
-
-    //! Adds a new #handler to be called upon commit.
-    virtual void RegisterCommitHandler(const std::function<void()>& handler) = 0;
-
-    //! Adds a new #handler to be called upon rollback.
-    virtual void RegisterRollbackHandler(const std::function<void()>& handler) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(INode& value, NYson::IYsonConsumer* consumer);
-void Deserialize(INodePtr& value, INodePtr node);
-void Deserialize(IStringNodePtr& value, INodePtr node);
-void Deserialize(IInt64NodePtr& value, INodePtr node);
-void Deserialize(IUint64NodePtr& value, INodePtr node);
-void Deserialize(IDoubleNodePtr& value, INodePtr node);
-void Deserialize(IBooleanNodePtr& value, INodePtr node);
-void Deserialize(IMapNodePtr& value, INodePtr node);
-void Deserialize(IListNodePtr& value, INodePtr node);
-void Deserialize(IEntityNodePtr& value, INodePtr node);
+void Deserialize(INodePtr& value, const INodePtr& node);
+void Deserialize(IStringNodePtr& value, const INodePtr& node);
+void Deserialize(IInt64NodePtr& value, const INodePtr& node);
+void Deserialize(IUint64NodePtr& value, const INodePtr& node);
+void Deserialize(IDoubleNodePtr& value, const INodePtr& node);
+void Deserialize(IBooleanNodePtr& value, const INodePtr& node);
+void Deserialize(IMapNodePtr& value, const INodePtr& node);
+void Deserialize(IListNodePtr& value, const INodePtr& node);
+void Deserialize(IEntityNodePtr& value, const INodePtr& node);
 
-NYson::TYsonString ConvertToYsonStringStable(INodePtr node);
+NYson::TYsonString ConvertToYsonStringStable(const INodePtr& node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

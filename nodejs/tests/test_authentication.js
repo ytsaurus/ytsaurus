@@ -41,6 +41,7 @@ function stubRegistry()
             cache_max_size: 1000,
             cache_max_token_age: 86400,
             cache_max_exist_age: 86400 * 1000,
+            optimism_timeout: 50,
             create_users_on_demand: true,
             guest_login: "ytguest",
             guest_realm: "ytguest",
@@ -161,8 +162,10 @@ describe("YtAuthentication", function() {
                 oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
             })
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=lucky-token")
+            .delay(5000)
             .reply(500, {})
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=lucky-token")
+            .delay(5000)
             .reply(500, {});
         ask("GET", "/", { "Authorization": "OAuth lucky-token" },
         function(rsp) {
@@ -195,6 +198,9 @@ describe("YtAuthentication", function() {
         }, done).end();
     });
 
+    /*
+     * Disabled due to YT-6531
+     *
     it("should reject invalid token issuer id", function(done) {
         var mock = nock("http://localhost:9000")
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=obi-wan-kenobi")
@@ -210,6 +216,7 @@ describe("YtAuthentication", function() {
             mock.done();
         }, done).end();
     });
+    */
 
     it("should reject invalid token grants", function(done) {
         var mock = nock("http://localhost:9000")

@@ -35,7 +35,7 @@ public:
     virtual std::unique_ptr<NYTree::ITransactionalNodeFactory> CreateFactory() const override;
     virtual std::unique_ptr<ICypressNodeFactory> CreateCypressFactory(
         NSecurityServer::TAccount* account,
-        bool preserveAccount) const override;
+        const TNodeFactoryOptions& options) const override;
 
     virtual NYTree::INodeResolverPtr GetResolver() const override;
 
@@ -50,7 +50,23 @@ public:
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
 
 protected:
-    class TCustomAttributeDictionary;
+    class TCustomAttributeDictionary
+        : public NYTree::IAttributeDictionary
+    {
+    public:
+        explicit TCustomAttributeDictionary(TNontemplateCypressNodeProxyBase* proxy);
+
+        // IAttributeDictionary members
+        virtual std::vector<Stroka> List() const override;
+        virtual NYson::TYsonString FindYson(const Stroka& key) const override;
+        virtual void SetYson(const Stroka& key, const NYson::TYsonString& value) override;
+        virtual bool Remove(const Stroka& key) override;
+
+    private:
+        TNontemplateCypressNodeProxyBase* const Proxy_;
+
+    } CustomAttributesImpl_;
+
     class TResourceUsageVisitor;
 
     NTransactionServer::TTransaction* const Transaction;
@@ -76,6 +92,11 @@ protected:
     virtual void BeforeInvoke(const NRpc::IServiceContextPtr& context) override;
     virtual void AfterInvoke(const NRpc::IServiceContextPtr& context) override;
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+
+    virtual void GetSelf(
+        TReqGet* request,
+        TRspGet* response,
+        const TCtxGetPtr& context) override;
 
     virtual void RemoveSelf(
         TReqRemove* request,
@@ -137,8 +158,6 @@ protected:
 
 
     ICypressNodeProxyPtr GetProxy(TCypressNodeBase* trunkNode) const;
-
-    virtual std::unique_ptr<NYTree::IAttributeDictionary> DoCreateCustomAttributes() override;
 
     // TSupportsPermissions members
     virtual void ValidatePermission(
@@ -404,6 +423,11 @@ private:
     virtual TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
         const NRpc::IServiceContextPtr& context) override;
+
+    virtual void ListSelf(
+        TReqList* request,
+        TRspList* response,
+        const TCtxListPtr& context) override;
 
     void DoRemoveChild(
         TMapNode* impl,

@@ -23,6 +23,7 @@ struct TShellParameters
     TDuration InactivityTimeout;
     //! Environment variables passed to job shell.
     std::vector<Stroka> Environment;
+    TNullable<Stroka> Command;
 
     TShellParameters()
     {
@@ -42,6 +43,8 @@ struct TShellParameters
         RegisterParameter("inactivity_timeout", InactivityTimeout)
             .Default(TDuration::Seconds(5 * 60));
         RegisterParameter("environment", Environment)
+            .Default();
+        RegisterParameter("command", Command)
             .Default();
 
         RegisterValidator([&] () {

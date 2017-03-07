@@ -69,7 +69,7 @@ public:
 
         RegisterInitializer([&] () {
             // Override default workload descriptors.
-            ChunkReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
+            ChunkReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
         });
     }
 };

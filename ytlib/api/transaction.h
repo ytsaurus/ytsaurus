@@ -36,7 +36,10 @@ struct TRowModification
 };
 
 struct TModifyRowsOptions
-{ };
+{
+    //! Pushes the columns to replica as is without expression recalculation.
+    bool PushToReplica = false;
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 

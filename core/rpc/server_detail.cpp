@@ -218,6 +218,11 @@ std::vector<TSharedRef>& TServiceContextBase::ResponseAttachments()
     return ResponseAttachments_;
 }
 
+const NProto::TRequestHeader& TServiceContextBase::GetRequestHeader() const
+{
+    return *RequestHeader_;
+}
+
 TSharedRefArray TServiceContextBase::GetRequestMessage() const
 {
     return RequestMessage_;
@@ -308,6 +313,11 @@ NLogging::ELogLevel TServiceContextBase::GetLogLevel() const
 TServiceContextWrapper::TServiceContextWrapper(IServiceContextPtr underlyingContext)
     : UnderlyingContext_(std::move(underlyingContext))
 { }
+
+const NProto::TRequestHeader& TServiceContextWrapper::GetRequestHeader() const
+{
+    return UnderlyingContext_->GetRequestHeader();
+}
 
 TSharedRefArray TServiceContextWrapper::GetRequestMessage() const
 {

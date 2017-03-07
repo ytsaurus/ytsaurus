@@ -34,6 +34,7 @@
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/table_consumer.h>
+#include <yt/ytlib/table_client/row_buffer.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
@@ -732,11 +733,11 @@ bool TOperationControllerBase::TTask::CanScheduleJob(
 void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
     const TJobResources& neededResources)
 {
-    const auto& nodeDescriptors = Controller->GetExecNodeDescriptors();
-    if (nodeDescriptors.size() < Controller->Config->SafeOnlineNodeCount) {
+    if (Controller->ShouldSkipSanityCheck()) {
         return;
     }
 
+    const auto& nodeDescriptors = Controller->GetExecNodeDescriptors();
     for (const auto& descriptor : nodeDescriptors) {
         if (Dominates(descriptor.ResourceLimits, neededResources)) {
             return;
@@ -756,8 +757,9 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
     // Run sanity check to see if any node can provide enough resources.
     // Don't run these checks too often to avoid jeopardizing performance.
     auto now = TInstant::Now();
-    if (now < LastDemandSanityCheckTime + Controller->Config->ResourceDemandSanityCheckPeriod)
+    if (now < LastDemandSanityCheckTime + Controller->Config->ResourceDemandSanityCheckPeriod) {
         return;
+    }
     LastDemandSanityCheckTime = now;
 
     // Schedule check in controller thread.
@@ -904,6 +906,7 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
         if (table.WriterConfig) {
             outputSpec->set_table_writer_config(table.WriterConfig.GetData());
         }
+        outputSpec->set_timestamp(table.Timestamp);
         ToProto(outputSpec->mutable_table_schema(), table.TableUploadOptions.TableSchema);
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
     }
@@ -1076,6 +1079,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , JobCounter(0)
     , UserTransactionId(operation->GetUserTransaction() ? operation->GetUserTransaction()->GetId() : NullTransactionId)
+    , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , SecureVault(operation->GetSecureVault())
     , Owners(operation->GetOwners())
     , Spec(spec)
@@ -1086,9 +1090,17 @@ TOperationControllerBase::TOperationControllerBase(
         GetCancelableInvoker(),
         BIND(&TThis::CheckTimeLimit, MakeWeak(this)),
         Config->OperationTimeLimitCheckPeriod))
+    , ExecNodesCheckExecutor(New<TPeriodicExecutor>(
+        GetCancelableInvoker(),
+        BIND(&TThis::CheckAvailableExecNodes, MakeWeak(this)),
+        Config->AvailableExecNodesCheckPeriod))
     , EventLogValueConsumer_(Host->CreateLogConsumer())
     , EventLogTableConsumer_(new TTableConsumer(EventLogValueConsumer_.get()))
     , CodicilData_(MakeOperationCodicilString(OperationId))
+    , ProgressBuildExecutor_(New<TPeriodicExecutor>(
+        GetCancelableInvoker(),
+        BIND(&TThis::BuildAndSaveProgress, MakeWeak(this)),
+        Config->OperationBuildProgressPeriod))
 {
     Logger.AddTag("OperationId: %v", OperationId);
 }
@@ -1298,6 +1310,8 @@ void TOperationControllerBase::SafePrepare()
 {
     YCHECK(!(Config->EnableFailControllerSpecOption && Spec->FailController));
 
+    PrepareInputTables();
+
     // Process input tables.
     {
         LockInputTables();
@@ -1359,7 +1373,7 @@ void TOperationControllerBase::SafePrepare()
 
 void TOperationControllerBase::SafeMaterialize()
 {
-    if (State == EControllerState::Running) {
+    if (RevivedFromSnapshot) {
         // Operation is successfully revived, skipping materialization.
         return;
     }
@@ -1381,6 +1395,8 @@ void TOperationControllerBase::SafeMaterialize()
 
         InitializeHistograms();
 
+        LOG_INFO("Tasks prepared (RowBufferCapacity: %v)", RowBuffer->GetCapacity());
+
         if (InputChunkMap.empty()) {
             // Possible reasons:
             // - All input chunks are unavailable && Strategy == Skip
@@ -1389,13 +1405,24 @@ void TOperationControllerBase::SafeMaterialize()
             LOG_INFO("No jobs needed");
             OnOperationCompleted(false /* interrupted */);
             return;
-        }
+        } else {
+            YCHECK(UnavailableInputChunkCount == 0);
+            for (const auto& pair : InputChunkMap) {
+                const auto& chunkDescriptor = pair.second;
+                if (chunkDescriptor.State == EInputChunkState::Waiting) {
+                    ++UnavailableInputChunkCount;
+                }
+            }
 
-        SuspendUnavailableInputStripes();
+            if (UnavailableInputChunkCount > 0) {
+                LOG_INFO("Found unavailable input chunks during materialization (UnavailableInputChunkCount: %v)",
+                    UnavailableInputChunkCount);
+            }
+        }
 
         AddAllTaskPendingHints();
 
-        if (Config->EnableSnapshotCycleAfterMaterialization) {
+        if (Config->TestingOptions->EnableSnapshotCycleAfterMaterialization) {
             TStringStream stringStream;
             SaveSnapshot(&stringStream);
             auto sharedRef = TSharedRef::FromString(stringStream.Str());
@@ -1408,6 +1435,8 @@ void TOperationControllerBase::SafeMaterialize()
         InitIntermediateChunkScraper();
 
         CheckTimeLimitExecutor->Start();
+        ProgressBuildExecutor_->Start();
+        ExecNodesCheckExecutor->Start();
 
         State = EControllerState::Running;
     } catch (const std::exception& ex) {
@@ -1441,6 +1470,8 @@ void TOperationControllerBase::Revive()
     DoLoadSnapshot(Snapshot);
     Snapshot = TSharedRef();
 
+    RevivedFromSnapshot = true;
+
     InitChunkListPool();
 
     LockLivePreviewTables();
@@ -1455,7 +1486,12 @@ void TOperationControllerBase::Revive()
 
     ReinstallLivePreview();
 
+    // To prevent operation failure on startup if available nodes are missing.
+    AvaialableNodesLastSeenTime_ = NProfiling::GetCpuInstant();
+
     CheckTimeLimitExecutor->Start();
+    ProgressBuildExecutor_->Start();
+    ExecNodesCheckExecutor->Start();
 
     State = EControllerState::Running;
 }
@@ -1597,8 +1633,7 @@ void TOperationControllerBase::InitInputChunkScraper()
         InputNodeDirectory,
         std::move(chunkIds),
         BIND(&TThis::OnInputChunkLocated, MakeWeak(this)),
-        Logger
-    );
+        Logger);
 
     if (UnavailableInputChunkCount > 0) {
         LOG_INFO("Waiting for %v unavailable input chunks", UnavailableInputChunkCount);
@@ -1636,25 +1671,6 @@ yhash_set<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
     }
 
     return intermediateChunks;
-}
-
-void TOperationControllerBase::SuspendUnavailableInputStripes()
-{
-    YCHECK(UnavailableInputChunkCount == 0);
-
-    for (const auto& pair : InputChunkMap) {
-        const auto& chunkDescriptor = pair.second;
-        if (chunkDescriptor.State == EInputChunkState::Waiting) {
-            LOG_TRACE("Input chunk is unavailable (ChunkId: %v)", pair.first);
-            for (const auto& inputStripe : chunkDescriptor.InputStripes) {
-                if (inputStripe.Stripe->WaitingChunkCount == 0) {
-                    inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
-                }
-                ++inputStripe.Stripe->WaitingChunkCount;
-            }
-            ++UnavailableInputChunkCount;
-        }
-    }
 }
 
 void TOperationControllerBase::ReinstallLivePreview()
@@ -1722,34 +1738,39 @@ void TOperationControllerBase::DoLoadSnapshot(const TSharedRef& snapshot)
     LOG_INFO("Finished loading snapshot");
 }
 
+bool TOperationControllerBase::GetCommitting()
+{
+    const auto& client = Host->GetMasterClient();
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
+    auto path = GetOperationPath(OperationId) + "/@committing";
+    auto req = TYPathProxy::Exists(path);
+    auto rsp = WaitFor(proxy.Execute(req))
+        .ValueOrThrow();
+    return ConvertTo<bool>(rsp->value());
+}
+
+void TOperationControllerBase::SetCommitting()
+{
+    const auto& client = Host->GetMasterClient();
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
+    auto path = GetOperationPath(OperationId) + "/@committing";
+    auto req = TYPathProxy::Set(path);
+    req->set_value(ConvertToYsonString(true).GetData());
+    WaitFor(proxy.Execute(req))
+        .ThrowOnError();
+}
+
 void TOperationControllerBase::SafeCommit()
 {
     // XXX(babenko): hotfix for YT-4636
-    {
-        const auto& client = Host->GetMasterClient();
-
-        // NB: use root credentials.
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
-
-        auto path = GetOperationPath(OperationId) + "/@committing";
-
-        {
-            auto req = TYPathProxy::Exists(path);
-            auto rsp = WaitFor(proxy.Execute(req))
-                .ValueOrThrow();
-            if (ConvertTo<bool>(rsp->value())) {
-                THROW_ERROR_EXCEPTION("Operation is already committing");
-            }
-        }
-
-        {
-            auto req = TYPathProxy::Set(path);
-            req->set_value(ConvertToYsonString(true).GetData());
-            WaitFor(proxy.Execute(req))
-                .ThrowOnError();
-        }
+    if (GetCommitting()) {
+        THROW_ERROR_EXCEPTION("Operation is already committing");
     }
+    SetCommitting();
 
     TeleportOutputChunks();
     AttachOutputChunks(UpdatingTables);
@@ -2240,7 +2261,7 @@ void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
     }
 }
 
-void TOperationControllerBase::OnIntermediateChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+void TOperationControllerBase::SafeOnIntermediateChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
 {
     // Intermediate chunks are always replicated.
     if (IsUnavailable(replicas, NErasure::ECodec::None)) {
@@ -2248,7 +2269,7 @@ void TOperationControllerBase::OnIntermediateChunkLocated(const TChunkId& chunkI
     }
 }
 
-void TOperationControllerBase::OnInputChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+void TOperationControllerBase::SafeOnInputChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
 {
     auto it = InputChunkMap.find(chunkId);
     YCHECK(it != InputChunkMap.end());
@@ -2398,6 +2419,11 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     return true;
 }
 
+bool TOperationControllerBase::AreForeignTablesSupported() const
+{
+    return false;
+}
+
 bool TOperationControllerBase::IsOutputLivePreviewSupported() const
 {
     return false;
@@ -2430,7 +2456,7 @@ bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
 
 void TOperationControllerBase::SafeAbort()
 {
-    LOG_INFO("Aborting operation");
+    LOG_INFO("Aborting operation controller");
 
     auto abortTransaction = [&] (ITransactionPtr transaction) {
         if (transaction) {
@@ -2441,22 +2467,25 @@ void TOperationControllerBase::SafeAbort()
 
     AreTransactionsActive = false;
 
-    try {
-        if (StderrTable && StderrTable->IsBeginUploadCompleted()) {
-            AttachOutputChunks({StderrTable.GetPtr()});
-            EndUploadOutputTables({StderrTable.GetPtr()});
-        }
+    // Skip commiting anything if operation controller already tried to commit results.
+    if (!GetCommitting()) {
+        try {
+            if (StderrTable && StderrTable->IsBeginUploadCompleted()) {
+                AttachOutputChunks({StderrTable.GetPtr()});
+                EndUploadOutputTables({StderrTable.GetPtr()});
+            }
 
-        if (CoreTable && CoreTable->IsBeginUploadCompleted()) {
-            AttachOutputChunks({CoreTable.GetPtr()});
-            EndUploadOutputTables({CoreTable.GetPtr()});
-        }
+            if (CoreTable && CoreTable->IsBeginUploadCompleted()) {
+                AttachOutputChunks({CoreTable.GetPtr()});
+                EndUploadOutputTables({CoreTable.GetPtr()});
+            }
 
-        CommitTransaction(DebugOutputTransaction);
-    } catch (const std::exception& ex) {
-        // Bad luck we can't commit transaction.
-        // Such a pity can happen for example if somebody aborted our transaction manualy.
-        LOG_ERROR(ex, "Failed to commit debug output transaction");
+            CommitTransaction(DebugOutputTransaction);
+        } catch (const std::exception& ex) {
+            // Bad luck we can't commit transaction.
+            // Such a pity can happen for example if somebody aborted our transaction manualy.
+            LOG_ERROR(ex, "Failed to commit debug output transaction");
+        }
     }
 
     abortTransaction(InputTransaction);
@@ -2468,7 +2497,7 @@ void TOperationControllerBase::SafeAbort()
 
     CancelableContext->Cancel();
 
-    LOG_INFO("Operation aborted");
+    LOG_INFO("Operation controller aborted");
 }
 
 void TOperationControllerBase::SafeForget()
@@ -2476,6 +2505,8 @@ void TOperationControllerBase::SafeForget()
     LOG_INFO("Forgetting operation");
 
     CancelableContext->Cancel();
+
+    Forgotten = true;
 
     LOG_INFO("Operation forgotten");
 }
@@ -2504,10 +2535,38 @@ void TOperationControllerBase::CheckTimeLimit()
     }
 }
 
+void TOperationControllerBase::CheckAvailableExecNodes()
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    if (ShouldSkipSanityCheck()) {
+        return;
+    }
+
+    if (GetExecNodeDescriptors().empty()) {
+        auto timeout = NProfiling::DurationToCpuDuration(Spec->AvailableNodesMissingTimeout);
+        if (AvaialableNodesLastSeenTime_ + timeout < NProfiling::GetCpuInstant()) {
+            OnOperationFailed(TError("No online nodes match operation scheduling tag filter")
+                << TErrorAttribute("operation_id", OperationId)
+                << TErrorAttribute("scheduling_tag_filter", Spec->SchedulingTagFilter));
+        }
+    } else {
+        AvaialableNodesLastSeenTime_ = NProfiling::GetCpuInstant();
+    }
+}
+
 TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContextPtr context,
     const TJobResources& jobLimits)
 {
+    if (Spec->TestingOperationOptions) {
+        if (Spec->TestingOperationOptions->SchedulingDelayType == ESchedulingDelayType::Async) {
+            WaitFor(TDelayedExecutor::MakeDelayed(Spec->TestingOperationOptions->SchedulingDelay));
+        } else {
+            Sleep(Spec->TestingOperationOptions->SchedulingDelay);
+        }
+    }
+
     // SafeScheduleJob must be synchronous; context switches are prohibited.
     TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
 
@@ -2705,10 +2764,6 @@ void TOperationControllerBase::DoScheduleJob(
     TScheduleJobResult* scheduleJobResult)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-
-    if (Spec->TestingOperationOptions) {
-        Sleep(Spec->TestingOperationOptions->SchedulingDelay);
-    }
 
     if (!IsRunning()) {
         LOG_TRACE("Operation is not running, scheduling request ignored");
@@ -3019,6 +3074,13 @@ int TOperationControllerBase::GetTotalJobCount() const
     return JobCounter.GetTotal();
 }
 
+bool TOperationControllerBase::IsForgotten() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Forgotten;
+}
+
 void TOperationControllerBase::IncreaseNeededResources(const TJobResources& resourcesDelta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -3056,6 +3118,8 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
     State = EControllerState::Finished;
 
+    BuildAndSaveProgress();
+
     Host->OnOperationCompleted(OperationId);
 }
 
@@ -3069,6 +3133,8 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
     }
 
     State = EControllerState::Finished;
+
+    BuildAndSaveProgress();
 
     Host->OnOperationFailed(OperationId, error);
 }
@@ -3114,7 +3180,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
         int replicationFactor,
         NCompression::ECodec compressionCodec,
         const Stroka& key,
-        const TYsonString& acl)
+        const TYsonString& acl,
+        TNullable<TTableSchema> schema)
     {
         auto req = TCypressYPathProxy::Create(path);
         req->set_type(static_cast<int>(EObjectType::Table));
@@ -3132,6 +3199,9 @@ void TOperationControllerBase::CreateLivePreviewTables()
         }
         attributes->Set("acl", acl);
         attributes->Set("inherit_acl", false);
+        if (schema) {
+            attributes->Set("schema", *schema);
+        }
         ToProto(req->mutable_node_attributes(), *attributes);
 
         batchReq->AddRequest(req, key);
@@ -3149,7 +3219,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
                 table.Options->ReplicationFactor,
                 table.Options->CompressionCodec,
                 "create_output",
-                table.EffectiveAcl);
+                table.EffectiveAcl,
+                table.TableUploadOptions.TableSchema);
         }
     }
 
@@ -3162,7 +3233,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
             StderrTable->Options->ReplicationFactor,
             StderrTable->Options->CompressionCodec,
             "create_stderr",
-            StderrTable->EffectiveAcl);
+            StderrTable->EffectiveAcl,
+            StderrTable->TableUploadOptions.TableSchema);
     }
 
     if (IsIntermediateLivePreviewSupported()) {
@@ -3195,7 +3267,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
                     .DoFor(Config->AdditionalIntermediateDataAcl->AsList()->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
                         fluent.Item().Value(node);
                     })
-                .EndList());
+                .EndList(),
+            Null);
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -3274,6 +3347,11 @@ void TOperationControllerBase::LockLivePreviewTables()
 
 void TOperationControllerBase::FetchInputTables()
 {
+    i64 totalChunkCount = 0;
+    i64 totalExtensionSize = 0;
+
+    LOG_INFO("Started fetching input tables");
+
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
         auto& table = InputTables[tableIndex];
         auto objectIdPath = FromObjectId(table.ObjectId);
@@ -3376,6 +3454,10 @@ void TOperationControllerBase::FetchInputTables()
                 auto inputChunk = New<TInputChunk>(chunkSpec);
                 inputChunk->SetTableIndex(tableIndex);
                 table.Chunks.emplace_back(std::move(inputChunk));
+                ++totalChunkCount;
+                for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
+                    totalExtensionSize += extension.data().size();
+                }
             }
         }
 
@@ -3383,6 +3465,10 @@ void TOperationControllerBase::FetchInputTables()
             path,
             table.Chunks.size());
     }
+
+    LOG_INFO("Finished fetching input tables (TotalChunkCount: %v, TotalExtensionSize: %v)",
+        totalChunkCount,
+        totalExtensionSize);
 }
 
 void TOperationControllerBase::LockInputTables()
@@ -3536,6 +3622,9 @@ void TOperationControllerBase::GetOutputTablesSchema()
                 attributes->Get<ETableSchemaMode>("schema_mode"),
                 0); // Here we assume zero row count, we will do additional check later.
 
+            //TODO(savrus) I would like to see commit ts here. But as for now, start ts suffices.
+            table->Timestamp = OutputTransaction->GetStartTimestamp();
+
             LOG_DEBUG("Received output table schema (Path: %v, Schema: %v, SchemaMode: %v, LockMode: %v)",
                 path,
                 table->TableUploadOptions.TableSchema,
@@ -3556,6 +3645,18 @@ void TOperationControllerBase::GetOutputTablesSchema()
             CoreTable->TableUploadOptions.SchemaMode = ETableSchemaMode::Strong;
             if (CoreTable->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
                 THROW_ERROR_EXCEPTION("Cannot write core table in append mode.");
+            }
+        }
+    }
+}
+
+void TOperationControllerBase::PrepareInputTables()
+{
+    if (!AreForeignTablesSupported()) {
+        for (const auto& table : InputTables) {
+            if (table.IsForeign()) {
+                THROW_ERROR_EXCEPTION("Foreign tables are not supported in %Qlv operation", OperationType)
+                    << TErrorAttribute("foreign_table", table.GetPath());
             }
         }
     }
@@ -4720,24 +4821,37 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
 
     for (const auto& dataSlice : stripe->DataSlices) {
         for (const auto& slice : dataSlice->ChunkSlices) {
-            auto chunkSpec = slice->GetInputChunk();
-            const auto& chunkId = chunkSpec->ChunkId();
+            auto inputChunk = slice->GetInputChunk();
+            const auto& chunkId = inputChunk->ChunkId();
+
+            if (!visitedChunks.insert(chunkId).second) {
+                continue;
+            }
 
             // Insert an empty TInputChunkDescriptor if a new chunkId is encountered.
             auto& chunkDescriptor = InputChunkMap[chunkId];
 
-            if (InputChunkSpecs.insert(chunkSpec).second) {
-                chunkDescriptor.InputChunks.push_back(chunkSpec);
+            if (InputChunkSpecs.insert(inputChunk).second) {
+                chunkDescriptor.InputChunks.push_back(inputChunk);
             }
 
-            if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
+            if (IsUnavailable(inputChunk, IsParityReplicasFetchEnabled())) {
+                // NB(psushin): there could be corner cases, where different input chunks
+                // corresponding to the same chunkId have different set of replicas.
+                // In this case, some stripes will be resumed more times than they were suspended.
                 chunkDescriptor.State = EInputChunkState::Waiting;
             }
 
-            if (visitedChunks.insert(chunkId).second) {
-                chunkDescriptor.InputStripes.push_back(stripeDescriptor);
+            chunkDescriptor.InputStripes.push_back(stripeDescriptor);
+
+            if (chunkDescriptor.State == EInputChunkState::Waiting) {
+                ++stripe->WaitingChunkCount;
             }
         }
+    }
+
+    if (stripe->WaitingChunkCount > 0) {
+        task->GetChunkPoolInput()->Suspend(stripeDescriptor.Cookie);
     }
 }
 
@@ -4833,7 +4947,7 @@ void TOperationControllerBase::RemoveJoblet(const TJobId& jobId)
 
 bool TOperationControllerBase::HasProgress() const
 {
-    return IsPrepared();
+    return IsPrepared() && ProgressString_ && BriefProgressString_;
 }
 
 void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer) const
@@ -4850,9 +4964,8 @@ void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer)
 
 void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
 {
-    VERIFY_INVOKER_AFFINITY(Invoker);
-
     BuildYsonMapFluently(consumer)
+        .Item("build_time").Value(TInstant::Now())
         .Item("jobs").Value(JobCounter)
         .Item("ready_job_count").Value(GetPendingJobCount())
         .Item("job_statistics").Value(JobStatistics)
@@ -4882,10 +4995,49 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
 
 void TOperationControllerBase::BuildBriefProgress(IYsonConsumer* consumer) const
 {
-    VERIFY_INVOKER_AFFINITY(Invoker);
-
     BuildYsonMapFluently(consumer)
         .Item("jobs").Value(JobCounter);
+}
+
+void TOperationControllerBase::BuildAndSaveProgress()
+{
+    auto progressString = BuildYsonStringFluently()
+        .BeginMap()
+            .Do(BIND([=] (IYsonConsumer* consumer) {
+                WaitFor(
+                    BIND(&IOperationController::BuildProgress, MakeStrong(this))
+                        .AsyncVia(GetInvoker())
+                        .Run(consumer));
+            }))
+        .EndMap();
+
+    auto briefProgressString = BuildYsonStringFluently()
+        .BeginMap()
+            .Do(BIND([=] (IYsonConsumer* consumer) {
+                WaitFor(
+                    BIND(&IOperationController::BuildBriefProgress, MakeStrong(this))
+                        .AsyncVia(GetInvoker())
+                        .Run(consumer));
+            }))
+        .EndMap();
+
+    {
+        TGuard<TSpinLock> guard(ProgressLock_);
+        ProgressString_ = progressString;
+        BriefProgressString_ = briefProgressString;
+    }
+}
+
+TYsonString TOperationControllerBase::GetProgress() const
+{
+    TGuard<TSpinLock> guard(ProgressLock_);
+    return ProgressString_;
+}
+
+TYsonString TOperationControllerBase::GetBriefProgress() const
+{
+    TGuard<TSpinLock> guard(ProgressLock_);
+    return BriefProgressString_;
 }
 
 void TOperationControllerBase::UpdateJobStatistics(const TJobSummary& jobSummary)
@@ -5212,12 +5364,13 @@ void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const
 void TOperationControllerBase::GetExecNodesInformation()
 {
     auto now = TInstant::Now();
-    if (LastGetExecNodesInformationTime_ + Config->GetExecNodesInformationDelay > now) {
+    if (LastGetExecNodesInformationTime_ + Config->ControllerUpdateExecNodesInformationDelay > now) {
         return;
     }
 
     ExecNodeCount_ = Host->GetExecNodeCount();
-    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(Spec->SchedulingTag);
+
+    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(TSchedulingTagFilter(Spec->SchedulingTagFilter));
 
     LastGetExecNodesInformationTime_ = TInstant::Now();
 }
@@ -5232,6 +5385,20 @@ const std::vector<TExecNodeDescriptor>& TOperationControllerBase::GetExecNodeDes
 {
     GetExecNodesInformation();
     return ExecNodesDescriptors_;
+}
+
+bool TOperationControllerBase::ShouldSkipSanityCheck()
+{
+    auto nodeCount = GetExecNodeCount();
+    if (nodeCount < Config->SafeOnlineNodeCount) {
+        return true;
+    }
+
+    if (TInstant::Now() < Host->GetConnectionTime() + Config->SafeSchedulerOnlineTime) {
+        return true;
+    }
+
+    return false;
 }
 
 void TOperationControllerBase::BuildMemoryDigestStatistics(IYsonConsumer* consumer) const
@@ -5602,6 +5769,11 @@ public:
         return Underlying_->GetTotalJobCount();
     }
 
+    virtual bool IsForgotten() const override
+    {
+        return Underlying_->IsForgotten();
+    }
+
     virtual TJobResources GetNeededResources() const override
     {
         return Underlying_->GetNeededResources();
@@ -5677,6 +5849,16 @@ public:
     virtual TYsonString BuildInputPathYson(const TJobId& jobId) const override
     {
         return Underlying_->BuildInputPathYson(jobId);
+    }
+
+    virtual TYsonString GetProgress() const override
+    {
+        return Underlying_->GetProgress();
+    }
+
+    virtual TYsonString GetBriefProgress() const override
+    {
+        return Underlying_->GetBriefProgress();
     }
 
 private:

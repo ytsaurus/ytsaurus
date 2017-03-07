@@ -12,6 +12,7 @@
 #include "operation_controller.h"
 #include "remote_copy_controller.h"
 #include "scheduler_strategy.h"
+#include "scheduling_tag.h"
 #include "snapshot_downloader.h"
 #include "sort_controller.h"
 
@@ -55,6 +56,7 @@
 
 #include <yt/core/profiling/scoped_timer.h>
 #include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/ytree/service_combiner.h>
 #include <yt/core/ytree/virtual.h>
@@ -207,9 +209,7 @@ public:
 
         auto nameTable = New<TNameTable>();
         auto options = New<TTableWriterOptions>();
-        options->ValidateDuplicateIds = true;
-        options->ValidateRowWeight = true;
-        options->ValidateColumnCount = true;
+        options->EnableValidationOptions();
 
         EventLogWriter_ = CreateSchemalessBufferedTableWriter(
             Config_->EventLog,
@@ -303,6 +303,10 @@ public:
         }
     }
 
+    virtual TInstant GetConnectionTime() const override
+    {
+        return ConnectionTime_;
+    }
 
     TOperationPtr FindOperation(const TOperationId& id)
     {
@@ -358,27 +362,27 @@ public:
         return totalNodeCount;
     }
 
-    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TNullable<Stroka>& tag) const override
+    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (!tag) {
+        if (filter.IsEmpty()) {
             TReaderGuard guard(ExecNodeDescriptorsLock_);
 
             return CachedExecNodeDescriptors_;
         }
 
-        auto now = TInstant::Now();
+        auto now = NProfiling::GetCpuInstant();
 
         {
             TReaderGuard guard(ExecNodeDescriptorsByTagLock_);
 
-            auto it = CachedExecNodeDescriptorsByTag_.find(*tag);
-            if (it != CachedExecNodeDescriptorsByTag_.end() &&
-                now <= it->second.first + Config_->UpdateExecNodeDescriptorsPeriod)
-            {
-                it->second.first = now;
-                return it->second.second;
+            auto it = CachedExecNodeDescriptorsByTags_.find(filter);
+            if (it != CachedExecNodeDescriptorsByTags_.end()) {
+                auto& entry = it->second;
+                if (now <= entry.LastUpdateTime + NProfiling::DurationToCpuDuration(Config_->UpdateExecNodeDescriptorsPeriod)) {
+                    return entry.ExecNodeDescriptors;
+                }
             }
         }
 
@@ -388,7 +392,7 @@ public:
             TReaderGuard guard(ExecNodeDescriptorsLock_);
 
             for (const auto& descriptor : CachedExecNodeDescriptors_) {
-                if (descriptor.CanSchedule(tag)) {
+                if (filter.CanSchedule(descriptor.Tags)) {
                     result.push_back(descriptor);
                 }
             }
@@ -396,7 +400,7 @@ public:
 
         {
             TWriterGuard guard(ExecNodeDescriptorsByTagLock_);
-            CachedExecNodeDescriptorsByTag_[*tag] = std::make_pair(now, result);
+            CachedExecNodeDescriptorsByTags_.emplace(filter, TExecNodeDescriptorsEntry({now, now, result}));
         }
 
         return result;
@@ -781,13 +785,13 @@ public:
         return totalResourceUsage;
     }
 
-    virtual TJobResources GetResourceLimits(const TNullable<Stroka>& tag) override
+    virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto resourceLimits = ZeroJobResources();
         for (auto& nodeShard : NodeShards_) {
-            resourceLimits += nodeShard->GetResourceLimits(tag);
+            resourceLimits += nodeShard->GetResourceLimits(filter);
         }
         return resourceLimits;
     }
@@ -917,7 +921,7 @@ public:
         const TOperationId& operationId,
         const TJobId& jobId,
         bool jobFailedOrAborted,
-        NYson::TYsonString jobAttributes,
+        const TYsonString& jobAttributes,
         const TChunkId& stderrChunkId,
         const TChunkId& failContextChunkId,
         TFuture<TYsonString> inputPathsFuture) override
@@ -975,6 +979,8 @@ private:
 
     ISchedulerStrategyPtr Strategy_;
 
+    TInstant ConnectionTime_;
+
     TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
 
     typedef yhash_map<TOperationId, TOperationPtr> TOperationIdMap;
@@ -985,7 +991,14 @@ private:
     TExecNodeDescriptors CachedExecNodeDescriptors_;
 
     NConcurrency::TReaderWriterSpinLock ExecNodeDescriptorsByTagLock_;
-    mutable yhash_map<Stroka, std::pair<TInstant, TExecNodeDescriptors>> CachedExecNodeDescriptorsByTag_;
+
+    struct TExecNodeDescriptorsEntry
+    {
+        NProfiling::TCpuInstant LastAccessTime;
+        NProfiling::TCpuInstant LastUpdateTime;
+        TExecNodeDescriptors ExecNodeDescriptors;
+    };
+    mutable yhash_map<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
 
     TProfiler TotalResourceLimitsProfiler_;
     TProfiler TotalResourceUsageProfiler_;
@@ -1082,7 +1095,7 @@ private:
         const TOperationId& operationId,
         const TJobId& jobId,
         bool jobFailedOrAborted,
-        NYson::TYsonString jobAttributes,
+        const TYsonString& jobAttributes,
         const TChunkId& stderrChunkId,
         const TChunkId& failContextChunkId,
         TFuture<TYsonString> inputPathsFuture)
@@ -1237,7 +1250,6 @@ private:
         }
     }
 
-
     void OnMasterConnected(const TMasterHandshakeResult& result)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1248,20 +1260,15 @@ private:
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
 
-        for (const auto& operationReport : result.OperationReports) {
-            const auto& operation = operationReport.Operation;
-            if (operation->GetState() == EOperationState::Aborting) {
-                AbortAbortingOperation(operation, operationReport.ControllerTransactions);
-            } else {
-                if (operationReport.UserTransactionAborted) {
-                    OnUserTransactionAborted(operation);
-                } else {
-                    ReviveOperation(operation, operationReport.ControllerTransactions);
-                }
-            }
-        }
+        auto processFuture = BIND(&TImpl::ProcessOperationReports, MakeStrong(this), result.OperationReports)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+        WaitFor(processFuture)
+            .ThrowOnError();
 
         Strategy_->StartPeriodicActivity();
+
+        ConnectionTime_ = TInstant::Now();
     }
 
     void OnMasterDisconnected()
@@ -1278,8 +1285,8 @@ private:
 
         auto error = TError("Master disconnected");
 
-        if (Config_->MasterDisconnectDelay) {
-            Sleep(*Config_->MasterDisconnectDelay);
+        if (Config_->TestingOptions->MasterDisconnectDelay) {
+            Sleep(*Config_->TestingOptions->MasterDisconnectDelay);
         }
 
         {
@@ -1572,6 +1579,40 @@ private:
 
             CachedExecNodeDescriptors_ = result;
         }
+
+        // Remove outdated cached exec node descriptor lists.
+        {
+            auto deadline = NProfiling::GetCpuInstant() - NProfiling::DurationToCpuDuration(Config_->SchedulingTagFilterExpireTimeout);
+            std::vector<TSchedulingTagFilter> toRemove;
+            {
+                TReaderGuard guard(ExecNodeDescriptorsLock_);
+                for (const auto& pair : CachedExecNodeDescriptorsByTags_) {
+                    if (pair.second.LastAccessTime < deadline) {
+                        toRemove.push_back(pair.first);
+                    }
+                }
+            }
+            {
+                TWriterGuard guard(ExecNodeDescriptorsLock_);
+                for (const auto& filter : toRemove) {
+                    auto it = CachedExecNodeDescriptorsByTags_.find(filter);
+                    if (it->second.LastAccessTime < deadline) {
+                        CachedExecNodeDescriptorsByTags_.erase(it);
+                    }
+                }
+            }
+
+
+            {
+                for (const auto& filter : toRemove) {
+                    for (auto& nodeShard : NodeShards_) {
+                        BIND(&TNodeShard::RemoveOutdatedSchedulingTagFilter, nodeShard, filter)
+                            .AsyncVia(nodeShard->GetInvoker())
+                            .Run();
+                    }
+                }
+            }
+        }
     }
 
     void UpdateNodeShards()
@@ -1801,6 +1842,8 @@ private:
 
     void RegisterOperation(TOperationPtr operation)
     {
+        VERIFY_INVOKER_AFFINITY(MasterConnector_->GetCancelableControlInvoker());
+
         YCHECK(IdToOperation_.insert(std::make_pair(operation->GetId(), operation)).second);
         for (auto& nodeShard : NodeShards_) {
             BIND(&TNodeShard::RegisterOperation, nodeShard)
@@ -2023,14 +2066,22 @@ private:
                     .Run();
                 WaitFor(asyncResult)
                     .ThrowOnError();
+                if (controller->IsForgotten()) {
+                    // Master disconnected happend while committing controller.
+                    return;
+                }
 
                 if (operation->GetState() != EOperationState::Completing) {
                     throw TFiberCanceledException();
                 }
-            }
 
-            if (Config_->FinishOperationTransitionDelay) {
-                Sleep(*Config_->FinishOperationTransitionDelay);
+                if (Config_->TestingOptions->FinishOperationTransitionDelay) {
+                    Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
+                    if (controller->IsForgotten()) {
+                        // Master disconnected happend while committing controller.
+                        return;
+                    }
+                }
             }
 
             YCHECK(operation->GetState() == EOperationState::Completing);
@@ -2116,8 +2167,14 @@ private:
                 return;
         }
 
-        if (Config_->FinishOperationTransitionDelay) {
-            Sleep(*Config_->FinishOperationTransitionDelay);
+
+        if (Config_->TestingOptions->FinishOperationTransitionDelay) {
+            auto controller = operation->GetController();
+            Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
+            if (controller->IsForgotten()) {
+                // Master disconnected happend while committing controller.
+                return;
+            }
         }
 
         {
@@ -2168,6 +2225,24 @@ private:
         WaitFor(MasterConnector_->FlushOperationNode(operation));
 
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
+    }
+
+    void ProcessOperationReports(const std::vector<TOperationReport>& operationReports)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& operationReport : operationReports) {
+            const auto& operation = operationReport.Operation;
+            if (operation->GetState() == EOperationState::Aborting) {
+                AbortAbortingOperation(operation, operationReport.ControllerTransactions);
+            } else {
+                if (operationReport.UserTransactionAborted) {
+                    OnUserTransactionAborted(operation);
+                } else {
+                    ReviveOperation(operation, operationReport.ControllerTransactions);
+                }
+            }
+        }
     }
 
     void BuildStaticOrchid(IYsonConsumer* consumer)
@@ -2232,6 +2307,7 @@ private:
                 .Item("progress").BeginMap()
                     .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
                         WaitFor(
+                            // TODO(ignat): maybe use cached version here?
                             BIND(&IOperationController::BuildProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(consumer));

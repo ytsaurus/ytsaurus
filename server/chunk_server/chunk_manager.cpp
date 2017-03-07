@@ -1589,7 +1589,9 @@ private:
         auto* account = securityManager->GetAccountByNameOrThrow(subrequest->account());
         TClusterResources resourceUsageIncrease(0, 1);
         resourceUsageIncrease.DiskSpace[mediumIndex] = 1;
-        securityManager->ValidateResourceUsageIncrease(account, resourceUsageIncrease);
+        if (subrequest->validate_resource_usage_increase()) {
+            securityManager->ValidateResourceUsageIncrease(account, resourceUsageIncrease);
+        }
 
         TChunkList* chunkList = nullptr;
         if (subrequest->has_chunk_list_id()) {
@@ -1741,6 +1743,17 @@ private:
             auto childId = FromProto<TChunkTreeId>(protoChildId);
             auto* child = GetChunkTreeOrThrow(childId);
             children.push_back(child);
+            // YT-6542: Make sure we never attach a chunk list to its parent more than once.
+            if (child->GetType() == EObjectType::ChunkList) {
+                auto* chunkListChild = child->AsChunkList();
+                for (auto* someParent : chunkListChild->Parents()) {
+                    if (someParent == parent) {
+                        THROW_ERROR_EXCEPTION("Chunk list %v already has %v as its parent",
+                            chunkListChild->GetId(),
+                            parent->GetId());
+                    }
+                }
+            }
         }
 
         AttachToChunkList(parent, children);

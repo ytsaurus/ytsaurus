@@ -101,6 +101,10 @@ public:
 
     int GetLocationMediumIndexOrThrow(TLocationPtr location) const;
 
+    //! Returns future that is set when the next incremental heartbeat is successfully reported
+    //! to cell #cellTag.
+    TFuture<void> GetHeartbeatBarrier(NObjectClient::TCellTag cellTag);
+
 private:
     using EState = EMasterConnectorState;
 
@@ -142,6 +146,9 @@ private:
 
         //! Chunks that were reported removed at the last heartbeat (for which no reply is received yet).
         yhash_set<IChunkPtr> ReportedRemoved;
+
+        //! Set when another incremental heartbeat is successfully reported to the corresponding master.
+        TPromise<void> HeartbeatBarrier = NewPromise<void>();
     };
 
     //! Per-cell chunks delta.
@@ -160,7 +167,6 @@ private:
 
     TSpinLock LocalDescriptorLock_;
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
-
 
     //! Returns the list of all active alerts, including those induced
     //! by |PopulateAlerts| subscribers.

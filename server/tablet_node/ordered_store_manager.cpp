@@ -78,9 +78,10 @@ void TOrderedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDe
     }
 }
 
-void TOrderedStoreManager::ExecuteAtomicWrite(
+void TOrderedStoreManager::ExecuteWrite(
     TTransaction* transaction,
     TWireProtocolReader* reader,
+    TTimestamp commitTimestamp,
     bool prelock)
 {
     auto command = reader->ReadCommand();
@@ -90,6 +91,7 @@ void TOrderedStoreManager::ExecuteAtomicWrite(
             WriteRow(
                 transaction,
                 row,
+                commitTimestamp,
                 prelock);
             break;
         }
@@ -100,29 +102,30 @@ void TOrderedStoreManager::ExecuteAtomicWrite(
     }
 }
 
-void TOrderedStoreManager::ExecuteNonAtomicWrite(
-    const TTransactionId& /*transactionId*/,
-    TWireProtocolReader* /*reader*/)
-{
-    THROW_ERROR_EXCEPTION("Non-atomic writes to ordered tablets are not supported");
-}
-
 TOrderedDynamicRowRef TOrderedStoreManager::WriteRow(
     TTransaction* transaction,
     TUnversionedRow row,
+    TTimestamp commitTimestamp,
     bool prelock)
 {
-    if (prelock) {
-        ValidateOnWrite(transaction->GetId(), row);
+    if (commitTimestamp == NullTimestamp) {
+        if (prelock) {
+            // TODO(sandello): YT-4148
+            ValidateOnWrite(transaction->GetId(), row);
+        }
     }
 
-    auto dynamicRow = ActiveStore_->WriteRow(transaction, row);
+    auto dynamicRow = ActiveStore_->WriteRow(transaction, row, commitTimestamp);
     auto dynamicRowRef = TOrderedDynamicRowRef(
         ActiveStore_.Get(),
         this,
         dynamicRow,
         Tablet_->GetCommitOrdering() == ECommitOrdering::Weak);
-    LockRow(transaction, prelock, dynamicRowRef);
+
+    if (commitTimestamp == NullTimestamp) {
+        LockRow(transaction, prelock, dynamicRowRef);
+    }
+
     return dynamicRowRef;
 }
 
@@ -154,7 +157,7 @@ void TOrderedStoreManager::CommitRow(TTransaction* transaction, const TOrderedDy
         ActiveStore_->CommitRow(transaction, rowRef.Row);
     } else {
         auto migratedRow = ActiveStore_->MigrateRow(transaction, rowRef.Row);
-        // NB: In contrast to ordered tablets, for ordered ones we don't commit row in
+        // NB: In contrast to sorted tablets, for ordered ones we don't commit row in
         // the original store that row has just migrated from.
         rowRef.Store->AbortRow(transaction, rowRef.Row);
         CheckForUnlockedStore(rowRef.Store);
@@ -244,6 +247,9 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     auto reader = orderedDynamicStore->CreateFlushReader();
 
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
+        auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
+        writerOptions->ValidateResourceUsageIncrease = false;
+
         auto chunkWriter = CreateConfirmingWriter(
             tabletSnapshot->WriterConfig,
             tabletSnapshot->WriterOptions,

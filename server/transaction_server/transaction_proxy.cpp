@@ -14,6 +14,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT {
@@ -26,6 +27,7 @@ using namespace NCypressServer;
 using namespace NSecurityServer;
 using namespace NHydra;
 using namespace NObjectClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,46 +140,6 @@ private:
             return true;
         }
 
-        if (key == "staged_object_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(transaction->StagedObjects(), [=] (TFluentList fluent, const TObjectBase* object) {
-                    fluent.Item().Value(object->GetId());
-                });
-            return true;
-        }
-
-        if (key == "exported_objects") {
-            BuildYsonFluently(consumer)
-                .DoListFor(transaction->ExportedObjects(), [=] (TFluentList fluent, const TTransaction::TExportEntry& entry) {
-                    fluent
-                        .Item().BeginMap()
-                            .Item("id").Value(entry.Object->GetId())
-                            .Item("destination_cell_tag").Value(entry.DestinationCellTag)
-                        .EndMap();
-                });
-            return true;
-        }
-
-        if (key == "exported_object_count") {
-            BuildYsonFluently(consumer)
-                .Value(transaction->ExportedObjects().size());
-            return true;
-        }
-
-        if (key == "imported_object_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(transaction->ImportedObjects(), [=] (TFluentList fluent, const TObjectBase* object) {
-                    fluent.Item().Value(object->GetId());
-                });
-            return true;
-        }
-
-        if (key == "imported_object_count") {
-            BuildYsonFluently(consumer)
-                .Value(transaction->ImportedObjects().size());
-            return true;
-        }
-
         if (key == "staged_node_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->StagedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
@@ -254,12 +216,62 @@ private:
             }).AsyncVia(GetCurrentInvoker()));
         }
 
+        if (key == "staged_object_ids") {
+            return FetchMergeableAttribute(
+                key,
+                BIND([=, this_ = MakeStrong(this)] {
+                    return BuildYsonStringFluently().DoListFor(transaction->StagedObjects(), [] (TFluentList fluent, const TObjectBase* object) {
+                        fluent.Item().Value(object->GetId());
+                    });
+                }));
+        }
+
+        if (key == "imported_object_count") {
+            return FetchSummableAttribute(
+                key,
+                BIND([=, this_ = MakeStrong(this)] {
+                    return ConvertToYsonString(transaction->ImportedObjects().size());
+                }));
+        }
+
+        if (key == "imported_object_ids") {
+            return FetchMergeableAttribute(
+                key,
+                BIND([=, this_ = MakeStrong(this)] {
+                    return BuildYsonStringFluently().DoListFor(transaction->ImportedObjects(), [] (TFluentList fluent, const TObjectBase* object) {
+                        fluent.Item().Value(object->GetId());
+                    });
+                }));
+        }
+
+        if (key == "exported_object_count") {
+            return FetchSummableAttribute(
+                key,
+                BIND([=, this_ = MakeStrong(this)] {
+                    return ConvertToYsonString(transaction->ExportedObjects().size());
+                }));
+        }
+
+        if (key == "exported_objects") {
+            return FetchMergeableAttribute(
+                key,
+                BIND([=, this_ = MakeStrong(this)] {
+                    return BuildYsonStringFluently().DoListFor(transaction->ExportedObjects(), [] (TFluentList fluent, const TTransaction::TExportEntry& entry) {
+                        fluent
+                            .Item().BeginMap()
+                                .Item("id").Value(entry.Object->GetId())
+                                .Item("destination_cell_tag").Value(entry.DestinationCellTag)
+                            .EndMap();
+                    });
+                }));
+        }
+
         return Null;
     }
 
-    // account name -> cluster resources
+    // Account name -> cluster resources.
     using TAccountResourcesMap = yhash<Stroka, NSecurityServer::TClusterResources>;
-    // cell tag -> account name -> cluster resources
+    // Cell tag -> account name -> cluster resources.
     using TMulticellAccountResourcesMap = yhash_map<TCellTag, TAccountResourcesMap>;
 
     TFuture<TMulticellAccountResourcesMap> GetMulticellResourceUsageMap()
@@ -306,44 +318,169 @@ private:
 
     TFuture<std::pair<TCellTag, TAccountResourcesMap>> GetRemoteResourcesMap(TCellTag cellTag)
     {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto channel = multicellManager->GetMasterChannelOrThrow(
             cellTag,
             EPeerKind::LeaderOrFollower);
 
-        auto id = GetId();
-        auto req = TYPathProxy::Get(FromObjectId(id) + "/@resource_usage");
-
         TObjectServiceProxy proxy(channel);
-        return proxy.Execute(req).Apply(BIND([=] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
-            if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
-                // Transaction is missing.
-                return std::make_pair(cellTag, TAccountResourcesMap());
-            }
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching resource usage of transaction %v from cell %v",
-                id,
-                cellTag);
-            const auto& rsp = rspOrError.Value();
+        auto batchReq = proxy.ExecuteBatch();
 
-            return std::make_pair(
-                cellTag,
-                DeserializeAccountResourcesMap(TYsonString(rsp->value()), chunkManager));
-        }).AsyncVia(GetCurrentInvoker()));
+        auto transactionId = GetId();
+        auto req = TYPathProxy::Get(FromObjectId(transactionId) + "/@resource_usage");
+        batchReq->AddRequest(req);
+
+        return batchReq->Invoke()
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                auto cumulativeError = GetCumulativeError(batchRspOrError);
+                if (cumulativeError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    return std::make_pair(cellTag, TAccountResourcesMap());
+                }
+
+                THROW_ERROR_EXCEPTION_IF_FAILED(cumulativeError, "Error fetching resource usage of transaction %v from cell %v",
+                    transactionId,
+                    cellTag);
+
+                const auto& batchRsp = batchRspOrError.Value();
+                auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
+                const auto& rsp = rspOrError.Value();
+                return std::make_pair(cellTag, DeserializeAccountResourcesMap(TYsonString(rsp->value())));
+            }).AsyncVia(GetCurrentInvoker()));
     }
 
-    static TAccountResourcesMap DeserializeAccountResourcesMap(const TYsonString& value, const NChunkServer::TChunkManagerPtr& chunkManager)
+    TAccountResourcesMap DeserializeAccountResourcesMap(const TYsonString& value)
     {
-        using TSerializableAccountResourcesMap = yhash<Stroka, TSerializableClusterResourcesPtr>;
-
-        auto serializableAccountResources = ConvertTo<TSerializableAccountResourcesMap>(value);
-
         TAccountResourcesMap result;
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto serializableAccountResources = ConvertTo<yhash<Stroka, TSerializableClusterResourcesPtr>>(value);
         for (const auto& pair : serializableAccountResources) {
             result.insert(std::make_pair(pair.first, pair.second->ToClusterResources(chunkManager)));
         }
-
         return result;
+    }
+
+
+    template <class TSession>
+    TFuture<void> FetchCombinedAttributeFromRemote(
+        const TIntrusivePtr<TSession>& session,
+        const Stroka& attributeKey,
+        TCellTag cellTag,
+        const TCallback<void(const TIntrusivePtr<TSession>& session, const TYsonString& yson)>& accumulator)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Follower);
+        if (!channel) {
+            return VoidFuture;
+        }
+
+        TObjectServiceProxy proxy(channel);
+        auto batchReq = proxy.ExecuteBatch();
+
+        auto transactionId = Object_->GetId();
+        auto req = TYPathProxy::Get(FromObjectId(transactionId) + "/@" + attributeKey);
+        batchReq->AddRequest(req);
+
+        return batchReq->Invoke()
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                auto cumulativeError = GetCumulativeError(batchRspOrError);
+                if (cumulativeError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    return;
+                }
+
+                THROW_ERROR_EXCEPTION_IF_FAILED(cumulativeError, "Error fetching attribute %Qv of transaction %v from cell %v",
+                    attributeKey,
+                    transactionId,
+                    cellTag);
+
+                const auto& batchRsp = batchRspOrError.Value();
+                auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
+                const auto& rsp = rspOrError.Value();
+                accumulator(session, TYsonString(rsp->value()));
+            }).AsyncVia(GetCurrentInvoker()));
+    }
+
+    template <class TSession>
+    TFuture<TYsonString> FetchCombinedAttribute(
+        const Stroka& attributeKey,
+        const TCallback<TYsonString()>& localFetcher,
+        const TCallback<void(const TIntrusivePtr<TSession>& session, const TYsonString& yson)>& accumulator,
+        const TCallback<TYsonString(const TIntrusivePtr<TSession>& session)>& finalizer)
+    {
+        auto invoker = CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker());
+
+        auto session = New<TSession>();
+        accumulator(session, localFetcher());
+
+        std::vector<TFuture<void>> asyncResults;
+        if (Bootstrap_->IsPrimaryMaster()) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
+                asyncResults.push_back(FetchCombinedAttributeFromRemote(session, attributeKey, cellTag, accumulator));
+            }
+        }
+
+        return Combine(asyncResults).Apply(BIND([=] {
+            return finalizer(session);
+        }));
+    }
+
+
+    TFuture<TYsonString> FetchMergeableAttribute(
+        const Stroka& attributeKey,
+        const TCallback<TYsonString()>& localFetcher)
+    {
+        struct TSession
+            : public TIntrinsicRefCounted
+        {
+            yhash_map<Stroka, TYsonString> Map;
+        };
+
+        using TSessionPtr = TIntrusivePtr<TSession>;
+
+        return FetchCombinedAttribute<TSession>(
+            attributeKey,
+            BIND([=, this_ = MakeStrong(this)] () {
+                return BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item(ToString(Bootstrap_->GetCellTag())).Value(localFetcher())
+                    .EndMap();
+            }),
+            BIND([] (const TSessionPtr& session, const TYsonString& yson) {
+                auto map = ConvertTo<yhash_map<Stroka, INodePtr>>(yson);
+                for (const auto& pair : map) {
+                    session->Map.emplace(pair.first, ConvertToYsonString(pair.second));
+                }
+            }),
+            BIND([] (const TSessionPtr& session) {
+                return BuildYsonStringFluently()
+                    .DoMapFor(session->Map, [&] (TFluentMap fluent, const std::pair<const Stroka&, TYsonString>& pair) {
+                        fluent.Item(pair.first).Value(pair.second);
+                    });
+            }));
+    }
+
+    TFuture<TYsonString> FetchSummableAttribute(
+        const Stroka& attributeKey,
+        const TCallback<TYsonString()>& localFetcher)
+    {
+        struct TSession
+            : public TIntrinsicRefCounted
+        {
+            i64 Value = 0;
+        };
+
+        using TSessionPtr = TIntrusivePtr<TSession>;
+
+        return FetchCombinedAttribute<TSession>(
+            attributeKey,
+            std::move(localFetcher),
+            BIND([] (const TSessionPtr& session, const TYsonString& yson) {
+                session->Value += ConvertTo<i64>(yson);
+            }),
+            BIND([] (const TSessionPtr& session) {
+                return ConvertToYsonString(session->Value);
+            }));
+
     }
 };
 

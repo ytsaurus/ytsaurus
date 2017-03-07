@@ -25,16 +25,6 @@ bool TObjectBase::IsBuiltin() const
     return IsWellKnownId(Id_);
 }
 
-bool TObjectBase::IsTrunk() const
-{
-    if (!IsVersionedType(TypeFromId(Id_))) {
-        return true;
-    }
-
-    auto* node = As<TCypressNodeBase>();
-    return node->GetTrunkNode() == node;
-}
-
 const TAttributeSet* TObjectBase::GetAttributes() const
 {
     return Attributes_.get();

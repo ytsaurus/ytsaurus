@@ -19,6 +19,7 @@ DEFINE_ENUM(EMasterChannelKind,
 
 DEFINE_ENUM(EUserWorkloadCategory,
     (Batch)
+    (Interactive)
     (Realtime)
 );
 
@@ -50,7 +51,6 @@ DECLARE_REFCOUNTED_STRUCT(INativeConnection)
 DECLARE_REFCOUNTED_STRUCT(INativeClient)
 DECLARE_REFCOUNTED_STRUCT(INativeTransaction)
 
-DECLARE_REFCOUNTED_STRUCT(IFileReader)
 DECLARE_REFCOUNTED_STRUCT(IFileWriter)
 
 DECLARE_REFCOUNTED_STRUCT(IJournalReader)

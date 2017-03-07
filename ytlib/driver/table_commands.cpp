@@ -3,6 +3,7 @@
 
 #include <yt/ytlib/api/rowset.h>
 #include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/table_reader.h>
 
 #include <yt/ytlib/query_client/query_statistics.h>
 
@@ -18,6 +19,8 @@
 
 #include <yt/ytlib/formats/config.h>
 #include <yt/ytlib/formats/parser.h>
+
+#include <yt/core/misc/finally.h>
 
 namespace NYT {
 namespace NDriver {
@@ -60,6 +63,9 @@ void TReadTableCommand::OnLoaded()
 
 void TReadTableCommand::DoExecute(ICommandContextPtr context)
 {
+    LOG_DEBUG("Executing \"read_table\" command (Path: %v)",
+        Path);
+
     Options.Ping = true;
     Options.Config = UpdateYsonSerializable(
         context->GetConfig()->TableReader,
@@ -87,10 +93,79 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
         ControlAttributes,
         0);
 
+    auto finally = Finally([&] () {
+        auto dataStatistics = reader->GetDataStatistics();
+        LOG_DEBUG("Command \"read_table\" statistics (RowCount: %v, WrittenSize: %v, "
+            "ReadUncompressedDataSize: %v, ReadCompressedDataSize: %v)",
+            dataStatistics.row_count(),
+            writer->GetWrittenSize(),
+            dataStatistics.uncompressed_data_size(),
+            dataStatistics.compressed_data_size());
+    });
+
     PipeReaderToWriter(
         reader,
         writer,
         context->GetConfig()->ReadBufferRowCount);
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+TReadBlobTableCommand::TReadBlobTableCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("table_reader", TableReader)
+        .Default(nullptr);
+    RegisterParameter("part_index_column_name", PartIndexColumnName)
+        .Default();
+    RegisterParameter("data_column_name", DataColumnName)
+        .Default();
+}
+
+void TReadBlobTableCommand::OnLoaded()
+{
+    TCommandBase::OnLoaded();
+
+    Path = Path.Normalize();
+}
+
+void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
+{
+    Options.Ping = true;
+
+    auto config = UpdateYsonSerializable(
+        context->GetConfig()->TableReader,
+        TableReader);
+
+    config = UpdateYsonSerializable(
+        config,
+        GetOptions());
+
+    Options.Config = config;
+
+    auto reader = WaitFor(context->GetClient()->CreateTableReader(
+        Path,
+        Options))
+        .ValueOrThrow();
+
+    auto input = CreateBlobTableReader(
+        std::move(reader),
+        PartIndexColumnName,
+        DataColumnName);
+
+    auto output = context->Request().OutputStream;
+
+    // TODO(ignat): implement proper Pipe* function.
+    while (true) {
+        auto block = WaitFor(input->Read())
+            .ValueOrThrow();
+
+        if (!block)
+            break;
+
+        WaitFor(output->Write(block))
+            .ThrowOnError();
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -122,9 +197,7 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
     nameTable->SetEnableColumnNameValidation();
 
     auto options = New<TTableWriterOptions>();
-    options->ValidateDuplicateIds = true;
-    options->ValidateRowWeight = true;
-    options->ValidateColumnCount = true;
+    options->EnableValidationOptions();
 
     auto writer = CreateSchemalessTableWriter(
         config,

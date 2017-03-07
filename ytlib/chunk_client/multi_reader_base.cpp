@@ -28,7 +28,7 @@ TMultiReaderBase::TMultiReaderBase(
     , ReaderFactories_(readerFactories)
     , FreeBufferSize_(Config_->MaxBufferSize)
 {
-    Logger.AddTag("MultiReader: %v", this);
+    Logger.AddTag("MultiReader: %v", TGuid::Create());
 
     CurrentSession_.Reset();
 
@@ -49,7 +49,7 @@ TMultiReaderBase::TMultiReaderBase(
 void TMultiReaderBase::Open()
 {
     ReadyEvent_ = CombineCompletionError(BIND(
-            &TMultiReaderBase::DoOpen, 
+            &TMultiReaderBase::DoOpen,
             MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run());
@@ -192,7 +192,7 @@ TFuture<void> TMultiReaderBase::CombineCompletionError(TFuture<void> future)
 }
 
 void TMultiReaderBase::RegisterFailedReader(IReaderBasePtr reader)
-{   
+{
     auto chunkIds = reader->GetFailedChunkIds();
     LOG_WARNING("Chunk reader failed (ChunkIds: %v)", chunkIds);
 
@@ -379,7 +379,7 @@ void TParallelMultiReaderBase::OnReaderFinished()
 
     ++FinishedReaderCount_;
     if (FinishedReaderCount_ == ReaderFactories_.size()) {
-        ReadySessions_.Enqueue(TError("Sentinel session"));
+        ReadySessions_.Enqueue(TError(NYT::EErrorCode::Canceled, "Multi reader finished"));
         CompletionError_.TrySet(TError());
     } else {
         ReadyEvent_ = CombineCompletionError(BIND(
@@ -393,16 +393,26 @@ void TParallelMultiReaderBase::OnReaderFinished()
 void TParallelMultiReaderBase::PropagateError(const TError& error)
 {
     // Someone may wait for this future.
-    ReadySessions_.Enqueue(TError("Sentinel session") << error);
+    if (error.IsOK()) {
+        ReadySessions_.Enqueue(TError(NYT::EErrorCode::Canceled, "Multi reader finished"));
+    } else {
+        ReadySessions_.Enqueue(TError("Multi reader failed") << error);
+    }
 }
 
 void TParallelMultiReaderBase::WaitForReadyReader()
 {
     auto asyncReadySession = ReadySessions_.Dequeue();
-    CurrentSession_ = WaitFor(asyncReadySession)
-        .ValueOrThrow();
+    auto errorOrSession = WaitFor(asyncReadySession);
 
-    OnReaderSwitched();
+    if (errorOrSession.IsOK()) {
+        CurrentSession_ = errorOrSession.Value();
+        OnReaderSwitched();
+    } else if (errorOrSession.FindMatching(NYT::EErrorCode::Canceled)) {
+        // Do nothing, this is normal reader termination, e.g. during interrupt.
+    } else {
+        THROW_ERROR errorOrSession;
+    }
 }
 
 void TParallelMultiReaderBase::WaitForReader(TSession session)

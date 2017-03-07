@@ -367,7 +367,7 @@ public:
     virtual void WriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
         const TNullable<std::vector<Stroka>>& /*attributeKeys*/,
-        bool /*sortKeys*/) override
+        bool /*stable*/) override
     { }
 
     virtual bool ShouldHideAttributes() override

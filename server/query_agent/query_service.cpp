@@ -110,6 +110,7 @@ private:
                     codecId,
                     Config_->DesiredUncompressedResponseBlockSize,
                     query->GetTableSchema(),
+                    request->schemaful_response(),
                     Logger);
 
                 const auto& executor = Bootstrap_->GetQueryExecutor();
@@ -124,6 +125,7 @@ private:
 
                 response->Attachments() = writer->GetCompressedBlocks();
                 ToProto(response->mutable_query_statistics(), result);
+                response->set_schemaful_response(request->schemaful_response());
                 context->Reply();
             });
     }
@@ -134,7 +136,7 @@ private:
         auto mountRevision = request->mount_revision();
         auto timestamp = TTimestamp(request->timestamp());
         // TODO(sandello): Extract this out of RPC request.
-        auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
+        auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
         auto requestCodecId = NCompression::ECodec(request->request_codec());
         auto responseCodecId = NCompression::ECodec(request->response_codec());
 

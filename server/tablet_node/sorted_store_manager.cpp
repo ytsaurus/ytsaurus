@@ -87,27 +87,30 @@ TSortedStoreManager::TSortedStoreManager(
     }
 }
 
-void TSortedStoreManager::ExecuteAtomicWrite(
+void TSortedStoreManager::ExecuteWrite(
     TTransaction* transaction,
     TWireProtocolReader* reader,
+    TTimestamp commitTimestamp,
     bool prelock)
 {
     auto command = reader->ReadCommand();
     switch (command) {
         case EWireProtocolCommand::WriteRow: {
             auto row = reader->ReadUnversionedRow(false);
-            WriteRowAtomic(
+            WriteRow(
                 transaction,
                 row,
+                commitTimestamp,
                 prelock);
             break;
         }
 
         case EWireProtocolCommand::DeleteRow: {
             auto key = reader->ReadUnversionedRow(false);
-            DeleteRowAtomic(
+            DeleteRow(
                 transaction,
                 key,
+                commitTimestamp,
                 prelock);
             break;
         }
@@ -118,93 +121,63 @@ void TSortedStoreManager::ExecuteAtomicWrite(
     }
 }
 
-void TSortedStoreManager::ExecuteNonAtomicWrite(
-    const TTransactionId& transactionId,
-    TWireProtocolReader* reader)
-{
-    auto commitTimestamp = EnsureMonotonicCommitTimestamp(transactionId);
-    auto command = reader->ReadCommand();
-    switch (command) {
-        case EWireProtocolCommand::WriteRow: {
-            auto row = reader->ReadUnversionedRow(false);
-            WriteRowNonAtomic(commitTimestamp, row);
-            break;
-        }
-
-        case EWireProtocolCommand::DeleteRow: {
-            auto key = reader->ReadUnversionedRow(false);
-            DeleteRowNonAtomic(commitTimestamp, key);
-            break;
-        }
-
-        default:
-            THROW_ERROR_EXCEPTION("Unknown write command %v",
-                command);
-    }
-}
-
-TSortedDynamicRowRef TSortedStoreManager::WriteRowAtomic(
+TSortedDynamicRowRef TSortedStoreManager::WriteRow(
     TTransaction* transaction,
     TUnversionedRow row,
+    TTimestamp commitTimestamp,
     bool prelock)
 {
-    if (prelock) {
-        ValidateOnWrite(transaction->GetId(), row);
+    ui32 lockMask = 0;
+    if (commitTimestamp == NullTimestamp) {
+        if (prelock) {
+            // TODO(sandello): YT-4148
+            ValidateOnWrite(transaction->GetId(), row);
+        }
+        lockMask = ComputeLockMask(row);
+        if (prelock) {
+            CheckInactiveStoresLocks(transaction, row, lockMask);
+        }
+    } else {
+        commitTimestamp = GenerateMonotonicCommitTimestamp(commitTimestamp);
     }
 
-    ui32 lockMask = ComputeLockMask(row);
-
-    if (prelock) {
-        CheckInactiveStoresLocks(
-            transaction,
-            row,
-            lockMask);
-    }
-
-    auto dynamicRow = ActiveStore_->WriteRowAtomic(transaction, row, lockMask);
+    auto dynamicRow = ActiveStore_->WriteRow(transaction, row, commitTimestamp, lockMask);
     auto dynamicRowRef = TSortedDynamicRowRef(ActiveStore_.Get(), this, dynamicRow, true);
-    LockRow(transaction, prelock, dynamicRowRef);
+
+    if (commitTimestamp == NullTimestamp) {
+        LockRow(transaction, prelock, dynamicRowRef);
+    }
+
     return dynamicRowRef;
 }
 
-void TSortedStoreManager::WriteRowNonAtomic(
-    TTimestamp commitTimestamp,
-    TUnversionedRow row)
-{
-    // TODO(sandello): YT-4148
-    // ValidateOnWrite(transactionId, row);
-
-    ActiveStore_->WriteRowNonAtomic(row, commitTimestamp);
-}
-
-TSortedDynamicRowRef TSortedStoreManager::DeleteRowAtomic(
+TSortedDynamicRowRef TSortedStoreManager::DeleteRow(
     TTransaction* transaction,
     NTableClient::TKey key,
+    TTimestamp commitTimestamp,
     bool prelock)
 {
-    if (prelock) {
-        ValidateOnDelete(transaction->GetId(), key);
-
-        CheckInactiveStoresLocks(
-            transaction,
-            key,
-            TSortedDynamicRow::PrimaryLockMask);
+    if (commitTimestamp == NullTimestamp) {
+        if (prelock) {
+            // TODO(sandello): YT-4148
+            ValidateOnDelete(transaction->GetId(), key);
+            CheckInactiveStoresLocks(
+                transaction,
+                key,
+                TSortedDynamicRow::PrimaryLockMask);
+        }
+    } else {
+        commitTimestamp = GenerateMonotonicCommitTimestamp(commitTimestamp);
     }
 
-    auto dynamicRow = ActiveStore_->DeleteRowAtomic(transaction, key);
+    auto dynamicRow = ActiveStore_->DeleteRow(transaction, key, commitTimestamp);
     auto dynamicRowRef = TSortedDynamicRowRef(ActiveStore_.Get(), this, dynamicRow, true);
-    LockRow(transaction, prelock, dynamicRowRef);
+
+    if (commitTimestamp == NullTimestamp) {
+        LockRow(transaction, prelock, dynamicRowRef);
+    }
+
     return dynamicRowRef;
-}
-
-void TSortedStoreManager::DeleteRowNonAtomic(
-    TTimestamp commitTimestamp,
-    NTableClient::TKey key)
-{
-    // TODO(sandello): YT-4148
-    // ValidateOnDelete(transactionId, key);
-
-    ActiveStore_->DeleteRowNonAtomic(key, commitTimestamp);
 }
 
 void TSortedStoreManager::LockRow(TTransaction* transaction, bool prelock, const TSortedDynamicRowRef& rowRef)
@@ -414,6 +387,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ChunksEden = true;
+        writerOptions->ValidateResourceUsageIncrease = false;
 
         auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(tabletSnapshot->Config->InMemoryMode);
 

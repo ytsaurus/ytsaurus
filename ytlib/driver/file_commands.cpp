@@ -35,12 +35,11 @@ void TReadFileCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->FileReader,
         FileReader);
 
-    auto reader = context->GetClient()->CreateFileReader(
-        Path.GetPath(),
-        Options);
-
-    WaitFor(reader->Open())
-        .ThrowOnError();
+    auto reader = WaitFor(
+        context->GetClient()->CreateFileReader(
+            Path.GetPath(),
+            Options))
+        .ValueOrThrow();
 
     auto output = context->Request().OutputStream;
 

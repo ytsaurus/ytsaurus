@@ -282,7 +282,7 @@ void TJobProxy::Run()
 
     auto statistics = ConvertToYsonString(GetStatistics());
 
-    CheckResult(result);
+    EnsureStderrResult(&result);
 
     ReportResult(result, statistics, startTime, finishTime);
 }
@@ -394,13 +394,13 @@ TJobResult TJobProxy::DoRun()
     InputNodeDirectory_->MergeFrom(schedulerJobSpecExt.input_node_directory());
 
     HeartbeatExecutor_ = New<TPeriodicExecutor>(
-        GetSyncInvoker(),
+        JobThread_->GetInvoker(),
         BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
         Config_->HeartbeatPeriod);
 
     auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
     MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
-        GetSyncInvoker(),
+        JobThread_->GetInvoker(),
         BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
         jobEnvironmentConfig->MemoryWatchdogPeriod);
 
@@ -619,14 +619,20 @@ void TJobProxy::CheckMemoryUsage()
     }
 }
 
-void TJobProxy::CheckResult(const TJobResult& jobResult)
+void TJobProxy::EnsureStderrResult(TJobResult* jobResult)
 {
     const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
-    const auto& schedulerJobResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
     const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
 
+    auto* schedulerJobResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+
     // If we were provided with stderr_table_spec we are expected to write stderr and provide some results.
-    YCHECK(!userJobSpec.has_stderr_table_spec() || schedulerJobResultExt.has_stderr_table_boundary_keys());
+    if (userJobSpec.has_stderr_table_spec() && !schedulerJobResultExt->has_stderr_table_boundary_keys()) {
+        // If error occurred during user job initialization, stderr blob table writer may not have been created at all.
+        LOG_WARNING("Stderr table boundary keys are absent");
+        auto* stderrBoundaryKeys = schedulerJobResultExt->mutable_stderr_table_boundary_keys();
+        stderrBoundaryKeys->set_sorted(true);
+    }
 }
 
 void TJobProxy::Exit(EJobProxyExitCode exitCode)
