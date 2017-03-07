@@ -40,7 +40,7 @@ from .common import flatten, require, unlist, update, parse_bool, is_prefix, get
                     compose, bool_to_string, get_started_by, MB, GB, \
                     forbidden_inside_job, get_disk_size, round_up_to, set_param, \
                     remove_nones_from_dict
-from .retries import Retrier, build_backoff_config
+from .retries import Retrier
 from .config import get_config
 from .cypress_commands import exists, remove, remove_with_empty_dirs, get_attribute, get, \
                               _make_formatted_transactional_request
@@ -806,14 +806,11 @@ class OperationRequestRetrier(Retrier):
         self.spec = spec
         self.client = client
 
-        backoff_config = get_config(client)["retry_backoff"]
         retry_config = {
-            "enable": get_config(client)["start_operation_retries"]["enable"],
             "count": get_config(client)["start_operation_retries"]["retry_count"],
-            "backoff": build_backoff_config(backoff_config)
+            "backoff": get_config(client)["retry_backoff"],
         }
-        retry_config = remove_nones_from_dict(retry_config)
-        retry_config = update(get_config(client)["start_operation_retries"], retry_config)
+        retry_config = update(get_config(client)["start_operation_retries"], remove_nones_from_dict(retry_config))
         timeout = get_value(get_config(client)["start_operation_retries"]["retry_timeout"],
                             get_config(client)["start_operation_request_timeout"])
 

@@ -443,7 +443,7 @@ def test_keyboard_interrupts_catcher():
     assert len(list) == 0
 
 def test_verified_dict():
-    vdict = VerifiedDict(["a"], None, {"b": 1, "c": True, "a": {"k": "v"}, "d": {"x": "y"}})
+    vdict = VerifiedDict({"b": 1, "c": True, "a": {"k": "v"}, "d": {"x": "y"}}, keys_to_ignore=["a"])
     assert len(vdict) == 4
     assert vdict["b"] == 1
     assert vdict["c"]
@@ -463,7 +463,7 @@ def test_verified_dict():
         if isinstance(value, str):
             return value.lower()
         return value
-    vdict = VerifiedDict([], transform, {"a": "bCd"})
+    vdict = VerifiedDict({"a": "bCd"}, [], transform)
     assert len(vdict) == 1
     assert vdict["a"] == "bcd"
 

@@ -97,7 +97,7 @@ _default_provision = {
 }
 
 def get_default_provision():
-    return VerifiedDict([], None, deepcopy(_default_provision))
+    return VerifiedDict(deepcopy(_default_provision))
 
 @add_metaclass(abc.ABCMeta)
 class ConfigsProvider(object):

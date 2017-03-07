@@ -1,17 +1,19 @@
+from .common import get_value
+
 from yt.packages.six import iteritems
 from yt.packages.six.moves import map as imap
 
 import collections
 
 class VerifiedDict(collections.MutableMapping):
-    def __init__(self, keys_to_ignore, transform_func, *args, **kwargs):
+    def __init__(self, template_dict, keys_to_ignore=None, transform_func=None):
         self._enable_check = False
         self._make_subdicts_verified = True
-        self._keys_to_ignore = keys_to_ignore
+        self._keys_to_ignore = get_value(keys_to_ignore, [])
         self._transform_func = transform_func
 
         self.store = dict()
-        self.update(dict(*args, **kwargs))
+        self.update(template_dict)
 
         self._enable_check = True
         self._make_subdicts_verified = False
@@ -21,7 +23,7 @@ class VerifiedDict(collections.MutableMapping):
 
     def __setitem__(self, key, value):
         if self._make_subdicts_verified and isinstance(value, dict) and key not in self._keys_to_ignore:
-            value = VerifiedDict([], self._transform_func, value)
+            value = VerifiedDict(value, transform_func=self._transform_func)
         if self._enable_check and key not in self.store:
             raise RuntimeError("Set failed: %r key is missing" % key)
         if self._transform_func is None:
@@ -40,6 +42,12 @@ class VerifiedDict(collections.MutableMapping):
 
     def __len__(self):
         return len(self.store)
+
+    def update_template_dict(self, template_dict):
+        self._enable_check = False
+        self.update(template_dict)
+        self._enable_check = True
+        return self
 
 class FrozenDict(collections.Mapping):
     def __init__(self, *args, **kwargs):

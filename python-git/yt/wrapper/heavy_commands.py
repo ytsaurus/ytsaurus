@@ -1,7 +1,7 @@
 from .config import get_option, get_config, get_total_request_timeout, get_command_param
 from .common import chunk_iter_blobs, YtError, update, remove_nones_from_dict, \
                     get_value
-from .retries import Retrier, IteratorRetrier, build_backoff_config
+from .retries import Retrier, IteratorRetrier
 from .errors import YtResponseError
 from .ypath import YPathSupportingAppend
 from .transaction import Transaction
@@ -37,14 +37,11 @@ class FakeTransaction(object):
 
 class WriteRequestRetrier(Retrier):
     def __init__(self, transaction_timeout, write_action, client=None):
-        backoff_config = get_config(client)["retry_backoff"]
         retry_config = {
-            "enable": get_config(client)["proxy"]["request_retry_enable"],
+            "backoff": get_config(client)["retry_backoff"],
             "count": get_config(client)["proxy"]["request_retry_count"],
-            "backoff": build_backoff_config(backoff_config)
         }
-        retry_config = remove_nones_from_dict(retry_config)
-        retry_config = update(get_config(client)["write_retries"], retry_config)
+        retry_config = update(get_config(client)["write_retries"], remove_nones_from_dict(retry_config))
         request_timeout = get_value(get_config(client)["proxy"]["heavy_request_retry_timeout"],
                                     get_config(client)["proxy"]["heavy_request_timeout"])
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
@@ -135,14 +132,11 @@ class ReadIterator(IteratorRetrier):
     def __init__(self, command_name, transaction, process_response_action, retriable_state_class, client=None):
         chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
         retriable_errors = tuple(list(get_retriable_errors()) + [YtResponseError, YtFormatReadError])
-        backoff_config = get_config(client)["retry_backoff"]
         retry_config = {
-            "enable": get_config(client)["read_retries"]["enable"],
             "count": get_config(client)["read_retries"]["retry_count"],
-            "backoff": build_backoff_config(backoff_config)
+            "backoff": get_config(client)["retry_backoff"],
         }
-        retry_config = remove_nones_from_dict(retry_config)
-        retry_config = update(get_config(client)["read_retries"], retry_config)
+        retry_config = update(get_config(client)["read_retries"], remove_nones_from_dict(retry_config))
         timeout = get_value(get_config(client)["proxy"]["heavy_request_retry_timeout"],
                             get_config(client)["proxy"]["heavy_request_timeout"])
 
