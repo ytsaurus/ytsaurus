@@ -1443,6 +1443,9 @@ private:
                         auto req = TFileYPathProxy::BeginUpload(file.Path);
                         req->set_update_mode(static_cast<int>(EUpdateMode::Overwrite));
                         req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
+                        req->set_upload_transaction_title(Format("Saving files of job %v of operation %v",
+                            file.JobId,
+                            operationId));
                         GenerateMutationId(req);
                         SetTransactionId(req, transactionId);
                         batchReq->AddRequest(req, "begin_upload");
