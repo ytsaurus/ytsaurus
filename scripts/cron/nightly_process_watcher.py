@@ -151,7 +151,7 @@ class Watcher(object):
 
     def _manage_collector(self):
         collector_is_running = self._collector_process is not None and \
-            self._collector_process.poll() is not None
+            self._collector_process.poll() is None
 
         if not collector_is_running and self._collector_process is not None:
             if self._collector_process.poll() != 0:
