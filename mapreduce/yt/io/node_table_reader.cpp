@@ -396,11 +396,15 @@ void TNodeTableReader::FetchThread()
             Parser_->Parse();
             Builder_->Finalize();
             break;
-        } catch (TStopException&) {
+        } catch (const TStopException&) {
             break;
         } catch (yexception& e) {
             Exception_ = e;
-            Builder_->OnStreamError();
+            try {
+                Builder_->OnStreamError();
+            } catch (const TStopException&) {
+                break;
+            }
             RetryPrepared_.Wait();
         }
     }
