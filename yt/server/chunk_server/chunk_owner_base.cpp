@@ -123,7 +123,7 @@ void TChunkOwnerBase::EndUpload(
     }
 
     // COMPAT(savrus)
-    if (statistics && !statistics->hash_data_weight()) {
+    if (statistics && !statistics->has_data_weight()) {
         THROW_ERROR_EXCEPTION("YT client version is outdated, please update to recent one");
     }
 
