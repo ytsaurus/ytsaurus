@@ -258,14 +258,13 @@ Stroka GetProxyForHeavyRequest(const TAuth& auth)
     }
 
     yvector<Stroka> hosts;
-    while (hosts.empty()) {
-        THttpHeader header("GET", TConfig::Get()->Hosts, false);
-        Stroka response = RetryRequest(auth, header);
-        ParseJsonStringArray(response, hosts);
-        if (hosts.empty()) {
-            Sleep(TConfig::Get()->RetryInterval);
-        }
+    THttpHeader header("GET", TConfig::Get()->Hosts, false);
+    Stroka response = RetryRequest(auth, header);
+    ParseJsonStringArray(response, hosts);
+    if (hosts.empty()) {
+        ythrow yexception() << "cannot get proxy for heavy request";
     }
+
     if (hosts.size() < 3) {
         return hosts.front();
     }
@@ -298,33 +297,33 @@ Stroka RetryRequest(
     bool needRetry = false;
 
     for (int attempt = 0; attempt < retryCount; ++attempt) {
-        Stroka response;
-
-        Stroka hostName(auth.ServerName);
-        if (isHeavy) {
-            hostName = GetProxyForHeavyRequest(auth);
-        }
-
         bool hasError = false;
+        Stroka response;
+        Stroka requestId;
         TDuration retryInterval;
 
-        THttpRequest request(hostName);
-        auto requestId = request.GetRequestId();
-
-        if (needMutationId) {
-            header.AddMutationId();
-            needMutationId = false;
-            needRetry = false;
-        }
-
-        if (needRetry) {
-            header.AddParam("retry", "true");
-        } else {
-            header.RemoveParam("retry");
-            needRetry = true;
-        }
-
         try {
+            Stroka hostName = auth.ServerName;
+            if (isHeavy) {
+                hostName = GetProxyForHeavyRequest(auth);
+            }
+
+            THttpRequest request(hostName);
+            requestId = request.GetRequestId();
+
+            if (needMutationId) {
+                header.AddMutationId();
+                needMutationId = false;
+                needRetry = false;
+            }
+
+            if (needRetry) {
+                header.AddParam("retry", "true");
+            } else {
+                header.RemoveParam("retry");
+                needRetry = true;
+            }
+
             request.Connect(socketTimeout);
             try {
                 TOutputStream* output = request.StartRequest(header);
@@ -334,7 +333,6 @@ Stroka RetryRequest(
                 // try to read error in response
             }
             response = request.GetResponse();
-
         } catch (TErrorResponse& e) {
             LOG_ERROR("RSP %s - attempt %d failed",
                 ~requestId,
@@ -349,14 +347,12 @@ Stroka RetryRequest(
 
             hasError = true;
             retryInterval = e.GetRetryInterval();
-
         } catch (yexception& e) {
             LOG_ERROR("RSP %s - %s - attempt %d failed",
                 ~requestId,
                 e.what(),
                 attempt);
 
-            request.InvalidateConnection();
             if (attempt + 1 == retryCount) {
                 throw;
             }
@@ -391,15 +387,16 @@ void RetryHeavyWriteRequest(
         TPingableTransaction attemptTx(auth, parentId);
 
         auto input = streamMaker();
-
-        auto proxyName = GetProxyForHeavyRequest(auth);
-        THttpRequest request(proxyName);
-        auto requestId = request.GetRequestId();
-
-        header.AddTransactionId(attemptTx.GetId());
-        header.SetRequestCompression(TConfig::Get()->ContentEncoding);
+        Stroka requestId;
 
         try {
+            auto proxyName = GetProxyForHeavyRequest(auth);
+            THttpRequest request(proxyName);
+            requestId = request.GetRequestId();
+
+            header.AddTransactionId(attemptTx.GetId());
+            header.SetRequestCompression(TConfig::Get()->ContentEncoding);
+
             request.Connect();
             try {
                 TOutputStream* output = request.StartRequest(header);
@@ -427,7 +424,6 @@ void RetryHeavyWriteRequest(
                 e.what(),
                 attempt);
 
-            request.InvalidateConnection();
             if (attempt + 1 == retryCount) {
                 throw;
             }

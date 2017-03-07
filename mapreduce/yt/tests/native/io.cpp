@@ -1,6 +1,7 @@
 #include <mapreduce/yt/tests/lib/lib.h>
 
 #include <mapreduce/yt/interface/client.h>
+#include <mapreduce/yt/common/config.h>
 
 #include <mapreduce/yt/http/error.h>
 
@@ -174,6 +175,39 @@ YT_TEST(TIo, ReadUncanonicalPath)
     for (; reader->IsValid(); reader->Next()) {
         const auto& row = reader->GetRow();
         Cout << row["key"].AsInt64() << ", " << reader->GetRowIndex() << Endl;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_TEST(TIo, EmptyHosts)
+{
+    {
+        auto writer = Client()->CreateTableWriter<TNode>(
+            TRichYPath(Input()).SortedBy("key"));
+
+        for (int i = 0; i < 10; ++i) {
+            writer->AddRow(TNode()("key", i));
+        }
+        writer->Finish();
+    }
+
+    NYT::TConfig::Get()->Hosts = "hosts?role=ERROR";
+    NYT::TConfig::Get()->UseHosts = true;
+    NYT::TConfig::Get()->RetryCount = 1;
+
+    {
+        auto tx = Client()->StartTransaction();
+        UNIT_ASSERT_EXCEPTION(tx->CreateTableReader<NYT::TNode>(Input()), yexception);
+    }
+    {
+        auto tx = Client()->StartTransaction();
+        auto write = [=] {
+            auto writer = tx->CreateTableWriter<NYT::TNode>(Input());
+            writer->AddRow(TNode()("key", 0));
+            writer->Finish();
+        };
+        UNIT_ASSERT_EXCEPTION(write(), yexception);
     }
 }
 
