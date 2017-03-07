@@ -1344,7 +1344,7 @@ protected:
             TotalChunkCount);
 
         // Clear unused data, especially keys, to minimize memory footprint.
-        Endpoints.clear();
+        decltype(Endpoints)().swap(Endpoints);
         ClearInputChunkBoundaryKeys();
     }
 
