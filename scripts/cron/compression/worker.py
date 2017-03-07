@@ -60,19 +60,15 @@ def compress(task):
         logger.exception("Failed to merge table %s", table)
 
 def configure_logging(args):
-    global logger
-
-    formatter = logging.Formatter("%(asctime)-15s\t%(workerid)s\t%(levelname)s\t%(message)s")
+    formatter = logging.Formatter("%(asctime)-15s\t{}\t%(levelname)s\t%(message)s".format(args.id))
 
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
 
     logger.handlers = [handler]
     logger.setLevel(logging.INFO)
-    logger = logging.LoggerAdapter(logger, extra={"workerid": args.id})
 
-    yt_logger.set_formatter(formatter)
-    yt_logger.LOGGER = logging.LoggerAdapter(yt_logger.LOGGER, extra={"workerid": args.id})
+    yt_logger.BASIC_FORMATTER = formatter
 
 def main():
     parser = ArgumentParser(description="Run compression")
