@@ -20,7 +20,7 @@ class TObjectServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TObjectServiceProxy, RPC_PROXY_DESC(ObjectService)
-        .SetProtocolVersion(11));
+        .SetProtocolVersion(12));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Execute);
     DEFINE_RPC_PROXY_METHOD(NProto, GCCollect);
