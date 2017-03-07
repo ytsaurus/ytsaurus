@@ -137,6 +137,7 @@ b"""
         operation_options = {
             spec_template = {
                 max_failed_job_count = 10;
+                locality_timeout = 100;
             }
         };
 
