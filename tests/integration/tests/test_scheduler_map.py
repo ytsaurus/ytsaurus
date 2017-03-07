@@ -890,8 +890,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
         op = map(command="cat", in_="//tmp/t1[:1]", out="//tmp/t2")
 
         statistics = get("//sys/operations/{0}/@progress/estimated_input_statistics".format(op.id))
-        for key in ["chunk_count", "uncompressed_data_size", "compressed_data_size", "row_count", "unavailable_chunk_count"]:
-            assert key in statistics
+        for key in ["uncompressed_data_size", "compressed_data_size", "row_count", "data_weight"]:
+            assert statistics[key] > 0
+        assert statistics["unavailable_chunk_count"] == 0
         assert statistics["chunk_count"] == 1
 
     def test_input_row_count(self):
