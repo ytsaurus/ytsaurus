@@ -260,9 +260,10 @@ protected:
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;
-    i64 TotalEstimatedInputDataSize = 0;
+    i64 TotalEstimatedInputDataWeight = 0;
     i64 TotalEstimatedInputRowCount = 0;
     i64 TotalEstimatedCompressedDataSize = 0;
+    i64 TotalEstimatedInputDataSize = 0;
 
     // Total uncompressed data size for primary tables.
     // Used only during preparation, not persisted.
