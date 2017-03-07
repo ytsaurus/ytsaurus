@@ -11,19 +11,6 @@ import random
 import time
 from datetime import datetime
 
-def build_backoff_config(backoff_config):
-    result = {
-        "policy": backoff_config["policy"],
-        "constant_time": backoff_config["constant_time"],
-        "exponential_policy": {
-            "start_time": backoff_config["exponential_start_timeout"],
-            "base": backoff_config["exponential_base"],
-            "max_timeout": backoff_config["exponential_max_timeout"],
-        }
-    }
-    return result
-
-
 def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,), except_action=None,
                      backoff_action=None):
     class SimpleRetrier(Retrier):

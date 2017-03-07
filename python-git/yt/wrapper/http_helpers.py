@@ -1,7 +1,7 @@
 from .config import get_config, get_option, set_option, get_backend_type
 from .common import require, get_value, total_seconds, generate_uuid, update, \
                     remove_nones_from_dict
-from .retries import Retrier, build_backoff_config
+from .retries import Retrier
 from .errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError, \
                     YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut, \
                     YtRetriableError, YtNoSuchTransaction, hide_token
@@ -175,14 +175,12 @@ class RequestRetrier(Retrier):
                      get_config(client)["proxy"]["force_ipv4"],
                      get_config(client)["proxy"]["force_ipv6"])
 
-        backoff_config = get_config(client)["retry_backoff"]
         retry_config = {
             "enable": get_config(client)["proxy"]["request_retry_enable"],
             "count": get_config(client)["proxy"]["request_retry_count"],
-            "backoff": build_backoff_config(backoff_config)
+            "backoff": get_config(client)["retry_backoff"],
         }
-        retry_config = remove_nones_from_dict(retry_config)
-        retry_config = update(get_config(client)["proxy"]["retries"], retry_config)
+        retry_config = update(get_config(client)["proxy"]["retries"], remove_nones_from_dict(retry_config))
         if timeout is None:
             timeout = get_value(get_config(client)["proxy"]["request_retry_timeout"],
                                 get_config(client)["proxy"]["request_timeout"])

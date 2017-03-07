@@ -8,6 +8,7 @@ import yt.wrapper.yson as yson
 from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, update, get_value, MB, \
                               DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources
 from yt.wrapper.cli_helpers import write_silently, run_main
+from yt.wrapper.default_config import get_default_config
 import yt.wrapper.completers as completers
 import yt.json as json
 
@@ -901,6 +902,13 @@ def add_transform_parser(add_parser):
                         help="check if table already has proper codecs before transforming")
     add_structured_argument(parser, "--spec")
 
+@copy_docstring_from(get_default_config)
+def show_default_config(**args):
+    print(dump_data(get_default_config()))
+
+def add_show_default_config_parser(add_parser):
+    add_parser("show-default-config", show_default_config)
+
 
 def main():
     config_parser = ArgumentParser(add_help=False)
@@ -1014,14 +1022,17 @@ def main():
     add_add_member_parser(add_parser)
     add_remove_member_parser(add_parser)
     add_check_permission_parser(add_parser)
-    add_execute_parser(add_parser)
     add_execute_batch_parser(add_parser)
 
     add_run_job_shell_parser(add_parser)
     add_run_get_job_stderr_parser(add_parser)
     add_abort_job_parser(add_parser)
 
+    add_execute_parser(add_parser)
+
     add_transform_parser(add_parser)
+
+    add_show_default_config_parser(add_parser)
 
     if "_ARGCOMPLETE" in os.environ:
         completers.autocomplete(parser, enable_bash_fallback=False,

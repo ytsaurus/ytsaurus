@@ -5,8 +5,44 @@ from yt.yson import YsonEntity
 
 from copy import deepcopy
 
+# pydoc :: default_config :: begin
+
+def retry_backoff_config(**kwargs):
+    config_dict = {
+        # Backoff options for failed requests.
+        # Supported policies:
+        #   - rounded_up_to_request_timeout
+        #     Sleep till request timeout (i.e. request timeout minus request duration).
+        #     If request is heavy then sleep for heavy_request_timeout.
+        #   - constant_time
+        #     Sleep for duration specified in constant_time option.
+        #   - exponential
+        #     Sleep for min(max_timeout, start_timeout * base ^ retry_attempt).
+        "policy": None,
+        "constant_time": None,
+        "exponential_policy": {
+            "start_timeout": None,
+            "base": None,
+            "max_timeout": None,
+        },
+    }
+
+    config = VerifiedDict(template_dict=config_dict)
+    config.update(**kwargs)
+    return config
+
+def retries_config(**kwargs):
+    config_dict = {
+        "count": None,
+        "enable": None,
+        "backoff": retry_backoff_config(),
+    }
+
+    config = VerifiedDict(template_dict=config_dict)
+    config.update(**kwargs)
+    return config
+
 default_config = {
-    # pydoc :: default_config :: begin
     # "http" | "native" | None
     # If backend equals "http", then all requests will be done through http proxy and http_config will be used.
     # If backend equals "native", then all requests will be done through c++ bindings and driver_config will be used.
@@ -14,19 +50,7 @@ default_config = {
     "backend": None,
 
     # Option for backward compatibility
-    "retry_backoff": {
-        # Policy of backoff for failed requests.
-        # Supported values:
-        # rounded_up_to_request_timeout - we will sleep due to the timeout of the request.
-        #     For heavy requests we will sleep heave_request_timeout time.
-        # constant_time - we will sleep time specified in constant time option.
-        # exponential - we will sleep min(exponnetial_max_timeout, exponential_start_timeout * exponential_base ^ retry_attempt)
-        "policy": None,
-        "constant_time": None,
-        "exponential_start_timeout": None,
-        "exponential_base": None,
-        "exponential_max_timeout": None
-    },
+    "retry_backoff": retry_backoff_config(),
 
     # Configuration of proxy connection.
     "proxy": {
@@ -44,35 +68,16 @@ default_config = {
         "request_retry_timeout": None,
         "heavy_request_retry_timeout": None,
 
+        # Retries configuration for http requests.
+        "retries": retries_config(count=6, enable=True, backoff={"policy": "rounded_up_to_request_timeout"}),
 
+        # Timeout for request.
         "request_timeout": 20000,
-
         # Heavy commands have increased timeout.
         "heavy_request_timeout": 60000,
 
+        # Increased retry count used for operation state discovery.
         "operation_state_discovery_retry_count": 100,
-
-        # Number of retries and timeout between retries.
-        "retries": {
-            "count": 6,
-            "enable": True,
-            "backoff": {
-                # Policy of backoff for failed requests.
-                # Supported values:
-                # rounded_up_to_request_timeout - we will sleep due to the timeout of the request.
-                #     For heavy requests we will sleep heave_request_timeout time.
-                # constant_time - we will sleep time specified in constant time option.
-                # exponential - we will sleep min(max_timeout, start_timeout * base ^ retry_attempt)
-                #               where max_timeout, start_timeout and base are options from exponential_policy
-                "policy": "rounded_up_to_request_timeout",
-                "constant_time": None,
-                "exponential_policy": {
-                    "start_timeout": None,
-                    "base": None,
-                    "max_timeout": None
-                }
-            }
-        },
 
         # Forces backoff between consequent requests (for all requests, not just failed).
         # !!! It is not proxy specific !!!
@@ -346,68 +351,28 @@ default_config = {
     "default_value_of_raw_option": False,
 
     # Retries for read request. This type of retries parse data stream, if it is enabled, reading may be much slower.
-    "read_retries": {
-        # Options for backward compatibility
-        "retry_count": None,
-
-        "enable": True,
-        "count": 30,
-        "allow_multiple_ranges": False,
-        "create_transaction_and_take_snapshot_lock": True,
-        "backoff": {
-            "policy": "rounded_up_to_request_timeout",
-            "constant_time": None,
-            "exponential_policy": {
-                "start_timeout": None,
-                "base": None,
-                "max_timeout": None
-            }
-        }
-    },
+    "read_retries": retries_config(count=30, enable=True, backoff={"policy": "rounded_up_to_request_timeout"})\
+        .update_template_dict({
+            "allow_multiple_ranges": False,
+            "create_transaction_and_take_snapshot_lock": True,
+            "retry_count": None,
+        }),
 
     # Retries for write commands. It split data stream into chunks and writes it separately under transactions.
-    "write_retries": {
-        "enable": True,
-        "count": 6,
-        # The size of data chunk that retried.
-        # It is also used as a portion of reading file stream even if retries are disabled.
-        "chunk_size": 512 * common.MB,
-
-        # Id of parent transaction in write process.
-        # New transaction created if None value is specified.
-        # Otherwise specified transaction will be used.
-        "transaction_id": None,
-        "backoff": {
-            "policy": "rounded_up_to_request_timeout",
-            "constant_time": None,
-            "exponential_policy": {
-                "start_timeout": None,
-                "base": None,
-                "max_timeout": None
-            }
-        }
-    },
+    "write_retries": retries_config(count=6, enable=True, backoff={"policy": "rounded_up_to_request_timeout"})\
+        .update_template_dict({
+            "chunk_size": 512 * common.MB,
+            "transaction_id": None,
+        }),
 
     # Retries for start operation requests.
     # It may fail due to violation of cluster operation limit.
-    "start_operation_retries": {
-        # Options for backward compatibility
-        "retry_count": None,
-        "retry_timeout": None,
-
-        "count": 30,
-        "enable": True,
-
-        "backoff": {
-            "policy": "rounded_up_to_request_timeout",
-            "constant_time": None,
-            "exponential_policy": {
-                "start_timeout": None,
-                "base": None,
-                "max_timeout": None
-            }
-        }
-    },
+    "start_operation_retries": retries_config(count=30, enable=True, backoff={"policy": "rounded_up_to_request_timeout"})\
+        .update_template_dict({
+            # For backward compatibility.
+            "retry_count": None,
+            "retry_timeout": None
+        }),
     "start_operation_request_timeout": 60000,
 
     "auto_merge_output": {
@@ -440,8 +405,9 @@ default_config = {
         # Additional tmpfs size (in bytes) to reserve for user data.
         "additional_tmpfs_size": 0
     }
-    # pydoc :: default_config :: end
 }
+
+# pydoc :: default_config :: end
 
 def transform_value(value, original_value):
     if original_value is False or original_value is True:
@@ -452,4 +418,8 @@ def transform_value(value, original_value):
     return value
 
 def get_default_config():
-    return VerifiedDict(["spec_defaults", "spec_overrides", "table_writer"], transform_value, deepcopy(default_config))
+    """Returns default configuration of python API."""
+    return VerifiedDict(
+        template_dict=deepcopy(default_config),
+        keys_to_ignore=["spec_defaults", "spec_overrides", "table_writer"],
+        transform_func=transform_value)
