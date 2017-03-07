@@ -169,8 +169,7 @@ class Watcher(object):
                     self._warn_if_collector_is_running = False
                     return
 
-                self._collector_process = self._spawn_new_collector_process()
-                self._last_collector_start_time = time.time()
+                self._spawn_new_collector_process()
                 self._warn_if_collector_is_running = True
 
     def _update_alive_workers_attribute(self):

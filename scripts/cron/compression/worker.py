@@ -3,6 +3,8 @@
 from yt.tools.atomic import process_tasks_from_list
 from yt.tools.conversion_tools import convert_to_erasure
 
+import yt.logger as yt_logger
+
 import yt.wrapper as yt
 
 import logging
@@ -59,11 +61,18 @@ def compress(task):
 
 def configure_logging(args):
     global logger
+
+    formatter = logging.Formatter("%(asctime)-15s\t%(workerid)s\t%(levelname)s\t%(message)s")
+
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(asctime)-15s\t%(workerid)s\t%(levelname)s\t%(message)s"))
+    handler.setFormatter(formatter)
+
     logger.handlers = [handler]
     logger.setLevel(logging.INFO)
     logger = logging.LoggerAdapter(logger, extra={"workerid": args.id})
+
+    yt_logger.set_formatter(formatter)
+    yt_logger.LOGGER = logging.LoggerAdapter(yt_logger.LOGGER, extra={"workerid": args.id})
 
 def main():
     parser = ArgumentParser(description="Run compression")
