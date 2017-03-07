@@ -138,6 +138,16 @@ protected:
             Persist(context, Controller);
         }
 
+        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        {
+            return Controller->GetUserJobSpec();
+        }
+
+        virtual EJobType GetJobType() const override
+        {
+            return Controller->GetJobType();
+        }
+
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedTask, 0x8ab75ee7);
 
@@ -159,16 +169,6 @@ protected:
         virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
         {
             return Controller->TableReaderOptions;
-        }
-
-        virtual EJobType GetJobType() const override
-        {
-            return Controller->GetJobType();
-        }
-
-        virtual TUserJobSpecPtr GetUserJobSpec() const override
-        {
-            return Controller->GetUserJobSpec();
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override

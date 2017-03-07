@@ -54,7 +54,9 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/dispatcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/encoding_chunk_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/encoding_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/erasure_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/erasure_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/erasure_repair.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/erasure_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/fetcher_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/file_reader.cpp

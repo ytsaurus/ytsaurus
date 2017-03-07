@@ -57,6 +57,7 @@
 
 #include <yt/core/profiling/scoped_timer.h>
 #include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/ytree/service_combiner.h>
 #include <yt/core/ytree/virtual.h>
@@ -121,6 +122,7 @@ public:
         , StatisticsAnalyzerThreadPool_(New<TThreadPool>(Config_->StatisticsAnalyzerThreadCount, "Statistics"))
         , MasterConnector_(new TMasterConnector(Config_, Bootstrap_))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
+        , MainNodesResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/main_nodes_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
         , TotalFailedJobTimeCounter_("/total_failed_job_time")
@@ -160,6 +162,9 @@ public:
             JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("type", Format("%lv", type));
         }
         for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
+            if (IsMarker(reason)) {
+                continue;
+            }
             JobAbortReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("reason", Format("%lv", reason));
         }
     }
@@ -376,17 +381,17 @@ public:
             return CachedExecNodeDescriptors_;
         }
 
-        auto now = TInstant::Now();
+        auto now = NProfiling::GetCpuInstant();
 
         {
             TReaderGuard guard(ExecNodeDescriptorsByTagLock_);
 
             auto it = CachedExecNodeDescriptorsByTags_.find(filter);
-            if (it != CachedExecNodeDescriptorsByTags_.end() &&
-                now <= it->second.LastAccessTime + Config_->UpdateExecNodeDescriptorsPeriod)
-            {
-                it->second.LastAccessTime = now;
-                return it->second.ExecNodeDescriptors;
+            if (it != CachedExecNodeDescriptorsByTags_.end()) {
+                auto& entry = it->second;
+                if (now <= entry.LastUpdateTime + NProfiling::DurationToCpuDuration(Config_->UpdateExecNodeDescriptorsPeriod)) {
+                    return entry.ExecNodeDescriptors;
+                }
             }
         }
 
@@ -404,26 +409,19 @@ public:
 
         {
             TWriterGuard guard(ExecNodeDescriptorsByTagLock_);
-            CachedExecNodeDescriptorsByTags_.emplace(filter, TExecNodeDescriptorsEntry({now, result}));
+            CachedExecNodeDescriptorsByTags_.emplace(filter, TExecNodeDescriptorsEntry({now, now, result}));
         }
 
         return result;
     }
 
-    virtual void RegisterAlert(EAlertType alertType, const TError& alert) override
+    virtual void SetSchedulerAlert(EAlertType alertType, const TError& alert) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_WARNING(alert, "Registering %v alert", alertType);
+        LOG_WARNING(alert, "Setting %v alert", alertType);
 
-        GetMasterConnector()->RegisterAlert(alertType, alert);
-    }
-
-    virtual void UnregisterAlert(EAlertType alertType) override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        GetMasterConnector()->UnregisterAlert(alertType);
+        GetMasterConnector()->SetSchedulerAlert(alertType, alert);
     }
 
     virtual const TCoreDumperPtr& GetCoreDumper() const override
@@ -438,6 +436,33 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return CoreSemaphore_;
+    }
+
+    void DoSetOperationAlert(
+        const TOperationId& operationId,
+        EOperationAlertType alertType,
+        const TError& alert)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+        if (!operation) {
+            return;
+        }
+
+        operation->Alerts()[alertType] = alert;
+    }
+
+    virtual void SetOperationAlert(
+        const TOperationId& operationId,
+        EOperationAlertType alertType,
+        const TError& alert) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert)
+            .AsyncVia(GetControlInvoker())
+            .Run();
     }
 
     virtual void ValidatePoolPermission(
@@ -538,7 +563,8 @@ public:
             spec,
             user,
             operationSpec->Owners,
-            TInstant::Now());
+            TInstant::Now(),
+            GetControlInvoker());
         operation->SetState(EOperationState::Initializing);
 
         WaitFor(Strategy_->ValidateOperationStart(operation))
@@ -778,6 +804,13 @@ public:
         return totalResourceLimits;
     }
 
+    virtual TJobResources GetMainNodesResourceLimits() override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return GetResourceLimits(Config_->MainNodesFilter);
+    }
+
     TJobResources GetTotalResourceUsage()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -836,7 +869,7 @@ public:
                     }
                 }
             })
-            .Via(controller->GetCancelableControlInvoker()));
+            .Via(operation->GetCancelableControlInvoker()));
     }
 
 
@@ -925,7 +958,7 @@ public:
         const TOperationId& operationId,
         const TJobId& jobId,
         bool jobFailedOrAborted,
-        NYson::TYsonString jobAttributes,
+        const TYsonString& jobAttributes,
         const TChunkId& stderrChunkId,
         const TChunkId& failContextChunkId,
         TFuture<TYsonString> inputPathsFuture) override
@@ -998,12 +1031,14 @@ private:
 
     struct TExecNodeDescriptorsEntry
     {
-        TInstant LastAccessTime;
+        NProfiling::TCpuInstant LastAccessTime;
+        NProfiling::TCpuInstant LastUpdateTime;
         TExecNodeDescriptors ExecNodeDescriptors;
     };
     mutable yhash_map<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
 
     TProfiler TotalResourceLimitsProfiler_;
+    TProfiler MainNodesResourceLimitsProfiler_;
     TProfiler TotalResourceUsageProfiler_;
 
     TSimpleCounter TotalCompletedJobTimeCounter_;
@@ -1100,7 +1135,7 @@ private:
         const TOperationId& operationId,
         const TJobId& jobId,
         bool jobFailedOrAborted,
-        NYson::TYsonString jobAttributes,
+        const TYsonString& jobAttributes,
         const TChunkId& stderrChunkId,
         const TChunkId& failContextChunkId,
         TFuture<TYsonString> inputPathsFuture)
@@ -1193,6 +1228,9 @@ private:
                 TTagIdList commonTags = {JobStateToTag_[state], JobTypeToTag_[type]};
                 if (state == EJobState::Aborted) {
                     for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
+                        if (IsMarker(reason)) {
+                            continue;
+                        }
                         auto tags = commonTags;
                         tags.push_back(JobAbortReasonToTag_[reason]);
                         int counter = 0;
@@ -1217,6 +1255,7 @@ private:
         Profiler.Enqueue("/total_node_count", GetTotalNodeCount(), EMetricType::Gauge);
 
         ProfileResources(TotalResourceLimitsProfiler_, GetTotalResourceLimits());
+        ProfileResources(MainNodesResourceLimitsProfiler_, GetMainNodesResourceLimits());
         ProfileResources(TotalResourceUsageProfiler_, GetTotalResourceUsage());
 
         {
@@ -1239,6 +1278,7 @@ private:
                 .Item("exec_node_count").Value(GetExecNodeCount())
                 .Item("total_node_count").Value(GetTotalNodeCount())
                 .Item("resource_limits").Value(GetTotalResourceLimits())
+                .Item("main_nodes_resource_limits").Value(GetMainNodesResourceLimits())
                 .Item("resource_usage").Value(GetTotalResourceUsage());
         }
     }
@@ -1255,7 +1295,6 @@ private:
         }
     }
 
-
     void OnMasterConnected(const TMasterHandshakeResult& result)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1266,18 +1305,11 @@ private:
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
 
-        for (const auto& operationReport : result.OperationReports) {
-            const auto& operation = operationReport.Operation;
-            if (operation->GetState() == EOperationState::Aborting) {
-                AbortAbortingOperation(operation, operationReport.ControllerTransactions);
-            } else {
-                if (operationReport.UserTransactionAborted) {
-                    OnUserTransactionAborted(operation);
-                } else {
-                    ReviveOperation(operation, operationReport.ControllerTransactions);
-                }
-            }
-        }
+        auto processFuture = BIND(&TImpl::ProcessOperationReports, MakeStrong(this), result.OperationReports)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+        WaitFor(processFuture)
+            .ThrowOnError();
 
         Strategy_->StartPeriodicActivity();
 
@@ -1298,8 +1330,8 @@ private:
 
         auto error = TError("Master disconnected");
 
-        if (Config_->MasterDisconnectDelay) {
-            Sleep(*Config_->MasterDisconnectDelay);
+        if (Config_->TestingOptions->MasterDisconnectDelay) {
+            Sleep(*Config_->TestingOptions->MasterDisconnectDelay);
         }
 
         {
@@ -1319,6 +1351,7 @@ private:
             auto operation = pair.second;
             LOG_INFO("Forgetting operation (OperationId: %v)", operation->GetId());
             if (!operation->IsFinishedState()) {
+                operation->Cancel();
                 operation->GetController()->Forget();
                 SetOperationFinalState(
                     operation,
@@ -1417,7 +1450,7 @@ private:
         } catch (const std::exception& ex) {
             auto error = TError("Error parsing pools configuration")
                 << ex;
-            RegisterAlert(EAlertType::UpdatePools, error);
+            SetSchedulerAlert(EAlertType::UpdatePools, error);
             return;
         }
 
@@ -1515,7 +1548,7 @@ private:
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
         if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             // No config in Cypress, just ignore.
-            UnregisterAlert(EAlertType::UpdateConfig);
+            SetSchedulerAlert(EAlertType::UpdateConfig, TError());
             return;
         }
         if (!rspOrError.IsOK()) {
@@ -1532,17 +1565,17 @@ private:
             } catch (const std::exception& ex) {
                 auto error = TError("Error updating cell scheduler configuration")
                     << ex;
-                RegisterAlert(EAlertType::UpdateConfig, error);
+                SetSchedulerAlert(EAlertType::UpdateConfig, error);
                 return;
             }
         } catch (const std::exception& ex) {
             auto error = TError("Error parsing updated scheduler configuration")
                 << ex;
-            RegisterAlert(EAlertType::UpdateConfig, error);
+            SetSchedulerAlert(EAlertType::UpdateConfig, error);
             return;
         }
 
-        UnregisterAlert(EAlertType::UpdateConfig);
+        SetSchedulerAlert(EAlertType::UpdateConfig, TError());
 
         auto oldConfigNode = ConvertToNode(Config_);
         auto newConfigNode = ConvertToNode(newConfig);
@@ -1595,12 +1628,12 @@ private:
 
         // Remove outdated cached exec node descriptor lists.
         {
-            auto now = TInstant::Now();
+            auto deadline = NProfiling::GetCpuInstant() - NProfiling::DurationToCpuDuration(Config_->SchedulingTagFilterExpireTimeout);
             std::vector<TSchedulingTagFilter> toRemove;
             {
                 TReaderGuard guard(ExecNodeDescriptorsLock_);
                 for (const auto& pair : CachedExecNodeDescriptorsByTags_) {
-                    if (pair.second.LastAccessTime + Config_->SchedulingTagFilterExpireTimeout < now) {
+                    if (pair.second.LastAccessTime < deadline) {
                         toRemove.push_back(pair.first);
                     }
                 }
@@ -1609,7 +1642,7 @@ private:
                 TWriterGuard guard(ExecNodeDescriptorsLock_);
                 for (const auto& filter : toRemove) {
                     auto it = CachedExecNodeDescriptorsByTags_.find(filter);
-                    if (it->second.LastAccessTime + Config_->SchedulingTagFilterExpireTimeout < now) {
+                    if (it->second.LastAccessTime < deadline) {
                         CachedExecNodeDescriptorsByTags_.erase(it);
                     }
                 }
@@ -1664,8 +1697,9 @@ private:
             registered = true;
 
             controller->Initialize();
+            auto initializeResult = controller->GetInitializeResult();
 
-            WaitFor(MasterConnector_->CreateOperationNode(operation))
+            WaitFor(MasterConnector_->CreateOperationNode(operation, initializeResult))
                 .ThrowOnError();
 
             if (operation->GetState() != EOperationState::Initializing) {
@@ -1690,7 +1724,7 @@ private:
         // fashion.
         auto controller = operation->GetController();
         BIND(&TImpl::DoPrepareOperation, MakeStrong(this), operation)
-            .AsyncVia(controller->GetCancelableControlInvoker())
+            .AsyncVia(operation->GetCancelableControlInvoker())
             .Run();
 
         operation->SetStarted(TError());
@@ -1795,7 +1829,7 @@ private:
 
         auto controller = operation->GetController();
         BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation, controllerTransactions)
-            .Via(controller->GetCancelableControlInvoker())
+            .Via(operation->GetCancelableControlInvoker())
             .Run();
     }
 
@@ -1855,6 +1889,8 @@ private:
 
     void RegisterOperation(TOperationPtr operation)
     {
+        VERIFY_INVOKER_AFFINITY(MasterConnector_->GetCancelableControlInvoker());
+
         YCHECK(IdToOperation_.insert(std::make_pair(operation->GetId(), operation)).second);
         for (auto& nodeShard : NodeShards_) {
             BIND(&TNodeShard::RegisterOperation, nodeShard)
@@ -2077,14 +2113,22 @@ private:
                     .Run();
                 WaitFor(asyncResult)
                     .ThrowOnError();
+                if (controller->IsForgotten()) {
+                    // Master disconnected happend while committing controller.
+                    return;
+                }
 
                 if (operation->GetState() != EOperationState::Completing) {
                     throw TFiberCanceledException();
                 }
-            }
 
-            if (Config_->FinishOperationTransitionDelay) {
-                Sleep(*Config_->FinishOperationTransitionDelay);
+                if (Config_->TestingOptions->FinishOperationTransitionDelay) {
+                    Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
+                    if (controller->IsForgotten()) {
+                        // Master disconnected happend while committing controller.
+                        return;
+                    }
+                }
             }
 
             YCHECK(operation->GetState() == EOperationState::Completing);
@@ -2170,11 +2214,18 @@ private:
                 return;
         }
 
-        if (Config_->FinishOperationTransitionDelay) {
-            Sleep(*Config_->FinishOperationTransitionDelay);
+
+        if (Config_->TestingOptions->FinishOperationTransitionDelay) {
+            auto controller = operation->GetController();
+            Sleep(*Config_->TestingOptions->FinishOperationTransitionDelay);
+            if (controller->IsForgotten()) {
+                // Master disconnected happend while committing controller.
+                return;
+            }
         }
 
         {
+            operation->Cancel();
             auto controller = operation->GetController();
             if (controller) {
                 controller->Abort();
@@ -2224,6 +2275,24 @@ private:
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
 
+    void ProcessOperationReports(const std::vector<TOperationReport>& operationReports)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& operationReport : operationReports) {
+            const auto& operation = operationReport.Operation;
+            if (operation->GetState() == EOperationState::Aborting) {
+                AbortAbortingOperation(operation, operationReport.ControllerTransactions);
+            } else {
+                if (operationReport.UserTransactionAborted) {
+                    OnUserTransactionAborted(operation);
+                } else {
+                    ReviveOperation(operation, operationReport.ControllerTransactions);
+                }
+            }
+        }
+    }
+
     void BuildStaticOrchid(IYsonConsumer* consumer)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2233,6 +2302,7 @@ private:
                 .Item("connected").Value(MasterConnector_->IsConnected())
                 .Item("cell").BeginMap()
                     .Item("resource_limits").Value(GetTotalResourceLimits())
+                    .Item("main_nodes_resource_limits").Value(GetMainNodesResourceLimits())
                     .Item("resource_usage").Value(GetTotalResourceUsage())
                     .Item("exec_node_count").Value(GetExecNodeCount())
                     .Item("total_node_count").Value(GetTotalNodeCount())

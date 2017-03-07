@@ -49,8 +49,8 @@ void ToProto(NProto::TReadLimit* protoLimit, const TInputSliceLimit& limit);
 class TInputChunkSlice
     : public TIntrinsicRefCounted
 {
-    DECLARE_BYVAL_RW_PROPERTY(i64, DataSize);
-    DECLARE_BYVAL_RW_PROPERTY(i64, RowCount);
+    DECLARE_BYVAL_RO_PROPERTY(i64, DataSize);
+    DECLARE_BYVAL_RO_PROPERTY(i64, RowCount);
 
     DECLARE_BYVAL_RO_PROPERTY(bool, SizeOverridden);
     DECLARE_BYVAL_RO_PROPERTY(int, PartIndex);
@@ -110,6 +110,8 @@ private:
     bool SizeOverridden_ = false;
     i64 DataSize_ = 0;
     i64 RowCount_ = 0;
+
+    void OverrideSize(i64 rowCount, i64 dataSize);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputChunkSlice)

@@ -2,6 +2,7 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/erasure_reader.h>
+#include <yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/ytlib/chunk_client/erasure_writer.h>
 #include <yt/ytlib/chunk_client/file_reader.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
@@ -14,10 +15,13 @@
 
 #include <random>
 
+#include <iostream>
+
 namespace NYT {
 namespace NErasure {
 namespace {
 
+using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using ::ToString;
@@ -26,9 +30,9 @@ using ::ToString;
 
 TEST(TErasureCodingTest, RandomText)
 {
-    std::map<ECodec, int> guaranteedRecoveryCount;
-    guaranteedRecoveryCount[ECodec::ReedSolomon_6_3] = 3;
-    guaranteedRecoveryCount[ECodec::Lrc_12_2_2] = 3;
+    std::map<ECodec, int> guaranteedRepairCount;
+    guaranteedRepairCount[ECodec::ReedSolomon_6_3] = 3;
+    guaranteedRepairCount[ECodec::Lrc_12_2_2] = 3;
 
     std::vector<char> data;
     for (int i = 0; i < 16 * 64; ++i) {
@@ -68,16 +72,16 @@ TEST(TErasureCodingTest, RandomText)
             if (erasedIndices.size() == 1)
                 continue;
 
-            auto recoveryIndices = codec->GetRepairIndices(erasedIndices);
-            ASSERT_EQ(static_cast<bool>(recoveryIndices), codec->CanRepair(erasedIndices));
-            if (erasedIndices.size() <= guaranteedRecoveryCount[codecId]) {
-                EXPECT_TRUE(recoveryIndices.HasValue());
+            auto repairIndices = codec->GetRepairIndices(erasedIndices);
+            ASSERT_EQ(static_cast<bool>(repairIndices), codec->CanRepair(erasedIndices));
+            if (erasedIndices.size() <= guaranteedRepairCount[codecId]) {
+                EXPECT_TRUE(repairIndices.HasValue());
             }
 
-            if (recoveryIndices) {
+            if (repairIndices) {
                 std::vector<TSharedRef> aliveBlocks;
-                for (int i = 0; i < recoveryIndices->size(); ++i) {
-                    aliveBlocks.push_back(allBlocks[(*recoveryIndices)[i]]);
+                for (int i = 0; i < repairIndices->size(); ++i) {
+                    aliveBlocks.push_back(allBlocks[(*repairIndices)[i]]);
                 }
                 std::vector<TSharedRef> recoveredBlocks = codec->Decode(aliveBlocks, erasedIndices);
                 EXPECT_TRUE(recoveredBlocks.size() == erasedIndices.size());
@@ -132,6 +136,46 @@ public:
         EXPECT_TRUE(erasureWriter->GetChunkInfo().disk_space() >= dataSize);
     }
 
+    static void RemoveErasedParts(const TPartIndexList& erasedIndices)
+    {
+        for (int i = 0; i < erasedIndices.size(); ++i) {
+            auto filename = "part" + ToString(erasedIndices[i] + 1);
+            NFs::Remove(filename);
+            NFs::Remove(filename + ".meta");
+        }
+    }
+
+    static void PrepareReadersAndWriters(
+        ICodec* codec,
+        TPartIndexList erasedIndices,
+        std::vector<IChunkReaderPtr>* allReaders,
+        std::vector<IChunkReaderPtr>* repairReaders,
+        std::vector<IChunkWriterPtr>* repairWriters)
+    {
+        std::set<int> erasedIndicesSet(erasedIndices.begin(), erasedIndices.end());
+        auto repairIndices = *codec->GetRepairIndices(erasedIndices);
+        std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
+
+        for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
+            auto filename = "part" + ToString(i + 1);
+            if (repairWriters && erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
+                repairWriters->push_back(NYT::New<TFileWriter>(NullChunkId, filename));
+            }
+            if (repairReaders && repairIndicesSet.find(i) != repairIndicesSet.end()) {
+                auto reader = NYT::New<TFileReader>(NullChunkId, filename);
+                repairReaders->push_back(reader);
+            }
+
+            if (allReaders &&
+                erasedIndicesSet.find(i) == erasedIndicesSet.end() &&
+                (i < codec->GetDataPartCount() || repairIndicesSet.find(i) != repairIndicesSet.end()))
+            {
+                auto reader = NYT::New<TFileReader>(NullChunkId, filename);
+                allReaders->push_back(reader);
+            }
+        }
+    }
+
     static IChunkReaderPtr CreateErasureReader(ICodec* codec)
     {
         std::vector<IChunkReaderPtr> readers;
@@ -140,7 +184,57 @@ public:
             auto reader = NYT::New<TFileReader>(NullChunkId, filename);
             readers.push_back(reader);
         }
-        return CreateNonRepairingErasureReader(readers);
+        return CreateNonRepairingErasureReader(codec, readers);
+    }
+
+    static void CheckRepairReader(
+        IChunkReaderPtr repairReader,
+        const std::vector<TSharedRef>& dataRefs,
+        TNullable<int> maskCount)
+    {
+        YCHECK(dataRefs.size() <= 30);
+
+        bool useRandom = true;
+        if (!maskCount) {
+            useRandom = false;
+            maskCount = (1 << dataRefs.size());
+        }
+
+        for (int iter = 0; iter < *maskCount; ++iter) {
+            int mask = useRandom ? (rand() % (1 << dataRefs.size())) : iter;
+
+            std::vector<int> indexes;
+            for (int i = 0; i < dataRefs.size(); ++i) {
+                if (((1 << i) & mask) != 0) {
+                    indexes.push_back(i);
+                }
+            }
+
+            std::random_shuffle(indexes.begin(), indexes.end());
+            auto result = WaitFor(repairReader->ReadBlocks(TWorkloadDescriptor(), indexes))
+                .ValueOrThrow();
+            EXPECT_EQ(result.size(), indexes.size());
+            for (int i = 0; i < indexes.size(); ++i) {
+                auto resultRef = result[i];
+                auto dataRef = dataRefs[indexes[i]];
+                EXPECT_EQ(dataRef.Size(), resultRef.Size());
+                EXPECT_EQ(ToString(dataRef), ToString(resultRef));
+            }
+        }
+    }
+
+    static void CheckRepairResult(
+        IChunkReaderPtr erasureReader,
+        const std::vector<TSharedRef>& dataRefs)
+    {
+        int index = 0;
+        for (const auto& ref : dataRefs) {
+            auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), std::vector<int>(1, index++)).Get();
+            EXPECT_TRUE(result.IsOK());
+            auto resultRef = result.ValueOrThrow().front();
+
+            EXPECT_EQ(ToString(ref), ToString(resultRef));
+        }
     }
 
     static void Cleanup(ICodec* codec)
@@ -229,7 +323,6 @@ TEST_F(TErasureMixture, ReaderTest)
     Cleanup(codec);
 }
 
-// TODO(ignat): refactor this tests to eliminate copy-paste
 TEST_F(TErasureMixture, RepairTest1)
 {
     auto codecId = ECodec::ReedSolomon_6_3;
@@ -244,43 +337,21 @@ TEST_F(TErasureMixture, RepairTest1)
     TPartIndexList erasedIndices;
     erasedIndices.push_back(2);
 
-    std::set<int> erasedIndicesSet(erasedIndices.begin(), erasedIndices.end());
+    RemoveErasedParts(erasedIndices);
 
-    auto repairIndices = *codec->GetRepairIndices(erasedIndices);
-    std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
-
-    for (int i = 0; i < erasedIndices.size(); ++i) {
-        auto filename = "part" + ToString(erasedIndices[i] + 1);
-        NFs::Remove(filename.c_str());
-        NFs::Remove((filename + ".meta").c_str());
-    }
-
+    std::vector<IChunkReaderPtr> allReaders;
     std::vector<IChunkReaderPtr> readers;
     std::vector<IChunkWriterPtr> writers;
-    for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
-        auto filename = "part" + ToString(i + 1);
-        if (erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
-            writers.push_back(NYT::New<TFileWriter>(NullChunkId, filename));
-        }
-        if (repairIndicesSet.find(i) != repairIndicesSet.end()) {
-            auto reader = NYT::New<TFileReader>(NullChunkId, filename);
-            readers.push_back(reader);
-        }
-    }
+    PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
+
+    auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
+    CheckRepairReader(repairReader, dataRefs, Null);
 
     auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor()).Get();
     EXPECT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
-
-    int index = 0;
-    for (const auto& ref : dataRefs) {
-        auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), std::vector<int>(1, index++)).Get();
-        EXPECT_TRUE(result.IsOK());
-        auto resultRef = result.ValueOrThrow().front();
-
-        EXPECT_EQ(ToString(ref), ToString(resultRef));
-    }
+    CheckRepairResult(erasureReader, dataRefs);
 
     Cleanup(codec);
 }
@@ -304,53 +375,31 @@ TEST_F(TErasureMixture, RepairTest2)
     erasedIndices.push_back(0);
     erasedIndices.push_back(13);
 
-    std::set<int> erasedIndicesSet(erasedIndices.begin(), erasedIndices.end());
+    RemoveErasedParts(erasedIndices);
 
-    auto repairIndices = *codec->GetRepairIndices(erasedIndices);
-    std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
-
-    for (int i = 0; i < erasedIndices.size(); ++i) {
-        auto filename = "part" + ToString(erasedIndices[i] + 1);
-        NFs::Remove(filename.c_str());
-        NFs::Remove((filename + ".meta").c_str());
-    }
-
+    std::vector<IChunkReaderPtr> allReaders;
     std::vector<IChunkReaderPtr> readers;
     std::vector<IChunkWriterPtr> writers;
-    for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
-        auto filename = "part" + ToString(i + 1);
-        if (erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
-            writers.push_back(NYT::New<TFileWriter>(NullChunkId, filename));
-        }
-        if (repairIndicesSet.find(i) != repairIndicesSet.end()) {
-            auto reader = NYT::New<TFileReader>(NullChunkId, filename);
-            readers.push_back(reader);
-        }
-    }
+    PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
+
+    auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
+    CheckRepairReader(repairReader, dataRefs, Null);
 
     auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor()).Get();
-    EXPECT_TRUE(repairResult.IsOK());
+    ASSERT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
-
-    int index = 0;
-    for (const auto& ref : dataRefs) {
-        auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), std::vector<int>(1, index++)).Get();
-        EXPECT_TRUE(result.IsOK());
-        auto resultRef = result.ValueOrThrow().front();
-
-        EXPECT_EQ(ToString(ref), ToString(resultRef));
-    }
+    CheckRepairResult(erasureReader, dataRefs);
 
     Cleanup(codec);
 }
 
-TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
+TEST_F(TErasureMixture, RepairTest3)
 {
     auto codecId = ECodec::Lrc_12_2_2;
     auto codec = GetCodec(codecId);
 
-    // Prepare data
+    // Prepare data (in this test we have multiple erasure windows).
     std::vector<TSharedRef> dataRefs;
     for (int i = 0; i < 20; ++i) {
         auto data = NYT::TBlob(NYT::TDefaultBlobTag(), 100);
@@ -361,15 +410,9 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
     }
     WriteErasureChunk(codecId, codec, dataRefs);
 
-    { // Check reader
+    {
         auto erasureReader = CreateErasureReader(codec);
-        for (int i = 0; i < dataRefs.size(); ++i ) {
-            auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), std::vector<int>(1, i)).Get();
-            EXPECT_TRUE(result.IsOK());
-
-            auto resultRef = result.Value().front();
-            EXPECT_EQ(ToString(dataRefs[i]), ToString(resultRef));
-        }
+        CheckRepairResult(erasureReader, dataRefs);
     }
 
     TPartIndexList erasedIndices;
@@ -377,42 +420,66 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
     erasedIndices.push_back(8);
     erasedIndices.push_back(13);
     erasedIndices.push_back(15);
-    std::set<int> erasedIndicesSet(erasedIndices.begin(), erasedIndices.end());
 
-    auto repairIndices = *codec->GetRepairIndices(erasedIndices);
-    std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
+    RemoveErasedParts(erasedIndices);
 
-    for (int i = 0; i < erasedIndices.size(); ++i) {
-        auto filename = "part" + ToString(erasedIndices[i] + 1);
-        NFs::Remove(filename.c_str());
-        NFs::Remove((filename + ".meta").c_str());
-    }
-
+    std::vector<IChunkReaderPtr> allReaders;
     std::vector<IChunkReaderPtr> readers;
     std::vector<IChunkWriterPtr> writers;
-    for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
-        auto filename = "part" + ToString(i + 1);
-        if (erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
-            writers.push_back(NYT::New<TFileWriter>(NullChunkId, filename));
-        }
-        if (repairIndicesSet.find(i) != repairIndicesSet.end()) {
-            auto reader = NYT::New<TFileReader>(NullChunkId, filename);
-            readers.push_back(reader);
-        }
-    }
+    PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
+
+    auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
+    CheckRepairReader(repairReader, dataRefs, 100);
 
     RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor()).Get();
-
-    { // Check reader
+    {
         auto erasureReader = CreateErasureReader(codec);
-        for (int i = 0; i < dataRefs.size(); ++i ) {
-            auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), std::vector<int>(1, i)).Get();
-            EXPECT_TRUE(result.IsOK());
+        CheckRepairResult(erasureReader, dataRefs);
+    }
 
-            auto resultRef = result.Value().front();
-            EXPECT_EQ(dataRefs[i].Size(), resultRef.Size());
-            EXPECT_EQ(ToString(dataRefs[i]), ToString(resultRef));
+    Cleanup(codec);
+}
+
+TEST_F(TErasureMixture, RepairTest4)
+{
+    auto codecId = ECodec::Lrc_12_2_2;
+    auto codec = GetCodec(codecId);
+
+    // Prepare data
+    std::vector<TSharedRef> dataRefs;
+    for (int i = 0; i < 20; ++i) {
+        int size = 100 + (std::rand() % 100);
+        auto data = NYT::TBlob(NYT::TDefaultBlobTag(), size);
+        for (int i = 0; i < size; ++i) {
+            data[i] = static_cast<char>('a' + (std::abs(std::rand()) % 26));
         }
+        dataRefs.push_back(TSharedRef::FromBlob(std::move(data)));
+    }
+    WriteErasureChunk(codecId, codec, dataRefs);
+
+    {
+        auto erasureReader = CreateErasureReader(codec);
+        CheckRepairResult(erasureReader, dataRefs);
+    }
+
+    // In this test repair readers and all readers are different sets of readers.
+    TPartIndexList erasedIndices;
+    erasedIndices.push_back(6);
+
+    RemoveErasedParts(erasedIndices);
+
+    std::vector<IChunkReaderPtr> allReaders;
+    std::vector<IChunkReaderPtr> readers;
+    std::vector<IChunkWriterPtr> writers;
+    PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
+
+    auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
+    CheckRepairReader(repairReader, dataRefs, 100);
+
+    RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor()).Get();
+    {
+        auto erasureReader = CreateErasureReader(codec);
+        CheckRepairResult(erasureReader, dataRefs);
     }
 
     Cleanup(codec);

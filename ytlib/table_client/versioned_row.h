@@ -140,9 +140,7 @@ size_t GetVersionedRowByteSize(
 class TVersionedRow
 {
 public:
-    TVersionedRow()
-        : Header_(nullptr)
-    { }
+    TVersionedRow() = default;
 
     explicit TVersionedRow(const TVersionedRowHeader* header)
         : Header_(header)
@@ -151,6 +149,11 @@ public:
     explicit operator bool()
     {
         return Header_ != nullptr;
+    }
+
+    TTypeErasedRow ToTypeErasedRow() const
+    {
+        return {Header_};
     }
 
     const TVersionedRowHeader* GetHeader() const
@@ -219,7 +222,7 @@ public:
     }
 
 private:
-    const TVersionedRowHeader* Header_;
+    const TVersionedRowHeader* Header_ = nullptr;
 
 };
 
@@ -248,8 +251,7 @@ class TMutableVersionedRow
     : public TVersionedRow
 {
 public:
-    TMutableVersionedRow()
-    { }
+    TMutableVersionedRow() = default;
 
     explicit TMutableVersionedRow(TVersionedRowHeader* header)
         : TVersionedRow(header)

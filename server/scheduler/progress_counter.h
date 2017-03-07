@@ -53,7 +53,6 @@ private:
     i64 Lost_;
     i64 Interrupted_;
     TEnumIndexedVector<i64, EAbortReason> Aborted_;
-
 };
 
 Stroka ToString(const TProgressCounter& counter);

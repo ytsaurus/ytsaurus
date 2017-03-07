@@ -32,7 +32,6 @@
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/value_consumer.h>
-#include <yt/ytlib/table_client/row_buffer.h>
 
 #include <yt/core/actions/cancelable_context.h>
 
@@ -69,11 +68,6 @@ DEFINE_ENUM(EInputChunkState,
     (Active)
     (Skipped)
     (Waiting)
-);
-
-DEFINE_ENUM(EJobReinstallReason,
-    (Failed)
-    (Aborted)
 );
 
 DEFINE_ENUM(EControllerState,
@@ -117,7 +111,7 @@ class TOperationControllerBase
 #define VERIFY_EVALUATOR(affinity) VERIFY_PASTER(affinity)
 #define IMPLEMENT_SAFE_METHOD(returnType, method, signature, args, affinity, defaultValue) \
 public: \
-    virtual returnType method signature override final \
+    virtual returnType method signature final \
     { \
         VERIFY_EVALUATOR(affinity); \
         TSafeAssertionsGuard guard(Host->GetCoreDumper(), Host->GetCoreSemaphore()); \
@@ -157,28 +151,44 @@ private: \
         INVOKER_AFFINITY(CancelableInvoker),
         New<TScheduleJobResult>())
 
+    //! Callback called by TChunkScraper when get information on some chunk.
+    IMPLEMENT_SAFE_VOID_METHOD(
+        OnInputChunkLocated,
+        (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas),
+        (chunkId, replicas),
+        THREAD_AFFINITY_ANY())
+
+    //! Called by #IntermediateChunkScraper.
+    IMPLEMENT_SAFE_VOID_METHOD(
+        OnIntermediateChunkLocated,
+        (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas),
+        (chunkId, replicas),
+        THREAD_AFFINITY_ANY())
+
 public:
     // These are "pure" interface methods, i. e. those that do not involve YCHECKs.
     // If some of these methods still fails due to unnoticed YCHECK, consider
     // moving it to the section above.
 
     virtual void Initialize() override;
+    virtual TOperationControllerInitializeResult GetInitializeResult() const override;
 
-    void InitializeReviving(TControllerTransactionsPtr operationTransactions);
-    void Revive();
+    virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) override;
+    virtual void Revive() override;
 
     virtual std::vector<NApi::ITransactionPtr> GetTransactions() override;
 
     virtual void UpdateConfig(TSchedulerConfigPtr config) override;
 
     virtual TCancelableContextPtr GetCancelableContext() const override;
-    virtual IInvokerPtr GetCancelableControlInvoker() const override;
     virtual IInvokerPtr GetCancelableInvoker() const override;
     virtual IInvokerPtr GetInvoker() const override;
 
     virtual int GetTotalJobCount() const override;
     virtual int GetPendingJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
+
+    virtual bool IsForgotten() const override;
 
     virtual bool HasProgress() const override;
 
@@ -188,7 +198,6 @@ public:
     virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
-    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
 
     virtual NYson::TYsonString GetProgress() const override;
@@ -240,12 +249,12 @@ protected:
     mutable NLogging::TLogger Logger;
 
     TCancelableContextPtr CancelableContext;
-    IInvokerPtr CancelableControlInvoker;
     IInvokerPtr Invoker;
     ISuspendableInvokerPtr SuspendableInvoker;
     IInvokerPtr CancelableInvoker;
 
     std::atomic<EControllerState> State = {EControllerState::Preparing};
+    std::atomic<bool> Forgotten = {false};
 
     bool RevivedFromSnapshot = false;
 
@@ -279,9 +288,10 @@ protected:
     TSharedRef Snapshot;
 
     struct TRowBufferTag { };
-    const NTableClient::TRowBufferPtr RowBuffer = New<NTableClient::TRowBuffer>(TRowBufferTag());
+    const NTableClient::TRowBufferPtr RowBuffer;
 
     const NYTree::IMapNodePtr SecureVault;
+
     const std::vector<Stroka> Owners;
 
 
@@ -580,6 +590,8 @@ protected:
         i64 GetCompletedDataSize() const;
         i64 GetPendingDataSize() const;
 
+        TNullable<i64> GetMaximumUsedTmpfsSize() const;
+
         virtual IChunkPoolInput* GetChunkPoolInput() const = 0;
         virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;
 
@@ -588,11 +600,16 @@ protected:
 
         virtual void Persist(const TPersistenceContext& context) override;
 
+        virtual TUserJobSpecPtr GetUserJobSpec() const;
+
+        virtual EJobType GetJobType() const = 0;
     private:
         TOperationControllerBase* Controller;
 
         int CachedPendingJobCount;
         int CachedTotalJobCount;
+
+        TNullable<i64> MaximumUsedTmfpsSize;
 
         TJobResources CachedTotalNeededResources;
         mutable TNullable<TExtendedJobResources> CachedMinNeededResources;
@@ -605,6 +622,7 @@ protected:
 
         TJobResources ApplyMemoryReserve(const TExtendedJobResources& jobResources) const;
 
+        void UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics);
     protected:
         NLogging::TLogger Logger;
 
@@ -616,8 +634,6 @@ protected:
 
         virtual void OnTaskCompleted();
 
-        virtual EJobType GetJobType() const = 0;
-        virtual TUserJobSpecPtr GetUserJobSpec() const;
         virtual void PrepareJoblet(TJobletPtr joblet);
         virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
 
@@ -628,7 +644,7 @@ protected:
         void AddPendingHint();
         void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
 
-        void ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason);
+        void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie);
 
         std::unique_ptr<NNodeTrackerClient::TNodeDirectoryBuilder> MakeNodeDirectoryBuilder(
             NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpec);
@@ -745,6 +761,9 @@ protected:
 
     void CheckAvailableExecNodes();
 
+    void AnalyzeTmpfsUsage();
+    void AnalyzeOperationProgess();
+
     void DoScheduleJob(
         ISchedulingContext* context,
         const TJobResources& jobLimits,
@@ -785,6 +804,7 @@ protected:
     void LockInputTables();
     void GetInputTablesAttributes();
     void GetOutputTablesSchema();
+    virtual void PrepareInputTables();
     virtual void PrepareOutputTables();
     void BeginUploadOutputTables();
     void GetOutputTablesUploadParams();
@@ -821,6 +841,9 @@ protected:
     void CommitTransactions();
     virtual void CustomCommit();
 
+    bool GetCommitting();
+    void SetCommitting();
+
     // Revival.
     void ReinstallLivePreview();
     void AbortAllJoblets();
@@ -856,9 +879,6 @@ protected:
 
     //! Gets the list of all intermediate chunks that are not lost.
     yhash_set<NChunkClient::TChunkId> GetAliveIntermediateChunks() const;
-
-    //! Called by #IntermediateChunkScraper.
-    void OnIntermediateChunkLocated(const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas);
 
     //! Called when a job is unable to read an intermediate chunk
     //! (i.e. that is not a part of the input).
@@ -899,11 +919,6 @@ protected:
 
     };
 
-    //! Callback called by TChunkScraper when get information on some chunk.
-    void OnInputChunkLocated(
-        const NChunkClient::TChunkId& chunkId,
-        const NChunkClient::TChunkReplicaList& replicas);
-
     //! Called when a job is unable to read an input chunk or
     //! chunk scraper has encountered unavailable chunk.
     void OnInputChunkUnavailable(
@@ -918,6 +933,7 @@ protected:
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
     virtual bool IsInputDataSizeHistogramSupported() const;
+    virtual bool AreForeignTablesSupported() const;
 
     //! Successfully terminate and finalize operation.
     /*!
@@ -1083,6 +1099,8 @@ protected:
     void InferSchemaFromInputOrdered();
     void ValidateOutputSchemaOrdered() const;
 
+    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const;
+
 private:
     typedef TOperationControllerBase TThis;
 
@@ -1143,13 +1161,16 @@ private:
     //! Runs periodic checks to verify that compatible nodes are present in the cluster.
     NConcurrency::TPeriodicExecutorPtr ExecNodesCheckExecutor;
 
+    //! Periodically checks operation progress and registers operation alerts if necessary.
+    NConcurrency::TPeriodicExecutorPtr AnalyzeOperationProgressExecutor;
+
     //! Exec node count do not consider scheduling tag.
     //! But descriptors do.
     int ExecNodeCount_ = 0;
     std::vector<TExecNodeDescriptor> ExecNodesDescriptors_;
     TInstant LastGetExecNodesInformationTime_;
 
-    TInstant AvaialableNodesLastSeenTime_;
+    NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;
 
     const std::unique_ptr<NTableClient::IValueConsumer> EventLogValueConsumer_;
     const std::unique_ptr<NYson::IYsonConsumer> EventLogTableConsumer_;
@@ -1169,15 +1190,15 @@ private:
     NYson::TYsonString BriefProgressString_;
 
     TSpinLock ProgressLock_;
-    NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
 
     void BuildAndSaveProgress();
 
     void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics);
 
     void InitializeHistograms();
-    void UpdateEstimatedHistogram(TJobletPtr joblet);
-    void UpdateEstimatedHistogram(TJobletPtr joblet, EJobReinstallReason reason);
+    void AddValueToEstimatedHistogram(TJobletPtr joblet);
+    void RemoveValueFromEstimatedHistogram(TJobletPtr joblet);
     void UpdateActualHistogram(const NJobTrackerClient::TStatistics& statistics);
 
     void GetExecNodesInformation();

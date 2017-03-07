@@ -122,6 +122,7 @@ TSerializableClusterResources::TSerializableClusterResources(
 {
     NodeCount_ = clusterResources.NodeCount;
     ChunkCount_ = clusterResources.ChunkCount;
+    DiskSpace_ = 0;
     for (const auto& pair : chunkManager->Media()) {
         const auto* medium = pair.second;
         if (medium->GetCache()) {
@@ -130,8 +131,8 @@ TSerializableClusterResources::TSerializableClusterResources(
         int mediumIndex = medium->GetIndex();
         i64 mediumDiskSpace = clusterResources.DiskSpace[mediumIndex];
         YCHECK(DiskSpacePerMedium_.insert(std::make_pair(medium->GetName(), mediumDiskSpace)).second);
+        DiskSpace_ += mediumDiskSpace;
     }
-    DiskSpace_ = clusterResources.DiskSpace[DefaultStoreMediumIndex];
 }
 
 TClusterResources TSerializableClusterResources::ToClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager) const

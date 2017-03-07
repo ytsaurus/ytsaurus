@@ -8,6 +8,8 @@
 namespace NYT {
 namespace NTableClient {
 
+using NChunkClient::NProto::TDataStatistics;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSchemafulPipeBufferTag
@@ -107,6 +109,11 @@ public:
     virtual TFuture<void> GetReadyEvent() override
     {
         return ReadyEvent_;
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return TDataStatistics();
     }
 
 private:

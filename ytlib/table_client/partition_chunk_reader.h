@@ -47,8 +47,6 @@ public:
         TRowDescriptorInsertIterator& rowDescriptorInserter,
         i64* rowCount);
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
-
 private:
     const TNameTablePtr NameTable_;
     const TKeyColumns KeyColumns_;
@@ -61,7 +59,6 @@ private:
     std::vector<TColumnIdMapping> IdMapping_;
 
     int CurrentBlockIndex_ = 0;
-    i64 RowCount_ = 0;
     std::vector<std::unique_ptr<THorizontalSchemalessBlockReader>> BlockReaders_;
 
     THorizontalSchemalessBlockReader* BlockReader_ = nullptr;

@@ -348,6 +348,17 @@ protected:
             return Controller->PartitionPool.get();
         }
 
+        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        {
+            return Controller->GetPartitionUserJobSpec();
+        }
+
+        virtual EJobType GetJobType() const override
+        {
+            return Controller->GetPartitionJobType();
+        }
+
+
         virtual void Persist(const TPersistenceContext& context) override
         {
             TTask::Persist(context);
@@ -446,16 +457,6 @@ protected:
             return true;
         }
 
-        virtual EJobType GetJobType() const override
-        {
-            return Controller->GetPartitionJobType();
-        }
-
-        virtual TUserJobSpecPtr GetUserJobSpec() const override
-        {
-            return Controller->GetPartitionUserJobSpec();
-        }
-
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
@@ -510,12 +511,10 @@ protected:
                 newSortDataSize);
             Controller->SortDataSizeCounter.Increment(newSortDataSize - oldSortDataSize);
 
-            Controller->CheckSortStartThreshold();
-
             // NB: don't move it to OnTaskCompleted since jobs may run after the task has been completed.
             // Kick-start sort and unordered merge tasks.
-            Controller->AddSortTasksPendingHints();
-            Controller->AddMergeTasksPendingHints();
+            Controller->CheckSortStartThreshold();
+            Controller->CheckMergeStartThreshold();
         }
 
         virtual void OnJobLost(TCompletedJobPtr completedJob) override
@@ -591,11 +590,9 @@ protected:
 
             // NB: this is required at least to mark tasks completed, when there are no pending jobs.
             // This couldn't have been done earlier since we've just finished populating shuffle pool.
-            Controller->AddSortTasksPendingHints();
-
+            Controller->CheckSortStartThreshold();
             Controller->CheckMergeStartThreshold();
         }
-
     };
 
     //! Base class for tasks that are assigned to particular partitions.
@@ -691,6 +688,13 @@ protected:
                 : Partition->ChunkPoolOutput;
         }
 
+        virtual EJobType GetJobType() const override
+        {
+            return Controller->IsSortedMergeNeeded(Partition)
+                ? Controller->GetIntermediateSortJobType()
+                : Controller->GetFinalSortJobType();
+        }
+
     protected:
         TExtendedJobResources GetNeededResourcesForChunkStripe(
             const TChunkStripeStatistics& stat) const
@@ -722,13 +726,6 @@ protected:
         virtual bool IsIntermediateOutput() const override
         {
             return Controller->IsSortedMergeNeeded(Partition);
-        }
-
-        virtual EJobType GetJobType() const override
-        {
-            return Controller->IsSortedMergeNeeded(Partition)
-                ? Controller->GetIntermediateSortJobType()
-                : Controller->GetFinalSortJobType();
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -858,7 +855,6 @@ protected:
                 Partition->SortedMergeTask->FinishInput();
             }
         }
-
     };
 
     //! Implements partition sort for sort operations and
@@ -899,13 +895,13 @@ protected:
             }
         }
 
-    private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionSortTask, 0x4f9a6cd9);
-
         virtual TUserJobSpecPtr GetUserJobSpec() const override
         {
             return Controller->GetPartitionSortUserJobSpec(Partition);
         }
+
+    private:
+        DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionSortTask, 0x4f9a6cd9);
 
         virtual bool IsActive() const override
         {
@@ -1054,6 +1050,16 @@ protected:
             Persist(context, ChunkPool);
         }
 
+        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        {
+            return Controller->GetSortedMergeUserJobSpec();
+        }
+
+        virtual EJobType GetJobType() const override
+        {
+            return Controller->GetSortedMergeJobType();
+        }
+
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeTask, 0x4ab19c75);
 
@@ -1075,16 +1081,6 @@ protected:
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
             return ChunkPool.get();
-        }
-
-        virtual EJobType GetJobType() const override
-        {
-            return Controller->GetSortedMergeJobType();
-        }
-
-        virtual TUserJobSpecPtr GetUserJobSpec() const override
-        {
-            return Controller->GetSortedMergeUserJobSpec();
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -1175,6 +1171,11 @@ protected:
             return Partition->ChunkPoolOutput;
         }
 
+        virtual EJobType GetJobType() const override
+        {
+            return EJobType::UnorderedMerge;
+        }
+
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeTask, 0xbba17c0f);
 
@@ -1194,11 +1195,6 @@ protected:
         virtual bool HasInputLocality() const override
         {
             return false;
-        }
-
-        virtual EJobType GetJobType() const override
-        {
-            return EJobType::UnorderedMerge;
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -1472,15 +1468,15 @@ protected:
 
     void CheckSortStartThreshold()
     {
-        if (SortStartThresholdReached)
-            return;
+        if (!SortStartThresholdReached) {
+            if (!SimpleSort && PartitionTask->GetCompletedDataSize() < PartitionTask->GetTotalDataSize() * Spec->ShuffleStartThreshold)
+                return;
 
-        if (!SimpleSort && PartitionTask->GetCompletedDataSize() < PartitionTask->GetTotalDataSize() * Spec->ShuffleStartThreshold)
-            return;
+            LOG_INFO("Sort start threshold reached");
 
-        LOG_INFO("Sort start threshold reached");
+            SortStartThresholdReached = true;
+        }
 
-        SortStartThresholdReached = true;
         AddSortTasksPendingHints();
     }
 
@@ -1519,19 +1515,19 @@ protected:
 
     void CheckMergeStartThreshold()
     {
-        if (MergeStartThresholdReached)
-            return;
+        if (!MergeStartThresholdReached) {
+            if (!SimpleSort) {
+                if (!PartitionTask->IsCompleted())
+                    return;
+                if (SortDataSizeCounter.GetCompleted() < SortDataSizeCounter.GetTotal() * Spec->MergeStartThreshold)
+                    return;
+            }
 
-        if (!SimpleSort) {
-            if (!PartitionTask->IsCompleted())
-                return;
-            if (SortDataSizeCounter.GetCompleted() < SortDataSizeCounter.GetTotal() * Spec->MergeStartThreshold)
-                return;
+            LOG_INFO("Merge start threshold reached");
+
+            MergeStartThresholdReached = true;
         }
 
-        LOG_INFO("Merge start threshold reached");
-
-        MergeStartThresholdReached = true;
         AddMergeTasksPendingHints();
     }
 
@@ -2176,6 +2172,9 @@ private:
         InitFinalOutputConfig(SortedMergeJobIOConfig);
 
         UnorderedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
+        // Since we're reading from huge number of paritition chunks, we must use larger buffers,
+        // as we do for sort jobs.
+        UnorderedMergeJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
         InitFinalOutputConfig(UnorderedMergeJobIOConfig);
     }
 

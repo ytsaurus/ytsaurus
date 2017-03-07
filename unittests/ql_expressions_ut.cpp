@@ -1064,7 +1064,7 @@ TEST_P(TExpressionTest, Evaluate)
 
     auto callback = Profile(expr, schema, nullptr, &variables)();
 
-    auto row = YsonToRow(Stroka("k=") + lhs + ";l=" + rhs, schema, true);
+    auto row = YsonToSchemafulRow(Stroka("k=") + lhs + ";l=" + rhs, schema, true);
 
     auto buffer = New<TRowBuffer>();
 
@@ -1095,7 +1095,7 @@ TEST_P(TExpressionTest, EvaluateLhsValueRhsLiteral)
 
     auto callback = Profile(expr, schema, nullptr, &variables)();
 
-    auto row = YsonToRow(Stroka("k=") + lhs, schema, true);
+    auto row = YsonToSchemafulRow(Stroka("k=") + lhs, schema, true);
 
     auto buffer = New<TRowBuffer>();
 
@@ -1126,7 +1126,7 @@ TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
 
     auto callback = Profile(expr, schema, nullptr, &variables)();
 
-    auto row = YsonToRow(Stroka("l=") + rhs, schema, true);
+    auto row = YsonToSchemafulRow(Stroka("l=") + rhs, schema, true);
 
     auto buffer = New<TRowBuffer>();
 
@@ -1228,7 +1228,7 @@ TEST_P(TTernaryLogicTest, Evaluate)
     TUnversionedValue result;
     TCGVariables variables;
     auto buffer = New<TRowBuffer>();
-    auto row = YsonToRow("", TTableSchema(), true);
+    auto row = YsonToSchemafulRow("", TTableSchema(), true);
 
     auto expr1 = New<TBinaryOpExpression>(EValueType::Boolean, op,
         New<TLiteralExpression>(EValueType::Boolean, lhs),
@@ -1341,7 +1341,7 @@ TEST_P(TCompareWithNullTest, Simple)
     TCGVariables variables;
     auto schema = GetSampleTableSchema();
 
-    auto row = YsonToRow(rowString, schema, true);
+    auto row = YsonToSchemafulRow(rowString, schema, true);
     auto expr = PrepareExpression(exprString, schema);
     auto callback = Profile(expr, schema, nullptr, &variables)();
 
@@ -1481,7 +1481,7 @@ void EvaluateExpression(
 
     auto callback = Profile(expr, schema, nullptr, &variables)();
 
-    auto row = YsonToRow(rowString, schema, true);
+    auto row = YsonToSchemafulRow(rowString, schema, true);
 
     callback(variables.GetOpaqueData(), result, row, buffer.Get());
 }

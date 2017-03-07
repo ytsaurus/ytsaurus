@@ -2457,16 +2457,6 @@ private:
         }
     }
 
-    void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
-    {
-        if (timestamp < tabletSnapshot->RetainedTimestamp) {
-            THROW_ERROR_EXCEPTION("Timestamp %v is less than tablet %v retained timestamp %v",
-                timestamp,
-                tabletSnapshot->TabletId,
-                tabletSnapshot->RetainedTimestamp);
-        }
-    }
-
     void ValidateTabletMounted(TTablet* tablet)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);

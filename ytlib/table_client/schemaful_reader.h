@@ -2,6 +2,9 @@
 
 #include "public.h"
 
+#include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/public.h>
+
 #include <yt/core/actions/future.h>
 
 namespace NYT {
@@ -28,6 +31,7 @@ struct ISchemafulReader
     //! See #IVersionedReader::GetReadyEvent.
     virtual TFuture<void> GetReadyEvent() = 0;
 
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemafulReader)

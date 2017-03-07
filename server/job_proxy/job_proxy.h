@@ -151,7 +151,7 @@ private:
 
     void CheckMemoryUsage();
 
-    void CheckResult(const NJobTrackerClient::NProto::TJobResult& jobResult);
+    void EnsureStderrResult(NJobTrackerClient::NProto::TJobResult* jobResult);
 
     void Exit(EJobProxyExitCode exitCode);
 };

@@ -32,7 +32,6 @@ bool TPartitionChunkReader::Read(
     }
 
     while (true) {
-        ++RowCount_;
         ++(*rowCount);
 
         const auto& key = BlockReader_->GetKey();

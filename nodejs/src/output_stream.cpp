@@ -222,7 +222,8 @@ Handle<Value> TOutputStreamWrap::DoDrain()
     FlowEstablished_.store(false);
 
     auto guard = Guard(Mutex_);
-    return Boolean::New(IsFinished_);
+
+    return Boolean::New(IsFinished_ && Queue_.empty());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

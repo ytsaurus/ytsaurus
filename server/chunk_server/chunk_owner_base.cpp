@@ -173,6 +173,11 @@ TDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
     }
 }
 
+bool TChunkOwnerBase::HasDataWeight() const
+{
+    return SnapshotStatistics_.has_data_weight() || DeltaStatistics_.has_data_weight();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer

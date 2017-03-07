@@ -64,6 +64,10 @@ const NProto::TNodeResources& InfiniteNodeResources();
 NObjectClient::TObjectId ObjectIdFromNodeId(TNodeId nodeId, NObjectClient::TCellTag);
 TNodeId NodeIdFromObjectId(const NObjectClient::TObjectId& objectId);
 
+void ValidateNodeTags(const std::vector<Stroka>& tags);
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NProto {
 
 TNodeResources  operator +  (const TNodeResources& lhs, const TNodeResources& rhs);

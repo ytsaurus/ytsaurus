@@ -61,6 +61,7 @@ DECLARE_REFCOUNTED_CLASS(TSortOperationOptionsBase)
 DECLARE_REFCOUNTED_CLASS(TSortOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TMapReduceOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TRemoteCopyOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TTestingOptions)
 
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
 DECLARE_REFCOUNTED_CLASS(TScheduler)
@@ -92,7 +93,13 @@ DEFINE_ENUM(EAlertType,
     (UpdateFairShare)
 );
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EOperationAlertType,
+    (UnusedTmpfsSpace)
+);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT

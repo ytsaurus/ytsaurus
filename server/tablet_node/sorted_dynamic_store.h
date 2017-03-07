@@ -135,8 +135,7 @@ public:
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
-        TOwningKey lowerKey,
-        TOwningKey upperKey,
+        TSharedRange<NTableClient::TRowRange> bounds,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor) override;

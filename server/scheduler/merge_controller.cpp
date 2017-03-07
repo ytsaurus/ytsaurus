@@ -208,6 +208,16 @@ protected:
             Persist(context, PartitionIndex);
         }
 
+        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        {
+            return Controller->GetUserJobSpec();
+        }
+
+        virtual EJobType GetJobType() const override
+        {
+            return Controller->GetJobType();
+        }
+
     protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
@@ -259,16 +269,6 @@ protected:
         virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
         {
             return Controller->TableReaderOptions;
-        }
-
-        virtual EJobType GetJobType() const override
-        {
-            return Controller->GetJobType();
-        }
-
-        virtual TUserJobSpecPtr GetUserJobSpec() const override
-        {
-            return Controller->GetUserJobSpec();
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -374,7 +374,8 @@ protected:
         TotalDataSize += taskDataSize;
         TotalChunkCount += taskChunkCount;
 
-        if (TotalChunkCount > Config->MaxTotalSliceCount) {
+        // Don't validate this limit if operation is already running.
+        if (!IsPrepared() && TotalChunkCount > Config->MaxTotalSliceCount) {
             THROW_ERROR_EXCEPTION("Total number of data slices in operation is too large. Consider reducing job count or reducing chunk count in input tables.")
                 << TErrorAttribute("actual_total_slice_count", TotalChunkCount)
                 << TErrorAttribute("max_total_slice_count", Config->MaxTotalSliceCount)
@@ -1086,7 +1087,6 @@ private:
                 path.SetRanges(std::vector<TReadRange>());
             }
         }
-
     }
 
     virtual void PrepareOutputTables() override
@@ -1338,8 +1338,13 @@ protected:
 
         FinishPreparation();
 
+        LOG_INFO("Tasks prepared (TaskCount: %v, EndpointCount: %v, TotalSliceCount: %v)",
+            Tasks.size(),
+            Endpoints.size(),
+            TotalChunkCount);
+
         // Clear unused data, especially keys, to minimize memory footprint.
-        Endpoints.resize(0);
+        decltype(Endpoints)().swap(Endpoints);
         ClearInputChunkBoundaryKeys();
     }
 
@@ -2272,6 +2277,11 @@ private:
             InputTables[chunkSpec->GetTableIndex()].Path.GetTeleport();
     }
 
+    virtual bool AreForeignTablesSupported() const override
+    {
+        return true;
+    }
+
     virtual void SortEndpoints() override
     {
         std::sort(
@@ -2627,6 +2637,11 @@ private:
     {
         // JoinReduce slices by row indexes.
         return false;
+    }
+
+    virtual bool AreForeignTablesSupported() const override
+    {
+        return true;
     }
 
     virtual EJobType GetJobType() const override

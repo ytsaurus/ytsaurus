@@ -1,8 +1,10 @@
 #include "helpers.h"
 
-#include <yt/core/ytree/fluent.h>
-
 #include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/core/misc/boolean_formula.h>
+
+#include <yt/core/ytree/fluent.h>
 
 #include <limits>
 
@@ -129,6 +131,20 @@ TNodeId NodeIdFromObjectId(const TObjectId& objectId)
 {
     return CounterFromId(objectId);
 }
+
+void ValidateNodeTags(const std::vector<Stroka>& tags)
+{
+    for (const auto& tag : tags) {
+        try {
+            ValidateBooleanFormulaVariable(tag);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Invalid node tag %Qv", tag)
+                << ex;
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////
 
 namespace NProto {
 

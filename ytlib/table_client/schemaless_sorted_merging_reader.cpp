@@ -33,7 +33,8 @@ class TSchemalessSortedMergingReaderBase
 {
 public:
     TSchemalessSortedMergingReaderBase(
-        int keyColumnCount);
+        int sortKeyColumnCount,
+        int reduceKeyColumnCount);
 
     virtual TFuture<void> GetReadyEvent() override;
 
@@ -70,13 +71,15 @@ protected:
         int TableIndex = 0;
     };
 
-    const int KeyColumnCount_;
+    const int SortKeyColumnCount_;
+    const int ReduceKeyColumnCount_;
 
     std::vector<TSession> SessionHolder_;
     std::vector<TSession*> SessionHeap_;
 
     i64 RowCount_ = 0;
     i64 RowIndex_ = 0;
+    i64 DataWeight_ = 0;
 
     TFuture<void> ReadyEvent_;
     TPromise<void> CompletionError_ = NewPromise<void>();
@@ -94,14 +97,16 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemalessSortedMergingReaderBase::TSchemalessSortedMergingReaderBase(
-    int keyColumnCount)
-    : KeyColumnCount_(keyColumnCount)
+    int sortKeyColumnCount,
+    int reduceKeyColumnCount)
+    : SortKeyColumnCount_(sortKeyColumnCount)
+    , ReduceKeyColumnCount_(reduceKeyColumnCount)
 {
     CompareSessions_ = [=] (const TSession* lhs, const TSession* rhs) -> bool {
         int result = CompareRows(
             lhs->Rows[lhs->CurrentRowIndex],
             rhs->Rows[rhs->CurrentRowIndex],
-            KeyColumnCount_);
+            SortKeyColumnCount_);
         if (result == 0) {
             result = lhs->TableIndex - rhs->TableIndex;
         }
@@ -116,7 +121,7 @@ void TSchemalessSortedMergingReaderBase::DoOpen()
         try {
             tableIndexId = nameTable->GetIdOrRegisterName(TableIndexColumnName);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to add system column to name table for schemaless merging reader") 
+            THROW_ERROR_EXCEPTION("Failed to add system column to name table for schemaless merging reader")
                 << ex;
         }
 
@@ -165,6 +170,7 @@ TDataStatistics TSchemalessSortedMergingReaderBase::GetDataStatistics() const
         dataStatistics += session.Reader->GetDataStatistics();
     }
     dataStatistics.set_row_count(RowIndex_);
+    dataStatistics.set_data_weight(DataWeight_);
 
     return dataStatistics;
 }
@@ -236,7 +242,8 @@ class TSchemalessSortedMergingReader
 public:
     TSchemalessSortedMergingReader(
         const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
-        int keyColumnCount);
+        int sortKeyColumnCount,
+        int reduceKeyColumnCount);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
@@ -251,8 +258,9 @@ private:
 
 TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
     const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
-    int keyColumnCount)
-    : TSchemalessSortedMergingReaderBase(keyColumnCount)
+    int sortKeyColumnCount,
+    int reduceKeyColumnCount)
+    : TSchemalessSortedMergingReaderBase(sortKeyColumnCount, reduceKeyColumnCount)
 {
     YCHECK(!readers.empty());
     int rowsPerSession = RowBufferSize / readers.size();
@@ -267,14 +275,16 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
         RowCount_ += reader->GetTotalRowCount();
     }
 
-    LOG_INFO("Opening schemaless sorted merging reader (SessionCount: %v)",
+    LOG_DEBUG("Opening schemaless sorted merging reader (SessionCount: %v)",
         SessionHolder_.size());
 
-    ReadyEvent_ = CombineCompletionError(BIND(
+    // NB: we don't combine completion error here, because reader opening must not be interrupted.
+    // Otherwise, race condition may occur between reading in DoOpen and GetUnreadDataSliceDescriptors.
+    ReadyEvent_ = BIND(
         &TSchemalessSortedMergingReader::DoOpen,
         MakeStrong(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-            .Run());
+            .Run();
 }
 
 bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
@@ -313,10 +323,10 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
     bool interrupting = Interrupting_;
     while (rows->size() < rows->capacity() && dataWeight < MaxDataSizePerRead) {
         const auto& row = session->Rows[session->CurrentRowIndex];
-        if (interrupting && CompareRows(row, LastKey_, KeyColumnCount_) != 0) {
+        if (interrupting && CompareRows(row, LastKey_, ReduceKeyColumnCount_) != 0) {
             LOG_DEBUG("Sorted merging reader interrupted (LastKey: %v, NextKey: %v)",
                 LastKey_,
-                GetKeyPrefix(row, KeyColumnCount_));
+                GetKeyPrefix(row, ReduceKeyColumnCount_));
             ReadyEvent_ = VoidFuture;
             SessionHeap_.clear();
             return !rows->empty();
@@ -340,8 +350,9 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
         }
     }
     if (!rows->empty() && !interrupting) {
-        LastKey_ = GetKeyPrefix(rows->back(), KeyColumnCount_);
+        LastKey_ = GetKeyPrefix(rows->back(), ReduceKeyColumnCount_);
     }
+    DataWeight_ += dataWeight;
     return true;
 }
 
@@ -358,14 +369,14 @@ std::vector<TDataSliceDescriptor> TSchemalessSortedMergingReader::GetUnreadDataS
             std::move(unreadDescriptors.begin(), unreadDescriptors.end(), std::back_inserter(result));
         }
     } else {
-        auto firstUnreadKey = GetKeyPrefix(unreadRows[0], KeyColumnCount_);
+        auto firstUnreadKey = GetKeyPrefix(unreadRows[0], ReduceKeyColumnCount_);
         for (const auto& session : SessionHolder_) {
             auto it = std::lower_bound(
                 session.Rows.begin(),
                 session.Rows.begin() + session.CurrentRowIndex,
                 firstUnreadKey,
                 [&] (const TUnversionedRow& row, const TOwningKey& key) -> bool {
-                    return CompareRows(row, key, KeyColumnCount_) < 0;
+                    return CompareRows(row, key, ReduceKeyColumnCount_) < 0;
                 });
             auto firstUnreadRowIndex = std::distance(session.Rows.begin(), it);
             auto unreadDescriptors = session.Reader->GetUnreadDataSliceDescriptors(
@@ -387,6 +398,7 @@ public:
     TSchemalessJoiningReader(
         const std::vector<ISchemalessMultiChunkReaderPtr>& primaryReaders,
         int primaryKeyColumnCount,
+        int reduceKeyColumnCount,
         const std::vector<ISchemalessMultiChunkReaderPtr>& foreignReaders,
         int foreignKeyColumnCount,
         bool interruptAtKeyEdge);
@@ -399,7 +411,6 @@ public:
     virtual void Interrupt() override;
 
 private:
-    const int PrimaryKeyColumnCount_;
     bool InterruptAtKeyEdge_ = true;
 
     TSession* PrimarySession_;
@@ -411,22 +422,17 @@ private:
 TSchemalessJoiningReader::TSchemalessJoiningReader(
     const std::vector<ISchemalessMultiChunkReaderPtr>& primaryReaders,
     int primaryKeyColumnCount,
+    int reduceKeyColumnCount,
     const std::vector<ISchemalessMultiChunkReaderPtr>& foreignReaders,
     int foreignKeyColumnCount,
     bool interruptAtKeyEdge)
-    : TSchemalessSortedMergingReaderBase(foreignKeyColumnCount)
-    , PrimaryKeyColumnCount_(primaryKeyColumnCount)
+    : TSchemalessSortedMergingReaderBase(foreignKeyColumnCount, reduceKeyColumnCount)
     , InterruptAtKeyEdge_(interruptAtKeyEdge)
 {
     YCHECK(!primaryReaders.empty() && !foreignReaders.empty());
     YCHECK(interruptAtKeyEdge || primaryReaders.size() == 1);
 
-    ISchemalessMultiChunkReaderPtr mergingReader;
-    if (primaryReaders.size() == 1) {
-        mergingReader = primaryReaders[0];
-    } else {
-        mergingReader = New<TSchemalessSortedMergingReader>(primaryReaders, primaryKeyColumnCount);
-    }
+    auto mergingReader = CreateSchemalessSortedMergingReader(primaryReaders, primaryKeyColumnCount, reduceKeyColumnCount);
 
     int primaryRowsPerSession = std::max<int>(RowBufferSize / 2, 2);
     int foreignRowsPerSession = std::max<int>(primaryRowsPerSession / foreignReaders.size(), 2);
@@ -445,11 +451,13 @@ TSchemalessJoiningReader::TSchemalessJoiningReader(
     LOG_INFO("Opening schemaless sorted joining reader (SessionCount: %v)",
         SessionHolder_.size());
 
-    ReadyEvent_ = CombineCompletionError(BIND(
+    // NB: we don't combine completion error here, because reader opening must not be interrupted.
+    // Otherwise, race condition may occur between reading in DoOpen and GetUnreadDataSliceDescriptors.
+    ReadyEvent_ = BIND(
         &TSchemalessJoiningReader::DoOpen,
         MakeStrong(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-            .Run());
+            .Run();
 }
 
 bool TSchemalessJoiningReader::Read(std::vector<TUnversionedRow>* rows)
@@ -460,6 +468,10 @@ bool TSchemalessJoiningReader::Read(std::vector<TUnversionedRow>* rows)
 
     if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
         return true;
+    }
+
+    if (SessionHeap_.empty()) {
+        return false;
     }
 
     bool interrupting = Interrupting_;
@@ -496,11 +508,12 @@ bool TSchemalessJoiningReader::Read(std::vector<TUnversionedRow>* rows)
     auto nextPrimaryRow = TKey();
     while (rows->size() < rows->capacity() && dataWeight < MaxDataSizePerRead) {
         const auto& row = session->Rows[session->CurrentRowIndex];
+        YCHECK(SortKeyColumnCount_ <= ReduceKeyColumnCount_);
         if (interrupting) {
             if (CompareRows(
                 row,
                 lastPrimaryRow,
-                (session == PrimarySession_) ? PrimaryKeyColumnCount_ : KeyColumnCount_) > 0)
+                (session == PrimarySession_) ? ReduceKeyColumnCount_ : SortKeyColumnCount_) > 0)
             {
                 // Immediately stop reader on key change.
                 SessionHeap_.clear();
@@ -519,8 +532,8 @@ bool TSchemalessJoiningReader::Read(std::vector<TUnversionedRow>* rows)
                 nextPrimaryRow = PrimarySession_->Rows[PrimarySession_->CurrentRowIndex];
             }
             if (
-                (CompareRows(row, lastPrimaryRow, KeyColumnCount_) == 0) ||
-                (CompareRows(row, nextPrimaryRow, KeyColumnCount_) == 0))
+                (CompareRows(row, lastPrimaryRow, SortKeyColumnCount_) == 0) ||
+                (CompareRows(row, nextPrimaryRow, SortKeyColumnCount_) == 0))
             {
                 shouldJoinRow = true;
             }
@@ -548,8 +561,9 @@ bool TSchemalessJoiningReader::Read(std::vector<TUnversionedRow>* rows)
         }
     }
     if (lastPrimaryRow) {
-        LastPrimaryKey_ = GetKeyPrefix(lastPrimaryRow, PrimaryKeyColumnCount_);
+        LastPrimaryKey_ = GetKeyPrefix(lastPrimaryRow, ReduceKeyColumnCount_);
     }
+    DataWeight_ += dataWeight;
     return true;
 }
 
@@ -579,31 +593,36 @@ void TSchemalessJoiningReader::Interrupt()
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessSortedMergingReader(
     const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
-    int keyColumnCount)
+    int sortKeyColumnCount,
+    int reduceKeyColumnCount)
 {
     YCHECK(!readers.empty());
     if (readers.size() == 1) {
         return readers[0];
     } else {
-        return New<TSchemalessSortedMergingReader>(readers, keyColumnCount);
+        return New<TSchemalessSortedMergingReader>(readers, sortKeyColumnCount, reduceKeyColumnCount);
     }
 }
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessSortedJoiningReader(
     const std::vector<ISchemalessMultiChunkReaderPtr>& primaryReaders,
     int primaryKeyColumnCount,
+    int reduceKeyColumnCount,
     const std::vector<ISchemalessMultiChunkReaderPtr>& foreignReaders,
     int foreignKeyColumnCount)
 {
     YCHECK(!primaryReaders.empty());
+    YCHECK(primaryKeyColumnCount >= reduceKeyColumnCount && reduceKeyColumnCount >= foreignKeyColumnCount);
     if (foreignReaders.empty()) {
         return New<TSchemalessSortedMergingReader>(
             primaryReaders,
-            primaryKeyColumnCount);
+            primaryKeyColumnCount,
+            reduceKeyColumnCount);
     } else {
         return New<TSchemalessJoiningReader>(
             primaryReaders,
             primaryKeyColumnCount,
+            reduceKeyColumnCount,
             foreignReaders,
             foreignKeyColumnCount,
             true);
@@ -613,16 +632,19 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSortedJoiningReader(
 ISchemalessMultiChunkReaderPtr CreateSchemalessJoinReduceJoiningReader(
     const std::vector<ISchemalessMultiChunkReaderPtr>& primaryReaders,
     int primaryKeyColumnCount,
+    int reduceKeyColumnCount,
     const std::vector<ISchemalessMultiChunkReaderPtr>& foreignReaders,
     int foreignKeyColumnCount)
 {
     YCHECK(primaryReaders.size() == 1);
+    YCHECK(primaryKeyColumnCount == reduceKeyColumnCount && reduceKeyColumnCount == foreignKeyColumnCount);
     if (foreignReaders.empty()) {
         return primaryReaders[0];
     } else {
         return New<TSchemalessJoiningReader>(
             primaryReaders,
             primaryKeyColumnCount,
+            reduceKeyColumnCount,
             foreignReaders,
             foreignKeyColumnCount,
             false);
