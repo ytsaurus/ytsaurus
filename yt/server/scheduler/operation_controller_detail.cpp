@@ -4182,9 +4182,9 @@ void TOperationControllerBase::InitQuerySpec(
 void TOperationControllerBase::CollectTotals()
 {
     for (const auto& table : InputTables) {
-        for (const auto& chunkSpec : table.Chunks) {
-            if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
-                const auto& chunkId = chunkSpec->ChunkId();
+        for (const auto& inputChunk : table.Chunks) {
+            if (IsUnavailable(inputChunk, IsParityReplicasFetchEnabled())) {
+                const auto& chunkId = inputChunk->ChunkId();
                 if (table.IsDynamic && table.Schema.IsSorted()) {
                     THROW_ERROR_EXCEPTION("Input chunk %v of sorted dynamic table %v is unavailable",
                         chunkId,
@@ -4211,21 +4211,23 @@ void TOperationControllerBase::CollectTotals()
             }
 
             if (table.IsPrimary()) {
-                PrimaryInputDataSize += chunkSpec->GetUncompressedDataSize();
+                PrimaryInputDataSize += inputChunk->GetUncompressedDataSize();
             }
 
-            TotalEstimatedInputDataSize += chunkSpec->GetUncompressedDataSize();
-            TotalEstimatedInputRowCount += chunkSpec->GetRowCount();
-            TotalEstimatedCompressedDataSize += chunkSpec->GetCompressedDataSize();
+            TotalEstimatedInputDataSize += inputChunk->GetUncompressedDataSize();
+            TotalEstimatedInputRowCount += inputChunk->GetRowCount();
+            TotalEstimatedCompressedDataSize += inputChunk->GetCompressedDataSize();
+            TotalEstimatedInputDataWeight += inputChunk->GetDataWeight();
             ++TotalEstimatedInputChunkCount;
         }
     }
 
-    LOG_INFO("Estimated input totals collected (ChunkCount: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+    LOG_INFO("Estimated input totals collected (ChunkCount: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v, DataWeight: %v)",
         TotalEstimatedInputChunkCount,
         TotalEstimatedInputRowCount,
         TotalEstimatedInputDataSize,
-        TotalEstimatedCompressedDataSize);
+        TotalEstimatedCompressedDataSize,
+        TotalEstimatedInputDataWeight);
 }
 
 void TOperationControllerBase::CustomPrepare()
@@ -4973,6 +4975,7 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
             .Item("chunk_count").Value(TotalEstimatedInputChunkCount)
             .Item("uncompressed_data_size").Value(TotalEstimatedInputDataSize)
             .Item("compressed_data_size").Value(TotalEstimatedCompressedDataSize)
+            .Item("data_weight").Value(TotalEstimatedInputDataWeight)
             .Item("row_count").Value(TotalEstimatedInputRowCount)
             .Item("unavailable_chunk_count").Value(UnavailableInputChunkCount)
         .EndMap()
@@ -5540,6 +5543,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TotalEstimatedInputDataSize);
     Persist(context, TotalEstimatedInputRowCount);
     Persist(context, TotalEstimatedCompressedDataSize);
+    Persist(context, TotalEstimatedInputDataWeight);
 
     Persist(context, UnavailableInputChunkCount);
 
