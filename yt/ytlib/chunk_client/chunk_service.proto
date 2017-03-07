@@ -68,6 +68,7 @@ message TRspAllocateWriteTargets
 
     message TSubresponse
     {
+        optional NYT.NProto.TError error = 2;
         repeated fixed32 replicas = 1;
     }
 

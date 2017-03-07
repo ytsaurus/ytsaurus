@@ -117,8 +117,6 @@ private:
         for (const auto& subrequest : request->subrequests()) {
             auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
             const auto& mediumName = subrequest.medium_name();
-            auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-            auto mediumIndex = medium->GetIndex();
             int desiredTargetCount = subrequest.desired_target_count();
             int minTargetCount = subrequest.min_target_count();
             auto replicationFactorOverride = subrequest.has_replication_factor_override()
@@ -129,46 +127,64 @@ private:
                 : Null;
             const auto& forbiddenAddresses = subrequest.forbidden_addresses();
 
-            auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
-
-            TNodeList forbiddenNodes;
-            for (const auto& address : forbiddenAddresses) {
-                auto* node = nodeTracker->FindNodeByAddress(address);
-                if (node) {
-                    forbiddenNodes.push_back(node);
-                }
-            }
-            std::sort(forbiddenNodes.begin(), forbiddenNodes.end());
-
-            auto targets = chunkManager->AllocateWriteTargets(
-                mediumIndex,
-                chunk,
-                desiredTargetCount,
-                minTargetCount,
-                replicationFactorOverride,
-                &forbiddenNodes,
-                preferredHostName);
-
             auto* subresponse = response->add_subresponses();
-            for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
-                auto* target = targets[index];
-                auto replica = TNodePtrWithIndexes(target, GenericChunkReplicaIndex, mediumIndex);
-                builder.Add(replica);
-                subresponse->add_replicas(ToProto<ui32>(replica));
-            }
+            try {
+                auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+                auto mediumIndex = medium->GetIndex();
 
-            LOG_DEBUG("Write targets allocated "
-                "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-                "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v, Medium: %v (%v))",
-                chunkId,
-                desiredTargetCount,
-                minTargetCount,
-                replicationFactorOverride,
-                preferredHostName,
-                forbiddenAddresses,
-                MakeFormattableRange(targets, TNodePtrAddressFormatter()),
-                mediumName,
-                mediumIndex);
+                auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
+
+                TNodeList forbiddenNodes;
+                for (const auto& address : forbiddenAddresses) {
+                    auto* node = nodeTracker->FindNodeByAddress(address);
+                    if (node) {
+                        forbiddenNodes.push_back(node);
+                    }
+                }
+                std::sort(forbiddenNodes.begin(), forbiddenNodes.end());
+
+                auto targets = chunkManager->AllocateWriteTargets(
+                    mediumIndex,
+                    chunk,
+                    desiredTargetCount,
+                    minTargetCount,
+                    replicationFactorOverride,
+                    &forbiddenNodes,
+                    preferredHostName);
+
+                for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
+                    auto* target = targets[index];
+                    auto replica = TNodePtrWithIndexes(target, GenericChunkReplicaIndex, mediumIndex);
+                    builder.Add(replica);
+                    subresponse->add_replicas(ToProto<ui32>(replica));
+                }
+
+                LOG_DEBUG("Write targets allocated "
+                    "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
+                    "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v, Medium: %v (%v))",
+                    chunkId,
+                    desiredTargetCount,
+                    minTargetCount,
+                    replicationFactorOverride,
+                    preferredHostName,
+                    forbiddenAddresses,
+                    MakeFormattableRange(targets, TNodePtrAddressFormatter()),
+                    mediumName,
+                    mediumIndex);
+            } catch (const std::exception& ex) {
+                auto error = TError(ex);
+                LOG_DEBUG(error, "Error allocating write targets "
+                    "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
+                    "PreferredHostName: %v, ForbiddenAddresses: %v, Medium: %v)",
+                    chunkId,
+                    desiredTargetCount,
+                    minTargetCount,
+                    replicationFactorOverride,
+                    preferredHostName,
+                    forbiddenAddresses,
+                    mediumName);
+                ToProto(subresponse->mutable_error(), error);
+            }
         }
 
         context->Reply();
