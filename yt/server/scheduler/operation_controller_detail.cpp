@@ -3687,6 +3687,9 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 GenerateMutationId(req);
                 req->set_update_mode(static_cast<int>(table->TableUploadOptions.UpdateMode));
                 req->set_lock_mode(static_cast<int>(table->TableUploadOptions.LockMode));
+                req->set_upload_transaction_title(Format("Upload to %v from operation %v",
+                    table->Path.GetPath(),
+                    OperationId));
                 batchReq->AddRequest(req, "begin_upload");
             }
             auto batchRspOrError = WaitFor(batchReq->Invoke());
