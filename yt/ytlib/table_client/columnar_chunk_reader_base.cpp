@@ -1,6 +1,5 @@
 #include "columnar_chunk_reader_base.h"
 #include "columnar_chunk_meta.h"
-#include "private.h"
 
 #include "config.h"
 #include "unversioned_row.h"
@@ -21,9 +20,6 @@ using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
 
 using NChunkClient::TReadLimit;
-
-static const auto& Logger = TableClientLogger;
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
