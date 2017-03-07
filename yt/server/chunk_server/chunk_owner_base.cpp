@@ -120,11 +120,13 @@ void TChunkOwnerBase::EndUpload(
 
     if (!IsExternal()) {
         updateStatistics = ComputeUpdateStatistics();
-    }
 
-    // COMPAT(savrus)
-    if (statistics && !statistics->has_data_weight()) {
-        THROW_ERROR_EXCEPTION("YT client version is outdated, please update to recent one");
+        // COMPAT(savrus)
+        if (statistics && statistics->data_weight() != updateStatistics->data_weight()) {
+            THROW_ERROR_EXCEPTION("YT client version is outdated, please update to recent one")
+                << TErrorAttribute("master_statistics", *updateStatistics)
+                << TErrorAttribute("client_statistics", *statistics);
+        }
     }
 
     if (statistics && updateStatistics) {
