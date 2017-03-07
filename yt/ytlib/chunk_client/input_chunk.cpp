@@ -34,6 +34,7 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
         : miscExt.row_count();
 
     CompressedDataSize_ = miscExt.compressed_data_size();
+    DataWeight_ = miscExt.data_weight();
     MaxBlockSize_ = miscExt.has_max_block_size()
         ? miscExt.max_block_size()
         : DefaultMaxBlockSize;
@@ -92,9 +93,10 @@ void TInputChunkBase::CheckOffsets()
     static_assert(offsetof(TInputChunkBase, UncompressedDataSize_) == 104, "invalid offset");
     static_assert(offsetof(TInputChunkBase, RowCount_) == 112, "invalid offset");
     static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 120, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 128, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 136, "invalid offset");
-    static_assert(sizeof(TInputChunkBase) == 144, "invalid sizeof");
+    static_assert(offsetof(TInputChunkBase, DataWeight_) == 128, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 136, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 144, "invalid offset");
+    static_assert(sizeof(TInputChunkBase) == 152, "invalid sizeof");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,7 +212,7 @@ Stroka ToString(const TInputChunkPtr& inputChunk)
     return Format(
         "{ChunkId: %v, Replicas: %v, TableIndex: %v, ErasureCodec: %v, TableRowIndex: %v, "
         "RangeIndex: %v, TableChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
-        "CompressedDataSize: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "
+        "CompressedDataSize: %v, DataWeight: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "
         "BoundaryKeys: {%v}, Channel: {%v}, PartitionsExt: {%v}}",
         inputChunk->ChunkId(),
         JoinToString(inputChunk->Replicas()),
@@ -222,6 +224,7 @@ Stroka ToString(const TInputChunkPtr& inputChunk)
         inputChunk->GetUncompressedDataSize(),
         inputChunk->GetRowCount(),
         inputChunk->GetCompressedDataSize(),
+        inputChunk->GetDataWeight(),
         inputChunk->GetMaxBlockSize(),
         inputChunk->LowerLimit() ? MakeNullable(*inputChunk->LowerLimit()) : Null,
         inputChunk->UpperLimit() ? MakeNullable(*inputChunk->UpperLimit()) : Null,
