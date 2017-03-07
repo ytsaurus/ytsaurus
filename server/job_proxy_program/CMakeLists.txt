@@ -31,6 +31,7 @@ SRCS(
 PEERDIR(
   yt/${YT_ABI}/yt/server
   library/getopt
+  library/http/simple
 )
 
 END()
