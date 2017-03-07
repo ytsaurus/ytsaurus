@@ -1253,7 +1253,7 @@ private:
                 if (node->GetType() == EObjectType::Link) {
                     auto* linkNode = node->As<TLinkNode>();
                     const auto& targetPath = linkNode->GetTargetPath();
-                    if (targetPath.has_prefix(ObjectIdPathPrefix)) {
+                    if (targetPath.StartsWith(ObjectIdPathPrefix)) {
                         TObjectId objectId;
                         TStringBuf objectIdString(targetPath.begin() + ObjectIdPathPrefix.length(), targetPath.end());
                         if (TObjectId::FromString(objectIdString, &objectId)) {
