@@ -38,6 +38,7 @@ using namespace NConcurrency;
 
 using NChunkClient::NProto::TChunkSpec;
 using NChunkClient::NProto::TChunkMeta;
+using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,6 +92,7 @@ public:
         while (rows->size() < rows->capacity() && CurrentRowIndex_ < UpperRowIndex_) {
             rows->push_back(CaptureRow(Store_->GetRow(CurrentRowIndex_)));
             ++CurrentRowIndex_;
+            ++RowCount_;
         }
         return !rows->empty();
     }
@@ -98,6 +100,13 @@ public:
     virtual TFuture<void> GetReadyEvent() override
     {
         Y_UNREACHABLE();
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        TDataStatistics dataStatistics;
+        dataStatistics.set_row_count(RowCount_);
+        return dataStatistics;
     }
 
 private:
@@ -109,6 +118,7 @@ private:
     std::unique_ptr<TChunkedMemoryPool> Pool_;
 
     i64 CurrentRowIndex_;
+    i64 RowCount_ = 0;
 
 
     TUnversionedRow CaptureRow(TOrderedDynamicRow dynamicRow)
@@ -189,19 +199,26 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateSnapshotReader()
         Null);
 }
 
-TOrderedDynamicRow TOrderedDynamicStore::WriteRow(TTransaction* /*transaction*/, TUnversionedRow row)
+TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
+    TTransaction* /*transaction*/,
+    TUnversionedRow row,
+    TTimestamp commitTimestamp)
 {
-    Y_ASSERT(Atomicity_ == EAtomicity::Full);
+    auto orderedRow = DoWriteSchemalessRow(row);
 
-    auto result = DoWriteSchemalessRow(row);
-
-    Lock();
+    if (commitTimestamp == NullTimestamp) {
+        Lock();
+    } else {
+        SetRowCommitTimestamp(orderedRow, commitTimestamp);
+        DoCommitRow(orderedRow);
+        UpdateTimestampRange(commitTimestamp);
+    }
 
     OnMemoryUsageUpdated();
 
     ++PerformanceCounters_->DynamicRowWriteCount;
 
-    return result;
+    return orderedRow;
 }
 
 TOrderedDynamicRow TOrderedDynamicStore::MigrateRow(TTransaction* /*transaction*/, TOrderedDynamicRow row)
@@ -220,9 +237,7 @@ void TOrderedDynamicStore::PrepareRow(TTransaction* /*transaction*/, TOrderedDyn
 
 void TOrderedDynamicStore::CommitRow(TTransaction* transaction, TOrderedDynamicRow row)
 {
-    if (TimestampColumnId_) {
-        row[*TimestampColumnId_] = MakeUnversionedUint64Value(transaction->GetCommitTimestamp(), *TimestampColumnId_);
-    }
+    SetRowCommitTimestamp(row, transaction->GetCommitTimestamp());
     DoCommitRow(row);
     Unlock();
     UpdateTimestampRange(transaction->GetCommitTimestamp());
@@ -451,6 +466,13 @@ void TOrderedDynamicStore::DoCommitRow(TOrderedDynamicRow row)
     ++CurrentSegmentSize_;
     StoreRowCount_ += 1;
     StoreValueCount_ += row.GetCount();
+}
+
+void TOrderedDynamicStore::SetRowCommitTimestamp(TOrderedDynamicRow row, TTimestamp commitTimestamp)
+{
+    if (TimestampColumnId_) {
+        row[*TimestampColumnId_] = MakeUnversionedUint64Value(commitTimestamp, *TimestampColumnId_);
+    }
 }
 
 void TOrderedDynamicStore::LoadRow(TUnversionedRow row)

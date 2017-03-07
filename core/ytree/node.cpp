@@ -63,13 +63,13 @@ void Serialize(INode& value, IYsonConsumer* consumer)
     VisitTree(&value, consumer);
 }
 
-void Deserialize(INodePtr& value, INodePtr node)
+void Deserialize(INodePtr& value, const INodePtr& node)
 {
     value = node;
 }
 
 #define DESERIALIZE_TYPED(type) \
-    void Deserialize(I##type##NodePtr& value, INodePtr node) \
+    void Deserialize(I##type##NodePtr& value, const INodePtr& node) \
     { \
         value = node->As##type(); \
     }
@@ -85,7 +85,7 @@ DESERIALIZE_TYPED(Entity)
 
 #undef DESERIALIZE_TYPED
 
-TYsonString ConvertToYsonStringStable(INodePtr node)
+TYsonString ConvertToYsonStringStable(const INodePtr& node)
 {
     TStringStream stream;
     TBufferedBinaryYsonWriter writer(&stream);

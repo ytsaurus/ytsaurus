@@ -8,6 +8,7 @@
 #include <yt/server/cell_master/bootstrap.h>
 
 #include <yt/server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/medium.h>
 
 #include <yt/server/cypress_server/node_proxy_detail.h>
 #include <yt/server/cypress_server/virtual.h>
@@ -39,8 +40,10 @@ using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
+using namespace NChunkClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NObjectServer;
+using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,9 +87,9 @@ public:
     virtual void WriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
-        bool sortKeys) override
+        bool stable) override
     {
-        GetTargetProxy()->WriteAttributesFragment(consumer, attributeKeys, sortKeys);
+        GetTargetProxy()->WriteAttributesFragment(consumer, attributeKeys, stable);
     }
 
 private:
@@ -155,11 +158,20 @@ private:
     {
         TMapNodeProxy::ListSystemAttributes(descriptors);
 
-        descriptors->push_back("offline");
-        descriptors->push_back("registered");
-        descriptors->push_back("online");
+        descriptors->push_back(TAttributeDescriptor("offline")
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("registered")
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("online")
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("unregistered")
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("mixed")
+            .SetOpaque(true));
         descriptors->push_back("available_space");
         descriptors->push_back("used_space");
+        descriptors->push_back("available_space_per_medium");
+        descriptors->push_back("used_space_per_medium");
         descriptors->push_back("chunk_replica_count");
         descriptors->push_back("online_node_count");
         descriptors->push_back("offline_node_count");
@@ -172,12 +184,15 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-        if (key == "offline" || key == "registered" || key == "online") {
+        if (key == "offline" || key == "registered" || key == "online" || key == "unregistered" || key == "mixed") {
             auto state =
-                   key == "offline"    ? ENodeState::Offline :
-                   key == "registered" ? ENodeState::Registered :
-                /* key == "online" */    ENodeState::Online;
+                    key == "offline"      ? ENodeState::Offline :
+                    key == "registered"   ? ENodeState::Registered :
+                    key == "online"       ? ENodeState::Online :
+                    key == "unregistered" ? ENodeState::Unregistered :
+                    /* key == "mixed" */    ENodeState::Mixed;
             BuildYsonFluently(consumer)
                 .DoListFor(nodeTracker->Nodes(), [=] (TFluentList fluent, const std::pair<const TObjectId&, TNode*>& pair) {
                     auto* node = pair.second;
@@ -192,13 +207,35 @@ private:
 
         if (key == "available_space") {
             BuildYsonFluently(consumer)
-                .Value(statistics.AvailableSpace);
+                .Value(statistics.TotalSpace.Available);
             return true;
         }
 
         if (key == "used_space") {
             BuildYsonFluently(consumer)
-                .Value(statistics.UsedSpace);
+                .Value(statistics.TotalSpace.Used);
+            return true;
+        }
+
+        if (key == "available_space_per_medium") {
+            BuildYsonFluently(consumer)
+                .DoMapFor(chunkManager->Media(),
+                    [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
+                        const auto* medium = pair.second;
+                        fluent
+                            .Item(medium->GetName()).Value(statistics.SpacePerMedium[medium->GetIndex()].Available);
+                    });
+            return true;
+        }
+
+        if (key == "used_space_per_medium") {
+            BuildYsonFluently(consumer)
+                .DoMapFor(chunkManager->Media(),
+                    [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
+                        const auto* medium = pair.second;
+                        fluent
+                            .Item(medium->GetName()).Value(statistics.SpacePerMedium[medium->GetIndex()].Used);
+                    });
             return true;
         }
 

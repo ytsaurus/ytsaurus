@@ -510,12 +510,10 @@ protected:
                 newSortDataSize);
             Controller->SortDataSizeCounter.Increment(newSortDataSize - oldSortDataSize);
 
-            Controller->CheckSortStartThreshold();
-
             // NB: don't move it to OnTaskCompleted since jobs may run after the task has been completed.
             // Kick-start sort and unordered merge tasks.
-            Controller->AddSortTasksPendingHints();
-            Controller->AddMergeTasksPendingHints();
+            Controller->CheckSortStartThreshold();
+            Controller->CheckMergeStartThreshold();
         }
 
         virtual void OnJobLost(TCompletedJobPtr completedJob) override
@@ -591,11 +589,9 @@ protected:
 
             // NB: this is required at least to mark tasks completed, when there are no pending jobs.
             // This couldn't have been done earlier since we've just finished populating shuffle pool.
-            Controller->AddSortTasksPendingHints();
-
+            Controller->CheckSortStartThreshold();
             Controller->CheckMergeStartThreshold();
         }
-
     };
 
     //! Base class for tasks that are assigned to particular partitions.
@@ -858,7 +854,6 @@ protected:
                 Partition->SortedMergeTask->FinishInput();
             }
         }
-
     };
 
     //! Implements partition sort for sort operations and
@@ -1472,15 +1467,15 @@ protected:
 
     void CheckSortStartThreshold()
     {
-        if (SortStartThresholdReached)
-            return;
+        if (!SortStartThresholdReached) {
+            if (!SimpleSort && PartitionTask->GetCompletedDataSize() < PartitionTask->GetTotalDataSize() * Spec->ShuffleStartThreshold)
+                return;
 
-        if (!SimpleSort && PartitionTask->GetCompletedDataSize() < PartitionTask->GetTotalDataSize() * Spec->ShuffleStartThreshold)
-            return;
+            LOG_INFO("Sort start threshold reached");
 
-        LOG_INFO("Sort start threshold reached");
+            SortStartThresholdReached = true;
+        }
 
-        SortStartThresholdReached = true;
         AddSortTasksPendingHints();
     }
 
@@ -1519,19 +1514,19 @@ protected:
 
     void CheckMergeStartThreshold()
     {
-        if (MergeStartThresholdReached)
-            return;
+        if (!MergeStartThresholdReached) {
+            if (!SimpleSort) {
+                if (!PartitionTask->IsCompleted())
+                    return;
+                if (SortDataSizeCounter.GetCompleted() < SortDataSizeCounter.GetTotal() * Spec->MergeStartThreshold)
+                    return;
+            }
 
-        if (!SimpleSort) {
-            if (!PartitionTask->IsCompleted())
-                return;
-            if (SortDataSizeCounter.GetCompleted() < SortDataSizeCounter.GetTotal() * Spec->MergeStartThreshold)
-                return;
+            LOG_INFO("Merge start threshold reached");
+
+            MergeStartThresholdReached = true;
         }
 
-        LOG_INFO("Merge start threshold reached");
-
-        MergeStartThresholdReached = true;
         AddMergeTasksPendingHints();
     }
 
@@ -2176,6 +2171,9 @@ private:
         InitFinalOutputConfig(SortedMergeJobIOConfig);
 
         UnorderedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
+        // Since we're reading from huge number of paritition chunks, we must use larger buffers,
+        // as we do for sort jobs.
+        UnorderedMergeJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
         InitFinalOutputConfig(UnorderedMergeJobIOConfig);
     }
 

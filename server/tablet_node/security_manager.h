@@ -57,6 +57,14 @@ public:
         TTabletSnapshotPtr tabletSnapshot,
         NYTree::EPermission permission);
 
+    TFuture<void> CheckResourceLimits(
+        const Stroka& account,
+        const Stroka& mediumName);
+
+    void ValidateResourceLimits(
+        const Stroka& account,
+        const Stroka& mediumName);
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

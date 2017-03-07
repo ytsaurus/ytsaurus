@@ -354,6 +354,7 @@ describe("YtCommand - command descriptors", function() {
             'read_file',
             'read_journal',
             'read_table',
+            'read_blob_table',
             'reduce',
             'remote_copy',
             'remount_table',

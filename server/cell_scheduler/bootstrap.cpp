@@ -101,8 +101,6 @@ TBootstrap::~TBootstrap() = default;
 
 void TBootstrap::Run()
 {
-    srand(time(nullptr));
-
     ControlQueue_ = New<TFairShareActionQueue>("Control", TEnumTraits<EControlQueue>::GetDomainNames());
 
     BIND(&TBootstrap::DoRun, this)

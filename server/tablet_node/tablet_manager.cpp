@@ -612,7 +612,7 @@ private:
                     TWireProtocolReader reader(record.Data);
                     const auto& storeManager = tablet->GetStoreManager();
                     while (!reader.IsFinished()) {
-                        storeManager->ExecuteAtomicWrite(transaction, &reader, false);
+                        storeManager->ExecuteWrite(transaction, &reader, NullTimestamp, false);
                         ++rowCount;
                     }
                 }
@@ -1078,8 +1078,9 @@ private:
         TWireProtocolReader reader(recordData);
         int rowCount = 0;
         const auto& storeManager = tablet->GetStoreManager();
+        auto commitTimestamp = TimestampFromTransactionId(transactionId);
         while (!reader.IsFinished()) {
-            storeManager->ExecuteNonAtomicWrite(transactionId, &reader);
+            storeManager->ExecuteWrite(nullptr, &reader, commitTimestamp, false);
             ++rowCount;
         }
 
@@ -1132,7 +1133,7 @@ private:
                     false);
 
                 while (!reader.IsFinished()) {
-                    storeManager->ExecuteAtomicWrite(transaction, &reader, false);
+                    storeManager->ExecuteWrite(transaction, &reader, NullTimestamp, false);
                     ++rowCount;
                 }
 
@@ -1141,8 +1142,9 @@ private:
             }
 
             case EAtomicity::None: {
+                auto commitTimestamp = TimestampFromTransactionId(transactionId);
                 while (!reader.IsFinished()) {
-                    storeManager->ExecuteNonAtomicWrite(transactionId, &reader);
+                    storeManager->ExecuteWrite(nullptr, &reader, commitTimestamp, false);
                     ++rowCount;
                 }
                 break;
@@ -1220,7 +1222,7 @@ private:
         for (const auto& descriptor : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             storeIdsToRemove.push_back(storeId);
-            auto store = tablet->GetStore(storeId);
+            auto store = tablet->GetStoreOrThrow(storeId);
             auto state = store->GetStoreState();
             if (state != EStoreState::PassiveDynamic && state != EStoreState::Persistent) {
                 THROW_ERROR_EXCEPTION("Store %v has invalid state %Qlv",
@@ -1588,16 +1590,10 @@ private:
         YCHECK(persistent);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto* tablet = FindTablet(tabletId);
-        if (!tablet) {
-            return;
-        }
+        auto* tablet = GetTabletOrThrow(tabletId);
 
         auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
-        auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
-        if (!replicaInfo) {
-            return;
-        }
+        auto* replicaInfo = tablet->GetReplicaInfoOrThrow(replicaId);
 
         if (replicaInfo->GetState() != ETableReplicaState::Enabled) {
             THROW_ERROR_EXCEPTION("Replica %v is not enabled",
@@ -2025,7 +2021,7 @@ private:
                 reader->SetCurrent(readerCheckpoint);
             };
             try {
-                storeManager->ExecuteAtomicWrite(transaction, reader, true);
+                storeManager->ExecuteWrite(transaction, reader, NullTimestamp, true);
             } catch (const TRowBlockedException& ex) {
                 rewindReader();
                 rowBlockedEx = ex;
@@ -2458,16 +2454,6 @@ private:
         if (!IsRecovery()) {
             auto slotManager = Bootstrap_->GetTabletSlotManager();
             slotManager->RegisterTabletSnapshot(Slot_, tablet);
-        }
-    }
-
-    void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
-    {
-        if (timestamp < tabletSnapshot->RetainedTimestamp) {
-            THROW_ERROR_EXCEPTION("Timestamp %v is less than tablet %v retained timestamp %v",
-                timestamp,
-                tabletSnapshot->TabletId,
-                tabletSnapshot->RetainedTimestamp);
         }
     }
 

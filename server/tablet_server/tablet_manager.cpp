@@ -994,8 +994,8 @@ public:
             THROW_ERROR_EXCEPTION("Cannot reshard a static table");
         }
 
-        if (table->IsReplicated()) {
-            THROW_ERROR_EXCEPTION("Cannot reshard a replicated table");
+        if (table->IsReplicated() && !table->IsEmpty()) {
+            THROW_ERROR_EXCEPTION("Cannot reshard non-empty replicated table");
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1016,7 +1016,7 @@ public:
                 MaxTabletCount);
         }
 
-        if (table->IsPhysicallySorted()) {
+        if (table->IsSorted()) {
             if (pivotKeys.empty()) {
                 THROW_ERROR_EXCEPTION("Table is sorted; must provide pivot keys");
             }
@@ -1057,10 +1057,13 @@ public:
             }
         }
 
-        // Validate that all tablets are unmounted.
-        if (table->GetTabletState() != ETabletState::Unmounted) {
-            THROW_ERROR_EXCEPTION("Cannot reshard table since not all of its tablets are in %Qlv state",
-                ETabletState::Unmounted);
+        // Validate that all affected tablets are unmounted.
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            const auto* tablet = tablets[index];
+            if (tablet->GetState() != ETabletState::Unmounted) {
+                THROW_ERROR_EXCEPTION("Cannot reshard table since tablet %v is not unmounted",
+                    tablet->GetId());
+            }
         }
 
         // Calculate retained timestamp for removed tablets.
@@ -1088,7 +1091,7 @@ public:
         for (int index = 0; index < newTabletCount; ++index) {
             auto* newTablet = CreateTablet(table);
             auto* oldTablet = index < oldTabletCount ? tablets[index + firstTabletIndex] : nullptr;
-            if (table->IsPhysicallySorted()) {
+            if (table->IsSorted()) {
                 newTablet->SetPivotKey(pivotKeys[index]);
             } else if (oldTablet) {
                 newTablet->SetTrimmedRowCount(oldTablet->GetTrimmedRowCount());

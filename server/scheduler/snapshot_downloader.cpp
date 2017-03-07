@@ -4,10 +4,11 @@
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
-#include <yt/ytlib/api/file_reader.h>
 #include <yt/ytlib/api/native_client.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
+
+#include <yt/core/concurrency/async_stream.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -38,15 +39,13 @@ TSharedRef TSnapshotDownloader::Run()
 
     auto snapshotPath = GetSnapshotPath(OperationId_);
 
-    IFileReaderPtr reader;
+    IAsyncZeroCopyInputStreamPtr reader;
     {
         TFileReaderOptions options;
         options.Config = Config_->SnapshotReader;
-        reader = client->CreateFileReader(snapshotPath, options);
+        reader = WaitFor(client->CreateFileReader(snapshotPath, options))
+            .ValueOrThrow();
     }
-
-    WaitFor(reader->Open())
-        .ThrowOnError();
 
     LOG_INFO("Snapshot reader opened");
 

@@ -80,8 +80,8 @@ TNode::TNode(const TObjectId& objectId)
     , IOWeights_{}
     , FillFactorIterators_{}
     , LoadFactorIterators_{}
+    , VisitMarks_{}
 {
-    VisitMark_ = 0;
     Banned_ = false;
     Decommissioned_ = false;
     DisableWriteSessions_ = false;
@@ -186,8 +186,10 @@ void TNode::SetLocalState(ENodeState state)
 
 void TNode::SetState(TCellTag cellTag, ENodeState state)
 {
-    if (MulticellStates_[cellTag] != state) {
-        MulticellStates_[cellTag] = state;
+    auto it = MulticellStates_.find(cellTag);
+    YCHECK(it != MulticellStates_.end());
+    if (it->second != state) {
+        it->second = state;
         ComputeAggregatedState();
     }
 }
@@ -547,6 +549,16 @@ ui64 TNode::GenerateVisitMark()
 {
     static std::atomic<ui64> result(0);
     return ++result;
+}
+
+ui64 TNode::GetVisitMark(int mediumIndex)
+{
+    return VisitMarks_[mediumIndex];
+}
+
+void TNode::SetVisitMark(int mediumIndex, ui64 mark)
+{
+    VisitMarks_[mediumIndex] = mark;
 }
 
 int TNode::GetTotalTabletSlots() const

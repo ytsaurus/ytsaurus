@@ -89,6 +89,9 @@ public:
         , ColumnFilter_(columnFilter)
         , KeyColumns_(keyColumns)
         , SystemColumnCount_(GetSystemColumnCount(options))
+        , Logger(NLogging::TLogger(TableClientLogger)
+            .AddTag("ChunkReaderId: %v", TGuid::Create())
+            .AddTag("ChunkId: %v", chunkId))
     {
         if (Config_->SamplingRate) {
             RowSampler_ = CreateChunkRowSampler(
@@ -119,7 +122,6 @@ public:
         Y_UNREACHABLE();
     }
 
-
 protected:
     const TChunkSpec ChunkSpec_;
 
@@ -139,6 +141,8 @@ protected:
     int RowIndexId_ = -1;
     int RangeIndexId_ = -1;
     int TableIndexId_ = -1;
+
+    NLogging::TLogger Logger;
 
     void InitializeSystemColumnIds()
     {
@@ -192,8 +196,8 @@ protected:
             }
         }
         YCHECK(upperRowIndex <= misc.row_count());
-        YCHECK(rowIndex >= lowerRowIndex && rowIndex <= upperRowIndex);
-        if (rowIndex == upperRowIndex) {
+        YCHECK(rowIndex >= lowerRowIndex);
+        if (rowIndex >= upperRowIndex) {
             return unreadDescriptors;
         }
 
@@ -255,6 +259,7 @@ public:
 
 protected:
     using TSchemalessChunkReaderBase::Config_;
+    using TSchemalessChunkReaderBase::Logger;
 
     TNameTablePtr ChunkNameTable_ = New<TNameTable>();
 
@@ -460,7 +465,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
 {
     LOG_DEBUG("Reading range %v", ReadRange_);
 
-    // Ready event must be set only when all initialization is finished and 
+    // Ready event must be set only when all initialization is finished and
     // RowIndex_ is set into proper value.
     // Must be called after the object is constructed and vtable initialized.
     ReadyEvent_ = BIND(&THorizontalSchemalessRangeChunkReader::InitializeBlockSequence, MakeStrong(this))
@@ -654,6 +659,9 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
 std::vector<TDataSliceDescriptor> THorizontalSchemalessRangeChunkReader::GetUnreadDataSliceDescriptors(
     const TRange<TUnversionedRow>& unreadRows) const
 {
+    if (BlockIndexes_.size() == 0) {
+        return std::vector<TDataSliceDescriptor>();
+    }
     return GetUnreadDataSliceDescriptorsImpl(
         unreadRows,
         GetProtoExtension<TMiscExt>(ChunkMeta_.extensions()),
@@ -730,7 +738,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     , PerformanceCounters_(std::move(performanceCounters))
     , KeyFilterTest_(Keys_.Size(), true)
 {
-    // Ready event must be set only when all initialization is finished and 
+    // Ready event must be set only when all initialization is finished and
     // RowIndex_ is set into proper value.
     // Must be called after the object is constructed and vtable initialized.
     ReadyEvent_ = BIND(&THorizontalSchemalessLookupChunkReader::InitializeBlockSequence, MakeStrong(this))
@@ -903,6 +911,8 @@ public:
             underlyingReader,
             blockCache)
     {
+        LOG_DEBUG("Reading range %v", readRange);
+
         LowerLimit_ = readRange.LowerLimit();
         UpperLimit_ = readRange.UpperLimit();
 
@@ -1028,6 +1038,9 @@ public:
     virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
         const TRange<TUnversionedRow>& unreadRows) const override
     {
+        if (Completed_ && unreadRows.Size() == 0) {
+            return std::vector<TDataSliceDescriptor>();
+        }
         return GetUnreadDataSliceDescriptorsImpl(
             unreadRows,
             ChunkMeta_->Misc(),
@@ -1114,7 +1127,9 @@ private:
         minKeyColumnCount = std::min(minKeyColumnCount, ChunkMeta_->ChunkSchema().GetKeyColumnCount());
 
         if (UpperLimit_.HasKey() || LowerLimit_.HasKey()) {
-            ChunkMeta_->InitBlockLastKeys(KeyColumns_);
+            ChunkMeta_->InitBlockLastKeys(KeyColumns_.empty()
+                ? ChunkMeta_->ChunkSchema().GetKeyColumns()
+                : KeyColumns_);
         }
 
         // Define columns to read.
@@ -1202,6 +1217,11 @@ private:
         InitLowerRowIndex();
         InitUpperRowIndex();
 
+        LOG_DEBUG("Initialized row index limits (LowerRowIndex: %v, SafeUpperRowIndex: %v, HardUpperRowIndex: %v)",
+            LowerRowIndex_,
+            SafeUpperRowIndex_,
+            HardUpperRowIndex_);
+
         if (LowerRowIndex_ < HardUpperRowIndex_) {
             // We must continue initialization and set RowIndex_ before
             // ReadyEvent is set for the first time.
@@ -1213,6 +1233,10 @@ private:
             Initialize(MakeRange(KeyColumnReaders_));
             RowIndex_ = LowerRowIndex_;
             LowerKeyLimitReached_ = !LowerLimit_.HasKey();
+
+            LOG_DEBUG("Initialized start row index (LowerKeyLimitReached: %v, RowIndex: %v)",
+                LowerKeyLimitReached_,
+                RowIndex_);
 
             if (RowIndex_ >= HardUpperRowIndex_) {
                 Completed_ = true;
@@ -1444,18 +1468,6 @@ private:
 
         if (SchemalessReader_) {
             SchemalessReader_->ReadValues(range);
-        }
-
-        // Append system columns.
-        if (Options_->EnableTableIndex) {
-            *row.End() = MakeUnversionedInt64Value(ChunkSpec_.table_index(), TableIndexId_);
-            row.SetCount(row.GetCount() + 1);
-        }
-        if (Options_->EnableRowIndex) {
-            *row.End() = MakeUnversionedInt64Value(
-                ChunkSpec_.table_row_index() + rowIndex,
-                RowIndexId_);
-            row.SetCount(row.GetCount() + 1);
         }
 
         return row;
@@ -1907,9 +1919,10 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
 {
     rows->clear();
     if (Interrupting_) {
-        CurrentReader_ = nullptr;
+        RowCount_ = RowIndex_.load();
         return false;
     }
+
     if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
         return true;
     }
@@ -2247,8 +2260,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             std::move(chunkReader),
             blockCache,
             std::move(chunkMeta),
-            lowerLimit,
-            upperLimit,
+            lowerLimit.GetKey(),
+            upperLimit.GetKey(),
             columnFilter,
             performanceCounters,
             timestamp);
@@ -2257,38 +2270,39 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     struct TSchemalessMergingMultiChunkReaderBufferTag
     { };
 
-    auto rowMerger = New<TSchemafulRowMerger>(
+    auto rowMerger = std::make_unique<TSchemafulRowMerger>(
         New<TRowBuffer>(TSchemalessMergingMultiChunkReaderBufferTag()),
         tableSchema.Columns().size(),
         tableSchema.GetKeyColumnCount(),
         columnFilter,
         client->GetNativeConnection()->GetColumnEvaluatorCache()->Find(tableSchema));
 
-    auto schemafulReaderFactory = [&] (const TTableSchema&, const TColumnFilter&) {
-        return CreateSchemafulOverlappingRangeReader(
-            std::move(boundaries),
-            std::move(rowMerger),
-            createVersionedReader,
-            [] (
-                const TUnversionedValue* lhsBegin,
-                const TUnversionedValue* lhsEnd,
-                const TUnversionedValue* rhsBegin,
-                const TUnversionedValue* rhsEnd)
-            {
-                return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
-            });
-    };
+    auto schemafulReader = CreateSchemafulOverlappingRangeReader(
+        std::move(boundaries),
+        std::move(rowMerger),
+        createVersionedReader,
+        [] (
+            const TUnversionedValue* lhsBegin,
+            const TUnversionedValue* lhsEnd,
+            const TUnversionedValue* rhsBegin,
+            const TUnversionedValue* rhsEnd)
+        {
+            return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
+        });
 
-    auto reader = CreateSchemalessReaderAdapter(
-        schemafulReaderFactory,
-        nameTable,
+    auto schemalessReader = CreateSchemalessReaderAdapter(
+        std::move(schemafulReader),
+        std::move(options),
+        std::move(nameTable),
         tableSchema,
-        columnFilter);
+        columnFilter,
+        chunkSpecs.empty() ? -1 : chunkSpecs[0].table_index(),
+        chunkSpecs.empty() ? -1 : chunkSpecs[0].range_index());
 
     i64 rowCount = NChunkClient::GetCumulativeRowCount(chunkSpecs);
 
     return New<TSchemalessMergingMultiChunkReader>(
-        std::move(reader),
+        std::move(schemalessReader),
         dataSliceDescriptor,
         tableSchema.GetKeyColumnCount(),
         rowCount);

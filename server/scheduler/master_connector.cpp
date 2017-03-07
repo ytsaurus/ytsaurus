@@ -337,8 +337,8 @@ public:
     void UpdateConfig(const TSchedulerConfigPtr& config)
     {
         Config = config;
+        OnConfigUpdated();
     }
-
 
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DEFINE_SIGNAL(void(), MasterDisconnected);
@@ -407,6 +407,20 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+    void OnConfigUpdated()
+    {
+        ScheduleTestingDisconnection();
+    }
+
+    void ScheduleTestingDisconnection()
+    {
+        if (Config->TestingOptions->EnableRandomMasterDisconnection) {
+            TDelayedExecutor::Submit(
+                BIND(&TImpl::Disconnect, MakeStrong(this))
+                    .Via(Bootstrap->GetControlInvoker()),
+                RandomDuration(Config->TestingOptions->RandomMasterDisconnectionMaxBackoff));
+        }
+    }
 
     void StartConnecting()
     {
@@ -455,6 +469,8 @@ private:
         StartPeriodicActivities();
 
         MasterConnected_.Fire(result);
+
+        ScheduleTestingDisconnection();
     }
 
     void OnLockTransactionAborted()
@@ -1202,31 +1218,20 @@ private:
 
             // Set progress.
             {
-                auto req = TYPathProxy::Set(operationPath + "/@progress");
-                req->set_value(BuildYsonStringFluently()
-                    .BeginMap()
-                        .Do([=] (IYsonConsumer* consumer) {
-                            WaitFor(
-                                BIND(&IOperationController::BuildProgress, controller)
-                                    .AsyncVia(controller->GetInvoker())
-                                    .Run(consumer));
-                        })
-                    .EndMap().GetData());
-                batchReq->AddRequest(req, "update_op_node");
+                auto progress = controller->GetProgress();
+                YCHECK(progress);
 
+                auto req = TYPathProxy::Set(operationPath + "/@progress");
+                req->set_value(progress.GetData());
+                batchReq->AddRequest(req, "update_op_node");
             }
             // Set brief progress.
             {
+                auto progress = controller->GetBriefProgress();
+                YCHECK(progress);
+
                 auto req = TYPathProxy::Set(operationPath + "/@brief_progress");
-                req->set_value(BuildYsonStringFluently()
-                    .BeginMap()
-                        .Do([=] (IYsonConsumer* consumer) {
-                            WaitFor(
-                                BIND(&IOperationController::BuildBriefProgress, controller)
-                                    .AsyncVia(controller->GetInvoker())
-                                    .Run(consumer));
-                        })
-                    .EndMap().GetData());
+                req->set_value(progress.GetData());
                 batchReq->AddRequest(req, "update_op_node");
             }
         }
@@ -1322,7 +1327,6 @@ private:
         for (const auto& request : jobRequests) {
             const auto& jobId = request.JobId;
             auto jobPath = GetJobPath(operation->GetId(), jobId);
-            auto req = TYPathProxy::Set(jobPath);
             TYsonString inputPaths;
             if (request.InputPathsFuture) {
                 auto inputPathsOrError = WaitFor(request.InputPathsFuture);
@@ -1336,19 +1340,14 @@ private:
                 }
             }
 
-            req->set_value(BuildYsonStringFluently()
-                .BeginAttributes()
-                    .Do([=] (IYsonConsumer* consumer) {
-                        consumer->OnRaw(request.Attributes);
-                    })
-                    .DoIf(inputPaths.operator bool(), [=] (TFluentAttributes fluent) {
-                        fluent
-                            .Item("input_paths").Value(inputPaths);
-                    })
-                .EndAttributes()
-                .BeginMap()
-                .EndMap()
-                .GetData());
+            auto attributes = ConvertToAttributes(request.Attributes);
+            if (inputPaths) {
+                attributes->SetYson("input_paths", inputPaths);
+            }
+
+            auto req = TCypressYPathProxy::Create(jobPath);
+            req->set_type(static_cast<int>(EObjectType::MapNode));
+            ToProto(req->mutable_node_attributes(), *attributes);
             batchReq->AddRequest(req, "create");
         }
 

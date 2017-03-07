@@ -72,9 +72,13 @@ private:
             .SetPresent(isGood && node->GetLeaseTransaction()));
         descriptors->push_back(TAttributeDescriptor("statistics")
             .SetPresent(isGood));
+        descriptors->push_back(TAttributeDescriptor("full")
+            .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor("addresses")
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor("alerts")
+            .SetPresent(isGood));
+        descriptors->push_back(TAttributeDescriptor("alert_count")
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor("tablet_slots")
             .SetPresent(isGood));
@@ -243,9 +247,21 @@ private:
                 return true;
             }
 
+            if (key == "full") {
+                BuildYsonFluently(consumer)
+                    .Value(node->Statistics().full());
+                return true;
+            }
+
             if (key == "alerts") {
                 BuildYsonFluently(consumer)
                     .Value(node->Alerts());
+                return true;
+            }
+
+            if (key == "alert_count") {
+                BuildYsonFluently(consumer)
+                    .Value(node->Alerts().size());
                 return true;
             }
 

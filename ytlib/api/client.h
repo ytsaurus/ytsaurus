@@ -32,6 +32,8 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/core/concurrency/public.h>
+
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/nullable.h>
 
@@ -50,7 +52,7 @@ namespace NApi {
 
 struct TUserWorkloadDescriptor
 {
-    EUserWorkloadCategory Category = EUserWorkloadCategory::Realtime;
+    EUserWorkloadCategory Category = EUserWorkloadCategory::Interactive;
     int Band = 0;
 
     operator TWorkloadDescriptor() const;
@@ -390,6 +392,7 @@ struct TCopyNodeOptions
     bool Recursive = false;
     bool Force = false;
     bool PreserveAccount = false;
+    bool PreserveExpirationTime = false;
 };
 
 struct TMoveNodeOptions
@@ -400,7 +403,8 @@ struct TMoveNodeOptions
 {
     bool Recursive = false;
     bool Force = false;
-    bool PreserveAccount = true;
+    bool PreserveAccount = false;
+    bool PreserveExpirationTime = true;
 };
 
 struct TLinkNodeOptions
@@ -633,7 +637,7 @@ struct IClientBase
     virtual TFuture<void> ConcatenateNodes(
         const std::vector<NYPath::TYPath>& srcPaths,
         const NYPath::TYPath& dstPath,
-        TConcatenateNodesOptions options = TConcatenateNodesOptions()) = 0;
+        const TConcatenateNodesOptions& options = TConcatenateNodesOptions()) = 0;
 
     virtual TFuture<bool> NodeExists(
         const NYPath::TYPath& path,
@@ -647,7 +651,7 @@ struct IClientBase
 
 
     // Files
-    virtual IFileReaderPtr CreateFileReader(
+    virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> CreateFileReader(
         const NYPath::TYPath& path,
         const TFileReaderOptions& options = TFileReaderOptions()) = 0;
 
@@ -795,7 +799,7 @@ struct IClient
         const NYPath::TYPath& path,
         const TDumpJobContextOptions& options = TDumpJobContextOptions()) = 0;
 
-    virtual TFuture<IFileReaderPtr> GetJobInput(
+    virtual TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> GetJobInput(
         const NJobTrackerClient::TOperationId& operationId,
         const NJobTrackerClient::TJobId& jobId,
         const TGetJobInputOptions& options = TGetJobInputOptions()) = 0;

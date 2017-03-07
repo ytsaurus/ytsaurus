@@ -599,6 +599,7 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
     if (!rspOrError.IsOK()) {
         LOG_WARNING(rspOrError, "Error reporting full node heartbeat to master",
             cellTag);
+
         if (NRpc::IsRetriableError(rspOrError)) {
             ScheduleNodeHeartbeat(cellTag);
         } else {
@@ -642,6 +643,11 @@ int TMasterConnector::GetLocationMediumIndexOrThrow(TLocationPtr location) const
     return MediumIndexFromNameOrThrow(mediumName);
 }
 
+TFuture<void> TMasterConnector::GetHeartbeatBarrier(TCellTag cellTag)
+{
+    return GetChunksDelta(cellTag)->HeartbeatBarrier;
+}
+
 void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 {
     auto Logger = DataNodeLogger;
@@ -664,6 +670,9 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
     ToProto(request->mutable_alerts(), GetAlerts());
 
     auto* delta = GetChunksDelta(cellTag);
+
+    auto barrierPromise = std::move(delta->HeartbeatBarrier);
+    delta->HeartbeatBarrier = NewPromise<void>();
 
     delta->ReportedAdded.clear();
     for (const auto& chunk : delta->AddedSinceLastSuccess) {
@@ -736,6 +745,9 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
     auto rspOrError = WaitFor(request->Invoke());
 
     if (!rspOrError.IsOK()) {
+        delta->HeartbeatBarrier.SetFrom(barrierPromise.ToFuture());
+        delta->HeartbeatBarrier = std::move(barrierPromise);
+
         LOG_WARNING(rspOrError, "Error reporting incremental node heartbeat to master");
         if (NRpc::IsRetriableError(rspOrError)) {
             ScheduleNodeHeartbeat(cellTag);
@@ -746,6 +758,8 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
     }
 
     LOG_INFO("Successfully reported incremental node heartbeat to master");
+
+    barrierPromise.Set();
 
     const auto& rsp = rspOrError.Value();
 

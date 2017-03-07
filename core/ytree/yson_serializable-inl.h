@@ -36,7 +36,7 @@ void LoadFromNode(
     T& parameter,
     NYTree::INodePtr node,
     const NYPath::TYPath& path,
-    EMergeStrategy /*mergeStrategy*/)
+    EMergeStrategy mergeStrategy)
 {
     try {
         Deserialize(parameter, node);
@@ -51,7 +51,7 @@ template <>
 inline void LoadFromNode(
     NYTree::INodePtr& parameter,
     NYTree::INodePtr node,
-    const NYPath::TYPath& /*path*/,
+    const NYPath::TYPath& path,
     EMergeStrategy mergeStrategy)
 {
     switch (mergeStrategy) {
@@ -177,6 +177,20 @@ void LoadFromNode(
                     path + "/" + NYPath::ToYPathLiteral(key),
                     EMergeStrategy::Overwrite);
                 parameter.emplace(FromString<typename Map<T...>::key_type>(key), std::move(value));
+            }
+            break;
+        }
+        case EMergeStrategy::Combine: {
+            auto mapNode = node->AsMap();
+            for (const auto& pair : mapNode->GetChildren()) {
+                const auto& key = pair.first;
+                M value;
+                LoadFromNode(
+                    value,
+                    pair.second,
+                    path + "/" + NYPath::ToYPathLiteral(key),
+                    EMergeStrategy::Combine);
+                parameter[FromString<typename Map<T...>::key_type>(key)] = std::move(value);
             }
             break;
         }

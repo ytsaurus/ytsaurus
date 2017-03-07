@@ -30,6 +30,7 @@ DECLARE_REFCOUNTED_STRUCT(ICypressNodeVisitor)
 
 DECLARE_REFCOUNTED_CLASS(TCypressManager)
 
+struct TNodeFactoryOptions;
 struct ICypressNodeFactory;
 
 DECLARE_ENTITY_TYPE(TCypressNodeBase, TVersionedNodeId, NObjectClient::TDirectVersionedObjectIdHash)
@@ -50,6 +51,15 @@ using TInt64Node   = TScalarNode<i64>;
 using TUint64Node  = TScalarNode<ui64>;
 using TDoubleNode  = TScalarNode<double>;
 using TBooleanNode = TScalarNode<bool>;
+
+template <class T>
+class TScalarNodeTypeHandler;
+using TStringNodeTypeHandler = TScalarNodeTypeHandler<Stroka>;
+using TInt64NodeTypeHandler = TScalarNodeTypeHandler<i64>;
+using TUint64NodeTypeHandler = TScalarNodeTypeHandler<ui64>;
+using TDoubleNodeTypeHandler = TScalarNodeTypeHandler<double>;
+using TBooleanNodeTypeHandler = TScalarNodeTypeHandler<bool>;
+
 
 DECLARE_REFCOUNTED_CLASS(TCypressManagerConfig)
 

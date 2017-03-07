@@ -421,6 +421,7 @@ public:
     Stroka Account;
     bool ChunksVital;
     bool ChunksMovable;
+    bool ValidateResourceUsageIncrease;
 
     NErasure::ECodec ErasureCodec;
 
@@ -434,6 +435,8 @@ public:
         RegisterParameter("chunks_vital", ChunksVital)
             .Default(true);
         RegisterParameter("chunks_movable", ChunksMovable)
+            .Default(true);
+        RegisterParameter("validate_resource_usage_increase", ValidateResourceUsageIncrease)
             .Default(true);
         RegisterParameter("erasure_codec", ErasureCodec)
             .Default(NErasure::ECodec::None);

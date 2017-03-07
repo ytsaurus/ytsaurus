@@ -121,7 +121,7 @@ void TAttributeFragmentConsumer::End()
 
 TAttributeValueConsumer::TAttributeValueConsumer(
     IAsyncYsonConsumer* underlyingConsumer,
-    const Stroka& key)
+    const TStringBuf& key)
     : UnderlyingConsumer_(underlyingConsumer)
     , Key_(key)
 { }

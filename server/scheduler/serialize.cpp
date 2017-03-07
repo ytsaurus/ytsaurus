@@ -7,7 +7,7 @@ namespace NScheduler {
 
 int GetCurrentSnapshotVersion()
 {
-    return 200001;
+    return 200002;
 }
 
 bool ValidateSnapshotVersion(int version)

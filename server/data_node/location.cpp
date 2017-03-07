@@ -274,11 +274,15 @@ EIOCategory TLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescripto
             return EIOCategory::Batch;
 
         case EWorkloadCategory::UserRealtime:
-        case EWorkloadCategory::SystemRealtime:
+        case EWorkloadCategory::SystemTabletLogging:
             return EIOCategory::Realtime;
 
         case EWorkloadCategory::SystemRepair:
             return EIOCategory::Repair;
+
+        case EWorkloadCategory::SystemTabletRecovery:
+        case EWorkloadCategory::UserInteractive:
+            return EIOCategory::Interactive;
 
         default:
             // Graceful fallback for possible future extensions of categories.
@@ -396,7 +400,7 @@ void TLocation::ForceHashDirectories(const Stroka& rootPath)
 {
     for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
         auto hashDirectory = Format("%02x", hashByte);
-        NFS::ForcePath(NFS::CombinePaths(rootPath, hashDirectory), ChunkFilesPermissions);
+        NFS::MakeDirRecursive(NFS::CombinePaths(rootPath, hashDirectory), ChunkFilesPermissions);
     }
 }
 
@@ -429,7 +433,7 @@ void TLocation::ValidateLockFile()
 
 void TLocation::ValidateWritable()
 {
-    NFS::ForcePath(GetPath(), ChunkFilesPermissions);
+    NFS::MakeDirRecursive(GetPath(), ChunkFilesPermissions);
 
     // Run first health check before to sort out read-only drives.
     HealthChecker_->RunCheck()
@@ -937,11 +941,11 @@ bool TStoreLocation::ShouldSkipFileName(const Stroka& fileName) const
     }
 
     // Skip trash directory.
-    if (fileName.StartsWith(TrashDirectory + LOCSLASH_S))
+    if (fileName.has_prefix(TrashDirectory + LOCSLASH_S))
         return true;
 
     // Skip multiplexed directory.
-    if (fileName.StartsWith(MultiplexedDirectory + LOCSLASH_S))
+    if (fileName.has_prefix(MultiplexedDirectory + LOCSLASH_S))
         return true;
 
     return false;

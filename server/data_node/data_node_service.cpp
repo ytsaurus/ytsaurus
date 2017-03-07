@@ -765,10 +765,12 @@ private:
         bool incomplete = false;
         for (auto& value : values) {
             auto valueSize = GetByteSize(value);
-            if (incomplete) {
+            if (incomplete || size >= maxSampleSize) {
+                incomplete = true;
                 value = MakeUnversionedSentinelValue(EValueType::Null);
             } else if (size + valueSize > maxSampleSize && IsStringLikeType(value.Type)) {
                 value.Length = maxSampleSize - size;
+                YCHECK(value.Length > 0);
                 size += value.Length;
                 incomplete = true;
             } else {

@@ -22,6 +22,8 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 
+#include <yt/core/concurrency/async_stream.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -40,7 +42,7 @@ using namespace NCypressClient;
 
 class TFileReader
     : public TTransactionListener
-    , public IFileReader
+    , public IAsyncZeroCopyInputStream
 {
 public:
     TFileReader(
@@ -63,7 +65,7 @@ public:
             Options_.TransactionId);
     }
 
-    virtual TFuture<void> Open() override
+    TFuture<void> Open()
     {
         return BIND(&TFileReader::DoOpen, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
@@ -191,12 +193,16 @@ private:
 
 };
 
-IFileReaderPtr CreateFileReader(
+TFuture<IAsyncZeroCopyInputStreamPtr> CreateFileReader(
     INativeClientPtr client,
-    const TYPath& path,
+    const NYPath::TYPath& path,
     const TFileReaderOptions& options)
 {
-    return New<TFileReader>(client, path, options);
+    auto fileReader = New<TFileReader>(client, path, options);
+
+    return fileReader->Open().Apply(BIND([=] {
+        return static_cast<IAsyncZeroCopyInputStreamPtr>(fileReader);
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

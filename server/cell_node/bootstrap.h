@@ -60,7 +60,6 @@ public:
     const IInvokerPtr& GetTransactionTrackerInvoker() const;
     const NApi::INativeClientPtr& GetMasterClient() const;
     const NRpc::IServerPtr& GetRpcServer() const;
-    const NRpc::IChannelFactoryPtr& GetTabletChannelFactory() const;
     const NYTree::IMapNodePtr& GetOrchidRoot() const;
     const NJobAgent::TJobControllerPtr& GetJobController() const;
     const NJobAgent::TStatisticsReporterPtr& GetStatisticsReporter() const;
@@ -124,7 +123,6 @@ private:
     NRpc::IServerPtr RpcServer;
     NRpc::IServicePtr MasterCacheService;
     std::unique_ptr<NHttp::TServer> HttpServer;
-    NRpc::IChannelFactoryPtr TabletChannelFactory;
     NYTree::IMapNodePtr OrchidRoot;
     NJobAgent::TJobControllerPtr JobController;
     NJobAgent::TStatisticsReporterPtr StatisticsReporter;

@@ -5,34 +5,25 @@
 #include "helpers.h"
 #include "functions_builder.h"
 
-#ifdef YT_IN_ARCADIA
-#include <library/resource/resource.h>
-#else
-#include "udf/is_prefix.h" // Y_IGNORE
-#include "udf/avg.h" // Y_IGNORE
-#include "udf/farm_hash.h" // Y_IGNORE
-#include "udf/hyperloglog.h" // Y_IGNORE
-#include "udf/is_substr.h" // Y_IGNORE
-#include "udf/lower.h" // Y_IGNORE
-#include "udf/concat.h" // Y_IGNORE
-#include "udf/max.h" // Y_IGNORE
-#include "udf/min.h" // Y_IGNORE
-#include "udf/regex.h" // Y_IGNORE
-#include "udf/sleep.h" // Y_IGNORE
-#include "udf/sum.h" // Y_IGNORE
-#include "udf/dates.h" // Y_IGNORE
-#include "udf/ypath_get.h" // Y_IGNORE
-#endif
+#include "udf/is_prefix.h"
+#include "udf/avg.h"
+#include "udf/farm_hash.h"
+#include "udf/first.h"
+#include "udf/hyperloglog.h"
+#include "udf/is_substr.h"
+#include "udf/lower.h"
+#include "udf/concat.h"
+#include "udf/max.h"
+#include "udf/min.h"
+#include "udf/regex.h"
+#include "udf/sleep.h"
+#include "udf/sum.h"
+#include "udf/dates.h"
+#include "udf/ypath_get.h"
 
 namespace NYT {
 namespace NQueryClient {
 namespace NBuiltins {
-
-#ifdef YT_IN_ARCADIA
-#define UDF_BC(name) TSharedRef::FromString(::NResource::Find(Stroka("/llvm_bc/") + #name))
-#else
-#define UDF_BC(name) TSharedRef(name ## _bc, name ## _bc_len, nullptr)
-#endif
 
 using namespace NTableClient;
 
@@ -224,28 +215,40 @@ void RegisterBuiltinFunctions(
         "is_substr",
         std::vector<TType>{EValueType::String, EValueType::String},
         EValueType::Boolean,
-        UDF_BC(is_substr),
+        TSharedRef(
+            is_substr_bc,
+            is_substr_bc_len,
+            nullptr),
         ECallingConvention::Simple);
 
     builder.RegisterFunction(
         "lower",
         std::vector<TType>{EValueType::String},
         EValueType::String,
-        UDF_BC(lower),
+        TSharedRef(
+            lower_bc,
+            lower_bc_len,
+            nullptr),
         ECallingConvention::Simple);
 
     builder.RegisterFunction(
         "concat",
         std::vector<TType>{EValueType::String, EValueType::String},
         EValueType::String,
-        UDF_BC(concat),
+        TSharedRef(
+            concat_bc,
+            concat_bc_len,
+            nullptr),
         ECallingConvention::Simple);
 
     builder.RegisterFunction(
         "sleep",
         std::vector<TType>{EValueType::Int64},
         EValueType::Int64,
-        UDF_BC(sleep),
+        TSharedRef(
+            sleep_bc,
+            sleep_bc_len,
+            nullptr),
         ECallingConvention::Simple);
 
     TUnionType hashTypes = TUnionType{
@@ -260,7 +263,10 @@ void RegisterBuiltinFunctions(
         std::vector<TType>{},
         hashTypes,
         EValueType::Uint64,
-        UDF_BC(farm_hash));
+        TSharedRef(
+            farm_hash_bc,
+            farm_hash_bc_len,
+            nullptr));
 
     if (typeInferrers) {
         typeInferrers->emplace("is_null", New<TFunctionTypeInferrer>(
@@ -325,7 +331,10 @@ void RegisterBuiltinFunctions(
         std::vector<TType>{EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::Boolean,
-        UDF_BC(regex),
+        TSharedRef(
+            regex_bc,
+            regex_bc_len,
+            nullptr),
         New<TUnversionedValueCallingConvention>(-1, true));
 
     builder.RegisterFunction(
@@ -335,7 +344,10 @@ void RegisterBuiltinFunctions(
         std::vector<TType>{EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::Boolean,
-        UDF_BC(regex),
+        TSharedRef(
+            regex_bc,
+            regex_bc_len,
+            nullptr),
         New<TUnversionedValueCallingConvention>(-1, true));
 
     builder.RegisterFunction(
@@ -345,7 +357,10 @@ void RegisterBuiltinFunctions(
         std::vector<TType>{EValueType::String, EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::String,
-        UDF_BC(regex),
+        TSharedRef(
+            regex_bc,
+            regex_bc_len,
+            nullptr),
         New<TUnversionedValueCallingConvention>(-1, true));
 
     builder.RegisterFunction(
@@ -355,7 +370,10 @@ void RegisterBuiltinFunctions(
         std::vector<TType>{EValueType::String, EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::String,
-        UDF_BC(regex),
+        TSharedRef(
+            regex_bc,
+            regex_bc_len,
+            nullptr),
         New<TUnversionedValueCallingConvention>(-1, true));
 
     builder.RegisterFunction(
@@ -365,7 +383,10 @@ void RegisterBuiltinFunctions(
         std::vector<TType>{EValueType::String, EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::String,
-        UDF_BC(regex),
+        TSharedRef(
+            regex_bc,
+            regex_bc_len,
+            nullptr),
         New<TUnversionedValueCallingConvention>(-1, true));
 
     builder.RegisterFunction(
@@ -375,7 +396,10 @@ void RegisterBuiltinFunctions(
         std::vector<TType>{EValueType::String},
         EValueType::Null,
         EValueType::String,
-        UDF_BC(regex),
+        TSharedRef(
+            regex_bc,
+            regex_bc_len,
+            nullptr),
         New<TUnversionedValueCallingConvention>(-1, true));
 
     auto constraints = std::unordered_map<TTypeArgument, TUnionType>();
@@ -389,14 +413,36 @@ void RegisterBuiltinFunctions(
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Double};
+    auto anyConstraints = std::unordered_map<TTypeArgument, TUnionType>();
+    anyConstraints[typeArg] = std::vector<EValueType>{
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Boolean,
+        EValueType::Double,
+        EValueType::String,
+        EValueType::Any};
 
+    builder.RegisterAggregate(
+        "first",
+        anyConstraints,
+        typeArg,
+        typeArg,
+        typeArg,
+        TSharedRef(
+            first_bc,
+            first_bc_len,
+            nullptr),
+        ECallingConvention::UnversionedValue);
     builder.RegisterAggregate(
         "sum",
         sumConstraints,
         typeArg,
         typeArg,
         typeArg,
-        UDF_BC(sum),
+        TSharedRef(
+            sum_bc,
+            sum_bc_len,
+            nullptr),
         ECallingConvention::UnversionedValue);
     builder.RegisterAggregate(
         "min",
@@ -404,7 +450,10 @@ void RegisterBuiltinFunctions(
         typeArg,
         typeArg,
         typeArg,
-        UDF_BC(min),
+        TSharedRef(
+            min_bc,
+            min_bc_len,
+            nullptr),
         ECallingConvention::UnversionedValue);
     builder.RegisterAggregate(
         "max",
@@ -412,7 +461,10 @@ void RegisterBuiltinFunctions(
         typeArg,
         typeArg,
         typeArg,
-        UDF_BC(max),
+        TSharedRef(
+            max_bc,
+            max_bc_len,
+            nullptr),
         ECallingConvention::UnversionedValue);
     builder.RegisterAggregate(
         "avg",
@@ -420,7 +472,10 @@ void RegisterBuiltinFunctions(
         EValueType::Int64,
         EValueType::Double,
         EValueType::String,
-        UDF_BC(avg),
+        TSharedRef(
+            avg_bc,
+            avg_bc_len,
+            nullptr),
         ECallingConvention::UnversionedValue);
     builder.RegisterAggregate(
         "cardinality",
@@ -433,14 +488,20 @@ void RegisterBuiltinFunctions(
             EValueType::Boolean},
         EValueType::Uint64,
         EValueType::String,
-        UDF_BC(hyperloglog),
+        TSharedRef(
+            hyperloglog_bc,
+            hyperloglog_bc_len,
+            nullptr),
         ECallingConvention::UnversionedValue);
 
     builder.RegisterFunction(
             "format_timestamp",
             std::vector<TType>{EValueType::Int64, EValueType::String},
             EValueType::String,
-            UDF_BC(dates),
+            TSharedRef(
+                dates_bc,
+                dates_bc_len,
+                nullptr),
             ECallingConvention::Simple);
 
     std::vector<Stroka> timestampFloorFunctions = {
@@ -455,7 +516,10 @@ void RegisterBuiltinFunctions(
             name,
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,
-            UDF_BC(dates),
+            TSharedRef(
+                dates_bc,
+                dates_bc_len,
+                nullptr),
             ECallingConvention::Simple);
     }
 
@@ -478,7 +542,10 @@ void RegisterBuiltinFunctions(
             name,
             std::vector<TType>{EValueType::Any, EValueType::String},
             type,
-            UDF_BC(ypath_get),
+            TSharedRef(
+                ypath_get_bc,
+                ypath_get_bc_len,
+                nullptr),
             ECallingConvention::UnversionedValue);
     }
 }
@@ -527,7 +594,10 @@ TConstFunctionProfilerMapPtr CreateBuiltinFunctionCG()
     result->emplace("is_prefix", New<TExternalFunctionCodegen>(
         "is_prefix",
         "is_prefix",
-        UDF_BC(is_prefix),
+        TSharedRef(
+            is_prefix_bc,
+            is_prefix_bc_len,
+            nullptr),
         GetCallingConvention(ECallingConvention::Simple),
         TSharedRef()));
 

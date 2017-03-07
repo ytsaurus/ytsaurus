@@ -58,6 +58,8 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
     TTimestamp timestamp,
     const TWorkloadDescriptor& workloadDescriptor)
 {
+    ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
+
     std::vector<ISortedStorePtr> stores;
 
     // Pick stores which intersect [lowerBound, upperBound) (excluding upperBound).
@@ -94,7 +96,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
             << TErrorAttribute("fan_in_limit", tabletSnapshot->Config->MaxReadFanIn);
     }
 
-    auto rowMerger = New<TSchemafulRowMerger>(
+    auto rowMerger = std::make_unique<TSchemafulRowMerger>(
         New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
         tabletSnapshot->QuerySchema.Columns().size(),
         tabletSnapshot->QuerySchema.GetKeyColumnCount(),
@@ -160,14 +162,18 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
     i64 lowerRowIndex = 0;
     i64 upperRowIndex = std::numeric_limits<i64>::max();
     if (lowerBound < upperBound) {
-        YCHECK(lowerBound[0].Type == EValueType::Int64);
-        tabletIndex = static_cast<int>(lowerBound[0].Data.Int64);
+        if (lowerBound[0].Type == EValueType::Min) {
+            tabletIndex = 0;
+        } else {
+            YCHECK(lowerBound[0].Type == EValueType::Int64);
+            tabletIndex = static_cast<int>(lowerBound[0].Data.Int64);
+        }
 
         YCHECK(upperBound[0].Type == EValueType::Int64 ||
                upperBound[0].Type == EValueType::Max);
         YCHECK(upperBound[0].Type != EValueType::Int64 ||
-               lowerBound[0].Data.Int64 == upperBound[0].Data.Int64 ||
-               lowerBound[0].Data.Int64 + 1 == upperBound[0].Data.Int64);
+               tabletIndex == upperBound[0].Data.Int64 ||
+               tabletIndex + 1 == upperBound[0].Data.Int64);
 
         if (lowerBound.GetCount() >= 2) {
             lowerRowIndex = valueToInt(lowerBound[1]);
@@ -290,7 +296,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
         MakeFormattableRange(stores, TStoreIdFormatter()),
         MakeFormattableRange(stores, TStoreRangeFormatter()));
 
-    auto rowMerger = New<TSchemafulRowMerger>(
+    auto rowMerger = std::make_unique<TSchemafulRowMerger>(
         rowBuffer
             ? std::move(rowBuffer)
             : New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
@@ -326,6 +332,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     int concurrency,
     TRowBufferPtr rowBuffer)
 {
+    ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
+
     YCHECK(!rowBuffer || concurrency == 1);
 
     if (!tabletSnapshot->PhysicalSchema.IsSorted()) {
@@ -410,7 +418,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         MakeFormattableRange(stores, TStoreIdFormatter()),
         MakeFormattableRange(stores, TStoreRangeFormatter()));
 
-    auto rowMerger = New<TVersionedRowMerger>(
+    auto rowMerger = std::make_unique<TVersionedRowMerger>(
         New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
         tabletSnapshot->QuerySchema.GetKeyColumnCount(),
         tabletSnapshot->Config,

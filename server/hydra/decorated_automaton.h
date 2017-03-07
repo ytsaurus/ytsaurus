@@ -147,7 +147,8 @@ public:
 
     void SetChangelog(IChangelogPtr changelog);
 
-    i64 GetLoggedDataSize() const;
+    int GetRecordCountSinceLastCheckpoint() const;
+    i64 GetDataSizeSinceLastCheckpoint() const;
     TInstant GetLastSnapshotTime() const;
 
     TVersion GetAutomatonVersion() const;
@@ -212,6 +213,9 @@ private:
 
     TEpochContextPtr EpochContext_;
     IChangelogPtr Changelog_;
+
+    int RecoveryRecordCount_ = 0;
+    i64 RecoveryDataSize_ = 0;
 
     std::atomic<EPeerState> State_ = {EPeerState::Stopped};
 

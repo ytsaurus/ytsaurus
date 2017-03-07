@@ -91,6 +91,7 @@ TChunkId CreateChunk(
     req->set_vital(options->ChunksVital);
     req->set_erasure_codec(static_cast<int>(options->ErasureCodec));
     req->set_medium_name(options->MediumName);
+    req->set_validate_resource_usage_increase(options->ValidateResourceUsageIncrease);
     if (chunkListId) {
         ToProto(req->mutable_chunk_list_id(), chunkListId);
     }
@@ -98,6 +99,7 @@ TChunkId CreateChunk(
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(
         GetCumulativeError(batchRspOrError),
+        NChunkClient::EErrorCode::MasterCommunicationFailed,
         "Error creating chunk");
 
     const auto& batchRsp = batchRspOrError.Value();

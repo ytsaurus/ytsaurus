@@ -32,6 +32,9 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessChunkWriter)
 
 struct TChunkTimestamps
 {
+    TChunkTimestamps();
+    TChunkTimestamps(TTimestamp minTimestamp, TTimestamp maxTimestamp);
+
     NTransactionClient::TTimestamp MinTimestamp = NTransactionClient::NullTimestamp;
     NTransactionClient::TTimestamp MaxTimestamp = NTransactionClient::NullTimestamp;
 };
@@ -67,6 +70,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     NObjectClient::TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId,
+    const TChunkTimestamps& chunkTimestamps = TChunkTimestamps(),
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 

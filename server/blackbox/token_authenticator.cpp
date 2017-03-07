@@ -27,13 +27,13 @@ public:
 
     virtual TFuture<TAuthenticationResult> Authenticate(
         const Stroka& token,
-        const Stroka& userIp) override
+        const Stroka& userIP) override
     {
         auto tokenMD5 = ComputeMD5(token);
         LOG_DEBUG(
             "Authenticating user via token (TokenMD5: %v)",
             tokenMD5);
-        return Blackbox_->Call("oauth", {{"oauth_token", token}, {"userip", userIp}})
+        return Blackbox_->Call("oauth", {{"oauth_token", token}, {"userip", userIP}})
             .Apply(BIND(
                 &TTokenAuthenticator::OnCallResult,
                 MakeStrong(this),

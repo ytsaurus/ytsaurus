@@ -340,8 +340,8 @@ TFuture<TMutationResponse> TLeaderCommitter::Commit(const TMutationRequest& requ
         std::move(recordData),
         std::move(localFlushResult));
 
-    if (version.RecordId + 1 >= Config_->MaxChangelogRecordCount ||
-        DecoratedAutomaton_->GetLoggedDataSize() > Config_->MaxChangelogDataSize)
+    if (DecoratedAutomaton_->GetRecordCountSinceLastCheckpoint() >= Config_->MaxChangelogRecordCount ||
+        DecoratedAutomaton_->GetDataSizeSinceLastCheckpoint() >= Config_->MaxChangelogDataSize)
     {
         CheckpointNeeded_.Fire();
     }

@@ -222,7 +222,7 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
 
                 scheduleJobsAsyncResult = ProcessScheduledJobs(
                     schedulingContext,
-                    response,
+                    context,
                     &operationsToLog);
 
                 // NB: some jobs maybe considered aborted after processing scheduled jobs.
@@ -267,7 +267,22 @@ std::vector<TExecNodeDescriptor> TNodeShard::GetExecNodeDescriptors()
             result.push_back(node->BuildExecDescriptor());
         }
     }
+
+    {
+        TWriterGuard guard(CachedExecNodeDescriptorsLock_);
+        CachedExecNodeDescriptors_ = result;
+        CachedExecNodeDescriptorsLastUpdateTime_ = NProfiling::GetCpuInstant();
+    }
+
     return result;
+}
+
+void TNodeShard::RemoveOutdatedSchedulingTagFilter(const TSchedulingTagFilter& filter)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    TWriterGuard guard(ResourcesLock_);
+    SchedulingTagFilterToResources_.erase(filter);
 }
 
 void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<Stroka, INodePtr>>& nodeMaps)
@@ -710,21 +725,53 @@ TJobResources TNodeShard::GetTotalResourceUsage()
     return TotalResourceUsage_;
 }
 
-TJobResources TNodeShard::GetResourceLimits(const TNullable<Stroka>& tag)
+TJobResources TNodeShard::CalculateResourceLimits(const TSchedulingTagFilter& filter)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(ResourcesLock_);
+    TJobResources resources;
 
-    if (!tag) {
+    {
+        TReaderGuard guard(CachedExecNodeDescriptorsLock_);
+        for (const auto& node : CachedExecNodeDescriptors_) {
+            if (node.CanSchedule(filter)) {
+                resources += node.ResourceLimits;
+            }
+        }
+    }
+
+    {
+        TWriterGuard guard(ResourcesLock_);
+        SchedulingTagFilterToResources_[filter] = resources;
+    }
+
+    auto delay = NProfiling::DurationToCpuDuration(Config_->NodeShardUpdateExecNodesInformationDelay);
+    if (CachedExecNodeDescriptorsLastUpdateTime_ + delay < NProfiling::GetCpuInstant()) {
+        GetInvoker()->Invoke(BIND(&TNodeShard::GetExecNodeDescriptors, MakeStrong(this)));
+    }
+
+    return resources;
+}
+
+TJobResources TNodeShard::GetResourceLimits(const TSchedulingTagFilter& filter)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (filter.IsEmpty()) {
         return TotalResourceLimits_;
     }
 
-    auto it = NodeTagToResources_.find(*tag);
-    if (it == NodeTagToResources_.end()) {
-        return ZeroJobResources();
+    {
+        TReaderGuard guard(ResourcesLock_);
+
+        auto it = SchedulingTagFilterToResources_.find(filter);
+        if (it == SchedulingTagFilterToResources_.end()) {
+            guard.Release();
+            return CalculateResourceLimits(filter);
+        } else {
+            return it->second;
+        }
     }
-    return it->second;
 }
 
 int TNodeShard::GetActiveJobCount()
@@ -1105,23 +1152,18 @@ void TNodeShard::UpdateNodeTags(TExecNodePtr node, const std::vector<Stroka>& ta
 {
     yhash_set<Stroka> newTags(tagsList.begin(), tagsList.end());
 
-    for (const auto& tag : newTags) {
-        if (NodeTagToResources_.find(tag) == NodeTagToResources_.end()) {
-            YCHECK(NodeTagToResources_.insert(std::make_pair(tag, TJobResources())).second);
-        }
-    }
-
     if (node->GetMasterState() == ENodeState::Online) {
-        auto oldTags = node->Tags();
-        for (const auto& oldTag : oldTags) {
-            if (newTags.find(oldTag) == newTags.end()) {
-                NodeTagToResources_[oldTag] -= node->GetResourceLimits();
-            }
-        }
+        TWriterGuard guard(ResourcesLock_);
 
-        for (const auto& tag : newTags) {
-            if (oldTags.find(tag) == oldTags.end()) {
-                NodeTagToResources_[tag] += node->GetResourceLimits();
+        for (auto& pair : SchedulingTagFilterToResources_) {
+            const auto& filter = pair.first;
+            bool oldCanSchedule = filter.CanSchedule(node->Tags());
+            bool newCanSchedule = filter.CanSchedule(newTags);
+            if (oldCanSchedule && !newCanSchedule) {
+                pair.second -= node->GetResourceLimits();
+            }
+            if (!oldCanSchedule && newCanSchedule) {
+                pair.second += node->GetResourceLimits();
             }
         }
     }
@@ -1140,8 +1182,10 @@ void TNodeShard::SubtractNodeResources(TExecNodePtr node)
         ExecNodeCount_ -= 1;
     }
 
-    for (const auto& tag : node->Tags()) {
-        NodeTagToResources_[tag] -= node->GetResourceLimits();
+    for (auto& pair : SchedulingTagFilterToResources_) {
+        if (node->CanSchedule(pair.first)) {
+            pair.second -= node->GetResourceLimits();
+        }
     }
 }
 
@@ -1160,8 +1204,10 @@ void TNodeShard::AddNodeResources(TExecNodePtr node)
         YCHECK(node->GetResourceLimits() == ZeroJobResources());
     }
 
-    for (const auto& tag : node->Tags()) {
-        NodeTagToResources_[tag] += node->GetResourceLimits();
+    for (auto& pair : SchedulingTagFilterToResources_) {
+        if (node->CanSchedule(pair.first)) {
+            pair.second += node->GetResourceLimits();
+        }
     }
 }
 
@@ -1190,10 +1236,12 @@ void TNodeShard::UpdateNodeResources(TExecNodePtr node, const TJobResources& lim
 
         TotalResourceLimits_ -= oldResourceLimits;
         TotalResourceLimits_ += node->GetResourceLimits();
-        for (const auto& tag : node->Tags()) {
-            auto& resources = NodeTagToResources_[tag];
-            resources -= oldResourceLimits;
-            resources += node->GetResourceLimits();
+        for (auto& pair : SchedulingTagFilterToResources_) {
+            if (node->CanSchedule(pair.first)) {
+                auto& resources = pair.second;
+                resources -= oldResourceLimits;
+                resources += node->GetResourceLimits();
+            }
         }
 
         TotalResourceUsage_ -= oldResourceUsage;
@@ -1224,9 +1272,11 @@ void TNodeShard::EndNodeHeartbeatProcessing(TExecNodePtr node)
 
 TFuture<void> TNodeShard::ProcessScheduledJobs(
     const ISchedulingContextPtr& schedulingContext,
-    NJobTrackerClient::NProto::TRspHeartbeat* response,
+    const TScheduler::TCtxHeartbeatPtr& rpcContext,
     yhash_set<TOperationId>* operationsToLog)
 {
+    auto* response = &rpcContext->Response();
+
     std::vector<TFuture<void>> asyncResults;
 
     for (const auto& job : schedulingContext->StartedJobs()) {
@@ -1265,9 +1315,12 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
 
         // Build spec asynchronously.
         asyncResults.push_back(
-            BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
-                .AsyncVia(Host_->GetJobSpecBuilderInvoker())
-                .Run());
+            // NB: Hold the context strongly.
+            BIND([startInfo, rpcContext, specBuilder = job->GetSpecBuilder()] () {
+                specBuilder(startInfo->mutable_spec());
+            })
+            .AsyncVia(Host_->GetJobSpecBuilderInvoker())
+            .Run());
 
         // Release to avoid circular references.
         job->SetSpecBuilder(TJobSpecBuilder());

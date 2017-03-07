@@ -47,6 +47,8 @@ using NApi::INativeConnectionPtr;
 using NApi::ValidateTabletMountedOrFrozen;
 using NApi::GetPrimaryTabletPeerDescriptor;
 
+using NChunkClient::NProto::TDataStatistics;
+
 using NNodeTrackerClient::INodeChannelFactoryPtr;
 
 using NObjectClient::TObjectId;
@@ -78,19 +80,26 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        return !RowsetReader_ || RowsetReader_->Read(rows);
+        auto reader = GetRowsetReader();
+        return !reader || reader->Read(rows);
     }
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        return RowsetReader_
-            ? RowsetReader_->GetReadyEvent()
+        auto reader = GetRowsetReader();
+        return reader
+            ? reader->GetReadyEvent()
             : QueryResult_.As<void>();
     }
 
     TFuture<TQueryStatistics> GetQueryResult() const
     {
         return QueryResult_;
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return TDataStatistics();
     }
 
 private:
@@ -100,15 +109,23 @@ private:
 
     TFuture<TQueryStatistics> QueryResult_;
     ISchemafulReaderPtr RowsetReader_;
+    TSpinLock SpinLock_;
 
+    ISchemafulReaderPtr GetRowsetReader()
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        return RowsetReader_;
+    }
 
     TQueryStatistics OnResponse(const TQueryServiceProxy::TRspExecutePtr& response)
     {
+        TGuard<TSpinLock> guard(SpinLock_);
         YCHECK(!RowsetReader_);
         RowsetReader_ = CreateWireProtocolRowsetReader(
             response->Attachments(),
             CodecId_,
             Schema_,
+            response->schemaful_response(),
             Logger);
         return FromProto(response->query_statistics());
     }
@@ -165,16 +182,78 @@ private:
     const INodeChannelFactoryPtr NodeChannelFactory_;
     const TFunctionImplCachePtr FunctionImplCache_;
 
-    std::vector<std::pair<TDataRanges, Stroka>> SplitTable(
-        const TObjectId& tableId,
-        const TSharedRange<TRowRange>& ranges,
-        const TRowBufferPtr& rowBuffer,
+    template <class TIterator, class TTraits, class TOnItemsFunctor, class TOnShardsFunctor>
+    static void Iterate(
+        const TTableMountInfoPtr& tableInfo,
+        TIterator itemsBegin,
+        TIterator itemsEnd,
+        TTraits traits,
+        TOnItemsFunctor onItemsFunctor,
+        TOnShardsFunctor onShardsFunctor)
+    {
+        auto nextShardIt = tableInfo->Tablets.begin() + 1;
+        for (auto itemsIt = itemsBegin; itemsIt != itemsEnd;) {
+            if (traits.Less(tableInfo->UpperCapBound, traits.GetLower(*itemsIt))) {
+                ++itemsIt;
+                continue;
+            }
+
+            if (traits.Less(traits.GetUpper(*itemsIt), tableInfo->LowerCapBound)) {
+                ++itemsIt;
+                continue;
+            }
+
+            YCHECK(!tableInfo->Tablets.empty());
+
+            // Run binary search to find the relevant tablets.
+            nextShardIt = std::lower_bound(
+                nextShardIt,
+                tableInfo->Tablets.end(),
+                traits.GetLower(*itemsIt),
+                [&] (const TTabletInfoPtr& tabletInfo, TKey key) {
+                    return traits.Less(tabletInfo->PivotKey.Get(), key);
+                });
+
+            auto startShardIt = nextShardIt - 1;
+            auto tabletInfo = *startShardIt;
+            auto nextPivotKey = (nextShardIt == tableInfo->Tablets.end())
+                ? tableInfo->UpperCapBound
+                : (*nextShardIt)->PivotKey;
+
+            if (traits.Less(traits.GetUpper(*itemsIt), nextPivotKey)) {
+                auto endItemsIt = std::lower_bound(
+                    itemsIt,
+                    itemsEnd,
+                    nextPivotKey.Get(),
+                    [&] (const auto& item, const TRow& pivot) {
+                        return traits.Less(traits.GetUpper(item), pivot);
+                    });
+
+                onItemsFunctor(itemsIt, endItemsIt, startShardIt);
+                itemsIt = endItemsIt;
+            } else {
+                auto endShardIt = std::upper_bound(
+                    nextShardIt,
+                    tableInfo->Tablets.end(),
+                    traits.GetUpper(*itemsIt),
+                    [&] (TKey key, const TTabletInfoPtr& tabletInfo) {
+                        return traits.Less(key, tabletInfo->PivotKey.Get());
+                    });
+
+                onShardsFunctor(startShardIt, endShardIt, itemsIt);
+                ++itemsIt;
+            }
+        }
+    }
+
+    std::vector<std::pair<TDataRanges, Stroka>> InferRanges(
+        TConstQueryPtr query,
+        const TDataRanges& dataSource,
         const TQueryOptions& options,
+        TRowBufferPtr rowBuffer,
         const NLogging::TLogger& Logger)
     {
-        LOG_DEBUG_IF(options.VerboseLogging, "Started splitting table ranges (TableId: %v, RangeCount: %v)",
-            tableId,
-            ranges.Size());
+        const auto& tableId = dataSource.Id;
 
         auto tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
@@ -203,130 +282,164 @@ private:
             return peerDescriptor.GetAddress(networks);
         };
 
+        const auto& schema = dataSource.Schema;
         std::vector<std::pair<TDataRanges, Stroka>> subsources;
-        for (auto rangesIt = begin(ranges); rangesIt != end(ranges);) {
-            auto lowerBound = rangesIt->first;
-            auto upperBound = rangesIt->second;
 
-            if (lowerBound < tableInfo->LowerCapBound) {
-                lowerBound = rowBuffer->Capture(tableInfo->LowerCapBound.Get());
-            }
-            if (upperBound > tableInfo->UpperCapBound) {
-                upperBound = rowBuffer->Capture(tableInfo->UpperCapBound.Get());
-            }
+        auto addSubsource = [&] (const TTabletInfoPtr& tabletInfo) -> TDataRanges* {
+            TDataRanges dataSource;
+            dataSource.Id = tabletInfo->TabletId;
+            dataSource.MountRevision = tabletInfo->MountRevision;
+            dataSource.Schema = schema;
+            dataSource.LookupSupported = tableInfo->IsSorted();
 
-            if (lowerBound >= upperBound) {
-                ++rangesIt;
-                continue;
-            }
+            const auto& address = getAddress(tabletInfo);
+            subsources.emplace_back(std::move(dataSource), address);
 
-            // Run binary search to find the relevant tablets.
-            auto startIt = std::upper_bound(
-                tableInfo->Tablets.begin(),
-                tableInfo->Tablets.end(),
-                lowerBound,
-                [] (TKey key, const TTabletInfoPtr& tabletInfo) {
-                    return key < tabletInfo->PivotKey;
-                }) - 1;
+            return &subsources.back().first;
+        };
 
-            auto tabletInfo = *startIt;
-            auto nextPivotKey = (startIt + 1 == tableInfo->Tablets.end())
-                ? tableInfo->UpperCapBound
-                : (*(startIt + 1))->PivotKey;
+        if (dataSource.Ranges) {
+            auto ranges = dataSource.Ranges;
+            YCHECK(!dataSource.Keys);
 
-            if (upperBound < nextPivotKey) {
-                auto rangesItEnd = std::upper_bound(
-                    rangesIt,
-                    end(ranges),
-                    nextPivotKey.Get(),
-                    [] (TKey key, const TRowRange& rowRange) {
-                        return key < rowRange.second;
-                    });
-
-                const auto& address = getAddress(tabletInfo);
-
-                TDataRanges dataSource;
-                dataSource.Id = tabletInfo->TabletId;
-                dataSource.MountRevision = tabletInfo->MountRevision;
-                dataSource.Ranges = MakeSharedRange(
-                    MakeRange<TRowRange>(rangesIt, rangesItEnd),
+            if (query->InferRanges) {
+                auto prunedRanges = GetPrunedRanges(
+                    query,
+                    tableId,
+                    ranges,
                     rowBuffer,
-                    ranges.GetHolder());
-                dataSource.LookupSupported = tableInfo->IsSorted();
+                    Connection_->GetColumnEvaluatorCache(),
+                    BuiltinRangeExtractorMap,
+                    options);
 
-                subsources.emplace_back(std::move(dataSource), address);
-                rangesIt = rangesItEnd;
+                ranges = MakeSharedRange(std::move(prunedRanges), rowBuffer);
+                LOG_DEBUG("Splitting %v prunned / %v original ranges (TableId: %v)", prunedRanges.size(), ranges.Size(), tableId);
             } else {
-                for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
-                    const auto& tabletInfo = *it;
-                    Y_ASSERT(upperBound > tabletInfo->PivotKey);
+                LOG_DEBUG("Splitting %v ranges (TableId: %v)", ranges.Size(), tableId);
+            }
 
-                    const auto& address = getAddress(tabletInfo);
+            struct TTraits
+            {
+                TRow GetLower(const TRowRange& range)
+                {
+                    return range.first;
+                }
 
-                    auto pivotKey = tabletInfo->PivotKey;
-                    auto nextPivotKey = (it + 1 == tableInfo->Tablets.end())
-                        ? tableInfo->UpperCapBound
-                        : (*(it + 1))->PivotKey;
+                TRow GetUpper(const TRowRange& range)
+                {
+                    return range.second;
+                }
 
-                    bool isLast = (upperBound <= nextPivotKey);
+                bool Less(TKey lhs, TRow rhs) const
+                {
+                    return CompareRows(lhs, rhs) <= 0;
+                }
+            };
 
-                    TRowRange subrange;
-                    subrange.first = it == startIt ? lowerBound : rowBuffer->Capture(pivotKey.Get());
-                    subrange.second = isLast ? upperBound : rowBuffer->Capture(nextPivotKey.Get());
-
-                    TDataRanges dataSource;
-                    dataSource.Id = tabletInfo->TabletId;
-                    dataSource.MountRevision = tabletInfo->MountRevision;
-                    dataSource.Ranges = MakeSharedRange(
-                        SmallVector<TRowRange, 1>{subrange},
+            Iterate(
+                tableInfo,
+                begin(ranges),
+                end(ranges),
+                TTraits(),
+                [&] (auto rangesIt, auto endRangesIt, auto shardIt) {
+                    addSubsource(*shardIt)->Ranges = MakeSharedRange(
+                        MakeRange<TRowRange>(rangesIt, endRangesIt),
                         rowBuffer,
                         ranges.GetHolder());
-                    dataSource.LookupSupported = tableInfo->IsSorted();
+                },
+                [&] (auto startShardIt, auto endShardIt, auto rangesIt) {
+                    TRow currentBound = rangesIt->first;
 
-                    subsources.emplace_back(std::move(dataSource), address);
+                    auto* subsource = addSubsource(*startShardIt++);
 
-                    if (isLast) {
-                        break;
+                    for (auto it = startShardIt; it != endShardIt; ++it) {
+                        const auto& tabletInfo = *it;
+                        auto nextBound = rowBuffer->Capture(tabletInfo->PivotKey.Get());
+                        subsource->Ranges = MakeSharedRange(
+                            SmallVector<TRowRange, 1>{TRowRange{currentBound, nextBound}},
+                            rowBuffer,
+                            ranges.GetHolder());
+
+                        subsource = addSubsource(tabletInfo);
+                        currentBound = nextBound;
                     }
+
+                    subsource->Ranges = MakeSharedRange(
+                        SmallVector<TRowRange, 1>{TRowRange{currentBound, rangesIt->second}},
+                        rowBuffer,
+                        ranges.GetHolder());
+                });
+        } else {
+            YCHECK(!dataSource.Ranges);
+            YCHECK(!dataSource.Schema.empty());
+
+            const auto& keys = dataSource.Keys;
+
+            LOG_DEBUG("Splitting %v keys (TableId: %v)", keys.Size(), tableId);
+
+            struct TTraits
+            {
+                size_t KeySize;
+
+                TRow GetLower(const TRow& row)
+                {
+                    return row;
                 }
-                ++rangesIt;
-            }
+
+                TRow GetUpper(const TRow& row)
+                {
+                    return row;
+                }
+
+                bool Less(TKey lhs, TRow rhs) const
+                {
+                    return CompareRows(lhs, rhs, KeySize) < 0;
+                }
+            };
+
+            Iterate(
+                tableInfo,
+                begin(keys),
+                end(keys),
+                TTraits{dataSource.Schema.size()},
+                [&] (auto keysIt, auto endKeysIt, auto shardIt) {
+                    addSubsource(*shardIt)->Keys = MakeSharedRange(
+                        MakeRange<TRow>(keysIt, endKeysIt),
+                        rowBuffer,
+                        keys.GetHolder());
+                },
+                [&] (auto startShardIt, auto endShardIt, auto keysIt) {
+                    TRow currentBound = *keysIt;
+
+                    auto* subsource = addSubsource(*startShardIt++);
+
+                    for (auto it = startShardIt; it != endShardIt; ++it) {
+                        const auto& tabletInfo = *it;
+                        auto nextBound = rowBuffer->Capture(tabletInfo->PivotKey.Get());
+                        subsource->Ranges = MakeSharedRange(
+                            SmallVector<TRowRange, 1>{TRowRange{currentBound, nextBound}},
+                            rowBuffer,
+                            keys.GetHolder());
+
+                        subsource = addSubsource(tabletInfo);
+                        currentBound = nextBound;
+                    }
+
+                    auto bound = *keysIt;
+                    auto upperBound = rowBuffer->Allocate(bound.GetCount() + 1);
+                    for (int column = 0; column < bound.GetCount(); ++column) {
+                        upperBound[column] = bound[column];
+                    }
+                    upperBound[bound.GetCount()] = MakeUnversionedSentinelValue(EValueType::Max);
+
+                    subsource->Ranges = MakeSharedRange(
+                        SmallVector<TRowRange, 1>{TRowRange{currentBound, upperBound}},
+                        rowBuffer,
+                        keys.GetHolder());
+                });
         }
 
-        LOG_DEBUG_IF(options.VerboseLogging, "Finished splitting table ranges (TableId: %v, SubsourceCount: %v)",
-            tableId,
-            subsources.size());
-
         return subsources;
-    }
-
-    std::vector<std::pair<TDataRanges, Stroka>> InferRanges(
-        TConstQueryPtr query,
-        const TDataRanges& dataSource,
-        const TQueryOptions& options,
-        TRowBufferPtr rowBuffer,
-        const NLogging::TLogger& Logger)
-    {
-        const auto& tableId = dataSource.Id;
-        auto ranges = dataSource.Ranges;
-
-        auto prunedRanges = GetPrunedRanges(
-            query,
-            tableId,
-            ranges,
-            rowBuffer,
-            Connection_->GetColumnEvaluatorCache(),
-            BuiltinRangeExtractorMap,
-            options);
-
-        LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
-
-        return SplitTable(
-            tableId,
-            MakeSharedRange(std::move(prunedRanges), rowBuffer),
-            std::move(rowBuffer),
-            options,
-            Logger);
     }
 
     TQueryStatistics DoCoordinateAndExecute(
@@ -501,13 +614,14 @@ private:
                 ToProto(req->mutable_options(), options);
                 ToProto(req->mutable_data_sources(), dataSources);
                 req->set_response_codec(static_cast<int>(config->QueryResponseCodec));
+                req->set_schemaful_response(true);
             }
 
             auto queryFingerprint = InferName(query, true);
-            LOG_DEBUG("Sending subquery (Fingerprint: %v, InputSchema: %v, ResultSchema: %v, SerializationTime: %v, "
+            LOG_DEBUG("Sending subquery (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, SerializationTime: %v, "
                 "RequestSize: %v)",
                 queryFingerprint,
-                query->OriginalSchema,
+                query->GetReadSchema(),
                 query->GetTableSchema(),
                 serializationTime,
                 req->ByteSize());

@@ -18,7 +18,6 @@ RECURSE(
   server/exec_program
   server/core_forwarder
   unittests
-  unittests/tests
 )
 
 ################################################################################

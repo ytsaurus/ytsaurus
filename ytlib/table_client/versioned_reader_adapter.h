@@ -14,7 +14,7 @@ typedef std::function<ISchemafulReaderPtr(const TTableSchema&)> TSchemafulReader
 IVersionedReaderPtr CreateVersionedReaderAdapter(
     TSchemafulReaderFactory createReader,
     const TTableSchema& schema,
-    TTimestamp timestamp = MinTimestamp);
+    TTimestamp timestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
 

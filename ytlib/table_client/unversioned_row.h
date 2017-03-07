@@ -133,6 +133,11 @@ inline TUnversionedValue MakeUnversionedAnyValue(const TStringBuf& value, int id
     return MakeAnyValue<TUnversionedValue>(value, id, aggregate);
 }
 
+inline TUnversionedValue MakeUnversionedValueHeader(EValueType type, int id = 0, bool aggregate = false)
+{
+    return MakeSentinelValue<TUnversionedValue>(type, id, aggregate);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TUnversionedRowHeader
@@ -147,8 +152,37 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline size_t GetDataWeight(const TUnversionedValue& value)
+{
+    switch (value.Type) {
+        case EValueType::Null:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            return 0;
+
+        case EValueType::Int64:
+            return sizeof(i64);
+
+        case EValueType::Uint64:
+            return sizeof(ui64);
+
+        case EValueType::Double:
+            return sizeof(double);
+
+        case EValueType::Boolean:
+            return 1;
+
+        case EValueType::String:
+        case EValueType::Any:
+            return value.Length;
+
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
 size_t GetByteSize(const TUnversionedValue& value);
-size_t GetDataWeight(const TUnversionedValue& value);
 size_t WriteValue(char* output, const TUnversionedValue& value);
 size_t ReadValue(const char* input, TUnversionedValue* value);
 
@@ -182,7 +216,7 @@ int CompareRows(
 int CompareRows(
     TUnversionedRow lhs,
     TUnversionedRow rhs,
-    int prefixLength = std::numeric_limits<int>::max());
+    ui32 prefixLength = std::numeric_limits<ui32>::max());
 
 bool operator == (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator != (TUnversionedRow lhs, TUnversionedRow rhs);
@@ -195,13 +229,13 @@ bool operator >  (TUnversionedRow lhs, TUnversionedRow rhs);
 void ResetRowValues(TMutableUnversionedRow* row);
 
 //! Computes hash for a given TUnversionedRow.
-ui64 GetHash(TUnversionedRow row, int keyColumnCount = std::numeric_limits<int>::max());
+ui64 GetHash(TUnversionedRow row, ui32 keyColumnCount = std::numeric_limits<ui32>::max());
 
 //! Computes FarmHash forever-fixed fingerprint for a given TUnversionedRow.
-TFingerprint GetFarmFingerprint(TUnversionedRow row, int keyColumnCount = std::numeric_limits<int>::max());
+TFingerprint GetFarmFingerprint(TUnversionedRow row, ui32 keyColumnCount = std::numeric_limits<ui32>::max());
 
 //! Returns the number of bytes needed to store an unversioned row (not including string data).
-size_t GetUnversionedRowByteSize(int valueCount);
+size_t GetUnversionedRowByteSize(ui32 valueCount);
 
 //! Returns the storage-invariant data weight of a given row.
 size_t GetDataWeight(TUnversionedRow row);
@@ -222,9 +256,7 @@ size_t GetDataWeight(TUnversionedRow row);
 class TUnversionedRow
 {
 public:
-    TUnversionedRow()
-        : Header_(nullptr)
-    { }
+    TUnversionedRow() = default;
 
     explicit TUnversionedRow(const TUnversionedRowHeader* header)
         : Header_(header)
@@ -233,6 +265,11 @@ public:
     explicit operator bool() const
     {
         return Header_ != nullptr;
+    }
+
+    TTypeErasedRow ToTypeErasedRow() const
+    {
+        return {Header_};
     }
 
     const TUnversionedRowHeader* GetHeader() const
@@ -256,7 +293,7 @@ public:
         return Begin()[index];
     }
 
-    int GetCount() const
+    ui32 GetCount() const
     {
         return Header_->Count;
     }
@@ -276,12 +313,12 @@ public:
     void Load(TLoadContext& context);
 
 private:
-    const TUnversionedRowHeader* Header_;
+    const TUnversionedRowHeader* Header_ = nullptr;
 
 };
 
 // For TKeyComparer.
-inline int GetKeyComparerValueCount(TUnversionedRow row, int prefixLength)
+inline ui32 GetKeyComparerValueCount(TUnversionedRow row, ui32 prefixLength)
 {
     return std::min(row.GetCount(), prefixLength);
 }
@@ -381,25 +418,25 @@ TKey GetKeySuccessor(TKey key, const TRowBufferPtr& rowBuffer);
 //! Returns the successor of |key| trimmed to a given length, i.e. the key
 //! obtained by trimming |key| to |prefixLength| and appending
 //! a |EValueType::Max| sentinel.
-TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength);
-TKey GetKeyPrefixSuccessor(TKey key, int prefixLength, const TRowBufferPtr& rowBuffer);
+TOwningKey GetKeyPrefixSuccessor(TKey key, ui32 prefixLength);
+TKey GetKeyPrefixSuccessor(TKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer);
 
 //! Returns key of a strict lenght (either trimmed key or widen key)
-TKey GetStrictKey(TKey key, int keyColumnCount, const TRowBufferPtr& rowBuffer);
-TKey GetStrictKeySuccessor(TKey key, int keyColumnCount, const TRowBufferPtr& rowBuffer);
+TKey GetStrictKey(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer);
+TKey GetStrictKeySuccessor(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer);
 
 //! If #key has more than #prefixLength values then trims it this limit.
-TOwningKey GetKeyPrefix(TKey key, int prefixLength);
-TKey GetKeyPrefix(TKey key, int prefixLength, const TRowBufferPtr& rowBuffer);
+TOwningKey GetKeyPrefix(TKey key, ui32 prefixLength);
+TKey GetKeyPrefix(TKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer);
 
 //! Makes a new, wider key padded with null values.
-TOwningKey WidenKey(const TOwningKey& key, int keyColumnCount);
-TKey WidenKey(const TKey& key, int keyColumnCount, const TRowBufferPtr& rowBuffer);
-TKey WidenKeySuccessor(const TKey& key, int keyColumnCount, const TRowBufferPtr& rowBuffer);
+TOwningKey WidenKey(const TOwningKey& key, ui32 keyColumnCount);
+TKey WidenKey(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer);
+TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer);
 
 //! Takes prefix of a key and makes it wider.
-TOwningKey WidenKeyPrefix(const TOwningKey& key, int prefixLength, int keyColumnCount);
-TKey WidenKeyPrefix(TKey key, int prefixLength, int keyColumnCount, const TRowBufferPtr& rowBuffer);
+TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColumnCount);
+TKey WidenKeyPrefix(TKey key, ui32 prefixLength, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer);
 
 //! Returns the key with no components.
 const TOwningKey EmptyKey();
@@ -467,8 +504,7 @@ class TMutableUnversionedRow
     : public TUnversionedRow
 {
 public:
-    TMutableUnversionedRow()
-    { }
+    TMutableUnversionedRow() = default;
 
     explicit TMutableUnversionedRow(TUnversionedRowHeader* header)
         : TUnversionedRow(header)
@@ -476,11 +512,11 @@ public:
 
     static TMutableUnversionedRow Allocate(
         TChunkedMemoryPool* pool,
-        int valueCount);
+        ui32 valueCount);
 
     static TMutableUnversionedRow Create(
         void* buffer,
-        int valueCount);
+        ui32 valueCount);
 
     TUnversionedRowHeader* GetHeader()
     {
@@ -497,15 +533,15 @@ public:
         return Begin() + GetCount();
     }
 
-    void SetCount(int count)
+    void SetCount(ui32 count)
     {
-        Y_ASSERT(count >= 0 && count <= static_cast<int>(GetHeader()->Capacity));
+        Y_ASSERT(count <= GetHeader()->Capacity);
         GetHeader()->Count = count;
     }
 
-    TUnversionedValue& operator[] (int index)
+    TUnversionedValue& operator[] (ui32 index)
     {
-        Y_ASSERT(index >= 0 && index < GetCount());
+        Y_ASSERT(index < GetHeader()->Count);
         return Begin()[index];
     }
 
@@ -702,7 +738,7 @@ private:
     SmallVector<char, DefaultBlobCapacity> RowData_;
 
     TUnversionedRowHeader* GetHeader();
-    TUnversionedValue* GetValue(int index);
+    TUnversionedValue* GetValue(ui32 index);
 
 };
 
@@ -730,7 +766,7 @@ private:
     Stroka StringData_;
 
     TUnversionedRowHeader* GetHeader();
-    TUnversionedValue* GetValue(int index);
+    TUnversionedValue* GetValue(ui32 index);
     void Reset();
 
 };

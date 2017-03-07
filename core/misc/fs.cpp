@@ -180,7 +180,7 @@ void CleanTempFiles(const Stroka& path)
     // TODO(ignat): specify suffix in EnumerateFiles.
     auto entries = EnumerateFiles(path, std::numeric_limits<int>::max());
     for (const auto& entry : entries) {
-        if (entry.EndsWith(TempFileSuffix)) {
+        if (entry.has_suffix(TempFileSuffix)) {
             auto fileName = NFS::CombinePaths(path, entry);
             LOG_INFO("Removing file %v", fileName);
             NFS::Remove(fileName);
@@ -243,7 +243,7 @@ TDiskSpaceStatistics GetDiskSpaceStatistics(const Stroka& path)
     return result;
 }
 
-void ForcePath(const Stroka& path, int mode)
+void MakeDirRecursive(const Stroka& path, int mode)
 {
     MakePathIfNotExist(~path, mode);
 }

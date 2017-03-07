@@ -42,8 +42,8 @@ public:
     TDuration FairShareProfilingPeriod;
     TDuration FairShareLogPeriod;
 
-    //! Any operation with usage less than this cannot be preempted.
-    double MinPreemptableRatio;
+    //! Any operation with less than this number of running jobs cannot be preempted.
+    int MaxUnpreemptableRunningJobCount;
 
     //! Limit on number of operations in cluster.
     int MaxRunningOperationCount;
@@ -84,6 +84,9 @@ public:
     //! in operation spec. Used only for testing purposes.
     bool EnableFailControllerSpecOption;
 
+    //! To investigate CPU load of node shard threads.
+    bool EnableSchedulingTags;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -114,9 +117,8 @@ public:
             .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
             .Default(TDuration::MilliSeconds(1000));
 
-        RegisterParameter("min_preemptable_ratio", MinPreemptableRatio)
-            .InRange(0.0, 1.0)
-            .Default(0.05);
+        RegisterParameter("max_unpreemptable_running_job_count", MaxUnpreemptableRunningJobCount)
+            .Default(10);
 
         RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
             .Alias("max_running_operations")
@@ -170,6 +172,9 @@ public:
 
         RegisterParameter("enable_fail_controller_spec_option", EnableFailControllerSpecOption)
             .Default(false);
+
+        RegisterParameter("enable_scheduling_tags", EnableSchedulingTags)
+            .Default(true);
 
         RegisterValidator([&] () {
             if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
@@ -477,6 +482,42 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTestingOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    // Testing options that enables random master disconnections.
+    bool EnableRandomMasterDisconnection;
+    TDuration RandomMasterDisconnectionMaxBackoff;
+
+    // Testing option that enables sleeping during master disconnect.
+    TNullable<TDuration> MasterDisconnectDelay;
+
+    // Testing option that enables snapshot build/load cycle after operation materialization.
+    bool EnableSnapshotCycleAfterMaterialization;
+
+    // Testing option that enables sleeping between intermediate and final states of operation.
+    TNullable<TDuration> FinishOperationTransitionDelay;
+
+    TTestingOptions()
+    {
+        RegisterParameter("enable_random_master_disconnection", EnableRandomMasterDisconnection)
+            .Default(false);
+        RegisterParameter("random_master_disconnection_max_backoff", RandomMasterDisconnectionMaxBackoff)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("master_disconnect_delay", MasterDisconnectDelay)
+            .Default(Null);
+        RegisterParameter("enable_snapshot_cycle_after_materialization", EnableSnapshotCycleAfterMaterialization)
+            .Default(false);
+        RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
+            .Default(Null);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestingOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerConfig
     : public TFairShareStrategyConfig
     , public NChunkClient::TChunkTeleporterConfig
@@ -539,6 +580,10 @@ public:
     TDuration UpdateExecNodeDescriptorsPeriod;
 
     TDuration OperationTimeLimitCheckPeriod;
+
+    TDuration AvailableExecNodesCheckPeriod;
+
+    TDuration OperationBuildProgressPeriod;
 
     TDuration TaskUpdatePeriod;
 
@@ -610,8 +655,19 @@ public:
     // TODO(ignat): rename to SafeExecNodeCount.
     int SafeOnlineNodeCount;
 
+    //! Don't check resource demand for sanity if scheduler is online
+    //! less than this timeout.
+    TDuration SafeSchedulerOnlineTime;
+
     //! Time between two consecutive calls in operation controller to get exec nodes information from scheduler.
-    TDuration GetExecNodesInformationDelay;
+    TDuration ControllerUpdateExecNodesInformationDelay;
+
+    //! Timeout to store cached value of exec nodes information
+    //! for scheduling tag filter without access.
+    TDuration SchedulingTagFilterExpireTimeout;
+
+    //! Time between two consecutive calls in node shard to calculate exec nodes list.
+    TDuration NodeShardUpdateExecNodesInformationDelay;
 
     //! Maximum number of foreign chunks to locate per request.
     int MaxChunksPerLocateRequest;
@@ -693,15 +749,6 @@ public:
     // Time fraction spent in idle state enough for job to be considered suspicious.
     double SuspiciousInputPipeIdleTimeFraction;
 
-    // Testing option that enables snapshot build/load cycle after operation materialization.
-    bool EnableSnapshotCycleAfterMaterialization;
-
-    // Testing option that enables sleeping between intermediate and final states of operation.
-    TNullable<TDuration> FinishOperationTransitionDelay;
-
-    // Testing option that enables sleeping during master disconnect.
-    TNullable<TDuration> MasterDisconnectDelay;
-
     // If user job iops threshold is exceeded, iops throttling is enabled via cgroups.
     TNullable<i32> IopsThreshold;
     TNullable<i32> IopsThrottlerLimit;
@@ -716,6 +763,15 @@ public:
 
     // Timeout to try interrupt job before abort it.
     TDuration JobInterruptTimeout;
+
+    // Total number of data slices in operation, summed up over all jobs.
+    i64 MaxTotalSliceCount;
+
+    // Chunk size in per-controller row buffers.
+    i64 ControllerRowBufferChunkSize;
+
+    // Some special options for testing purposes.
+    TTestingOptionsPtr TestingOptions;
 
     TSchedulerConfig()
     {
@@ -780,11 +836,17 @@ public:
             .Default(TDuration::Seconds(1));
 
         RegisterParameter("update_exec_node_descriptors_period", UpdateExecNodeDescriptorsPeriod)
-            .Default(TDuration::Seconds(1));
+            .Default(TDuration::Seconds(10));
 
 
         RegisterParameter("operation_time_limit_check_period", OperationTimeLimitCheckPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("available_exec_nodes_check_period", AvailableExecNodesCheckPeriod)
+            .Default(TDuration::Seconds(5));
+
+        RegisterParameter("operation_build_progress_period", OperationBuildProgressPeriod)
+            .Default(TDuration::Seconds(3));
 
         RegisterParameter("jobs_logging_period", JobsLoggingPeriod)
             .Default(TDuration::Seconds(30));
@@ -859,8 +921,14 @@ public:
             .GreaterThanOrEqual(0)
             .Default(1);
 
-        RegisterParameter("get_exec_nodes_information_delay", GetExecNodesInformationDelay)
-            .Default(TDuration::Seconds(1));
+        RegisterParameter("safe_scheduler_online_time", SafeSchedulerOnlineTime)
+            .Default(TDuration::Minutes(10));
+
+        RegisterParameter("controller_update_exec_nodes_information_delay", ControllerUpdateExecNodesInformationDelay)
+            .Default(TDuration::Seconds(30));
+
+        RegisterParameter("scheduling_tag_filter_expire_timeout", SchedulingTagFilterExpireTimeout)
+            .Default(TDuration::Hours(1));
 
         RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
             .GreaterThan(0)
@@ -892,7 +960,8 @@ public:
             .DefaultNew();
 
         RegisterParameter("environment", Environment)
-            .Default(yhash_map<Stroka, Stroka>());
+            .Default(yhash_map<Stroka, Stroka>())
+            .MergeBy(NYTree::EMergeStrategy::Combine);
 
         RegisterParameter("snapshot_timeout", SnapshotTimeout)
             .Default(TDuration::Seconds(60));
@@ -942,7 +1011,7 @@ public:
                 .BeginList()
                 .EndList()->AsList());
 
-        //! By default we disable job size adjustment for partition maps, 
+        //! By default we disable job size adjustment for partition maps,
         //! since it may lead to partition data skew between nodes.
         RegisterParameter("enable_partition_map_job_size_adjustment", EnablePartitionMapJobSizeAdjustment)
             .Default(false);
@@ -964,16 +1033,8 @@ public:
         RegisterParameter("suspicious_input_pipe_time_idle_fraction", SuspiciousInputPipeIdleTimeFraction)
             .Default(0.95);
 
-        RegisterParameter("enable_snapshot_cycle_after_materialization", EnableSnapshotCycleAfterMaterialization)
-            .Default(false);
         RegisterParameter("static_orchid_cache_update_period", StaticOrchidCacheUpdatePeriod)
             .Default(TDuration::Seconds(1));
-
-        RegisterParameter("finish_operation_transition_delay", FinishOperationTransitionDelay)
-            .Default(Null);
-
-        RegisterParameter("master_disconnect_delay", MasterDisconnectDelay)
-            .Default(Null);
 
         RegisterParameter("iops_threshold", IopsThreshold)
             .Default(Null);
@@ -988,6 +1049,17 @@ public:
 
         RegisterParameter("job_interrupt_timeout", JobInterruptTimeout)
             .Default(TDuration::Seconds(10));
+
+        RegisterParameter("max_total_slice_count", MaxTotalSliceCount)
+            .Default((i64) 10 * 1000 * 1000)
+            .GreaterThan(0);
+
+        RegisterParameter("controller_row_buffer_chunk_size", ControllerRowBufferChunkSize)
+            .Default((i64) 64 * 1024)
+            .GreaterThan(0);
+
+        RegisterParameter("testing_options", TestingOptions)
+            .DefaultNew();
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

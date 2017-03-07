@@ -1738,6 +1738,60 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
 
     PrepareQuery(query, ast, schemaProxy, builder);
 
+    if (auto groupClause = query->GroupClause) {
+        auto keyColumns = query->GetKeyColumns();
+
+        std::vector<bool> touchedKeyColumns(keyColumns.size(), false);
+        for (const auto& item : groupClause->GroupItems) {
+            if (auto referenceExpr = item.Expression->As<TReferenceExpression>()) {
+                int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
+                if (keyPartIndex >= 0) {
+                    touchedKeyColumns[keyPartIndex] = true;
+                }
+            }
+        }
+
+        size_t keyPrefix = 0;
+        for (; keyPrefix < touchedKeyColumns.size(); ++keyPrefix) {
+            if (touchedKeyColumns[keyPrefix]) {
+                continue;
+            }
+
+            const auto& expression = query->OriginalSchema.Columns()[keyPrefix].Expression;
+
+            if (!expression) {
+                break;
+            }
+
+            yhash_set<Stroka> references;
+            auto evaluatedColumnExpression = PrepareExpression(
+                expression.Get(),
+                query->OriginalSchema,
+                functions,
+                &references);
+
+            auto canEvaluate = true;
+            for (const auto& reference : references) {
+                int referenceIndex = query->OriginalSchema.GetColumnIndexOrThrow(reference);
+                if (!touchedKeyColumns[referenceIndex]) {
+                    canEvaluate = false;
+                }
+            }
+
+            if (!canEvaluate) {
+                break;
+            }
+        }
+
+        bool containsPrimaryKey = keyPrefix == keyColumns.size();
+        // not prefix, because of equal prefixes near borders
+
+        query->UseDisjointGroupBy = containsPrimaryKey;
+
+        LOG_DEBUG("Group key contains primary key, can omit top-level GROUP BY");
+    }
+
+
     if (ast.Limit) {
         query->Limit = ast.Limit;
     } else if (query->OrderClause) {
@@ -1745,9 +1799,9 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     }
 
     auto queryFingerprint = InferName(query, true);
-    LOG_DEBUG("Prepared query (Fingerprint: %v, InputSchema: %v, ResultSchema: %v)",
+    LOG_DEBUG("Prepared query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
         queryFingerprint,
-        query->OriginalSchema,
+        query->GetReadSchema(),
         query->GetTableSchema());
 
     auto range = GetBothBoundsFromDataSplit(selfDataSplit);

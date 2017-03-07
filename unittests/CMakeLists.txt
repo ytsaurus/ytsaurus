@@ -21,6 +21,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/bus_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/callback_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/checkpointable_stream_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/checksum_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_schema_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_slice_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_balancer_ut.cpp
@@ -31,6 +32,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/compressed_integer_vector_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/coroutines_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/digest_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/dnf_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/dsv_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/double_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/delayed_executor_ut.cpp
@@ -114,6 +116,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/udf/invalid_ir.h
   ${CMAKE_CURRENT_LIST_DIR}/unordered_reader_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/url_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/wire_protocol_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/variant_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/varint_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/versioned_blocks_ut.cpp
@@ -134,14 +137,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ytree_fluent_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yverify_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/zigzag_ut.cpp
-
-  ${CMAKE_CURRENT_LIST_DIR}/cgroup_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_computed_columns_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_expressions_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_query_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_range_inference_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/value_consumer_ut.cpp
 )
 
 ################################################################################
@@ -171,7 +166,6 @@ ENDIF()
 
 ADDINCL(
   yt/${YT_ABI}/yt
-  yt/${YT_ABI}/yt/ytlib/query_client
   contrib/libs/gtest
   contrib/libs/gmock
 )
@@ -183,11 +177,8 @@ SRCS(
 PEERDIR(
   yt/${YT_ABI}/yt/ytlib
   yt/${YT_ABI}/yt/server
-  yt/${YT_ABI}/yt/unittests/udf
   contrib/libs/gtest
   contrib/libs/gmock
-  contrib/libs/openssl
-  library/http/simple
 )
 
 END()
@@ -199,7 +190,13 @@ ELSE()
 set(YT_SOURCE_FILES)
 
 list(APPEND YT_SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/cgroup_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_computed_columns_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_expressions_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ql_query_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_range_inference_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/value_consumer_ut.cpp
 )
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)

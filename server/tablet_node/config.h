@@ -95,6 +95,8 @@ public:
     i64 MaxDataWeightPerReplicationCommit;
     bool EnableReplicationLogging;
 
+    bool DisableCompactionAndPartitioning;
+
     TTableMountConfig()
     {
         RegisterParameter("max_dynamic_store_row_count", MaxDynamicStoreRowCount)
@@ -180,7 +182,7 @@ public:
             .Default(Null);
 
         RegisterParameter("dynamic_store_auto_flush_period", DynamicStoreAutoFlushPeriod)
-            .Default(TDuration::Hours(1));
+            .Default(TDuration::Minutes(15));
         RegisterParameter("auto_compaction_period", AutoCompactionPeriod)
             .Default(Null);
 
@@ -190,10 +192,13 @@ public:
         RegisterParameter("min_replication_log_ttl", MinReplicationLogTtl)
             .Default(TDuration::Minutes(5));
         RegisterParameter("max_rows_per_replication_commit", MaxRowsPerReplicationCommit)
-            .Default(100000);
+            .Default(90000);
         RegisterParameter("max_data_weight_per_replication_commit", MaxDataWeightPerReplicationCommit)
             .Default((i64) 128 * 1024 * 1024);
         RegisterParameter("enable_replication_logging", EnableReplicationLogging)
+            .Default(false);
+
+        RegisterParameter("disable_compaction_and_partitioning", DisableCompactionAndPartitioning)
             .Default(false);
 
         RegisterValidator([&] () {
@@ -231,18 +236,18 @@ class TTransactionManagerConfig
 {
 public:
     TDuration MaxTransactionTimeout;
-    TDuration MaxTransactionDuration;
     TDuration BarrierCheckPeriod;
+    int MaxAbortedTransactionPoolSize;
 
     TTransactionManagerConfig()
     {
         RegisterParameter("max_transaction_timeout", MaxTransactionTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::Seconds(60));
-        RegisterParameter("max_transaction_duration", MaxTransactionDuration)
-            .Default(TDuration::Seconds(60));
         RegisterParameter("barrier_check_period", BarrierCheckPeriod)
             .Default(TDuration::MilliSeconds(100));
+        RegisterParameter("max_aborted_transaction_pool_size", MaxAbortedTransactionPoolSize)
+            .Default(1000);
     }
 };
 
@@ -451,10 +456,13 @@ class TSecurityManagerConfig
 {
 public:
     TExpiringCacheConfigPtr TablePermissionCache;
+    TExpiringCacheConfigPtr ResourceLimitsCache;
 
     TSecurityManagerConfig()
     {
         RegisterParameter("table_permission_cache", TablePermissionCache)
+            .DefaultNew();
+        RegisterParameter("resource_limits_cache", ResourceLimitsCache)
             .DefaultNew();
     }
 };

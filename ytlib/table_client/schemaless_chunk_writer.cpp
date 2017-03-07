@@ -30,6 +30,7 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 #include <yt/ytlib/transaction_client/config.h>
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
@@ -77,6 +78,16 @@ const i64 MinRowRangeDataWeight = (i64) 64 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkTimestamps::TChunkTimestamps()
+{ }
+
+TChunkTimestamps::TChunkTimestamps(TTimestamp minTimestamp, TTimestamp maxTimestamp)
+    : MinTimestamp(minTimestamp)
+    , MaxTimestamp(maxTimestamp)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ValidateRowWeight(i64 weight, const TChunkWriterConfigPtr& config, const TChunkWriterOptionsPtr& options)
 {
     if (!options->ValidateRowWeight || weight < config->MaxRowWeight) {
@@ -86,6 +97,17 @@ void ValidateRowWeight(i64 weight, const TChunkWriterConfigPtr& config, const TC
     THROW_ERROR_EXCEPTION(EErrorCode::RowWeightLimitExceeded, "Row weight is too large")
         << TErrorAttribute("row_weight", weight)
         << TErrorAttribute("row_weight_limit", config->MaxRowWeight);
+}
+
+void ValidateKeyWeight(i64 weight, const TChunkWriterConfigPtr& config, const TChunkWriterOptionsPtr& options)
+{
+    if (!options->ValidateKeyWeight || weight < config->MaxKeyWeight) {
+        return;
+    }
+
+    THROW_ERROR_EXCEPTION(EErrorCode::RowWeightLimitExceeded, "Key weight is too large")
+        << TErrorAttribute("key_weight", weight)
+        << TErrorAttribute("key_weight_limit", config->MaxKeyWeight);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -300,6 +322,24 @@ protected:
         EncodingChunkWriter_->Close();
     }
 
+    i64 UpdateDataWeight(TUnversionedRow row)
+    {
+        i64 weight = 0;
+        int keyColumnCount = IsSorted() ? Schema_.GetKeyColumnCount() : 0;
+
+        for (int index = 0; index < keyColumnCount; ++index) {
+            weight += GetDataWeight(row[index]);
+        }
+        ValidateKeyWeight(weight, Config_, Options_);
+
+        for (int index = keyColumnCount; index < row.GetCount(); ++index) {
+            weight += GetDataWeight(row[index]);
+        }
+        ValidateRowWeight(weight, Config_, Options_);
+        DataWeight_ += weight;
+        return weight;
+    }
+
 private:
     i64 BlockMetaExtSize_ = 0;
 
@@ -309,7 +349,6 @@ private:
     const ui64 SamplingThreshold_;
     NProto::TSamplesExt SamplesExt_;
     i64 SamplesExtSize_ = 0;
-
 
     void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const
     {
@@ -401,10 +440,7 @@ public:
     virtual bool Write(const TRange<TUnversionedRow>& rows) override
     {
         for (auto row : rows) {
-            i64 weight = GetDataWeight(row);
-            ValidateRowWeight(weight, Config_, Options_);
-            DataWeight_ += weight;
-
+            UpdateDataWeight(row);
             ++RowCount_;
             BlockWriter_->WriteRow(row);
 
@@ -512,10 +548,7 @@ public:
             i64 weight = 0;
             int rowIndex = startRowIndex;
             for (; rowIndex < rows.Size() && weight < DataToBlockFlush_; ++rowIndex) {
-                auto rowWeight = GetDataWeight(rows[rowIndex]);
-                ValidateRowWeight(rowWeight, Config_, Options_);
-                DataWeight_ += rowWeight;
-                weight += rowWeight;
+                weight += UpdateDataWeight(rows[rowIndex]);
             }
 
             auto range = MakeRange(rows.Begin() + startRowIndex, rows.Begin() + rowIndex);
@@ -524,7 +557,6 @@ public:
             }
 
             RowCount_ += range.Size();
-            DataWeight_ += weight;
 
             startRowIndex = rowIndex;
 
@@ -1080,6 +1112,10 @@ public:
     {
         YCHECK(!SwitchingSession_);
 
+        if (!Error_.IsOK()) {
+            return false;
+        }
+
         try {
             auto reorderedRows = ReorderAndValidateRows(rows);
 
@@ -1094,6 +1130,7 @@ public:
             return readyForMore && !switched;
         } catch (const std::exception& ex) {
             Error_ = TError(ex);
+            LOG_WARNING(Error_, "Partition multi chunk writer failed");
             return false;
         }
     }
@@ -1142,6 +1179,10 @@ private:
 
     void DoClose()
     {
+        if (!Error_.IsOK()) {
+            THROW_ERROR Error_;
+        }
+
         for (int partitionIndex = 0; partitionIndex < Partitioner_->GetPartitionCount(); ++partitionIndex) {
             auto& blockWriter = BlockWriters_[partitionIndex];
             if (blockWriter->GetRowCount() > 0) {
@@ -1216,10 +1257,10 @@ private:
         CurrentBufferCapacity_ += blockWriter->GetCapacity();
 
         LOG_DEBUG("Flushing partition block (PartitonIndex: %v, BlockSize: %v, BlockRowCount: %v, CurrentBufferCapacity: %v)",
-                partitionIndex,
-                block.Meta.uncompressed_size(),
-                block.Meta.row_count(),
-                CurrentBufferCapacity_);
+            partitionIndex,
+            block.Meta.uncompressed_size(),
+            block.Meta.row_count(),
+            CurrentBufferCapacity_);
 
         return CurrentWriter_->WriteBlock(std::move(block));
     }
@@ -1336,6 +1377,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
+    const TChunkTimestamps& chunkTimestamps,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
@@ -1345,7 +1387,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
             options,
             schema,
             underlyingWriter,
-            TChunkTimestamps(),
+            chunkTimestamps,
             blockCache);
     };
 
@@ -1632,6 +1674,9 @@ private:
                      static_cast<bool>(LastKey_));
         }
 
+        auto timestamp = WaitFor(Client_->GetNativeConnection()->GetTimestampProvider()->GenerateTimestamps())
+            .ValueOrThrow();
+
         UnderlyingWriter_ = CreateSchemalessMultiChunkWriter(
             Config_,
             Options_,
@@ -1642,6 +1687,7 @@ private:
             CellTag_,
             UploadTransaction_->GetId(),
             ChunkListId_,
+            TChunkTimestamps{timestamp, timestamp},
             Throttler_,
             BlockCache_);
 

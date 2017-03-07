@@ -15,6 +15,8 @@ using NJobTrackerClient::TOperationId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
 
+static const int MaxSchedulingTagRuleCount = 10;
+
 DEFINE_ENUM(EOperationType,
     (Map)
     (Merge)
@@ -95,76 +97,62 @@ DEFINE_ENUM(EFifoSortParameter,
 
 class TSchedulerServiceProxy;
 
-class TJobIOConfig;
-typedef TIntrusivePtr<TJobIOConfig> TJobIOConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TJobIOConfig);
 
-class TResourceLimitsConfig;
-typedef TIntrusivePtr<TResourceLimitsConfig> TResourceLimitsConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TTestingOperationOptions);
 
-class TTestingOperationOptions;
-typedef TIntrusivePtr<TTestingOperationOptions> TTestingOperationOptionsPtr;
+DECLARE_REFCOUNTED_CLASS(TSchedulingTagRuleConfig);
 
-class TOperationSpecBase;
-typedef TIntrusivePtr<TOperationSpecBase> TOperationSpecBasePtr;
+DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig);
 
-class TUserJobSpec;
-typedef TIntrusivePtr<TUserJobSpec> TUserJobSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TOperationSpecBase);
 
-class TUnorderedOperationSpecBase;
-typedef TIntrusivePtr<TUnorderedOperationSpecBase> TUnorderedOperationSpecBasePtr;
+DECLARE_REFCOUNTED_CLASS(TUserJobSpec);
 
-class  TMapOperationSpec;
-typedef TIntrusivePtr<TMapOperationSpec> TMapOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TUnorderedOperationSpecBase);
 
-class TUnorderedMergeOperationSpec;
-typedef TIntrusivePtr<TUnorderedMergeOperationSpec> TUnorderedMergeOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TMapOperationSpec);
 
-class TSimpleOperationSpecBase;
-typedef TIntrusivePtr<TSimpleOperationSpecBase> TSimpleOperationSpecBasePtr;
+DECLARE_REFCOUNTED_CLASS(TUnorderedMergeOperationSpec);
 
-class TMergeOperationSpec;
-typedef TIntrusivePtr<TMergeOperationSpec> TMergeOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TSimpleOperationSpecBase);
 
-class TOrderedMergeOperationSpec;
-typedef TIntrusivePtr<TOrderedMergeOperationSpec> TOrderedMergeOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TMergeOperationSpec);
 
-class TSortedMergeOperationSpec;
-typedef TIntrusivePtr<TSortedMergeOperationSpec> TSortedMergeOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TOrderedMergeOperationSpec);
 
-class TEraseOperationSpec;
-typedef TIntrusivePtr<TEraseOperationSpec> TEraseOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TSortedMergeOperationSpec);
 
-class TReduceOperationSpecBase;
-typedef TIntrusivePtr<TReduceOperationSpecBase> TReduceOperationSpecBasePtr;
+DECLARE_REFCOUNTED_CLASS(TEraseOperationSpec);
 
-class TReduceOperationSpec;
-typedef TIntrusivePtr<TReduceOperationSpec> TReduceOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TReduceOperationSpecBase);
 
-class TJoinReduceOperationSpec;
-typedef TIntrusivePtr<TJoinReduceOperationSpec> TJoinReduceOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TReduceOperationSpec);
 
-class TSortOperationSpecBase;
-typedef TIntrusivePtr<TSortOperationSpecBase> TSortOperationSpecBasePtr;
+DECLARE_REFCOUNTED_CLASS(TJoinReduceOperationSpec);
 
-class TSortOperationSpec;
-typedef TIntrusivePtr<TSortOperationSpec> TSortOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TSortOperationSpecBase);
 
-class TMapReduceOperationSpec;
-typedef TIntrusivePtr<TMapReduceOperationSpec> TMapReduceOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TSortOperationSpec);
 
-class  TRemoteCopyOperationSpec;
-typedef TIntrusivePtr<TRemoteCopyOperationSpec> TRemoteCopyOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TMapReduceOperationSpec);
 
-class TPoolConfig;
-typedef TIntrusivePtr<TPoolConfig> TPoolConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TRemoteCopyOperationSpec);
 
-class TStrategyOperationSpec;
-typedef TIntrusivePtr<TStrategyOperationSpec> TStrategyOperationSpecPtr;
+DECLARE_REFCOUNTED_CLASS(TPoolConfig);
 
-class TOperationRuntimeParams;
-typedef TIntrusivePtr<TOperationRuntimeParams> TOperationRuntimeParamsPtr;
+DECLARE_REFCOUNTED_CLASS(TStrategyOperationSpec);
+
+DECLARE_REFCOUNTED_CLASS(TOperationRuntimeParams);
 
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ESchedulingDelayType,
+    (Sync)
+    (Async)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

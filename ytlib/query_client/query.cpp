@@ -648,6 +648,8 @@ void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
     ToProto(serialized->mutable_id(), original->Id);
 
     serialized->set_limit(original->Limit);
+    serialized->set_use_disjoint_group_by(original->UseDisjointGroupBy);
+    serialized->set_infer_ranges(original->InferRanges);
 
     ToProto(serialized->mutable_original_schema(), original->OriginalSchema);
     ToProto(serialized->mutable_schema_mapping(), original->SchemaMapping);
@@ -683,6 +685,8 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
         FromProto<TGuid>(serialized.id()));
 
     result->Limit = serialized.limit();
+    result->UseDisjointGroupBy = serialized.use_disjoint_group_by();
+    result->InferRanges = serialized.infer_ranges();
 
     FromProto(&result->OriginalSchema, serialized.original_schema());
     FromProto(&result->SchemaMapping, serialized.schema_mapping());
@@ -741,13 +745,25 @@ void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original)
     ToProto(serialized->mutable_id(), original.Id);
     serialized->set_mount_revision(original.MountRevision);
 
-    NTabletClient::TWireProtocolWriter writer;
+    NTabletClient::TWireProtocolWriter rangesWriter;
     for (const auto& range : original.Ranges) {
-        writer.WriteUnversionedRow(range.first);
-        writer.WriteUnversionedRow(range.second);
+        rangesWriter.WriteUnversionedRow(range.first);
+        rangesWriter.WriteUnversionedRow(range.second);
     }
-    ToProto(serialized->mutable_ranges(), MergeRefsToString(writer.Finish()));
+    ToProto(serialized->mutable_ranges(), MergeRefsToString(rangesWriter.Finish()));
 
+    if (original.Keys) {
+        std::vector<TColumnSchema> columns;
+        for (auto type : original.Schema) {
+            columns.emplace_back("", type);
+        }
+
+        TTableSchema schema(columns);
+        NTabletClient::TWireProtocolWriter keysWriter;
+        keysWriter.WriteTableSchema(schema);
+        keysWriter.WriteSchemafulRowset(original.Keys);
+        ToProto(serialized->mutable_keys(), MergeRefsToString(keysWriter.Finish()));
+    }
     serialized->set_lookup_supported(original.LookupSupported);
 }
 
@@ -761,16 +777,25 @@ void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized)
 
     TRowRanges ranges;
     auto rowBuffer = New<TRowBuffer>(TDataRangesBufferTag());
-    NTabletClient::TWireProtocolReader reader(
+    NTabletClient::TWireProtocolReader rangesReader(
         TSharedRef::FromString<TDataRangesBufferTag>(serialized.ranges()),
         rowBuffer);
-    while (!reader.IsFinished()) {
-        auto lowerBound = reader.ReadUnversionedRow(true);
-        auto upperBound = reader.ReadUnversionedRow(true);
+    while (!rangesReader.IsFinished()) {
+        auto lowerBound = rangesReader.ReadUnversionedRow(true);
+        auto upperBound = rangesReader.ReadUnversionedRow(true);
         ranges.emplace_back(lowerBound, upperBound);
     }
     original->Ranges = MakeSharedRange(std::move(ranges), rowBuffer);
 
+    if (serialized.has_keys()) {
+        NTabletClient::TWireProtocolReader keysReader(
+            TSharedRef::FromString<TDataRangesBufferTag>(serialized.keys()),
+            rowBuffer);
+
+        TTableSchema schema = keysReader.ReadTableSchema();
+        auto schemaData = keysReader.GetSchemaData(schema, NTableClient::TColumnFilter());
+        original->Keys = keysReader.ReadSchemafulRowset(schemaData, true);
+    }
     original->LookupSupported = serialized.lookup_supported();
 }
 

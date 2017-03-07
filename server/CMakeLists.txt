@@ -33,6 +33,8 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/cell_scheduler/bootstrap.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/cell_proxy/bootstrap.cpp
+
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_list.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_list_proxy.cpp
@@ -266,6 +268,9 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/query_agent/query_executor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_agent/query_service.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/api_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/private.cpp
+
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/chunk_list_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/chunk_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/event_log.cpp
@@ -293,6 +298,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduling_context.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduling_context_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduling_tag.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/serialize.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/snapshot_builder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/snapshot_downloader.cpp
@@ -434,7 +440,6 @@ SRCS(
 
 PEERDIR(
   contrib/libs/sparsehash
-  contrib/libs/openssl
   library/streams/lz
   library/http/server
   yt/${YT_ABI}/yt/ytlib
@@ -497,6 +502,20 @@ target_link_libraries(ytserver-scheduler
 
 set_target_properties(ytserver-scheduler PROPERTIES LINK_FLAGS "-static-libstdc++")
 
+### proxy
+
+add_executable(ytserver-proxy
+  ${CMAKE_CURRENT_LIST_DIR}/cell_proxy_program/main.cpp
+)
+
+target_link_libraries(ytserver-proxy
+  yt-library-server
+  deps-arcadia-library-getopt
+  deps-arcadia-library-lfalloc
+)
+
+set_target_properties(ytserver-proxy PROPERTIES LINK_FLAGS "-static-libstdc++")
+
 ### job proxy
 
 add_executable(ytserver-job-proxy
@@ -545,7 +564,7 @@ endif()
 
 install(
   TARGETS
-    ytserver-master ytserver-scheduler ytserver-node
+    ytserver-master ytserver-scheduler ytserver-node ytserver-proxy
     ytserver-job-proxy ytserver-exec ytserver-core-forwarder
   RUNTIME DESTINATION bin
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE SETUID

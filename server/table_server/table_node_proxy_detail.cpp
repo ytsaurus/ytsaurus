@@ -685,6 +685,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 {
     DeclareMutating();
+
     auto newSchema = request->has_schema()
         ? MakeNullable(FromProto<TTableSchema>(request->schema()))
         : Null;
@@ -719,7 +720,8 @@ void TReplicatedTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescr
 {
     TTableNodeProxy::ListSystemAttributes(descriptors);
 
-    descriptors->push_back("replicas");
+    descriptors->push_back(TAttributeDescriptor("replicas")
+        .SetOpaque(true));
 }
 
 bool TReplicatedTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
@@ -734,10 +736,10 @@ bool TReplicatedTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonCons
                 fluent
                     .Item(ToString(replica->GetId()))
                     .BeginMap()
-                        .Do(BIND([&] (IYsonConsumer* consumer) {
-                            TAsyncYsonConsumerAdapter asyncConsumer(consumer);
-                            replicaProxy->WriteAttributes(&asyncConsumer, Null, false);
-                        }))
+                        .Item("cluster_name").Value(replica->GetClusterName())
+                        .Item("replica_path").Value(replica->GetReplicaPath())
+                        .Item("state").Value(replica->GetState())
+                        .Item("replication_lag_time").Value(replica->ComputeReplicationLagTime())
                     .EndMap();
             });
         return true;

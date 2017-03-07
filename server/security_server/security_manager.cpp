@@ -667,6 +667,10 @@ public:
         }
 
         DoAddMember(group, member);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Group member added (Group: %v, Member: %v)",
+            group->GetName(),
+            member->GetName());
     }
 
     void RemoveMember(TGroup* group, TSubject* member, bool force)
@@ -683,6 +687,10 @@ public:
         }
 
         DoRemoveMember(group, member);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Group member removed (Group: %v, Member: %v)",
+            group->GetName(),
+            member->GetName());
     }
 
 

@@ -233,7 +233,7 @@ void TFileLogWriter::CheckSpace(i64 minSpace)
 void TFileLogWriter::Open()
 {
     try {
-        NFS::ForcePath(NFS::GetDirectoryName(FileName_));
+        NFS::MakeDirRecursive(NFS::GetDirectoryName(FileName_));
         File_.reset(new TFile(FileName_, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
         FileOutput_.reset(new TBufferedFileOutput(*File_, BufferSize));
         FileOutput_->SetFinishPropagateMode(true);

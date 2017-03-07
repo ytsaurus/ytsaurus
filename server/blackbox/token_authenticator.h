@@ -14,7 +14,7 @@ struct ITokenAuthenticator
 {
     virtual TFuture<TAuthenticationResult> Authenticate(
         const Stroka& token,
-        const Stroka& userIp) = 0;
+        const Stroka& userIP) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITokenAuthenticator);

@@ -241,6 +241,13 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/query_client/query_statistics.proto
   ${CMAKE_CURRENT_LIST_DIR}/query_client/range_inferrer.cpp
 
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/api_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/credentials_injecting_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_client.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_connection.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/private.cpp
+
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job.proto
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_prober_service.proto
@@ -323,6 +330,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_block_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_chunk_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_reader_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_row.cpp
 
@@ -390,211 +398,8 @@ PEERDIR(
   contrib/libs/re2
   contrib/libs/protobuf
   contrib/libs/yajl
-  library/resource
   mapreduce/yt/interface/protos
   yt/${YT_ABI}/yt/core
-)
-
-SET(YT_ROOT ${ARCADIA_ROOT}/yt/${YT_ABI}/yt)
-
-NO_WERROR()
-
-ADDINCL(${YT_ROOT}/ytlib/query_client/udf)
-
-LLVM_BC(
-    ${YT_ROOT}/ytlib/query_client/udf/hyperloglog.cpp
-    ${YT_ROOT}/ytlib/table_client/unversioned_value.cpp
-    ${YT_ROOT}/contrib/farmhash/farmhash.cc
-
-    NAME hyperloglog
-    SYMBOLS
-    cardinality_init
-    cardinality_update
-    cardinality_merge
-    cardinality_finalize
-)
-
-LLVM_BC(
-    ${YT_ROOT}/ytlib/query_client/udf/farm_hash.cpp
-    ${YT_ROOT}/ytlib/table_client/unversioned_value.cpp
-    ${YT_ROOT}/contrib/farmhash/farmhash.cc
-
-    NAME farm_hash
-    SYMBOLS
-    farm_hash
-    farm_hash_init
-    farm_hash_update
-    farm_hash_merge
-    farm_hash_finalize
-)
-
-LLVM_BC(
-    ${YT_ROOT}/ytlib/query_client/udf/regex.cpp
-    ${YT_ROOT}/ytlib/query_client/function_context.cpp
-
-    NAME regex
-    SYMBOLS
-    regex
-    regex_init
-    regex_update
-    regex_merge
-    regex_finalize
-    regex_full_match
-    regex_partial_match
-    regex_replace_first
-    regex_replace_all
-    regex_extract
-    regex_escape
-)
-
-LLVM_BC(
-    ${YT_ROOT}/ytlib/query_client/udf/is_substr.c
-
-    NAME is_substr
-    SYMBOLS
-    is_substr
-    is_substr_init
-    is_substr_update
-    is_substr_merge
-    is_substr_finalize
-)
-
-LLVM_BC(
-    ${YT_ROOT}/ytlib/query_client/udf/is_prefix.c
-
-    NAME is_prefix
-    SYMBOLS
-    is_prefix
-    is_prefix_init
-    is_prefix_update
-    is_prefix_merge
-    is_prefix_finalize
-)
-
-LLVM_BC(
-    ${YT_ROOT}/ytlib/query_client/udf/concat.c
-
-    NAME concat
-    SYMBOLS
-    concat
-    concat_init
-    concat_update
-    concat_merge
-    concat_finalize
-)
-
-LLVM_BC(
-    ${YT_ROOT}/ytlib/query_client/udf/sleep.c
-
-    NAME sleep
-    SYMBOLS
-    sleep
-    sleep_init
-    sleep_update
-    sleep_merge
-    sleep_finalize
-)
-
-LLVM_BC(
-    ${YT_ROOT}/ytlib/query_client/udf/min.c
-
-    NAME min
-    SYMBOLS
-    min
-    min_init
-    min_update
-    min_merge
-    min_finalize
-)
-
-LLVM_BC(
-    ${YT_ROOT}/ytlib/query_client/udf/max.c
-
-    NAME max
-    SYMBOLS
-    max
-    max_init
-    max_update
-    max_merge
-    max_finalize
-)
-
-LLVM_BC(
-    ${YT_ROOT}/ytlib/query_client/udf/sum.c
-
-    NAME sum
-    SYMBOLS
-    sum
-    sum_init
-    sum_update
-    sum_merge
-    sum_finalize
-)
-
-LLVM_BC(
-    ${YT_ROOT}/ytlib/query_client/udf/avg.c
-
-    NAME avg
-    SYMBOLS
-    avg
-    avg_init
-    avg_update
-    avg_merge
-    avg_finalize
-)
-
-LLVM_BC(
-    ${YT_ROOT}/ytlib/query_client/udf/ypath_get.c
-
-    NAME ypath_get
-    SYMBOLS
-    ypath_get
-    ypath_get_init
-    ypath_get_update
-    ypath_get_merge
-    ypath_get_finalize
-    try_get_int64
-    get_int64
-    try_get_uint64
-    get_uint64
-    try_get_double
-    get_double
-    try_get_boolean
-    get_boolean
-    try_get_string
-    get_string
-)
-
-LLVM_BC(
-    ${YT_ROOT}/ytlib/query_client/udf/lower.cpp
-    ${ARCADIA_ROOT}/util/charset/utf8.cpp
-
-    NAME lower
-    SYMBOLS
-    lower
-    lower_init
-    lower_update
-    lower_merge
-    lower_finalize
-)
-
-LLVM_BC(
-    ${YT_ROOT}/ytlib/query_client/udf/dates.c
-
-    NAME dates
-    SYMBOLS
-    dates
-    dates_init
-    dates_update
-    dates_merge
-    dates_finalize
-
-    format_timestamp
-    timestamp_floor_hour
-    timestamp_floor_day
-    timestamp_floor_week
-    timestamp_floor_month
-    timestamp_floor_year
 )
 
 END()

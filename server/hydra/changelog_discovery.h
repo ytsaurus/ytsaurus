@@ -30,5 +30,13 @@ TFuture<TChangelogInfo> DiscoverChangelog(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Given #changelogId, computes the number of records available in a quorum of its replicas.
+TFuture<int> ComputeQuorumRecordCount(
+    TDistributedHydraManagerConfigPtr config,
+    NElection::TCellManagerPtr cellManager,
+    int changelogId);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NHydra
 } // namespace NYT

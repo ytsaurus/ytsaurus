@@ -16,7 +16,6 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulRowMerger
-    : public TIntrinsicRefCounted
 {
 public:
     using TResultingRow = TUnversionedRow;
@@ -33,10 +32,10 @@ public:
     void Reset();
 
 private:
-    TRowBufferPtr RowBuffer_;
-    int ColumnCount_;
-    int KeyColumnCount_;
-    NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
+    const TRowBufferPtr RowBuffer_;
+    const int ColumnCount_;
+    const int KeyColumnCount_;
+    const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
     TMutableUnversionedRow MergedRow_;
     SmallVector<TTimestamp, TypicalColumnCount> MergedTimestamps_;
@@ -53,12 +52,9 @@ private:
     void Cleanup();
 };
 
-DEFINE_REFCOUNTED_TYPE(TSchemafulRowMerger)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnversionedRowMerger
-    : public TIntrinsicRefCounted
 {
 public:
     using TResultingRow = TUnversionedRow;
@@ -75,13 +71,13 @@ public:
     void Reset();
 
 private:
-    TRowBufferPtr RowBuffer_;
-    int ColumnCount_;
-    int KeyColumnCount_;
-    NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
+    const TRowBufferPtr RowBuffer_;
+    const int ColumnCount_;
+    const int KeyColumnCount_;
+    const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
-    bool Started_;
-    bool Deleted_;
+    bool Started_ = false;
+    bool Deleted_ = false;
 
     TMutableUnversionedRow MergedRow_;
     SmallVector<bool, TypicalColumnCount> ValidValues_;
@@ -90,12 +86,9 @@ private:
     void Cleanup();
 };
 
-DEFINE_REFCOUNTED_TYPE(TUnversionedRowMerger)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedRowMerger
-    : public TIntrinsicRefCounted
 {
 public:
     using TResultingRow = TVersionedRow;
@@ -123,7 +116,8 @@ private:
     TTimestamp MajorTimestamp_;
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
-    bool Started_;
+    bool Started_ = false;
+
     SmallVector<TUnversionedValue, TypicalColumnCount> Keys_;
 
     std::vector<TVersionedValue> PartialValues_;
@@ -136,15 +130,11 @@ private:
     void Cleanup();
 };
 
-DEFINE_REFCOUNTED_TYPE(TVersionedRowMerger)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSamplingRowMerger
-    : public TIntrinsicRefCounted
 {
 public:
-
     TSamplingRowMerger(
         TRowBufferPtr rowBuffer,
         const TTableSchema& schema);
@@ -154,13 +144,13 @@ public:
 
 private:
     const TRowBufferPtr RowBuffer_;
-    const TTableSchema Schema_;
-    std::vector<TTimestamp> LatestTimestamps_;
-    std::vector<int> IdMapping_;
-    int ColumnCount_;
-};
+    const int KeyColumnCount_;
 
-DEFINE_REFCOUNTED_TYPE(TSamplingRowMerger)
+    int SampledColumnCount_ = 0;
+
+    SmallVector<TTimestamp, TypicalColumnCount> LatestTimestamps_;
+    SmallVector<int, TypicalColumnCount> IdMapping_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

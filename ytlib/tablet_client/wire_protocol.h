@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/table_client/schemaful_reader.h>
 #include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/ytlib/table_client/versioned_row.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/range.h>
@@ -33,7 +35,6 @@ DEFINE_ENUM(EWireProtocolCommand,
     // Output:
     //   * N unversioned rows
 
-
     // Write commands:
 
     ((WriteRow)(100))
@@ -57,10 +58,11 @@ DEFINE_ENUM(EWireProtocolCommand,
 
 //! Builds wire-encoded stream.
 class TWireProtocolWriter
-    : private TNonCopyable
 {
 public:
     TWireProtocolWriter();
+    TWireProtocolWriter(const TWireProtocolWriter&) = delete;
+    TWireProtocolWriter(TWireProtocolWriter&&) = delete;
     ~TWireProtocolWriter();
 
     size_t GetByteSize() const;
@@ -74,12 +76,11 @@ public:
     void WriteUnversionedRow(
         NTableClient::TUnversionedRow row,
         const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
-    void WriteUnversionedRow(
-        const TRange<NTableClient::TUnversionedValue>& row,
-        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
     void WriteSchemafulRow(
         NTableClient::TUnversionedRow row,
         const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
+    void WriteVersionedRow(
+        NTableClient::TVersionedRow row);
 
     void WriteUnversionedRowset(
         const TRange<NTableClient::TUnversionedRow>& rowset,
@@ -87,14 +88,32 @@ public:
     void WriteSchemafulRowset(
         const TRange<NTableClient::TUnversionedRow>& rowset,
         const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
+    void WriteVersionedRowset(
+        const TRange<NTableClient::TVersionedRow>& rowset);
+
+    template <class TRow>
+    inline void WriteRowset(const TRange<TRow>& rowset);
 
     std::vector<TSharedRef> Finish();
 
 private:
     class TImpl;
     const std::unique_ptr<TImpl> Impl_;
-
 };
+
+template <>
+inline void TWireProtocolWriter::WriteRowset<NTableClient::TUnversionedRow>(
+    const TRange<NTableClient::TUnversionedRow>& rowset)
+{
+    return WriteUnversionedRowset(rowset);
+}
+
+template <>
+inline void TWireProtocolWriter::WriteRowset<NTableClient::TVersionedRow>(
+    const TRange<NTableClient::TVersionedRow>& rowset)
+{
+    return WriteVersionedRowset(rowset);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -105,7 +124,6 @@ private:
  *  Values are either captured or not depending on |deep| argument.
  */
 class TWireProtocolReader
-    : private TNonCopyable
 {
 public:
     using TIterator = const char*;
@@ -118,6 +136,8 @@ public:
     TWireProtocolReader(
         const TSharedRef& data,
         NTableClient::TRowBufferPtr rowBuffer = NTableClient::TRowBufferPtr());
+    TWireProtocolReader(const TWireProtocolReader&) = delete;
+    TWireProtocolReader(TWireProtocolReader&&) = delete;
     ~TWireProtocolReader();
 
     const NTableClient::TRowBufferPtr& GetRowBuffer() const;
@@ -139,9 +159,14 @@ public:
 
     NTableClient::TUnversionedRow ReadUnversionedRow(bool deep);
     NTableClient::TUnversionedRow ReadSchemafulRow(const TSchemaData& schemaData, bool deep);
+    NTableClient::TVersionedRow ReadVersionedRow(const TSchemaData& schemaData, bool deep);
 
     TSharedRange<NTableClient::TUnversionedRow> ReadUnversionedRowset(bool deep);
     TSharedRange<NTableClient::TUnversionedRow> ReadSchemafulRowset(const TSchemaData& schemaData, bool deep);
+    TSharedRange<NTableClient::TVersionedRow> ReadVersionedRowset(const TSchemaData& schemaData, bool deep);
+
+    template <class TRow>
+    inline TSharedRange<TRow> ReadRowset(bool deep);
 
     static TSchemaData GetSchemaData(
         const NTableClient::TTableSchema& schema,
@@ -153,6 +178,20 @@ private:
     const std::unique_ptr<TImpl> Impl_;
 
 };
+
+template <>
+inline TSharedRange<NTableClient::TUnversionedRow> TWireProtocolReader::ReadRowset<NTableClient::TUnversionedRow>(bool deep)
+{
+    return ReadUnversionedRowset(deep);
+}
+
+/*
+template <>
+inline TSharedRange<NTableClient::TVersionedRow> TWireProtocolReader::ReadRowset<NTableClient::TVersionedRow>(bool deep)
+{
+    return ReadVersionedRowset(deep);
+}
+*/
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -166,6 +205,7 @@ IWireProtocolRowsetReaderPtr CreateWireProtocolRowsetReader(
     const std::vector<TSharedRef>& compressedBlocks,
     NCompression::ECodec codecId,
     const NTableClient::TTableSchema& schema,
+    bool isSchemaful,
     const NLogging::TLogger& logger);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -182,6 +222,7 @@ IWireProtocolRowsetWriterPtr CreateWireProtocolRowsetWriter(
     NCompression::ECodec codecId,
     size_t desiredUncompressedBlockSize,
     const NTableClient::TTableSchema& schema,
+    bool isSchemaful,
     const NLogging::TLogger& logger);
 
 ///////////////////////////////////////////////////////////////////////////////

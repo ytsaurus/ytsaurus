@@ -1,0 +1,61 @@
+package NYT.NRpcProxy.NProto;
+
+import "yt/core/rpc/rpc.proto";
+import "yt/core/misc/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TCredentialsExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TCredentialsExt credentials_ext = 110;
+    }
+
+    optional string userip = 1;
+    optional string token = 2;
+    optional string domain = 3;
+    optional string sessionid = 4;
+    optional string sslsessionid = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TRowsetColumnDescriptor
+{
+    required int32 id = 1;
+    optional int32 type = 2;
+    optional string name = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetNode
+{
+    required string path = 1;
+}
+
+message TRspGetNode
+{
+    required bytes data = 1;
+}
+
+// Wire Format V1:
+//   - rowset schema is passed via `rowset_column_descriptor`,
+//   - rowset data is passed via attachments in unversioned wire format a-la YT.
+
+message TReqLookupRows
+{
+    required string path = 1;
+
+    optional int32 wire_format_version = 2 [default = 1];
+    repeated TRowsetColumnDescriptor rowset_column_descriptor = 3;
+}
+
+message TRspLookupRows
+{
+    optional int32 wire_format_version = 2 [default = 1];
+    repeated TRowsetColumnDescriptor rowset_column_descriptor = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

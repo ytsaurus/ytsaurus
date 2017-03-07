@@ -51,6 +51,17 @@ inline bool IsComparableType(EValueType type)
     return IsArithmeticType(type) || type == EValueType::String || type == EValueType::Boolean;
 }
 
+inline bool IsValueType(EValueType type)
+{
+    return
+        type == EValueType::Int64 ||
+        type == EValueType::Uint64 ||
+        type == EValueType::Double ||
+        type == EValueType::Boolean ||
+        type == EValueType::String ||
+        type == EValueType::Any;
+}
+
 inline bool IsSentinelType(EValueType type)
 {
     return type == EValueType::Min || type == EValueType::Max;
@@ -72,6 +83,20 @@ struct TColumnFilter
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTypeErasedRow
+{
+    const void* OpaqueHeader;
+
+    explicit operator bool() const
+    {
+        return OpaqueHeader != nullptr;
+    }
+};
+
+static_assert(std::is_pod<TTypeErasedRow>::value, "TTypeErasedRow must be POD.");
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Checks that #type is allowed to appear in data. Throws on failure.
 void ValidateDataValueType(EValueType type);
 
@@ -89,7 +114,7 @@ void ValidateColumnFilter(const TColumnFilter& columnFilter, int schemaColumnCou
 template <class TValue>
 TValue MakeSentinelValue(EValueType type, int id = 0, bool aggregate = false)
 {
-    TValue result;
+    TValue result{};
     result.Id = id;
     result.Type = type;
     result.Aggregate = aggregate;
@@ -99,7 +124,7 @@ TValue MakeSentinelValue(EValueType type, int id = 0, bool aggregate = false)
 template <class TValue>
 TValue MakeInt64Value(i64 value, int id = 0, bool aggregate = false)
 {
-    TValue result;
+    TValue result{};
     result.Id = id;
     result.Type = EValueType::Int64;
     result.Aggregate = aggregate;
@@ -110,7 +135,7 @@ TValue MakeInt64Value(i64 value, int id = 0, bool aggregate = false)
 template <class TValue>
 TValue MakeUint64Value(ui64 value, int id = 0, bool aggregate = false)
 {
-    TValue result;
+    TValue result{};
     result.Id = id;
     result.Type = EValueType::Uint64;
     result.Aggregate = aggregate;
@@ -121,7 +146,7 @@ TValue MakeUint64Value(ui64 value, int id = 0, bool aggregate = false)
 template <class TValue>
 TValue MakeDoubleValue(double value, int id = 0, bool aggregate = false)
 {
-    TValue result;
+    TValue result{};
     result.Id = id;
     result.Type = EValueType::Double;
     result.Aggregate = aggregate;
@@ -132,7 +157,7 @@ TValue MakeDoubleValue(double value, int id = 0, bool aggregate = false)
 template <class TValue>
 TValue MakeBooleanValue(bool value, int id = 0, bool aggregate = false)
 {
-    TValue result;
+    TValue result{};
     result.Id = id;
     result.Type = EValueType::Boolean;
     result.Aggregate = aggregate;
@@ -143,7 +168,7 @@ TValue MakeBooleanValue(bool value, int id = 0, bool aggregate = false)
 template <class TValue>
 TValue MakeStringValue(const TStringBuf& value, int id = 0, bool aggregate = false)
 {
-    TValue result;
+    TValue result{};
     result.Id = id;
     result.Type = EValueType::String;
     result.Aggregate = aggregate;
@@ -155,7 +180,7 @@ TValue MakeStringValue(const TStringBuf& value, int id = 0, bool aggregate = fal
 template <class TValue>
 TValue MakeAnyValue(const TStringBuf& value, int id = 0, bool aggregate = false)
 {
-    TValue result;
+    TValue result{};
     result.Id = id;
     result.Type = EValueType::Any;
     result.Aggregate = aggregate;

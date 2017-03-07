@@ -61,6 +61,7 @@ const i64 MaxAnyValueLength = (i64) 16 * 1024 * 1024;
 
 // Only for static tables.
 const i64 MaxRowWeightLimit = (i64) 128 * 1024 * 1024;
+const i64 MaxKeyWeightLimit = (i64) 256 * 1024;
 
 // NB(psushin): increasing this parameter requires rewriting all chunks,
 // so one probaly should never want to do it.
@@ -233,10 +234,10 @@ DECLARE_REFCOUNTED_CLASS(TRetentionConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTypeConversionConfig)
 
-DECLARE_REFCOUNTED_CLASS(TSchemafulRowMerger)
-DECLARE_REFCOUNTED_CLASS(TUnversionedRowMerger)
-DECLARE_REFCOUNTED_CLASS(TVersionedRowMerger)
-DECLARE_REFCOUNTED_CLASS(TSamplingRowMerger)
+class TSchemafulRowMerger;
+class TUnversionedRowMerger;
+class TVersionedRowMerger;
+class TSamplingRowMerger;
 
 DECLARE_REFCOUNTED_STRUCT(IChunkLookupHashTable)
 
@@ -250,6 +251,8 @@ using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext
 
 struct TBlobTableSchema;
 class TBlobTableWriter;
+
+struct TChunkTimestamps;
 
 ////////////////////////////////////////////////////////////////////////////////
 

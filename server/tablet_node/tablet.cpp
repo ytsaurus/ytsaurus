@@ -42,6 +42,18 @@ using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
+{
+    if (timestamp < tabletSnapshot->RetainedTimestamp) {
+        THROW_ERROR_EXCEPTION("Timestamp %v is less than tablet %v retained timestamp %v",
+            timestamp,
+            tabletSnapshot->TabletId,
+            tabletSnapshot->RetainedTimestamp);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TRuntimeTableReplicaData::Populate(TTableReplicaStatistics* statistics) const
 {
     statistics->set_current_replication_row_index(CurrentReplicationRowIndex.load());
@@ -783,10 +795,28 @@ IStorePtr TTablet::GetStore(const TStoreId& id)
     return store;
 }
 
+IStorePtr TTablet::GetStoreOrThrow(const TStoreId& id)
+{
+    auto store = FindStore(id);
+    if (!store) {
+        THROW_ERROR_EXCEPTION("No such store %v", id);
+    }
+    return store;
+}
+
 TTableReplicaInfo* TTablet::FindReplicaInfo(const TTableReplicaId& id)
 {
     auto it = Replicas_.find(id);
     return it == Replicas_.end() ? nullptr : &it->second;
+}
+
+TTableReplicaInfo* TTablet::GetReplicaInfoOrThrow(const TTableReplicaId& id)
+{
+    auto* info = FindReplicaInfo(id);
+    if (!info) {
+        THROW_ERROR_EXCEPTION("No such replica %v", id);
+    }
+    return info;
 }
 
 bool TTablet::IsPhysicallySorted() const
@@ -837,6 +867,15 @@ TTimestamp TTablet::GetLastCommitTimestamp() const
 void TTablet::SetLastCommitTimestamp(TTimestamp value)
 {
     RuntimeData_->LastCommitTimestamp = value;
+}
+
+TTimestamp TTablet::GenerateMonotonicCommitTimestamp(TTimestamp hintTimestamp) const
+{
+    return 0;
+}
+
+void TTablet::UpdateLastCommitTimestamp(TTimestamp timestamp)
+{
 }
 
 TTimestamp TTablet::GetUnflushedTimestamp() const

@@ -10,6 +10,7 @@ namespace NYT {
 namespace NTableClient {
 
 using namespace NConcurrency;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,7 +32,6 @@ public:
         : GetNextReader_(std::move(getNextReader))
         , Sessions_(std::move(sessions))
         , Exhausted_(exhausted)
-        , ReadyEvent_(MakePromise<void>(TError()))
     { }
 
     ~TUnorderedSchemafulReader()
@@ -88,37 +88,55 @@ public:
             return false;
         }
 
+        auto readyEvent = NewPromise<void>();
         {
             TWriterGuard guard(SpinLock_);
-            ReadyEvent_ = NewPromise<void>();
+            ReadyEvent_ = readyEvent;
         }
 
         for (auto& session : Sessions_) {
             if (session.ReadyEvent) {
-                ReadyEvent_.TrySetFrom(*session.ReadyEvent);
+                readyEvent.TrySetFrom(*session.ReadyEvent);
             }
         }
 
-        ReadyEvent_.OnCanceled(BIND(&TUnorderedSchemafulReader::OnCanceled, MakeWeak(this)));
+        readyEvent.OnCanceled(BIND(&TUnorderedSchemafulReader::OnCanceled, MakeWeak(this)));
 
         return true;
     }
 
     virtual TFuture<void> GetReadyEvent() override
     {
+        return DoGetReadyEvent();
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
         TReaderGuard guard(SpinLock_);
-        auto readyEvent = ReadyEvent_;
-        return readyEvent;
+        auto dataStatistics = DataStatistics_;
+        for (const auto& session : Sessions_) {
+            if (session.Reader) {
+                dataStatistics += session.Reader->GetDataStatistics();
+            }
+        }
+        return dataStatistics;
     }
 
 private:
     std::function<ISchemafulReaderPtr()> GetNextReader_;
     std::vector<TSession> Sessions_;
     bool Exhausted_;
+    TDataStatistics DataStatistics_;
 
-    TPromise<void> ReadyEvent_;
+    TPromise<void> ReadyEvent_ = MakePromise<void>(TError());
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
     TReaderWriterSpinLock SpinLock_;
+
+    TPromise<void> DoGetReadyEvent()
+    {
+        TReaderGuard guard(SpinLock_);
+        return ReadyEvent_;
+    }
 
     void UpdateSession(TSession& session)
     {
@@ -129,7 +147,12 @@ private:
 
     bool RefillSession(TSession& session)
     {
-        session.Reader.Reset();
+        auto dataStatistics = session.Reader->GetDataStatistics();
+        {
+            TWriterGuard guard(SpinLock_);
+            DataStatistics_ += dataStatistics;
+            session.Reader.Reset();
+        }
 
         if (Exhausted_) {
             return false;
@@ -141,24 +164,26 @@ private:
             return false;
         }
 
-        session.Exhausted = false;
-        session.Reader = std::move(reader);
+        {
+            TWriterGuard guard(SpinLock_);
+            session.Exhausted = false;
+            session.Reader = std::move(reader);
+        }
+
         UpdateSession(session);
         return true;
     }
 
     void OnReady(const TError& value)
     {
-        TWriterGuard guard(SpinLock_);
-        ReadyEvent_.TrySet(value);
+        DoGetReadyEvent().TrySet(value);
     }
 
     void OnCanceled()
     {
-        ReadyEvent_.TrySet(TError(NYT::EErrorCode::Canceled, "Table reader canceled"));
+        DoGetReadyEvent().TrySet(TError(NYT::EErrorCode::Canceled, "Table reader canceled"));
         CancelableContext_->Cancel();
     }
-
 };
 
 ISchemafulReaderPtr CreateUnorderedSchemafulReader(
@@ -177,7 +202,10 @@ ISchemafulReaderPtr CreateUnorderedSchemafulReader(
         sessions.back().Reader = std::move(reader);
     }
 
-    return New<TUnorderedSchemafulReader>(std::move(getNextReader), std::move(sessions), exhausted);
+    return New<TUnorderedSchemafulReader>(
+        std::move(getNextReader),
+        std::move(sessions),
+        exhausted);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

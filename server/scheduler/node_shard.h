@@ -1,6 +1,7 @@
 #include "public.h"
 #include "scheduler.h"
 #include "job_resources.h"
+#include "scheduling_tag.h"
 
 #include <yt/ytlib/api/client.h>
 
@@ -46,7 +47,7 @@ struct INodeShardHost
         const TOperationId& operationId,
         const TJobId& jobId,
         bool jobFailedOrAborted,
-        NYson::TYsonString jobAttributes,
+        const NYson::TYsonString& jobAttributes,
         const NChunkClient::TChunkId& stderrChunkId,
         const NChunkClient::TChunkId& failContextChunkId,
         TFuture<NYson::TYsonString> inputPathsFuture) = 0;
@@ -110,6 +111,7 @@ public:
     yhash_set<TOperationId> ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context);
 
     std::vector<TExecNodeDescriptor> GetExecNodeDescriptors();
+    void RemoveOutdatedSchedulingTagFilter(const TSchedulingTagFilter& filter);
 
     void HandleNodesAttributes(const std::vector<std::pair<Stroka, NYTree::INodePtr>>& nodeMaps);
 
@@ -143,7 +145,7 @@ public:
 
     TJobResources GetTotalResourceLimits();
     TJobResources GetTotalResourceUsage();
-    TJobResources GetResourceLimits(const TNullable<Stroka>& tag);
+    TJobResources GetResourceLimits(const TSchedulingTagFilter& filter);
 
     int GetActiveJobCount();
 
@@ -180,7 +182,11 @@ private:
     TJobResources TotalResourceLimits_ = ZeroJobResources();
     TJobResources TotalResourceUsage_ = ZeroJobResources();
 
-    yhash_map<Stroka, TJobResources> NodeTagToResources_;
+    NProfiling::TCpuInstant CachedExecNodeDescriptorsLastUpdateTime_ = 0;
+    NConcurrency::TReaderWriterSpinLock CachedExecNodeDescriptorsLock_;
+    std::vector<TExecNodeDescriptor> CachedExecNodeDescriptors_;
+
+    yhash_map<TSchedulingTagFilter, TJobResources> SchedulingTagFilterToResources_;
 
     // Exec node is the node that is online and has user slots.
     std::atomic<int> ExecNodeCount_ = {0};
@@ -224,6 +230,8 @@ private:
 
     NLogging::TLogger CreateJobLogger(const TJobId& jobId, EJobState state, const Stroka& address);
 
+    TJobResources CalculateResourceLimits(const TSchedulingTagFilter& filter);
+
     TExecNodePtr GetOrRegisterNode(NNodeTrackerClient::TNodeId nodeId, const NNodeTrackerClient::TNodeDescriptor& descriptor);
     TExecNodePtr RegisterNode(NNodeTrackerClient::TNodeId nodeId, const NNodeTrackerClient::TNodeDescriptor& descriptor);
     void UnregisterNode(TExecNodePtr node);
@@ -260,7 +268,7 @@ private:
 
     TFuture<void> ProcessScheduledJobs(
         const ISchedulingContextPtr& schedulingContext,
-        NJobTrackerClient::NProto::TRspHeartbeat* response,
+        const TScheduler::TCtxHeartbeatPtr& rpcContext,
         yhash_set<TOperationId>* operationsToLog);
 
     void OnJobAborted(const TJobPtr& job, TJobStatus* status, bool operationTerminated = false);

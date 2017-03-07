@@ -24,16 +24,12 @@ namespace NCypressServer {
 
 //! Extends NYTree::INodeFactory by adding Cypress-specific functionality.
 struct ICypressNodeFactory
-    : public virtual NYTree::ITransactionalNodeFactory
+    : public NYTree::ITransactionalNodeFactory
 {
-    typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
-    typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
-
-    virtual NTransactionServer::TTransaction* GetTransaction() = 0;
-
-    virtual NSecurityServer::TAccount* GetNewNodeAccount() = 0;
-    virtual NSecurityServer::TAccount* GetClonedNodeAccount(
-        TCypressNodeBase* sourceNode) = 0;
+    virtual NTransactionServer::TTransaction* GetTransaction() const = 0;
+    virtual bool ShouldPreserveExpirationTime() const  = 0;
+    virtual NSecurityServer::TAccount* GetNewNodeAccount() const = 0;
+    virtual NSecurityServer::TAccount* GetClonedNodeAccount(TCypressNodeBase* sourceNode) const = 0;
 
     virtual ICypressNodeProxyPtr CreateNode(
         NObjectClient::EObjectType type,
@@ -47,7 +43,6 @@ struct ICypressNodeFactory
     virtual TCypressNodeBase* CloneNode(
         TCypressNodeBase* sourceNode,
         ENodeCloneMode mode) = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,7 +62,7 @@ struct ICypressNodeProxy
     //! "Covariant" extension of NYTree::INode::CreateFactory.
     virtual std::unique_ptr<ICypressNodeFactory> CreateCypressFactory(
         NSecurityServer::TAccount* account,
-        bool preserveAccount) const = 0;
+        const TNodeFactoryOptions& options) const = 0;
 
 
     static ICypressNodeProxy* FromNode(NYTree::INode* ptr);
