@@ -54,6 +54,7 @@ TDataStatistics TChunkTreeStatistics::ToDataStatistics() const
     TDataStatistics result;
     result.set_uncompressed_data_size(UncompressedDataSize);
     result.set_compressed_data_size(CompressedDataSize);
+    result.set_data_weight(DataWeight);
     result.set_row_count(RowCount);
     result.set_chunk_count(ChunkCount);
     result.set_regular_disk_space(RegularDiskSpace);

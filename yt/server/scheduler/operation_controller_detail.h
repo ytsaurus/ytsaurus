@@ -32,7 +32,6 @@
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/value_consumer.h>
-#include <yt/ytlib/table_client/row_buffer.h>
 
 #include <yt/core/actions/cancelable_context.h>
 
@@ -189,6 +188,8 @@ public:
     virtual int GetPendingJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
 
+    virtual bool IsForgotten() const override;
+
     virtual bool HasProgress() const override;
 
     virtual void Resume() override;
@@ -253,14 +254,16 @@ protected:
     IInvokerPtr CancelableInvoker;
 
     std::atomic<EControllerState> State = {EControllerState::Preparing};
+    std::atomic<bool> Forgotten = {false};
 
     bool RevivedFromSnapshot = false;
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;
-    i64 TotalEstimatedInputDataSize = 0;
+    i64 TotalEstimatedInputDataWeight = 0;
     i64 TotalEstimatedInputRowCount = 0;
     i64 TotalEstimatedCompressedDataSize = 0;
+    i64 TotalEstimatedInputDataSize = 0;
 
     // Total uncompressed data size for primary tables.
     // Used only during preparation, not persisted.
@@ -286,9 +289,10 @@ protected:
     TSharedRef Snapshot;
 
     struct TRowBufferTag { };
-    const NTableClient::TRowBufferPtr RowBuffer = New<NTableClient::TRowBuffer>(TRowBufferTag());
+    const NTableClient::TRowBufferPtr RowBuffer;
 
     const NYTree::IMapNodePtr SecureVault;
+
     const std::vector<Stroka> Owners;
 
 
@@ -801,6 +805,7 @@ protected:
     void LockInputTables();
     void GetInputTablesAttributes();
     void GetOutputTablesSchema();
+    virtual void PrepareInputTables();
     virtual void PrepareOutputTables();
     void BeginUploadOutputTables();
     void GetOutputTablesUploadParams();
@@ -929,6 +934,7 @@ protected:
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
     virtual bool IsInputDataSizeHistogramSupported() const;
+    virtual bool AreForeignTablesSupported() const;
 
     //! Successfully terminate and finalize operation.
     /*!
@@ -1185,7 +1191,7 @@ private:
     NYson::TYsonString BriefProgressString_;
 
     TSpinLock ProgressLock_;
-    NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
 
     void BuildAndSaveProgress();
 

@@ -13,7 +13,9 @@ class TSchedulingTagFilter
 {
 public:
     TSchedulingTagFilter();
-    explicit TSchedulingTagFilter(const TBooleanFormula& dnf);
+    explicit TSchedulingTagFilter(const TBooleanFormula& formula);
+
+    void Reload(const TBooleanFormula& formula);
 
     bool CanSchedule(const yhash_set<Stroka>& nodeTags) const;
 

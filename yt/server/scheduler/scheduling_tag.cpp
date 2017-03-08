@@ -11,10 +11,16 @@ TSchedulingTagFilter::TSchedulingTagFilter()
     : Hash_(0)
 { }
 
-TSchedulingTagFilter::TSchedulingTagFilter(const TBooleanFormula& dnf)
-    : BooleanFormula_(dnf)
+TSchedulingTagFilter::TSchedulingTagFilter(const TBooleanFormula& formula)
+    : BooleanFormula_(formula)
     , Hash_(BooleanFormula_.GetHash())
 { }
+
+void TSchedulingTagFilter::Reload(const TBooleanFormula& formula)
+{
+    BooleanFormula_ = formula;
+    Hash_ = BooleanFormula_.GetHash();
+}
 
 bool TSchedulingTagFilter::CanSchedule(const yhash_set<Stroka>& nodeTags) const
 {

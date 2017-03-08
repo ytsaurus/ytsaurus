@@ -34,6 +34,7 @@
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/table_consumer.h>
+#include <yt/ytlib/table_client/row_buffer.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
@@ -1087,6 +1088,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , JobCounter(0)
     , UserTransactionId(operation->GetUserTransaction() ? operation->GetUserTransaction()->GetId() : NullTransactionId)
+    , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , SecureVault(operation->GetSecureVault())
     , Owners(operation->GetOwners())
     , Spec(spec)
@@ -1330,6 +1332,8 @@ void TOperationControllerBase::SafePrepare()
 {
     YCHECK(!(Config->EnableFailControllerSpecOption && Spec->FailController));
 
+    PrepareInputTables();
+
     // Process input tables.
     {
         LockInputTables();
@@ -1413,6 +1417,8 @@ void TOperationControllerBase::SafeMaterialize()
 
         InitializeHistograms();
 
+        LOG_INFO("Tasks prepared (RowBufferCapacity: %v)", RowBuffer->GetCapacity());
+
         if (InputChunkMap.empty()) {
             // Possible reasons:
             // - All input chunks are unavailable && Strategy == Skip
@@ -1438,7 +1444,7 @@ void TOperationControllerBase::SafeMaterialize()
 
         AddAllTaskPendingHints();
 
-        if (Config->EnableSnapshotCycleAfterMaterialization) {
+        if (Config->TestingOptions->EnableSnapshotCycleAfterMaterialization) {
             TStringStream stringStream;
             SaveSnapshot(&stringStream);
             auto sharedRef = TSharedRef::FromString(stringStream.Str());
@@ -2437,6 +2443,11 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     return true;
 }
 
+bool TOperationControllerBase::AreForeignTablesSupported() const
+{
+    return false;
+}
+
 bool TOperationControllerBase::IsOutputLivePreviewSupported() const
 {
     return false;
@@ -2518,6 +2529,8 @@ void TOperationControllerBase::SafeForget()
     LOG_INFO("Forgetting operation");
 
     CancelableContext->Cancel();
+
+    Forgotten = true;
 
     LOG_INFO("Operation forgotten");
 }
@@ -3153,6 +3166,13 @@ int TOperationControllerBase::GetTotalJobCount() const
     return JobCounter.GetTotal();
 }
 
+bool TOperationControllerBase::IsForgotten() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Forgotten;
+}
+
 void TOperationControllerBase::IncreaseNeededResources(const TJobResources& resourcesDelta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -3419,6 +3439,11 @@ void TOperationControllerBase::LockLivePreviewTables()
 
 void TOperationControllerBase::FetchInputTables()
 {
+    i64 totalChunkCount = 0;
+    i64 totalExtensionSize = 0;
+
+    LOG_INFO("Started fetching input tables");
+
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
         auto& table = InputTables[tableIndex];
         auto objectIdPath = FromObjectId(table.ObjectId);
@@ -3521,6 +3546,10 @@ void TOperationControllerBase::FetchInputTables()
                 auto inputChunk = New<TInputChunk>(chunkSpec);
                 inputChunk->SetTableIndex(tableIndex);
                 table.Chunks.emplace_back(std::move(inputChunk));
+                ++totalChunkCount;
+                for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
+                    totalExtensionSize += extension.data().size();
+                }
             }
         }
 
@@ -3528,6 +3557,10 @@ void TOperationControllerBase::FetchInputTables()
             path,
             table.Chunks.size());
     }
+
+    LOG_INFO("Finished fetching input tables (TotalChunkCount: %v, TotalExtensionSize: %v)",
+        totalChunkCount,
+        totalExtensionSize);
 }
 
 void TOperationControllerBase::LockInputTables()
@@ -3709,6 +3742,18 @@ void TOperationControllerBase::GetOutputTablesSchema()
     }
 }
 
+void TOperationControllerBase::PrepareInputTables()
+{
+    if (!AreForeignTablesSupported()) {
+        for (const auto& table : InputTables) {
+            if (table.IsForeign()) {
+                THROW_ERROR_EXCEPTION("Foreign tables are not supported in %Qlv operation", OperationType)
+                    << TErrorAttribute("foreign_table", table.GetPath());
+            }
+        }
+    }
+}
+
 void TOperationControllerBase::PrepareOutputTables()
 { }
 
@@ -3734,6 +3779,9 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 GenerateMutationId(req);
                 req->set_update_mode(static_cast<int>(table->TableUploadOptions.UpdateMode));
                 req->set_lock_mode(static_cast<int>(table->TableUploadOptions.LockMode));
+                req->set_upload_transaction_title(Format("Upload to %v from operation %v",
+                    table->Path.GetPath(),
+                    OperationId));
                 batchReq->AddRequest(req, "begin_upload");
             }
             auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -4229,9 +4277,9 @@ void TOperationControllerBase::InitQuerySpec(
 void TOperationControllerBase::CollectTotals()
 {
     for (const auto& table : InputTables) {
-        for (const auto& chunkSpec : table.Chunks) {
-            if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
-                const auto& chunkId = chunkSpec->ChunkId();
+        for (const auto& inputChunk : table.Chunks) {
+            if (IsUnavailable(inputChunk, IsParityReplicasFetchEnabled())) {
+                const auto& chunkId = inputChunk->ChunkId();
                 if (table.IsDynamic && table.Schema.IsSorted()) {
                     THROW_ERROR_EXCEPTION("Input chunk %v of sorted dynamic table %v is unavailable",
                         chunkId,
@@ -4258,21 +4306,23 @@ void TOperationControllerBase::CollectTotals()
             }
 
             if (table.IsPrimary()) {
-                PrimaryInputDataSize += chunkSpec->GetUncompressedDataSize();
+                PrimaryInputDataSize += inputChunk->GetUncompressedDataSize();
             }
 
-            TotalEstimatedInputDataSize += chunkSpec->GetUncompressedDataSize();
-            TotalEstimatedInputRowCount += chunkSpec->GetRowCount();
-            TotalEstimatedCompressedDataSize += chunkSpec->GetCompressedDataSize();
+            TotalEstimatedInputDataSize += inputChunk->GetUncompressedDataSize();
+            TotalEstimatedInputRowCount += inputChunk->GetRowCount();
+            TotalEstimatedCompressedDataSize += inputChunk->GetCompressedDataSize();
+            TotalEstimatedInputDataWeight += inputChunk->GetDataWeight();
             ++TotalEstimatedInputChunkCount;
         }
     }
 
-    LOG_INFO("Estimated input totals collected (ChunkCount: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+    LOG_INFO("Estimated input totals collected (ChunkCount: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v, DataWeight: %v)",
         TotalEstimatedInputChunkCount,
         TotalEstimatedInputRowCount,
         TotalEstimatedInputDataSize,
-        TotalEstimatedCompressedDataSize);
+        TotalEstimatedCompressedDataSize,
+        TotalEstimatedInputDataWeight);
 }
 
 void TOperationControllerBase::CustomPrepare()
@@ -5020,6 +5070,7 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
             .Item("chunk_count").Value(TotalEstimatedInputChunkCount)
             .Item("uncompressed_data_size").Value(TotalEstimatedInputDataSize)
             .Item("compressed_data_size").Value(TotalEstimatedCompressedDataSize)
+            .Item("data_weight").Value(TotalEstimatedInputDataWeight)
             .Item("row_count").Value(TotalEstimatedInputRowCount)
             .Item("unavailable_chunk_count").Value(UnavailableInputChunkCount)
         .EndMap()
@@ -5587,6 +5638,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TotalEstimatedInputDataSize);
     Persist(context, TotalEstimatedInputRowCount);
     Persist(context, TotalEstimatedCompressedDataSize);
+    Persist(context, TotalEstimatedInputDataWeight);
 
     Persist(context, UnavailableInputChunkCount);
 
@@ -5814,6 +5866,11 @@ public:
     virtual int GetTotalJobCount() const override
     {
         return Underlying_->GetTotalJobCount();
+    }
+
+    virtual bool IsForgotten() const override
+    {
+        return Underlying_->IsForgotten();
     }
 
     virtual TJobResources GetNeededResources() const override

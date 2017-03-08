@@ -144,6 +144,14 @@ public:
         return GetReadyEvent();
     }
 
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        auto dataStatistics = TChunkReaderBase::GetDataStatistics();
+        dataStatistics.set_row_count(RowCount_);
+        dataStatistics.set_data_weight(DataWeight_);
+        return dataStatistics;
+    }
+
 protected:
     const TCachedVersionedChunkMetaPtr ChunkMeta_;
     const TTimestamp Timestamp_;
@@ -154,6 +162,9 @@ protected:
     std::unique_ptr<TSimpleVersionedBlockReader> BlockReader_;
 
     TChunkedMemoryPool MemoryPool_;
+
+    i64 RowCount_ = 0;
+    i64 DataWeight_ = 0;
 
     TChunkReaderPerformanceCountersPtr PerformanceCounters_;
 };
@@ -265,6 +276,8 @@ public:
                         row.BeginKeys(), row.EndKeys()) < 0);
             }
             rows->push_back(row);
+            ++RowCount_;
+            DataWeight_ += GetDataWeight(row);
 
             if (!BlockReader_->NextRow()) {
                 BlockEnded_ = true;
@@ -455,6 +468,8 @@ public:
                 }
             }
             ++RowCount_;
+            DataWeight_ += GetDataWeight(rows->back());
+
         }
 
         PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
@@ -467,7 +482,6 @@ private:
     std::vector<int> BlockIndexes_;
 
     int NextBlockIndex_ = 0;
-    i64 RowCount_ = 0;
 
     std::vector<TBlockFetcher::TBlockInfo> GetBlockSequence()
     {
@@ -607,6 +621,7 @@ public:
     {
         auto dataStatistics = TBase::GetDataStatistics();
         dataStatistics.set_row_count(RowCount_);
+        dataStatistics.set_data_weight(DataWeight_);
         return dataStatistics;
     }
 
@@ -622,6 +637,7 @@ protected:
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
 
     i64 RowCount_ = 0;
+    i64 DataWeight_ = 0;
 
     TChunkReaderPerformanceCountersPtr PerformanceCounters_;
 
@@ -1121,6 +1137,11 @@ public:
             }
         }
 
+        RowCount_ += rows->size();
+        for (auto row : *rows) {
+            DataWeight_ += GetDataWeight(row);
+        }
+
         return true;
     }
 
@@ -1224,6 +1245,11 @@ public:
             if (++NextKeyIndex_ == Keys_.Size() || !TryFetchNextRow()) {
                 break;
             }
+        }
+
+        RowCount_ += rows->size();
+        for (auto row : *rows) {
+            DataWeight_ += GetDataWeight(row);
         }
 
         PerformanceCounters_->StaticChunkRowLookupCount += rows->size();

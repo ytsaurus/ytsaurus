@@ -274,6 +274,9 @@ struct IOperationController
     //! Returns the total number of jobs to be run during the operation.
     virtual int GetTotalJobCount() const = 0;
 
+    //! Returns whether controller was forgotten or not.
+    virtual bool IsForgotten() const = 0;
+
     /*!
      *  \note Thread affinity: any
      */

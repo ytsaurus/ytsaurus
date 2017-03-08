@@ -23,6 +23,7 @@ struct ISchedulerStrategyHost
     virtual ~ISchedulerStrategyHost() = default;
 
     virtual TJobResources GetTotalResourceLimits() = 0;
+    virtual TJobResources GetMainNodesResourceLimits() = 0;
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) = 0;
 
     virtual void ActivateOperation(const TOperationId& operationId) = 0;
