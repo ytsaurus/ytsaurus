@@ -54,7 +54,7 @@ def wait(predicate):
     for _ in xrange(100):
         if predicate():
             return
-        sleep(1.0)
+        sleep(0.3)
     pytest.fail("wait failed")
 
 def _pytest_finalize_func(environment, process_call_args):
