@@ -68,6 +68,7 @@ def configure_logging(args):
     logger.handlers = [handler]
     logger.setLevel(logging.INFO)
 
+    yt_logger.set_formatter(formatter)
     yt_logger.BASIC_FORMATTER = formatter
 
 def main():

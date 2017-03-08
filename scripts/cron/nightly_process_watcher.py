@@ -234,7 +234,7 @@ def main():
     # Collector settings
     parser.add_argument("--collector-command", required=True,
                         help="command to run periodically to update worker tasks")
-    parser.add_argument("--collector-period", required=True,
+    parser.add_argument("--collector-period", required=True, type=int,
                         help="period for collector script (seconds)")
     parser.add_argument("--collector-log-path", required=True,
                         help="path to collector log")
