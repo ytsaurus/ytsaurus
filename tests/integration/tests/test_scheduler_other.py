@@ -2475,6 +2475,8 @@ class TestMainNodesFilter(YTEnvSetup):
             out="//tmp/output",
             spec={"data_size_per_job": 1})
 
+        time.sleep(1)
+
         assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/running".format(op.id)) == 2
         assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_ratio".format(op.id)), 1.0)
         assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op.id)), 2.0)
