@@ -198,16 +198,25 @@ TChunkReplicaList AllocateWriteTargets(
     req->set_medium_index(mediumDescriptor->Index);
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        batchRspOrError,
-        NChunkClient::EErrorCode::MasterCommunicationFailed,
-        "Error allocating targets for chunk %v",
-        chunkId);
+
+    auto throwOnError = [&] (const TError& error) {
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            error,
+            NChunkClient::EErrorCode::MasterCommunicationFailed,
+            "Error allocating targets for chunk %v",
+            chunkId);
+    };
+
+    throwOnError(batchRspOrError);
     const auto& batchRsp = batchRspOrError.Value();
 
     nodeDirectory->MergeFrom(batchRsp->node_directory());
 
     auto& rsp = batchRsp->subresponses(0);
+    if (rsp.has_error()) {
+        throwOnError(FromProto<TError>(rsp.error()));
+    }
+
     auto replicas = FromProto<TChunkReplicaList>(rsp.replicas());
     if (replicas.empty()) {
         THROW_ERROR_EXCEPTION(

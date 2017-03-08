@@ -328,8 +328,8 @@ public:
     void UpdateConfig(const TSchedulerConfigPtr& config)
     {
         Config = config;
+        OnConfigUpdated();
     }
-
 
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DEFINE_SIGNAL(void(), MasterDisconnected);
@@ -398,6 +398,20 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+    void OnConfigUpdated()
+    {
+        ScheduleTestingDisconnection();
+    }
+
+    void ScheduleTestingDisconnection()
+    {
+        if (Config->TestingOptions->EnableRandomMasterDisconnection) {
+            TDelayedExecutor::Submit(
+                BIND(&TImpl::Disconnect, MakeStrong(this))
+                    .Via(Bootstrap->GetControlInvoker()),
+                RandomDuration(Config->TestingOptions->RandomMasterDisconnectionMaxBackoff));
+        }
+    }
 
     void StartConnecting()
     {
@@ -446,6 +460,8 @@ private:
         StartPeriodicActivities();
 
         MasterConnected_.Fire(result);
+
+        ScheduleTestingDisconnection();
     }
 
     void OnLockTransactionAborted()
@@ -1434,6 +1450,9 @@ private:
                         auto req = TFileYPathProxy::BeginUpload(file.Path);
                         req->set_update_mode(static_cast<int>(EUpdateMode::Overwrite));
                         req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
+                        req->set_upload_transaction_title(Format("Saving files of job %v of operation %v",
+                            file.JobId,
+                            operationId));
                         GenerateMutationId(req);
                         SetTransactionId(req, transactionId);
                         batchReq->AddRequest(req, "begin_upload");

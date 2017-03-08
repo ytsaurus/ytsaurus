@@ -50,9 +50,6 @@ protected:
 
     TChunkedMemoryPool MemoryPool_;
 
-    const NLogging::TLogger Logger;
-
-
     bool BeginRead();
     bool OnBlockEnded();
 
@@ -89,8 +86,9 @@ protected:
     virtual void InitNextBlock() = 0;
 
 private:
-    std::vector<TUnversionedValue> WidenKey(const TOwningKey& key, int keyColumnCount) const;
+    const NLogging::TLogger Logger;
 
+    std::vector<TUnversionedValue> WidenKey(const TOwningKey& key, int keyColumnCount) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

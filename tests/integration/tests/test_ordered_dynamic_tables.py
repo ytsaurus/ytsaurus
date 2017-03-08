@@ -237,8 +237,7 @@ class TestOrderedDynamicTables(YTEnvSetup):
         self.sync_mount_table("//tmp/t")
         
         trim_rows("//tmp/t", 0, -10)
-        sleep(0.1)
-        assert get("//tmp/t/@tablets/0/trimmed_row_count") == 0
+        wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 0)
 
     def test_trim_drops_chunks(self):
         self.sync_create_cells(1)
@@ -259,14 +258,12 @@ class TestOrderedDynamicTables(YTEnvSetup):
 
         for i in xrange(10):
             trim_rows("//tmp/t", 0, i * 100 + 10)
-            sleep(0.5)
-            assert get("//tmp/t/@tablets/0/trimmed_row_count") == i * 100 + 10
-            assert get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 100 * (10 - i)
-            assert get("#{0}/@child_ids".format(tablet_chunk_list_id)) == chunk_ids[i:]
+            wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == i * 100 + 10 and
+                         get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 100 * (10 - i) and
+                         get("#{0}/@child_ids".format(tablet_chunk_list_id)) == chunk_ids[i:])
 
         trim_rows("//tmp/t", 0, 1000)
-        sleep(0.5)
-        assert get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 0
+        wait(lambda: get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 0)
 
     def test_read_obeys_trim(self):
         self.sync_create_cells(1)

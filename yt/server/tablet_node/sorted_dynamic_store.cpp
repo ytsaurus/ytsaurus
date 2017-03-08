@@ -561,6 +561,7 @@ public:
 
         const auto& keyComparer = Store_->GetRowKeyComparer();
 
+        i64 dataWeight = 0;
         while (Iterator_.IsValid() && rows->size() < rows->capacity()) {
             if (keyComparer(Iterator_.GetCurrent(), TKeyWrapper{UpperBound_}) >= 0) {
                 UpdateLimits();
@@ -572,11 +573,14 @@ public:
             auto row = ProduceRow();
             if (row) {
                 rows->push_back(row);
+                dataWeight += GetDataWeight(row);
             }
 
             Iterator_.MoveNext();
         }
 
+        RowCount_ += rows->size();
+        DataWeight_ += dataWeight;
         Store_->PerformanceCounters_->DynamicRowReadCount += rows->size();
 
         return true;
@@ -589,7 +593,10 @@ public:
 
     virtual TDataStatistics GetDataStatistics() const override
     {
-        return TDataStatistics();
+        TDataStatistics dataStatistics;
+        dataStatistics.set_row_count(RowCount_);
+        dataStatistics.set_data_weight(DataWeight_);
+        return dataStatistics;
     }
 
     virtual bool IsFetchingCompleted() const override
@@ -607,6 +614,8 @@ private:
     TKey UpperBound_;
     TSharedRange<TRowRange> Ranges_;
     size_t RangeIndex_ = 0;
+    i64 RowCount_  = 0;
+    i64 DataWeight_ = 0;
 
     typedef TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>::TIterator TIterator;
     TIterator Iterator_;
@@ -711,6 +720,7 @@ public:
             rows->push_back(row);
 
             ++RowCount_;
+            DataWeight_ += GetDataWeight(row);
         }
 
         if (rows->empty()) {
@@ -725,7 +735,10 @@ public:
 
     virtual TDataStatistics GetDataStatistics() const override
     {
-        return TDataStatistics();
+        TDataStatistics dataStatistics;
+        dataStatistics.set_row_count(RowCount_);
+        dataStatistics.set_data_weight(DataWeight_);
+        return dataStatistics;
     }
 
     virtual bool IsFetchingCompleted() const override
@@ -741,6 +754,7 @@ public:
 private:
     const TSharedRange<TKey> Keys_;
     i64 RowCount_  = 0;
+    i64 DataWeight_ = 0;
     bool Finished_ = false;
 
 };
