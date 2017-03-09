@@ -437,6 +437,14 @@ public:
         return CoreSemaphore_;
     }
 
+    virtual IJobHostPtr GetJobHost(const TJobId& jobId) const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto nodeShard = GetNodeShardByJobId(jobId);
+        return CreateJobHost(jobId, nodeShard);
+    }
+
     virtual void ValidatePoolPermission(
         const TYPath& path,
         const Stroka& user,

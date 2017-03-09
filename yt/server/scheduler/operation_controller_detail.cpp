@@ -2171,13 +2171,22 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     RemoveJoblet(jobId);
 }
 
+void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TJobSummary> jobSummary)
+{
+    jobSummary->ParseStatistics();
+    if ((false)) {
+        auto jobHost = Host->GetJobHost(jobSummary->Id);
+        jobHost->SetInterruptHint(true);
+    }
+}
+
 void TOperationControllerBase::FinalizeJoblet(
     const TJobletPtr& joblet,
     TJobSummary* jobSummary)
 {
     auto& statistics = jobSummary->Statistics;
 
-    joblet->FinishTime = jobSummary->FinishTime;
+    joblet->FinishTime = *(jobSummary->FinishTime);
     {
         auto duration = joblet->FinishTime - joblet->StartTime;
         statistics.AddSample("/time/total", duration.MilliSeconds());
@@ -5813,6 +5822,11 @@ public:
     virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) override
     {
         Underlying_->OnJobAborted(std::move(jobSummary));
+    }
+
+    virtual void OnJobRunning(std::unique_ptr<TJobSummary> jobSummary) override
+    {
+        Underlying_->OnJobRunning(std::move(jobSummary));
     }
 
     virtual TScheduleJobResultPtr ScheduleJob(
