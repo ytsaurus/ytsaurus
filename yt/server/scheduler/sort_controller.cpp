@@ -376,7 +376,7 @@ protected:
         i64 MaxDataSizePerJob = 0;
 
 
-        void UpdateNodeDataSize(const TExecNodeDescriptor& descriptor, i64 delta)
+        void UpdateNodeDataSize(const TJobNodeDescriptor& descriptor, i64 delta)
         {
             if (!Controller->Spec->EnablePartitionedDataBalancing) {
                 return;
