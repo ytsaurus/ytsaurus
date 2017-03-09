@@ -17,7 +17,6 @@ namespace NYT {
 namespace NPython {
 
 using namespace NYTree;
-using namespace NYPath;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -206,8 +205,6 @@ public:
         add_keyword_method("dump", &TYsonModule::Dump, "Dumps YSON to stream");
         add_keyword_method("dumps", &TYsonModule::Dumps, "Dumps YSON to string");
 
-        add_keyword_method("parse_ypath", &TYsonModule::ParseYPath, "Parse YPath");
-
         initialize("Python bindings for YSON");
     }
 
@@ -265,18 +262,6 @@ public:
         } CATCH("Yson dumps failed");
 
         return Py::ConvertToPythonString(result);
-    }
-
-    Py::Object ParseYPath(const Py::Tuple& args_, const Py::Dict& kwargs_)
-    {
-        auto args = args_;
-        auto kwargs = kwargs_;
-
-        auto path = ConvertStringObjectToStroka(ExtractArgument(args, kwargs, "path"));
-        ValidateArgumentsEmpty(args, kwargs);
-
-        auto richPath = TRichYPath::Parse(path);
-        return CreateYsonObject("YsonString", Py::Bytes(richPath.GetPath()), ConvertTo<Py::Object>(richPath.Attributes().ToMap()));
     }
 
     virtual ~TYsonModule()
