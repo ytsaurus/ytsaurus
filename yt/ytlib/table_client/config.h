@@ -168,7 +168,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TBlobTableWriterConfig);
+DEFINE_REFCOUNTED_TYPE(TBlobTableWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -272,7 +272,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TChunkReaderOptions);
+DEFINE_REFCOUNTED_TYPE(TChunkReaderOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -281,7 +281,7 @@ class TTableReaderOptions
     , public NChunkClient::TMultiChunkReaderOptions
 { };
 
-DEFINE_REFCOUNTED_TYPE(TTableReaderOptions);
+DEFINE_REFCOUNTED_TYPE(TTableReaderOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 

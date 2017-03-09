@@ -97,55 +97,55 @@ DEFINE_ENUM(EFifoSortParameter,
 
 class TSchedulerServiceProxy;
 
-DECLARE_REFCOUNTED_CLASS(TJobIOConfig);
+DECLARE_REFCOUNTED_CLASS(TJobIOConfig)
 
-DECLARE_REFCOUNTED_CLASS(TTestingOperationOptions);
+DECLARE_REFCOUNTED_CLASS(TTestingOperationOptions)
 
-DECLARE_REFCOUNTED_CLASS(TSchedulingTagRuleConfig);
+DECLARE_REFCOUNTED_CLASS(TSchedulingTagRuleConfig)
 
-DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig);
+DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
 
-DECLARE_REFCOUNTED_CLASS(TOperationSpecBase);
+DECLARE_REFCOUNTED_CLASS(TOperationSpecBase)
 
-DECLARE_REFCOUNTED_CLASS(TUserJobSpec);
+DECLARE_REFCOUNTED_CLASS(TUserJobSpec)
 
-DECLARE_REFCOUNTED_CLASS(TUnorderedOperationSpecBase);
+DECLARE_REFCOUNTED_CLASS(TUnorderedOperationSpecBase)
 
-DECLARE_REFCOUNTED_CLASS(TMapOperationSpec);
+DECLARE_REFCOUNTED_CLASS(TMapOperationSpec)
 
-DECLARE_REFCOUNTED_CLASS(TUnorderedMergeOperationSpec);
+DECLARE_REFCOUNTED_CLASS(TUnorderedMergeOperationSpec)
 
-DECLARE_REFCOUNTED_CLASS(TSimpleOperationSpecBase);
+DECLARE_REFCOUNTED_CLASS(TSimpleOperationSpecBase)
 
-DECLARE_REFCOUNTED_CLASS(TMergeOperationSpec);
+DECLARE_REFCOUNTED_CLASS(TMergeOperationSpec)
 
-DECLARE_REFCOUNTED_CLASS(TOrderedMergeOperationSpec);
+DECLARE_REFCOUNTED_CLASS(TOrderedMergeOperationSpec)
 
-DECLARE_REFCOUNTED_CLASS(TSortedMergeOperationSpec);
+DECLARE_REFCOUNTED_CLASS(TSortedMergeOperationSpec)
 
-DECLARE_REFCOUNTED_CLASS(TEraseOperationSpec);
+DECLARE_REFCOUNTED_CLASS(TEraseOperationSpec)
 
-DECLARE_REFCOUNTED_CLASS(TReduceOperationSpecBase);
+DECLARE_REFCOUNTED_CLASS(TReduceOperationSpecBase)
 
-DECLARE_REFCOUNTED_CLASS(TReduceOperationSpec);
+DECLARE_REFCOUNTED_CLASS(TReduceOperationSpec)
 
-DECLARE_REFCOUNTED_CLASS(TJoinReduceOperationSpec);
+DECLARE_REFCOUNTED_CLASS(TJoinReduceOperationSpec)
 
-DECLARE_REFCOUNTED_CLASS(TSortOperationSpecBase);
+DECLARE_REFCOUNTED_CLASS(TSortOperationSpecBase)
 
-DECLARE_REFCOUNTED_CLASS(TSortOperationSpec);
+DECLARE_REFCOUNTED_CLASS(TSortOperationSpec)
 
-DECLARE_REFCOUNTED_CLASS(TMapReduceOperationSpec);
+DECLARE_REFCOUNTED_CLASS(TMapReduceOperationSpec)
 
-DECLARE_REFCOUNTED_CLASS(TRemoteCopyOperationSpec);
+DECLARE_REFCOUNTED_CLASS(TRemoteCopyOperationSpec)
 
-DECLARE_REFCOUNTED_CLASS(TPoolConfig);
+DECLARE_REFCOUNTED_CLASS(TPoolConfig)
 
-DECLARE_REFCOUNTED_CLASS(TStrategyOperationSpec);
+DECLARE_REFCOUNTED_CLASS(TStrategyOperationSpec)
 
-DECLARE_REFCOUNTED_CLASS(TOperationRuntimeParams);
+DECLARE_REFCOUNTED_CLASS(TOperationRuntimeParams)
 
-DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig);
+DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

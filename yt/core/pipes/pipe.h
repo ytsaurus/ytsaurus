@@ -27,7 +27,7 @@ private:
     DECLARE_NEW_FRIEND();
 };
 
-DEFINE_REFCOUNTED_TYPE(TNamedPipe);
+DEFINE_REFCOUNTED_TYPE(TNamedPipe)
 
 ////////////////////////////////////////////////////////////////////////////////
 

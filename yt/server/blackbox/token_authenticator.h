@@ -17,7 +17,7 @@ struct ITokenAuthenticator
         const Stroka& userIP) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ITokenAuthenticator);
+DEFINE_REFCOUNTED_TYPE(ITokenAuthenticator)
 
 ITokenAuthenticatorPtr CreateTokenAuthenticator(
     TTokenAuthenticatorConfigPtr config,

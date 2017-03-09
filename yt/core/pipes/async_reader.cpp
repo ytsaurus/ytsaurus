@@ -306,7 +306,7 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TAsyncReaderImpl);
+DEFINE_REFCOUNTED_TYPE(TAsyncReaderImpl)
 
 ////////////////////////////////////////////////////////////////////////////////
 

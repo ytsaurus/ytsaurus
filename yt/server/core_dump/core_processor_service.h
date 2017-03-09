@@ -57,7 +57,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, StartCoreDump);
 };
 
-DEFINE_REFCOUNTED_TYPE(TCoreProcessorService);
+DEFINE_REFCOUNTED_TYPE(TCoreProcessorService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
