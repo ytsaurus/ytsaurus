@@ -71,6 +71,16 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
     i64 inputRowCount,
     double compressionRatio);
 
+////////////////////////////////////////////////////////////////////
+
+struct IJobHost
+    : public TIntrinsicRefCounted
+{
+    virtual TFuture<void> SetInterruptHint(bool hint) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IJobHost)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);

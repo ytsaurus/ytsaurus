@@ -140,6 +140,7 @@ private: \
     IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<TJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
 
     IMPLEMENT_SAFE_VOID_METHOD(SaveSnapshot, (TOutputStream* output), (output), THREAD_AFFINITY_ANY())
 

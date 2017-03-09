@@ -98,7 +98,7 @@ class TJob
     DEFINE_BYVAL_RW_PROPERTY(bool, Preempted);
 
     //! Deadline for job to be interrupted.
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, InterruptDeadline);
+    DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, InterruptDeadline);
 
     //! Contains several important values extracted from job statistics.
     DEFINE_BYVAL_RO_PROPERTY(TBriefJobStatisticsPtr, BriefStatistics);
@@ -114,6 +114,12 @@ class TJob
 
     //! Cookie for timeout on interrupted job.
     DEFINE_BYREF_RW_PROPERTY(NConcurrency::TDelayedExecutorCookie, InterruptCookie);
+
+    //! Last time when statistics and resource usage from running job was updated.
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, LastRunningJobUpdateTime);
+
+    //! True if controller requested job interrupt.
+    DEFINE_BYVAL_RW_PROPERTY(bool, InterruptHint, false);
 
 public:
     TJob(
@@ -158,7 +164,7 @@ struct TJobSummary
     const TJobResult Result;
     const TJobId Id;
     const Stroka StatisticsSuffix;
-    const TInstant FinishTime;
+    TNullable<TInstant> FinishTime;
     TNullable<TDuration> PrepareDuration;
     TNullable<TDuration> DownloadDuration;
     TNullable<TDuration> ExecDuration;
