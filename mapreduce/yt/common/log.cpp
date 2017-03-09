@@ -2,6 +2,7 @@
 
 #include <util/datetime/base.h>
 #include <util/system/mutex.h>
+#include <util/system/thread.h>
 #include <util/stream/str.h>
 #include <util/stream/printf.h>
 #include <util/stream/file.h>
@@ -41,7 +42,8 @@ public:
         }
 
         TStringStream stream;
-        stream << TInstant::Now().ToStringLocal() << " ";
+        stream << TInstant::Now().ToStringLocal() << " "
+               << "[" << TThread::CurrentThreadId() << "] ";
         Printf(stream, format, args);
         stream << Endl;
 
