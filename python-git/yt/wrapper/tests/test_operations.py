@@ -7,7 +7,7 @@ from .helpers import TEST_DIR, PYTHONPATH, get_test_dir_path, get_test_file_path
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
 from yt.common import which, makedirp
 from yt.wrapper.common import parse_bool
-from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
+from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs
 from yt.wrapper.table import TablePath
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
@@ -26,6 +26,7 @@ import tempfile
 import random
 import logging
 import pytest
+import signal
 
 class AggregateMapper(object):
     def __init__(self):
@@ -55,7 +56,6 @@ class AggregateReducer(object):
 class CreateModulesArchive(object):
     def __call__(self, tempfiles_manager=None, custom_python_used=False):
         return create_modules_archive_default(tempfiles_manager, custom_python_used, None)
-
 
 @pytest.mark.usefixtures("yt_env")
 class TestOperations(object):
@@ -1245,3 +1245,23 @@ if __name__ == "__main__":
                                cwd=get_test_dir_path(), env=self.env)
         check(yt.read_table("//tmp/output_table"), [{"value": 0, "constant": 10}])
 
+    def test_download_job_stderr_messages(self):
+        def mapper(row):
+            sys.stderr.write("Job with stderr")
+            yield row
+
+        temp_table_input = yt.create_temp_table()
+        temp_table_output = yt.create_temp_table()
+        yt.write_table(temp_table_input, [{"x": i} for i in range(10)], format=yt.JsonFormat(), raw=False)
+        operation = yt.run_map(mapper, temp_table_input, temp_table_output,
+                               spec={"data_size_per_job": 1}, input_format=yt.JsonFormat())
+
+        stderrs_list = get_stderrs(operation.id, False)
+        assert len(stderrs_list) == 10
+
+        binary = get_test_file_path("stderr_download.py")
+        process = subprocess.Popen(["python", binary, operation.id], env=self.env, stderr=subprocess.PIPE)
+
+        time.sleep(0.5)
+        os.kill(process.pid, signal.SIGINT)
+        process.wait(2)

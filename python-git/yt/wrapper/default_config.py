@@ -319,7 +319,11 @@ default_config = {
         # Abort operation when SIGINT is received while waiting for the operation to finish.
         "abort_on_sigint": True,
         # Log job statistics on operation complete.
-        "log_job_statistics": False
+        "log_job_statistics": False,
+        # Number of threads for downloading jobs stderr messages.
+        "stderr_download_thread_count": 10,
+        # Timeout for downloading jobs stderr messages.
+        "stderr_download_timeout": 60 * 1000
     },
 
     # Size of block to read from response stream.
