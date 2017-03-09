@@ -10,7 +10,7 @@ from .file_commands import read_file
 from . import yson
 
 import yt.logger as logger
-from yt.common import format_error, date_string_to_datetime, to_native_str
+from yt.common import format_error, date_string_to_datetime, to_native_str, flatten
 
 from yt.packages.decorator import decorator
 from yt.packages.six import iteritems, iterkeys, itervalues
@@ -360,11 +360,11 @@ def _create_operation_failed_error(operation, state):
 
 class Operation(object):
     """Holds information about started operation."""
-    def __init__(self, type, id, finalize=None, abort_exceptions=(KeyboardInterrupt,), client=None):
+    def __init__(self, type, id, finalization_actions=None, abort_exceptions=(KeyboardInterrupt,), client=None):
         self.type = type
         self.id = id
         self.abort_exceptions = abort_exceptions
-        self.finalize = finalize
+        self.finalization_actions = finalization_actions
         self.client = client
         self.printer = PrintOperationInfo(id, client=client)
 
@@ -447,7 +447,7 @@ class Operation(object):
         :param float timeout: timeout of operation in sec. `None` means operation is endlessly waited for.
         """
 
-        finalize = self.finalize if self.finalize else lambda state: None
+        finalization_actions = flatten(self.finalization_actions) if self.finalization_actions else []
         operation_poll_period = get_config(self.client)["operation_tracker"]["poll_period"] / 1000.0
         time_watcher = TimeWatcher(min_interval=operation_poll_period / 5.0,
                                    max_interval=operation_poll_period,
@@ -457,13 +457,17 @@ class Operation(object):
         def abort():
             for state in self.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0), self.abort):
                 print_info(state)
-            finalize(state)
+
+            for finalize_function in finalization_actions:
+                finalize_function(state)
 
         abort_on_sigint = get_config(self.client)["operation_tracker"]["abort_on_sigint"]
         with ExceptionCatcher(self.abort_exceptions, abort, enable=abort_on_sigint):
             for state in self.get_state_monitor(time_watcher):
                 print_info(state)
-            finalize(state)
+
+            for finalize_function in finalization_actions:
+                finalize_function(state)
 
         if check_result and state.is_unsuccessfully_finished():
             raise _create_operation_failed_error(self, state)
