@@ -3,7 +3,7 @@ from .cypress_commands import search, concatenate, find_free_subpath, create_rev
 from .table_commands import create_temp_table, write_table, read_table
 from .dynamic_table_commands import select_rows, insert_rows, delete_rows, lookup_rows
 from .run_operation_commands import run_erase, run_merge, run_sort, run_map_reduce, run_map, run_reduce, \
-                                    run_join_reduce, run_remote_copy
+                                    run_join_reduce, run_remote_copy, run_operation
 from .operation_commands import get_operation_state, abort_operation, complete_operation
 from .file_commands import read_file, write_file, smart_upload_file
 from .transaction import PingTransaction
