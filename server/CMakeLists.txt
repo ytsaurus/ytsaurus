@@ -439,6 +439,7 @@ SRCS(
 )
 
 PEERDIR(
+  contrib/libs/openssl
   contrib/libs/sparsehash
   library/streams/lz
   library/http/server
