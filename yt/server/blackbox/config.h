@@ -36,7 +36,7 @@ public:
     TDuration BackoffTimeout;
 };
 
-DEFINE_REFCOUNTED_TYPE(TDefaultBlackboxServiceConfig);
+DEFINE_REFCOUNTED_TYPE(TDefaultBlackboxServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +62,7 @@ public:
     bool EnableClientIdsCheck = true;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTokenAuthenticatorConfig);
+DEFINE_REFCOUNTED_TYPE(TTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,7 +74,7 @@ public:
     { }
 };
 
-DEFINE_REFCOUNTED_TYPE(TCookieAuthenticatorConfig);
+DEFINE_REFCOUNTED_TYPE(TCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -352,7 +352,7 @@ private:
     TFuture<void> TransferResultFuture_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TJobInputReader);
+DEFINE_REFCOUNTED_TYPE(TJobInputReader)
 
 
 class TQueryPreparer

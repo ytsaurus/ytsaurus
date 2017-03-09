@@ -35,8 +35,8 @@ private:
     IInvokerPtr Invoker_;
 };
 
-DECLARE_REFCOUNTED_TYPE(TNodeJSInputStack);
-DEFINE_REFCOUNTED_TYPE(TNodeJSInputStack);
+DECLARE_REFCOUNTED_TYPE(TNodeJSInputStack)
+DEFINE_REFCOUNTED_TYPE(TNodeJSInputStack)
 
 ////////////////////////////////////////////////////////////////////////////////
 

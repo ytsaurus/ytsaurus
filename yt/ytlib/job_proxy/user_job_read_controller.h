@@ -92,7 +92,7 @@ private:
     NLogging::TLogger Logger;
 };
 
-DEFINE_REFCOUNTED_TYPE(TUserJobReadController);
+DEFINE_REFCOUNTED_TYPE(TUserJobReadController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
