@@ -116,6 +116,29 @@ void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////
 
+TJobNodeDescriptor::TJobNodeDescriptor(const TExecNodeDescriptor& other)
+    : Id(other.Id)
+    , Address(other.Address)
+    , IOWeight(other.IOWeight)
+{ }
+
+void TJobNodeDescriptor::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    // COMPAT(babenko)
+    if (context.GetVersion() == 200003 && context.IsLoad()) {
+        *this = Load<TExecNodeDescriptor>(context.LoadContext());
+        return;
+    }
+
+    Persist(context, Id);
+    Persist(context, Address);
+    Persist(context, IOWeight);
+}
+
+////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT
 
