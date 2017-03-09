@@ -184,7 +184,7 @@ class TestLocalMode(object):
 
     def test_watcher(self):
         watcher_config = {
-            "logs_rotate_size": "1M",
+            "logs_rotate_size": "500k",
             "logs_rotate_interval": 1,
             "logs_rotate_max_part_count": 5
         }
