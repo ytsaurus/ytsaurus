@@ -16,7 +16,8 @@ class Task(object):
                  destination_erasure_codec=None, destination_force_sort=None, copy_spec=None, postprocess_spec=None,
                  job_timeout=None, intermediate_format=None, lease_timeout=None, queue_name=None,
                  force_copy_with_operation=None, additional_attributes=None, table_for_errors=None,
-                 schema_inference_mode=None, temp_files_dir=None, hive_json_format_attributes=None, logger=None):
+                 schema_inference_mode=None, temp_files_dir=None, hive_json_format_attributes=None,
+                 data_proxy_role=None, logger=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.source_cluster_token = get_value(source_cluster_token, token)
@@ -52,6 +53,7 @@ class Task(object):
         self.schema_inference_mode = schema_inference_mode
         self.temp_files_dir = temp_files_dir
         self.hive_json_format_attributes = hive_json_format_attributes
+        self.data_proxy_role = data_proxy_role
 
         self.destination_compression_codec = destination_compression_codec
         self.destination_erasure_codec = destination_erasure_codec

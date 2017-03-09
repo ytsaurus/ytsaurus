@@ -241,16 +241,20 @@ class ReadCommandBuilder(object):
     def build(self):
         return self.get_command(), self.get_package_files()
 
-def _prepare_read_builder(script_name, tmp_dir, fastbone, pack=False, token_file=None):
+def _prepare_read_builder(script_name, tmp_dir, data_proxy_role, pack=False, token_file=None):
     builder = ReadCommandBuilder(script_name)
     if pack:
         builder \
             .add_file_argument("--package-file", _pack_module("yt", tmp_dir)) \
             .add_file_argument("--package-file", _pack_module("yt_yson_bindings", tmp_dir))
 
+    proxy_discovery_url = "hosts"
+    if data_proxy_role:
+        proxy_discovery_url = "hosts/" + data_proxy_role
+
     config = {
         "proxy": {
-            "proxy_discovery_url": ("hosts/fb" if fastbone else "hosts")
+            "proxy_discovery_url": proxy_discovery_url,
         },
         "read_retries": {
             "enable": True,
@@ -267,12 +271,12 @@ def _prepare_read_builder(script_name, tmp_dir, fastbone, pack=False, token_file
     builder.add_file_argument("--config-file", config_file)
     return builder
 
-def _prepare_read_table_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pack=False, input_type="json",
+def _prepare_read_table_from_yt_command(yt_client, src, format, tmp_dir, data_proxy_role, pack=False, input_type="json",
                                         token_file=None):
     if len(yt.TablePath(src, client=yt_client).attributes.get("ranges", [])) > 1:
         raise yt.YtError("Reading slices from table with multiple ranges is not supported")
     assert yt_client.COMMAND_PARAMS["transaction_id"] is not None
-    builder = _prepare_read_builder("python read_from_yt.py", tmp_dir, fastbone, pack, token_file)
+    builder = _prepare_read_builder("python read_from_yt.py", tmp_dir, data_proxy_role, pack, token_file)
     command, files = builder \
         .add_string_argument("--proxy", yt_client.config["proxy"]["url"]) \
         .add_string_argument("--format", shellquote(format)) \
@@ -283,11 +287,11 @@ def _prepare_read_table_from_yt_command(yt_client, src, format, tmp_dir, fastbon
         .build()
     return command, files
 
-def _prepare_read_file_from_yt_command(destination_client, source_client, src, temp_files_dir, tmp_dir, fastbone,
+def _prepare_read_file_from_yt_command(destination_client, source_client, src, temp_files_dir, tmp_dir, data_proxy_role,
                                        pack=False, token_file=None, erasure_codec=None, compression_codec=None):
     assert source_client.COMMAND_PARAMS["transaction_id"] is not None
     assert destination_client.COMMAND_PARAMS["transaction_id"] is not None
-    builder = _prepare_read_builder("python read_file_from_yt.py", tmp_dir, fastbone, pack, token_file)
+    builder = _prepare_read_builder("python read_file_from_yt.py", tmp_dir, data_proxy_role, pack, token_file)
     command, files = builder \
         .add_string_argument("--source-proxy", source_client.config["proxy"]["url"]) \
         .add_string_argument("--destination-proxy", destination_client.config["proxy"]["url"]) \
@@ -397,7 +401,7 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
 
     copy_additional_attributes(source_client, destination_client, src, dst, additional_attributes)
 
-def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, token_storage_path,
+def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, data_proxy_role, token_storage_path,
                                 copy_spec_template=None, postprocess_spec_template=None, default_tmp_dir=None,
                                 compression_codec=None, erasure_codec=None, intermediate_format=None,
                                 small_table_size_threshold=None, force_copy_with_operation=False,
@@ -467,7 +471,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                         src.to_yson_string(),
                         str(intermediate_format),
                         tmp_dir,
-                        fastbone,
+                        data_proxy_role,
                         pack=True,
                         token_file=yt_token_file.attributes["file_name"])
 
@@ -516,7 +520,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
     finally:
         shutil.rmtree(tmp_dir)
 
-def copy_file_yt_to_yt(source_client, destination_client, src, dst, fastbone, token_storage_path,
+def copy_file_yt_to_yt(source_client, destination_client, src, dst, data_proxy_role, token_storage_path,
                        copy_spec_template=None, default_tmp_dir=None, compression_codec=None,
                        erasure_codec=None, intermediate_format=None, small_file_size_threshold=None,
                        force_copy_with_operation=False, additional_attributes=None, temp_files_dir=None):
@@ -578,7 +582,7 @@ def copy_file_yt_to_yt(source_client, destination_client, src, dst, fastbone, to
                             src.to_yson_string(),
                             temp_files_dir,
                             tmp_dir,
-                            fastbone,
+                            data_proxy_role,
                             pack=True,
                             token_file=yt_token_file.attributes["file_name"],
                             erasure_codec=erasure_codec,
@@ -753,9 +757,7 @@ client.write_table(table, gen_rows())
 """
 
     ranges = _slice_yt_table_evenly(yt_client, src, 512 * yt.common.MB)
-    fastbone = kwargs.get("fastbone", True)
-    if "fastbone" in kwargs:
-        del kwargs["fastbone"]
+    data_proxy_role = kwargs.pop("data_proxy_role", None)
 
     tmp_dir = tempfile.mkdtemp(dir=kwargs.get("default_tmp_dir"))
     kiwi_transmittor.create("map_node", token_storage_path, ignore_existing=True, recursive=True)
@@ -771,7 +773,7 @@ client.write_table(table, gen_rows())
                     src,
                     "<lenval=true>yamr",
                     tmp_dir,
-                    fastbone,
+                    data_proxy_role,
                     pack=True,
                     token_file=yt_token_file.attributes["file_name"])
 

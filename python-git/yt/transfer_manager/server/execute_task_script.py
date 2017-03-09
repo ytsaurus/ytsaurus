@@ -53,7 +53,15 @@ def execute_task(task, message_queue, config, logger):
                 "destination_cluster": task.destination_cluster
             }
         }
-        copy_spec = update({"pool": task.pool}, update(deepcopy(common_spec), get_value(task.copy_spec, {})))
+
+        base_operation_spec = {
+            "pool": task.pool,
+            "resource_limits": {
+                "user_slots": config.get("user_slots_limit_per_operation", 200)
+            }
+        }
+
+        copy_spec = update(base_operation_spec, update(deepcopy(common_spec), get_value(task.copy_spec, {})))
         postprocess_spec = update(deepcopy(common_spec), get_value(task.postprocess_spec, {}))
 
         source_client = task.get_source_client(clusters_configuration.clusters)
@@ -71,6 +79,12 @@ def execute_task(task, message_queue, config, logger):
         fastbone = source_client._parameters.get("fastbone", False) and destination_client._parameters.get("fastbone", False)
         fastbone = parameters.get("fastbone", fastbone)
 
+        data_proxy_role = source_client._parameters.get("data_proxy_role")
+        data_proxy_role = get_value(task.data_proxy_role, parameters.get("data_proxy_role", data_proxy_role))
+
+        if data_proxy_role is None and fastbone:
+            data_proxy_role = "fb"
+
         force_copy_with_operation = task.force_copy_with_operation or \
                 not config.get("enable_copy_without_operation", True)
 
@@ -82,7 +96,7 @@ def execute_task(task, message_queue, config, logger):
                     destination_client,
                     task.source_table,
                     task.destination_table,
-                    fastbone=fastbone,
+                    data_proxy_role=data_proxy_role,
                     token_storage_path=config["token_storage_path"],
                     copy_spec_template=copy_spec,
                     compression_codec=task.destination_compression_codec,
@@ -99,7 +113,7 @@ def execute_task(task, message_queue, config, logger):
                     destination_client,
                     task.source_table,
                     task.destination_table,
-                    fastbone=fastbone,
+                    data_proxy_role=data_proxy_role,
                     token_storage_path=config["token_storage_path"],
                     copy_spec_template=copy_spec,
                     postprocess_spec_template=postprocess_spec,
@@ -136,7 +150,7 @@ def execute_task(task, message_queue, config, logger):
                 clusters_configuration.kiwi_transmitter,
                 task.source_table,
                 token_storage_path=config["token_storage_path"],
-                fastbone=fastbone,
+                data_proxy_role=data_proxy_role,
                 kiwi_user=task.kiwi_user,
                 kwworm_options=task.kwworm_options,
                 copy_spec_template=copy_spec,
