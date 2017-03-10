@@ -49,6 +49,7 @@ void ToProto(NProto::TReadLimit* protoLimit, const TInputSliceLimit& limit);
 class TInputChunkSlice
     : public TIntrinsicRefCounted
 {
+public:
     DECLARE_BYVAL_RO_PROPERTY(i64, DataSize);
     DECLARE_BYVAL_RO_PROPERTY(i64, RowCount);
 
