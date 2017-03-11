@@ -21,6 +21,11 @@ class ClientState(object):
         # socket.getfqdn can be slow so client fqdn is cached.
         self._fqdn = None
 
+        # Token can be received from oauth server, in this case we do not want to
+        # request on each request to YT.
+        self._token = None
+        self._token_received = False
+
         # Cache for API version (to check it only once).
         self._api_version = None
         self._commands = None

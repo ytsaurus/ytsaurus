@@ -1,6 +1,6 @@
 from .config import get_config, get_option, set_option, get_backend_type
 from .common import require, get_value, total_seconds, generate_uuid, update, \
-                    remove_nones_from_dict
+                    remove_nones_from_dict, is_arcadia_python
 from .retries import Retrier
 from .errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError, \
                     YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut, \
@@ -337,8 +337,24 @@ def get_fqdn(client=None):
 
     return fqdn
 
+def _get_token_by_ssh_session(client):
+    try:
+        import library.python.oauth as lpo
+    except ImportError:
+        logger.warning("Module library.python.oauth not found, cannot receive token by ssh session")
+        return
+
+    token = lpo.get_token(get_config(client)["oauth_client_id"], get_config(client)["oauth_client_secret"])
+    if not token:
+        raise YtTokenError("Failed to receive token using current session ssh keys")
+
+    return token
+
 def get_token(token=None, client=None):
     """Extracts token from given `token` and `client` arguments. Also checks token for correctness."""
+    if get_option("_token_received", client=client):
+        return get_option("_token", client=client)
+
     if token is None:
         if not get_config(client)["enable_token"]:
             return None
@@ -355,6 +371,13 @@ def get_token(token=None, client=None):
         else:
             logger.debug("Token got from environment variable or config")
 
+    if not token:
+        receive_token_by_ssh_session = get_config(client)["allow_receive_token_by_current_ssh_session"]
+        if receive_token_by_ssh_session is None:
+            receive_token_by_ssh_session = is_arcadia_python()
+        if receive_token_by_ssh_session:
+            token = _get_token_by_ssh_session(client)
+
     # Empty token considered as missing.
     if not token:
         token = None
@@ -363,6 +386,9 @@ def get_token(token=None, client=None):
     if token is not None:
         require(all(33 <= ord(c) <= 126 for c in token),
                 lambda: YtTokenError("You have an improper authentication token"))
+
+    set_option("_token", token, client=client)
+    set_option("_token_received", True, client=client)
 
     return token
 

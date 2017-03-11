@@ -234,3 +234,12 @@ def remove_nones_from_dict(obj):
             result[key] = remove_nones_from_dict(value)
     return result
 
+def is_arcadia_python():
+    try:
+        import __res
+        assert __res
+        return True
+    except ImportError:
+        pass
+
+    return hasattr(sys, "extra_modules")
