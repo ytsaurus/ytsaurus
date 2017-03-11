@@ -3,7 +3,7 @@ from __future__ import print_function
 from . import config
 from .config import get_config
 from .pickling import Pickler
-from .common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value, which, get_disk_size
+from .common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value, which, get_disk_size, is_arcadia_python
 from .py_runner_helpers import process_rows
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
 from ._py_runner import get_platform_version, main as run_py_runner
@@ -82,16 +82,6 @@ def is_running_interactively():
     else:
         # Old IPython (0.12 at least) has no sys.ps1 defined
         return "__IPYTHON__" in globals()
-
-def is_arcadia_python():
-    try:
-        import __res
-        assert __res
-        return True
-    except ImportError:
-        pass
-
-    return hasattr(sys, "extra_modules")
 
 class TempfilesManager(object):
     def __init__(self, remove_temp_files, directory):
