@@ -43,7 +43,7 @@ struct IChunkTreeBalancerCallbacks
         TChunkTree* const* childrenEnd) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IChunkTreeBalancerCallbacks);
+DEFINE_REFCOUNTED_TYPE(IChunkTreeBalancerCallbacks)
 
 ////////////////////////////////////////////////////////////////////////////////
 

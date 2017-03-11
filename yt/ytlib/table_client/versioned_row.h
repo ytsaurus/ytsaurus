@@ -362,7 +362,7 @@ public:
     void AddValue(const TVersionedValue& value);
     void AddDeleteTimestamp(TTimestamp timestamp);
 
-    // Sometimes versioned row have write timestamps without correspondig values,
+    // Sometimes versioned row have write timestamps without corresponding values,
     // when reading with column filter.
     void AddWriteTimestamp(TTimestamp timestamp);
 

@@ -420,7 +420,7 @@ private:
     NRpc::IChannelPtr Channel_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TRpcProxyClient);
+DEFINE_REFCOUNTED_TYPE(TRpcProxyClient)
 
 ////////////////////////////////////////////////////////////////////////////////
 

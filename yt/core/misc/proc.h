@@ -122,7 +122,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TMountTmpfsConfig);
+DEFINE_REFCOUNTED_TYPE(TMountTmpfsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,7 +147,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TUmountConfig);
+DEFINE_REFCOUNTED_TYPE(TUmountConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
