@@ -313,8 +313,14 @@ def pipe_from_yt_to_logbroker(yt_client, logbroker, table_path, ranges, session_
                 line = session_rsp_lines_iter.next()
                 if line.startswith("ping"):
                     continue
-                if any(line.startswith(marker) for marker in ["eof", "error", "dc-off"]):
-                    raise FennelError("Failed to write chunk: received message %r", line)
+                if line.startswith("error"):
+                    if "fatal=false" in line:
+                        logger.warning("Non-fatal error while writing chunk: message %r", line)
+                        continue
+                    else:
+                        raise FennelError("Failed to write chunk with fatal error: received message %r", line)
+                if line.startswith("eof") or line.startswith("dc-off"):
+                    raise FennelError("Eof or dc-off message received, but not all data is written yet, message %r", line)
                 if line.startswith("skip"):
                     logger.info("Chunk skipped due to duplication, response: %s", line)
                     break
@@ -323,6 +329,8 @@ def pipe_from_yt_to_logbroker(yt_client, logbroker, table_path, ranges, session_
                     # TODO(ignat): add more checks
                     logger.info("Chunk successfully written, response: %s", line)
                     break
+
+                raise FennelError("Unknown message received: %r", line)
 
     store_rsp = requests.put("http://{}:9000/rt/store".format(url),
                              headers={
