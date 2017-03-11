@@ -149,5 +149,21 @@ struct TExecNodeDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A reduced verison of TExecNodeDescriptor, which is associated with jobs.
+struct TJobNodeDescriptor
+{
+    TJobNodeDescriptor() = default;
+    TJobNodeDescriptor(const TJobNodeDescriptor& other) = default;
+    TJobNodeDescriptor(const TExecNodeDescriptor& other);
+
+    NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
+    Stroka Address;
+    double IOWeight = 0.0;
+
+    void Persist(const TStreamPersistenceContext& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT

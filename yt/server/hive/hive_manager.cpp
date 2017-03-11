@@ -507,7 +507,7 @@ private:
     }
 
 
-    void ReliablePostMessage(TMailbox* mailbox, TEncapsulatedMessage message)
+    void ReliablePostMessage(TMailbox* mailbox, const TEncapsulatedMessage& message)
     {
         // A typical mistake is to try sending a Hive message outside of a mutation.
         YCHECK(HasMutationContext());
@@ -522,13 +522,13 @@ private:
             messageId,
             message.type());
 
-        AnnotateWithTraceContext(&message);
-        mailbox->OutcomingMessages().push_back(std::move(message));
+        mailbox->OutcomingMessages().push_back(message);
+        AnnotateWithTraceContext(&mailbox->OutcomingMessages().back());
 
         MaybePostOutcomingMessages(mailbox, false);
     }
 
-    void UnreliablePostMessage(TMailbox* mailbox, TEncapsulatedMessage message)
+    void UnreliablePostMessage(TMailbox* mailbox, const TEncapsulatedMessage& message)
     {
         if (!mailbox->GetConnected()) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Unreliable outcoming message dropped since mailbox is not connected (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
@@ -545,12 +545,11 @@ private:
                 message.type());
         }
 
-        AnnotateWithTraceContext(&message);
-
         auto req = proxy->SendMessages();
         req->SetTimeout(Config_->SendRpcTimeout);
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
         *req->add_messages() = message;
+        AnnotateWithTraceContext(req->mutable_messages(0));
 
         LOG_DEBUG("Sending unreliable outcoming message (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
             SelfCellId_,

@@ -9,7 +9,7 @@ namespace NCellScheduler {
 
 class TBootstrap;
 
-DECLARE_REFCOUNTED_CLASS(TCellSchedulerConfig);
+DECLARE_REFCOUNTED_CLASS(TCellSchedulerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
