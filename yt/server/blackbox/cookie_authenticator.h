@@ -19,7 +19,7 @@ struct ICookieAuthenticator
         const Stroka& userIP) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ICookieAuthenticator);
+DEFINE_REFCOUNTED_TYPE(ICookieAuthenticator)
 
 ICookieAuthenticatorPtr CreateCookieAuthenticator(
     TCookieAuthenticatorConfigPtr config,

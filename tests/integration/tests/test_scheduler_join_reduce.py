@@ -142,7 +142,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 "reducer": {
                     "format": "dsv"}})
 
-        # Must be splitted into two jobs, despite that only one primary slice is available.
+        # Must be split into two jobs, despite that only one primary slice is available.
         assert get("//tmp/out/@chunk_count") == 2
         assert get("//tmp/out/@sorted")
 

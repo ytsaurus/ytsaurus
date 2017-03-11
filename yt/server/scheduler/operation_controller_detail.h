@@ -442,7 +442,7 @@ protected:
         TJobId JobId;
         EJobType JobType;
 
-        TExecNodeDescriptor NodeDescriptor;
+        TJobNodeDescriptor NodeDescriptor;
 
         TExtendedJobResources EstimatedResourceUsage;
         double JobProxyMemoryReserveFactor = -1;
@@ -484,7 +484,7 @@ protected:
             i64 dataSize,
             IChunkPoolInput* destinationPool,
             IChunkPoolInput::TCookie inputCookie,
-            const TExecNodeDescriptor& nodeDescriptor)
+            const TJobNodeDescriptor& nodeDescriptor)
             : Lost(false)
             , JobId(jobId)
             , SourceTask(std::move(sourceTask))
@@ -506,7 +506,7 @@ protected:
         IChunkPoolInput* DestinationPool;
         IChunkPoolInput::TCookie InputCookie;
 
-        TExecNodeDescriptor NodeDescriptor;
+        TJobNodeDescriptor NodeDescriptor;
 
         void Persist(const TPersistenceContext& context);
 

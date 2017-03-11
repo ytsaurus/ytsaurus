@@ -71,12 +71,12 @@ struct IEventLogHost;
 DECLARE_REFCOUNTED_STRUCT(ISchedulerStrategy)
 struct ISchedulerStrategyHost;
 
-DECLARE_REFCOUNTED_STRUCT(TControllerTransactions);
+DECLARE_REFCOUNTED_STRUCT(TControllerTransactions)
 
 struct IOperationHost;
 
-DECLARE_REFCOUNTED_STRUCT(ISchedulingContext);
-DECLARE_REFCOUNTED_STRUCT(IOperationController);
+DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
+DECLARE_REFCOUNTED_STRUCT(IOperationController)
 
 DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraper)
 
