@@ -149,6 +149,7 @@ class ReadIterator(IteratorRetrier):
         self.retriable_state = retriable_state_class()
         self.response = None
         self.start_response = None
+        self.last_response = None
         self.iterator = None
 
     def read_iterator(self):
