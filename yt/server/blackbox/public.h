@@ -9,11 +9,11 @@ namespace NBlackbox {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TDefaultBlackboxServiceConfig);
-DECLARE_REFCOUNTED_CLASS(TTokenAuthenticatorConfig);
-DECLARE_REFCOUNTED_CLASS(TCookieAuthenticatorConfig);
+DECLARE_REFCOUNTED_CLASS(TDefaultBlackboxServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TTokenAuthenticatorConfig)
+DECLARE_REFCOUNTED_CLASS(TCookieAuthenticatorConfig)
 
-DECLARE_REFCOUNTED_STRUCT(IBlackboxService);
+DECLARE_REFCOUNTED_STRUCT(IBlackboxService)
 
 struct TAuthenticationResult
 {
@@ -21,8 +21,8 @@ struct TAuthenticationResult
     Stroka Realm;
 };
 
-DECLARE_REFCOUNTED_STRUCT(ICookieAuthenticator);
-DECLARE_REFCOUNTED_STRUCT(ITokenAuthenticator);
+DECLARE_REFCOUNTED_STRUCT(ICookieAuthenticator)
+DECLARE_REFCOUNTED_STRUCT(ITokenAuthenticator)
 
 ////////////////////////////////////////////////////////////////////////////////
 

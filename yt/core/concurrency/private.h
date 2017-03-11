@@ -11,12 +11,12 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TSchedulerThread);
+DECLARE_REFCOUNTED_CLASS(TSchedulerThread)
 
 class TEventCount;
 
-DECLARE_REFCOUNTED_CLASS(TInvokerQueue);
-DECLARE_REFCOUNTED_CLASS(TFairShareInvokerQueue);
+DECLARE_REFCOUNTED_CLASS(TInvokerQueue)
+DECLARE_REFCOUNTED_CLASS(TFairShareInvokerQueue)
 
 DEFINE_ENUM(EBeginExecuteResult,
     (Success)

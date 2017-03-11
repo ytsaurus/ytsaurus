@@ -39,7 +39,7 @@ struct IUserJobIOFactory
         const NTableClient::TTableSchema& tableSchema,
         const NTableClient::TChunkTimestamps& chunkTimestamps) = 0;
 };
-DEFINE_REFCOUNTED_TYPE(IUserJobIOFactory);
+DEFINE_REFCOUNTED_TYPE(IUserJobIOFactory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
