@@ -54,18 +54,27 @@ class YsonWriterTestBase(object):
         except YsonError as error:
             assert error.attributes.get("row_key_path") == "/3"
             assert "row_index" not in error.attributes
+        except RuntimeError:
+            # Old version of YSON bindings.
+            pass
 
         try:
             self.dumps([0, 1, 2, 2 ** 64], yson_type="list_fragment")
         except YsonError as error:
             assert "row_key_path" not in error.attributes
             assert error.attributes.get("row_index") == 3
+        except RuntimeError:
+            # Old version of YSON bindings.
+            pass
 
         try:
             self.dumps([0, 1, 2, {"a": [5, 6, {"b": {1:2}}]}])
         except YsonError as error:
             assert error.attributes.get("row_key_path") == "/3/a/2/b"
             assert "row_index" not in error.attributes
+        except RuntimeError:
+            # Old version of YSON bindings.
+            pass
 
         try:
             obj = YsonEntity()
@@ -74,6 +83,9 @@ class YsonWriterTestBase(object):
         except YsonError as error:
             assert error.attributes.get("row_key_path") == "/@a/0"
             assert "row_index" not in error.attributes
+        except RuntimeError:
+            # Old version of YSON bindings.
+            pass
 
     def test_list_fragment_text(self):
         assert self.dumps(
