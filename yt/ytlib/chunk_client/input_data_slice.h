@@ -1,7 +1,8 @@
 #pragma once
 
-#include "input_chunk_slice.h"
 #include "public.h"
+#include "data_source.h"
+#include "input_chunk_slice.h"
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/phoenix.h>
@@ -27,7 +28,7 @@ public:
 public:
     TInputDataSlice() = default;
     TInputDataSlice(
-        NChunkClient::EDataSliceDescriptorType type,
+        EDataSourceType type,
         TChunkSliceList chunkSlices,
         TInputSliceLimit lowerLimit,
         TInputSliceLimit upperLimit);
@@ -47,7 +48,7 @@ public:
     TInputChunkPtr GetSingleUnversionedChunkOrThrow() const;
 
     TChunkSliceList ChunkSlices;
-    NChunkClient::EDataSliceDescriptorType Type;
+    EDataSourceType Type;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputDataSlice)
@@ -58,14 +59,12 @@ Stroka ToString(const TInputDataSlicePtr& dataSlice);
 
 void ToProto(
     NProto::TDataSliceDescriptor* dataSliceDescriptor,
-    TInputDataSlicePtr inputDataSlice,
-    const NTableClient::TTableSchema& schema,
-    NTableClient::TTimestamp timestamp);
+    TInputDataSlicePtr inputDataSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TInputDataSlicePtr CreateInputDataSlice(
-    NChunkClient::EDataSliceDescriptorType type,
+    NChunkClient::EDataSourceType type,
     const std::vector<TInputChunkSlicePtr>& inputChunks,
     NTableClient::TKey lowerKey,
     NTableClient::TKey upperKey);

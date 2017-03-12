@@ -25,6 +25,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/multi_reader_base.h>
 #include <yt/ytlib/chunk_client/reader_factory.h>
@@ -214,7 +215,7 @@ protected:
                 (!lowerKey || CompareRows(firstUnreadKey, lowerKey) >= 0) &&
                 (!upperKey || CompareRows(firstUnreadKey, upperKey) <= 0)));
 
-        unreadDescriptors.emplace_back(MakeUnversionedDataSliceDescriptor(chunkSpec));
+        unreadDescriptors.emplace_back(TDataSliceDescriptor(chunkSpec));
 
         // Check if whole chunk is unread
         if (rowIndex == lowerRowIndex) {
@@ -1615,7 +1616,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    const TDataSliceDescriptor& dataSliceDescriptor,
+    const NChunkClient::NProto::TChunkSpec& chunkSpec,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
@@ -1626,8 +1627,6 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TReadRange& readRange,
     TNullable<int> partitionTag)
 {
-    const auto& chunkSpec = dataSliceDescriptor.GetSingleUnversionedChunk();
-
     auto type = EChunkType(chunkSpec.chunk_meta().type());
     YCHECK(type == EChunkType::Table);
 
@@ -1667,7 +1666,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    const TDataSliceDescriptor& dataSliceDescriptor,
+    const NChunkClient::NProto::TChunkSpec& chunkSpec,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
@@ -1679,8 +1678,6 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TNullable<int> partitionTag)
 {
-    const auto& chunkSpec = dataSliceDescriptor.GetSingleUnversionedChunk();
-
     auto type = EChunkType(chunkSpec.chunk_meta().type());
     YCHECK(type == EChunkType::Table);
 
@@ -1742,6 +1739,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
+    const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
@@ -1751,9 +1749,11 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 {
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
-        switch (dataSliceDescriptor.Type) {
-            case EDataSliceDescriptorType::UnversionedTable: {
-                const auto& chunkSpec = dataSliceDescriptor.GetSingleUnversionedChunk();
+        const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
+
+        switch (dataSource.GetType()) {
+            case EDataSourceType::UnversionedTable: {
+                const auto& chunkSpec = dataSliceDescriptor.GetSingleChunk();
 
                 auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
                 auto createReader = [=] () {
@@ -1778,7 +1778,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                     };
 
                     return CreateSchemalessChunkReader(
-                        dataSliceDescriptor,
+                        chunkSpec,
                         PatchConfig(config, memoryEstimate),
                         options,
                         remoteReader,
@@ -1794,7 +1794,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 break;
             }
 
-            case EDataSliceDescriptorType::VersionedTable: {
+            case EDataSourceType::VersionedTable: {
                 auto memoryEstimate = GetDataSliceDescriptorReaderMemoryEstimate(dataSliceDescriptor, config);
                 auto createReader  = [=] () {
                     return CreateSchemalessMergingMultiChunkReader(
@@ -1804,6 +1804,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         localDescriptor,
                         blockCache,
                         nodeDirectory,
+                        dataSourceDirectory,
                         dataSliceDescriptor,
                         nameTable,
                         columnFilter,
@@ -1837,6 +1838,7 @@ public:
         const TNodeDescriptor& localDescriptor,
         IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
+        const TDataSourceDirectoryPtr& dataSourceDirectory,
         const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
         TNameTablePtr nameTable,
         TColumnFilter columnFilter,
@@ -1887,6 +1889,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
+    const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
@@ -1903,6 +1906,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
             localDescriptor,
             blockCache,
             nodeDirectory,
+            dataSourceDirectory,
             dataSliceDescriptors,
             nameTable,
             columnFilter,
@@ -2020,17 +2024,18 @@ std::vector<TDataSliceDescriptor> TSchemalessMultiChunkReader<TBase>::GetUnreadD
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
+ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
     INativeClientPtr client,
-    const TNodeDescriptor& localDescriptor,
+    const TNodeDescriptor &localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
+    const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
-    const TKeyColumns& keyColumns,
+    const TKeyColumns &keyColumns,
     TNullable<int> partitionTag,
     IThroughputThrottlerPtr throttler)
 {
@@ -2041,6 +2046,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
         localDescriptor,
         blockCache,
         nodeDirectory,
+        dataSourceDirectory,
         dataSliceDescriptors,
         nameTable,
         columnFilter,
@@ -2054,17 +2060,18 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
+ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
     INativeClientPtr client,
-    const TNodeDescriptor& localDescriptor,
+    const TNodeDescriptor &localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
+    const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
-    const TKeyColumns& keyColumns,
+    const TKeyColumns &keyColumns,
     TNullable<int> partitionTag,
     IThroughputThrottlerPtr throttler)
 {
@@ -2075,6 +2082,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
         localDescriptor,
         blockCache,
         nodeDirectory,
+        dataSourceDirectory,
         dataSliceDescriptors,
         nameTable,
         columnFilter,
@@ -2099,6 +2107,7 @@ public:
         const TNodeDescriptor& localDescriptor,
         IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
+        const TDataSourceDirectoryPtr& dataSourceDirectory,
         const TDataSliceDescriptor& dataSliceDescriptor,
         TNameTablePtr nameTable,
         TColumnFilter columnFilter,
@@ -2165,14 +2174,18 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
+    const TDataSourceDirectoryPtr& dataSourceDirectory,
     const TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     IThroughputThrottlerPtr throttler)
 {
+    const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
     const auto& chunkSpecs = dataSliceDescriptor.ChunkSpecs;
-    const auto& tableSchema = dataSliceDescriptor.Schema;
-    auto timestamp = dataSliceDescriptor.Timestamp;
+
+    YCHECK(dataSource.Schema());
+    const auto& tableSchema = *dataSource.Schema();
+    auto timestamp = dataSource.GetTimestamp();
 
     std::vector<TOwningKey> boundaries;
     boundaries.reserve(chunkSpecs.size());
@@ -2424,6 +2437,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     const TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
+    const TDataSourceDirectoryPtr& dataSourceDirectory,
     const TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
@@ -2436,6 +2450,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
         localDescriptor,
         blockCache,
         nodeDirectory,
+        dataSourceDirectory,
         dataSliceDescriptor,
         nameTable,
         columnFilter,

@@ -357,7 +357,7 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
             auto tableReaderConfig = New<TChunkReaderConfig>();
             auto tableReaderOptions = New<TChunkReaderOptions>();
             return CreateSchemalessChunkReader(
-                MakeUnversionedDataSliceDescriptor(std::move(chunkSpec)),
+                std::move(chunkSpec),
                 tableReaderConfig,
                 tableReaderOptions,
                 chunkReader,

@@ -1,41 +1,13 @@
 package NYT.NChunkClient.NProto;
 
 import "yt/ytlib/chunk_client/chunk_spec.proto";
-import "yt/ytlib/table_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TDataSliceDescriptor
 {
-    // Type as in EDataSliceDescriptorType.
-    required int32 type = 1;
-
     // Chunks comprising the input.
-    repeated TChunkSpec chunks = 2;
-
-    // Table schema (for table slices).
-    optional NYT.NTableClient.NProto.TTableSchemaExt schema = 3;
-
-    // Timestamp (for versioned table).
-    optional int64 timestamp = 4 [default = 0];
-
-    extensions 100 to max;
-}
-
-
-// COMPAT(psushin).
-message TTableSliceDescriptor
-{
-    extend TDataSliceDescriptor
-    {
-        optional TTableSliceDescriptor table_slice_descriptor = 100;
-    }
-
-    // Table schema.
-    required NYT.NTableClient.NProto.TTableSchemaExt schema = 1;
-
-    // Timestamp (for versioned table).
-    optional int64 timestamp = 2 [default = 0];
+    repeated TChunkSpec chunks = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,6 +13,7 @@
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
@@ -812,7 +813,6 @@ void TOperationControllerBase::TTask::AddSequentialInputSpec(
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     auto directoryBuilder = MakeNodeDirectoryBuilder(schedulerJobSpecExt);
     auto* inputSpec = schedulerJobSpecExt->add_input_table_specs();
-    inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).GetData());
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
         AddChunksToInputSpec(directoryBuilder.get(), inputSpec, stripe);
@@ -831,31 +831,9 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
         auto* inputSpec = stripe->Foreign
             ? schedulerJobSpecExt->add_foreign_input_table_specs()
             : schedulerJobSpecExt->add_input_table_specs();
-        inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).GetData());
         AddChunksToInputSpec(directoryBuilder.get(), inputSpec, stripe);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
-}
-
-const TTableSchema& TOperationControllerBase::TTask::GetInputTableSchema(int tableIndex) const
-{
-    static TTableSchema trivialSchema;
-    if (tableIndex == -1) {
-        return trivialSchema;
-    } else {
-        YCHECK(tableIndex >= 0 && tableIndex < Controller->InputTables.size());
-        return Controller->InputTables[tableIndex].Schema;
-    }
-}
-
-const TTimestamp TOperationControllerBase::TTask::GetInputTableTimestamp(int tableIndex) const
-{
-    if (tableIndex == -1) {
-        return AsyncLastCommittedTimestamp;
-    } else {
-        YCHECK(tableIndex >= 0 && tableIndex < Controller->InputTables.size());
-        return Controller->InputTables[tableIndex].Path.GetTimestamp().Get(AsyncLastCommittedTimestamp);
-    }
 }
 
 void TOperationControllerBase::TTask::AddChunksToInputSpec(
@@ -864,11 +842,7 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     TChunkStripePtr stripe)
 {
     for (const auto& dataSlice : stripe->DataSlices) {
-        ToProto(
-            inputSpec->add_data_slice_descriptors(),
-            dataSlice,
-            GetInputTableSchema(dataSlice->GetTableIndex()),
-            GetInputTableTimestamp(dataSlice->GetTableIndex()));
+        ToProto(inputSpec->add_data_slice_descriptors(), dataSlice);
 
         if (directoryBuilder) {
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
@@ -4539,10 +4513,9 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
             auto chunkSlice = New<TInputChunkSlice>(*chunkIt, RowBuffer, protoChunkSpec);
             chunkSliceList.emplace_back(std::move(chunkSlice));
         }
-        if (dataSliceDescriptor.Type == EDataSliceDescriptorType::VersionedTable) {
+        if (InputTables[dataSliceDescriptor.GetDataSourceIndex()].IsDynamic) {
             dataSliceList.emplace_back(CreateVersionedInputDataSlice(chunkSliceList));
         } else {
-            YCHECK(dataSliceDescriptor.Type == EDataSliceDescriptorType::UnversionedTable);
             YCHECK(chunkSliceList.size() == 1);
             dataSliceList.emplace_back(CreateUnversionedInputDataSlice(chunkSliceList[0]));
         }
@@ -5165,21 +5138,29 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     for (const auto& file : files) {
         auto* descriptor = jobSpec->add_files();
-        descriptor->set_type(static_cast<int>(file.Type));
         descriptor->set_file_name(file.FileName);
 
         if (file.Type == EObjectType::Table && file.IsDynamic && file.Schema.IsSorted()) {
-            auto dataSliceDescriptor = MakeVersionedDataSliceDescriptor(
-                file.ChunkSpecs,
+            descriptor->set_type(static_cast<int>(EDataSourceType::VersionedTable));
+            auto dataSource = MakeVersionedDataSource(
+                file.GetPath(),
                 file.Schema,
                 file.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp));
-            ToProto(descriptor->add_data_slice_descriptors(), dataSliceDescriptor);
+            ToProto(descriptor->mutable_data_source(), dataSource);
+            // All chunks go to the same data slice.
+            ToProto(descriptor->add_data_slice_descriptors(), TDataSliceDescriptor(file.ChunkSpecs));
         } else {
+            auto dataSource = file.Type == EObjectType::File
+                    ? MakeFileDataSource(file.GetPath())
+                    : MakeUnversionedDataSource(file.GetPath(), file.Schema);
+
+            descriptor->set_type(file.Type == EObjectType::File
+                ? static_cast<int>(EDataSourceType::File)
+                : static_cast<int>(EDataSourceType::UnversionedTable));
+
+            ToProto(descriptor->mutable_data_source(), dataSource);
             for (const auto& chunkSpec : file.ChunkSpecs) {
-                auto dataSliceDescriptor = file.Type == EObjectType::File
-                    ? MakeFileDataSliceDescriptor(chunkSpec)
-                    : MakeUnversionedDataSliceDescriptor(chunkSpec);
-                ToProto(descriptor->add_data_slice_descriptors(), dataSliceDescriptor);
+                ToProto(descriptor->add_data_slice_descriptors(), TDataSliceDescriptor(chunkSpec));
             }
         }
 
@@ -5284,6 +5265,34 @@ void TOperationControllerBase::AddCoreOutputSpecs(
     coreTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).GetData());
 }
 
+TDataSourceDirectoryPtr TOperationControllerBase::MakeInputDataSources() const
+{
+    auto dataSourceDirectory = New<TDataSourceDirectory>();
+    for (const auto& inputTable : InputTables) {
+        auto dataSource = inputTable.IsDynamic
+            ? MakeVersionedDataSource(
+                inputTable.GetPath(),
+                inputTable.Schema,
+                inputTable.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp))
+            : MakeUnversionedDataSource(
+                inputTable.GetPath(),
+                inputTable.Schema);
+        dataSourceDirectory->DataSources().push_back(dataSource);
+    }
+    return dataSourceDirectory;
+}
+
+TDataSourceDirectoryPtr TOperationControllerBase::CreateIntermediateDataSource() const
+{
+    static const Stroka IntermediatePath("<intermediate>");
+
+    auto dataSourceDirectory = New<TDataSourceDirectory>();
+    dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
+        IntermediatePath,
+        Null));
+
+    return dataSourceDirectory;
+}
 
 i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const
 {

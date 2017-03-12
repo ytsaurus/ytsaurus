@@ -58,6 +58,7 @@ public:
         const TKeyColumns& keyColumns,
         TNameTablePtr nameTable,
         TClosure onNetworkReleased,
+        const TDataSourceDirectoryPtr& dataSourceDirectory,
         std::vector<TDataSliceDescriptor> dataSliceDescriptors,
         int estimatedRowCount,
         bool isApproximate,
@@ -85,7 +86,7 @@ public:
         options->KeepInMemory = true;
 
         // Partition sort is reading only intermediate chunks.
-        // Since intermediate chunks are unmovable it makes no sense to fetch seeds from master. 
+        // Since intermediate chunks are unmovable it makes no sense to fetch seeds from master.
         options->AllowFetchingSeedsFromMaster = false;
 
         UnderlyingReader_ = CreatePartitionMultiChunkReader(
@@ -94,6 +95,7 @@ public:
             client,
             blockCache,
             nodeDirectory,
+            dataSourceDirectory,
             std::move(dataSliceDescriptors),
             nameTable,
             KeyColumns_,
@@ -101,7 +103,7 @@ public:
 
         SortQueue_ = New<TActionQueue>("Sort");
         ReadyEvent_ = BIND(
-                &TSchemalessPartitionSortReader::DoOpen, 
+                &TSchemalessPartitionSortReader::DoOpen,
                 MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
             .Run();
@@ -551,6 +553,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     const TKeyColumns& keyColumns,
     TNameTablePtr nameTable,
     TClosure onNetworkReleased,
+    const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     i64 estimatedRowCount,
     bool isApproximate,
@@ -564,6 +567,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
         keyColumns,
         nameTable,
         onNetworkReleased,
+        dataSourceDirectory,
         dataSliceDescriptors,
         estimatedRowCount,
         isApproximate,
