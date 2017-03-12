@@ -18,6 +18,7 @@
 #include <yt/server/scheduler/config.h>
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
@@ -928,10 +929,10 @@ private:
             const auto& querySpec = schedulerJobSpecExt.input_query_spec();
             for (const auto& function : querySpec.external_functions()) {
                 TArtifactKey key;
-                key.set_type(static_cast<int>(NObjectClient::EObjectType::File));
+                key.set_data_source_type(static_cast<int>(EDataSourceType::File));
 
                 for (const auto& chunkSpec : function.chunk_specs()) {
-                    ToProto(key.add_data_slice_descriptors(), MakeFileDataSliceDescriptor(chunkSpec));
+                    ToProto(key.add_data_slice_descriptors(), TDataSliceDescriptor(chunkSpec));
                 }
 
                 Artifacts_.push_back(TArtifact{

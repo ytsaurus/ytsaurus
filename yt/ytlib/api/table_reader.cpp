@@ -5,6 +5,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/multi_reader_base.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -247,11 +248,14 @@ void TSchemalessTableReader::DoOpen()
     options->EnableRangeIndex = true;
     options->EnableRowIndex = true;
 
+    auto dataSourceDirectory = New<NChunkClient::TDataSourceDirectory>();
     if (dynamic && schema.IsSorted()) {
-        auto dataSliceDescriptor = MakeVersionedDataSliceDescriptor(
-            std::move(chunkSpecs),
+        dataSourceDirectory->DataSources().push_back(MakeVersionedDataSource(
+            path,
             schema,
-            timestamp.Get(AsyncLastCommittedTimestamp));
+            timestamp.Get(AsyncLastCommittedTimestamp)));
+
+        auto dataSliceDescriptor = TDataSliceDescriptor(std::move(chunkSpecs));
 
         UnderlyingReader_ = CreateSchemalessMergingMultiChunkReader(
             Config_,
@@ -261,18 +265,23 @@ void TSchemalessTableReader::DoOpen()
             TNodeDescriptor(),
             Client_->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
+            dataSourceDirectory,
             dataSliceDescriptor,
             New<TNameTable>(),
             TColumnFilter());
     } else {
+        dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
+            path,
+            schema));
+
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
         for (auto& chunkSpec : chunkSpecs) {
-            dataSliceDescriptors.push_back(MakeUnversionedDataSliceDescriptor(std::move(chunkSpec)));
+            dataSliceDescriptors.push_back(TDataSliceDescriptor(chunkSpec));
         }
 
         auto factory = Unordered_
-            ? CreateSchemalessParallelMultiChunkReader
-            : CreateSchemalessSequentialMultiChunkReader;
+            ? CreateSchemalessParallelMultiReader
+            : CreateSchemalessSequentialMultiReader;
         UnderlyingReader_ = factory(
             Config_,
             options,
@@ -281,6 +290,7 @@ void TSchemalessTableReader::DoOpen()
             TNodeDescriptor(),
             Client_->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
+            dataSourceDirectory,
             std::move(dataSliceDescriptors),
             New<TNameTable>(),
             TColumnFilter(),

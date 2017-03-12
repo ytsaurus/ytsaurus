@@ -601,9 +601,6 @@ protected:
         virtual IChunkPoolInput* GetChunkPoolInput() const = 0;
         virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;
 
-        const NTableClient::TTableSchema& GetInputTableSchema(int tableIndex) const;
-        const NTransactionClient::TTimestamp GetInputTableTimestamp(int tableIndex) const;
-
         virtual void Persist(const TPersistenceContext& context) override;
 
     private:
@@ -640,8 +637,6 @@ protected:
         virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
 
         virtual void OnJobStarted(TJobletPtr joblet);
-
-        virtual NTableClient::TTableReaderOptionsPtr GetTableReaderOptions() const = 0;
 
         void AddPendingHint();
         void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
@@ -1066,6 +1061,9 @@ protected:
     void AddCoreOutputSpecs(
         NScheduler::NProto::TUserJobSpec* jobSpec,
         TJobletPtr joblet);
+
+    NChunkClient::TDataSourceDirectoryPtr MakeInputDataSources() const;
+    NChunkClient::TDataSourceDirectoryPtr CreateIntermediateDataSource() const;
 
     // Amount of memory reserved for output table writers in job proxy.
     i64 GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const;

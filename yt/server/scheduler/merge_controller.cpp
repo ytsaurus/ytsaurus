@@ -81,7 +81,6 @@ public:
         Persist(context, TotalDataSize);
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
-        Persist(context, TableReaderOptions);
         Persist(context, MaxDataSizePerJob);
         Persist(context, ChunkSliceSize);
         Persist(context, IsExplicitJobCount);
@@ -127,10 +126,6 @@ protected:
 
     //! The template for starting new jobs.
     TJobSpec JobSpecTemplate;
-
-    //! Table reader options for merge jobs.
-    TTableReaderOptionsPtr TableReaderOptions;
-
 
     //! Overrides the spec limit to satisfy global job count limit.
     i64 MaxDataSizePerJob;
@@ -256,11 +251,6 @@ protected:
             }
         }
 
-        virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
-        {
-            return Controller->TableReaderOptions;
-        }
-
         virtual EJobType GetJobType() const override
         {
             return Controller->GetJobType();
@@ -288,7 +278,6 @@ protected:
         {
             TTask::OnJobAborted(joblet, jobSummary);
         }
-
     };
 
     typedef TIntrusivePtr<TMergeTask> TMergeTaskPtr;
@@ -627,8 +616,6 @@ protected:
     {
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
         InitFinalOutputConfig(JobIOConfig);
-
-        TableReaderOptions = CreateTableReaderOptions(Spec->JobIO);
     }
 
     virtual TUserJobSpecPtr GetUserJobSpec() const
@@ -680,7 +667,7 @@ public:
 private:
     virtual void ProcessInputDataSlice(TInputDataSlicePtr slice) override
     {
-        if (slice->Type == EDataSliceDescriptorType::UnversionedTable) {
+        if (slice->Type == EDataSourceType::UnversionedTable) {
             const auto& chunkSpec = slice->GetSingleUnversionedChunkOrThrow();
             if (IsTeleportChunk(chunkSpec)) {
                 // Merge is not needed. Copy the chunk directly to the output.
@@ -844,6 +831,9 @@ private:
     {
         JobSpecTemplate.set_type(static_cast<int>(EJobType::OrderedMap));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).GetData());
+
+        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
         if (Spec->InputQuery) {
             InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
@@ -986,6 +976,9 @@ private:
     {
         JobSpecTemplate.set_type(static_cast<int>(EJobType::OrderedMerge));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).GetData());
+
+        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
         if (Spec->InputQuery) {
             InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
@@ -1129,6 +1122,9 @@ private:
     {
         JobSpecTemplate.set_type(static_cast<int>(EJobType::OrderedMerge));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).GetData());
+
+        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
@@ -1350,7 +1346,7 @@ protected:
 
     virtual void ProcessInputDataSlice(TInputDataSlicePtr slice) override
     {
-        if (slice->Type == EDataSliceDescriptorType::UnversionedTable) {
+        if (slice->Type == EDataSourceType::UnversionedTable) {
             const auto& chunk = slice->GetSingleUnversionedChunkOrThrow();
             ChunkSliceFetcher->AddChunk(chunk);
         } else {
@@ -1521,7 +1517,7 @@ private:
             const auto& endpoint = Endpoints[i];
             const auto& dataSlice = endpoint.DataSlice;
 
-            if (dataSlice->Type == EDataSliceDescriptorType::VersionedTable) {
+            if (dataSlice->Type == EDataSourceType::VersionedTable) {
                 currentChunkSpec.Reset();
                 continue;
             }
@@ -1808,7 +1804,9 @@ private:
         JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedMerge));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         auto* mergeJobSpecExt = JobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
+        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).GetData());
 
+        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).GetData());
@@ -2129,6 +2127,9 @@ protected:
 
         JobSpecTemplate.set_type(static_cast<int>(GetJobType()));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).GetData());
+
+        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
@@ -2302,7 +2303,7 @@ private:
                     }
                 }
 
-                if (lhs.DataSlice->Type == EDataSliceDescriptorType::UnversionedTable) {
+                if (lhs.DataSlice->Type == EDataSourceType::UnversionedTable) {
                     // If keys (trimmed to key columns) are equal, we put slices in
                     // the same order they are in the original table.
                     const auto& lhsChunk = lhs.DataSlice->GetSingleUnversionedChunkOrThrow();
@@ -2341,7 +2342,7 @@ private:
             auto key = endpoint.GetKey();
             const auto& dataSlice = endpoint.DataSlice;
 
-            if (dataSlice->Type == EDataSliceDescriptorType::VersionedTable) {
+            if (dataSlice->Type == EDataSourceType::VersionedTable) {
                 currentChunkSpec.Reset();
                 continue;
             }

@@ -44,8 +44,6 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NTableClient;
 
-using NTableClient::TTableReaderOptions;
-
 ////////////////////////////////////////////////////////////////////
 
 static const NProfiling::TProfiler Profiler("/operations/remote_copy");
@@ -164,12 +162,6 @@ private:
         std::unique_ptr<IChunkPool> ChunkPool_;
 
         int Index_;
-
-        virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
-        {
-            static const auto options = New<TTableReaderOptions>();
-            return options;
-        }
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
@@ -298,7 +290,7 @@ private:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     InferSchemaFromInputOrdered();
                     break;
-                } 
+                }
                 // We intentionally fall into next clause.
 
             case ESchemaInferenceMode::FromOutput:
@@ -491,6 +483,9 @@ private:
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
+        schedulerJobSpecExt->set_table_reader_options("");
+
+        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
         const auto& clusterDirectory = Host->GetClusterDirectory();
         TNativeConnectionConfigPtr connectionConfig;

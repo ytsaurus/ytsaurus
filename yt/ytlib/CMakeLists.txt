@@ -49,6 +49,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_node_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_slice_descriptor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_slice_descriptor.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_source.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_source.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_statistics.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_statistics.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/dispatcher.cpp
