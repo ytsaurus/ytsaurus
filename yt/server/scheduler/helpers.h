@@ -89,6 +89,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(ignat): should be placed in helpers.h !?
 struct IJobHost
     : public TIntrinsicRefCounted
 {
@@ -103,7 +104,6 @@ DEFINE_REFCOUNTED_TYPE(IJobHost)
 
 void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);
 void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer);
-void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer);
 void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer);
 NYson::TYsonString BuildInputPaths(
     const std::vector<NYPath::TRichYPath>& inputPaths,

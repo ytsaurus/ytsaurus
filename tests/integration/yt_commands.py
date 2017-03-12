@@ -614,6 +614,17 @@ class Operation(object):
         return get("//sys/operations/{0}/@state".format(self.id), **kwargs)
 
     def track(self):
+        def build_progress():
+            progress = get("//sys/operations/{0}/@brief_progress/jobs".format(self.id), verbose=False)
+
+            result = {}
+            for job_type in progress:
+                if isinstance(progress[job_type], dict):
+                    result[job_type] = progress[job_type]["total"]
+                else:
+                    result[job_type] = progress[job_type]
+            return "({0})".format(", ".join("{0}={1}".format(key, result[key]) for key in result))
+
         jobs_path = "//sys/operations/{0}/jobs".format(self.id)
 
         counter = 0
@@ -621,7 +632,11 @@ class Operation(object):
             state = self.get_state(verbose=False)
             message = "Operation {0} {1}".format(self.id, state)
             if counter % 30 == 0 or state in ["failed", "aborted", "completed"]:
-                print >>sys.stderr, message
+                print >>sys.stderr, message,
+                if state == "running":
+                    print >>sys.stderr, build_progress()
+                else:
+                    print >>sys.stderr
             if state == "failed":
                 error = get("//sys/operations/{0}/@result/error".format(self.id), verbose=False, is_raw=True)
                 jobs = get(jobs_path, verbose=False)

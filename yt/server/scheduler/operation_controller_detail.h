@@ -12,7 +12,7 @@
 #include "operation_controller.h"
 #include "serialize.h"
 #include "helpers.h"
-#include "master_connector.h"
+#include "controllers_master_connector.h"
 
 #include <yt/server/chunk_server/public.h>
 
@@ -124,7 +124,7 @@ public: \
         try { \
             return Safe ## method args; \
         } catch (const TAssertionFailedException& ex) { \
-            FailOperation(ex); \
+            OnOperationCrashed(ex); \
             return defaultValue; \
         } \
     } \
@@ -142,7 +142,7 @@ private: \
     IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<TJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<TRunningJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
 
     IMPLEMENT_SAFE_VOID_METHOD(SaveSnapshot, (TOutputStream* output), (output), THREAD_AFFINITY_ANY())
 
@@ -183,6 +183,8 @@ public:
 
     virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) override;
 
+    virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) override;
+
     virtual std::vector<NApi::ITransactionPtr> GetTransactions() override;
 
     virtual void UpdateConfig(TSchedulerConfigPtr config) override;
@@ -212,7 +214,10 @@ public:
     virtual NYson::TYsonString GetProgress() const override;
     virtual NYson::TYsonString GetBriefProgress() const override;
 
-    NYson::TYsonString BuildInputPathYson(const TJobId& jobId) const override;
+    virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override;
+    virtual NYson::TYsonString BuildJobsYson() const override;
+
+    virtual NYson::TYsonString BuildSuspiciousJobsYson() const override;
 
     virtual void Persist(const TPersistenceContext& context) override;
 
@@ -233,8 +238,14 @@ protected:
     struct TTaskGroup;
     typedef TIntrusivePtr<TTaskGroup> TTaskGroupPtr;
 
+    struct TJobInfo;
+    typedef TIntrusivePtr<TJobInfo> TJobInfoPtr;
+
     struct TJoblet;
     typedef TIntrusivePtr<TJoblet> TJobletPtr;
+
+    struct TFinishedJobInfo;
+    typedef TIntrusivePtr<TFinishedJobInfo> TFinishedJobInfoPtr;
 
     struct TCompletedJob;
     typedef TIntrusivePtr<TCompletedJob> TCompletedJobPtr;
@@ -242,6 +253,7 @@ protected:
 
     TSchedulerConfigPtr Config;
     IOperationHost* Host;
+    TControllersMasterConnectorPtr MasterConnector;
 
     const TOperationId OperationId;
 
@@ -290,13 +302,14 @@ protected:
     // Maps node ids to descriptors for job input chunks.
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory;
 
-    const NObjectClient::TTransactionId UserTransactionId;
-
     NApi::ITransactionPtr SyncSchedulerTransaction;
     NApi::ITransactionPtr AsyncSchedulerTransaction;
     NApi::ITransactionPtr InputTransaction;
     NApi::ITransactionPtr OutputTransaction;
     NApi::ITransactionPtr DebugOutputTransaction;
+    NApi::ITransactionPtr UserTransaction;
+
+    NTransactionClient::TTransactionId UserTransactionId;
 
     TOperationSnapshot Snapshot;
 
@@ -306,7 +319,6 @@ protected:
     const NYTree::IMapNodePtr SecureVault;
 
     const std::vector<Stroka> Owners;
-
 
     struct TLivePreviewTableBase
     {
@@ -405,8 +417,38 @@ protected:
 
     TNullable<TInputQuery> InputQuery;
 
-    struct TJoblet
+    struct TJobInfoBase
+    {
+        TJobId JobId;
+        EJobType JobType;
+
+        TJobNodeDescriptor NodeDescriptor;
+
+        TInstant StartTime;
+        TInstant FinishTime;
+
+        Stroka Account;
+        bool Suspicious = false;
+        TInstant LastActivityTime;
+        TBriefJobStatisticsPtr BriefStatistics;
+        double Progress = 0.0;
+        NYson::TYsonString StatisticsYson;
+
+        virtual void Persist(const TPersistenceContext& context);
+    };
+
+    struct TJobInfo
         : public TIntrinsicRefCounted
+        , public TJobInfoBase
+    {
+        TJobInfo() = default;
+        TJobInfo(const TJobInfoBase& jobInfoBase)
+            : TJobInfoBase(jobInfoBase)
+        { }
+    };
+
+    struct TJoblet
+        : public TJobInfo
     {
     public:
         //! Default constructor is for serialization only.
@@ -418,11 +460,7 @@ protected:
         TTaskPtr Task;
         int JobIndex;
         i64 StartRowIndex;
-
-        TJobId JobId;
-        EJobType JobType;
-
-        TJobNodeDescriptor NodeDescriptor;
+        bool Restarted = false;
 
         TExtendedJobResources EstimatedResourceUsage;
         double JobProxyMemoryReserveFactor = -1;
@@ -442,15 +480,31 @@ protected:
         NChunkClient::TChunkListId StderrTableChunkListId;
         NChunkClient::TChunkListId CoreTableChunkListId;
 
-        TInstant StartTime;
-        TInstant FinishTime;
-
-    public:
-        void Persist(const TPersistenceContext& context);
+        virtual void Persist(const TPersistenceContext& context) override;
         void SendJobMetrics(const NJobTrackerClient::TStatistics& jobStatistics, bool flush);
-
     private:
         std::unique_ptr<TJobMetricsUpdater> JobMetricsUpdater_;
+    };
+
+    struct TFinishedJobInfo
+        : public TJobInfo
+    {
+        TFinishedJobInfo()
+        { }
+
+        TFinishedJobInfo(
+            const TJobletPtr& joblet,
+            TJobSummary summary,
+            NYson::TYsonString inputPaths)
+            : TJobInfo(TJobInfoBase(*joblet))
+            , Summary(std::move(summary))
+            , InputPaths(std::move(inputPaths))
+        { }
+
+        TJobSummary Summary;
+        NYson::TYsonString InputPaths;
+
+        virtual void Persist(const TPersistenceContext& context) override;
     };
 
     struct TCompletedJob
@@ -772,7 +826,6 @@ protected:
         TScheduleJobResult* scheduleJobResult);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
 
 
     // Jobs in progress management.
@@ -944,7 +997,9 @@ protected:
      */
     virtual void OnOperationCompleted(bool interrupted);
 
-    virtual void OnOperationFailed(const TError& error);
+    virtual void OnOperationFailed(const TError& error, bool flush = true);
+
+    virtual void OnOperationAborted(const TError& error);
 
     virtual bool IsCompleted() const = 0;
 
@@ -1206,6 +1261,11 @@ private:
 
     i64 CurrentInputDataSliceTag_ = 0;
 
+    int StderrCount_ = 0;
+    int JobNodeCount_ = 0;
+
+    yhash_map<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
+
     void BuildAndSaveProgress();
 
     void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics);
@@ -1220,7 +1280,7 @@ private:
 
     bool ShouldSkipSanityCheck();
 
-    void UpdateJobStatistics(const TJobSummary& jobSummary);
+    void UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
 
     std::unique_ptr<IJobSplitter> JobSplitter_;
 
@@ -1251,7 +1311,31 @@ private:
 
     //! An internal helper for invoking OnOperationFailed with an error
     //! built by data from `ex`.
-    void FailOperation(const TAssertionFailedException& ex);
+    void OnOperationCrashed(const TAssertionFailedException& ex);
+
+    static EJobState GetStatisticsJobState(const TJobletPtr& joblet, const EJobState& state);
+
+    NYson::TYsonString BuildInputPathYson(const TJobletPtr& joblet) const;
+
+    void ProcessFinishedJobResult(std::unique_ptr<TJobSummary> summary, bool suggestCreateJobNodeByStatus);
+
+    void BuildJobAttributes(
+        const TJobInfoPtr& job,
+        EJobState state,
+        bool outputStatistics,
+        NYson::IYsonConsumer* consumer) const;
+
+    void BuildFinishedJobAttributes(
+        const TFinishedJobInfoPtr& job,
+        bool outputStatistics,
+        NYson::IYsonConsumer* consumer) const;
+
+    void AnalyzeBriefStatistics(
+        const TJobletPtr& job,
+        TDuration suspiciousInactivityTimeout,
+        i64 suspiciousCpuUsageThreshold,
+        double suspiciousInputPipeIdleTimeFraction,
+        const TBriefJobStatisticsPtr& briefStatistics);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

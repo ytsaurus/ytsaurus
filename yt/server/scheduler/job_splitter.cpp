@@ -75,7 +75,8 @@ public:
         i64 unreadRowCount) const override
     {
         double execDuration = summary.ExecDuration.Get(TDuration()).SecondsFloat();
-        i64 processedRowCount = GetNumericValue(summary.Statistics, "/data/input/row_count");
+        YCHECK(summary.Statistics);
+        i64 processedRowCount = GetNumericValue(*summary.Statistics, "/data/input/row_count");
         if (unreadRowCount <= 1 || processedRowCount == 0 || execDuration == 0.0) {
             return 1;
         }
@@ -219,7 +220,8 @@ private:
                 return;
             }
             ExecDuration_ = summary.ExecDuration.Get(TDuration());
-            RowCount_ = FindNumericValue(summary.Statistics, "/data/input/row_count").Get(0);
+            YCHECK(summary.Statistics);
+            RowCount_ = FindNumericValue(*summary.Statistics, "/data/input/row_count").Get(0);
             if (RowCount_ == 0) {
                 return;
             }

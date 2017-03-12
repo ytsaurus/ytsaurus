@@ -2663,7 +2663,7 @@ print row + table_index
     def test_map_job_splitter(self, ordered):
         create("table", "//tmp/in_1")
         write_table(
-            "<append=true>//tmp/in_1",
+            "//tmp/in_1",
             [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)])
 
         input_ = ["//tmp/in_1"] * 5

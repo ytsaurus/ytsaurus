@@ -45,15 +45,6 @@ struct INodeShardHost
         const TOperationId& operationId,
         NYTree::EPermission permission) = 0;
 
-    virtual TFuture<void> UpdateOperationWithFinishedJob(
-        const TOperationId& operationId,
-        const TJobId& jobId,
-        bool jobFailedOrAborted,
-        const NYson::TYsonString& jobAttributes,
-        const NChunkClient::TChunkId& stderrChunkId,
-        const NChunkClient::TChunkId& failContextChunkId,
-        TFuture<NYson::TYsonString> inputPathsFuture) = 0;
-
     virtual TFuture<void> AttachJobContext(
         const NYTree::TYPath& path,
         const NChunkClient::TChunkId& chunkId,
@@ -125,8 +116,6 @@ public:
 
     NYson::TYsonString StraceJob(const TJobId& jobId, const Stroka& user);
 
-    NYson::TYsonString GetJobStatistics(const TJobId& jobId);
-
     void DumpJobInputContext(const TJobId& jobId, const NYTree::TYPath& path, const Stroka& user);
 
     NNodeTrackerClient::TNodeDescriptor GetJobNode(const TJobId& jobId, const Stroka& user);
@@ -144,9 +133,8 @@ public:
     void InterruptJob(const TJobId& jobId, EInterruptReason reason);
 
     void BuildNodesYson(NYson::IYsonConsumer* consumer);
-    void BuildOperationJobsYson(const TOperationId& operationId, NYson::IYsonConsumer* consumer);
-    void BuildJobYson(const TJobId& job, NYson::IYsonConsumer* consumer);
-    void BuildSuspiciousJobsYson(NYson::IYsonConsumer* consumer);
+
+    TOperationId GetOperationIdByJobId(const TJobId& job);
 
     TJobResources GetTotalResourceLimits();
     TJobResources GetTotalResourceUsage();
@@ -163,18 +151,7 @@ public:
     int GetExecNodeCount();
     int GetTotalNodeCount();
 
-    struct TOperationStatePatch
-    {
-        bool CanCreateJobNodeForAbortedOrFailedJobs;
-        bool CanCreateJobNodeForJobsWithStderr;
-    };
-
-    struct TNodeShardPatch
-    {
-        yhash_map<TOperationId, TOperationStatePatch> OperationPatches;
-    };
-
-    void UpdateState(const TNodeShardPatch& patch);
+    void SetInterruptHint(const TJobId& jobId, bool hint);
 
 private:
     const int Id_;
@@ -219,8 +196,6 @@ private:
         IOperationControllerPtr Controller;
         bool Terminated = false;
         bool JobsAborted = false;
-        bool CanCreateJobNodeForAbortedOrFailedJobs = true;
-        bool CanCreateJobNodeForJobsWithStderr = true;
     };
 
     yhash_map<TOperationId, TOperationState> OperationStates_;
@@ -284,8 +259,6 @@ private:
     void OnJobWaiting(const TJobPtr& /*job*/);
     void OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool abandoned = false);
     void OnJobFailed(const TJobPtr& job, TJobStatus* status);
-
-    void ProcessFinishedJobResult(const TJobPtr& job);
 
     void IncreaseProfilingCounter(const TJobPtr& job, i64 value);
 

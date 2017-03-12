@@ -1901,7 +1901,8 @@ protected:
         int key,
         const TCompletedJobSummary& jobSummary) override
     {
-        TotalOutputRowCount += GetTotalOutputDataStatistics(jobSummary.Statistics).row_count();
+        YCHECK(jobSummary.Statistics);
+        TotalOutputRowCount += GetTotalOutputDataStatistics(*jobSummary.Statistics).row_count();
         TOperationControllerBase::RegisterOutput(chunkListIds, key, jobSummary);
     }
 
@@ -2711,7 +2712,7 @@ public:
             .DoIf(Spec->Mapper.operator bool(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("mapper").BeginMap()
-                      .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
+                        .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
                     .EndMap();
             })
             .DoIf(Spec->Reducer.operator bool(), [&] (TFluentMap fluent) {

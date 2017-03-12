@@ -16,6 +16,7 @@
 #include "scheduling_tag.h"
 #include "snapshot_downloader.h"
 #include "sort_controller.h"
+#include "controllers_master_connector.h"
 
 #include <yt/server/exec_agent/public.h>
 
@@ -212,13 +213,6 @@ public:
             &TImpl::OnMasterDisconnected,
             Unretained(this)));
 
-        MasterConnector_->SubscribeUserTransactionAborted(BIND(
-            &TImpl::OnUserTransactionAborted,
-            Unretained(this)));
-        MasterConnector_->SubscribeSchedulerTransactionAborted(BIND(
-            &TImpl::OnSchedulerTransactionAborted,
-            Unretained(this)));
-
         MasterConnector_->Start();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
@@ -264,12 +258,6 @@ public:
             BIND(&TImpl::UpdateExecNodeDescriptors, MakeWeak(this)),
             Config_->UpdateExecNodeDescriptorsPeriod);
         UpdateExecNodeDescriptorsExecutor_->Start();
-
-        UpdateNodeShardsExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
-            BIND(&TImpl::UpdateNodeShards, MakeWeak(this)),
-            Config_->NodeShardsUpdatePeriod);
-        UpdateNodeShardsExecutor_->Start();
     }
 
     IYPathServicePtr GetOrchidService()
@@ -549,14 +537,6 @@ public:
                 Config_->MaxOperationCount);
         }
 
-        // Attach user transaction if any. Don't ping it.
-        TTransactionAttachOptions userAttachOptions;
-        userAttachOptions.Ping = false;
-        userAttachOptions.PingAncestors = false;
-        auto userTransaction = transactionId
-            ? GetMasterClient()->AttachTransaction(transactionId, userAttachOptions)
-            : nullptr;
-
         // Merge operation spec with template
         auto specTemplate = GetSpecTemplate(type, spec);
         if (specTemplate) {
@@ -578,7 +558,7 @@ public:
             operationId,
             type,
             mutationId,
-            userTransaction,
+            transactionId,
             spec,
             user,
             operationSpec->Owners,
@@ -622,16 +602,7 @@ public:
             return operation->GetFinished();
         }
 
-        LOG_INFO(error, "Aborting operation (OperationId: %v, State: %v)",
-            operation->GetId(),
-            operation->GetState());
-
-        TerminateOperation(
-            operation,
-            EOperationState::Aborting,
-            EOperationState::Aborted,
-            ELogEventType::OperationAborted,
-            error);
+        DoAbortOperation(operation->GetId(), error);
 
         return operation->GetFinished();
     }
@@ -947,6 +918,16 @@ public:
             BIND(&TImpl::DoFailOperation, MakeStrong(this), operationId, error));
     }
 
+    virtual void OnOperationAborted(const TOperationId& operationId, const TError& error) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(
+            BIND([=, this_ = MakeStrong(this)] {
+                DoAbortOperation(operationId, error);
+            }));
+    }
+
     virtual std::unique_ptr<IValueConsumer> CreateLogConsumer() override
     {
         return std::unique_ptr<IValueConsumer>(new TEventLogValueConsumer(this));
@@ -988,29 +969,6 @@ public:
         return JobSpecSliceThrottler_;
     }
 
-    TFuture<void> UpdateOperationWithFinishedJob(
-        const TOperationId& operationId,
-        const TJobId& jobId,
-        bool jobFailedOrAborted,
-        const TYsonString& jobAttributes,
-        const TChunkId& stderrChunkId,
-        const TChunkId& failContextChunkId,
-        TFuture<TYsonString> inputPathsFuture) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return BIND(&TImpl::DoUpdateOperationWithFinishedJob, MakeStrong(this))
-            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
-            .Run(
-                operationId,
-                jobId,
-                jobFailedOrAborted,
-                jobAttributes,
-                stderrChunkId,
-                failContextChunkId,
-                inputPathsFuture);
-    }
-
     TFuture<void> AttachJobContext(
         const NYTree::TYPath& path,
         const NChunkClient::TChunkId& chunkId,
@@ -1019,7 +977,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&TImpl::DoAttachJobContext, MakeStrong(this))
+        return BIND(&TControllersMasterConnector::AttachJobContext, MasterConnector_->GetControllersMasterConnector())
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run(path, chunkId, operationId, jobId);
     }
@@ -1091,7 +1049,6 @@ private:
     TPeriodicExecutorPtr LoggingExecutor_;
     TPeriodicExecutorPtr PendingEventLogRowsFlushExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
-    TPeriodicExecutorPtr UpdateNodeShardsExecutor_;
 
     const TAsyncSemaphorePtr CoreSemaphore_;
 
@@ -1155,61 +1112,6 @@ private:
         return GetNodeShard(nodeId);
     }
 
-    bool ShouldCreateJobNode(const TOperationPtr& operation, bool jobFailedOrAborted, bool hasStderr)
-    {
-        // Keep it sync with same checks in TNodeShard::ProcessFinishedJobResult.
-        if (operation->GetJobNodeCount() >= Config_->MaxJobNodesPerOperation) {
-            return false;
-        }
-        if (!jobFailedOrAborted) {
-            return hasStderr && operation->GetStderrCount() < operation->GetMaxStderrCount();
-        }
-        return true;
-    }
-
-    void DoUpdateOperationWithFinishedJob(
-        const TOperationId& operationId,
-        const TJobId& jobId,
-        bool jobFailedOrAborted,
-        const TYsonString& jobAttributes,
-        const TChunkId& stderrChunkId,
-        const TChunkId& failContextChunkId,
-        TFuture<TYsonString> inputPathsFuture)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto operation = FindOperation(operationId);
-        if (!operation) {
-            LOG_DEBUG("Dangling finished job found (JobId: %v, OperationId: %v)",
-                jobId,
-                operationId);
-            return;
-        }
-
-        YCHECK(jobFailedOrAborted || !failContextChunkId);
-
-        if (ShouldCreateJobNode(operation, jobFailedOrAborted, stderrChunkId != NullChunkId)) {
-            TCreateJobNodeRequest request;
-            request.OperationId = operationId;
-            request.JobId = jobId;
-            request.Attributes = jobAttributes;
-            request.StderrChunkId = stderrChunkId;
-            request.FailContextChunkId = failContextChunkId;
-            request.InputPathsFuture = inputPathsFuture;
-
-            MasterConnector_->CreateJobNode(request);
-
-            if (stderrChunkId) {
-                operation->SetStderrCount(operation->GetStderrCount() + 1);
-            }
-            operation->SetJobNodeCount(operation->GetJobNodeCount() + 1);
-        } else {
-            if (stderrChunkId) {
-                ReleaseStderrChunk(operation, stderrChunkId);
-            }
-        }
-    }
-
     void ReleaseStderrChunk(const TOperationPtr& operation, const TChunkId& chunkId)
     {
         auto cellTag = CellTagFromId(chunkId);
@@ -1233,17 +1135,6 @@ private:
         if (!batchRspOrError.IsOK()) {
             LOG_WARNING(batchRspOrError, "Error releasing stderr chunk");
         }
-    }
-
-    void DoAttachJobContext(
-        const NYTree::TYPath& path,
-        const NChunkClient::TChunkId& chunkId,
-        const TOperationId& operationId,
-        const TJobId& jobId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        MasterConnector_->AttachJobContext(path, chunkId, operationId, jobId);
     }
 
     void OnProfiling()
@@ -1444,33 +1335,28 @@ private:
             .Item("error").Value(error);
     }
 
-    void OnUserTransactionAborted(TOperationPtr operation)
+    void OnUserTransactionAborted(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto codicilGuard = operation->MakeCodicilGuard();
+        YCHECK(operation);
 
-        TerminateOperation(
+        DoAbortOperation(
             operation,
-            EOperationState::Aborting,
-            EOperationState::Aborted,
-            ELogEventType::OperationAborted,
-            TError("User transaction %v has expired or was aborted",
-                operation->GetUserTransaction()->GetId()));
+            TError("User transaction %v of operation has expired or was aborted",
+                operation->GetUserTransactionId()));
     }
 
-    void OnSchedulerTransactionAborted(TOperationPtr operation)
+    void OnUserTransactionAborted(const TOperationId& operationId) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto codicilGuard = operation->MakeCodicilGuard();
-
-        TerminateOperation(
-            operation,
-            EOperationState::Failing,
-            EOperationState::Failed,
-            ELogEventType::OperationFailed,
-            TError("Scheduler transaction has expired or was aborted"));
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(
+            BIND([=, this_ = MakeStrong(this)] {
+                auto operation = FindOperation(operationId);
+                if (!operation || operation->IsFinishedState()) {
+                    return;
+                }
+                OnUserTransactionAborted(operation);
+            }));
     }
 
     void RequestPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
@@ -1715,23 +1601,6 @@ private:
                     }
                 }
             }
-        }
-    }
-
-    void UpdateNodeShards()
-    {
-        TNodeShard::TNodeShardPatch patch;
-        for (const auto& pair : IdToOperation_) {
-            const auto& operation = pair.second;
-            auto& operationPatch = patch.OperationPatches[operation->GetId()];
-            operationPatch.CanCreateJobNodeForAbortedOrFailedJobs =
-                operation->GetJobNodeCount() < Config_->MaxJobNodesPerOperation;
-            operationPatch.CanCreateJobNodeForJobsWithStderr =
-                operation->GetStderrCount() < operation->GetMaxStderrCount();
-        }
-
-        for (auto& nodeShard : NodeShards_) {
-            nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::UpdateState, nodeShard, patch));
         }
     }
 
@@ -2249,6 +2118,39 @@ private:
             error);
     }
 
+    void DoAbortOperation(const TOperationPtr& operation, const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
+
+        LOG_INFO(error, "Aboring operation (OperationId: %v, State: %v)",
+            operation->GetId(),
+            operation->GetState());
+
+        TerminateOperation(
+            operation,
+            EOperationState::Aborting,
+            EOperationState::Aborted,
+            ELogEventType::OperationAborted,
+            error);
+    }
+
+    void DoAbortOperation(const TOperationId operationId, const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+
+        // NB: finishing state is ok, do not skip operation fail in this case.
+        if (!operation || operation->IsFinishedState()) {
+            // Operation is already terminated.
+            return;
+        }
+
+        DoAbortOperation(operation, error);
+    }
+
     void TerminateOperation(
         TOperationPtr operation,
         EOperationState intermediateState,
@@ -2380,11 +2282,17 @@ private:
                 .EndMap()
                 .Item("suspicious_jobs").BeginMap()
                     .Do([=] (IYsonConsumer* consumer) {
-                        for (auto nodeShard : NodeShards_) {
-                            WaitFor(
-                                BIND(&TNodeShard::BuildSuspiciousJobsYson, nodeShard, consumer)
-                                    .AsyncVia(nodeShard->GetInvoker())
-                                    .Run());
+                        for (const auto& it : IdToOperation_) {
+                            const auto& operation = it.second;
+                            auto controller = operation->GetController();
+                            if (controller) {
+                                auto ysonString = WaitFor(
+                                    BIND(&IOperationController::BuildSuspiciousJobsYson, controller)
+                                        .AsyncVia(controller->GetInvoker())
+                                        .Run())
+                                    .ValueOrThrow();
+                                consumer->OnRaw(ysonString);
+                            }
                         }
                     })
                 .EndMap()
@@ -2449,12 +2357,12 @@ private:
                 .EndAttributes()
                 .BeginMap()
                     .Do([=] (IYsonConsumer* consumer) {
-                        for (const auto& nodeShard : NodeShards_) {
-                            WaitFor(
-                                BIND(&TNodeShard::BuildOperationJobsYson, nodeShard)
-                                    .AsyncVia(nodeShard->GetInvoker())
-                                    .Run(operation->GetId(), consumer));
-                        }
+                        auto future = BIND(&IOperationController::BuildJobsYson, controller)
+                            .AsyncVia(controller->GetCancelableInvoker())
+                            .Run();
+                        auto jobsYson = WaitFor(future)
+                            .ValueOrThrow();
+                        consumer->OnRaw(jobsYson);
                     })
                 .EndMap()
                 .Item("job_splitter").BeginAttributes()
@@ -2568,29 +2476,43 @@ private:
         virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
         {
             TJobId jobId = TJobId::FromString(key);
-            auto nodeShard = Scheduler_->GetNodeShardByJobId(jobId);
-
-            auto jobYsonCallback = BIND(&TNodeShard::BuildJobYson, nodeShard, jobId);
-            auto jobYPathService = IYPathService::FromProducer(jobYsonCallback)
-                ->Via(nodeShard->GetInvoker());
-
-            static const auto EmptyMapYson = TYsonString("{}");
-            auto statisticsYsonCallback = BIND([=] (IYsonConsumer* consumer) {
-                auto statistics = nodeShard->GetJobStatistics(jobId);
-                consumer->OnRaw(statistics ? statistics : EmptyMapYson);
-            });
-
-            auto statisticsYPathService = New<TCompositeMapService>()
-                ->AddChild("statistics", IYPathService::FromProducer(statisticsYsonCallback)
-                    ->Via(nodeShard->GetInvoker()));
-
-            return New<TServiceCombiner>(std::vector<IYPathServicePtr> {
-                jobYPathService,
-                statisticsYPathService
-            });
+            auto buildJobYsonCallback = BIND(&TJobsService::BuildControllerJobYson, MakeStrong(this), jobId);
+            auto jobYPathService = IYPathService::FromProducer(buildJobYsonCallback)
+                ->Via(Scheduler_->GetControlInvoker());
+            return jobYPathService;
         }
 
     private:
+        void BuildControllerJobYson(const TJobId& jobId, IYsonConsumer* consumer) const
+        {
+            auto nodeShard = Scheduler_->GetNodeShardByJobId(jobId);
+
+            auto getOperationIdCallback = BIND(&TNodeShard::GetOperationIdByJobId, nodeShard, jobId)
+                .AsyncVia(nodeShard->GetInvoker())
+                .Run();
+            auto operationId = WaitFor(getOperationIdCallback)
+                .ValueOrThrow();
+
+            if (!operationId) {
+                return;
+            }
+
+            auto operation = Scheduler_->GetOperation(operationId);
+            auto controller = operation->GetController();
+            if (!controller) {
+                return;
+            }
+
+            auto jobYsonCallback = BIND(&IOperationController::BuildJobYson, controller, jobId, /* outputStatistics */ true)
+                .AsyncVia(controller->GetInvoker())
+                .Run();
+
+            auto jobYsonString = WaitFor(jobYsonCallback)
+                .ValueOrThrow();
+
+            consumer->OnRaw(jobYsonString);
+        }
+
         const TScheduler::TImpl* Scheduler_;
     };
 };
@@ -2640,12 +2562,12 @@ void TScheduler::ValidateConnected()
     Impl_->ValidateConnected();
 }
 
-TOperationPtr TScheduler::FindOperation(const TOperationId& id)
+TOperationPtr TScheduler::FindOperation(const TOperationId& id) const
 {
     return Impl_->FindOperation(id);
 }
 
-TOperationPtr TScheduler::GetOperationOrThrow(const TOperationId& id)
+TOperationPtr TScheduler::GetOperationOrThrow(const TOperationId& id) const
 {
     return Impl_->GetOperationOrThrow(id);
 }

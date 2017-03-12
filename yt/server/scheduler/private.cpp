@@ -12,6 +12,7 @@ const Stroka RootPoolName = "<Root>";
 
 const NLogging::TLogger SchedulerLogger("Scheduler");
 const NLogging::TLogger OperationLogger("Operation");
+const NLogging::TLogger ControllersMasterConnectorLogger("ControllersMasterConnector");
 const NProfiling::TProfiler SchedulerProfiler("/scheduler");
 
 const TDuration PrepareYieldPeriod = TDuration::MilliSeconds(100);
