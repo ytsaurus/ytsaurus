@@ -29,72 +29,46 @@ static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////
 
-static class TJobHelper
+void TBriefJobStatistics::Persist(const TPersistenceContext& context)
 {
-public:
-    TJobHelper()
-    {
-        for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
-            for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-                StatisticsSuffixes_[state][type] = Format("/$/%lv/%lv", state, type);
-            }
-        }
-    }
-
-    const Stroka& GetStatisticsSuffix(EJobState state, EJobType type) const
-    {
-        return StatisticsSuffixes_[state][type];
-    }
-
-private:
-    TEnumIndexedVector<TEnumIndexedVector<Stroka, EJobType>, EJobState> StatisticsSuffixes_;
-
-} JobHelper;
-
-////////////////////////////////////////////////////////////////////
-
-// Returns true if job proxy wasn't stalling and false otherwise.
-// This function is related to the suspicious jobs detection.
-bool CheckJobActivity(
-    const TBriefJobStatisticsPtr& lhs,
-    const TBriefJobStatisticsPtr& rhs,
-    i64 cpuUsageThreshold,
-    double inputPipeIdleTimeFraction)
-{
-    bool wasActive = lhs->ProcessedInputRowCount < rhs->ProcessedInputRowCount;
-    wasActive |= lhs->ProcessedInputUncompressedDataSize < rhs->ProcessedInputUncompressedDataSize;
-    wasActive |= lhs->ProcessedInputCompressedDataSize < rhs->ProcessedInputCompressedDataSize;
-    wasActive |= lhs->ProcessedOutputRowCount < rhs->ProcessedOutputRowCount;
-    wasActive |= lhs->ProcessedOutputUncompressedDataSize < rhs->ProcessedOutputUncompressedDataSize;
-    wasActive |= lhs->ProcessedOutputCompressedDataSize < rhs->ProcessedOutputCompressedDataSize;
-    if (lhs->JobProxyCpuUsage && rhs->JobProxyCpuUsage) {
-        wasActive |= *lhs->JobProxyCpuUsage + cpuUsageThreshold < *rhs->JobProxyCpuUsage;
-    }
-    if (lhs->InputPipeIdleTime && rhs->InputPipeIdleTime && lhs->Timestamp < rhs->Timestamp) {
-        wasActive |= (*rhs->InputPipeIdleTime - *lhs->InputPipeIdleTime) < (rhs->Timestamp - lhs->Timestamp).MilliSeconds() * inputPipeIdleTimeFraction;
-    }
-    return wasActive;
+    using NYT::Persist;
+    Persist(context, Timestamp);
+    Persist(context, ProcessedInputRowCount);
+    Persist(context, ProcessedInputUncompressedDataSize);
+    Persist(context, ProcessedInputCompressedDataSize);
+    Persist(context, ProcessedOutputRowCount);
+    Persist(context, ProcessedOutputUncompressedDataSize);
+    Persist(context, ProcessedOutputCompressedDataSize);
+    Persist(context, InputPipeIdleTime);
+    Persist(context, JobProxyCpuUsage);
 }
 
 ////////////////////////////////////////////////////////////////////
 
-void Serialize(const TBriefJobStatistics& briefJobStatistics, IYsonConsumer* consumer)
+void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, IYsonConsumer* consumer)
 {
+    if (!briefJobStatistics) {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+            .EndMap();
+        return;
+    }
+
     BuildYsonFluently(consumer)
         .BeginAttributes()
-            .Item("timestamp").Value(briefJobStatistics.Timestamp)
+            .Item("timestamp").Value(briefJobStatistics->Timestamp)
         .EndAttributes()
         .BeginMap()
-            .Item("processed_input_row_count").Value(briefJobStatistics.ProcessedInputRowCount)
-            .Item("processed_input_data_size").Value(briefJobStatistics.ProcessedInputUncompressedDataSize)
-            .Item("processed_input_compressed_data_size").Value(briefJobStatistics.ProcessedInputCompressedDataSize)
-            .Item("processed_output_data_size").Value(briefJobStatistics.ProcessedOutputUncompressedDataSize)
-            .Item("processed_output_compressed_data_size").Value(briefJobStatistics.ProcessedOutputCompressedDataSize)
-            .DoIf(static_cast<bool>(briefJobStatistics.InputPipeIdleTime), [&] (TFluentMap fluent) {
-                fluent.Item("input_pipe_idle_time").Value(*briefJobStatistics.InputPipeIdleTime);
+            .Item("processed_input_row_count").Value(briefJobStatistics->ProcessedInputRowCount)
+            .Item("processed_input_uncompressed_data_size").Value(briefJobStatistics->ProcessedInputUncompressedDataSize)
+            .Item("processed_input_compressed_data_size").Value(briefJobStatistics->ProcessedInputCompressedDataSize)
+            .Item("processed_output_uncompressed_data_size").Value(briefJobStatistics->ProcessedOutputUncompressedDataSize)
+            .Item("processed_output_compressed_data_size").Value(briefJobStatistics->ProcessedOutputCompressedDataSize)
+            .DoIf(static_cast<bool>(briefJobStatistics->InputPipeIdleTime), [&] (TFluentMap fluent) {
+                fluent.Item("input_pipe_idle_time").Value(*(briefJobStatistics->InputPipeIdleTime));
             })
-            .DoIf(static_cast<bool>(briefJobStatistics.JobProxyCpuUsage), [&] (TFluentMap fluent) {
-                fluent.Item("job_proxy_cpu_usage").Value(*briefJobStatistics.JobProxyCpuUsage);
+            .DoIf(static_cast<bool>(briefJobStatistics->JobProxyCpuUsage), [&] (TFluentMap fluent) {
+                fluent.Item("job_proxy_cpu_usage").Value(*(briefJobStatistics->JobProxyCpuUsage));
             })
         .EndMap();
 }
@@ -108,23 +82,18 @@ TJob::TJob(
     TExecNodePtr node,
     TInstant startTime,
     const TJobResources& resourceLimits,
-    bool restarted,
     bool interruptible,
-    TJobSpecBuilder specBuilder,
-    const Stroka& account)
+    TJobSpecBuilder specBuilder)
     : Id_(id)
     , Type_(type)
     , OperationId_(operationId)
     , Node_(node)
     , StartTime_(startTime)
-    , Restarted_(restarted)
     , Interruptible_(interruptible)
     , State_(EJobState::None)
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
     , SpecBuilder_(std::move(specBuilder))
-    , LastActivityTime_(startTime)
-    , Account_(account)
 { }
 
 TDuration TJob::GetDuration() const
@@ -132,114 +101,51 @@ TDuration TJob::GetDuration() const
     return *FinishTime_ - StartTime_;
 }
 
-TBriefJobStatisticsPtr TJob::BuildBriefStatistics(const TYsonString& statisticsYson) const
-{
-    auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(statisticsYson);
-
-    auto briefStatistics = New<TBriefJobStatistics>();
-    briefStatistics->ProcessedInputRowCount = GetNumericValue(statistics, "/data/input/row_count");
-    briefStatistics->ProcessedInputUncompressedDataSize = GetNumericValue(statistics, "/data/input/uncompressed_data_size");
-    briefStatistics->ProcessedInputCompressedDataSize = GetNumericValue(statistics, "/data/input/compressed_data_size");
-    briefStatistics->InputPipeIdleTime = FindNumericValue(statistics, "/user_job/pipes/input/idle_time");
-    briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, "/job_proxy/cpu/user");
-    briefStatistics->Timestamp = statistics.GetTimestamp().Get(TInstant::Now());
-
-    auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
-    briefStatistics->ProcessedOutputUncompressedDataSize = outputDataStatistics.uncompressed_data_size();
-    briefStatistics->ProcessedOutputCompressedDataSize = outputDataStatistics.compressed_data_size();
-    briefStatistics->ProcessedOutputRowCount = outputDataStatistics.row_count();
-
-    return briefStatistics;
-}
-
-void TJob::AnalyzeBriefStatistics(
-    TDuration suspiciousInactivityTimeout,
-    i64 suspiciousCpuUsageThreshold,
-    double suspiciousInputPipeIdleTimeFraction,
-    const TBriefJobStatisticsPtr& briefStatistics)
-{
-    bool wasActive = false;
-
-    if (!BriefStatistics_ || CheckJobActivity(
-        BriefStatistics_,
-        briefStatistics,
-        suspiciousCpuUsageThreshold,
-        suspiciousInputPipeIdleTimeFraction))
-    {
-        wasActive = true;
-    }
-    BriefStatistics_ = briefStatistics;
-
-    bool wasSuspicious = Suspicious_;
-    Suspicious_ = (!wasActive && BriefStatistics_->Timestamp - LastActivityTime_ > suspiciousInactivityTimeout);
-    if (!wasSuspicious && Suspicious_) {
-        LOG_DEBUG("Found a suspicious job (JobId: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v)",
-            Id_,
-            LastActivityTime_,
-            suspiciousInactivityTimeout);
-    }
-
-    if (wasActive) {
-        LastActivityTime_ = BriefStatistics_->Timestamp;
-    }
-}
-
-void TJob::SetStatus(TJobStatus* status)
-{
-    if (status) {
-        Status_.Swap(status);
-    }
-    if (Status_.has_statistics()) {
-        StatisticsYson_ = TYsonString(Status_.statistics());
-    }
-}
-
-const Stroka& TJob::GetStatisticsSuffix() const
-{
-    auto state = (GetRestarted() && GetState() == EJobState::Completed) ? EJobState::Lost : GetState();
-    auto type = GetType();
-    return JobHelper.GetStatisticsSuffix(state, type);
-}
-
 ////////////////////////////////////////////////////////////////////
 
-TJobSummary::TJobSummary(const TJobPtr& job)
-    : Result(job->Status().result())
-    , Id(job->GetId())
-    , StatisticsSuffix(job->GetStatisticsSuffix())
+TJobSummary::TJobSummary()
+{ }
+
+TJobSummary::TJobSummary(const TJobPtr& job, TJobStatus* status)
+    : Id(job->GetId())
+    , State(job->GetState())
     , FinishTime(job->GetFinishTime())
     , ShouldLog(true)
 {
-    const auto& status = job->Status();
-    if (status.has_prepare_duration()) {
-        PrepareDuration = FromProto<TDuration>(status.prepare_duration());
+    // TODO(ignat): it is hacky way, we should avoid it by saving status in controller.
+    if (!status) {
+        return;
     }
-    if (status.has_download_duration()) {
-        DownloadDuration = FromProto<TDuration>(status.download_duration());
+
+    Result = status->result();
+    if (status->has_prepare_duration()) {
+        PrepareDuration = FromProto<TDuration>(status->prepare_duration());
     }
-    if (status.has_exec_duration()) {
+    if (status->has_download_duration()) {
+        DownloadDuration = FromProto<TDuration>(status->download_duration());
+    }
+    if (status->has_exec_duration()) {
         ExecDuration.Emplace();
-        FromProto(ExecDuration.GetPtr(), status.exec_duration());
+        FromProto(ExecDuration.GetPtr(), status->exec_duration());
     }
-    StatisticsYson = job->StatisticsYson();
+    if (status->has_statistics()) {
+        StatisticsYson = TYsonString(status->statistics());
+    }
 }
 
-TJobSummary::TJobSummary(const TJobId& id)
+TJobSummary::TJobSummary(const TJobId& id, EJobState state)
     : Result()
     , Id(id)
-    , StatisticsSuffix()
+    , State(state)
     , ShouldLog(false)
 { }
 
 void TJobSummary::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
-    using NYT::Save;
-    using NYT::Load;
-
-    Persist<TBinaryProtoSerializer>(context, Result);
+    Persist(context, Result);
     Persist(context, Id);
-    Persist(context, StatisticsSuffix);
+    Persist(context, State);
     Persist(context, FinishTime);
     Persist(context, PrepareDuration);
     Persist(context, DownloadDuration);
@@ -249,20 +155,10 @@ void TJobSummary::Persist(const TPersistenceContext& context)
     Persist(context, ShouldLog);
 }
 
-void TJobSummary::ParseStatistics()
-{
-    if (StatisticsYson) {
-        Statistics = ConvertTo<NJobTrackerClient::TStatistics>(StatisticsYson);
-        // NB: we should remove timestamp from the statistics as it becomes a YSON-attribute
-        // when writing it to the event log, but top-level attributes are disallowed in table rows.
-        Statistics.SetTimestamp(Null);
-    }
-}
-
 ////////////////////////////////////////////////////////////////////
 
-TCompletedJobSummary::TCompletedJobSummary(const TJobPtr& job, bool abandoned)
-    : TJobSummary(job)
+TCompletedJobSummary::TCompletedJobSummary(const TJobPtr& job, TJobStatus* status, bool abandoned)
+    : TJobSummary(job, status)
     , Abandoned(abandoned)
 {
     const auto& schedulerResultExt = Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -288,19 +184,26 @@ void TCompletedJobSummary::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////
 
-TAbortedJobSummary::TAbortedJobSummary(const TJobPtr& job)
-    : TJobSummary(job)
-    , AbortReason(GetAbortReason(job->Status().result()))
+TAbortedJobSummary::TAbortedJobSummary(const TJobPtr& job, TJobStatus* status)
+    : TJobSummary(job, status)
+    , AbortReason(GetAbortReason(Result))
 { }
 
 TAbortedJobSummary::TAbortedJobSummary(const TJobId& id, EAbortReason abortReason)
-    : TJobSummary(id)
+    : TJobSummary(id, EJobState::Aborted)
     , AbortReason(abortReason)
 { }
 
 TAbortedJobSummary::TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason)
     : TJobSummary(other)
     , AbortReason(abortReason)
+{ }
+
+////////////////////////////////////////////////////////////////////
+
+TRunningJobSummary::TRunningJobSummary(const TJobPtr& job, TJobStatus* status)
+    : TJobSummary(job, status)
+    , Progress(status->progress())
 { }
 
 ////////////////////////////////////////////////////////////////////
@@ -318,19 +221,15 @@ TJobStartRequest::TJobStartRequest(
     TJobId id,
     EJobType type,
     const TJobResources& resourceLimits,
-    bool restarted,
     bool interruptible,
-    TJobSpecBuilder specBuilder,
-    const Stroka& account)
+    TJobSpecBuilder specBuilder)
     : Id(id)
     , Type(type)
     , ResourceLimits(resourceLimits)
-    , Restarted(restarted)
     , Interruptible(interruptible)
     , SpecBuilder(std::move(specBuilder))
-    , Account(account)
 { }
-
+    
 ////////////////////////////////////////////////////////////////////
 
 void TScheduleJobResult::RecordFail(EScheduleJobFailReason reason)

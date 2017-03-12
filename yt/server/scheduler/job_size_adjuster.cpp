@@ -27,8 +27,9 @@ public:
     virtual void UpdateStatistics(const TCompletedJobSummary& summary) override
     {
         if (!summary.Abandoned) {
+            YCHECK(summary.Statistics);
             UpdateStatistics(
-                GetNumericValue(summary.Statistics, "/data/input/uncompressed_data_size"),
+                GetNumericValue(*summary.Statistics, "/data/input/uncompressed_data_size"),
                 summary.PrepareDuration.Get(TDuration()) - summary.DownloadDuration.Get(TDuration()),
                 summary.ExecDuration.Get(TDuration()));
         }

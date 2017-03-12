@@ -44,8 +44,8 @@ public:
     bool IsConnected();
     void ValidateConnected();
 
-    TOperationPtr FindOperation(const TOperationId& id);
-    TOperationPtr GetOperationOrThrow(const TOperationId& id);
+    TOperationPtr FindOperation(const TOperationId& id) const;
+    TOperationPtr GetOperationOrThrow(const TOperationId& id) const;
 
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,

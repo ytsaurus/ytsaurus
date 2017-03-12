@@ -2176,7 +2176,15 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         }
     }
 
+    @require_ytserver_root_privileges
     def test_false_suspicious_jobs(self):
+        def get_running_jobs(op_id):
+            path = "//sys/scheduler/orchid/scheduler/operations/" + op_id
+            if not exists(path, verbose=False):
+                return []
+            else:
+                return get(path + "/running_jobs", verbose=False)
+
         create("table", "//tmp/t", attributes={"replication_factor": 1})
         create("table", "//tmp/t1", attributes={"replication_factor": 1})
         create("table", "//tmp/t2", attributes={"replication_factor": 1})
@@ -2195,21 +2203,17 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
             in_="//tmp/t",
             out="//tmp/t2")
 
-        while True:
-            if not exists("//sys/scheduler/orchid/scheduler/operations/" + op1.id):
-                running_jobs1 = []
-            else:
-                running_jobs1 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op1.id))
-
-            if not exists("//sys/scheduler/orchid/scheduler/operations/" + op2.id):
-                running_jobs2 = []
-            else:
-                running_jobs2 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op2.id))
-
-            if len(running_jobs1) == 0 or len(running_jobs2) == 0:
-                time.sleep(1)
+        for i in xrange(200):
+            running_jobs1 = get_running_jobs(op1.id)
+            running_jobs2 = get_running_jobs(op2.id)
+            print >>sys.stderr, "running_jobs1:", len(running_jobs1), "running_jobs2:", len(running_jobs2)
+            if not running_jobs1 or not running_jobs2:
+                time.sleep(0.1)
             else:
                 break
+            
+        if not running_jobs1 or not running_jobs2:
+            assert False, "Failed to have running jobs in both operations"
 
         time.sleep(5)
 
@@ -2228,6 +2232,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         op2.abort()
 
     @pytest.mark.xfail(reason="TODO(max42)")
+    @require_ytserver_root_privileges
     def test_true_suspicious_job(self):
         # This test involves dirty hack to make lots of retries for fetching feasible
         # seeds from master making the job suspicious (as it doesn't give the input for the

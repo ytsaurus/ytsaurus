@@ -11,6 +11,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NApi;
+using namespace NTransactionClient;
 using namespace NJobTrackerClient;
 using namespace NRpc;
 using namespace NYTree;
@@ -22,7 +23,7 @@ TOperation::TOperation(
     const TOperationId& id,
     EOperationType type,
     const TMutationId& mutationId,
-    ITransactionPtr userTransaction,
+    TTransactionId userTransactionId,
     IMapNodePtr spec,
     const Stroka& authenticatedUser,
     const std::vector<Stroka>& owners,
@@ -38,20 +39,17 @@ TOperation::TOperation(
     , Suspended_(suspended)
     , Activated_(false)
     , Prepared_(false)
-    , UserTransaction_(userTransaction)
+    , UserTransactionId_(userTransactionId)
     , Spec_(spec)
     , AuthenticatedUser_(authenticatedUser)
     , Owners_(owners)
     , StartTime_(startTime)
     , Events_(events)
-    , StderrCount_(0)
-    , JobNodeCount_(0)
     , CodicilData_(MakeOperationCodicilString(Id_))
     , CancelableContext_(New<TCancelableContext>())
     , CancelableInvoker_(CancelableContext_->CreateInvoker(controlInvoker))
 {
     auto parsedSpec = ConvertTo<TOperationSpecBasePtr>(Spec_);
-    MaxStderrCount_ = parsedSpec->MaxStderrCount;
     SecureVault_ = std::move(parsedSpec->SecureVault);
     Spec_->RemoveChild("secure_vault");
 }

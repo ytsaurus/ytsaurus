@@ -583,45 +583,11 @@ void BuildInitializingOperationAttributes(TOperationPtr operation, NYson::IYsonC
 void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer)
 {
     auto controller = operation->GetController();
-    auto userTransaction = operation->GetUserTransaction();
     BuildYsonMapFluently(consumer)
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
-        .Item("user_transaction_id").Value(userTransaction ? userTransaction->GetId() : NullTransactionId)
         .Item("events").Value(operation->GetEvents())
         .DoIf(static_cast<bool>(controller), BIND(&IOperationController::BuildOperationAttributes, controller));
-}
-
-void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
-{
-    auto state = job->GetState();
-    BuildYsonMapFluently(consumer)
-        .Item("job_type").Value(FormatEnum(job->GetType()))
-        .Item("state").Value(FormatEnum(state))
-        .Item("address").Value(job->GetNode()->GetDefaultAddress())
-        .Item("start_time").Value(job->GetStartTime())
-        .Item("account").Value(job->GetAccount())
-        .Item("progress").Value(job->GetProgress())
-        .DoIf(static_cast<bool>(job->GetBriefStatistics()), [=] (TFluentMap fluent) {
-            fluent.Item("brief_statistics").Value(*job->GetBriefStatistics());
-        })
-        .Item("suspicious").Value(job->GetSuspicious())
-        .DoIf(job->GetFinishTime().HasValue(), [=] (TFluentMap fluent) {
-            fluent.Item("finish_time").Value(job->GetFinishTime().Get());
-        })
-        .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
-            auto error = FromProto<TError>(job->Status().result().error());
-            fluent.Item("error").Value(error);
-        })
-        // NB: This extension is missing while job is running. It appears only when job is complete,
-        // i.e. this item will be presented in Cypress but it will never appear when accessing
-        // scheduler via Orchid.
-        .DoIf(job->Status().result().HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext),
-            [=] (TFluentMap fluent)
-        {
-            const auto& schedulerResultExt = job->Status().result().GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            fluent.Item("core_infos").Value(schedulerResultExt.core_infos());
-        });
 }
 
 void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer)

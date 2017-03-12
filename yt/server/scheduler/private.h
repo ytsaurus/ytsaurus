@@ -45,6 +45,8 @@ class TJobMetricsUpdater;
 struct TOperationControllerInitializeResult;
 class TProgressCounter;
 
+DECLARE_REFCOUNTED_CLASS(TControllersMasterConnector)
+
 using TOperationElementByIdMap = yhash_map<TOperationId, TOperationElement*>;
 
 DEFINE_ENUM(ESchedulableStatus,
@@ -60,6 +62,7 @@ extern const Stroka RootPoolName;
 
 extern const NLogging::TLogger SchedulerLogger;
 extern const NLogging::TLogger OperationLogger;
+extern const NLogging::TLogger ControllersMasterConnectorLogger;
 extern const NProfiling::TProfiler SchedulerProfiler;
 
 extern const TDuration PrepareYieldPeriod;

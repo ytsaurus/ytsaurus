@@ -92,6 +92,12 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual IInvokerPtr GetControlInvoker() const = 0;
+    
+    //! Returns invoker for statistics analyzer.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual const IInvokerPtr& GetStatisticsAnalyzerInvoker() const = 0;
 
     //! Returns invoker for operation controller.
     /*!
@@ -133,6 +139,25 @@ struct IOperationHost
     virtual void OnOperationFailed(
         const TOperationId& operationId,
         const TError& error) = 0;
+
+    //! Called by a controller to notify the host that the operation has aborted.
+    /*!
+     *  Safe to call multiple times (only the first call counts).
+     *
+     *  \note Thread affinity: any
+     */
+    virtual void OnOperationAborted(
+        const TOperationId& operationId,
+        const TError& error) = 0;
+
+    //! Called by a controller to notify the host that the user transaction of operations is expired or aborted.
+    /*!
+     *  Safe to call multiple times (only the first call counts).
+     *
+     *  \note Thread affinity: any
+     */
+    virtual void OnUserTransactionAborted(
+        const TOperationId& operationId) = 0;
 
     //! Creates new value consumer that can be used for logging.
     /*!
@@ -243,6 +268,9 @@ struct IOperationController
      */
     virtual void Complete() = 0;
 
+    //! Invokes controller finalization due to aborted or expired transaction.
+    virtual void OnTransactionAborted(const NTransactionClient::TTransactionId& transactionId) = 0;
+
     //! Called from a forked copy of the scheduler to make a snapshot of operation's progress.
     virtual void SaveSnapshot(TOutputStream* stream) = 0;
 
@@ -324,7 +352,7 @@ struct IOperationController
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called during heartbeat processing to notify the controller that a job is still running.
-    virtual void OnJobRunning(std::unique_ptr<TJobSummary> jobSummary) = 0;
+    virtual void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
@@ -370,13 +398,6 @@ struct IOperationController
     //! Called to construct a YSON representing the current state of memory digests for jobs of each type.
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const = 0;
 
-    /*!
-     *  \note Thread affinity: Controller invoker
-     */
-    //! Start building YSON representation of all input paths with all ranges processed
-    //! by the job with the specified ID.
-    virtual NYson::TYsonString BuildInputPathYson(const TJobId& jobId) const = 0;
-
     //! Called to get a cached YSON string representing the current progress.
     virtual NYson::TYsonString GetProgress() const = 0;
 
@@ -388,6 +409,13 @@ struct IOperationController
 
     //! Called to construct a YSON representing job splitter state.
     virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const = 0;
+
+    //! Called to get a YSON string representing current job(s) state.
+    virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;
+    virtual NYson::TYsonString BuildJobsYson() const = 0;
+    
+    //! Called to get a YSON string representing suspicious jobs of operation.
+    virtual NYson::TYsonString BuildSuspiciousJobsYson() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

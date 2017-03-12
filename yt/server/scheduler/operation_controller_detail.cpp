@@ -4,8 +4,11 @@
 #include "chunk_pool.h"
 #include "helpers.h"
 #include "intermediate_chunk_scraper.h"
+#include "job_helpers.h"
 #include "job_metrics.h"
 #include "job_metrics_updater.h"
+#include "master_connector.h"
+#include "controllers_master_connector.h"
 
 #include <yt/server/misc/job_table_schema.h>
 
@@ -20,6 +23,9 @@
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/ytlib/core_dump/core_info.pb.h>
+#include <yt/ytlib/core_dump/helpers.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
@@ -75,6 +81,7 @@ using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;
+using namespace NCoreDump::NProto;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NRpc;
@@ -103,6 +110,30 @@ void CommitTransaction(const ITransactionPtr& transaction)
 }
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////
+
+static class TJobHelper
+{
+public:
+    TJobHelper()
+    {
+        for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
+            for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+                StatisticsSuffixes_[state][type] = Format("/$/%lv/%lv", state, type);
+            }
+        }
+    }
+
+    const Stroka& GetStatisticsSuffix(EJobState state, EJobType type) const
+    {
+        return StatisticsSuffixes_[state][type];
+    }
+
+private:
+    TEnumIndexedVector<TEnumIndexedVector<Stroka, EJobType>, EJobState> StatisticsSuffixes_;
+
+} JobHelper;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -214,6 +245,21 @@ TOperationControllerBase::TJoblet::TJoblet(TOperationControllerBase* controller,
 
 TOperationControllerBase::TJoblet::~TJoblet() = default;
 
+void TOperationControllerBase::TJobInfoBase::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, JobId);
+    Persist(context, JobType);
+    Persist(context, NodeDescriptor);
+    Persist(context, StartTime);
+    Persist(context, FinishTime);
+    Persist(context, Account);
+    Persist(context, Suspicious);
+    Persist(context, LastActivityTime);
+    Persist(context, BriefStatistics);
+    Persist(context, Progress);
+}
+
 void TOperationControllerBase::TJoblet::Persist(const TPersistenceContext& context)
 {
     // NB: Every joblet is aborted after snapshot is loaded.
@@ -221,9 +267,19 @@ void TOperationControllerBase::TJoblet::Persist(const TPersistenceContext& conte
     // properly.
     using NYT::Persist;
     Persist(context, Task);
-    Persist(context, NodeDescriptor);
     Persist(context, InputStripeList);
     Persist(context, OutputCookie);
+
+    TJobInfoBase::Persist(context);
+}
+
+void TOperationControllerBase::TFinishedJobInfo::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Summary);
+    Persist(context, InputPaths);
+
+    TJobInfoBase::Persist(context);
 }
 
 void TOperationControllerBase::TJoblet::SendJobMetrics(const TStatistics& jobStatistics, bool flush)
@@ -544,15 +600,15 @@ void TOperationControllerBase::TTask::ScheduleJob(
     auto jobType = GetJobType();
     joblet->JobId = context->GenerateJobId();
     auto restarted = LostJobCookieMap.find(joblet->OutputCookie) != LostJobCookieMap.end();
+    joblet->Account = Controller->Spec->JobNodeAccount;
     scheduleJobResult->JobStartRequest.Emplace(
         joblet->JobId,
         jobType,
         neededResources,
-        restarted,
         Controller->IsJobInterruptible(),
-        jobSpecBuilder,
-        Controller->Spec->JobNodeAccount);
+        jobSpecBuilder);
 
+    joblet->Restarted = restarted;
     joblet->JobType = jobType;
     joblet->NodeDescriptor = context->GetNodeDescriptor();
     joblet->JobProxyMemoryReserveFactor = Controller->GetJobProxyMemoryDigest(jobType)->GetQuantile(Controller->Config->JobProxyMemoryReserveQuantile);
@@ -674,8 +730,10 @@ void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr joblet)
 
 void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary)
 {
+    YCHECK(jobSummary.Statistics);
+    const auto& statistics = *jobSummary.Statistics;
+
     if (!jobSummary.Abandoned) {
-        const auto& statistics = jobSummary.Statistics;
         auto outputStatisticsMap = GetOutputDataStatistics(statistics);
         for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
             YCHECK(outputStatisticsMap.find(index) != outputStatisticsMap.end());
@@ -707,7 +765,7 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
     Controller->RegisterStderr(joblet, jobSummary);
     Controller->RegisterCores(joblet, jobSummary);
 
-    UpdateMaximumUsedTmpfsSize(jobSummary.Statistics);
+    UpdateMaximumUsedTmpfsSize(statistics);
 }
 
 void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie)
@@ -734,7 +792,8 @@ void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet, const TFail
     Controller->RegisterStderr(joblet, jobSummary);
     Controller->RegisterCores(joblet, jobSummary);
 
-    UpdateMaximumUsedTmpfsSize(jobSummary.Statistics);
+    YCHECK(jobSummary.Statistics);
+    UpdateMaximumUsedTmpfsSize(*jobSummary.Statistics);
 
     ReinstallJob(joblet, BIND([=] {GetChunkPoolOutput()->Failed(joblet->OutputCookie);}));
 }
@@ -1112,6 +1171,7 @@ TOperationControllerBase::TOperationControllerBase(
     TOperation* operation)
     : Config(config)
     , Host(host)
+    , MasterConnector(Host->GetMasterConnector()->GetControllersMasterConnector())
     , OperationId(operation->GetId())
     , OperationType(operation->GetType())
     , StartTime(operation->GetStartTime())
@@ -1125,7 +1185,6 @@ TOperationControllerBase::TOperationControllerBase(
     , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , JobCounter(0)
-    , UserTransactionId(operation->GetUserTransaction() ? operation->GetUserTransaction()->GetId() : NullTransactionId)
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , SecureVault(operation->GetSecureVault())
     , Owners(operation->GetOwners())
@@ -1154,6 +1213,18 @@ TOperationControllerBase::TOperationControllerBase(
         Config->OperationBuildProgressPeriod))
 {
     Logger.AddTag("OperationId: %v", OperationId);
+
+    // Attach user transaction if any. Don't ping it.
+    TTransactionAttachOptions userAttachOptions;
+    userAttachOptions.Ping = false;
+    userAttachOptions.PingAncestors = false;
+
+    UserTransactionId = operation->GetUserTransactionId();
+    UserTransaction = UserTransactionId
+        ? Host->GetMasterClient()->AttachTransaction(UserTransactionId, userAttachOptions)
+        : nullptr;
+
+    MasterConnector->RegisterOperation(OperationId, MakeStrong(this));
 }
 
 void TOperationControllerBase::InitializeConnections()
@@ -1192,7 +1263,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
 
     // Downloading snapshot.
     if (!cleanStart) {
-        auto snapshotOrError = WaitFor(Host->GetMasterConnector()->DownloadSnapshot(OperationId));
+        auto snapshotOrError = WaitFor(MasterConnector->DownloadSnapshot(OperationId));
         if (!snapshotOrError.IsOK()) {
             LOG_INFO(snapshotOrError, "Failed to download snapshot, will use clean start");
             cleanStart = true;
@@ -1243,7 +1314,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
         LOG_INFO("Using clean start instead of revive");
 
         Snapshot = TOperationSnapshot();
-        auto error = WaitFor(Host->GetMasterConnector()->RemoveSnapshot(OperationId));
+        auto error = WaitFor(MasterConnector->RemoveSnapshot(OperationId));
         if (!error.IsOK()) {
             LOG_WARNING(error, "Failed to remove snapshot");
         }
@@ -1751,8 +1822,6 @@ yhash_set<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
 
 void TOperationControllerBase::ReinstallLivePreview()
 {
-    auto masterConnector = Host->GetMasterConnector();
-
     if (IsOutputLivePreviewSupported()) {
         for (const auto& table : OutputTables) {
             std::vector<TChunkTreeId> childIds;
@@ -1760,7 +1829,7 @@ void TOperationControllerBase::ReinstallLivePreview()
             for (const auto& pair : table.OutputChunkTreeIds) {
                 childIds.push_back(pair.second);
             }
-            masterConnector->AttachToLivePreview(
+            MasterConnector->AttachToLivePreview(
                 OperationId,
                 AsyncSchedulerTransaction->GetId(),
                 table.LivePreviewTableId,
@@ -1776,7 +1845,7 @@ void TOperationControllerBase::ReinstallLivePreview()
                 childIds.push_back(pair.first);
             }
         }
-        masterConnector->AttachToLivePreview(
+        MasterConnector->AttachToLivePreview(
             OperationId,
             AsyncSchedulerTransaction->GetId(),
             IntermediateTable.LivePreviewTableId,
@@ -1852,6 +1921,8 @@ void TOperationControllerBase::SafeCommit()
     CustomCommit();
 
     CommitTransactions();
+
+    MasterConnector->UnregisterOperation(OperationId);
 
     LOG_INFO("Results committed");
 }
@@ -2044,8 +2115,11 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
 
 void TOperationControllerBase::SafeOnJobStarted(const TJobId& jobId, TInstant startTime)
 {
+    LOG_DEBUG("Job started (JobId: %v)", jobId);
+
     auto joblet = GetJoblet(jobId);
     joblet->StartTime = startTime;
+    joblet->LastActivityTime = startTime;
 
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(jobId)
@@ -2124,7 +2198,10 @@ void TOperationControllerBase::UpdateActualHistogram(const TStatistics& statisti
 
 void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
-    const auto& jobId = jobSummary->Id;
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    auto jobId = jobSummary->Id;
+
     const auto& result = jobSummary->Result;
 
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -2159,20 +2236,22 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         jobSummary->UnreadInputDataSlices = ExtractInputDataSlices(*jobSummary);
     }
 
-    jobSummary->ParseStatistics();
-
     JobCounter.Completed(1, jobSummary->InterruptReason);
 
     auto joblet = GetJoblet(jobId);
 
-    UpdateMemoryDigests(joblet, jobSummary->Statistics);
-    UpdateActualHistogram(jobSummary->Statistics);
+    ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
+
+    const auto& statistics = *jobSummary->Statistics;
+
+    UpdateMemoryDigests(joblet, statistics);
+    UpdateActualHistogram(statistics);
 
     FinalizeJoblet(joblet, jobSummary.get());
     LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
 
-    UpdateJobStatistics(*jobSummary);
-    joblet->SendJobMetrics(jobSummary->Statistics, true);
+    UpdateJobStatistics(joblet, *jobSummary);
+    joblet->SendJobMetrics(statistics, true);
 
     if (jobSummary->InterruptReason != EInterruptReason::None) {
         jobSummary->SplitJobCount = EstimateSplitJobCount(*jobSummary);
@@ -2187,14 +2266,21 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         JobSplitter_->OnJobCompleted(*jobSummary);
     }
 
+    // Statistics job state saved from jobSummary before moving jobSummary to ProcessFinishedJobResult.
+    auto statisticsState = GetStatisticsJobState(joblet, jobSummary->State);
+
+    ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ false);
+
     RemoveJoblet(jobId);
 
     UpdateTask(joblet->Task);
 
     if (IsCompleted()) {
-        OnOperationCompleted(false /* interrupted */);
+        OnOperationCompleted(/* interrupted */ false);
         return;
     }
+
+    auto statisticsSuffix = JobHelper.GetStatisticsSuffix(statisticsState, joblet->JobType);
 
     if (RowCountLimitTableIndex) {
         switch (joblet->JobType) {
@@ -2203,7 +2289,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
             case EJobType::SortedReduce:
             case EJobType::JoinReduce:
             case EJobType::PartitionReduce: {
-                auto path = Format("/data/output/%v/row_count%v", *RowCountLimitTableIndex, jobSummary->StatisticsSuffix);
+                auto path = Format("/data/output/%v/row_count%v", *RowCountLimitTableIndex, statisticsSuffix);
                 i64 count = GetNumericValue(JobStatistics, path);
                 if (count >= RowCountLimit) {
                     OnOperationCompleted(true /* interrupted */);
@@ -2218,9 +2304,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
 void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary)
 {
-    jobSummary->ParseStatistics();
-
-    const auto& jobId = jobSummary->Id;
+    auto jobId = jobSummary->Id;
     const auto& result = jobSummary->Result;
 
     auto error = FromProto<TError>(result.error());
@@ -2229,17 +2313,21 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     auto joblet = GetJoblet(jobId);
 
+    ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
+
     FinalizeJoblet(joblet, jobSummary.get());
     LogFinishedJobFluently(ELogEventType::JobFailed, joblet, *jobSummary)
         .Item("error").Value(error);
 
-    UpdateJobStatistics(*jobSummary);
-    joblet->SendJobMetrics(jobSummary->Statistics, true);
+    joblet->SendJobMetrics(*jobSummary->Statistics, true);
+    UpdateJobStatistics(joblet, *jobSummary);
 
     joblet->Task->OnJobFailed(joblet, *jobSummary);
     if (JobSplitter_) {
         JobSplitter_->OnJobFailed(*jobSummary);
     }
+
+    ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ true);
 
     RemoveJoblet(jobId);
 
@@ -2259,16 +2347,18 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
 void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary)
 {
-    jobSummary->ParseStatistics();
-
-    const auto& jobId = jobSummary->Id;
+    auto jobId = jobSummary->Id;
     auto abortReason = jobSummary->AbortReason;
 
     JobCounter.Aborted(1, abortReason);
 
     auto joblet = GetJoblet(jobId);
+
+    ParseStatistics(jobSummary.get(), joblet->StatisticsYson);
+    const auto& statistics = *jobSummary->Statistics;
+
     if (abortReason == EAbortReason::ResourceOverdraft) {
-        UpdateMemoryDigests(joblet, jobSummary->Statistics);
+        UpdateMemoryDigests(joblet, statistics);
     }
 
     if (jobSummary->ShouldLog) {
@@ -2276,9 +2366,9 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
             .Item("reason").Value(abortReason);
 
-        UpdateJobStatistics(*jobSummary);
+        UpdateJobStatistics(joblet, *jobSummary);
     }
-    joblet->SendJobMetrics(jobSummary->Statistics, true);
+    joblet->SendJobMetrics(statistics, true);
 
     if (abortReason == EAbortReason::FailedChunks) {
         const auto& result = jobSummary->Result;
@@ -2289,30 +2379,51 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     joblet->Task->OnJobAborted(joblet, *jobSummary);
+
     if (JobSplitter_) {
         JobSplitter_->OnJobAborted(*jobSummary);
     }
 
+    ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ abortReason == EAbortReason::UserRequest);
+
     RemoveJoblet(jobId);
 }
 
-void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TJobSummary> jobSummary)
+void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)
 {
-    jobSummary->ParseStatistics();
+    const auto& jobId = jobSummary->Id;
+    auto joblet = GetJoblet(jobSummary->Id);
 
-    if (JobSplitter_) {
-        const auto& jobId = jobSummary->Id;
-        auto joblet = GetJoblet(jobId);
-        JobSplitter_->OnJobRunning(*jobSummary);
-        if (GetPendingJobCount() == 0 && JobSplitter_->IsJobSplittable(jobId)) {
-            auto jobHost = Host->GetJobHost(jobId);
-            LOG_DEBUG("Job is ready to be split (JobId: %v)", jobId);
-            jobHost->InterruptJob(EInterruptReason::JobSplit);
+    joblet->Progress = jobSummary->Progress;
+
+    if (jobSummary->StatisticsYson) {
+        joblet->StatisticsYson = jobSummary->StatisticsYson;
+        ParseStatistics(jobSummary.get());
+
+        joblet->SendJobMetrics(*jobSummary->Statistics, false);
+
+        if (JobSplitter_) {
+            JobSplitter_->OnJobRunning(*jobSummary);
+            if (GetPendingJobCount() == 0 && JobSplitter_->IsJobSplittable(jobId)) {
+                auto jobHost = Host->GetJobHost(jobId);
+                LOG_DEBUG("Job is ready to be split (JobId: %v)", jobId);
+                jobHost->InterruptJob(EInterruptReason::JobSplit);
+            }
         }
-    }
 
-    if (const auto joblet = FindJoblet(jobSummary->Id)) {
-        joblet->SendJobMetrics(jobSummary->Statistics, false);
+        auto asyncResult = BIND(&BuildBriefStatistics, Passed(std::move(jobSummary)))
+            .AsyncVia(Host->GetStatisticsAnalyzerInvoker())
+            .Run();
+
+        // Resulting future is dropped intentionally.
+        asyncResult.Apply(BIND(
+            &TOperationControllerBase::AnalyzeBriefStatistics,
+            MakeStrong(this),
+            joblet,
+            Config->SuspiciousInactivityTimeout,
+            Config->SuspiciousCpuUsageThreshold,
+            Config->SuspiciousInputPipeIdleTimeFraction)
+            .Via(GetInvoker()));
     }
 }
 
@@ -2320,9 +2431,12 @@ void TOperationControllerBase::FinalizeJoblet(
     const TJobletPtr& joblet,
     TJobSummary* jobSummary)
 {
-    auto& statistics = jobSummary->Statistics;
+    YCHECK(jobSummary->Statistics);
+    YCHECK(jobSummary->FinishTime);
 
+    auto& statistics = *jobSummary->Statistics;
     joblet->FinishTime = *(jobSummary->FinishTime);
+
     {
         auto duration = joblet->FinishTime - joblet->StartTime;
         statistics.AddSample("/time/total", duration.MilliSeconds());
@@ -2340,6 +2454,56 @@ void TOperationControllerBase::FinalizeJoblet(
 
     statistics.AddSample("/job_proxy/memory_reserve_factor_x10000", static_cast<int>(1e4 * joblet->JobProxyMemoryReserveFactor));
 }
+
+void TOperationControllerBase::BuildJobAttributes(
+    const TJobInfoPtr& job,
+    EJobState state,
+    bool outputStatistics,
+    NYson::IYsonConsumer* consumer) const
+{
+    static const auto EmptyMapYson = TYsonString("{}");
+
+    BuildYsonMapFluently(consumer)
+        .Item("job_type").Value(FormatEnum(job->JobType))
+        .Item("state").Value(state)
+        .Item("address").Value(job->NodeDescriptor.Address)
+        .Item("start_time").Value(job->StartTime)
+        .Item("account").Value(job->Account)
+        .Item("progress").Value(job->Progress)
+        .Item("brief_statistics")
+            .Value(job->BriefStatistics)
+        .DoIf(outputStatistics, [&] (TFluentMap fluent) {
+            fluent.Item("statistics")
+                .Value(job->StatisticsYson ? job->StatisticsYson : EmptyMapYson);
+        })
+        .Item("suspicious").Value(job->Suspicious);
+}
+
+void TOperationControllerBase::BuildFinishedJobAttributes(
+    const TFinishedJobInfoPtr& job,
+    bool outputStatistics,
+    NYson::IYsonConsumer* consumer) const
+{
+    BuildJobAttributes(job, job->Summary.State, outputStatistics, consumer);
+
+    const auto& summary = job->Summary;
+    BuildYsonMapFluently(consumer)
+        .Item("finish_time").Value(job->FinishTime)
+        .DoIf(summary.State == EJobState::Failed, [&] (TFluentMap fluent) {
+            auto error = FromProto<TError>(summary.Result.error());
+            fluent.Item("error").Value(error);
+        })
+        .DoIf(summary.Result.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext),
+            [&] (TFluentMap fluent)
+        {
+            const auto& schedulerResultExt = summary.Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+            fluent.Item("core_infos").Value(schedulerResultExt.core_infos());
+        })
+        .DoIf(static_cast<bool>(job->InputPaths), [&] (TFluentMap fluent) {
+            fluent.Item("input_paths").Value(job->InputPaths);
+        });
+}
+
 
 TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
     ELogEventType eventType,
@@ -2560,16 +2724,49 @@ bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
     return false;
 }
 
+void TOperationControllerBase::OnTransactionAborted(const TTransactionId& transactionId)
+{
+    if (transactionId == UserTransactionId) {
+        Host->OnUserTransactionAborted(OperationId);
+    } else {
+        {
+            // Check that transactionId is presented in controller.
+            bool found = false;
+            for (const auto& transaction : GetTransactions()) {
+                if (transaction->GetId() == transactionId) {
+                    found = true;
+                    break;
+                }
+            }
+            YCHECK(found);
+        }
+
+        OnOperationFailed(
+            TError("Controller transaction %v has expired or was aborted",
+                transactionId),
+            /* flush */ false);
+    }
+}
+
 std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
 {
     if (AreTransactionsActive) {
-        return {
-            AsyncSchedulerTransaction,
-            SyncSchedulerTransaction,
-            InputTransaction,
-            OutputTransaction,
-            DebugOutputTransaction
-        };
+        std::vector<ITransactionPtr> transactions;
+        for (auto transaction : {
+                // NB: User transaction must be returned first to correctly detect that operation aborted due to user transaction abort.
+                UserTransaction,
+                AsyncSchedulerTransaction,
+                SyncSchedulerTransaction,
+                InputTransaction,
+                OutputTransaction,
+                DebugOutputTransaction
+            })
+        {
+            if (transaction) {
+                transactions.push_back(transaction);
+            }
+        }
+        return transactions;
     } else {
         return {};
     }
@@ -2583,6 +2780,9 @@ bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
 void TOperationControllerBase::SafeAbort()
 {
     LOG_INFO("Aborting operation controller");
+
+    // NB: Error ignored since we cannot do anything with it.
+    WaitFor(MasterConnector->FlushOperationNode(OperationId));
 
     auto abortTransaction = [&] (ITransactionPtr transaction) {
         if (transaction) {
@@ -2623,6 +2823,8 @@ void TOperationControllerBase::SafeAbort()
 
     CancelableContext->Cancel();
 
+    MasterConnector->UnregisterOperation(OperationId);
+
     LOG_INFO("Operation controller aborted");
 }
 
@@ -2633,6 +2835,8 @@ void TOperationControllerBase::SafeForget()
     CancelableContext->Cancel();
 
     Forgotten = true;
+
+    MasterConnector->UnregisterOperation(OperationId);
 
     LOG_INFO("Operation forgotten");
 }
@@ -3474,10 +3678,16 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
     BuildAndSaveProgress();
 
+    auto flushResult = WaitFor(MasterConnector->FlushOperationNode(OperationId));
+    // We do not want to complete operation if progress flush has failed.
+    if (!flushResult.IsOK()) {
+        OnOperationFailed(flushResult, /* flush */ false);
+    }
+
     Host->OnOperationCompleted(OperationId);
 }
 
-void TOperationControllerBase::OnOperationFailed(const TError& error)
+void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -3490,16 +3700,100 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
 
     BuildAndSaveProgress();
 
+    if (flush) {
+        // NB: Error ignored since we cannot do anything with it.
+        WaitFor(MasterConnector->FlushOperationNode(OperationId));
+    }
+
     Host->OnOperationFailed(OperationId, error);
 }
 
-void TOperationControllerBase::FailOperation(const TAssertionFailedException& ex)
+void TOperationControllerBase::OnOperationAborted(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    // We want to avoid entering this method twice.
+    // This can happen since method waits operation attributes to be flushed.
+    if (IsFinished()) {
+        return;
+    }
+
+    State = EControllerState::Finished;
+
+    BuildAndSaveProgress();
+
+    // NB: Error ignored since we cannot do anything with it.
+    WaitFor(MasterConnector->FlushOperationNode(OperationId));
+
+    Host->OnOperationAborted(OperationId, error);
+}
+
+void TOperationControllerBase::OnOperationCrashed(const TAssertionFailedException& ex)
 {
     OnOperationFailed(TError("Operation controller crashed; please file a ticket at YTADMINREQ and attach a link to this operation")
         << TErrorAttribute("failed_condition", ex.GetExpression())
         << TErrorAttribute("stack_trace", ex.GetStackTrace())
         << TErrorAttribute("core_path", ex.GetCorePath())
         << TErrorAttribute("operation_id", OperationId));
+}
+
+EJobState TOperationControllerBase::GetStatisticsJobState(const TJobletPtr& joblet, const EJobState& state)
+{
+    // NB: Completed restarted job is considered as lost in statistics.
+    // Actually we have lost previous incarnation of this job, but it was already considered as completed in statistics.
+    return (joblet->Restarted && state == EJobState::Completed)
+        ? EJobState::Lost
+        : state;
+}
+
+void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSummary> summary, bool requestJobNodeCreation)
+{
+    auto jobId = summary->Id;
+
+    const auto& schedulerResultExt = summary->Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+
+    auto stderrChunkId = FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id());
+    auto failContextChunkId = FromProto<TChunkId>(schedulerResultExt.fail_context_chunk_id());
+
+    auto joblet = GetJoblet(jobId);
+    // Job is not actually started.
+    if (!joblet->StartTime) {
+        return;
+    }
+
+    bool shouldCreateJobNode =
+        (requestJobNodeCreation && JobNodeCount_ < Config->MaxJobNodesPerOperation) ||
+        (stderrChunkId && StderrCount_ < Spec->MaxStderrCount);
+
+    if (!shouldCreateJobNode) {
+        return;
+    }
+
+    auto inputPaths = BuildInputPathYson(joblet);
+    auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary), std::move(inputPaths));
+    FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
+
+    auto attributes = BuildYsonStringFluently<EYsonType::MapFragment>()
+        .Do([&] (IYsonConsumer* consumer) {
+            BuildFinishedJobAttributes(finishedJob, /* outputStatistics */ true, consumer);
+        })
+        .Finish();
+
+    {
+        TCreateJobNodeRequest request;
+        request.OperationId = OperationId;
+        request.JobId = jobId;
+        request.Attributes = attributes;
+        request.StderrChunkId = stderrChunkId;
+        request.FailContextChunkId = failContextChunkId;
+
+        MasterConnector->CreateJobNode(std::move(request));
+    }
+
+    if (stderrChunkId) {
+        ++StderrCount_;
+    }
+    ++JobNodeCount_;
 }
 
 bool TOperationControllerBase::IsPrepared() const
@@ -5087,8 +5381,7 @@ void TOperationControllerBase::RegisterOutput(
     table.OutputChunkTreeIds.insert(std::make_pair(key, chunkTreeId));
 
     if (IsOutputLivePreviewSupported()) {
-        auto masterConnector = Host->GetMasterConnector();
-        masterConnector->AttachToLivePreview(
+        MasterConnector->AttachToLivePreview(
             OperationId,
             AsyncSchedulerTransaction->GetId(),
             table.LivePreviewTableId,
@@ -5123,8 +5416,7 @@ void TOperationControllerBase::RegisterStderr(TJobletPtr joblet, const TJobSumma
     const auto& boundaryKeys = schedulerResultExt.stderr_table_boundary_keys();
     RegisterBoundaryKeys(boundaryKeys, chunkListId, StderrTable.GetPtr());
 
-    auto masterConnector = Host->GetMasterConnector();
-    masterConnector->AttachToLivePreview(
+    MasterConnector->AttachToLivePreview(
         OperationId,
         AsyncSchedulerTransaction->GetId(),
         StderrTable->LivePreviewTableId,
@@ -5296,8 +5588,7 @@ void TOperationControllerBase::RegisterIntermediate(
         YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
 
         if (attachToLivePreview && IsIntermediateLivePreviewSupported()) {
-            auto masterConnector = Host->GetMasterConnector();
-            masterConnector->AttachToLivePreview(
+            MasterConnector->AttachToLivePreview(
                 OperationId,
                 AsyncSchedulerTransaction->GetId(),
                 IntermediateTable.LivePreviewTableId,
@@ -5393,7 +5684,8 @@ void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer)
         .Item("async_scheduler_transaction_id").Value(AsyncSchedulerTransaction ? AsyncSchedulerTransaction->GetId() : NullTransactionId)
         .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
         .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId)
-        .Item("debug_output_transaction_id").Value(DebugOutputTransaction ? DebugOutputTransaction->GetId() : NullTransactionId);
+        .Item("debug_output_transaction_id").Value(DebugOutputTransaction ? DebugOutputTransaction->GetId() : NullTransactionId)
+        .Item("user_transaction_id").Value(UserTransactionId);
 }
 
 void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
@@ -5475,16 +5767,134 @@ TYsonString TOperationControllerBase::GetBriefProgress() const
     return BriefProgressString_;
 }
 
-void TOperationControllerBase::UpdateJobStatistics(const TJobSummary& jobSummary)
+TYsonString TOperationControllerBase::BuildJobYson(const TJobId& id, bool outputStatistics) const
 {
+    TCallback<void(IYsonConsumer*)> attributesBuilder;
+
+    // Case of running job.
+    {
+        auto joblet = FindJoblet(id);
+        if (joblet) {
+            attributesBuilder = BIND(
+                &TOperationControllerBase::BuildJobAttributes,
+                MakeStrong(this),
+                joblet,
+                EJobState::Running,
+                outputStatistics);
+        }
+    }
+
+    // Case of finished job.
+    // NB: Temporaly disabled. We should improve UI to consider completed jobs in orchid.
+    //{
+    //    auto it = FinishedJobs_.find(id);
+    //    if (it != FinishedJobs_.end()) {
+    //        const auto& job = it->second;
+    //        YCHECK(!attributesBuilder);
+    //        attributesBuilder = BIND(&TOperationControllerBase::BuildFinishedJobAttributes, MakeStrong(this), job);
+    //    }
+    //}
+
+    YCHECK(attributesBuilder);
+
+    return BuildYsonStringFluently()
+        .BeginMap()
+            .Do(attributesBuilder)
+        .EndMap();
+}
+
+TYsonString TOperationControllerBase::BuildJobsYson() const
+{
+    return BuildYsonStringFluently<EYsonType::MapFragment>()
+        .DoFor(JobletMap, [&] (TFluentMap fluent, const std::pair<TJobId, TJobletPtr>& pair) {
+            const auto& jobId = pair.first;
+            const auto& joblet = pair.second;
+            if (joblet->StartTime) {
+                fluent.Item(ToString(jobId)).BeginMap()
+                    .Do([&] (IYsonConsumer* consumer) {
+                        BuildJobAttributes(joblet, EJobState::Running, /* outputStatistics */ false, consumer);
+                    })
+                .EndMap();
+            }
+        })
+        // NB: Temporaly disabled. We should improve UI to consider completed jobs in orchid.
+        // .DoFor(FinishedJobs_, [&] (TFluentMap fluent, const std::pair<TJobId, TFinishedJobInfoPtr>& pair) {
+        //     const auto& jobId = pair.first;
+        //     const auto& job = pair.second;
+        //     fluent.Item(ToString(jobId)).BeginMap()
+        //         .Do([&] (IYsonConsumer* consumer) {
+        //             BuildFinishedJobAttributes(job, fluent);
+        //         })
+        //     .EndMap();
+        // })
+        .Finish();
+}
+
+TYsonString TOperationControllerBase::BuildSuspiciousJobsYson() const
+{
+    return BuildYsonStringFluently<EYsonType::MapFragment>()
+        .DoFor(
+            JobletMap,
+            [&] (TFluentMap fluent, const std::pair<TJobId, TJobletPtr>& pair) {
+                const auto& joblet = pair.second;
+                if (joblet->Suspicious) {
+                    fluent.Item(ToString(joblet->JobId))
+                        .BeginMap()
+                            .Item("operation_id").Value(ToString(OperationId))
+                            .Item("type").Value(FormatEnum(joblet->JobType))
+                            .Item("brief_statistics").Value(joblet->BriefStatistics)
+                            .Item("node").Value(joblet->NodeDescriptor.Address)
+                            .Item("last_activity_time").Value(joblet->LastActivityTime)
+                        .EndMap();
+                }
+            })
+        .Finish();
+}
+
+void TOperationControllerBase::AnalyzeBriefStatistics(
+    const TJobletPtr& job,
+    TDuration suspiciousInactivityTimeout,
+    i64 suspiciousCpuUsageThreshold,
+    double suspiciousInputPipeIdleTimeFraction,
+    const TBriefJobStatisticsPtr& briefStatistics)
+{
+    bool wasActive = !job->BriefStatistics ||
+        CheckJobActivity(
+            job->BriefStatistics,
+            briefStatistics,
+            suspiciousCpuUsageThreshold,
+            suspiciousInputPipeIdleTimeFraction);
+
+    job->BriefStatistics = briefStatistics;
+
+    bool wasSuspicious = job->Suspicious;
+    job->Suspicious = (!wasActive && job->BriefStatistics->Timestamp - job->LastActivityTime > suspiciousInactivityTimeout);
+    if (!wasSuspicious && job->Suspicious) {
+        LOG_DEBUG("Found a suspicious job (JobId: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v)",
+            job->JobId,
+            job->LastActivityTime,
+            suspiciousInactivityTimeout);
+    }
+
+    if (wasActive) {
+        job->LastActivityTime = job->BriefStatistics->Timestamp;
+    }
+}
+
+void TOperationControllerBase::UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
+{
+    YCHECK(jobSummary.Statistics);
+
     // NB: There is a copy happening here that can be eliminated.
-    auto statistics = jobSummary.Statistics;
+    auto statistics = *jobSummary.Statistics;
     LOG_TRACE("Job data statistics (JobId: %v, Input: %v, Output: %v)",
         jobSummary.Id,
         GetTotalInputDataStatistics(statistics),
         GetTotalOutputDataStatistics(statistics));
 
-    statistics.AddSuffixToNames(jobSummary.StatisticsSuffix);
+    auto statisticsState = GetStatisticsJobState(joblet, jobSummary.State);
+    auto statisticsSuffix = JobHelper.GetStatisticsSuffix(statisticsState, joblet->JobType);
+    statistics.AddSuffixToNames(statisticsSuffix);
     JobStatistics.Update(statistics);
 }
 
@@ -5501,11 +5911,10 @@ void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const
         .Item("output_table_paths").ListLimited(GetOutputTablePaths(), 1);
 }
 
-TYsonString TOperationControllerBase::BuildInputPathYson(const TJobId& jobId) const
+TYsonString TOperationControllerBase::BuildInputPathYson(const TJobletPtr& joblet) const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    auto joblet = GetJobletOrThrow(jobId);
     return BuildInputPaths(
         GetInputTablePaths(),
         joblet->InputStripeList,
@@ -6132,6 +6541,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
         }
         InitUpdatingTables();
     }
+
+    Persist(context, StderrCount_);
+    Persist(context, JobNodeCount_);
+    Persist(context, FinishedJobs_);
 }
 
 TCodicilGuard TOperationControllerBase::MakeCodicilGuard() const
@@ -6239,6 +6652,11 @@ public:
         Underlying_->Forget();
     }
 
+    virtual void OnTransactionAborted(const TTransactionId& transactionId) override
+    {
+        Underlying_->OnTransactionAborted(transactionId);
+    }
+
     virtual std::vector<ITransactionPtr> GetTransactions() override
     {
         return Underlying_->GetTransactions();
@@ -6314,7 +6732,7 @@ public:
         Underlying_->OnJobAborted(std::move(jobSummary));
     }
 
-    virtual void OnJobRunning(std::unique_ptr<TJobSummary> jobSummary) override
+    virtual void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) override
     {
         Underlying_->OnJobRunning(std::move(jobSummary));
     }
@@ -6366,11 +6784,6 @@ public:
         Underlying_->BuildMemoryDigestStatistics(consumer);
     }
 
-    virtual TYsonString BuildInputPathYson(const TJobId& jobId) const override
-    {
-        return Underlying_->BuildInputPathYson(jobId);
-    }
-
     virtual void BuildJobSplitterInfo(IYsonConsumer* consumer) const override
     {
         Underlying_->BuildJobSplitterInfo(consumer);
@@ -6384,6 +6797,21 @@ public:
     virtual TYsonString GetBriefProgress() const override
     {
         return Underlying_->GetBriefProgress();
+    }
+
+    virtual TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const override
+    {
+        return Underlying_->BuildJobYson(jobId, outputStatistics);
+    }
+
+    virtual TYsonString BuildJobsYson() const override
+    {
+        return Underlying_->BuildJobsYson();
+    }
+
+    virtual TYsonString BuildSuspiciousJobsYson() const override
+    {
+        return Underlying_->BuildSuspiciousJobsYson();
     }
 
 private:
