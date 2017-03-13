@@ -40,8 +40,8 @@ DEFINE_ENUM(EEndpointType,
 class TJobBuilder
 {
 public:
-    DEFINE_BYREF_RO_PROPERTY(TKey, LowerPrimaryKey, MaxKey());
-    DEFINE_BYREF_RO_PROPERTY(TKey, UpperPrimaryKey, MinKey());
+    DEFINE_BYREF_RO_PROPERTY(TKey, LowerPrimaryKey, MaxKey().Get());
+    DEFINE_BYREF_RO_PROPERTY(TKey, UpperPrimaryKey, MinKey().Get());
 
     DEFINE_BYVAL_RO_PROPERTY(int, PrimarySliceCount, 0);
     DEFINE_BYVAL_RO_PROPERTY(int, ForeignSliceCount, 0);
