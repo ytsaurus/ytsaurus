@@ -2029,7 +2029,9 @@ protected:
 
                 i64 currentDataSize = 0;
                 TKey breakpointKey;
+                TPeriodicYielder yielder(PrepareYieldPeriod);
                 for (const auto& sliceWeight : sliceWeights) {
+                    yielder.TryYield();
                     if (CompareRows(breakpointKey, sliceWeight.first, ForeignKeyColumnCount) == 0) {
                         continue;
                     }
