@@ -506,7 +506,8 @@ TOperationId IOperationClient::JoinReduce(
     TReducer* reducer,
     const TOperationOptions& options)
 {
-    static_assert(TReducer::JobType == IJob::EType::Reducer,
+    static_assert(TReducer::JobType == IJob::EType::Reducer
+        || TReducer::JobType == IJob::EType::ReducerAggregator,
         "This class cannot be used as a reducer");
 
     using TReduceInputRow = typename TReducer::TReader::TRowType;
@@ -532,7 +533,8 @@ TOperationId IOperationClient::MapReduce(
 {
     static_assert(TMapper::JobType == IJob::EType::Mapper,
         "This class cannot be used as a mapper");
-    static_assert(TReducer::JobType == IJob::EType::Reducer,
+    static_assert(TReducer::JobType == IJob::EType::Reducer
+        || TReducer::JobType == IJob::EType::ReducerAggregator,
         "This class cannot be used as a reducer");
 
     using TMapInputRow = typename TMapper::TReader::TRowType;
@@ -569,7 +571,8 @@ TOperationId IOperationClient::MapReduce(
     TReducer* reducer,
     const TOperationOptions& options)
 {
-    static_assert(TReducer::JobType == IJob::EType::Reducer,
+    static_assert(TReducer::JobType == IJob::EType::Reducer
+        || TReducer::JobType == IJob::EType::ReducerAggregator,
         "This class cannot be used as a reducer");
 
     using TReduceInputRow = typename TReducer::TReader::TRowType;
@@ -605,9 +608,11 @@ TOperationId IOperationClient::MapReduce(
 {
     static_assert(TMapper::JobType == IJob::EType::Mapper,
         "This job cannot be used as a mapper");
-    static_assert(TReduceCombiner::JobType == IJob::EType::Reducer,
+    static_assert(TReduceCombiner::JobType == IJob::EType::Reducer
+        || TReducer::JobType == IJob::EType::ReducerAggregator,
         "This class cannot be used as a reducer");
-    static_assert(TReducer::JobType == IJob::EType::Reducer,
+    static_assert(TReducer::JobType == IJob::EType::Reducer
+        || TReducer::JobType == IJob::EType::ReducerAggregator,
         "This class cannot be used as a reducer");
 
     using TMapInputRow = typename TMapper::TReader::TRowType;
@@ -653,7 +658,8 @@ TOperationId IOperationClient::MapReduce(
 {
     static_assert(TReduceCombiner::JobType == IJob::EType::Reducer,
         "This class cannot be used as a reducer");
-    static_assert(TReducer::JobType == IJob::EType::Reducer,
+    static_assert(TReducer::JobType == IJob::EType::Reducer
+        || TReducer::JobType == IJob::EType::ReducerAggregator,
         "This class cannot be used as a reducer");
 
     using TReduceCombinerInputRow = typename TReduceCombiner::TReader::TRowType;
