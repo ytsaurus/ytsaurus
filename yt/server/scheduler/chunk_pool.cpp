@@ -1043,11 +1043,15 @@ private:
             return;
         }
 
-        if (JobSizeConstraints->IsExplicitJobCount() || !JobSizeAdjuster) {
+        if (JobSizeConstraints->IsExplicitJobCount()) {
             return;
         }
 
-        i64 dataSizePerJob = std::min(JobSizeAdjuster->GetDataSizePerJob(), JobSizeConstraints->GetMaxDataSizePerJob());
+        i64 dataSizePerJob = JobSizeAdjuster
+            ? JobSizeAdjuster->GetDataSizePerJob()
+            : JobSizeConstraints->GetDataSizePerJob();
+
+        dataSizePerJob = std::min(dataSizePerJob, JobSizeConstraints->GetMaxDataSizePerJob());
         i64 newJobCount = DivCeil(FreePendingDataSize + SuspendedDataSize, dataSizePerJob);
         if (newJobCount != freePendingJobCount) {
             JobCounter.Increment(newJobCount - freePendingJobCount);
