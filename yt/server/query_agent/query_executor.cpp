@@ -499,8 +499,6 @@ private:
                 }
             });
             subreaderCreators.push_back([&, MOVE(keys)] () {
-                std::function<ISchemafulReaderPtr()> bottomSplitReaderGenerator;
-
                 switch (TypeFromId(tablePartId)) {
                     case EObjectType::Tablet:
                         return GetTabletReader(tablePartId, keys);
