@@ -81,7 +81,7 @@ class TaskExecutorApplication(object):
         result = []
         while messages:
             result.append(messages.popleft())
-        return json.dumps(result)
+        return pickle.dumps(result)
 
     def put_message_from_task(self, task_id):
         self._messages[task_id].append(pickle.loads(request.data))
@@ -133,7 +133,7 @@ class TaskProcessClient(object):
     def get_messages(self):
         rsp = requests.get(self._address + "get_messages/{0}/".format(self.task_id))
         self._raise_for_status(rsp)
-        return rsp.json()
+        return pickle.loads(rsp.content)
 
     def _raise_for_status(self, rsp):
         if rsp.status_code / 100 != 2:
