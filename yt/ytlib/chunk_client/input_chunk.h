@@ -27,7 +27,8 @@ namespace NChunkClient {
 //! The content of TInputChunkBase is stored in a scheduler snapshot as a POD.
 class TInputChunkBase
 {
-    DEFINE_BYREF_RO_PROPERTY(TChunkId, ChunkId);
+public:
+    DEFINE_BYREF_RW_PROPERTY(TChunkId, ChunkId);
 
     typedef std::array<TChunkReplica, MaxInputChunkReplicaCount> TInputChunkReplicas;
     DEFINE_BYREF_RO_PROPERTY(TInputChunkReplicas, Replicas);
@@ -67,6 +68,7 @@ class TInputChunk
     : public TIntrinsicRefCounted
     , public TInputChunkBase
 {
+public:
     // Here are read limits. They are not read-only because of chunk pool unittests.
     typedef std::unique_ptr<TReadLimit> TReadLimitHolder;
     DEFINE_BYREF_RW_PROPERTY(TReadLimitHolder, LowerLimit);
