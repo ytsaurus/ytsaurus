@@ -2715,6 +2715,9 @@ private:
 
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->PartitionJobIO)).GetData());
+            ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+
             if (Spec->InputQuery) {
                 InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, *Spec->InputSchema);
             }
@@ -2738,11 +2741,17 @@ private:
             }
         }
 
+        auto intermediateReaderOptions = New<TTableReaderOptions>();
+        intermediateReaderOptions->AllowFetchingSeedsFromMaster = false;
+
         {
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).GetData());
+
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
+            ToProto(schedulerJobSpecExt->mutable_data_source_directory(), CreateIntermediateDataSource());
 
             if (Spec->ReduceCombiner) {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
@@ -2769,6 +2778,9 @@ private:
             auto* schedulerJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
+            ToProto(schedulerJobSpecExt->mutable_data_source_directory(), CreateIntermediateDataSource());
+
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).GetData());
@@ -2788,6 +2800,9 @@ private:
 
             auto* schedulerJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             auto* reduceJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
+            ToProto(schedulerJobSpecExt->mutable_data_source_directory(), CreateIntermediateDataSource());
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
