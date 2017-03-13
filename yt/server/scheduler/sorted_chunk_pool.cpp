@@ -408,13 +408,8 @@ private:
             Persist(context, State_);
             Persist(context, DataSize_);
             Persist(context, RowCount_);
-            Persist(context, Suspended_);
             if (context.IsLoad()) {
                 // We must add ourselves to the job pool.
-                if (Suspended_) {
-                    ++Owner_->SuspendedJobCount_;
-                }
-
                 CookiePoolIterator_ = Owner_->CookiePool_.end();
                 UpdateSelf();
             }
@@ -426,30 +421,34 @@ private:
         std::list<int>::iterator CookiePoolIterator_;
         IChunkPoolOutput::TCookie Cookie_;
 
+        //! Is true for a job if it is present in owner's CookiePool_.
+        //! Changes of this flag are accompanied with AddSelf()/RemoveSelf().
         bool InPool_ = false;
+        //! Is true for a job if it is in the pending state and has suspended stripes.
+        //! Changes of this flag are accompanied with SuspendSelf()/ResumeSelf().
         bool Suspended_ = false;
 
-
-        // Adds or removes self from the job pool according to the job state and suspended stripe count.
+        //! Adds or removes self from the job pool according to the job state and suspended stripe count.
         void UpdateSelf()
         {
-            bool isReady = State_ == EManagedJobState::Pending && SuspendedStripeCount_ == 0;
-            if (InPool_ && !isReady) {
+            bool inPoolDesired = State_ == EManagedJobState::Pending && SuspendedStripeCount_ == 0;
+            if (InPool_ && !inPoolDesired) {
                 RemoveSelf();
-            } else if (!InPool_ && isReady) {
+            } else if (!InPool_ && inPoolDesired) {
                 AddSelf();
+            }
+
+            bool suspendedDesired = State_ == EManagedJobState::Pending && SuspendedStripeCount_ > 0;
+            if (Suspended_ && !suspendedDesired) {
+                ResumeSelf();
+            } else if (!Suspended_ && suspendedDesired) {
+                SuspendSelf();
             }
         }
 
         void RemoveSelf()
         {
             YCHECK(CookiePoolIterator_ != Owner_->CookiePool_.end());
-
-            if (State_ == EManagedJobState::Pending) {
-                Suspended_ = true;
-                YCHECK(++Owner_->SuspendedJobCount_ > 0);
-            }
-
             Owner_->CookiePool_.erase(CookiePoolIterator_);
             CookiePoolIterator_ = Owner_->CookiePool_.end();
             InPool_ = false;
@@ -458,12 +457,22 @@ private:
         void AddSelf()
         {
             YCHECK(CookiePoolIterator_ == Owner_->CookiePool_.end());
-            if (Suspended_) {
-                YCHECK(--Owner_->SuspendedJobCount_ >= 0);
-                Suspended_ = false;
-            }
             CookiePoolIterator_ = Owner_->CookiePool_.insert(Owner_->CookiePool_.end(), Cookie_);
             InPool_ = true;
+        }
+
+        void SuspendSelf()
+        {
+            YCHECK(!Suspended_);
+            Suspended_ = true;
+            YCHECK(++Owner_->SuspendedJobCount_ > 0);
+        }
+
+        void ResumeSelf()
+        {
+            YCHECK(Suspended_);
+            YCHECK(--Owner_->SuspendedJobCount_ >= 0);
+            Suspended_ = false;
         }
     };
 
@@ -471,6 +480,7 @@ private:
 
     TLogger Logger;
 };
+
 DEFINE_REFCOUNTED_TYPE(TJobManager);
 DECLARE_REFCOUNTED_TYPE(TJobManager);
 
