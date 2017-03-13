@@ -2,6 +2,7 @@
 
 from yt.common import date_string_to_timestamp
 from yt.wrapper.common import parse_bool, get_value, filter_dict
+from yt.wrapper.retries import Retrier
 
 import yt.logger as logger
 import yt.yson as yson
@@ -33,6 +34,8 @@ CODECS_SYNONYMS = {
 }
 
 WORKER_TASKS_SET_ATTEMPT_COUNT = 3
+
+STATISTICS_REQUEST_BATCH_SIZE = 1000
 
 def has_proper_codecs(table, erasure_codec, compression_codec):
     compression_stats = table.attributes["compression_statistics"]
@@ -77,20 +80,107 @@ def make_compression_task(table, compression_codec=None, erasure_codec=None, poo
         "pool": pool
     }
 
-def find_tables_to_compress(root):
-    compression_queues = defaultdict(list)
+class OptimisticLockingFailedError(Exception):
+    pass
 
+class StatisticsRequestRetrier(Retrier):
+    def __init__(self):
+        retry_config = {
+            "enable": True,
+            "count": 5,
+            "backoff": {
+                "policy": "constant_time",
+                "constant_time": 5 * 1000
+            }
+        }
+
+        super(StatisticsRequestRetrier, self).__init__(
+            retry_config,
+            exceptions=(OptimisticLockingFailedError,))
+
+        self.index_table_pairs = None
+        self.responses = None
+
+    def action(self):
+        requests = []
+        for _, table in self.index_table_pairs:
+            request = {
+                "command": "get",
+                "parameters": {
+                    "path": table,
+                    "attributes": ["compression_statistics", "erasure_statistics", "chunk_count"]
+                }
+            }
+            requests.append(request)
+
+        responses = yt.execute_batch(requests)
+
+        for rsp, index_table_pair in zip(responses, self.index_table_pairs):
+            if "error" in rsp:
+                error = yt.YtResponseError(rsp["error"])
+
+                if error.is_resolve_error():
+                    logger.info('Table %s does not exist', table)
+                    continue
+
+                if error.is_concurrent_transaction_lock_conflict():
+                    logger.info('Table %s is locked', table)
+                    continue
+
+                # Optimistic locking failed
+                if error.contains_code(720):
+                    self.index_table_pairs.append(index_table_pair)
+                else:
+                    raise error
+            else:
+                self.responses[index_table_pair[0]] = rsp["output"]
+
+        if self.index_table_pairs:
+            raise OptimisticLockingFailedError()
+
+    def collect_statistics(self, tables):
+        self.tables = list(enumerate(tables))
+        self.responses = [None] * len(tables)
+        self.run()
+        return self.responses
+
+def filter_out_tables_with_proper_codecs(tasks):
+    result = []
+    retrier = StatisticsRequestRetrier()
+
+    batch_count = (len(tasks) + STATISTICS_REQUEST_BATCH_SIZE - 1) / STATISTICS_REQUEST_BATCH_SIZE
+
+    for batch_index in xrange(batch_count):
+        start_index = batch_index * STATISTICS_REQUEST_BATCH_SIZE
+        end_index = min(start_index + STATISTICS_REQUEST_BATCH_SIZE, len(tasks))
+
+        batch = tasks[start_index:end_index]
+        tables_in_batch = [task["table"] for task in batch]
+
+        tables_with_statistics = retrier.collect_statistics(tables_in_batch)
+
+        for task, table in zip(batch, tables_with_statistics):
+            if table is None:  # table does not exist or locked
+                continue
+
+            if not has_proper_codecs(table, task["erasure_codec"], task["compression_codec"]):
+                result.append(task)
+
+    return result
+
+def find_tables_to_compress(root):
     ignore_nodes = ["//sys", "//home/qe"]
 
     requested_attributes = ["type", "opaque", "force_nightly_compress",
                             "uncompressed_data_size", "nightly_compression_settings",
-                            "nightly_compressed", "compression_statistics",
-                            "erasure_statistics", "chunk_count", "creation_time"]
+                            "nightly_compressed", "creation_time"]
 
     compression_settings_allowed_keys = set(["min_table_size", "min_table_age", "enabled",
                                              "compression_codec", "erasure_codec",
                                              "force_recompress_to_specified_codecs",
                                              "queue", "pool"])
+
+    tasks = []
 
     def walk(path, object, compression_settings=None):
         if path in ignore_nodes:
@@ -98,7 +188,9 @@ def find_tables_to_compress(root):
 
         if object.attributes["type"] == "table":
             if parse_bool(object.attributes.get("force_nightly_compress", "false")):
-                compression_queues[DEFAULT_QUEUE_NAME].append(make_compression_task(path))
+                task = make_compression_task(path)
+                task["queue"] = DEFAULT_QUEUE_NAME
+                tasks.append(task)
                 return
 
             if compression_settings is None or not isinstance(compression_settings, dict):
@@ -117,15 +209,15 @@ def find_tables_to_compress(root):
                 return
 
             task = make_compression_task(path, **params)
-
-            if has_proper_codecs(object, task["erasure_codec"], task["compression_codec"]):
-                logger.info("Table %s already has proper compression and erasure codecs", path)
-                return
+            task["queue"] = queue
 
             table_age = time.time() - date_string_to_timestamp(object.attributes["creation_time"])
             table_size = object.attributes["uncompressed_data_size"]
-            if enabled and table_size > min_table_size and table_age > min_table_age:
-                compression_queues[queue].append(task)
+
+            if not enabled or table_size <= min_table_size or table_age <= min_table_age:
+                return
+
+            tasks.append(task)
         elif object.attributes["type"] == "map_node":
             if parse_bool(object.attributes.get("opaque", "false")):
                 object = safe_get(path, attributes=requested_attributes)
@@ -141,7 +233,14 @@ def find_tables_to_compress(root):
     root_obj = safe_get(root, attributes=requested_attributes)
     walk(root, root_obj)
 
-    total_table_count = sum(len(compression_queues[queue]) for queue in compression_queues)
+    tasks = filter_out_tables_with_proper_codecs(tasks)
+    total_table_count = len(tasks)
+
+    compression_queues = defaultdict(list)
+    for task in tasks:
+        queue = task.pop("queue")
+        compression_queues[queue].append(task)
+
     logger.info("Collected %d tables for compression", total_table_count)
 
     return compression_queues, total_table_count
