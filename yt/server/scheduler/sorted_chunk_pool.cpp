@@ -196,6 +196,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TProgressCounter, DataSizeCounter);
     DEFINE_BYREF_RO_PROPERTY(TProgressCounter, RowCounter);
     DEFINE_BYREF_RO_PROPERTY(TProgressCounter, JobCounter);
+    DEFINE_BYVAL_RO_PROPERTY(int, SuspendedJobCount);
 
 public:
     TJobManager()
@@ -368,12 +369,6 @@ private:
         DEFINE_BYREF_RO_PROPERTY(TChunkStripeListPtr, StripeList);
 
     public:
-        void SetState(EManagedJobState state)
-        {
-            State_ = state;
-            UpdateSelf();
-        }
-
         //! Used only for persistence.
         TJob()
         { }
@@ -386,6 +381,12 @@ private:
             , CookiePoolIterator_(Owner_->CookiePool_.end())
             , Cookie_(cookie)
         {
+            UpdateSelf();
+        }
+
+        void SetState(EManagedJobState state)
+        {
+            State_ = state;
             UpdateSelf();
         }
 
@@ -407,8 +408,13 @@ private:
             Persist(context, State_);
             Persist(context, DataSize_);
             Persist(context, RowCount_);
+            Persist(context, Suspended_);
             if (context.IsLoad()) {
                 // We must add ourselves to the job pool.
+                if (Suspended_) {
+                    ++Owner_->SuspendedJobCount_;
+                }
+
                 CookiePoolIterator_ = Owner_->CookiePool_.end();
                 UpdateSelf();
             }
@@ -421,6 +427,8 @@ private:
         IChunkPoolOutput::TCookie Cookie_;
 
         bool InPool_ = false;
+        bool Suspended_ = false;
+
 
         // Adds or removes self from the job pool according to the job state and suspended stripe count.
         void UpdateSelf()
@@ -436,6 +444,12 @@ private:
         void RemoveSelf()
         {
             YCHECK(CookiePoolIterator_ != Owner_->CookiePool_.end());
+
+            if (State_ == EManagedJobState::Pending) {
+                Suspended_ = true;
+                YCHECK(++Owner_->SuspendedJobCount_ > 0);
+            }
+
             Owner_->CookiePool_.erase(CookiePoolIterator_);
             CookiePoolIterator_ = Owner_->CookiePool_.end();
             InPool_ = false;
@@ -444,6 +458,10 @@ private:
         void AddSelf()
         {
             YCHECK(CookiePoolIterator_ == Owner_->CookiePool_.end());
+            if (Suspended_) {
+                YCHECK(--Owner_->SuspendedJobCount_ >= 0);
+                Suspended_ = false;
+            }
             CookiePoolIterator_ = Owner_->CookiePool_.insert(Owner_->CookiePool_.end(), Cookie_);
             InPool_ = true;
         }
@@ -565,7 +583,8 @@ public:
         return
             Finished &&
             GetPendingJobCount() == 0 &&
-            JobManager_->JobCounter().GetRunning() == 0;
+            JobManager_->JobCounter().GetRunning() == 0 &&
+            JobManager_->GetSuspendedJobCount() == 0;
     }
 
     virtual int GetTotalJobCount() const override
