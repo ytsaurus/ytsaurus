@@ -1,6 +1,7 @@
 #include "tablet.h"
 #include "tablet_cell.h"
 #include "table_replica.h"
+#include "tablet_action.h"
 // COMPAT(babenko)
 #include "private.h"
 
@@ -235,6 +236,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, StoresUpdatePreparedTransaction_);
     Save(context, Table_);
     Save(context, Cell_);
+    Save(context, Action_);
     Save(context, PivotKey_);
     Save(context, NodeStatistics_);
     Save(context, InMemoryMode_);
@@ -264,6 +266,10 @@ void TTablet::Load(TLoadContext& context)
     }
     Load(context, Table_);
     Load(context, Cell_);
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 508) {
+        Load(context, Action_);
+    }
     Load(context, PivotKey_);
     Load(context, NodeStatistics_);
     Load(context, InMemoryMode_);

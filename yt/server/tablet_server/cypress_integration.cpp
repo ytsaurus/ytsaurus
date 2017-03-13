@@ -208,8 +208,6 @@ private:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 INodeTypeHandlerPtr CreateTabletCellBundleMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
@@ -219,6 +217,54 @@ INodeTypeHandlerPtr CreateTabletCellBundleMapTypeHandler(TBootstrap* bootstrap)
         EObjectType::TabletCellBundleMap,
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualTabletCellBundleMap>(bootstrap);
+        }),
+        EVirtualNodeOptions::RedirectSelf);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualTabletActionMap
+    : public TVirtualMulticellMapBase
+{
+public:
+    TVirtualTabletActionMap(TBootstrap* bootstrap, INodePtr owningProxy)
+        : TVirtualMulticellMapBase(bootstrap, owningProxy)
+    { }
+
+private:
+    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    {
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        return ToObjectIds(GetValues(tabletManager->TabletActions(), sizeLimit));
+    }
+
+    virtual bool IsValid(TObjectBase* object) const
+    {
+        return object->GetType() == EObjectType::TabletAction;
+    }
+
+    virtual i64 GetSize() const override
+    {
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        return tabletManager->TabletActions().GetSize();
+    }
+
+protected:
+    virtual TYPath GetWellKnownPath() const override
+    {
+        return "//sys/tablet_actions";
+    }
+};
+
+INodeTypeHandlerPtr CreateTabletActionMapTypeHandler(TBootstrap* bootstrap)
+{
+    YCHECK(bootstrap);
+
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        EObjectType::TabletMap,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualTabletActionMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
 }

@@ -129,11 +129,19 @@ void TMultiReaderBase::DoOpenReader(int index)
 
     LOG_DEBUG("Opening reader (Index: %v)", index);
 
-    auto reader = ReaderFactories_[index]->CreateReader();
-    auto error = WaitFor(reader->GetReadyEvent());
+    IReaderBasePtr reader;
+    TError error;
+    try {
+        reader = ReaderFactories_[index]->CreateReader();
+        error = WaitFor(reader->GetReadyEvent());
+    } catch (const std::exception& ex) {
+        error = ex;
+    }
 
     if (!error.IsOK()) {
-        RegisterFailedReader(reader);
+        if (reader) {
+            RegisterFailedReader(reader);
+        }
         CompletionError_.TrySet(error);
     }
 
