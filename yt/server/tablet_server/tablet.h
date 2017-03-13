@@ -124,6 +124,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, StoresUpdatePreparedTransaction);
     DEFINE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
+    DEFINE_BYVAL_RW_PROPERTY(TTabletAction*, Action);
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TOwningKey, PivotKey);
     DEFINE_BYREF_RW_PROPERTY(NTabletClient::NProto::TTabletStatistics, NodeStatistics);
     DEFINE_BYREF_RW_PROPERTY(TTabletPerformanceCounters, PerformanceCounters);

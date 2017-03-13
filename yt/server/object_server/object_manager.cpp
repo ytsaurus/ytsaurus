@@ -359,6 +359,7 @@ private:
 
         // Slow path.
         auto req = TObjectYPathProxy::GetBasicAttributes(path);
+        SetTransactionId(req, GetObjectId(transaction));
         auto rsp = SyncExecuteVerb(proxy, req);
         auto objectId = FromProto<TObjectId>(rsp->object_id());
 

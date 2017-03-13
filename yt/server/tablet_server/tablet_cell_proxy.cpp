@@ -62,6 +62,8 @@ private:
         descriptors->push_back("peers");
         descriptors->push_back(TAttributeDescriptor("tablet_ids")
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("action_ids")
+            .SetOpaque(true));
         descriptors->push_back("tablet_count");
         descriptors->push_back("config_version");
         descriptors->push_back("total_statistics");
@@ -113,6 +115,15 @@ private:
                 .DoListFor(cell->Tablets(), [] (TFluentList fluent, const TTablet* tablet) {
                     fluent
                         .Item().Value(tablet->GetId());
+                });
+            return true;
+        }
+
+        if (key == "action_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(cell->Actions(), [] (TFluentList fluent, const TTabletAction* action) {
+                    fluent
+                        .Item().Value(action->GetId());
                 });
             return true;
         }
