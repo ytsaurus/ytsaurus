@@ -858,7 +858,7 @@ class TestCypress(YTEnvSetup):
         link("//tmp/t1", "//tmp/l")
         with pytest.raises(YtError): move("//tmp/t2", "//tmp/l")
 
-    def test_move_as_copy_target_success(self):
+    def test_link_as_copy_target_success(self):
         id1 = create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
@@ -866,7 +866,21 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/l/@type") == "table"
         assert not exists("//tmp/t2")
         assert get("//tmp/t1/@id") == id1
-                
+
+    def test_move_in_tx_with_link_yt_6610(self):
+        create("map_node", "//tmp/a")
+        link("//tmp/a", "//tmp/b")
+        tx = start_transaction()
+        set("//tmp/a/x", 1, tx=tx)
+        set("//tmp/a/y", 2, tx=tx)
+        assert get("//tmp/a/y", tx=tx) == 2
+        assert get("//tmp/b/y", tx=tx) == 2
+        move("//tmp/b/x", "//tmp/b/y", force=True, tx=tx)
+        assert not exists("//tmp/b/x", tx=tx)
+        assert get("//tmp/b/y", tx=tx) == 1
+        commit_transaction(tx)
+        assert not exists("//tmp/b/x")
+        assert get("//tmp/b/y") == 1
 
     def test_access_stat1(self):
         time.sleep(1.0)
