@@ -120,6 +120,9 @@ public:
     //! For ordered tables, returns an empty schema.
     TTableSchema ToDelete() const;
 
+    //! Returns just the key columns.
+    TTableSchema ToKeys() const;
+
     //! Returns the non-key columns.
     TTableSchema ToValues() const;
 
