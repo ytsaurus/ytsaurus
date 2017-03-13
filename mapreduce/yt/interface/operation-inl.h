@@ -609,7 +609,7 @@ TOperationId IOperationClient::MapReduce(
     static_assert(TMapper::JobType == IJob::EType::Mapper,
         "This job cannot be used as a mapper");
     static_assert(TReduceCombiner::JobType == IJob::EType::Reducer
-        || TReducer::JobType == IJob::EType::ReducerAggregator,
+        || TReduceCombiner::JobType == IJob::EType::ReducerAggregator,
         "This class cannot be used as a reducer");
     static_assert(TReducer::JobType == IJob::EType::Reducer
         || TReducer::JobType == IJob::EType::ReducerAggregator,
@@ -656,7 +656,8 @@ TOperationId IOperationClient::MapReduce(
     TReducer* reducer,
     const TOperationOptions& options)
 {
-    static_assert(TReduceCombiner::JobType == IJob::EType::Reducer,
+    static_assert(TReduceCombiner::JobType == IJob::EType::Reducer
+        || TReduceCombiner::JobType == IJob::EType::ReducerAggregator,
         "This class cannot be used as a reducer");
     static_assert(TReducer::JobType == IJob::EType::Reducer
         || TReducer::JobType == IJob::EType::ReducerAggregator,
