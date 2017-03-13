@@ -843,7 +843,7 @@ class Application(object):
                             json.dump(self._get_config(), fout)
 
                     task.logger.info("Starting subprocess for task")
-                    task_process = TaskProcessClient(self._task_executor_address)
+                    task_process = TaskProcessClient(self._task_executor_address, task.logger)
                     task_process.start(id, temporary_config, json.dumps(self._tasks[id].dict()))
                     task.logger.info("Subprocess for task started")
                     task_process.aborting = False
