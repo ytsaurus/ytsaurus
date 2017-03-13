@@ -33,7 +33,7 @@ prepare_dir "$INSTALL_DIR"
 cd "$BUILD_DIR"
 
 "$PYTHON_SOURCE_TREE_ROOT/configure" --enable-unicode=ucs4 --prefix="$INSTALL_DIR"
-EXTRA_CFLAGS="-O2 -g -DNDEBUG -DCOUNT_ALLOCS" make -j $(grep -c ^processor /proc/cpuinfo) && make install
+EXTRA_CFLAGS="-O2 -g -DNDEBUG" make -j $(grep -c ^processor /proc/cpuinfo) && make install
 
 cd "$CURRENT_DIR"
 
