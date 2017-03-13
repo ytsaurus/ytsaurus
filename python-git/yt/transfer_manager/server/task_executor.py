@@ -117,22 +117,22 @@ class TaskProcessClient(object):
     def start(self, task_id, config_path, input):
         params = {"task_id": task_id, "config_path": config_path, "task_executor_address": self._address, "input": input}
         rsp = requests.post(self._address + "start/", data=json.dumps(params))
-        rsp.raise_for_status()
+        self._raise_for_status(rsp)
         self.pid = int(rsp.content)
         self.task_id = task_id
 
     def poll(self):
         rsp = requests.get(self._address + "poll/{0}/".format(self.task_id))
-        rsp.raise_for_status()
+        self._raise_for_status(rsp)
         return rsp.json()
 
     def remove(self):
         rsp = requests.post(self._address + "remove/{0}/".format(self.task_id))
-        rsp.raise_for_status()
+        self._raise_for_status(rsp)
 
     def get_messages(self):
         rsp = requests.get(self._address + "get_messages/{0}/".format(self.task_id))
-        rsp.raise_for_status()
+        self._raise_for_status(rsp)
         return rsp.json()
 
     def _raise_for_status(self, rsp):
