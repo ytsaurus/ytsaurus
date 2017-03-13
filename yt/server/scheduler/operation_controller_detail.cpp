@@ -5269,7 +5269,7 @@ TDataSourceDirectoryPtr TOperationControllerBase::MakeInputDataSources() const
 {
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     for (const auto& inputTable : InputTables) {
-        auto dataSource = inputTable.IsDynamic
+        auto dataSource = (inputTable.IsDynamic && inputTable.Schema.IsSorted())
             ? MakeVersionedDataSource(
                 inputTable.GetPath(),
                 inputTable.Schema,

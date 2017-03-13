@@ -771,6 +771,7 @@ private:
                     CachedSourcePath,
                     *schema,
                     key.timestamp()));
+                break;
 
             default:
                 Y_UNREACHABLE();
