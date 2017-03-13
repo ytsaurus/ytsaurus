@@ -110,8 +110,9 @@ class TaskExecutorProcess(Process):
         self._app.run()
 
 class TaskProcessClient(object):
-    def __init__(self, address):
+    def __init__(self, address, logger):
         self._address = address
+        self._logger = logger
 
     def start(self, task_id, config_path, input):
         params = {"task_id": task_id, "config_path": config_path, "task_executor_address": self._address, "input": input}
@@ -133,6 +134,12 @@ class TaskProcessClient(object):
         rsp = requests.get(self._address + "get_messages/{0}/".format(self.task_id))
         rsp.raise_for_status()
         return rsp.json()
+
+    def _raise_for_status(self, rsp):
+        if rsp.code / 100 != 2:
+            if rsp.code == 404:
+                self._logger.error("Failed response from task executor: %s", rsp.content)
+            rsp.raise_for_status()
 
 class MessageWriter(object):
     def __init__(self, address, task_id):
