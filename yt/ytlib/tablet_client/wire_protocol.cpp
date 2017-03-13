@@ -129,7 +129,7 @@ public:
 
         UnsafeWriteRaw(row.GetHeader(), sizeof(TVersionedRowHeader));
         UnsafeWriteRaw(row.BeginWriteTimestamps(), sizeof(TTimestamp) * row.GetWriteTimestampCount());
-        UnsafeWriteRaw(row.BeginDeleteTimestamps(), sizeof(TTimestamp) * row.GetWriteTimestampCount());
+        UnsafeWriteRaw(row.BeginDeleteTimestamps(), sizeof(TTimestamp) * row.GetDeleteTimestampCount());
 
         UnsafeWriteSchemafulValueRange(TRange<TUnversionedValue>(row.BeginKeys(), row.EndKeys()), nullptr);
         UnsafeWriteVersionedValueRange(TRange<TVersionedValue>(row.BeginValues(), row.EndValues()));
