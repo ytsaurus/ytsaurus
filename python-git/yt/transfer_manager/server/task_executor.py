@@ -136,8 +136,8 @@ class TaskProcessClient(object):
         return rsp.json()
 
     def _raise_for_status(self, rsp):
-        if rsp.code / 100 != 2:
-            if rsp.code == 404:
+        if rsp.status_code / 100 != 2:
+            if rsp.status_code == 404:
                 self._logger.error("Failed response from task executor: %s", rsp.content)
             rsp.raise_for_status()
 
