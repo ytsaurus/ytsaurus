@@ -58,6 +58,24 @@ run_test() {
     tear_down
 }
 
+sync_mount_unmount_table() {
+    local table="$1" && shift
+    local action="$1" && shift
+
+    if [ "$action" != "mount" ] && [ "$action" != "unmount" ]; then
+        die "Invalid action $action"
+    fi
+
+    $YT $action-table "$table"
+
+    while true; do
+        if [ "$($YT get "$table/@tablets/0/state")" = '"'"${action}"'ed"' ]; then
+            break
+        fi
+        sleep 0.1
+    done
+}
+
 # Directory creation, list, get and set commands
 test_cypress_commands()
 {
@@ -438,6 +456,31 @@ test_create_temp_table()
     check "$($YT exists "$table")" "false"
 }
 
+test_dynamic_table_commands()
+{
+    local tablet_cell="$($YT create tablet_cell --attributes "{size=1}")"
+
+    local schema="[{name=x; type=string; sort_order=ascending};{name=y; type=int64}]"
+    local table="//home/wrapper_test/dyn_table"
+    $YT create table "$table" --attributes "{schema=$schema; dynamic=%true}"
+
+    while true; do
+        if [ "$($YT get //sys/tablet_cells/${tablet_cell}/@health)" = '"good"' ]; then
+            break
+        fi
+        sleep 0.1
+    done
+
+    sync_mount_unmount_table "$table" mount
+
+    echo -ne "{x=a; y=1};{x=b;y=2}" | $YT insert-rows "$table" --format "<format=text>yson"
+    echo -ne "{x=a}" | $YT delete-rows "$table" --format "<format=text>yson"
+
+    check '{"x"="b"}' "$($YT select-rows "x FROM [$table]" --format "<format=text>yson" | tr -d ";\n")"
+
+    sync_mount_unmount_table "$table" unmount
+}
+
 tear_down
 run_test test_cypress_commands
 run_test test_list_long_format
@@ -456,3 +499,4 @@ run_test test_async_operations
 run_test test_json_structured_format
 run_test test_transform
 run_test test_create_temp_table
+run_test test_dynamic_table_commands
