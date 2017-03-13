@@ -33,6 +33,9 @@ class YtConfig(object):
         self.scheduler_config = kwargs.get("scheduler_config")
         self.yt_path = kwargs.get("yt_path")
 
+        self.save_all_logs = kwargs.get("save_all_logs")
+        self.enable_debug_log = kwargs.get("enable_debug_log")
+
         self.wait_tablet_cell_initialization = kwargs.get("wait_tablet_cell_initialization")
         self.operations_memory_limit = kwargs.get("operations_memory_limit") or (25 * 1024 * 1024 * 1024)
 
@@ -210,7 +213,7 @@ class YtStuff(object):
                 self.yt_proxy_port = self.config.proxy_port
                 args += ["--proxy-port", str(self.config.proxy_port)]
 
-            enable_debug_log = yatest.common.get_param("yt_enable_debug_logging")
+            enable_debug_log = self.config.enable_debug_log or yatest.common.get_param("yt_enable_debug_logging")
             # Temporary hack: we want to analyse problems mr_apps tests.
             if "quality/mr_apps/" in yatest.common.work_path():
                 enable_debug_log = True;
@@ -373,7 +376,7 @@ class YtStuff(object):
     def stop_local_yt(self):
         if self.is_running:
             self.suspend_local_yt()
-        self._save_logs(save_yt_all=yatest.common.get_param("yt_save_all_data"))
+        self._save_logs(save_yt_all=self.config.save_all_logs or yatest.common.get_param("yt_save_all_data"))
         shutil.rmtree(self.yt_work_dir)
 
     @_timing
