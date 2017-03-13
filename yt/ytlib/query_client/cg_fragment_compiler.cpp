@@ -121,6 +121,20 @@ void CodegenForEachRow(
 // Expressions
 //
 
+void CheckNaN(const TCGModule& module, TCGIRBuilderPtr& builder, Value* lhsValue, Value* rhsValue)
+{
+    CodegenIf<TCGIRBuilderPtr&>(
+        builder,
+        builder->CreateFCmpUNO(lhsValue, rhsValue),
+        [&] (TCGIRBuilderPtr& builder) {
+            builder->CreateCall(
+                module.GetRoutine("ThrowQueryException"),
+                {
+                    builder->CreateGlobalStringPtr("Comparison with NaN")
+                });
+        });
+}
+
 Function* CodegenGroupComparerFunction(
     const std::vector<EValueType>& types,
     const TCGModule& module)
@@ -170,6 +184,7 @@ Function* CodegenGroupComparerFunction(
                             break;
 
                         case EValueType::Double:
+                            CheckNaN(module, builder, lhsData, rhsData);
                             returnIf(builder->CreateFCmpUNE(lhsData, rhsData));
                             break;
 
@@ -393,6 +408,8 @@ Function* CodegenTupleComparerFunction(
                             break;
 
                         case EValueType::Double:
+                            CheckNaN(module, builder, lhsData, rhsData);
+
                             returnIf(
                                 builder->CreateFCmpUNE(lhsData, rhsData),
                                 [&] (TCGIRBuilderPtr& builder) {
