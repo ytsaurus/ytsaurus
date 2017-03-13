@@ -376,6 +376,12 @@ TTableSchema TTableSchema::ToDelete() const
     return ToLookup();
 }
 
+TTableSchema TTableSchema::ToKeys() const
+{
+    std::vector<TColumnSchema> columns(Columns_.begin(), Columns_.begin() + KeyColumnCount_);
+    return TTableSchema(std::move(columns), Strict_, UniqueKeys_);
+}
+
 TTableSchema TTableSchema::ToValues() const
 {
     std::vector<TColumnSchema> columns(Columns_.begin() + KeyColumnCount_, Columns_.end());

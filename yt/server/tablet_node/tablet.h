@@ -87,6 +87,7 @@ struct TTabletSnapshot
     NTableClient::TTableSchema PhysicalSchema;
     NTableClient::TTableSchema QuerySchema;
     NTabletClient::TSchemaData PhysicalSchemaData;
+    NTabletClient::TSchemaData KeysSchemaData;
     NTransactionClient::EAtomicity Atomicity;
     NTableClient::ETableReplicationMode ReplicationMode;
     int HashTableSize = 0;
@@ -229,7 +230,9 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, TableSchema);
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, PhysicalSchema);
+
     DEFINE_BYREF_RO_PROPERTY(NTabletClient::TSchemaData, PhysicalSchemaData);
+    DEFINE_BYREF_RO_PROPERTY(NTabletClient::TSchemaData, KeysSchemaData);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<int>, ColumnIndexToLockIndex);
     DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, LockIndexToName);

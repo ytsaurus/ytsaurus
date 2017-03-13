@@ -579,7 +579,7 @@ public:
             return TUnversionedRow();
         }
         ValidateRowValueCount(valueCount);
-        auto row = RowBuffer_->Allocate(valueCount);
+        auto row = RowBuffer_->AllocateUnversioned(valueCount);
         DoReadSchemafulValueRange(schemaData, deep, row.Begin(), valueCount);
         return row;
     }
@@ -591,7 +591,7 @@ public:
             return TUnversionedRow();
         }
         ValidateRowValueCount(valueCount);
-        auto row = RowBuffer_->Allocate(valueCount);
+        auto row = RowBuffer_->AllocateUnversioned(valueCount);
         DoReadUnversionedValueRange(deep, row.Begin(), valueCount);
         return row;
     }
