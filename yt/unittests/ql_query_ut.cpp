@@ -2496,7 +2496,6 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
     }
 
     std::vector<TOwningRow> result;
-
     for (const auto& row : source) {
         result.push_back(YsonToRow(row, split, false));
     }
@@ -2510,6 +2509,24 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
     std::reverse(result.begin(), result.end());
     limitedResult.assign(result.begin(), result.begin() + 100);
     Evaluate("* FROM [//t] order by a * 3 - 1 desc limit 100", split, source, ResultMatcher(limitedResult));
+
+
+    source.clear();
+    for (int i = 0; i < 10; ++i) {
+        auto value = 10 - i;
+        source.push_back(Stroka() + "a=" + ToString(i % 3) + ";b=" + ToString(value));
+    }
+
+    result.clear();
+    for (const auto& row : source) {
+        result.push_back(YsonToRow(row, split, false));
+    }
+
+    EXPECT_THROW_THAT(
+        [&] {
+            Evaluate("* FROM [//t] order by 0.0 / double(a) limit 100", split, source, ResultMatcher(result));
+        },
+        HasSubstr("Comparison with NaN"));
 
     SUCCEED();
 }
