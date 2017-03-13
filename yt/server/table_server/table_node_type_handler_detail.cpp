@@ -107,7 +107,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             THROW_ERROR_EXCEPTION("Table replication mode can only be set for sorted tables");
         }
         if (replicated) {
-            THROW_ERROR_EXCEPTION("Table replication mode can be explicitly set for replicated tables");
+            THROW_ERROR_EXCEPTION("Table replication mode cannot be explicitly set for replicated tables");
         }
     }
 
