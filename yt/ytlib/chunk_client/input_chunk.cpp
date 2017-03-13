@@ -182,7 +182,9 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
     ToProto(chunkSpec->mutable_chunk_id(), inputChunk->ChunkId_);
     const auto& replicas = inputChunk->GetReplicaList();
     ToProto(chunkSpec->mutable_replicas(), replicas);
-    chunkSpec->set_table_index(inputChunk->TableIndex_);
+    if (inputChunk->TableIndex_ >= 0) {
+        chunkSpec->set_table_index(inputChunk->TableIndex_);
+    }
     chunkSpec->set_erasure_codec(static_cast<int>(inputChunk->ErasureCodec_));
     chunkSpec->set_table_row_index(inputChunk->TableRowIndex_);
     chunkSpec->set_range_index(inputChunk->RangeIndex_);
