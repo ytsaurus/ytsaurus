@@ -12,6 +12,7 @@
 
 #include <yt/core/concurrency/async_stream.h>
 
+#include <yt/core/misc/checkpointable_stream.h>
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
 
@@ -165,10 +166,13 @@ void DoSnapshotJobs(const std::vector<TBuildSnapshotJob> Jobs_)
 {
     for (const auto& job : Jobs_) {
         TFileOutput outputStream(*job.OutputFile);
-        TBufferedOutput bufferedOutput(&outputStream, PipeWriteBufferSize);
+
+        auto checkpointableOutput = CreateCheckpointableOutputStream(&outputStream);
+        auto bufferedOutput = CreateBufferedCheckpointableOutputStream(checkpointableOutput.get(), PipeWriteBufferSize);
+
         try {
-            job.Operation->GetController()->SaveSnapshot(&bufferedOutput);
-            bufferedOutput.Finish();
+            job.Operation->GetController()->SaveSnapshot(bufferedOutput.get());
+            bufferedOutput->Finish();
             job.OutputFile->Close();
         } catch (const TFileError& ex) {
             // Failed to save snapshot because other side of the pipe was closed.
@@ -293,13 +297,14 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             WaitFor(writer->Open())
                 .ThrowOnError();
 
+            auto syncReader = CreateSyncAdapter(job->syncReader);
+            auto checkpointableInput = CreateCheckpointableInputStream(reader.get());
+
             struct TSnapshotBuilderBufferTag { };
             auto buffer = TSharedMutableRef::Allocate<TSnapshotBuilderBufferTag>(RemoteWriteBufferSize, false);
 
             while (true) {
-                size_t bytesRead = WaitFor(job->Reader->Read(buffer))
-                    .ValueOrThrow();
-
+                size_t bytesRead = checkpointableInput->Read(buffer.Begin(), buffer.Size());
                 if (bytesRead == 0) {
                     break;
                 }
