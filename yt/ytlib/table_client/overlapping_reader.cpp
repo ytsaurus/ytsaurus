@@ -396,6 +396,7 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoRead(
         while (ActiveSessions_.begin() != ActiveSessions_.end()) {
             auto* session = *ActiveSessions_.begin();
             auto partialRow = *session->CurrentRow;
+
             Y_ASSERT(session->CurrentRow >= session->Rows.begin() && session->CurrentRow < session->Rows.end());
 
             if (!CurrentKey_.empty()) {

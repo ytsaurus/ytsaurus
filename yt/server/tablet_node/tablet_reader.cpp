@@ -119,6 +119,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
                 lowerBound,
                 upperBound,
                 timestamp,
+                false,
                 columnFilter,
                 workloadDescriptor);
         },
@@ -311,6 +312,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
                     tabletSnapshot,
                     keys,
                     timestamp,
+                    false,
                     columnFilter,
                     workloadDescriptor);
             } else {
@@ -440,6 +442,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
                 lowerBound,
                 upperBound,
                 AllCommittedTimestamp,
+                true,
                 TColumnFilter(),
                 workloadDescriptor);
         },
