@@ -1418,7 +1418,7 @@ void TOperationControllerBase::SafeSaveSnapshot(TOutputStream* output)
     Save(context, this);
 }
 
-void TOperationControllerBase::Revive()
+void TOperationControllerBase::SafeRevive()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
