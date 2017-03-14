@@ -86,17 +86,19 @@ TFuture<void> TSnapshotBuilder::Run()
 
         operationSuspendFutures.push_back(operation
             ->GetController()
-            ->Suspend().Apply(BIND([=, this_ = MakeStrong(this)] () {
-                if (!ControllersSuspended_) {
-                    job->Suspended = true;
-                    LOG_DEBUG("Controller suspended (OperationId: %v)",
-                        operation->GetId());
-                } else {
-                    LOG_DEBUG("Controller suspended too late (OperationId: %v)",
-                        operation->GetId());
-                }
-            })
-            .AsyncVia(GetCurrentInvoker())));
+            ->Suspend().Apply(
+                BIND([=, this_ = MakeStrong(this)] () {
+                    if (!ControllersSuspended_) {
+                        job->Suspended = true;
+                        LOG_DEBUG("Controller suspended (OperationId: %v)",
+                            operation->GetId());
+                    } else {
+                        LOG_DEBUG("Controller suspended too late (OperationId: %v)",
+                            operation->GetId());
+                    }
+                })
+                .AsyncVia(GetCurrentInvoker())
+            ));
         operationIds.push_back(operation->GetId());
 
         LOG_INFO("Snapshot job registered (OperationId: %v)",
@@ -256,8 +258,8 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             options.Attributes = std::move(attributes);
             auto transactionOrError = WaitFor(
                 Client_->StartTransaction(
-                NTransactionClient::ETransactionType::Master,
-                options));
+                    NTransactionClient::ETransactionType::Master,
+                    options));
             transaction = transactionOrError.ValueOrThrow();
         }
 
