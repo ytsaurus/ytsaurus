@@ -299,8 +299,8 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             WaitFor(writer->Open())
                 .ThrowOnError();
 
-            auto syncReader = CreateSyncAdapter(job->syncReader);
-            auto checkpointableInput = CreateCheckpointableInputStream(reader.get());
+            auto syncReader = CreateSyncAdapter(job->Reader);
+            auto checkpointableInput = CreateCheckpointableInputStream(syncReader.get());
 
             struct TSnapshotBuilderBufferTag { };
             auto buffer = TSharedMutableRef::Allocate<TSnapshotBuilderBufferTag>(RemoteWriteBufferSize, false);
