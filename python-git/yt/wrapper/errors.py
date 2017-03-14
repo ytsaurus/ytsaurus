@@ -50,6 +50,8 @@ class YtResponseError(yt.common.YtResponseError):
             self.__class__ = YtRequestTimedOut
         if self.is_no_such_transaction():
             self.__class__ = YtNoSuchTransaction
+        if self.is_master_communication_error():
+            self.__class__ = YtMasterCommunicationError
 
 class YtHttpResponseError(YtResponseError):
     """Reponse error recieved from http proxy with additional http request information."""
@@ -94,6 +96,11 @@ class YtRequestTimedOut(YtHttpResponseError):
 
 class YtNoSuchTransaction(YtHttpResponseError):
     """No such transaction.
+       It is used in retries."""
+    pass
+
+class YtMasterCommunicationError(YtHttpResponseError):
+    """Master communication error.
        It is used in retries."""
     pass
 

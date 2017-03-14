@@ -81,9 +81,13 @@ class YtResponseError(YtError):
         """Request rate limit exceeded."""
         return self.contains_code(108)
 
+    def is_master_communication_error(self):
+        """Chunk unavailable."""
+        return self.contains_code(712)
+
     def is_chunk_unavailable(self):
         """Chunk unavailable."""
-        return self.contains_code(716) or self.contains_text(" is unavailable")
+        return self.contains_code(716)
 
     def is_request_timed_out(self):
         """Request timed out."""
