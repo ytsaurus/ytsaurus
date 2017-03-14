@@ -2,7 +2,7 @@ from .config import get_option, get_config, get_total_request_timeout, get_comma
 from .common import chunk_iter_blobs, YtError, update, remove_nones_from_dict, \
                     get_value
 from .retries import Retrier, IteratorRetrier
-from .errors import YtResponseError
+from .errors import YtResponseError, YtMasterCommunicationError
 from .ypath import YPathSupportingAppend
 from .transaction import Transaction
 from .transaction_commands import _make_transactional_request
@@ -47,7 +47,7 @@ class WriteRequestRetrier(Retrier):
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
         super(WriteRequestRetrier, self).__init__(retry_config=retry_config,
                                                   timeout=request_timeout,
-                                                  exceptions=get_retriable_errors(),
+                                                  exceptions=get_retriable_errors() + (YtMasterCommunicationError,),
                                                   chaos_monkey_enable=chaos_monkey_enable)
         self.write_action = write_action
         self.transaction_timeout = transaction_timeout
