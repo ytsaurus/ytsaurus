@@ -29,22 +29,20 @@ public:
         NApi::INativeClientPtr client = nullptr);
 
     // IStoreManager overrides.
-    virtual void ExecuteWrite(
-        TTransaction* transaction,
-        NTabletClient::TWireProtocolReader* reader,
-        TTimestamp commitTimestamp,
-        bool prelock) override;
+    virtual bool IsLockless() override;
 
-    TSortedDynamicRowRef WriteRow(
-        TTransaction* transaction,
+    virtual bool ExecuteWrites(
+        NTabletClient::TWireProtocolReader* reader,
+        TWriteContext* context) override;
+
+    TSortedDynamicRowRef ModifyRow(
         TUnversionedRow row,
-        TTimestamp commitTimestamp,
-        bool prelock);
-    TSortedDynamicRowRef DeleteRow(
-        TTransaction* transaction,
-        TKey key,
-        TTimestamp commitTimestamp,
-        bool prelock);
+        NApi::ERowModificationType modificationType,
+        TWriteContext* context);
+
+    TSortedDynamicRowRef ModifyRow(
+        TVersionedRow row,
+        TWriteContext* context);
 
     virtual void StartEpoch(TTabletSlotPtr slot) override;
     virtual void StopEpoch() override;
@@ -99,13 +97,10 @@ private:
 
     ui32 ComputeLockMask(TUnversionedRow row);
 
-    void CheckInactiveStoresLocks(
-        TTransaction* transaction,
+    bool CheckInactiveStoresLocks(
         TUnversionedRow row,
-        ui32 lockMask);
-
-    void ValidateOnWrite(const TTransactionId& transactionId, TUnversionedRow row);
-    void ValidateOnDelete(const TTransactionId& transactionId, TKey key);
+        ui32 lockMask,
+        TWriteContext* context);
 
     void SchedulePartitionSampling(TPartition* partition);
     void SchedulePartitionsSampling(int beginPartitionIndex, int endPartitionIndex);

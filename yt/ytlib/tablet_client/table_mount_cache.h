@@ -54,6 +54,8 @@ DEFINE_ENUM(ETableSchemaKind,
     (Query)
     // Schema used for deleting rows.
     (Delete)
+    // Schema used for writing versioned rows (during replication).
+    (VersionedWrite)
     // Schema used for looking up rows.
     (Lookup)
 );
@@ -66,7 +68,7 @@ struct TTableMountInfo
     TEnumIndexedVector<NTableClient::TTableSchema, ETableSchemaKind> Schemas;
 
     bool Dynamic;
-    bool Replicated;
+    NTableClient::ETableReplicationMode ReplicationMode;
     bool NeedKeyEvaluation;
 
     std::vector<TTabletInfoPtr> Tablets;
@@ -80,7 +82,9 @@ struct TTableMountInfo
     bool IsSorted() const;
     bool IsOrdered() const;
 
+    TTabletInfoPtr GetTabletForRow(const TRange<NTableClient::TUnversionedValue>& row) const;
     TTabletInfoPtr GetTabletForRow(NTableClient::TUnversionedRow row) const;
+    TTabletInfoPtr GetTabletForRow(NTableClient::TVersionedRow row) const;
     TTabletInfoPtr GetRandomMountedTablet() const;
 
     void ValidateDynamic() const;

@@ -355,6 +355,11 @@ TTableSchema TTableSchema::ToWrite() const
     return TTableSchema(std::move(columns), Strict_, UniqueKeys_);
 }
 
+TTableSchema TTableSchema::ToVersionedWrite() const
+{
+    return *this;
+}
+
 TTableSchema TTableSchema::ToLookup() const
 {
     std::vector<TColumnSchema> columns;

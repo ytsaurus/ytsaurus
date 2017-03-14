@@ -203,52 +203,35 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateSnapshotReader()
 }
 
 TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
-    TTransaction* /*transaction*/,
     TUnversionedRow row,
-    TTimestamp commitTimestamp)
+    TWriteContext* context)
 {
-    auto orderedRow = DoWriteSchemalessRow(row);
+    Y_ASSERT(context->Phase == EWritePhase::Commit);
 
-    if (commitTimestamp == NullTimestamp) {
-        Lock();
-    } else {
-        SetRowCommitTimestamp(orderedRow, commitTimestamp);
-        DoCommitRow(orderedRow);
-        UpdateTimestampRange(commitTimestamp);
+    int columnCount = static_cast<int>(Schema_.Columns().size());
+    auto dynamicRow = RowBuffer_->AllocateUnversioned(columnCount);
+
+    for (int index = 0; index < columnCount; ++index) {
+        dynamicRow[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
     }
 
+    for (const auto& srcValue : row) {
+        auto& dstValue = dynamicRow[srcValue.Id];
+        dstValue = RowBuffer_->Capture(srcValue);
+    }
+
+    if (TimestampColumnId_) {
+        dynamicRow[*TimestampColumnId_] = MakeUnversionedUint64Value(context->CommitTimestamp, *TimestampColumnId_);
+    }
+
+    CommitRow(dynamicRow);
+    UpdateTimestampRange(context->CommitTimestamp);
     OnMemoryUsageUpdated();
 
     ++PerformanceCounters_->DynamicRowWriteCount;
+    ++context->RowCount;
 
-    return orderedRow;
-}
-
-TOrderedDynamicRow TOrderedDynamicStore::MigrateRow(TTransaction* /*transaction*/, TOrderedDynamicRow row)
-{
-    auto result = DoWriteSchemafulRow(row);
-
-    Lock();
-
-    OnMemoryUsageUpdated();
-
-    return result;
-}
-
-void TOrderedDynamicStore::PrepareRow(TTransaction* /*transaction*/, TOrderedDynamicRow /*row*/)
-{ }
-
-void TOrderedDynamicStore::CommitRow(TTransaction* transaction, TOrderedDynamicRow row)
-{
-    SetRowCommitTimestamp(row, transaction->GetCommitTimestamp());
-    DoCommitRow(row);
-    Unlock();
-    UpdateTimestampRange(transaction->GetCommitTimestamp());
-}
-
-void TOrderedDynamicStore::AbortRow(TTransaction* /*transaction*/, TOrderedDynamicRow /*row*/)
-{
-    Unlock();
+    return dynamicRow;
 }
 
 TOrderedDynamicRow TOrderedDynamicStore::GetRow(i64 rowIndex)
@@ -441,26 +424,7 @@ void TOrderedDynamicStore::OnMemoryUsageUpdated()
     SetMemoryUsage(GetUncompressedDataSize());
 }
 
-TOrderedDynamicRow TOrderedDynamicStore::DoWriteSchemafulRow(TUnversionedRow row)
-{
-    return RowBuffer_->Capture(row, true);
-}
-
-TOrderedDynamicRow TOrderedDynamicStore::DoWriteSchemalessRow(TUnversionedRow row)
-{
-    int columnCount = Schema_.Columns().size();
-    auto dynamicRow = RowBuffer_->Allocate(columnCount);
-    for (int index = 0; index < columnCount; ++index) {
-        dynamicRow[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
-    }
-    for (const auto& srcValue : row) {
-        auto& dstValue = dynamicRow[srcValue.Id];
-        dstValue = RowBuffer_->Capture(srcValue);
-    }
-    return dynamicRow;
-}
-
-void TOrderedDynamicStore::DoCommitRow(TOrderedDynamicRow row)
+void TOrderedDynamicStore::CommitRow(TOrderedDynamicRow row)
 {
     if (CurrentSegmentSize_ == CurrentSegmentCapacity_) {
         AllocateCurrentSegment(CurrentSegmentIndex_ + 1);
@@ -471,16 +435,9 @@ void TOrderedDynamicStore::DoCommitRow(TOrderedDynamicRow row)
     StoreValueCount_ += row.GetCount();
 }
 
-void TOrderedDynamicStore::SetRowCommitTimestamp(TOrderedDynamicRow row, TTimestamp commitTimestamp)
-{
-    if (TimestampColumnId_) {
-        row[*TimestampColumnId_] = MakeUnversionedUint64Value(commitTimestamp, *TimestampColumnId_);
-    }
-}
-
 void TOrderedDynamicStore::LoadRow(TUnversionedRow row)
 {
-    DoCommitRow(DoWriteSchemafulRow(row));
+    CommitRow(RowBuffer_->Capture(row, true));
 }
 
 ISchemafulReaderPtr TOrderedDynamicStore::DoCreateReader(

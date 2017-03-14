@@ -412,7 +412,7 @@ private:
                 } else {
                     auto lowerBound = key;
 
-                    auto upperBound = rowBuffer->Allocate(rowSize + 1);
+                    auto upperBound = rowBuffer->AllocateUnversioned(rowSize + 1);
                     for (int column = 0; column < rowSize; ++column) {
                         upperBound[column] = lowerBound[column];
                     }
@@ -564,7 +564,7 @@ private:
                 auto rowSize = key.GetCount();
                 auto lowerBound = key;
 
-                auto upperBound = rowBuffer->Allocate(rowSize + 1);
+                auto upperBound = rowBuffer->AllocateUnversioned(rowSize + 1);
                 for (int column = 0; column < rowSize; ++column) {
                     upperBound[column] = lowerBound[column];
                 }

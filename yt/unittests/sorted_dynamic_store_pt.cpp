@@ -57,12 +57,15 @@ public:
             builder.AddValue(MakeUnversionedStringValue("hello from YT", 3));
             auto row = builder.FinishRow();
 
-            auto dynamicRow = Store_->WriteRow(
-                transaction.get(),
+            TWriteContext context;
+            context.Phase = EWritePhase::Lock;
+            context.Transaction = transaction.get();
+            auto dynamicRow = Store_->ModifyRow(
                 row,
-                NullTimestamp,
-                TSortedDynamicRow::PrimaryLockMask);
-            transaction->LockedSortedRows().push_back(TSortedDynamicRowRef(Store_.Get(), nullptr, dynamicRow, true));
+                TSortedDynamicRow::PrimaryLockMask,
+                NApi::ERowModificationType::Write,
+                &context);
+            transaction->LockedRows().push_back(TSortedDynamicRowRef(Store_.Get(), nullptr, dynamicRow));
 
             PrepareTransaction(transaction.get());
             Store_->PrepareRow(transaction.get(), dynamicRow);

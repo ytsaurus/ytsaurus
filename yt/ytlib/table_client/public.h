@@ -93,6 +93,12 @@ DEFINE_ENUM(EOptimizeFor,
     ((Scan)    (1))
 );
 
+DEFINE_ENUM(ETableReplicationMode,
+    ((None)                (0))
+    ((Source)              (1))
+    ((AsynchronousSink)    (2))
+);
+
 DEFINE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)  (300))
     ((SortOrderViolation)         (301))
@@ -130,7 +136,7 @@ struct TColumnIdMapping
 };
 
 //! NB: |int| is important since we use negative values to indicate that
-//! certain values need to be dropped. Cf. TRowBuffer::CaptureAndPermuteRow.
+//! certain values need to be dropped. Cf. #TRowBuffer::CaptureAndPermuteRow.
 typedef SmallVector<int, TypicalColumnCount> TNameTableToSchemaIdMapping;
 
 union TUnversionedValueData;

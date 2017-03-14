@@ -184,12 +184,12 @@ struct ISortedStore
         const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor) = 0;
 
-    //! Checks that #transaction attempting to take locks indicated by #lockMask
-    //! has no conflicts within the store. Throws on failure.
+    //! Checks that the transaction attempting to take locks indicated by #lockMask
+    //! has no conflicts within the store. Returns the error.
     /*!
      *  Thread affinity: any
      */
-    virtual void CheckRowLocks(
+    virtual TError CheckRowLocks(
         TUnversionedRow row,
         TTransaction* transaction,
         ui32 lockMask) = 0;

@@ -115,6 +115,8 @@ DEFINE_ENUM(ETabletState,
     ((Frozen)                  (10))
     ((FreezeFirst)              (6))
     ((FreezeLast)              (10))
+
+    ((Orphaned)               (100))
 );
 
 DEFINE_ENUM(EStoreType,

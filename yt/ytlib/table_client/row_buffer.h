@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "unversioned_row.h"
+#include "versioned_row.h"
 
 #include <yt/core/misc/chunked_memory_pool.h>
 
@@ -36,7 +37,12 @@ public:
 
     TChunkedMemoryPool* GetPool();
 
-    TMutableUnversionedRow Allocate(int count);
+    TMutableUnversionedRow AllocateUnversioned(int valueCount);
+    TMutableVersionedRow AllocateVersioned(
+        int keyCount,
+        int valueCount,
+        int writeTimestampCount,
+        int deleteTimestampCount);
 
     void Capture(TUnversionedValue* value);
     TVersionedValue Capture(const TVersionedValue& value);
@@ -51,6 +57,13 @@ public:
     //! Skips values that map to negative ids with via #idMapping.
     TMutableUnversionedRow CaptureAndPermuteRow(
         TUnversionedRow row,
+        const TTableSchema& tableSchema,
+        const TNameTableToSchemaIdMapping& idMapping);
+
+    //! Captures the row applying #idMapping to value ids.
+    //! Skips values that map to negative ids with via #idMapping.
+    TMutableVersionedRow CaptureAndPermuteRow(
+        TVersionedRow row,
         const TTableSchema& tableSchema,
         const TNameTableToSchemaIdMapping& idMapping);
 
