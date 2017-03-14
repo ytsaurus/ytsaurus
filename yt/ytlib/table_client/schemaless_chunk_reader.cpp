@@ -2277,7 +2277,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             upperLimit.GetKey(),
             columnFilter,
             performanceCounters,
-            timestamp);
+            timestamp,
+            false);
     };
 
     struct TSchemalessMergingMultiChunkReaderBufferTag

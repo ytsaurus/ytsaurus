@@ -4,6 +4,8 @@
 #include "tablet.h"
 #include "tablet_slot.h"
 
+#include <yt/server/tablet_node/config.h>
+
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/row_merger.h>
 #include <yt/ytlib/table_client/row_buffer.h>
@@ -47,11 +49,13 @@ public:
     TLookupSession(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
+        bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor,
         TSharedRange<TUnversionedRow> lookupKeys)
         : TabletSnapshot_(std::move(tabletSnapshot))
         , Timestamp_(timestamp)
+        , ProduceAllVersions_(produceAllVersions)
         , ColumnFilter_(columnFilter)
         , WorkloadDescriptor_(workloadDescriptor)
         , LookupKeys_(std::move(lookupKeys))
@@ -135,6 +139,7 @@ private:
 
     const TTabletSnapshotPtr TabletSnapshot_;
     const TTimestamp Timestamp_;
+    const bool ProduceAllVersions_;
     const TColumnFilter& ColumnFilter_;
     const TWorkloadDescriptor& WorkloadDescriptor_;
     const TSharedRange<TUnversionedRow> LookupKeys_;
@@ -160,6 +165,7 @@ private:
                 TabletSnapshot_,
                 keys,
                 Timestamp_,
+                ProduceAllVersions_,
                 ColumnFilter_,
                 WorkloadDescriptor_);
             auto future = reader->Open();
@@ -241,6 +247,7 @@ void LookupRows(
     TLookupSession session(
         tabletSnapshot,
         timestamp,
+        false,
         columnFilter,
         workloadDescriptor,
         std::move(lookupKeys));
@@ -276,6 +283,7 @@ void VersionedLookupRows(
     TLookupSession session(
         tabletSnapshot,
         timestamp,
+        true,
         columnFilter,
         workloadDescriptor,
         std::move(lookupKeys));

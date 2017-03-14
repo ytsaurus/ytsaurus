@@ -155,6 +155,9 @@ struct ISortedStore
     *  The reader will be providing values filtered by |timestamp| and columns
     *  filtered by |columnFilter|.
     *
+    *  Depending on |produceAllVersions| flag reader would either provide all value versions
+    *  or just the last one.
+    *
     *  This call is typically synchronous and fast but may occasionally yield.
     *
     *  Thread affinity: any
@@ -164,6 +167,7 @@ struct ISortedStore
         TOwningKey lowerKey,
         TOwningKey upperKey,
         TTimestamp timestamp,
+        bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor) = 0;
 
@@ -174,6 +178,9 @@ struct ISortedStore
     *  The reader will be providing values filtered by |timestamp| and columns
     *  filtered by |columnFilter|.
     *
+    *  Depending on |produceAllVersions| flag reader would either provide all value versions
+    *  or just the last one.
+    *
     *  This call is typically synchronous and fast but may occasionally yield.
     *
     *  Thread affinity: any
@@ -182,6 +189,7 @@ struct ISortedStore
         const TTabletSnapshotPtr& tabletSnapshot,
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
+        bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor) = 0;
 

@@ -1986,6 +1986,7 @@ private:
                     workloadDescriptor,
                     reader,
                     writer);
+                break;
 
             default:
                 THROW_ERROR_EXCEPTION("Unknown read command %v",
