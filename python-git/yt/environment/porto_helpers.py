@@ -38,8 +38,8 @@ class PortoSubprocess(object):
         p._portoName = name
         p._connection = conn
         p._container.SetProperty("command", command)
+        p._container.SetProperty("porto_namespace", name + "/")
         p._container.SetProperty("isolate", "true")
-        p._container.SetProperty("bind", "/tmp /sys/fs/cgroup ro")
         p._returncode = None
         p._copy_env()
         if stdout is not None:
