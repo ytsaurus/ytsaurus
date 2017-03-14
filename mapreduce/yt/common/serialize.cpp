@@ -345,6 +345,9 @@ void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
         .DoIf(path.Schema_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("schema").Value(*path.Schema_);
         })
+        .DoIf(path.Timestamp_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("timestamp").Value(*path.Timestamp_);
+        })
     .EndAttributes()
     .Value(path.Path_);
 }
@@ -364,6 +367,7 @@ void Deserialize(TRichYPath& path, const TNode& node)
     DESERIALIZE_ATTR("executable", path.Executable_);
     DESERIALIZE_ATTR("format", path.Format_);
     DESERIALIZE_ATTR("schema", path.Schema_);
+    DESERIALIZE_ATTR("timestamp", path.Timestamp_);
     Deserialize(path.Path_, node);
 }
 

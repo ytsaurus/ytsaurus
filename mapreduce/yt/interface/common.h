@@ -3,12 +3,13 @@
 #include "fwd.h"
 #include "node.h"
 
-#include <util/generic/guid.h>
-#include <util/generic/ptr.h>
-#include <util/generic/vector.h>
-#include <util/generic/maybe.h>
+#include <util/datetime/base.h>
 
+#include <util/generic/guid.h>
+#include <util/generic/maybe.h>
+#include <util/generic/ptr.h>
 #include <util/generic/type_name.h>
+#include <util/generic/vector.h>
 
 #include <initializer_list>
 #include <type_traits>
@@ -200,6 +201,11 @@ struct TRichYPath
     FLUENT_FIELD_OPTION(bool, Executable);
     FLUENT_FIELD_OPTION(TNode, Format);
     FLUENT_FIELD_OPTION(TTableSchema, Schema);
+
+    // Timestamp of dynamic table.
+    // NOTE: it is _not_ unix timestamp
+    // (instead it's transaction timestamp, that is more complex structure).
+    FLUENT_FIELD_OPTION(i64, Timestamp);
 
     TRichYPath()
     { }
