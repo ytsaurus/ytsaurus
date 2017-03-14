@@ -289,7 +289,7 @@ public:
 
     const TUnversionedValue& operator[] (int index) const
     {
-        Y_ASSERT(index >= 0 && index < GetCount());
+        Y_ASSERT(index >= 0 && static_cast<ui32>(index) < GetCount());
         return Begin()[index];
     }
 
