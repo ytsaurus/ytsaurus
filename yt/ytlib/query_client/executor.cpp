@@ -426,7 +426,7 @@ private:
                     }
 
                     auto bound = *keysIt;
-                    auto upperBound = rowBuffer->Allocate(bound.GetCount() + 1);
+                    auto upperBound = rowBuffer->AllocateUnversioned(bound.GetCount() + 1);
                     for (int column = 0; column < bound.GetCount(); ++column) {
                         upperBound[column] = bound[column];
                     }

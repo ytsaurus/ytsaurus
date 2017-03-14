@@ -123,6 +123,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("schema_mode"));
     descriptors->push_back(TAttributeDescriptor("chunk_writer")
         .SetCustom(true));
+    descriptors->push_back(TAttributeDescriptor("replication_mode")
+        .SetPresent(table->IsSorted() && table->IsDynamic()));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
@@ -299,12 +301,16 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
         return true;
     }
 
+    if (key == "replication_mode" && trunkTable->IsSorted() && trunkTable->IsDynamic()) {
+        BuildYsonFluently(consumer)
+            .Value(trunkTable->GetReplicationMode());
+        return true;
+    }
+
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
-void TTableNodeProxy::AlterTable(
-    const TNullable<TTableSchema>& newSchema,
-    const TNullable<bool>& newDynamic)
+void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)
 {
     auto* table = LockThisImpl();
 
@@ -312,24 +318,49 @@ void TTableNodeProxy::AlterTable(
         THROW_ERROR_EXCEPTION("Cannot alter a replicated table");
     }
 
-    if (newDynamic) {
+    if (options.Dynamic) {
         ValidateNoTransaction();
 
-        if (*newDynamic && table->IsExternal()) {
+        if (*options.Dynamic && table->IsExternal()) {
             THROW_ERROR_EXCEPTION("External node cannot be a dynamic table");
         }
     }
 
-    if (newSchema && table->IsDynamic() && table->GetTabletState() != ETabletState::Unmounted) {
+    if (options.Schema && table->IsDynamic() && table->GetTabletState() != ETabletState::Unmounted) {
         THROW_ERROR_EXCEPTION("Cannot change table schema since not all of its tablets are in %Qlv state",
             ETabletState::Unmounted);
     }
 
-    auto dynamic = newDynamic.Get(table->IsDynamic());
-    auto schema = newSchema.Get(table->TableSchema());
- 
+    auto dynamic = options.Dynamic.Get(table->IsDynamic());
+    auto schema = options.Schema.Get(table->TableSchema());
+
+    if (options.ReplicationMode) {
+        ValidateNoTransaction();
+
+        if (table->GetTabletState() != ETabletState::Unmounted) {
+            THROW_ERROR_EXCEPTION("Cannot change table replica mode since not all of its tablets are in %Qlv state",
+                ETabletState::Unmounted);
+        }
+        if (!dynamic) {
+            THROW_ERROR_EXCEPTION("Table replication mode can only be set for dynamic tables");
+        }
+        if (!schema.IsSorted()) {
+            THROW_ERROR_EXCEPTION("Table replication mode can only be set for sorted tables");
+        }
+        if (table->IsReplicated()) {
+            THROW_ERROR_EXCEPTION("Table replication mode cannot be explicitly set for replicated tables");
+        } else {
+            auto mode = *options.ReplicationMode;
+            if (mode != ETableReplicationMode::None &&
+                mode != ETableReplicationMode::AsynchronousSink)
+            {
+                THROW_ERROR_EXCEPTION("Replication mode %Qlv cannot be explicitly set", mode);
+            }
+        }
+    }
+
     // NB: Sorted dynamic tables contain unique keys, set this for user.
-    if (dynamic && newSchema && newSchema->IsSorted() && !newSchema->GetUniqueKeys()) {
+    if (dynamic && options.Schema && options.Schema->IsSorted() && !options.Schema->GetUniqueKeys()) {
         schema = schema.ToUniqueKeys();
     }
 
@@ -339,18 +370,22 @@ void TTableNodeProxy::AlterTable(
         dynamic,
         table->IsEmpty());
 
-    if (newSchema) {
+    if (options.Schema) {
         table->TableSchema() = std::move(schema);
         table->SetSchemaMode(ETableSchemaMode::Strong);
     }
 
-    if (newDynamic) {
+    if (options.Dynamic) {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        if (*newDynamic) {
+        if (*options.Dynamic) {
             tabletManager->MakeTableDynamic(table);
         } else {
             tabletManager->MakeTableStatic(table);
         }
+    }
+
+    if (options.ReplicationMode) {
+        table->SetReplicationMode(*options.ReplicationMode);
     }
 }
 
@@ -669,6 +704,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
 
     ToProto(response->mutable_table_id(), trunkTable->GetId());
     response->set_dynamic(trunkTable->IsDynamic());
+    response->set_replication_mode(static_cast<int>(trunkTable->GetReplicationMode()));
     ToProto(response->mutable_schema(), trunkTable->TableSchema());
 
     yhash_set<TTabletCell*> cells;
@@ -696,18 +732,23 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 {
     DeclareMutating();
 
-    auto newSchema = request->has_schema()
-        ? MakeNullable(FromProto<TTableSchema>(request->schema()))
-        : Null;
-    auto newDynamic = request->has_dynamic()
-        ? MakeNullable(request->dynamic())
-        : Null;
+    TAlterTableOptions options;
+    if (request->has_schema()) {
+        options.Schema = FromProto<TTableSchema>(request->schema());
+    }
+    if (request->has_dynamic()) {
+        options.Dynamic = request->dynamic();
+    }
+    if (request->has_replication_mode()) {
+        options.ReplicationMode = ETableReplicationMode(request->replication_mode());
+    }
 
-    context->SetRequestInfo("Schema: %v, Dynamic: %v",
-        newSchema,
-        newDynamic);
+    context->SetRequestInfo("Schema: %v, Dynamic: %v, ReplicationMode: %v",
+        options.Schema,
+        options.Dynamic,
+        options.ReplicationMode);
 
-    AlterTable(newSchema, newDynamic);
+    AlterTable(options);
 
     context->Reply();
 }

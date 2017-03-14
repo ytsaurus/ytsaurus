@@ -32,14 +32,8 @@ public:
     NTableClient::ISchemafulReaderPtr CreateSnapshotReader();
 
     TOrderedDynamicRow WriteRow(
-        TTransaction* transaction,
         NTableClient::TUnversionedRow row,
-        TTimestamp commitTimestamp);
-
-    TOrderedDynamicRow MigrateRow(TTransaction* transaction, TOrderedDynamicRow row);
-    void PrepareRow(TTransaction* transaction, TOrderedDynamicRow row);
-    void CommitRow(TTransaction* transaction, TOrderedDynamicRow row);
-    void AbortRow(TTransaction* transaction, TOrderedDynamicRow row);
+        TWriteContext* context);
 
     TOrderedDynamicRow GetRow(i64 rowIndex);
     std::vector<TOrderedDynamicRow> GetAllRows();
@@ -83,10 +77,7 @@ private:
     void AllocateCurrentSegment(int index);
     void OnMemoryUsageUpdated();
 
-    TOrderedDynamicRow DoWriteSchemafulRow(NTableClient::TUnversionedRow row);
-    TOrderedDynamicRow DoWriteSchemalessRow(NTableClient::TUnversionedRow row);
-    void DoCommitRow(TOrderedDynamicRow row);
-    void SetRowCommitTimestamp(TOrderedDynamicRow row, TTimestamp commitTimestamp);
+    void CommitRow(TOrderedDynamicRow row);
     void LoadRow(NTableClient::TUnversionedRow row);
 
     NTableClient::ISchemafulReaderPtr DoCreateReader(

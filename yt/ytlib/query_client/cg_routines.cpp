@@ -171,7 +171,7 @@ void InsertJoinRow(
         for (int index = 0; index < closure->KeySize; ++index) {
             closure->Buffer->Capture(&key[index]);
         }
-        *keyPtr = closure->Buffer->Allocate(closure->KeySize);
+        *keyPtr = closure->Buffer->AllocateUnversioned(closure->KeySize);
     } else {
         auto& startIndex = inserted.first->second.first;
         closure->ChainedRows.back().second = startIndex;
@@ -180,7 +180,7 @@ void InsertJoinRow(
 
     if (closure->ChainedRows.size() >= closure->BatchSize) {
         closure->ProcessJoinBatch();
-        *keyPtr = closure->Buffer->Allocate(closure->KeySize);
+        *keyPtr = closure->Buffer->AllocateUnversioned(closure->KeySize);
     }
 }
 
@@ -234,7 +234,7 @@ void JoinOpHelper(
         auto foreignColumns = parameters->ForeignColumns;
 
         auto joinRow = [&] (TRow row, TRow foreignRow) {
-            auto joinedRow = intermediateBuffer->Allocate(selfColumns.size() + foreignColumns.size());
+            auto joinedRow = intermediateBuffer->AllocateUnversioned(selfColumns.size() + foreignColumns.size());
 
             for (size_t column = 0; column < selfColumns.size(); ++column) {
                 joinedRow[column] = row[selfColumns[column]];
@@ -252,7 +252,7 @@ void JoinOpHelper(
         };
 
         auto joinRowNull = [&] (TRow row) {
-            auto joinedRow = intermediateBuffer->Allocate(selfColumns.size() + foreignColumns.size());
+            auto joinedRow = intermediateBuffer->AllocateUnversioned(selfColumns.size() + foreignColumns.size());
 
             for (size_t column = 0; column < selfColumns.size(); ++column) {
                 joinedRow[column] = row[selfColumns[column]];
@@ -494,7 +494,7 @@ void AllocatePermanentRow(TExecutionContext* context, TRowBuffer* buffer, int va
 {
     CHECK_STACK();
 
-    *row = buffer->Allocate(valueCount);
+    *row = buffer->AllocateUnversioned(valueCount);
 }
 
 void AddRow(TTopCollector* topCollector, TRow row)

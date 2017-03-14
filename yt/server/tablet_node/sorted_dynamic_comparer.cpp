@@ -46,13 +46,23 @@ int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TSortedDynam
         rhs.BeginKeys());
 }
 
-int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TRowWrapper rhs) const
+int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TUnversionedRowWrapper rhs) const
 {
     Y_ASSERT(rhs.Row.GetCount() >= KeyColumnCount_);
     return DUComparer_(
         lhs.GetNullKeyMask(),
         lhs.BeginKeys(),
         rhs.Row.Begin(),
+        KeyColumnCount_);
+}
+
+int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TVersionedRowWrapper rhs) const
+{
+    Y_ASSERT(rhs.Row.GetKeyCount() == KeyColumnCount_);
+    return DUComparer_(
+        lhs.GetNullKeyMask(),
+        lhs.BeginKeys(),
+        rhs.Row.BeginKeys(),
         KeyColumnCount_);
 }
 

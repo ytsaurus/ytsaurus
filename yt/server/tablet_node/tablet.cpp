@@ -13,6 +13,7 @@
 #include <yt/ytlib/table_client/schema.h>
 
 #include <yt/ytlib/tablet_client/config.h>
+#include <yt/ytlib/tablet_client/wire_protocol.h>
 
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/helpers.h>
@@ -264,7 +265,8 @@ TTablet::TTablet(
     TOwningKey pivotKey,
     TOwningKey nextPivotKey,
     EAtomicity atomicity,
-    ECommitOrdering commitOrdering)
+    ECommitOrdering commitOrdering,
+    ETableReplicationMode replicationMode)
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
@@ -274,6 +276,7 @@ TTablet::TTablet(
     , State_(ETabletState::Mounted)
     , Atomicity_(atomicity)
     , CommitOrdering_(commitOrdering)
+    , ReplicationMode_(replicationMode)
     , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreRowCount : 0)
     , RetainedTimestamp_(MinTimestamp)
     , Config_(config)
@@ -372,6 +375,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, TableSchema_);
     Save(context, Atomicity_);
     Save(context, CommitOrdering_);
+    Save(context, ReplicationMode_);
     Save(context, HashTableSize_);
     Save(context, RuntimeData_->TotalRowCount);
     Save(context, RuntimeData_->TrimmedRowCount);
@@ -413,6 +417,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, TableSchema_);
     Load(context, Atomicity_);
     Load(context, CommitOrdering_);
+    Load(context, ReplicationMode_);
     Load(context, HashTableSize_);
     Load(context, RuntimeData_->TotalRowCount);
     Load(context, RuntimeData_->TrimmedRowCount);
@@ -869,15 +874,6 @@ void TTablet::SetLastCommitTimestamp(TTimestamp value)
     RuntimeData_->LastCommitTimestamp = value;
 }
 
-TTimestamp TTablet::GenerateMonotonicCommitTimestamp(TTimestamp hintTimestamp) const
-{
-    return 0;
-}
-
-void TTablet::UpdateLastCommitTimestamp(TTimestamp timestamp)
-{
-}
-
 TTimestamp TTablet::GetUnflushedTimestamp() const
 {
     return RuntimeData_->UnflushedTimestamp;
@@ -944,7 +940,10 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->TableSchema = TableSchema_;
     snapshot->PhysicalSchema = PhysicalSchema_;
     snapshot->QuerySchema = PhysicalSchema_.ToQuery();
+    snapshot->PhysicalSchemaData = PhysicalSchemaData_;
+    snapshot->KeysSchemaData = KeysSchemaData_;
     snapshot->Atomicity = Atomicity_;
+    snapshot->ReplicationMode = ReplicationMode_;
     snapshot->HashTableSize = HashTableSize_;
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
     snapshot->RetainedTimestamp = RetainedTimestamp_;
@@ -1014,6 +1013,9 @@ void TTablet::Initialize()
     PerformanceCounters_ = New<TTabletPerformanceCounters>();
 
     PhysicalSchema_ = IsReplicated() ? TableSchema_.ToReplicationLog() : TableSchema_;
+
+    PhysicalSchemaData_ = TWireProtocolReader::GetSchemaData(PhysicalSchema_);
+    KeysSchemaData_ = TWireProtocolReader::GetSchemaData(PhysicalSchema_.ToKeys());
 
     int keyColumnCount = PhysicalSchema_.GetKeyColumnCount();
 
@@ -1123,6 +1125,23 @@ void TTablet::UpdateUnflushedTimestamp() const
     }
 
     RuntimeData_->UnflushedTimestamp = unflushedTimestamp;
+}
+
+i64 TTablet::Lock()
+{
+    return ++TabletLockCount_;
+}
+
+i64 TTablet::Unlock()
+{
+    Y_ASSERT(TabletLockCount_ > 0);
+
+    return --TabletLockCount_;
+}
+
+i64 TTablet::GetTabletLockCount() const
+{
+    return TabletLockCount_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -108,6 +108,10 @@ public:
     //! but without |$timestamp| column, if any.
     TTableSchema ToWrite() const;
 
+    //! Only applies to sorted replicated tables.
+    //! Returns the current schema as-is.
+    TTableSchema ToVersionedWrite() const;
+
     //! For sorted tables, returns the non-computed key columns.
     //! For ordered tables, returns an empty schema.
     TTableSchema ToLookup() const;

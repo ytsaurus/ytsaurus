@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/ytlib/tablet_client/wire_protocol.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -17,6 +19,7 @@ using namespace NApi;
 using namespace NChunkClient;
 using namespace NHydra;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NTransactionClient;
 
 using NTabletNode::NProto::TAddStoreDescriptor;

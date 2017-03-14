@@ -1272,6 +1272,7 @@ public:
                 req.set_atomicity(static_cast<int>(table->GetAtomicity()));
                 req.set_commit_ordering(static_cast<int>(table->GetCommitOrdering()));
                 req.set_freeze(freeze);
+                req.set_replication_mode(static_cast<int>(table->GetReplicationMode()));
                 if (table->IsReplicated()) {
                     auto* replicatedTable = table->As<TReplicatedTableNode>();
                     for (auto* replica : replicatedTable->Replicas()) {
@@ -1295,14 +1296,15 @@ public:
                 }
 
                 LOG_DEBUG_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
-                    "Atomicity: %v, CommitOrdering: %v, Freeze: %v)",
+                    "Atomicity: %v, CommitOrdering: %v, Freeze: %v, ReplicationMode: %v)",
                     table->GetId(),
                     tablet->GetId(),
                     cell->GetId(),
                     chunks.size(),
                     table->GetAtomicity(),
                     table->GetCommitOrdering(),
-                    freeze);
+                    freeze,
+                    table->GetReplicationMode());
 
                 hiveManager->PostMessage(mailbox, req);
             }

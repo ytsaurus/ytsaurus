@@ -58,7 +58,7 @@ public:
         const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor) override;
 
-    virtual void CheckRowLocks(
+    virtual TError CheckRowLocks(
         TUnversionedRow row,
         TTransaction* transaction,
         ui32 lockMask) override;

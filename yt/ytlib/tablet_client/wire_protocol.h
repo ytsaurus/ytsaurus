@@ -52,6 +52,15 @@ DEFINE_ENUM(EWireProtocolCommand,
     //   * Key
     // Output:
     //   None
+
+    ((WriteVersionedRow)(102))
+    // Writes a versioned row (possibly inserting new values and/or delete timestamps).
+    // Currently only used by replicator.
+    //
+    // Input:
+    //   * Versioned row
+    // Output:
+    //   None
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,7 +136,6 @@ class TWireProtocolReader
 {
 public:
     using TIterator = const char*;
-    using TSchemaData = std::vector<ui32>;
 
     //! Initializes the instance.
     /*!
