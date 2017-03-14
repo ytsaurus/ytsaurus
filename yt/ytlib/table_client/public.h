@@ -94,7 +94,6 @@ DEFINE_ENUM(EOptimizeFor,
 );
 
 DEFINE_ENUM(EErrorCode,
-    ((MasterCommunicationFailed)  (300))
     ((SortOrderViolation)         (301))
     ((InvalidDoubleValue)         (302))
     ((IncomparableType)           (303))
