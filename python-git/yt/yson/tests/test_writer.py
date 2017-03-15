@@ -52,7 +52,9 @@ class YsonWriterTestBase(object):
         try:
             self.dumps([0, 1, 2, 2 ** 64])
         except YsonError as error:
-            assert error.attributes.get("row_key_path") == "/3"
+            row_key_path = error.attributes.get("row_key_path")
+            row_key_path = row_key_path.decode() if isinstance(row_key_path, bytes) else row_key_path
+            assert row_key_path == "/3"
             assert "row_index" not in error.attributes
         except RuntimeError:
             # Old version of YSON bindings.
@@ -70,7 +72,9 @@ class YsonWriterTestBase(object):
         try:
             self.dumps([0, 1, 2, {"a": [5, 6, {"b": {1:2}}]}])
         except YsonError as error:
-            assert error.attributes.get("row_key_path") == "/3/a/2/b"
+            row_key_path = error.attributes.get("row_key_path")
+            row_key_path = row_key_path.decode() if isinstance(row_key_path, bytes) else row_key_path
+            assert row_key_path == "/3/a/2/b"
             assert "row_index" not in error.attributes
         except RuntimeError:
             # Old version of YSON bindings.
@@ -81,7 +85,9 @@ class YsonWriterTestBase(object):
             obj.attributes["a"] = [2 ** 65]
             self.dumps(obj)
         except YsonError as error:
-            assert error.attributes.get("row_key_path") == "/@a/0"
+            row_key_path = error.attributes.get("row_key_path")
+            row_key_path = row_key_path.decode() if isinstance(row_key_path, bytes) else row_key_path
+            assert row_key_path == "/@a/0"
             assert "row_index" not in error.attributes
         except RuntimeError:
             # Old version of YSON bindings.
