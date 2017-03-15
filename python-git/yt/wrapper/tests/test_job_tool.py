@@ -1,4 +1,4 @@
-from .helpers import TESTS_SANDBOX, TEST_DIR, TESTS_LOCATION
+from .helpers import TESTS_SANDBOX, TEST_DIR, TESTS_LOCATION, wait_record_in_job_archive
 
 from yt.common import makedirp, to_native_str
 import yt.yson as yson
@@ -80,11 +80,9 @@ for line in sys.stdin:
         if not use_yamr_descriptors:
             assert os.path.exists(os.path.join(output_path, "5"))  # Statistics descriptor
 
-@pytest.mark.usefixtures("yt_env")
 class TestJobTool(object):
     JOB_TOOL_BINARY = os.path.join(os.path.dirname(TESTS_LOCATION), "bin", "yt-job-tool")
-
-    def _check(self, operation_id, yt_env, check_running=False):
+    def _check(self, operation_id, yt_env_job_archive, check_running=False, full=False, expect_ok_return_code=False):
         if not check_running:
             jobs = yt.list("//sys/operations/{0}/jobs".format(operation_id))
         else:
@@ -95,16 +93,22 @@ class TestJobTool(object):
                 if jobs:
                     break
 
-        job_path = subprocess.check_output([
+        job_id = jobs[0]
+        args = [
             sys.executable,
             self.JOB_TOOL_BINARY,
             "prepare-job-environment",
             operation_id,
-            jobs[0],
+            job_id,
             "--job-path",
-            os.path.join(yt_env.env.path, "test_job_tool", "job_" + jobs[0]),
+            os.path.join(yt_env_job_archive.env.path, "test_job_tool", "job_" + jobs[0]),
             "--proxy",
-            yt_env.config["proxy"]["url"]]).strip()
+            yt_env_job_archive.config["proxy"]["url"]
+        ]
+        if full:
+            args += ["--full"]
+            wait_record_in_job_archive(operation_id, job_id)
+        job_path = subprocess.check_output(args).strip()
 
         assert open(os.path.join(job_path, "sandbox", "_test_file")).read().strip() == "stringdata"
         assert "1\t2\n" == open(os.path.join(job_path, "input")).read()
@@ -120,16 +124,16 @@ class TestJobTool(object):
             proc = subprocess.Popen([self.JOB_TOOL_BINARY, "run-job", job_path], stderr=subprocess.PIPE)
             proc.wait()
 
-            assert proc.returncode != 0
-            assert "RuntimeError" in to_native_str(proc.stderr.read())
-            assert "RuntimeError" in open(os.path.join(job_path, "output", "2")).read()
+            if expect_ok_return_code:
+                assert proc.returncode == 0
+            else:
+                assert proc.returncode != 0
+                assert "RuntimeError" in to_native_str(proc.stderr.read())
+                assert "RuntimeError" in open(os.path.join(job_path, "output", "2")).read()
 
         shutil.rmtree(job_path)
 
-    def test_job_tool(self, yt_env):
-        if yt.config["backend"] == "native":
-            pytest.skip()
-
+    def test_job_tool(self, yt_env_job_archive):
         def failing_mapper(rec):
             raise RuntimeError("error")
         def failing_reducer(key, recs):
@@ -145,25 +149,41 @@ class TestJobTool(object):
         op = yt.run_map(failing_mapper, table, TEST_DIR + "/output", format="yamr",
                         yt_files=[file_], sync=False)
         op.wait(check_result=False)
-        self._check(op.id, yt_env)
+        self._check(op.id, yt_env_job_archive)
 
         op = yt.run_reduce(failing_reducer, table, TEST_DIR + "/output", format="yamr",
                            yt_files=[file_], sync=False, reduce_by=["key"])
         op.wait(check_result=False)
-        self._check(op.id, yt_env)
+        self._check(op.id, yt_env_job_archive)
 
         op = yt.run_map_reduce(failing_mapper, "cat", table, TEST_DIR + "/output", format="yamr",
                                map_yt_files=[file_], reduce_by=["key"], sync=False)
         op.wait(check_result=False)
-        self._check(op.id, yt_env)
+        self._check(op.id, yt_env_job_archive)
 
         op = yt.run_map_reduce("cat", failing_reducer, table, TEST_DIR + "/output", format="yamr",
                                reduce_yt_files=[file_], reduce_by=["key"], sync=False)
         op.wait(check_result=False)
-        self._check(op.id, yt_env)
+        self._check(op.id, yt_env_job_archive)
 
         # Should fallback on using input context
         op = yt.run_map("sleep 1000; cat", table, TEST_DIR + "/output", format="yamr",
                         yt_files=[file_], sync=False)
-        self._check(op.id, yt_env, check_running=True)
+        self._check(op.id, yt_env_job_archive, check_running=True)
         op.abort()
+
+    def test_job_tool_full(self, yt_env_job_archive):
+        def copy_mapper(rec):
+            # We write something to stderr to make sure that job appears in cypress
+            sys.stderr.write("vzshukh")
+            sys.stderr.flush()
+            yield rec
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"key": "1", "value": "2"}])
+
+        file_ = TEST_DIR + "/_test_file"
+        yt.write_file(file_, b"stringdata")
+
+        op = yt.run_map(copy_mapper, table, TEST_DIR + "/output", format="yamr", yt_files=[file_])
+        self._check(op.id, yt_env_job_archive, full=True, expect_ok_return_code=True)

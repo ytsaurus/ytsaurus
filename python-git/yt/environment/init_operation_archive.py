@@ -12,6 +12,8 @@ import logging
 
 from yt.tools.dynamic_tables import get_dynamic_table_attributes, make_dynamic_table_attributes, mount_table_new, unmount_table_new, DynamicTablesClient
 
+from yt.packages.six.moves import xrange
+
 class TableInfo(object):
     def __init__(self, key_columns, value_columns, in_memory=False, get_pivot_keys=None):
         def make_column(name, type_name, expression=None):
@@ -399,8 +401,18 @@ def transform_archive(
 
         client.set_attribute(archive_path, "version", version)
 
-
 BASE_PATH = "//sys/operations_archive"
+
+def create_tables_latest_version(client, shard_count=1, base_path=BASE_PATH):
+    """ Creates operation archive tables of latest version """
+    schemas = {}
+    for version in sorted(TRANSFORMS.keys()):
+        for convertion in TRANSFORMS[version]:
+            if convertion.table_info:
+                schemas[convertion.table] = convertion.table_info
+    for table in schemas:
+        table_path = BASE_PATH + "/" + table
+        schemas[table].create_table(client, table_path, shard_count)
 
 def main():
     parser = argparse.ArgumentParser(description="Transform operations archive")

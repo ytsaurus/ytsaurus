@@ -1,4 +1,4 @@
-from .helpers import TESTS_LOCATION, TEST_DIR, TESTS_SANDBOX, ENABLE_JOB_CONTROL
+from .helpers import TESTS_LOCATION, TEST_DIR, TESTS_SANDBOX, ENABLE_JOB_CONTROL, sync_create_cell
 
 from yt.environment import YTInstance
 from yt.wrapper.config import set_option
@@ -6,6 +6,7 @@ from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update
 import yt.logger as logger
 import yt.tests_runner as tests_runner
+import yt.environment.init_operation_archive as init_operation_archive
 
 from yt.packages.six import itervalues
 from yt.packages.six.moves import reload_module
@@ -57,7 +58,13 @@ def pytest_configure(config):
     tests_runner.set_scheduling_func(scheduling_func)
 
 class YtTestEnvironment(object):
-    def __init__(self, test_name, config=None, env_options=None):
+    def __init__(self,
+                 test_name,
+                 config=None,
+                 env_options=None,
+                 delta_scheduler_config=None,
+                 delta_node_config=None,
+                 delta_proxy_config=None):
         self.test_name = test_name
 
         if config is None:
@@ -72,7 +79,7 @@ class YtTestEnvironment(object):
 
         dir = os.path.join(TESTS_SANDBOX, self.test_name, "run_" + uuid.uuid4().hex[:8])
 
-        delta_proxy_config = {
+        common_delta_proxy_config = {
             "proxy": {
                 "driver": {
                     # Disable cache
@@ -85,7 +92,7 @@ class YtTestEnvironment(object):
                 }
             }
         }
-        delta_node_config = {
+        common_delta_node_config = {
             "exec_agent" : {
                 "enable_cgroups" : ENABLE_JOB_CONTROL,
                 "slot_manager" : {
@@ -109,7 +116,7 @@ class YtTestEnvironment(object):
                 }
             },
         }
-        delta_scheduler_config = {
+        common_delta_scheduler_config = {
             "scheduler" : {
                 "max_operation_count": 5,
                 "operation_options": {
@@ -122,11 +129,17 @@ class YtTestEnvironment(object):
 
         def modify_configs(configs, abi_version):
             for config in configs["scheduler"]:
-                update(config, delta_scheduler_config)
+                update(config, common_delta_scheduler_config)
+                if delta_scheduler_config:
+                    update(config, delta_scheduler_config)
             for config in configs["node"]:
-                update(config, delta_node_config)
+                update(config, common_delta_node_config)
+                if delta_node_config:
+                    update(config, delta_node_config)
             for config in configs["proxy"]:
-                update(config, delta_proxy_config)
+                update(config, common_delta_proxy_config)
+                if delta_proxy_config:
+                    update(config, delta_proxy_config)
 
         self.env = YTInstance(dir,
                               master_count=1,
@@ -193,7 +206,7 @@ class YtTestEnvironment(object):
     def check_liveness(self):
         self.env.check_liveness(callback_func=_pytest_finalize_func)
 
-def init_environment_for_test_session(mode, env_options=None):
+def init_environment_for_test_session(mode, **kwargs):
     config = {"api_version": "v3"}
     if mode == "native":
         config["backend"] = "native"
@@ -203,7 +216,7 @@ def init_environment_for_test_session(mode, env_options=None):
     environment = YtTestEnvironment(
         "TestYtWrapper" + mode.capitalize(),
         config,
-        env_options=env_options)
+        **kwargs)
 
     if mode == "native":
         import yt_driver_bindings
@@ -242,6 +255,36 @@ def test_environment_multicell(request):
         env_options={"secondary_master_cell_count": 2})
     request.addfinalizer(lambda: environment.cleanup())
     return environment
+
+@pytest.fixture(scope="session")
+def test_environment_job_archive(request):
+    environment = init_environment_for_test_session(
+        "job_archive",
+        delta_node_config={
+            "exec_agent": {
+                "statistics_reporter": {
+                    "enabled": True,
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                }
+            },
+        },
+        delta_scheduler_config={
+            "scheduler": {
+                "enable_statistics_reporter": True,
+            },
+        }
+    )
+
+    yt.create("user", attributes={"name": "application_operations"})
+    sync_create_cell()
+    init_operation_archive.create_tables_latest_version(yt)
+
+    request.addfinalizer(lambda: environment.cleanup())
+
+    return environment
+
 
 def test_method_teardown():
     if yt.config["backend"] == "proxy":
@@ -297,3 +340,11 @@ def yt_env_multicell(request, test_environment_multicell):
     request.addfinalizer(test_method_teardown)
     return test_environment_multicell
 
+@pytest.fixture(scope="function")
+def yt_env_job_archive(request, test_environment_job_archive):
+    """ YT cluster fixture for tests that require job archive
+    """
+    test_environment_job_archive.check_liveness()
+    yt.mkdir(TEST_DIR, recursive=True)
+    request.addfinalizer(test_method_teardown)
+    return test_environment_job_archive
