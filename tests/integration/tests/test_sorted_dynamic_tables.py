@@ -445,6 +445,31 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert read_table("//tmp/t[(2):(9)]") == rows[2:9]
         assert get("//tmp/t/@chunk_count") == 6
 
+    def test_read_table_when_chunk_crosses_tablet_boundaries(self):
+        create("table", "//tmp/t",
+            attributes={
+                "dynamic": False,
+                "external": False,
+                "schema": make_schema([
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"}],
+                    unique_keys=True)
+            })
+        rows = [{"key": i, "value": str(i)} for i in xrange(6)]
+        write_table("//tmp/t", rows)
+        alter_table("//tmp/t", dynamic=True)
+
+        def do_test():
+            for i in xrange(6):
+                assert read_table("//tmp/t[{0}:{1}]".format(i, i+1)) == rows[i:i+1]
+            for i in xrange(0, 6, 2):
+                assert read_table("//tmp/t[{0}:{1}]".format(i, i+2)) == rows[i:i+2]
+            for i in xrange(1, 6, 2):
+                assert read_table("//tmp/t[{0}:{1}]".format(i, i+2)) == rows[i:i+2]
+        do_test()
+        reshard_table("//tmp/t", [[], [2], [4]])
+        do_test()
+
     def test_write_table(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
