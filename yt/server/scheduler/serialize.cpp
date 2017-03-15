@@ -12,7 +12,7 @@ int GetCurrentSnapshotVersion()
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version == 200006;
+    return version == 200005 || version == 200006;
 }
 
 ////////////////////////////////////////////////////////////////////
