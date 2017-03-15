@@ -227,7 +227,7 @@ protected:
     void ExtractOutputCookiesWhilePossible()
     {
         while (ChunkPool_->GetPendingJobCount()) {
-            ExtractCookie(TNodeId(0));
+            ExtractedCookies_.emplace_back(ExtractCookie(TNodeId(0)));
         }
     }
 
@@ -436,6 +436,8 @@ protected:
     i32 MaxDataSlicesPerJob_;
 
     i64 InputSliceDataSize_;
+
+    std::vector<IChunkPoolOutput::TCookie> ExtractedCookies_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1519,6 +1521,57 @@ TEST_F(TSortedChunkPoolTest, MaxTotalSliceCount)
     AddChunk(chunkC3);
 
     EXPECT_THROW(ChunkPool_->Finish(), std::exception);
+}
+
+TEST_F(TSortedChunkPoolTest, TestJobInterruption)
+{
+    Options_.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false, false} /* isForeign */,
+        {false, false, false} /* isTeleportable */,
+        {false, false, false} /* isVersioned */
+    );
+    Options_.PrimaryPrefixLength = 1;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(BuildRow({1}), BuildRow({20}), 0);
+    auto chunkB = CreateChunk(BuildRow({2}), BuildRow({42}), 1);
+    auto chunkC = CreateChunk(BuildRow({10}), BuildRow({12}), 2);
+    RegisterTriviallySliceableUnversionedChunk(chunkA);
+    RegisterTriviallySliceableUnversionedChunk(chunkB);
+    RegisterTriviallySliceableUnversionedChunk(chunkC);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    ASSERT_EQ(stripeLists.size(), 1);
+    ASSERT_EQ(ExtractedCookies_.size(), 1);
+    const auto& stripeList = stripeLists[0];
+    std::vector<TInputDataSlicePtr> unreadDataSlices = {
+        CreateInputDataSlice(stripeList->Stripes[0]->DataSlices.front(), BuildRow({13})),
+        CreateInputDataSlice(stripeList->Stripes[1]->DataSlices.front(), BuildRow({14}))
+    };
+    TCompletedJobSummary jobSummary;
+    jobSummary.Interrupted = true;
+    jobSummary.UnreadInputDataSlices = unreadDataSlices;
+    ChunkPool_->Completed(ExtractedCookies_.front(), jobSummary);
+
+    ExtractOutputCookiesWhilePossible();
+    ASSERT_EQ(ExtractedCookies_.size(), 2);
+    auto newStripeList = ChunkPool_->GetStripeList(ExtractedCookies_.back());
+    ASSERT_EQ(newStripeList->Stripes[0]->DataSlices.size(), 1);
+    ASSERT_EQ(newStripeList->Stripes[0]->DataSlices.front()->LowerLimit().Key, BuildRow({13}));
+    ASSERT_EQ(newStripeList->Stripes[1]->DataSlices.size(), 1);
+    ASSERT_EQ(newStripeList->Stripes[1]->DataSlices.front()->LowerLimit().Key, BuildRow({14}));
+    ASSERT_EQ(newStripeList->Stripes[2]->DataSlices.size(), 1);
+    ASSERT_EQ(newStripeList->Stripes[2]->DataSlices.front()->LowerLimit().Key, MaxKey());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

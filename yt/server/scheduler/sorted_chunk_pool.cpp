@@ -99,8 +99,6 @@ public:
     //! and calculates the statistics for the stripe list.
     void Finalize()
     {
-        // TODO(max42): fix bounds for all foreign slices.
-
         int nonEmptyStripeCount = 0;
         for (int index = 0; index < StripeList_->Stripes.size(); ++index) {
             if (StripeList_->Stripes[index]) {
@@ -242,16 +240,26 @@ public:
         RowCounter_.Increment(Jobs_.back().GetRowCount());
     }
 
-    void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary)
+    void Completed(IChunkPoolOutput::TCookie cookie)
     {
-        if (jobSummary.Interrupted) {
-            // TODO(max42): YT-6564 =(
-            Y_UNIMPLEMENTED();
-        }
         JobCounter_.Completed(1);
         DataSizeCounter_.Completed(Jobs_[cookie].GetDataSize());
         RowCounter_.Completed(Jobs_[cookie].GetRowCount());
         Jobs_[cookie].SetState(EManagedJobState::Completed);
+    }
+
+    void Interrupted(IChunkPoolOutput::TCookie cookie)
+    {
+        JobCounter_.Completed(1);
+        DataSizeCounter_.Completed(Jobs_[cookie].GetDataSize());
+        RowCounter_.Completed(Jobs_[cookie].GetRowCount());
+        JobCounter_.Increment(1);
+        DataSizeCounter_.Increment(Jobs_[cookie].GetDataSize());
+        RowCounter_.Increment(Jobs_[cookie].GetRowCount());
+
+        JobCounter_.Interrupted(1);
+
+        Jobs_[cookie].SetState(EManagedJobState::Pending);
     }
 
     IChunkPoolOutput::TCookie ExtractCookie()
@@ -647,6 +655,7 @@ public:
                         std::move(mappedChunkSlices),
                         dataSlice->LowerLimit(),
                         dataSlice->UpperLimit()));
+                    mappedStripe->DataSlices.back()->Tag = dataSlice->Tag;
                 }
             }
         }
@@ -655,7 +664,37 @@ public:
 
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
-        JobManager_->Completed(cookie, jobSummary);
+        if (jobSummary.Interrupted) {
+            yhash_set<i64> partiallyReadSlicesTags;
+            for (const auto& dataSlice : jobSummary.UnreadInputDataSlices) {
+                auto tag = dataSlice->Tag;
+                YCHECK(tag);
+                YCHECK(0 <= *tag && *tag < DataSlicesByTag_.size());
+                partiallyReadSlicesTags.insert(*tag);
+                auto originalDataSlice = DataSlicesByTag_[*tag];
+                originalDataSlice->LowerLimit() = dataSlice->LowerLimit();
+                for (const auto& chunkSlice : originalDataSlice->ChunkSlices) {
+                    chunkSlice->LowerLimit() = dataSlice->LowerLimit();
+                }
+            }
+            // The slices that weren't even mentioned in UnreadInputDataSlices were completely read, so
+            // we should force them become empty by adjusting their lower limits to <max>.
+            auto stripeList = JobManager_->GetStripeList(cookie);
+            for (const auto& stripe : stripeList->Stripes) {
+                for (const auto& dataSlice : stripe->DataSlices) {
+                    YCHECK(dataSlice->Tag);
+                    if (!partiallyReadSlicesTags.has(*dataSlice->Tag)) {
+                        dataSlice->LowerLimit().MergeLowerKey(MaxKey());
+                        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                            chunkSlice->LowerLimit().MergeLowerKey(MaxKey());
+                        }
+                    }
+                }
+            }
+            JobManager_->Interrupted(cookie);
+        } else {
+            JobManager_->Completed(cookie);
+        }
     }
 
     virtual void Failed(IChunkPoolOutput::TCookie cookie) override
@@ -719,6 +758,7 @@ public:
         Persist(context, JobManager_);
         Persist(context, OperationId_);
         Persist(context, ChunkPoolId_);
+        Persist(context, DataSlicesByTag_);
         if (context.IsLoad()) {
             Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
             Logger.AddTag("OperationId: %v", OperationId_);
@@ -803,6 +843,9 @@ private:
 
     //! Stores all input chunks to be teleported.
     std::vector<TInputChunkPtr> TeleportChunks_;
+
+    //! Stores all data slices inside this pool indexed by their tags.
+    std::vector<TInputDataSlicePtr> DataSlicesByTag_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
@@ -1134,8 +1177,10 @@ private:
                 auto nextIterator = std::next(iterator);
                 const auto& dataSlice = iterator->first;
                 auto& lowerLimit = iterator->second;
+                auto exactDataSlice = CreateInputDataSlice(dataSlice, lowerLimit, upperKey);
+                TagPrimaryDataSlice(exactDataSlice);
                 Jobs_.back()->AddDataSlice(
-                    CreateInputDataSlice(dataSlice, lowerLimit, upperKey),
+                    exactDataSlice,
                     PrimaryDataSliceToInputCookie_[dataSlice],
                     true /* isPrimary */);
                 lowerLimit = upperKey;
@@ -1190,10 +1235,9 @@ private:
                 // It might have happened that we already removed this slice from the
                 // `openedSlicesLowerLimits` during one of the previous `endJob` calls.
                 if (it != openedSlicesLowerLimits.end()) {
-                    Jobs_.back()->AddDataSlice(
-                        CreateInputDataSlice(dataSlice, it->second),
-                        PrimaryDataSliceToInputCookie_[dataSlice],
-                        true /* isPrimary */);
+                    auto exactDataSlice = CreateInputDataSlice(dataSlice, it->second);
+                    TagPrimaryDataSlice(exactDataSlice);
+                    Jobs_.back()->AddDataSlice(exactDataSlice, PrimaryDataSliceToInputCookie_[dataSlice], true /* isPrimary */);
                     openedSlicesLowerLimits.erase(it);
                 }
             } else if (Endpoints_[index].Type == EEndpointType::ForeignRight) {
@@ -1354,6 +1398,11 @@ private:
         return Finished && JobManager_->GetPendingJobCount() != 0;
     }
 
+    void TagPrimaryDataSlice(const TInputDataSlicePtr& dataSlice) {
+        dataSlice->Tag = DataSlicesByTag_.size();
+        DataSlicesByTag_.emplace_back(dataSlice);
+    }
+
     void FreeMemory()
     {
         PrimaryDataSliceToInputCookie_.clear();
@@ -1362,7 +1411,6 @@ private:
         ForeignStripeCookiesByTableIndex_.clear();
         JobSizeConstraints_.Reset();
         Jobs_.clear();
-        ForeignStripeCookiesByTableIndex_.clear();
     }
 };
 

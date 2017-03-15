@@ -31,7 +31,8 @@ public:
         EDataSourceType type,
         TChunkSliceList chunkSlices,
         TInputSliceLimit lowerLimit,
-        TInputSliceLimit upperLimit);
+        TInputSliceLimit upperLimit,
+        TNullable<i64> tag = Null);
 
     int GetChunkCount() const;
     i64 GetDataSize() const;
@@ -52,6 +53,10 @@ public:
 
     TChunkSliceList ChunkSlices;
     EDataSourceType Type;
+
+    //! A tag that helps us restore the correspondence between
+    //! the unread data slices and the original data slices.
+    TNullable<i64> Tag;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputDataSlice)

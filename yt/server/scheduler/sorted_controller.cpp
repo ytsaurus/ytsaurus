@@ -290,6 +290,9 @@ protected:
         return chunkStripe;
     }
 
+    virtual void ReinstallUnreadInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices) override
+    { }
+
     void ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
@@ -401,8 +404,7 @@ protected:
 
     virtual bool IsJobInterruptible() const override
     {
-        // TODO(max42): Refine this when YT-6546 is closed.
-        return false;
+        return true;
     }
 
     virtual i64 MinTeleportChunkSize()  = 0;
