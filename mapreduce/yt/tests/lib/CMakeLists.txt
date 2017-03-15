@@ -7,6 +7,7 @@ OWNER(
 
 SRCS(
     lib.cpp
+    owning_yamr_row.cpp
 )
 
 PEERDIR(

@@ -20,8 +20,7 @@ TMaybe<TNode> GetTableFormat(
     }
     TMaybe<TNode> format = NodeFromYsonString(Get(auth, transactionId, formatPath));
     if (format.Get()->AsString() != "yamred_dsv") {
-        ythrow yexception() <<
-            "'yamred_dsv format expected, got " << format.Get()->AsString();
+        return TMaybe<TNode>();
     }
     auto& formatAttrs = format.Get()->Attributes();
     if (!formatAttrs.HasKey("key_column_names")) {
