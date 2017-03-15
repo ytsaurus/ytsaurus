@@ -596,7 +596,7 @@ def add_lookup_rows_parser(add_parser):
         parser = add_parser(name, lookup_rows)
         add_ypath_argument(parser, "table", hybrid=True)
         add_format_argument(parser, help="input format")
-        parser.set_defaults(input_stream=sys.stdin)
+        parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin))
 
 def add_insert_rows_parser(add_parser):
     # TODO(ignat): remake by alias system
@@ -604,7 +604,7 @@ def add_insert_rows_parser(add_parser):
         parser = add_parser(name, yt.insert_rows)
         add_ypath_argument(parser, "table", hybrid=True)
         add_format_argument(parser, help="input format")
-        parser.set_defaults(input_stream=sys.stdin, raw=True)
+        parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin), raw=True)
 
 def add_delete_rows_parser(add_parser):
     # TODO(ignat): remake by alias system
@@ -612,7 +612,7 @@ def add_delete_rows_parser(add_parser):
         parser = add_parser(name, yt.delete_rows)
         add_ypath_argument(parser, "table", hybrid=True)
         add_format_argument(parser, help="input format")
-        parser.set_defaults(input_stream=sys.stdin, raw=True)
+        parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin), raw=True)
 
 def add_src_arg(parser, **kwargs):
     parser.add_argument("--src", action="append", nargs="+", required=True, dest="source_table", **kwargs)
