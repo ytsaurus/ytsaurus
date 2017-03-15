@@ -271,6 +271,9 @@ TJoinParameters GetJoinEvaluator(
 
             subquery->WhereClause = foreignPredicate;
             subquery->InferRanges = false;
+
+            // Use ordered read without modification of protocol
+            subquery->Limit = std::numeric_limits<i64>::max() - 1;
         } else {
             TRowRanges ranges;
 
@@ -293,7 +296,14 @@ TJoinParameters GetJoinEvaluator(
         return std::make_pair(subquery, dataSource);
     };
 
-    return TJoinParameters{isOrdered, isLeft, selfColumns, foreignColumns, getForeignQuery, batchSize};
+    return TJoinParameters{
+        isOrdered,
+        isLeft,
+        selfColumns,
+        foreignColumns,
+        canUseSourceRanges,
+        getForeignQuery,
+        batchSize};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

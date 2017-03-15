@@ -201,21 +201,33 @@ void JoinOpHelper(
     TJoinClosure closure(lookupHasher, lookupEqComparer, keySize, parameters->BatchSize);
 
     closure.ProcessJoinBatch = [&] () {
-        std::vector<TRow> keys;
-        keys.reserve(closure.Lookup.size());
+        std::vector<std::pair<TRow, int>> keysToRows;
+        keysToRows.reserve(closure.Lookup.size());
 
         for (const auto& item : closure.Lookup) {
-            keys.push_back(item.first);
+            keysToRows.emplace_back(item.first, item.second.first);
         }
 
         LOG_DEBUG("Sorting %v join keys",
-            keys.size());
+            keysToRows.size());
 
-        std::sort(keys.begin(), keys.end(), lookupLessComparer);
+        std::sort(keysToRows.begin(), keysToRows.end(), [&] (
+            const std::pair<TRow, int>& lhs,
+            const std::pair<TRow, int>& rhs)
+            {
+                return lookupLessComparer(lhs.first, rhs.first);
+            });
 
         LOG_DEBUG("Collected %v join keys from %v rows",
-            keys.size(),
+            keysToRows.size(),
             closure.ChainedRows.size());
+
+        std::vector<TRow> keys;
+        keys.reserve(keysToRows.size());
+
+        for (const auto& item : keysToRows) {
+            keys.push_back(item.first);
+        }
 
         // Join rowsets.
         // allRows have format (join key... , other columns...)
@@ -238,6 +250,7 @@ void JoinOpHelper(
         auto isLeft = parameters->IsLeft;
         auto selfColumns = parameters->SelfColumns;
         auto foreignColumns = parameters->ForeignColumns;
+        auto canUseSourceRanges = parameters->CanUseSourceRanges;
 
         auto joinRow = [&] (TRow row, TRow foreignRow) {
             auto joinedRow = intermediateBuffer->Allocate(selfColumns.size() + foreignColumns.size());
@@ -257,6 +270,16 @@ void JoinOpHelper(
             }
         };
 
+        auto joinRows = [&] (int startIndex, TRow foreignRow) {
+            for (
+                int chainedRowIndex = startIndex;
+                chainedRowIndex >= 0;
+                chainedRowIndex = chainedRows[chainedRowIndex].second)
+            {
+                joinRow(chainedRows[chainedRowIndex].first, foreignRow);
+            }
+        };
+
         auto joinRowNull = [&] (TRow row) {
             auto joinedRow = intermediateBuffer->Allocate(selfColumns.size() + foreignColumns.size());
 
@@ -272,6 +295,16 @@ void JoinOpHelper(
 
             if (joinedRows.size() >= RowsetProcessingSize) {
                 consumeJoinedRows();
+            }
+        };
+
+        auto joinRowsNull = [&] (int startIndex) {
+            for (
+                int chainedRowIndex = startIndex;
+                chainedRowIndex >= 0;
+                chainedRowIndex = chainedRows[chainedRowIndex].second)
+            {
+                joinRowNull(chainedRows[chainedRowIndex].first);
             }
         };
 
@@ -299,65 +332,106 @@ void JoinOpHelper(
 
             auto reader = pipe->GetReader();
 
-            while (true) {
-                bool hasMoreData = reader->Read(&foreignRows);
-                bool shouldWait = foreignRows.empty();
+            if (canUseSourceRanges) {
+                // Sort-merge join
+                auto currentKey = keysToRows.begin();
+                auto lastJoined = keysToRows.end();
+                while (currentKey != keysToRows.end()) {
+                    bool hasMoreData = reader->Read(&foreignRows);
+                    bool shouldWait = foreignRows.empty();
 
-                for (auto foreignRow : foreignRows) {
-                    auto it = joinLookup.find(foreignRow);
-
-                    if (it == joinLookup.end()) {
-                        continue;
+                    auto foreignIt = foreignRows.begin();
+                    while (foreignIt != foreignRows.end() && currentKey != keysToRows.end()) {
+                        int startIndex = currentKey->second;
+                        if (lookupEqComparer(currentKey->first, *foreignIt)) {
+                            joinRows(startIndex, *foreignIt);
+                            ++foreignIt;
+                            lastJoined = currentKey;
+                        } else if (lookupLessComparer(currentKey->first, *foreignIt)) {
+                            if (lastJoined != currentKey) {
+                                joinRowsNull(startIndex);
+                                lastJoined = currentKey;
+                            }
+                            ++currentKey;
+                        } else {
+                            ++foreignIt;
+                        }
                     }
 
-                    int startIndex = it->second.first;
-                    bool& isJoined = it->second.second;
+                    consumeJoinedRows();
 
-                    for (
-                        int chainedRowIndex = startIndex;
-                        chainedRowIndex >= 0;
-                        chainedRowIndex = chainedRows[chainedRowIndex].second)
-                    {
-                        joinRow(chainedRows[chainedRowIndex].first, foreignRow);
+                    foreignRows.clear();
+
+                    if (!hasMoreData) {
+                        break;
                     }
-                    isJoined = true;
+
+                    if (shouldWait) {
+                        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                        WaitFor(reader->GetReadyEvent())
+                            .ThrowOnError();
+                    }
+                }
+
+                if (isLeft) {
+                    while (currentKey != keysToRows.end()) {
+                        int startIndex = currentKey->second;
+                        if (lastJoined != currentKey) {
+                            joinRowsNull(startIndex);
+                        }
+                        ++currentKey;
+                    }
                 }
 
                 consumeJoinedRows();
+            } else {
+                while (true) {
+                    bool hasMoreData = reader->Read(&foreignRows);
+                    bool shouldWait = foreignRows.empty();
 
-                foreignRows.clear();
+                    for (auto foreignRow : foreignRows) {
+                        auto it = joinLookup.find(foreignRow);
 
-                if (!hasMoreData) {
-                    break;
-                }
+                        if (it == joinLookup.end()) {
+                            continue;
+                        }
 
-                if (shouldWait) {
-                    NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
-                    WaitFor(reader->GetReadyEvent())
-                        .ThrowOnError();
-                }
-            }
-
-            if (isLeft) {
-                for (auto lookup : joinLookup) {
-                    int startIndex = lookup.second.first;
-                    bool isJoined = lookup.second.second;
-
-                    if (isJoined) {
-                        continue;
+                        int startIndex = it->second.first;
+                        bool& isJoined = it->second.second;
+                        joinRows(startIndex, foreignRow);
+                        isJoined = true;
                     }
 
-                    for (
-                        int chainedRowIndex = startIndex;
-                        chainedRowIndex >= 0;
-                        chainedRowIndex = chainedRows[chainedRowIndex].second)
-                    {
-                        joinRowNull(chainedRows[chainedRowIndex].first);
+                    consumeJoinedRows();
+
+                    foreignRows.clear();
+
+                    if (!hasMoreData) {
+                        break;
+                    }
+
+                    if (shouldWait) {
+                        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                        WaitFor(reader->GetReadyEvent())
+                            .ThrowOnError();
                     }
                 }
-            }
 
-            consumeJoinedRows();
+                if (isLeft) {
+                    for (auto lookup : joinLookup) {
+                        int startIndex = lookup.second.first;
+                        bool isJoined = lookup.second.second;
+
+                        if (isJoined) {
+                            continue;
+                        }
+
+                        joinRowsNull(startIndex);
+                    }
+                }
+
+                consumeJoinedRows();
+            }
         } else {
             NApi::IRowsetPtr rowset;
 
