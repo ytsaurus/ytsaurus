@@ -430,6 +430,8 @@ struct TQuery
     TConstProjectClausePtr ProjectClause;
     TConstOrderClausePtr OrderClause;
 
+    // TODO: Update protocol and fix it
+    // If Limit == std::numeric_limits<i64>::max() - 1, then do ordered read with prefetch
     i64 Limit = std::numeric_limits<i64>::max();
 
     bool UseDisjointGroupBy = false;
@@ -437,7 +439,7 @@ struct TQuery
 
     bool IsOrdered() const
     {
-        if (Limit < std::numeric_limits<i64>::max() ) {
+        if (Limit < std::numeric_limits<i64>::max()) {
             return !OrderClause && !GroupClause;
         } else {
             YCHECK(!OrderClause);
