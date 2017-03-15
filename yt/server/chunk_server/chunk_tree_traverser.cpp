@@ -327,6 +327,11 @@ protected:
         TReadLimit childLowerBound;
         TReadLimit childUpperBound;
 
+        auto pivotKey = chunkList->Children()[entry->ChildIndex]->AsChunkList()->GetPivotKey();
+        auto nextPivotKey = entry->ChildIndex + 1 < chunkList->Children().size()
+            ? chunkList->Children()[entry->ChildIndex + 1]->AsChunkList()->GetPivotKey()
+            : MaxKey();
+
         // Chunk index
         {
             if (entry->UpperBound.HasChunkIndex()) {
@@ -344,19 +349,14 @@ protected:
         // Key
         {
             if (entry->UpperBound.HasKey()) {
-                childLowerBound.SetKey(child->AsChunkList()->GetPivotKey());
-                if (entry->UpperBound.GetKey() <= childLowerBound.GetKey()) {
+                if (entry->UpperBound.GetKey() <= pivotKey) {
                     PopStack();
                     return;
                 }
-                if (entry->ChildIndex < chunkList->Children().size() - 1) {
-                    childUpperBound.SetKey(chunkList->Children()[entry->ChildIndex + 1]->AsChunkList()->GetPivotKey());
-                } else {
-                    childUpperBound.SetKey(MaxKey());
-                }
-            } else if (entry->LowerBound.HasKey()) {
-                childLowerBound.SetKey(child->AsChunkList()->GetPivotKey());
             }
+
+            childLowerBound.SetKey(pivotKey);
+            childUpperBound.SetKey(nextPivotKey);
         }
 
         entry->ChunkCount += child->AsChunkList()->Children().size();
@@ -370,6 +370,16 @@ protected:
             childUpperBound,
             &subtreeStartLimit,
             &subtreeEndLimit);
+
+        // NB: Chunks may cross tablet boundaries.
+        if (chunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
+            if (!subtreeStartLimit.HasKey() || subtreeStartLimit.GetKey() < pivotKey) {
+                subtreeStartLimit.SetKey(pivotKey);
+            }
+            if (!subtreeEndLimit.HasKey() || subtreeEndLimit.GetKey() > nextPivotKey) {
+                subtreeEndLimit.SetKey(nextPivotKey);
+            }
+        }
 
         auto* childChunkList = child->AsChunkList();
         GetStartChildIndex(childChunkList, 0, subtreeStartLimit, subtreeEndLimit);
