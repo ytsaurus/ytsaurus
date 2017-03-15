@@ -8,6 +8,7 @@ OWNER(
 SRCS(
     main.cpp
     test_cypress_manipulations.cpp
+    test_format_attribute.cpp
     test_operations.cpp
     test_table.cpp
     test_update.cpp
