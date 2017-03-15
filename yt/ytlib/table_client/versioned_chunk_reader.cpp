@@ -1432,7 +1432,7 @@ public:
             }
         }
 
-        return hasMoreData;
+        return !rows->empty() || hasMoreData;
     }
 
 private:
