@@ -107,7 +107,7 @@ struct TJoinParameters
     bool IsLeft;
     std::vector<size_t> SelfColumns;
     std::vector<size_t> ForeignColumns;
-    bool CanUseSourceRanges;
+    bool IsSortMergeJoin;
 
     std::function<std::pair<TQueryPtr, TDataRanges>(std::vector<TRow>, TRowBufferPtr)>
         GetForeignQuery;
