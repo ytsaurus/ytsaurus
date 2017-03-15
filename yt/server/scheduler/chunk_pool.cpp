@@ -366,8 +366,6 @@ public:
         DataSizeCounter.Increment(suspendableStripe.GetStatistics().DataSize);
         RowCounter.Increment(suspendableStripe.GetStatistics().RowCount);
 
-        UpdateLocality(stripe, +1);
-
         return cookie;
     }
 
@@ -384,8 +382,7 @@ public:
     {
         ++SuspendedStripeCount;
         auto& suspendableStripe = Stripes[cookie];
-        Stripes[cookie].Suspend();
-        UpdateLocality(suspendableStripe.GetStripe(), -1);
+        suspendableStripe.Suspend();
     }
 
     virtual void Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
@@ -394,7 +391,6 @@ public:
         suspendableStripe.Resume(stripe);
         --SuspendedStripeCount;
         YCHECK(SuspendedStripeCount >= 0);
-        UpdateLocality(suspendableStripe.GetStripe(), +1);
     }
 
     // IChunkPoolOutput implementation.
@@ -441,12 +437,8 @@ public:
 
     virtual i64 GetLocality(TNodeId nodeId) const override
     {
-        if (ExtractedList) {
-            return 0;
-        }
-
-        auto it = NodeIdToLocality.find(nodeId);
-        return it == NodeIdToLocality.end() ? 0 : it->second;
+        // Pretend we are local to work around locality timeout.
+        return 1;
     }
 
     virtual IChunkPoolOutput::TCookie Extract(TNodeId nodeId) override
@@ -549,7 +541,6 @@ public:
 
         using NYT::Persist;
         Persist(context, Stripes);
-        Persist(context, NodeIdToLocality);
         Persist(context, ExtractedList);
         Persist(context, SuspendedStripeCount);
         Persist(context, HasPrimaryStripes);
@@ -559,22 +550,9 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAtomicChunkPool, 0x76bac510);
 
     std::vector<TSuspendableStripe> Stripes;
-    yhash_map<TNodeId, i64> NodeIdToLocality;
     TChunkStripeListPtr ExtractedList;
     int SuspendedStripeCount = 0;
     bool HasPrimaryStripes = false;
-
-    void UpdateLocality(TChunkStripePtr stripe, int delta)
-    {
-        for (const auto& dataSlice : stripe->DataSlices) {
-            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
-                    i64 localityDelta = chunkSlice->GetLocality(replica.GetReplicaIndex()) * delta;
-                    NodeIdToLocality[replica.GetNodeId()] += localityDelta;
-                }
-            }
-        }
-    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TAtomicChunkPool);
