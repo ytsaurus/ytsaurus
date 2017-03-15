@@ -12,6 +12,7 @@ SRCS(
 
 PEERDIR(
     library/unittest
+    mapreduce/yt/interface
 )
 
 END()
