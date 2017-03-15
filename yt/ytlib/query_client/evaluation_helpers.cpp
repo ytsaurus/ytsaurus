@@ -196,7 +196,7 @@ TJoinParameters GetJoinEvaluator(
     const auto& foreignEquations = joinClause.ForeignEquations;
     auto isLeft = joinClause.IsLeft;
     auto canUseSourceRanges = joinClause.CanUseSourceRanges;
-    auto keyPrefix = joinClause.SelfEquations.size();
+    auto commonKeyPrefix = joinClause.CommonKeyPrefix;
     auto& foreignDataId = joinClause.ForeignDataId;
 
     // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
@@ -254,7 +254,7 @@ TJoinParameters GetJoinEvaluator(
         }
     };
 
-    auto getForeignQuery = [subquery, canUseSourceRanges, keyPrefix, joinKeyExprs, foreignDataId, foreignPredicate] (
+    auto getForeignQuery = [subquery, canUseSourceRanges, commonKeyPrefix, joinKeyExprs, foreignDataId, foreignPredicate] (
         std::vector<TRow> keys,
         TRowBufferPtr permanentBuffer)
     {
@@ -274,8 +274,10 @@ TJoinParameters GetJoinEvaluator(
             subquery->WhereClause = foreignPredicate;
             subquery->InferRanges = false;
 
-            // Use ordered read without modification of protocol
-            subquery->Limit = std::numeric_limits<i64>::max() - 1;
+            if (commonKeyPrefix > 0) {
+                // Use ordered read without modification of protocol
+                subquery->Limit = std::numeric_limits<i64>::max() - 1;
+            }
         } else {
             TRowRanges ranges;
 
@@ -303,7 +305,7 @@ TJoinParameters GetJoinEvaluator(
         isLeft,
         selfColumns,
         foreignColumns,
-        canUseSourceRanges,
+        canUseSourceRanges && commonKeyPrefix > 0,
         getForeignQuery,
         batchSize};
 }

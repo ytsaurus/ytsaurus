@@ -260,7 +260,7 @@ void JoinOpHelper(
         auto isLeft = parameters->IsLeft;
         auto selfColumns = parameters->SelfColumns;
         auto foreignColumns = parameters->ForeignColumns;
-        auto canUseSourceRanges = parameters->CanUseSourceRanges;
+        auto isSortMergeJoin = parameters->IsSortMergeJoin;
 
         auto joinRow = [&] (TRow row, TRow foreignRow) {
             auto joinedRow = intermediateBuffer->Allocate(selfColumns.size() + foreignColumns.size());
@@ -342,7 +342,7 @@ void JoinOpHelper(
 
             auto reader = pipe->GetReader();
 
-            if (canUseSourceRanges) {
+            if (isSortMergeJoin) {
                 // Sort-merge join
                 auto currentKey = closure.KeysToRows.begin();
                 auto lastJoined = closure.KeysToRows.end();
