@@ -481,11 +481,6 @@ def move_table(source_table, destination_table, replace=True, client=None):
                 continue
             remove(table, client=client, force=True)
 
-
-def records_count(table, client=None):
-    """Deprecated!"""
-    return row_count(table, client)
-
 def row_count(table, client=None):
     """Returns number of rows in the table.
 
