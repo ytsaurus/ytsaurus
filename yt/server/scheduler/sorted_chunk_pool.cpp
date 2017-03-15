@@ -642,6 +642,9 @@ public:
             YCHECK(stripe);
             const auto& mappedStripe = (mappedStripeList->Stripes[stripeIndex] = New<TChunkStripe>(stripe->Foreign));
             for (const auto& dataSlice : stripe->DataSlices) {
+                if (dataSlice->Disabled) {
+                    continue;
+                }
                 TInputDataSlice::TChunkSliceList mappedChunkSlices;
                 for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                     auto iterator = mapping.find(chunkSlice->GetInputChunk());
@@ -665,12 +668,12 @@ public:
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
         if (jobSummary.Interrupted) {
-            yhash_set<i64> partiallyReadSlicesTags;
+            yhash_set<i64> partiallyReadSliceTags;
             for (const auto& dataSlice : jobSummary.UnreadInputDataSlices) {
                 auto tag = dataSlice->Tag;
                 YCHECK(tag);
                 YCHECK(0 <= *tag && *tag < DataSlicesByTag_.size());
-                partiallyReadSlicesTags.insert(*tag);
+                partiallyReadSliceTags.insert(*tag);
                 auto originalDataSlice = DataSlicesByTag_[*tag];
                 originalDataSlice->LowerLimit() = dataSlice->LowerLimit();
                 for (const auto& chunkSlice : originalDataSlice->ChunkSlices) {
@@ -678,16 +681,16 @@ public:
                 }
             }
             // The slices that weren't even mentioned in UnreadInputDataSlices were completely read, so
-            // we should force them become empty by adjusting their lower limits to <max>.
+            // we should disable them for further extraction.
             auto stripeList = JobManager_->GetStripeList(cookie);
             for (const auto& stripe : stripeList->Stripes) {
+                if (stripe->Foreign) {
+                    continue;
+                }
                 for (const auto& dataSlice : stripe->DataSlices) {
                     YCHECK(dataSlice->Tag);
-                    if (!partiallyReadSlicesTags.has(*dataSlice->Tag)) {
-                        dataSlice->LowerLimit().MergeLowerKey(MaxKey());
-                        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                            chunkSlice->LowerLimit().MergeLowerKey(MaxKey());
-                        }
+                    if (!partiallyReadSliceTags.has(*dataSlice->Tag)) {
+                        dataSlice->Disabled = true;
                     }
                 }
             }
@@ -1398,7 +1401,8 @@ private:
         return Finished && JobManager_->GetPendingJobCount() != 0;
     }
 
-    void TagPrimaryDataSlice(const TInputDataSlicePtr& dataSlice) {
+    void TagPrimaryDataSlice(const TInputDataSlicePtr& dataSlice)
+    {
         dataSlice->Tag = DataSlicesByTag_.size();
         DataSlicesByTag_.emplace_back(dataSlice);
     }

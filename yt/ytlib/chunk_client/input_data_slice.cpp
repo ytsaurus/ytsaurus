@@ -65,6 +65,7 @@ void TInputDataSlice::Persist(NTableClient::TPersistenceContext& context)
     Persist(context, ChunkSlices);
     Persist(context, Type);
     Persist(context, Tag);
+    Persist(context, Disabled);
 }
 
 int TInputDataSlice::GetTableIndex() const
@@ -289,30 +290,6 @@ bool CanMergeSlices(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& 
         return true;
     }
     return false;
-}
-
-bool DataSliceIsSuffix(const TInputDataSlicePtr& suffixSlice, const TInputDataSlicePtr& fullSlice)
-{
-    if (suffixSlice->Type != fullSlice->Type) {
-        return false;
-    }
-    if (CompareLimits(suffixSlice->UpperLimit(), fullSlice->UpperLimit()) != 0) {
-        return false;
-    }
-    if (CompareLimits(suffixSlice->LowerLimit(), fullSlice->LowerLimit()) == -1) {
-        return false;
-    }
-
-    if (suffixSlice->Type != EDataSourceType::VersionedTable) {
-        // We need to additionally check that slices correspond to same unversioned chunk because both
-        // slices may contain the same maniac key.
-        auto suffixChunk = suffixSlice->GetSingleUnversionedChunkOrThrow();
-        auto fullChunk = fullSlice->GetSingleUnversionedChunkOrThrow();
-        if (suffixChunk->GetTableRowIndex() != fullChunk->GetTableRowIndex()) {
-            return false;
-        }
-    }
-    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

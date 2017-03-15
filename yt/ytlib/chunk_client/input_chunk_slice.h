@@ -40,8 +40,6 @@ struct TInputSliceLimit
 
 Stroka ToString(const TInputSliceLimit& limit);
 
-int CompareLimits(const TInputSliceLimit& lhs, const TInputSliceLimit& rhs);
-
 void FormatValue(TStringBuilder* builder, const TInputSliceLimit& limit, const TStringBuf& format);
 
 bool IsTrivial(const TInputSliceLimit& limit);

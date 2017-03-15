@@ -834,7 +834,6 @@ echo {v = 2} >&7
 
         assert read_table("//tmp/t_out") == rows + joined_rows
 
-    @pytest.mark.xfail(run=False, reason="YT-6546")
     def test_join_reduce_interrupt_job(self):
         create("table", "//tmp/input1")
         write_table(

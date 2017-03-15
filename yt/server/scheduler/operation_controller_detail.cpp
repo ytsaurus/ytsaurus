@@ -2325,22 +2325,19 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
             for (const auto& inputStripe : descriptor.InputStripes) {
                 inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
 
-                // Remove given chunk from the stripe list.
-                SmallVector<TInputDataSlicePtr, 1> slices;
-                std::swap(inputStripe.Stripe->DataSlices, slices);
-
-                std::copy_if(
-                    slices.begin(),
-                    slices.end(),
-                    inputStripe.Stripe->DataSlices.begin(),
-                    [&] (TInputDataSlicePtr slice) {
-                        try {
-                            return chunkId != slice->GetSingleUnversionedChunkOrThrow()->ChunkId();
-                        } catch (const std::exception& ex) {
-                            //FIXME(savrus) allow data slices to be unavailable.
-                            THROW_ERROR_EXCEPTION("Dynamic table chunk became unavailable") << ex;
-                        }
-                    });
+                inputStripe.Stripe->DataSlices.erase(
+                    std::remove_if(
+                        inputStripe.Stripe->DataSlices.begin(),
+                        inputStripe.Stripe->DataSlices.end(),
+                        [&] (TInputDataSlicePtr slice) {
+                            try {
+                                return chunkId == slice->GetSingleUnversionedChunkOrThrow()->ChunkId();
+                            } catch (const std::exception& ex) {
+                                //FIXME(savrus) allow data slices to be unavailable.
+                                THROW_ERROR_EXCEPTION("Dynamic table chunk became unavailable") << ex;
+                            }
+                        }),
+                    inputStripe.Stripe->DataSlices.end());
 
                 // Reinstall patched stripe.
                 inputStripe.Task->GetChunkPoolInput()->Resume(inputStripe.Cookie, inputStripe.Stripe);
@@ -4519,7 +4516,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
             YCHECK(chunkSliceList.size() == 1);
             dataSliceList.emplace_back(CreateUnversionedInputDataSlice(chunkSliceList[0]));
         }
-        dataSliceList.back()->Tag = dataSliceDescriptor.GetCommonTag();
+        dataSliceList.back()->Tag = dataSliceDescriptor.GetTag();
     }
     return dataSliceList;
 }
@@ -4792,6 +4789,10 @@ void TOperationControllerBase::RegisterOutput(
 void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTaskPtr task)
 {
     yhash_set<TChunkId> visitedChunks;
+
+    for (const auto& slice : stripe->DataSlices) {
+        slice->Tag = CurrentInputDataSliceTag_++;
+    }
 
     TStripeDescriptor stripeDescriptor;
     stripeDescriptor.Stripe = stripe;
@@ -5629,6 +5630,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     Persist(context, EstimatedInputDataSizeHistogram_);
     Persist(context, InputDataSizeHistogram_);
+
+    Persist(context, CurrentInputDataSliceTag_);
 
     if (context.IsLoad()) {
         for (const auto& task : Tasks) {

@@ -25,7 +25,7 @@ struct TDataSliceDescriptor
 
     const NProto::TChunkSpec& GetSingleChunk() const;
 
-    TNullable<i64> GetCommonTag() const;
+    TNullable<i64> GetTag() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
