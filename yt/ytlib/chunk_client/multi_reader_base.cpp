@@ -100,7 +100,7 @@ void TMultiReaderBase::OpenNextChunks()
             return;
         }
 
-        if (ActiveReaderCount_ > Config_->MaxPrefetchWindow) {
+        if (ActiveReaderCount_ >= Config_->MaxParallelReaders) {
             return;
         }
 
