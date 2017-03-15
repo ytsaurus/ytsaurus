@@ -601,6 +601,12 @@ public:
 
         using NYT::Persist;
         Persist(context, Stripes);
+
+        // COMPAT(psushin).
+        if (context.IsLoad() && context.GetVersion() == 20005) {
+            yhash_map<TNodeId, i64> ripLocality;
+            Persist(context, ripLocality);
+        }
         Persist(context, ExtractedList);
         Persist(context, SuspendedStripeCount);
         Persist(context, HasPrimaryStripes);
