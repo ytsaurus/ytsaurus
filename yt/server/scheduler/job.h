@@ -189,6 +189,7 @@ struct TCompletedJobSummary
 
     const bool Abandoned = false;
     bool Interrupted = false;
+
     std::vector<NChunkClient::TInputDataSlicePtr> UnreadInputDataSlices;
 };
 

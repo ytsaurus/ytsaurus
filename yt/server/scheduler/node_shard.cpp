@@ -587,7 +587,7 @@ void TNodeShard::AbortJob(const TJobId& jobId, const TNullable<TDuration>& inter
 
     if (interruptTimeout.Get(TDuration::Zero()) != TDuration::Zero() && !job->InterruptCookie()) {
         if (!job->GetInterruptible()) {
-            THROW_ERROR_EXCEPTION("Cannot abort job %v of type %Qlv with interrupt timeout",
+            THROW_ERROR_EXCEPTION("Cannot interrupt job %v of type %Qlv because such job type does not support interruption",
                 jobId,
                 job->GetType());
         }

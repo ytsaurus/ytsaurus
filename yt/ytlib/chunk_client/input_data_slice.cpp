@@ -16,11 +16,13 @@ TInputDataSlice::TInputDataSlice(
     EDataSourceType type,
     TChunkSliceList chunkSlices,
     TInputSliceLimit lowerLimit,
-    TInputSliceLimit upperLimit)
+    TInputSliceLimit upperLimit,
+    TNullable<i64> tag)
     : LowerLimit_(std::move(lowerLimit))
     , UpperLimit_(std::move(upperLimit))
     , ChunkSlices(std::move(chunkSlices))
     , Type(type)
+    , Tag(tag)
 { }
 
 int TInputDataSlice::GetChunkCount() const
@@ -62,6 +64,7 @@ void TInputDataSlice::Persist(NTableClient::TPersistenceContext& context)
     Persist(context, UpperLimit_);
     Persist(context, ChunkSlices);
     Persist(context, Type);
+    Persist(context, Tag);
 }
 
 int TInputDataSlice::GetTableIndex() const
@@ -104,7 +107,11 @@ void ToProto(
     TInputDataSlicePtr inputDataSlice)
 {
     for (const auto& slice : inputDataSlice->ChunkSlices) {
-        ToProto(dataSliceDescriptor->add_chunks(), slice);
+        auto* chunk = dataSliceDescriptor->add_chunks();
+        ToProto(chunk, slice);
+        if (inputDataSlice->Tag) {
+            chunk->set_data_slice_tag(*inputDataSlice->Tag);
+        }
     }
 }
 
@@ -203,7 +210,8 @@ TInputDataSlicePtr CreateInputDataSlice(
         dataSlice->Type,
         std::move(chunkSlices),
         std::move(lowerLimit),
-        std::move(upperLimit));
+        std::move(upperLimit),
+        dataSlice->Tag);
 }
 
 void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const TRowBufferPtr& rowBuffer)

@@ -432,7 +432,6 @@ void TOperationControllerBase::TTask::ScheduleJob(
     }
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
-
     auto estimatedResourceUsage = GetNeededResources(joblet);
     auto neededResources = ApplyMemoryReserve(estimatedResourceUsage);
 
@@ -2038,7 +2037,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     }
 
     if (jobSummary->Interrupted) {
-        ExtractInputDataSlices(*jobSummary);
+        jobSummary->UnreadInputDataSlices = ExtractInputDataSlices(*jobSummary);
     }
 
     jobSummary->ParseStatistics();
@@ -4520,6 +4519,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
             YCHECK(chunkSliceList.size() == 1);
             dataSliceList.emplace_back(CreateUnversionedInputDataSlice(chunkSliceList[0]));
         }
+        dataSliceList.back()->Tag = dataSliceDescriptor.GetCommonTag();
     }
     return dataSliceList;
 }

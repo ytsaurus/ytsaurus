@@ -18,12 +18,14 @@ struct TDataSliceDescriptor
     std::vector<NProto::TChunkSpec> ChunkSpecs;
 
     TDataSliceDescriptor() = default;
-    TDataSliceDescriptor(std::vector<NProto::TChunkSpec> chunkSpecs);
+    explicit TDataSliceDescriptor(std::vector<NProto::TChunkSpec> chunkSpecs);
     TDataSliceDescriptor(const NProto::TChunkSpec& chunkSpec);
 
     int GetDataSourceIndex() const;
 
     const NProto::TChunkSpec& GetSingleChunk() const;
+
+    TNullable<i64> GetCommonTag() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
