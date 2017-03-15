@@ -206,6 +206,178 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
         ContainsRegex("Column .* occurs both in main and joined tables"));
 }
 
+TEST_F(TQueryPrepareTest, SortMergeJoin)
+{
+    {
+        TDataSplit dataSplit;
+
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        TTableSchema tableSchema({
+            TColumnSchema("hash", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("int64(farm_hash(cid))")),
+            TColumnSchema("cid", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("pid", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("id", EValueType::Int64),
+            TColumnSchema("__shard__", EValueType::Int64),
+            TColumnSchema("PhraseID", EValueType::Int64),
+            TColumnSchema("price", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, tableSchema);
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//bids"), _))
+            .WillRepeatedly(Return(WrapInFuture(dataSplit)));
+    }
+
+    {
+        TDataSplit dataSplit;
+
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        TTableSchema tableSchema({
+            TColumnSchema("ExportIDHash", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("int64(farm_hash(ExportID))")),
+            TColumnSchema("ExportID", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("GroupExportID", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("PhraseID", EValueType::Uint64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("UpdateTime", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Shows", EValueType::Int64),
+            TColumnSchema("Clicks", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, tableSchema);
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//DirectPhraseStat"), _))
+            .WillRepeatedly(Return(WrapInFuture(dataSplit)));
+    }
+
+    {
+        TDataSplit dataSplit;
+
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        TTableSchema tableSchema({
+            TColumnSchema("hash", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("int64(farm_hash(pid))")),
+            TColumnSchema("pid", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("__shard__", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("status", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, tableSchema);
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//phrases"), _))
+            .WillRepeatedly(Return(WrapInFuture(dataSplit)));
+    }
+
+    {
+        TDataSplit dataSplit;
+
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        TTableSchema tableSchema({
+            TColumnSchema("hash", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("int64(farm_hash(cid))")),
+            TColumnSchema("cid", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("__shard__", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("value", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, tableSchema);
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//campaigns"), _))
+            .WillRepeatedly(Return(WrapInFuture(dataSplit)));
+    }
+
+    {
+        Stroka queryString = "* from [//bids] D\n"
+            "left join [//campaigns] C on D.cid = C.cid\n"
+            "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
+            "left join [//phrases] P on (D.pid,D.__shard__) = (P.pid,P.__shard__)";
+
+        auto query = PreparePlanFragment(&PrepareMock_, queryString).first;
+
+        EXPECT_EQ(query->JoinClauses.size(), 3);
+        const auto& joinClauses = query->JoinClauses;
+
+        EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 2);
+
+        EXPECT_EQ(joinClauses[1]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2);
+
+        EXPECT_EQ(joinClauses[2]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
+    }
+
+    {
+        Stroka queryString = "* from [//bids] D\n"
+            "left join [//campaigns] C on (D.cid,D.__shard__) = (C.cid,C.__shard__)\n"
+            "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
+            "left join [//phrases] P on (D.pid,D.__shard__) = (P.pid,P.__shard__)";
+
+        auto query = PreparePlanFragment(&PrepareMock_, queryString).first;
+
+        EXPECT_EQ(query->JoinClauses.size(), 3);
+        const auto& joinClauses = query->JoinClauses;
+
+        EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 2);
+
+        EXPECT_EQ(joinClauses[1]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2);
+
+        EXPECT_EQ(joinClauses[2]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
+    }
+
+    {
+        Stroka queryString = "* from [//bids] D\n"
+            "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
+            "left join [//campaigns] C on (D.cid,D.__shard__) = (C.cid,C.__shard__)\n"
+            "left join [//phrases] P on (D.pid,D.__shard__) = (P.pid,P.__shard__)";
+
+        auto query = PreparePlanFragment(&PrepareMock_, queryString).first;
+
+        EXPECT_EQ(query->JoinClauses.size(), 3);
+        const auto& joinClauses = query->JoinClauses;
+
+        EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 3);
+
+        EXPECT_EQ(joinClauses[1]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2);
+
+        EXPECT_EQ(joinClauses[2]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
+    }
+
+
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobQueryPrepareTest
