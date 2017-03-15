@@ -1,19 +1,22 @@
 from __future__ import print_function
 
 from yt.packages.six import iteritems, integer_types, text_type, binary_type, b
-from yt.packages.six.moves import map as imap
+from yt.packages.six.moves import map as imap, xrange
 
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
 import yt.wrapper as yt
 
-import os
-import sys
-import glob
-import shutil
+import pytest
+
 import collections
+import glob
+import os
+import shutil
+import sys
 import tempfile
+import time
 from contextlib import contextmanager
 
 TEST_DIR = "//home/wrapper_tests"
@@ -138,3 +141,22 @@ def run_python_script_with_check(yt_env, script):
         assert proc.returncode == 0, err
 
         return out, err
+
+def wait(predicate):
+    for _ in xrange(100):
+        if predicate():
+            return
+        time.sleep(0.3)
+    pytest.fail("wait failed")
+
+def sync_create_cell():
+    tablet_id = yt.create("tablet_cell", attributes={"size": 1})
+    wait(lambda : yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) == "good")
+
+def wait_record_in_job_archive(operation_id, job_id):
+    operation_id_hash_pair = yt.common.uuid_hash_pair(operation_id)
+    job_id_hash_pair = yt.common.uuid_hash_pair(job_id)
+    key = {}
+    key["operation_id_hi"], key["operation_id_lo"] = operation_id_hash_pair.hi, operation_id_hash_pair.lo
+    key["job_id_hi"], key["job_id_lo"] = job_id_hash_pair.hi, job_id_hash_pair.lo
+    wait(lambda: any(yt.lookup_rows("//sys/operations_archive/jobs", [key], column_names=['operation_id_hi'])))

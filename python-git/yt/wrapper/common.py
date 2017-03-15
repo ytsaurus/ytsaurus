@@ -6,14 +6,15 @@ from yt.packages.decorator import decorator
 from yt.packages.six import iteritems, itervalues, PY3
 from yt.packages.six.moves import xrange, map as imap, filter as ifilter
 
-import os
-import sys
-import socket
-import getpass
 import argparse
+import collections
+import copy
+import getpass
+import os
 import platform
 import random
-import copy
+import socket
+import sys
 
 from collections import Mapping
 from itertools import chain
@@ -247,3 +248,12 @@ def is_arcadia_python():
         pass
 
     return hasattr(sys, "extra_modules")
+
+
+HashPair = collections.namedtuple("HashPair", ["lo", "hi"])
+
+def uuid_hash_pair(uuid):
+    i3, i2, i1, i0 = (int(s, 16) for s in uuid.split("-"))
+    return HashPair(
+        yson.YsonUint64(i2 + (i3 << 32)),
+        yson.YsonUint64(i0 + (i1 << 32)))
