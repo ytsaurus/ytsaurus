@@ -57,6 +57,9 @@ public:
     //! A tag that helps us restore the correspondence between
     //! the unread data slices and the original data slices.
     TNullable<i64> Tag;
+
+    //! Flag showing that the slice should not be considered when forming the job input.
+    bool Disabled = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputDataSlice)
@@ -92,8 +95,6 @@ void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const NTab
 TNullable<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool checkParityParts);
 bool CompareDataSlicesByLowerLimit(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& slice2);
 bool CanMergeSlices(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& slice2);
-
-bool DataSliceIsSuffix(const TInputDataSlicePtr& suffixSlice, const TInputDataSlicePtr& fullSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 

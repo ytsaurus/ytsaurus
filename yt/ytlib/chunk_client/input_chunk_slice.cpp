@@ -105,34 +105,6 @@ Stroka ToString(const TInputSliceLimit& limit)
     return Format("RowIndex: %v, Key: %v", limit.RowIndex, limit.Key);
 }
 
-int CompareLimits(const TInputSliceLimit& lhs, const TInputSliceLimit& rhs)
-{
-    int compareByKey = 0;
-    int compareByRowIndex = 0;
-    if ((lhs.Key == TKey()) != (rhs.Key == TKey()) || lhs.RowIndex.HasValue() != rhs.RowIndex.HasValue()) {
-        THROW_ERROR_EXCEPTION("Input slice limits are incompatible")
-            << TErrorAttribute("lhs", ToString(lhs))
-            << TErrorAttribute("rhs", ToString(rhs));
-    }
-    if (lhs.Key != TKey()) {
-        compareByKey = CompareRows(lhs.Key, rhs.Key);
-    }
-    if (lhs.RowIndex != rhs.RowIndex) {
-        compareByRowIndex = *lhs.RowIndex < *rhs.RowIndex ? -1 : 1;
-    }
-    if (compareByKey == 0 && compareByRowIndex == 0) {
-        return 0;
-    } else if (compareByKey >= 0 && compareByRowIndex >= 0) {
-        return 1;
-    } else if (compareByKey <= 0 && compareByRowIndex <= 0) {
-        return -1;
-    } else {
-        THROW_ERROR_EXCEPTION("Input slice limits are incomparable")
-            << TErrorAttribute("lhs", ToString(lhs))
-            << TErrorAttribute("rhs", ToString(rhs));
-    }
-}
-
 void FormatValue(TStringBuilder* builder, const TInputSliceLimit& limit, const TStringBuf& /*format*/)
 {
     builder->AppendFormat("{RowIndex: %v, Key: %v}",

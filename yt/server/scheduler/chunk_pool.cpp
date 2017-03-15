@@ -290,15 +290,10 @@ yhash_map<TInputChunkPtr, TInputChunkPtr> TSuspendableStripe::ResumeAndBuildChun
 
     yhash_map<TInputChunkPtr, TInputChunkPtr> mapping;
 
-    // COMPAT(max42): rewrite code below using data slice ids when YT-6546 is merged.
     // Our goal is to restore the correspondence between the old data slices and new data slices
     // in order to be able to substitute old references to input chunks in newly created jobs with current
     // ones.
 
-    // We suppose that the new stripe consists of data slices of the subset of original chunks following
-    // in the same order, and each particular data slice may only be shortened by taking its suffix
-    // (as happens during the job interruption). If some of the new data slices can not be matched
-    // with any of the original slices according to the rules above, this function fails with YCHECK.
     auto addToMapping = [&mapping] (const TInputDataSlicePtr& originalDataSlice, const TInputDataSlicePtr& newDataSlice) {
         YCHECK(!newDataSlice || originalDataSlice->ChunkSlices.size() == newDataSlice->ChunkSlices.size());
         for (int index = 0; index < originalDataSlice->ChunkSlices.size(); ++index) {
@@ -308,23 +303,16 @@ yhash_map<TInputChunkPtr, TInputChunkPtr> TSuspendableStripe::ResumeAndBuildChun
         }
     };
 
-    int originalIndex = 0;
+    yhash_map<i64, TInputDataSlicePtr> tagToDataSlice;
+
     for (const auto& dataSlice : stripe->DataSlices) {
-        // We iterate over original data slices seeking for the original data slice such that
-        // the new `dataSlice` is its suffix.
-        while (originalIndex != OriginalStripe_->DataSlices.size() &&
-            !DataSliceIsSuffix(dataSlice, OriginalStripe_->DataSlices[originalIndex]))
-        {
-            // All original data slices that we skip are matched with nullptr.
-            addToMapping(OriginalStripe_->DataSlices[originalIndex++], nullptr);
-        }
-        // Contrary would mean that the new data slice does not have a corresponding original one.
-        YCHECK(originalIndex != OriginalStripe_->DataSlices.size());
-        addToMapping(OriginalStripe_->DataSlices[originalIndex++], dataSlice);
+        YCHECK(dataSlice->Tag);
+        YCHECK(tagToDataSlice.insert(std::make_pair(*dataSlice->Tag, dataSlice)).second);
     }
-    // Match the remaining original stripes with nullptr.
-    while (originalIndex != OriginalStripe_->DataSlices.size()) {
-        addToMapping(OriginalStripe_->DataSlices[originalIndex++], nullptr);
+
+    for (const auto& originalDataSlice : OriginalStripe_->DataSlices) {
+        auto it = tagToDataSlice.find(*originalDataSlice->Tag);
+        addToMapping(originalDataSlice, it == tagToDataSlice.end() ? nullptr : it->second);
     }
 
     // NB: do not update statistics on resume to preserve counters.

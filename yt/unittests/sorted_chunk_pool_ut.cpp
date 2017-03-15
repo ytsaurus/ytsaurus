@@ -137,6 +137,7 @@ protected:
     TInputChunkPtr CopyChunk(const TInputChunkPtr& chunk)
     {
         TInputChunkPtr chunkCopy = New<TInputChunk>();
+        chunkCopy->ChunkId() = chunk->ChunkId();
         chunkCopy->SetCompressedDataSize(chunk->GetCompressedDataSize());
         chunkCopy->BoundaryKeys() = std::make_unique<TBoundaryKeys>(*chunk->BoundaryKeys());
         int tableIndex = chunk->GetTableIndex();
@@ -202,9 +203,16 @@ protected:
         ChunkPool_ = CreateSortedChunkPool(Options_, GetChunkSliceFetcherFactory(), InputTables_);
     }
 
-    IChunkPoolInput::TCookie AddChunk(const TInputChunkPtr& chunk)
+    TInputDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
     {
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+        dataSlice->Tag = chunk->ChunkId().Parts64[0] ^ chunk->ChunkId().Parts64[1];
+        return dataSlice;
+    }
+
+    IChunkPoolInput::TCookie AddChunk(const TInputChunkPtr& chunk)
+    {
+        auto dataSlice = BuildDataSliceByChunk(chunk);
         ActiveChunks_.insert(chunk->ChunkId());
         InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
         return ChunkPool_->Add(New<TChunkStripe>(dataSlice));
@@ -218,7 +226,7 @@ protected:
 
     void ResumeChunk(IChunkPoolInput::TCookie cookie, const TInputChunkPtr& chunk)
     {
-        auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+        auto dataSlice = BuildDataSliceByChunk(chunk);
         InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
         ActiveChunks_.insert(chunk->ChunkId());
         return ChunkPool_->Resume(cookie, New<TChunkStripe>(dataSlice));
@@ -1527,9 +1535,9 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
 {
     Options_.EnableKeyGuarantee = false;
     InitTables(
-        {false, false, false} /* isForeign */,
-        {false, false, false} /* isTeleportable */,
-        {false, false, false} /* isVersioned */
+        {false, false, false, true} /* isForeign */,
+        {false, false, false, false} /* isTeleportable */,
+        {false, false, false, false} /* isVersioned */
     );
     Options_.PrimaryPrefixLength = 1;
     InitJobConstraints();
@@ -1537,6 +1545,7 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
     auto chunkA = CreateChunk(BuildRow({1}), BuildRow({20}), 0);
     auto chunkB = CreateChunk(BuildRow({2}), BuildRow({42}), 1);
     auto chunkC = CreateChunk(BuildRow({10}), BuildRow({12}), 2);
+    auto chunkD = CreateChunk(BuildRow({1}), BuildRow({42}), 3);
     RegisterTriviallySliceableUnversionedChunk(chunkA);
     RegisterTriviallySliceableUnversionedChunk(chunkB);
     RegisterTriviallySliceableUnversionedChunk(chunkC);
@@ -1546,6 +1555,7 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
     AddChunk(chunkA);
     AddChunk(chunkB);
     AddChunk(chunkC);
+    AddChunk(chunkD);
 
     ChunkPool_->Finish();
 
@@ -1570,8 +1580,8 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
     ASSERT_EQ(newStripeList->Stripes[0]->DataSlices.front()->LowerLimit().Key, BuildRow({13}));
     ASSERT_EQ(newStripeList->Stripes[1]->DataSlices.size(), 1);
     ASSERT_EQ(newStripeList->Stripes[1]->DataSlices.front()->LowerLimit().Key, BuildRow({14}));
-    ASSERT_EQ(newStripeList->Stripes[2]->DataSlices.size(), 1);
-    ASSERT_EQ(newStripeList->Stripes[2]->DataSlices.front()->LowerLimit().Key, MaxKey());
+    ASSERT_TRUE(newStripeList->Stripes[2]->DataSlices.empty());
+    ASSERT_EQ(newStripeList->Stripes[3]->DataSlices.size(), 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

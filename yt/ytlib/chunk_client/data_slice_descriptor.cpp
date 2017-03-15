@@ -25,7 +25,7 @@ const NProto::TChunkSpec& TDataSliceDescriptor::GetSingleChunk() const
     return ChunkSpecs[0];
 }
 
-TNullable<i64> TDataSliceDescriptor::GetCommonTag() const
+TNullable<i64> TDataSliceDescriptor::GetTag() const
 {
     YCHECK(!ChunkSpecs.empty());
     TNullable<i64> commonTag = ChunkSpecs.front().has_data_slice_tag()

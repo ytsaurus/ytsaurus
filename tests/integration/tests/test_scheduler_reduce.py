@@ -1172,9 +1172,8 @@ echo {v = 2} >&7
 {"key"=2;"value"="2";};
 """
 
-    #@unix_only
-    @pytest.mark.xfail(run=False, reason="YT-6546")
-    #@pytest.mark.parametrize("with_foreign", [False, True])
+    @unix_only
+    @pytest.mark.parametrize("with_foreign", [False, True])
     def test_reduce_interrupt_job(self, with_foreign):
         if with_foreign:
             in_=["<foreign=true>//tmp/input2", "//tmp/input1"],
