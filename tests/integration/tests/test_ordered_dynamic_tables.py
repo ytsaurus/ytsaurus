@@ -484,6 +484,7 @@ class TestOrderedDynamicTables(YTEnvSetup):
         actual = select_rows("a, b, c from [//tmp/t]")
         assert_items_equal(actual, rows)
 
+    @pytest.mark.skip(reason="XXX(savrus) enable in 19.2")
     def test_read_table(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
