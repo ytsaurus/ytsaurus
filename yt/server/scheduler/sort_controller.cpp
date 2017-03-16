@@ -13,6 +13,7 @@
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 
 #include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/samples_fetcher.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/schemaless_block_writer.h>
@@ -1915,6 +1916,14 @@ private:
         PROFILE_TIMING ("/samples_processing_time") {
             auto sortedSamples = SortSamples(samplesFetcher->GetSamples());
             BuildPartitions(sortedSamples);
+
+            // Garbage collection.
+            auto rowBuffer = New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize);
+            for (auto& partition : Partitions) {
+                partition->Key = rowBuffer->Capture(partition->Key);
+            }
+            std::swap(RowBuffer, rowBuffer);
+
         }
 
         InitJobSpecTemplates();
