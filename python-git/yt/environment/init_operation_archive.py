@@ -10,7 +10,7 @@ import datetime
 import argparse
 import logging
 
-from yt.tools.dynamic_tables import get_dynamic_table_attributes, make_dynamic_table_attributes, mount_table, unmount_table, DynamicTablesClient
+from yt.tools.dynamic_tables import get_dynamic_table_attributes, make_dynamic_table_attributes, mount_table_new, unmount_table_new, DynamicTablesClient
 
 class TableInfo(object):
     def __init__(self, key_columns, value_columns, in_memory=False, get_pivot_keys=None):
@@ -46,7 +46,7 @@ class TableInfo(object):
 
     def alter_table(self, client, path, shards):
         logging.info("Unmounting table %s", path)
-        unmount_table(client, path)
+        unmount_table_new(client, path)
         attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
 
         logging.info("Alter table %s with attributes %s", path, attributes)
@@ -56,7 +56,7 @@ class TableInfo(object):
             client.reshard_table(path, self.get_pivot_keys(shards))
 
         logging.info("Mounting table %s", path)
-        mount_table(client, path)
+        mount_table_new(client, path)
 
     def get_default_mapper(self):
         column_names = self.user_columns
@@ -100,14 +100,14 @@ class Convert(object):
             if not mapper:
                 mapper = table_info.get_default_mapper()
 
-            mount_table(client, source_table)
+            mount_table_new(client, source_table)
             dt_client.run_map_dynamic(mapper, source_table, target_table)
 
-            unmount_table(client, target_table)
+            unmount_table_new(client, target_table)
             client.set(target_table + "/@forced_compaction_revision", client.get(target_table + "/@revision"))
             if table_info.in_memory:
                 client.set(target_table + "/@in_memory_mode", "compressed")
-            mount_table(client, target_table)
+            mount_table_new(client, target_table)
         return False  # need additional swap
 
 
@@ -348,16 +348,16 @@ TRANSFORMS[7] = [
 def swap_table(client, target, source):
     backup_path = target + ".bak"
     if client.exists(target):
-        unmount_table(client, target)
+        unmount_table_new(client, target)
         client.move(target, backup_path)
 
-    unmount_table(client, source)
+    unmount_table_new(client, source)
     client.move(source, target)
 
     if client.exists(backup_path):
         client.move(backup_path, source)
 
-    mount_table(client, target)
+    mount_table_new(client, target)
 
 def transform_archive(
     client,
