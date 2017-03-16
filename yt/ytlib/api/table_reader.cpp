@@ -202,6 +202,11 @@ void TSchemalessTableReader::DoOpen()
         dynamic = attributes->Get<bool>("dynamic");
         schema = attributes->Get<TTableSchema>("schema");
 
+        // XXX(savrus) Remove in 19.2
+        if (dynamic) {
+            THROW_ERROR_EXCEPTION("Read table for dynamic tables is not supported.")
+        }
+
         if (timestamp && !(dynamic && schema.IsSorted())) {
             THROW_ERROR_EXCEPTION("Invalid attribute %Qv: table %Qv is not sorted dynamic",
                 "timestamp",
