@@ -67,14 +67,14 @@ prepare_archive_directory() {
     cp -r yandex-yt-local/usr/bin/yt_env_watcher "$archive_dir/bin"
 
     # YSON bindings.
-    cp -r yandex-yt-python-yson/usr/lib/python2.7/dist-packages/yt_yson_bindings/* "$archive_dir/python/yt_yson_bindings"
+    cp -r -L yandex-yt-python-yson/usr/lib/python2.7/dist-packages/yt_yson_bindings/* "$archive_dir/python/yt_yson_bindings"
     # Driver bindings.
     if [[ -d "yandex-yt-python-driver/usr/lib/python2.7/dist-packages/yt_driver_bindings" ]]; then
         # New packaging system directory layout
-        cp -r yandex-yt-python-driver/usr/lib/python2.7/dist-packages/yt_driver_bindings/* "$archive_dir/python/yt_driver_bindings"
+        cp -r -L yandex-yt-python-driver/usr/lib/python2.7/dist-packages/yt_driver_bindings/* "$archive_dir/python/yt_driver_bindings"
     else
-        cp -r yandex-yt-python-driver/usr/share/pyshared/yt_driver_bindings/* "$archive_dir/python/yt_driver_bindings"
-        cp -r yandex-yt-python-driver/usr/lib/pyshared/python2.7/yt_driver_bindings/* "$archive_dir/python/yt_driver_bindings"
+        cp -r -L yandex-yt-python-driver/usr/share/pyshared/yt_driver_bindings/* "$archive_dir/python/yt_driver_bindings"
+        cp -r -L yandex-yt-python-driver/usr/lib/pyshared/python2.7/yt_driver_bindings/* "$archive_dir/python/yt_driver_bindings"
     fi
 
     cp -r yandex-yt-web-interface/usr/share/yt-thor/* "$archive_dir/yt-thor"
