@@ -170,7 +170,7 @@ void InsertJoinRow(
         closure->ProcessSegment();
         closure->LastKey = key;
         closure->Lookup.clear();
-        // Key will be realloacted further
+        // Key will be realloacted further.
     }
 
     auto inserted = closure->Lookup.insert(std::make_pair(key, std::make_pair(chainIndex, false)));
@@ -190,6 +190,226 @@ void InsertJoinRow(
         *keyPtr = closure->Buffer->Allocate(closure->KeySize);
     }
 }
+
+class TJoinBatchState
+{
+public:
+    TJoinBatchState(
+        void** consumeRowsClosure,
+        void (*consumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size),
+        const std::vector<size_t>& selfColumns,
+        const std::vector<size_t>& foreignColumns)
+        : ConsumeRowsClosure(consumeRowsClosure)
+        , ConsumeRows(consumeRows)
+        , SelfColumns(selfColumns)
+        , ForeignColumns(foreignColumns)
+        , IntermediateBuffer(New<TRowBuffer>(TIntermadiateBufferTag()))
+    {
+        JoinedRows.reserve(RowsetProcessingSize);
+    }
+
+    void ConsumeJoinedRows()
+    {
+        // Consume joined rows.
+        ConsumeRows(ConsumeRowsClosure, IntermediateBuffer.Get(), JoinedRows.data(), JoinedRows.size());
+        JoinedRows.clear();
+        IntermediateBuffer->Clear();
+    }
+
+    void JoinRow(TRow row, TRow foreignRow)
+    {
+        auto joinedRow = IntermediateBuffer->Allocate(SelfColumns.size() + ForeignColumns.size());
+
+        for (size_t column = 0; column < SelfColumns.size(); ++column) {
+            joinedRow[column] = row[SelfColumns[column]];
+        }
+
+        for (size_t column = 0; column < ForeignColumns.size(); ++column) {
+            joinedRow[column + SelfColumns.size()] = foreignRow[ForeignColumns[column]];
+        }
+
+        JoinedRows.push_back(joinedRow);
+
+        if (JoinedRows.size() >= RowsetProcessingSize) {
+            ConsumeJoinedRows();
+        }
+    }
+
+    void JoinRowNull(TRow row)
+    {
+        auto joinedRow = IntermediateBuffer->Allocate(SelfColumns.size() + ForeignColumns.size());
+
+        for (size_t column = 0; column < SelfColumns.size(); ++column) {
+            joinedRow[column] = row[SelfColumns[column]];
+        }
+
+        for (size_t column = 0; column < ForeignColumns.size(); ++column) {
+            joinedRow[column + SelfColumns.size()] = MakeUnversionedSentinelValue(EValueType::Null);
+        }
+
+        JoinedRows.push_back(joinedRow);
+
+        if (JoinedRows.size() >= RowsetProcessingSize) {
+            ConsumeJoinedRows();
+        }
+    }
+
+    void JoinRows(const std::vector<std::pair<TRow, int>>& chainedRows, int startIndex, TRow foreignRow)
+    {
+        for (
+            int chainedRowIndex = startIndex;
+            chainedRowIndex >= 0;
+            chainedRowIndex = chainedRows[chainedRowIndex].second)
+        {
+            JoinRow(chainedRows[chainedRowIndex].first, foreignRow);
+        }
+    }
+
+    void JoinRowsNull(const std::vector<std::pair<TRow, int>>& chainedRows, int startIndex)
+    {
+        for (
+            int chainedRowIndex = startIndex;
+            chainedRowIndex >= 0;
+            chainedRowIndex = chainedRows[chainedRowIndex].second)
+        {
+            JoinRowNull(chainedRows[chainedRowIndex].first);
+        }
+    }
+
+    void SortMergeJoin(
+        TExecutionContext* context,
+        const std::vector<std::pair<TRow, int>>& keysToRows,
+        const std::vector<std::pair<TRow, int>>& chainedRows,
+        TComparerFunction* fullEqComparer,
+        TComparerFunction* fullLessComparer,
+        const ISchemafulReaderPtr& reader,
+        bool isLeft)
+    {
+        std::vector<TRow> foreignRows;
+        foreignRows.reserve(RowsetProcessingSize);
+
+        // Sort-merge join
+        auto currentKey = keysToRows.begin();
+        auto lastJoined = keysToRows.end();
+        while (currentKey != keysToRows.end()) {
+            bool hasMoreData = reader->Read(&foreignRows);
+            bool shouldWait = foreignRows.empty();
+
+            auto foreignIt = foreignRows.begin();
+            while (foreignIt != foreignRows.end() && currentKey != keysToRows.end()) {
+                int startIndex = currentKey->second;
+                if (fullEqComparer(currentKey->first, *foreignIt)) {
+                    JoinRows(chainedRows, startIndex, *foreignIt);
+                    ++foreignIt;
+                    lastJoined = currentKey;
+                } else if (fullLessComparer(currentKey->first, *foreignIt)) {
+                    if (lastJoined != currentKey) {
+                        JoinRowsNull(chainedRows, startIndex);
+                        lastJoined = currentKey;
+                    }
+                    ++currentKey;
+                } else {
+                    ++foreignIt;
+                }
+            }
+
+            ConsumeJoinedRows();
+
+            foreignRows.clear();
+
+            if (!hasMoreData) {
+                break;
+            }
+
+            if (shouldWait) {
+                NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        }
+
+        if (isLeft) {
+            while (currentKey != keysToRows.end()) {
+                int startIndex = currentKey->second;
+                if (lastJoined != currentKey) {
+                    JoinRowsNull(chainedRows, startIndex);
+                }
+                ++currentKey;
+            }
+        }
+
+        ConsumeJoinedRows();
+    }
+
+    void HashJoin(
+        TExecutionContext* context,
+        TJoinLookup* joinLookup,
+        const std::vector<std::pair<TRow, int>>& chainedRows,
+        const ISchemafulReaderPtr& reader,
+        bool isLeft)
+    {
+        std::vector<TRow> foreignRows;
+        foreignRows.reserve(RowsetProcessingSize);
+
+        while (true) {
+            bool hasMoreData = reader->Read(&foreignRows);
+            bool shouldWait = foreignRows.empty();
+
+            for (auto foreignRow : foreignRows) {
+                auto it = joinLookup->find(foreignRow);
+
+                if (it == joinLookup->end()) {
+                    continue;
+                }
+
+                int startIndex = it->second.first;
+                bool& isJoined = it->second.second;
+                JoinRows(chainedRows, startIndex, foreignRow);
+                isJoined = true;
+            }
+
+            ConsumeJoinedRows();
+
+            foreignRows.clear();
+
+            if (!hasMoreData) {
+                break;
+            }
+
+            if (shouldWait) {
+                NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        }
+
+        if (isLeft) {
+            for (auto lookup : *joinLookup) {
+                int startIndex = lookup.second.first;
+                bool isJoined = lookup.second.second;
+
+                if (isJoined) {
+                    continue;
+                }
+
+                JoinRowsNull(chainedRows, startIndex);
+            }
+        }
+
+        ConsumeJoinedRows();
+    }
+
+private:
+    void** ConsumeRowsClosure;
+    void (*ConsumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size);
+
+    std::vector<size_t> SelfColumns;
+    std::vector<size_t> ForeignColumns;
+
+    TRowBufferPtr IntermediateBuffer;
+    std::vector<TRow> JoinedRows;
+
+};
 
 void JoinOpHelper(
     TExecutionContext* context,
@@ -239,86 +459,21 @@ void JoinOpHelper(
             keys.push_back(item.first);
         }
 
+        TJoinBatchState batchState(
+            consumeRowsClosure,
+            consumeRows,
+            parameters->SelfColumns,
+            parameters->ForeignColumns);
+
         // Join rowsets.
         // allRows have format (join key... , other columns...)
-
-        std::vector<TRow> joinedRows;
-        joinedRows.reserve(RowsetProcessingSize);
-        auto intermediateBuffer = New<TRowBuffer>(TIntermadiateBufferTag());
-
-        auto consumeJoinedRows = [&] () {
-            // Consume joined rows.
-            consumeRows(consumeRowsClosure, intermediateBuffer.Get(), joinedRows.data(), joinedRows.size());
-            joinedRows.clear();
-            intermediateBuffer->Clear();
-        };
 
         auto& joinLookup = closure.Lookup;
         auto chainedRows = std::move(closure.ChainedRows);
 
-        auto isOrdered = parameters->IsOrdered;
         auto isLeft = parameters->IsLeft;
-        auto selfColumns = parameters->SelfColumns;
-        auto foreignColumns = parameters->ForeignColumns;
-        auto isSortMergeJoin = parameters->IsSortMergeJoin;
 
-        auto joinRow = [&] (TRow row, TRow foreignRow) {
-            auto joinedRow = intermediateBuffer->Allocate(selfColumns.size() + foreignColumns.size());
-
-            for (size_t column = 0; column < selfColumns.size(); ++column) {
-                joinedRow[column] = row[selfColumns[column]];
-            }
-
-            for (size_t column = 0; column < foreignColumns.size(); ++column) {
-                joinedRow[column + selfColumns.size()] = foreignRow[foreignColumns[column]];
-            }
-
-            joinedRows.push_back(joinedRow);
-
-            if (joinedRows.size() >= RowsetProcessingSize) {
-                consumeJoinedRows();
-            }
-        };
-
-        auto joinRows = [&] (int startIndex, TRow foreignRow) {
-            for (
-                int chainedRowIndex = startIndex;
-                chainedRowIndex >= 0;
-                chainedRowIndex = chainedRows[chainedRowIndex].second)
-            {
-                joinRow(chainedRows[chainedRowIndex].first, foreignRow);
-            }
-        };
-
-        auto joinRowNull = [&] (TRow row) {
-            auto joinedRow = intermediateBuffer->Allocate(selfColumns.size() + foreignColumns.size());
-
-            for (size_t column = 0; column < selfColumns.size(); ++column) {
-                joinedRow[column] = row[selfColumns[column]];
-            }
-
-            for (size_t column = 0; column < foreignColumns.size(); ++column) {
-                joinedRow[column + selfColumns.size()] = MakeUnversionedSentinelValue(EValueType::Null);
-            }
-
-            joinedRows.push_back(joinedRow);
-
-            if (joinedRows.size() >= RowsetProcessingSize) {
-                consumeJoinedRows();
-            }
-        };
-
-        auto joinRowsNull = [&] (int startIndex) {
-            for (
-                int chainedRowIndex = startIndex;
-                chainedRowIndex >= 0;
-                chainedRowIndex = chainedRows[chainedRowIndex].second)
-            {
-                joinRowNull(chainedRows[chainedRowIndex].first);
-            }
-        };
-
-        if (!isOrdered) {
+        if (!parameters->IsOrdered) {
             auto pipe = New<NTableClient::TSchemafulPipe>();
 
             TQueryPtr foreignQuery;
@@ -342,105 +497,19 @@ void JoinOpHelper(
 
             auto reader = pipe->GetReader();
 
-            if (isSortMergeJoin) {
+            if (parameters->IsSortMergeJoin) {
                 // Sort-merge join
-                auto currentKey = closure.KeysToRows.begin();
-                auto lastJoined = closure.KeysToRows.end();
-                while (currentKey != closure.KeysToRows.end()) {
-                    bool hasMoreData = reader->Read(&foreignRows);
-                    bool shouldWait = foreignRows.empty();
-
-                    auto foreignIt = foreignRows.begin();
-                    while (foreignIt != foreignRows.end() && currentKey != closure.KeysToRows.end()) {
-                        int startIndex = currentKey->second;
-                        if (fullEqComparer(currentKey->first, *foreignIt)) {
-                            joinRows(startIndex, *foreignIt);
-                            ++foreignIt;
-                            lastJoined = currentKey;
-                        } else if (fullLessComparer(currentKey->first, *foreignIt)) {
-                            if (lastJoined != currentKey) {
-                                joinRowsNull(startIndex);
-                                lastJoined = currentKey;
-                            }
-                            ++currentKey;
-                        } else {
-                            ++foreignIt;
-                        }
-                    }
-
-                    consumeJoinedRows();
-
-                    foreignRows.clear();
-
-                    if (!hasMoreData) {
-                        break;
-                    }
-
-                    if (shouldWait) {
-                        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
-                        WaitFor(reader->GetReadyEvent())
-                            .ThrowOnError();
-                    }
-                }
-
-                if (isLeft) {
-                    while (currentKey != closure.KeysToRows.end()) {
-                        int startIndex = currentKey->second;
-                        if (lastJoined != currentKey) {
-                            joinRowsNull(startIndex);
-                        }
-                        ++currentKey;
-                    }
-                }
-
-                consumeJoinedRows();
+                auto keysToRows = std::move(closure.KeysToRows);
+                batchState.SortMergeJoin(
+                    context,
+                    keysToRows,
+                    chainedRows,
+                    fullEqComparer,
+                    fullLessComparer,
+                    reader,
+                    isLeft);
             } else {
-                while (true) {
-                    bool hasMoreData = reader->Read(&foreignRows);
-                    bool shouldWait = foreignRows.empty();
-
-                    for (auto foreignRow : foreignRows) {
-                        auto it = joinLookup.find(foreignRow);
-
-                        if (it == joinLookup.end()) {
-                            continue;
-                        }
-
-                        int startIndex = it->second.first;
-                        bool& isJoined = it->second.second;
-                        joinRows(startIndex, foreignRow);
-                        isJoined = true;
-                    }
-
-                    consumeJoinedRows();
-
-                    foreignRows.clear();
-
-                    if (!hasMoreData) {
-                        break;
-                    }
-
-                    if (shouldWait) {
-                        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
-                        WaitFor(reader->GetReadyEvent())
-                            .ThrowOnError();
-                    }
-                }
-
-                if (isLeft) {
-                    for (auto lookup : joinLookup) {
-                        int startIndex = lookup.second.first;
-                        bool isJoined = lookup.second.second;
-
-                        if (isJoined) {
-                            continue;
-                        }
-
-                        joinRowsNull(startIndex);
-                    }
-                }
-
-                consumeJoinedRows();
+                batchState.HashJoin(context, &joinLookup, chainedRows, reader, isLeft);
             }
         } else {
             NApi::IRowsetPtr rowset;
@@ -486,15 +555,15 @@ void JoinOpHelper(
                 auto row = item.first;
                 auto equalRange = foreignLookup.equal_range(row);
                 for (auto it = equalRange.first; it != equalRange.second; ++it) {
-                    joinRow(row, *it);
+                    batchState.JoinRow(row, *it);
                 }
 
                 if (isLeft && equalRange.first == equalRange.second) {
-                    joinRowNull(row);
+                    batchState.JoinRowNull(row);
                 }
             }
 
-            consumeJoinedRows();
+            batchState.ConsumeJoinedRows();
         }
 
         LOG_DEBUG("Joining finished");
