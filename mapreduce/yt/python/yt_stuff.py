@@ -35,6 +35,8 @@ class YtConfig(object):
 
         self.save_all_logs = kwargs.get("save_all_logs")
         self.enable_debug_log = kwargs.get("enable_debug_log")
+        self.yt_work_dir = kwargs.get("yt_work_dir")
+        self.keep_yt_work_dir = kwargs.get("keep_yt_work_dir")
 
         self.wait_tablet_cell_initialization = kwargs.get("wait_tablet_cell_initialization")
         self.operations_memory_limit = kwargs.get("operations_memory_limit") or (25 * 1024 * 1024 * 1024)
@@ -105,7 +107,7 @@ class YtStuff(object):
         self._extract_tar(yt_archive_path, self.yt_path)
         self._replace_binaries()
 
-        user_yt_work_dir_base = yatest.common.get_param("yt_work_dir")
+        user_yt_work_dir_base =  self.config.yt_work_dir or yatest.common.get_param("yt_work_dir")
         if user_yt_work_dir_base:
             self.yt_work_dir = os.path.join(user_yt_work_dir_base, "yt_wd")
         else:
@@ -377,7 +379,8 @@ class YtStuff(object):
         if self.is_running:
             self.suspend_local_yt()
         self._save_logs(save_yt_all=self.config.save_all_logs or yatest.common.get_param("yt_save_all_data"))
-        shutil.rmtree(self.yt_work_dir)
+        if not self.config.keep_yt_work_dir:
+            shutil.rmtree(self.yt_work_dir)
 
     @_timing
     def _save_logs(self, save_yt_all=None):
