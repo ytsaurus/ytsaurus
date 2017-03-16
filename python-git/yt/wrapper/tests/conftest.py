@@ -27,6 +27,9 @@ def pytest_ignore_collect(path, config):
     return path.startswith(TESTS_SANDBOX) or \
             path.startswith(os.path.join(TESTS_LOCATION, "__pycache__"))
 
+def pytest_generate_tests(metafunc):
+    metafunc.parametrize("interpreter", ["{0}.{1}".format(*sys.version_info[:2])], indirect=True)
+
 def _pytest_finalize_func(environment, process_call_args):
     pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \
                 .format(" ".join(process_call_args)))
