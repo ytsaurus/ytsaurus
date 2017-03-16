@@ -44,8 +44,11 @@ public:
 
     //! Marks all previously allocated small chunks as free for subsequent allocations but
     //! does not deallocate them.
-    //! Disposes all large blocks.
+    //! Purges all large blocks.
     void Clear();
+
+    //! Purges all allocated memory, including small chunks.
+    void Purge();
 
     //! Returns the number of allocated bytes.
     i64 GetSize() const;
