@@ -11,6 +11,8 @@
 
 #include <yt/ytlib/table_client/row_buffer.h>
 
+#include <random>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -19,9 +21,8 @@ namespace NChunkClient {
 //! We intentionally suppress the default output for TInputChunk as they are
 //! identified by their addresses (already printed from the template function
 //! for TIntrusivePtr) pretty well.
-void PrintTo(const TInputChunk& /* chunk */, std::ostream* /* os */) {
-    return;
-}
+void PrintTo(const TInputChunk& /* chunk */, std::ostream* /* os */)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
