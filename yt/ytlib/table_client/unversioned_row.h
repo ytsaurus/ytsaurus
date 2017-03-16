@@ -260,6 +260,10 @@ public:
         : Header_(header)
     { }
 
+    explicit TUnversionedRow(TTypeErasedRow erased)
+        : Header_(reinterpret_cast<const TUnversionedRowHeader*>(erased.OpaqueHeader))
+    { }
+
     explicit operator bool() const
     {
         return Header_ != nullptr;
