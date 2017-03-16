@@ -178,6 +178,7 @@ class TBufferedTableWriterConfig
 public:
     TDuration RetryBackoffTime;
     TDuration FlushPeriod;
+    i64 RowBufferChunkSize;
 
     TBufferedTableWriterConfig()
     {
@@ -185,6 +186,8 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("flush_period", FlushPeriod)
             .Default(TDuration::Seconds(60));
+        RegisterParameter("row_buffer_chunk_size", RowBufferChunkSize)
+            .Default(64 * 1024);
     }
 };
 
