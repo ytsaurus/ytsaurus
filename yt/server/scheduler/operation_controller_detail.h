@@ -298,7 +298,7 @@ protected:
     TSharedRef Snapshot;
 
     struct TRowBufferTag { };
-    const NTableClient::TRowBufferPtr RowBuffer;
+    NTableClient::TRowBufferPtr RowBuffer;
 
     const NYTree::IMapNodePtr SecureVault;
 
