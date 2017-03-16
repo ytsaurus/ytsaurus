@@ -595,6 +595,54 @@ YT_TEST(TOperationAggregatorReduce, Proto)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+class TCrashingMapper
+    : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    virtual void Start(TWriter* /*writer*/) override
+    {
+        Y_FAIL("Start failed");
+    }
+
+    virtual void Do(TReader* /*reader*/, TWriter* /*writer*/) override
+    {
+        Y_FAIL("Do failed");
+    }
+
+    virtual void Finish(TWriter* /*writer*/) override
+    {
+        Y_FAIL("Finish failed");
+    }
+};
+REGISTER_MAPPER(TCrashingMapper);
+
+class TEmptyInputOperation
+    : public TOperation
+{
+};
+
+
+YT_TEST(TEmptyInputOperation, Mapper)
+{
+    auto writer = Client()->CreateTableWriter<TNode>(
+        TRichYPath(Input()).SortedBy("key"));
+    writer->AddRow(TNode()("key", "a")("value", "0"));
+    writer->AddRow(TNode()("key", "z")("value", "26"));
+    writer->Finish();
+
+    // We expect this map to complete successfuly without crashes.
+    Client()->Map(
+        TMapOperationSpec()
+        .AddInput<TNode>(
+            TRichYPath(Input())
+            .AddRange(TReadRange().LowerLimit(TReadLimit().Key("b")).UpperLimit(TReadLimit().Key("bb"))))
+        .AddOutput<TNode>(Output()),
+        new TCrashingMapper);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMapperWithFile
     : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
