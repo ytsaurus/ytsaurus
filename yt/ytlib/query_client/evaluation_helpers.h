@@ -120,14 +120,21 @@ struct TJoinClosure
     TRowBufferPtr Buffer;
     TJoinLookup Lookup;
     std::vector<std::pair<TRow, int>> ChainedRows;
+
+    TComparerFunction* PrefixEqComparer;
     int KeySize;
+
+    TRow LastKey;
+    std::vector<std::pair<TRow, int>> KeysToRows;
 
     size_t BatchSize;
     std::function<void()> ProcessJoinBatch;
+    std::function<void()> ProcessSegment;
 
     TJoinClosure(
         THasherFunction* lookupHasher,
         TComparerFunction* lookupEqComparer,
+        TComparerFunction* prefixEqComparer,
         int keySize,
         size_t batchSize);
 };
