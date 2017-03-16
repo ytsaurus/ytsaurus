@@ -6,7 +6,6 @@ from .errors import YtResponseError
 from .config import get_backend_type
 from .http_helpers import get_proxy_url, get_api_version, get_token
 
-from yt.common import to_native_str
 # yt.packages is imported here just to set sys.path for further loading of local tornado module
 from yt.packages import PackagesImporter
 with PackagesImporter():
@@ -15,6 +14,7 @@ with PackagesImporter():
     from tornado.ioloop import IOLoop
     # It is necessary to prevent local imports during runtime.
     import tornado.simple_httpclient
+    from six import b
 
 from copy import deepcopy
 from binascii import hexlify
@@ -54,7 +54,6 @@ class JobShell(object):
         self.key_buffer = b""
         self.input_offset = 0
         self.ioloop = IOLoop.current() if hasattr(IOLoop, "current") else IOLoop.instance()
-        self.sync = HTTPClient()
         self.async = AsyncHTTPClient()
         self.terminal_mode = True
         self.output = FileIO(sys.stdout.fileno(), mode='w', closefd=False)
@@ -62,10 +61,10 @@ class JobShell(object):
         proxy_url = get_proxy_url(client=client)
         proxy = "http://{0}/api/{1}"\
             .format(proxy_url, get_api_version(client=client))
-        self.environment = ["YT_PROXY=" + proxy_url]
+        self.environment = [b("YT_PROXY=" + proxy_url)]
         token = get_token(client=client)
         if token is not None:
-            self.environment.append("YT_TOKEN=" + token)
+            self.environment.append(b("YT_TOKEN=" + token))
 
         headers = HTTPHeaders()
         if token:
@@ -89,49 +88,40 @@ class JobShell(object):
         if self.interactive and (not height or not width):
             width, height = self._terminal_size()
         parameters = {
-            "operation": operation,
+            b("operation"): b(operation),
         }
         if operation == "spawn":
             if self.inactivity_timeout is not None:
-                parameters["inactivity_timeout"] = self.inactivity_timeout
+                parameters[b("inactivity_timeout")] = self.inactivity_timeout
             if command:
-                parameters["command"] = command
-            parameters["environment"] = self.environment
+                parameters[b("command")] = b(command)
+            parameters[b("environment")] = self.environment
         if height is not None:
-            parameters["height"] = height
+            parameters[b("height")] = height
         if width is not None:
-            parameters["width"] = width
+            parameters[b("width")] = width
         if keys is not None:
-            parameters["keys"] = to_native_str(hexlify(keys))
+            parameters[b("keys")] = hexlify(keys)
         if input_offset is not None:
-            parameters["input_offset"] = input_offset
+            parameters[b("input_offset")] = input_offset
         if term is not None:
-            parameters["term"] = term
+            parameters[b("term")] = b(term)
         if self.shell_id:
-            parameters["shell_id"] = self.shell_id
+            parameters[b("shell_id")] = self.shell_id
         request = {
-            "job_id": self.job_id,
-            "parameters": parameters
+            b("job_id"): b(self.job_id),
+            b("parameters"): parameters
         }
-        req.headers["X-YT-Parameters"] = yson.dumps(request, yson_format="text")
+        req.headers["X-YT-Parameters"] = yson.dumps(request, yson_format="text", encoding=None)
         req.headers["X-YT-Correlation-Id"] = generate_uuid()
         return req
 
-    def make_request(self, operation, callback=None, keys=None, input_offset=None, term=None,
+    def make_request(self, operation, callback, keys=None, input_offset=None, term=None,
                      height=None, width=None, command=None):
-        req = self._prepare_request(operation, keys=keys, input_offset=input_offset, term=term,
-                                    height=height, width=width, command=command)
-        if callback:
+        if operation == "spawn" or self.shell_id != None:
+            req = self._prepare_request(operation, keys=keys, input_offset=input_offset, term=term,
+                                        height=height, width=width, command=command)
             self.async.fetch(req, callback=callback)
-        else:
-            try:
-                rsp = yson.loads(self.sync.fetch(req).body)
-                if rsp and "shell_id" in rsp:
-                    self.shell_id = rsp["shell_id"]
-                return rsp
-            except HTTPError as err:
-                self._on_http_error(err)
-        return None
 
     def _terminal_size(self):
         height, width, pixelHeight, pixelWidth = struct.unpack(
@@ -142,7 +132,7 @@ class JobShell(object):
         self._restore_termios()
         if type(err) is HTTPError and hasattr(err, "response") and err.response:
             if "X-Yt-Error" in err.response.headers:
-                error = json.loads(err.response.headers["X-Yt-Error"])
+                error = json.loads(err.response.headers["X-Yt-Error"], encoding=None)
                 yt_error = YtResponseError(error)
                 if self.interactive:
                     if yt_error.is_shell_exited():
@@ -160,14 +150,24 @@ class JobShell(object):
         if self.interactive:
             self.ioloop.stop()
 
+    def _on_spawn_response(self, rsp):
+        if rsp.error:
+            if not self.terminating:
+                self._on_http_error(rsp.error)
+            return
+        rsp = yson.loads(rsp.body, encoding=None)
+        if rsp and b("shell_id") in rsp:
+            self.shell_id = rsp[b("shell_id")]
+        self._poll_shell()
+
     def _on_update_response(self, rsp):
         if rsp.error:
             if not self.terminating:
                 self._on_http_error(rsp.error)
             return
-        rsp = yson.loads(rsp.body)
-        if "consumed_offset" in rsp:
-            consumed_offset = rsp["consumed_offset"]
+        rsp = yson.loads(rsp.body, encoding=None)
+        if b("consumed_offset") in rsp:
+            consumed_offset = rsp[b("consumed_offset")]
             if consumed_offset > self.input_offset and consumed_offset <= self.input_offset + len(self.key_buffer):
                 self.key_buffer = self.key_buffer[consumed_offset-self.input_offset:]
                 self.input_offset = consumed_offset
@@ -178,10 +178,10 @@ class JobShell(object):
                 self._on_http_error(rsp.error)
                 self._poll_shell()
             return
-        rsp = yson.loads(rsp.body)
+        rsp = yson.loads(rsp.body, encoding=None)
         written = 0
-        while written < len(rsp["output"]):
-            chars = self.output.write(rsp["output"][written:])
+        while written < len(rsp[b("output")]):
+            chars = self.output.write(rsp[b("output")][written:])
             if chars is not None:
                 written += chars
             else:
@@ -189,21 +189,22 @@ class JobShell(object):
                 time.sleep(0.05)
         self._poll_shell()
 
+    def _on_terminate_response(self, rsp):
+        pass
+
     def _spawn_shell(self, command=None):
         if command:
             self.terminal_mode = False
-        rsp = self.make_request("spawn", term=os.environ["TERM"], command=command)
-        if rsp and "shell_id" in rsp:
-            self.shell_id = rsp["shell_id"]
+        rsp = self.make_request("spawn", self._on_spawn_response, term=os.environ["TERM"], command=command)
 
     def _poll_shell(self):
         self.make_request("poll", callback=self._on_poll_response)
 
     def _update_shell(self, keys=None, input_offset=None):
-        self.make_request("update", keys=keys, input_offset=input_offset, callback=self._on_update_response)
+        self.make_request("update", self._on_update_response, keys=keys, input_offset=input_offset)
 
     def _terminate_shell(self):
-        self.make_request("terminate")
+        self.make_request("terminate", self._on_terminate_response)
 
     def _resize_window(self):
         width, height = self._terminal_size()
@@ -217,6 +218,7 @@ class JobShell(object):
         self.ioloop.add_timeout(time.time() + 5, self._on_timer)
 
     def _terminate(self, reason=None):
+        self._terminate_shell()
         self.terminating = True
         self.ioloop.stop()
 
@@ -225,7 +227,6 @@ class JobShell(object):
         if reason:
             print(reason)
         sys.stdout.flush()
-        self._terminate_shell()
 
     def _on_signal(self, sig, frame):
         if sig == signal.SIGWINCH:
@@ -250,10 +251,6 @@ class JobShell(object):
         if not self.interactive:
             raise YtError("Run requires interactive shell")
 
-        self._spawn_shell(command=command)
-        if not self.shell_id:
-            return
-
         if self.terminal_mode:
             print("Use ^F to terminate shell.")
             sys.stdout.flush()
@@ -267,8 +264,8 @@ class JobShell(object):
             signal.signal(signal.SIGWINCH, self._on_signal)
             signal.signal(signal.SIGHUP, self._on_signal)
             signal.signal(signal.SIGTERM, self._on_signal)
-            self._poll_shell()
 
+            self._spawn_shell(command=command)
             self.ioloop.start()
         finally:
             self._restore_termios()
