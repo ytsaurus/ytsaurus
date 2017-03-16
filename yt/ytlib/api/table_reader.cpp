@@ -204,7 +204,7 @@ void TSchemalessTableReader::DoOpen()
 
         // XXX(savrus) Remove in 19.2
         if (dynamic) {
-            THROW_ERROR_EXCEPTION("Read table for dynamic tables is not supported")
+            THROW_ERROR_EXCEPTION("Read table for dynamic tables is not supported");
         }
 
         if (timestamp && !(dynamic && schema.IsSorted())) {
