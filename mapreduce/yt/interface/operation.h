@@ -191,7 +191,7 @@ class IMapper
     : public IJob
 {
 public:
-    static const EType JobType = EType::Mapper;
+    static constexpr EType JobType = EType::Mapper;
     using TReader = TR;
     using TWriter = TW;
 
@@ -213,7 +213,7 @@ class IReducer
     : public IJob
 {
 public:
-    static const EType JobType = EType::Reducer;
+    static constexpr EType JobType = EType::Reducer;
     using TReader = TR;
     using TWriter = TW;
 
@@ -243,7 +243,7 @@ class IAggregatorReducer
     : public IJob
 {
 public:
-    static const EType JobType = EType::ReducerAggregator;
+    static constexpr EType JobType = EType::ReducerAggregator;
 
     using TReader = TR;
     using TWriter = TW;

@@ -198,35 +198,6 @@ TDerived& TOperationIOSpec<TDerived>::SetOutput(size_t tableIndex, const TRichYP
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TMapper>
-int RunMapJob(size_t outputTableCount, TInputStream& jobStateStream)
-{
-    using TInputRow = typename TMapper::TReader::TRowType;
-    using TOutputRow = typename TMapper::TWriter::TRowType;
-
-    try {
-        auto reader = CreateJobReader<TInputRow>();
-        auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
-
-        auto mapper = MakeIntrusive<TMapper>();
-        mapper->Load(jobStateStream);
-
-        mapper->Start(writer.Get());
-        mapper->Do(reader.Get(), writer.Get());
-        mapper->Finish(writer.Get());
-        writer->Finish();
-
-    } catch (const TWithBackTrace<yexception>& e) {
-        Cerr << "Exception caught: " << e.what() << Endl;
-        e.BackTrace()->PrintTo(Cerr);
-        return 1;
-
-    }
-    //skip other exceptions: bt_terminate_handler will print exception trace for this cases
-
-    return 0;
-}
-
 struct TReducerContext
 {
     bool Break = false;
@@ -239,68 +210,95 @@ inline void IReducer<TR, TW>::Break()
     TReducerContext::Get()->Break = true;
 }
 
+template <typename TReader, typename TWriter>
+void FeedJobInput(
+    IMapper<TReader, TWriter>* mapper,
+    typename TRowTraits<typename TReader::TRowType>::IReaderImpl* readerImpl,
+    TWriter* writer)
+{
+    using TInputRow = typename TReader::TRowType;
+
+    auto reader = MakeIntrusive<TTableReader<TInputRow>>(readerImpl);
+    mapper->Do(reader.Get(), writer);
+}
+
+template <typename TReader, typename TWriter>
+void FeedJobInput(
+    IReducer<TReader, TWriter>* reducer,
+    typename TRowTraits<typename TReader::TRowType>::IReaderImpl* readerImpl,
+    TWriter* writer)
+{
+    using TInputRow = typename TReader::TRowType;
+
+    auto rangesReader = MakeIntrusive<TTableRangesReader<TInputRow>>(readerImpl);
+    for (; rangesReader->IsValid(); rangesReader->Next()) {
+        reducer->Do(&rangesReader->GetRange(), writer);
+        if (TReducerContext::Get()->Break) {
+            break;
+        }
+    }
+}
+
+template <typename TReader, typename TWriter>
+void FeedJobInput(
+    IAggregatorReducer<TReader, TWriter>* reducer,
+    typename TRowTraits<typename TReader::TRowType>::IReaderImpl* readerImpl,
+    TWriter* writer)
+{
+    using TInputRow = typename TReader::TRowType;
+
+    auto rangesReader = MakeIntrusive<TTableRangesReader<TInputRow>>(readerImpl);
+    reducer->Do(rangesReader.Get(), writer);
+}
+
+template <class TJob>
+int RunJob(size_t outputTableCount, TInputStream& jobStateStream)
+{
+    using TInputRow = typename TJob::TReader::TRowType;
+    using TOutputRow = typename TJob::TWriter::TRowType;
+
+    auto readerImpl = CreateJobReaderImpl<TInputRow>();
+
+    // Many users don't expect to have jobs with empty input so we skip such jobs.
+    if (!readerImpl->IsValid()) {
+        Cerr << "Job received empty input. Exiting immediately." << Endl;
+        return 0;
+    }
+
+    auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
+
+    auto job = MakeIntrusive<TJob>();
+    job->Load(jobStateStream);
+
+    job->Start(writer.Get());
+    FeedJobInput(job.Get(), readerImpl.Get(), writer.Get());
+    job->Finish(writer.Get());
+
+    writer->Finish();
+
+    return 0;
+}
+
+//
+// We leave RunMapJob/RunReduceJob/RunAggregatorReducer for backward compatibility,
+// some user use them already. :(
+
+template <class TMapper>
+int RunMapJob(size_t outputTableCount, TInputStream& jobStateStream)
+{
+    return RunJob<TMapper>(outputTableCount, jobStateStream);
+}
+
 template <class TReducer>
 int RunReduceJob(size_t outputTableCount, TInputStream& jobStateStream)
 {
-    using TInputRow = typename TReducer::TReader::TRowType;
-    using TOutputRow = typename TReducer::TWriter::TRowType;
-
-    try {
-        auto readerImpl = CreateJobReaderImpl<TInputRow>();
-        auto rangesReader = MakeIntrusive<TTableRangesReader<TInputRow>>(readerImpl);
-        auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
-
-        auto reducer = MakeIntrusive<TReducer>();
-        reducer->Load(jobStateStream);
-
-        reducer->Start(writer.Get());
-        for (; rangesReader->IsValid(); rangesReader->Next()) {
-            reducer->Do(&rangesReader->GetRange(), writer.Get());
-            if (TReducerContext::Get()->Break) {
-                break;
-            }
-        }
-        reducer->Finish(writer.Get());
-        writer->Finish();
-
-    } catch (const TWithBackTrace<yexception>& e) {
-        Cerr << "Exception caught: " << e.what() << Endl;
-        e.BackTrace()->PrintTo(Cerr);
-        return 1;
-    }
-    //skip other exceptions: bt_terminate_handler will print exception trace for this cases
-
-    return 0;
+    return RunJob<TReducer>(outputTableCount, jobStateStream);
 }
 
 template <class TReducer>
 int RunAggregatorReducer(size_t outputTableCount, TInputStream& jobStateStream)
 {
-    using TInputRow = typename TReducer::TReader::TRowType;
-    using TOutputRow = typename TReducer::TWriter::TRowType;
-
-    try {
-        auto readerImpl = CreateJobReaderImpl<TInputRow>();
-        auto rangesReader = MakeIntrusive<TTableRangesReader<TInputRow>>(readerImpl);
-        auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
-
-        auto reducer = MakeIntrusive<TReducer>();
-        reducer->Load(jobStateStream);
-
-        reducer->Start(writer.Get());
-        reducer->Do(rangesReader.Get(), writer.Get());
-        reducer->Finish(writer.Get());
-
-        writer->Finish();
-
-    } catch (const TWithBackTrace<yexception>& e) {
-        Cerr << "Exception caught: " << e.what() << Endl;
-        e.BackTrace()->PrintTo(Cerr);
-        return 1;
-    }
-    //skip other exceptions: bt_terminate_handler will print exception trace for this cases
-
-    return 0;
+    return RunJob<TReducer>(outputTableCount, jobStateStream);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -315,34 +313,13 @@ public:
         return Singleton<TJobFactory>();
     }
 
-    template <class TMapper>
-    void RegisterMapper(const char* name)
+    template <class TJob>
+    void RegisterJob(const char* name)
     {
-        static_assert(TMapper::JobType == IJob::EType::Mapper,
-            "REGISTER_MAPPER is not compatible with this job class");
-
-        const auto* typeInfoPtr = &typeid(TMapper);
+        const auto* typeInfoPtr = &typeid(TJob);
         CheckNotRegistered(typeInfoPtr, name);
         JobNames[typeInfoPtr] = name;
-        JobFunctions[name] = RunMapJob<TMapper>;
-    }
-
-    template <class TReducer>
-    void RegisterReducer(const char* name, typename std::enable_if_t<TReducer::JobType == IJob::EType::Reducer>* = nullptr)
-    {
-        const auto* typeInfoPtr = &typeid(TReducer);
-        CheckNotRegistered(typeInfoPtr, name);
-        JobNames[typeInfoPtr] = name;
-        JobFunctions[name] = RunReduceJob<TReducer>;
-    }
-
-    template <class TReducer>
-    void RegisterReducer(const char* name, typename std::enable_if_t<TReducer::JobType == IJob::EType::ReducerAggregator>* = nullptr)
-    {
-        const auto* typeInfoPtr = &typeid(TReducer);
-        CheckNotRegistered(typeInfoPtr, name);
-        JobNames[typeInfoPtr] = name;
-        JobFunctions[name] = RunAggregatorReducer<TReducer>;
+        JobFunctions[name] = RunJob<TJob>;
     }
 
     Stroka GetJobName(IJob* job)
@@ -402,7 +379,10 @@ struct TMapperRegistrator
 {
     TMapperRegistrator(const char* name)
     {
-        NYT::TJobFactory::Get()->RegisterMapper<TMapper>(name);
+        static_assert(TMapper::JobType == IJob::EType::Mapper,
+            "REGISTER_MAPPER is not compatible with this job class");
+
+        NYT::TJobFactory::Get()->RegisterJob<TMapper>(name);
     }
 };
 
@@ -411,7 +391,11 @@ struct TReducerRegistrator
 {
     TReducerRegistrator(const char* name)
     {
-        NYT::TJobFactory::Get()->RegisterReducer<TReducer>(name);
+        static_assert(TReducer::JobType == IJob::EType::Reducer ||
+            TReducer::JobType == IJob::EType::ReducerAggregator,
+            "REGISTER_REDUCER is not compatible with this job class");
+
+        NYT::TJobFactory::Get()->RegisterJob<TReducer>(name);
     }
 };
 
