@@ -2980,7 +2980,7 @@ public:
         for (auto row : rows) {
             TRowModification modification;
             modification.Type = ERowModificationType::Write;
-            modification.Row = row;
+            modification.Row = row.ToTypeErasedRow();
             modifications.push_back(modification);
         }
 
@@ -3002,7 +3002,7 @@ public:
         for (auto row : rows) {
             TRowModification modification;
             modification.Type = ERowModificationType::VersionedWrite;
-            modification.VersionedRow = row;
+            modification.Row = row.ToTypeErasedRow();
             modifications.push_back(modification);
         }
 
@@ -3024,7 +3024,7 @@ public:
         for (auto key : keys) {
             TRowModification modification;
             modification.Type = ERowModificationType::Delete;
-            modification.Row = key;
+            modification.Row = key.ToTypeErasedRow();
             modifications.push_back(modification);
         }
 
@@ -3254,7 +3254,7 @@ private:
             for (const auto& modification : Modifications_) {
                 switch (modification.Type) {
                     case ERowModificationType::Write:
-                        ValidateClientDataRow(modification.Row, writeSchema, writeIdMapping, NameTable_);
+                        ValidateClientDataRow(TUnversionedRow(modification.Row), writeSchema, writeIdMapping, NameTable_);
                         break;
 
                     case ERowModificationType::VersionedWrite:
@@ -3262,7 +3262,7 @@ private:
                             THROW_ERROR_EXCEPTION("Cannot perform versioned writes into a non-sorted table %v",
                                 tableInfo->Path);
                         }
-                        ValidateClientDataRow(modification.VersionedRow, versionedWriteSchema, versionedWriteIdMapping, NameTable_);
+                        ValidateClientDataRow(TVersionedRow(modification.Row), versionedWriteSchema, versionedWriteIdMapping, NameTable_);
                         break;
 
                     case ERowModificationType::Delete:
@@ -3270,7 +3270,7 @@ private:
                             THROW_ERROR_EXCEPTION("Cannot deletes in a non-sorted table %v",
                                 tableInfo->Path);
                         }
-                        ValidateClientKey(modification.Row, deleteSchema, deleteIdMapping, NameTable_);
+                        ValidateClientKey(TUnversionedRow(modification.Row), deleteSchema, deleteIdMapping, NameTable_);
                         break;
 
                     default:
@@ -3281,7 +3281,7 @@ private:
                     case ERowModificationType::Write:
                     case ERowModificationType::Delete: {
                         auto capturedRow = rowBuffer->CaptureAndPermuteRow(
-                            modification.Row,
+                            TUnversionedRow(modification.Row),
                             primarySchema,
                             primaryIdMapping);
                         TTabletInfoPtr tabletInfo;
@@ -3295,7 +3295,7 @@ private:
                                 tableInfo,
                                 randomTabletInfo,
                                 TabletIndexColumnId_,
-                                modification.Row);
+                                TUnversionedRow(modification.Row));
                         }
                         auto* session = Transaction_->GetTabletSession(tabletInfo, tableInfo);
                         auto command = GetCommand(modification.Type);
@@ -3305,7 +3305,7 @@ private:
 
                     case ERowModificationType::VersionedWrite: {
                         auto capturedRow = rowBuffer->CaptureAndPermuteRow(
-                            modification.VersionedRow,
+                            TVersionedRow(modification.Row),
                             primarySchema,
                             primaryIdMapping);
                         auto tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow);
