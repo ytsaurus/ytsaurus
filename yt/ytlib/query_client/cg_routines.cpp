@@ -165,6 +165,14 @@ void InsertJoinRow(
     }
 
     TMutableRow key = *keyPtr;
+
+    if (!closure->LastKey || !closure->PrefixEqComparer(key, closure->LastKey)) {
+        closure->ProcessSegment();
+        closure->LastKey = key;
+        closure->Lookup.clear();
+        // Key will be realloacted further
+    }
+
     auto inserted = closure->Lookup.insert(std::make_pair(key, std::make_pair(chainIndex, false)));
     if (inserted.second) {
         for (int index = 0; index < closure->KeySize; ++index) {
@@ -188,7 +196,10 @@ void JoinOpHelper(
     TJoinParameters* parameters,
     THasherFunction* lookupHasher,
     TComparerFunction* lookupEqComparer,
-    TComparerFunction* lookupLessComparer,
+    TComparerFunction* sortLessComparer,
+    TComparerFunction* prefixEqComparer,
+    TComparerFunction* fullEqComparer,
+    TComparerFunction* fullLessComparer,
     int keySize,
     void** collectRowsClosure,
     void (*collectRows)(
@@ -198,34 +209,33 @@ void JoinOpHelper(
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size))
 {
-    TJoinClosure closure(lookupHasher, lookupEqComparer, keySize, parameters->BatchSize);
+    TJoinClosure closure(lookupHasher, lookupEqComparer, prefixEqComparer, keySize, parameters->BatchSize);
 
-    closure.ProcessJoinBatch = [&] () {
-        std::vector<std::pair<TRow, int>> keysToRows;
-        keysToRows.reserve(closure.Lookup.size());
-
+    closure.ProcessSegment = [&] () {
+        auto offset = closure.KeysToRows.size();
         for (const auto& item : closure.Lookup) {
-            keysToRows.emplace_back(item.first, item.second.first);
+            closure.KeysToRows.emplace_back(item.first, item.second.first);
         }
 
-        LOG_DEBUG("Sorting %v join keys",
-            keysToRows.size());
-
-        std::sort(keysToRows.begin(), keysToRows.end(), [&] (
+        std::sort(closure.KeysToRows.begin() + offset, closure.KeysToRows.end(), [&] (
             const std::pair<TRow, int>& lhs,
             const std::pair<TRow, int>& rhs)
             {
-                return lookupLessComparer(lhs.first, rhs.first);
+                return sortLessComparer(lhs.first, rhs.first);
             });
+    };
+
+    closure.ProcessJoinBatch = [&] () {
+        closure.ProcessSegment();
 
         LOG_DEBUG("Collected %v join keys from %v rows",
-            keysToRows.size(),
+            closure.KeysToRows.size(),
             closure.ChainedRows.size());
 
         std::vector<TRow> keys;
-        keys.reserve(keysToRows.size());
+        keys.reserve(closure.KeysToRows.size());
 
-        for (const auto& item : keysToRows) {
+        for (const auto& item : closure.KeysToRows) {
             keys.push_back(item.first);
         }
 
@@ -334,20 +344,20 @@ void JoinOpHelper(
 
             if (canUseSourceRanges) {
                 // Sort-merge join
-                auto currentKey = keysToRows.begin();
-                auto lastJoined = keysToRows.end();
-                while (currentKey != keysToRows.end()) {
+                auto currentKey = closure.KeysToRows.begin();
+                auto lastJoined = closure.KeysToRows.end();
+                while (currentKey != closure.KeysToRows.end()) {
                     bool hasMoreData = reader->Read(&foreignRows);
                     bool shouldWait = foreignRows.empty();
 
                     auto foreignIt = foreignRows.begin();
-                    while (foreignIt != foreignRows.end() && currentKey != keysToRows.end()) {
+                    while (foreignIt != foreignRows.end() && currentKey != closure.KeysToRows.end()) {
                         int startIndex = currentKey->second;
-                        if (lookupEqComparer(currentKey->first, *foreignIt)) {
+                        if (fullEqComparer(currentKey->first, *foreignIt)) {
                             joinRows(startIndex, *foreignIt);
                             ++foreignIt;
                             lastJoined = currentKey;
-                        } else if (lookupLessComparer(currentKey->first, *foreignIt)) {
+                        } else if (fullLessComparer(currentKey->first, *foreignIt)) {
                             if (lastJoined != currentKey) {
                                 joinRowsNull(startIndex);
                                 lastJoined = currentKey;
@@ -374,7 +384,7 @@ void JoinOpHelper(
                 }
 
                 if (isLeft) {
-                    while (currentKey != keysToRows.end()) {
+                    while (currentKey != closure.KeysToRows.end()) {
                         int startIndex = currentKey->second;
                         if (lastJoined != currentKey) {
                             joinRowsNull(startIndex);

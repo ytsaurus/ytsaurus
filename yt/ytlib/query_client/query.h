@@ -251,6 +251,8 @@ struct TJoinClause
     std::vector<TConstExpressionPtr> ForeignEquations;
     std::vector<std::pair<TConstExpressionPtr, bool>> SelfEquations;
 
+    size_t CommonKeyPrefix = 0;
+
     bool IsLeft = false;
 
     TGuid ForeignDataId;
@@ -523,6 +525,13 @@ void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized);
 
 Stroka InferName(TConstExpressionPtr expr, bool omitValues = false);
 Stroka InferName(TConstQueryPtr query, bool omitValues = false);
+
+bool Compare(
+    TConstExpressionPtr lhs,
+    const TTableSchema& lhsSchema,
+    TConstExpressionPtr rhs,
+    const TTableSchema& rhsSchema,
+    size_t maxIndex = std::numeric_limits<size_t>::max());
 
 ////////////////////////////////////////////////////////////////////////////////
 

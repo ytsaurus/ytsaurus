@@ -145,6 +145,7 @@ std::vector<TMutableRow> TTopCollector::GetRows(int rowSize) const
 TJoinClosure::TJoinClosure(
     THasherFunction* lookupHasher,
     TComparerFunction* lookupEqComparer,
+    TComparerFunction* prefixEqComparer,
     int keySize,
     size_t batchSize)
     : Buffer(New<TRowBuffer>(TPermanentBufferTag()))
@@ -152,6 +153,7 @@ TJoinClosure::TJoinClosure(
         InitialGroupOpHashtableCapacity,
         lookupHasher,
         lookupEqComparer)
+    , PrefixEqComparer(prefixEqComparer)
     , KeySize(keySize)
     , BatchSize(batchSize)
 {

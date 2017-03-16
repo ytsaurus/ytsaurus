@@ -61,6 +61,7 @@ public:
 
 protected:
     void Fold(int numeric);
+    void Fold(size_t numeric);
     void Fold(const char* str);
 
     llvm::FoldingSetNodeID* Id_;
@@ -68,6 +69,13 @@ protected:
 };
 
 void TSchemaProfiler::Fold(int numeric)
+{
+    if (Id_) {
+        Id_->AddInteger(numeric);
+    }
+}
+
+void TSchemaProfiler::Fold(size_t numeric)
 {
     if (Id_) {
         Id_->AddInteger(numeric);
@@ -281,9 +289,14 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
             joinBatchSize,
             query->IsOrdered()));
 
+        YCHECK(joinClause->CommonKeyPrefix < 1000);
+
+        Fold(joinClause->CommonKeyPrefix);
+
         codegenSource = MakeCodegenJoinOp(
             index,
             selfKeys,
+            joinClause->CommonKeyPrefix,
             std::move(codegenSource));
 
         schema = joinClause->GetTableSchema(schema);
