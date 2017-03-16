@@ -1885,6 +1885,10 @@ private:
                     Logger);
             }
 
+            auto samplesRowBuffer = New<TRowBuffer>(
+                TRowBufferTag(),
+                Config->ControllerRowBufferChunkSize);
+
             samplesFetcher = New<TSamplesFetcher>(
                 Config->Fetcher,
                 ESamplingPolicy::Sorting,
@@ -1893,7 +1897,7 @@ private:
                 Options->MaxSampleSize,
                 InputNodeDirectory,
                 GetCancelableInvoker(),
-                RowBuffer,
+                samplesRowBuffer,
                 scraperCallback,
                 Host->GetMasterClient(),
                 Logger);
@@ -1916,14 +1920,6 @@ private:
         PROFILE_TIMING ("/samples_processing_time") {
             auto sortedSamples = SortSamples(samplesFetcher->GetSamples());
             BuildPartitions(sortedSamples);
-
-            // Garbage collection.
-            auto rowBuffer = New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize);
-            for (auto& partition : Partitions) {
-                partition->Key = rowBuffer->Capture(partition->Key);
-            }
-            std::swap(RowBuffer, rowBuffer);
-
         }
 
         InitJobSpecTemplates();
@@ -2070,7 +2066,7 @@ private:
             auto* sample = selectedSamples[sampleIndex];
             // Check for same keys.
             if (CompareRows(sample->Key, Partitions.back()->Key) != 0) {
-                AddPartition(sample->Key);
+                AddPartition(RowBuffer->Capture(sample->Key));
                 ++sampleIndex;
             } else {
                 // Skip same keys.
@@ -2103,7 +2099,7 @@ private:
                     LOG_DEBUG("Partition %v is oversized, skipped %v samples",
                         lastPartition->Index,
                         skippedCount);
-                    AddPartition(selectedSamples[sampleIndex]->Key);
+                    AddPartition(RowBuffer->Capture(selectedSamples[sampleIndex]->Key));
                     ++sampleIndex;
                 }
             }
