@@ -54,7 +54,10 @@ class JobShell(object):
         self.key_buffer = b""
         self.input_offset = 0
         self.ioloop = IOLoop.current() if hasattr(IOLoop, "current") else IOLoop.instance()
-        self.async = AsyncHTTPClient()
+        if self.interactive:
+            self.client = AsyncHTTPClient()
+        else:
+            self.client = HTTPClient()
         self.terminal_mode = True
         self.output = FileIO(sys.stdout.fileno(), mode='w', closefd=False)
 
@@ -116,12 +119,21 @@ class JobShell(object):
         req.headers["X-YT-Correlation-Id"] = generate_uuid()
         return req
 
-    def make_request(self, operation, callback, keys=None, input_offset=None, term=None,
+    def make_request(self, operation, callback=None, keys=None, input_offset=None, term=None,
                      height=None, width=None, command=None):
-        if operation == "spawn" or self.shell_id != None:
+        if operation == "spawn" or self.shell_id != None or not self.interactive:
             req = self._prepare_request(operation, keys=keys, input_offset=input_offset, term=term,
                                         height=height, width=width, command=command)
-            self.async.fetch(req, callback=callback)
+            if self.interactive:
+                self.client.fetch(req, callback=callback)
+            else:
+                try:
+                    rsp = yson.loads(self.client.fetch(req).body)
+                    if rsp and "shell_id" in rsp:
+                        self.shell_id = rsp["shell_id"]
+                    return rsp
+                except HTTPError as err:
+                    self._on_http_error(err)
 
     def _terminal_size(self):
         height, width, pixelHeight, pixelWidth = struct.unpack(
@@ -195,16 +207,16 @@ class JobShell(object):
     def _spawn_shell(self, command=None):
         if command:
             self.terminal_mode = False
-        rsp = self.make_request("spawn", self._on_spawn_response, term=os.environ["TERM"], command=command)
+        rsp = self.make_request("spawn", callback=self._on_spawn_response, term=os.environ["TERM"], command=command)
 
     def _poll_shell(self):
         self.make_request("poll", callback=self._on_poll_response)
 
     def _update_shell(self, keys=None, input_offset=None):
-        self.make_request("update", self._on_update_response, keys=keys, input_offset=input_offset)
+        self.make_request("update", callback=self._on_update_response, keys=keys, input_offset=input_offset)
 
     def _terminate_shell(self):
-        self.make_request("terminate", self._on_terminate_response)
+        self.make_request("terminate", callback=self._on_terminate_response)
 
     def _resize_window(self):
         width, height = self._terminal_size()
