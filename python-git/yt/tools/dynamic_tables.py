@@ -22,6 +22,8 @@ from itertools import takewhile, chain
 from random import shuffle
 from collections import Counter
 
+from functools import partial
+
 # XXXX/TODO: global stuff. Find a way to avoid this.
 yt_module.config["pickling"]["module_filter"] = lambda module: not hasattr(module, "__file__") or "yt_driver_bindings" not in module.__file__
 
@@ -174,18 +176,30 @@ def _mount_unmount_table(client, action, table, timeout, pause):
         timeout - (time.time() - start),
         pause)
 
-def wait_for_state(client, table, state, timeout=300, pause=1):
+def wait_for_state_new(client, table, state, timeout=300, pause=1):
     _wait_for_predicate(
         _make_tablets_state_checker(client, table, [state]),
         "All %s tablets are %s" % (table, state),
         timeout,
         pause)
 
-def mount_table(client, table, timeout=300, pause=1):
+def mount_table_new(client, table, timeout=300, pause=1):
     _mount_unmount_table(client, "mount", table, timeout, pause)
 
-def unmount_table(client, table, timeout=300, pause=1):
+def unmount_table_new(client, table, timeout=300, pause=1):
     _mount_unmount_table(client, "unmount", table, timeout, pause)
+
+def get_pivot_keys_new(client, tablet):
+    pivot_keys = [tablet["pivot_key"]]
+    tablet_id = tablet["tablet_id"]
+    cell_id = tablet["cell_id"]
+    node = client.get("#{}/@peers/0/address".format(cell_id))
+    partitions_path = "//sys/nodes/{}/orchid/tablet_cells/{}/tablets/{}/partitions".format(
+        node, cell_id, tablet_id)
+    partitions = client.get(partitions_path)
+    for partition in partitions:
+        pivot_keys.append(partition["pivot_key"])
+    return pivot_keys
 
 def split_in_groups(rows, count=10000):
     # Should be the same as
@@ -197,18 +211,6 @@ def split_in_groups(rows, count=10000):
             result = []
         result.append(row)
     yield result
-
-def get_pivot_keys(client, tablet):
-    pivot_keys = [tablet["pivot_key"]]
-    tablet_id = tablet["tablet_id"]
-    cell_id = tablet["cell_id"]
-    node = client.get("#{}/@peers/0/address".format(cell_id))
-    partitions_path = "//sys/nodes/{}/orchid/tablet_cells/{}/tablets/{}/partitions".format(
-        node, cell_id, tablet_id)
-    partitions = client.get(partitions_path)
-    for partition in partitions:
-        pivot_keys.append(partition["pivot_key"])
-    return pivot_keys
 
 class DynamicTablesClient(object):
 
@@ -304,7 +306,7 @@ class DynamicTablesClient(object):
             for tablet in tablets:
                 tablet_idx += 1
                 logging.info("Tablet {} of {}".format(tablet_idx, len(tablets)))
-                partition_keys.extend(get_pivot_keys(self.yt, tablet))
+                partition_keys.extend(get_pivot_keys_new(self.yt, tablet))
         else:
             logging.info("Via map")
             # note: unconfigurable.
@@ -318,7 +320,7 @@ class DynamicTablesClient(object):
 
                 client_config = self.default_client_config
                 def collect_pivot_keys_mapper(tablet):
-                    for pivot_key in get_pivot_keys(Yt(config=client_config), tablet):
+                    for pivot_key in get_pivot_keys_new(Yt(config=client_config), tablet):
                         yield {"pivot_key": pivot_key}
 
                 self.yt.run_map(
@@ -474,3 +476,9 @@ build_spec_from_options = worker.build_spec_from_options
 extract_partition_bounds = worker.extract_partition_bounds
 run_map_dynamic = worker.run_map_dynamic
 run_map_over_dynamic = worker.run_map_over_dynamic
+
+# COMPAT(lukyan)
+get_pivot_keys = partial(get_pivot_keys_new, yt_module)
+mount_table = partial(mount_table_new, yt_module)
+unmount_table = partial(unmount_table_new, yt_module)
+wait_for_state = partial(wait_for_state_new, yt_module)
