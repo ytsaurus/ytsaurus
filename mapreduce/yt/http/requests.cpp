@@ -262,7 +262,7 @@ Stroka GetProxyForHeavyRequest(const TAuth& auth)
     Stroka response = RetryRequest(auth, header);
     ParseJsonStringArray(response, hosts);
     if (hosts.empty()) {
-        ythrow yexception() << "cannot get proxy for heavy request";
+        ythrow yexception() << "returned list of proxies is empty";
     }
 
     if (hosts.size() < 3) {

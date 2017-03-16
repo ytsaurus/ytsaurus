@@ -95,9 +95,9 @@ void TClientReader::TransformYPath()
 
 void TClientReader::CreateRequest(bool keepRanges, ui32 rangeIndex, ui64 rowIndex)
 {
-    const int retryCount = TConfig::Get()->RetryCount;
+    const int lastAttempt = TConfig::Get()->RetryCount - 1;
 
-    for (int attempt = 0; attempt < retryCount; ++attempt) {
+    for (int attempt = 0; attempt <= lastAttempt; ++attempt) {
         Stroka requestId;
         try {
             Stroka proxyName = GetProxyForHeavyRequest(Auth_);
@@ -151,12 +151,11 @@ void TClientReader::CreateRequest(bool keepRanges, ui32 rangeIndex, ui64 rowInde
             LOG_ERROR("RSP %s - attempt %d failed",
                 ~requestId, attempt);
 
-            if (!e.IsRetriable() || attempt + 1 == retryCount) {
+            if (!e.IsRetriable() || attempt == lastAttempt) {
                 throw;
             }
             Sleep(e.GetRetryInterval());
             continue;
-
         } catch (yexception& e) {
             LOG_ERROR("RSP %s - %s - attempt %d failed",
                 ~requestId, e.what(), attempt);
@@ -164,7 +163,7 @@ void TClientReader::CreateRequest(bool keepRanges, ui32 rangeIndex, ui64 rowInde
             if (Request_) {
                 Request_->InvalidateConnection();
             }
-            if (attempt + 1 == retryCount) {
+            if (attempt == lastAttempt) {
                 throw;
             }
             Sleep(TConfig::Get()->RetryInterval);
