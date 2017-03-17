@@ -271,10 +271,10 @@ public:
             .Run(operationId, transactionId, tableId, childIds);
     }
 
-    TFuture<TSharedRef> DownloadSnapshot(const TOperationId& operationId)
+    TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId)
     {
         if (!Config->EnableSnapshotLoading) {
-            return MakeFuture<TSharedRef>(TError("Snapshot loading is disabled in configuration"));
+            return MakeFuture<TOperationSnapshot>(TError("Snapshot loading is disabled in configuration"));
         }
 
         return BIND(&TImpl::DoDownloadSnapshot, MakeStrong(this), operationId)
@@ -1266,7 +1266,7 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
     }
 
-    TSharedRef DoDownloadSnapshot(const TOperationId& operationId)
+    TOperationSnapshot DoDownloadSnapshot(const TOperationId& operationId)
     {
         auto snapshotPath = GetSnapshotPath(operationId);
 
@@ -1295,15 +1295,18 @@ private:
             THROW_ERROR_EXCEPTION("Snapshot version validation failed");
         }
 
+        TOperationSnapshot snapshot;
+        snapshot.Version = version;
         try {
             auto downloader = New<TSnapshotDownloader>(
                 Config,
                 Bootstrap,
                 operationId);
-            return downloader->Run();
+            snapshot.Data = downloader->Run();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error downloading snapshot") << ex;
         }
+        return snapshot;
     }
 
     void DoRemoveSnapshot(const TOperationId& operationId)
@@ -2068,7 +2071,7 @@ TFuture<void> TMasterConnector::FlushOperationNode(TOperationPtr operation)
     return Impl->FlushOperationNode(operation);
 }
 
-TFuture<TSharedRef> TMasterConnector::DownloadSnapshot(const TOperationId& operationId)
+TFuture<TOperationSnapshot> TMasterConnector::DownloadSnapshot(const TOperationId& operationId)
 {
     return Impl->DownloadSnapshot(operationId);
 }
