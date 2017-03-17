@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import (TEST_DIR, TESTS_SANDBOX, TESTS_LOCATION,
-                      get_environment_for_binary_test, check, set_config_options)
+                      get_environment_for_binary_test, check, set_config_options, set_config_option)
 
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
@@ -276,6 +276,14 @@ class TestRetries(object):
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
             yt.config["read_retries"]["enable"] = old_value[0]
             yt.config["read_retries"]["allow_multiple_ranges"] = old_value[1]
+
+    def test_read_parallel_with_retries(self):
+        with set_config_option("read_parallel/enable", True):
+            self.test_read_with_retries()
+
+    def test_read_ranges_parallel_with_retries(self, yt_env):
+        with set_config_option("read_parallel/enable", True):
+            self.test_read_ranges_with_retries(yt_env)
 
     def test_heavy_requests_with_retries(self):
         table = TEST_DIR + "/table"

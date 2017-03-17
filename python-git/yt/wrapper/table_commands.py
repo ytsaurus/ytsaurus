@@ -11,6 +11,7 @@ from .heavy_commands import make_write_request, make_read_request
 from .response_stream import EmptyResponseStream, ResponseStreamWithReadRow
 from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _prepare_table_writer,
                             _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_format)
+from .table_read_parallel import make_read_parallel_request
 from .ypath import TablePath, ypath_join
 
 import yt.json as json
@@ -293,7 +294,7 @@ def read_blob_table(table, part_index_column_name="part_index", data_column_name
     return response
 
 def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None,
-               raw=None, response_parameters=None, read_transaction=None, client=None):
+               raw=None, response_parameters=None, client=None):
     """Reads rows from table and parse (optionally).
 
     :param table: table to read.
@@ -333,8 +334,21 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
         "output_format": format.to_yson_type()
     }
     set_param(params, "table_reader", table_reader)
-    set_param(params, "control_attributes", control_attributes)
     set_param(params, "unordered", unordered)
+
+    if get_config(client)["read_parallel"]["enable"]:
+        if control_attributes is not None:
+            logger.warning('Cannot read table in parallel since parameter "control_attributes" is specified')
+        elif table.has_key_limit_in_ranges():
+            logger.warning("Cannot read table in parallel since table path contains key limits")
+        else:
+            response = make_read_parallel_request(table, attributes, params, unordered, response_parameters, client)
+            if raw:
+                return response
+            else:
+                return format.load_rows(response)
+
+    set_param(params, "control_attributes", control_attributes)
 
     def set_response_parameters(parameters):
         if response_parameters is not None:

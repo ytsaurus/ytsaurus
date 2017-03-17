@@ -73,6 +73,21 @@ class TestTableCommands(object):
         with pytest.raises(yt.YtError):
             yt.read_table(file)
 
+        yt.write_table(table, [{"x": i} for i in xrange(10)])
+        with set_config_option("read_parallel/max_thread_count", 2):
+            with set_config_option("proxy/request_timeout", 100):
+                iterator = yt.read_table(table)
+
+                for transaction in yt.search("//sys/transactions", attributes=["tittle"]):
+                    attributes = yt.get(transaction + "/@")
+                    if attributes.get("title", "").startswith("Python wrapper: read"):
+                        yt.abort_transaction(attributes["id"])
+
+                time.sleep(1)
+                with pytest.raises(yt.YtError):
+                    for _ in iterator:
+                        pass
+
     def test_table_path(self, yt_env):
         path = yt.TablePath("//path/to/table", attributes={"my_attr": 10})
         assert path.attributes["my_attr"] == 10
@@ -123,6 +138,10 @@ class TestTableCommands(object):
 
     def test_read_write_without_retries(self):
         with set_config_option("write_retries/enable", False):
+            self._test_read_write()
+
+    def test_read_parallel(self):
+        with set_config_option("read_parallel/enable", True):
             self._test_read_write()
 
     def test_empty_table(self):
@@ -324,6 +343,10 @@ class TestTableCommands(object):
             rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]), raw=True)
             assert rsp.response_parameters == {"approximate_row_count": 0}
 
+    def test_start_row_index_parallel(self):
+        with set_config_option("read_parallel/enable", True):
+            self.test_start_row_index()
+
     def test_table_index(self):
         dsv = yt.format.DsvFormat(enable_table_index=True, table_index_column="TableIndex")
         schemaful_dsv = yt.format.SchemafulDsvFormat(columns=["1", "2", "3"],
@@ -430,6 +453,10 @@ class TestTableCommands(object):
         with pytest.raises(yt.YtError):
             TablePath("abc")
 
+    def test_read_parallel_with_table_path(self, yt_env):
+        with set_config_option("read_parallel/enable", True):
+            self.test_read_with_table_path(yt_env)
+
     def test_huge_table(self):
         table = TEST_DIR + "/table"
         power = 3
@@ -445,6 +472,10 @@ class TestTableCommands(object):
         for _ in yt.read_table(table):
             row_count += 1
         assert row_count == 10 ** power
+
+    def test_read_parallel_huge_table(self):
+        with set_config_option("read_parallel/enable", True):
+            self.test_huge_table()
 
     def test_remove_locks(self):
         from yt.wrapper.table_helpers import _remove_locks

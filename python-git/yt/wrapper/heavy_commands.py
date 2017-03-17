@@ -16,6 +16,12 @@ import yt.logger as logger
 import time
 from copy import deepcopy
 
+def process_read_exception(exception):
+    if isinstance(exception, YtResponseError) and not exception.is_chunk_unavailable():
+        raise
+    else:
+        logger.warning("Read request failed with error: %s", str(exception))
+
 class FakeTransaction(object):
     def __enter__(self):
         return self
@@ -130,6 +136,22 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                 use_heavy_proxy=True,
                 client=client)
 
+def _get_read_response(command_name, params, transaction_id, client=None):
+    make_request = lambda: _make_transactional_request(
+        command_name,
+        params,
+        return_content=False,
+        use_heavy_proxy=True,
+        allow_retries=False,
+        client=client)
+
+    response = None
+    if transaction_id:
+        with Transaction(transaction_id=transaction_id, client=client):
+            response = make_request()
+    else:
+        response = make_request()
+    return response
 
 class ReadIterator(IteratorRetrier):
     def __init__(self, command_name, transaction, process_response_action, retriable_state_class, client=None):
@@ -177,19 +199,8 @@ class ReadIterator(IteratorRetrier):
     def get_response(self):
         if self.response is None:
             params = self.retriable_state.prepare_params_for_retry()
-            make_request = lambda: _make_transactional_request(
-                self.command_name,
-                params,
-                return_content=False,
-                use_heavy_proxy=True,
-                allow_retries=False,
-                client=self.client)
-
-            if self.transaction:
-                with Transaction(transaction_id=self.transaction.transaction_id, client=self.client):
-                    self.response = make_request()
-            else:
-                self.response = make_request()
+            transaction_id = self.transaction.transaction_id if self.transaction else None
+            self.response = _get_read_response(self.command_name, params, transaction_id, self.client)
 
         self.last_response = self.response
         return self.response
@@ -213,10 +224,7 @@ class ReadIterator(IteratorRetrier):
 
     def except_action(self, exception, attempt):
         self.response = None
-        if isinstance(exception, YtResponseError) and not exception.is_chunk_unavailable():
-            raise
-        else:
-            logger.warning("Read request failed with error: %s", str(exception))
+        process_read_exception(exception)
 
 def make_read_request(command_name, path, params, process_response_action, retriable_state_class, client):
     if not get_config(client)["read_retries"]["enable"]:
