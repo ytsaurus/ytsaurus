@@ -29,6 +29,7 @@
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>
 #include <util/system/yield.h>
+#include <util/system/tls.h>
 
 #include <util/string/vector.h>
 
@@ -58,8 +59,9 @@ using namespace NProfiling;
 static TLogger Logger(SystemLoggingCategory);
 static const auto& Profiler = LoggingProfiler;
 
-static const auto ProfilingPeriod = TDuration::Seconds(1);
-static const auto DequeuePeriod = TDuration::MilliSeconds(100);
+static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
+static constexpr auto DequeuePeriod = TDuration::MilliSeconds(100);
+static constexpr int PerThreadBatchingReserveCapacity = 256;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -408,7 +410,7 @@ public:
             HandleEintr(::write, 2, formatter.GetData(), formatter.GetBytesWritten());
 
             // Add fatal message to log and notify event log queue.
-            PushLogEvent(std::move(event));
+            PushEvent(std::move(event));
 
             // Flush everything and die.
             Shutdown();
@@ -451,7 +453,14 @@ public:
             return;
         }
 
-        PushLogEvent(std::move(event));
+        if (PerThreadBatchingPeriod_ != TDuration::Zero()) {
+            BatchEvent(std::move(event));
+            if (NProfiling::GetCpuInstant() > PerThreadBatchingDeadline_) {
+                FlushBatchedEvents();
+            }
+        } else {
+            PushEvent(std::move(event));
+        }
     }
 
     void Reopen()
@@ -459,8 +468,26 @@ public:
         ReopenRequested_ = true;
     }
 
+    void SetPerThreadBatchingPeriod(TDuration value)
+    {
+        if (PerThreadBatchingPeriod_ == value) {
+            return;
+        }
+        FlushBatchedEvents();
+        PerThreadBatchingPeriod_ = value;
+    }
+
+    TDuration GetPerThreadBatchingPeriod() const
+    {
+        return PerThreadBatchingPeriod_;
+    }
+
 private:
-    using TLoggerQueueItem = TVariant<TLogEvent, TLogConfigPtr>;
+    using TLoggerQueueItem = TVariant<
+        TLogEvent,
+        std::vector<TLogEvent>,
+        TLogConfigPtr
+    >;
 
     class TThread
         : public TSchedulerThread
@@ -555,15 +582,6 @@ private:
         YCHECK(pair.second);
 
         return pair.first->second;
-    }
-
-    void Write(const TLogEvent& event)
-    {
-        VERIFY_THREAD_AFFINITY(LoggingThread);
-
-        for (const auto& writer : GetWriters(event)) {
-            writer->Write(event);
-        }
     }
 
     std::unique_ptr<TNotificationWatch> CreateNoficiationWatch(ILogWriterPtr writer, const Stroka& fileName)
@@ -693,6 +711,24 @@ private:
         }
     }
 
+    void WriteEvent(const TLogEvent& event)
+    {
+        if (ReopenRequested_) {
+            ReopenRequested_ = false;
+            ReloadWriters();
+        }
+        for (const auto& writer : GetWriters(event)) {
+            writer->Write(event);
+        }
+    }
+
+    void WriteEvents(const std::vector<TLogEvent>& events)
+    {
+        for (const auto& event : events) {
+            WriteEvent(event);
+        }
+    }
+
     void FlushWriters()
     {
         for (auto& pair : Writers_) {
@@ -748,11 +784,36 @@ private:
         }
     }
 
-    void PushLogEvent(TLogEvent&& event)
+    void PushEvent(TLogEvent&& event)
     {
         ++EnqueuedEvents_;
         LoggerQueue_.Enqueue(std::move(event));
     }
+
+    void PushLogEvents(std::vector<TLogEvent>&& events)
+    {
+        EnqueuedEvents_ += events.size();
+        LoggerQueue_.Enqueue(std::move(events));
+    }
+
+
+    void BatchEvent(TLogEvent&& event)
+    {
+        if (!PerThreadBatchingEvents_) {
+            PerThreadBatchingEvents_ = &PerThreadBatchingEventsHolder_;
+        }
+        PerThreadBatchingEvents_->emplace_back(std::move(event));
+    }
+
+    void FlushBatchedEvents()
+    {
+        std::vector<TLogEvent> newEvents;
+        newEvents.reserve(PerThreadBatchingReserveCapacity);
+        newEvents.swap(*PerThreadBatchingEvents_);
+        PushLogEvents(std::move(newEvents));
+        PerThreadBatchingDeadline_ = NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(PerThreadBatchingPeriod_);
+    }
+
 
     void OnProfiling()
     {
@@ -772,16 +833,14 @@ private:
 
         int eventsWritten = 0;
         while (LoggerQueue_.DequeueAll(true, [&] (const TLoggerQueueItem& item) {
-            if (const auto* configPtr = item.TryAs<TLogConfigPtr>()) {
-                UpdateConfig(*configPtr);
-            } else if (const auto* eventPtr = item.TryAs<TLogEvent>()) {
-                if (ReopenRequested_) {
-                    ReopenRequested_ = false;
-                    ReloadWriters();
-                }
-
-                Write(*eventPtr);
+            if (const auto* config = item.TryAs<TLogConfigPtr>()) {
+                UpdateConfig(*config);
+            } else if (const auto* event = item.TryAs<TLogEvent>()) {
+                WriteEvent(*event);
                 ++eventsWritten;
+            } else if (const auto* events = item.TryAs<std::vector<TLogEvent>>()) {
+                WriteEvents(*events);
+                eventsWritten += events->size();
             } else {
                 Y_UNREACHABLE();
             }
@@ -839,6 +898,11 @@ private:
     std::unique_ptr<TNotificationHandle> NotificationHandle_;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches_;
     yhash_map<int, TNotificationWatch*> NotificationWatchesIndex_;
+
+    static __thread TDuration PerThreadBatchingPeriod_;
+    static __thread NProfiling::TCpuInstant PerThreadBatchingDeadline_;
+    static __thread std::vector<TLogEvent>* PerThreadBatchingEvents_;
+    Y_STATIC_THREAD(std::vector<TLogEvent>) PerThreadBatchingEventsHolder_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -892,6 +956,16 @@ void TLogManager::Enqueue(TLogEvent&& event)
 void TLogManager::Reopen()
 {
     Impl_->Reopen();
+}
+
+void TLogManager::SetPerThreadBatchingPeriod(TDuration value)
+{
+    Impl_->SetPerThreadBatchingPeriod(value);
+}
+
+TDuration TLogManager::GetPerThreadBatchingPeriod() const
+{
+    return Impl_->GetPerThreadBatchingPeriod();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
