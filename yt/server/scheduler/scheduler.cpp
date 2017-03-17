@@ -1049,7 +1049,7 @@ private:
             : Host_(host)
         { }
 
-        virtual TNameTablePtr GetNameTable() const override
+        virtual const TNameTablePtr& GetNameTable() const override
         {
             return Host_->EventLogWriter_->GetNameTable();
         }

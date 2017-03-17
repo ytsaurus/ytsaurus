@@ -56,7 +56,7 @@ public:
 struct TEmptyValueConsumer
     : public IValueConsumer
 {
-    virtual TNameTablePtr GetNameTable() const
+    virtual const TNameTablePtr& GetNameTable() const
     {
         return NameTable;
     }

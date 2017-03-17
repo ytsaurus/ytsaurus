@@ -33,7 +33,7 @@ public:
 
     virtual TFuture<void> Close() override;
 
-    virtual NTableClient::TNameTablePtr GetNameTable() const override;
+    virtual const NTableClient::TNameTablePtr& GetNameTable() const override;
 
     virtual const NTableClient::TTableSchema& GetSchema() const override;
 
