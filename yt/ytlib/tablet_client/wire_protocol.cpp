@@ -135,6 +135,18 @@ public:
         UnsafeWriteVersionedValueRange(TRange<TVersionedValue>(row.BeginValues(), row.EndValues()));
     }
 
+    void WriteUnversionedValueRange(
+        TRange<TUnversionedValue> valueRange,
+        const TNameTableToSchemaIdMapping* idMapping = nullptr)
+    {
+        size_t bytes = AlignUp(8); // -1 or value count
+        bytes += EstimateUnversionedValueRangeByteSize(valueRange);
+        EnsureCapacity(bytes);
+
+        UnsafeWriteUint64(valueRange.Size());
+        UnsafeWriteUnversionedValueRange(valueRange, idMapping);
+    }
+
     void WriteUnversionedRowset(
         const TRange<TUnversionedRow>& rowset,
         const TNameTableToSchemaIdMapping* idMapping = nullptr)
@@ -480,6 +492,13 @@ void TWireProtocolWriter::WriteVersionedRow(
     TVersionedRow row)
 {
     Impl_->WriteVersionedRow(row);
+}
+
+void TWireProtocolWriter::WriteUnversionedValueRange(
+    TRange<TUnversionedValue> valueRange,
+    const TNameTableToSchemaIdMapping* idMapping)
+{
+    return Impl_->WriteUnversionedValueRange(valueRange, idMapping);
 }
 
 void TWireProtocolWriter::WriteUnversionedRowset(

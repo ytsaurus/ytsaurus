@@ -67,6 +67,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_chunk_slice.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_data_slice.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/job.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/key_set.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/memory_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/memory_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/multi_chunk_writer_base.cpp

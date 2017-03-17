@@ -20,6 +20,8 @@
 namespace NYT {
 namespace NTabletClient {
 
+// ToDo(psushin): move to NTableClient.
+
 ///////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EWireProtocolCommand,
@@ -81,6 +83,10 @@ public:
         const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
     void WriteVersionedRow(
         NTableClient::TVersionedRow row);
+
+    void WriteUnversionedValueRange(
+        TRange<NTableClient::TUnversionedValue> valueRange,
+        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
 
     void WriteUnversionedRowset(
         const TRange<NTableClient::TUnversionedRow>& rowset,
