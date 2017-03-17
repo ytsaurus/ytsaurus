@@ -639,6 +639,17 @@ public:
         }
     }
 
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        return STRINGBUF("data_size_per_job");
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {EJobType::SortedMerge};
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController, 0xf3b791ca);
 
@@ -924,6 +935,17 @@ public:
         }
     }
 
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        return STRINGBUF("data_size_per_job");
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {EJobType::SortedReduce};
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedReduceController, 0x761aad8e);
 
@@ -1017,6 +1039,17 @@ public:
         if (GetOutputTeleportTableIndex()) {
             THROW_ERROR_EXCEPTION("Teleport tables are not supported in join-reduce");
         }
+    }
+
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        return STRINGBUF("data_size_per_job");
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {EJobType::JoinReduce};
     }
 
 private:

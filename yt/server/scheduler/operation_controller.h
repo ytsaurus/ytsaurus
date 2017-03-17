@@ -147,7 +147,6 @@ struct IOperationHost
      */
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const = 0;
 
-<<<<<<< HEAD
     //! Sets operation alert.
     /*!
      *  \note Thread affinity: any
@@ -156,13 +155,12 @@ struct IOperationHost
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert) = 0;
-=======
+
     //! Return IJobHost - access object to TJob
     /*!
      *  \note Thread affinity: any
      */
     virtual IJobHostPtr GetJobHost(const TJobId& jobId) const = 0;
->>>>>>> prestable/19.1
 };
 
 /*!

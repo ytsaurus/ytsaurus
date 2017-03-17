@@ -162,22 +162,6 @@ protected:
             return false;
         }
 
-<<<<<<< HEAD
-        virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
-        {
-            return Controller->TableReaderOptions;
-=======
-        virtual EJobType GetJobType() const override
-        {
-            return Controller->GetJobType();
-        }
-
-        virtual TUserJobSpecPtr GetUserJobSpec() const override
-        {
-            return Controller->GetUserJobSpec();
->>>>>>> prestable/19.1
-        }
-
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);

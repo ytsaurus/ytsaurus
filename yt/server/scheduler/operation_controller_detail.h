@@ -176,12 +176,7 @@ public:
     virtual void Initialize() override;
     virtual TOperationControllerInitializeResult GetInitializeResult() const override;
 
-<<<<<<< HEAD
     virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) override;
-    virtual void Revive() override;
-=======
-    void InitializeReviving(TControllerTransactionsPtr operationTransactions);
->>>>>>> prestable/19.1
 
     virtual std::vector<NApi::ITransactionPtr> GetTransactions() override;
 
