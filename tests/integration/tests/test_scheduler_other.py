@@ -2493,7 +2493,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "job_environment": {
                     "type": "cgroups",
                     "supported_cgroups": ["blkio"],
-                    "block_io_watchdog_period": 200
+                    "block_io_watchdog_period": 100
                 }
             }
         }
@@ -2588,10 +2588,10 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     @unix_only
     def test_woodpecker_jobs_alert(self):
         create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(3)])
+        write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(7)])
         create("table", "//tmp/t_out")
 
-        cmd = "set -e; echo aaa >local_file; for i in {1..100}; do " \
+        cmd = "set -e; echo aaa >local_file; for i in {1..200}; do " \
               "dd if=./local_file of=/dev/null iflag=nocache bs=1 count=1; done;"
 
         op = map(
