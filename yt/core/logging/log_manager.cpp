@@ -401,13 +401,7 @@ public:
 
             // Collect last-minute information.
             TRawFormatter<1024> formatter;
-            formatter.AppendString("\n*** Fatal error encountered in ");
-            formatter.AppendString(event.Function);
-            formatter.AppendString(" (");
-            formatter.AppendString(event.FileName);
-            formatter.AppendString(":");
-            formatter.AppendNumber(event.Line);
-            formatter.AppendString(") ***\n");
+            formatter.AppendString("\n*** Fatal error ***\n");
             formatter.AppendString(event.Message.c_str());
             formatter.AppendString("\n*** Aborting ***\n");
 
