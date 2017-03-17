@@ -64,10 +64,10 @@ class JobShell(object):
         proxy_url = get_proxy_url(client=client)
         proxy = "http://{0}/api/{1}"\
             .format(proxy_url, get_api_version(client=client))
-        self.environment = [b("YT_PROXY=" + proxy_url)]
+        self.environment = [b"YT_PROXY=" + b(proxy_url)]
         token = get_token(client=client)
         if token is not None:
-            self.environment.append(b("YT_TOKEN=" + token))
+            self.environment.append(b"YT_TOKEN=" + b(token))
 
         headers = HTTPHeaders()
         if token:
@@ -91,29 +91,29 @@ class JobShell(object):
         if self.interactive and (not height or not width):
             width, height = self._terminal_size()
         parameters = {
-            b("operation"): b(operation),
+            b"operation": b(operation),
         }
         if operation == "spawn":
             if self.inactivity_timeout is not None:
-                parameters[b("inactivity_timeout")] = self.inactivity_timeout
+                parameters[b"inactivity_timeout"] = self.inactivity_timeout
             if command:
-                parameters[b("command")] = b(command)
-            parameters[b("environment")] = self.environment
+                parameters[b"command"] = b(command)
+            parameters[b"environment"] = self.environment
         if height is not None:
-            parameters[b("height")] = height
+            parameters[b"height"] = height
         if width is not None:
-            parameters[b("width")] = width
+            parameters[b"width"] = width
         if keys is not None:
-            parameters[b("keys")] = hexlify(keys)
+            parameters[b"keys"] = hexlify(keys)
         if input_offset is not None:
-            parameters[b("input_offset")] = input_offset
+            parameters[b"input_offset"] = input_offset
         if term is not None:
-            parameters[b("term")] = b(term)
+            parameters[b"term"] = b(term)
         if self.shell_id:
-            parameters[b("shell_id")] = self.shell_id
+            parameters[b"shell_id"] = self.shell_id
         request = {
-            b("job_id"): b(self.job_id),
-            b("parameters"): parameters
+            b"job_id": b(self.job_id),
+            b"parameters": parameters
         }
         req.headers["X-YT-Parameters"] = yson.dumps(request, yson_format="text", encoding=None)
         req.headers["X-YT-Correlation-Id"] = generate_uuid()
@@ -128,9 +128,9 @@ class JobShell(object):
                 self.client.fetch(req, callback=callback)
             else:
                 try:
-                    rsp = yson.loads(self.client.fetch(req).body)
-                    if rsp and "shell_id" in rsp:
-                        self.shell_id = rsp["shell_id"]
+                    rsp = yson.loads(self.client.fetch(req).body, encoding=None)
+                    if rsp and b"shell_id" in rsp:
+                        self.shell_id = rsp[b"shell_id"]
                     return rsp
                 except HTTPError as err:
                     self._on_http_error(err)
@@ -168,8 +168,8 @@ class JobShell(object):
                 self._on_http_error(rsp.error)
             return
         rsp = yson.loads(rsp.body, encoding=None)
-        if rsp and b("shell_id") in rsp:
-            self.shell_id = rsp[b("shell_id")]
+        if rsp and b"shell_id" in rsp:
+            self.shell_id = rsp[b"shell_id"]
         self._poll_shell()
 
     def _on_update_response(self, rsp):
@@ -178,8 +178,8 @@ class JobShell(object):
                 self._on_http_error(rsp.error)
             return
         rsp = yson.loads(rsp.body, encoding=None)
-        if b("consumed_offset") in rsp:
-            consumed_offset = rsp[b("consumed_offset")]
+        if b"consumed_offset" in rsp:
+            consumed_offset = rsp[b"consumed_offset"]
             if consumed_offset > self.input_offset and consumed_offset <= self.input_offset + len(self.key_buffer):
                 self.key_buffer = self.key_buffer[consumed_offset-self.input_offset:]
                 self.input_offset = consumed_offset
@@ -192,8 +192,8 @@ class JobShell(object):
             return
         rsp = yson.loads(rsp.body, encoding=None)
         written = 0
-        while written < len(rsp[b("output")]):
-            chars = self.output.write(rsp[b("output")][written:])
+        while written < len(rsp[b"output"]):
+            chars = self.output.write(rsp[b"output"][written:])
             if chars is not None:
                 written += chars
             else:
