@@ -121,6 +121,8 @@ class JobShell(object):
 
     def make_request(self, operation, callback=None, keys=None, input_offset=None, term=None,
                      height=None, width=None, command=None):
+        if self.terminating:
+            raise YtError("Shell has already terminated")
         if operation == "spawn" or self.shell_id != None or not self.interactive:
             req = self._prepare_request(operation, keys=keys, input_offset=input_offset, term=term,
                                         height=height, width=width, command=command)
@@ -131,6 +133,8 @@ class JobShell(object):
                     rsp = yson.loads(self.client.fetch(req).body, encoding=None)
                     if rsp and b"shell_id" in rsp:
                         self.shell_id = rsp[b"shell_id"]
+                    if operation == "terminate":
+                        self.terminating = True
                     return rsp
                 except HTTPError as err:
                     self._on_http_error(err)

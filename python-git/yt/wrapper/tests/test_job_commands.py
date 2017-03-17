@@ -67,7 +67,7 @@ class TestJobCommands(object):
 
     def _poll_until_prompt(self, shell):
         output = b""
-        while len(output) < 4 or output[-4:] != ":~$ ":
+        while len(output) < 4 or output[-4:] != b":~$ ":
             rsp = shell.make_request("poll")
             if not rsp or b"output" not in rsp:
                 raise yt.YtError("Poll failed: " + output)
@@ -119,7 +119,7 @@ class TestJobCommands(object):
         shell.make_request("update", keys=command, input_offset=0)
         output = self._poll_until_prompt(shell)
 
-        expected = b"{0}\nscreen-256color\r\n50\r\n132\r\n".format(command)
+        expected = command + b"\nscreen-256color\r\n50\r\n132\r\n"
         assert output.startswith(expected) == True
 
         ids = re.match(b"(\\d+)\r\n(\\d+)\r\n", output[len(expected):])
