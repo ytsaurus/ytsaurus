@@ -21,7 +21,10 @@ struct TInputSliceLimit
 {
     TInputSliceLimit() = default;
     explicit TInputSliceLimit(const TReadLimit& other);
-    TInputSliceLimit(const NProto::TReadLimit& other, const NTableClient::TRowBufferPtr& rowBuffer);
+    TInputSliceLimit(
+        const NProto::TReadLimit& other,
+        const NTableClient::TRowBufferPtr& rowBuffer,
+        const TRange<NTableClient::TKey>& keySet);
 
     TNullable<i64> RowIndex;
     NTableClient::TKey Key;
@@ -91,7 +94,8 @@ public:
     TInputChunkSlice(
         const TInputChunkPtr& inputChunk,
         const NTableClient::TRowBufferPtr& rowBuffer,
-        const NProto::TChunkSlice& protoChunkSlice);
+        const NProto::TChunkSlice& protoChunkSlice,
+        const TRange<NTableClient::TKey>& keySet);
 
     TInputChunkSlice(
         const TInputChunkPtr& inputChunk,
@@ -136,11 +140,6 @@ TInputChunkSlicePtr CreateInputChunkSlice(
     const TInputChunkSlice& inputSlice,
     NTableClient::TKey lowerKey = NTableClient::TKey(),
     NTableClient::TKey upperKey = NTableClient::TKey());
-
-TInputChunkSlicePtr CreateInputChunkSlice(
-    const TInputChunkPtr& inputChunk,
-    const NTableClient::TRowBufferPtr& rowBuffer,
-    const NProto::TChunkSlice& protoChunkSlice);
 
 //! Constructs a new chunk slice based on inputChunk with limits from protoChunkSpec.
 TInputChunkSlicePtr CreateInputChunkSlice(
