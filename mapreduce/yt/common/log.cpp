@@ -85,7 +85,7 @@ class TFileLogger
 public:
     TFileLogger(ELevel cutLevel, const Stroka& path, bool append)
         : TLoggerBase(cutLevel)
-        , Stream_(TFile(path, OpenAlways | WrOnly | Seq | (append ? ForAppend : 0)))
+        , Stream_(TFile(path, OpenAlways | WrOnly | Seq | (append ? ForAppend : EOpenMode())))
     { }
 
     void OutputLine(const Stroka& line) override
