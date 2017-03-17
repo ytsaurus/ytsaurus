@@ -501,17 +501,12 @@ private:
                     return GetMultipleRangesReader(group.Id, group.Ranges);
                 };
 
-<<<<<<< HEAD
-                // TODO(lukyan): Use prefetching ordered reader after merge with branch 19.1
-                return CreateUnorderedSchemafulReader(std::move(bottomSplitReaderGenerator), 1);
-=======
                 return CreatePrefetchingOrderedSchemafulReader(std::move(bottomSplitReaderGenerator));
->>>>>>> prestable/19.1
             });
         };
 
         auto processSplitKeys = [&] (int index) {
-            const auto& tablePartId = splits[index].Id;
+            const auto& tabletId = splits[index].Id;
             auto& keys = splits[index].Keys;
 
             refiners.push_back([&, inferRanges = Query_->InferRanges] (
@@ -525,8 +520,7 @@ private:
                 }
             });
             subreaderCreators.push_back([&, MOVE(keys)] () {
-<<<<<<< HEAD
-                return GetTabletReader(tablePartId, keys);
+                return GetTabletReader(tabletId, keys);
             });
         };
 
@@ -543,11 +537,6 @@ private:
             } else {
                 ++splitIndex;
             }
-=======
-                switch (TypeFromId(tablePartId)) {
-                    case EObjectType::Tablet:
-                        return GetTabletReader(tablePartId, keys);
->>>>>>> prestable/19.1
 
             if (splitIndex == nextSplitOffset) {
                 processSplitsRanges(splitOffset, nextSplitOffset);
