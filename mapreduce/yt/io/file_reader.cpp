@@ -48,6 +48,7 @@ TFileReader::TFileReader(
             Input_ = Request_->GetResponseStream();
 
             LOG_DEBUG("RSP %s - file stream", ~requestId);
+            break;
         } catch (TErrorResponse& e) {
             LOG_ERROR("RSP %s - failed", ~requestId);
             if (!e.IsRetriable() || attempt == lastAttempt) {
