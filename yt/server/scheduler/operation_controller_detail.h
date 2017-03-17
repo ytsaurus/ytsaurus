@@ -10,6 +10,7 @@
 #include "operation_controller.h"
 #include "serialize.h"
 #include "helpers.h"
+#include "master_connector.h"
 
 #include <yt/server/chunk_server/public.h>
 
@@ -130,11 +131,13 @@ private: \
 
     IMPLEMENT_SAFE_VOID_METHOD(Prepare, (), (), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(Materialize, (), (), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(Revive, (), (), INVOKER_AFFINITY(CancelableInvoker))
 
     IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (const TJobId& jobId, TInstant startTime), (jobId, startTime), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<TJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
 
     IMPLEMENT_SAFE_VOID_METHOD(SaveSnapshot, (TOutputStream* output), (output), THREAD_AFFINITY_ANY())
 
@@ -173,8 +176,12 @@ public:
     virtual void Initialize() override;
     virtual TOperationControllerInitializeResult GetInitializeResult() const override;
 
+<<<<<<< HEAD
     virtual void InitializeReviving(TControllerTransactionsPtr operationTransactions) override;
     virtual void Revive() override;
+=======
+    void InitializeReviving(TControllerTransactionsPtr operationTransactions);
+>>>>>>> prestable/19.1
 
     virtual std::vector<NApi::ITransactionPtr> GetTransactions() override;
 
@@ -265,9 +272,10 @@ protected:
     i64 TotalEstimatedCompressedDataSize = 0;
     i64 TotalEstimatedInputDataSize = 0;
 
-    // Total uncompressed data size for primary tables.
+    // Total uncompressed data size for input tables.
     // Used only during preparation, not persisted.
     i64 PrimaryInputDataSize = 0;
+    i64 ForeignInputDataSize = 0;
 
     int ChunkLocatedCallCount = 0;
     int UnavailableInputChunkCount = 0;
@@ -286,10 +294,10 @@ protected:
     NApi::ITransactionPtr OutputTransaction;
     NApi::ITransactionPtr DebugOutputTransaction;
 
-    TSharedRef Snapshot;
+    TOperationSnapshot Snapshot;
 
     struct TRowBufferTag { };
-    const NTableClient::TRowBufferPtr RowBuffer;
+    NTableClient::TRowBufferPtr RowBuffer;
 
     const NYTree::IMapNodePtr SecureVault;
 
@@ -304,42 +312,7 @@ protected:
         void Persist(const TPersistenceContext& context);
     };
 
-    //! Common pattern in scheduler is to lock input object and
-    //! then request attributes of this object by id.
-    struct TLockedUserObject
-        : public NChunkClient::TUserObject
-    {
-        virtual Stroka GetPath() const override
-        {
-            return NObjectClient::FromObjectId(ObjectId);
-        }
-    };
-
-    struct TInputTable
-        : public TLockedUserObject
-    {
-        //! Number of chunks in the whole table (without range selectors).
-        int ChunkCount = -1;
-        std::vector<NChunkClient::TInputChunkPtr> Chunks;
-        NTableClient::TTableSchema Schema;
-        NTableClient::ETableSchemaMode SchemaMode;
-        bool IsDynamic;
-
-        bool IsForeign() const
-        {
-            return Path.GetForeign();
-        }
-
-        bool IsPrimary() const
-        {
-            return !IsForeign();
-        }
-
-        void Persist(const TPersistenceContext& context);
-    };
-
     std::vector<TInputTable> InputTables;
-
 
     struct TJobBoundaryKeys
     {
@@ -597,9 +570,6 @@ protected:
         virtual IChunkPoolInput* GetChunkPoolInput() const = 0;
         virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;
 
-        const NTableClient::TTableSchema& GetInputTableSchema(int tableIndex) const;
-        const NTransactionClient::TTimestamp GetInputTableTimestamp(int tableIndex) const;
-
         virtual void Persist(const TPersistenceContext& context) override;
 
         virtual TUserJobSpecPtr GetUserJobSpec() const;
@@ -640,8 +610,6 @@ protected:
         virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
 
         virtual void OnJobStarted(TJobletPtr joblet);
-
-        virtual NTableClient::TTableReaderOptionsPtr GetTableReaderOptions() const = 0;
 
         void AddPendingHint();
         void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
@@ -856,7 +824,7 @@ protected:
     void ReinstallLivePreview();
     void AbortAllJoblets();
 
-    void DoLoadSnapshot(const TSharedRef& snapshot);
+    void DoLoadSnapshot(const TOperationSnapshot& snapshot);
 
     bool InputHasDynamicTables() const;
     bool InputHasVersionedTables() const;
@@ -1082,6 +1050,9 @@ protected:
         NScheduler::NProto::TUserJobSpec* jobSpec,
         TJobletPtr joblet);
 
+    NChunkClient::TDataSourceDirectoryPtr MakeInputDataSources() const;
+    NChunkClient::TDataSourceDirectoryPtr CreateIntermediateDataSource() const;
+
     // Amount of memory reserved for output table writers in job proxy.
     i64 GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const;
 
@@ -1205,6 +1176,8 @@ private:
 
     TSpinLock ProgressLock_;
     const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
+
+    i64 CurrentInputDataSliceTag_ = 0;
 
     void BuildAndSaveProgress();
 

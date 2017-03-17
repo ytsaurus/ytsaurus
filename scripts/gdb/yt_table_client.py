@@ -1,46 +1,67 @@
 import gdb
 # import json
 
+def lookup_type(name):
+    try:
+        return gdb.lookup_type(name)
+    except gdb.error:
+        return None
+
+
+def strip_refs_typedefs_and_qualifiers(ty, val):
+    while True:
+        ty = ty.unqualified().strip_typedefs()
+        if ty.code == gdb.TYPE_CODE_REF:
+            ty = ty.target()
+            val = val.referenced_value()
+        else:
+            break
+    return ty, val
+
+def strip_typedefs_and_qualifiers(ty):
+    return ty.unqualified().strip_typedefs()
 
 def get_unversioned_value_type():
-    return gdb.lookup_type("NYT::NTableClient::TUnversionedValue")
+    return lookup_type("NYT::NTableClient::TUnversionedValue")
 
 
 def get_unversioned_row_type():
-    return gdb.lookup_type("NYT::NTableClient::TUnversionedRow")
+    return lookup_type("NYT::NTableClient::TUnversionedRow")
 
 
-def get_unversioned_row_header_type():
-    return gdb.lookup_type("NYT::NTableClient::TUnversionedRowHeader")
+def get_unversioned_row_header_type_ptr():
+    header_type = lookup_type("NYT::NTableClient::TUnversionedRowHeader")
+    return None if header_type is None else header_type.pointer()
 
 
 def get_unversioned_owning_row_type():
-    return gdb.lookup_type("NYT::NTableClient::TUnversionedOwningRow")
+    return lookup_type("NYT::NTableClient::TUnversionedOwningRow")
 
 
 def get_versioned_value_type():
-    return gdb.lookup_type("NYT::NTableClient::TVersionedValue")
+    return lookup_type("NYT::NTableClient::TVersionedValue")
 
 
 def get_versioned_row_type():
-    return gdb.lookup_type("NYT::NTableClient::TVersionedRow")
+    return lookup_type("NYT::NTableClient::TVersionedRow")
 
 
-def get_versioned_row_header_type():
-    return gdb.lookup_type("NYT::NTableClient::TVersionedRowHeader")
+def get_versioned_row_header_type_ptr():
+    header_type = lookup_type("NYT::NTableClient::TVersionedRowHeader")
+    return None if header_type is None else header_type.pointer()
 
 
 def get_versioned_owning_row_type():
-    return gdb.lookup_type("NYT::NTableClient::TVersionedOwningRow")
+    return lookup_type("NYT::NTableClient::TVersionedOwningRow")
 
 
 def get_timestamp_type():
-    return gdb.lookup_type("NYT::NTransactionClient::TTimestamp")
+    return lookup_type("NYT::NTransactionClient::TTimestamp")
 
 
 def unpack_as_unversioned_value(val):
     value_id = int(val["Id"])
-    value_type = val["Type"].cast(gdb.lookup_type("uint16_t"))
+    value_type = val["Type"].cast(gdb.lookup_type("uint8_t"))
     if value_type == 0x02:
         value_type = "null"
         value_data = ""
@@ -82,15 +103,17 @@ def unpack_as_versioned_value(val):
 
 
 def format_unversioned_value(val):
-    assert val.type == get_unversioned_value_type()
+    assert strip_typedefs_and_qualifiers(val.type) == get_unversioned_value_type()
     value_id, value_type, value_data = unpack_as_unversioned_value(val)
     if value_data != "":
         value_data = "{" + value_data + "}"
     return "#%-2d  %-7s  %s" % (value_id, value_type, value_data)
 
+def print_unversioned_value(val):
+    print format_unversioned_value(val)
 
 def print_unversioned_row_with_header(val, val_name):
-    assert val.type == get_unversioned_row_header_type().pointer()
+    assert strip_typedefs_and_qualifiers(val.type) == get_unversioned_row_header_type_ptr()
 
     row_header = val  # for clarity.
 
@@ -104,29 +127,31 @@ def print_unversioned_row_with_header(val, val_name):
 
 
 def print_unversioned_row(val):
-    assert val.type.strip_typedefs() == get_unversioned_row_type()
+    assert strip_typedefs_and_qualifiers(val.type) == get_unversioned_row_type()
     row_header = val["Header_"]
-    row_header = row_header.cast(get_unversioned_row_header_type().pointer())
+    row_header = row_header.cast(get_unversioned_row_header_type_ptr())
     return print_unversioned_row_with_header(row_header, "TUnversionedRow")
 
 
 def print_unversioned_owning_row(val):
-    assert val.type.strip_typedefs() == get_unversioned_owning_row_type()
+    assert strip_typedefs_and_qualifiers(val.type) == get_unversioned_owning_row_type()
     row_header = val["RowData_"]["Data_"]
-    row_header = row_header.cast(get_unversioned_row_header_type().pointer())
+    row_header = row_header.cast(get_unversioned_row_header_type_ptr())
     return print_unversioned_row_with_header(row_header, "TUnversionedOwningRow")
 
 
 def format_versioned_value(val):
-    assert val.type == get_versioned_value_type()
+    assert strip_typedefs_and_qualifiers(val.type) == get_versioned_value_type()
     value_timestamp, value_id, value_type, value_data = unpack_as_versioned_value(val)
     if value_data != "":
         value_data = "{" + value_data + "}"
     return "#%-2d  %-7s  @%s %s" % (value_id, value_type, value_timestamp, value_data)
 
+def print_versioned_value(val):
+    print format_versioned_value(val)
 
 def print_versioned_row_with_header(val, val_name):
-    assert val.type == get_versioned_row_header_type().pointer()
+    assert strip_typedefs_and_qualifiers(val.type) == get_versioned_row_header_type_ptr()
 
     row_header = val  # for clarity.
 
@@ -157,38 +182,41 @@ def print_versioned_row_with_header(val, val_name):
 
 
 def print_versioned_row(val):
-    assert val.type.strip_typedefs() == get_versioned_row_type()
+    assert strip_typedefs_and_qualifiers(val.type) == get_versioned_row_type()
     row_header = val["Header_"]
     return print_versioned_row_with_header(row_header, "TVersionedRow")
 
 
 def print_versioned_owning_row(val):
-    assert val.type.strip_typedefs() == get_versioned_owning_row_type()
+    assert strip_typedefs_and_qualifiers(val.type) == get_versioned_owning_row_type()
     row_header = val["RowData_"]["Data_"]
-    row_header = row_header.cast(get_versioned_row_header_type().pointer())
+    row_header = row_header.cast(get_versioned_row_header_type_ptr())
     return print_versioned_row_with_header(row_header, "TVersionedOwningRow")
-
 
 class YtPrintRow(gdb.Command):
     def __init__(self):
-        gdb.Command.__init__(self, "yt_print_row", gdb.COMMAND_STACK, gdb.COMPLETE_SYMBOL)
+        gdb.Command.__init__(self, "yp", gdb.COMMAND_STACK, gdb.COMPLETE_SYMBOL)
 
     def invoke(self, arg, _from_tty):
         val = gdb.parse_and_eval(arg)
-        ty = val.type.strip_typedefs()
-        if ty is None:
-            print ":("
-        elif ty == get_unversioned_row_type():
+        ty, val = strip_refs_typedefs_and_qualifiers(val.type, val)
+        if ty == get_unversioned_row_type():
             print_unversioned_row(val)
         elif ty == get_unversioned_owning_row_type():
             print_unversioned_owning_row(val)
-        elif ty == get_unversioned_row_header_type().pointer():
+        elif ty == get_unversioned_row_header_type_ptr():
             print_unversioned_row_with_header(val, "TUnversionedRow")
         elif ty == get_versioned_row_type():
             print_versioned_row(val)
         elif ty == get_versioned_owning_row_type():
             print_versioned_owning_row(val)
-        elif ty == get_versioned_row_header_type().pointer():
+        elif ty == get_versioned_row_header_type_ptr():
             print_versioned_row_with_header(val, "TVersionedRow")
+        elif ty == get_unversioned_value_type():
+            print_unversioned_value(val)
+        elif ty == get_versioned_value_type():
+            print_versioned_value(val)
+        else:
+            print "Value has type " + str(ty) + " that has no special way of printing"
 
 YtPrintRow()

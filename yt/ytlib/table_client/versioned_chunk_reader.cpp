@@ -1524,7 +1524,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     TReadLimit(TOwningKey(ranges.Back().second)));
 
                 return CreateSchemalessChunkReader(
-                    MakeUnversionedDataSliceDescriptor(std::move(chunkSpec)),
+                    chunkSpec,
                     config,
                     options,
                     chunkReader,
@@ -1634,7 +1634,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 options->DynamicTable = true;
 
                 return CreateSchemalessChunkReader(
-                    MakeUnversionedDataSliceDescriptor(std::move(chunkSpec)),
+                    chunkSpec,
                     config,
                     options,
                     chunkReader,

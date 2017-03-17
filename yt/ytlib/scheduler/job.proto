@@ -3,6 +3,7 @@ package NYT.NScheduler.NProto;
 import "yt/core/misc/guid.proto";
 import "yt/ytlib/chunk_client/chunk_spec.proto";
 import "yt/ytlib/chunk_client/data_slice_descriptor.proto";
+import "yt/ytlib/chunk_client/data_source.proto";
 import "yt/ytlib/core_dump/core_info.proto";
 import "yt/ytlib/job_tracker_client/job.proto";
 import "yt/ytlib/node_tracker_client/node_directory.proto";
@@ -21,6 +22,7 @@ message TFileDescriptor
     required int32 type = 5;
     optional bool executable = 6;
     optional bytes format = 7;
+    required NChunkClient.NProto.TDataSource data_source = 8;
 }
 
 message TTableBlobSpec
@@ -101,9 +103,6 @@ message TTableInputSpec
 {
     // Table slice descriptors comprising the input.
     repeated NYT.NChunkClient.NProto.TDataSliceDescriptor data_slice_descriptors = 1;
-
-    // YSON-serialized reader options.
-    required string table_reader_options = 2;
 }
 
 // Defines how to store output from a job into a table.
@@ -139,6 +138,8 @@ message TSchedulerJobSpecExt
     required NYT.NProto.TGuid output_transaction_id = 2;
 
     // Job input.
+    required string table_reader_options = 19;
+    required NChunkClient.NProto.TDataSourceDirectory data_source_directory = 18;
     repeated TTableInputSpec input_table_specs = 3;
     repeated TTableInputSpec foreign_input_table_specs = 15;
 

@@ -101,10 +101,10 @@ public:
             .Default((i64) 5 * 1024 * 1024 * 1024);
         RegisterParameter("high_backlog_watermark", HighBacklogWatermark)
             .GreaterThan(0)
-            .Default(1000000);
+            .Default(10000000);
         RegisterParameter("low_backlog_watermark", LowBacklogWatermark)
             .GreaterThan(0)
-            .Default(100000);
+            .Default(1000000);
         RegisterParameter("shutdown_grace_timeout", ShutdownGraceTimeout)
             .Default(TDuration::Seconds(1));
 

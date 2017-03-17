@@ -100,7 +100,6 @@ DEFINE_ENUM(ETableReplicationMode,
 );
 
 DEFINE_ENUM(EErrorCode,
-    ((MasterCommunicationFailed)  (300))
     ((SortOrderViolation)         (301))
     ((InvalidDoubleValue)         (302))
     ((IncomparableType)           (303))
@@ -187,7 +186,7 @@ class TNameTableWriter;
 DECLARE_REFCOUNTED_CLASS(TRowBuffer)
 
 DECLARE_REFCOUNTED_CLASS(TSamplesFetcher)
-DECLARE_REFCOUNTED_CLASS(TChunkSliceFetcher)
+DECLARE_REFCOUNTED_STRUCT(IChunkSliceFetcher)
 DECLARE_REFCOUNTED_CLASS(TDataSliceFetcher)
 
 DECLARE_REFCOUNTED_STRUCT(ISchemafulReader)

@@ -223,6 +223,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
+    # TODO(max42): eventually remove this test as it duplicates unittests TSortedChunkPoolTest/SortedMergeTeleport*.
     def test_sorted_passthrough(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -302,7 +303,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               spec={"data_size_per_job": 1})
 
         assert read_table("//tmp/t_out") == [{"a": 1}, {"a": 2}, {"a": 3}, {"a": 3}, {"a": 3}, {"a": 3}, {"a": 3}, {"a": 15}]
-        assert get("//tmp/t_out/@chunk_count") == 3
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 

@@ -2,13 +2,19 @@ package NYT.NDataNode.NProto;
 
 import "yt/ytlib/chunk_client/data_slice_descriptor.proto";
 
+import "yt/ytlib/table_client/chunk_meta.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TArtifactKey
 {
-    required int32 type = 1;
+    required int32 data_source_type = 1;
     repeated NYT.NChunkClient.NProto.TDataSliceDescriptor data_slice_descriptors = 2;
     optional bytes format = 3;
+
+    optional NYT.NTableClient.NProto.TTableSchemaExt table_schema = 4;
+    optional uint64 timestamp = 5;
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

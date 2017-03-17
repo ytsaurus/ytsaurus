@@ -59,7 +59,6 @@ public:
         using NYT::Persist;
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
-        Persist(context, TableReaderOptions);
         Persist(context, IsExplicitJobCount);
         Persist(context, UnorderedPool);
         Persist(context, UnorderedTask);
@@ -75,9 +74,6 @@ protected:
 
     //! The template for starting new jobs.
     TJobSpec JobSpecTemplate;
-
-    //! Table reader options for map jobs.
-    TTableReaderOptionsPtr TableReaderOptions;
 
     //! Flag set when job count was explicitly specified.
     bool IsExplicitJobCount;
@@ -166,9 +162,20 @@ protected:
             return false;
         }
 
+<<<<<<< HEAD
         virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
         {
             return Controller->TableReaderOptions;
+=======
+        virtual EJobType GetJobType() const override
+        {
+            return Controller->GetJobType();
+        }
+
+        virtual TUserJobSpecPtr GetUserJobSpec() const override
+        {
+            return Controller->GetUserJobSpec();
+>>>>>>> prestable/19.1
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -365,8 +372,6 @@ protected:
     {
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
         InitFinalOutputConfig(JobIOConfig);
-
-        TableReaderOptions = CreateTableReaderOptions(Spec->JobIO);
     }
 
     //! Returns |true| if the chunk can be included into the output as-is.
@@ -379,6 +384,10 @@ protected:
     {
         JobSpecTemplate.set_type(static_cast<int>(GetJobType()));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).GetData());
+
+        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         if (Spec->InputQuery) {
             InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, *Spec->InputSchema);

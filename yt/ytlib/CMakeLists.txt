@@ -49,6 +49,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_node_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_slice_descriptor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_slice_descriptor.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_source.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_source.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_statistics.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_statistics.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/dispatcher.cpp
@@ -58,7 +60,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/erasure_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/erasure_repair.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/erasure_writer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/fetcher_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/file_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/file_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/format.cpp
@@ -293,7 +295,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta.proto
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta_extensions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_reader_base.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_slices_fetcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_slice_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_reader_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_meta.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/helpers.cpp

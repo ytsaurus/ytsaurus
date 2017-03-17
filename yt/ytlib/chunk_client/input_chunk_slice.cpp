@@ -100,6 +100,11 @@ void TInputSliceLimit::Persist(const TPersistenceContext& context)
     Persist(context, Key);
 }
 
+Stroka ToString(const TInputSliceLimit& limit)
+{
+    return Format("RowIndex: %v, Key: %v", limit.RowIndex, limit.Key);
+}
+
 void FormatValue(TStringBuilder* builder, const TInputSliceLimit& limit, const TStringBuf& /*format*/)
 {
     builder->AppendFormat("{RowIndex: %v, Key: %v}",

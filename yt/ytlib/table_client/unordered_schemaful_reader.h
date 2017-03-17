@@ -13,5 +13,16 @@ ISchemafulReaderPtr CreateUnorderedSchemafulReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ISchemafulReaderPtr CreateOrderedSchemafulReader(
+    std::function<ISchemafulReaderPtr()> getNextReader);
+
+ISchemafulReaderPtr CreatePrefetchingOrderedSchemafulReader(
+    std::function<ISchemafulReaderPtr()> getNextReader);
+
+ISchemafulReaderPtr CreateFullPrefetchingOrderedSchemafulReader(
+    std::function<ISchemafulReaderPtr()> getNextReader);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTableClient
 } // namespace NYT

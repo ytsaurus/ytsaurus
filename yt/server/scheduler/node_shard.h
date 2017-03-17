@@ -170,6 +170,8 @@ public:
 
     void UpdateState(const TNodeShardPatch& patch);
 
+    void SetInterruptHint(const TJobId& jobId, bool hint);
+
 private:
     const int Id_;
     const NConcurrency::TActionQueuePtr ActionQueue_;
@@ -252,8 +254,7 @@ private:
         NJobTrackerClient::NProto::TReqHeartbeat* request,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         TJobStatus* jobStatus,
-        bool forceJobsLogging,
-        bool updateRunningJobs);
+        bool forceJobsLogging);
 
     void UpdateNodeTags(TExecNodePtr node, const std::vector<Stroka>& tagsList);
 
@@ -289,7 +290,7 @@ private:
 
     void DoUnregisterJob(const TJobPtr& job);
 
-    void PreemptJob(const TJobPtr& job, const TNullable<TInstant>& interruptDeadline);
+    void PreemptJob(const TJobPtr& job, const TNullable<NProfiling::TCpuInstant>& interruptDeadline);
 
     TExecNodePtr GetNodeByJob(const TJobId& jobId);
 
@@ -315,7 +316,11 @@ private:
 typedef NYT::TIntrusivePtr<TNodeShard> TNodeShardPtr;
 DEFINE_REFCOUNTED_TYPE(TNodeShard)
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+IJobHostPtr CreateJobHost(const TJobId& jobId, const TNodeShardPtr& nodeShard);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT

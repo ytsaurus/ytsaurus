@@ -4,7 +4,6 @@
 #include "chunk_pool.h"
 #include "helpers.h"
 #include "intermediate_chunk_scraper.h"
-#include "master_connector.h"
 
 #include <yt/server/misc/job_table_schema.h>
 
@@ -13,6 +12,7 @@
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
@@ -102,20 +102,6 @@ void TOperationControllerBase::TLivePreviewTableBase::Persist(const TPersistence
 {
     using NYT::Persist;
     Persist(context, LivePreviewTableId);
-}
-
-////////////////////////////////////////////////////////////////////
-
-void TOperationControllerBase::TInputTable::Persist(const TPersistenceContext& context)
-{
-    TUserObject::Persist(context);
-
-    using NYT::Persist;
-    Persist(context, ChunkCount);
-    Persist(context, Chunks);
-    Persist(context, Schema);
-    Persist(context, SchemaMode);
-    Persist(context, IsDynamic);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -451,7 +437,6 @@ void TOperationControllerBase::TTask::ScheduleJob(
     }
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
-
     auto estimatedResourceUsage = GetNeededResources(joblet);
     auto neededResources = ApplyMemoryReserve(estimatedResourceUsage);
 
@@ -809,7 +794,6 @@ void TOperationControllerBase::TTask::AddSequentialInputSpec(
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     auto directoryBuilder = MakeNodeDirectoryBuilder(schedulerJobSpecExt);
     auto* inputSpec = schedulerJobSpecExt->add_input_table_specs();
-    inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).GetData());
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
         AddChunksToInputSpec(directoryBuilder.get(), inputSpec, stripe);
@@ -828,31 +812,9 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
         auto* inputSpec = stripe->Foreign
             ? schedulerJobSpecExt->add_foreign_input_table_specs()
             : schedulerJobSpecExt->add_input_table_specs();
-        inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).GetData());
         AddChunksToInputSpec(directoryBuilder.get(), inputSpec, stripe);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
-}
-
-const TTableSchema& TOperationControllerBase::TTask::GetInputTableSchema(int tableIndex) const
-{
-    static TTableSchema trivialSchema;
-    if (tableIndex == -1) {
-        return trivialSchema;
-    } else {
-        YCHECK(tableIndex >= 0 && tableIndex < Controller->InputTables.size());
-        return Controller->InputTables[tableIndex].Schema;
-    }
-}
-
-const TTimestamp TOperationControllerBase::TTask::GetInputTableTimestamp(int tableIndex) const
-{
-    if (tableIndex == -1) {
-        return AsyncLastCommittedTimestamp;
-    } else {
-        YCHECK(tableIndex >= 0 && tableIndex < Controller->InputTables.size());
-        return Controller->InputTables[tableIndex].Path.GetTimestamp().Get(AsyncLastCommittedTimestamp);
-    }
 }
 
 void TOperationControllerBase::TTask::AddChunksToInputSpec(
@@ -861,11 +823,7 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     TChunkStripePtr stripe)
 {
     for (const auto& dataSlice : stripe->DataSlices) {
-        ToProto(
-            inputSpec->add_data_slice_descriptors(),
-            dataSlice,
-            GetInputTableSchema(dataSlice->GetTableIndex()),
-            GetInputTableTimestamp(dataSlice->GetTableIndex()));
+        ToProto(inputSpec->add_data_slice_descriptors(), dataSlice);
 
         if (directoryBuilder) {
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
@@ -1205,7 +1163,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
     if (cleanStart) {
         LOG_INFO("Using clean start instead of revive");
 
-        Snapshot = TSharedRef();
+        Snapshot = TOperationSnapshot();
         auto error = WaitFor(Host->GetMasterConnector()->RemoveSnapshot(OperationId));
         if (!error.IsOK()) {
             LOG_WARNING(error, "Failed to remove snapshot");
@@ -1420,7 +1378,7 @@ void TOperationControllerBase::SafeMaterialize()
 
         LOG_INFO("Tasks prepared (RowBufferCapacity: %v)", RowBuffer->GetCapacity());
 
-        if (InputChunkMap.empty()) {
+        if (InputChunkMap.empty() || IsCompleted()) {
             // Possible reasons:
             // - All input chunks are unavailable && Strategy == Skip
             // - Merge decided to teleport all input chunks
@@ -1448,8 +1406,10 @@ void TOperationControllerBase::SafeMaterialize()
         if (Config->TestingOptions->EnableSnapshotCycleAfterMaterialization) {
             TStringStream stringStream;
             SaveSnapshot(&stringStream);
-            auto sharedRef = TSharedRef::FromString(stringStream.Str());
-            DoLoadSnapshot(sharedRef);
+            TOperationSnapshot snapshot;
+            snapshot.Version = GetCurrentSnapshotVersion();
+            snapshot.Data = TSharedRef::FromString(stringStream.Str());
+            DoLoadSnapshot(snapshot);
         }
 
         // Input chunk scraper initialization should be the last step to avoid races,
@@ -1482,17 +1442,17 @@ void TOperationControllerBase::SafeSaveSnapshot(TOutputStream* output)
     Save(context, this);
 }
 
-void TOperationControllerBase::Revive()
+void TOperationControllerBase::SafeRevive()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    if (!Snapshot) {
+    if (!Snapshot.Data) {
         Prepare();
         return;
     }
 
     DoLoadSnapshot(Snapshot);
-    Snapshot = TSharedRef();
+    Snapshot = TOperationSnapshot();
 
     RevivedFromSnapshot = true;
 
@@ -1743,20 +1703,18 @@ void TOperationControllerBase::AbortAllJoblets()
     JobletMap.clear();
 }
 
-void TOperationControllerBase::DoLoadSnapshot(const TSharedRef& snapshot)
+void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot)
 {
-    LOG_INFO("Started loading snapshot");
+    LOG_INFO("Started loading snapshot (Size: %v, Version: %v)",
+        snapshot.Data.Size(),
+        snapshot.Version);
 
-    TMemoryInput input(snapshot.Begin(), snapshot.Size());
+    TMemoryInput input(snapshot.Data.Begin(), snapshot.Data.Size());
 
     TLoadContext context;
     context.SetInput(&input);
     context.SetRowBuffer(RowBuffer);
-    // NB: Currently scheduler snapshots are not backward-compatible.
-    // The version is being checked when the snapshot is discovered.
-    // If the version does not match the expected one, the snapshot is discarded.
-    // We still need to provide the proper version for the loaders to work properly.
-    context.SetVersion(GetCurrentSnapshotVersion());
+    context.SetVersion(snapshot.Version);
 
     NPhoenix::TSerializer::InplaceLoad(context, this);
 
@@ -2102,6 +2060,10 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         }
     }
 
+    if (jobSummary->Interrupted) {
+        jobSummary->UnreadInputDataSlices = ExtractInputDataSlices(*jobSummary);
+    }
+
     jobSummary->ParseStatistics();
 
     JobCounter.Completed(1);
@@ -2222,13 +2184,22 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     RemoveJoblet(jobId);
 }
 
+void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TJobSummary> jobSummary)
+{
+    jobSummary->ParseStatistics();
+    if ((false)) {
+        auto jobHost = Host->GetJobHost(jobSummary->Id);
+        jobHost->SetInterruptHint(true);
+    }
+}
+
 void TOperationControllerBase::FinalizeJoblet(
     const TJobletPtr& joblet,
     TJobSummary* jobSummary)
 {
     auto& statistics = jobSummary->Statistics;
 
-    joblet->FinishTime = jobSummary->FinishTime;
+    joblet->FinishTime = *(jobSummary->FinishTime);
     {
         auto duration = joblet->FinishTime - joblet->StartTime;
         statistics.AddSample("/time/total", duration.MilliSeconds());
@@ -2378,22 +2349,19 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
             for (const auto& inputStripe : descriptor.InputStripes) {
                 inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
 
-                // Remove given chunk from the stripe list.
-                SmallVector<TInputDataSlicePtr, 1> slices;
-                std::swap(inputStripe.Stripe->DataSlices, slices);
-
-                std::copy_if(
-                    slices.begin(),
-                    slices.end(),
-                    inputStripe.Stripe->DataSlices.begin(),
-                    [&] (TInputDataSlicePtr slice) {
-                        try {
-                            return chunkId != slice->GetSingleUnversionedChunkOrThrow()->ChunkId();
-                        } catch (const std::exception& ex) {
-                            //FIXME(savrus) allow data slices to be unavailable.
-                            THROW_ERROR_EXCEPTION("Dynamic table chunk became unavailable") << ex;
-                        }
-                    });
+                inputStripe.Stripe->DataSlices.erase(
+                    std::remove_if(
+                        inputStripe.Stripe->DataSlices.begin(),
+                        inputStripe.Stripe->DataSlices.end(),
+                        [&] (TInputDataSlicePtr slice) {
+                            try {
+                                return chunkId == slice->GetSingleUnversionedChunkOrThrow()->ChunkId();
+                            } catch (const std::exception& ex) {
+                                //FIXME(savrus) allow data slices to be unavailable.
+                                THROW_ERROR_EXCEPTION("Dynamic table chunk became unavailable") << ex;
+                            }
+                        }),
+                    inputStripe.Stripe->DataSlices.end());
 
                 // Reinstall patched stripe.
                 inputStripe.Task->GetChunkPoolInput()->Resume(inputStripe.Cookie, inputStripe.Stripe);
@@ -4409,6 +4377,8 @@ void TOperationControllerBase::CollectTotals()
 
             if (table.IsPrimary()) {
                 PrimaryInputDataSize += inputChunk->GetUncompressedDataSize();
+            } else {
+                ForeignInputDataSize += inputChunk->GetUncompressedDataSize();
             }
 
             TotalEstimatedInputDataSize += inputChunk->GetUncompressedDataSize();
@@ -4727,19 +4697,19 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
                 inputChunks.end(),
                 [&] (const TInputChunkPtr& inputChunk) -> bool {
                     return inputChunk->GetTableIndex() == protoChunkSpec.table_index() &&
-                        inputChunk->GetRangeIndex() == protoChunkSpec.range_index();
+                           inputChunk->GetRangeIndex() == protoChunkSpec.range_index();
                 });
             YCHECK(chunkIt != inputChunks.end());
             auto chunkSlice = New<TInputChunkSlice>(*chunkIt, RowBuffer, protoChunkSpec);
             chunkSliceList.emplace_back(std::move(chunkSlice));
         }
-        if (dataSliceDescriptor.Type == EDataSliceDescriptorType::VersionedTable) {
+        if (InputTables[dataSliceDescriptor.GetDataSourceIndex()].IsDynamic) {
             dataSliceList.emplace_back(CreateVersionedInputDataSlice(chunkSliceList));
         } else {
-            YCHECK(dataSliceDescriptor.Type == EDataSliceDescriptorType::UnversionedTable);
             YCHECK(chunkSliceList.size() == 1);
             dataSliceList.emplace_back(CreateUnversionedInputDataSlice(chunkSliceList[0]));
         }
+        dataSliceList.back()->Tag = dataSliceDescriptor.GetTag();
     }
     return dataSliceList;
 }
@@ -5012,6 +4982,10 @@ void TOperationControllerBase::RegisterOutput(
 void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTaskPtr task)
 {
     yhash_set<TChunkId> visitedChunks;
+
+    for (const auto& slice : stripe->DataSlices) {
+        slice->Tag = CurrentInputDataSliceTag_++;
+    }
 
     TStripeDescriptor stripeDescriptor;
     stripeDescriptor.Stripe = stripe;
@@ -5359,21 +5333,29 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     for (const auto& file : files) {
         auto* descriptor = jobSpec->add_files();
-        descriptor->set_type(static_cast<int>(file.Type));
         descriptor->set_file_name(file.FileName);
 
         if (file.Type == EObjectType::Table && file.IsDynamic && file.Schema.IsSorted()) {
-            auto dataSliceDescriptor = MakeVersionedDataSliceDescriptor(
-                file.ChunkSpecs,
+            descriptor->set_type(static_cast<int>(EDataSourceType::VersionedTable));
+            auto dataSource = MakeVersionedDataSource(
+                file.GetPath(),
                 file.Schema,
                 file.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp));
-            ToProto(descriptor->add_data_slice_descriptors(), dataSliceDescriptor);
+            ToProto(descriptor->mutable_data_source(), dataSource);
+            // All chunks go to the same data slice.
+            ToProto(descriptor->add_data_slice_descriptors(), TDataSliceDescriptor(file.ChunkSpecs));
         } else {
+            auto dataSource = file.Type == EObjectType::File
+                    ? MakeFileDataSource(file.GetPath())
+                    : MakeUnversionedDataSource(file.GetPath(), file.Schema);
+
+            descriptor->set_type(file.Type == EObjectType::File
+                ? static_cast<int>(EDataSourceType::File)
+                : static_cast<int>(EDataSourceType::UnversionedTable));
+
+            ToProto(descriptor->mutable_data_source(), dataSource);
             for (const auto& chunkSpec : file.ChunkSpecs) {
-                auto dataSliceDescriptor = file.Type == EObjectType::File
-                    ? MakeFileDataSliceDescriptor(chunkSpec)
-                    : MakeUnversionedDataSliceDescriptor(chunkSpec);
-                ToProto(descriptor->add_data_slice_descriptors(), dataSliceDescriptor);
+                ToProto(descriptor->add_data_slice_descriptors(), TDataSliceDescriptor(chunkSpec));
             }
         }
 
@@ -5478,6 +5460,34 @@ void TOperationControllerBase::AddCoreOutputSpecs(
     coreTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).GetData());
 }
 
+TDataSourceDirectoryPtr TOperationControllerBase::MakeInputDataSources() const
+{
+    auto dataSourceDirectory = New<TDataSourceDirectory>();
+    for (const auto& inputTable : InputTables) {
+        auto dataSource = (inputTable.IsDynamic && inputTable.Schema.IsSorted())
+            ? MakeVersionedDataSource(
+                inputTable.GetPath(),
+                inputTable.Schema,
+                inputTable.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp))
+            : MakeUnversionedDataSource(
+                inputTable.GetPath(),
+                inputTable.Schema);
+        dataSourceDirectory->DataSources().push_back(dataSource);
+    }
+    return dataSourceDirectory;
+}
+
+TDataSourceDirectoryPtr TOperationControllerBase::CreateIntermediateDataSource() const
+{
+    static const Stroka IntermediatePath("<intermediate>");
+
+    auto dataSourceDirectory = New<TDataSourceDirectory>();
+    dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
+        IntermediatePath,
+        Null));
+
+    return dataSourceDirectory;
+}
 
 i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const
 {
@@ -5814,6 +5824,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, EstimatedInputDataSizeHistogram_);
     Persist(context, InputDataSizeHistogram_);
 
+    Persist(context, CurrentInputDataSliceTag_);
+
     if (context.IsLoad()) {
         for (const auto& task : Tasks) {
             task->Initialize();
@@ -5998,6 +6010,11 @@ public:
     virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) override
     {
         Underlying_->OnJobAborted(std::move(jobSummary));
+    }
+
+    virtual void OnJobRunning(std::unique_ptr<TJobSummary> jobSummary) override
+    {
+        Underlying_->OnJobRunning(std::move(jobSummary));
     }
 
     virtual TScheduleJobResultPtr ScheduleJob(

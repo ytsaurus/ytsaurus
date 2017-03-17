@@ -26,6 +26,7 @@ using namespace NConcurrency;
 using namespace NJobProberClient;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;
+using namespace NProfiling;
 using namespace NScheduler::NProto;
 using namespace NShell;
 using namespace NYTree;
@@ -585,7 +586,7 @@ void TNodeShard::AbortJob(const TJobId& jobId, const TNullable<TDuration>& inter
 
     if (interruptTimeout.Get(TDuration::Zero()) != TDuration::Zero() && !job->InterruptCookie()) {
         if (!job->GetInterruptible()) {
-            THROW_ERROR_EXCEPTION("Cannot abort job %v of type %Qlv with interrupt timeout",
+            THROW_ERROR_EXCEPTION("Cannot interrupt job %v of type %Qlv because such job type does not support interruption",
                 jobId,
                 job->GetType());
         }
@@ -903,25 +904,18 @@ void TNodeShard::ProcessHeartbeatJobs(
     bool* hasWaitingJobs,
     yhash_set<TOperationId>* operationsToLog)
 {
-    auto now = TInstant::Now();
+    auto now = GetCpuInstant();
 
     bool forceJobsLogging = false;
     auto lastJobsLogTime = node->GetLastJobsLogTime();
-    if (!lastJobsLogTime || now > lastJobsLogTime.Get() + Config_->JobsLoggingPeriod) {
+    if (!lastJobsLogTime || now > lastJobsLogTime.Get() + DurationToCpuDuration(Config_->JobsLoggingPeriod)) {
         forceJobsLogging = true;
         node->SetLastJobsLogTime(now);
     }
 
-    bool updateRunningJobs = false;
-    auto lastRunningJobsUpdateTime = node->GetLastRunningJobsUpdateTime();
-    if (!lastRunningJobsUpdateTime || now > lastRunningJobsUpdateTime.Get() + Config_->RunningJobsUpdatePeriod) {
-        updateRunningJobs = true;
-        node->SetLastRunningJobsUpdateTime(now);
-    }
-
     bool checkMissingJobs = false;
     auto lastCheckMissingJobsTime = node->GetLastCheckMissingJobsTime();
-    if (!lastCheckMissingJobsTime || now > lastCheckMissingJobsTime.Get() + Config_->CheckMissingJobsPeriod) {
+    if (!lastCheckMissingJobsTime || now > lastCheckMissingJobsTime.Get() + DurationToCpuDuration(Config_->CheckMissingJobsPeriod)) {
         checkMissingJobs = true;
         node->SetLastCheckMissingJobsTime(now);
     }
@@ -945,8 +939,7 @@ void TNodeShard::ProcessHeartbeatJobs(
             request,
             response,
             &jobStatus,
-            forceJobsLogging,
-            updateRunningJobs);
+            forceJobsLogging);
         if (job) {
             if (checkMissingJobs) {
                 job->SetFoundOnNode(true);
@@ -1005,8 +998,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     NJobTrackerClient::NProto::TReqHeartbeat* request,
     NJobTrackerClient::NProto::TRspHeartbeat* response,
     TJobStatus* jobStatus,
-    bool forceJobsLogging,
-    bool updateRunningJobs)
+    bool forceJobsLogging)
 {
     auto jobId = FromProto<TJobId>(jobStatus->job_id());
     auto state = EJobState(jobStatus->state());
@@ -1077,6 +1069,15 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     }
 
     bool shouldLogJob = (state != job->GetState()) || forceJobsLogging;
+    bool updateRunningJob = false;
+    auto now = GetCpuInstant();
+    if ((state == EJobState::Running && jobStatus->has_statistics()) || state == EJobState::Waiting) {
+        auto lastRunningJobUpdateTime = job->GetLastRunningJobUpdateTime();
+        if (!lastRunningJobUpdateTime || now > lastRunningJobUpdateTime.Get() + DurationToCpuDuration(Config_->RunningJobsUpdatePeriod)) {
+            updateRunningJob = true;
+            job->SetLastRunningJobUpdateTime(now);
+        }
+    }
     switch (state) {
         case EJobState::Completed: {
             LOG_DEBUG("Job completed, removal scheduled");
@@ -1119,13 +1120,13 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 switch (state) {
                     case EJobState::Running:
                         job->SetProgress(jobStatus->progress());
-                        if (updateRunningJobs) {
+                        if (updateRunningJob) {
                             OnJobRunning(job, jobStatus);
                         }
                         break;
 
                     case EJobState::Waiting:
-                        if (updateRunningJobs) {
+                        if (updateRunningJob) {
                             OnJobWaiting(job);
                         }
                         break;
@@ -1326,8 +1327,8 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
         operationsToLog->insert(job->GetOperationId());
     }
 
-    auto now = TInstant::Now();
-    auto interruptDeadline = now + Config_->JobInterruptTimeout;
+    auto now = GetCpuInstant();
+    auto interruptDeadline = now + DurationToCpuDuration(Config_->JobInterruptTimeout);
     for (const auto& job : schedulingContext->PreemptedJobs()) {
         if (!OperationExists(job->GetOperationId()) || job->GetHasPendingUnregistration()) {
             LOG_DEBUG("Dangling preempted job found (JobId: %v, OperationId: %v)",
@@ -1340,7 +1341,7 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
             if (job->GetPreempted()) {
                 if (now > job->GetInterruptDeadline()) {
                     LOG_DEBUG("Preempted job interrupt deadline reached, aborting (InterruptDeadline: %v, JobId: %v, OperationId: %v)",
-                        job->GetInterruptDeadline(),
+                        CpuInstantToInstant(job->GetInterruptDeadline()),
                         job->GetId(),
                         job->GetOperationId());
                     ToProto(response->add_jobs_to_abort(), job->GetId());
@@ -1361,6 +1362,8 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
 
 void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
 {
+    YCHECK(job->GetState() == EJobState::Running);
+
     auto delta = status->resource_usage() - job->ResourceUsage();
     UpdatedJobs_.emplace_back(job->GetOperationId(), job->GetId(), delta);
     job->ResourceUsage() = status->resource_usage();
@@ -1380,6 +1383,16 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
                 Config_->SuspiciousCpuUsageThreshold,
                 Config_->SuspiciousInputPipeIdleTimeFraction)
                 .Via(GetInvoker()));
+
+            auto* operationState = FindOperationState(job->GetOperationId());
+            if (operationState) {
+                const auto& controller = operationState->Controller;
+                BIND(&IOperationController::OnJobRunning,
+                    controller,
+                    Passed(std::make_unique<TJobSummary>(job)))
+                    .Via(controller->GetCancelableInvoker())
+                    .Run();
+            }
         }
 
         job->SetStatus(status);
@@ -1637,7 +1650,7 @@ void TNodeShard::DoUnregisterJob(const TJobPtr& job)
     }
 }
 
-void TNodeShard::PreemptJob(const TJobPtr& job, const TNullable<TInstant>& interruptDeadline)
+void TNodeShard::PreemptJob(const TJobPtr& job, const TNullable<TCpuInstant>& interruptDeadline)
 {
     LOG_DEBUG("Preempting job (InterruptDeadline: %v, Interruptible: %v, JobId: %v, OperationId: %v)",
         interruptDeadline,
@@ -1649,6 +1662,14 @@ void TNodeShard::PreemptJob(const TJobPtr& job, const TNullable<TInstant>& inter
 
     if (interruptDeadline) {
         job->SetInterruptDeadline(*interruptDeadline);
+    }
+}
+
+void TNodeShard::SetInterruptHint(const TJobId& jobId, bool hint)
+{
+    auto job = FindJob(jobId);
+    if (job) {
+        job->SetInterruptHint(hint);
     }
 }
 
@@ -1734,6 +1755,39 @@ void TNodeShard::BuildSuspiciousJobYson(const TJobPtr& job, IYsonConsumer* consu
             .Item("node").Value(job->GetNode()->GetDefaultAddress())
             .Item("last_activity_time").Value(job->GetLastActivityTime())
         .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////
+
+//! Proxy object to control job outside of node shard.
+class TJobHost
+    : public IJobHost
+{
+public:
+    TJobHost(const TJobId& jobId, const TNodeShardPtr& nodeShard)
+        : JobId_(jobId)
+        , NodeShard_(nodeShard)
+    { }
+
+    virtual TFuture<void> SetInterruptHint(bool hint) override
+    {
+        return BIND(&TNodeShard::SetInterruptHint, NodeShard_, JobId_, hint)
+            .AsyncVia(NodeShard_->GetInvoker())
+            .Run();
+    }
+
+private:
+    TJobId JobId_;
+    TNodeShardPtr NodeShard_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobHost)
+
+////////////////////////////////////////////////////////////////////
+
+IJobHostPtr CreateJobHost(const TJobId& jobId, const TNodeShardPtr& nodeShard)
+{
+    return New<TJobHost>(jobId, nodeShard);
 }
 
 ////////////////////////////////////////////////////////////////////

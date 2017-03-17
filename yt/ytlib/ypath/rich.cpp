@@ -464,6 +464,11 @@ bool TRichYPath::GetForeign() const
     return GetAttribute(*this, "foreign", false);
 }
 
+void TRichYPath::SetForeign(bool value)
+{
+    Attributes().Set("foreign", value);
+}
+
 TChannel TRichYPath::GetChannel() const
 {
     if (Attributes().Contains("channel")) {
