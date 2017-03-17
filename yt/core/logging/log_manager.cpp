@@ -812,6 +812,9 @@ private:
 
     void FlushBatchedEvents()
     {
+        if (!PerThreadBatchingEvents) {
+            PerThreadBatchingEvents = &PerThreadBatchingEventsHolder;
+        }
         std::vector<TLogEvent> newEvents;
         newEvents.reserve(PerThreadBatchingReserveCapacity);
         newEvents.swap(*PerThreadBatchingEvents);
