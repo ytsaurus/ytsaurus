@@ -3,6 +3,7 @@
 #include <yt/core/misc/hash.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
 namespace NYT {
@@ -16,25 +17,34 @@ using namespace NTableClient;
 
 TArtifactKey::TArtifactKey(const TChunkId& chunkId)
 {
-    set_type(static_cast<int>(EObjectType::File));
+    set_data_source_type(static_cast<int>(EDataSourceType::File));
     NChunkClient::NProto::TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), chunkId);
-    ToProto(add_data_slice_descriptors(), MakeFileDataSliceDescriptor(chunkSpec));
+    ToProto(add_data_slice_descriptors(), TDataSliceDescriptor(chunkSpec));
 }
 
 TArtifactKey::TArtifactKey(const NScheduler::NProto::TFileDescriptor& descriptor)
 {
-    set_type(descriptor.type());
+    set_data_source_type(descriptor.data_source().type());
+
     mutable_data_slice_descriptors()->MergeFrom(descriptor.data_slice_descriptors());
     if (descriptor.has_format()) {
         set_format(descriptor.format());
+    }
+
+    if (descriptor.data_source().has_table_schema()) {
+        *mutable_table_schema() = descriptor.data_source().table_schema();
+    }
+
+    if (descriptor.data_source().has_timestamp()) {
+        set_timestamp(descriptor.data_source().timestamp());
     }
 }
 
 TArtifactKey::operator size_t() const
 {
     size_t result = 0;
-    result = HashCombine(result, type());
+    result = HashCombine(result, data_source_type());
 
     if (has_format()) {
         result = HashCombine(result, format());
@@ -54,7 +64,6 @@ TArtifactKey::operator size_t() const
 
     auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(data_slice_descriptors());
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
-        result = HashCombine(result, dataSliceDescriptor.Type);
 
         for (const auto& spec : dataSliceDescriptor.ChunkSpecs) {
             auto id = FromProto<TGuid>(spec.chunk_id());
@@ -74,13 +83,25 @@ TArtifactKey::operator size_t() const
 
 bool TArtifactKey::operator == (const TArtifactKey& other) const
 {
-    if (type() != other.type())
+    if (data_source_type() != other.data_source_type())
         return false;
 
     if (has_format() != other.has_format())
         return false;
 
     if (has_format() && format() != other.format())
+        return false;
+
+    if (has_table_schema() != other.has_table_schema())
+        return false;
+
+    if (has_table_schema() && has_table_schema() != other.has_table_schema())
+        return false;
+
+    if (has_timestamp() != other.has_timestamp())
+        return false;
+
+    if (has_timestamp() && timestamp() != other.timestamp())
         return false;
 
     if (data_slice_descriptors_size() != other.data_slice_descriptors_size())
@@ -117,15 +138,6 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
     for (int index = 0; index < dataSliceDescriptors.size(); ++index) {
         const auto& descriptor = dataSliceDescriptors[index];
         const auto& otherDescriptor = otherDataSliceDescriptors[index];
-
-        if (descriptor.Type != otherDescriptor.Type)
-            return false;
-
-        if (descriptor.Schema != otherDescriptor.Schema)
-            return false;
-
-        if (descriptor.Timestamp != otherDescriptor.Timestamp)
-            return false;
 
         if (descriptor.ChunkSpecs.size() != otherDescriptor.ChunkSpecs.size())
             return false;

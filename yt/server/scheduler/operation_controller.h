@@ -147,6 +147,7 @@ struct IOperationHost
      */
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const = 0;
 
+<<<<<<< HEAD
     //! Sets operation alert.
     /*!
      *  \note Thread affinity: any
@@ -155,6 +156,13 @@ struct IOperationHost
         const TOperationId& operationId,
         EOperationAlertType alertType,
         const TError& alert) = 0;
+=======
+    //! Return IJobHost - access object to TJob
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual IJobHostPtr GetJobHost(const TJobId& jobId) const = 0;
+>>>>>>> prestable/19.1
 };
 
 /*!
@@ -306,6 +314,12 @@ struct IOperationController
      */
     //! Called during preemption to notify the controller that a job has been aborted.
     virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) = 0;
+
+    /*!
+     *  \note Invoker affinity: Cancellable controller invoker
+     */
+    //! Called during heartbeat processing to notify the controller that a job is still running.
+    virtual void OnJobRunning(std::unique_ptr<TJobSummary> jobSummary) = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker

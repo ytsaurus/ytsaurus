@@ -22,12 +22,12 @@ IOperationControllerPtr CreateEraseController(
     IOperationHost* host,
     TOperation* operation);
 
-IOperationControllerPtr CreateReduceController(
+IOperationControllerPtr CreateLegacyReduceController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation);
 
-IOperationControllerPtr CreateJoinReduceController(
+IOperationControllerPtr CreateLegacyJoinReduceController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation);

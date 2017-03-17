@@ -273,6 +273,12 @@ void TOperationWithUserJobSpec::OnLoaded()
     }
 }
 
+TOperationWithLegacyControllerSpec::TOperationWithLegacyControllerSpec()
+{
+    RegisterParameter("use_legacy_controller", UseLegacyController)
+        .Default(false);
+}
+
 TSimpleOperationSpecBase::TSimpleOperationSpecBase()
 {
     RegisterParameter("data_size_per_job", DataSizePerJob)

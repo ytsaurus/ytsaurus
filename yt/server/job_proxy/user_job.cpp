@@ -485,6 +485,24 @@ private:
         for (const auto& var : Environment_) {
             Process_->AddArguments({"--env", var});
         }
+<<<<<<< HEAD
+=======
+
+        ShellManager_ = CreateShellManager(
+            NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Home]),
+            UserId_,
+            TNullable<Stroka>(static_cast<bool>(CGroupsConfig_), CGroupBase),
+            Format("Job environment:\n%v\n", JoinToString(shellEnvironment, STRINGBUF("\n"))),
+            std::move(shellEnvironment));
+    }
+
+    void WaitForActiveShellProcesses(const TError& error)
+    {
+        // Ignore errors.
+        WaitFor(BIND(&IShellManager::GracefulShutdown, ShellManager_, error)
+            .AsyncVia(AuxQueue_->GetInvoker())
+            .Run());
+>>>>>>> prestable/19.1
     }
 
     void CleanupUserProcesses(const TError& error) const

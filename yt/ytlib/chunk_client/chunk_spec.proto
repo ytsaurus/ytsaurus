@@ -25,7 +25,7 @@ message TChunkSpec
 
     // Deprecated = 6;
 
-    optional int32 table_index = 7 [default = -1];
+    optional int32 table_index = 7 [default = 0];
 
     // Deprecated = 8;
 
@@ -44,6 +44,12 @@ message TChunkSpec
     // Overrides the corresponding values in TMiscExt.
     optional int64 row_count_override = 14;
     optional int64 uncompressed_data_size_override = 15;
+
+    // Tag of the input data slice this chunk spec belongs to (if any).
+    // It helps us restore the correspondence between data slices that
+    // form the job input and the unread data slices returned as a
+    // job interruption result.
+    optional int64 data_slice_tag = 16;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

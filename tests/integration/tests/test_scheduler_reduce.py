@@ -21,6 +21,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 "optimize_for": optimize_for
             })
 
+    # TODO(max42): eventually remove this test as it duplicates unittest TSortedChunkPoolTest/SortedReduceSimple.
     @unix_only
     def test_tricky_chunk_boundaries(self):
         create("table", "//tmp/in1")
@@ -806,7 +807,7 @@ echo {v = 2} >&7
 
         reduce(
             in_ = ["<foreign=true>//tmp/foreign"] + ["//tmp/t{0}".format(i) for i in range(4)],
-            out = ["//tmp/output"],
+            out = ["<sorted_by=[key]>//tmp/output"],
             command = "grep @table_index=0 | head -n 1",
             reduce_by = ["key","value"],
             join_by = ["key"],

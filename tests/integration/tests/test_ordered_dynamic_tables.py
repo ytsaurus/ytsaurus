@@ -502,19 +502,20 @@ class TestOrderedDynamicTables(YTEnvSetup):
         actual = select_rows("a, b, c from [//tmp/t]")
         assert_items_equal(actual, rows)
 
-    def test_read_table(self):
-        self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+    ## XXX(savrus) enable in 19.2
+    #def test_read_table(self):
+    #    self.sync_create_cells(1)
+    #    self._create_simple_table("//tmp/t")
+    #    self.sync_mount_table("//tmp/t")
 
-        rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(0, 100)]
-        insert_rows("//tmp/t", rows)
+    #    rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(0, 100)]
+    #    insert_rows("//tmp/t", rows)
 
-        self.sync_unmount_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+    #    self.sync_unmount_table("//tmp/t")
+    #    self.sync_mount_table("//tmp/t")
 
-        actual = read_table("//tmp/t")
-        assert actual == rows
+    #    actual = read_table("//tmp/t")
+    #    assert actual == rows
 
 ##################################################################
 

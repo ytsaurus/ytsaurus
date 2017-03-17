@@ -215,6 +215,11 @@ void TRowBuffer::Clear()
     Pool_.Clear();
 }
 
+void TRowBuffer::Purge()
+{
+    Pool_.Purge();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

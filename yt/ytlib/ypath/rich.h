@@ -54,6 +54,7 @@ public:
 
     // "foreign"
     bool GetForeign() const;
+    void SetForeign(bool value);
 
     // "channel"
     NChunkClient::TChannel GetChannel() const;

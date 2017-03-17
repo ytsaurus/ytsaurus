@@ -30,8 +30,18 @@ TScrapeChunksCallback CreateScrapeChunksSessionCallback(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFetcherBase
+struct IFetcher
     : public TRefCounted
+{
+    virtual void AddChunk(TInputChunkPtr chunk) = 0;
+
+    virtual TFuture<void> Fetch() = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFetcherBase
+    : public virtual IFetcher
 {
 public:
     TFetcherBase(
@@ -43,8 +53,8 @@ public:
         NApi::INativeClientPtr client, // TODO(sandello): This is redundant; IConnection is sufficient.
         const NLogging::TLogger& logger);
 
-    virtual void AddChunk(TInputChunkPtr chunk);
-    virtual TFuture<void> Fetch();
+    virtual void AddChunk(TInputChunkPtr chunk) override;
+    virtual TFuture<void> Fetch() override;
 
 protected:
     const TFetcherConfigPtr Config_;

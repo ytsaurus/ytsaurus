@@ -81,6 +81,9 @@ DECLARE_REFCOUNTED_STRUCT(IOperationController)
 
 DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraper)
 
+DECLARE_REFCOUNTED_STRUCT(IJobHost)
+DECLARE_REFCOUNTED_CLASS(TJobHost)
+
 class TMasterConnector;
 
 using NJobTrackerClient::NProto::TJobResult;

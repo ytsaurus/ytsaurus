@@ -295,110 +295,111 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):  read_table("//tmp/t[#5:]")
         with pytest.raises(YtError):  read_table("<ranges=[{lower_limit={offset = 0};upper_limit={offset = 1}}]>//tmp/t")
 
-    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_read_table(self, optimize_for):
-        self.sync_create_cells(1)
+    ## XXX(savrus) enable in 19.2
+    #def test_read_table(self, optimize_for):
+    #    self.sync_create_cells(1)
 
-        self._create_simple_table("//tmp/t", optimize_for=optimize_for)
-        self.sync_mount_table("//tmp/t")
+    #    self._create_simple_table("//tmp/t", optimize_for=optimize_for)
+    #    self.sync_mount_table("//tmp/t")
 
-        rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
-        insert_rows("//tmp/t", rows1)
-        self.sync_freeze_table("//tmp/t")
+    #    rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
+    #    insert_rows("//tmp/t", rows1)
+    #    self.sync_freeze_table("//tmp/t")
 
-        assert read_table("//tmp/t") == rows1
-        assert get("//tmp/t/@chunk_count") == 1
+    #    assert read_table("//tmp/t") == rows1
+    #    assert get("//tmp/t/@chunk_count") == 1
 
-        ts = generate_timestamp()
+    #    ts = generate_timestamp()
 
-        self.sync_unfreeze_table("//tmp/t")
-        rows2 = [{"key": i, "value": str(i+1)} for i in xrange(10)]
-        insert_rows("//tmp/t", rows2)
-        self.sync_freeze_table("//tmp/t")
+    #    self.sync_unfreeze_table("//tmp/t")
+    #    rows2 = [{"key": i, "value": str(i+1)} for i in xrange(10)]
+    #    insert_rows("//tmp/t", rows2)
+    #    self.sync_freeze_table("//tmp/t")
 
-        assert read_table("<timestamp=%s>//tmp/t" %(ts)) == rows1
-        assert get("//tmp/t/@chunk_count") == 2
+    #    assert read_table("<timestamp=%s>//tmp/t" %(ts)) == rows1
+    #    assert get("//tmp/t/@chunk_count") == 2
 
-    def test_read_snapshot_lock(self):
-        self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+    ## XXX(savrus) enable in 19.2
+    #def test_read_snapshot_lock(self):
+    #    self.sync_create_cells(1)
+    #    self._create_simple_table("//tmp/t")
+    #    self.sync_mount_table("//tmp/t")
 
-        def get_chunk_tree(path):
-            root_chunk_list_id = get(path + "/@chunk_list_id")
-            root_chunk_list = get("#" + root_chunk_list_id + "/@")
-            tablet_chunk_lists = [get("#" + x + "/@") for x in root_chunk_list["child_ids"]]
-            assert all([root_chunk_list_id in chunk_list["parent_ids"] for chunk_list in tablet_chunk_lists])
-            assert get(path + "/@chunk_count") == sum([len(chunk_list["child_ids"]) for chunk_list in tablet_chunk_lists])
-            return root_chunk_list, tablet_chunk_lists
+    #    def get_chunk_tree(path):
+    #        root_chunk_list_id = get(path + "/@chunk_list_id")
+    #        root_chunk_list = get("#" + root_chunk_list_id + "/@")
+    #        tablet_chunk_lists = [get("#" + x + "/@") for x in root_chunk_list["child_ids"]]
+    #        assert all([root_chunk_list_id in chunk_list["parent_ids"] for chunk_list in tablet_chunk_lists])
+    #        assert get(path + "/@chunk_count") == sum([len(chunk_list["child_ids"]) for chunk_list in tablet_chunk_lists])
+    #        return root_chunk_list, tablet_chunk_lists
 
-        def verify_chunk_tree_refcount(path, root_ref_count, tablet_ref_counts):
-            root, tablets = get_chunk_tree(path)
-            assert root["ref_counter"] == root_ref_count
-            assert [tablet["ref_counter"] for tablet in tablets] == tablet_ref_counts
+    #    def verify_chunk_tree_refcount(path, root_ref_count, tablet_ref_counts):
+    #        root, tablets = get_chunk_tree(path)
+    #        assert root["ref_counter"] == root_ref_count
+    #        assert [tablet["ref_counter"] for tablet in tablets] == tablet_ref_counts
 
-        verify_chunk_tree_refcount("//tmp/t", 1, [1])
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1])
 
-        tx = start_transaction()
-        lock("//tmp/t", mode="snapshot", tx=tx)
-        verify_chunk_tree_refcount("//tmp/t", 2, [1])
+    #    tx = start_transaction()
+    #    lock("//tmp/t", mode="snapshot", tx=tx)
+    #    verify_chunk_tree_refcount("//tmp/t", 2, [1])
 
-        rows1 = [{"key": i, "value": str(i)} for i in xrange(0, 10, 2)]
-        insert_rows("//tmp/t", rows1)
-        self.sync_unmount_table("//tmp/t")
-        verify_chunk_tree_refcount("//tmp/t", 1, [1])
-        assert read_table("//tmp/t") == rows1
-        assert read_table("//tmp/t", tx=tx) == []
+    #    rows1 = [{"key": i, "value": str(i)} for i in xrange(0, 10, 2)]
+    #    insert_rows("//tmp/t", rows1)
+    #    self.sync_unmount_table("//tmp/t")
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1])
+    #    assert read_table("//tmp/t") == rows1
+    #    assert read_table("//tmp/t", tx=tx) == []
 
-        abort_transaction(tx)
-        verify_chunk_tree_refcount("//tmp/t", 1, [1])
+    #    abort_transaction(tx)
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1])
 
-        tx = start_transaction()
-        lock("//tmp/t", mode="snapshot", tx=tx)
-        verify_chunk_tree_refcount("//tmp/t", 2, [1])
+    #    tx = start_transaction()
+    #    lock("//tmp/t", mode="snapshot", tx=tx)
+    #    verify_chunk_tree_refcount("//tmp/t", 2, [1])
 
-        reshard_table("//tmp/t", [[], [5]])
-        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+    #    reshard_table("//tmp/t", [[], [5]])
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
 
-        abort_transaction(tx)
-        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+    #    abort_transaction(tx)
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
 
-        tx = start_transaction()
-        lock("//tmp/t", mode="snapshot", tx=tx)
-        verify_chunk_tree_refcount("//tmp/t", 2, [1, 1])
+    #    tx = start_transaction()
+    #    lock("//tmp/t", mode="snapshot", tx=tx)
+    #    verify_chunk_tree_refcount("//tmp/t", 2, [1, 1])
 
-        self.sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
+    #    self.sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
 
-        rows2 = [{"key": i, "value": str(i)} for i in xrange(1, 5, 2)]
-        insert_rows("//tmp/t", rows2)
-        self.sync_unmount_table("//tmp/t")
-        verify_chunk_tree_refcount("//tmp/t", 1, [1, 2])
-        assert_items_equal(read_table("//tmp/t"), rows1 + rows2)
-        assert read_table("//tmp/t", tx=tx) == rows1
+    #    rows2 = [{"key": i, "value": str(i)} for i in xrange(1, 5, 2)]
+    #    insert_rows("//tmp/t", rows2)
+    #    self.sync_unmount_table("//tmp/t")
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1, 2])
+    #    assert_items_equal(read_table("//tmp/t"), rows1 + rows2)
+    #    assert read_table("//tmp/t", tx=tx) == rows1
 
-        self.sync_mount_table("//tmp/t")
-        rows3 = [{"key": i, "value": str(i)} for i in xrange(5, 10, 2)]
-        insert_rows("//tmp/t", rows3)
-        self.sync_unmount_table("//tmp/t")
-        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
-        assert_items_equal(read_table("//tmp/t"), rows1 + rows2 + rows3)
-        assert read_table("//tmp/t", tx=tx) == rows1
+    #    self.sync_mount_table("//tmp/t")
+    #    rows3 = [{"key": i, "value": str(i)} for i in xrange(5, 10, 2)]
+    #    insert_rows("//tmp/t", rows3)
+    #    self.sync_unmount_table("//tmp/t")
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+    #    assert_items_equal(read_table("//tmp/t"), rows1 + rows2 + rows3)
+    #    assert read_table("//tmp/t", tx=tx) == rows1
 
-        abort_transaction(tx)
-        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+    #    abort_transaction(tx)
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
 
-        tx = start_transaction()
-        lock("//tmp/t", mode="snapshot", tx=tx)
-        verify_chunk_tree_refcount("//tmp/t", 2, [1, 1])
+    #    tx = start_transaction()
+    #    lock("//tmp/t", mode="snapshot", tx=tx)
+    #    verify_chunk_tree_refcount("//tmp/t", 2, [1, 1])
 
-        self.sync_mount_table("//tmp/t")
-        self.sync_compact_table("//tmp/t")
-        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
-        assert_items_equal(read_table("//tmp/t"), rows1 + rows2 + rows3)
-        assert_items_equal(read_table("//tmp/t", tx=tx), rows1 + rows2 + rows3)
+    #    self.sync_mount_table("//tmp/t")
+    #    self.sync_compact_table("//tmp/t")
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+    #    assert_items_equal(read_table("//tmp/t"), rows1 + rows2 + rows3)
+    #    assert_items_equal(read_table("//tmp/t", tx=tx), rows1 + rows2 + rows3)
 
-        abort_transaction(tx)
-        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+    #    abort_transaction(tx)
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
 
     def test_read_table_ranges(self):
         self.sync_create_cells(1)
@@ -587,7 +588,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         def verify_after_flush(row):
             verify_row(row["key"], [row])
-            assert_items_equal(read_table("//tmp/t"), [row])
+            #XXX(savrus) enable in 19.2
+            #assert_items_equal(read_table("//tmp/t"), [row])
 
         test_row({"key": 1, "time": 1, "value": 10}, {"key": 1, "time": 1, "value": 10}, aggregate=True)
         test_row({"key": 1, "time": 2, "value": 10}, {"key": 1, "time": 2, "value": 20}, aggregate=True)

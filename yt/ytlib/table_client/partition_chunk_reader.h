@@ -106,6 +106,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     NApi::INativeClientPtr client,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
