@@ -10,6 +10,7 @@
 #include "operation_controller.h"
 #include "serialize.h"
 #include "helpers.h"
+#include "master_connector.h"
 
 #include <yt/server/chunk_server/public.h>
 
@@ -293,7 +294,7 @@ protected:
     NApi::ITransactionPtr OutputTransaction;
     NApi::ITransactionPtr DebugOutputTransaction;
 
-    TSharedRef Snapshot;
+    TOperationSnapshot Snapshot;
 
     struct TRowBufferTag { };
     NTableClient::TRowBufferPtr RowBuffer;
@@ -842,7 +843,7 @@ protected:
     void ReinstallLivePreview();
     void AbortAllJoblets();
 
-    void DoLoadSnapshot(const TSharedRef& snapshot);
+    void DoLoadSnapshot(const TOperationSnapshot& snapshot);
 
     bool InputHasDynamicTables() const;
     bool InputHasVersionedTables() const;

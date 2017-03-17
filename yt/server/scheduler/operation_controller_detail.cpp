@@ -4,7 +4,6 @@
 #include "chunk_pool.h"
 #include "helpers.h"
 #include "intermediate_chunk_scraper.h"
-#include "master_connector.h"
 
 #include <yt/server/misc/job_table_schema.h>
 
@@ -1165,7 +1164,7 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
     if (cleanStart) {
         LOG_INFO("Using clean start instead of revive");
 
-        Snapshot = TSharedRef();
+        Snapshot = TOperationSnapshot();
         auto error = WaitFor(Host->GetMasterConnector()->RemoveSnapshot(OperationId));
         if (!error.IsOK()) {
             LOG_WARNING(error, "Failed to remove snapshot");
@@ -1399,8 +1398,10 @@ void TOperationControllerBase::SafeMaterialize()
         if (Config->TestingOptions->EnableSnapshotCycleAfterMaterialization) {
             TStringStream stringStream;
             SaveSnapshot(&stringStream);
-            auto sharedRef = TSharedRef::FromString(stringStream.Str());
-            DoLoadSnapshot(sharedRef);
+            TOperationSnapshot snapshot;
+            snapshot.Version = GetCurrentSnapshotVersion();
+            snapshot.Data = TSharedRef::FromString(stringStream.Str());
+            DoLoadSnapshot(snapshot);
         }
 
         // Input chunk scraper initialization should be the last step to avoid races,
@@ -1436,13 +1437,13 @@ void TOperationControllerBase::Revive()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    if (!Snapshot) {
+    if (!Snapshot.Data) {
         Prepare();
         return;
     }
 
     DoLoadSnapshot(Snapshot);
-    Snapshot = TSharedRef();
+    Snapshot = TOperationSnapshot();
 
     RevivedFromSnapshot = true;
 
@@ -1692,20 +1693,18 @@ void TOperationControllerBase::AbortAllJoblets()
     JobletMap.clear();
 }
 
-void TOperationControllerBase::DoLoadSnapshot(const TSharedRef& snapshot)
+void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot)
 {
-    LOG_INFO("Started loading snapshot");
+    LOG_INFO("Started loading snapshot (Size: %v, Version: %v)",
+        snapshot.Data.Size(),
+        snapshot.Version);
 
-    TMemoryInput input(snapshot.Begin(), snapshot.Size());
+    TMemoryInput input(snapshot.Data.Begin(), snapshot.Data.Size());
 
     TLoadContext context;
     context.SetInput(&input);
     context.SetRowBuffer(RowBuffer);
-    // NB: Currently scheduler snapshots are not backward-compatible.
-    // The version is being checked when the snapshot is discovered.
-    // If the version does not match the expected one, the snapshot is discarded.
-    // We still need to provide the proper version for the loaders to work properly.
-    context.SetVersion(GetCurrentSnapshotVersion());
+    context.SetVersion(snapshot.Version);
 
     NPhoenix::TSerializer::InplaceLoad(context, this);
 
