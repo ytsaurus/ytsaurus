@@ -218,7 +218,7 @@ public:
 
     void JoinRow(TRow row, TRow foreignRow)
     {
-        auto joinedRow = IntermediateBuffer->Allocate(SelfColumns.size() + ForeignColumns.size());
+        auto joinedRow = IntermediateBuffer->AllocateUnversioned(SelfColumns.size() + ForeignColumns.size());
 
         for (size_t column = 0; column < SelfColumns.size(); ++column) {
             joinedRow[column] = row[SelfColumns[column]];
@@ -237,7 +237,7 @@ public:
 
     void JoinRowNull(TRow row)
     {
-        auto joinedRow = IntermediateBuffer->Allocate(SelfColumns.size() + ForeignColumns.size());
+        auto joinedRow = IntermediateBuffer->AllocateUnversioned(SelfColumns.size() + ForeignColumns.size());
 
         for (size_t column = 0; column < SelfColumns.size(); ++column) {
             joinedRow[column] = row[SelfColumns[column]];
@@ -472,36 +472,6 @@ void JoinOpHelper(
         auto chainedRows = std::move(closure.ChainedRows);
 
         auto isLeft = parameters->IsLeft;
-<<<<<<< HEAD
-        auto selfColumns = parameters->SelfColumns;
-        auto foreignColumns = parameters->ForeignColumns;
-
-        auto joinRow = [&] (TRow row, TRow foreignRow) {
-            auto joinedRow = intermediateBuffer->AllocateUnversioned(selfColumns.size() + foreignColumns.size());
-
-            for (size_t column = 0; column < selfColumns.size(); ++column) {
-                joinedRow[column] = row[selfColumns[column]];
-            }
-
-            for (size_t column = 0; column < foreignColumns.size(); ++column) {
-                joinedRow[column + selfColumns.size()] = foreignRow[foreignColumns[column]];
-            }
-
-            joinedRows.push_back(joinedRow);
-
-            if (joinedRows.size() >= RowsetProcessingSize) {
-                consumeJoinedRows();
-            }
-        };
-
-        auto joinRowNull = [&] (TRow row) {
-            auto joinedRow = intermediateBuffer->AllocateUnversioned(selfColumns.size() + foreignColumns.size());
-
-            for (size_t column = 0; column < selfColumns.size(); ++column) {
-                joinedRow[column] = row[selfColumns[column]];
-            }
-=======
->>>>>>> prestable/19.1
 
         if (!parameters->IsOrdered) {
             auto pipe = New<NTableClient::TSchemafulPipe>();
