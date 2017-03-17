@@ -261,7 +261,6 @@ int RunJob(size_t outputTableCount, TInputStream& jobStateStream)
 
     // Many users don't expect to have jobs with empty input so we skip such jobs.
     if (!readerImpl->IsValid()) {
-        Cerr << "Job received empty input. Exiting immediately." << Endl;
         return 0;
     }
 
