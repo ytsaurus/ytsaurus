@@ -439,7 +439,6 @@ public:
         return CoreSemaphore_;
     }
 
-<<<<<<< HEAD
     void DoSetOperationAlert(
         const TOperationId& operationId,
         EOperationAlertType alertType,
@@ -465,14 +464,14 @@ public:
         BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert)
             .AsyncVia(GetControlInvoker())
             .Run();
-=======
+    }
+
     virtual IJobHostPtr GetJobHost(const TJobId& jobId) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto nodeShard = GetNodeShardByJobId(jobId);
         return CreateJobHost(jobId, nodeShard);
->>>>>>> prestable/19.1
     }
 
     virtual void ValidatePoolPermission(

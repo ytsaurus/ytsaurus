@@ -282,11 +282,11 @@ public:
         Jobs_[cookie].SetState(EManagedJobState::Pending);
     }
 
-    void Aborted(IChunkPoolOutput::TCookie cookie)
+    void Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason)
     {
-        JobCounter_.Aborted(1);
-        DataSizeCounter_.Aborted(Jobs_[cookie].GetDataSize());
-        RowCounter_.Aborted(Jobs_[cookie].GetRowCount());
+        JobCounter_.Aborted(1, reason);
+        DataSizeCounter_.Aborted(Jobs_[cookie].GetDataSize(), reason);
+        RowCounter_.Aborted(Jobs_[cookie].GetRowCount(), reason);
         Jobs_[cookie].SetState(EManagedJobState::Pending);
     }
 
@@ -705,9 +705,9 @@ public:
         JobManager_->Failed(cookie);
     }
 
-    virtual void Aborted(IChunkPoolOutput::TCookie cookie) override
+    virtual void Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason) override
     {
-        JobManager_->Aborted(cookie);
+        JobManager_->Aborted(cookie, reason);
     }
 
     virtual void Lost(IChunkPoolOutput::TCookie cookie) override

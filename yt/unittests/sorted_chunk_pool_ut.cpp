@@ -97,7 +97,7 @@ protected:
     // actual type of values in keys.
     TKey BuildRow(std::vector<i64> values)
     {
-        auto row = RowBuffer_->Allocate(values.size());
+        auto row = RowBuffer_->AllocateUnversioned(values.size());
         for (int index = 0; index < values.size(); ++index) {
             row[index] = MakeUnversionedInt64Value(values[index], index);
         }
@@ -1749,7 +1749,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 ASSERT_TRUE(startedChunks.erase(chunkId));
                 ASSERT_TRUE(chunkIdToOutputCookie.erase(chunkId));
                 ASSERT_TRUE(pendingChunks.insert(chunkId).second);
-                ChunkPool_->Aborted(outputCookie);
+                ChunkPool_->Aborted(outputCookie, EAbortReason::Unknown);
             }
         } else { // if (eventType <= 99)
             if (auto randomElement = chooseRandomElement(startedChunks)) {
