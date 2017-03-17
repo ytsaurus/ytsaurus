@@ -18,7 +18,7 @@ struct IValueConsumer
 {
     virtual ~IValueConsumer() = default;
 
-    virtual TNameTablePtr GetNameTable() const = 0;
+    virtual const TNameTablePtr& GetNameTable() const = 0;
 
     virtual bool GetAllowUnknownColumns() const = 0;
 
@@ -77,7 +77,7 @@ public:
 
     std::vector<TUnversionedRow> GetRows() const;
 
-    virtual TNameTablePtr GetNameTable() const override;
+    virtual const TNameTablePtr& GetNameTable() const override;
 
     void SetAggregate(bool value);
     void SetTreatMissingAsNull(bool value);
@@ -126,7 +126,7 @@ private:
     std::vector<TUnversionedRow> Rows_;
     SmallVector<TUnversionedValue, TypicalColumnCount> Values_;
 
-    virtual TNameTablePtr GetNameTable() const override;
+    virtual const TNameTablePtr& GetNameTable() const override;
 
     virtual bool GetAllowUnknownColumns() const override;
 
