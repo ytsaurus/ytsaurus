@@ -271,3 +271,4 @@ def _prepare_stderr_table(name, client=None):
     with Transaction(transaction_id=null_transaction_id, client=client):
         create_table(table, ignore_existing=True, client=client)
     return table
+

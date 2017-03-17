@@ -323,6 +323,14 @@ class TablePath(YPathSupportingAppend):
                 range["upper_limit"] = upper_limit
                 del range["exact"]
 
+    def has_key_limit_in_ranges(self):
+        """Checks whether ranges contain key limits."""
+        for range in self.attributes.get("ranges", []):
+            for item, value in range.items():
+                if "key" in value:
+                    return True
+        return False
+
 class FilePath(YPathSupportingAppend):
     """YPath descendant to be used in file commands."""
     def __init__(self, path, append=None, executable=None, file_name=None, simplify=None, attributes=None, client=None):

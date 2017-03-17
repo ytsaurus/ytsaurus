@@ -173,6 +173,9 @@ class YtTestEnvironment(object):
         self.config["batch_requests_retries"]["backoff"]["constant_time"] = 500
         self.config["batch_requests_retries"]["backoff"]["policy"] = "constant_time"
 
+        self.config["read_parallel"]["data_size_per_thread"] = 1
+        self.config["read_parallel"]["max_thread_count"] = 10
+
         self.config["enable_token"] = False
         self.config["is_local_mode"] = False
         self.config["pickling"]["enable_tmpfs_archive"] = ENABLE_JOB_CONTROL

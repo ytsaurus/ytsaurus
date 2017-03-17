@@ -252,6 +252,7 @@ def _run_tests(options, python_version):
                     "--capture=fd",
                     "--tb=native",
                     "--timeout=600",
+                    "--debug",
                     "--junitxml={0}".format(handle.name)] + additional_args,
                     cwd=options.checkout_directory,
                     env=env)

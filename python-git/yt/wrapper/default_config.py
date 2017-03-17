@@ -341,6 +341,15 @@ default_config = {
         "stderr_download_timeout": 60 * 1000
     },
 
+    "read_parallel": {
+        # Number of threads for reading table.
+        "max_thread_count": 10,
+        # Approximate data size per one thread.
+        "data_size_per_thread": 8 * 1024 * 1024,
+        # Always run read parallel if it is possible.
+        "enable": False
+    },
+
     # Size of block to read from response stream.
     "read_buffer_size": 8 * 1024 * 1024,
 
