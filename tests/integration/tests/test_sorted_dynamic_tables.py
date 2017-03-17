@@ -295,7 +295,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):  read_table("//tmp/t[#5:]")
         with pytest.raises(YtError):  read_table("<ranges=[{lower_limit={offset = 0};upper_limit={offset = 1}}]>//tmp/t")
 
-    @pytest.mark.skip(reason="XXX(savrus) enable in 19.2")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_read_table(self, optimize_for):
         self.sync_create_cells(1)
@@ -320,7 +319,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert read_table("<timestamp=%s>//tmp/t" %(ts)) == rows1
         assert get("//tmp/t/@chunk_count") == 2
 
-    @pytest.mark.skip(reason="XXX(savrus) enable in 19.2")
     def test_read_snapshot_lock(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -589,8 +587,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         def verify_after_flush(row):
             verify_row(row["key"], [row])
-            #XXX(savrus) enable in 19.2
-            #assert_items_equal(read_table("//tmp/t"), [row])
+            assert_items_equal(read_table("//tmp/t"), [row])
 
         test_row({"key": 1, "time": 1, "value": 10}, {"key": 1, "time": 1, "value": 10}, aggregate=True)
         test_row({"key": 1, "time": 2, "value": 10}, {"key": 1, "time": 2, "value": 20}, aggregate=True)
