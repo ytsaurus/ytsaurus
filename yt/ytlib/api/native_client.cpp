@@ -2670,13 +2670,13 @@ private:
     }
 
     template <class T>
-    bool LessNullable(const T& lhs, const T& rhs)
+    static bool LessNullable(const T& lhs, const T& rhs)
     {
         return lhs < rhs;
     }
 
     template <class T>
-    bool LessNullable(const TNullable<T>& lhs, const TNullable<T>& rhs)
+    static bool LessNullable(const TNullable<T>& lhs, const TNullable<T>& rhs)
     {
         return rhs && (!lhs || *lhs < *rhs);
     }
@@ -2686,6 +2686,60 @@ private:
         const TListJobsOptions& options)
     {
         std::vector<TJob> resultJobs;
+
+        auto mergeJob = [] (TJob* target, const TJob& source) {
+#define MERGE_FIELD(name) target->name = source.name
+#define MERGE_NULLABLE_FIELD(name) \
+            if (source.name) { \
+                target->name = source.name; \
+            }
+            MERGE_FIELD(JobState);
+            MERGE_FIELD(StartTime);
+            MERGE_NULLABLE_FIELD(FinishTime);
+            MERGE_FIELD(Address);
+            MERGE_NULLABLE_FIELD(Error);
+            MERGE_NULLABLE_FIELD(Statistics);
+            MERGE_NULLABLE_FIELD(StderrSize);
+            MERGE_NULLABLE_FIELD(Progress);
+            MERGE_NULLABLE_FIELD(CoreInfos);
+#undef MERGE_FIELD
+#undef MERGE_NULLABLE_FIELD
+        };
+
+        auto mergeJobs = [&] (const std::vector<TJob>& source1, const std::vector<TJob>& source2) {
+            auto it1 = source1.begin();
+            auto end1 = source1.end();
+
+            auto it2 = source2.begin();
+            auto end2 = source2.end();
+
+            std::vector<TJob> result;
+            while (it1 != end1 && it2 != end2) {
+                if (it1->JobId == it2->JobId) {
+                    result.push_back(*it1);
+                    mergeJob(&result->back(), *it2);
+                    ++it1;
+                    ++it2;
+                } else if (it1->JobId < it2->JobId) {
+                    result.push_back(*it1);
+                    ++it1;
+                } else {
+                    result.push_back(*it2);
+                    ++it2;
+                }
+            }
+
+            result.insert(result.end(), it1, end1);
+            result.insert(result.end(), it2, end2);
+
+            return result;
+        };
+
+        auto sortJobs = [] (std::vector<TJob>* jobs) {
+            std::sort(jobs->begin(), jobs->end(), [] (const TJob& lhs, const TJob& rhs) {
+                return lhs.JobId < rhs.JobId;
+            });
+        };
 
         bool hasArchivedJobs = false;
         if (options.IncludeArchive) {
@@ -2755,6 +2809,13 @@ private:
 
             const auto& rows = result.Rowset->GetRows();
 
+            auto checkIsNotNull = [&] (const TUnversionedValue& value, const TStringBuf& name) {
+                if (value.Type == EValueType::Null) {
+                    THROW_ERROR_EXCEPTION("Unexpected null value in column %Qv in job archive", name)
+                        << TErrorAttribute("operation_id", operationId);
+                }
+            };
+
             for (auto row : rows) {
                 TGuid jobId(row[2].Data.Uint64, row[3].Data.Uint64);
 
@@ -2772,9 +2833,11 @@ private:
 
                 hasArchivedJobs = true;
             }
+
+            sortJobs(resultJobs);
         }
 
-        if (options.IncludeCypress && !hasArchivedJobs) {
+        if (options.IncludeCypress) {
             TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
 
             auto path = GetJobsPath(operationId);
@@ -2788,7 +2851,8 @@ private:
                 "error",
                 "statistics",
                 "size",
-                "uncompressed_data_size"};
+                "uncompressed_data_size"
+            };
 
             ToProto(getReq->mutable_attributes()->mutable_keys(), attributeFilter);
 
@@ -2797,6 +2861,7 @@ private:
 
             auto items = ConvertToNode(NYson::TYsonString(getRsp->value()))->AsMap();
 
+            std::vector<TJob> cypressJobs;
             for (const auto& item : items->GetChildren()) {
                 const auto& attributes = item.second->Attributes();
 
@@ -2830,11 +2895,14 @@ private:
 
                 job.Progress = attributes.Find<double>("progress");
                 job.CoreInfos = attributes.Find<Stroka>("core_infos");
-                resultJobs.push_back(job);
+                cypressJobs.push_back(job);
             }
+
+            sortJobs(cypressJobs);
+            resultJobs = mergeJobs(resultJobs, cypressJobs);
         }
 
-        if (options.IncludeRuntime && !hasArchivedJobs) {
+        if (options.IncludeRuntime) {
             TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
 
             auto path = Format("//sys/scheduler/orchid/scheduler/operations/%v/running_jobs", operationId);
@@ -2844,6 +2912,7 @@ private:
 
             auto items = ConvertToNode(NYson::TYsonString(getRsp->value()))->AsMap();
 
+            std::vector<TJob> runtimeJobs;
             for (const auto& item : items->GetChildren()) {
                 auto values = item.second->AsMap();
 
@@ -2877,6 +2946,8 @@ private:
 
                 resultJobs.push_back(job);
             }
+            sortJobs(runtimeJobs);
+            resultJobs = mergeJobs(resultJobs, runtimeJobs);
         }
 
         std::function<bool(const TJob&, const TJob&)> comparer;
