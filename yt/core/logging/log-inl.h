@@ -46,9 +46,6 @@ Stroka FormatLogMessage(const T& obj)
 template <class TLogger>
 void LogEventImpl(
     TLogger& logger,
-    const char* fileName,
-    int line,
-    const char* function,
     ELogLevel level,
     Stroka message)
 {
@@ -57,12 +54,9 @@ void LogEventImpl(
     event.Category = logger.GetCategory();
     event.Level = level;
     event.Message = std::move(message);
-    event.FileName = fileName;
-    event.Line = line;
     event.ThreadId = TThread::CurrentThreadId();
     event.FiberId = NConcurrency::GetCurrentFiberId();
     event.TraceId = NTracing::GetCurrentTraceContext().GetTraceId();
-    event.Function = function;
     logger.Write(std::move(event));
 }
 
