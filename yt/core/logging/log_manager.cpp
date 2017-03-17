@@ -63,6 +63,11 @@ static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 static constexpr auto DequeuePeriod = TDuration::MilliSeconds(100);
 static constexpr int PerThreadBatchingReserveCapacity = 256;
 
+static __thread TDuration PerThreadBatchingPeriod;
+static __thread NProfiling::TCpuInstant PerThreadBatchingDeadline;
+static __thread std::vector<TLogEvent>* PerThreadBatchingEvents;
+Y_STATIC_THREAD(std::vector<TLogEvent>) PerThreadBatchingEventsHolder;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNotificationHandle
@@ -453,9 +458,9 @@ public:
             return;
         }
 
-        if (PerThreadBatchingPeriod_ != TDuration::Zero()) {
+        if (PerThreadBatchingPeriod != TDuration::Zero()) {
             BatchEvent(std::move(event));
-            if (NProfiling::GetCpuInstant() > PerThreadBatchingDeadline_) {
+            if (NProfiling::GetCpuInstant() > PerThreadBatchingDeadline) {
                 FlushBatchedEvents();
             }
         } else {
@@ -470,16 +475,16 @@ public:
 
     void SetPerThreadBatchingPeriod(TDuration value)
     {
-        if (PerThreadBatchingPeriod_ == value) {
+        if (PerThreadBatchingPeriod == value) {
             return;
         }
         FlushBatchedEvents();
-        PerThreadBatchingPeriod_ = value;
+        PerThreadBatchingPeriod = value;
     }
 
     TDuration GetPerThreadBatchingPeriod() const
     {
-        return PerThreadBatchingPeriod_;
+        return PerThreadBatchingPeriod;
     }
 
 private:
@@ -799,19 +804,19 @@ private:
 
     void BatchEvent(TLogEvent&& event)
     {
-        if (!PerThreadBatchingEvents_) {
-            PerThreadBatchingEvents_ = &PerThreadBatchingEventsHolder_;
+        if (!PerThreadBatchingEvents) {
+            PerThreadBatchingEvents = &PerThreadBatchingEventsHolder;
         }
-        PerThreadBatchingEvents_->emplace_back(std::move(event));
+        PerThreadBatchingEvents->emplace_back(std::move(event));
     }
 
     void FlushBatchedEvents()
     {
         std::vector<TLogEvent> newEvents;
         newEvents.reserve(PerThreadBatchingReserveCapacity);
-        newEvents.swap(*PerThreadBatchingEvents_);
+        newEvents.swap(*PerThreadBatchingEvents);
         PushLogEvents(std::move(newEvents));
-        PerThreadBatchingDeadline_ = NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(PerThreadBatchingPeriod_);
+        PerThreadBatchingDeadline = NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(PerThreadBatchingPeriod);
     }
 
 
@@ -898,11 +903,6 @@ private:
     std::unique_ptr<TNotificationHandle> NotificationHandle_;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches_;
     yhash_map<int, TNotificationWatch*> NotificationWatchesIndex_;
-
-    static __thread TDuration PerThreadBatchingPeriod_;
-    static __thread NProfiling::TCpuInstant PerThreadBatchingDeadline_;
-    static __thread std::vector<TLogEvent>* PerThreadBatchingEvents_;
-    Y_STATIC_THREAD(std::vector<TLogEvent>) PerThreadBatchingEventsHolder_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
