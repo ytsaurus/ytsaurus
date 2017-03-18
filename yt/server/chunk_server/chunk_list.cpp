@@ -59,6 +59,7 @@ void TChunkList::Save(NCellMaster::TSaveContext& context) const
     Save(context, CumulativeStatistics_);
     Save(context, Kind_);
     Save(context, TrimmedChildCount_);
+    Save(context, PivotKey_);
 }
 
 void TChunkList::Load(NCellMaster::TLoadContext& context)
@@ -112,6 +113,11 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
             Load<bool>(context);
         }
         Load(context, TrimmedChildCount_);
+    }
+
+    //COMPAT(savrus)
+    if (context.GetVersion() >= 511) {
+        Load(context, PivotKey_);
     }
 
     if (!IsOrdered()) {

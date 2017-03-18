@@ -2172,7 +2172,7 @@ private:
         // COMPAT(babenko)
         InitializeCellBundles_ = (context.GetVersion() < 400);
         // COMPAT(savrus)
-        UpdateChunkListsKind_ = (context.GetVersion() < 510);
+        UpdateChunkListsKind_ = (context.GetVersion() < 511);
     }
 
 
