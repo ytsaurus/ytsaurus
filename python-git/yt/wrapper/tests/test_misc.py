@@ -29,6 +29,7 @@ import time
 import pytest
 import shutil
 import collections
+from copy import deepcopy
 
 def test_docs_exist():
     functions = inspect.getmembers(
@@ -607,4 +608,20 @@ class TestExecuteBatch(object):
         err = yt.YtResponseError(rsp[2]["error"])
         assert err.is_resolve_error()
 
+@pytest.mark.usefixtures("yt_env_multicell")
+class TestCellId(object):
+    def test_simple(self, yt_env_multicell):
+        yt.mkdir("//tmp/test_dir")
+        yt.write_table("//tmp/test_dir/table", [{"a": "b"}])
+        chunk_id = yt.get("//tmp/test_dir/table/@chunk_ids/0")
+
+        config = deepcopy(yt.config.config)
+        config["backend"] = "native"
+        client = yt.YtClient(config=config)
+        assert client.get("#{0}/@owning_nodes".format(chunk_id)) == ["//tmp/test_dir/table"]
+
+        for secondary_master in config["driver_config"]["secondary_masters"]:
+            cell_id = secondary_master["cell_id"]
+            client.COMMAND_PARAMS["cell_id"] = cell_id
+            assert client.get("//sys/@cell_id") == cell_id
 

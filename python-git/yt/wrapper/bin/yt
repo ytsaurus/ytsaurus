@@ -919,6 +919,8 @@ def main():
     config_parser.add_argument("--config", action=ParseStructuredArgument, help="specify configuration")
     config_parser.add_argument("--tx", help="perform command in the context of the given "
                                             "transaction, by default 0-0-0-0")
+    config_parser.add_argument("--cell-id", help="perform command in master specified by this id; "
+                                                 "supported only for native driver and testing purposes ")
     config_parser.add_argument("--ping-ancestor-txs", action="store_true",
                                help="turn on pinging ancestor transactions")
     config_parser.add_argument("--trace", action="store_true")
@@ -1056,6 +1058,8 @@ def main():
     if config_args.tx is not None:
         yt.config.COMMAND_PARAMS["transaction_id"] = config_args.tx
         yt.config.COMMAND_PARAMS["ping_ancestor_transactions"]  = config_args.ping_ancestor_txs
+    if config_args.cell_id is not None:
+        yt.config.COMMAND_PARAMS["cell_id"] = config_args.cell_id
     if config_args.proxy is not None:
         yt.config["backend"] = "http"
         yt.config["proxy"]["url"] = config_args.proxy
@@ -1069,7 +1073,7 @@ def main():
     args = parser.parse_args(unparsed)
 
     func_args = dict(vars(args))
-    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config"):
+    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config", "cell_id"):
         func_args.pop(key)
     args.func(**func_args)
 
