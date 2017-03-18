@@ -610,14 +610,14 @@ private:
                 .AsyncVia(WorkerThread_->GetInvoker())));
         }
 
-        context->ReplyFrom(Combine(asyncResults).Apply(BIND([= , this_ = MakeStrong(this)] () {
+        context->ReplyFrom(Combine(asyncResults).Apply(BIND([=] () {
             if (keySetWriter) {
                 response->set_keys_in_attachment(true);
                 response->Attachments().emplace_back(keySetWriter->Finish());
             } else {
                 response->set_keys_in_attachment(false);
             }
-        }).Via(WorkerThread_->GetInvoker())));
+        }).AsyncVia(WorkerThread_->GetInvoker())));
     }
 
     void MakeChunkSlices(
@@ -738,14 +738,14 @@ private:
                 .AsyncVia(WorkerThread_->GetInvoker())));
         }
 
-        context->ReplyFrom(Combine(asyncResults).Apply(BIND([=, this_ = MakeStrong(this)] () {
+        context->ReplyFrom(Combine(asyncResults).Apply(BIND([=] () {
             if (keySetWriter) {
                 response->set_keys_in_attachment(true);
                 response->Attachments().emplace_back(keySetWriter->Finish());
             } else {
                 response->set_keys_in_attachment(false);
             }
-        }).Via(WorkerThread_->GetInvoker())));
+        }).AsyncVia(WorkerThread_->GetInvoker())));
     }
 
     void ProcessSample(
