@@ -51,11 +51,13 @@ def pytest_configure(config):
     tests_runner.set_scheduling_func(scheduling_func)
 
 class YtTestEnvironment(object):
-    def __init__(self, test_name, config=None):
+    def __init__(self, test_name, config=None, env_options=None):
         self.test_name = test_name
 
         if config is None:
             config = {}
+        if env_options is None:
+            env_options = {}
 
         has_proxy = config["backend"] != "native"
 
@@ -128,8 +130,9 @@ class YtTestEnvironment(object):
                               port_locks_path=os.path.join(TESTS_SANDBOX, "ports"),
                               fqdn="localhost",
                               modify_configs_func=modify_configs,
-                              kill_child_processes=True)
-        self.env.start()
+                              kill_child_processes=True,
+                              **env_options)
+        self.env.start(start_secondary_master_cells=True)
 
         self.version = "{0}.{1}".format(*self.env.abi_version)
 
@@ -184,14 +187,17 @@ class YtTestEnvironment(object):
     def check_liveness(self):
         self.env.check_liveness(callback_func=_pytest_finalize_func)
 
-def init_environment_for_test_session(mode):
+def init_environment_for_test_session(mode, env_options=None):
     config = {"api_version": "v3"}
     if mode == "native":
         config["backend"] = "native"
     else:
         config["backend"] = "http"
 
-    environment = YtTestEnvironment("TestYtWrapper" + mode.capitalize(), config)
+    environment = YtTestEnvironment(
+        "TestYtWrapper" + mode.capitalize(),
+        config,
+        env_options=env_options)
 
     if mode == "native":
         import yt_driver_bindings
@@ -221,6 +227,14 @@ def test_environment_for_yamr(request):
     yt.config["yamr_mode"]["treat_unexisting_as_empty"] = True
     yt.config["default_value_of_raw_option"] = True
 
+    return environment
+
+@pytest.fixture(scope="session")
+def test_environment_multicell(request):
+    environment = init_environment_for_test_session(
+        "native_multicell",
+        env_options={"secondary_master_cell_count": 2})
+    request.addfinalizer(lambda: environment.cleanup())
     return environment
 
 def test_method_teardown():
@@ -267,4 +281,13 @@ def yt_env_for_yamr(request, test_environment_for_yamr):
     yt.mkdir(TEST_DIR, recursive=True)
     request.addfinalizer(test_method_teardown)
     return test_environment_for_yamr
+
+@pytest.fixture(scope="function")
+def yt_env_multicell(request, test_environment_multicell):
+    """ YT cluster fixture for tests with multiple cells.
+    """
+    test_environment_multicell.check_liveness()
+    yt.mkdir(TEST_DIR, recursive=True)
+    request.addfinalizer(test_method_teardown)
+    return test_environment_multicell
 
