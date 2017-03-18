@@ -726,7 +726,7 @@ private:
         // First-chance scheduling.
         int nonPreemptiveScheduleJobCount = 0;
         {
-            LOG_DEBUG("Scheduling new jobs");
+            LOG_TRACE("Scheduling new jobs");
             PROFILE_AGGREGATED_TIMING(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
                 rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
             }
@@ -745,7 +745,7 @@ private:
         }
 
         // Compute discount to node usage.
-        LOG_DEBUG("Looking for preemptable jobs");
+        LOG_TRACE("Looking for preemptable jobs");
         yhash_set<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
         PROFILE_TIMING ("/analyze_preemptable_jobs_time") {
@@ -782,7 +782,7 @@ private:
         // NB: Schedule at most one job.
         int preemptiveScheduleJobCount = 0;
         {
-            LOG_DEBUG("Scheduling new jobs with preemption");
+            LOG_TRACE("Scheduling new jobs with preemption");
             PROFILE_AGGREGATED_TIMING(PreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
                 rootElement->PrescheduleJob(context, /*starvingOnly*/ true, /*aggressiveStarvationEnabled*/ false);
             }
