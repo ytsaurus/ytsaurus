@@ -266,6 +266,7 @@ PEERDIR(
   contrib/libs/brotli/enc
   contrib/libs/zstd07
   contrib/libs/lzmasdk
+  contrib/libs/libbz2
   yt/${YT_ABI}/yt/build
   yt/${YT_ABI}/yt/contrib
 )
