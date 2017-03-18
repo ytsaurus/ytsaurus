@@ -766,7 +766,9 @@ public:
 
         StartInstant_ = TInstant::Now();
 
-        LOG_DEBUG("Chunk tree traversal started");
+        LOG_DEBUG("Chunk tree traversal started (LowerBound: %v, UpperBound: %v",
+            lowerBound,
+            upperBound);
 
         GetStartChildIndex(chunkList, 0, lowerBound, upperBound);
 
