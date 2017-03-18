@@ -1667,6 +1667,8 @@ private:
             auto controller = CreateController(operation.Get());
             operation->SetController(controller);
 
+            Strategy_->ValidateOperationCanBeRegistered(operation);
+
             RegisterOperation(operation);
             registered = true;
 
