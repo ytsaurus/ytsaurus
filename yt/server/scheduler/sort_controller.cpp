@@ -6,6 +6,7 @@
 #include "job_memory.h"
 #include "map_controller.h"
 #include "operation_controller_detail.h"
+#include "sorted_chunk_pool.h"
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>
@@ -14,6 +15,7 @@
 #include <yt/ytlib/chunk_client/key_set.h>
 
 #include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/samples_fetcher.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -71,9 +73,8 @@ public:
         , Options(options)
         , Config(config)
         , CompletedPartitionCount(0)
-        , SortedMergeJobCounter(0)
-        // Cannot do similar for UnorderedMergeJobCounter since the number of unsorted merge jobs
-        // is hard to predict.
+        // Cannot do similar for SortedMergeJobCounter and UnorderedMergeJobCounter since the number
+        // of unsorted these jobs is hard to predict.
         , SortDataSizeCounter(0)
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
@@ -670,6 +671,14 @@ protected:
                 : Partition->ChunkPoolOutput;
         }
 
+        virtual void Persist(const TPersistenceContext& context) override
+        {
+            TPartitionBoundTask::Persist(context);
+
+            using NYT::Persist;
+            Persist(context, CurrentInputStreamIndex_);
+        }
+
     protected:
         TExtendedJobResources GetNeededResourcesForChunkStripe(
             const TChunkStripeStatistics& stat) const
@@ -760,6 +769,7 @@ protected:
             Controller->SortDataSizeCounter.Completed(joblet->InputStripeList->TotalDataSize);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
+                int inputStreamIndex = CurrentInputStreamIndex_++;
                 Controller->IntermediateSortJobCounter.Completed(1);
 
                 // Sort outputs in large partitions are queued for further merge.
@@ -767,6 +777,11 @@ protected:
                 auto& result = const_cast<TJobResult&>(jobSummary.Result);
                 auto* resultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
                 auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunk_specs());
+
+                for (const auto& dataSlice : stripe->DataSlices) {
+                    InferLimitsFromBoundaryKeys(dataSlice, Controller->RowBuffer);
+                    dataSlice->InputStreamIndex = inputStreamIndex;
+                }
 
                 RegisterIntermediate(
                     joblet,
@@ -837,6 +852,9 @@ protected:
                 Partition->SortedMergeTask->FinishInput();
             }
         }
+
+    private:
+        int CurrentInputStreamIndex_ = 0;
     };
 
     //! Implements partition sort for sort operations and
@@ -995,7 +1013,7 @@ protected:
 
         TSortedMergeTask(TSortControllerBase* controller, TPartition* partition)
             : TMergeTask(controller, partition)
-            , ChunkPool(CreateAtomicChunkPool())
+            , ChunkPool(controller->CreateSortedMergeChunkPool())
         { }
 
         virtual Stroka GetId() const override
@@ -1009,6 +1027,11 @@ protected:
                 Controller->SimpleSort
                 ? Controller->Spec->SimpleMergeLocalityTimeout
                 : Controller->Spec->MergeLocalityTimeout;
+        }
+
+        virtual i64 GetLocality(TNodeId nodeId) const override
+        {
+            return Partition->AssignedNodeId == nodeId || Partition->AssignedNodeId == InvalidNodeId;
         }
 
         virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
@@ -1368,7 +1391,7 @@ protected:
     {
         ShufflePool = CreateShuffleChunkPool(
             static_cast<int>(Partitions.size()),
-            Spec->DataSizePerSortJob);
+            Spec->DataSizePerShuffleJob);
 
         for (auto partition : Partitions) {
             partition->ChunkPoolOutput = ShufflePool->GetOutput(partition->Index);
@@ -1443,7 +1466,6 @@ protected:
         }
 
         LOG_DEBUG("Partition needs sorted merge (Partition: %v)", partition->Index);
-        SortedMergeJobCounter.Increment(1);
         partition->CachedSortedMergeNeeded = true;
         return true;
     }
@@ -1776,12 +1798,33 @@ protected:
         }
     }
 
+    std::unique_ptr<IChunkPool> CreateSortedMergeChunkPool()
+    {
+        if (Spec->UseLegacyController) {
+            return CreateAtomicChunkPool();
+        } else {
+            TSortedChunkPoolOptions options;
+            options.EnableKeyGuarantee = GetSortedMergeJobType() == EJobType::SortedReduce;
+            options.PrimaryPrefixLength = GetSortedMergeKeyColumnCount();
+            options.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+            options.JobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(Spec, Options);
+            options.OperationId = OperationId;
+            // NB: otherwise we could easily be persisted during preparing the jobs. Sorted chunk pool
+            // can't handle this.
+            options.EnablePeriodicYielder = false;
+            return CreateSortedChunkPool(options, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
+        }
+    }
+
+
     virtual EJobType GetPartitionJobType() const = 0;
     virtual EJobType GetIntermediateSortJobType() const = 0;
     virtual EJobType GetFinalSortJobType() const = 0;
     virtual EJobType GetSortedMergeJobType() const = 0;
 
     virtual TUserJobSpecPtr GetSortedMergeUserJobSpec() const = 0;
+
+    virtual int GetSortedMergeKeyColumnCount() const = 0;
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TPartitionTask);
@@ -2442,6 +2485,11 @@ private:
     {
         return EJobType::Partition;
     }
+
+    virtual int GetSortedMergeKeyColumnCount() const override
+    {
+        return Spec->SortBy.size();
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortController);
@@ -3071,6 +3119,11 @@ private:
     virtual TUserJobSpecPtr GetPartitionUserJobSpec() const override
     {
         return Spec->Mapper;
+    }
+
+    virtual int GetSortedMergeKeyColumnCount() const override
+    {
+        return Spec->ReduceBy.size();
     }
 };
 

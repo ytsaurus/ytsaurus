@@ -485,7 +485,7 @@ TSortOperationSpecBase::TSortOperationSpecBase()
     RegisterParameter("partition_data_size", PartitionDataSize)
         .Default()
         .GreaterThan(0);
-    RegisterParameter("data_size_per_sort_job", DataSizePerSortJob)
+    RegisterParameter("data_size_per_sort_job", DataSizePerShuffleJob)
         .Default((i64)2 * 1024 * 1024 * 1024)
         .GreaterThan(0);
     RegisterParameter("shuffle_start_threshold", ShuffleStartThreshold)
@@ -560,6 +560,9 @@ TSortOperationSpec::TSortOperationSpec()
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 
+    RegisterParameter("data_size_per_sorted_merge_job", DataSizePerSortedJob)
+        .Default(Null);
+
     RegisterInitializer([&] () {
         PartitionJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
         PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
@@ -621,6 +624,9 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
         .Default(New<TLogDigestConfig>(0.5, 1.0, 1.0));
     RegisterParameter("reduce_combiner_job_proxy_memory_digest", ReduceCombinerJobProxyMemoryDigest)
         .Default(New<TLogDigestConfig>(0.5, 1.0, 1.0));
+
+    RegisterParameter("data_size_per_reduce_job", DataSizePerSortedJob)
+        .Default(Null);
 
     // The following settings are inherited from base but make no sense for map-reduce:
     //   SimpleSortLocalityTimeout

@@ -199,6 +199,27 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert len(read_table("//tmp/t_out")) == 50
 
+    def test_several_merge_jobs_per_partition(self):
+        create("table", "//tmp/t_in")
+        rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in xrange(500)]
+        shuffled_rows = rows[::]
+        shuffle(shuffled_rows)
+        write_table("//tmp/t_in", shuffled_rows)
+
+        create("table", "//tmp/t_out")
+
+        sort(in_="//tmp/t_in",
+             out="//tmp/t_out",
+             sort_by="key",
+             spec={"partition_count": 2,
+                   "partition_job_count": 10,
+                   "data_size_per_sort_job": 1,
+                   "partition_job_io" : {"table_writer" :
+                        {"desired_chunk_size" : 1, "block_size" : 1024}}})
+
+        assert read_table("//tmp/t_out") == rows
+        assert get("//tmp/t_out/@chunk_count") >= 10
+
     def test_with_intermediate_account(self):
         v1 = {"key" : "aaa"}
         v2 = {"key" : "bb"}
