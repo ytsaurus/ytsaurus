@@ -538,7 +538,7 @@ public:
         , OperationId_(options.OperationId)
         , EnablePeriodicYielder_(options.EnablePeriodicYielder)
     {
-        ForeignStripeCookiesByStreamIndex_.resize(InputStreamDirectory_.GetDescriptors().size());
+        ForeignStripeCookiesByStreamIndex_.resize(InputStreamDirectory_.GetDescriptorCount());
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
         Logger.AddTag("OperationId: %v", OperationId_);
         JobManager_->SetLogger(Logger);
@@ -786,9 +786,6 @@ public:
         Persist(context, MinTeleportChunkSize_);
         Persist(context, MaxTotalSliceCount_);
         Persist(context, JobSizeConstraints_);
-        Persist(context, JobSizeConstraints_);
-        Persist(context, SupportLocality_);
-        Persist(context, OperationId_);
 
         Persist(context, SupportLocality_);
         Persist(context, JobManager_);

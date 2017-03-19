@@ -186,7 +186,7 @@ public:
         , Options_(options)
         , InputDataSize_(inputDataSize)
     {
-        JobCount_ = DivCeil(InputDataSize_, Spec_->DataSizePerSortJob);
+        JobCount_ = DivCeil(InputDataSize_, Spec_->DataSizePerShuffleJob);
         YCHECK(JobCount_ >= 0);
         YCHECK(JobCount_ != 0 || InputDataSize_ == 0);
     }
@@ -539,7 +539,7 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
         false /* canAdjustDataSizePerJob */,
         false /* isExplicitJobCount */,
         0 /* jobCount */,
-        spec->DataSizePerSortedJob.Get(spec->DataSizePerSortJob) /* dataSizePerJob */,
+        spec->DataSizePerSortedJob.Get(spec->DataSizePerShuffleJob) /* dataSizePerJob */,
         options->MaxDataSlicesPerJob /* maxDataSlicesPerJob */,
         std::numeric_limits<i64>::max() /* maxDataSizePerJob */,
         std::numeric_limits<i64>::max() /* inputSliceDataSize */,

@@ -201,7 +201,7 @@ protected:
         ChunkPool_ = CreateSortedChunkPool(
             Options_,
             useChunkSliceFetcher ? PrepareMockChunkSliceFetcher() : nullptr,
-            useGenericInputStreamDirectory ? GenericInputStreamDirectory : TInputStreamDirectory(InputTables_));
+            useGenericInputStreamDirectory ? IntermediateInputStreamDirectory : TInputStreamDirectory(InputTables_));
     }
 
     TInputDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
@@ -249,6 +249,21 @@ protected:
         return cookie;
     }
 
+    void PersistAndRestore()
+    {
+        TBlobOutput output;
+        TSaveContext saveContext;
+        saveContext.SetOutput(&output);
+        Save(saveContext, ChunkPool_);
+        auto blob = output.Flush();
+        ChunkPool_.reset();
+
+        TMemoryInput input(blob.Begin(), blob.Size());
+        TLoadContext loadContext;
+        loadContext.SetRowBuffer(RowBuffer_);
+        loadContext.SetInput(&input);
+        Load(loadContext, ChunkPool_);
+    }
 
     std::vector<TChunkStripeListPtr> GetAllStripeLists()
     {
@@ -935,6 +950,40 @@ TEST_F(TSortedChunkPoolTest, SortedMergeSimple)
     EXPECT_EQ(1, stripeLists.size());
 
     CheckEverything(stripeLists, teleportChunks);
+}
+
+TEST_F(TSortedChunkPoolTest, SortedMergeWithPersistBeforeFinish)
+{
+    Options_.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false, false} /* isForeign */,
+        {true, true, true} /* isTeleportable */,
+        {false, false, false} /* isVersioned */
+    );
+    Options_.PrimaryPrefixLength = 1;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
+    auto chunkB = CreateChunk(BuildRow({2}), BuildRow({15}), 1);
+    auto chunkC = CreateChunk(BuildRow({1}), BuildRow({3}), 2);
+
+    CreateChunkPool(false /* useChunkSliceFetcher */);
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    PersistAndRestore();
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_EQ(1, stripeLists.size());
+    EXPECT_EQ(3, stripeLists.front()->Stripes.size());
 }
 
 TEST_F(TSortedChunkPoolTest, SortedMergeSimpleWithGenericInputStreamDirectory)
@@ -1788,18 +1837,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         int eventType = dice(Gen_);
         if (eventType <= 0) {
             Cdebug << "Persisting and restoring the pool" << Endl;
-            TBlobOutput output;
-            TSaveContext saveContext;
-            saveContext.SetOutput(&output);
-            Save(saveContext, ChunkPool_);
-            auto blob = output.Flush();
-            ChunkPool_.reset();
-
-            TMemoryInput input(blob.Begin(), blob.Size());
-            TLoadContext loadContext;
-            loadContext.SetRowBuffer(RowBuffer_);
-            loadContext.SetInput(&input);
-            Load(loadContext, ChunkPool_);
+            PersistAndRestore();
         } else if (eventType <= 29) {
             if (auto randomElement = chooseRandomElement(resumedChunks)) {
                 const auto& chunkId = *randomElement;

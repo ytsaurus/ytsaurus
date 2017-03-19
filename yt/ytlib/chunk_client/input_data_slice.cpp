@@ -222,11 +222,23 @@ TInputDataSlicePtr CreateInputDataSlice(
 
 void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const TRowBufferPtr& rowBuffer)
 {
+    TKey minKey;
+    TKey maxKey;
     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
         if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
-            dataSlice->LowerLimit().MergeLowerKey(boundaryKeys->MinKey);
-            dataSlice->UpperLimit().MergeUpperKey(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer));
+            if (!minKey || minKey > boundaryKeys->MinKey) {
+                minKey = boundaryKeys->MinKey;
+            }
+            if (!maxKey || maxKey < boundaryKeys->MaxKey) {
+                maxKey = boundaryKeys->MaxKey;
+            }
         }
+    }
+    if (minKey) {
+        dataSlice->LowerLimit().MergeLowerKey(minKey);
+    }
+    if (maxKey) {
+        dataSlice->UpperLimit().MergeUpperKey(GetKeySuccessor(maxKey, rowBuffer));
     }
 }
 

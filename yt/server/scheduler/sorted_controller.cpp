@@ -108,7 +108,7 @@ protected:
             , Controller_(controller)
             , ChunkPool_(CreateSortedChunkPool(
                 controller->GetSortedChunkPoolOptions(),
-                controller->GetChunkSliceFetcherFactory(),
+                controller->ChunkSliceFetcher_,
                 controller->GetInputStreamDirectory()))
         { }
 
@@ -365,11 +365,6 @@ protected:
     }
 
     virtual bool IsKeyGuaranteeEnabled() = 0;
-
-    IChunkSliceFetcherPtr GetChunkSliceFetcherFactory()
-    {
-        return ChunkSliceFetcher_;
-    }
 
     virtual EJobType GetJobType() const = 0;
 
