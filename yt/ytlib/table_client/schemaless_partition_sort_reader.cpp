@@ -131,7 +131,7 @@ public:
             return false;
         }
 
-        i64 sortedRowCount = SortedRowCount_;
+        i64 sortedRowCount = SortedRowCount_.load();
         for (int spinCounter = 1; ; ++spinCounter) {
             if (sortedRowCount > ReadRowCount_) {
                 break;
@@ -142,7 +142,7 @@ public:
                 SpinLockPause();
             }
 
-            sortedRowCount = AtomicGet(SortedRowCount_);
+            sortedRowCount = SortedRowCount_.load();
         }
 
         i64 dataWeight = 0;
@@ -342,7 +342,7 @@ private:
     int EstimatedBucketCount_;
 
     i64 TotalRowCount_;
-    TAtomic SortedRowCount_;
+    std::atomic<i64> SortedRowCount_;
     i64 ReadRowCount_;
 
     TSafeVector<TUnversionedValue> KeyBuffer_;
@@ -480,7 +480,7 @@ private:
 
         MakeHeap(BucketHeap_.begin(), BucketHeap_.end(), MergeComparer_);
 
-        AtomicSet(SortedRowCount_, 0);
+        SortedRowCount_ = 0;
         ReadRowCount_ = 0;
 
         InvokeMerge();
@@ -508,12 +508,12 @@ private:
 
                 ++sortedRowCount;
                 if (sortedRowCount % RowsBetweenAtomicUpdate == 0) {
-                    AtomicSet(SortedRowCount_, sortedRowCount);
+                    SortedRowCount_ = sortedRowCount;
                 }
             }
 
             YCHECK(sortedRowCount == TotalRowCount_);
-            AtomicSet(SortedRowCount_, sortedRowCount);
+            SortedRowCount_ = sortedRowCount;
         }
         LOG_INFO("Finished merge");
     }
