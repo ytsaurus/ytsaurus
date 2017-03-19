@@ -116,6 +116,12 @@ int TChunkStripe::GetTableIndex() const
     return DataSlices.front()->ChunkSlices.front()->GetInputChunk()->GetTableIndex();
 }
 
+int TChunkStripe::GetInputStreamIndex() const
+{
+    YCHECK(!DataSlices.empty());
+    return DataSlices.front()->InputStreamIndex;
+}
+
 void TChunkStripe::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -1761,47 +1767,84 @@ std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
 
 ////////////////////////////////////////////////////////////////////
 
-TDataSource::TDataSource()
-{ }
-
-TDataSource::TDataSource(bool isTeleportable, bool isPrimary, bool isVersioned)
+TInputStreamDescriptor::TInputStreamDescriptor(bool isTeleportable, bool isPrimary, bool isVersioned)
     : IsTeleportable_(isTeleportable)
     , IsPrimary_(isPrimary)
     , IsVersioned_(isVersioned)
 { }
 
-bool TDataSource::IsTeleportable() const
+bool TInputStreamDescriptor::IsTeleportable() const
 {
     return IsTeleportable_;
 }
 
-bool TDataSource::IsForeign() const
+bool TInputStreamDescriptor::IsForeign() const
 {
     return !IsPrimary_;
 }
 
-bool TDataSource::IsPrimary() const
+bool TInputStreamDescriptor::IsPrimary() const
 {
     return IsPrimary_;
 }
 
-bool TDataSource::IsVersioned() const
+bool TInputStreamDescriptor::IsVersioned() const
 {
     return IsVersioned_;
 }
 
-bool TDataSource::IsUnversioned() const
+bool TInputStreamDescriptor::IsUnversioned() const
 {
     return !IsVersioned_;
 }
 
-void TDataSource::Persist(const TPersistenceContext& context)
+void TInputStreamDescriptor::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, IsTeleportable_);
     Persist(context, IsPrimary_);
     Persist(context, IsVersioned_);
 }
+
+////////////////////////////////////////////////////////////////////
+
+TInputStreamDescriptor IntermediateInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, false /* isVersioned */);
+
+////////////////////////////////////////////////////////////////////
+
+TInputStreamDirectory::TInputStreamDirectory(
+    std::vector<TInputStreamDescriptor> descriptors,
+    TInputStreamDescriptor defaultDescriptor)
+    : Descriptors_(std::move(descriptors))
+    , DefaultDescriptor_(defaultDescriptor)
+{
+    YCHECK(DefaultDescriptor_.IsPrimary());
+}
+
+const TInputStreamDescriptor& TInputStreamDirectory::GetDescriptor(int inputStreamIndex) const
+{
+    if (0 <= inputStreamIndex && inputStreamIndex < static_cast<int>(Descriptors_.size())) {
+        return Descriptors_[inputStreamIndex];
+    } else {
+        return DefaultDescriptor_;
+    }
+}
+
+int TInputStreamDirectory::GetDescriptorCount() const
+{
+    return Descriptors_.size();
+}
+
+void TInputStreamDirectory::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Descriptors_);
+    Persist(context, DefaultDescriptor_);
+}
+
+////////////////////////////////////////////////////////////////////
+
+TInputStreamDirectory IntermediateInputStreamDirectory({}, IntermediateInputStreamDescriptor);
 
 ////////////////////////////////////////////////////////////////////
 

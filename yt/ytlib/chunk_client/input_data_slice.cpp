@@ -23,7 +23,9 @@ TInputDataSlice::TInputDataSlice(
     , ChunkSlices(std::move(chunkSlices))
     , Type(type)
     , Tag(tag)
-{ }
+{
+    InputStreamIndex = GetTableIndex();
+}
 
 int TInputDataSlice::GetChunkCount() const
 {
@@ -66,6 +68,7 @@ void TInputDataSlice::Persist(NTableClient::TPersistenceContext& context)
     Persist(context, Type);
     Persist(context, Tag);
     Persist(context, Disabled);
+    Persist(context, InputStreamIndex);
 }
 
 int TInputDataSlice::GetTableIndex() const
@@ -207,19 +210,21 @@ TInputDataSlicePtr CreateInputDataSlice(
         chunkSlices.push_back(CreateInputChunkSlice(*slice, lowerLimit.Key, upperLimit.Key));
     }
 
-    return New<TInputDataSlice>(
+    auto newDataSlice = New<TInputDataSlice>(
         dataSlice->Type,
         std::move(chunkSlices),
         std::move(lowerLimit),
         std::move(upperLimit),
         dataSlice->Tag);
+    newDataSlice->InputStreamIndex = dataSlice->InputStreamIndex;
+    return newDataSlice;
 }
 
 void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const TRowBufferPtr& rowBuffer)
 {
     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
         if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
-            dataSlice->LowerLimit().MergeLowerKey(TOwningKey(boundaryKeys->MinKey));
+            dataSlice->LowerLimit().MergeLowerKey(boundaryKeys->MinKey);
             dataSlice->UpperLimit().MergeUpperKey(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer));
         }
     }
