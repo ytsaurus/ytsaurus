@@ -60,6 +60,10 @@ public:
 
     //! Flag showing that the slice should not be considered when forming the job input.
     bool Disabled = false;
+
+    //! An index of an input stream this data slice corresponds to. If this is a data
+    //! slice of some input table, it should normally be equal to `GetTableIndex()`.
+    int InputStreamIndex = -1;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputDataSlice)

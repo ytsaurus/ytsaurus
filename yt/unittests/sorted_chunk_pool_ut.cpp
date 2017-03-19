@@ -76,7 +76,7 @@ protected:
             Inf64 /* inputSliceRowCount */);
     }
 
-    std::function<IChunkSliceFetcherPtr()> GetChunkSliceFetcherFactory()
+    IChunkSliceFetcherPtr PrepareMockChunkSliceFetcher()
     {
         Expectation expectation = EXPECT_CALL(*ChunkSliceFetcher_, Fetch())
             .After(AllChunksAreAdded_)
@@ -86,9 +86,7 @@ protected:
             .After(expectation)
             .WillOnce(ReturnPointee(&DataSlices_));
 
-        return [&] () {
-            return ChunkSliceFetcher_;
-        };
+        return ChunkSliceFetcher_;
     }
 
 
@@ -198,9 +196,12 @@ protected:
         return slices;
     }
 
-    void CreateChunkPool()
+    void CreateChunkPool(bool useChunkSliceFetcher = true, bool useGenericInputStreamDirectory = false)
     {
-        ChunkPool_ = CreateSortedChunkPool(Options_, GetChunkSliceFetcherFactory(), InputTables_);
+        ChunkPool_ = CreateSortedChunkPool(
+            Options_,
+            useChunkSliceFetcher ? PrepareMockChunkSliceFetcher() : nullptr,
+            useGenericInputStreamDirectory ? GenericInputStreamDirectory : TInputStreamDirectory(InputTables_));
     }
 
     TInputDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
@@ -431,7 +432,7 @@ protected:
 
     std::vector<TInputChunkSlicePtr> DataSlices_;
 
-    std::vector<TDataSource> InputTables_;
+    std::vector<TInputStreamDescriptor> InputTables_;
 
     yhash_set<IChunkPoolOutput::TCookie> OutputCookies_;
 
@@ -919,6 +920,43 @@ TEST_F(TSortedChunkPoolTest, SortedMergeSimple)
     RegisterTriviallySliceableUnversionedChunk(chunkC);
 
     CreateChunkPool();
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_EQ(1, stripeLists.size());
+
+    CheckEverything(stripeLists, teleportChunks);
+}
+
+TEST_F(TSortedChunkPoolTest, SortedMergeSimpleWithGenericInputStreamDirectory)
+{
+    Options_.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false, false} /* isForeign */,
+        {true, true, true} /* isTeleportable */,
+        {false, false, false} /* isVersioned */
+    );
+    Options_.PrimaryPrefixLength = 1;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
+    auto chunkB = CreateChunk(BuildRow({2}), BuildRow({15}), 1);
+    auto chunkC = CreateChunk(BuildRow({1}), BuildRow({3}), 2);
+    auto chunkBSlices = SliceUnversionedChunk(chunkB, {BuildRow({3}), BuildRow({6})}, {KB / 4, KB / 2, KB / 4});
+    RegisterTriviallySliceableUnversionedChunk(chunkA);
+    RegisterSliceableUnversionedChunk(chunkB, chunkBSlices);
+    RegisterTriviallySliceableUnversionedChunk(chunkC);
+
+    CreateChunkPool(true /* useSliceChunkFetcher */, true /* useGenericInputStreamDirectory */);
 
     AddChunk(chunkA);
     AddChunk(chunkB);
@@ -1624,6 +1662,39 @@ TEST_F(TSortedChunkPoolTest, TestCorrectOrderInsideStripe)
     for (int index = 0; index + 1 < stripe->DataSlices.size(); ++index) {
         ASSERT_EQ(*stripe->DataSlices[index]->UpperLimit().RowIndex, *stripe->DataSlices[index + 1]->LowerLimit().RowIndex);
     }
+}
+
+TEST_F(TSortedChunkPoolTest, TestNoChunkSliceFetcher)
+{
+    Options_.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false, false} /* isForeign */,
+        {true, true, true} /* isTeleportable */,
+        {false, false, false} /* isVersioned */
+    );
+    Options_.PrimaryPrefixLength = 1;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
+    auto chunkB = CreateChunk(BuildRow({2}), BuildRow({15}), 1);
+    auto chunkC = CreateChunk(BuildRow({1}), BuildRow({3}), 2);
+
+    CreateChunkPool(false /* useChunkSliceFetcher */);
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_EQ(1, stripeLists.size());
+
+    CheckEverything(stripeLists, teleportChunks);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
