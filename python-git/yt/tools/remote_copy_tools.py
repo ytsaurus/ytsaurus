@@ -178,6 +178,7 @@ def _set_mapper_settings_for_read_from_yt(spec):
     if "mapper" not in spec:
         spec["mapper"] = {}
     # NB: yt2 read usually consumpt less than 600 Mb, but sometimes can use more than 1Gb of memory.
+    spec["mapper"]["cpu_limit"] = 0.5
     spec["mapper"]["memory_limit"] = 4 * GB
     spec["mapper"]["memory_reserve_factor"] = 0.25
     if "tmpfs_size" in spec["mapper"]:
@@ -685,7 +686,7 @@ while True:
             "pool": "transfer_kiwi",
             "max_failed_job_count": 1000,
             "mapper": {
-                "cpu_limit": 0,
+                "cpu_limit": 0.5,
                 # After investigation of several copy jobs we have found the following:
                 # 1) kwworm memory consumption is in range (200-500MB)
                 # 2) yt2 read consumption is in range (200-600MB)
