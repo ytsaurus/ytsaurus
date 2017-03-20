@@ -115,6 +115,8 @@ class StatisticsRequestRetrier(Retrier):
 
         responses = yt.execute_batch(requests)
 
+        index_table_pairs = []
+
         for rsp, index_table_pair in zip(responses, self.index_table_pairs):
             if "error" in rsp:
                 error = yt.YtResponseError(rsp["error"])
@@ -129,17 +131,18 @@ class StatisticsRequestRetrier(Retrier):
 
                 # Optimistic locking failed
                 if error.contains_code(720):
-                    self.index_table_pairs.append(index_table_pair)
+                    index_table_pairs.append(index_table_pair)
                 else:
                     raise error
             else:
                 self.responses[index_table_pair[0]] = rsp["output"]
 
+        self.index_table_pairs = index_table_pairs
         if self.index_table_pairs:
             raise OptimisticLockingFailedError()
 
     def collect_statistics(self, tables):
-        self.tables = list(enumerate(tables))
+        self.index_table_pairs = list(enumerate(tables))
         self.responses = [None] * len(tables)
         self.run()
         return self.responses
