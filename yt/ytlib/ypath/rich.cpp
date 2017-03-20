@@ -269,6 +269,11 @@ void ParseKeyPart(
             break;
         }
 
+        case NYson::ETokenType::Hash: {
+            value = MakeUnversionedSentinelValue(EValueType::Null);
+            break;
+        }
+
         default:
             ThrowUnexpectedToken(tokenizer.CurrentToken());
             break;

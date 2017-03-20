@@ -323,6 +323,32 @@ class TestTables(YTEnvSetup):
         # limits of different types
         assert read_table("//tmp/table[#0:c]") == [v1, v2, v3, v4]
 
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_row_key_selector_types(self, optimize_for):
+        create("table", "//tmp/table",  attributes={"optimize_for" : optimize_for})
+
+        v1 = {"s" : None, "i": 0}
+        v2 = {"s" : None, "i": 1}
+        v3 = {"s" : 1, "i": 2}
+        v4 = {"s" : 2, "i": 3}
+        v5 = {"s" : yson.YsonUint64(3), "i": 4}
+        v6 = {"s" : yson.YsonUint64(4), "i": 5}
+        v7 = {"s" : 2.0, "i": 6}
+        v8 = {"s" : 4.0, "i": 7}
+        v9 = {"s" : False, "i": 8}
+        v10 = {"s" : True, "i": 9}
+        v11 = {"s" : "", "i": 10}
+        v12 = {"s" : "b", "i": 11}
+
+        values = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12]
+        write_table("//tmp/table", values, sorted_by=["s", "i"])
+
+        assert read_table("//tmp/table[(#,0):(#,100)]") == [v1, v2]
+        assert read_table("//tmp/table[(1,0):(2,100)]") == [v3, v4]
+        assert read_table("//tmp/table[(3u,0):(4u,100)]") == [v5, v6]
+        assert read_table("//tmp/table[(2.0,0):(4.0,100)]") == [v7, v8]
+        assert read_table("//tmp/table[(%false,0):(%true,100)]") == [v9, v10]
+        assert read_table("//tmp/table[(\"\",0):(\"b\",100)]") == [v11, v12]
 
     def test_column_selector(self):
         create("table", "//tmp/table")
