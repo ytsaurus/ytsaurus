@@ -882,6 +882,15 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/b/x")
         assert get("//tmp/b/y") == 1
 
+    def test_resolve_suppress_via_object_id_yt_6694(self):
+        create("map_node", "//tmp/a")
+        link("//tmp/a", "//tmp/b")
+        id = get("//tmp/b&/@id")
+        assert get("//tmp/b/@type") == "map_node"
+        assert get("//tmp/b&/@type") == "link"
+        assert get("#{0}/@type".format(id)) == "map_node"
+        assert get("#{0}&/@type".format(id)) == "link"
+
     def test_access_stat1(self):
         time.sleep(1.0)
         c1 = get("//tmp/@access_counter")
