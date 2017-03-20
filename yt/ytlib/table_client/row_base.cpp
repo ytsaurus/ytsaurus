@@ -104,5 +104,16 @@ void ValidateColumnFilter(const TColumnFilter& columnFilter, int schemaColumnCou
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka ToString(const TColumnFilter& columnFilter)
+{
+    if (columnFilter.All) {
+        return Stroka("{All}");
+    } else {
+        return Format("{%v}", columnFilter.Indexes);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTableClient
 } // namespace NYT

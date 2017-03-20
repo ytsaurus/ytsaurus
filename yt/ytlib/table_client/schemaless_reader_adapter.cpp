@@ -158,7 +158,6 @@ ISchemalessReaderPtr CreateSchemalessReaderAdapter(
     TTableReaderOptionsPtr options,
     TNameTablePtr nameTable,
     const TTableSchema& schema,
-    const TColumnFilter& columnFilter,
     int tableIndex,
     int rangeIndex)
 {
