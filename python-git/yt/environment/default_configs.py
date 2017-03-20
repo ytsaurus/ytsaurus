@@ -130,6 +130,7 @@ b"""
         update_exec_node_descriptors_period = 100;
         chunk_list_release_batch_delay = 100;
         connect_grace_delay = 0;
+        forbid_immediate_operations_in_root = %false;
         environment = {
              PYTHONUSERBASE = "/tmp"
         };
