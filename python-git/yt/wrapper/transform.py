@@ -9,8 +9,12 @@ from .table import TempTable
 import yt.logger as logger
 
 from copy import deepcopy
+from random import Random
 
 def _get_compression_ratio(table, codec, client, spec):
+    def exact_chunk_index_limit(chunk_index):
+        return {"lower_limit": {"chunk_index": chunk_index}, "upper_limit": {"chunk_index": chunk_index + 1}}
+
     logger.debug("Compress sample of '%s' to calculate compression ratio", table)
     with TempTable(prefix="compute_compression_ratio", client=client) as tmp:
         spec = update(deepcopy(spec), {
@@ -18,8 +22,18 @@ def _get_compression_ratio(table, codec, client, spec):
             "force_transform": True,
         })
         set(tmp + "/@compression_codec", codec, client=client)
-        chunk_index = get_config(client)["transform_options"]["chunk_count_to_compute_compression_ratio"]
-        run_merge(TablePath(table, ranges=[{"upper_limit": {"chunk_index": chunk_index}}], client=client), tmp, mode="ordered", spec=spec, client=client)
+
+        probe_chunk_count = get_config(client)["transform_options"]["chunk_count_to_compute_compression_ratio"]
+        chunk_count = get(table + "/@chunk_count", client=client)
+
+        random_gen = Random()
+        random_gen.seed(chunk_count)
+        chunk_indices = random_gen.sample(range(chunk_count), min(chunk_count, probe_chunk_count))
+        input = TablePath(table,
+                          ranges=map(exact_chunk_index_limit, chunk_indices),
+                          client=client)
+
+        run_merge(input, tmp, mode="ordered", spec=spec, client=client)
         return get(table + "/@compression_ratio", client=client)
 
 def _check_codec(table, codec_name, codec_value, client):
