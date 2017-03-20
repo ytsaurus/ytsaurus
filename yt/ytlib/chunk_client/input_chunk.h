@@ -38,6 +38,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(i64, TableRowIndex);
     DEFINE_BYVAL_RO_PROPERTY(int, RangeIndex);
     DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableChunkFormat, TableChunkFormat);
+    DEFINE_BYVAL_RW_PROPERTY(i64, ChunkIndex, -1);
 
     DEFINE_BYVAL_RW_PROPERTY(i64, UncompressedDataSize);
     DEFINE_BYVAL_RW_PROPERTY(i64, RowCount);

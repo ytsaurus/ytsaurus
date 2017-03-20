@@ -50,6 +50,11 @@ message TChunkSpec
     // form the job input and the unread data slices returned as a
     // job interruption result.
     optional int64 data_slice_tag = 16;
+
+    // Global chunk index for the operation. Helps to identify chunk_spec
+    // if fetch returns the same chunk with different limits
+    // (e.g. the chunk is shared between dynamic table tablets).
+    optional int64 chunk_index = 17;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

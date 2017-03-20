@@ -3599,8 +3599,8 @@ void TOperationControllerBase::FetchInputTables()
         for (const auto& chunkSpec : chunkSpecs) {
             auto inputChunk = New<TInputChunk>(chunkSpec);
             inputChunk->SetTableIndex(tableIndex);
+            inputChunk->SetChunkIndex(totalChunkCount++);
             table.Chunks.emplace_back(std::move(inputChunk));
-            ++totalChunkCount;
             for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
                 totalExtensionSize += extension.data().size();
             }
@@ -4696,8 +4696,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
                 inputChunks.begin(),
                 inputChunks.end(),
                 [&] (const TInputChunkPtr& inputChunk) -> bool {
-                    return inputChunk->GetTableIndex() == protoChunkSpec.table_index() &&
-                           inputChunk->GetRangeIndex() == protoChunkSpec.range_index();
+                    return inputChunk->GetChunkIndex() == protoChunkSpec.chunk_index();
                 });
             YCHECK(chunkIt != inputChunks.end());
             auto chunkSlice = New<TInputChunkSlice>(*chunkIt, RowBuffer, protoChunkSpec);
