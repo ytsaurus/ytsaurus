@@ -16,9 +16,14 @@ void ValidateRowsetDescriptor(
     int expectedVersion,
     NProto::ERowsetKind expectedKind);
 
-template <class TRow>
 std::vector<TSharedRef> SerializeRowset(
     const NTableClient::TNameTablePtr& nameTable,
+    const TRange<NTableClient::TUnversionedRow>& rows,
+    NProto::TRowsetDescriptor* descriptor);
+
+template <class TRow>
+std::vector<TSharedRef> SerializeRowset(
+    const NTableClient::TTableSchema& schema,
     const TRange<TRow>& rows,
     NProto::TRowsetDescriptor* descriptor);
 
