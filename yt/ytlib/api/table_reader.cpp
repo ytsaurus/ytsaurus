@@ -311,6 +311,8 @@ void TSchemalessTableReader::DoOpen()
 
 bool TSchemalessTableReader::Read(std::vector<TUnversionedRow> *rows)
 {
+    rows->clear();
+
     if (IsAborted()) {
         return true;
     }
