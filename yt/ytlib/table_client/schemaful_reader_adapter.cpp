@@ -151,7 +151,8 @@ DEFINE_REFCOUNTED_TYPE(TSchemafulReaderAdapter)
 
 ISchemafulReaderPtr CreateSchemafulReaderAdapter(
     TSchemalessReaderFactory createReader,
-    const TTableSchema& schema)
+    const TTableSchema& schema,
+    const TColumnFilter& columnFilter)
 {
     TKeyColumns keyColumns;
     for (const auto& columnSchema : schema.Columns()) {
@@ -159,8 +160,6 @@ ISchemafulReaderPtr CreateSchemafulReaderAdapter(
     }
 
     auto nameTable = TNameTable::FromSchema(schema);
-    TColumnFilter columnFilter(schema.Columns().size());
-
     auto underlyingReader = createReader(nameTable, columnFilter);
 
     auto result = New<TSchemafulReaderAdapter>(

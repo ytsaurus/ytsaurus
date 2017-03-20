@@ -1742,7 +1742,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    TColumnFilter columnFilter,
+    const TColumnFilter& columnFilter,
     const TKeyColumns& keyColumns,
     TNullable<int> partitionTag,
     IThroughputThrottlerPtr throttler)
@@ -1796,7 +1796,14 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 
             case EDataSourceType::VersionedTable: {
                 auto memoryEstimate = GetDataSliceDescriptorReaderMemoryEstimate(dataSliceDescriptor, config);
-                auto createReader  = [=] () {
+                auto createReader = [=] () {
+
+                    YCHECK(!dataSliceDescriptor.ChunkSpecs.empty());
+                    using NYT::FromProto;
+                    auto channel = dataSliceDescriptor.ChunkSpecs[0].has_channel()
+                        ? FromProto<TChannel>(dataSliceDescriptor.ChunkSpecs[0].channel())
+                        : TChannel::Universal();
+
                     return CreateSchemalessMergingMultiChunkReader(
                         config,
                         options,
@@ -1807,7 +1814,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         dataSourceDirectory,
                         dataSliceDescriptor,
                         nameTable,
-                        columnFilter,
+                        columnFilter.All ? CreateColumnFilter(channel, nameTable) : columnFilter,
                         throttler);
                 };
 
@@ -1841,7 +1848,7 @@ public:
         const TDataSourceDirectoryPtr& dataSourceDirectory,
         const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
         TNameTablePtr nameTable,
-        TColumnFilter columnFilter,
+        const TColumnFilter& columnFilter,
         const TKeyColumns& keyColumns,
         TNullable<int> partitionTag,
         IThroughputThrottlerPtr throttler);
@@ -1892,7 +1899,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    TColumnFilter columnFilter,
+    const TColumnFilter& columnFilter,
     const TKeyColumns& keyColumns,
     TNullable<int> partitionTag,
     IThroughputThrottlerPtr throttler)
@@ -2034,7 +2041,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    TColumnFilter columnFilter,
+    const TColumnFilter& columnFilter,
     const TKeyColumns &keyColumns,
     TNullable<int> partitionTag,
     IThroughputThrottlerPtr throttler)
@@ -2070,7 +2077,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    TColumnFilter columnFilter,
+    const TColumnFilter& columnFilter,
     const TKeyColumns &keyColumns,
     TNullable<int> partitionTag,
     IThroughputThrottlerPtr throttler)
@@ -2187,6 +2194,10 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     const auto& tableSchema = *dataSource.Schema();
     auto timestamp = dataSource.GetTimestamp();
 
+    for (auto& index : columnFilter.Indexes) {
+        index = tableSchema.GetColumnIndex(nameTable->GetName(index));
+    }
+
     std::vector<TOwningKey> boundaries;
     boundaries.reserve(chunkSpecs.size());
 
@@ -2202,11 +2213,12 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         boundaries.push_back(minKey);
     }
 
-    LOG_DEBUG("Create overlapping range reader (Boundaries: %v, Chunks: %v)",
+    LOG_DEBUG("Create overlapping range reader (Boundaries: %v, Chunks: %v, ColumnFilter: %v)",
         boundaries,
         MakeFormattableRange(chunkSpecs, [] (TStringBuilder* builder, const TChunkSpec& chunkSpec) {
             FormatValue(builder, FromProto<TChunkId>(chunkSpec.chunk_id()), TStringBuf());
-        }));
+        }),
+        columnFilter);
 
     auto performanceCounters = New<TChunkReaderPerformanceCounters>();
 
@@ -2309,7 +2321,6 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         std::move(options),
         std::move(nameTable),
         tableSchema,
-        columnFilter,
         chunkSpecs.empty() ? -1 : chunkSpecs[0].table_index(),
         chunkSpecs.empty() ? -1 : chunkSpecs[0].range_index());
 
@@ -2441,7 +2452,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
-    TColumnFilter columnFilter,
+    const TColumnFilter& columnFilter,
     IThroughputThrottlerPtr throttler)
 {
     return TSchemalessMergingMultiChunkReader::Create(

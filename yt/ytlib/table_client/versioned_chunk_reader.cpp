@@ -1256,12 +1256,13 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     columnFilter,
                     TReadRange(TReadLimit(lowerLimit), TReadLimit(upperLimit)));
             };
-            auto schemafulReaderFactory = [&] (const TTableSchema& schema) {
-                return CreateSchemafulReaderAdapter(schemalessReaderFactory, schema);
+            auto schemafulReaderFactory = [&] (const TTableSchema& schema, const TColumnFilter& columnFilter) {
+                return CreateSchemafulReaderAdapter(schemalessReaderFactory, schema, columnFilter);
             };
             return CreateVersionedReaderAdapter(
                 schemafulReaderFactory,
                 chunkMeta->Schema(),
+                columnFilter,
                 chunkTimestamp);
         }
         default:
@@ -1349,12 +1350,13 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     columnFilter,
                     keys);
             };
-            auto schemafulReaderFactory = [&] (const TTableSchema& schema) {
-                return CreateSchemafulReaderAdapter(schemalessReaderFactory, schema);
+            auto schemafulReaderFactory = [&] (const TTableSchema& schema, const TColumnFilter& columnFilter) {
+                return CreateSchemafulReaderAdapter(schemalessReaderFactory, schema, columnFilter);
             };
             return CreateVersionedReaderAdapter(
                 std::move(schemafulReaderFactory),
                 chunkMeta->Schema(),
+                columnFilter,
                 chunkTimestamp);
         }
 
