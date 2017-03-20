@@ -54,7 +54,7 @@ init_vars() {
 
 PACKAGE=$1
 if [ "$CODENAME" = "lucid" ]; then
-    PACKAGE_PATH="$PACKAGE_lucid"
+    PACKAGE_PATH="${PACKAGE}_lucid"
 else
     PACKAGE_PATH="$PACKAGE"
 fi
