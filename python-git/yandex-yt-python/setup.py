@@ -1,4 +1,4 @@
-from helpers import get_version
+from helpers import get_version, prepare_files
 
 from setuptools import setup, find_packages
 
@@ -30,8 +30,11 @@ def main():
         "yt/wrapper/bin/yt-admin",
         "yt/wrapper/bin/yt-job-tool"]
 
-    data_files = []
-    scripts = [binary + str(sys.version_info[0]) for binary in binaries]
+    if sys.version_info[:2] <= (2, 6):
+        scripts, data_files = prepare_files(binaries, add_major_version_suffix=True)
+    else:
+        data_files = []
+        scripts = [binary + str(sys.version_info[0]) for binary in binaries]
 
     if "DEB" in os.environ:
         if sys.version_info[0] < 3:
