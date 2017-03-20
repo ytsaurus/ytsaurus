@@ -1,7 +1,6 @@
 package NYT.NRpcProxy.NProto;
 
 import "yt/core/rpc/rpc.proto";
-import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,8 +22,9 @@ message TCredentialsExt
 
 enum ERowsetKind
 {
-    UNVERSIONED = 0;
-    VERSIONED = 1;
+    SCHEMAFUL = 0;
+    UNVERSIONED = 1;
+    VERSIONED = 2;
 }
 
 // Specifies how to decode rowset data passed via attachments.
@@ -36,12 +36,17 @@ message TRowsetDescriptor
     // Specifies, what kind of rows are encoded.
     optional ERowsetKind rowset_kind = 2 [default = UNVERSIONED];
 
-    // Column id-to-name mapping.
-    repeated string column_names = 4;
+    message TColumnDescriptor
+    {
+        optional string name = 1;
+        optional int32 type = 2;
+    }
 
-    // Column id-to-type mapping.
-    // Currently unused, because both unversioned and versioned rowsets are self-describing.
-    repeated int32 column_types = 5;
+    // Specifies column names and types.
+    // May be omitted for unversioned rowset.
+    // Must be present for schemaful rowset.
+    // Must be present for versioned rowset.
+    repeated TColumnDescriptor columns = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

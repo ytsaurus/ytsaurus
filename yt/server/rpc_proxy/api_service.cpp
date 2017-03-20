@@ -174,7 +174,7 @@ private:
 
         auto rowset = DeserializeRowset<TUnversionedRow>(
             request->rowset_descriptor(),
-                MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
+            MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
         *nameTable = TNameTable::FromSchema(rowset->Schema());
         *keys = MakeSharedRange(rowset->GetRows(), rowset);
 
@@ -202,7 +202,7 @@ private:
         } else {
             const auto& rowset = result.Value();
             response->Attachments() = SerializeRowset(
-                TNameTable::FromSchema(rowset->Schema()),
+                rowset->Schema(),
                 rowset->GetRows(),
                 response->mutable_rowset_descriptor());
             context->Reply();
