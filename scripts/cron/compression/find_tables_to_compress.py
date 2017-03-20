@@ -35,7 +35,7 @@ CODECS_SYNONYMS = {
 
 WORKER_TASKS_SET_ATTEMPT_COUNT = 3
 
-STATISTICS_REQUEST_BATCH_SIZE = 1000
+STATISTICS_REQUEST_BATCH_SIZE = 100
 
 def has_proper_codecs(table, erasure_codec, compression_codec):
     compression_stats = table.attributes["compression_statistics"]
