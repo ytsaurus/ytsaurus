@@ -187,6 +187,8 @@ void TGarbageCollector::Reset()
     }
     Ghosts_.clear();
     LOG_INFO("Finished deleting ghost objects");
+
+    LockedObjectCount_ = 0;
 }
 
 void TGarbageCollector::CheckEmpty()
