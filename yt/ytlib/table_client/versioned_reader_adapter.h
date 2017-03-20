@@ -9,11 +9,12 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<ISchemafulReaderPtr(const TTableSchema&)> TSchemafulReaderFactory;
+typedef std::function<ISchemafulReaderPtr(const TTableSchema&, const TColumnFilter&)> TSchemafulReaderFactory;
 
 IVersionedReaderPtr CreateVersionedReaderAdapter(
     TSchemafulReaderFactory createReader,
     const TTableSchema& schema,
+    const TColumnFilter& columnFilter,
     TTimestamp timestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
