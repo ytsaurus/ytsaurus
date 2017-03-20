@@ -8,6 +8,8 @@ from .table import TempTable
 
 import yt.logger as logger
 
+from yt.packages.six.moves import xrange, map as imap
+
 from copy import deepcopy
 from random import Random
 
@@ -28,9 +30,9 @@ def _get_compression_ratio(table, codec, client, spec):
 
         random_gen = Random()
         random_gen.seed(chunk_count)
-        chunk_indices = random_gen.sample(range(chunk_count), min(chunk_count, probe_chunk_count))
+        chunk_indices = random_gen.sample(list(xrange(chunk_count)), min(chunk_count, probe_chunk_count))
         input = TablePath(table,
-                          ranges=map(exact_chunk_index_limit, chunk_indices),
+                          ranges=list(imap(exact_chunk_index_limit, chunk_indices)),
                           client=client)
 
         run_merge(input, tmp, mode="ordered", spec=spec, client=client)
