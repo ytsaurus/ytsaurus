@@ -134,9 +134,9 @@ public:
         Lock_.clear();
     }
 
-    virtual void Invoke(const TClosure& callback) override
+    virtual void Invoke(TClosure callback) override
     {
-        Queue_.Enqueue(callback);
+        Queue_.Enqueue(std::move(callback));
         TrySchedule();
     }
 
@@ -237,12 +237,12 @@ public:
 
     using TInvokerWrapper::Invoke;
 
-    virtual void Invoke(const TClosure& callback, i64 priority) override
+    virtual void Invoke(TClosure callback, i64 priority) override
     {
         {
             TGuard<TSpinLock> guard(SpinLock_);
             TEntry entry;
-            entry.Callback = callback;
+            entry.Callback = std::move(callback);
             entry.Priority = priority;
             Heap_.emplace_back(std::move(entry));
             std::push_heap(Heap_.begin(), Heap_.end());
@@ -295,9 +295,9 @@ public:
 
     using TInvokerWrapper::Invoke;
 
-    virtual void Invoke(const TClosure& callback, i64 /*priority*/) override
+    virtual void Invoke(TClosure callback, i64 /*priority*/) override
     {
-        return UnderlyingInvoker_->Invoke(callback);
+        return UnderlyingInvoker_->Invoke(std::move(callback));
     }
 };
 
@@ -322,9 +322,9 @@ public:
 
     using TInvokerWrapper::Invoke;
 
-    virtual void Invoke(const TClosure& callback) override
+    virtual void Invoke(TClosure callback) override
     {
-        return UnderlyingInvoker_->Invoke(callback, Priority_);
+        return UnderlyingInvoker_->Invoke(std::move(callback), Priority_);
     }
 
 private:
@@ -359,9 +359,9 @@ public:
         , SemaphoreCounter_("/semaphore", tagIds)
     { }
 
-    virtual void Invoke(const TClosure& callback) override
+    virtual void Invoke(TClosure callback) override
     {
-        Queue_.Enqueue(callback);
+        Queue_.Enqueue(std::move(callback));
         ScheduleMore();
     }
 
@@ -484,9 +484,9 @@ public:
         : TInvokerWrapper(std::move(underlyingInvoker))
     { }
 
-    virtual void Invoke(const TClosure& callback) override
+    virtual void Invoke(TClosure callback) override
     {
-        Queue_.Enqueue(callback);
+        Queue_.Enqueue(std::move(callback));
         ScheduleMore();
     }
 

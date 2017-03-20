@@ -248,7 +248,7 @@ void TInvokerQueue::Configure(int threads)
     Queue->Configure(threads);
 }
 
-void TInvokerQueue::Invoke(const TClosure& callback)
+void TInvokerQueue::Invoke(TClosure callback)
 {
     Y_ASSERT(callback);
 
@@ -271,7 +271,7 @@ void TInvokerQueue::Invoke(const TClosure& callback)
     TEnqueuedAction action;
     action.Finished = false;
     action.EnqueuedAt = GetCpuInstant();
-    action.Callback = callback;
+    action.Callback = std::move(callback);
     Queue->Enqueue(action, index);
 
     CallbackEventCount->NotifyOne();

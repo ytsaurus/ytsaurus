@@ -39,7 +39,7 @@ public:
 
     void Configure(int threads);
 
-    virtual void Invoke(const TClosure& callback) override;
+    virtual void Invoke(TClosure callback) override;
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     virtual TThreadId GetThreadId() const override;
