@@ -92,7 +92,8 @@ def get_environment_for_binary_test():
         "PYTHONPATH": os.environ["PYTHONPATH"],
         "PYTHON_BINARY": sys.executable,
         "YT_USE_TOKEN": "0",
-        "YT_VERSION": yt.config["api_version"]
+        "YT_VERSION": yt.config["api_version"],
+        "YT_PRINT_BACKTRACE": "1",
     }
     env["YT_CONFIG_PATCHES"] = yson._dumps_to_native_str(_filter_simple_types(yt.config.config))
     return env
