@@ -56,7 +56,7 @@ TChunk* TChunkScanner::DequeueChunk()
     if (GlobalIterator_) {
         auto* chunk = GlobalIterator_;
         AdvanceGlobalIterator();
-        return chunk->IsAlive() ? chunk : nullptr;
+        return chunk;
     }
 
     if (Queue_.empty()) {
@@ -66,14 +66,15 @@ TChunk* TChunkScanner::DequeueChunk()
     auto* chunk = Queue_.front().Chunk;
     Queue_.pop();
 
-    if (!chunk->IsAlive()) {
-        return nullptr;
+    auto epoch = ObjectManager_->GetCurrentEpoch();
+
+    if (IsObjectAlive(chunk)) {
+        Y_ASSERT(chunk->GetScanFlag(Kind_, epoch));
+        chunk->ClearScanFlag(Kind_, epoch);
     }
 
-    auto epoch = ObjectManager_->GetCurrentEpoch();
-    Y_ASSERT(chunk->GetScanFlag(Kind_, epoch));
-    chunk->ClearScanFlag(Kind_, epoch);
     ObjectManager_->WeakUnrefObject(chunk);
+
     return chunk;
 }
 
