@@ -160,7 +160,9 @@ ISchemafulReaderPtr CreateSchemafulReaderAdapter(
     }
 
     auto nameTable = TNameTable::FromSchema(schema);
-    auto underlyingReader = createReader(nameTable, columnFilter);
+    auto underlyingReader = createReader(
+        nameTable,
+        columnFilter.All ? TColumnFilter(schema.Columns().size()) : columnFilter);
 
     auto result = New<TSchemafulReaderAdapter>(
         underlyingReader,
