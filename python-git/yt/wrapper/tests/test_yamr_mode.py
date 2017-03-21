@@ -104,6 +104,7 @@ class TestYamrMode(object):
         copy_table(table, embedded_path)
         assert not yt.exists(embedded_path)
 
+    @pytest.mark.timeout(1200)
     def test_mapreduce_binary(self):
         env = get_environment_for_binary_test()
         env["FALSE"] = "false"
