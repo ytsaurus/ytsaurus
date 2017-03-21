@@ -352,7 +352,7 @@ def _get_token_by_ssh_session(client):
 
 def get_token(token=None, client=None):
     """Extracts token from given `token` and `client` arguments. Also checks token for correctness."""
-    if get_option("_token_received", client=client):
+    if get_option("_token_cached", client=client):
         return get_option("_token", client=client)
 
     if token is None:
@@ -387,8 +387,9 @@ def get_token(token=None, client=None):
         require(all(33 <= ord(c) <= 126 for c in token),
                 lambda: YtTokenError("You have an improper authentication token"))
 
-    set_option("_token", token, client=client)
-    set_option("_token_received", True, client=client)
+    if get_config(client=client)["cache_token"]:
+        set_option("_token", token, client=client)
+        set_option("_token_cached", True, client=client)
 
     return token
 

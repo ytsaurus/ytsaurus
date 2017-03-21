@@ -127,6 +127,8 @@ default_config = {
 
     # This option allows to disable token.
     "enable_token": True,
+    # This option allows to cache token value in client state.
+    "cache_token": True,
     # If token specified than token_path ignored,
     # otherwise token extracted from file specified by token_path.
     "token": None,
