@@ -2592,7 +2592,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         cmd = "set -e; echo aaa >local_file; for i in {1..200}; do " \
-              "dd if=./local_file of=/dev/null iflag=nocache bs=1 count=1; done;"
+              "dd if=./local_file of=/dev/null iflag=direct bs=1M count=1; done;"
 
         op = map(
             command=cmd,
