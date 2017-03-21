@@ -8,11 +8,10 @@ from .table import TempTable
 
 import yt.logger as logger
 
-from yt.packages.six.moves import xrange, map as imap
+from yt.packages.six.moves import xrange, map as imap, builtins
 
 from copy import deepcopy
 from random import Random
-import __builtin__
 
 def _get_compression_ratio(table, codec, client, spec):
     def exact_chunk_index_limit(chunk_index):
@@ -33,7 +32,7 @@ def _get_compression_ratio(table, codec, client, spec):
         random_gen.seed(chunk_count)
         chunk_indices = random_gen.sample(xrange(chunk_count), min(chunk_count, probe_chunk_count))
         input = TablePath(table,
-                          ranges=__builtin__.list(imap(exact_chunk_index_limit, chunk_indices)),
+                          ranges=builtins.list(imap(exact_chunk_index_limit, chunk_indices)),
                           client=client)
 
         run_merge(input, tmp, mode="ordered", spec=spec, client=client)
