@@ -36,7 +36,7 @@ class TKeySetReader
 public:
     TKeySetReader(const TSharedRef& compressedData);
 
-    const TRange<NTableClient::TKey> GetKeys() const;
+    TRange<NTableClient::TKey> GetKeys() const;
 
 private:
     NTabletClient::TWireProtocolReader WireProtocolReader_;
