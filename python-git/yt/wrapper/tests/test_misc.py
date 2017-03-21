@@ -377,6 +377,7 @@ class TestRetries(object):
         yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = True
         override_options = {
             "write_retries/enable": True,
+            "write_retries/count": 10,
             "read_retries/enable": True,
             "proxy/heavy_request_timeout": 1000
         }
