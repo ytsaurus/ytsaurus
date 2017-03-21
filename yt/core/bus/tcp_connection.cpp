@@ -75,6 +75,7 @@ TTcpConnection::TTcpConnection(
             Id_,
             EndpointDescription_))
     , InterfaceType_(interfaceType)
+    , EnableChecksums_(Config_->CalculateChecksum)
     , MessageEnqueuedCallback_(BIND(&TTcpConnection::OnMessageEnqueuedThunk, MakeWeak(this)))
     , Decoder_(Logger, Config_->VerifyChecksum)
     , ReadStallTimeout_(NProfiling::DurationToCpuDuration(Config_->ReadStallTimeout))
@@ -314,7 +315,9 @@ void TTcpConnection::OnInterfaceTypeEstablished(ETcpInterfaceType interfaceType)
 
     Statistics_ = DispatcherThread_->GetStatistics(interfaceType);
 
-    EnableChecksums_ = (interfaceType == ETcpInterfaceType::Remote);
+    if (EnableChecksums_) {
+        EnableChecksums_ = (interfaceType == ETcpInterfaceType::Remote);
+    }
 
     UpdateConnectionCount(+1);
     ConnectionCounterUpdated_ = true;
