@@ -123,7 +123,11 @@ private:
 
     IPartitionerPtr CreatePartitioner()
     {
-        if (PartitionJobSpecExt_.partition_keys_size() > 0) {
+        if (PartitionJobSpecExt_.has_wire_partition_keys()) {
+            auto wirePartitionKeys = TSharedRef::FromString(PartitionJobSpecExt_.wire_partition_keys());
+            return CreateOrderedPartitioner(wirePartitionKeys);
+        } else if (PartitionJobSpecExt_.partition_keys_size() > 0) {
+            // COMPAT(psushin)
             YCHECK(PartitionJobSpecExt_.partition_keys_size() + 1 == PartitionJobSpecExt_.partition_count());
             auto partitionKeys = FromProto<std::vector<TOwningKey>>(PartitionJobSpecExt_.partition_keys());
             return CreateOrderedPartitioner(std::move(partitionKeys));

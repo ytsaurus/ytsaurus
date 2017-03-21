@@ -37,7 +37,7 @@ TKeySetReader::TKeySetReader(const TSharedRef& compressedData)
     }
 }
 
-const TRange<TKey> TKeySetReader::GetKeys() const
+TRange<TKey> TKeySetReader::GetKeys() const
 {
     return MakeRange(Keys_);
 }

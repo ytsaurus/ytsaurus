@@ -11,6 +11,7 @@
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
+#include <yt/ytlib/chunk_client/key_set.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/row_buffer.h>
@@ -447,13 +448,6 @@ protected:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
-            auto* partitionJobSpecExt = jobSpec->MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-            for (const auto& partition : Controller->Partitions) {
-                auto key = partition->Key;
-                if (key && key != MinKey()) {
-                    ToProto(partitionJobSpecExt->add_partition_keys(), key);
-                }
-            }
             AddSequentialInputSpec(jobSpec, joblet);
             AddIntermediateOutputSpec(jobSpec, joblet, TKeyColumns());
         }
@@ -2190,6 +2184,20 @@ private:
             partitionJobSpecExt->set_partition_count(Partitions.size());
             partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), Spec->SortBy);
+
+            auto keySetWriter = New<TKeySetWriter>();
+            for (const auto& partition : Partitions) {
+                auto key = partition->Key;
+                if (key && key != MinKey()) {
+                    keySetWriter->WriteKey(key);
+                }
+            }
+            auto data = keySetWriter->Finish();
+            partitionJobSpecExt->set_wire_partition_keys(ToString(data));
+
+            // COMPAT(psushin).
+            // NB: This dummy key guards us from old nodes and silent sort corruptions.
+            partitionJobSpecExt->add_partition_keys("not_a_key");
         }
 
         auto intermediateReaderOptions = New<TTableReaderOptions>();
