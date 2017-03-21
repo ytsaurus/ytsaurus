@@ -2297,24 +2297,25 @@ print row + table_index
             out="//tmp/t_out",
             command="cat")
         stat1 = get_data_size(get("//sys/operations/{0}/@progress/job_statistics".format(op.id)))
+        assert read_table("//tmp/t_out") == [row]
 
-        for columns in (["k"], ["u"], ["v"], ["k", "u"], ["k", "v"]):
+        # FIXME(savrus) investigate test flapping
+        print get("//tmp/t/@compression_statistics")
+
+        for columns in (["k"], ["u"], ["v"], ["k", "u"], ["k", "v"], ["u", "v"]):
             op = map(
                 in_="<columns=[{0}]>//tmp/t".format(";".join(columns)),
                 out="//tmp/t_out",
                 command="cat")
             stat2 = get_data_size(get("//sys/operations/{0}/@progress/job_statistics".format(op.id)))
             assert read_table("//tmp/t_out") == [{c: row[c] for c in columns}]
-            assert stat1["uncompressed_data_size"] > stat2["uncompressed_data_size"]
-            assert stat1["compressed_data_size"] > stat2["compressed_data_size"]
 
-        for columns in (["u", "v"]):
-            op = map(
-                in_="<columns=[{0}]>//tmp/t".format(";".join(columns)),
-                out="//tmp/t_out",
-                command="cat")
-            stat2 = get_data_size(get("//sys/operations/{0}/@progress/job_statistics".format(op.id)))
-            assert read_table("//tmp/t_out") == [{c: row[c] for c in columns}]
+            if columns == ["u", "v"]:
+                assert stat1["uncompressed_data_size"] == stat2["uncompressed_data_size"]
+                assert stat1["compressed_data_size"] == stat2["compressed_data_size"]
+            else:
+                assert stat1["uncompressed_data_size"] > stat2["uncompressed_data_size"]
+                assert stat1["compressed_data_size"] > stat2["compressed_data_size"]
 
     def test_pipe_statistics(self):
         create("table", "//tmp/t_input")
