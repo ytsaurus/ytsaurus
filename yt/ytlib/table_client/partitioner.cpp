@@ -1,9 +1,13 @@
 #include "partitioner.h"
 
+#include <yt/ytlib/chunk_client/key_set.h>
+
 #include <yt/core/misc/blob_output.h>
 
 namespace NYT {
 namespace NTableClient {
+
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,34 +16,56 @@ class TOrderedPartitioner
 {
 public:
     explicit TOrderedPartitioner(std::vector<TOwningKey> keys)
-        : Keys_(std::move(keys))
-    { }
+        : OwningKeys_(std::move(keys))
+    {
+        for (const auto& key : OwningKeys_) {
+            KeyHolder_.push_back(key.Get());
+        }
+        Keys_ = MakeRange(KeyHolder_);
+    }
+
+    explicit TOrderedPartitioner(const TSharedRef& wirePartitionKeys)
+    {
+        KeySetReader_.Emplace(wirePartitionKeys);
+        Keys_ = KeySetReader_->GetKeys();
+    }
 
     virtual int GetPartitionCount() override
     {
-        return Keys_.size() + 1;
+        return Keys_.Size() + 1;
     }
 
     virtual int GetPartitionIndex(TUnversionedRow row) override
     {
         auto it = std::upper_bound(
-            Keys_.begin(),
-            Keys_.end(),
+            Keys_.Begin(),
+            Keys_.End(),
             row,
-            [] (TUnversionedRow row, const TOwningKey& element) {
+            [] (TUnversionedRow row, const TKey& element) {
                 return row < element;
             });
-        return std::distance(Keys_.begin(), it);
+        return std::distance(Keys_.Begin(), it);
     }
 
 private:
-    const std::vector<TOwningKey> Keys_;
+    // For backwards compatibility.
+    const std::vector<TOwningKey> OwningKeys_;
+    std::vector<TKey> KeyHolder_;
+
+    TNullable<TKeySetReader> KeySetReader_;
+
+    TRange<TKey> Keys_;
 
 };
 
 IPartitionerPtr CreateOrderedPartitioner(std::vector<TOwningKey> keys)
 {
     return New<TOrderedPartitioner>(std::move(keys));
+}
+
+IPartitionerPtr CreateOrderedPartitioner(const TSharedRef& wirePartitionKeys)
+{
+    return New<TOrderedPartitioner>(wirePartitionKeys);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
