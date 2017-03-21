@@ -1360,9 +1360,6 @@ class Application(object):
         sensors.append(make_solomon_sensor("pending_count", len(self._pending_tasks)))
         sensors.append(make_solomon_sensor("running_count", len(self._task_processes)))
 
-        objects_size = pympler_muppy.get_size(pympler_muppy.get_objects()) // 1024
-        sensors.append(make_solomon_sensor("objects_memory_kb", objects_size))
-
         with open("/proc/{0}/statm".format(self._pid)) as f:
             memory_info = f.readline().strip()
             rss_mem = int(memory_info.split()[1]) * OS_PAGE_SIZE // 1024
