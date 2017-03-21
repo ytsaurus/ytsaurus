@@ -37,6 +37,7 @@ class YtConfig(object):
         self.enable_debug_log = kwargs.get("enable_debug_log")
         self.yt_work_dir = kwargs.get("yt_work_dir")
         self.keep_yt_work_dir = kwargs.get("keep_yt_work_dir")
+        self.ram_drive_path = kwargs.get("ram_drive_path")
 
         self.wait_tablet_cell_initialization = kwargs.get("wait_tablet_cell_initialization")
         self.operations_memory_limit = kwargs.get("operations_memory_limit") or (25 * 1024 * 1024 * 1024)
@@ -86,7 +87,7 @@ class YtStuff(object):
         build_path = yatest.common.runtime.build_path()
         work_path = yatest.common.runtime.work_path()
 
-        self.tmpfs_path = yatest.common.get_param("ram_drive_path")
+        self.tmpfs_path = self.config.ram_drive_path or yatest.common.get_param("ram_drive_path")
         if self.tmpfs_path:
             self.tmpfs_path = tempfile.mkdtemp(prefix="yt_", dir=self.tmpfs_path)
 
