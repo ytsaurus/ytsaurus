@@ -1080,7 +1080,7 @@ private:
             : Host_(host)
         { }
 
-        virtual TNameTablePtr GetNameTable() const override
+        virtual const TNameTablePtr& GetNameTable() const override
         {
             return Host_->EventLogWriter_->GetNameTable();
         }
@@ -1701,6 +1701,8 @@ private:
         try {
             auto controller = CreateController(operation.Get());
             operation->SetController(controller);
+
+            Strategy_->ValidateOperationCanBeRegistered(operation);
 
             RegisterOperation(operation);
             registered = true;

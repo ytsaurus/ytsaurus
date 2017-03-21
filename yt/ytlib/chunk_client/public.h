@@ -225,6 +225,8 @@ using TPlacementId = TGuid;
 
 struct TDataSliceDescriptor;
 
+DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

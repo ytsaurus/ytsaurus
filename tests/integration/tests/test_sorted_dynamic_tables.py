@@ -31,14 +31,15 @@ class TestSortedDynamicTablesBase(YTEnvSetup):
     }
 
     def _create_simple_table(self, path, atomicity=None, optimize_for=None, tablet_cell_bundle=None,
-                             tablet_count=None, pivot_keys=None):
-        attributes={
+                             tablet_count=None, pivot_keys=None, **extra_attributes):
+        attributes = {
             "dynamic": True,
             "schema": [
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "string"}
             ]
         }
+        attributes.update(extra_attributes)
         if atomicity is not None:
             attributes["atomicity"] = atomicity
         if optimize_for is not None:
@@ -281,6 +282,33 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         expected = [{"key": i % 2, "value": str(i % 2)} for i in xrange(10)]
 
         assert lookup_rows("//tmp/t", keys) == expected
+
+    def test_lookup_versioned(self):
+        self.sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t", min_data_versions=2)
+        self.sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "a:" + str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+        generate_timestamp()
+
+        rows = [{"key": i, "value": "b:" + str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+        generate_timestamp()
+
+        keys = [{"key": i} for i in xrange(10)]
+        actual = lookup_rows("//tmp/t", keys, versioned=True)
+
+        for i, key in enumerate(keys):
+            row = actual[i]
+            assert "write_timestamps" in row.attributes
+            assert len(row.attributes["write_timestamps"]) == 2
+            assert "delete_timestamps" in row.attributes
+            assert row["key"] == key["key"]
+            assert len(row["value"]) == 2
+            assert "%s" % row["value"][0] == "b:" + str(key["key"])
+            assert "%s" % row["value"][1] == "a:" + str(key["key"])
 
     def test_read_invalid_limits(self):
         self.sync_create_cells(1)

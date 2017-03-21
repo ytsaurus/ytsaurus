@@ -236,17 +236,20 @@ private:
                         objectIdString);
                 }
 
+                tokenizer.Advance();
+
+                bool foreign =
+                    CellTagFromId(objectId) != Bootstrap_->GetCellTag() &&
+                    Bootstrap_->IsPrimaryMaster();
+                
                 bool suppressRedirect = false;
-                if (tokenizer.Advance() == NYPath::ETokenType::Ampersand) {
+                if (foreign && tokenizer.GetType() == NYPath::ETokenType::Ampersand) {
                     suppressRedirect = true;
                     tokenizer.Advance();
                 }
 
                 IYPathServicePtr proxy;
-                if (!suppressRedirect &&
-                    CellTagFromId(objectId) != Bootstrap_->GetCellTag() &&
-                    Bootstrap_->IsPrimaryMaster())
-                {
+                if (foreign && !suppressRedirect) {
                     proxy = objectManager->CreateRemoteProxy(objectId);
                 } else {
                     auto* object = (context->GetMethod() == "Exists")

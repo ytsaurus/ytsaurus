@@ -59,6 +59,9 @@ public:
     //! Default parent pool for operations with unknown pool.
     Stroka DefaultParentPool;
 
+    //! Forbid immediate operations in root.
+    bool ForbidImmediateOperationsInRoot;
+
     // Preemption timeout for operations with small number of jobs will be
     // discounted proportionally to this coefficient.
     double JobCountPreemptionTimeoutCoefficient;
@@ -144,6 +147,9 @@ public:
 
         RegisterParameter("default_parent_pool", DefaultParentPool)
             .Default(RootPoolName);
+
+        RegisterParameter("forbid_immediate_operations_in_root", ForbidImmediateOperationsInRoot)
+            .Default(true);
 
         RegisterParameter("job_count_preemption_timeout_coefficient", JobCountPreemptionTimeoutCoefficient)
             .Default(1.0)

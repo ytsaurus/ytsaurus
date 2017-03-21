@@ -93,7 +93,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    TColumnFilter columnFilter = TColumnFilter(),
+    const TColumnFilter& columnFilter = TColumnFilter(),
     const TKeyColumns &keyColumns = TKeyColumns(),
     TNullable<int> partitionTag = Null,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
@@ -110,7 +110,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    TColumnFilter columnFilter = TColumnFilter(),
+    const TColumnFilter& columnFilter = TColumnFilter(),
     const TKeyColumns &keyColumns = TKeyColumns(),
     TNullable<int> partitionTag = Null,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
@@ -127,7 +127,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const NChunkClient::TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
-    TColumnFilter columnFilter,
+    const TColumnFilter& columnFilter,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////

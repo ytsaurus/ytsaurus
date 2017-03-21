@@ -112,7 +112,7 @@ public:
         return Schema_;
     }
 
-    virtual TNameTablePtr GetNameTable() const override
+    virtual const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }

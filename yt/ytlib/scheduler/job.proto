@@ -287,6 +287,8 @@ message TPartitionJobSpecExt
 
     // Size of key prefix used for bucket decision.
     optional int32 reduce_key_column_count = 7;
+
+    optional bytes wire_partition_keys = 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

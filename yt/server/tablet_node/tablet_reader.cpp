@@ -139,6 +139,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
                 tabletSnapshot,
                 bounds.Slice(offsetBegin, offsetEnd),
                 timestamp,
+                false,
                 columnFilter,
                 workloadDescriptor);
         },
@@ -328,6 +329,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
                     tabletSnapshot,
                     keys,
                     timestamp,
+                    false,
                     columnFilter,
                     workloadDescriptor);
             } else {
@@ -433,7 +435,9 @@ IVersionedReaderPtr CreateVersionedTabletReader(
 
     auto rowMerger = std::make_unique<TVersionedRowMerger>(
         New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
+        tabletSnapshot->QuerySchema.GetColumnCount(),
         tabletSnapshot->QuerySchema.GetKeyColumnCount(),
+        TColumnFilter(),
         tabletSnapshot->Config,
         currentTimestamp,
         majorTimestamp,
@@ -455,6 +459,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
                 tabletSnapshot,
                 MakeSingletonRowRange(lowerBound, upperBound),
                 AllCommittedTimestamp,
+                true,
                 TColumnFilter(),
                 workloadDescriptor);
         },

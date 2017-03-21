@@ -512,7 +512,7 @@ void JoinOpHelper(
                 batchState.HashJoin(context, &joinLookup, chainedRows, reader, isLeft);
             }
         } else {
-            NApi::IRowsetPtr rowset;
+            NApi::IUnversionedRowsetPtr rowset;
 
             {
                 TQueryPtr foreignQuery;
@@ -523,7 +523,7 @@ void JoinOpHelper(
                     closure.Buffer);
 
                 ISchemafulWriterPtr writer;
-                TFuture<NApi::IRowsetPtr> rowsetFuture;
+                TFuture<NApi::IUnversionedRowsetPtr> rowsetFuture;
                 // Any schema, it is not used.
                 std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter(TTableSchema());
                 NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);

@@ -497,47 +497,8 @@ void TServiceBase::HandleRequest(
     auto requestProtocolVersion = header->protocol_version();
 
     TRuntimeMethodInfoPtr runtimeInfo;
-    try {
-        if (Stopped_) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::Unavailable,
-                "Service is stopped");
-        }
-
-        if (requestProtocolVersion != GenericProtocolVersion &&
-            requestProtocolVersion != ProtocolVersion_)
-        {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::ProtocolError,
-                "Protocol version mismatch: expected %v, received %v",
-                ProtocolVersion_,
-                requestProtocolVersion);
-        }
-
-        runtimeInfo = FindMethodInfo(method);
-        if (!runtimeInfo) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::NoSuchMethod,
-                "Unknown method");
-        }
-
-        if (runtimeInfo->Descriptor.OneWay != oneWay) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::ProtocolError,
-                "One-way flag mismatch: expected %v, actual %v",
-                runtimeInfo->Descriptor.OneWay,
-                oneWay);
-        }
-
-        // Not actually atomic but should work fine as long as some small error is OK.
-        if (runtimeInfo->QueueSizeCounter.Current > runtimeInfo->Descriptor.MaxQueueSize) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
-                "Request queue size limit exceeded")
-                << TErrorAttribute("limit", runtimeInfo->Descriptor.MaxQueueSize);
-        }
-    } catch (const std::exception& ex) {
-        auto error = TError(ex)
+    auto handleError = [&] (auto&&... args) {
+        auto error = TError(std::forward<decltype(args)>(args)...)
             << TErrorAttribute("request_id", requestId)
             << TErrorAttribute("service", ServiceId_.ServiceName)
             << TErrorAttribute("method", method);
@@ -551,6 +512,50 @@ void TServiceBase::HandleRequest(
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
             replyBus->Send(errorMessage, EDeliveryTrackingLevel::None);
         }
+    };
+
+    if (Stopped_) {
+        handleError(
+            EErrorCode::Unavailable,
+            "Service is stopped");
+        return;
+    }
+
+    if (requestProtocolVersion != GenericProtocolVersion &&
+        requestProtocolVersion != ProtocolVersion_)
+    {
+        handleError(
+            EErrorCode::ProtocolError,
+            "Protocol version mismatch: expected %v, received %v",
+            ProtocolVersion_,
+            requestProtocolVersion);
+        return;
+    }
+
+    runtimeInfo = FindMethodInfo(method);
+    if (!runtimeInfo) {
+        handleError(
+            EErrorCode::NoSuchMethod,
+            "Unknown method");
+        return;
+    }
+
+    if (runtimeInfo->Descriptor.OneWay != oneWay) {
+        handleError(
+            EErrorCode::ProtocolError,
+            "One-way flag mismatch: expected %v, actual %v",
+            runtimeInfo->Descriptor.OneWay,
+            oneWay);
+        return;
+    }
+
+    // Not actually atomic but should work fine as long as some small error is OK.
+    if (runtimeInfo->QueueSizeCounter.Current > runtimeInfo->Descriptor.MaxQueueSize) {
+        handleError(
+            TError(
+                NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
+                "Request queue size limit exceeded")
+            << TErrorAttribute("limit", runtimeInfo->Descriptor.MaxQueueSize));
         return;
     }
 

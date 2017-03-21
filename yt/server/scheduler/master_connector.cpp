@@ -2010,7 +2010,7 @@ private:
             YCHECK(list->TransactionId == transactionId);
         }
 
-        LOG_DEBUG("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
+        LOG_TRACE("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
             operationId,
             tableId,
             childIds.size());

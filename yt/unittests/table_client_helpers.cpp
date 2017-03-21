@@ -7,103 +7,113 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AreUnversionedValuesEqual(const TUnversionedValue& expected, const TUnversionedValue& actual)
+void CheckEqualNoTrace(const TUnversionedValue& expected, const TUnversionedValue& actual)
 {
-    if (expected.Type != actual.Type) {
-        return false;
-    }
+    EXPECT_EQ(expected.Id, actual.Id);
+    ASSERT_EQ(expected.Type, actual.Type);
+    ASSERT_EQ(expected.Aggregate, expected.Aggregate);
 
-    if (expected.Id != actual.Id) {
-        return false;
+    if (IsStringLikeType(expected.Type)) {
+        ASSERT_EQ(expected.Length, actual.Length);
+        EXPECT_EQ(0, ::memcmp(expected.Data.String, actual.Data.String, expected.Length));
+    } else if (IsValueType(expected.Type)) {
+        EXPECT_EQ(expected.Data.Uint64, actual.Data.Uint64);
     }
+}
 
-    if (expected.Type != EValueType::Any) {
-        return expected == actual;
-    } else if (expected.Length != actual.Length) {
-        return false;
-    } else {
-        return ::memcmp(expected.Data.String, actual.Data.String, actual.Length) == 0;
-    }
+void CheckEqual(const TUnversionedValue& expected, const TUnversionedValue& actual)
+{
+    SCOPED_TRACE(Format("Expected: %v; Actual: %v", expected, actual));
+    CheckEqualNoTrace(expected, actual);
+}
+
+void CheckEqual(const TVersionedValue& expected, const TVersionedValue& actual)
+{
+    SCOPED_TRACE(Format("Expected: %v; Actual: %v", expected, actual));
+    CheckEqualNoTrace(
+        static_cast<const TUnversionedValue&>(expected),
+        static_cast<const TUnversionedValue&>(actual));
+    EXPECT_EQ(expected.Timestamp, expected.Timestamp);
 }
 
 void ExpectSchemafulRowsEqual(TUnversionedRow expected, TUnversionedRow actual)
 {
-    #define ADD_DIAGNOSTIC "expected: " << ToString(expected)    \
-                           << ", "                               \
-                           << "actual: " << ToString(actual)
+    SCOPED_TRACE(Format("Expected: %v; Actual: %v", expected, actual));
 
-    if (!expected) {
-        EXPECT_FALSE(actual) << ADD_DIAGNOSTIC;
+    ASSERT_EQ(static_cast<bool>(expected), static_cast<bool>(actual));
+    if (!expected || !actual) {
         return;
     }
+    ASSERT_EQ(expected.GetCount(), actual.GetCount());
 
-    EXPECT_EQ(expected.GetCount(), actual.GetCount()) << ADD_DIAGNOSTIC;
     for (int valueIndex = 0; valueIndex < expected.GetCount(); ++valueIndex) {
-        EXPECT_TRUE(AreUnversionedValuesEqual(expected[valueIndex], actual[valueIndex])) << ADD_DIAGNOSTIC;
+        SCOPED_TRACE(Format("Value index %v", valueIndex));
+        CheckEqual(expected[valueIndex], actual[valueIndex]);
     }
-
-    #undef ADD_DIAGNOSTIC
 }
 
 void ExpectSchemalessRowsEqual(TUnversionedRow expected, TUnversionedRow actual, int keyColumnCount)
 {
-#define ADD_DIAGNOSTIC "expected: " << ToString(expected)    \
-                       << ", "                               \
-                       << "actual: " << ToString(actual)
+    SCOPED_TRACE(Format("Expected: %v; Actual: %v", expected, actual));
 
-    if (!expected) {
-        EXPECT_FALSE(actual) << ADD_DIAGNOSTIC;
+    ASSERT_EQ(static_cast<bool>(expected), static_cast<bool>(actual));
+    if (!expected || !actual) {
         return;
     }
+    ASSERT_EQ(expected.GetCount(), actual.GetCount());
 
-    ASSERT_TRUE(actual) << ADD_DIAGNOSTIC;
-    EXPECT_EQ(expected.GetCount(), actual.GetCount()) << ADD_DIAGNOSTIC;
     for (int valueIndex = 0; valueIndex < keyColumnCount; ++valueIndex) {
-        EXPECT_TRUE(AreUnversionedValuesEqual(expected[valueIndex], actual[valueIndex])) << ADD_DIAGNOSTIC;
+        SCOPED_TRACE(Format("Value index %v", valueIndex));
+        CheckEqual(expected[valueIndex], actual[valueIndex]);
     }
 
     for (int valueIndex = keyColumnCount; valueIndex < expected.GetCount(); ++valueIndex) {
+        SCOPED_TRACE(Format("Value index %v", valueIndex));
+
         // Find value with the same id. Since this in schemaless read, value positions can be different.
         bool found = false;
         for (int index = keyColumnCount; index < expected.GetCount(); ++index) {
             if (expected[valueIndex].Id == actual[index].Id) {
-                EXPECT_TRUE(AreUnversionedValuesEqual(expected[valueIndex], actual[index])) << ADD_DIAGNOSTIC;
+                CheckEqual(expected[valueIndex], actual[index]);
                 found = true;
                 break;
             }
         }
-        EXPECT_TRUE(found) << ADD_DIAGNOSTIC << "Value index " << valueIndex;
+        EXPECT_TRUE(found);
     }
-
-#undef ADD_DIAGNOSTIC
 }
 
 void ExpectSchemafulRowsEqual(TVersionedRow expected, TVersionedRow actual)
 {
-    if (!expected) {
-        EXPECT_FALSE(actual);
-        YCHECK(!actual);
+    SCOPED_TRACE(Format("Expected: %v; Actual: %v", expected, actual));
+
+    ASSERT_EQ(static_cast<bool>(expected), static_cast<bool>(actual));
+    if (!expected || !actual) {
         return;
     }
 
-    EXPECT_EQ(0, CompareRows(expected.BeginKeys(), expected.EndKeys(), actual.BeginKeys(), actual.EndKeys()));
-
-    EXPECT_EQ(expected.GetWriteTimestampCount(), actual.GetWriteTimestampCount());
+    ASSERT_EQ(expected.GetWriteTimestampCount(), actual.GetWriteTimestampCount());
     for (int i = 0; i < expected.GetWriteTimestampCount(); ++i) {
+        SCOPED_TRACE(Format("Write Timestamp %v", i));
         EXPECT_EQ(expected.BeginWriteTimestamps()[i], actual.BeginWriteTimestamps()[i]);
     }
 
-    EXPECT_EQ(expected.GetDeleteTimestampCount(), actual.GetDeleteTimestampCount());
+    ASSERT_EQ(expected.GetDeleteTimestampCount(), actual.GetDeleteTimestampCount());
     for (int i = 0; i < expected.GetDeleteTimestampCount(); ++i) {
+        SCOPED_TRACE(Format("Delete Timestamp %v", i));
         EXPECT_EQ(expected.BeginDeleteTimestamps()[i], actual.BeginDeleteTimestamps()[i]);
     }
 
-    EXPECT_EQ(expected.GetValueCount(), actual.GetValueCount());
-    for (int i = 0; i < expected.GetValueCount(); ++i) {
-        EXPECT_TRUE(AreUnversionedValuesEqual(
-            expected.BeginValues()[i],
-            actual.BeginValues()[i]));
-        EXPECT_EQ(expected.BeginValues()[i].Timestamp, actual.BeginValues()[i].Timestamp);
+    ASSERT_EQ(expected.GetKeyCount(), actual.GetKeyCount());
+    for (int index = 0; index < expected.GetKeyCount(); ++index) {
+        SCOPED_TRACE(Format("Key index %v", index));
+        CheckEqual(expected.BeginKeys()[index], actual.BeginKeys()[index]);
+    }
+
+    ASSERT_EQ(expected.GetValueCount(), actual.GetValueCount());
+    for (int index = 0; index < expected.GetValueCount(); ++index) {
+        SCOPED_TRACE(Format("Value index %v", index));
+        CheckEqual(expected.BeginValues()[index], actual.BeginValues()[index]);
     }
 }
 

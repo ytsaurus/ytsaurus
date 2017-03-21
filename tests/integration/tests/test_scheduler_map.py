@@ -2263,12 +2263,60 @@ print row + table_index
             command="cat")
 
         statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
-        print statistics
         assert get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum") == 1
         assert get_statistics(statistics, "data.input.row_count.$.completed.map.sum") == 2
         assert get_statistics(statistics, "data.input.uncompressed_data_size.$.completed.map.sum") > 0
         assert get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum") > 0
         assert get_statistics(statistics, "data.input.data_weight.$.completed.map.sum") > 0
+
+    def test_dynamic_table_column_filter(self):
+        self.sync_create_cells(1)
+        create("table", "//tmp/t",
+            attributes={
+                "schema": make_schema([
+                    {"name": "k", "type": "int64", "sort_order": "ascending"},
+                    {"name": "u", "type": "int64"},
+                    {"name": "v", "type": "int64"}],
+                    unique_keys=True),
+                "optimize_for": "scan",
+                "external": False
+            })
+        create("table", "//tmp/t_out")
+
+        row = {"k": 0, "u": 1, "v": 2}
+        write_table("//tmp/t", [row])
+        alter_table("//tmp/t", dynamic=True)
+
+        def get_data_size(statistics):
+            return {
+                "uncompressed_data_size": get_statistics(statistics, "data.input.uncompressed_data_size.$.completed.map.sum"),
+                "compressed_data_size": get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum")
+            }
+
+        op = map(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            command="cat")
+        stat1 = get_data_size(get("//sys/operations/{0}/@progress/job_statistics".format(op.id)))
+        assert read_table("//tmp/t_out") == [row]
+
+        # FIXME(savrus) investigate test flapping
+        print get("//tmp/t/@compression_statistics")
+
+        for columns in (["k"], ["u"], ["v"], ["k", "u"], ["k", "v"], ["u", "v"]):
+            op = map(
+                in_="<columns=[{0}]>//tmp/t".format(";".join(columns)),
+                out="//tmp/t_out",
+                command="cat")
+            stat2 = get_data_size(get("//sys/operations/{0}/@progress/job_statistics".format(op.id)))
+            assert read_table("//tmp/t_out") == [{c: row[c] for c in columns}]
+
+            if columns == ["u", "v"]:
+                assert stat1["uncompressed_data_size"] == stat2["uncompressed_data_size"]
+                assert stat1["compressed_data_size"] == stat2["compressed_data_size"]
+            else:
+                assert stat1["uncompressed_data_size"] > stat2["uncompressed_data_size"]
+                assert stat1["compressed_data_size"] > stat2["compressed_data_size"]
 
     def test_pipe_statistics(self):
         create("table", "//tmp/t_input")
