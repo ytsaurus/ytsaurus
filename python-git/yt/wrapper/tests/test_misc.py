@@ -595,13 +595,14 @@ class TestResponseStream(object):
 
 @pytest.mark.usefixtures("yt_env")
 class TestExecuteBatch(object):
-    def test_simple(self):
-        yt.mkdir("//tmp/test_dir")
+    @pytest.mark.parametrize("concurrency", [None, 1])
+    def test_simple(self, concurrency):
+        yt.create("map_node", "//tmp/test_dir", ignore_existing=True)
         rsp = yt.execute_batch(requests=[
             {"command": "list", "parameters": {"path": "//tmp"}},
             {"command": "list", "parameters": {"path": "//tmp/test_dir"}},
             {"command": "list", "parameters": {"path": "//tmp/missing"}},
-        ])
+        ], concurrency=concurrency)
 
         assert "test_dir" in rsp[0]["output"]
 
