@@ -20,18 +20,13 @@ namespace NLogging {
 
 struct TLogEvent
 {
-    static const int InvalidLine = -1;
-
     const char* Category = nullptr;
     ELogLevel Level;
     Stroka Message;
     NProfiling::TCpuInstant Instant;
-    const char* FileName = nullptr;
-    int Line = InvalidLine;
     NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
     NConcurrency::TFiberId FiberId = NConcurrency::InvalidFiberId;
     NTracing::TTraceId TraceId = NTracing::InvalidTraceId;
-    const char* Function = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,9 +111,6 @@ protected:
         if (logger.IsEnabled(level)) { \
             ::NYT::NLogging::NDetail::LogEventImpl( \
                 logger, \
-                __FILE__, \
-                __LINE__, \
-                __FUNCTION__, \
                 level, \
                 ::NYT::NLogging::NDetail::FormatLogMessage(__VA_ARGS__)); \
         } \

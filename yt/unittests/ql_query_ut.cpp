@@ -863,7 +863,7 @@ protected:
             };
 
             ISchemafulWriterPtr writer;
-            TFuture<IRowsetPtr> asyncResultRowset;
+            TFuture<IUnversionedRowsetPtr> asyncResultRowset;
 
             std::tie(writer, asyncResultRowset) = CreateSchemafulRowsetWriter(primaryQuery->GetTableSchema());
 
@@ -877,7 +877,6 @@ protected:
                 executeCallback);
 
             auto resultRowset = WaitFor(asyncResultRowset).ValueOrThrow();
-
             resultMatcher(resultRowset->GetRows(), TTableSchema(primaryQuery->GetTableSchema()));
         };
 

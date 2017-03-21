@@ -381,11 +381,11 @@ private:
         TJob()
         { }
 
-        TJob(TJobManagerPtr owner, std::unique_ptr<TJobBuilder> jobBuilder, IChunkPoolOutput::TCookie cookie)
+        TJob(TJobManager* owner, std::unique_ptr<TJobBuilder> jobBuilder, IChunkPoolOutput::TCookie cookie)
             : DataSize_(jobBuilder->GetDataSize())
             , RowCount_(jobBuilder->GetRowCount())
             , StripeList_(std::move(jobBuilder->StripeList_))
-            , Owner_(std::move(owner))
+            , Owner_(owner)
             , CookiePoolIterator_(Owner_->CookiePool_.end())
             , Cookie_(cookie)
         {
@@ -424,7 +424,7 @@ private:
         }
 
     private:
-        TJobManagerPtr Owner_;
+        TJobManager* Owner_ = nullptr;
         int SuspendedStripeCount_ = 0;
         std::list<int>::iterator CookiePoolIterator_;
         IChunkPoolOutput::TCookie Cookie_;

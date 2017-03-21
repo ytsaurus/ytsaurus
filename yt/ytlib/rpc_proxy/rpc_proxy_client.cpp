@@ -1,14 +1,12 @@
 #include "rpc_proxy_client.h"
-#include "rpc_proxy_connection.h"
 #include "credentials_injecting_channel.h"
 #include "api_service_proxy.h"
+#include "helpers.h"
 #include "private.h"
 
 #include <yt/core/misc/address.h>
 #include <yt/core/misc/small_set.h>
-#include <yt/core/misc/serialize.h>
 
-#include <yt/ytlib/api/connection.h>
 #include <yt/ytlib/api/rowset.h>
 
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -96,7 +94,7 @@ TFuture<NYson::TYsonString> TRpcProxyClient::GetNode(
     }));
 }
 
-TFuture<NApi::IRowsetPtr> TRpcProxyClient::LookupRows(
+TFuture<NApi::IUnversionedRowsetPtr> TRpcProxyClient::LookupRows(
     const NYPath::TYPath& path,
     TNameTablePtr nameTable,
     const TSharedRange<NTableClient::TKey>& keys,
@@ -106,40 +104,51 @@ TFuture<NApi::IRowsetPtr> TRpcProxyClient::LookupRows(
 
     auto req = proxy.LookupRows();
     req->set_path(path);
+    req->Attachments() = SerializeRowset(nameTable, keys, req->mutable_rowset_descriptor());
+    req->SetTimeout(options.Timeout);
 
-    for (size_t id = 0; id < nameTable->GetSize(); ++id) {
-        auto* desc = req->add_rowset_column_descriptor();
-        desc->set_id(id);
-        desc->set_name(Stroka(nameTable->GetName(id)));
-    }
-
-    req->set_wire_format_version(1);
-    TWireProtocolWriter writer;
-    writer.WriteUnversionedRowset(keys);
-    req->Attachments() = writer.Finish();
-
-    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspLookupRowsPtr>& rspOrError) -> NApi::IRowsetPtr {
-        const auto& rsp = rspOrError.ValueOrThrow();
-
-        std::vector<TColumnSchema> columns;
-        columns.resize(rsp->rowset_column_descriptor_size());
-        for (const auto& desc : rsp->rowset_column_descriptor()) {
-            auto& column = columns[desc.id()];
-            if (desc.has_name()) {
-                column.Name = desc.name();
-            }
-            if (desc.has_type()) {
-                column.Type = EValueType(desc.type());
-            }
+    if (!options.ColumnFilter.All) {
+        for (auto id : options.ColumnFilter.Indexes) {
+            req->add_columns(Stroka(nameTable->GetName(id)));
         }
+    }
+    req->set_timestamp(options.Timestamp);
+    req->set_keep_missing_rows(options.KeepMissingRows);
 
-        TTableSchema schema(std::move(columns));
-        TWireProtocolReader reader(
-            MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()),
-            New<TRowBuffer>(TRpcProxyClientBufferTag()));
+    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspLookupRowsPtr>& rspOrError) -> NApi::IUnversionedRowsetPtr {
+        const auto& rsp = rspOrError.ValueOrThrow();
+        return DeserializeRowset<TUnversionedRow>(
+            rsp->rowset_descriptor(),
+            MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()));
+    }));
+}
 
-        auto rows = reader.ReadUnversionedRowset(true);
-        return NApi::CreateRowset(std::move(schema), std::move(rows));
+TFuture<NApi::IVersionedRowsetPtr> TRpcProxyClient::VersionedLookupRows(
+    const NYPath::TYPath& path,
+    NTableClient::TNameTablePtr nameTable,
+    const TSharedRange<NTableClient::TKey>& keys,
+    const NApi::TVersionedLookupRowsOptions& options)
+{
+    TApiServiceProxy proxy(Channel_);
+
+    auto req = proxy.VersionedLookupRows();
+    req->set_path(path);
+    req->Attachments() = SerializeRowset(nameTable, keys, req->mutable_rowset_descriptor());
+    req->SetTimeout(options.Timeout);
+
+    if (!options.ColumnFilter.All) {
+        for (auto id : options.ColumnFilter.Indexes) {
+            req->add_columns(Stroka(nameTable->GetName(id)));
+        }
+    }
+    req->set_timestamp(options.Timestamp);
+    req->set_keep_missing_rows(options.KeepMissingRows);
+
+    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspVersionedLookupRowsPtr>& rspOrError) -> NApi::IVersionedRowsetPtr {
+        const auto& rsp = rspOrError.ValueOrThrow();
+        return DeserializeRowset<TVersionedRow>(
+            rsp->rowset_descriptor(),
+            MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()));
     }));
 }
 

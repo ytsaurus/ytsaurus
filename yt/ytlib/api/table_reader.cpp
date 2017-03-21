@@ -79,7 +79,7 @@ public:
     virtual TFuture<void> GetReadyEvent() override;
 
     virtual i64 GetTableRowIndex() const override;
-    virtual TNameTablePtr GetNameTable() const override;
+    virtual const TNameTablePtr& GetNameTable() const override;
     virtual i64 GetTotalRowCount() const override;
 
     virtual TKeyColumns GetKeyColumns() const override;
@@ -308,6 +308,8 @@ void TSchemalessTableReader::DoOpen()
 
 bool TSchemalessTableReader::Read(std::vector<TUnversionedRow> *rows)
 {
+    rows->clear();
+
     if (IsAborted()) {
         return true;
     }
@@ -347,7 +349,7 @@ i64 TSchemalessTableReader::GetTotalRowCount() const
     return UnderlyingReader_->GetTotalRowCount();
 }
 
-TNameTablePtr TSchemalessTableReader::GetNameTable() const
+const TNameTablePtr& TSchemalessTableReader::GetNameTable() const
 {
     YCHECK(UnderlyingReader_);
     return UnderlyingReader_->GetNameTable();

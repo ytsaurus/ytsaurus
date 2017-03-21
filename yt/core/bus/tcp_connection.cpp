@@ -76,7 +76,7 @@ TTcpConnection::TTcpConnection(
             EndpointDescription_))
     , InterfaceType_(interfaceType)
     , MessageEnqueuedCallback_(BIND(&TTcpConnection::OnMessageEnqueuedThunk, MakeWeak(this)))
-    , Decoder_(Logger)
+    , Decoder_(Logger, Config_->VerifyChecksum)
     , ReadStallTimeout_(NProfiling::DurationToCpuDuration(Config_->ReadStallTimeout))
     , Encoder_(Logger)
     , WriteStallTimeout_(NProfiling::DurationToCpuDuration(Config_->WriteStallTimeout))

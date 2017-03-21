@@ -7,6 +7,7 @@
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/ytlib/chunk_client/key_set.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -189,6 +190,16 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
+
+        // We keep reader in the scope as a holder for a wire reader and uncompressed attachment.
+        TNullable<TKeySetReader> keysReader;
+        NYT::TRange<TKey> keys;
+        if (rsp->keys_in_attachment()) {
+            YCHECK(rsp->Attachments().size() == 1);
+            keysReader.Emplace(rsp->Attachments().front());
+            keys = keysReader->GetKeys();
+        }
+
         for (int i = 0; i < requestedChunkIndexes.size(); ++i) {
             int index = requestedChunkIndexes[i];
             const auto& chunk = Chunks_[index];
@@ -208,7 +219,7 @@ private:
                 SlicesByChunkIndex_.resize(index + 1, std::vector<NChunkClient::TInputChunkSlicePtr>());
             }
             for (const auto& protoChunkSlice : slices.chunk_slices()) {
-                auto slice = CreateInputChunkSlice(chunk, RowBuffer_, protoChunkSlice);
+                auto slice = New<TInputChunkSlice>(chunk, RowBuffer_, protoChunkSlice, keys);
                 SlicesByChunkIndex_[index].push_back(slice);
                 SliceCount_++;
             }

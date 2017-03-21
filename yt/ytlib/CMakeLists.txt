@@ -69,6 +69,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_chunk_slice.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_data_slice.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/job.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/key_set.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/memory_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/memory_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/multi_chunk_writer_base.cpp
@@ -136,6 +137,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaless_writer_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/utf8_decoder.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/versioned_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_parser_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_writer.cpp
@@ -250,6 +252,7 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/api_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/credentials_injecting_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_client.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_connection.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/private.cpp

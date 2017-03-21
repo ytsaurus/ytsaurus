@@ -28,9 +28,9 @@ class TFinalizerThread
             YCHECK(Owner_->Refs_.fetch_sub(1, std::memory_order_release) > 0);
         }
 
-        virtual void Invoke(const TClosure& callback) override
+        virtual void Invoke(TClosure callback) override
         {
-            Owner_->Invoke(callback);
+            Owner_->Invoke(std::move(callback));
         }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
@@ -133,13 +133,13 @@ public:
         return Thread_->IsStarted();
     }
 
-    void Invoke(const TClosure& callback)
+    void Invoke(TClosure callback)
     {
         YCHECK(!ShutdownFinished);
         if (!Y_UNLIKELY(IsStarted())) {
             Start();
         }
-        Queue_->Invoke(callback);
+        Queue_->Invoke(std::move(callback));
     }
 
     IInvokerPtr GetInvoker()

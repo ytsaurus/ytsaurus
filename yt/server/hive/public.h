@@ -9,6 +9,7 @@
 #include <yt/ytlib/hive/public.h>
 
 #include <yt/core/misc/enum.h>
+#include <yt/core/misc/small_vector.h>
 
 #include <yt/core/actions/callback.h>
 
@@ -30,6 +31,9 @@ using NHiveClient::TMessageId;
 DECLARE_REFCOUNTED_CLASS(THiveManager)
 
 DECLARE_ENTITY_TYPE(TMailbox, TCellId, ::THash<TCellId>)
+
+constexpr int TypicalMailboxCount = 16;
+using TMailboxList = SmallVector<TMailbox*, TypicalMailboxCount>;
 
 template <class TTransaction>
 using TTransactionPrepareActionHandler = TCallback<void(TTransaction*, const Stroka&, bool persistent)>;

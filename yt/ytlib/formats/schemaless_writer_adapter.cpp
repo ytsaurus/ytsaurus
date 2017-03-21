@@ -82,7 +82,7 @@ const TTableSchema& TSchemalessFormatWriterBase::GetSchema() const
     Y_UNREACHABLE();
 }
 
-TNameTablePtr TSchemalessFormatWriterBase::GetNameTable() const
+const TNameTablePtr& TSchemalessFormatWriterBase::GetNameTable() const
 {
     return NameTable_;
 }
