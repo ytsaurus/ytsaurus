@@ -24,7 +24,7 @@ class ClientState(object):
         # Token can be received from oauth server, in this case we do not want to
         # request on each request to YT.
         self._token = None
-        self._token_received = False
+        self._token_cached = False
 
         # Cache for API version (to check it only once).
         self._api_version = None

@@ -189,6 +189,7 @@ class TestClient(object):
     def test_get_token(self):
         client = Yt(token="a" * 32)
         client.config["enable_token"] = True
+        client.config["cache_token"] = False
 
         assert http.get_token(client=client) == "a" * 32
 
