@@ -58,6 +58,7 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
     }
 
 private:
@@ -104,8 +105,7 @@ private:
                 .ValueOrThrow();
         } else if (credentials.has_token()) {
             auto asyncAuthenticationResult = Bootstrap_->GetTokenAuthenticator()->Authenticate(
-                credentials.token(),
-                credentials.userip());
+                TTokenCredentials{credentials.token(), credentials.userip()});
             authenticationResult = WaitFor(asyncAuthenticationResult)
                 .ValueOrThrow();
         } else {
