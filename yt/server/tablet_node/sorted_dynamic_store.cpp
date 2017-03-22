@@ -164,11 +164,13 @@ public:
         TSortedDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
+        bool produceAllVersions,
         ui32 revision,
         const TColumnFilter& columnFilter)
         : Store_(std::move(store))
         , TabletSnapshot_(std::move(tabletSnapshot))
         , Timestamp_(timestamp)
+        , ProduceAllVersions_(produceAllVersions)
         , Revision_(revision)
         , ColumnFilter_(columnFilter)
         , KeyColumnCount_(Store_->KeyColumnCount_)
@@ -193,6 +195,7 @@ protected:
     const TSortedDynamicStorePtr Store_;
     const TTabletSnapshotPtr TabletSnapshot_;
     const TTimestamp Timestamp_;
+    const bool ProduceAllVersions_;
     const ui32 Revision_;
     const TColumnFilter ColumnFilter_;
 
@@ -533,12 +536,14 @@ public:
         TTabletSnapshotPtr tabletSnapshot,
         TSharedRange<TRowRange> ranges,
         TTimestamp timestamp,
+        bool produceAllVersions,
         ui32 revision,
         const TColumnFilter& columnFilter)
         : TReaderBase(
             std::move(store),
             std::move(tabletSnapshot),
             timestamp,
+            produceAllVersions,
             revision,
             columnFilter)
         , Ranges_(std::move(ranges))
@@ -571,7 +576,7 @@ public:
                 }
             }
 
-            auto row = ProduceRow();
+            auto row = ProduceRow(Iterator_.GetCurrent());
             if (row) {
                 rows->push_back(row);
                 dataWeight += GetDataWeight(row);
@@ -651,10 +656,9 @@ private:
         return;
     }
 
-    TVersionedRow ProduceRow()
+    TVersionedRow ProduceRow(const TSortedDynamicRow& dynamicRow)
     {
-        auto dynamicRow = Iterator_.GetCurrent();
-        return Timestamp_ == AllCommittedTimestamp
+        return ProduceAllVersions_
             ? ProduceAllRowVersions(dynamicRow)
             : ProduceSingleRowVersion(dynamicRow);
     }
@@ -672,11 +676,13 @@ public:
         TTabletSnapshotPtr tabletSnapshot,
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
+        bool produceAllVersions,
         const TColumnFilter& columnFilter)
         : TReaderBase(
             std::move(store),
             std::move(tabletSnapshot),
             timestamp,
+            produceAllVersions,
             MaxRevision,
             columnFilter)
         , Keys_(keys)
@@ -710,12 +716,12 @@ public:
             if (Y_LIKELY(Store_->LookupHashTable_)) {
                 auto dynamicRow = Store_->LookupHashTable_->Find(Keys_[RowCount_]);
                 if (dynamicRow) {
-                    row = ProduceSingleRowVersion(dynamicRow);
+                    row = ProduceRow(dynamicRow);
                 }
             } else {
                 auto iterator = Store_->Rows_->FindEqualTo(TKeyWrapper{Keys_[RowCount_]});
                 if (iterator.IsValid()) {
-                    row = ProduceSingleRowVersion(iterator.GetCurrent());
+                    row = ProduceRow(iterator.GetCurrent());
                 }
             }
             rows->push_back(row);
@@ -758,6 +764,12 @@ private:
     i64 DataWeight_ = 0;
     bool Finished_ = false;
 
+    TVersionedRow ProduceRow(const TSortedDynamicRow& dynamicRow)
+    {
+        return ProduceAllVersions_
+            ? ProduceAllRowVersions(dynamicRow)
+            : ProduceSingleRowVersion(dynamicRow);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -804,6 +816,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateFlushReader()
         nullptr,
         MakeSingletonRowRange(MinKey(), MaxKey()),
         AllCommittedTimestamp,
+        true,
         FlushRevision_,
         TColumnFilter());
 }
@@ -815,6 +828,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateSnapshotReader()
         nullptr,
         MakeSingletonRowRange(MinKey(), MaxKey()),
         AllCommittedTimestamp,
+        true,
         GetLatestRevision(),
         TColumnFilter());
 }
@@ -1696,15 +1710,16 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     TSharedRange<TRowRange> ranges,
     TTimestamp timestamp,
+    bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const TWorkloadDescriptor& /*workloadDescriptor*/)
 {
-    YCHECK(timestamp != AllCommittedTimestamp);
     return New<TRangeReader>(
         this,
         tabletSnapshot,
         std::move(ranges),
         timestamp,
+        produceAllVersions,
         MaxRevision,
         columnFilter);
 }
@@ -1713,15 +1728,16 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
+    bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const TWorkloadDescriptor& /*workloadDescriptor*/)
 {
-    YCHECK(timestamp != AllCommittedTimestamp);
     return New<TLookupReader>(
         this,
         tabletSnapshot,
         keys,
         timestamp,
+        produceAllVersions,
         columnFilter);
 }
 
@@ -1838,7 +1854,8 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             MaxKey(),
             TColumnFilter(),
             New<TChunkReaderPerformanceCounters>(),
-            AllCommittedTimestamp);
+            AllCommittedTimestamp,
+            true);
         WaitFor(tableReader->Open())
             .ThrowOnError();
 

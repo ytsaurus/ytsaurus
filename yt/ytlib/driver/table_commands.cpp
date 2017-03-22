@@ -13,6 +13,7 @@
 #include <yt/ytlib/table_client/schemaful_writer.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/ytlib/table_client/versioned_writer.h>
 #include <yt/ytlib/table_client/table_consumer.h>
 
 #include <yt/ytlib/tablet_client/table_mount_cache.h>
@@ -498,6 +499,8 @@ TLookupRowsCommand::TLookupRowsCommand()
     RegisterParameter("path", Path);
     RegisterParameter("column_names", ColumnNames)
         .Default();
+    RegisterParameter("versioned", Versioned)
+        .Default(false);
     RegisterParameter("timestamp", Options.Timestamp)
         .Optional();
     RegisterParameter("keep_missing_rows", Options.KeepMissingRows)
@@ -550,23 +553,33 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
     }
 
     // Run lookup.
-    auto clientBase = GetClientBase(context);
-    auto asyncRowset = clientBase->LookupRows(
-        Path.GetPath(),
-        std::move(nameTable),
-        std::move(keyRange),
-        Options);
-    auto rowset = WaitFor(asyncRowset)
-        .ValueOrThrow();
-
     auto format = context->GetOutputFormat();
     auto output = context->Request().OutputStream;
-    auto writer = CreateSchemafulWriterForFormat(format, rowset->Schema(), output);
 
-    writer->Write(rowset->GetRows());
+    auto clientBase = GetClientBase(context);
 
-    WaitFor(writer->Close())
-        .ThrowOnError();
+    if (Versioned) {
+        TVersionedLookupRowsOptions versionedOptions;
+        versionedOptions.ColumnFilter = Options.ColumnFilter;
+        versionedOptions.KeepMissingRows = Options.KeepMissingRows;
+        versionedOptions.Timestamp = Options.Timestamp;
+        auto asyncRowset = clientBase->VersionedLookupRows(Path.GetPath(), std::move(nameTable), std::move(keyRange), versionedOptions);
+        auto rowset = WaitFor(asyncRowset)
+            .ValueOrThrow();
+        auto writer = CreateVersionedWriterForFormat(format, rowset->Schema(), output);
+        writer->Write(rowset->GetRows());
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    } else {
+        auto asyncRowset = clientBase->LookupRows(Path.GetPath(), std::move(nameTable), std::move(keyRange), Options);
+        auto rowset = WaitFor(asyncRowset)
+            .ValueOrThrow();
+
+        auto writer = CreateSchemafulWriterForFormat(format, rowset->Schema(), output);
+        writer->Write(rowset->GetRows());
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2049,7 +2049,7 @@ int TRootElement::GetMaxOperationCount() const
 
 bool TRootElement::AreImmediateOperationsFobidden() const
 {
-    return true;
+    return StrategyConfig_->ForbidImmediateOperationsInRoot;
 }
 
 TSchedulerElementPtr TRootElement::Clone(TCompositeSchedulerElement* /*clonedParent*/)

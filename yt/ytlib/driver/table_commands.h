@@ -217,6 +217,7 @@ private:
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
     TNullable<std::vector<Stroka>> ColumnNames;
+    bool Versioned;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

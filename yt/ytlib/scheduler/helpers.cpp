@@ -141,7 +141,7 @@ void ValidateEnvironmentVariableName(const TStringBuf& name)
 
 int GetJobSpecVersion()
 {
-    return 1;
+    return 2;
 }
 
 bool IsSchedulingReason(EAbortReason reason)

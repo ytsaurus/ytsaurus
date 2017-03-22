@@ -573,7 +573,7 @@ echo {v = 2} >&7
                 "data_size_per_job": 500
             })
 
-        assert get("//tmp/out/@row_count") > 880
+        assert get("//tmp/out/@row_count") > 800
 
     @unix_only
     def test_join_reduce_uneven_key_distribution(self):
@@ -607,6 +607,8 @@ echo {v = 2} >&7
                 "reducer": {
                     "format": yson.loads("<enable_table_index=true>dsv")},
                 "job_count": 2})
+
+        assert get("//tmp/out/@chunk_count") == 2
 
         assert sorted(read_table("//tmp/out")) == \
             sorted([

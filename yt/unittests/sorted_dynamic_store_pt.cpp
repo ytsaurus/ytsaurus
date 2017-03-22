@@ -40,6 +40,7 @@ public:
                 Tablet_->BuildSnapshot(nullptr),
                 MakeSingletonRowRange(key, keySuccessor),
                 SyncLastCommittedTimestamp,
+                false,
                 TColumnFilter(),
                 TWorkloadDescriptor());
 

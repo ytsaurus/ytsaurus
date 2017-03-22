@@ -267,13 +267,18 @@ protected:
     TTokenAuthenticatorTest()
         : Config_(New<TTokenAuthenticatorConfig>())
         , Blackbox_(New<TMockBlackboxService>())
-        , Authenticator_(CreateTokenAuthenticator(Config_, Blackbox_))
+        , Authenticator_(CreateBlackboxTokenAuthenticator(Config_, Blackbox_))
     { }
 
     void MockCall(const Stroka& yson)
     {
         EXPECT_CALL(*Blackbox_, Call("oauth", _))
             .WillOnce(Return(MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(yson)))));
+    }
+
+    TFuture<TAuthenticationResult> Invoke(const Stroka& token, const Stroka& userIp)
+    {
+        return Authenticator_->Authenticate(TTokenCredentials{token, userIp});
     }
 
     TTokenAuthenticatorConfigPtr Config_;
@@ -285,7 +290,7 @@ TEST_F(TTokenAuthenticatorTest, FailOnUnderlyingFailure)
 {
     EXPECT_CALL(*Blackbox_, Call("oauth", _))
         .WillOnce(Return(MakeFuture<INodePtr>(TError("Underlying failure"))));
-    auto result = Authenticator_->Authenticate("mytoken", "myip").Get();
+    auto result = Invoke("mytoken", "myip").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("Underlying failure"));
 }
@@ -293,7 +298,7 @@ TEST_F(TTokenAuthenticatorTest, FailOnUnderlyingFailure)
 TEST_F(TTokenAuthenticatorTest, FailOnInvalidResponse1)
 {
     MockCall("{}");
-    auto result = Authenticator_->Authenticate("mytoken", "myip").Get();
+    auto result = Invoke("mytoken", "myip").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("invalid response"));
 }
@@ -301,7 +306,7 @@ TEST_F(TTokenAuthenticatorTest, FailOnInvalidResponse1)
 TEST_F(TTokenAuthenticatorTest, FailOnInvalidResponse2)
 {
     MockCall("{status={id=0}}");
-    auto result = Authenticator_->Authenticate("mytoken", "myip").Get();
+    auto result = Invoke("mytoken", "myip").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), AllOf(
         HasSubstr("invalid response"),
@@ -313,7 +318,7 @@ TEST_F(TTokenAuthenticatorTest, FailOnInvalidResponse2)
 TEST_F(TTokenAuthenticatorTest, FailOnRejection)
 {
     MockCall("{status={id=5}}");
-    auto result = Authenticator_->Authenticate("mytoken", "myip").Get();
+    auto result = Invoke("mytoken", "myip").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("rejected token"));
 }
@@ -321,31 +326,20 @@ TEST_F(TTokenAuthenticatorTest, FailOnRejection)
 TEST_F(TTokenAuthenticatorTest, FailOnInvalidScope)
 {
     Config_->Scope = "yt:api";
-    MockCall(R"yy({status={id=0};oauth={scope="i-am-hacker";client_id="i-am-hacker"};login=hacker})yy");
-    auto result = Authenticator_->Authenticate("mytoken", "myip").Get();
+    MockCall(R"yy({status={id=0};oauth={scope="i-am-hacker";client_id="i-am-hacker";client_name="yes-i-am"};login=hacker})yy");
+    auto result = Invoke("mytoken", "myip").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("does not provide a valid scope"));
-}
-
-TEST_F(TTokenAuthenticatorTest, FailOnUnknownApplication)
-{
-    Config_->Scope = "yt:api";
-    Config_->ClientIds["secret_client_id"] = "secret_realm";
-    MockCall(R"yy({status={id=0};oauth={scope="yt:api";client_id="i-am-hacker"};login=hacker})yy");
-    auto result = Authenticator_->Authenticate("mytoken", "myip").Get();
-    ASSERT_TRUE(!result.IsOK());
-    EXPECT_THAT(CollectMessages(result), HasSubstr("issued by an unknown application"));
 }
 
 TEST_F(TTokenAuthenticatorTest, Success)
 {
     Config_->Scope = "yt:api";
-    Config_->ClientIds["secret_client_id"] = "secret_realm";
-    MockCall(R"yy({status={id=0};oauth={scope="x:1 yt:api x:2";client_id="secret_client_id"};login=sandello})yy");
-    auto result = Authenticator_->Authenticate("mytoken", "myip").Get();
+    MockCall(R"yy({status={id=0};oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};login=sandello})yy");
+    auto result = Invoke("mytoken", "myip").Get();
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ("sandello", result.Value().Login);
-    EXPECT_EQ("blackbox:token:secret_realm", result.Value().Realm);
+    EXPECT_EQ("blackbox:token:cid:nm", result.Value().Realm);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

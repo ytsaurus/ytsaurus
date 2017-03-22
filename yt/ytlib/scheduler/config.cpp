@@ -91,11 +91,11 @@ TOperationSpecBase::TOperationSpecBase()
         .GreaterThan(0);
 
     RegisterParameter("max_failed_job_count", MaxFailedJobCount)
-        .Default(100)
+        .Default(10)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(10000);
     RegisterParameter("max_stderr_count", MaxStderrCount)
-        .Default(100)
+        .Default(10)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(100);
 
@@ -243,8 +243,8 @@ TInputlyQueryableSpec::TInputlyQueryableSpec()
         .Default();
 
     RegisterValidator([&] () {
-        if (InputQuery && !InputSchema) {
-            THROW_ERROR_EXCEPTION("Expected to see \"input_schema\" in operation spec");
+        if (InputSchema && !InputQuery) {
+            THROW_ERROR_EXCEPTION("Found \"input_schema\" without \"input_query\" in operation spec");
         }
     });
 }
@@ -271,6 +271,12 @@ void TOperationWithUserJobSpec::OnLoaded()
     if (CoreTablePath) {
         *CoreTablePath = CoreTablePath->Normalize();
     }
+}
+
+TOperationWithLegacyControllerSpec::TOperationWithLegacyControllerSpec()
+{
+    RegisterParameter("use_legacy_controller", UseLegacyController)
+        .Default(false);
 }
 
 TSimpleOperationSpecBase::TSimpleOperationSpecBase()

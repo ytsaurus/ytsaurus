@@ -309,11 +309,11 @@ class YTEnvSetup(object):
                                 "opaque": True
                                },
                                driver=driver)
-            self._remove_operations(driver=driver)
-            self._wait_jobs_to_abort(driver=driver)
             yt_commands.gc_collect(driver=driver)
             yt_commands.clear_metadata_caches(driver=driver)
+            self._remove_operations(driver=driver)
             self._reset_nodes(driver=driver)
+            self._wait_jobs_to_abort(driver=driver)
             self._reenable_chunk_replicator(driver=driver)
             self._remove_accounts(driver=driver)
             self._remove_users(driver=driver)

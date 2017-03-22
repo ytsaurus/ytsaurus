@@ -251,7 +251,7 @@ private:
             SetResultPromise(Position_);
         }
 #else
-    THROW_ERROR_EXCEPTION("Unsupported platform");
+        THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
     }
 

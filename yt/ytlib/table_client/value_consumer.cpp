@@ -233,7 +233,7 @@ void TBuildingValueConsumer::SetTreatMissingAsNull(bool value)
     TreatMissingAsNull_ = value;
 }
 
-TNameTablePtr TBuildingValueConsumer::GetNameTable() const
+const TNameTablePtr& TBuildingValueConsumer::GetNameTable() const
 {
     return NameTable_;
 }
@@ -344,7 +344,7 @@ void TWritingValueConsumer::Flush()
     RowBuffer_->Clear();
 }
 
-TNameTablePtr TWritingValueConsumer::GetNameTable() const
+const TNameTablePtr& TWritingValueConsumer::GetNameTable() const
 {
     return Writer_->GetNameTable();
 }

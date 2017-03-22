@@ -108,7 +108,7 @@ protected:
     virtual void DoReply() = 0;
 
     virtual void LogRequest() = 0;
-    virtual void LogResponse(const TError& error) = 0;
+    virtual void LogResponse() = 0;
 
     template <class... TArgs>
     static void AppendInfo(TStringBuilder* builder, const char* format, const TArgs&... args)

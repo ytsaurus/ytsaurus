@@ -63,6 +63,7 @@ DECLARE_REFCOUNTED_CLASS(TMapReduceOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TRemoteCopyOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TTestingOptions)
 
+DECLARE_REFCOUNTED_CLASS(TOperationAlertsConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
 DECLARE_REFCOUNTED_CLASS(TScheduler)
 
@@ -79,6 +80,9 @@ DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
 
 DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraper)
+
+DECLARE_REFCOUNTED_STRUCT(IJobHost)
+DECLARE_REFCOUNTED_CLASS(TJobHost)
 
 class TMasterConnector;
 
@@ -97,6 +101,12 @@ DEFINE_ENUM(EAlertType,
 
 DEFINE_ENUM(EOperationAlertType,
     (UnusedTmpfsSpace)
+    (LostIntermediateChunks)
+    (LostInputChunks)
+    (IntermediateDataSkew)
+    (LongAbortedJobs)
+    (ExcessiveDiskUsage)
+    (ShortJobsDuration)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

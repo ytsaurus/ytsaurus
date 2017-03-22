@@ -57,7 +57,15 @@ public:
         const NHiveClient::NProto::TEncapsulatedMessage& message,
         bool reliable = true);
     void PostMessage(
+        const TMailboxList& mailboxes,
+        const NHiveClient::NProto::TEncapsulatedMessage& message,
+        bool reliable = true);
+    void PostMessage(
         TMailbox* mailbox,
+        const ::google::protobuf::MessageLite& message,
+        bool reliable = true);
+    void PostMessage(
+        const TMailboxList& mailboxes,
         const ::google::protobuf::MessageLite& message,
         bool reliable = true);
 

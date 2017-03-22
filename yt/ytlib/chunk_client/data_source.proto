@@ -1,0 +1,20 @@
+package NYT.NChunkClient.NProto;
+
+import "yt/ytlib/table_client/chunk_meta.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TDataSource
+{
+    required int32 type = 1;
+    optional NTableClient.NProto.TTableSchemaExt table_schema = 2;
+    optional uint64 timestamp = 3;
+    optional string path = 4;
+}
+
+message TDataSourceDirectory
+{
+    repeated TDataSource data_sources = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

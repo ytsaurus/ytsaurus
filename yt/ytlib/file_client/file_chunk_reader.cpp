@@ -86,7 +86,7 @@ public:
         if (BlockFetched_ && !SequentialBlockFetcher_->HasMoreBlocks()) {
             return false;
         }
-        
+
         block->Reset();
         if (BlockFetched_) {
             BlockFetched_ = false;
@@ -274,8 +274,8 @@ IFileReaderPtr CreateFileChunkReader(
         config,
         chunkReader,
         blockCache,
-        codecId, 
-        startOffset, 
+        codecId,
+        startOffset,
         endOffset);
 }
 
@@ -371,12 +371,12 @@ IFileReaderPtr CreateFileMultiChunkReader(
         factories.emplace_back(CreateReaderFactory(
             createReader,
             memoryEstimate,
-            MakeFileDataSliceDescriptor(chunkSpec)));
+            TDataSliceDescriptor(chunkSpec)));
     }
 
     auto reader = New<TFileMultiChunkReader>(
-        config, 
-        options,  
+        config,
+        options,
         factories);
     reader->Open();
     return reader;
@@ -386,4 +386,4 @@ IFileReaderPtr CreateFileMultiChunkReader(
 
 } // namespace NFileClient
 } // namespace NYT
-    
+

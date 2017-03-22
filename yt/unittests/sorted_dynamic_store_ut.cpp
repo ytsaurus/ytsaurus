@@ -1101,6 +1101,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ArbitraryKeyLength)
         Tablet_->BuildSnapshot(nullptr),
         MakeSingletonRowRange(BuildKey("1"), BuildKey("1;<type=max>#")),
         AsyncLastCommittedTimestamp,
+        false,
         TColumnFilter(),
         TWorkloadDescriptor());
 

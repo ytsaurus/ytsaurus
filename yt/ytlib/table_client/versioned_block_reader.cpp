@@ -25,9 +25,11 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     const std::vector<TColumnIdMapping>& schemaIdMapping,
     const TKeyComparer& keyComparer,
     TTimestamp timestamp,
+    bool produceAllVersions,
     bool initialize)
     : Block_(block)
     , Timestamp_(timestamp)
+    , ProduceAllVersions_(produceAllVersions)
     , ChunkKeyColumnCount_(chunkKeyColumnCount)
     , KeyColumnCount_(keyColumnCount)
     , SchemaIdMapping_(schemaIdMapping)
@@ -46,12 +48,14 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     for (int index = 0; index < KeyColumnCount_; ++index) {
         auto& value = Key_[index];
         value.Id = index;
+        value.Aggregate = false;
     }
 
     for (int index = ChunkKeyColumnCount_; index < KeyColumnCount_; ++index) {
         auto& value = Key_[index];
         value.Id = index;
         value.Type = EValueType::Null;
+        value.Aggregate = false;
     }
 
     KeyData_ = TRef(const_cast<char*>(Block_.Begin()), TSimpleVersionedBlockWriter::GetPaddedKeySize(
@@ -158,10 +162,10 @@ bool TSimpleVersionedBlockReader::JumpToRowIndex(i64 index)
 TVersionedRow TSimpleVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
     YCHECK(!Closed_);
-    if (Timestamp_ == AllCommittedTimestamp) {
-        return ReadAllValues(memoryPool);
+    if (ProduceAllVersions_) {
+        return ReadAllVersions(memoryPool);
     } else {
-        return ReadValuesByTimestamp(memoryPool);
+        return ReadOneVersion(memoryPool);
     }
 }
 
@@ -171,27 +175,50 @@ ui32 TSimpleVersionedBlockReader::GetColumnValueCount(int schemaColumnId) const
     return *(reinterpret_cast<const ui32*>(KeyDataPtr_) + schemaColumnId - ChunkKeyColumnCount_);
 }
 
-TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool* memoryPool)
+TVersionedRow TSimpleVersionedBlockReader::ReadAllVersions(TChunkedMemoryPool* memoryPool)
 {
+    int writeTimestampIndex = 0;
+    int deleteTimestampIndex = 0;
+
+    if (Timestamp_ < MaxTimestamp) {
+        writeTimestampIndex = LowerBound(0, WriteTimestampCount_, [&] (int index) {
+            return ReadTimestamp(TimestampOffset_ + index) > Timestamp_;
+        });
+        deleteTimestampIndex = LowerBound(0, DeleteTimestampCount_, [&] (int index) {
+            return ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + index) > Timestamp_;
+        });
+    }
+
+    // Produce output row.
     auto row = TMutableVersionedRow::Allocate(
         memoryPool,
         KeyColumnCount_,
-        GetColumnValueCount(ChunkSchema_.Columns().size() - 1),
-        WriteTimestampCount_,
-        DeleteTimestampCount_);
+        GetColumnValueCount(ChunkSchema_.Columns().size() - 1), // shrinkable
+        WriteTimestampCount_ - writeTimestampIndex,
+        DeleteTimestampCount_ - deleteTimestampIndex);
 
+    // Write timestamps.
+    auto* beginWriteTimestamps = row.BeginWriteTimestamps();
+    auto* currentWriteTimestamp = beginWriteTimestamps;
+    for (int i = writeTimestampIndex; i < WriteTimestampCount_; ++i) {
+        *currentWriteTimestamp = ReadTimestamp(TimestampOffset_ + i);
+        ++currentWriteTimestamp;
+    }
+    Y_ASSERT(row.GetWriteTimestampCount() == currentWriteTimestamp - beginWriteTimestamps);
+
+    // Delete timestamps.
+    auto* beginDeleteTimestamps = row.BeginDeleteTimestamps();
+    auto* currentDeleteTimestamp = beginDeleteTimestamps;
+    for (int i = deleteTimestampIndex; i < DeleteTimestampCount_; ++i) {
+        *currentDeleteTimestamp = ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + i);
+        ++currentDeleteTimestamp;
+    }
+    Y_ASSERT(row.GetDeleteTimestampCount() == currentDeleteTimestamp - beginDeleteTimestamps);
+
+    // Keys.
     ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
 
-    auto* beginWriteTimestamps = row.BeginWriteTimestamps();
-    for (int i = 0; i < WriteTimestampCount_; ++i) {
-        beginWriteTimestamps[i] = ReadTimestamp(TimestampOffset_ + i);
-    }
-
-    auto* beginDeleteTimestamps = row.BeginDeleteTimestamps();
-    for (int i = 0; i < DeleteTimestampCount_; ++i) {
-        beginDeleteTimestamps[i] = ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + i);
-    }
-
+    // Values.
     auto* beginValues = row.BeginValues();
     auto* currentValue = beginValues;
     for (const auto& mapping : SchemaIdMapping_) {
@@ -201,29 +228,40 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool* mem
         int lowerValueIndex = chunkSchemaId == ChunkKeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1);
         int upperValueIndex = GetColumnValueCount(chunkSchemaId);
 
-        for (int valueIndex = lowerValueIndex; valueIndex < upperValueIndex; ++valueIndex) {
+        for (int index = lowerValueIndex; index < upperValueIndex; ++index) {
             ReadValue(
                 currentValue,
-                ValueOffset_ + valueIndex,
+                ValueOffset_ + index,
                 valueId,
                 chunkSchemaId);
-            ++currentValue;
+            if (currentValue->Timestamp <= Timestamp_) {
+                ++currentValue;
+            }
         }
     }
-    row.GetHeader()->ValueCount = (currentValue - beginValues);
+
+    // Shrink memory.
+    auto* memoryTo = const_cast<char*>(row.GetMemoryEnd());
+    row.SetValueCount(currentValue - beginValues);
+    auto* memoryFrom = const_cast<char*>(row.GetMemoryEnd());
+    memoryPool->Free(memoryFrom, memoryTo);
 
     return row;
 }
 
-TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryPool* memoryPool)
+TVersionedRow TSimpleVersionedBlockReader::ReadOneVersion(TChunkedMemoryPool* memoryPool)
 {
-    int writeTimestampIndex = LowerBound(0, WriteTimestampCount_, [&] (int index) {
-        return ReadTimestamp(TimestampOffset_ + index) > Timestamp_;
-    });
+    int writeTimestampIndex = 0;
+    int deleteTimestampIndex = 0;
 
-    int deleteTimestampIndex = LowerBound(0, DeleteTimestampCount_, [&] (int index) {
-        return ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + index) > Timestamp_;
-    });
+    if (Timestamp_ < MaxTimestamp) {
+        writeTimestampIndex = LowerBound(0, WriteTimestampCount_, [&] (int index) {
+            return ReadTimestamp(TimestampOffset_ + index) > Timestamp_;
+        });
+        deleteTimestampIndex = LowerBound(0, DeleteTimestampCount_, [&] (int index) {
+            return ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + index) > Timestamp_;
+        });
+    }
 
     bool hasWriteTimestamp = writeTimestampIndex < WriteTimestampCount_;
     bool hasDeleteTimestamp = deleteTimestampIndex < DeleteTimestampCount_;
@@ -248,99 +286,70 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
             0, // no values
             0, // no write timestamps
             1);
-        ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
         row.BeginDeleteTimestamps()[0] = deleteTimestamp;
+        ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
         return row;
     }
 
     YCHECK(hasWriteTimestamp);
 
-    int aggregateCountDelta = 0;
-
-    for (const auto& mapping : SchemaIdMapping_) {
-        int valueId = mapping.ReaderSchemaIndex;
-        int chunkSchemaId = mapping.ChunkSchemaIndex;
-        int columnValueCount = GetColumnValueCount(chunkSchemaId);
-
-        if (ChunkSchema_.Columns()[chunkSchemaId].Aggregate) {
-            int valueBeginIndex = LowerBound(
-                chunkSchemaId == ChunkKeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1),
-                columnValueCount,
-                [&] (int index) {
-                    return ReadValueTimestamp(ValueOffset_ + index, valueId) > Timestamp_;
-                });
-            int valueEndIndex = LowerBound(
-                chunkSchemaId == ChunkKeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1),
-                columnValueCount,
-                [&] (int index) {
-                    return ReadValueTimestamp(ValueOffset_ + index, valueId) > deleteTimestamp;
-                });
-
-            int valueCount = valueEndIndex - valueBeginIndex;
-
-            if (valueCount > 0) {
-                aggregateCountDelta += valueCount - 1;
-            }
-        }
-    }
-
-    int reservedValueCount = SchemaIdMapping_.size() + aggregateCountDelta;
-
+    // Produce output row.
     auto row = TMutableVersionedRow::Allocate(
         memoryPool,
         KeyColumnCount_,
-        SchemaIdMapping_.size() + aggregateCountDelta,
+        GetColumnValueCount(ChunkSchema_.Columns().size() - 1), // shrinkable
         1,
         hasDeleteTimestamp ? 1 : 0);
 
-    ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
-
+    // Write, delete timestamps.
     row.BeginWriteTimestamps()[0] = writeTimestamp;
     if (hasDeleteTimestamp) {
         row.BeginDeleteTimestamps()[0] = deleteTimestamp;
     }
+
+    // Keys.
+    ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
+
+    auto isValueAlive = [&] (int index) -> bool {
+        return ReadValueTimestamp(ValueOffset_ + index) > deleteTimestamp;
+    };
 
     auto* beginValues = row.BeginValues();
     auto* currentValue = beginValues;
     for (const auto& mapping : SchemaIdMapping_) {
         int valueId = mapping.ReaderSchemaIndex;
         int chunkSchemaId = mapping.ChunkSchemaIndex;
-        int columnValueCount = GetColumnValueCount(chunkSchemaId);
 
-        int valueIndex = LowerBound(
-            chunkSchemaId == ChunkKeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1),
-            columnValueCount,
+        int lowerValueIndex = chunkSchemaId == ChunkKeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1);
+        int upperValueIndex = GetColumnValueCount(chunkSchemaId);
+
+        int valueBeginIndex = LowerBound(
+            lowerValueIndex,
+            upperValueIndex,
             [&] (int index) {
-                return ReadValueTimestamp(ValueOffset_ + index, valueId) > Timestamp_;
+                return ReadValueTimestamp(ValueOffset_ + index) > Timestamp_;
             });
+        int valueEndIndex = valueBeginIndex;
 
         if (ChunkSchema_.Columns()[chunkSchemaId].Aggregate) {
-            int valueEndIndex = LowerBound(
-                chunkSchemaId == ChunkKeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1),
-                columnValueCount,
-                [&] (int index) {
-                    return ReadValueTimestamp(ValueOffset_ + index, valueId) > deleteTimestamp;
-                });
-            
-            for (int index = valueIndex; index < valueEndIndex; ++index) {
-                ReadValue(currentValue, ValueOffset_ + index, valueId, chunkSchemaId);
+            valueEndIndex = LowerBound(lowerValueIndex, upperValueIndex, isValueAlive);
+        } else if (valueBeginIndex < upperValueIndex && isValueAlive(valueBeginIndex)) {
+            valueEndIndex = valueBeginIndex + 1;
+        }
+
+        for (int index = valueBeginIndex; index < valueEndIndex; ++index) {
+            ReadValue(currentValue, ValueOffset_ + index, valueId, chunkSchemaId);
+            if (currentValue->Timestamp <= Timestamp_) {
                 ++currentValue;
-            }
-        } else {
-            if (valueIndex < columnValueCount) {
-                ReadValue(currentValue, ValueOffset_ + valueIndex, valueId, chunkSchemaId);
-                if (currentValue->Timestamp > deleteTimestamp) {
-                    // Check that value didn't come from the previous incarnation of this row.
-                    ++currentValue;
-                }
-            } else {
-                // No value in the current column satisfies timestamp filtering.
             }
         }
     }
 
-    YCHECK(currentValue - beginValues <= reservedValueCount);
+    // Shrink memory.
+    auto* memoryTo = const_cast<char*>(row.GetMemoryEnd());
     row.SetValueCount(currentValue - beginValues);
+    auto* memoryFrom = const_cast<char*>(row.GetMemoryEnd());
+    memoryPool->Free(memoryFrom, memoryTo);
 
     return row;
 }
@@ -425,9 +434,8 @@ void TSimpleVersionedBlockReader::ReadStringLike(TUnversionedValue* value, const
     value->Length = length;
 }
 
-TTimestamp TSimpleVersionedBlockReader::ReadValueTimestamp(int valueIndex, int id)
+TTimestamp TSimpleVersionedBlockReader::ReadValueTimestamp(int valueIndex)
 {
-    Y_ASSERT(id >= ChunkKeyColumnCount_);
     const char* ptr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
     return *reinterpret_cast<const TTimestamp*>(ptr + 8);
 }

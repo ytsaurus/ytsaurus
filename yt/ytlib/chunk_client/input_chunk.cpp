@@ -90,13 +90,14 @@ void TInputChunkBase::CheckOffsets()
     static_assert(offsetof(TInputChunkBase, TableRowIndex_) == 88, "invalid offset");
     static_assert(offsetof(TInputChunkBase, RangeIndex_) == 96, "invalid offset");
     static_assert(offsetof(TInputChunkBase, TableChunkFormat_) == 100, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, UncompressedDataSize_) == 104, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, RowCount_) == 112, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 120, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, DataWeight_) == 128, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 136, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 144, "invalid offset");
-    static_assert(sizeof(TInputChunkBase) == 152, "invalid sizeof");
+    static_assert(offsetof(TInputChunkBase, ChunkIndex_) == 104, "invalid offsetof");
+    static_assert(offsetof(TInputChunkBase, UncompressedDataSize_) == 112, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, RowCount_) == 120, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 128, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, DataWeight_) == 136, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 144, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 152, "invalid offset");
+    static_assert(sizeof(TInputChunkBase) == 160, "invalid sizeof");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -182,10 +183,13 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
     ToProto(chunkSpec->mutable_chunk_id(), inputChunk->ChunkId_);
     const auto& replicas = inputChunk->GetReplicaList();
     ToProto(chunkSpec->mutable_replicas(), replicas);
-    chunkSpec->set_table_index(inputChunk->TableIndex_);
+    if (inputChunk->TableIndex_ >= 0) {
+        chunkSpec->set_table_index(inputChunk->TableIndex_);
+    }
     chunkSpec->set_erasure_codec(static_cast<int>(inputChunk->ErasureCodec_));
     chunkSpec->set_table_row_index(inputChunk->TableRowIndex_);
     chunkSpec->set_range_index(inputChunk->RangeIndex_);
+    chunkSpec->set_chunk_index(inputChunk->ChunkIndex_);
     if (inputChunk->LowerLimit_) {
         ToProto(chunkSpec->mutable_lower_limit(), *inputChunk->LowerLimit_);
     }
@@ -211,7 +215,7 @@ Stroka ToString(const TInputChunkPtr& inputChunk)
     }
     return Format(
         "{ChunkId: %v, Replicas: %v, TableIndex: %v, ErasureCodec: %v, TableRowIndex: %v, "
-        "RangeIndex: %v, TableChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
+        "RangeIndex: %v, ChunkIndex: %v, TableChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
         "CompressedDataSize: %v, DataWeight: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "
         "BoundaryKeys: {%v}, Channel: {%v}, PartitionsExt: {%v}}",
         inputChunk->ChunkId(),
@@ -220,6 +224,7 @@ Stroka ToString(const TInputChunkPtr& inputChunk)
         inputChunk->GetErasureCodec(),
         inputChunk->GetTableRowIndex(),
         inputChunk->GetRangeIndex(),
+        inputChunk->GetChunkIndex(),
         inputChunk->GetTableChunkFormat(),
         inputChunk->GetUncompressedDataSize(),
         inputChunk->GetRowCount(),

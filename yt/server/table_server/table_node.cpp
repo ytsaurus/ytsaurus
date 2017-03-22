@@ -131,7 +131,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
         Load(context, UnflushedTimestamp_);
     }
     // COMPAT(babenko)
-    if (context.GetVersion() >= 508) {
+    if (context.GetVersion() >= 509) {
         Load(context, ReplicationMode_);
     }
     // COMPAT(babenko): Cf. YT-5045

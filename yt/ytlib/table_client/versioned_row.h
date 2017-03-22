@@ -221,9 +221,22 @@ public:
         return Header_->DeleteTimestampCount;
     }
 
+    const char* GetMemoryBegin() const
+    {
+        return reinterpret_cast<const char*>(Header_);
+    }
+
+    const char* GetMemoryEnd() const
+    {
+        return GetMemoryBegin() + GetVersionedRowByteSize(
+            GetKeyCount(),
+            GetValueCount(),
+            GetWriteTimestampCount(),
+            GetDeleteTimestampCount());
+    }
+
 private:
     const TVersionedRowHeader* Header_ = nullptr;
-
 };
 
 static_assert(

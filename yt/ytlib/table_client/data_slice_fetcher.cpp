@@ -1,4 +1,4 @@
-#include "chunk_slices_fetcher.h"
+#include "chunk_slice_fetcher.h"
 #include "data_slice_fetcher.h"
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
@@ -25,7 +25,7 @@ TDataSliceFetcher::TDataSliceFetcher(
     NApi::INativeClientPtr client,
     TRowBufferPtr rowBuffer,
     const NLogging::TLogger& logger)
-    : ChunkSliceFetcher_(New<TChunkSliceFetcher>(
+    : ChunkSliceFetcher_(CreateChunkSliceFetcher(
         std::move(config),
         chunkSliceSize,
         keyColumns,

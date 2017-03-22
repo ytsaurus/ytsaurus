@@ -11,9 +11,8 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/ytlib/table_client/row_buffer.h>
-#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/schemaful_reader_adapter.h>
+#include <yt/ytlib/table_client/schemaful_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaful_writer_adapter.h>
 #include <yt/ytlib/table_client/schemaful_reader.h>
 #include <yt/ytlib/table_client/schemaful_writer.h>
@@ -333,29 +332,15 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
     if (Load<bool>(context)) {
         auto chunkMeta = Load<TChunkMeta>(context);
         auto blocks = Load<std::vector<TSharedRef>>(context);
-
         auto chunkReader = CreateMemoryReader(chunkMeta, blocks);
-
-        auto readerFactory = [&] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) -> ISchemalessReaderPtr {
-            TChunkSpec chunkSpec;
-            ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
-            *chunkSpec.mutable_chunk_meta() = chunkMeta;
-            auto tableReaderConfig = New<TChunkReaderConfig>();
-            auto tableReaderOptions = New<TChunkReaderOptions>();
-            return CreateSchemalessChunkReader(
-                MakeUnversionedDataSliceDescriptor(std::move(chunkSpec)),
-                tableReaderConfig,
-                tableReaderOptions,
+        auto tableReader = CreateSchemafulChunkReader(
+                New<TChunkReaderConfig>(),
                 chunkReader,
-                nameTable,
                 GetNullBlockCache(),
+                Schema_,
                 TKeyColumns(),
-                columnFilter,
+                chunkMeta,
                 TReadRange());
-        };
-
-        // TODO(babenko): replace with native schemaful reader
-        auto tableReader = CreateSchemafulReaderAdapter(readerFactory, Schema_);
 
         std::vector<TUnversionedRow> rows;
         rows.reserve(SnapshotRowsPerRead);
