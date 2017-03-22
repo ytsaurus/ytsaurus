@@ -70,7 +70,7 @@ def process_email(config, dry_run):
         logger.info("Processing cluster %s", cluster)
         notifications = yt.get("//sys/notifications/local/" + cluster)
         for notification_id, notification in notifications.items(): 
-            if notification.get("sent_via_mail", False) or (not notification.get("published", True)):
+            if notification.get("sent_via_mail", False) or (not notification.get("published", False)):
                 continue
             logger.info("Sending notification %s", notification_id)
             send_notification(cluster, 
