@@ -384,11 +384,10 @@ public:
 
     void ClearAttributes()
     {
-        if (!Attributes_) {
-            return;
+        if (Attributes_) {
+            delete Attributes_;
+            Attributes_ = nullptr;
         }
-        delete Attributes_;
-        Attributes_ = nullptr;
     }
 
     const TNode& GetAttributes() const
@@ -410,6 +409,7 @@ public:
 
     void MoveWithoutAttributes(TNode&& rhs)
     {
+        ClearValue();
         Type_ = rhs.Type_;
         memcpy(&Int64_, &rhs.Int64_, sizeof(i64));
         rhs.Type_ = UNDEFINED;
@@ -436,13 +436,8 @@ public:
     }
 
 private:
-    void Clear()
+    void ClearValue()
     {
-        if (Attributes_) {
-            delete Attributes_;
-            Attributes_ = nullptr;
-        }
-
         switch (Type_) {
             case UNDEFINED:
                 return;
@@ -460,6 +455,12 @@ private:
         }
 
         Type_ = UNDEFINED;
+    }
+
+    void Clear()
+    {
+        ClearAttributes();
+        ClearValue();
     }
 
     void Copy(const TNode& rhs)
