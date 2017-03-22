@@ -387,7 +387,7 @@ private:
                     rangesCount += rowRanges.size();
                     TDataRanges item;
                     item.Id = source.Id;
-                    item.Ranges = MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder());
+                    item.Ranges = MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder(), rowBuffer);
                     item.LookupSupported = source.LookupSupported;
                     rangesByTablet.emplace_back(std::move(item));
                 }
