@@ -213,7 +213,8 @@ protected:
 
     virtual bool IsCompleted() const override
     {
-        return UnorderedTask->IsCompleted();
+        // Unordered task may be null, if all chunks were teleported.
+        return !UnorderedTask || UnorderedTask->IsCompleted();
     }
 
     virtual void CustomPrepare() override
