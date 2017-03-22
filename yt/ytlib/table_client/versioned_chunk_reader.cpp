@@ -951,9 +951,12 @@ public:
             columnFilter,
             std::move(performanceCounters),
             timestamp)
-        , Ranges_(ranges)
         , RowBuilder_(chunkMeta, ValueColumnReaders_, SchemaIdMapping_, timestamp)
     {
+        YCHECK(ranges.Size() == 1);
+        LowerLimit_.SetKey(TOwningKey(ranges[0].first));
+        UpperLimit_.SetKey(TOwningKey(ranges[0].second));
+
         int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta().columns().size() - 1;
         Columns_.emplace_back(RowBuilder_.CreateTimestampReader(), timestampReaderIndex);
 
@@ -962,108 +965,16 @@ public:
             ValueColumnReaders_.size() * sizeof(TVersionedValue));
         MaxRowsPerRead_ = std::max(MaxRowsPerRead_, MinRowsPerRead);
 
-        std::vector<TBlockFetcher::TBlockInfo> blockInfos;
+        InitLowerRowIndex();
+        InitUpperRowIndex();
 
-        for (const auto& key : Ranges_) {
-            LowerLimit_.SetKey(TOwningKey(key.first));
-            UpperLimit_.SetKey(TOwningKey(key.second));
-
-            InitLowerRowIndex();
-            InitUpperRowIndex();
-
-            for (auto& column : Columns_) {
-                if (column.ColumnMetaIndex < 0) {
-                    // Column without meta, blocks, etc.
-                    // E.g. NullColumnReader.
-                    continue;
-                }
-
-                const auto& columnMeta = ChunkMeta_->ColumnMeta().columns(column.ColumnMetaIndex);
-                i64 segmentIndex = GetSegmentIndex(column, LowerRowIndex_);
-                column.BlockIndexSequence.push_back(columnMeta.segments(segmentIndex).block_index());
-
-                int lastBlockIndex = -1;
-                for (; segmentIndex < columnMeta.segments_size(); ++segmentIndex) {
-                    const auto& segment = columnMeta.segments(segmentIndex);
-                    if (segment.block_index() != lastBlockIndex) {
-                        lastBlockIndex = segment.block_index();
-                        blockInfos.push_back(CreateBlockInfo(lastBlockIndex));
-                    }
-                    if (segment.chunk_row_count() > HardUpperRowIndex_) {
-                        break;
-                    }
-                }
-            }
+        if (LowerRowIndex_ < HardUpperRowIndex_) {
+            InitBlockFetcher();
+            ReadyEvent_ = RequestFirstBlocks();
+        } else {
+            Initialized_ = true;
+            Completed_ = true;
         }
-
-        if (!blockInfos.empty()) {
-            BlockFetcher_ = New<TBlockFetcher>(
-                Config_,
-                std::move(blockInfos),
-                Semaphore_,
-                UnderlyingReader_,
-                BlockCache_,
-                NCompression::ECodec(ChunkMeta_->Misc().compression_codec()));
-        }
-
-        UpdateLimits();
-    }
-
-    void UpdateLimits()
-    {
-        while (RangeIndex_ < Ranges_.Size()) {
-            LowerLimit_.SetKey(TOwningKey(Ranges_[RangeIndex_].first));
-            UpperLimit_.SetKey(TOwningKey(Ranges_[RangeIndex_].second));
-
-            InitLowerRowIndex();
-            InitUpperRowIndex();
-
-            LowerRowIndex_ = std::max(LowerRowIndex_, RowIndex_);
-
-            if (LowerRowIndex_ >= HardUpperRowIndex_) {
-                ++RangeIndex_;
-                continue;
-            }
-
-            YCHECK(LowerRowIndex_ < ChunkMeta_->Misc().row_count());
-
-            std::vector<TFuture<void>> blockFetchResult;
-            PendingBlocks_.clear();
-
-            for (int i = 0; i < Columns_.size(); ++i) {
-                auto& column = Columns_[i];
-
-                if (column.ColumnMetaIndex < 0) {
-                    // E.g. null column reader for widened keys.
-                    continue;
-                }
-
-                auto blockIndex = column.BlockIndexSequence[RangeIndex_];
-
-                if (column.ColumnReader->GetCurrentBlockIndex() != blockIndex) {
-                    while (PendingBlocks_.size() < i) {
-                        PendingBlocks_.emplace_back();
-                    }
-
-                    column.PendingBlockIndex_ = blockIndex;
-                    PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
-                    blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
-                }
-            }
-
-            ++RangeIndex_;
-
-            if (blockFetchResult.empty()) {
-                ReadyEvent_ = VoidFuture;
-            } else {
-                ReadyEvent_ = Combine(blockFetchResult);
-            }
-
-            Initialized_ = false;
-            return;
-        }
-
-        Completed_ = true;
     }
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
@@ -1072,59 +983,31 @@ public:
         rows->clear();
         RowBuilder_.Clear();
 
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+            return true;
+        }
+
+        if (!Initialized_) {
+            ResetExhaustedColumns();
+            Initialize(MakeRange(KeyColumnReaders_.data(), KeyColumnReaders_.size()));
+            Initialized_ = true;
+            RowIndex_ = LowerRowIndex_;
+        }
+
         if (Completed_) {
             return false;
         }
 
-        while (rows->size() < rows->capacity() && ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK() && !Completed_) {
+        while (rows->size() < rows->capacity()) {
             ResetExhaustedColumns();
-
-            if (!Initialized_) {
-                Initialize(MakeRange(KeyColumnReaders_.data(), KeyColumnReaders_.size()));
-                RowIndex_ = LowerRowIndex_;
-                Initialized_ = true;
-            }
 
             // Define how many to read.
             i64 rowLimit = std::min(HardUpperRowIndex_ - RowIndex_, static_cast<i64>(rows->capacity() - rows->size()));
-            YCHECK(rowLimit > 0);
-
             for (const auto& column : Columns_) {
                 rowLimit = std::min(column.ColumnReader->GetReadyUpperRowIndex() - RowIndex_, rowLimit);
             }
             rowLimit = std::min(rowLimit, MaxRowsPerRead_);
             YCHECK(rowLimit > 0);
-
-            bool boundCompleted = false;
-            if (RowIndex_ >= SafeUpperRowIndex_ && UpperLimit_.HasKey()) {
-                i64 lowerRowIndex = KeyColumnReaders_[0]->GetCurrentRowIndex();
-                YCHECK(lowerRowIndex == RowIndex_);
-                i64 upperRowIndex = KeyColumnReaders_[0]->GetBlockUpperRowIndex();
-                int count = std::min(UpperLimit_.GetKey().GetCount(), static_cast<int>(KeyColumnReaders_.size()));
-                for (int i = 0; i < count; ++i) {
-                    std::tie(lowerRowIndex, upperRowIndex) = KeyColumnReaders_[i]->GetEqualRange(
-                        UpperLimit_.GetKey().Begin()[i],
-                        lowerRowIndex,
-                        upperRowIndex);
-                }
-
-                i64 exactUpperRowIndex = count == UpperLimit_.GetKey().GetCount()
-                    ? lowerRowIndex
-                    : upperRowIndex;
-
-                YCHECK(exactUpperRowIndex <= HardUpperRowIndex_);
-
-                YCHECK(exactUpperRowIndex >= RowIndex_);
-                if (RowIndex_ + rowLimit >= exactUpperRowIndex) {
-                    boundCompleted = true;
-                    rowLimit = exactUpperRowIndex - RowIndex_;
-                }
-            } else if (RowIndex_ + rowLimit > SafeUpperRowIndex_) {
-                rowLimit = SafeUpperRowIndex_ - RowIndex_;
-                YCHECK(rowLimit > 0);
-            }
-
-            YCHECK(RowIndex_ + rowLimit <= HardUpperRowIndex_);
 
             auto range = RowBuilder_.AllocateRows(rows, rowLimit, RowIndex_, SafeUpperRowIndex_);
 
@@ -1133,19 +1016,34 @@ public:
                 keyColumnReader->ReadValues(range);
             }
 
+            YCHECK(RowIndex_ + rowLimit <= HardUpperRowIndex_);
+            if (RowIndex_ + rowLimit > SafeUpperRowIndex_ && UpperLimit_.HasKey()) {
+                i64 index = std::max(SafeUpperRowIndex_ - RowIndex_, i64(0));
+                for (; index < rowLimit; ++index) {
+                    if (CompareRows(
+                        range[index].BeginKeys(),
+                        range[index].EndKeys(),
+                        UpperLimit_.GetKey().Begin(),
+                        UpperLimit_.GetKey().End()) >= 0)
+                    {
+                        Completed_ = true;
+                        range = range.Slice(range.Begin(), range.Begin() + index);
+                        rows->resize(rows->size() - rowLimit + index);
+                        break;
+                    }
+                }
+            }
+
             if (RowIndex_ + rowLimit == HardUpperRowIndex_) {
-                boundCompleted = true;
+                Completed_ = true;
             }
 
             RowBuilder_.ReadValues(range, RowIndex_);
 
             PerformanceCounters_->StaticChunkRowReadCount += range.Size();
             RowIndex_ += range.Size();
-
-            if (boundCompleted) {
-                UpdateLimits();
-            } else {
-                TryFetchNextRow();
+            if (Completed_ || !TryFetchNextRow()) {
+                break;
             }
         }
 
@@ -1158,9 +1056,6 @@ public:
     }
 
 private:
-    TSharedRange<TRowRange> Ranges_;
-    size_t RangeIndex_ = 0;
-
     bool Initialized_ = false;
     bool Completed_ = false;
 
