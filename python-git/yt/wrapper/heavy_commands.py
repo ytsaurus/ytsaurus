@@ -13,6 +13,7 @@ from .format import YtFormatReadError
 
 import yt.logger as logger
 
+import time
 
 class FakeTransaction(object):
     def __enter__(self):
@@ -151,15 +152,25 @@ class ReadIterator(IteratorRetrier):
         self.start_response = None
         self.last_response = None
         self.iterator = None
+        self.change_proxy_period = get_config(client)["read_retries"]["change_proxy_period"]
 
     def read_iterator(self):
         if self.start_response is None:
             self.start_response = self.get_response()
             self.process_response_action(self.start_response)
-        for elem in self.retriable_state.iterate(self.get_response()):
-            if not self.transaction.is_pinger_alive():
-                raise YtError("Transaction pinger failed, read interrupted")
-            yield elem
+        while True:
+            start_read_time = time.time()
+            for elem in self.retriable_state.iterate(self.get_response()):
+                if not self.transaction.is_pinger_alive():
+                    raise YtError("Transaction pinger failed, read interrupted")
+                yield elem
+
+                if self.change_proxy_period:
+                    if time.time() - start_read_time > self.change_proxy_period / 1000.0:
+                        self.response = None
+                        break
+            else:
+                break
 
     def get_response(self):
         if self.response is None:
