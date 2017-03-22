@@ -39,11 +39,10 @@ class TNullLogger
     : public ILogger
 {
 public:
-    void Log(ELevel level, const char* file, int line, const char* format, va_list args) override
+    void Log(ELevel level, const TSourceLocation& sourceLocation, const char* format, va_list args) override
     {
         Y_UNUSED(level);
-        Y_UNUSED(file);
-        Y_UNUSED(line);
+        Y_UNUSED(sourceLocation);
         Y_UNUSED(format);
         Y_UNUSED(args);
     }
@@ -61,7 +60,7 @@ public:
 
     virtual void OutputLine(const Stroka& line) = 0;
 
-    void Log(ELevel level, const char* file, int line, const char* format, va_list args) override
+    void Log(ELevel level, const TSourceLocation& sourceLocation, const char* format, va_list args) override
     {
         if (level > CutLevel_) {
             return;
@@ -72,7 +71,7 @@ public:
             << " " << GetLogLevelCode(level)
             << " [" << Hex(TThread::CurrentThreadId(), HF_FULL) << "] ";
         Printf(stream, format, args);
-        stream << " - " << StripFileName(file) << ':' << line << Endl;
+        stream << " - " << StripFileName(sourceLocation.File) << ':' << sourceLocation.Line << Endl;
 
         TGuard<TMutex> guard(Mutex_);
         OutputLine(stream.Str());
