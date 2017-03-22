@@ -77,7 +77,7 @@ bool ParseRequestCancelationHeader(
 
 i64 GetRequestBodySize(const TSharedRefArray& message);
 int GetRequestAttachmentCount(const TSharedRefArray& message);
-i64 GetRequestAttachmentsSize(const TSharedRefArray& message);
+i64 GetTotalRequestAttachmentSize(const TSharedRefArray& message);
 
 ////////////////////////////////////////////////////////////////////////////////
 
