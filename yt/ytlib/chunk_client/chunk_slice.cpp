@@ -2,7 +2,6 @@
 #include "private.h"
 #include "chunk_meta_extensions.h"
 #include "key_set.h"
-#include "schema.h"
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 

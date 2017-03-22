@@ -2,19 +2,6 @@ package NYT.NChunkClient.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TRange
-{
-    required bytes begin = 1;
-    required bytes end = 2;
-    required bool infinite = 3;
-}
-
-message TChannel
-{
-    repeated bytes columns = 1;
-    repeated TRange ranges = 2;
-}
-
 // A boundary can be given by:
 // * row index (for tables and journals only)
 // * chunk index

@@ -5,8 +5,6 @@
 #include "schema.h"
 #include "unversioned_value.h"
 
-#include <yt/ytlib/chunk_client/schema.pb.h>
-
 #include <yt/core/misc/chunked_memory_pool.h>
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/small_vector.h>

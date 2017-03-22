@@ -603,7 +603,7 @@ protected:
     //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
     bool IsTeleportChunkImpl(const TInputChunkPtr& chunkSpec, bool combineChunks) const
     {
-        if (chunkSpec->Channel() || !IsInputTableTeleportable[chunkSpec->GetTableIndex()]) {
+        if (!IsInputTableTeleportable[chunkSpec->GetTableIndex()]) {
             return false;
         }
 
@@ -636,7 +636,9 @@ protected:
         auto tableIndex = GetTeleportTableIndex();
         if (tableIndex) {
             for (int index = 0; index < InputTables.size(); ++index) {
-                if (!InputTables[index].IsDynamic) {
+                if (!InputTables[index].IsDynamic &&
+                    !InputTables[index].Path.GetColumns())
+                {
                     IsInputTableTeleportable[index] = ValidateTableSchemaCompatibility(
                         InputTables[index].Schema,
                         OutputTables[*tableIndex].TableUploadOptions.TableSchema,
@@ -1439,8 +1441,7 @@ protected:
     {
         return
             !(chunkSpec->LowerLimit() && chunkSpec->LowerLimit()->HasRowIndex()) &&
-            !(chunkSpec->UpperLimit() && chunkSpec->UpperLimit()->HasRowIndex()) &&
-            !chunkSpec->Channel();
+            !(chunkSpec->UpperLimit() && chunkSpec->UpperLimit()->HasRowIndex());
     }
 
     virtual bool IsBoundaryKeysFetchEnabled() const override

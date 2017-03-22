@@ -11,8 +11,6 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
-#include <yt/ytlib/chunk_client/schema.h>
-
 // TODO(sandello,lukyan): Refine these dependencies.
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/functions.h>

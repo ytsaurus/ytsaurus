@@ -56,9 +56,6 @@ public:
     bool GetForeign() const;
     void SetForeign(bool value);
 
-    // "channel"
-    NChunkClient::TChannel GetChannel() const;
-
     // "columns"
     TNullable<std::vector<Stroka>> GetColumns() const;
 

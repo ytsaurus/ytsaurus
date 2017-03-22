@@ -640,7 +640,10 @@ private:
                 false)
             .IsOK();
 
-        if (Spec->ForceTransform || chunkSpec->Channel() || !isSchemaCompatible) {
+        if (Spec->ForceTransform ||
+            !isSchemaCompatible ||
+            InputTables[chunkSpec->GetTableIndex()].Path.GetColumns())
+        {
             return false;
         }
 
