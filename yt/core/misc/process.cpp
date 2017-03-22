@@ -8,6 +8,8 @@
 #include <yt/core/misc/finally.h>
 #include <yt/core/pipes/pipe.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
+
 #include <util/folder/dirut.h>
 
 #include <util/string/ascii.h>
@@ -145,7 +147,10 @@ TErrorOr<Stroka> ResolveBinaryPath(const Stroka& binary)
     };
 
     auto done = [&] () {
-        auto error = TError("Could not resolve binary %Qlv", binary);
+        auto error = TError(
+            EProcessErrorCode::CannotResolveBinary,
+            "Cannot resolve binary %Qlv",
+            binary);
         error.InnerErrors().swap(accumulatedErrors);
         return error;
     };
