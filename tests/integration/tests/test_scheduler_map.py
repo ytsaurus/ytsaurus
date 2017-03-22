@@ -2571,7 +2571,7 @@ class TestJobQuery(YTEnvSetup):
 
     def test_query_reader_projection(self):
         create("table", "//tmp/t1", attributes={
-            "schema": [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}]
+            "schema": [{"name": "a", "type": "string"}, {"name": "c", "type": "string"}]
         })
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b", "c": "d"})
@@ -2583,7 +2583,7 @@ class TestJobQuery(YTEnvSetup):
 
     def test_query_with_condition(self):
         create("table", "//tmp/t1", attributes={
-            "schema": [{"name": "a", "type": "string"}]
+            "schema": [{"name": "a", "type": "int64"}]
         })
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
