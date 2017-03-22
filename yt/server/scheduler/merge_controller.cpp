@@ -848,7 +848,7 @@ private:
         ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
         if (Spec->InputQuery) {
-            InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
+            InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, Spec->InputSchema);
         }
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -977,7 +977,7 @@ private:
 
     virtual bool IsTeleportChunk(const TInputChunkPtr& chunkSpec) const override
     {
-        if (Spec->ForceTransform) {
+        if (Spec->ForceTransform || Spec->InputQuery) {
             return false;
         }
 
@@ -1004,7 +1004,7 @@ private:
         ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
         if (Spec->InputQuery) {
-            InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
+            InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, Spec->InputSchema);
         }
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());

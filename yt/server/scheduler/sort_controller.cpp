@@ -2798,7 +2798,7 @@ private:
             ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
             if (Spec->InputQuery) {
-                InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, *Spec->InputSchema);
+                InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, Spec->InputSchema);
             }
 
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
