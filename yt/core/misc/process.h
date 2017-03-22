@@ -4,10 +4,9 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/public.h>
 
 #include <yt/core/pipes/pipe.h>
-#include <yt/core/pipes/public.h>
 
 #include <atomic>
 #include <vector>
