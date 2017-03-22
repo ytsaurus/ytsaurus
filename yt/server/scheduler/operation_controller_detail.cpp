@@ -5705,9 +5705,11 @@ public:
         DtorInvoker_->Invoke(BIND([underlying = std::move(Underlying_), id = Id_] () mutable {
             auto Logger = OperationLogger;
             Logger.AddTag("OperationId: %v", id);
+            NProfiling::TScopedTimer timer;
             LOG_INFO("Started destroying operation controller");
             underlying.Reset();
-            LOG_INFO("Finished destroying operation controller");
+            LOG_INFO("Finished destroying operation controller (Elapsed: %v)",
+                timer.GetElapsed());
         }));
     }
 
