@@ -474,6 +474,7 @@ void TRichYPath::SetForeign(bool value)
     Attributes().Set("foreign", value);
 }
 
+//FIXME(savrus) remove
 TChannel TRichYPath::GetChannel() const
 {
     if (Attributes().Contains("channel")) {
@@ -484,6 +485,14 @@ TChannel TRichYPath::GetChannel() const
     } else {
         return GetAttribute(*this, "columns", TChannel::Universal());
     }
+}
+
+TNullable<std::vector<Stroka>> TRichYPath::GetColumns() const
+{
+    if (Attributes().Contains("channel")) {
+        THROW_ERROR_EXCEPTION("Deprecated attribute 'channel' in YPath");
+    }
+    return FindAttribute<std::vector<Stroka>>(*this, "columns");
 }
 
 std::vector<NChunkClient::TReadRange> TRichYPath::GetRanges() const

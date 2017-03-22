@@ -15,19 +15,28 @@ TDataSource::TDataSource(
     EDataSourceType type,
     const TNullable<Stroka>& path,
     const TNullable<TTableSchema>& schema,
+    const TNullable<std::vector<Stroka>>& columns,
     TTimestamp timestamp)
     : Type_(type)
     , Path_(path)
     , Schema_(schema)
+    , Columns_(columns)
     , Timestamp_(timestamp)
 { }
 
 void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource)
 {
+    using NYT::ToProto;
+
     protoDataSource->set_type(static_cast<int>(dataSource.GetType()));
 
     if (dataSource.Schema()) {
         ToProto(protoDataSource->mutable_table_schema(), *dataSource.Schema());
+    }
+
+    if (dataSource.Columns()) {
+        protoDataSource->set_has_column_filter(true);
+        ToProto(protoDataSource->mutable_columns(), *dataSource.Columns());
     }
 
     if (dataSource.GetPath()) {
@@ -49,6 +58,10 @@ void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSour
         dataSource->Schema_ = FromProto<TTableSchema>(protoDataSource.table_schema());
     }
 
+    if (protoDataSource.has_column_filter()) {
+        dataSource->Columns_ = FromProto<std::vector<Stroka>>(protoDataSource.columns());
+    }
+
     if (protoDataSource.has_path()) {
         dataSource->Path_ = protoDataSource.path();
     }
@@ -61,21 +74,23 @@ void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSour
 TDataSource MakeVersionedDataSource(
     const TNullable<Stroka>& path,
     const NTableClient::TTableSchema& schema,
+    const TNullable<std::vector<Stroka>>& columns,
     NTransactionClient::TTimestamp timestamp)
 {
-    return TDataSource(EDataSourceType::VersionedTable, path, schema, timestamp);
+    return TDataSource(EDataSourceType::VersionedTable, path, schema, columns, timestamp);
 }
 
 TDataSource MakeUnversionedDataSource(
     const TNullable<Stroka>& path,
-    const TNullable<NTableClient::TTableSchema>& schema)
+    const TNullable<NTableClient::TTableSchema>& schema,
+    const TNullable<std::vector<Stroka>>& columns)
 {
-    return TDataSource(EDataSourceType::UnversionedTable, path, schema, NullTimestamp);
+    return TDataSource(EDataSourceType::UnversionedTable, path, schema, columns, NullTimestamp);
 }
 
 TDataSource MakeFileDataSource(const TNullable<Stroka>& path)
 {
-    return TDataSource(EDataSourceType::File, path, Null, NullTimestamp);
+    return TDataSource(EDataSourceType::File, path, Null, Null, NullTimestamp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

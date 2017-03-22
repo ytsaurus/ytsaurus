@@ -237,18 +237,15 @@ void ValidateKeyColumns(const TKeyColumns& keyColumns, const TKeyColumns& chunkK
     }
 }
 
-TColumnFilter CreateColumnFilter(const NChunkClient::TChannel& channel, TNameTablePtr nameTable)
+TColumnFilter CreateColumnFilter(const TNullable<std::vector<Stroka>>& columns, TNameTablePtr nameTable)
 {
     TColumnFilter columnFilter;
-    if (channel.IsUniversal()) {
+    if (!columns) {
         return columnFilter;
     }
 
-    // Ranges are not supported since 0.17
-    YCHECK(channel.GetRanges().empty());
-
     columnFilter.All = false;
-    for (auto column : channel.GetColumns()) {
+    for (auto column : *columns) {
         auto id = nameTable->GetIdOrRegisterName(column);
         columnFilter.Indexes.push_back(id);
     }

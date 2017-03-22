@@ -1,4 +1,4 @@
-    #pragma once
+#pragma once
 
 #include "public.h"
 
@@ -28,6 +28,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(EDataSourceType, Type, EDataSourceType::UnversionedTable);
     DEFINE_BYVAL_RO_PROPERTY(TNullable<Stroka>, Path);
     DEFINE_BYREF_RO_PROPERTY(TNullable<NTableClient::TTableSchema>, Schema);
+    DEFINE_BYREF_RO_PROPERTY(TNullable<std::vector<Stroka>>, Columns);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTimestamp, Timestamp, NTransactionClient::NullTimestamp);
 
     TDataSource() = default;
@@ -36,6 +37,7 @@ public:
         EDataSourceType type,
         const TNullable<Stroka>& path,
         const TNullable<NTableClient::TTableSchema>& schema,
+        const TNullable<std::vector<Stroka>>& columns,
         NTransactionClient::TTimestamp timestamp);
 
     friend void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSource);
@@ -44,11 +46,13 @@ public:
 TDataSource MakeVersionedDataSource(
     const TNullable<Stroka>& path,
     const NTableClient::TTableSchema& schema,
+    const TNullable<std::vector<Stroka>>& columns,
     NTransactionClient::TTimestamp timestamp);
 
 TDataSource MakeUnversionedDataSource(
     const TNullable<Stroka>& path,
-    const TNullable<NTableClient::TTableSchema>& schema);
+    const TNullable<NTableClient::TTableSchema>& schema,
+    const TNullable<std::vector<Stroka>>& columns);
 
 TDataSource MakeFileDataSource(const TNullable<Stroka>& path);
 

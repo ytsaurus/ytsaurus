@@ -59,6 +59,9 @@ public:
     // "channel"
     NChunkClient::TChannel GetChannel() const;
 
+    // "columns"
+    TNullable<std::vector<Stroka>> GetColumns() const;
+
     // "ranges"
     // COMPAT(ignat): also "lower_limit" and "upper_limit"
     std::vector<NChunkClient::TReadRange> GetRanges() const;
