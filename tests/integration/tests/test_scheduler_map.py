@@ -2558,32 +2558,38 @@ class TestJobQuery(YTEnvSetup):
         write_local_file(abs_path, abs_impl_path)
 
     def test_query_simple(self):
-        create("table", "//tmp/t1")
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "string"}]
+        })
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
 
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"input_query": "a", "input_schema": [{"name": "a", "type": "string"}]})
+            spec={"input_query": "a"})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
     def test_query_reader_projection(self):
-        create("table", "//tmp/t1")
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}]
+        })
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b", "c": "d"})
 
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"input_query": "a", "input_schema": [{"name": "a", "type": "string"}]})
+            spec={"input_query": "a"})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
     def test_query_with_condition(self):
-        create("table", "//tmp/t1")
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "string"}]
+        })
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
 
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"input_query": "a where a > 0", "input_schema": [{"name": "a", "type": "int64"}]})
+            spec={"input_query": "a where a > 0"})
 
         assert read_table("//tmp/t2") == [{"a": 1}]
 
@@ -2615,6 +2621,27 @@ class TestJobQuery(YTEnvSetup):
                 "input_schema": schema})
 
         assert_items_equal(read_table("//tmp/t2"), rows)
+
+    def test_query_schema_in_spec(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "string"}]
+        })
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}]
+        })
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t1", {"a": "b"})
+        write_table("//tmp/t2", {"a": "b"})
+
+        map(in_="//tmp/t1", out="//tmp/t_out", command="cat",
+            spec={"input_query": "*", "input_schema": [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}]})
+
+        assert read_table("//tmp/t_out") == [{"a": "b", "b": None}]
+
+        map(in_="//tmp/t2", out="//tmp/t_out", command="cat",
+            spec={"input_query": "*", "input_schema": [{"name": "a", "type": "string"}]})
+
+        assert read_table("//tmp/t_out") == [{"a": "b"}]
 
     def test_query_udf(self):
         self._init_udf_registry()

@@ -785,7 +785,7 @@ protected:
     void InitQuerySpec(
         NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
         const Stroka& queryString,
-        const NQueryClient::TTableSchema& schema);
+        const TNullable<NQueryClient::TTableSchema>& schema);
 
     void PickIntermediateDataCell();
     void InitChunkListPool();

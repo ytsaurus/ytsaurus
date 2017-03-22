@@ -4130,7 +4130,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
 void TOperationControllerBase::InitQuerySpec(
     NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
     const Stroka& queryString,
-    const TTableSchema& schema)
+    const TNullable<TTableSchema>& schema)
 {
     auto externalCGInfo = New<TExternalCGInfo>();
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
@@ -4158,7 +4158,14 @@ void TOperationControllerBase::InitQuerySpec(
         AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
     };
 
-    auto query = PrepareJobQuery(queryString, schema, fetchFunctions);
+    if (!schema && InputTables.size() > 1) {
+        THROW_ERROR_EXCEPTION("Expect \"input_schema\" for query filtering with multiple input tables");
+    }
+
+    auto query = PrepareJobQuery(
+        queryString,
+        schema ? *schema : InputTables[0].Schema,
+        fetchFunctions);
 
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
     ToProto(querySpec->mutable_query(), query);

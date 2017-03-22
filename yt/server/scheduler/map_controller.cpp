@@ -374,7 +374,7 @@ protected:
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         if (Spec->InputQuery) {
-            InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, *Spec->InputSchema);
+            InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, Spec->InputSchema);
         }
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
