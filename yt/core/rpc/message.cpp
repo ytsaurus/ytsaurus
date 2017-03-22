@@ -224,5 +224,26 @@ bool ParseRequestCancelationHeader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 GetRequestBodySize(const TSharedRefArray& message)
+{
+    return message[1].Size();
+}
+
+int GetRequestAttachmentCount(const TSharedRefArray& message)
+{
+    return message.Size() - 2;
+}
+
+i64 GetRequestAttachmentsSize(const TSharedRefArray& message)
+{
+    i64 result = 0;
+    for (int index = 2; index < message.Size(); ++index) {
+        result += message[index].Size();
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRpc
 } // namespace NYT
