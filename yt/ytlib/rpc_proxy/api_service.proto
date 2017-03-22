@@ -1,7 +1,6 @@
 package NYT.NRpcProxy.NProto;
 
 import "yt/core/rpc/rpc.proto";
-import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,11 +20,33 @@ message TCredentialsExt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TRowsetColumnDescriptor
+enum ERowsetKind
 {
-    required int32 id = 1;
-    optional int32 type = 2;
-    optional string name = 3;
+    SCHEMAFUL = 0;
+    UNVERSIONED = 1;
+    VERSIONED = 2;
+}
+
+// Specifies how to decode rowset data passed via attachments.
+message TRowsetDescriptor
+{
+    // Currently, there is only one version. This field is reserved for future changes.
+    optional int32 wire_format_version = 1 [default = 1];
+
+    // Specifies, what kind of rows are encoded.
+    optional ERowsetKind rowset_kind = 2 [default = UNVERSIONED];
+
+    message TColumnDescriptor
+    {
+        optional string name = 1;
+        optional int32 type = 2;
+    }
+
+    // Specifies column names and types.
+    // May be omitted for unversioned rowset.
+    // Must be present for schemaful rowset.
+    // Must be present for versioned rowset.
+    repeated TColumnDescriptor columns = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,22 +61,36 @@ message TRspGetNode
     required bytes data = 1;
 }
 
-// Wire Format V1:
-//   - rowset schema is passed via `rowset_column_descriptor`,
-//   - rowset data is passed via attachments in unversioned wire format a-la YT.
-
 message TReqLookupRows
 {
     required string path = 1;
 
-    optional int32 wire_format_version = 2 [default = 1];
-    repeated TRowsetColumnDescriptor rowset_column_descriptor = 3;
+    repeated string columns = 2;
+    optional uint64 timestamp = 3 [default = 0x3fffffffffffff01];
+    optional bool keep_missing_rows = 4 [default = true];
+
+    required TRowsetDescriptor rowset_descriptor = 200;
 }
 
 message TRspLookupRows
 {
-    optional int32 wire_format_version = 2 [default = 1];
-    repeated TRowsetColumnDescriptor rowset_column_descriptor = 3;
+    required TRowsetDescriptor rowset_descriptor = 200;
+}
+
+message TReqVersionedLookupRows
+{
+    required string path = 1;
+
+    repeated string columns = 2;
+    optional uint64 timestamp = 3 [default = 0x3fffffffffffff01];
+    optional bool keep_missing_rows = 4 [default = true];
+
+    required TRowsetDescriptor rowset_descriptor = 200;
+}
+
+message TRspVersionedLookupRows
+{
+    required TRowsetDescriptor rowset_descriptor = 200;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

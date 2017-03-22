@@ -119,6 +119,12 @@ DEFINE_ENUM(EErrorCode,
     ((Timeout)            (3))
 );
 
+DEFINE_ENUM(EProcessErrorCode,
+    ((NonZeroExitCode)    (10000))
+    ((Signal)             (10001))
+    ((CannotResolveBinary)(10002))
+);
+
 ///////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TMountTmpfsConfig)

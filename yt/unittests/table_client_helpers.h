@@ -20,7 +20,7 @@ void CheckResult(std::vector<TVersionedRow>* expected, IVersionedReaderPtr reade
 template <class TExpectedRow, class TActualRow>
 void CheckSchemafulResult(const std::vector<TExpectedRow>& expected, const std::vector<TActualRow>& actual)
 {
-    EXPECT_EQ(expected.size(), actual.size());
+    ASSERT_EQ(expected.size(), actual.size());
     for (int i = 0; i < expected.size(); ++i) {
         ExpectSchemafulRowsEqual(expected[i], actual[i]);
     }
@@ -32,7 +32,7 @@ void CheckSchemalessResult(
     const std::vector<TActualRow>& actual,
     int keyColumnCount)
 {
-    EXPECT_EQ(expected.size(), actual.size());
+    ASSERT_EQ(expected.size(), actual.size());
     for (int i = 0; i < expected.size(); ++i) {
         ExpectSchemalessRowsEqual(expected[i], actual[i], keyColumnCount);
     }

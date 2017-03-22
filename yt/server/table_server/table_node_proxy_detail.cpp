@@ -474,9 +474,6 @@ void TTableNodeProxy::ValidateFetchParameters(
         if ((upperLimit.HasRowIndex() || lowerLimit.HasRowIndex()) && table->IsDynamic()) {
             THROW_ERROR_EXCEPTION("Row index selectors are not supported for dynamic tables");
         }
-        if ((upperLimit.HasChunkIndex() || lowerLimit.HasChunkIndex()) && table->IsDynamic()) {
-            THROW_ERROR_EXCEPTION("Chunk index selectors are not supported for dynamic tables");
-        }
         if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
             THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");
         }

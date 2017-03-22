@@ -59,7 +59,6 @@ public:
         using NYT::Persist;
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
-        Persist(context, TableReaderOptions);
         Persist(context, IsExplicitJobCount);
         Persist(context, UnorderedPool);
         Persist(context, UnorderedTask);
@@ -75,9 +74,6 @@ protected:
 
     //! The template for starting new jobs.
     TJobSpec JobSpecTemplate;
-
-    //! Table reader options for map jobs.
-    TTableReaderOptionsPtr TableReaderOptions;
 
     //! Flag set when job count was explicitly specified.
     bool IsExplicitJobCount;
@@ -166,11 +162,6 @@ protected:
             return false;
         }
 
-        virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
-        {
-            return Controller->TableReaderOptions;
-        }
-
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
@@ -222,7 +213,8 @@ protected:
 
     virtual bool IsCompleted() const override
     {
-        return UnorderedTask->IsCompleted();
+        // Unordered task may be null, if all chunks were teleported.
+        return !UnorderedTask || UnorderedTask->IsCompleted();
     }
 
     virtual void CustomPrepare() override
@@ -365,8 +357,6 @@ protected:
     {
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
         InitFinalOutputConfig(JobIOConfig);
-
-        TableReaderOptions = CreateTableReaderOptions(Spec->JobIO);
     }
 
     //! Returns |true| if the chunk can be included into the output as-is.
@@ -379,9 +369,13 @@ protected:
     {
         JobSpecTemplate.set_type(static_cast<int>(GetJobType()));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).GetData());
+
+        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         if (Spec->InputQuery) {
-            InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, *Spec->InputSchema);
+            InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, Spec->InputSchema);
         }
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -428,6 +422,17 @@ public:
 
         using NYT::Persist;
         Persist(context, StartRowIndex);
+    }
+
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        return STRINGBUF("data_size_per_job");
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {EJobType::Map};
     }
 
 private:
@@ -581,6 +586,17 @@ public:
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, spec->JobProxyMemoryDigest);
+    }
+
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        return STRINGBUF("data_size_per_job");
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {EJobType::UnorderedMerge};
     }
 
 private:

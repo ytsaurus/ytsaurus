@@ -269,6 +269,11 @@ void ParseKeyPart(
             break;
         }
 
+        case NYson::ETokenType::Hash: {
+            value = MakeUnversionedSentinelValue(EValueType::Null);
+            break;
+        }
+
         default:
             ThrowUnexpectedToken(tokenizer.CurrentToken());
             break;
@@ -464,6 +469,11 @@ bool TRichYPath::GetForeign() const
     return GetAttribute(*this, "foreign", false);
 }
 
+void TRichYPath::SetForeign(bool value)
+{
+    Attributes().Set("foreign", value);
+}
+
 TChannel TRichYPath::GetChannel() const
 {
     if (Attributes().Contains("channel")) {
@@ -579,20 +589,6 @@ std::vector<TRichYPath> Normalize(const std::vector<TRichYPath>& paths)
         result.push_back(path.Normalize());
     }
     return result;
-}
-
-void InitializeFetchRequest(
-    NChunkClient::NProto::TReqFetch* request,
-    const TRichYPath& richPath)
-{
-    auto channel = richPath.GetChannel();
-    if (channel.IsUniversal()) {
-        request->clear_channel();
-    } else {
-        ToProto(request->mutable_channel(), channel);
-    }
-
-    ToProto(request->mutable_ranges(), richPath.GetRanges());
 }
 
 void Serialize(const TRichYPath& richPath, IYsonConsumer* consumer)

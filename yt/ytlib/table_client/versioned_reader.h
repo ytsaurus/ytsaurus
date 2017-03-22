@@ -38,7 +38,7 @@ struct IVersionedReader
      *  Value ids correspond to column indexes in schema.
      *  The returned rows are canonically sorted (see TVersionedRow).
      *
-     *  If |false| is returned then the end of the rowset is reached.
+     *  If |false| is returned then the end of the rowset is reached and |rows| is empty.
      *  If |true| is returned but |rows| is empty then no more data is available at the moment.
      *  The caller must wait for the asynchronous flag provided by #GetReadyEvent to become set.
      *  The latter may indicate an error occurred while fetching more data.

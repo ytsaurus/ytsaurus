@@ -24,18 +24,22 @@ class TestSortedDynamicTablesBase(YTEnvSetup):
     }
 
     DELTA_DRIVER_CONFIG = {
-        "max_rows_per_write_request": 2
+        "max_rows_per_write_request": 2,
+        "table_reader": {
+            "max_chunks_per_fetch": 1,
+        }
     }
 
     def _create_simple_table(self, path, atomicity=None, optimize_for=None, tablet_cell_bundle=None,
-                             tablet_count=None, pivot_keys=None):
-        attributes={
+                             tablet_count=None, pivot_keys=None, **extra_attributes):
+        attributes = {
             "dynamic": True,
             "schema": [
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "string"}
             ]
         }
+        attributes.update(extra_attributes)
         if atomicity is not None:
             attributes["atomicity"] = atomicity
         if optimize_for is not None:
@@ -279,6 +283,33 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         assert lookup_rows("//tmp/t", keys) == expected
 
+    def test_lookup_versioned(self):
+        self.sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t", min_data_versions=2)
+        self.sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "a:" + str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+        generate_timestamp()
+
+        rows = [{"key": i, "value": "b:" + str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+        generate_timestamp()
+
+        keys = [{"key": i} for i in xrange(10)]
+        actual = lookup_rows("//tmp/t", keys, versioned=True)
+
+        for i, key in enumerate(keys):
+            row = actual[i]
+            assert "write_timestamps" in row.attributes
+            assert len(row.attributes["write_timestamps"]) == 2
+            assert "delete_timestamps" in row.attributes
+            assert row["key"] == key["key"]
+            assert len(row["value"]) == 2
+            assert "%s" % row["value"][0] == "b:" + str(key["key"])
+            assert "%s" % row["value"][1] == "a:" + str(key["key"])
+
     def test_read_invalid_limits(self):
         self.sync_create_cells(1)
 
@@ -290,7 +321,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self.sync_unmount_table("//tmp/t")
 
         with pytest.raises(YtError):  read_table("//tmp/t[#5:]")
-        with pytest.raises(YtError):  read_table("<ranges=[{lower_limit={chunk_index = 0};upper_limit={chunk_index = 1}}]>//tmp/t")
+        with pytest.raises(YtError):  read_table("<ranges=[{lower_limit={offset = 0};upper_limit={offset = 1}}]>//tmp/t")
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_read_table(self, optimize_for):
@@ -396,6 +427,76 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         abort_transaction(tx)
         verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+
+    def test_read_table_ranges(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", pivot_keys=[[], [5]])
+        set("//tmp/t/@min_compaction_store_count", 5)
+        self.sync_mount_table("//tmp/t")
+
+        rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows1)
+        self.sync_flush_table("//tmp/t")
+
+        rows2 = [{"key": i, "value": str(i+1)} for i in xrange(1,5)]
+        insert_rows("//tmp/t", rows2)
+        self.sync_flush_table("//tmp/t")
+
+        rows3 = [{"key": i, "value": str(i+2)} for i in xrange(5,9)]
+        insert_rows("//tmp/t", rows3)
+        self.sync_flush_table("//tmp/t")
+
+        rows4 = [{"key": i, "value": str(i+3)} for i in xrange(0,3)]
+        insert_rows("//tmp/t", rows4)
+        self.sync_flush_table("//tmp/t")
+
+        rows5 = [{"key": i, "value": str(i+4)} for i in xrange(7,10)]
+        insert_rows("//tmp/t", rows5)
+        self.sync_flush_table("//tmp/t")
+
+        self.sync_freeze_table("//tmp/t")
+
+        rows = []
+        def update(new):
+            def update_row(row):
+                for r in rows:
+                    if r["key"] == row["key"]:
+                        r["value"] = row["value"]
+                        return
+                rows.append(row)
+            for row in new:
+                update_row(row)
+
+        for r in [rows1, rows2, rows3, rows4, rows5]:
+            update(r)
+
+        assert read_table("//tmp/t[(2):(9)]") == rows[2:9]
+        assert get("//tmp/t/@chunk_count") == 6
+
+    def test_read_table_when_chunk_crosses_tablet_boundaries(self):
+        create("table", "//tmp/t",
+            attributes={
+                "dynamic": False,
+                "external": False,
+                "schema": make_schema([
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"}],
+                    unique_keys=True)
+            })
+        rows = [{"key": i, "value": str(i)} for i in xrange(6)]
+        write_table("//tmp/t", rows)
+        alter_table("//tmp/t", dynamic=True)
+
+        def do_test():
+            for i in xrange(6):
+                assert read_table("//tmp/t[{0}:{1}]".format(i, i+1)) == rows[i:i+1]
+            for i in xrange(0, 6, 2):
+                assert read_table("//tmp/t[{0}:{1}]".format(i, i+2)) == rows[i:i+2]
+            for i in xrange(1, 6, 2):
+                assert read_table("//tmp/t[{0}:{1}]".format(i, i+2)) == rows[i:i+2]
+        do_test()
+        reshard_table("//tmp/t", [[], [2], [4]])
+        do_test()
 
     def test_write_table(self):
         self.sync_create_cells(1)
@@ -1581,6 +1682,27 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert actual == expected + [None, None]
         actual = select_rows("key, avalue from [//tmp/t]")
         assert_items_equal(actual, expected)
+
+    def test_chunk_list_kind(self):
+        self.sync_create_cells(1)
+        create("table", "//tmp/t",
+            attributes={
+                "dynamic": False,
+                "external": False,
+                "schema": make_schema([
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"}],
+                    unique_keys=True)
+            })
+        write_table("//tmp/t", [{"key": 1, "value": "1"}])
+        chunk_list = get("//tmp/t/@chunk_list_id")
+        assert get("#{0}/@kind".format(chunk_list)) == "static"
+
+        alter_table("//tmp/t", dynamic=True)
+        root_chunk_list = get("//tmp/t/@chunk_list_id")
+        tablet_chunk_list = get("#{0}/@child_ids/0".format(root_chunk_list))
+        assert get("#{0}/@kind".format(root_chunk_list)) == "sorted_dynamic_root"
+        assert get("#{0}/@kind".format(tablet_chunk_list)) == "sorted_dynamic_tablet"
 
 
     def test_no_commit_ordering(self):

@@ -1593,7 +1593,7 @@ print row + table_index
         op.track()
         check_all_stderrs(op, '"range_index"=0;', 1, substring=True)
         check_all_stderrs(op, '"range_index"=1;', 1, substring=True)
-    
+
     def test_range_count_limit(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out")
@@ -1601,11 +1601,11 @@ print row + table_index
 
         def gen_table(range_count):
             return "<ranges=[" + ("{exact={row_index=0}};" * range_count) + "]>//tmp/in"
-        
+
         map(in_=[gen_table(20)],
             out="//tmp/out",
             command="cat")
-        
+
         with pytest.raises(YtError):
             map(in_=[gen_table(2000)],
                 out="//tmp/out",
@@ -2247,9 +2247,10 @@ print row + table_index
                 out="//tmp/t_out",
                 command="cat")
 
-    def test_dynamic_table_input_data_statistics(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_dynamic_table_input_data_statistics(self, optimize_for):
         self.sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t")
+        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for)
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(2)]
@@ -2263,12 +2264,60 @@ print row + table_index
             command="cat")
 
         statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
-        print statistics
         assert get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum") == 1
         assert get_statistics(statistics, "data.input.row_count.$.completed.map.sum") == 2
         assert get_statistics(statistics, "data.input.uncompressed_data_size.$.completed.map.sum") > 0
         assert get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum") > 0
         assert get_statistics(statistics, "data.input.data_weight.$.completed.map.sum") > 0
+
+    def test_dynamic_table_column_filter(self):
+        self.sync_create_cells(1)
+        create("table", "//tmp/t",
+            attributes={
+                "schema": make_schema([
+                    {"name": "k", "type": "int64", "sort_order": "ascending"},
+                    {"name": "u", "type": "int64"},
+                    {"name": "v", "type": "int64"}],
+                    unique_keys=True),
+                "optimize_for": "scan",
+                "external": False
+            })
+        create("table", "//tmp/t_out")
+
+        row = {"k": 0, "u": 1, "v": 2}
+        write_table("//tmp/t", [row])
+        alter_table("//tmp/t", dynamic=True)
+
+        def get_data_size(statistics):
+            return {
+                "uncompressed_data_size": get_statistics(statistics, "data.input.uncompressed_data_size.$.completed.map.sum"),
+                "compressed_data_size": get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum")
+            }
+
+        op = map(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            command="cat")
+        stat1 = get_data_size(get("//sys/operations/{0}/@progress/job_statistics".format(op.id)))
+        assert read_table("//tmp/t_out") == [row]
+
+        # FIXME(savrus) investigate test flapping
+        print get("//tmp/t/@compression_statistics")
+
+        for columns in (["k"], ["u"], ["v"], ["k", "u"], ["k", "v"], ["u", "v"]):
+            op = map(
+                in_="<columns=[{0}]>//tmp/t".format(";".join(columns)),
+                out="//tmp/t_out",
+                command="cat")
+            stat2 = get_data_size(get("//sys/operations/{0}/@progress/job_statistics".format(op.id)))
+            assert read_table("//tmp/t_out") == [{c: row[c] for c in columns}]
+
+            if columns == ["u", "v"]:
+                assert stat1["uncompressed_data_size"] == stat2["uncompressed_data_size"]
+                assert stat1["compressed_data_size"] == stat2["compressed_data_size"]
+            else:
+                assert stat1["uncompressed_data_size"] > stat2["uncompressed_data_size"]
+                assert stat1["compressed_data_size"] > stat2["compressed_data_size"]
 
     def test_pipe_statistics(self):
         create("table", "//tmp/t_input")
@@ -2511,32 +2560,38 @@ class TestJobQuery(YTEnvSetup):
         write_local_file(abs_path, abs_impl_path)
 
     def test_query_simple(self):
-        create("table", "//tmp/t1")
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "string"}]
+        })
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
 
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"input_query": "a", "input_schema": [{"name": "a", "type": "string"}]})
+            spec={"input_query": "a"})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
     def test_query_reader_projection(self):
-        create("table", "//tmp/t1")
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "string"}, {"name": "c", "type": "string"}]
+        })
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b", "c": "d"})
 
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"input_query": "a", "input_schema": [{"name": "a", "type": "string"}]})
+            spec={"input_query": "a"})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
     def test_query_with_condition(self):
-        create("table", "//tmp/t1")
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
 
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"input_query": "a where a > 0", "input_schema": [{"name": "a", "type": "int64"}]})
+            spec={"input_query": "a where a > 0"})
 
         assert read_table("//tmp/t2") == [{"a": 1}]
 
@@ -2568,6 +2623,27 @@ class TestJobQuery(YTEnvSetup):
                 "input_schema": schema})
 
         assert_items_equal(read_table("//tmp/t2"), rows)
+
+    def test_query_schema_in_spec(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "string"}]
+        })
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}]
+        })
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t1", {"a": "b"})
+        write_table("//tmp/t2", {"a": "b"})
+
+        map(in_="//tmp/t1", out="//tmp/t_out", command="cat",
+            spec={"input_query": "*", "input_schema": [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}]})
+
+        assert read_table("//tmp/t_out") == [{"a": "b", "b": None}]
+
+        map(in_="//tmp/t2", out="//tmp/t_out", command="cat",
+            spec={"input_query": "*", "input_schema": [{"name": "a", "type": "string"}]})
+
+        assert read_table("//tmp/t_out") == [{"a": "b"}]
 
     def test_query_udf(self):
         self._init_udf_registry()
@@ -3014,6 +3090,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
       }
     }
 
+    @flaky(max_runs=5)
     def test_map_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i} for i in xrange(31)]

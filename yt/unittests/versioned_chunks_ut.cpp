@@ -238,7 +238,8 @@ protected:
                 TColumnFilter(),
                 New<TChunkReaderPerformanceCounters>(),
                 KeyComparer_,
-                MaxTimestamp);
+                MaxTimestamp,
+                false);
 
             EXPECT_TRUE(chunkReader->Open().Get().IsOK());
             EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
@@ -324,9 +325,10 @@ protected:
         TTableSchema readSchema,
         TOwningKey lowerKey,
         TOwningKey upperKey,
-        TTimestamp timestamp)
+        TTimestamp timestamp,
+        bool produceAllVersions)
     {
-        auto expected = CreateExpected(InitialRows_, writeSchema, readSchema, lowerKey, upperKey, timestamp);
+        auto expected = CreateExpected(InitialRows_, writeSchema, readSchema, lowerKey, upperKey, timestamp, produceAllVersions);
 
         auto memoryWriter = New<TMemoryWriter>();
 
@@ -363,7 +365,8 @@ protected:
             upperKey,
             TColumnFilter(),
             New<TChunkReaderPerformanceCounters>(),
-            timestamp);
+            timestamp,
+            produceAllVersions);
 
         CheckResult(&expected, chunkReader);
     }
@@ -459,7 +462,8 @@ protected:
         TTableSchema readSchema,
         TOwningKey lowerKey,
         TOwningKey upperKey,
-        TTimestamp timestamp)
+        TTimestamp timestamp,
+        bool produceAllVersions)
     {
         std::vector<TVersionedRow> expected;
 
@@ -574,10 +578,10 @@ protected:
         auto writeSchema = TTableSchema(ColumnSchemas_);
         auto readSchema = TTableSchema(ColumnSchemas_);
 
-        TestRangeReader(optimizeFor, writeSchema, readSchema, MinKey(), MaxKey(), AllCommittedTimestamp);
+        TestRangeReader(optimizeFor, writeSchema, readSchema, MinKey(), MaxKey(), AllCommittedTimestamp, true);
     }
 
-    void DoTimestampFullScanExtraKeyColumn(EOptimizeFor optimizeFor, TTimestamp timestamp = 50)
+    void DoTimestampFullScanExtraKeyColumn(EOptimizeFor optimizeFor, TTimestamp timestamp)
     {
         auto writeSchema = TTableSchema(ColumnSchemas_);
 
@@ -588,7 +592,7 @@ protected:
 
         auto readSchema = TTableSchema(columnSchemas);
 
-        TestRangeReader(optimizeFor, writeSchema, readSchema, MinKey(), MaxKey(), timestamp);
+        TestRangeReader(optimizeFor, writeSchema, readSchema, MinKey(), MaxKey(), timestamp, false);
     }
 
     void DoEmptyReadWideSchema(EOptimizeFor optimizeFor)
@@ -615,7 +619,7 @@ protected:
         upperKeyBuilder.AddValue(MakeUnversionedBooleanValue(true));
         auto upperKey = upperKeyBuilder.FinishRow();
 
-        TestRangeReader(optimizeFor, writeSchema, readSchema, lowerKey, upperKey, 25);
+        TestRangeReader(optimizeFor, writeSchema, readSchema, lowerKey, upperKey, 25, false);
     }
 };
 
@@ -631,14 +635,21 @@ TEST_F(TVersionedChunksHeavyTest, FullScanCompactionLookup)
 
 TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnScan)
 {
-    DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Scan);
+    DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Scan, 50);
+}
+
+TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnScanSyncLastCommitted)
+{
+    DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Scan, SyncLastCommittedTimestamp);
 }
 
 TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnLookup)
 {
-    DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Lookup);
+    DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Lookup, 50);
+}
 
-    // Test SyncLastCommitted for Lookup chunks.
+TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnLookupSyncLastCommitted)
+{
     DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Lookup, SyncLastCommittedTimestamp);
 }
 
@@ -662,7 +673,7 @@ TEST_F(TVersionedChunksHeavyTest, GroupsLimitsAndSchemaChange)
         InitialRows_[upperRowIndex].BeginKeys(),
         InitialRows_[upperRowIndex].EndKeys());
 
-    TestRangeReader(EOptimizeFor::Scan, writeSchema, readSchema, lowerKey, upperKey, SyncLastCommittedTimestamp);
+    TestRangeReader(EOptimizeFor::Scan, writeSchema, readSchema, lowerKey, upperKey, SyncLastCommittedTimestamp, false);
 }
 
 TEST_F(TVersionedChunksHeavyTest, EmptyReadWideSchemaScan)

@@ -207,15 +207,18 @@ message TReqGetTableSamples
     required int32 max_sample_size = 3;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 4;
     required int32 sampling_policy = 5;
+
+    optional bool keys_in_attachment = 6 [default = false];
 }
 
 message TRspGetTableSamples
 {
     message TSample
     {
-        required bytes key = 1;
+        optional bytes key = 1;
         required bool incomplete = 2;
         required int64 weight = 3;
+        optional int32 key_index = 4;
     }
 
     message TChunkSamples
@@ -226,24 +229,26 @@ message TRspGetTableSamples
     }
 
     repeated TChunkSamples sample_responses = 1;
+    optional bool keys_in_attachment = 2 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // For sorted chunks only.
-// Scheduler calls this method to perform sorted merge and join merge.
+// Scheduler calls this method to perform sorted merge, reduce, join, etc.
 message TReqGetChunkSlices
 {
-    // Only chunk_id, lower_limit and upper_limit are used
     repeated TSliceRequest slice_requests = 1;
     repeated string key_columns = 2;
     required int64 slice_data_size = 3;
     // If false, chunks are sliced by row indexes and
-    // lower_key and upper_key contains estimated values.
-    // If true, chunks are sliced by key,
-    // each slice contains the whole key
+    // lower_key and upper_key contain estimated values.
+    // If true, chunks are sliced by key, each slice contains the whole key
     required bool slice_by_keys = 4;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 5;
+
+    // COMPAT(psushin).
+    optional bool keys_in_attachment = 6 [default = false];
 }
 
 message TRspGetChunkSlices
@@ -256,6 +261,8 @@ message TRspGetChunkSlices
     }
 
     repeated TChunkSlices slices = 1;
+
+    optional bool keys_in_attachment = 2 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

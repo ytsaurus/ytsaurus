@@ -17,11 +17,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnEvaluator::TColumnEvaluator(
-    std::vector<TColumn> columns,
-    std::unordered_map<int, TCGAggregateCallbacks> aggregates)
+TColumnEvaluator::TColumnEvaluator(std::vector<TColumn> columns)
     : Columns_(std::move(columns))
-    , Aggregates_(std::move(aggregates))
 { }
 
 TColumnEvaluatorPtr TColumnEvaluator::Create(
@@ -30,7 +27,6 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
     const TConstFunctionProfilerMapPtr& profilers)
 {
     std::vector<TColumn> columns(schema.GetColumnCount());
-    std::unordered_map<int, TCGAggregateCallbacks> aggregates;
 
     for (int index = 0; index < schema.GetColumnCount(); ++index) {
         auto& column = columns[index];
@@ -55,20 +51,17 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
             }
             std::sort(column.ReferenceIds.begin(), column.ReferenceIds.end());
         }
-    }
 
-    for (int index = schema.GetKeyColumnCount(); index < schema.Columns().size(); ++index) {
         if (schema.Columns()[index].Aggregate) {
             const auto& aggregateName = schema.Columns()[index].Aggregate.Get();
             auto type = schema.Columns()[index].Type;
-            aggregates[index] = CodegenAggregate(
+            column.Aggregate = CodegenAggregate(
                 BuiltinAggregateCG->GetAggregate(aggregateName)->Profile(type, type, type, aggregateName));
+            column.IsAggregate = true;
         }
     }
 
-    return New<TColumnEvaluator>(
-        std::move(columns),
-        std::move(aggregates));
+    return New<TColumnEvaluator>(std::move(columns));
 }
 
 void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buffer, int index) const
@@ -113,7 +106,7 @@ TConstExpressionPtr TColumnEvaluator::GetExpression(int index) const
 
 bool TColumnEvaluator::IsAggregate(int index) const
 {
-    return Aggregates_.count(index);
+    return Columns_[index].IsAggregate;
 }
 
 void TColumnEvaluator::InitAggregate(
@@ -121,9 +114,7 @@ void TColumnEvaluator::InitAggregate(
     TUnversionedValue* state,
     const TRowBufferPtr& buffer) const
 {
-    auto found = Aggregates_.find(index);
-    YCHECK(found != Aggregates_.end());
-    found->second.Init(buffer.Get(), state);
+    Columns_[index].Aggregate.Init(buffer.Get(), state);
     state->Id = index;
 }
 
@@ -134,9 +125,7 @@ void TColumnEvaluator::UpdateAggregate(
     const TUnversionedValue& update,
     const TRowBufferPtr& buffer) const
 {
-    auto found = Aggregates_.find(index);
-    YCHECK(found != Aggregates_.end());
-    found->second.Update(buffer.Get(), result, &state, &update);
+    Columns_[index].Aggregate.Update(buffer.Get(), result, &state, &update);
     result->Id = index;
 }
 
@@ -147,9 +136,7 @@ void TColumnEvaluator::MergeAggregate(
     const TUnversionedValue& mergeeState,
     const TRowBufferPtr& buffer) const
 {
-    auto found = Aggregates_.find(index);
-    YCHECK(found != Aggregates_.end());
-    found->second.Merge(buffer.Get(), result, &state, &mergeeState);
+    Columns_[index].Aggregate.Merge(buffer.Get(), result, &state, &mergeeState);
     result->Id = index;
 }
 
@@ -159,9 +146,7 @@ void TColumnEvaluator::FinalizeAggregate(
     const TUnversionedValue& state,
     const TRowBufferPtr& buffer) const
 {
-    auto found = Aggregates_.find(index);
-    YCHECK(found != Aggregates_.end());
-    found->second.Finalize(buffer.Get(), result, &state);
+    Columns_[index].Aggregate.Finalize(buffer.Get(), result, &state);
     result->Id = index;
 }
 

@@ -108,7 +108,7 @@ public:
         }
     }
 
-    virtual TNameTablePtr GetNameTable() const override
+    virtual const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
@@ -158,7 +158,6 @@ ISchemalessReaderPtr CreateSchemalessReaderAdapter(
     TTableReaderOptionsPtr options,
     TNameTablePtr nameTable,
     const TTableSchema& schema,
-    const TColumnFilter& columnFilter,
     int tableIndex,
     int rangeIndex)
 {

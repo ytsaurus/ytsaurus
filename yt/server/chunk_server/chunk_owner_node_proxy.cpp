@@ -1105,7 +1105,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
             } else {
                 auto* snapshotChunkList = lockedNode->GetChunkList();
 
-                auto* newChunkList = chunkManager->CreateChunkList();
+                auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
                 newChunkList->AddOwningNode(lockedNode);
 
                 snapshotChunkList->RemoveOwningNode(lockedNode);
@@ -1114,7 +1114,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
                 chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
 
-                auto* deltaChunkList = chunkManager->CreateChunkList();
+                auto* deltaChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
                 chunkManager->AttachToChunkList(newChunkList, deltaChunkList);
 
                 objectManager->UnrefObject(snapshotChunkList);
@@ -1142,7 +1142,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                 oldChunkList->RemoveOwningNode(lockedNode);
                 objectManager->UnrefObject(oldChunkList);
 
-                auto* newChunkList = chunkManager->CreateChunkList();
+                auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
                 newChunkList->AddOwningNode(lockedNode);
                 lockedNode->SetChunkList(newChunkList);
                 objectManager->RefObject(newChunkList);

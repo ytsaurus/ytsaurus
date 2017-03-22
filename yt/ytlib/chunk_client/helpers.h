@@ -49,6 +49,22 @@ void ProcessFetchResponse(
     const NLogging::TLogger& logger,
     std::vector<NProto::TChunkSpec>* chunkSpecs);
 
+//! Synchronously fetches chunk specs from master,
+//! waits for thre result and processes the response.
+//! The resulting chunk specs are appended to #chunkSpecs.
+void FetchChunkSpecs(
+    const NApi::INativeClientPtr& client,
+    const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
+    NObjectClient::TCellTag cellTag,
+    const NYPath::TRichYPath& path,
+    const NObjectClient::TObjectId& objectId,
+    int chunkCount,
+    int maxChunksPerFetch,
+    int maxChunksPerLocateRequest,
+    const std::function<void(TChunkOwnerYPathProxy::TReqFetchPtr)> initializeFetchRequest,
+    const NLogging::TLogger& logger,
+    std::vector<NProto::TChunkSpec>* chunkSpecs);
+
 //! Synchronously invokes TChunkServiceProxy::AllocateWriteTargets.
 //! Populates #nodeDirectory with the returned node descriptors.
 //! Throws if the server returns no replicas.

@@ -21,7 +21,7 @@ public:
     NApi::TNativeConnectionConfigPtr ClusterConnection;
     NBlackbox::TDefaultBlackboxServiceConfigPtr Blackbox;
     NBlackbox::TCookieAuthenticatorConfigPtr CookieAuthenticator;
-    NBlackbox::TTokenAuthenticatorConfigPtr TokenAuthenticator;
+    NBlackbox::TCachingTokenAuthenticatorConfigPtr TokenAuthenticator;
 
     TCellProxyConfig()
     {

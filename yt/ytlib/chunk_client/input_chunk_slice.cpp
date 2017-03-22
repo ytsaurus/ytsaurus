@@ -3,6 +3,7 @@
 #include "chunk_meta_extensions.h"
 #include "schema.h"
 
+#include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/serialize.h>
 
 #include <yt/core/erasure/codec.h>
@@ -32,7 +33,10 @@ TInputSliceLimit::TInputSliceLimit(const TReadLimit& other)
     }
 }
 
-TInputSliceLimit::TInputSliceLimit(const NProto::TReadLimit& other, const TRowBufferPtr& rowBuffer)
+TInputSliceLimit::TInputSliceLimit(
+    const NProto::TReadLimit& other,
+    const TRowBufferPtr& rowBuffer,
+    const TRange<TKey>& keySet)
 {
     YCHECK(!other.has_chunk_index());
     YCHECK(!other.has_offset());
@@ -41,6 +45,9 @@ TInputSliceLimit::TInputSliceLimit(const NProto::TReadLimit& other, const TRowBu
     }
     if (other.has_key()) {
         NTableClient::FromProto(&Key, other.key(), rowBuffer);
+    }
+    if (other.has_key_index()) {
+        Key = rowBuffer->Capture(keySet[other.key_index()]);
     }
 }
 
@@ -98,6 +105,11 @@ void TInputSliceLimit::Persist(const TPersistenceContext& context)
 
     Persist(context, RowIndex);
     Persist(context, Key);
+}
+
+Stroka ToString(const TInputSliceLimit& limit)
+{
+    return Format("RowIndex: %v, Key: %v", limit.RowIndex, limit.Key);
 }
 
 void FormatValue(TStringBuilder* builder, const TInputSliceLimit& limit, const TStringBuf& /*format*/)
@@ -211,11 +223,12 @@ TInputChunkSlice::TInputChunkSlice(
 TInputChunkSlice::TInputChunkSlice(
     const TInputChunkPtr& inputChunk,
     const TRowBufferPtr& rowBuffer,
-    const NProto::TChunkSlice& protoChunkSlice)
+    const NProto::TChunkSlice& protoChunkSlice,
+    const TRange<TKey>& keySet)
     : TInputChunkSlice(inputChunk)
 {
-    LowerLimit_.MergeLowerLimit(TInputSliceLimit(protoChunkSlice.lower_limit(), rowBuffer));
-    UpperLimit_.MergeUpperLimit(TInputSliceLimit(protoChunkSlice.upper_limit(), rowBuffer));
+    LowerLimit_.MergeLowerLimit(TInputSliceLimit(protoChunkSlice.lower_limit(), rowBuffer, keySet));
+    UpperLimit_.MergeUpperLimit(TInputSliceLimit(protoChunkSlice.upper_limit(), rowBuffer, keySet));
     PartIndex_ = DefaultPartIndex;
 
     if (protoChunkSlice.has_row_count_override() || protoChunkSlice.has_uncompressed_data_size_override()) {
@@ -230,8 +243,9 @@ TInputChunkSlice::TInputChunkSlice(
     const NProto::TChunkSpec& protoChunkSpec)
     : TInputChunkSlice(inputChunk)
 {
-    LowerLimit_.MergeLowerLimit(TInputSliceLimit(protoChunkSpec.lower_limit(), rowBuffer));
-    UpperLimit_.MergeUpperLimit(TInputSliceLimit(protoChunkSpec.upper_limit(), rowBuffer));
+    static TRange<TKey> DummyKeys;
+    LowerLimit_.MergeLowerLimit(TInputSliceLimit(protoChunkSpec.lower_limit(), rowBuffer, DummyKeys));
+    UpperLimit_.MergeUpperLimit(TInputSliceLimit(protoChunkSpec.upper_limit(), rowBuffer, DummyKeys));
     PartIndex_ = DefaultPartIndex;
 
     if (protoChunkSpec.has_row_count_override() || protoChunkSpec.has_uncompressed_data_size_override()) {
@@ -361,14 +375,6 @@ TInputChunkSlicePtr CreateInputChunkSlice(
     TKey upperKey)
 {
     return New<TInputChunkSlice>(inputSlice, lowerKey, upperKey);
-}
-
-TInputChunkSlicePtr CreateInputChunkSlice(
-    const TInputChunkPtr& inputChunk,
-    const TRowBufferPtr& rowBuffer,
-    const NProto::TChunkSlice& protoChunkSlice)
-{
-    return New<TInputChunkSlice>(inputChunk, rowBuffer, protoChunkSlice);
 }
 
 TInputChunkSlicePtr CreateInputChunkSlice(
