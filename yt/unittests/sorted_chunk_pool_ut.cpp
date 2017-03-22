@@ -446,6 +446,8 @@ protected:
     i64 InputSliceDataSize_;
 
     std::vector<IChunkPoolOutput::TCookie> ExtractedCookies_;
+
+    std::mt19937 Gen_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1584,6 +1586,46 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
     ASSERT_EQ(newStripeList->Stripes[3]->DataSlices.size(), 1);
 }
 
+TEST_F(TSortedChunkPoolTest, TestCorrectOrderInsideStripe)
+{
+    Options_.EnableKeyGuarantee = false;
+    InitTables(
+        {false} /* isForeign */,
+        {false} /* isTeleportable */,
+        {false} /* isVersioned */
+    );
+    Options_.PrimaryPrefixLength = 1;
+    DataSizePerJob_ = Inf64;
+    InitJobConstraints();
+
+    auto chunk = CreateChunk(BuildRow({10}), BuildRow({20}), 0);
+    std::vector<TInputChunkSlicePtr> slices;
+    for (int index = 0; index < 100; ++index) {
+        slices.emplace_back(New<TInputChunkSlice>(chunk, 0 /* partIndex */, 10 * index, 10 * (index + 1), 1 * KB));
+        slices.back()->LowerLimit().Key = BuildRow({10});
+        slices.back()->UpperLimit().Key = BuildRow({20});
+    }
+    shuffle(slices.begin(), slices.end(), Gen_);
+
+    RegisterSliceableUnversionedChunk(chunk, slices);
+
+    CreateChunkPool();
+
+    AddChunk(chunk);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    ASSERT_EQ(ExtractedCookies_.size(), 1);
+    auto stripeList = ChunkPool_->GetStripeList(ExtractedCookies_.back());
+    ASSERT_EQ(stripeList->Stripes.size(), 1);
+    const auto& stripe = stripeList->Stripes.front();
+    ASSERT_EQ(stripe->DataSlices.size(), 100);
+    for (int index = 0; index + 1 < stripe->DataSlices.size(); ++index) {
+        ASSERT_EQ(*stripe->DataSlices[index]->UpperLimit().RowIndex, *stripe->DataSlices[index + 1]->LowerLimit().RowIndex);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedChunkPoolTestRandomized
@@ -1598,9 +1640,6 @@ public:
         TSortedChunkPoolTest::SetUp();
         Gen_.seed(GetParam());
     }
-
-protected:
-    std::mt19937 Gen_;
 };
 
 static constexpr int NumberOfRepeats = 15;

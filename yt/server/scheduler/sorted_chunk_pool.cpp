@@ -123,7 +123,19 @@ public:
 
                         auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
                         auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
-                        return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
+
+                        if (lhsChunk != rhsChunk) {
+                            return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
+                        }
+
+                        if (lhs->LowerLimit().RowIndex &&
+                            rhs->LowerLimit().RowIndex &&
+                            *lhs->LowerLimit().RowIndex != *rhs->LowerLimit().RowIndex)
+                        {
+                            return *lhs->LowerLimit().RowIndex < *rhs->LowerLimit().RowIndex;
+                        }
+
+                        return false;
                     });
             }
         }
