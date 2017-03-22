@@ -1021,6 +1021,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         "scheduler": {
             "max_running_operation_count_per_pool" : 1,
             "static_orchid_cache_update_period": 100,
+            "default_parent_pool": "default_pool",
         }
     }
 
@@ -1304,6 +1305,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         create("map_node", "//sys/pools/p1", attributes={"forbid_immediate_operations": True})
         create("map_node", "//sys/pools/p1/p2")
+        create("map_node", "//sys/pools/default_pool", attributes={"forbid_immediate_operations": True})
 
         time.sleep(0.5)
 
@@ -1319,6 +1321,13 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             out="//tmp/t_out",
             user="u",
             spec={"pool": "p2"})
+
+        map(command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            user="u",
+            spec={"pool": "p3"})
+
 
 class TestSchedulingTags(YTEnvSetup):
     NUM_MASTERS = 3

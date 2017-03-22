@@ -1333,14 +1333,15 @@ private:
 
         ValidateOperationCountLimit(operation);
 
-        auto parentElement = GetParentElement(operation);
-
-        if (parentElement->AreImmediateOperationsFobidden()) {
+        auto immediateParentPool = FindPool(GetOperationPoolName(operation));
+        // NB: Check is not performed if operation is started in default or unknown pool.
+        if (immediateParentPool && immediateParentPool->AreImmediateOperationsFobidden()) {
             THROW_ERROR_EXCEPTION(
                 "Starting operations immediately in pool %Qv is forbidden",
-                parentElement->GetId());
+                immediateParentPool->GetId());
         }
 
+        auto parentElement = GetParentElement(operation);
         auto poolPath = GetPoolPath(parentElement);
         const auto& user = operation->GetAuthenticatedUser();
 
