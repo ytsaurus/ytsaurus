@@ -116,13 +116,26 @@ public:
                     stripe->DataSlices.begin(),
                     stripe->DataSlices.end(),
                     [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
+                        auto cmpResult = CompareRows(lhs->LowerLimit().Key, rhs->LowerLimit().Key);
+                        if (cmpResult != 0 || lhs->Type == EDataSourceType::VersionedTable) {
+                            return cmpResult < 0;
+                        }
+
                         auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
                         auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
+
                         if (lhsChunk != rhsChunk) {
                             return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
-                        } else {
-                            return lhs->LowerLimit().Key < rhs->LowerLimit().Key;
                         }
+
+                        if (lhs->LowerLimit().RowIndex &&
+                            rhs->LowerLimit().RowIndex &&
+                            *lhs->LowerLimit().RowIndex != *rhs->LowerLimit().RowIndex)
+                        {
+                            return *lhs->LowerLimit().RowIndex < *rhs->LowerLimit().RowIndex;
+                        }
+
+                        return false;
                     });
             }
         }

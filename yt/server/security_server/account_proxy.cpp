@@ -21,6 +21,8 @@ using namespace NRpc;
 using namespace NObjectServer;
 using namespace NChunkServer;
 
+using ::ToString;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAccountProxy

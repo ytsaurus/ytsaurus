@@ -772,6 +772,7 @@ protected:
 
     // Preparation.
     void FetchInputTables();
+    void RegisterInputChunk(const NChunkClient::TInputChunkPtr& inputChunk);
     void LockInputTables();
     void GetInputTablesAttributes();
     void GetOutputTablesSchema();
@@ -793,7 +794,7 @@ protected:
     void InitQuerySpec(
         NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
         const Stroka& queryString,
-        const NQueryClient::TTableSchema& schema);
+        const TNullable<NQueryClient::TTableSchema>& schema);
 
     void PickIntermediateDataCell();
     void InitChunkListPool();
@@ -1111,9 +1112,6 @@ private:
     //! NB: |TJobPtr -> TJobletPtr| mapping would be faster but
     //! it cannot be serialized that easily.
     yhash_map<TJobId, TJobletPtr> JobletMap;
-
-    //! Used to distinguish already seen InputChunks while building #InputChunkMap.
-    yhash_set<NChunkClient::TInputChunkPtr> InputChunkSpecs;
 
     NChunkClient::TChunkScraperPtr InputChunkScraper;
 

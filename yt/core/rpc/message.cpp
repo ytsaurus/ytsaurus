@@ -224,17 +224,17 @@ bool ParseRequestCancelationHeader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 GetRequestBodySize(const TSharedRefArray& message)
+i64 GetMessageBodySize(const TSharedRefArray& message)
 {
-    return message[1].Size();
+    return message.Size() >= 2 ? message[1].Size() : 0;
 }
 
-int GetRequestAttachmentCount(const TSharedRefArray& message)
+int GetMessageAttachmentCount(const TSharedRefArray& message)
 {
-    return message.Size() - 2;
+    return std::max(message.Size() - 2, 0);
 }
 
-i64 GetRequestAttachmentsSize(const TSharedRefArray& message)
+i64 GetTotalMesageAttachmentSize(const TSharedRefArray& message)
 {
     i64 result = 0;
     for (int index = 2; index < message.Size(); ++index) {

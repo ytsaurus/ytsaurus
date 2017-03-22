@@ -75,9 +75,9 @@ bool ParseRequestCancelationHeader(
     const TSharedRefArray& message,
     NProto::TRequestCancelationHeader* header);
 
-i64 GetRequestBodySize(const TSharedRefArray& message);
-int GetRequestAttachmentCount(const TSharedRefArray& message);
-i64 GetRequestAttachmentsSize(const TSharedRefArray& message);
+i64 GetMessageBodySize(const TSharedRefArray& message);
+int GetMessageAttachmentCount(const TSharedRefArray& message);
+i64 GetTotalMesageAttachmentSize(const TSharedRefArray& message);
 
 ////////////////////////////////////////////////////////////////////////////////
 

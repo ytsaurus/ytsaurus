@@ -326,7 +326,7 @@ TEST_F(TTokenAuthenticatorTest, FailOnRejection)
 TEST_F(TTokenAuthenticatorTest, FailOnInvalidScope)
 {
     Config_->Scope = "yt:api";
-    MockCall(R"yy({status={id=0};oauth={scope="i-am-hacker";client_id="i-am-hacker"};login=hacker})yy");
+    MockCall(R"yy({status={id=0};oauth={scope="i-am-hacker";client_id="i-am-hacker";client_name="yes-i-am"};login=hacker})yy");
     auto result = Invoke("mytoken", "myip").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("does not provide a valid scope"));
@@ -335,11 +335,11 @@ TEST_F(TTokenAuthenticatorTest, FailOnInvalidScope)
 TEST_F(TTokenAuthenticatorTest, Success)
 {
     Config_->Scope = "yt:api";
-    MockCall(R"yy({status={id=0};oauth={scope="x:1 yt:api x:2";client_id="secret_client_id"};login=sandello})yy");
+    MockCall(R"yy({status={id=0};oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};login=sandello})yy");
     auto result = Invoke("mytoken", "myip").Get();
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ("sandello", result.Value().Login);
-    EXPECT_EQ("blackbox:token:secret_realm", result.Value().Realm);
+    EXPECT_EQ("blackbox:token:cid:nm", result.Value().Realm);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
