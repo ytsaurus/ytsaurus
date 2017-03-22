@@ -250,6 +250,7 @@ void TSchemalessTableReader::DoOpen()
         dataSourceDirectory->DataSources().push_back(MakeVersionedDataSource(
             path,
             schema,
+            RichPath_.GetColumns(),
             timestamp.Get(AsyncLastCommittedTimestamp)));
 
         auto dataSliceDescriptor = TDataSliceDescriptor(std::move(chunkSpecs));
@@ -269,7 +270,8 @@ void TSchemalessTableReader::DoOpen()
     } else {
         dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
             path,
-            schema));
+            schema,
+            RichPath_.GetColumns()));
 
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
         for (auto& chunkSpec : chunkSpecs) {

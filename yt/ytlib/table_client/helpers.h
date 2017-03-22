@@ -78,7 +78,7 @@ TUnversionedValue MakeUnversionedValue(
 //////////////////////////////////////////////////////////////////////////////////
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns, const TKeyColumns& chunkKeyColumns, bool requireUniqueKeys);
-TColumnFilter CreateColumnFilter(const NChunkClient::TChannel& protoChannel, TNameTablePtr nameTable);
+TColumnFilter CreateColumnFilter(const TNullable<std::vector<Stroka>>& columns, TNameTablePtr nameTable);
 int GetSystemColumnCount(TChunkReaderOptionsPtr options);
 
 //////////////////////////////////////////////////////////////////////////////////

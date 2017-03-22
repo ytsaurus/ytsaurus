@@ -5350,6 +5350,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             auto dataSource = MakeVersionedDataSource(
                 file.GetPath(),
                 file.Schema,
+                file.Path.GetColumns(),
                 file.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp));
             ToProto(descriptor->mutable_data_source(), dataSource);
             // All chunks go to the same data slice.
@@ -5357,7 +5358,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         } else {
             auto dataSource = file.Type == EObjectType::File
                     ? MakeFileDataSource(file.GetPath())
-                    : MakeUnversionedDataSource(file.GetPath(), file.Schema);
+                    : MakeUnversionedDataSource(file.GetPath(), file.Schema, file.Path.GetColumns());
 
             descriptor->set_type(file.Type == EObjectType::File
                 ? static_cast<int>(EDataSourceType::File)
@@ -5478,10 +5479,13 @@ TDataSourceDirectoryPtr TOperationControllerBase::MakeInputDataSources() const
             ? MakeVersionedDataSource(
                 inputTable.GetPath(),
                 inputTable.Schema,
+                inputTable.Path.GetColumns(),
                 inputTable.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp))
             : MakeUnversionedDataSource(
                 inputTable.GetPath(),
-                inputTable.Schema);
+                inputTable.Schema,
+                inputTable.Path.GetColumns());
+
         dataSourceDirectory->DataSources().push_back(dataSource);
     }
     return dataSourceDirectory;
@@ -5494,6 +5498,7 @@ TDataSourceDirectoryPtr TOperationControllerBase::CreateIntermediateDataSource()
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
         IntermediatePath,
+        Null,
         Null));
 
     return dataSourceDirectory;
