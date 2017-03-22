@@ -11,9 +11,16 @@ namespace NBlackbox {
 
 DECLARE_REFCOUNTED_CLASS(TDefaultBlackboxServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TTokenAuthenticatorConfig)
+DECLARE_REFCOUNTED_CLASS(TCachingTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TCookieAuthenticatorConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IBlackboxService)
+
+struct TTokenCredentials
+{
+    Stroka Token;
+    Stroka UserIp;
+};
 
 struct TAuthenticationResult
 {

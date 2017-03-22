@@ -267,7 +267,7 @@ protected:
     TTokenAuthenticatorTest()
         : Config_(New<TTokenAuthenticatorConfig>())
         , Blackbox_(New<TMockBlackboxService>())
-        , Authenticator_(CreateTokenAuthenticator(Config_, Blackbox_))
+        , Authenticator_(CreateBlackboxTokenAuthenticator(Config_, Blackbox_))
     { }
 
     void MockCall(const Stroka& yson)

@@ -47,22 +47,24 @@ public:
     TTokenAuthenticatorConfig()
     {
         RegisterParameter("scope", Scope);
-        RegisterParameter("client_ids", ClientIds);
-
         RegisterParameter("enable_scope_check", EnableScopeCheck)
-            .Optional();
-        RegisterParameter("enable_client_ids_check", EnableClientIdsCheck)
             .Optional();
     }
 
     Stroka Scope;
-    yhash_map<Stroka, Stroka> ClientIds;
-
     bool EnableScopeCheck = true;
-    bool EnableClientIdsCheck = true;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTokenAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingTokenAuthenticatorConfig
+    : public TTokenAuthenticatorConfig
+    , public TExpiringCacheConfig
+{};
+
+DEFINE_REFCOUNTED_TYPE(TCachingTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
