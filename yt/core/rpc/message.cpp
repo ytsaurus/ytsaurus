@@ -234,7 +234,7 @@ int GetRequestAttachmentCount(const TSharedRefArray& message)
     return message.Size() - 2;
 }
 
-i64 GetRequestAttachmentsSize(const TSharedRefArray& message)
+i64 GetTotalRequestAttachmentSize(const TSharedRefArray& message)
 {
     i64 result = 0;
     for (int index = 2; index < message.Size(); ++index) {
