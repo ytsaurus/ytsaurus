@@ -1001,26 +1001,6 @@ private:
 
     // Analyse results.
 
-    static TError BuildJobProxyError(const TError& spawnError)
-    {
-        if (spawnError.IsOK()) {
-            return TError();
-        }
-
-        auto jobProxyError = TError("Job proxy failed") << spawnError;
-
-        if (spawnError.GetCode() == EProcessErrorCode::NonZeroExitCode) {
-            // Try to translate the numeric exit code into some human readable reason.
-            auto reason = EJobProxyExitCode(spawnError.Attributes().Get<int>("exit_code"));
-            const auto& validReasons = TEnumTraits<EJobProxyExitCode>::GetDomainValues();
-            if (std::find(validReasons.begin(), validReasons.end(), reason) != validReasons.end()) {
-                jobProxyError.Attributes().Set("reason", reason);
-            }
-        }
-
-        return jobProxyError;
-    }
-
     TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult)
     {
         if (jobResult.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
@@ -1052,7 +1032,8 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::ArtifactCopyingFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::NodeDirectoryPreparationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::SlotLocationDisabled) ||
-            resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed))
+            resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
+            resultError.FindMatching(EProcessErrorCode::CannotResolveBinary))
         {
             return EAbortReason::Other;
         }

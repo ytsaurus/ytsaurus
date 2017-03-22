@@ -424,6 +424,11 @@ private:
             AppendInfo(&builder, "Timeout: %v", FromProto<TDuration>(RequestHeader_->timeout()));
         }
 
+        AppendInfo(&builder, "BodySize: %v, AttachmentsSize: %v/%v",
+            GetRequestBodySize(RequestMessage_),
+            GetRequestAttachmentsSize(RequestMessage_),
+            GetRequestAttachmentsSize(RequestMessage_));
+
         if (!RequestInfo_.empty()) {
             AppendInfo(&builder, "%v", RequestInfo_);
         }
@@ -433,7 +438,7 @@ private:
             builder.Flush());
     }
 
-    virtual void LogResponse(const TError& error) override
+    virtual void LogResponse() override
     {
         TStringBuilder builder;
 
@@ -441,7 +446,12 @@ private:
             AppendInfo(&builder, "RequestId: %v", RequestId_);
         }
 
-        AppendInfo(&builder, "Error: %v", error);
+        auto responseMessage = GetResponseMessage();
+        AppendInfo(&builder, "Error: %v, BodySize: %v, AttachmentsSize: %v/%v",
+            Error_,
+            GetRequestBodySize(responseMessage),
+            GetRequestAttachmentsSize(responseMessage),
+            GetRequestAttachmentsSize(responseMessage));
 
         if (!ResponseInfo_.empty()) {
             AppendInfo(&builder, "%v", ResponseInfo_);
@@ -457,7 +467,6 @@ private:
             GetMethod(),
             builder.Flush());
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
