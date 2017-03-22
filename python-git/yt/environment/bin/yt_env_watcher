@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from yt.common import which
 from yt.logger_config import LOG_LEVEL, LOG_PATTERN
 
 import argparse
@@ -41,18 +42,25 @@ def main():
             raise
         logger.info("Lock acquired")
 
+    logrotate_enabled = True
+    if not which("logrotate"):
+        logrotate_enabled = False
+        logger.warning("Logrotate is disabled. Cannot find logrotate binary.")
+
     while True:
-        logger.info("Calling logrotate process...")
-        p = subprocess.Popen(["logrotate", options.logrotate_config_path, "--state", options.logrotate_state_file],
-                             stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
-        stdout, stderr = p.communicate()
-        if p.returncode:
-            logger.error('logrotate process failed with exit code %d, '
-                         'stderr: "%s", stdout: "%s"', p.returncode, stderr, stdout)
-        else:
-            logger.info("Successful")
-        logger.info("Sleep %d seconds before next calling", options.logrotate_interval)
+        if logrotate_enabled:
+            logger.info("Calling logrotate process...")
+            p = subprocess.Popen(["logrotate", options.logrotate_config_path, "--state", options.logrotate_state_file],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+            stdout, stderr = p.communicate()
+            if p.returncode:
+                logger.error('logrotate process failed with exit code %d, '
+                             'stderr: "%s", stdout: "%s"', p.returncode, stderr, stdout)
+            else:
+                logger.info("Successful")
+            logger.info("Sleep %d seconds before next calling", options.logrotate_interval)
+
         time.sleep(options.logrotate_interval)
 
 if __name__ == "__main__":
