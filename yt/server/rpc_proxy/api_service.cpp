@@ -105,8 +105,7 @@ private:
                 .ValueOrThrow();
         } else if (credentials.has_token()) {
             auto asyncAuthenticationResult = Bootstrap_->GetTokenAuthenticator()->Authenticate(
-                credentials.token(),
-                credentials.userip());
+                TTokenCredentials{credentials.token(), credentials.userip()});
             authenticationResult = WaitFor(asyncAuthenticationResult)
                 .ValueOrThrow();
         } else {
