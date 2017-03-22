@@ -783,6 +783,8 @@ public:
     // Some special options for testing purposes.
     TTestingOptionsPtr TestingOptions;
 
+    NCompression::ECodec JobSpecCodec;
+
     TSchedulerConfig()
     {
         RegisterParameter("controller_thread_count", ControllerThreadCount)
@@ -1073,6 +1075,9 @@ public:
 
         RegisterParameter("testing_options", TestingOptions)
             .DefaultNew();
+
+        RegisterParameter("job_spec_codec", JobSpecCodec)
+            .Default(NCompression::ECodec::Lz4);
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

@@ -1278,8 +1278,7 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
 {
     auto* response = &rpcContext->Response();
 
-    std::vector<TFuture<void>> asyncResults;
-
+    std::vector<TFuture<TSharedRef>> asyncJobSpecs;
     for (const auto& job : schedulingContext->StartedJobs()) {
         auto* operationState = FindOperationState(job->GetOperationId());
         if (!operationState || operationState->JobsAborted) {
@@ -1315,10 +1314,11 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
         *startInfo->mutable_resource_limits() = job->ResourceUsage().ToNodeResources();
 
         // Build spec asynchronously.
-        asyncResults.push_back(
-            // NB: Hold the context strongly.
-            BIND([startInfo, rpcContext, specBuilder = job->GetSpecBuilder()] () {
-                specBuilder(startInfo->mutable_spec());
+        asyncJobSpecs.push_back(
+            BIND([=, this_ = MakeStrong(this), specBuilder = job->GetSpecBuilder()] () {
+                NJobTrackerClient::NProto::TJobSpec spec;
+                specBuilder(&spec);
+                return SerializeToProtoWithEnvelope(spec, Config_->JobSpecCodec);
             })
             .AsyncVia(Host_->GetJobSpecBuilderInvoker())
             .Run());
@@ -1358,7 +1358,10 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
         }
     }
 
-    return Combine(asyncResults);
+    return Combine(asyncJobSpecs).Apply(BIND([rpcContext] (const std::vector<TSharedRef>& jobSpecs) {
+        auto* response = &rpcContext->Response();
+        response->Attachments() = jobSpecs;
+    }));
 }
 
 void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
