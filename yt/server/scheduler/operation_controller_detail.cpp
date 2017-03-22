@@ -3431,6 +3431,8 @@ void TOperationControllerBase::FetchInputTables()
                 for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
                     totalExtensionSize += extension.data().size();
                 }
+
+                RegisterInputChunk(table.Chunks.back());
             }
         }
 
@@ -3442,6 +3444,19 @@ void TOperationControllerBase::FetchInputTables()
     LOG_INFO("Finished fetching input tables (TotalChunkCount: %v, TotalExtensionSize: %v)",
         totalChunkCount,
         totalExtensionSize);
+}
+
+void TOperationControllerBase::RegisterInputChunk(const TInputChunkPtr& inputChunk)
+{
+    const auto& chunkId = inputChunk->ChunkId();
+
+    // Insert an empty TInputChunkDescriptor if a new chunkId is encountered.
+    auto& chunkDescriptor = InputChunkMap[chunkId];
+    chunkDescriptor.InputChunks.push_back(inputChunk);
+
+    if (IsUnavailable(inputChunk, IsParityReplicasFetchEnabled())) {
+        chunkDescriptor.State = EInputChunkState::Waiting;
+    }
 }
 
 void TOperationControllerBase::LockInputTables()
@@ -4366,8 +4381,8 @@ std::vector<std::deque<TInputDataSlicePtr>> TOperationControllerBase::CollectFor
                     result.back().push_back(dataSlice);
                 }
             } else {
-                for (const auto& chunkSpec : table.Chunks) {
-                    if (IsUnavailable(chunkSpec, IsParityReplicasFetchEnabled())) {
+                for (const auto& inputChunk : table.Chunks) {
+                    if (IsUnavailable(inputChunk, IsParityReplicasFetchEnabled())) {
                         switch (Spec->UnavailableChunkStrategy) {
                             case EUnavailableChunkAction::Skip:
                                 continue;
@@ -4381,9 +4396,9 @@ std::vector<std::deque<TInputDataSlicePtr>> TOperationControllerBase::CollectFor
                         }
                     }
                     result.back().push_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(
-                        chunkSpec,
-                        GetKeyPrefix(chunkSpec->BoundaryKeys()->MinKey.Get(), foreignKeyColumnCount, RowBuffer),
-                        GetKeyPrefixSuccessor(chunkSpec->BoundaryKeys()->MaxKey.Get(), foreignKeyColumnCount, RowBuffer))));
+                        inputChunk,
+                        GetKeyPrefix(inputChunk->BoundaryKeys()->MinKey.Get(), foreignKeyColumnCount, RowBuffer),
+                        GetKeyPrefixSuccessor(inputChunk->BoundaryKeys()->MaxKey.Get(), foreignKeyColumnCount, RowBuffer))));
                 }
             }
         }
@@ -4805,20 +4820,10 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
                 continue;
             }
 
-            // Insert an empty TInputChunkDescriptor if a new chunkId is encountered.
-            auto& chunkDescriptor = InputChunkMap[chunkId];
+            auto chunkDescriptorIt = InputChunkMap.find(chunkId);
+            YCHECK(chunkDescriptorIt != InputChunkMap.end());
 
-            if (InputChunkSpecs.insert(inputChunk).second) {
-                chunkDescriptor.InputChunks.push_back(inputChunk);
-            }
-
-            if (IsUnavailable(inputChunk, IsParityReplicasFetchEnabled())) {
-                // NB(psushin): there could be corner cases, where different input chunks
-                // corresponding to the same chunkId have different set of replicas.
-                // In this case, some stripes will be resumed more times than they were suspended.
-                chunkDescriptor.State = EInputChunkState::Waiting;
-            }
-
+            auto& chunkDescriptor = chunkDescriptorIt->second;
             chunkDescriptor.InputStripes.push_back(stripeDescriptor);
 
             if (chunkDescriptor.State == EInputChunkState::Waiting) {
@@ -5592,13 +5597,17 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     Persist(context, JobletMap);
 
-    // NB: Scheduler snapshots need not be stable.
-    Persist<
-        TSetSerializer<
-            TDefaultSerializer,
-            TUnsortedTag
-        >
-    >(context, InputChunkSpecs);
+    // COMPAT(psushin),
+    if (context.IsLoad() && context.GetVersion() == 200006) {
+        // NB: Scheduler snapshots need not be stable.
+        yhash_set<TInputChunkPtr> dummy;
+        Persist<
+            TSetSerializer<
+                TDefaultSerializer,
+                TUnsortedTag
+            >
+        >(context, dummy);
+    }
 
     Persist(context, JobIndexGenerator);
 
