@@ -14,7 +14,6 @@ from yt.packages.six.moves import map as imap, filter as ifilter
 import yt.wrapper as yt
 
 import os
-import sys
 import signal
 import errno
 import logging

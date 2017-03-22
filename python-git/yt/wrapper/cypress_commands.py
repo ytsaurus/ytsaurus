@@ -28,7 +28,7 @@ class _KwargSentinelClass(object):
         return cls.__instance
 _KWARG_SENTINEL = _KwargSentinelClass()
 
-def get(path, max_size=None, attributes=None, format=None, ignore_opaque=False, read_from=None, client=None):
+def get(path, max_size=None, attributes=None, format=None, read_from=None, client=None):
     """Gets Cypress node content (attribute tree).
 
     :param path: path to tree, it must exist!
@@ -36,7 +36,6 @@ def get(path, max_size=None, attributes=None, format=None, ignore_opaque=False, 
     :param list attributes: desired node attributes in the response.
     :param format: output format (by default python dict automatically parsed from YSON).
     :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
-    :param bool ignore_opaque: ignore opaque.
     :return: node tree content in `format`
 
     Be careful: attributes have specific representation in JSON format.
@@ -48,7 +47,6 @@ def get(path, max_size=None, attributes=None, format=None, ignore_opaque=False, 
 
     params = {
         "path": YPath(path, client=client),
-        "ignore_opaque": bool_to_string(ignore_opaque),
         "max_size": max_size}
     set_param(params, "attributes", attributes)
     set_param(params, "read_from", read_from)
