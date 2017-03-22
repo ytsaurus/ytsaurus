@@ -2584,8 +2584,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         abort_op(op.id)
 
-    @require_ytserver_root_privileges
-    @unix_only
+    @pytest.mark.skipif("True", reason="YT-6717")
     def test_woodpecker_jobs_alert(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(7)])
