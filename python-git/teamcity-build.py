@@ -53,10 +53,7 @@ def prepare(options):
     options.codename = codename
     options.repositories = ["yt-" + codename, "yandex-" + codename]
 
-    if options.codename == "lucid":
-        available_python_versions = ["2.6"]
-    else:
-        available_python_versions = ["2.7", "3.4", "pypy"]
+    available_python_versions = ["2.6", "2.7", "3.4", "pypy"]
 
     options.enabled_python_versions = set()
 
