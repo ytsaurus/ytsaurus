@@ -425,9 +425,9 @@ private:
         }
 
         AppendInfo(&builder, "BodySize: %v, AttachmentsSize: %v/%v",
-            GetRequestBodySize(RequestMessage_),
-            GetTotalRequestAttachmentSize(RequestMessage_),
-            GetRequestAttachmentCount(RequestMessage_));
+            GetMessageBodySize(RequestMessage_),
+            GetTotalMesageAttachmentSize(RequestMessage_),
+            GetMessageAttachmentCount(RequestMessage_));
 
         if (!RequestInfo_.empty()) {
             AppendInfo(&builder, "%v", RequestInfo_);
@@ -449,9 +449,9 @@ private:
         auto responseMessage = GetResponseMessage();
         AppendInfo(&builder, "Error: %v, BodySize: %v, AttachmentsSize: %v/%v",
             Error_,
-            GetRequestBodySize(responseMessage),
-            GetTotalRequestAttachmentSize(responseMessage),
-            GetRequestAttachmentCount(responseMessage));
+            GetMessageBodySize(responseMessage),
+            GetTotalMesageAttachmentSize(responseMessage),
+            GetMessageAttachmentCount(responseMessage));
 
         if (!ResponseInfo_.empty()) {
             AppendInfo(&builder, "%v", ResponseInfo_);
