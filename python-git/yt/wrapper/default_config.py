@@ -367,6 +367,7 @@ default_config = {
             "allow_multiple_ranges": False,
             "create_transaction_and_take_snapshot_lock": True,
             "retry_count": None,
+            "change_proxy_period": None
         }),
 
     # Retries for write commands. It split data stream into chunks and writes it separately under transactions.
