@@ -38,6 +38,7 @@ class YtConfig(object):
         self.yt_work_dir = kwargs.get("yt_work_dir")
         self.keep_yt_work_dir = kwargs.get("keep_yt_work_dir")
         self.ram_drive_path = kwargs.get("ram_drive_path")
+        self.local_cypress_dir = kwargs.get("local_cypress_dir")
 
         self.wait_tablet_cell_initialization = kwargs.get("wait_tablet_cell_initialization")
         self.operations_memory_limit = kwargs.get("operations_memory_limit") or (25 * 1024 * 1024 * 1024)
@@ -232,6 +233,10 @@ class YtStuff(object):
                 args += ["--scheduler-config", self.config.scheduler_config]
             if self.config.proxy_config:
                 args += ["--proxy-config", self.config.proxy_config]
+
+            local_cypress_dir = self.config.local_cypress_dir or yatest.common.get_param("yt_local_cypress_dir")
+            if local_cypress_dir:
+                args += ["--local-cypress-dir", local_cypress_dir]
 
             cmd = self.yt_local_path + list(args)
             self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
