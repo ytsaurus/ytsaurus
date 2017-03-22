@@ -58,6 +58,7 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
     }
 
 private:
