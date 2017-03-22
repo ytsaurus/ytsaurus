@@ -4325,6 +4325,12 @@ void TOperationControllerBase::InitQuerySpec(
     const Stroka& queryString,
     const TNullable<TTableSchema>& schema)
 {
+    for (const auto& table : InputTables) {
+        if (table.Path.GetColumns()) {
+            THROW_ERROR_EXCEPTION("Column filter and QL filter cannot appear in the same operation");
+        }
+    }
+
     auto externalCGInfo = New<TExternalCGInfo>();
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     auto fetchFunctions = [&] (const std::vector<Stroka>& names, const TTypeInferrerMapPtr& typeInferrers) {
@@ -4753,8 +4759,14 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
     }
 
     auto validateColumnFilter = [] (const TInputTable& table, const TKeyColumns& keyColumns) {
+        auto columns = table.Path.GetColumns();
+        if (!columns) {
+            return;
+        }
+
+        auto columnSet = yhash_set<Stroka>(columns->begin(), columns->end());
         for (const auto& keyColumn : keyColumns) {
-            if (!table.Path.GetChannel().Contains(keyColumn)) {
+            if (columnSet.find(keyColumn) == columnSet.end()) {
                 THROW_ERROR_EXCEPTION("Column filter for input table %v doesn't include key column %Qv",
                     table.Path.GetPath(),
                     keyColumn);

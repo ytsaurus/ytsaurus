@@ -6,9 +6,6 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/chunk_client/schema.h>
-#include <yt/ytlib/chunk_client/schema.pb.h>
-
 #include <yt/ytlib/job_proxy/user_job_io_factory.h>
 
 #include <yt/ytlib/table_client/blob_table_writer.h>

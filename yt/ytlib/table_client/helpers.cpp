@@ -34,9 +34,7 @@ using namespace NYTree;
 using namespace NCypressClient;
 using namespace NChunkClient;
 
-using NChunkClient::TChannel;
 using NYPath::TRichYPath;
-
 
 //////////////////////////////////////////////////////////////////////////////////
 

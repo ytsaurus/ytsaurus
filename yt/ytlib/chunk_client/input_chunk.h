@@ -80,8 +80,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TInputChunkBoundaryKeys, BoundaryKeys);
 
     // These fields are not used directly by scheduler.
-    typedef std::unique_ptr<NChunkClient::NProto::TChannel> TInputChunkChannel;
-    DEFINE_BYREF_RO_PROPERTY(TInputChunkChannel, Channel);
     typedef std::unique_ptr<NTableClient::NProto::TPartitionsExt> TInputChunkPartitionsExt;
     DEFINE_BYREF_RO_PROPERTY(TInputChunkPartitionsExt, PartitionsExt);
 

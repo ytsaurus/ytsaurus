@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <yt/ytlib/chunk_client/config.h>
-#include <yt/ytlib/chunk_client/schema.h>
 
 namespace NYT {
 namespace NTableClient {

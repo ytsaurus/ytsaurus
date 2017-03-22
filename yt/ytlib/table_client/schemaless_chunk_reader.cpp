@@ -59,7 +59,6 @@ using namespace NApi;
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
-using NChunkClient::TChannel;
 using NChunkClient::NProto::TMiscExt;
 
 using NYT::FromProto;
