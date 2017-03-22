@@ -76,9 +76,9 @@ class TDouble():
 class TString():
     def random(self):
         def generate_string():
-            length = random.randint(1,1000)
-            return ''.join((chr(x) for x in (random.randint(0x41, 0x58) for i in xrange(length))))
-            #return ''.join((chr(x) for x in (random.randint(0x21, 0x7d) for i in xrange(length))))
+            length = random.randint(1,100)
+            s = ''.join((chr(x) for x in (random.randint(0x41, 0x58) for i in xrange(length))))
+            return "start_{0}_end".format(s)
         return yson.YsonString(generate_string())
     def str(self):
         return "string"
