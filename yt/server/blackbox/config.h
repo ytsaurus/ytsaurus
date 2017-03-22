@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/core/misc/config.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -8,7 +10,7 @@ namespace NBlackbox {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDefaultBlackboxServiceConfig
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     TDefaultBlackboxServiceConfig()
@@ -41,7 +43,7 @@ DEFINE_REFCOUNTED_TYPE(TDefaultBlackboxServiceConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTokenAuthenticatorConfig
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     TTokenAuthenticatorConfig()
@@ -69,7 +71,7 @@ DEFINE_REFCOUNTED_TYPE(TCachingTokenAuthenticatorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCookieAuthenticatorConfig
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     TCookieAuthenticatorConfig()
