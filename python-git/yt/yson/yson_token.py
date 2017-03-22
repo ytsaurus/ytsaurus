@@ -78,9 +78,17 @@ def token_type_to_string(token):
         TOKEN_LEFT_PARENTHESIS: "Left-parenthesis",
         TOKEN_RIGHT_PARENTHESIS: "Right-parenthesis",
         TOKEN_COLON: "Colon",
-        TOKEN_COMMA: "Comma"
+        TOKEN_COMMA: "Comma",
+        TOKEN_STRING: "String",
+        TOKEN_INT64: "Int64",
+        TOKEN_UINT64: "Uint64",
+        TOKEN_DOUBLE: "Double",
+        TOKEN_BOOLEAN: "Boolean",
+        TOKEN_SPECIAL: "Special",
     }
-    return names.get(token)
+    if token is None:
+        return "Unknown"
+    return names[token]
 
 class YsonToken(object):
     def __init__(self, value="", type=TOKEN_END_OF_STREAM):

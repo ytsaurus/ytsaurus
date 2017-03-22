@@ -88,6 +88,9 @@ class YsonLexer(object):
         elif ch == b"%":
             return YsonToken(value=self._parse_boolean(), type=TOKEN_BOOLEAN)
 
+        elif ch == b"#":
+            return YsonToken(value=self._parse_entity(), type=TOKEN_HASH)
+
         elif ch == b"+" or ch == b"-" or ch.isdigit():
             value = self._parse_numeric()
             token_type = None
