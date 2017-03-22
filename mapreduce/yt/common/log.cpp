@@ -1,13 +1,37 @@
 #include "log.h"
 
 #include <util/datetime/base.h>
+
+#include <util/stream/file.h>
+#include <util/stream/format.h>
+#include <util/stream/printf.h>
+#include <util/stream/str.h>
+
 #include <util/system/mutex.h>
 #include <util/system/thread.h>
-#include <util/stream/str.h>
-#include <util/stream/printf.h>
-#include <util/stream/file.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+static TStringBuf StripFileName(TStringBuf path) {
+    TStringBuf l, r;
+    if (path.TryRSplit('/', l, r) || path.TryRSplit('\\', l, r)) {
+        return r;
+    } else {
+        return path;
+    }
+}
+
+static char GetLogLevelCode(ILogger::ELevel level) {
+    switch (level) {
+        case ILogger::FATAL: return 'F';
+        case ILogger::ERROR: return 'E';
+        case ILogger::INFO: return 'I';
+        case ILogger::DEBUG: return 'D';
+    }
+    Y_UNREACHABLE();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,9 +39,11 @@ class TNullLogger
     : public ILogger
 {
 public:
-    void Log(ELevel level, const char* format, va_list args) override
+    void Log(ELevel level, const char* file, int line, const char* format, va_list args) override
     {
         Y_UNUSED(level);
+        Y_UNUSED(file);
+        Y_UNUSED(line);
         Y_UNUSED(format);
         Y_UNUSED(args);
     }
@@ -35,17 +61,18 @@ public:
 
     virtual void OutputLine(const Stroka& line) = 0;
 
-    void Log(ELevel level, const char* format, va_list args) override
+    void Log(ELevel level, const char* file, int line, const char* format, va_list args) override
     {
         if (level > CutLevel_) {
             return;
         }
 
         TStringStream stream;
-        stream << TInstant::Now().ToStringLocal() << " "
-               << "[" << TThread::CurrentThreadId() << "] ";
+        stream << TInstant::Now().ToStringLocal()
+            << " " << GetLogLevelCode(level)
+            << " [" << Hex(TThread::CurrentThreadId(), HF_FULL) << "] ";
         Printf(stream, format, args);
-        stream << Endl;
+        stream << " - " << StripFileName(file) << ':' << line << Endl;
 
         TGuard<TMutex> guard(Mutex_);
         OutputLine(stream.Str());

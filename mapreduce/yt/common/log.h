@@ -20,7 +20,7 @@ public:
         DEBUG
     };
 
-    virtual void Log(ELevel level, const char* format, va_list args) = 0;
+    virtual void Log(ELevel level, const char* file, int line, const char* format, va_list args) = 0;
 };
 
 using ILoggerPtr = TIntrusivePtr<ILogger>;
@@ -33,18 +33,18 @@ ILoggerPtr CreateFileLogger(ILogger::ELevel cutLevel, const Stroka& path, bool a
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline void LogMessage(ILogger::ELevel level, const char* format, ...)
+inline void LogMessage(ILogger::ELevel level, const char* file, int line, const char* format, ...)
 {
     va_list args;
     va_start(args, format);
-    GetLogger()->Log(level, format, args);
+    GetLogger()->Log(level, file, line, format, args);
     va_end(args);
 }
 
-#define LOG_DEBUG(...) { NYT::LogMessage(NYT::ILogger::DEBUG, __VA_ARGS__); }
-#define LOG_INFO(...)  { NYT::LogMessage(NYT::ILogger::INFO, __VA_ARGS__); }
-#define LOG_ERROR(...) { NYT::LogMessage(NYT::ILogger::ERROR, __VA_ARGS__); }
-#define LOG_FATAL(...) { NYT::LogMessage(NYT::ILogger::FATAL, __VA_ARGS__); exit(1); }
+#define LOG_DEBUG(...) { NYT::LogMessage(NYT::ILogger::DEBUG, __FILE__, __LINE__, __VA_ARGS__); }
+#define LOG_INFO(...)  { NYT::LogMessage(NYT::ILogger::INFO, __FILE__, __LINE__, __VA_ARGS__); }
+#define LOG_ERROR(...) { NYT::LogMessage(NYT::ILogger::ERROR, __FILE__, __LINE__, __VA_ARGS__); }
+#define LOG_FATAL(...) { NYT::LogMessage(NYT::ILogger::FATAL, __FILE__, __LINE__, __VA_ARGS__); exit(1); }
 
 ////////////////////////////////////////////////////////////////////////////////
 
