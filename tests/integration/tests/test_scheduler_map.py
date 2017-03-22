@@ -2247,9 +2247,10 @@ print row + table_index
                 out="//tmp/t_out",
                 command="cat")
 
-    def test_dynamic_table_input_data_statistics(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_dynamic_table_input_data_statistics(self, optimize_for):
         self.sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t")
+        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for)
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(2)]
