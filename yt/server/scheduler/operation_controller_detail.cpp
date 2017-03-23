@@ -227,28 +227,13 @@ void TOperationControllerBase::TTaskGroup::Persist(const TPersistenceContext& co
             TUnsortedTag
         >
     >(context, CandidateTasks);
-    // COMPAT(babenko)
-    if (context.IsLoad() && context.GetVersion() < 200009) {
-        std::multimap<TInstant, TTaskPtr> delayedTasks;
-        Persist<
-            TMultiMapSerializer<
-                TDefaultSerializer,
-                TDefaultSerializer,
-                TUnsortedTag
-            >
-        >(context, delayedTasks);
-        for (const auto& pair : delayedTasks) {
-            DelayedTasks.emplace(NProfiling::InstantToCpuInstant(pair.first), pair.second);
-        }
-    } else {
-        Persist<
-            TMultiMapSerializer<
-                TDefaultSerializer,
-                TDefaultSerializer,
-                TUnsortedTag
-            >
-        >(context, DelayedTasks);
-    }
+    Persist<
+        TMultiMapSerializer<
+            TDefaultSerializer,
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, DelayedTasks);
     Persist<
         TMapSerializer<
             TDefaultSerializer,
@@ -618,11 +603,6 @@ void TOperationControllerBase::TTask::Persist(const TPersistenceContext& context
 
     Persist(context, CachedTotalNeededResources);
     Persist(context, CachedMinNeededResources);
-
-    // COMPAT(babenko)
-    if (context.IsLoad() && context.GetVersion() < 200009) {
-        Load<TInstant>(context.LoadContext());
-    }
 
     Persist(context, CompletedFired);
 
@@ -5634,18 +5614,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, ChunkOriginMap);
 
     Persist(context, JobletMap);
-
-    // COMPAT(psushin),
-    if (context.IsLoad() && context.GetVersion() == 200006) {
-        // NB: Scheduler snapshots need not be stable.
-        yhash_set<TInputChunkPtr> dummy;
-        Persist<
-            TSetSerializer<
-                TDefaultSerializer,
-                TUnsortedTag
-            >
-        >(context, dummy);
-    }
 
     Persist(context, JobIndexGenerator);
 
