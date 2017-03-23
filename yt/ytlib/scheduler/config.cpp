@@ -509,6 +509,8 @@ TSortOperationSpecBase::TSortOperationSpecBase()
     RegisterValidator([&] () {
         NTableClient::ValidateKeyColumns(SortBy);
     });
+
+
 }
 
 void TSortOperationSpecBase::OnLoaded()
@@ -557,6 +559,8 @@ TSortOperationSpec::TSortOperationSpec()
         PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
 
         SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
+        SortJobIO->TableReader->RetryCount = 3;
+        MergeJobIO->TableReader->RetryCount = 3;
 
         MapSelectivityFactor = 1.0;
     });
@@ -622,6 +626,9 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
         PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GBs
 
         SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
+
+        SortJobIO->TableReader->RetryCount = 3;
+        MergeJobIO->TableReader->RetryCount = 3;
     });
 
     RegisterValidator([&] () {
