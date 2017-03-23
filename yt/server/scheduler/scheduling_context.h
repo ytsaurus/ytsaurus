@@ -7,6 +7,8 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/core/profiling/public.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -39,7 +41,7 @@ struct ISchedulingContext
 
     virtual void PreemptJob(TJobPtr job) = 0;
 
-    virtual TInstant GetNow() const = 0;
+    virtual NProfiling::TCpuInstant GetNow() const = 0;
 
     //! Called by a controller to generate id for new job.
     /*!
