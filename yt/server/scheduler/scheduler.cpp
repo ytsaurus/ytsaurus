@@ -1597,7 +1597,7 @@ private:
         {
             TWriterGuard guard(ExecNodeDescriptorsLock_);
 
-            CachedExecNodeDescriptors_ = result;
+            CachedExecNodeDescriptors_.swap(result);
         }
 
         // Remove outdated cached exec node descriptor lists.
@@ -1612,23 +1612,23 @@ private:
                     }
                 }
             }
-            {
-                TWriterGuard guard(ExecNodeDescriptorsLock_);
-                for (const auto& filter : toRemove) {
-                    auto it = CachedExecNodeDescriptorsByTags_.find(filter);
-                    if (it->second.LastAccessTime < deadline) {
-                        CachedExecNodeDescriptorsByTags_.erase(it);
+            if (!toRemove.empty()) {
+                {
+                    TWriterGuard guard(ExecNodeDescriptorsLock_);
+                    for (const auto& filter : toRemove) {
+                        auto it = CachedExecNodeDescriptorsByTags_.find(filter);
+                        if (it->second.LastAccessTime < deadline) {
+                            CachedExecNodeDescriptorsByTags_.erase(it);
+                        }
                     }
                 }
-            }
-
-
-            {
-                for (const auto& filter : toRemove) {
-                    for (auto& nodeShard : NodeShards_) {
-                        BIND(&TNodeShard::RemoveOutdatedSchedulingTagFilter, nodeShard, filter)
-                            .AsyncVia(nodeShard->GetInvoker())
-                            .Run();
+                {
+                    for (const auto& filter : toRemove) {
+                        for (auto& nodeShard : NodeShards_) {
+                            BIND(&TNodeShard::RemoveOutdatedSchedulingTagFilter, nodeShard, filter)
+                                .AsyncVia(nodeShard->GetInvoker())
+                                .Run();
+                        }
                     }
                 }
             }
