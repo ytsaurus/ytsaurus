@@ -636,6 +636,70 @@ def verify_map_reduce(schema, data_table, table, dump_table, result_table, reduc
     wait_interruptable_op(op)
     verify_output(schema, data_table, dump_table, result_table)
 
+class VerifierEqualReducer(SchemafulMapper):
+    def __init__(self, columns):
+        self.columns = columns
+    def __call__(self, key, records):
+        rows = [[], []]
+        for r in records:
+            rows[r["@table_index"]].append(r)
+        if len(rows[0]) != len(rows[1]):
+            yield{"row": rows[0][0], "expected": len(rows[0]), "actual": len(rows[1])}
+        else:
+            rows = [sorted(r) for r in rows]
+            for i in xrange(len(rows[0])):
+                if not equal(self.columns, rows[0][i], rows[1][i]):
+                    yield {"expected": rows[0][i], "actual": rows[1][i]}
+
+def verify_equal(columns, expected_table, actual_table, result_table):
+    print "Verify output"
+
+    yt.run_sort(expected_table, sort_by=columns)
+    yt.run_sort(actual_table, sort_by=columns)
+    yt.set_attribute(result_table, "stack", traceback.format_stack())
+    yt.run_reduce(
+        VerifierEqualReducer(columns),
+        [expected_table, actual_table],
+        result_table,
+        reduce_by=columns,
+        format=yt.YsonFormat(control_attributes_mode="row_fields", boolean_as_string=False))
+
+    rows = yt.read_table(result_table, raw=False)
+    if next(rows, None) != None:
+        raise Exception("Verification failed")
+    yt.remove(expected_table)
+    yt.remove(actual_table)
+    print "Everything OK"
+
+def verify_extract(schema, data_table, table, dump_table, result_table):
+    #FXIME(savrus): remove when ypath supports Null
+    def good_key(key):
+        for k in key:
+            if k == None: return False
+        return True
+    keys = yt.get_attribute(table, "pivot_keys")
+    keys = [key for key in keys if good_key(key)]
+    keys = random.sample(keys, 1)
+    while len(keys) < 2:
+        key = schema.generate_pivot_key()
+        if good_key(key):
+            keys.append(key)
+    keys = sorted(keys)
+    skeys = [",".join([yson.dumps(k) for k in key]) for key in keys]
+
+    columns = [c.name for c in schema.columns if c.type.str() != "any" and random.random() > 0.5]
+    scols = ",".join(columns)
+
+    selector="{{{0}}}[({1}):({2})]".format(scols, skeys[0], skeys[1])
+    print "Run unordered merge with selector {0}".format(selector)
+
+    dump_table_dynamic = dump_table + ".dynamic"
+    dump_table_static = dump_table + ".static"
+
+    yt.run_merge(table + selector, dump_table_dynamic, mode="unordered")
+    yt.run_merge(data_table + selector, dump_table_static, mode="unordered")
+    verify_equal(columns, dump_table_static, dump_table_dynamic, result_table)
+
 def verify_mapreduce(schema, data_table, table, dump_table, result_table):
     key_columns = schema.get_key_column_names()
 
@@ -653,6 +717,8 @@ def verify_mapreduce(schema, data_table, table, dump_table, result_table):
         verify_sort(schema, data_table, table, dump_table, result_table, key_columns[:-1])
         verify_reduce(schema, data_table, table, dump_table, result_table, key_columns[:-1])
         verify_map_reduce(schema, data_table, table, dump_table, result_table, key_columns[:-1])
+
+    verify_extract(schema, data_table, table, dump_table, result_table)
 
 def remove_existing(paths, force):
     for path in paths:
