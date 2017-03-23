@@ -34,11 +34,15 @@ struct TConfig
     TDuration TxTimeout;
     TDuration PingTimeout;
     TDuration PingInterval;
+
     TDuration RetryInterval;
+    TDuration ChunkErrorsRetryInterval;
+
     TDuration RateLimitExceededRetryInterval;
     TDuration StartOperationRetryInterval;
 
     int RetryCount;
+    int ReadRetryCount;
     int StartOperationRetryCount;
 
     Stroka RemoteTempFilesDirectory;
@@ -69,6 +73,9 @@ struct TConfig
 
     bool DisableClientSubTransactions;
     bool CreateTablesUnderTransaction;
+
+    // Testing option, should never be used in user programs.
+    bool UseAbortableResponse;
 
     static bool GetBool(const char* var, bool defaultValue = false);
     static int GetInt(const char* var, int defaultValue);

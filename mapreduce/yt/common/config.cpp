@@ -151,6 +151,9 @@ void TConfig::LoadTimings()
     RetryInterval = GetDuration("YT_RETRY_INTERVAL",
         TDuration::Seconds(3));
 
+    ChunkErrorsRetryInterval = GetDuration("YT_CHUNK_ERRORS_RETRY_INTERVAL",
+        TDuration::Seconds(60));
+
     RateLimitExceededRetryInterval = GetDuration("YT_RATE_LIMIT_EXCEEDED_RETRY_INTERVAL",
         TDuration::Seconds(60));
 
@@ -186,6 +189,7 @@ TConfig::TConfig()
     LoadTimings();
 
     RetryCount = GetInt("YT_RETRY_COUNT", 10);
+    ReadRetryCount = GetInt("YT_READ_RETRY_COUNT", 30);
     StartOperationRetryCount = GetInt("YT_START_OPERATION_RETRY_COUNT", 30);
 
     RemoteTempFilesDirectory = GetEnv("YT_FILE_STORAGE",
@@ -207,6 +211,8 @@ TConfig::TConfig()
 
     DisableClientSubTransactions = GetBool("YT_DISABLE_CLIENT_SUB_TRANSACTIONS"); // common
     CreateTablesUnderTransaction = GetBool("YT_CREATE_TABLES_UNDER_TRANSACTION", true); // common
+
+    UseAbortableResponse = false;
 }
 
 TConfig* TConfig::Get()

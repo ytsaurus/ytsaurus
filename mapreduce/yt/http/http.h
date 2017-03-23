@@ -152,10 +152,11 @@ public:
     void CheckErrorResponse() const;
     bool IsExhausted() const;
 
-private:
+protected:
     size_t DoRead(void* buf, size_t len) override;
     size_t DoSkip(size_t len) override;
 
+private:
     void CheckTrailers(const THttpHeaders& trailers);
     TMaybe<TErrorResponse> ParseError(const THttpHeaders& headers);
 
@@ -190,6 +191,7 @@ public:
 private:
     Stroka HostName;
     Stroka RequestId;
+    Stroka Url_;
 
     TConnectionPtr Connection;
 

@@ -8,6 +8,7 @@ OWNER(
 SRCS(
     sample.proto
     cypress.cpp
+    file_io.cpp
     format_attribute.cpp
     io.cpp
     operations.cpp

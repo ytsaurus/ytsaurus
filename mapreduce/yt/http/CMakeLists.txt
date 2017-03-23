@@ -6,6 +6,7 @@ OWNER(
 )
 
 SRCS(
+    abortable_http_response.cpp
     error.cpp
     http.cpp
     requests.cpp
