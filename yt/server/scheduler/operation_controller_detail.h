@@ -1126,7 +1126,7 @@ private:
     //! But descriptors do.
     int ExecNodeCount_ = 0;
     std::vector<TExecNodeDescriptor> ExecNodesDescriptors_;
-    TInstant LastGetExecNodesInformationTime_;
+    NProfiling::TCpuInstant LastGetExecNodesInformationTime_ = 0;
 
     NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;
 
