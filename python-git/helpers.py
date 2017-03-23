@@ -9,7 +9,8 @@ except ImportError:
 def get_version():
     if os.path.exists("VERSION"):
         return open("VERSION").read().strip()
-    version = subprocess.check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True)
+    proc = subprocess.Popen("dpkg-parsechangelog | grep Version | awk '{print $2}'", stdout=subprocess.PIPE, shell=True)
+    version, _ = proc.communicate()
     if sys.version_info[0] >= 3:
         version = version.decode("ascii")
     return version.strip()
