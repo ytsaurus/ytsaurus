@@ -1414,19 +1414,20 @@ TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
 }
 
 bool TOperationElementSharedState::IsBlocked(
-    TInstant now,
+    NProfiling::TCpuInstant now,
     int maxConcurrentScheduleJobCalls,
-    TDuration scheduleJobFailBackoffTime) const
+    NProfiling::TCpuDuration scheduleJobFailBackoffTime) const
 {
-    return ConcurrentScheduleJobCalls_ >= maxConcurrentScheduleJobCalls ||
+    return
+        ConcurrentScheduleJobCalls_ >= maxConcurrentScheduleJobCalls ||
         LastScheduleJobFailTime_ + scheduleJobFailBackoffTime > now;
 }
 
 
 bool TOperationElementSharedState::TryStartScheduleJob(
-    TInstant now,
+    NProfiling::TCpuInstant now,
     int maxConcurrentScheduleJobCalls,
-    TDuration scheduleJobFailBackoffTime)
+    NProfiling::TCpuDuration scheduleJobFailBackoffTime)
 {
     if (IsBlocked(now, maxConcurrentScheduleJobCalls, scheduleJobFailBackoffTime)) {
         return false;
@@ -1436,7 +1437,9 @@ bool TOperationElementSharedState::TryStartScheduleJob(
     return true;
 }
 
-void TOperationElementSharedState::FinishScheduleJob(bool enableBackoff, TInstant now)
+void TOperationElementSharedState::FinishScheduleJob(
+    bool enableBackoff,
+    NProfiling::TCpuInstant now)
 {
     --ConcurrentScheduleJobCalls_;
 
@@ -1613,7 +1616,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
     if (!SharedState_->TryStartScheduleJob(
         now,
         StrategyConfig_->MaxConcurrentControllerScheduleJobCalls,
-        StrategyConfig_->ControllerScheduleJobFailBackoffTime))
+        NProfiling::DurationToCpuDuration(StrategyConfig_->ControllerScheduleJobFailBackoffTime)))
     {
         disableOperationElement();
         return false;
@@ -1813,14 +1816,15 @@ TSchedulerElementPtr TOperationElement::Clone(TCompositeSchedulerElement* cloned
     return New<TOperationElement>(*this, clonedParent);
 }
 
-bool TOperationElement::IsBlocked(TInstant now) const
+bool TOperationElement::IsBlocked(NProfiling::TCpuInstant now) const
 {
-    return !Schedulable_ ||
+    return
+        !Schedulable_ ||
         GetPendingJobCount() == 0 ||
         SharedState_->IsBlocked(
             now,
             StrategyConfig_->MaxConcurrentControllerScheduleJobCalls,
-            StrategyConfig_->ControllerScheduleJobFailBackoffTime);
+            NProfiling::DurationToCpuDuration(StrategyConfig_->ControllerScheduleJobFailBackoffTime));
 }
 
 TJobResources TOperationElement::GetHierarchicalResourceLimits(const TFairShareContext& context) const
