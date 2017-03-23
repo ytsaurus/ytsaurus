@@ -116,11 +116,12 @@ public:
                     stripe->DataSlices.begin(),
                     stripe->DataSlices.end(),
                     [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
-                        auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
-                        auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
-
-                        if (lhsChunk != rhsChunk) {
-                            return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
+                        if (lhs->Type == EDataSourceType::UnversionedTable) {
+                            auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
+                            auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
+                            if (lhsChunk != rhsChunk) {
+                                return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
+                            }
                         }
 
                         if (lhs->LowerLimit().RowIndex &&
@@ -131,7 +132,7 @@ public:
                         }
 
                         auto cmpResult = CompareRows(lhs->LowerLimit().Key, rhs->LowerLimit().Key);
-                        if (cmpResult != 0 || lhs->Type == EDataSourceType::VersionedTable) {
+                        if (cmpResult != 0) {
                             return cmpResult < 0;
                         }
 
@@ -913,7 +914,6 @@ private:
                 CompareRows(chunk->BoundaryKeys()->MinKey, chunk->BoundaryKeys()->MaxKey, PrimaryPrefixLength_) == 0 &&
                 chunkSlice->GetDataSize() > JobSizeConstraints_->GetInputSliceDataSize())
             {
-                chunkSlice->UpperLimit().RowIndex = chunk->GetRowCount();
                 auto smallerSlices = chunkSlice->SliceEvenly(
                     JobSizeConstraints_->GetInputSliceDataSize(),
                     JobSizeConstraints_->GetInputSliceRowCount());
@@ -1183,6 +1183,7 @@ private:
         Jobs_.emplace_back(std::make_unique<TJobBuilder>());
 
         yhash_map<TInputDataSlicePtr, TKey> openedSlicesLowerLimits;
+        i64 openedSlicesTotalDataSize = 0;
 
         // An index of a closest teleport chunk to the right of current endpoint.
         int nextTeleportChunk = 0;
@@ -1201,6 +1202,7 @@ private:
                     true /* isPrimary */);
                 lowerLimit = upperKey;
                 if (lowerLimit >= dataSlice->UpperLimit().Key) {
+                    openedSlicesTotalDataSize -= dataSlice->GetDataSize();
                     openedSlicesLowerLimits.erase(iterator);
                 }
                 iterator = nextIterator;
@@ -1245,6 +1247,7 @@ private:
 
             if (Endpoints_[index].Type == EEndpointType::Left) {
                 openedSlicesLowerLimits[Endpoints_[index].DataSlice] = TKey();
+                openedSlicesTotalDataSize += Endpoints_[index].DataSlice->GetDataSize();
             } else if (Endpoints_[index].Type == EEndpointType::Right) {
                 const auto& dataSlice = Endpoints_[index].DataSlice;
                 auto it = openedSlicesLowerLimits.find(dataSlice);
@@ -1255,6 +1258,7 @@ private:
                     TagPrimaryDataSlice(exactDataSlice);
                     Jobs_.back()->AddDataSlice(exactDataSlice, PrimaryDataSliceToInputCookie_[dataSlice], true /* isPrimary */);
                     openedSlicesLowerLimits.erase(it);
+                    openedSlicesTotalDataSize -= dataSlice->GetDataSize();
                 }
             } else if (Endpoints_[index].Type == EEndpointType::ForeignRight) {
                 Jobs_.back()->AddPreliminaryForeignDataSlice(Endpoints_[index].DataSlice);
@@ -1275,7 +1279,7 @@ private:
 
             bool jobIsLargeEnough =
                 Jobs_.back()->GetPreliminarySliceCount() + openedSlicesLowerLimits.size() > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
-                Jobs_.back()->GetPreliminaryDataSize() > JobSizeConstraints_->GetDataSizePerJob();
+                Jobs_.back()->GetPreliminaryDataSize() + openedSlicesTotalDataSize > JobSizeConstraints_->GetDataSizePerJob();
 
             if (canEndHere && (shouldEndHere || jobIsLargeEnough)) {
                 endJob(key);
@@ -1285,7 +1289,7 @@ private:
         if (!Jobs_.empty() && Jobs_.back()->GetSliceCount() == 0) {
             Jobs_.pop_back();
         }
-
+        YCHECK(openedSlicesTotalDataSize == 0);
         LOG_INFO("Created %v jobs", Jobs_.size());
     }
 

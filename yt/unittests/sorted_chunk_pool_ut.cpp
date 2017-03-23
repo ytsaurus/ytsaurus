@@ -1653,7 +1653,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         {false} /* isVersioned */
     );
     Options_.PrimaryPrefixLength = 1;
-    DataSizePerJob_ = 1;
+    DataSizePerJob_ = 1 * KB;
     InitJobConstraints();
 
     const int chunkCount = 50;
@@ -1708,12 +1708,12 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         EXPECT_FALSE(ChunkPool_->IsCompleted());
 
         // 0..0 - pool is persisted and restored;
-        // 1..49 - chunk is suspended;
-        // 50..79 - chunk is resumed;
-        // 80..89 - chunk is extracted;
-        // 90..92 - chunk is completed;
-        // 93..96 - chunk is failed;
-        // 97..99 - chunk is aborted.
+        // 1..29 - chunk is suspended;
+        // 30..59 - chunk is resumed;
+        // 60..69 - chunk is extracted;
+        // 70..79 - chunk is completed;
+        // 80..89 - chunk is failed;
+        // 90..99 - chunk is aborted.
         int eventType = dice(Gen_);
         if (eventType <= 0) {
             Cdebug << "Persisting and restoring the pool" << Endl;
@@ -1729,7 +1729,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
             loadContext.SetRowBuffer(RowBuffer_);
             loadContext.SetInput(&input);
             Load(loadContext, ChunkPool_);
-        } else if (eventType <= 49) {
+        } else if (eventType <= 29) {
             if (auto randomElement = chooseRandomElement(resumedChunks)) {
                 const auto& chunkId = *randomElement;
                 Cdebug << Format("Suspending chunk %v", chunkId) << Endl;
@@ -1739,7 +1739,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 auto chunk = chunkIdToChunk.at(chunkId);
                 SuspendChunk(inputCookie, chunk);
             }
-        } else if (eventType <= 79) {
+        } else if (eventType <= 59) {
             if (auto randomElement = chooseRandomElement(suspendedChunks)) {
                 const auto& chunkId = *randomElement;
                 Cdebug << Format("Resuming chunk %v", chunkId) << Endl;
@@ -1749,7 +1749,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 auto chunk = chunkIdToChunk.at(chunkId);
                 ResumeChunk(inputCookie, chunk);
             }
-        } else if (eventType <= 89) {
+        } else if (eventType <= 69) {
             if (ChunkPool_->GetPendingJobCount()) {
                 auto outputCookie = ExtractCookie(TNodeId(0));
                 Cdebug << Format("Extracted cookie %v...", outputCookie);
@@ -1759,7 +1759,6 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 auto stripeList = ChunkPool_->GetStripeList(outputCookie);
                 ASSERT_TRUE(stripeList->Stripes[0]);
                 const auto& stripe = stripeList->Stripes[0];
-                ASSERT_TRUE(stripe->DataSlices.size() == 1);
                 const auto& dataSlice = stripe->DataSlices.front();
                 const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
                 const auto& chunkId = chunk->ChunkId();
@@ -1770,7 +1769,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 ASSERT_TRUE(startedChunks.insert(chunkId).second);
                 ASSERT_TRUE(chunkIdToOutputCookie.insert(std::make_pair(chunkId, outputCookie)).second);
             }
-        } else if (eventType <= 92) {
+        } else if (eventType <= 79) {
             if (auto randomElement = chooseRandomElement(startedChunks)) {
                 const auto& chunkId = *randomElement;
                 Cdebug << Format("Completed chunk %v", chunkId) << Endl;
@@ -1780,7 +1779,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 ASSERT_TRUE(completedChunks.insert(chunkId).second);
                 ChunkPool_->Completed(outputCookie, TCompletedJobSummary());
             }
-        } else if (eventType <= 96) {
+        } else if (eventType <= 89) {
             if (auto randomElement = chooseRandomElement(startedChunks)) {
                 const auto& chunkId = *randomElement;
                 Cdebug << Format("Aborted chunk %v", chunkId) << Endl;
