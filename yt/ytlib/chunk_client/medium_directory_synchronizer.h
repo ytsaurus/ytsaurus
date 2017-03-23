@@ -23,6 +23,8 @@ public:
 
     TFuture<void> Sync();
 
+    void Stop();
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
