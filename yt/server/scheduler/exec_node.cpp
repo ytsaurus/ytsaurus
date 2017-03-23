@@ -126,12 +126,6 @@ void TJobNodeDescriptor::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 
-    // COMPAT(babenko)
-    if (context.GetVersion() == 200003 && context.IsLoad()) {
-        *this = Load<TExecNodeDescriptor>(context.LoadContext());
-        return;
-    }
-
     Persist(context, Id);
     Persist(context, Address);
     Persist(context, IOWeight);
