@@ -45,6 +45,24 @@ Stroka FormIORequestParameters(
 }
 
 template <>
+inline Stroka FormIORequestParameters(
+    const TRichYPath& path,
+    const TFileReaderOptions& options)
+{
+    auto params = NodeFromYPath(path);
+    if (options.Config_) {
+        params[TIOOptionsTraits<TTableReaderOptions>::ConfigName] = *options.Config_;
+    }
+    if (options.Offset_) {
+        params["offset"] = *options.Offset_;
+    }
+    if (options.Length_) {
+        params["length"] = *options.Length_;
+    }
+    return NodeToYsonString(params);
+}
+
+template <>
 inline Stroka FormIORequestParameters<TTableWriterOptions>(
     const TRichYPath& path,
     const TTableWriterOptions& options)

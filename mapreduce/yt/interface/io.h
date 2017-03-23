@@ -97,7 +97,10 @@ struct TIOOptions
 
 struct TFileReaderOptions
     : public TIOOptions<TFileReaderOptions>
-{ };
+{
+    FLUENT_FIELD_OPTION(i64, Offset);
+    FLUENT_FIELD_OPTION(i64, Length);
+};
 
 struct TFileWriterOptions
     : public TIOOptions<TFileWriterOptions>

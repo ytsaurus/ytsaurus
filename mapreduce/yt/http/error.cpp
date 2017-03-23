@@ -217,6 +217,7 @@ void TErrorResponse::Setup()
         }
         if (code / 100 == 7) {
             // chunk client errors
+            RetryInterval_ = TConfig::Get()->ChunkErrorsRetryInterval;
             return;
         }
         Retriable_ = false;

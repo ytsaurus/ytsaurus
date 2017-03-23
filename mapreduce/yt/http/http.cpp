@@ -1,5 +1,6 @@
 #include "http.h"
 
+#include "abortable_http_response.h"
 #include "error.h"
 
 #include <mapreduce/yt/common/log.h>
@@ -631,9 +632,10 @@ void THttpRequest::Connect(TDuration socketTimeout)
 THttpOutput* THttpRequest::StartRequest(const THttpHeader& header)
 {
     auto strHeader = header.GetHeader(HostName, RequestId);
+    Url_ = header.GetUrl();
     LOG_DEBUG("REQ %s - %s",
         ~RequestId,
-        ~header.GetUrl());
+        ~Url_);
 
     auto parameters = header.GetParameters();
     if (!parameters.Empty()) {
@@ -664,7 +666,12 @@ void THttpRequest::FinishRequest()
 THttpResponse* THttpRequest::GetResponseStream()
 {
     SocketInput.Reset(new TSocketInput(*Connection->Socket.Get()));
-    Input.Reset(new THttpResponse(SocketInput.Get(), RequestId, HostName));
+    if (TConfig::Get()->UseAbortableResponse) {
+        Y_VERIFY(!Url_.empty());
+        Input.Reset(new TAbortableHttpResponse(SocketInput.Get(), RequestId, HostName, Url_));
+    } else {
+        Input.Reset(new THttpResponse(SocketInput.Get(), RequestId, HostName));
+    }
     Input->CheckErrorResponse();
     return Input.Get();
 }

@@ -8,6 +8,7 @@ class TInputStream;
 namespace NYT {
 
 class THttpRequest;
+class TPingableTransaction;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,16 +22,27 @@ public:
         const TTransactionId& transactionId,
         const TFileReaderOptions& options = TFileReaderOptions());
 
+    ~TFileReader();
+
 protected:
     size_t DoRead(void* buf, size_t len) override;
 
 private:
-    TRichYPath Path_;
-    TAuth Auth_;
-    TTransactionId TransactionId_;
+    void CreateRequest();
+    Stroka GetActiveRequestId() const;
+
+private:
+    const TRichYPath Path_;
+    const TAuth Auth_;
+    TFileReaderOptions FileReaderOptions_;
 
     THolder<THttpRequest> Request_;
-    TInputStream* Input_;
+    TInputStream* Input_ = nullptr;
+
+    THolder<TPingableTransaction> ReadTransaction_;
+
+    ui64 CurrentOffset_;
+    const TMaybe<ui64> EndOffset_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

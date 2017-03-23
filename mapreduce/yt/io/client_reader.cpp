@@ -95,7 +95,7 @@ void TClientReader::TransformYPath()
 
 void TClientReader::CreateRequest(bool keepRanges, ui32 rangeIndex, ui64 rowIndex)
 {
-    const int lastAttempt = TConfig::Get()->RetryCount - 1;
+    const int lastAttempt = TConfig::Get()->ReadRetryCount - 1;
 
     for (int attempt = 0; attempt <= lastAttempt; ++attempt) {
         Stroka requestId;
