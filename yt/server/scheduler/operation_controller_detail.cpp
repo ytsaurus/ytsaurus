@@ -75,6 +75,7 @@ using namespace NApi;
 using namespace NRpc;
 using namespace NTableClient;
 using namespace NQueryClient;
+using namespace NProfiling;
 
 using NNodeTrackerClient::TNodeId;
 using NTableClient::NProto::TBoundaryKeysExt;
@@ -1462,7 +1463,7 @@ void TOperationControllerBase::Revive()
     ReinstallLivePreview();
 
     // To prevent operation failure on startup if available nodes are missing.
-    AvaialableNodesLastSeenTime_ = NProfiling::GetCpuInstant();
+    AvaialableNodesLastSeenTime_ = GetCpuInstant();
 
     CheckTimeLimitExecutor->Start();
     ProgressBuildExecutor_->Start();
@@ -2517,14 +2518,14 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
 
     if (GetExecNodeDescriptors().empty()) {
-        auto timeout = NProfiling::DurationToCpuDuration(Spec->AvailableNodesMissingTimeout);
-        if (AvaialableNodesLastSeenTime_ + timeout < NProfiling::GetCpuInstant()) {
+        auto timeout = DurationToCpuDuration(Spec->AvailableNodesMissingTimeout);
+        if (AvaialableNodesLastSeenTime_ + timeout < GetCpuInstant()) {
             OnOperationFailed(TError("No online nodes match operation scheduling tag filter")
                 << TErrorAttribute("operation_id", OperationId)
                 << TErrorAttribute("scheduling_tag_filter", Spec->SchedulingTagFilter));
         }
     } else {
-        AvaialableNodesLastSeenTime_ = NProfiling::GetCpuInstant();
+        AvaialableNodesLastSeenTime_ = GetCpuInstant();
     }
 }
 
@@ -2543,7 +2544,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     // SafeScheduleJob must be synchronous; context switches are prohibited.
     TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
 
-    NProfiling::TScopedTimer timer;
+    TScopedTimer timer;
     auto scheduleJobResult = New<TScheduleJobResult>();
     DoScheduleJob(context.Get(), jobLimits, scheduleJobResult.Get());
     if (scheduleJobResult->JobStartRequest) {
@@ -5382,8 +5383,9 @@ void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const
 
 void TOperationControllerBase::GetExecNodesInformation()
 {
-    auto now = TInstant::Now();
-    if (LastGetExecNodesInformationTime_ + Config->ControllerUpdateExecNodesInformationDelay > now) {
+    auto now = GetCpuInstant();
+    auto delay = DurationToCpuDuration(Config->ControllerUpdateExecNodesInformationDelay);
+    if (LastGetExecNodesInformationTime_ + delay > now) {
         return;
     }
 
@@ -5391,7 +5393,7 @@ void TOperationControllerBase::GetExecNodesInformation()
 
     ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(TSchedulingTagFilter(Spec->SchedulingTagFilter));
 
-    LastGetExecNodesInformationTime_ = TInstant::Now();
+    LastGetExecNodesInformationTime_ = GetCpuInstant();
 }
 
 int TOperationControllerBase::GetExecNodeCount()
