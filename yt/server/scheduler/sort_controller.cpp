@@ -104,6 +104,7 @@ public:
         Persist(context, Partitions);
 
         Persist(context, PartitionJobSpecTemplate);
+
         Persist(context, IntermediateSortJobSpecTemplate);
         Persist(context, FinalSortJobSpecTemplate);
         Persist(context, SortedMergeJobSpecTemplate);
@@ -124,6 +125,16 @@ public:
         Persist(context, MergeTaskGroup);
 
         Persist(context, PartitionTask);
+
+        // COMPAT(psushin).
+        auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+        if (context.IsLoad() &&
+            GetSortedMergeJobType() == EJobType::SortedMerge &&
+            !partitionJobSpecExt->has_wire_partition_keys())
+        {
+            // To properly load from old snapshots.
+            InitTemplatePartitionKeys(partitionJobSpecExt);
+        }
     }
 
 private:
@@ -1572,6 +1583,23 @@ protected:
         return static_cast<double>(TotalEstimatedCompressedDataSize) / TotalEstimatedInputDataSize;
     }
 
+    void InitTemplatePartitionKeys(TPartitionJobSpecExt* partitionJobSpecExt)
+    {
+        auto keySetWriter = New<TKeySetWriter>();
+        for (const auto& partition : Partitions) {
+            auto key = partition->Key;
+            if (key && key != MinKey()) {
+                keySetWriter->WriteKey(key);
+            }
+        }
+        auto data = keySetWriter->Finish();
+        partitionJobSpecExt->set_wire_partition_keys(ToString(data));
+
+        // COMPAT(psushin).
+        // NB: This dummy key guards us from old nodes and silent sort corruptions.
+        partitionJobSpecExt->add_partition_keys("not_a_key");
+    }
+
     i64 GetMaxPartitionJobBufferSize() const
     {
         return Spec->PartitionJobIO->TableWriter->MaxBufferSize;
@@ -2185,19 +2213,7 @@ private:
             partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), Spec->SortBy);
 
-            auto keySetWriter = New<TKeySetWriter>();
-            for (const auto& partition : Partitions) {
-                auto key = partition->Key;
-                if (key && key != MinKey()) {
-                    keySetWriter->WriteKey(key);
-                }
-            }
-            auto data = keySetWriter->Finish();
-            partitionJobSpecExt->set_wire_partition_keys(ToString(data));
-
-            // COMPAT(psushin).
-            // NB: This dummy key guards us from old nodes and silent sort corruptions.
-            partitionJobSpecExt->add_partition_keys("not_a_key");
+            InitTemplatePartitionKeys(partitionJobSpecExt);
         }
 
         auto intermediateReaderOptions = New<TTableReaderOptions>();
