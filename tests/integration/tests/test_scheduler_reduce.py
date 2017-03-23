@@ -1038,16 +1038,6 @@ echo {v = 2} >&7
         with pytest.raises(YtError):
             op.track();
 
-        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
-        job_ids = ls(jobs_path)
-        assert len(job_ids) == 1
-        actual = get("{0}/{1}/@input_paths".format(jobs_path, job_ids[0]))
-        expected = yson.loads('''[
-            <ranges=[{lower_limit={key=["00001"]};upper_limit={key=["00004";<type="max";>#]}}];"foreign"=%true>"//tmp/in1";
-            <ranges=[{lower_limit={key=["00001"]};upper_limit={key=["00004"]}}]>"//tmp/in2";
-        ]''')
-        assert expected == actual
-
     @unix_only
     def test_computed_columns(self):
         create("table", "//tmp/t1")

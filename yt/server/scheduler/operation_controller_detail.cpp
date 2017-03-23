@@ -527,7 +527,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
     SchedulerProfiler.Increment(ScheduledSliceCounter, joblet->InputStripeList->TotalChunkCount);
 
     LOG_DEBUG(
-        "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, SliceCount: %v (%v local), "
+        "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
         "Approximate: %v, DataSize: %v (%v local), RowCount: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
         "UserJobMemoryReserveFactor: %v, ResourceLimits: %v)",
         joblet->JobId,
@@ -535,6 +535,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
         jobType,
         address,
         jobIndex,
+        joblet->OutputCookie,
         joblet->InputStripeList->TotalChunkCount,
         joblet->InputStripeList->LocalChunkCount,
         joblet->InputStripeList->IsApproximate,
