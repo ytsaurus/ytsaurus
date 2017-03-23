@@ -814,7 +814,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command=command,
-            spec={"max_failed_job_count": 1, "job_count": 110})
+            spec={"max_failed_job_count": 1, "max_stderr_count": 100, "job_count": 110})
 
         with pytest.raises(YtError):
             op.resume_jobs()
