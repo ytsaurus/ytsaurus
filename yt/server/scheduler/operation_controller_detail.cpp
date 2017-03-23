@@ -5635,7 +5635,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, JobletMap);
 
     // COMPAT(psushin),
-    if (context.IsLoad() && context.GetVersion() == 200007) {
+    if (context.IsLoad() && context.GetVersion() == 200006) {
         // NB: Scheduler snapshots need not be stable.
         yhash_set<TInputChunkPtr> dummy;
         Persist<
