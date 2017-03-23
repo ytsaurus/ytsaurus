@@ -420,7 +420,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_WARNING(alert, "Setting %v alert", alertType);
+        if (!alert.IsOK()) {
+            LOG_WARNING(alert, "Setting scheduler alert (AlertType: %lv)", alertType);
+        }
 
         GetMasterConnector()->SetSchedulerAlert(alertType, alert);
     }
