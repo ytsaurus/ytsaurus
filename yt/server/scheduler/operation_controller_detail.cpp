@@ -236,13 +236,28 @@ void TOperationControllerBase::TTaskGroup::Persist(const TPersistenceContext& co
             TUnsortedTag
         >
     >(context, CandidateTasks);
-    Persist<
-        TMultiMapSerializer<
-            TDefaultSerializer,
-            TDefaultSerializer,
-            TUnsortedTag
-        >
-    >(context, DelayedTasks);
+    // COMPAT(babenko)
+    if (context.IsLoad() && context.GetVersion() < 200008) {
+        std::multimap<TInstant, TTaskPtr> delayedTasks;
+        Persist<
+            TMultiMapSerializer<
+                TDefaultSerializer,
+                TDefaultSerializer,
+                TUnsortedTag
+            >
+        >(context, delayedTasks);
+        for (const auto& pair : delayedTasks) {
+            DelayedTasks.emplace(NProfiling::InstantToCpuInstant(pair.first), pair.second);
+        }
+    } else {
+        Persist<
+            TMultiMapSerializer<
+                TDefaultSerializer,
+                TDefaultSerializer,
+                TUnsortedTag
+            >
+        >(context, DelayedTasks);
+    }
     Persist<
         TMapSerializer<
             TDefaultSerializer,
@@ -280,7 +295,7 @@ void TOperationControllerBase::TInputChunkDescriptor::Persist(const TPersistence
 TOperationControllerBase::TTask::TTask()
     : CachedPendingJobCount(-1)
     , CachedTotalJobCount(-1)
-    , LastDemandSanityCheckTime(TInstant::Zero())
+    , DemandSanityCheckDeadline(0)
     , CompletedFired(false)
     , Logger(OperationLogger)
 { }
@@ -289,7 +304,7 @@ TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     : Controller(controller)
     , CachedPendingJobCount(0)
     , CachedTotalJobCount(0)
-    , LastDemandSanityCheckTime(TInstant::Zero())
+    , DemandSanityCheckDeadline(0)
     , CompletedFired(false)
     , Logger(OperationLogger)
 { }
@@ -611,7 +626,10 @@ void TOperationControllerBase::TTask::Persist(const TPersistenceContext& context
     Persist(context, CachedTotalNeededResources);
     Persist(context, CachedMinNeededResources);
 
-    Persist(context, LastDemandSanityCheckTime);
+    // COMPAT(babenko)
+    if (context.IsLoad() && context.GetVersion() < 200008) {
+        Load<TInstant>(context.LoadContext());
+    }
 
     Persist(context, CompletedFired);
 
@@ -757,11 +775,11 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
 {
     // Run sanity check to see if any node can provide enough resources.
     // Don't run these checks too often to avoid jeopardizing performance.
-    auto now = TInstant::Now();
-    if (now < LastDemandSanityCheckTime + Controller->Config->ResourceDemandSanityCheckPeriod) {
+    auto now = NProfiling::GetCpuInstant();
+    if (now < DemandSanityCheckDeadline) {
         return;
     }
-    LastDemandSanityCheckTime = now;
+    DemandSanityCheckDeadline = now + NProfiling::DurationToCpuDuration(Controller->Config->ResourceDemandSanityCheckPeriod);
 
     // Schedule check in controller thread.
     Controller->GetCancelableInvoker()->Invoke(BIND(
@@ -2553,12 +2571,14 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     scheduleJobResult->Duration = timer.GetElapsed();
 
     ScheduleJobStatistics_->RecordJobResult(scheduleJobResult);
-    if (ScheduleJobStatisticsLogTime + Config->ScheduleJobStatisticsLogBackoff < TInstant::Now()) {
+
+    auto now = NProfiling::GetCpuInstant();
+    if (now > ScheduleJobStatisticsLogDeadline_) {
         LOG_DEBUG("Schedule job statistics (Count: %v, TotalDuration: %v, FailureReasons: %v)",
             ScheduleJobStatistics_->Count,
             ScheduleJobStatistics_->Duration,
             ScheduleJobStatistics_->Failed);
-        ScheduleJobStatisticsLogTime = TInstant::Now();
+        ScheduleJobStatisticsLogDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ScheduleJobStatisticsLogBackoff);
     }
 
     return scheduleJobResult;
@@ -2631,10 +2651,12 @@ void TOperationControllerBase::UpdateAllTasks()
 
 void TOperationControllerBase::UpdateAllTasksIfNeeded()
 {
-    if (TInstant::Now() - LastTaskUpdateTime_ >= Config->TaskUpdatePeriod) {
-        UpdateAllTasks();
-        LastTaskUpdateTime_ = TInstant::Now();
+    auto now = NProfiling::GetCpuInstant();
+    if (now < TaskUpdateDeadline_) {
+        return;
     }
+    UpdateAllTasks();
+    TaskUpdateDeadline_ = now + NProfiling::DurationToCpuDuration(Config->TaskUpdatePeriod);
 }
 
 void TOperationControllerBase::MoveTaskToCandidates(
@@ -2920,7 +2942,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     task->SetDelayedTime(now);
                 }
 
-                auto deadline = *task->GetDelayedTime() + task->GetLocalityTimeout();
+                auto deadline = *task->GetDelayedTime() + NProfiling::DurationToCpuDuration(task->GetLocalityTimeout());
                 if (deadline > now) {
                     LOG_DEBUG("Task delayed (Task: %v, Deadline: %v)",
                         task->GetId(),
@@ -5383,17 +5405,14 @@ void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const
 
 void TOperationControllerBase::GetExecNodesInformation()
 {
-    auto now = GetCpuInstant();
-    auto delay = DurationToCpuDuration(Config->ControllerUpdateExecNodesInformationDelay);
-    if (LastGetExecNodesInformationTime_ + delay > now) {
+    auto now = NProfiling::GetCpuInstant();
+    if (now < GetExecNodesInformationDeadline_) {
         return;
     }
 
     ExecNodeCount_ = Host->GetExecNodeCount();
-
     ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(TSchedulingTagFilter(Spec->SchedulingTagFilter));
-
-    LastGetExecNodesInformationTime_ = GetCpuInstant();
+    GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerUpdateExecNodesInformationDelay);
 }
 
 int TOperationControllerBase::GetExecNodeCount()

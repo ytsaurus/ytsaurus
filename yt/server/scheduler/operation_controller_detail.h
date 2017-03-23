@@ -561,7 +561,7 @@ protected:
 
         void ResetCachedMinNeededResources();
 
-        DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
+        DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, DelayedTime);
 
         void AddInput(TChunkStripePtr stripe);
         void AddInput(const std::vector<TChunkStripePtr>& stripes);
@@ -613,7 +613,7 @@ protected:
         TJobResources CachedTotalNeededResources;
         mutable TNullable<TExtendedJobResources> CachedMinNeededResources;
 
-        TInstant LastDemandSanityCheckTime;
+        NProfiling::TCpuInstant DemandSanityCheckDeadline;
         bool CompletedFired;
 
         //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
@@ -710,7 +710,7 @@ protected:
         std::multimap<i64, TTaskPtr> CandidateTasks;
 
         //! Non-local tasks keyed by deadline.
-        std::multimap<TInstant, TTaskPtr> DelayedTasks;
+        std::multimap<NProfiling::TCpuInstant, TTaskPtr> DelayedTasks;
 
         //! Local tasks keyed by node id.
         yhash_map<NNodeTrackerClient::TNodeId, yhash_set<TTaskPtr>> NodeIdToTasks;
@@ -1131,7 +1131,7 @@ private:
 
     NChunkClient::TChunkScraperPtr InputChunkScraper;
 
-    TInstant LastTaskUpdateTime_;
+    NProfiling::TCpuInstant TaskUpdateDeadline_ = 0;
 
     //! Increments each time a new job is scheduled.
     TIdGenerator JobIndexGenerator;
@@ -1142,8 +1142,8 @@ private:
     //! Aggregated schedule job statistics.
     TScheduleJobStatisticsPtr ScheduleJobStatistics_;
 
-    //! Last time schedule job statistics was logged.
-    TInstant ScheduleJobStatisticsLogTime;
+    //! Deadline after which schedule job statistics can be logged logged.
+    NProfiling::TCpuInstant ScheduleJobStatisticsLogDeadline_ = 0;
 
     //! One output table can have row count limit on operation.
     TNullable<int> RowCountLimitTableIndex;
@@ -1159,8 +1159,8 @@ private:
     //! But descriptors do.
     int ExecNodeCount_ = 0;
     std::vector<TExecNodeDescriptor> ExecNodesDescriptors_;
-    NProfiling::TCpuInstant LastGetExecNodesInformationTime_ = 0;
 
+    NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
     NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;
 
     const std::unique_ptr<NTableClient::IValueConsumer> EventLogValueConsumer_;
