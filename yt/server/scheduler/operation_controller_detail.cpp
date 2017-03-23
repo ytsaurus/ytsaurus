@@ -50,6 +50,7 @@
 #include <yt/core/misc/numeric_helpers.h>
 
 #include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/profiler.h>
 
 #include <functional>
 
@@ -80,6 +81,10 @@ using namespace NProfiling;
 using NNodeTrackerClient::TNodeId;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::TTableReaderOptions;
+
+////////////////////////////////////////////////////////////////////
+
+static NProfiling::TSimpleCounter ScheduledSliceCounter("/scheduled_slice_count");
 
 ////////////////////////////////////////////////////////////////////
 
@@ -519,8 +524,10 @@ void TOperationControllerBase::TTask::ScheduleJob(
         joblet->UserJobMemoryReserveFactor = Controller->GetUserJobMemoryDigest(GetJobType())->GetQuantile(Controller->Config->UserJobMemoryReserveQuantile);
     }
 
+    SchedulerProfiler.Increment(ScheduledSliceCounter, joblet->InputStripeList->TotalChunkCount);
+
     LOG_DEBUG(
-        "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
+        "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, SliceCount: %v (%v local), "
         "Approximate: %v, DataSize: %v (%v local), RowCount: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
         "UserJobMemoryReserveFactor: %v, ResourceLimits: %v)",
         joblet->JobId,
