@@ -1396,7 +1396,7 @@ void TOperationControllerBase::SafeMaterialize()
 
         LOG_INFO("Tasks prepared (RowBufferCapacity: %v)", RowBuffer->GetCapacity());
 
-        if (InputChunkMap.empty()) {
+        if (InputChunkMap.empty() || IsCompleted()) {
             // Possible reasons:
             // - All input chunks are unavailable && Strategy == Skip
             // - Merge decided to teleport all input chunks
