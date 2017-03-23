@@ -5395,7 +5395,7 @@ NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReader
 NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateIntermediateTableReaderOptions()
 {
     auto options = New<TTableReaderOptions>();
-    options->AllowFetchingSeedsFromMaster = false;
+    options->AllowFetchingSeedsFromMaster = true;
     return options;
 }
 
