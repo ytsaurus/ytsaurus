@@ -84,12 +84,12 @@ TNode MakeProtoFormatConfig(const yvector<const Descriptor*>& descriptors)
         messageIndices.push_back(descriptor->index());
     }
 
-    TStringStream stream;
-    set.SerializeToStream(&stream);
+    Stroka fileDescriptorSetBytes;
+    set.SerializeToString(&fileDescriptorSetBytes);
 
     return BuildYsonNodeFluently()
     .BeginAttributes()
-        .Item("file_descriptor_set").Value(stream.Str())
+        .Item("file_descriptor_set").Value(fileDescriptorSetBytes)
         .Item("file_indices").List(fileIndices)
         .Item("message_indices").List(messageIndices)
         .Item("enums_as_strings").Value(true)

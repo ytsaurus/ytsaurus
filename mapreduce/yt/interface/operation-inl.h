@@ -10,6 +10,7 @@
 #include <util/stream/file.h>
 #include <util/stream/buffer.h>
 #include <util/string/subst.h>
+#include <util/string/printf.h>
 
 namespace NYT {
 
@@ -152,8 +153,7 @@ struct TOperationIOSpecBase::TFormatAdder<T, std::enable_if_t<TIsBaseOf<Message,
             ythrow yexception() << "Invalid format"; // TODO: more info
         }
         desc.Format = TMultiFormatDesc::F_PROTO;
-        TAutoPtr<T> prototype(new T);
-        desc.ProtoDescriptors.push_back(prototype->GetDescriptor());
+        desc.ProtoDescriptors.push_back(T::descriptor());
     }
 };
 
