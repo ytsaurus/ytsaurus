@@ -7,6 +7,7 @@
 #include <mapreduce/yt/interface/protos/extension.pb.h>
 
 #include <util/string/escape.h>
+#include <util/string/printf.h>
 
 namespace NYT {
 
