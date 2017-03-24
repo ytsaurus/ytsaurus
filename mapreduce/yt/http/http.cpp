@@ -9,6 +9,8 @@
 #include <library/json/json_writer.h>
 #include <library/string_utils/base64/base64.h>
 
+#include <util/generic/singleton.h>
+
 #include <util/string/quote.h>
 #include <util/string/printf.h>
 #include <util/string/cast.h>
