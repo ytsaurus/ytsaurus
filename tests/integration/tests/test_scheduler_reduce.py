@@ -1236,6 +1236,21 @@ echo {v = 2} >&7
             assert job_indexes[1] == 3
         assert get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/sorted_reduce/sum".format(op.id)) == len(result) - 2
 
+    def test_query_filtering(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
+
+        with pytest.raises(YtError):
+            reduce(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                command="cat",
+                spec={"input_query": "a where a > 0"})
+
+
 ##################################################################
 
 class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):

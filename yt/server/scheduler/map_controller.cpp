@@ -618,7 +618,7 @@ private:
                 false)
             .IsOK();
 
-        if (Spec->ForceTransform || chunkSpec->Channel() || !isSchemaCompatible) {
+        if (Spec->ForceTransform || Spec->InputQuery || chunkSpec->Channel() || !isSchemaCompatible) {
             return false;
         }
 
