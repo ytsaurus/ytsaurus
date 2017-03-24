@@ -2569,6 +2569,25 @@ class TestJobQuery(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
+    def test_query_two_input_tables(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "string"},
+                       {"name": "b", "type": "string"}]
+        })
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "a", "type": "string"},
+                       {"name": "c", "type": "string"}]
+        })
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t1", {"a": "1", "b": "1"})
+        write_table("//tmp/t2", {"a": "2", "c": "2"})
+
+        map(in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", command="cat",
+            spec={"input_query": "*"})
+
+        expected = [{"a": "1", "b": "1", "c": None}, {"a": "2", "b": None, "c": "2"}]
+        assert_items_equal(read_table("//tmp/t_out"), expected)
+
     def test_query_reader_projection(self):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "a", "type": "string"}, {"name": "c", "type": "string"}]
