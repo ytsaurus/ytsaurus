@@ -291,7 +291,7 @@ def _prepare_read_table_from_yt_command(yt_client, src, format, tmp_dir, data_pr
 
 def _prepare_read_file_from_yt_command(destination_client, source_client, src, temp_files_dir, tmp_dir, data_proxy_role,
                                        pack_yt_wrapper, pack_yson_bindings, token_file=None, erasure_codec=None,
-                                       compression_codec=None,):
+                                       compression_codec=None):
     assert source_client.COMMAND_PARAMS["transaction_id"] is not None
     assert destination_client.COMMAND_PARAMS["transaction_id"] is not None
     builder = _prepare_read_builder("python read_file_from_yt.py", tmp_dir, data_proxy_role, pack_yt_wrapper,
