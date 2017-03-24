@@ -42,6 +42,9 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/profile_manager.h>
+
 #include <yt/core/ytree/helpers.h>
 
 namespace NYT {
@@ -76,6 +79,7 @@ public:
         , ThreadPool_(New<TThreadPool>(Config_->StoreCompactor->ThreadPoolSize, "StoreCompact"))
         , CompactionSemaphore_(New<TAsyncSemaphore>(Config_->StoreCompactor->MaxConcurrentCompactions))
         , PartitioningSemaphore_(New<TAsyncSemaphore>(Config_->StoreCompactor->MaxConcurrentPartitionings))
+        , Profiler("/tablet_node/store_compactor")
     { }
 
     void Start()
@@ -92,7 +96,18 @@ private:
     TAsyncSemaphorePtr CompactionSemaphore_;
     TAsyncSemaphorePtr PartitioningSemaphore_;
 
+    const NProfiling::TProfiler Profiler;
+
     void ScanSlot(const TTabletSlotPtr& slot)
+    {
+        NProfiling::TTagIdList tagIdList;
+        tagIdList.push_back(NProfiling::TProfileManager::Get()->RegisterTag("slot", slot->GetIndex());
+        PROFILE_TIMING("/scan_time", tagIdList) {
+            ScanSlotImpl(slot);
+        }
+    }
+
+    void ScanSlotImpl(const TTabletSlotPtr& slot)
     {
         if (slot->GetAutomatonState() != EPeerState::Leading) {
             return;
