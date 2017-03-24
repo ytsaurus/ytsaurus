@@ -170,9 +170,18 @@ void SerializeMapFragment(
 
 void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TContext* context)
 {
-    static Py::Callable YsonBooleanClass = GetYsonType("YsonBoolean");
-    static Py::Callable YsonUint64Class = GetYsonType("YsonUint64");
-    static Py::Callable YsonInt64Class = GetYsonType("YsonInt64");
+    static Py::Callable YsonBooleanClass;
+    if (YsonBooleanClass.isNone()) {
+        YsonBooleanClass = GetYsonType("YsonBoolean");
+    }
+    static Py::Callable YsonUint64Class;
+    if (YsonUint64Class.isNone()) {
+        YsonUint64Class = GetYsonType("YsonUint64");
+    }
+    static Py::Callable YsonInt64Class;
+    if (YsonInt64Class.isNone()) {
+        YsonInt64Class = GetYsonType("YsonInt64");
+    }
     static Py::LongLong SignedInt64Min(std::numeric_limits<i64>::min());
     static Py::LongLong SignedInt64Max(std::numeric_limits<i64>::max());
     static Py::LongLong UnsignedInt64Max(std::numeric_limits<ui64>::max());
@@ -239,7 +248,10 @@ void Serialize(
     int depth,
     TContext* context)
 {
-    static Py::Callable YsonEntityClass = GetYsonType("YsonEntity");
+    static Py::Callable YsonEntityClass;
+    if (YsonEntityClass.isNone()) {
+        YsonEntityClass = GetYsonType("YsonEntity");
+    }
 
     const char* attributesStr = "attributes";
     if ((!ignoreInnerAttributes || depth == 0) && obj.hasAttr(attributesStr)) {
