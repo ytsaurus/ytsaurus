@@ -18,6 +18,7 @@ PEERDIR(
     library/json
     library/svnversion
     library/yson
+    mapreduce/yt/interface
 )
 
 END()
