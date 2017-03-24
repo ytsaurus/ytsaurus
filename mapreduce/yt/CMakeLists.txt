@@ -1,5 +1,6 @@
 RECURSE(
     interface
+    interface/ut
     common
     http
     http/ut
