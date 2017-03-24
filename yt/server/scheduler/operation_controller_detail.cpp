@@ -4169,13 +4169,17 @@ void TOperationControllerBase::InitQuerySpec(
         AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
     };
 
-    if (!schema && InputTables.size() > 1) {
-        THROW_ERROR_EXCEPTION("Expect \"input_schema\" for query filtering with multiple input tables");
-    }
+    auto inferSchema = [&] () {
+        std::vector<TTableSchema> schemas;
+        for (const auto& table : InputTables) {
+            schemas.push_back(table.Schema);
+        }
+        return InferInputSchema(schemas, true);
+    };
 
     auto query = PrepareJobQuery(
         queryString,
-        schema ? *schema : InputTables[0].Schema,
+        schema ? *schema : inferSchema(),
         fetchFunctions);
 
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
