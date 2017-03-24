@@ -96,6 +96,8 @@ class TestCGroups(YTEnvSetup):
             assert "Process exited with code " in job_desc.attributes["error"]["inner_errors"][0]["message"]
 
 
+##################################################################
+
 class TestEventLog(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -2447,6 +2449,76 @@ print row + table_index
         assert get("//sys/operations/{0}/@progress/jobs/interrupted".format(op.id)) == 0
         assert get("//sys/operations/{0}/@progress/jobs/completed".format(op.id)) == 1
 
+    def test_ordered_map_many_jobs(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        original_data = [{"index": i} for i in xrange(10)]
+        for row in original_data:
+            write_table("<append=true>//tmp/t_input", row)
+
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command="cat; echo stderr 1>&2",
+            ordered=True,
+            spec={"data_size_per_job": 1})
+
+        assert get("//sys/operations/" + op.id + "/jobs/@count") == 10
+        assert read_table("//tmp/t_output") == original_data
+
+    def test_ordered_map_remains_sorted(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        original_data = [{"key": i} for i in xrange(1000)]
+        for i in xrange(10):
+            write_table("<append=true>//tmp/t_input", original_data[100*i:100*(i+1)])
+
+        op = map(
+            in_="//tmp/t_input",
+            out="<sorted_by=[key]>//tmp/t_output",
+            command="cat; echo stderr 1>&2",
+            ordered=True,
+            spec={"job_count": 5})
+
+        jobs = get("//sys/operations/" + op.id + "/jobs/@count")
+
+        assert jobs == 5
+        assert get("//tmp/t_output/@sorted")
+        assert get("//tmp/t_output/@sorted_by") == ["key"]
+        assert read_table("//tmp/t_output") == original_data
+
+    def test_job_with_exit_immediately_flag(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command='set -e; /non_existed_command; echo stderr >&2;',
+            spec={
+                "max_failed_job_count": 1
+            })
+
+        with pytest.raises(YtError):
+            op.track()
+
+        jobs_path = "//sys/operations/" + op.id + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        for job_id in ls(jobs_path):
+            assert read_file(jobs_path + "/" + job_id + "/stderr") == \
+                "/bin/bash: /non_existed_command: No such file or directory\n"
+
+    def test_large_spec(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"a": "b"}])
+
+        with pytest.raises(YtError):
+            map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"attribute": "really_large" * (2 * 10 ** 6)}, verbose=False)
+
+
+##################################################################
 
 class TestSchedulerControllerThrottling(YTEnvSetup):
     NUM_MASTERS = 3
@@ -2490,6 +2562,8 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
         op.abort()
 
 
+##################################################################
+
 class TestSchedulerOperationNodeFlush(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -2524,6 +2598,8 @@ class TestSchedulerOperationNodeFlush(YTEnvSetup):
                 op.track()
             check_all_stderrs(op, "stderr\n", 1)
 
+
+##################################################################
 
 @unix_only
 class TestJobQuery(YTEnvSetup):
@@ -2600,14 +2676,15 @@ class TestJobQuery(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    def test_query_with_condition(self):
+    @pytest.mark.parametrize("mode", ["ordered", "unordered"])
+    def test_query_filtering(self, mode):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "a", "type": "int64"}]
         })
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
 
-        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat", mode=mode,
             spec={"input_query": "a where a > 0"})
 
         assert read_table("//tmp/t2") == [{"a": 1}]
@@ -2674,73 +2751,17 @@ class TestJobQuery(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a": -1}]
 
-    def test_ordered_map_many_jobs(self):
-        create("table", "//tmp/t_input")
-        create("table", "//tmp/t_output")
-        original_data = [{"index": i} for i in xrange(10)]
-        for row in original_data:
-            write_table("<append=true>//tmp/t_input", row)
-
-        op = map(
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
-            command="cat; echo stderr 1>&2",
-            ordered=True,
-            spec={"data_size_per_job": 1})
-
-        assert get("//sys/operations/" + op.id + "/jobs/@count") == 10
-        assert read_table("//tmp/t_output") == original_data
-
-    def test_ordered_map_remains_sorted(self):
-        create("table", "//tmp/t_input")
-        create("table", "//tmp/t_output")
-        original_data = [{"key": i} for i in xrange(1000)]
-        for i in xrange(10):
-            write_table("<append=true>//tmp/t_input", original_data[100*i:100*(i+1)])
-
-        op = map(
-            in_="//tmp/t_input",
-            out="<sorted_by=[key]>//tmp/t_output",
-            command="cat; echo stderr 1>&2",
-            ordered=True,
-            spec={"job_count": 5})
-
-        jobs = get("//sys/operations/" + op.id + "/jobs/@count")
-
-        assert jobs == 5
-        assert get("//tmp/t_output/@sorted")
-        assert get("//tmp/t_output/@sorted_by") == ["key"]
-        assert read_table("//tmp/t_output") == original_data
-
-    def test_job_with_exit_immediately_flag(self):
-        create("table", "//tmp/t_input")
-        create("table", "//tmp/t_output")
-        write_table("//tmp/t_input", {"foo": "bar"})
-
-        op = map(
-            dont_track=True,
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
-            command='set -e; /non_existed_command; echo stderr >&2;',
-            spec={
-                "max_failed_job_count": 1
-            })
+    def test_query_wrong_schema(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "string"}]
+        })
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
 
         with pytest.raises(YtError):
-            op.track()
+            map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+                spec={"input_query": "a", "input_schema": [{"name": "a", "type": "int64"}]})
 
-        jobs_path = "//sys/operations/" + op.id + "/jobs"
-        assert get(jobs_path + "/@count") == 1
-        for job_id in ls(jobs_path):
-            assert read_file(jobs_path + "/" + job_id + "/stderr") == \
-                "/bin/bash: /non_existed_command: No such file or directory\n"
-
-    def test_large_spec(self):
-        create("table", "//tmp/t1")
-        write_table("//tmp/t1", [{"a": "b"}])
-
-        with pytest.raises(YtError):
-            map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"attribute": "really_large" * (2 * 10 ** 6)}, verbose=False)
 
 ##################################################################
 
@@ -2764,6 +2785,9 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
             command="cat")
 
         assert_items_equal(read_table("//tmp/t_out"), [{"a": 1}, {"a": 2}])
+
+
+##################################################################
 
 class TestSandboxTmpfs(YTEnvSetup):
     NUM_MASTERS = 1
@@ -3005,6 +3029,9 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 0
 
+
+##################################################################
+
 class TestDisabledSandboxTmpfs(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -3040,6 +3067,7 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
         assert ["file", "content"] == words
 
 
+##################################################################
 
 class TestFilesInSandbox(YTEnvSetup):
     NUM_MASTERS = 1
@@ -3093,6 +3121,8 @@ class TestFilesInSandbox(YTEnvSetup):
         assert op.get_state() == "aborted"
         assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu"), 0)
 
+
+##################################################################
 
 class TestJobSizeAdjuster(YTEnvSetup):
     NUM_MASTERS = 1
