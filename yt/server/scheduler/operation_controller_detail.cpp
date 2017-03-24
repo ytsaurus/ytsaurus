@@ -1283,6 +1283,8 @@ void TOperationControllerBase::SafePrepare()
         GetInputTablesAttributes();
     }
 
+    PrepareInputQuery();
+
     // Process files.
     {
         LockUserFiles();
@@ -4138,8 +4140,10 @@ void TOperationControllerBase::GetUserFilesAttributes()
     }
 }
 
-void TOperationControllerBase::InitQuerySpec(
-    NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
+void TOperationControllerBase::PrepareInputQuery()
+{ }
+
+void TOperationControllerBase::ParseInputQuery(
     const Stroka& queryString,
     const TNullable<TTableSchema>& schema)
 {
@@ -4182,9 +4186,18 @@ void TOperationControllerBase::InitQuerySpec(
         schema ? *schema : inferSchema(),
         fetchFunctions);
 
+    InputQuery.Emplace();
+    InputQuery->Query = std::move(query);
+    InputQuery->ExternalCGInfo = std::move(externalCGInfo);
+}
+
+void TOperationControllerBase::WriteInputQueryToJobSpec(
+    NProto::TSchedulerJobSpecExt* schedulerJobSpecExt)
+{
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
-    ToProto(querySpec->mutable_query(), query);
-    ToProto(querySpec->mutable_external_functions(), externalCGInfo->Functions);
+    ToProto(querySpec->mutable_query(), InputQuery->Query);
+    ToProto(querySpec->mutable_external_functions(), InputQuery->ExternalCGInfo->Functions);
+    InputQuery.Reset();
 }
 
 void TOperationControllerBase::CollectTotals()

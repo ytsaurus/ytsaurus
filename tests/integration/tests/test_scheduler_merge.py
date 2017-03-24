@@ -567,6 +567,19 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             spec={"input_query": "a where a > 0"})
 
         assert read_table("//tmp/t2") == [{"a": 1}]
+        assert get("//tmp/t2/@schema") == get("//tmp/t1/@schema")
+
+        remove("//tmp/t2")
+        create("table", "//tmp/t2")
+        merge(mode=mode,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"input_query": "a + 1 as b where a > 0"})
+
+        assert read_table("//tmp/t2") == [{"b": 2}]
+        schema = get("//tmp/t1/@schema")
+        schema[0]["name"] = "b"
+        assert get("//tmp/t2/@schema") == schema
 
     def test_sorted_merge_query_filtering(self):
         create("table", "//tmp/t1", attributes={
