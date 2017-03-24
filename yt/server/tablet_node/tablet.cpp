@@ -918,7 +918,7 @@ void TTablet::StopEpoch()
     }
 }
 
-IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
+IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
 {
     return EpochAutomatonInvokers_[queue];
 }
