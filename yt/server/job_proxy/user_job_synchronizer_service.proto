@@ -13,7 +13,10 @@ message TRspExecutorPrepared
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqSatellitePrepared
-{ }
+{
+    required NYT.NProto.TError error = 1;
+    optional int64 rss = 2;
+}
 
 message TRspSatellitePrepared
 { }

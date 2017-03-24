@@ -102,7 +102,7 @@ class SmallVector;
 template <class TProto>
 class TRefCountedProto;
 
-DECLARE_REFCOUNTED_CLASS(TProcess)
+DECLARE_REFCOUNTED_CLASS(TProcessBase)
 
 const ui32 YTCoreNoteType = 0x5f59545f; // = hex("_YT_") ;)
 extern const Stroka YTCoreNoteName;

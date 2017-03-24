@@ -9,9 +9,9 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUserJobSynchronizer::NotifyJobSatellitePrepared()
+void TUserJobSynchronizer::NotifyJobSatellitePrepared(const TErrorOr<i64>& rssOrError)
 {
-    JobSatellitePreparedPromise_.Set(TError());
+    JobSatellitePreparedPromise_.Set(rssOrError);
 }
 
 void TUserJobSynchronizer::NotifyExecutorPrepared()
@@ -19,19 +19,22 @@ void TUserJobSynchronizer::NotifyExecutorPrepared()
    ExecutorPreparedPromise_.Set(TError());
 }
 
-void TUserJobSynchronizer::NotifyUserJobFinished(const TError &error)
+void TUserJobSynchronizer::NotifyUserJobFinished(const TError& error)
 {
     UserJobFinishedPromise_.Set(error);
 }
 
 void TUserJobSynchronizer::Wait()
 {
-    auto jobSatellitePreparedFuture = JobSatellitePreparedPromise_.ToFuture();
-    auto executorPrepatedFuture = ExecutorPreparedPromise_.ToFuture();
-    WaitFor(CombineAll(std::vector<TFuture<void>>{
-        jobSatellitePreparedFuture,
-        executorPrepatedFuture}
-        ));
+    JobSatelliteRssUsage_ = WaitFor(JobSatellitePreparedPromise_.ToFuture())
+        .ValueOrThrow();
+    WaitFor(ExecutorPreparedPromise_.ToFuture())
+        .ThrowOnError();
+}
+
+i64 TUserJobSynchronizer::GetJobSatelliteRssUsage() const
+{
+    return JobSatelliteRssUsage_;
 }
 
 TError TUserJobSynchronizer::GetUserProcessStatus() const
@@ -44,7 +47,7 @@ TError TUserJobSynchronizer::GetUserProcessStatus() const
 
 void TUserJobSynchronizer::CancelWait()
 {
-    JobSatellitePreparedPromise_.TrySet(TError());
+    JobSatellitePreparedPromise_.TrySet(TErrorOr<i64>(0));
     ExecutorPreparedPromise_.TrySet(TError());
 }
 

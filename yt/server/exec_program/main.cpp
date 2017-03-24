@@ -17,10 +17,6 @@
 #ifdef _unix_
     #include <sys/resource.h>
 #endif
-#ifdef _linux_
-#include <sys/prctl.h>
-    #include <grp.h>
-#endif
 
 namespace NYT {
 
@@ -178,17 +174,7 @@ protected:
         }
 
         if (Uid_ > 0) {
-            // Set unprivileged uid and gid for user process.
-            YCHECK(setuid(0) == 0);
-            YCHECK(setgroups(0, nullptr) == 0);
-
-#ifdef _linux_
-            YCHECK(setresgid(Uid_, Uid_, Uid_) == 0);
-            YCHECK(setresuid(Uid_, Uid_, Uid_) == 0);
-#else
-            YCHECK(setgid(Uid_) == 0);
-            YCHECK(setuid(Uid_) == 0);
-#endif
+            SetUid(Uid_);
         }
 
         std::vector<char*> env;

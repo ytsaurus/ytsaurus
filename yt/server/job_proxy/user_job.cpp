@@ -6,6 +6,7 @@
 #include "user_job_io.h"
 #include "job_satellite_connection.h"
 #include "user_job_synchronizer.h"
+#include "resource_controller.h"
 
 #include <yt/server/core_dump/public.h>
 #include <yt/server/core_dump/core_processor_service.h>
@@ -159,23 +160,26 @@ public:
         IJobHostPtr host,
         const TUserJobSpec& userJobSpec,
         const TJobId& jobId,
-        std::unique_ptr<IUserJobIO> userJobIO)
+        std::unique_ptr<IUserJobIO> userJobIO,
+        IResourceControllerPtr resourceController)
         : TJob(host)
         , JobIO_(std::move(userJobIO))
         , UserJobSpec_(userJobSpec)
         , Config_(Host_->GetConfig())
         , JobIOConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig())
-        , CGroupsConfig_(Host_->GetCGroupsConfig())
+        , ResourceController_(resourceController)
         , JobErrorPromise_(NewPromise<void>())
         , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
-        , Process_(New<TProcess>(ExecProgramName, false))
-        , CpuAccounting_(CGroupPrefix + ToString(jobId))
-        , BlockIO_(CGroupPrefix + ToString(jobId))
-        , Memory_(CGroupPrefix + ToString(jobId))
-        , Freezer_(CGroupPrefix + ToString(jobId))
-        , JobSatelliteConnection_(jobId, host->GetConfig()->BusServer)
+        , Process_(ResourceController_
+            ? ResourceController_->CreateControlledProcess(ExecProgramName)
+            : New<TSimpleProcess>(ExecProgramName, false))
+        , JobEnvironmentType_(ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->Type)
+        , JobSatelliteConnection_(
+            jobId,
+            host->GetConfig()->BusServer,
+            JobEnvironmentType_ == EJobEnvironmentType::Porto)
         , Logger(Host_->GetLogger())
     {
         Synchronizer_ = New<TUserJobSynchronizer>();
@@ -206,11 +210,11 @@ public:
             UserId_ = jobEnvironmentConfig->StartUid + Config_->SlotIndex;
         }
 
-        if (CGroupsConfig_) {
+        if (ResourceController_) {
             BlockIOWatchdogExecutor_ = New<TPeriodicExecutor>(
                 AuxQueue_->GetInvoker(),
                 BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
-                CGroupsConfig_->BlockIOWatchdogPeriod);
+                ResourceController_->GetBlockIOWatchdogPeriod());
         }
 
         if (UserJobSpec_.has_core_table_spec()) {
@@ -253,7 +257,6 @@ public:
             ProcessFinished_ = Process_->Spawn();
             LOG_INFO("Job process started");
 
-            MemoryWatchdogExecutor_->Start();
             if (BlockIOWatchdogExecutor_) {
                 BlockIOWatchdogExecutor_->Start();
             }
@@ -373,13 +376,24 @@ private:
 
     const TJobProxyConfigPtr Config_;
     const NScheduler::TJobIOConfigPtr JobIOConfig_;
+    const IResourceControllerPtr ResourceController_;
+
+    mutable TPromise<void> JobErrorPromise_;
+
+    const TThreadPoolPtr PipeIOPool_;
+    const TActionQueuePtr AuxQueue_;
+    const IInvokerPtr ReadStderrInvoker_;
+    const TProcessBasePtr Process_;
+    EJobEnvironmentType JobEnvironmentType_;
+
+    TJobSatelliteConnection JobSatelliteConnection_;
+
+    const NLogging::TLogger Logger;
 
     Stroka InputPipePath_;
 
-    TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
     TNullable<int> UserId_;
 
-    mutable TPromise<void> JobErrorPromise_;
     Stroka JobFailMessage_;
 
     std::atomic<bool> Prepared_ = { false };
@@ -393,10 +407,6 @@ private:
     std::atomic<i64> MaximumTmpfsSize_ = {0};
 
     TDuration MemoryWatchdogPeriod_;
-
-    const TThreadPoolPtr PipeIOPool_;
-    const TActionQueuePtr AuxQueue_;
-    IInvokerPtr ReadStderrInvoker_;
 
     std::vector<std::unique_ptr<TOutputStream>> TableOutputs_;
     std::vector<std::unique_ptr<TWritingValueConsumer>> WritingValueConsumers_;
@@ -425,24 +435,15 @@ private:
     std::vector<TCallback<void()>> StderrActions_;
     std::vector<TCallback<void()>> FinalizeActions_;
 
-    TProcessPtr Process_;
     TFuture<void> ProcessFinished_;
     std::vector<Stroka> Environment_;
 
-    TCpuAccounting CpuAccounting_;
-    TBlockIO BlockIO_;
-    TMemory Memory_;
-    TFreezer Freezer_;
-    TSpinLock FreezerLock_;
-
-    TJobSatelliteConnection JobSatelliteConnection_;
     NJobProberClient::IJobProbePtr JobProberClient_;
 
     TPeriodicExecutorPtr MemoryWatchdogExecutor_;
     TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
     TPeriodicExecutorPtr InputPipeBlinker_;
 
-    const NLogging::TLogger Logger;
     TIntrusivePtr<TUserJobSynchronizer> Synchronizer_;
 
     TSpinLock StatisticsLock_;
@@ -452,8 +453,6 @@ private:
 
     void Prepare()
     {
-        PrepareCGroups();
-
         PreparePipes();
 
         JobSatelliteConnection_.MakeConfig();
@@ -496,16 +495,8 @@ private:
 
     void DoCleanupUserProcesses() const
     {
-        if (!CGroupsConfig_) {
-            return;
-        }
-
-        try {
-            // Kill everything for sanity reasons: main user process completed,
-            // but its children may still be alive.
-            RunKiller(Freezer_.GetFullPath());
-        } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Failed to clean up user processes");
+        if (ResourceController_) {
+            ResourceController_->KillAll();
         }
     }
 
@@ -666,15 +657,6 @@ private:
         if (!Prepared_) {
             THROW_ERROR_EXCEPTION("Cannot operate on job: job has not been prepared yet");
         }
-    }
-
-    std::vector<int> GetPidsFromFreezer()
-    {
-        TGuard<TSpinLock> guard(FreezerLock_);
-        if (!Freezer_.IsCreated()) {
-            THROW_ERROR_EXCEPTION("Cannot determine pids of user job processes: freezer cgroup is not created yet");
-        }
-        return Freezer_.GetTasks();
     }
 
     std::vector<IValueConsumer*> CreateValueConsumers(TTypeConversionConfigPtr typeConversionConfig)
@@ -857,41 +839,6 @@ private:
         LOG_DEBUG("Pipes initialized");
     }
 
-    void PrepareCGroups()
-    {
-        if (!CGroupsConfig_) {
-            return;
-        }
-
-        try {
-            {
-                TGuard<TSpinLock> guard(FreezerLock_);
-                Freezer_.Create();
-                Process_->AddArguments({"--cgroup", Freezer_.GetFullPath()});
-            }
-
-            if (CGroupsConfig_->IsCGroupSupported(TCpuAccounting::Name)) {
-                CpuAccounting_.Create();
-                Process_->AddArguments({"--cgroup", CpuAccounting_.GetFullPath()});
-                Environment_.emplace_back(Format("YT_CGROUP_CPUACCT=%v", CpuAccounting_.GetFullPath()));
-            }
-
-            if (CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
-                BlockIO_.Create();
-                Process_->AddArguments({"--cgroup", BlockIO_.GetFullPath()});
-                Environment_.emplace_back(Format("YT_CGROUP_BLKIO=%v", BlockIO_.GetFullPath()));
-            }
-
-            if (CGroupsConfig_->IsCGroupSupported(TMemory::Name)) {
-                Memory_.Create();
-                Process_->AddArguments({"--cgroup", Memory_.GetFullPath()});
-                Environment_.emplace_back(Format("YT_CGROUP_MEMORY=%v", Memory_.GetFullPath()));
-            }
-        } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Failed to create required cgroups");
-        }
-    }
-
     void AddCustomStatistics(const INodePtr& sample)
     {
         TGuard<TSpinLock> guard(StatisticsLock_);
@@ -941,18 +888,33 @@ private:
         }
 
         // Cgroups statistics.
-        if (CGroupsConfig_ && Prepared_) {
-            if (CGroupsConfig_->IsCGroupSupported(TCpuAccounting::Name)) {
-                statistics.AddSample("/user_job/cpu", CpuAccounting_.GetStatistics());
+        if (ResourceController_ && Prepared_) {
+            try {
+                auto cpuStatistics = ResourceController_->GetCpuStatistics();
+                statistics.AddSample("/user_job/cpu", cpuStatistics);
+            } catch (const std::exception& ex) {
+                LOG_WARNING(ex, "Unable to get cpu statistics for user job");
             }
 
-            if (CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
-                statistics.AddSample("/user_job/block_io", BlockIO_.GetStatistics());
+            try {
+                auto blockIOStatistics = ResourceController_->GetBlockIOStatistics();
+                statistics.AddSample("/user_job/block_io", blockIOStatistics);
+            } catch (const std::exception& ex) {
+                LOG_WARNING(ex, "Unable to get block io statistics for user job");
             }
 
-            if (CGroupsConfig_->IsCGroupSupported(TMemory::Name)) {
-                statistics.AddSample("/user_job/max_memory", Memory_.GetMaxMemoryUsage());
-                statistics.AddSample("/user_job/current_memory", Memory_.GetStatistics());
+            try {
+                auto memoryStatistics = ResourceController_->GetMemoryStatistics();
+                statistics.AddSample("/user_job/current_memory", memoryStatistics);
+            } catch (const std::exception& ex) {
+                LOG_WARNING(ex, "Unable to get memory statistics for user job");
+            }
+
+            try {
+                auto maxMemoryUsage = ResourceController_->GetMaxMemoryUsage();
+                statistics.AddSample("/user_job/max_memory", maxMemoryUsage);
+            } catch (const std::exception& ex) {
+                LOG_WARNING(ex, "Unable to get max memory usage for user job");
             }
 
             statistics.AddSample("/user_job/cumulative_memory_mb_sec", CumulativeMemoryUsageMbSec_);
@@ -1100,6 +1062,10 @@ private:
         LOG_DEBUG("Wait for signal from executor/satellite");
         Synchronizer_->Wait();
 
+        auto jobSatelliteRss = Synchronizer_->GetJobSatelliteRssUsage();
+
+        MemoryWatchdogExecutor_->Start();
+
         if (!JobErrorPromise_.IsSet()) {
             Host_->OnPrepared();
             // Now writing pipe is definitely ready, so we can start blinking.
@@ -1108,7 +1074,7 @@ private:
         } else {
             LOG_ERROR("Failed to prepare satellite/executor");
         }
-        LOG_INFO("Start actions finished");
+        LOG_INFO("Start actions finished (SatelliteRss: %v)", jobSatelliteRss);
         auto inputFutures = runActions(InputActions_, onIOError, PipeIOPool_->GetInvoker());
         auto outputFutures = runActions(OutputActions_, onIOError, PipeIOPool_->GetInvoker());
         auto stderrFutures = runActions(StderrActions_, onIOError, ReadStderrInvoker_);
@@ -1149,7 +1115,7 @@ private:
         }
     }
 
-    i64 GetMemoryUsageByUid(int uid) const
+    i64 GetMemoryUsageByUid(int uid, pid_t excludePid) const
     {
         auto pids = GetPidsByUid(uid);
 
@@ -1157,6 +1123,9 @@ private:
         // Warning: we can account here a ytserver process in executor mode memory consumption.
         // But this is not a problem because it does not consume much.
         for (int pid : pids) {
+            if (pid == excludePid) {
+                continue;
+            }
             try {
                 i64 processRss = GetProcessRss(pid);
                 LOG_DEBUG("PID: %v, ProcessName: %Qv, RSS: %v",
@@ -1196,19 +1165,23 @@ private:
             return;
         }
 
-        i64 rss = GetMemoryUsageByUid(*UserId_);
+        i64 rss = GetMemoryUsageByUid(*UserId_, Process_->GetProcessId());
 
-        if (Memory_.IsCreated()) {
-            auto statistics = Memory_.GetStatistics();
+        if (ResourceController_) {
+            try {
+                auto memoryStatistics = ResourceController_->GetMemoryStatistics();
 
-            i64 uidRss = rss;
-            rss = UserJobSpec_.include_memory_mapped_files() ? statistics.MappedFile : 0;
-            rss += statistics.Rss;
+                i64 uidRss = rss;
+                rss = UserJobSpec_.include_memory_mapped_files() ? memoryStatistics.MappedFile : 0;
+                rss += memoryStatistics.Rss;
 
-            if (rss > 1.05 * uidRss && uidRss > 0) {
-                LOG_ERROR("Memory usage measured by cgroup is much greater than via procfs: %v > %v",
-                    rss,
-                    uidRss);
+                if (rss > 1.05 * uidRss && uidRss > 0) {
+                    LOG_ERROR("Memory usage measured by cgroup is much greater than via procfs: %v > %v",
+                        rss,
+                        uidRss);
+                }
+            } catch (const std::exception& ex) {
+                LOG_WARNING(ex, "Unable to get memory statistics to check memory limits");
             }
         }
 
@@ -1223,6 +1196,7 @@ private:
             rss,
             memoryLimit);
         if (currentMemoryUsage > memoryLimit) {
+            LOG_DEBUG("Memory limit exceeded");
             auto error = TError(
                 NJobProxy::EErrorCode::MemoryLimitExceeded,
                 "Memory limit exceeded")
@@ -1240,23 +1214,31 @@ private:
 
     void CheckBlockIOUsage()
     {
-        if (!BlockIO_.IsCreated()) {
+        if (!ResourceController_) {
             return;
         }
 
-        auto statistics = BlockIO_.GetStatistics();
+        TBlockIOStatistics blockIOStats;
+        try {
+            blockIOStats = ResourceController_->GetBlockIOStatistics();
+        } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Unable to get block io statistics to find a woodpecker");
+            return;
+        }
 
         if (UserJobSpec_.has_iops_threshold() &&
-            statistics.IORead > UserJobSpec_.iops_threshold() &&
+            blockIOStats.IOTotal > UserJobSpec_.iops_threshold() &&
             !IsWoodpecker_)
         {
-            LOG_DEBUG("Woodpecker detected (IORead: %v, Threshold: %v)",
-                statistics.IORead,
+            LOG_DEBUG("Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
+                blockIOStats.IORead,
+                blockIOStats.IOTotal,
                 UserJobSpec_.iops_threshold());
             IsWoodpecker_ = true;
 
             if (UserJobSpec_.has_iops_throttler_limit()) {
-                BlockIO_.ThrottleOperations(UserJobSpec_.iops_throttler_limit());
+                LOG_DEBUG("Set IO throttle (Iops: %v)", UserJobSpec_.iops_throttler_limit());
+                ResourceController_->SetIOThrottle(UserJobSpec_.iops_throttler_limit());
             }
         }
     }
@@ -1294,11 +1276,15 @@ IJobPtr CreateUserJob(
     const TJobId& jobId,
     std::unique_ptr<IUserJobIO> userJobIO)
 {
+    auto subcontroller = host->GetResourceController()
+        ? host->GetResourceController()->CreateSubcontroller(CGroupPrefix + ToString(jobId))
+        : nullptr;
     return New<TUserJob>(
         host,
         userJobSpec,
         jobId,
-        std::move(userJobIO));
+        std::move(userJobIO),
+        subcontroller);
 }
 
 #else

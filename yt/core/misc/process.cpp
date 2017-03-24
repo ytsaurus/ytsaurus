@@ -1,6 +1,8 @@
 #include "process.h"
 #include "proc.h"
 
+#include <yt/core/containers/instance.h>
+
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/error.h>
@@ -13,7 +15,11 @@
 
 #include <util/folder/dirut.h>
 
+#include <util/generic/guid.h>
+
 #include <util/string/ascii.h>
+
+#include <util/string/util.h>
 
 #include <util/system/env.h>
 #include <util/system/execpath.h>
@@ -35,6 +41,7 @@ namespace NYT {
 
 using namespace NPipes;
 using namespace NConcurrency;
+using namespace NContainers;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,12 +218,18 @@ TErrorOr<Stroka> ResolveBinaryPath(const Stroka& binary)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProcess::TProcess(const Stroka& path, bool copyEnv, TDuration pollPeriod)
+TProcessBase::TProcessBase(const Stroka& path)
+     : Path_(path)
+     , ProcessId_(InvalidProcessId)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSimpleProcess::TSimpleProcess(const Stroka& path, bool copyEnv, TDuration pollPeriod)
     // Stroka is guaranteed to be zero-terminated.
     // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/StrokaAndTStringBuf#sobstvennosimvoly
-    : Path_(path)
+    : TProcessBase(path)
     , PollPeriod_(pollPeriod)
-    , ProcessId_(InvalidProcessId)
     , PipeFactory_(3)
 {
     AddArgument(NFS::GetFileName(path));
@@ -228,51 +241,40 @@ TProcess::TProcess(const Stroka& path, bool copyEnv, TDuration pollPeriod)
     }
 }
 
-void TProcess::AddArgument(TStringBuf arg)
+void TProcessBase::AddArgument(TStringBuf arg)
 {
     YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
     Args_.push_back(Capture(arg));
 }
 
-void TProcess::AddEnvVar(TStringBuf var)
+void TProcessBase::AddEnvVar(TStringBuf var)
 {
     YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
     Env_.push_back(Capture(var));
 }
 
-void TProcess::AddArguments(std::initializer_list<TStringBuf> args)
+void TProcessBase::AddArguments(std::initializer_list<TStringBuf> args)
 {
     for (auto arg : args) {
         AddArgument(arg);
     }
 }
 
-void TProcess::AddArguments(const std::vector<Stroka>& args)
+void TProcessBase::AddArguments(const std::vector<Stroka>& args)
 {
     for (const auto& arg : args) {
         AddArgument(arg);
     }
 }
 
-void TProcess::SetWorkingDirectory(const Stroka& path)
+void TProcessBase::SetWorkingDirectory(const Stroka& path)
 {
     WorkingDirectory_ = path;
 }
 
-void TProcess::AddCloseFileAction(int fd)
-{
-    TSpawnAction action{
-        std::bind(TryClose, fd, true),
-        Format("Error closing %v file descriptor in child process", fd)
-    };
-
-    MaxSpawnActionFD_ = std::max(MaxSpawnActionFD_, fd);
-    SpawnActions_.push_back(action);
-}
-
-void TProcess::AddDup2FileAction(int oldFD, int newFD)
+void TSimpleProcess::AddDup2FileAction(int oldFD, int newFD)
 {
     TSpawnAction action{
         std::bind(TryDup2, oldFD, newFD),
@@ -283,7 +285,7 @@ void TProcess::AddDup2FileAction(int oldFD, int newFD)
     SpawnActions_.push_back(action);
 }
 
-TAsyncReaderPtr TProcess::GetStdOutReader()
+TAsyncReaderPtr TSimpleProcess::GetStdOutReader()
 {
     auto& pipe = StdPipes_[STDOUT_FILENO];
     pipe = PipeFactory_.Create();
@@ -291,7 +293,7 @@ TAsyncReaderPtr TProcess::GetStdOutReader()
     return pipe.CreateAsyncReader();
 }
 
-TAsyncReaderPtr TProcess::GetStdErrReader()
+TAsyncReaderPtr TSimpleProcess::GetStdErrReader()
 {
     auto& pipe = StdPipes_[STDERR_FILENO];
     pipe = PipeFactory_.Create();
@@ -299,7 +301,7 @@ TAsyncReaderPtr TProcess::GetStdErrReader()
     return pipe.CreateAsyncReader();
 }
 
-TAsyncWriterPtr TProcess::GetStdInWriter()
+TAsyncWriterPtr TSimpleProcess::GetStdInWriter()
 {
     auto& pipe = StdPipes_[STDIN_FILENO];
     pipe = PipeFactory_.Create();
@@ -307,7 +309,7 @@ TAsyncWriterPtr TProcess::GetStdInWriter()
     return pipe.CreateAsyncWriter();
 }
 
-TFuture<void> TProcess::Spawn()
+TFuture<void> TProcessBase::Spawn()
 {
     try {
         DoSpawn();
@@ -317,7 +319,7 @@ TFuture<void> TProcess::Spawn()
     return FinishedPromise_;
 }
 
-void TProcess::DoSpawn()
+void TSimpleProcess::DoSpawn()
 {
 #ifdef _unix_
     auto finally = Finally([&] () {
@@ -432,7 +434,7 @@ void TProcess::DoSpawn()
 
     AsyncWaitExecutor_ = New<TPeriodicExecutor>(
         GetSyncInvoker(),
-        BIND(&TProcess::AsyncPeriodicTryWait, MakeStrong(this)),
+        BIND(&TSimpleProcess::AsyncPeriodicTryWait, MakeStrong(this)),
         PollPeriod_);
 
     AsyncWaitExecutor_->Start();
@@ -441,7 +443,7 @@ void TProcess::DoSpawn()
 #endif
 }
 
-void TProcess::SpawnChild()
+void TSimpleProcess::SpawnChild()
 {
 #ifdef _unix_
     int pid = vfork();
@@ -467,7 +469,7 @@ void TProcess::SpawnChild()
 #endif
 }
 
-void TProcess::ValidateSpawnResult()
+void TSimpleProcess::ValidateSpawnResult()
 {
 #ifdef _unix_
     int data[2];
@@ -504,7 +506,7 @@ void TProcess::ValidateSpawnResult()
 }
 
 #ifdef _unix_
-void TProcess::AsyncPeriodicTryWait()
+void TSimpleProcess::AsyncPeriodicTryWait()
 {
     siginfo_t processInfo;
     memset(&processInfo, 0, sizeof(siginfo_t));
@@ -535,7 +537,7 @@ void TProcess::AsyncPeriodicTryWait()
 #endif
 }
 
-void TProcess::Kill(int signal)
+void TSimpleProcess::Kill(int signal)
 {
 #ifdef _unix_
     if (!Started_) {
@@ -559,27 +561,27 @@ void TProcess::Kill(int signal)
 #endif
 }
 
-Stroka TProcess::GetPath() const
+Stroka TProcessBase::GetPath() const
 {
     return Path_;
 }
 
-int TProcess::GetProcessId() const
+int TProcessBase::GetProcessId() const
 {
     return ProcessId_;
 }
 
-bool TProcess::IsStarted() const
+bool TProcessBase::IsStarted() const
 {
     return Started_;
 }
 
-bool TProcess::IsFinished() const
+bool TProcessBase::IsFinished() const
 {
     return Finished_;
 }
 
-Stroka TProcess::GetCommandLine() const
+Stroka TProcessBase::GetCommandLine() const
 {
     TStringBuilder builder;
     builder.AppendString(Path_);
@@ -621,13 +623,13 @@ Stroka TProcess::GetCommandLine() const
     return builder.Flush();
 }
 
-const char* TProcess::Capture(const TStringBuf& arg)
+const char* TProcessBase::Capture(const TStringBuf& arg)
 {
     StringHolders_.push_back(Stroka(arg));
     return StringHolders_.back().c_str();
 }
 
-void TProcess::Child()
+void TSimpleProcess::Child()
 {
 #ifdef _unix_
     for (int actionIndex = 0; actionIndex < SpawnActions_.size(); ++actionIndex) {
@@ -649,6 +651,98 @@ void TProcess::Child()
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
     Y_UNREACHABLE();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPortoProcess::TPortoProcess(
+    const Stroka& path,
+    IInstancePtr containerInstance,
+    bool copyEnv,
+    TDuration pollPeriod)
+    : TProcessBase(path)
+    , ContainerInstance_(containerInstance)
+{
+    AddArgument(NFS::GetFileName(path));
+    if (copyEnv) {
+        for (char** envIt = environ; *envIt; ++envIt) {
+            Env_.push_back(Capture(*envIt));
+        }
+    }
+}
+
+void TPortoProcess::Kill(int signal)
+{
+    ContainerInstance_->Kill(signal);
+}
+
+void TPortoProcess::DoSpawn()
+{
+#ifdef _linux_
+    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
+    YCHECK(Args_.size());
+    if (!WorkingDirectory_.empty()) {
+        ContainerInstance_->SetCwd(WorkingDirectory_);
+    }
+    Started_ = true;
+    try {
+        // First argument must be path to binary
+        ResolvedPath_ = ResolveBinaryPath(Args_[0]).ValueOrThrow();
+        Args_[0] = ResolvedPath_.c_str();
+        ContainerInstance_->Exec(Args_, Env_).Apply(BIND([=, this_ = MakeStrong(this)](int exitCode) {
+            Finished_ = true;
+            FinishedPromise_.Set(StatusToError(exitCode));
+        }));
+        try {
+            ProcessId_ = ContainerInstance_->GetPid();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Unable to get pid of root process")
+                << ex;
+        }
+    } catch (const std::exception& ex) {
+        Finished_ = true;
+        THROW_ERROR_EXCEPTION("Failed to start child process inside porto")
+            << TErrorAttribute("path", Args_[0])
+            << TErrorAttribute("container", ContainerInstance_->GetName())
+            << ex;
+    }
+    LOG_DEBUG("Process inside porto spawned successfully (Path: %v, ExternalPid: %v, Container: %v)",
+        Args_[0],
+        ProcessId_,
+        ContainerInstance_->GetName());
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
+#endif
+}
+
+static Stroka CreateStdIONamedPipePath()
+{
+    const Stroka name = CreateGuidAsString();
+    return NFS::GetRealPath(NFS::CombinePaths("/tmp", name));
+}
+
+TAsyncWriterPtr TPortoProcess::GetStdInWriter()
+{
+    auto pipe = TNamedPipe::Create(CreateStdIONamedPipePath());
+    ContainerInstance_->SetStdIn(pipe->GetPath());
+    NamedPipes_.push_back(pipe);
+    return pipe->CreateAsyncWriter();
+}
+
+TAsyncReaderPtr TPortoProcess::GetStdOutReader()
+{
+    auto pipe = TNamedPipe::Create(CreateStdIONamedPipePath());
+    ContainerInstance_->SetStdOut(pipe->GetPath());
+    NamedPipes_.push_back(pipe);
+    return pipe->CreateAsyncReader();
+}
+
+TAsyncReaderPtr TPortoProcess::GetStdErrReader()
+{
+    auto pipe = TNamedPipe::Create(CreateStdIONamedPipePath());
+    ContainerInstance_->SetStdErr(pipe->GetPath());
+    NamedPipes_.push_back(pipe);
+    return pipe->CreateAsyncReader();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

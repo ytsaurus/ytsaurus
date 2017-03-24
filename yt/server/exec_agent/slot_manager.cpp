@@ -77,10 +77,13 @@ void TSlotManager::Initialize()
     }
 
     // Then clean all the sandboxes.
+    auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
     for (auto& location : AliveLocations_) {
         try {
             for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-                WaitFor(location->CleanSandboxes(slotIndex))
+                WaitFor(location->CleanSandboxes(
+                    slotIndex,
+                    JobEnvironment_->CreateMounter(slotIndex)))
                     .ThrowOnError();
             }
         } catch (const std::exception& ex) {

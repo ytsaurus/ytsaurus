@@ -34,7 +34,7 @@ struct IJobHost
     : public virtual TRefCounted
 {
     virtual TJobProxyConfigPtr GetConfig() const = 0;
-    virtual NExecAgent::TCGroupJobEnvironmentConfigPtr GetCGroupsConfig() const = 0;
+    virtual IResourceControllerPtr GetResourceController() const = 0;
     virtual const NJobTrackerClient::TOperationId& GetOperationId() const = 0;
     virtual const NJobTrackerClient::TJobId& GetJobId() const = 0;
 

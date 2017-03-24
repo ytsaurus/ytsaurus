@@ -20,6 +20,8 @@ DECLARE_REFCOUNTED_CLASS(TJobProxy)
 
 DECLARE_REFCOUNTED_CLASS(TJobSatelliteConnectionConfig)
 
+DECLARE_REFCOUNTED_STRUCT(IResourceController)
+
 DECLARE_REFCOUNTED_STRUCT(IUserJobSynchronizer)
 DECLARE_REFCOUNTED_STRUCT(IUserJobSynchronizerClient)
 
@@ -34,6 +36,7 @@ DEFINE_ENUM(EJobProxyExitCode,
     ((JobProxyPrepareFailed)  (27))
     ((InvalidSpecVersion)     (28))
     ((ResourceOverdraft)      (29))
+    ((PortoManagmentFailed)   (30))
 );
 
 DEFINE_ENUM(EErrorCode,
