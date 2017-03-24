@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup, skip_if_porto, unix_only, porto_env_only
 from yt_commands import *
 
 from yt.yson import *
@@ -58,6 +58,19 @@ cgroups_delta_node_config = {
                     "blkio",
                     "memory",
                     "cpu"],
+            },
+        }
+    }
+}
+
+porto_delta_node_config = {
+    "exec_agent": {
+        "slot_manager": {
+            # <= 18.4
+            "enforce_job_control": True,
+            "job_environment" : {
+                # >= 19.2
+                "type" : "porto",
             },
         }
     }
@@ -541,6 +554,17 @@ class TestJobProber(YTEnvSetup):
             value = end_profiling["abort_reason"][abort_reason] - start_profiling["abort_reason"][abort_reason]
             assert value == (1 if abort_reason == "user_request" else 0)
 
+##################################################################
+
+@porto_env_only
+class TestEventLogPorto(TestEventLog):
+    DELTA_NODE_CONFIG = porto_delta_node_config
+    USE_PORTO_FOR_SERVERS = True
+
+@porto_env_only
+class TestJobProberPorto(TestJobProber):
+    DELTA_NODE_CONFIG = porto_delta_node_config
+    USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
 
@@ -846,7 +870,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         op = map(
             dont_track=True,
-            wait_timeout=60,
+            wait_timeout=120,
             waiting_jobs=True,
             label="stderr_of_failed_jobs",
             in_="//tmp/t1",
@@ -2734,6 +2758,14 @@ done
 
 ##################################################################
 
+@porto_env_only
+class TestSchedulerMapCommandsPorto(TestSchedulerMapCommands):
+    DELTA_NODE_CONFIG = porto_delta_node_config
+    USE_PORTO_FOR_SERVERS = True
+
+
+##################################################################
+
 class TestSchedulerControllerThrottling(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -3272,6 +3304,12 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 0
 
+##################################################################
+
+@porto_env_only
+class TestSandboxTmpfsPorto(TestSandboxTmpfs):
+    DELTA_NODE_CONFIG = porto_delta_node_config
+    USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
 

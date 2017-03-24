@@ -1,10 +1,30 @@
 import pytest
 import os
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, porto_env_only
 from yt_commands import *
 
 ##################################################################
+
+def get_statistics(statistics, complex_key):
+    result = statistics
+    for part in complex_key.split("."):
+        if part:
+            result = result[part]
+    return result
+
+##################################################################
+
+porto_delta_node_config = {
+    "exec_agent": {
+        "slot_manager": {
+            "enforce_job_control": True,                              # <= 18.4
+            "job_environment" : {
+                "type" : "porto",                                     # >= 19.2
+            },
+        }
+    }
+}
 
 class TestSchedulerUserStatistics(YTEnvSetup):
     NUM_MASTERS = 3
@@ -145,3 +165,8 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         statistics = get("//sys/operations/{0}/@progress".format(op.id))
         count = get_statistics(statistics["job_statistics"], counter_name)
         assert count == 2
+
+@porto_env_only
+class TestSchedulerUserStatisticsPorto(TestSchedulerUserStatistics):
+    DELTA_NODE_CONFIG = porto_delta_node_config
+    USE_PORTO_FOR_SERVERS = True
