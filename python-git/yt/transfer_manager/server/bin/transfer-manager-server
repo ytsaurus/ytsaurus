@@ -954,6 +954,10 @@ class Application(object):
             params["destination_table"] = None
         if "backend_tag" not in params:
             params["backend_tag"] = self._config.get("backend_tag")
+        if "pack_yt_wrapper" not in params:
+            params["pack_yt_wrapper"] = self._config.get("pack_yt_wrapper", True)
+        if "pack_yson_bindings" not in params:
+            params["pack_yson_bindings"] = self._config.get("pack_yson_bindings", True)
 
         try:
             task = Task(
