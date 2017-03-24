@@ -290,7 +290,7 @@ void TOperationWithUserJobSpec::OnLoaded()
 TOperationWithLegacyControllerSpec::TOperationWithLegacyControllerSpec()
 {
     RegisterParameter("use_legacy_controller", UseLegacyController)
-        .Default(false);
+        .Default(true);
 }
 
 TSimpleOperationSpecBase::TSimpleOperationSpecBase()
