@@ -2,6 +2,7 @@ import yt_commands
 
 from yt.environment import YTInstance
 from yt.common import makedirp, update, YtError, format_error
+from yt.environment.porto_helpers import porto_avaliable
 
 import pytest
 
@@ -25,6 +26,14 @@ SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
 
 linux_only = pytest.mark.skipif('not sys.platform.startswith("linux")')
 unix_only = pytest.mark.skipif('not sys.platform.startswith("linux") and not sys.platform.startswith("darwin")')
+porto_env_only = pytest.mark.skipif(not porto_avaliable(), reason="you need configured porto to run it")
+
+def skip_if_porto(func):
+    def wrapped_func(self, *args, **kwargs):
+        if hasattr(self, "USE_PORTO_FOR_SERVERS") and self.USE_PORTO_FOR_SERVERS:
+            pytest.skip("This test does not support porto isolation")
+        func(self, *args, **kwargs)
+    return wrapped_func
 
 def require_ytserver_root_privileges(func):
     def wrapped_func(self, *args, **kwargs):
@@ -101,6 +110,8 @@ class YTEnvSetup(object):
     DELTA_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
 
+    USE_PORTO_FOR_SERVERS = False
+
     NUM_REMOTE_CLUSTERS = 0
 
     # To be redefined in successors
@@ -146,6 +157,7 @@ class YTEnvSetup(object):
             node_count=cls.get_param("NUM_NODES", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
             kill_child_processes=True,
+            use_porto_for_servers=cls.get_param("USE_PORTO_FOR_SERVERS", index),
             port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
             fqdn="localhost",
             modify_configs_func=modify_configs_func,

@@ -1,7 +1,7 @@
 import pytest
 import sys
 
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup, unix_only, porto_env_only
 from yt_commands import *
 
 
@@ -10,6 +10,17 @@ from yt_commands import *
 """
 This test only works when suid bit is set.
 """
+
+porto_delta_node_config = {
+    "exec_agent": {
+        "slot_manager": {
+            "enforce_job_control": True,                              # <= 18.4
+            "job_environment" : {
+                "type" : "porto",                                     # >= 19.2
+            },
+        }
+    }
+}
 
 def check_memory_limit(op):
     jobs_path = "//sys/operations/" + op.id + "/jobs"
@@ -84,6 +95,10 @@ while True:
         command = "cat > /dev/null; mkdir ./tmpxxx; echo 1 > ./tmpxxx/f1; chmod 700 ./tmpxxx;"
         map(in_="//tmp/t_in", out="//tmp/t_out", command=command)
 
+@porto_env_only
+class TestSchedulerMemoryLimitsPorto(TestSchedulerMemoryLimits):
+    DELTA_NODE_CONFIG = porto_delta_node_config
+    USE_PORTO_FOR_SERVERS = True
 
 class TestMemoryReserveFactor(YTEnvSetup):
     NUM_MASTERS = 3
@@ -168,3 +183,7 @@ while len(a) * 100000 < 7e7:
         assert not last_memory_reserve is None
         assert 6e7 <= last_memory_reserve <= 8e7
 
+@porto_env_only
+class TestMemoryReserveFactorPorto(TestMemoryReserveFactor):
+    DELTA_NODE_CONFIG = porto_delta_node_config
+    USE_PORTO_FOR_SERVERS = True
