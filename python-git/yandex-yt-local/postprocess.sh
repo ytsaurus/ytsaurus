@@ -133,7 +133,7 @@ YANDEX_YT_LOCAL_VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
 YANDEX_YT_PYTHON_VERSION="0.8.10-0"
 
 if [ "$UBUNTU_CODENAME" = "precise" ]; then
-    YANDEX_YT_VERSIONS="18.5.21216-stable~ac560f8 19.0.21463-prestable~0f0fae5 19.1.21974-stable~e0a667e"
+    YANDEX_YT_VERSIONS="18.5.21216-stable~ac560f8 19.0.21463-prestable~0f0fae5 19.1.22108-prestable~e480966"
 elif [ "$UBUNTU_CODENAME" = "trusty" ]; then
     YANDEX_YT_VERSIONS="18.5.20825-stable~26131bb 19.0.21462-prestable~5acf879"
 else
@@ -141,7 +141,7 @@ else
     exit 1
 fi
 
-YANDEX_YT_YSON_BINDINGS_VERSION="0.3.6-2"
+YANDEX_YT_YSON_BINDINGS_VERSION="0.3.7-0"
 
 create_and_upload_archive() {
     local yt_local_version="$1" && shift
