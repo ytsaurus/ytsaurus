@@ -407,6 +407,43 @@ void SetPermissions(int fd, int permissions)
     SetPermissions(procPath, permissions);
 }
 
+void SetUid(int uid)
+{
+    // Set unprivileged uid and gid for user process.
+    if (setuid(0) != 0) {
+        THROW_ERROR_EXCEPTION("Unable to set zero uid")
+            << TError::FromSystem();
+    }
+    if (setgroups(0, nullptr) != 0) {
+        THROW_ERROR_EXCEPTION("Unable to set zero gid")
+            << TError::FromSystem();
+    }
+#ifdef _linux_
+    if (setresgid(uid, uid, uid) != 0) {
+        THROW_ERROR_EXCEPTION("Unable to set uid")
+            << TErrorAttribute("uid", uid)
+            << TError::FromSystem();
+    }
+    if (setresuid(uid, uid, uid) != 0) {
+        THROW_ERROR_EXCEPTION("Unable to set gid")
+            << TErrorAttribute("gid", uid)
+            << TError::FromSystem();
+    }
+#else
+    if (setuid(uid) != 0) {
+        THROW_ERROR_EXCEPTION("Unable to set uid")
+            << TErrorAttribute("uid", uid)
+            << TError::FromSystem();
+    }
+
+    if (setgid(uid) != 0) {
+        THROW_ERROR_EXCEPTION("Unable to set gid")
+            << TErrorAttribute("gid", uid)
+            << TError::FromSystem();
+    }
+#endif
+}
+
 void SafePipe(int fd[2])
 {
 #ifdef _linux_
