@@ -50,6 +50,7 @@
 #include <yt/core/misc/numeric_helpers.h>
 
 #include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/profiler.h>
 
 #include <functional>
 
@@ -75,10 +76,15 @@ using namespace NApi;
 using namespace NRpc;
 using namespace NTableClient;
 using namespace NQueryClient;
+using namespace NProfiling;
 
 using NNodeTrackerClient::TNodeId;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::TTableReaderOptions;
+
+////////////////////////////////////////////////////////////////////
+
+static NProfiling::TSimpleCounter ScheduledSliceCounter("/scheduled_slice_count");
 
 ////////////////////////////////////////////////////////////////////
 
@@ -266,7 +272,7 @@ void TOperationControllerBase::TInputChunkDescriptor::Persist(const TPersistence
 TOperationControllerBase::TTask::TTask()
     : CachedPendingJobCount(-1)
     , CachedTotalJobCount(-1)
-    , LastDemandSanityCheckTime(TInstant::Zero())
+    , DemandSanityCheckDeadline(0)
     , CompletedFired(false)
     , Logger(OperationLogger)
 { }
@@ -275,7 +281,7 @@ TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     : Controller(controller)
     , CachedPendingJobCount(0)
     , CachedTotalJobCount(0)
-    , LastDemandSanityCheckTime(TInstant::Zero())
+    , DemandSanityCheckDeadline(0)
     , CompletedFired(false)
     , Logger(OperationLogger)
 { }
@@ -509,8 +515,10 @@ void TOperationControllerBase::TTask::ScheduleJob(
         joblet->UserJobMemoryReserveFactor = Controller->GetUserJobMemoryDigest(GetJobType())->GetQuantile(Controller->Config->UserJobMemoryReserveQuantile);
     }
 
+    SchedulerProfiler.Increment(ScheduledSliceCounter, joblet->InputStripeList->TotalChunkCount);
+
     LOG_DEBUG(
-        "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
+        "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
         "Approximate: %v, DataSize: %v (%v local), RowCount: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
         "UserJobMemoryReserveFactor: %v, ResourceLimits: %v)",
         joblet->JobId,
@@ -518,6 +526,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
         jobType,
         address,
         jobIndex,
+        joblet->OutputCookie,
         joblet->InputStripeList->TotalChunkCount,
         joblet->InputStripeList->LocalChunkCount,
         joblet->InputStripeList->IsApproximate,
@@ -600,8 +609,6 @@ void TOperationControllerBase::TTask::Persist(const TPersistenceContext& context
 
     Persist(context, CachedTotalNeededResources);
     Persist(context, CachedMinNeededResources);
-
-    Persist(context, LastDemandSanityCheckTime);
 
     Persist(context, CompletedFired);
 
@@ -738,11 +745,11 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
 {
     // Run sanity check to see if any node can provide enough resources.
     // Don't run these checks too often to avoid jeopardizing performance.
-    auto now = TInstant::Now();
-    if (now < LastDemandSanityCheckTime + Controller->Config->ResourceDemandSanityCheckPeriod) {
+    auto now = NProfiling::GetCpuInstant();
+    if (now < DemandSanityCheckDeadline) {
         return;
     }
-    LastDemandSanityCheckTime = now;
+    DemandSanityCheckDeadline = now + NProfiling::DurationToCpuDuration(Controller->Config->ResourceDemandSanityCheckPeriod);
 
     // Schedule check in controller thread.
     Controller->GetCancelableInvoker()->Invoke(BIND(
@@ -1299,6 +1306,8 @@ void TOperationControllerBase::SafePrepare()
         GetInputTablesAttributes();
     }
 
+    PrepareInputQuery();
+
     // Process files.
     {
         LockUserFiles();
@@ -1471,7 +1480,7 @@ void TOperationControllerBase::SafeRevive()
     ReinstallLivePreview();
 
     // To prevent operation failure on startup if available nodes are missing.
-    AvaialableNodesLastSeenTime_ = NProfiling::GetCpuInstant();
+    AvaialableNodesLastSeenTime_ = GetCpuInstant();
 
     CheckTimeLimitExecutor->Start();
     ProgressBuildExecutor_->Start();
@@ -2537,14 +2546,14 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
 
     if (GetExecNodeDescriptors().empty()) {
-        auto timeout = NProfiling::DurationToCpuDuration(Spec->AvailableNodesMissingTimeout);
-        if (AvaialableNodesLastSeenTime_ + timeout < NProfiling::GetCpuInstant()) {
+        auto timeout = DurationToCpuDuration(Spec->AvailableNodesMissingTimeout);
+        if (AvaialableNodesLastSeenTime_ + timeout < GetCpuInstant()) {
             OnOperationFailed(TError("No online nodes match operation scheduling tag filter")
                 << TErrorAttribute("operation_id", OperationId)
                 << TErrorAttribute("scheduling_tag_filter", Spec->SchedulingTagFilter));
         }
     } else {
-        AvaialableNodesLastSeenTime_ = NProfiling::GetCpuInstant();
+        AvaialableNodesLastSeenTime_ = GetCpuInstant();
     }
 }
 
@@ -2780,7 +2789,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     // SafeScheduleJob must be synchronous; context switches are prohibited.
     TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
 
-    NProfiling::TScopedTimer timer;
+    TScopedTimer timer;
     auto scheduleJobResult = New<TScheduleJobResult>();
     DoScheduleJob(context.Get(), jobLimits, scheduleJobResult.Get());
     if (scheduleJobResult->JobStartRequest) {
@@ -2789,12 +2798,14 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     scheduleJobResult->Duration = timer.GetElapsed();
 
     ScheduleJobStatistics_->RecordJobResult(scheduleJobResult);
-    if (ScheduleJobStatisticsLogTime + Config->ScheduleJobStatisticsLogBackoff < TInstant::Now()) {
+
+    auto now = NProfiling::GetCpuInstant();
+    if (now > ScheduleJobStatisticsLogDeadline_) {
         LOG_DEBUG("Schedule job statistics (Count: %v, TotalDuration: %v, FailureReasons: %v)",
             ScheduleJobStatistics_->Count,
             ScheduleJobStatistics_->Duration,
             ScheduleJobStatistics_->Failed);
-        ScheduleJobStatisticsLogTime = TInstant::Now();
+        ScheduleJobStatisticsLogDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ScheduleJobStatisticsLogBackoff);
     }
 
     return scheduleJobResult;
@@ -2867,10 +2878,12 @@ void TOperationControllerBase::UpdateAllTasks()
 
 void TOperationControllerBase::UpdateAllTasksIfNeeded()
 {
-    if (TInstant::Now() - LastTaskUpdateTime_ >= Config->TaskUpdatePeriod) {
-        UpdateAllTasks();
-        LastTaskUpdateTime_ = TInstant::Now();
+    auto now = NProfiling::GetCpuInstant();
+    if (now < TaskUpdateDeadline_) {
+        return;
     }
+    UpdateAllTasks();
+    TaskUpdateDeadline_ = now + NProfiling::DurationToCpuDuration(Config->TaskUpdatePeriod);
 }
 
 void TOperationControllerBase::MoveTaskToCandidates(
@@ -3156,7 +3169,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     task->SetDelayedTime(now);
                 }
 
-                auto deadline = *task->GetDelayedTime() + task->GetLocalityTimeout();
+                auto deadline = *task->GetDelayedTime() + NProfiling::DurationToCpuDuration(task->GetLocalityTimeout());
                 if (deadline > now) {
                     LOG_DEBUG("Task delayed (Task: %v, Deadline: %v)",
                         task->GetId(),
@@ -4320,8 +4333,10 @@ void TOperationControllerBase::GetUserFilesAttributes()
     }
 }
 
-void TOperationControllerBase::InitQuerySpec(
-    NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
+void TOperationControllerBase::PrepareInputQuery()
+{ }
+
+void TOperationControllerBase::ParseInputQuery(
     const Stroka& queryString,
     const TNullable<TTableSchema>& schema)
 {
@@ -4357,18 +4372,31 @@ void TOperationControllerBase::InitQuerySpec(
         AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
     };
 
-    if (!schema && InputTables.size() > 1) {
-        THROW_ERROR_EXCEPTION("Expect \"input_schema\" for query filtering with multiple input tables");
-    }
+    auto inferSchema = [&] () {
+        std::vector<TTableSchema> schemas;
+        for (const auto& table : InputTables) {
+            schemas.push_back(table.Schema);
+        }
+        return InferInputSchema(schemas, true);
+    };
 
     auto query = PrepareJobQuery(
         queryString,
-        schema ? *schema : InputTables[0].Schema,
+        schema ? *schema : inferSchema(),
         fetchFunctions);
 
+    InputQuery.Emplace();
+    InputQuery->Query = std::move(query);
+    InputQuery->ExternalCGInfo = std::move(externalCGInfo);
+}
+
+void TOperationControllerBase::WriteInputQueryToJobSpec(
+    NProto::TSchedulerJobSpecExt* schedulerJobSpecExt)
+{
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
-    ToProto(querySpec->mutable_query(), query);
-    ToProto(querySpec->mutable_external_functions(), externalCGInfo->Functions);
+    ToProto(querySpec->mutable_query(), InputQuery->Query);
+    ToProto(querySpec->mutable_external_functions(), InputQuery->ExternalCGInfo->Functions);
+    InputQuery.Reset();
 }
 
 void TOperationControllerBase::CollectTotals()
@@ -5574,7 +5602,7 @@ NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReader
 NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateIntermediateTableReaderOptions()
 {
     auto options = New<TTableReaderOptions>();
-    options->AllowFetchingSeedsFromMaster = false;
+    options->AllowFetchingSeedsFromMaster = true;
     return options;
 }
 
@@ -5600,16 +5628,14 @@ void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const
 
 void TOperationControllerBase::GetExecNodesInformation()
 {
-    auto now = TInstant::Now();
-    if (LastGetExecNodesInformationTime_ + Config->ControllerUpdateExecNodesInformationDelay > now) {
+    auto now = NProfiling::GetCpuInstant();
+    if (now < GetExecNodesInformationDeadline_) {
         return;
     }
 
     ExecNodeCount_ = Host->GetExecNodeCount();
-
     ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(TSchedulingTagFilter(Spec->SchedulingTagFilter));
-
-    LastGetExecNodesInformationTime_ = TInstant::Now();
+    GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerUpdateExecNodesInformationDelay);
 }
 
 int TOperationControllerBase::GetExecNodeCount()
@@ -5815,18 +5841,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     Persist(context, JobletMap);
 
-    // COMPAT(psushin),
-    if (context.IsLoad() && context.GetVersion() == 200007) {
-        // NB: Scheduler snapshots need not be stable.
-        yhash_set<TInputChunkPtr> dummy;
-        Persist<
-            TSetSerializer<
-                TDefaultSerializer,
-                TUnsortedTag
-            >
-        >(context, dummy);
-    }
-
     Persist(context, JobIndexGenerator);
 
     Persist(context, JobStatistics);
@@ -5912,9 +5926,11 @@ public:
         DtorInvoker_->Invoke(BIND([underlying = std::move(Underlying_), id = Id_] () mutable {
             auto Logger = OperationLogger;
             Logger.AddTag("OperationId: %v", id);
+            NProfiling::TScopedTimer timer;
             LOG_INFO("Started destroying operation controller");
             underlying.Reset();
-            LOG_INFO("Finished destroying operation controller");
+            LOG_INFO("Finished destroying operation controller (Elapsed: %v)",
+                timer.GetElapsed());
         }));
     }
 

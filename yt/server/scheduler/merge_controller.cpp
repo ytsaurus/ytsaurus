@@ -18,6 +18,8 @@
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 
+#include <yt/ytlib/query_client/query.h>
+
 #include <yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/core/misc/numeric_helpers.h>
@@ -841,6 +843,13 @@ private:
         return ComputeUserJobMemoryReserve(EJobType::OrderedMap, Spec->Mapper);
     }
 
+    virtual void PrepareInputQuery() override
+    {
+        if (Spec->InputQuery) {
+            ParseInputQuery(*Spec->InputQuery, Spec->InputSchema);
+        }
+    }
+
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(static_cast<int>(EJobType::OrderedMap));
@@ -850,7 +859,7 @@ private:
         ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
         if (Spec->InputQuery) {
-            InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, Spec->InputSchema);
+            WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -931,30 +940,48 @@ private:
 
     TOrderedMergeOperationSpecPtr Spec;
 
+    virtual void PrepareInputQuery() override
+    {
+        if (Spec->InputQuery) {
+            ParseInputQuery(*Spec->InputQuery, Spec->InputSchema);
+        }
+    }
+
     virtual void PrepareOutputTables() override
     {
         auto& table = OutputTables[0];
 
+        auto inferFromInput = [&] () {
+            if (Spec->InputQuery) {
+                table.TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
+            } else {
+                InferSchemaFromInputOrdered();
+            }
+        };
+
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-                    InferSchemaFromInputOrdered();
+                    inferFromInput();
                 } else {
                     ValidateOutputSchemaOrdered();
-                    for (const auto& inputTable : InputTables) {
-                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
-                            ValidateTableSchemaCompatibility(
-                                inputTable.Schema,
-                                table.TableUploadOptions.TableSchema,
-                                /* ignoreSortOrder */ true)
-                                .ThrowOnError();
+
+                    if (!Spec->InputQuery) {
+                        for (const auto& inputTable : InputTables) {
+                            if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
+                                ValidateTableSchemaCompatibility(
+                                    inputTable.Schema,
+                                    table.TableUploadOptions.TableSchema,
+                                    /* ignoreSortOrder */ true)
+                                    .ThrowOnError();
+                            }
                         }
                     }
                 }
                 break;
 
             case ESchemaInferenceMode::FromInput:
-                InferSchemaFromInputOrdered();
+                inferFromInput();
                 break;
 
             case ESchemaInferenceMode::FromOutput:
@@ -1006,7 +1033,7 @@ private:
         ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
         if (Spec->InputQuery) {
-            InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, Spec->InputSchema);
+            WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());

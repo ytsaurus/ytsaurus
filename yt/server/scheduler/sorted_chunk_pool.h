@@ -18,6 +18,7 @@ struct TSortedChunkPoolOptions
     i64 MinTeleportChunkSize = 0;
     i64 MaxTotalSliceCount = 0;
     bool SupportLocality = false;
+    bool EnablePeriodicYielder = true;
     IJobSizeConstraintsPtr JobSizeConstraints;
 
     TOperationId OperationId;
@@ -29,8 +30,8 @@ struct TSortedChunkPoolOptions
 
 std::unique_ptr<IChunkPool> CreateSortedChunkPool(
     const TSortedChunkPoolOptions& options,
-    std::function<NYT::NTableClient::IChunkSliceFetcherPtr()> ChunkSliceFetcherFactory,
-    std::vector<TDataSource> sources);
+    NYT::NTableClient::IChunkSliceFetcherPtr chunkSliceFetcher,
+    TInputStreamDirectory dataSourceDirectory);
 
 ////////////////////////////////////////////////////////////////////
 

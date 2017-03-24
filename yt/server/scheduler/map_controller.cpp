@@ -7,11 +7,13 @@
 #include "private.h"
 #include "operation_controller_detail.h"
 
+#include <yt/ytlib/api/transaction.h>
+
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/ytlib/table_client/config.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/query_client/query.h>
 
 #include <yt/core/concurrency/periodic_yielder.h>
 
@@ -365,6 +367,13 @@ protected:
         return false;
     }
 
+    virtual void PrepareInputQuery() override
+    {
+        if (Spec->InputQuery) {
+            ParseInputQuery(*Spec->InputQuery, Spec->InputSchema);
+        }
+    }
+
     virtual void InitJobSpecTemplate()
     {
         JobSpecTemplate.set_type(static_cast<int>(GetJobType()));
@@ -375,7 +384,7 @@ protected:
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         if (Spec->InputQuery) {
-            InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, Spec->InputSchema);
+            WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -641,6 +650,7 @@ private:
             .IsOK();
 
         if (Spec->ForceTransform ||
+            Spec->InputQuery ||
             !isSchemaCompatible ||
             InputTables[chunkSpec->GetTableIndex()].Path.GetColumns())
         {
@@ -650,6 +660,13 @@ private:
         return Spec->CombineChunks
             ? chunkSpec->IsLargeCompleteChunk(Spec->JobIO->TableWriter->DesiredChunkSize)
             : chunkSpec->IsCompleteChunk();
+    }
+
+    virtual void PrepareInputQuery() override
+    {
+        if (Spec->InputQuery) {
+            ParseInputQuery(*Spec->InputQuery, Spec->InputSchema);
+        }
     }
 
     virtual void PrepareOutputTables() override
@@ -663,27 +680,37 @@ private:
             }
         };
 
+        auto inferFromInput = [&] () {
+            if (Spec->InputQuery) {
+                table.TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
+            } else {
+                InferSchemaFromInput();
+            }
+        };
+
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-                    InferSchemaFromInput();
+                    inferFromInput();
                 } else {
                     validateOutputNotSorted();
 
-                    for (const auto& inputTable : InputTables) {
-                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
-                            ValidateTableSchemaCompatibility(
-                                inputTable.Schema,
-                                table.TableUploadOptions.TableSchema,
-                                /* ignoreSortOrder */ true)
-                                .ThrowOnError();
+                    if (!Spec->InputQuery) {
+                        for (const auto& inputTable : InputTables) {
+                            if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
+                                ValidateTableSchemaCompatibility(
+                                    inputTable.Schema,
+                                    table.TableUploadOptions.TableSchema,
+                                    /* ignoreSortOrder */ true)
+                                    .ThrowOnError();
+                            }
                         }
                     }
                 }
                 break;
 
             case ESchemaInferenceMode::FromInput:
-                InferSchemaFromInput();
+                inferFromInput();
                 break;
 
             case ESchemaInferenceMode::FromOutput:

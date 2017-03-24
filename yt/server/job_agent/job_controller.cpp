@@ -70,9 +70,10 @@ public:
     void PrepareHeartbeatRequest(
         TCellTag cellTag,
         EObjectType jobObjectType,
-        TReqHeartbeat* request);
+        const TReqHeartbeatPtr& request);
 
-    void ProcessHeartbeatResponse(TRspHeartbeat* response);
+    void ProcessHeartbeatResponse(
+        const TRspHeartbeatPtr& response);
 
     NYTree::IYPathServicePtr GetOrchidService();
 
@@ -469,7 +470,7 @@ bool TJobController::TImpl::HasEnoughResources(
 void TJobController::TImpl::PrepareHeartbeatRequest(
     TCellTag cellTag,
     EObjectType jobObjectType,
-    TReqHeartbeat* request)
+    const TReqHeartbeatPtr& request)
 {
     auto masterConnector = Bootstrap_->GetMasterConnector();
     request->set_node_id(masterConnector->GetNodeId());
@@ -478,7 +479,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
     *request->mutable_resource_usage() = GetResourceUsage();
 
     // A container for all scheduler jobs that are candidate to send statistics. This set contains
-    // only the runnning jobs since all completed/aborted/failed jobs always send their statistics.
+    // only the running jobs since all completed/aborted/failed jobs always send their statistics.
     std::vector<std::pair<IJobPtr, TJobStatus*>> runningJobs;
 
     i64 completedJobsStatisticsSize = 0;
@@ -544,7 +545,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
     }
 }
 
-void TJobController::TImpl::ProcessHeartbeatResponse(TRspHeartbeat* response)
+void TJobController::TImpl::ProcessHeartbeatResponse(const TRspHeartbeatPtr& response)
 {
     for (const auto& protoJobId : response->jobs_to_remove()) {
         auto jobId = FromProto<TJobId>(protoJobId);
@@ -579,11 +580,18 @@ void TJobController::TImpl::ProcessHeartbeatResponse(TRspHeartbeat* response)
         }
     }
 
+    int attachmentIndex = 0;
     for (auto& info : *response->mutable_jobs_to_start()) {
         auto jobId = FromProto<TJobId>(info.job_id());
         auto operationId = FromProto<TJobId>(info.operation_id());
         const auto& resourceLimits = info.resource_limits();
-        auto& spec = *info.mutable_spec();
+        TJobSpec spec;
+        if (info.has_spec()) {
+            spec.Swap(info.mutable_spec());
+        } else {
+            const auto& attachment = response->Attachments()[attachmentIndex++];
+            DeserializeFromProtoWithEnvelope(&spec, attachment);
+        }
         CreateJob(jobId, operationId, resourceLimits, std::move(spec));
     }
 }
@@ -706,12 +714,13 @@ void TJobController::SetDisableSchedulerJobs(bool value)
 void TJobController::PrepareHeartbeatRequest(
     TCellTag cellTag,
     EObjectType jobObjectType,
-    TReqHeartbeat* request)
+    const TReqHeartbeatPtr& request)
 {
     Impl_->PrepareHeartbeatRequest(cellTag, jobObjectType, request);
 }
 
-void TJobController::ProcessHeartbeatResponse(TRspHeartbeat* response)
+void TJobController::ProcessHeartbeatResponse(
+    const TRspHeartbeatPtr& response)
 {
     Impl_->ProcessHeartbeatResponse(response);
 }

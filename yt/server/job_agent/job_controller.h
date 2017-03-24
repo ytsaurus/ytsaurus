@@ -5,7 +5,7 @@
 
 #include <yt/server/cell_node/public.h>
 
-#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/ytlib/job_tracker_client/job_tracker_service.pb.h>
 
 #include <yt/core/yson/consumer.h>
 
@@ -70,14 +70,23 @@ public:
     //! Set value of flag disabling all scheduler jobs.
     void SetDisableSchedulerJobs(bool value);
 
+    using TRspHeartbeat = NRpc::TTypedClientResponse<
+        NJobTrackerClient::NProto::TRspHeartbeat>;
+    using TReqHeartbeat = NRpc::TTypedClientRequest<
+        NJobTrackerClient::NProto::TReqHeartbeat,
+        TRspHeartbeat>;
+    using TRspHeartbeatPtr = TIntrusivePtr<TRspHeartbeat>;
+    using TReqHeartbeatPtr = TIntrusivePtr<TReqHeartbeat>;
+
     //! Prepares a heartbeat request.
     void PrepareHeartbeatRequest(
         NObjectClient::TCellTag cellTag,
         NObjectClient::EObjectType jobObjectType,
-        NJobTrackerClient::NProto::TReqHeartbeat* request);
+        const TReqHeartbeatPtr& request);
 
     //! Handles heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
-    void ProcessHeartbeatResponse(NJobTrackerClient::NProto::TRspHeartbeat* response);
+    void ProcessHeartbeatResponse(
+        const TRspHeartbeatPtr& response);
 
     //! Orchid server.
     NYTree::IYPathServicePtr GetOrchidService();

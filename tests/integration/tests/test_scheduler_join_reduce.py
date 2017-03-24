@@ -772,16 +772,6 @@ echo {v = 2} >&7
         with pytest.raises(YtError):
             op.track();
 
-        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
-        job_ids = ls(jobs_path)
-        assert len(job_ids) == 1
-        expected = yson.loads('''[
-            <ranges=[{lower_limit={key=["00001"]};upper_limit={key=["00004";<type="max";>#]}}];foreign=%true;>"//tmp/in1";
-            <ranges=[{lower_limit={row_index=0;key=["00001"]};upper_limit={row_index=14;key=["00004"]}}];>"//tmp/in2"
-        ]''')
-        actual = get("{0}/{1}/@input_paths".format(jobs_path, job_ids[0]))
-        assert expected == actual
-
     def test_join_reduce_on_dynamic_table(self):
         def _create_dynamic_table(path):
             create("table", path,

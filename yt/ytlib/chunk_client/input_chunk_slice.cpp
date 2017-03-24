@@ -413,6 +413,14 @@ std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(
     return slices;
 }
 
+void InferLimitsFromBoundaryKeys(const TInputChunkSlicePtr& chunkSlice, const TRowBufferPtr& rowBuffer)
+{
+    if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
+        chunkSlice->LowerLimit().MergeLowerKey(boundaryKeys->MinKey);
+        chunkSlice->UpperLimit().MergeUpperKey(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer));
+    }
+}
+
 std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
     const TInputChunkPtr& inputChunk,
     i64 sliceDataSize,
