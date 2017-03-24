@@ -42,9 +42,14 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, SatellitePrepared)
     {
-        Y_UNUSED(request);
         Y_UNUSED(response);
-        JobControl_->NotifyJobSatellitePrepared();
+        auto error = FromProto<TError>(request->error());
+        if (error.IsOK()) {
+            auto rss = FromProto<i64>(request->rss());
+            JobControl_->NotifyJobSatellitePrepared(rss);
+        } else {
+            JobControl_->NotifyJobSatellitePrepared(error);
+        }
         context->Reply();
     }
 
@@ -79,9 +84,13 @@ public:
         ControlServiceProxy_.reset(new TUserJobSynchronizerServiceProxy(channel));
     }
 
-    virtual void NotifyJobSatellitePrepared() override
+    virtual void NotifyJobSatellitePrepared(const TErrorOr<i64>& rssOrError) override
     {
         auto req = ControlServiceProxy_->SatellitePrepared();
+        ToProto(req->mutable_error(), rssOrError);
+        if (rssOrError.IsOK()) {
+            req->set_rss(rssOrError.Value());
+        }
         WaitFor(req->Invoke()).ThrowOnError();
     }
 

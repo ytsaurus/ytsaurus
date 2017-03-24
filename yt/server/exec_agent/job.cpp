@@ -146,7 +146,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        LOG_INFO(error, "Job abort requested");
+        LOG_INFO(error, "Job abort requested (Phase %v)", JobPhase_);
 
         switch (JobPhase_) {
             case EJobPhase::Created:
@@ -745,6 +745,7 @@ private:
 
         if (Slot_) {
             try {
+                LOG_DEBUG("Cleanup (slot: %v)", Slot_->GetSlotIndex());
                 Slot_->Cleanup();
             } catch (const std::exception& ex) {
                 // Errors during cleanup phase do not affect job outcome.
@@ -1094,7 +1095,8 @@ private:
                 exitCode == EJobProxyExitCode::ResultReportFailed ||
                 exitCode == EJobProxyExitCode::ResourcesUpdateFailed ||
                 exitCode == EJobProxyExitCode::GetJobSpecFailed ||
-                exitCode == EJobProxyExitCode::InvalidSpecVersion)
+                exitCode == EJobProxyExitCode::InvalidSpecVersion ||
+                exitCode == EJobProxyExitCode::PortoManagmentFailed)
             {
                 return EAbortReason::Other;
             }

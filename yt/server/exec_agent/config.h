@@ -85,8 +85,33 @@ public:
     }
 };
 
-
 DEFINE_REFCOUNTED_TYPE(TCGroupJobEnvironmentConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPortoJobEnvironmentConfig
+    : public TJobEnvironmentConfig
+{
+public:
+    TDuration PortoWaitTime;
+    TDuration PortoPollPeriod;
+    TDuration BlockIOWatchdogPeriod;
+    bool UseResourceLimits;
+
+    TPortoJobEnvironmentConfig()
+    {
+        RegisterParameter("porto_wait_time", PortoWaitTime)
+            .Default(TDuration::Seconds(10));
+        RegisterParameter("porto_poll_period", PortoPollPeriod)
+            .Default(TDuration::MilliSeconds(100));
+        RegisterParameter("block_io_watchdog_period", BlockIOWatchdogPeriod)
+            .Default(TDuration::Seconds(60));
+        RegisterParameter("use_resource_limits", UseResourceLimits)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPortoJobEnvironmentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

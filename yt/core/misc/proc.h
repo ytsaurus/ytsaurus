@@ -22,7 +22,7 @@ DEFINE_ENUM(ELinuxErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int> GetPidsByUid(int uid);
+std::vector<int> GetPidsByUid(int uid = -1);
 
 //! Gets the resident set size of a process.
 /*!
@@ -70,6 +70,8 @@ Stroka SafeGetUsernameByUid(int uid);
 
 void SetPermissions(const Stroka& path, int permissions);
 void SetPermissions(int fd, int permissions);
+
+void SetUid(int uid);
 
 void CloseAllDescriptors(const std::vector<int>& exceptFor = std::vector<int>());
 

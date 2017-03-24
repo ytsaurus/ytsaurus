@@ -39,9 +39,31 @@ using TPortoStatRule = std::pair<Stroka, TCallback<i64(const Stroka& input)>>;
 
 static i64 Extract(const Stroka& input, const Stroka& pattern, const Stroka& terminator = "\n")
 {
-    const int start = input.find(pattern) + pattern.length();
-    const int end = input.find(terminator, start);
+    auto start = input.find(pattern) + pattern.length();
+    auto end = input.find(terminator, start);
     return std::stol(input.substr(start, (end == input.npos) ? end : end - start));
+}
+
+static i64 ExtractSum(const Stroka& input, const Stroka& pattern, const Stroka& delimiter, const Stroka& terminator = "\n")
+{
+    i64 sum = 0;
+    Stroka::size_type pos = 0;
+    while (pos < input.length()) {
+        pos = input.find(pattern, pos);
+        if (pos == input.npos) {
+            break;
+        }
+        pos += pattern.length();
+
+        pos = input.find(delimiter, pos);
+        if (pos == input.npos) {
+            break;
+        }
+
+        auto end = input.find(terminator, pos);
+        sum += std::stol(input.substr(pos, (end == input.npos) ? end : end - pos));
+    }
+    return sum;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -272,25 +294,25 @@ private:
 
 const std::map<EStatField, TPortoStatRule> TPortoInstance::StatRules_ = {
     { EStatField::CpuUsageUser,    { "cpu_usage",
-        BIND([](const Stroka& in) { return std::stol(in);              } ) } },
+        BIND([](const Stroka& in) { return std::stol(in);                     } ) } },
     { EStatField::CpuUsageSystem,  { "cpu_usage_system",
-        BIND([](const Stroka& in) { return std::stol(in);              } ) } },
+        BIND([](const Stroka& in) { return std::stol(in);                     } ) } },
     { EStatField::CpuStolenTime,   { "cpu_wait_time",
-        BIND([](const Stroka& in) { return std::stol(in);              } ) } },
+        BIND([](const Stroka& in) { return std::stol(in);                     } ) } },
     { EStatField::Rss,             { "memory.stat",
-        BIND([](const Stroka& in) { return Extract(in, "rss");         } ) } },
+        BIND([](const Stroka& in) { return Extract(in, "rss");                } ) } },
     { EStatField::MappedFiles,     { "memory.stat",
-        BIND([](const Stroka& in) { return Extract(in, "mapped_file"); } ) } },
+        BIND([](const Stroka& in) { return Extract(in, "mapped_file");        } ) } },
     { EStatField::IOOperations,    { "io_ops",
-        BIND([](const Stroka& in) { return Extract(in, "fs:", ";");    } ) } },
+        BIND([](const Stroka& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
     { EStatField::IOReadByte,      { "io_read",
-        BIND([](const Stroka& in) { return Extract(in, "fs:", ";");    } ) } },
+        BIND([](const Stroka& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
     { EStatField::IOWriteByte,      { "io_write",
-        BIND([](const Stroka& in) { return Extract(in, "fs:", ";");    } ) } },
+        BIND([](const Stroka& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
     { EStatField::MaxMemoryUsage,  { "memory.max_usage_in_bytes",
-        BIND([](const Stroka& in) { return std::stol(in);              } ) } },
+        BIND([](const Stroka& in) { return std::stol(in);                     } ) } },
     { EStatField::MajorFaults,     { "major_faults",
-        BIND([](const Stroka& in) { return std::stol(in);              } ) } }
+        BIND([](const Stroka& in) { return std::stol(in);                     } ) } }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

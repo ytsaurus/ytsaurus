@@ -48,7 +48,7 @@ public:
         std::unique_ptr<TShellOptions> options)
         : Options_(std::move(options))
         , Id_(TGuid::Create())
-        , Process_(New<TProcess>(Options_->ExePath, false))
+        , Process_(New<TSimpleProcess>(Options_->ExePath, false))
         , Freezer_(Options_->CGroupBasePath.Get("") + CGroupShellPrefix + ToString(Id_))
         , CurrentHeight_(Options_->Height)
         , CurrentWidth_(Options_->Width)
@@ -241,7 +241,7 @@ public:
 private:
     const std::unique_ptr<TShellOptions> Options_;
     const TShellId Id_;
-    TProcessPtr Process_;
+    const TProcessBasePtr Process_;
     TFreezer Freezer_;
     int CurrentHeight_;
     int CurrentWidth_;
@@ -284,6 +284,9 @@ private:
     void CleanupShellProcesses()
     {
         if (!Options_->CGroupBasePath) {
+            // We can not kill shell without cgroup (shell has different euid),
+            // so abort reader
+            Reader_->Abort();
             return;
         }
 

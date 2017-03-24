@@ -20,7 +20,7 @@ namespace NJobProxy {
 struct IUserJobSynchronizerClient
     : public virtual TRefCounted
 {
-    virtual void NotifyJobSatellitePrepared() = 0;
+    virtual void NotifyJobSatellitePrepared(const TErrorOr<i64>& rssOrError) = 0;
     virtual void NotifyUserJobFinished(const TError& error) = 0;
     virtual void NotifyExecutorPrepared() = 0;
 };
@@ -47,17 +47,19 @@ class TUserJobSynchronizer
     , public IUserJobSynchronizer
 {
 public:
-    virtual void NotifyJobSatellitePrepared() override;
+    virtual void NotifyJobSatellitePrepared(const TErrorOr<i64>& rssOrError) override;
     virtual void NotifyExecutorPrepared() override;
-    virtual void NotifyUserJobFinished(const TError &error) override;
+    virtual void NotifyUserJobFinished(const TError& error) override;
     virtual void Wait() override;
     virtual TError GetUserProcessStatus() const override;
     virtual void CancelWait() override;
+    i64 GetJobSatelliteRssUsage() const;
 
 private:
-    TPromise<void> JobSatellitePreparedPromise_ = NewPromise<void>();
+    TPromise<i64> JobSatellitePreparedPromise_ = NewPromise<i64>();
     TPromise<void> UserJobFinishedPromise_ = NewPromise<void>();
     TPromise<void> ExecutorPreparedPromise_ = NewPromise<void>();
+    i64 JobSatelliteRssUsage_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserJobSynchronizer)
