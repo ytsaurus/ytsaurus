@@ -88,6 +88,7 @@ def execute_task(task, message_queue, config, logger):
         force_copy_with_operation = task.force_copy_with_operation or \
                 not config.get("enable_copy_without_operation", True)
 
+
         if source_client._type == "yt" and destination_client._type == "yt":
             logger.info("Running YT -> YT remote copy operation")
             if source_client.get(yt.YPath(task.source_table, client=source_client).to_yson_type() + "/@type") == "file":
@@ -106,7 +107,9 @@ def execute_task(task, message_queue, config, logger):
                     small_file_size_threshold=config.get("small_table_size_threshold"),
                     force_copy_with_operation=force_copy_with_operation,
                     additional_attributes=task.additional_attributes,
-                    temp_files_dir=task.temp_files_dir)
+                    temp_files_dir=task.temp_files_dir,
+                    pack_yt_wrapper=task.pack_yt_wrapper,
+                    pack_yson_bindings=task.pack_yson_bindings)
             elif task.copy_method == "proxy":
                 copy_yt_to_yt_through_proxy(
                     source_client,
@@ -124,7 +127,9 @@ def execute_task(task, message_queue, config, logger):
                     small_table_size_threshold=config.get("small_table_size_threshold"),
                     force_copy_with_operation=force_copy_with_operation,
                     additional_attributes=task.additional_attributes,
-                    schema_inference_mode=task.schema_inference_mode)
+                    schema_inference_mode=task.schema_inference_mode,
+                    pack_yt_wrapper=task.pack_yt_wrapper,
+                    pack_yson_bindings=task.pack_yson_bindings)
             else:  # native
                 network_name = "fastbone" if fastbone else "default"
                 network_name = parameters.get("network_name", network_name)
@@ -155,7 +160,9 @@ def execute_task(task, message_queue, config, logger):
                 kwworm_options=task.kwworm_options,
                 copy_spec_template=copy_spec,
                 table_for_errors=task.table_for_errors,
-                default_tmp_dir=config.get("default_tmp_dir"))
+                default_tmp_dir=config.get("default_tmp_dir"),
+                pack_yt_wrapper=task.pack_yt_wrapper,
+                pack_yson_bindings=task.pack_yson_bindings)
         elif source_client._type == "hive" and destination_client._type == "yt":
             copy_hive_to_yt(
                 source_client,
