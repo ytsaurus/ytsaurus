@@ -1,4 +1,5 @@
 #include "error.h"
+#include "error_codes.h"
 
 #include <mapreduce/yt/common/config.h>
 
@@ -153,47 +154,47 @@ TDuration TErrorResponse::GetRetryInterval() const
 
 bool TErrorResponse::IsResolveError() const
 {
-    return Error_.ContainsErrorCode(500);
+    return Error_.ContainsErrorCode(NClusterErrorCodes::NYTree::ResolveError);
 }
 
 bool TErrorResponse::IsAccessDenied() const
 {
-    return Error_.ContainsErrorCode(901);
+    return Error_.ContainsErrorCode(NClusterErrorCodes::NSecurityClient::AuthorizationError);
 }
 
 bool TErrorResponse::IsConcurrentTransactionLockConflict() const
 {
-    return Error_.ContainsErrorCode(402);
+    return Error_.ContainsErrorCode(NClusterErrorCodes::NCypressClient::ConcurrentTransactionLockConflict);
 }
 
 bool TErrorResponse::IsRequestRateLimitExceeded() const
 {
-    return Error_.ContainsErrorCode(904);
+    return Error_.ContainsErrorCode(NClusterErrorCodes::NSecurityClient::RequestQueueSizeLimitExceeded);
 }
 
 bool TErrorResponse::IsRequestQueueSizeLimitExceeded() const
 {
-    return Error_.ContainsErrorCode(108);
+    return Error_.ContainsErrorCode(NClusterErrorCodes::NRpc::RequestQueueSizeLimitExceeded);
 }
 
 bool TErrorResponse::IsChunkUnavailable() const
 {
-    return Error_.ContainsErrorCode(716);
+    return Error_.ContainsErrorCode(NClusterErrorCodes::NChunkClient::ChunkUnavailable);
 }
 
 bool TErrorResponse::IsRequestTimedOut() const
 {
-    return Error_.ContainsErrorCode(3);
+    return Error_.ContainsErrorCode(NClusterErrorCodes::Timeout);
 }
 
 bool TErrorResponse::IsNoSuchTransaction() const
 {
-    return Error_.ContainsErrorCode(11000);
+    return Error_.ContainsErrorCode(NClusterErrorCodes::NTransactionClient::NoSuchTransaction);
 }
 
 bool TErrorResponse::IsConcurrentOperationsLimitReached() const
 {
-    return Error_.ContainsErrorCode(202);
+    return Error_.ContainsErrorCode(NClusterErrorCodes::NScheduler::TooManyOperations);
 }
 
 void TErrorResponse::Setup()
