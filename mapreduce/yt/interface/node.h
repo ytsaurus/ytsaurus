@@ -149,6 +149,12 @@ public:
         Clear();
     }
 
+    void Clear()
+    {
+        ClearAttributes();
+        ClearValue();
+    }
+
     bool IsString() const
     {
         return Type_ == STRING;
@@ -455,12 +461,6 @@ private:
         }
 
         Type_ = UNDEFINED;
-    }
-
-    void Clear()
-    {
-        ClearAttributes();
-        ClearValue();
     }
 
     void Copy(const TNode& rhs)
