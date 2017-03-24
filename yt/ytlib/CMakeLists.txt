@@ -15,4 +15,5 @@ target_link_libraries(yt-library-client
   deps-arcadia-contrib-libs-re2
   deps-arcadia-contrib-libs-yajl
   yt-core
+  deps-yt-contrib-portoapi
 )
