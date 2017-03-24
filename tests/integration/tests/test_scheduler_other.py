@@ -998,9 +998,11 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
 
         operation_path = "//sys/operations/{0}".format(op.id)
         for iter in xrange(100):
-            completed_jobs = get(operation_path + "/@brief_progress/jobs/completed")
-            if completed_jobs == 2:
-                break
+            jobs_exist = exists(operation_path + "/@brief_progress/jobs")
+            if jobs_exist:
+                completed_jobs = get(operation_path + "/@brief_progress/jobs/completed")
+                if completed_jobs == 2:
+                    break
             time.sleep(0.1)
 
         operation_path = "//sys/operations/{0}".format(op.id)
