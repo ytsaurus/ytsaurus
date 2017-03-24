@@ -34,6 +34,8 @@
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/value_consumer.h>
 
+#include <yt/ytlib/query_client/public.h>
+
 #include <yt/core/actions/cancelable_context.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
@@ -392,6 +394,14 @@ protected:
     };
 
     std::vector<TUserFile> Files;
+
+    struct TInputQuery
+    {
+        NQueryClient::TQueryPtr Query;
+        NQueryClient::TExternalCGInfoPtr ExternalCGInfo;
+    };
+
+    TNullable<TInputQuery> InputQuery;
 
     struct TJoblet
         : public TIntrinsicRefCounted
@@ -782,10 +792,13 @@ protected:
     void InitInputChunkScraper();
     void InitIntermediateChunkScraper();
     void SuspendUnavailableInputStripes();
-    void InitQuerySpec(
-        NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
+
+    void ParseInputQuery(
         const Stroka& queryString,
         const TNullable<NQueryClient::TTableSchema>& schema);
+    void WriteInputQueryToJobSpec(
+        NProto::TSchedulerJobSpecExt* schedulerJobSpecExt);
+    virtual void PrepareInputQuery();
 
     void PickIntermediateDataCell();
     void InitChunkListPool();

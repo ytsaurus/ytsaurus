@@ -2775,6 +2775,13 @@ private:
         return Spec->Reducer;
     }
 
+    virtual void PrepareInputQuery() override
+    {
+        if (Spec->InputQuery) {
+            ParseInputQuery(*Spec->InputQuery, Spec->InputSchema);
+        }
+    }
+
     void InitJobSpecTemplates()
     {
         {
@@ -2786,7 +2793,7 @@ private:
             ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
             if (Spec->InputQuery) {
-                InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, Spec->InputSchema);
+                WriteInputQueryToJobSpec(schedulerJobSpecExt);
             }
 
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
