@@ -1101,6 +1101,9 @@ private:
             if (ranges.size() > 1) {
                 THROW_ERROR_EXCEPTION("Erase operation does not support tables with multiple ranges");
             }
+            if (path.GetColumns()) {
+                THROW_ERROR_EXCEPTION("Erase operation does not support column filtering");
+            }
 
             if (ranges.size() == 1) {
                 std::vector<TReadRange> complementaryRanges;
