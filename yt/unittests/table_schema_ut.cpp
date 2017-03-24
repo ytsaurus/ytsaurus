@@ -548,168 +548,88 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
         }), false /* isDynamicTable */, true /* isEmptyTable */);
 }
 
-TEST_F(TTableSchemaTest, InferInputSchema)
+////////////////////////////////////////////////////////////////////////////////
+
+using TInferSchemaTestCase = std::tuple<std::vector<const char*>, const char*, bool>;
+
+class TInferSchemaTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<TInferSchemaTestCase>
+{ };
+
+TEST_P(TInferSchemaTest, Basic)
 {
-    TTableSchema schema1({
-        TColumnSchema("Key1", EValueType::String)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("Value1", EValueType::String)
-    }, false /* strict */);
-    TTableSchema schema1k({
-        TColumnSchema("Key1", EValueType::String),
-        TColumnSchema("Value1", EValueType::String)
-    }, false /* strict */);
-    TTableSchema schema2({
-        TColumnSchema("Key2", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("Value2", EValueType::Int64)
-    }, false /* strict */);
-    TTableSchema schema3({
-        TColumnSchema("Key1", EValueType::String)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("Value2", EValueType::Int64)
-    }, false /* strict */);
-    TTableSchema schema12({
-        TColumnSchema("Key1", EValueType::String),
-        TColumnSchema("Value1", EValueType::String),
-        TColumnSchema("Key2", EValueType::Int64),
-        TColumnSchema("Value2", EValueType::Int64)
-    }, false /* strict */);
-    TTableSchema schema123 = schema12;
-    TTableSchema schema13({
-        TColumnSchema("Key1", EValueType::String)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("Value1", EValueType::String),
-        TColumnSchema("Value2", EValueType::Int64)
-    }, false /* strict */);
-    TTableSchema schema13k({
-        TColumnSchema("Key1", EValueType::String),
-        TColumnSchema("Value1", EValueType::String),
-        TColumnSchema("Value2", EValueType::Int64)
-    }, false /* strict */);
-    TTableSchema schema1x({
-        TColumnSchema("Key1", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("Value1", EValueType::String)
-    }, false /* strict */);
-    TTableSchema schema31x({
-        TColumnSchema("Key1", EValueType::Any)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("Value2", EValueType::Int64),
-        TColumnSchema("Value1", EValueType::String)
-    }, false /* strict */);
-    TTableSchema schema4({
-        TColumnSchema("ColumnA", EValueType::String)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("ColumnB", EValueType::String)
-    }, false /* strict */);
-    TTableSchema schema5({
-        TColumnSchema("ColumnB", EValueType::String)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("ColumnC", EValueType::String)
-            .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("ColumnB"))
-    }, false /* strict */);
-    TTableSchema schema45({
-        TColumnSchema("ColumnA", EValueType::String),
-        TColumnSchema("ColumnB", EValueType::String),
-        TColumnSchema("ColumnC", EValueType::String)
-    }, false /* strict */);
-    // TODO(max42): uncomment this when Null becomes
-    // an allowed column value type.
-    TTableSchema schema6({
-        TColumnSchema("ColumnA", EValueType::String),
-        TColumnSchema("ColumnB", EValueType::Int64),
-        //TColumnSchema("ColumnC", EValueType::Null),
-        TColumnSchema("ColumnD", EValueType::Any),
-        TColumnSchema("ColumnE", EValueType::String),
-        TColumnSchema("ColumnF", EValueType::Int64),
-        //TColumnSchema("ColumnG", EValueType::Null),
-        TColumnSchema("ColumnH", EValueType::Any),
-        //TColumnSchema("ColumnI", EValueType::String),
-        //TColumnSchema("ColumnJ", EValueType::Int64),
-        //TColumnSchema("ColumnK", EValueType::Null),
-        //TColumnSchema("ColumnL", EValueType::Any),
-        TColumnSchema("ColumnM", EValueType::String),
-        TColumnSchema("ColumnN", EValueType::Int64),
-        //TColumnSchema("ColumnO", EValueType::Null),
-        TColumnSchema("ColumnP", EValueType::Any),
-    }, false /* strict */);
-    TTableSchema schema7({
-        TColumnSchema("ColumnA", EValueType::String),
-        TColumnSchema("ColumnB", EValueType::String),
-        //TColumnSchema("ColumnC", EValueType::String),
-        TColumnSchema("ColumnD", EValueType::String),
-        TColumnSchema("ColumnE", EValueType::Int64),
-        TColumnSchema("ColumnF", EValueType::Int64),
-        //TColumnSchema("ColumnG", EValueType::Int64),
-        TColumnSchema("ColumnH", EValueType::Int64),
-        //TColumnSchema("ColumnI", EValueType::Null),
-        //TColumnSchema("ColumnJ", EValueType::Null),
-        //TColumnSchema("ColumnK", EValueType::Null),
-        //TColumnSchema("ColumnL", EValueType::Null),
-        TColumnSchema("ColumnM", EValueType::Any),
-        TColumnSchema("ColumnN", EValueType::Any),
-        //TColumnSchema("ColumnO", EValueType::Any),
-        TColumnSchema("ColumnP", EValueType::Any),
-    }, false /* strict */);
-    TTableSchema schema67({
-        TColumnSchema("ColumnA", EValueType::String),
-        TColumnSchema("ColumnB", EValueType::Any),
-        //TColumnSchema("ColumnC", EValueType::String),
-        TColumnSchema("ColumnD", EValueType::Any),
-        TColumnSchema("ColumnE", EValueType::Any),
-        TColumnSchema("ColumnF", EValueType::Int64),
-        //TColumnSchema("ColumnG", EValueType::Int64),
-        TColumnSchema("ColumnH", EValueType::Any),
-        //TColumnSchema("ColumnI", EValueType::String),
-        //TColumnSchema("ColumnJ", EValueType::Int64),
-        //TColumnSchema("ColumnK", EValueType::Null),
-        //TColumnSchema("ColumnL", EValueType::Any),
-        TColumnSchema("ColumnM", EValueType::Any),
-        TColumnSchema("ColumnN", EValueType::Any),
-        //TColumnSchema("ColumnO", EValueType::Any),
-        TColumnSchema("ColumnP", EValueType::Any),
-    }, false /* strict */);
-    TTableSchema schema8({
-        TColumnSchema("Value1", EValueType::Any),
-    }, true /* strict */);
-    TTableSchema schema8ns({
-        TColumnSchema("Value1", EValueType::Any),
-    }, false /* strict */);
-    TTableSchema schema9({
-        TColumnSchema("Value2", EValueType::Any),
-    }, true /* strict */);
-    TTableSchema schema9ns({
-        TColumnSchema("Value2", EValueType::Any),
-    }, false /* strict */);
-    TTableSchema schema89({
-        TColumnSchema("Value1", EValueType::Any),
-        TColumnSchema("Value2", EValueType::Any),
-    }, true /* strict */);
-    TTableSchema schema89ns({
-        TColumnSchema("Value1", EValueType::Any),
-        TColumnSchema("Value2", EValueType::Any),
-    }, false /* strict */);
+    const auto& param = GetParam();
+    const auto& schemaStrings = std::get<0>(param);
+    const auto& resultSchamaString = std::get<1>(param);
+    bool discardKeyColumns = std::get<2>(param);
 
-    EXPECT_EQ(schema1, InferInputSchema({schema1}, false /* discardKeyColumns */));
-    EXPECT_EQ(schema1k, InferInputSchema({schema1}, true /* discardKeyColumns */));
+    std::vector<TTableSchema> schemas;
+    for (const auto* schemaString : schemaStrings) {
+        schemas.emplace_back();
+        Deserialize(schemas.back(), ConvertToNode(TYsonString(schemaString)));
+    }
 
-    EXPECT_EQ(schema13, InferInputSchema({schema1, schema3}, false /* discardKeyColumns */));
-    EXPECT_EQ(schema13k, InferInputSchema({schema1, schema3}, true /* discardKeyColumns */));
+    TTableSchema resultSchema;
+    Deserialize(resultSchema, ConvertToNode(TYsonString(resultSchamaString)));
 
-    EXPECT_EQ(schema12, InferInputSchema({schema1, schema2}, false /* discardKeyColumns */));
-    EXPECT_EQ(schema123, InferInputSchema({schema1, schema2, schema3}, false /* discardKeyColumns */));
-
-    EXPECT_EQ(schema31x, InferInputSchema({schema3, schema1x}, false /* discardKeyColumns */));
-    EXPECT_EQ(schema45, InferInputSchema({schema4, schema5}, false /* discardKeyColumns */));
-
-    EXPECT_EQ(schema67, InferInputSchema({schema6, schema7}, false /* discardKeyColumns */));
-
-    EXPECT_EQ(schema89, InferInputSchema({schema8, schema9}, false /* discardKeyColumns */));
-    EXPECT_EQ(schema89ns, InferInputSchema({schema8, schema9ns}, false /* discardKeyColumns */));
-    EXPECT_EQ(schema89ns, InferInputSchema({schema8ns, schema9ns}, false /* discardKeyColumns */));
+    EXPECT_EQ(resultSchema, InferInputSchema(schemas, discardKeyColumns));
 }
+
+auto* schema1 = "[{name=Key1;type=string;sort_order=ascending}; {name=Value1;type=string}]";
+auto* schema1k = "[{name=Key1;type=string}; {name=Value1;type=string}]";
+auto* schema2 = "[{name=Key2;type=int64;sort_order=ascending}; {name=Value2;type=int64}]";
+auto* schema3 = "[{name=Key1;type=string;sort_order=ascending}; {name=Value2;type=int64}]";
+auto* schema12 = "[{name=Key1;type=string}; {name=Value1;type=string}; {name=Key2;type=int64}; {name=Value2;type=int64}]";
+auto* schema123 = schema12;
+auto* schema13 = "[{name=Key1;type=string;sort_order=ascending}; {name=Value1;type=string}; {name=Value2;type=int64}]";
+auto* schema13k = "[{name=Key1;type=string}; {name=Value1;type=string}; {name=Value2;type=int64}]";
+auto* schema4 = "[{name=ColumnA;type=string;sort_order=ascending}; {name=ColumnB;type=string}]";
+auto* schema5 = "[{name=ColumnB;type=string;sort_order=ascending}; {name=ColumnC;type=string;sort_order=ascending;expression=ColumnB}]";
+auto* schema45 = "[{name=ColumnA;type=string}; {name=ColumnB;type=string}; {name=ColumnC;type=string}]";
+
+INSTANTIATE_TEST_CASE_P(
+    TInferSchemaTest,
+    TInferSchemaTest,
+    ::testing::Values(
+        TInferSchemaTestCase({schema1}, schema1, false),
+        TInferSchemaTestCase({schema1}, schema1k, true),
+        TInferSchemaTestCase({schema1, schema3}, schema13, false),
+        TInferSchemaTestCase({schema1, schema3}, schema13k, true),
+        TInferSchemaTestCase({schema1, schema2}, schema12, false),
+        TInferSchemaTestCase({schema1, schema2, schema3}, schema123, false),
+        TInferSchemaTestCase({schema4, schema5}, schema45, false)
+));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TInferSchemaInvalidTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::vector<const char*>>
+{ };
+
+TEST_P(TInferSchemaInvalidTest, Basic)
+{
+    const auto& schemaStrings = GetParam();
+
+    std::vector<TTableSchema> schemas;
+    for (const auto* schemaString : schemaStrings) {
+        schemas.emplace_back();
+        Deserialize(schemas.back(), ConvertToNode(TYsonString(schemaString)));
+    }
+
+    EXPECT_THROW(InferInputSchema(schemas, true), std::exception);
+}
+
+INSTANTIATE_TEST_CASE_P(
+    TInferSchemaInvalidTest,
+    TInferSchemaInvalidTest,
+    ::testing::Values(
+        std::vector<const char*>{"<strict=%false>[{name=Key1;type=string}]"},
+        std::vector<const char*>{"[{name=Key1;type=string}]", "[{name=Key1;type=any}]"}
+));
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TInvalidSchemaTest
     : public ::testing::Test

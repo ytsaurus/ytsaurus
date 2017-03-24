@@ -1038,16 +1038,6 @@ echo {v = 2} >&7
         with pytest.raises(YtError):
             op.track();
 
-        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
-        job_ids = ls(jobs_path)
-        assert len(job_ids) == 1
-        actual = get("{0}/{1}/@input_paths".format(jobs_path, job_ids[0]))
-        expected = yson.loads('''[
-            <ranges=[{lower_limit={key=["00001"]};upper_limit={key=["00004";<type="max";>#]}}];"foreign"=%true>"//tmp/in1";
-            <ranges=[{lower_limit={key=["00001"]};upper_limit={key=["00004"]}}]>"//tmp/in2";
-        ]''')
-        assert expected == actual
-
     @unix_only
     def test_computed_columns(self):
         create("table", "//tmp/t1")
@@ -1245,6 +1235,21 @@ echo {v = 2} >&7
         else:
             assert job_indexes[1] == 3
         assert get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/sorted_reduce/sum".format(op.id)) == len(result) - 2
+
+    def test_query_filtering(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
+
+        with pytest.raises(YtError):
+            reduce(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                command="cat",
+                spec={"input_query": "a where a > 0"})
+
 
 ##################################################################
 

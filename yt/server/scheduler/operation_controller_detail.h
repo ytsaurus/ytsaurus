@@ -34,6 +34,8 @@
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/value_consumer.h>
 
+#include <yt/ytlib/query_client/public.h>
+
 #include <yt/core/actions/cancelable_context.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
@@ -387,6 +389,14 @@ protected:
 
     std::vector<TUserFile> Files;
 
+    struct TInputQuery
+    {
+        NQueryClient::TQueryPtr Query;
+        NQueryClient::TExternalCGInfoPtr ExternalCGInfo;
+    };
+
+    TNullable<TInputQuery> InputQuery;
+
     struct TJoblet
         : public TIntrinsicRefCounted
     {
@@ -522,7 +532,7 @@ protected:
 
         void ResetCachedMinNeededResources();
 
-        DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
+        DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, DelayedTime);
 
         void AddInput(TChunkStripePtr stripe);
         void AddInput(const std::vector<TChunkStripePtr>& stripes);
@@ -581,7 +591,7 @@ protected:
         TJobResources CachedTotalNeededResources;
         mutable TNullable<TExtendedJobResources> CachedMinNeededResources;
 
-        TInstant LastDemandSanityCheckTime;
+        NProfiling::TCpuInstant DemandSanityCheckDeadline;
         bool CompletedFired;
 
         //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
@@ -677,7 +687,7 @@ protected:
         std::multimap<i64, TTaskPtr> CandidateTasks;
 
         //! Non-local tasks keyed by deadline.
-        std::multimap<TInstant, TTaskPtr> DelayedTasks;
+        std::multimap<NProfiling::TCpuInstant, TTaskPtr> DelayedTasks;
 
         //! Local tasks keyed by node id.
         yhash_map<NNodeTrackerClient::TNodeId, yhash_set<TTaskPtr>> NodeIdToTasks;
@@ -791,10 +801,13 @@ protected:
     void InitInputChunkScraper();
     void InitIntermediateChunkScraper();
     void SuspendUnavailableInputStripes();
-    void InitQuerySpec(
-        NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
+
+    void ParseInputQuery(
         const Stroka& queryString,
         const TNullable<NQueryClient::TTableSchema>& schema);
+    void WriteInputQueryToJobSpec(
+        NProto::TSchedulerJobSpecExt* schedulerJobSpecExt);
+    virtual void PrepareInputQuery();
 
     void PickIntermediateDataCell();
     void InitChunkListPool();
@@ -1115,7 +1128,7 @@ private:
 
     NChunkClient::TChunkScraperPtr InputChunkScraper;
 
-    TInstant LastTaskUpdateTime_;
+    NProfiling::TCpuInstant TaskUpdateDeadline_ = 0;
 
     //! Increments each time a new job is scheduled.
     TIdGenerator JobIndexGenerator;
@@ -1126,8 +1139,8 @@ private:
     //! Aggregated schedule job statistics.
     TScheduleJobStatisticsPtr ScheduleJobStatistics_;
 
-    //! Last time schedule job statistics was logged.
-    TInstant ScheduleJobStatisticsLogTime;
+    //! Deadline after which schedule job statistics can be logged logged.
+    NProfiling::TCpuInstant ScheduleJobStatisticsLogDeadline_ = 0;
 
     //! One output table can have row count limit on operation.
     TNullable<int> RowCountLimitTableIndex;
@@ -1146,8 +1159,8 @@ private:
     //! But descriptors do.
     int ExecNodeCount_ = 0;
     std::vector<TExecNodeDescriptor> ExecNodesDescriptors_;
-    TInstant LastGetExecNodesInformationTime_;
 
+    NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
     NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;
 
     const std::unique_ptr<NTableClient::IValueConsumer> EventLogValueConsumer_;

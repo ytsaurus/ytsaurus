@@ -1070,21 +1070,17 @@ void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EValueType GetCommonValueType(EValueType lhs, EValueType rhs) {
-    if (lhs == EValueType::Null) {
-        return rhs;
-    } else if (rhs == EValueType::Null) {
-        return lhs;
-    } else if (lhs == rhs) {
-        return lhs;
-    } else {
-        return EValueType::Any;
-    }
-}
 
 TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool discardKeyColumns)
 {
     YCHECK(!schemas.empty());
+
+    // NB: If one schema is not strict then the resulting schema should be an intersection, not union.
+    for (const auto& schema : schemas) {
+        if (!schema.GetStrict()) {
+            THROW_ERROR_EXCEPTION("Input table schema is not strict");
+        }
+    }
 
     int commonKeyColumnPrefix = 0;
     if (!discardKeyColumns) {
@@ -1120,6 +1116,7 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
             }
             column = column
                 .SetExpression(Null)
+                .SetAggregate(Null)
                 .SetLock(Null);
 
             auto it = nameToColumnSchema.find(column.Name);
@@ -1127,8 +1124,6 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
                 nameToColumnSchema[column.Name] = column;
                 columnNames.push_back(column.Name);
             } else {
-                auto commonType = GetCommonValueType(it->second.Type, column.Type);
-                column.Type = it->second.Type = commonType;
                 if (it->second != column) {
                     THROW_ERROR_EXCEPTION(
                         "Conflict while merging schemas, column %Qs has two conflicting declarations",
@@ -1145,14 +1140,7 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
         columns.push_back(nameToColumnSchema[columnName]);
     }
 
-    bool strict = true;
-    for (const auto& schema : schemas) {
-        if (!schema.GetStrict()) {
-            strict = false;
-        }
-    }
-
-    return TTableSchema(std::move(columns), strict);
+    return TTableSchema(std::move(columns), true);
 }
 
 //! Validates that read schema is consistent with existing table schema.

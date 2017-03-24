@@ -186,7 +186,7 @@ public:
         , Options_(options)
         , InputDataSize_(inputDataSize)
     {
-        JobCount_ = DivCeil(InputDataSize_, Spec_->DataSizePerSortJob);
+        JobCount_ = DivCeil(InputDataSize_, Spec_->DataSizePerShuffleJob);
         YCHECK(JobCount_ >= 0);
         YCHECK(JobCount_ != 0 || InputDataSize_ == 0);
     }
@@ -531,6 +531,21 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
     return New<TPartitionJobSizeConstraints>(spec, options, inputDataSize, inputRowCount, compressionRatio);
 }
 
+IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
+    const TSortOperationSpecBasePtr& spec,
+    const TSortOperationOptionsBasePtr& options)
+{
+    return CreateExplicitJobSizeConstraints(
+        false /* canAdjustDataSizePerJob */,
+        false /* isExplicitJobCount */,
+        0 /* jobCount */,
+        spec->DataSizePerSortedJob.Get(spec->DataSizePerShuffleJob) /* dataSizePerJob */,
+        options->MaxDataSlicesPerJob /* maxDataSlicesPerJob */,
+        std::numeric_limits<i64>::max() /* maxDataSizePerJob */,
+        std::numeric_limits<i64>::max() /* inputSliceDataSize */,
+        std::numeric_limits<i64>::max() /* inputSliceRowCount */);
+}
+
 IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     bool canAdjustDataSizePerJob,
     bool isExplicitJobCount,
@@ -551,7 +566,6 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
         inputSliceDataSize,
         inputSliceRowCount);
 }
-
 
 ////////////////////////////////////////////////////////////////////
 

@@ -108,8 +108,8 @@ protected:
             , Controller_(controller)
             , ChunkPool_(CreateSortedChunkPool(
                 controller->GetSortedChunkPoolOptions(),
-                controller->GetChunkSliceFetcherFactory(),
-                controller->GetDataSources()))
+                controller->ChunkSliceFetcher_,
+                controller->GetInputStreamDirectory()))
         { }
 
         virtual Stroka GetId() const override
@@ -229,14 +229,14 @@ protected:
 
     // Custom bits of preparation pipeline.
 
-    std::vector<TDataSource> GetDataSources()
+    TInputStreamDirectory GetInputStreamDirectory()
     {
-        std::vector<TDataSource> sources;
-        sources.reserve(InputTables.size());
+        std::vector<TInputStreamDescriptor> inputStreams;
+        inputStreams.reserve(InputTables.size());
         for (const auto& inputTable : InputTables) {
-            sources.emplace_back(inputTable.IsTeleportable, inputTable.IsPrimary(), inputTable.IsDynamic /* isVersioned */);
+            inputStreams.emplace_back(inputTable.IsTeleportable, inputTable.IsPrimary(), inputTable.IsDynamic /* isVersioned */);
         }
-        return sources;
+        return TInputStreamDirectory(inputStreams);
     }
 
     virtual bool IsCompleted() const override
@@ -365,13 +365,6 @@ protected:
     }
 
     virtual bool IsKeyGuaranteeEnabled() = 0;
-
-    std::function<IChunkSliceFetcherPtr()> GetChunkSliceFetcherFactory()
-    {
-        return [&] () -> IChunkSliceFetcherPtr {
-            return ChunkSliceFetcher_;
-        };
-    }
 
     virtual EJobType GetJobType() const = 0;
 
