@@ -5,8 +5,10 @@
 #endif
 #undef OPERATION_INL_H_
 
-#include <util/generic/type_name.h>
 #include <util/generic/bt_exception.h>
+#include <util/generic/singleton.h>
+#include <util/generic/type_name.h>
+
 #include <util/stream/file.h>
 #include <util/stream/buffer.h>
 #include <util/string/subst.h>

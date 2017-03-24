@@ -5,6 +5,8 @@
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/http/requests.h>
 
+#include <util/string/printf.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
