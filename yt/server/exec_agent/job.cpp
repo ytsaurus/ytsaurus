@@ -872,7 +872,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
 
-        auto proxyConfig = CloneYsonSerializable(Bootstrap_->GetJobProxyConfig());
+        auto proxyConfig = Bootstrap_->BuildJobProxyConfig();
         proxyConfig->BusServer = Slot_->GetBusServerConfig();
         proxyConfig->TmpfsPath = TmpfsPath_;
         proxyConfig->SlotIndex = Slot_->GetSlotIndex();
