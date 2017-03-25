@@ -5750,6 +5750,8 @@ void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumn
             .ToSortedStrippedColumnAttributes()
             .ToCanonical();
     }
+
+    FilterOutputSchemaByInputColumnSelectors();
 }
 
 void TOperationControllerBase::InferSchemaFromInputOrdered()
@@ -5764,10 +5766,28 @@ void TOperationControllerBase::InferSchemaFromInputOrdered()
         // If only only one input table given, we inherit the whole schema including column attributes.
         outputUploadOptions.SchemaMode = InputTables[0].SchemaMode;
         outputUploadOptions.TableSchema = InputTables[0].Schema;
+        FilterOutputSchemaByInputColumnSelectors();
         return;
     }
 
     InferSchemaFromInput();
+}
+
+void TOperationControllerBase::FilterOutputSchemaByInputColumnSelectors()
+{
+    yhash_set<Stroka> columns;
+    for (const auto& table : InputTables) {
+        if (auto selectors = table.Path.GetColumns()) {
+            for (const auto& column : *selectors) {
+                columns.insert(column);
+            }
+        } else {
+            return;
+        }
+    }
+
+    OutputTables[0].TableUploadOptions.TableSchema =
+        OutputTables[0].TableUploadOptions.TableSchema.Filter(columns);
 }
 
 void TOperationControllerBase::ValidateOutputSchemaOrdered() const

@@ -1091,6 +1091,7 @@ protected:
 
     void InferSchemaFromInput(const NTableClient::TKeyColumns& keyColumns = NTableClient::TKeyColumns());
     void InferSchemaFromInputOrdered();
+    void FilterOutputSchemaByInputColumnSelectors();
     void ValidateOutputSchemaOrdered() const;
 
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const;
