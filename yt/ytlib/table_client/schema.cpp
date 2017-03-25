@@ -236,6 +236,7 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
     }
 
     int newKeyColumnCount = 0;
+    bool inKeyColumns = true;
     std::vector<TColumnSchema> columns;
     for (int id : columnFilter.Indexes) {
         if (id < 0 || id >= Columns_.size()) {
@@ -243,18 +244,19 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
                 Columns_.size() - 1,
                 id);
         }
+
+        if (id != columns.size() || !Columns_[id].SortOrder) {
+            inKeyColumns = false;
+        }
+
         columns.push_back(Columns_[id]);
+
+        if (!inKeyColumns) {
+            columns.back().SortOrder.Reset();
+        }
+
         if (columns.back().SortOrder) {
             ++newKeyColumnCount;
-        }
-    }
-
-    // Validate that key columns go first.
-    for (int index = 1; index < static_cast<int>(columns.size()); ++index) {
-        if (columns[index].SortOrder && !columns[index - 1].SortOrder) {
-            THROW_ERROR_EXCEPTION("Column filter contains key column %Qv after non-key column %Qv",
-                columns[index].Name,
-                columns[index - 1].Name);
         }
     }
 
