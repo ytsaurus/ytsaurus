@@ -224,6 +224,7 @@ void TSchemalessTableReader::DoOpen()
             tableCellTag,
             RichPath_,
             objectId,
+            RichPath_.GetRanges(),
             chunkCount,
             Config_->MaxChunksPerFetch,
             Config_->MaxChunksPerLocateRequest,
