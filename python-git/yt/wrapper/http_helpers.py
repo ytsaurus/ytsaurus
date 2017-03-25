@@ -142,9 +142,9 @@ def _raise_for_status(response, request_info):
     if response.status_code == 401:
         url_base = "/".join(response.url.split("/")[:3])
         raise YtTokenError(
-            "Your authentication token was rejected by the server (X-YT-Request-ID: {0}). "
-            "Please refer to {1}/auth/ for obtaining a valid token if it will not fix error: "
-            "please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"\
+            "Your authentication token was rejected by the server (X-YT-Request-ID: {0})\n"
+            "Please refer to {1}/auth/ for obtaining a valid token\n"
+            "if it will not fix error please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"\
             .format(response.headers.get("X-YT-Request-ID", "missing"), url_base))
 
     if not response.is_ok():
