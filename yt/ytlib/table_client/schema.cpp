@@ -277,6 +277,15 @@ TTableSchema TTableSchema::Filter(const yhash_set<Stroka>& columns) const
     return Filter(filter);
 }
 
+TTableSchema TTableSchema::Filter(const TNullable<std::vector<Stroka>>& columns) const
+{
+    if (!columns) {
+        return *this;
+    }
+
+    return Filter(yhash_set<Stroka>(columns->begin(), columns->end()));
+}
+
 bool TTableSchema::HasComputedColumns() const
 {
     for (const auto& column : Columns()) {

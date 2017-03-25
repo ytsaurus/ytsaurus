@@ -85,6 +85,7 @@ public:
 
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
     TTableSchema Filter(const yhash_set<Stroka>& columns) const;
+    TTableSchema Filter(const TNullable<std::vector<Stroka>>& columns) const;
 
     bool HasComputedColumns() const;
     bool IsSorted() const;

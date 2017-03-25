@@ -377,7 +377,7 @@ protected:
         auto tableIndex = GetOutputTeleportTableIndex();
         if (tableIndex) {
             for (int index = 0; index < InputTables.size(); ++index) {
-                if (!InputTables[index].IsDynamic) {
+                if (!InputTables[index].IsDynamic && !InputTables[index].Path.GetColumns()) {
                     InputTables[index].IsTeleportable = ValidateTableSchemaCompatibility(
                         InputTables[index].Schema,
                         OutputTables[*tableIndex].TableUploadOptions.TableSchema,
@@ -602,16 +602,7 @@ public:
                     InferSchemaFromInput(PrimaryKeyColumns_);
                 } else {
                     prepareOutputKeyColumns();
-
-                    for (const auto& inputTable : InputTables) {
-                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
-                            ValidateTableSchemaCompatibility(
-                                inputTable.Schema,
-                                table.TableUploadOptions.TableSchema,
-                                /* ignoreSortOrder */ true)
-                                .ThrowOnError();
-                        }
-                    }
+                    ValidateOutputSchemaCompatibility(true);
                 }
                 break;
 
