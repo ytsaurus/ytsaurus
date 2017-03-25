@@ -1381,7 +1381,8 @@ private:
             EOperationState::Aborting,
             EOperationState::Aborted,
             ELogEventType::OperationAborted,
-            TError("Operation transaction has expired or was aborted"));
+            TError("User transaction has expired or was aborted (TransactionId: %v)",
+                operation->GetUserTransaction()->GetId()));
     }
 
     void OnSchedulerTransactionAborted(TOperationPtr operation)
