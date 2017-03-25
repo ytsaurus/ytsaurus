@@ -235,6 +235,7 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
         return *this;
     }
 
+    int newKeyColumnCount = 0;
     std::vector<TColumnSchema> columns;
     for (int id : columnFilter.Indexes) {
         if (id < 0 || id >= Columns_.size()) {
@@ -243,6 +244,9 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
                 id);
         }
         columns.push_back(Columns_[id]);
+        if (columns.back().SortOrder) {
+            ++newKeyColumnCount;
+        }
     }
 
     // Validate that key columns go first.
@@ -254,7 +258,23 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
         }
     }
 
-    return TTableSchema(std::move(columns));
+    return TTableSchema(
+        std::move(columns),
+        Strict_,
+        UniqueKeys_ && (newKeyColumnCount == GetKeyColumnCount()));
+}
+
+TTableSchema TTableSchema::Filter(const yhash_set<Stroka>& columns) const
+{
+    TColumnFilter filter;
+    filter.All = false;
+    for (const auto& column : Columns()) {
+        if (columns.find(column.Name) != columns.end()) {
+            filter.Indexes.push_back(GetColumnIndex(column));
+        }
+    }
+
+    return Filter(filter);
 }
 
 bool TTableSchema::HasComputedColumns() const
