@@ -3571,15 +3571,14 @@ void TOperationControllerBase::FetchInputTables()
 
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
         auto& table = InputTables[tableIndex];
-        const auto& ranges = table.Path.GetRanges();
+        auto ranges = table.Path.GetRanges();
+        int originalRangeCount = ranges.size();
         if (ranges.empty()) {
             continue;
         }
 
-        std::vector<TReadRange> inferredRanges;
-        if (!InputQuery) {
-            inferredRanges = ranges;
-        } else {
+        if (InputQuery && InputQuery->Query->OriginalSchema.IsSorted()) {
+            std::vector<TReadRange> inferredRanges;
             for (const auto& range : table.Path.GetRanges()) {
                 auto lower = range.LowerLimit().HasKey() ? range.LowerLimit().GetKey() : MinKey();
                 auto upper = range.UpperLimit().HasKey() ? range.UpperLimit().GetKey() : MaxKey();
@@ -3591,9 +3590,10 @@ void TOperationControllerBase::FetchInputTables()
                     inferredRanges.push_back(inferredRange);
                 }
             }
+            ranges = std::move(inferredRanges);
         }
 
-        if (inferredRanges.size() > Config->MaxRangesOnTable) {
+        if (ranges.size() > Config->MaxRangesOnTable) {
             THROW_ERROR_EXCEPTION(
                 "Too many ranges on table: maximum allowed %v, actual %v",
                 Config->MaxRangesOnTable,
@@ -3603,8 +3603,8 @@ void TOperationControllerBase::FetchInputTables()
 
         LOG_INFO("Fetching input table (Path: %v, RangeCount: %v, InferredRangeCount: %v)",
             table.Path,
-            ranges.size(),
-            inferredRanges.size());
+            originalRangeCount,
+            ranges.size());
 
         std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
         FetchChunkSpecs(
@@ -3613,7 +3613,7 @@ void TOperationControllerBase::FetchInputTables()
             table.CellTag,
             table.Path,
             table.ObjectId,
-            inferredRanges,
+            ranges,
             table.ChunkCount,
             Config->MaxChunksPerFetch,
             Config->MaxChunksPerLocateRequest,
