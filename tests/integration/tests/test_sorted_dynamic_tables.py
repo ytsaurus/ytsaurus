@@ -1866,7 +1866,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
         mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
         wait(lambda: get("//tmp/t/@tablets/1/state") == "mounted")
-        wait(lambda: chunk_id not in get("#{0}/@child_ids".format(tablet_chunk_lists[1])))
+        wait(lambda: get("#{0}/@child_ids".format(tablet_chunk_lists[1])) == [])
         self.sync_unmount_table("//tmp/t")
         remove("//tmp/t/@forced_compaction_revision")
 
