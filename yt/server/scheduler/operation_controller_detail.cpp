@@ -26,6 +26,7 @@
 #include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/functions_cache.h>
+#include <yt/ytlib/query_client/column_evaluator.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 
@@ -3575,7 +3576,24 @@ void TOperationControllerBase::FetchInputTables()
             continue;
         }
 
-        if (ranges.size() > Config->MaxRangesOnTable) {
+        std::vector<TReadRange> inferredRanges;
+        if (!InputQuery) {
+            inferredRanges = ranges;
+        } else {
+            for (const auto& range : table.Path.GetRanges()) {
+                auto lower = range.LowerLimit().HasKey() ? range.LowerLimit().GetKey() : MinKey();
+                auto upper = range.UpperLimit().HasKey() ? range.UpperLimit().GetKey() : MaxKey();
+                auto result = InputQuery->RangeInferrer(TRowRange(lower.Get(), upper.Get()), RowBuffer);
+                for (const auto& inferred : result) {
+                    auto inferredRange = range;
+                    inferredRange.LowerLimit().SetKey(TOwningKey(inferred.first));
+                    inferredRange.UpperLimit().SetKey(TOwningKey(inferred.second));
+                    inferredRanges.push_back(inferredRange);
+                }
+            }
+        }
+
+        if (inferredRanges.size() > Config->MaxRangesOnTable) {
             THROW_ERROR_EXCEPTION(
                 "Too many ranges on table: maximum allowed %v, actual %v",
                 Config->MaxRangesOnTable,
@@ -3583,9 +3601,10 @@ void TOperationControllerBase::FetchInputTables()
                 << TErrorAttribute("table_path", table.Path.GetPath());
         }
 
-        LOG_INFO("Fetching input table (Path: %v, RangeCount: %v)",
+        LOG_INFO("Fetching input table (Path: %v, RangeCount: %v, InferredRangeCount: %v)",
             table.Path,
-            ranges.size());
+            ranges.size(),
+            inferredRanges.size());
 
         std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
         FetchChunkSpecs(
@@ -3594,6 +3613,7 @@ void TOperationControllerBase::FetchInputTables()
             table.CellTag,
             table.Path,
             table.ObjectId,
+            inferredRanges,
             table.ChunkCount,
             Config->MaxChunksPerFetch,
             Config->MaxChunksPerLocateRequest,
@@ -4034,6 +4054,7 @@ void TOperationControllerBase::FetchUserFiles()
                     file.CellTag,
                     file.Path,
                     file.ObjectId,
+                    file.Path.GetRanges(),
                     file.ChunkCount,
                     Config->MaxChunksPerFetch,
                     Config->MaxChunksPerLocateRequest,
@@ -4377,17 +4398,29 @@ void TOperationControllerBase::ParseInputQuery(
         for (const auto& table : InputTables) {
             schemas.push_back(table.Schema);
         }
-        return InferInputSchema(schemas, true);
+        return InferInputSchema(schemas, false);
     };
+
+    TQueryOptions options;
+    options.VerboseLogging = true;
+    options.RangeExpansionLimit = Config->MaxRangesOnTable;
 
     auto query = PrepareJobQuery(
         queryString,
         schema ? *schema : inferSchema(),
         fetchFunctions);
+    auto rangeInferrer = CreateRangeInferrer(
+        query->WhereClause,
+        query->OriginalSchema,
+        query->GetKeyColumns(),
+        Host->GetMasterClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
+        BuiltinRangeExtractorMap,
+        options);
 
     InputQuery.Emplace();
     InputQuery->Query = std::move(query);
     InputQuery->ExternalCGInfo = std::move(externalCGInfo);
+    InputQuery->RangeInferrer = std::move(rangeInferrer);
 }
 
 void TOperationControllerBase::WriteInputQueryToJobSpec(
@@ -4396,7 +4429,6 @@ void TOperationControllerBase::WriteInputQueryToJobSpec(
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
     ToProto(querySpec->mutable_query(), InputQuery->Query);
     ToProto(querySpec->mutable_external_functions(), InputQuery->ExternalCGInfo->Functions);
-    InputQuery.Reset();
 }
 
 void TOperationControllerBase::CollectTotals()

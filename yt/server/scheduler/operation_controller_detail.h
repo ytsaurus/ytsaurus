@@ -35,6 +35,7 @@
 #include <yt/ytlib/table_client/value_consumer.h>
 
 #include <yt/ytlib/query_client/public.h>
+#include <yt/ytlib/query_client/range_inferrer.h>
 
 #include <yt/core/actions/cancelable_context.h>
 
@@ -393,6 +394,7 @@ protected:
     {
         NQueryClient::TQueryPtr Query;
         NQueryClient::TExternalCGInfoPtr ExternalCGInfo;
+        NQueryClient::TRangeInferrer RangeInferrer;
     };
 
     TNullable<TInputQuery> InputQuery;

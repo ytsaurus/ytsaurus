@@ -155,6 +155,7 @@ void FetchChunkSpecs(
     TCellTag cellTag,
     const TRichYPath& path,
     const TObjectId& objectId,
+    const std::vector<NChunkClient::TReadRange>& ranges,
     int chunkCount,
     int maxChunksPerFetch,
     int maxChunksPerLocateRequest,
@@ -162,7 +163,6 @@ void FetchChunkSpecs(
     const NLogging::TLogger& logger,
     std::vector<NProto::TChunkSpec>* chunkSpecs)
 {
-    const auto& ranges = path.GetRanges();
     std::vector<int> rangeIndices;
 
     auto channel = client->GetMasterChannelOrThrow(
