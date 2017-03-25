@@ -1927,15 +1927,7 @@ private:
                     table.TableUploadOptions.TableSchema =
                         table.TableUploadOptions.TableSchema.ToSorted(Spec->SortBy);
 
-                    for (const auto& inputTable : InputTables) {
-                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
-                            ValidateTableSchemaCompatibility(
-                                inputTable.Schema,
-                                table.TableUploadOptions.TableSchema,
-                                /* ignoreSortOrder */ true)
-                            .ThrowOnError();
-                        }
-                    }
+                    ValidateOutputSchemaCompatibility(true);
                 }
                 break;
 

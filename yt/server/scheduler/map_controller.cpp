@@ -696,15 +696,7 @@ private:
                     validateOutputNotSorted();
 
                     if (!Spec->InputQuery) {
-                        for (const auto& inputTable : InputTables) {
-                            if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
-                                ValidateTableSchemaCompatibility(
-                                    inputTable.Schema,
-                                    table.TableUploadOptions.TableSchema,
-                                    /* ignoreSortOrder */ true)
-                                    .ThrowOnError();
-                            }
-                        }
+                        ValidateOutputSchemaCompatibility(true);
                     }
                 }
                 break;

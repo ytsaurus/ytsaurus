@@ -584,6 +584,19 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             remove("//tmp/t_out")
             create("table", "//tmp/t_out")
 
+            merge(mode=mode,
+                  in_="//tmp/t{k2,v2}",
+                  out="//tmp/t_out")
+
+            assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k2", "v2")} for r in rows])
+
+            schema = yson.loads('<"unique_keys"=%false;"strict"=%true;>' \
+                    + '[{"name"="k2";"type"="int64";};{"name"="v2";"type"="int64";};]')
+            assert get("//tmp/t_out/@schema") == schema
+
+            remove("//tmp/t_out")
+            create("table", "//tmp/t_out")
+
         merge(mode=mode,
               in_="//tmp/t{k1,k2,v2}",
               out="//tmp/t_out")
@@ -598,6 +611,25 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             schema[0]["sort_order"] = "ascending"
             schema[1]["sort_order"] = "ascending"
         assert get("//tmp/t_out/@schema") == schema
+
+    @pytest.mark.parametrize("mode", ["ordered", "sorted"])
+    def test_column_selectors_output_schema_validation(self, mode):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}]
+        })
+        create("table", "//tmp/t_out", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+        })
+        rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+        write_table("//tmp/t", rows)
+
+        merge(mode=mode,
+              in_="//tmp/t{key}",
+              out="//tmp/t_out")
+
+        assert_items_equal(read_table("//tmp/t_out"), [{"key": r["key"]} for r in rows])
 
     @pytest.mark.parametrize("mode", ["ordered", "unordered"])
     def test_query_filtering(self, mode):

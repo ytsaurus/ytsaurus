@@ -1093,6 +1093,7 @@ protected:
     void InferSchemaFromInputOrdered();
     void FilterOutputSchemaByInputColumnSelectors();
     void ValidateOutputSchemaOrdered() const;
+    void ValidateOutputSchemaCompatibility(bool ignoreSortOrder) const;
 
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const;
 

@@ -5801,6 +5801,21 @@ void TOperationControllerBase::ValidateOutputSchemaOrdered() const
     }
 }
 
+void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSortOrder) const
+{
+    YCHECK(OutputTables.size() == 1);
+
+    for (const auto& inputTable : InputTables) {
+        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
+            ValidateTableSchemaCompatibility(
+                inputTable.Schema.Filter(inputTable.Path.GetColumns()),
+                OutputTables[0].TableUploadOptions.TableSchema,
+                ignoreSortOrder)
+                .ThrowOnError();
+        }
+    }
+}
+
 IDigest* TOperationControllerBase::GetJobProxyMemoryDigest(EJobType jobType)
 {
     auto iter = JobProxyMemoryDigests_.find(jobType);
