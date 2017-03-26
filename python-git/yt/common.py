@@ -16,6 +16,7 @@ import socket
 import sys
 import time
 import types
+import string
 
 # Standard YT time representation
 YT_DATETIME_FORMAT_STRING = "%Y-%m-%dT%H:%M:%S.%fZ"
@@ -138,6 +139,14 @@ class PrettyPrintableDict(dict):
     pass
 
 def _pretty_format(error, attribute_length_limit=None):
+    def _escape(value):
+        def printable(c):
+            return c in string.ascii_letters + string.digits + string.punctuation + ' '
+        def escape(c):
+            return "\\x{0:02x}".format(ord(c))
+        value = value.replace("\n", "\\n").replace("\t", "\\t")
+        return "".join([escape(c) for c in value if not printable(c)])
+
     def format_attribute(name, value):
         name = to_native_str(name)
         if isinstance(value, PrettyPrintableDict):
@@ -148,9 +157,9 @@ def _pretty_format(error, attribute_length_limit=None):
                 value = to_native_str(value)
             else:
                 value = str(value)
+            value = _escape(value)
             if attribute_length_limit is not None and len(value) > attribute_length_limit:
                 value = value[:attribute_length_limit] + "...message truncated..."
-            value = value.replace("\n", "\\n")
         return " " * 4 + "%-15s %s" % (name, value)
 
     def simplify_error(error):
