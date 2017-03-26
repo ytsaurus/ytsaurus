@@ -672,6 +672,27 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="//tmp/t2",
                 spec={"input_query": "a where a > 0"})
 
+    @pytest.mark.parametrize("mode", ["ordered", "unordered"])
+    def test_query_filtering_output_schema_validation(self, mode):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}]
+        })
+        sort_order = "ascending" if mode == "ordered" else None
+        create("table", "//tmp/t_out", attributes={
+            "schema": [{"name": "k", "type": "int64", "sort_order": sort_order}]
+        })
+        rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+        write_table("//tmp/t", rows)
+
+        merge(mode=mode,
+              in_="//tmp/t",
+              out="//tmp/t_out",
+              spec={"input_query": "key as k"})
+
+        assert_items_equal(read_table("//tmp/t_out"), [{"k": r["key"]} for r in rows])
+
     @unix_only
     def test_merge_chunk_properties(self):
         create("table", "//tmp/t1", attributes={"replication_factor": 1, "vital": False})
