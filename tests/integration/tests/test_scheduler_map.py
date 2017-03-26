@@ -2789,6 +2789,7 @@ class TestJobQuery(YTEnvSetup):
         _test("[11:12]", "a where a between 5 and 15", [{"a": i} for i in xrange(11, 12)], 1)
         _test("[9:20]", "a where a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)
         _test("[#2:#4]", "a where a <= 10", [{"a": 2}, {"a": 10}], 2)
+        _test("[10]", "a where a > 0", [{"a": 10}], 1)
 
 
 ##################################################################
