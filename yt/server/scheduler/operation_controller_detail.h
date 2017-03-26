@@ -1122,7 +1122,7 @@ private:
     //! Aggregated schedule job statistics.
     TScheduleJobStatisticsPtr ScheduleJobStatistics_;
 
-    //! Deadline after which schedule job statistics can be logged logged.
+    //! Deadline after which schedule job statistics can be logged.
     NProfiling::TCpuInstant ScheduleJobStatisticsLogDeadline_ = 0;
 
     //! One output table can have row count limit on operation.
