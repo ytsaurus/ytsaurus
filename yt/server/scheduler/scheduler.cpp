@@ -310,7 +310,7 @@ public:
         return ConnectionTime_;
     }
 
-    TOperationPtr FindOperation(const TOperationId& id)
+    TOperationPtr FindOperation(const TOperationId& id) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -318,7 +318,7 @@ public:
         return it == IdToOperation_.end() ? nullptr : it->second;
     }
 
-    TOperationPtr GetOperation(const TOperationId& id)
+    TOperationPtr GetOperation(const TOperationId& id) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -327,7 +327,7 @@ public:
         return operation;
     }
 
-    TOperationPtr GetOperationOrThrow(const TOperationId& id)
+    TOperationPtr GetOperationOrThrow(const TOperationId& id) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -2421,13 +2421,13 @@ private:
         virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
         {
             TOperationId operationId = TOperationId::FromString(key);
-            auto iterator = Scheduler_->IdToOperation_.find(operationId);
-            if (iterator == Scheduler_->IdToOperation_.end()) {
+            auto operation = Scheduler_->FindOperation(operationId);
+            if (!operation) {
                 return nullptr;
             }
 
             return IYPathService::FromProducer(
-                BIND(&TScheduler::TImpl::BuildOperationYson, MakeStrong(Scheduler_), iterator->second));
+                BIND(&TScheduler::TImpl::BuildOperationYson, MakeStrong(Scheduler_), operation));
         }
 
     private:
