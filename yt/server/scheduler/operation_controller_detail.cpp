@@ -1409,8 +1409,8 @@ void TOperationControllerBase::SafeMaterialize()
 
         State = EControllerState::Running;
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Materialization failed");
         auto wrappedError = TError("Materialization failed") << ex;
+        LOG_ERROR(wrappedError);
         OnOperationFailed(wrappedError);
         return;
     }
