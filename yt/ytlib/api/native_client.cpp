@@ -2717,7 +2717,7 @@ private:
             while (it1 != end1 && it2 != end2) {
                 if (it1->JobId == it2->JobId) {
                     result.push_back(*it1);
-                    mergeJob(&result->back(), *it2);
+                    mergeJob(&result.back(), *it2);
                     ++it1;
                     ++it2;
                 } else if (it1->JobId < it2->JobId) {
@@ -2741,7 +2741,6 @@ private:
             });
         };
 
-        bool hasArchivedJobs = false;
         if (options.IncludeArchive) {
             Stroka conditions = Format("(operation_id_hi, operation_id_lo) = (%vu, %vu)",
                 operationId.Parts64[0], operationId.Parts64[1]);
@@ -2817,24 +2816,44 @@ private:
             };
 
             for (auto row : rows) {
+                checkIsNotNull(row[2], "job_id_hi");
+                checkIsNotNull(row[3], "job_id_lo");
+
                 TGuid jobId(row[2].Data.Uint64, row[3].Data.Uint64);
 
                 TJob job;
                 job.JobId = jobId;
+                checkIsNotNull(row[4], "type");
                 job.JobType = ParseEnum<EJobType>(Stroka(row[4].Data.String, row[4].Length));
+                checkIsNotNull(row[5], "state");
                 job.JobState = ParseEnum<EJobState>(Stroka(row[5].Data.String, row[5].Length));
+                checkIsNotNull(row[6], "start_time");
                 job.StartTime = TInstant(row[6].Data.Int64);
-                job.FinishTime = TInstant(row[7].Data.Int64);
-                job.Address = TStringBuf(row[8].Data.String, row[8].Length);
-                job.Error = TYsonString(Stroka(row[9].Data.String, row[9].Length));
-                job.Statistics = TYsonString(Stroka(row[10].Data.String, row[10].Length));
-                job.StderrSize = row[11].Data.Int64;
-                resultJobs.push_back(job);
 
-                hasArchivedJobs = true;
+                if (row[7].Type != EValueType::Null) {
+                    job.FinishTime = TInstant(row[7].Data.Int64);
+                }
+
+                if (row[8].Type != EValueType::Null) {
+                    job.Address = Stroka(row[8].Data.String, row[8].Length);
+                }
+
+                if (row[9].Type != EValueType::Null) {
+                    job.Error = TYsonString(Stroka(row[9].Data.String, row[9].Length));
+                }
+
+                if (row[10].Type != EValueType::Null) {
+                    job.Statistics = TYsonString(Stroka(row[10].Data.String, row[10].Length));
+                }
+
+                if (row[11].Type != EValueType::Null) {
+                    job.StderrSize = row[11].Data.Int64;
+                }
+
+                resultJobs.push_back(job);
             }
 
-            sortJobs(resultJobs);
+            sortJobs(&resultJobs);
         }
 
         if (options.IncludeCypress) {
@@ -2898,7 +2917,7 @@ private:
                 cypressJobs.push_back(job);
             }
 
-            sortJobs(cypressJobs);
+            sortJobs(&cypressJobs);
             resultJobs = mergeJobs(resultJobs, cypressJobs);
         }
 
@@ -2946,7 +2965,7 @@ private:
 
                 resultJobs.push_back(job);
             }
-            sortJobs(runtimeJobs);
+            sortJobs(&runtimeJobs);
             resultJobs = mergeJobs(resultJobs, runtimeJobs);
         }
 
