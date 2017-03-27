@@ -146,6 +146,10 @@ public:
         : Header_(header)
     { }
 
+    explicit TVersionedRow(TTypeErasedRow erased)
+        : Header_(reinterpret_cast<const TVersionedRowHeader*>(erased.OpaqueHeader))
+    { }
+
     explicit operator bool()
     {
         return Header_ != nullptr;

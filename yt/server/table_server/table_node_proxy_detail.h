@@ -49,10 +49,7 @@ protected:
         const Stroka& key,
         const NYson::TYsonString& oldValue,
         const NYson::TYsonString& newValue) override;
-    virtual void ValidateFetchParameters(
-        const NChunkClient::TChannel& channel,
-        const std::vector<NChunkClient::TReadRange>& ranges) override;
-
+    virtual void ValidateFetchParameters(const std::vector<NChunkClient::TReadRange>& ranges) override;
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 

@@ -58,6 +58,7 @@ void FetchChunkSpecs(
     NObjectClient::TCellTag cellTag,
     const NYPath::TRichYPath& path,
     const NObjectClient::TObjectId& objectId,
+    const std::vector<TReadRange>& ranges,
     int chunkCount,
     int maxChunksPerFetch,
     int maxChunksPerLocateRequest,

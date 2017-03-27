@@ -155,6 +155,7 @@ void FetchChunkSpecs(
     TCellTag cellTag,
     const TRichYPath& path,
     const TObjectId& objectId,
+    const std::vector<NChunkClient::TReadRange>& ranges,
     int chunkCount,
     int maxChunksPerFetch,
     int maxChunksPerLocateRequest,
@@ -162,7 +163,6 @@ void FetchChunkSpecs(
     const NLogging::TLogger& logger,
     std::vector<NProto::TChunkSpec>* chunkSpecs)
 {
-    const auto& ranges = path.GetRanges();
     std::vector<int> rangeIndices;
 
     auto channel = client->GetMasterChannelOrThrow(
@@ -187,13 +187,6 @@ void FetchChunkSpecs(
             adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
 
             auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(objectId));
-            auto channel = path.GetChannel();
-            if (channel.IsUniversal()) {
-                req->clear_channel();
-            } else {
-                ToProto(req->mutable_channel(), channel);
-            }
-
             initializeFetchRequest(req.Get());
             NYT::ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
             batchReq->AddRequest(req, "fetch");

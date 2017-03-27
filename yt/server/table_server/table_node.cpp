@@ -4,8 +4,6 @@
 #include <yt/server/tablet_server/tablet.h>
 #include <yt/server/tablet_server/tablet_cell_bundle.h>
 
-#include <yt/ytlib/chunk_client/schema.h>
-
 namespace NYT {
 namespace NTableServer {
 

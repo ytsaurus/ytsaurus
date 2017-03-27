@@ -1,7 +1,6 @@
 #include "input_chunk_slice.h"
 #include "private.h"
 #include "chunk_meta_extensions.h"
-#include "schema.h"
 
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/serialize.h>
@@ -412,6 +411,14 @@ std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(
     }
 
     return slices;
+}
+
+void InferLimitsFromBoundaryKeys(const TInputChunkSlicePtr& chunkSlice, const TRowBufferPtr& rowBuffer)
+{
+    if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
+        chunkSlice->LowerLimit().MergeLowerKey(boundaryKeys->MinKey);
+        chunkSlice->UpperLimit().MergeUpperKey(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer));
+    }
 }
 
 std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(

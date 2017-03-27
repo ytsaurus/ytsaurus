@@ -80,7 +80,6 @@ class TestSchedulerEraseCommands(YTEnvSetup):
             erase("//tmp/table[:42]")
 
 
-    @pytest.mark.xfail(run = False, reason = "Issue #151")
     def test_by_column(self):
         create("table", "//tmp/table")
         write_table("//tmp/table", {"v" : 42})

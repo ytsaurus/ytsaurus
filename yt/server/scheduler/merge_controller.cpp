@@ -18,6 +18,8 @@
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 
+#include <yt/ytlib/query_client/query.h>
+
 #include <yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/core/misc/numeric_helpers.h>
@@ -603,7 +605,7 @@ protected:
     //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
     bool IsTeleportChunkImpl(const TInputChunkPtr& chunkSpec, bool combineChunks) const
     {
-        if (chunkSpec->Channel() || !IsInputTableTeleportable[chunkSpec->GetTableIndex()]) {
+        if (!IsInputTableTeleportable[chunkSpec->GetTableIndex()]) {
             return false;
         }
 
@@ -636,7 +638,9 @@ protected:
         auto tableIndex = GetTeleportTableIndex();
         if (tableIndex) {
             for (int index = 0; index < InputTables.size(); ++index) {
-                if (!InputTables[index].IsDynamic) {
+                if (!InputTables[index].IsDynamic &&
+                    !InputTables[index].Path.GetColumns())
+                {
                     IsInputTableTeleportable[index] = ValidateTableSchemaCompatibility(
                         InputTables[index].Schema,
                         OutputTables[*tableIndex].TableUploadOptions.TableSchema,
@@ -839,6 +843,13 @@ private:
         return ComputeUserJobMemoryReserve(EJobType::OrderedMap, Spec->Mapper);
     }
 
+    virtual void PrepareInputQuery() override
+    {
+        if (Spec->InputQuery) {
+            ParseInputQuery(*Spec->InputQuery, Spec->InputSchema);
+        }
+    }
+
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(static_cast<int>(EJobType::OrderedMap));
@@ -848,7 +859,7 @@ private:
         ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
         if (Spec->InputQuery) {
-            InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, Spec->InputSchema);
+            WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -929,30 +940,39 @@ private:
 
     TOrderedMergeOperationSpecPtr Spec;
 
+    virtual void PrepareInputQuery() override
+    {
+        if (Spec->InputQuery) {
+            ParseInputQuery(*Spec->InputQuery, Spec->InputSchema);
+        }
+    }
+
     virtual void PrepareOutputTables() override
     {
         auto& table = OutputTables[0];
 
+        auto inferFromInput = [&] () {
+            if (Spec->InputQuery) {
+                table.TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
+            } else {
+                InferSchemaFromInputOrdered();
+            }
+        };
+
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-                    InferSchemaFromInputOrdered();
+                    inferFromInput();
                 } else {
                     ValidateOutputSchemaOrdered();
-                    for (const auto& inputTable : InputTables) {
-                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
-                            ValidateTableSchemaCompatibility(
-                                inputTable.Schema,
-                                table.TableUploadOptions.TableSchema,
-                                /* ignoreSortOrder */ true)
-                                .ThrowOnError();
-                        }
+                    if (!Spec->InputQuery) {
+                        ValidateOutputSchemaCompatibility(false);
                     }
                 }
                 break;
 
             case ESchemaInferenceMode::FromInput:
-                InferSchemaFromInputOrdered();
+                inferFromInput();
                 break;
 
             case ESchemaInferenceMode::FromOutput:
@@ -1004,7 +1024,7 @@ private:
         ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
         if (Spec->InputQuery) {
-            InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, Spec->InputSchema);
+            WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -1098,6 +1118,9 @@ private:
             auto ranges = path.GetRanges();
             if (ranges.size() > 1) {
                 THROW_ERROR_EXCEPTION("Erase operation does not support tables with multiple ranges");
+            }
+            if (path.GetColumns()) {
+                THROW_ERROR_EXCEPTION("Erase operation does not support column filtering");
             }
 
             if (ranges.size() == 1) {
@@ -1439,8 +1462,7 @@ protected:
     {
         return
             !(chunkSpec->LowerLimit() && chunkSpec->LowerLimit()->HasRowIndex()) &&
-            !(chunkSpec->UpperLimit() && chunkSpec->UpperLimit()->HasRowIndex()) &&
-            !chunkSpec->Channel();
+            !(chunkSpec->UpperLimit() && chunkSpec->UpperLimit()->HasRowIndex());
     }
 
     virtual bool IsBoundaryKeysFetchEnabled() const override
@@ -1814,16 +1836,7 @@ private:
                     InferSchemaFromInput(SortKeyColumns);
                 } else {
                     prepareOutputKeyColumns();
-
-                    for (const auto& inputTable : InputTables) {
-                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
-                            ValidateTableSchemaCompatibility(
-                                inputTable.Schema,
-                                table.TableUploadOptions.TableSchema,
-                                /* ignoreSortOrder */ true)
-                                .ThrowOnError();
-                        }
-                    }
+                    ValidateOutputSchemaCompatibility(true);
                 }
                 break;
 

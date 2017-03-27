@@ -762,7 +762,7 @@ private:
 
         switch (EDataSourceType(key.data_source_type())) {
             case EDataSourceType::UnversionedTable:
-                dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(CachedSourcePath, schema));
+                dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(CachedSourcePath, schema, Null));
                 break;
 
             case EDataSourceType::VersionedTable:
@@ -770,6 +770,7 @@ private:
                 dataSourceDirectory->DataSources().push_back(MakeVersionedDataSource(
                     CachedSourcePath,
                     *schema,
+                    Null,
                     key.timestamp()));
                 break;
 

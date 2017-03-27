@@ -54,6 +54,8 @@ struct TChunkStripe
 
     int GetTableIndex() const;
 
+    int GetInputStreamIndex() const;
+
     void Persist(const TPersistenceContext& context);
 
     SmallVector<NChunkClient::TInputDataSlicePtr, 1> DataSlices;
@@ -284,12 +286,12 @@ std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDataSource
+class TInputStreamDescriptor
 {
 public:
     //! Used only for persistence.
-    TDataSource();
-    TDataSource(bool isTeleportable, bool isPrimary, bool isVersioned);
+    TInputStreamDescriptor() = default;
+    TInputStreamDescriptor(bool isTeleportable, bool isPrimary, bool isVersioned);
 
     bool IsTeleportable() const;
     bool IsPrimary() const;
@@ -304,6 +306,35 @@ private:
     bool IsPrimary_;
     bool IsVersioned_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern TInputStreamDescriptor IntermediateInputStreamDescriptor;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TInputStreamDirectory
+{
+public:
+    //! Used only for persistence
+    TInputStreamDirectory() = default;
+    explicit TInputStreamDirectory(
+        std::vector<TInputStreamDescriptor> descriptors,
+        TInputStreamDescriptor defaultDescriptor = IntermediateInputStreamDescriptor);
+
+    const TInputStreamDescriptor& GetDescriptor(int inputStreamIndex) const;
+
+    int GetDescriptorCount() const;
+
+    void Persist(const TPersistenceContext& context);
+private:
+    std::vector<TInputStreamDescriptor> Descriptors_;
+    TInputStreamDescriptor DefaultDescriptor_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern TInputStreamDirectory IntermediateInputStreamDirectory;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -66,8 +66,8 @@ public:
             return;
         }
 
-        int tableIndex = dataSlice->GetTableIndex();
-        auto& stripe = GetStripe(tableIndex, isPrimary);
+        int streamIndex = dataSlice->InputStreamIndex;
+        auto& stripe = GetStripe(streamIndex, isPrimary);
         stripe->DataSlices.emplace_back(dataSlice);
         InputCookies_.emplace_back(cookie);
 
@@ -116,16 +116,12 @@ public:
                     stripe->DataSlices.begin(),
                     stripe->DataSlices.end(),
                     [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
-                        auto cmpResult = CompareRows(lhs->LowerLimit().Key, rhs->LowerLimit().Key);
-                        if (cmpResult != 0 || lhs->Type == EDataSourceType::VersionedTable) {
-                            return cmpResult < 0;
-                        }
-
-                        auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
-                        auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
-
-                        if (lhsChunk != rhsChunk) {
-                            return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
+                        if (lhs->Type == EDataSourceType::UnversionedTable) {
+                            auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
+                            auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
+                            if (lhsChunk != rhsChunk) {
+                                return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
+                            }
                         }
 
                         if (lhs->LowerLimit().RowIndex &&
@@ -133,6 +129,11 @@ public:
                             *lhs->LowerLimit().RowIndex != *rhs->LowerLimit().RowIndex)
                         {
                             return *lhs->LowerLimit().RowIndex < *rhs->LowerLimit().RowIndex;
+                        }
+
+                        auto cmpResult = CompareRows(lhs->LowerLimit().Key, rhs->LowerLimit().Key);
+                        if (cmpResult != 0) {
+                            return cmpResult < 0;
                         }
 
                         return false;
@@ -178,12 +179,12 @@ private:
     //! All the input cookies that provided data that forms this job.
     std::vector<IChunkPoolInput::TCookie> InputCookies_;
 
-    const TChunkStripePtr& GetStripe(int tableIndex, bool isStripePrimary)
+    const TChunkStripePtr& GetStripe(int streamIndex, bool isStripePrimary)
     {
-        if (tableIndex >= StripeList_->Stripes.size()) {
-            StripeList_->Stripes.resize(tableIndex + 1);
+        if (streamIndex >= StripeList_->Stripes.size()) {
+            StripeList_->Stripes.resize(streamIndex + 1);
         }
-        auto& stripe = StripeList_->Stripes[tableIndex];
+        auto& stripe = StripeList_->Stripes[streamIndex];
         if (!stripe) {
             stripe = New<TChunkStripe>(!isStripePrimary /* foreign */);
         }
@@ -204,6 +205,7 @@ class TJobManager
     : public TRefCounted
 {
 public:
+    // TODO(max42): Remove data size counter and row counter the hell outta here when YT-6673 is done.
     DEFINE_BYREF_RO_PROPERTY(TProgressCounter, DataSizeCounter);
     DEFINE_BYREF_RO_PROPERTY(TProgressCounter, RowCounter);
     DEFINE_BYREF_RO_PROPERTY(TProgressCounter, JobCounter);
@@ -522,10 +524,11 @@ public:
 
     TSortedChunkPool(
         const TSortedChunkPoolOptions& options,
-        std::function<IChunkSliceFetcherPtr()> chunkSliceFetcherFactory,
-        std::vector<TDataSource> sources)
-        : EnableKeyGuarantee_(options.EnableKeyGuarantee)
-        , Sources_(std::move(sources))
+        IChunkSliceFetcherPtr chunkSliceFetcher,
+        TInputStreamDirectory inputStreamDirectory)
+        : ChunkSliceFetcher_(std::move(chunkSliceFetcher))
+        , EnableKeyGuarantee_(options.EnableKeyGuarantee)
+        , InputStreamDirectory_(std::move(inputStreamDirectory))
         , PrimaryPrefixLength_(options.PrimaryPrefixLength)
         , ForeignPrefixLength_(options.ForeignPrefixLength)
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
@@ -533,9 +536,9 @@ public:
         , JobSizeConstraints_(options.JobSizeConstraints)
         , SupportLocality_(options.SupportLocality)
         , OperationId_(options.OperationId)
+        , EnablePeriodicYielder_(options.EnablePeriodicYielder)
     {
-        ChunkSliceFetcher_ = chunkSliceFetcherFactory();
-        ForeignStripeCookiesByTableIndex_.resize(Sources_.size());
+        ForeignStripeCookiesByStreamIndex_.resize(InputStreamDirectory_.GetDescriptorCount());
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
         Logger.AddTag("OperationId: %v", OperationId_);
         JobManager_->SetLogger(Logger);
@@ -547,6 +550,10 @@ public:
     {
         YCHECK(!Finished);
 
+        if (stripe->DataSlices.empty()) {
+            return IChunkPoolInput::NullCookie;
+        }
+
         auto cookie = static_cast<int>(Stripes_.size());
         Stripes_.emplace_back(stripe);
 
@@ -556,10 +563,10 @@ public:
             }
         }
 
-        int tableIndex = stripe->GetTableIndex();
+        int streamIndex = stripe->GetInputStreamIndex();
 
-        if (Sources_[tableIndex].IsForeign()) {
-            ForeignStripeCookiesByTableIndex_[tableIndex].push_back(cookie);
+        if (InputStreamDirectory_.GetDescriptor(streamIndex).IsForeign()) {
+            ForeignStripeCookiesByStreamIndex_[streamIndex].push_back(cookie);
         }
 
         return cookie;
@@ -672,6 +679,7 @@ public:
                         dataSlice->LowerLimit(),
                         dataSlice->UpperLimit()));
                     mappedStripe->DataSlices.back()->Tag = dataSlice->Tag;
+                    mappedStripe->DataSlices.back()->InputStreamIndex = dataSlice->InputStreamIndex;
                 }
             }
         }
@@ -768,8 +776,17 @@ public:
         TChunkPoolInputBase::Persist(context);
 
         using NYT::Persist;
+        Persist(context, ForeignStripeCookiesByStreamIndex_);
         Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, InputChunkMapping_);
         Persist(context, Stripes_);
+        Persist(context, EnableKeyGuarantee_);
+        Persist(context, InputStreamDirectory_);
+        Persist(context, PrimaryPrefixLength_);
+        Persist(context, ForeignPrefixLength_);
+        Persist(context, MinTeleportChunkSize_);
+        Persist(context, MaxTotalSliceCount_);
+        Persist(context, JobSizeConstraints_);
+
         Persist(context, SupportLocality_);
         Persist(context, JobManager_);
         Persist(context, OperationId_);
@@ -830,7 +847,7 @@ private:
     bool EnableKeyGuarantee_;
 
     //! Information about input sources (e.g. input tables for sorted reduce operation).
-    std::vector<TDataSource> Sources_;
+    TInputStreamDirectory InputStreamDirectory_;
 
     //! Length of the key according to which primary tables should be sorted during
     //! sorted reduce / sorted merge.
@@ -851,8 +868,8 @@ private:
     //! All stripes that were added to this pool.
     std::vector<TSuspendableStripe> Stripes_;
 
-    //! Stores input cookies of all foreign stripes grouped by input table index.
-    std::vector<std::vector<int>> ForeignStripeCookiesByTableIndex_;
+    //! Stores input cookies of all foreign stripes grouped by input stream index.
+    std::vector<std::vector<int>> ForeignStripeCookiesByStreamIndex_;
 
     //! Stores the number of slices in all jobs up to current moment.
     i64 TotalSliceCount_ = 0;
@@ -875,17 +892,25 @@ private:
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
+    bool EnablePeriodicYielder_;
+
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
     //! (for versioned stripes).
     void FetchNonTeleportPrimaryDataSlices()
     {
+        // If ChunkSliceFetcher_ == nullptr, we form chunk slices manually by putting them
+        // into this vector.
+        std::vector<TInputChunkSlicePtr> unversionedChunkSlices;
+
         yhash_map<TInputChunkPtr, IChunkPoolInput::TCookie> unversionedInputChunkToInputCookie;
+        yhash_map<TInputChunkPtr, int> unversionedInputChunkToInputStreamIndex;
+
         for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
             const auto& suspendableStripe = Stripes_[inputCookie];
             const auto& stripe = suspendableStripe.GetStripe();
 
-            if (suspendableStripe.GetTeleport() || !Sources_[stripe->GetTableIndex()].IsPrimary()) {
+            if (suspendableStripe.GetTeleport() || !InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsPrimary()) {
                 continue;
             }
 
@@ -893,19 +918,30 @@ private:
             // while versioned slices are taken as is.
             if (stripe->DataSlices.front()->Type == EDataSourceType::UnversionedTable) {
                 auto inputChunk = stripe->DataSlices.front()->GetSingleUnversionedChunkOrThrow();
-                ChunkSliceFetcher_->AddChunk(inputChunk);
+                if (ChunkSliceFetcher_) {
+                    ChunkSliceFetcher_->AddChunk(inputChunk);
+                } else {
+                    auto chunkSlice = CreateInputChunkSlice(inputChunk);
+                    InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_);
+                    unversionedChunkSlices.emplace_back(std::move(chunkSlice));
+                }
+
                 unversionedInputChunkToInputCookie[inputChunk] = inputCookie;
+                unversionedInputChunkToInputStreamIndex[inputChunk] = stripe->GetInputStreamIndex();
             } else {
                 AddPrimaryDataSlice(stripe->DataSlices.front(), inputCookie);
             }
         }
 
-        WaitFor(ChunkSliceFetcher_->Fetch())
-            .ThrowOnError();
+        if (ChunkSliceFetcher_) {
+            WaitFor(ChunkSliceFetcher_->Fetch())
+                .ThrowOnError();
+            unversionedChunkSlices = ChunkSliceFetcher_->GetChunkSlices();
+        }
 
-        for (const auto& chunkSlice : ChunkSliceFetcher_->GetChunkSlices()) {
-            auto it = unversionedInputChunkToInputCookie.find(chunkSlice->GetInputChunk());
-            YCHECK(it != unversionedInputChunkToInputCookie.end());
+        for (const auto& chunkSlice : unversionedChunkSlices) {
+            int inputCookie = unversionedInputChunkToInputCookie.at(chunkSlice->GetInputChunk());
+            int inputStreamIndex = unversionedInputChunkToInputStreamIndex.at(chunkSlice->GetInputChunk());
 
             // We additionally slice maniac slices by evenly by row indices.
             auto chunk = chunkSlice->GetInputChunk();
@@ -913,15 +949,18 @@ private:
                 CompareRows(chunk->BoundaryKeys()->MinKey, chunk->BoundaryKeys()->MaxKey, PrimaryPrefixLength_) == 0 &&
                 chunkSlice->GetDataSize() > JobSizeConstraints_->GetInputSliceDataSize())
             {
-                chunkSlice->UpperLimit().RowIndex = chunk->GetRowCount();
                 auto smallerSlices = chunkSlice->SliceEvenly(
                     JobSizeConstraints_->GetInputSliceDataSize(),
                     JobSizeConstraints_->GetInputSliceRowCount());
                 for (const auto& smallerSlice : smallerSlices) {
-                    AddPrimaryDataSlice(CreateUnversionedInputDataSlice(smallerSlice), it->second);
+                    auto dataSlice = CreateUnversionedInputDataSlice(smallerSlice);
+                    dataSlice->InputStreamIndex = inputStreamIndex;
+                    AddPrimaryDataSlice(dataSlice, inputCookie);
                 }
             } else {
-                AddPrimaryDataSlice(CreateUnversionedInputDataSlice(chunkSlice), it->second);
+                auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
+                dataSlice->InputStreamIndex = inputStreamIndex;
+                AddPrimaryDataSlice(dataSlice, inputCookie);
             }
         }
         unversionedInputChunkToInputCookie.clear();
@@ -963,7 +1002,7 @@ private:
         // is a hard work :(
         //
         // To overcome this difficulty, we additionally subtract the number of single-key slices that define the same key as our chunk.
-        TPeriodicYielder yielder(PrepareYieldPeriod);
+        TPeriodicYielder yielder = GetPeriodicYielder();
 
         std::vector<TKey> lowerLimits, upperLimits;
         yhash_map<TKey, int> singleKeySliceNumber;
@@ -971,11 +1010,11 @@ private:
 
         for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
             const auto& stripe = Stripes_[inputCookie].GetStripe();
-            if (Sources_[stripe->GetTableIndex()].IsPrimary()) {
+            if (InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsPrimary()) {
                 for (const auto& dataSlice : stripe->DataSlices) {
                     yielder.TryYield();
 
-                    if (Sources_[stripe->GetTableIndex()].IsTeleportable() &&
+                    if (InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsTeleportable() &&
                         dataSlice->GetSingleUnversionedChunkOrThrow()->IsLargeCompleteChunk(MinTeleportChunkSize_))
                     {
                         teleportCandidates.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow(), inputCookie);
@@ -1114,8 +1153,8 @@ private:
             ValidateClientKey(rightEndpoint.Key);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
-                "Error validating sample key in input table %v",
-                dataSlice->GetTableIndex())
+                "Error validating sample key in input stream %v",
+                dataSlice->InputStreamIndex)
                 << ex;
         }
 
@@ -1144,7 +1183,7 @@ private:
                 if (lhs.DataSlice->Type == EDataSourceType::UnversionedTable &&
                     rhs.DataSlice->Type == EDataSourceType::UnversionedTable)
                 {
-                    // If keys are equal, we put slices in the same order they are in the original table.
+                    // If keys are equal, we put slices in the same order they are in the original input stream.
                     const auto& lhsChunk = lhs.DataSlice->GetSingleUnversionedChunkOrThrow();
                     const auto& rhsChunk = rhs.DataSlice->GetSingleUnversionedChunkOrThrow();
 
@@ -1168,8 +1207,7 @@ private:
     void CheckTotalSliceCountLimit() const
     {
         if (TotalSliceCount_ > MaxTotalSliceCount_) {
-            // TODO(max42): error text should be more generic, there may be no input tables.
-            THROW_ERROR_EXCEPTION("Total number of data slices in operation is too large. Consider reducing job count or reducing chunk count in input tables.")
+            THROW_ERROR_EXCEPTION("Total number of data slices in sorted pool is too large.")
                     << TErrorAttribute("actual_total_slice_count", TotalSliceCount_)
                     << TErrorAttribute("max_total_slice_count", MaxTotalSliceCount_)
                     << TErrorAttribute("current_job_count", Jobs_.size());
@@ -1178,11 +1216,12 @@ private:
 
     void BuildJobs()
     {
-        TPeriodicYielder yielder(PrepareYieldPeriod);
+        TPeriodicYielder yielder = GetPeriodicYielder();
 
         Jobs_.emplace_back(std::make_unique<TJobBuilder>());
 
         yhash_map<TInputDataSlicePtr, TKey> openedSlicesLowerLimits;
+        i64 openedSlicesTotalDataSize = 0;
 
         // An index of a closest teleport chunk to the right of current endpoint.
         int nextTeleportChunk = 0;
@@ -1201,6 +1240,7 @@ private:
                     true /* isPrimary */);
                 lowerLimit = upperKey;
                 if (lowerLimit >= dataSlice->UpperLimit().Key) {
+                    openedSlicesTotalDataSize -= dataSlice->GetDataSize();
                     openedSlicesLowerLimits.erase(iterator);
                 }
                 iterator = nextIterator;
@@ -1245,6 +1285,7 @@ private:
 
             if (Endpoints_[index].Type == EEndpointType::Left) {
                 openedSlicesLowerLimits[Endpoints_[index].DataSlice] = TKey();
+                openedSlicesTotalDataSize += Endpoints_[index].DataSlice->GetDataSize();
             } else if (Endpoints_[index].Type == EEndpointType::Right) {
                 const auto& dataSlice = Endpoints_[index].DataSlice;
                 auto it = openedSlicesLowerLimits.find(dataSlice);
@@ -1255,6 +1296,7 @@ private:
                     TagPrimaryDataSlice(exactDataSlice);
                     Jobs_.back()->AddDataSlice(exactDataSlice, PrimaryDataSliceToInputCookie_[dataSlice], true /* isPrimary */);
                     openedSlicesLowerLimits.erase(it);
+                    openedSlicesTotalDataSize -= dataSlice->GetDataSize();
                 }
             } else if (Endpoints_[index].Type == EEndpointType::ForeignRight) {
                 Jobs_.back()->AddPreliminaryForeignDataSlice(Endpoints_[index].DataSlice);
@@ -1275,7 +1317,7 @@ private:
 
             bool jobIsLargeEnough =
                 Jobs_.back()->GetPreliminarySliceCount() + openedSlicesLowerLimits.size() > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
-                Jobs_.back()->GetPreliminaryDataSize() > JobSizeConstraints_->GetDataSizePerJob();
+                Jobs_.back()->GetPreliminaryDataSize() + openedSlicesTotalDataSize > JobSizeConstraints_->GetDataSizePerJob();
 
             if (canEndHere && (shouldEndHere || jobIsLargeEnough)) {
                 endJob(key);
@@ -1285,22 +1327,22 @@ private:
         if (!Jobs_.empty() && Jobs_.back()->GetSliceCount() == 0) {
             Jobs_.pop_back();
         }
-
+        YCHECK(openedSlicesTotalDataSize == 0);
         LOG_INFO("Created %v jobs", Jobs_.size());
     }
 
     void PrepareForeignSources()
     {
-        TPeriodicYielder yielder(PrepareYieldPeriod);
+        TPeriodicYielder yielder = GetPeriodicYielder();
 
-        for (int tableIndex = 0; tableIndex < ForeignStripeCookiesByTableIndex_.size(); ++tableIndex) {
-            if (!Sources_[tableIndex].IsForeign()) {
+        for (int streamIndex = 0; streamIndex < ForeignStripeCookiesByStreamIndex_.size(); ++streamIndex) {
+            if (!InputStreamDirectory_.GetDescriptor(streamIndex).IsForeign()) {
                 continue;
             }
 
             yielder.TryYield();
 
-            auto& tableStripeCookies = ForeignStripeCookiesByTableIndex_[tableIndex];
+            auto& stripeCookies = ForeignStripeCookiesByStreamIndex_[streamIndex];
 
             // In most cases the foreign table stripes follow in sorted order, but still let's ensure that.
             auto cmpStripesByKey = [&] (int lhs, int rhs) {
@@ -1319,11 +1361,11 @@ private:
                     return false;
                 }
             };
-            if (!std::is_sorted(tableStripeCookies.begin(), tableStripeCookies.end(), cmpStripesByKey)) {
-                std::stable_sort(tableStripeCookies.begin(), tableStripeCookies.end(), cmpStripesByKey);
+            if (!std::is_sorted(stripeCookies.begin(), stripeCookies.end(), cmpStripesByKey)) {
+                std::stable_sort(stripeCookies.begin(), stripeCookies.end(), cmpStripesByKey);
             }
-            for (const auto& stripeCookie : tableStripeCookies) {
-                for (const auto& dataSlice : Stripes_[stripeCookie].GetStripe()->DataSlices) {
+            for (const auto& inputCookie : stripeCookies) {
+                for (const auto& dataSlice : Stripes_[inputCookie].GetStripe()->DataSlices) {
                     // NB: We do not need to shorten keys here. Endpoints of type "Foreign" only make
                     // us to stop, to add all foreign slices up to the current moment and to check
                     // if we already have to end the job due to the large data size or slice count.
@@ -1348,10 +1390,10 @@ private:
 
     void AttachForeignSlices()
     {
-        TPeriodicYielder yielder(PrepareYieldPeriod);
+        TPeriodicYielder yielder = GetPeriodicYielder();
 
-        for (int tableIndex = 0; tableIndex < ForeignStripeCookiesByTableIndex_.size(); ++tableIndex) {
-            if (!Sources_[tableIndex].IsForeign()) {
+        for (int streamIndex = 0; streamIndex < ForeignStripeCookiesByStreamIndex_.size(); ++streamIndex) {
+            if (!InputStreamDirectory_.GetDescriptor(streamIndex).IsForeign()) {
                 continue;
             }
 
@@ -1359,7 +1401,7 @@ private:
 
             int startJobIndex = 0;
 
-            for (int inputCookie : ForeignStripeCookiesByTableIndex_[tableIndex]) {
+            for (int inputCookie : ForeignStripeCookiesByStreamIndex_[streamIndex]) {
                 const auto& stripe = Stripes_[inputCookie].GetStripe();
                 for (const auto& foreignDataSlice : stripe->DataSlices) {
                     yielder.TryYield();
@@ -1420,12 +1462,20 @@ private:
         DataSlicesByTag_.emplace_back(dataSlice);
     }
 
+    TPeriodicYielder GetPeriodicYielder()
+    {
+        if (EnablePeriodicYielder_) {
+            return TPeriodicYielder(PrepareYieldPeriod);
+        } else {
+            return TPeriodicYielder();
+        }
+    }
+
     void FreeMemory()
     {
         PrimaryDataSliceToInputCookie_.clear();
         Endpoints_.clear();
-        Sources_.clear();
-        ForeignStripeCookiesByTableIndex_.clear();
+        ForeignStripeCookiesByStreamIndex_.clear();
         JobSizeConstraints_.Reset();
         Jobs_.clear();
     }
@@ -1437,10 +1487,10 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedChunkPool);
 
 std::unique_ptr<IChunkPool> CreateSortedChunkPool(
     const TSortedChunkPoolOptions& options,
-    std::function<IChunkSliceFetcherPtr()> chunkSliceFetcherFactory,
-    std::vector<TDataSource> sources)
+    IChunkSliceFetcherPtr chunkSliceFetcher,
+    TInputStreamDirectory inputStreamDirectory)
 {
-    return std::make_unique<TSortedChunkPool>(options, std::move(chunkSliceFetcherFactory), std::move(sources));
+    return std::make_unique<TSortedChunkPool>(options, std::move(chunkSliceFetcher), std::move(inputStreamDirectory));
 }
 
 ////////////////////////////////////////////////////////////////////

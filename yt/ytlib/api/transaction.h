@@ -32,10 +32,8 @@ struct TRowModification
 {
     //! Discriminates between writes and deletes.
     ERowModificationType Type;
-    //! Either a row (for write) or a key (for delete).
-    NTableClient::TUnversionedRow Row;
-    // TODO(babenko): this is a temporary workarond
-    NTableClient::TVersionedRow VersionedRow;
+    //! Either a row (for write; versioned or unversioned) or a key (for delete; always unversioned).
+    NTableClient::TTypeErasedRow Row;
 };
 
 struct TModifyRowsOptions

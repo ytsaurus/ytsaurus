@@ -225,9 +225,9 @@ public:
         }
     }
 
-    void ProcessUpdatedAndCompletedJobs(
+    virtual void ProcessUpdatedAndCompletedJobs(
         const std::vector<TUpdatedJob>& updatedJobs,
-        const std::vector<TCompletedJob>& completedJobs)
+        const std::vector<TCompletedJob>& completedJobs) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -401,7 +401,7 @@ public:
         }
     }
 
-    void UpdateConfig(const TFairShareStrategyConfigPtr& config)
+    virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1333,14 +1333,15 @@ private:
 
         ValidateOperationCountLimit(operation);
 
-        auto parentElement = GetParentElement(operation);
-
-        if (parentElement->AreImmediateOperationsFobidden()) {
+        auto immediateParentPool = FindPool(GetOperationPoolName(operation));
+        // NB: Check is not performed if operation is started in default or unknown pool.
+        if (immediateParentPool && immediateParentPool->AreImmediateOperationsFobidden()) {
             THROW_ERROR_EXCEPTION(
                 "Starting operations immediately in pool %Qv is forbidden",
-                parentElement->GetId());
+                immediateParentPool->GetId());
         }
 
+        auto parentElement = GetParentElement(operation);
         auto poolPath = GetPoolPath(parentElement);
         const auto& user = operation->GetAuthenticatedUser();
 

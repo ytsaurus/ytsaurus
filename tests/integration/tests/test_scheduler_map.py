@@ -96,6 +96,8 @@ class TestCGroups(YTEnvSetup):
             assert "Process exited with code " in job_desc.attributes["error"]["inner_errors"][0]["message"]
 
 
+##################################################################
+
 class TestEventLog(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -814,7 +816,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command=command,
-            spec={"max_failed_job_count": 1, "job_count": 110})
+            spec={"max_failed_job_count": 1, "max_stderr_count": 100, "job_count": 110})
 
         with pytest.raises(YtError):
             op.resume_jobs()
@@ -2449,214 +2451,6 @@ print row + table_index
         assert get("//sys/operations/{0}/@progress/jobs/interrupted".format(op.id)) == 0
         assert get("//sys/operations/{0}/@progress/jobs/completed".format(op.id)) == 1
 
-
-class TestSchedulerControllerThrottling(YTEnvSetup):
-    NUM_MASTERS = 3
-    NUM_NODES = 5
-    NUM_SCHEDULERS = 1
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "schedule_job_time_limit": 100,
-            "operations_update_period" : 10
-        }
-    }
-
-    def test_time_based_throttling(self):
-        create("table", "//tmp/input")
-
-        testing_options = {"scheduling_delay": 200}
-
-        data = [{"foo": i} for i in range(5)]
-        write_table("//tmp/input", data)
-
-        create("table", "//tmp/output")
-        op = map(
-            dont_track=True,
-            in_="//tmp/input",
-            out="//tmp/output",
-            command="cat",
-            spec={"testing": testing_options})
-
-        while True:
-            try:
-                jobs = get("//sys/operations/{0}/@progress/jobs".format(op.id), verbose=False)
-                assert jobs["running"] == 0
-                assert jobs["completed"] == 0
-                if jobs["aborted"] > 0:
-                    break
-            except:
-                pass
-            time.sleep(1)
-
-        op.abort()
-
-
-class TestSchedulerOperationNodeFlush(YTEnvSetup):
-    NUM_MASTERS = 3
-    NUM_NODES = 5
-    NUM_SCHEDULERS = 1
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler" : {
-            "watchers_update_period" : 100,
-            "operations_update_period" : 10
-        }
-    }
-
-    @unix_only
-    def test_stderr_flush(self):
-        create("table", "//tmp/in")
-        write_table("//tmp/in", {"foo": "bar"})
-
-        ops = []
-        for i in range(20):
-            create("table", "//tmp/out" + str(i))
-            op = map(
-                dont_track=True,
-                in_="//tmp/in",
-                out="//tmp/out" + str(i),
-                command="cat > /dev/null; echo stderr 1>&2; exit 125",
-                spec={"max_failed_job_count": 1})
-            ops += [op]
-
-        for op in ops:
-            # if all jobs failed then operation is also failed
-            with pytest.raises(YtError):
-                op.track()
-            check_all_stderrs(op, "stderr\n", 1)
-
-
-@unix_only
-class TestJobQuery(YTEnvSetup):
-    NUM_MASTERS = 3
-    NUM_NODES = 5
-    NUM_SCHEDULERS = 1
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "udf_registry_path": "//tmp/udfs"
-        }
-    }
-
-    def _init_udf_registry(self):
-        registry_path =  "//tmp/udfs"
-        create("map_node", registry_path)
-
-        abs_path = os.path.join(registry_path, "abs_udf")
-        create(
-            "file", abs_path,
-            attributes={"function_descriptor": {
-                "name": "abs_udf",
-                "argument_types": [{
-                    "tag": "concrete_type",
-                    "value": "int64"}],
-                "result_type": {
-                    "tag": "concrete_type",
-                    "value": "int64"},
-                "calling_convention": "simple"}})
-
-        abs_impl_path = self._find_ut_file("test_udfs.bc")
-        write_local_file(abs_path, abs_impl_path)
-
-    def test_query_simple(self):
-        create("table", "//tmp/t1", attributes={
-            "schema": [{"name": "a", "type": "string"}]
-        })
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", {"a": "b"})
-
-        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"input_query": "a"})
-
-        assert read_table("//tmp/t2") == [{"a": "b"}]
-
-    def test_query_reader_projection(self):
-        create("table", "//tmp/t1", attributes={
-            "schema": [{"name": "a", "type": "string"}, {"name": "c", "type": "string"}]
-        })
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", {"a": "b", "c": "d"})
-
-        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"input_query": "a"})
-
-        assert read_table("//tmp/t2") == [{"a": "b"}]
-
-    def test_query_with_condition(self):
-        create("table", "//tmp/t1", attributes={
-            "schema": [{"name": "a", "type": "int64"}]
-        })
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
-
-        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"input_query": "a where a > 0"})
-
-        assert read_table("//tmp/t2") == [{"a": 1}]
-
-    def test_query_asterisk(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        rows = [
-            {"a": 1, "b": 2, "c": 3},
-            {"b": 5, "c": 6},
-            {"a": 7, "c": 8}]
-        write_table("//tmp/t1", rows)
-
-        schema = [{"name": "z", "type": "int64"},
-            {"name": "a", "type": "int64"},
-            {"name": "y", "type": "int64"},
-            {"name": "b", "type": "int64"},
-            {"name": "x", "type": "int64"},
-            {"name": "c", "type": "int64"},
-            {"name": "u", "type": "int64"}]
-
-        for row in rows:
-            for column in schema:
-                if column["name"] not in row.keys():
-                    row[column["name"]] = None
-
-        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={
-                "input_query": "* where a > 0 or b > 0",
-                "input_schema": schema})
-
-        assert_items_equal(read_table("//tmp/t2"), rows)
-
-    def test_query_schema_in_spec(self):
-        create("table", "//tmp/t1", attributes={
-            "schema": [{"name": "a", "type": "string"}]
-        })
-        create("table", "//tmp/t2", attributes={
-            "schema": [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}]
-        })
-        create("table", "//tmp/t_out")
-        write_table("//tmp/t1", {"a": "b"})
-        write_table("//tmp/t2", {"a": "b"})
-
-        map(in_="//tmp/t1", out="//tmp/t_out", command="cat",
-            spec={"input_query": "*", "input_schema": [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}]})
-
-        assert read_table("//tmp/t_out") == [{"a": "b", "b": None}]
-
-        map(in_="//tmp/t2", out="//tmp/t_out", command="cat",
-            spec={"input_query": "*", "input_schema": [{"name": "a", "type": "string"}]})
-
-        assert read_table("//tmp/t_out") == [{"a": "b"}]
-
-    def test_query_udf(self):
-        self._init_udf_registry()
-
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"a": i} for i in xrange(-1,1)])
-
-        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"input_query": "a where abs_udf(a) > 0", "input_schema": [{"name": "a", "type": "int64"}]})
-
-        assert read_table("//tmp/t2") == [{"a": -1}]
-
     def test_ordered_map_many_jobs(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -2725,6 +2519,279 @@ class TestJobQuery(YTEnvSetup):
         with pytest.raises(YtError):
             map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"attribute": "really_large" * (2 * 10 ** 6)}, verbose=False)
 
+
+##################################################################
+
+class TestSchedulerControllerThrottling(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "schedule_job_time_limit": 100,
+            "operations_update_period" : 10
+        }
+    }
+
+    def test_time_based_throttling(self):
+        create("table", "//tmp/input")
+
+        testing_options = {"scheduling_delay": 200}
+
+        data = [{"foo": i} for i in range(5)]
+        write_table("//tmp/input", data)
+
+        create("table", "//tmp/output")
+        op = map(
+            dont_track=True,
+            in_="//tmp/input",
+            out="//tmp/output",
+            command="cat",
+            spec={"testing": testing_options})
+
+        while True:
+            try:
+                jobs = get("//sys/operations/{0}/@progress/jobs".format(op.id), verbose=False)
+                assert jobs["running"] == 0
+                assert jobs["completed"] == 0
+                if jobs["aborted"] > 0:
+                    break
+            except:
+                pass
+            time.sleep(1)
+
+        op.abort()
+
+
+##################################################################
+
+class TestSchedulerOperationNodeFlush(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler" : {
+            "watchers_update_period" : 100,
+            "operations_update_period" : 10
+        }
+    }
+
+    @unix_only
+    def test_stderr_flush(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", {"foo": "bar"})
+
+        ops = []
+        for i in range(20):
+            create("table", "//tmp/out" + str(i))
+            op = map(
+                dont_track=True,
+                in_="//tmp/in",
+                out="//tmp/out" + str(i),
+                command="cat > /dev/null; echo stderr 1>&2; exit 125",
+                spec={"max_failed_job_count": 1})
+            ops += [op]
+
+        for op in ops:
+            # if all jobs failed then operation is also failed
+            with pytest.raises(YtError):
+                op.track()
+            check_all_stderrs(op, "stderr\n", 1)
+
+
+##################################################################
+
+@unix_only
+class TestJobQuery(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "udf_registry_path": "//tmp/udfs"
+        }
+    }
+
+    def _init_udf_registry(self):
+        registry_path =  "//tmp/udfs"
+        create("map_node", registry_path)
+
+        abs_path = os.path.join(registry_path, "abs_udf")
+        create(
+            "file", abs_path,
+            attributes={"function_descriptor": {
+                "name": "abs_udf",
+                "argument_types": [{
+                    "tag": "concrete_type",
+                    "value": "int64"}],
+                "result_type": {
+                    "tag": "concrete_type",
+                    "value": "int64"},
+                "calling_convention": "simple"}})
+
+        abs_impl_path = self._find_ut_file("test_udfs.bc")
+        write_local_file(abs_path, abs_impl_path)
+
+    def test_query_simple(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "string"}]
+        })
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+            spec={"input_query": "a"})
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    def test_query_two_input_tables(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "string"},
+                       {"name": "b", "type": "string"}]
+        })
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "a", "type": "string"},
+                       {"name": "c", "type": "string"}]
+        })
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t1", {"a": "1", "b": "1"})
+        write_table("//tmp/t2", {"a": "2", "c": "2"})
+
+        map(in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", command="cat",
+            spec={"input_query": "*"})
+
+        expected = [{"a": "1", "b": "1", "c": None}, {"a": "2", "b": None, "c": "2"}]
+        assert_items_equal(read_table("//tmp/t_out"), expected)
+
+    def test_query_reader_projection(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "string"}, {"name": "c", "type": "string"}]
+        })
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b", "c": "d"})
+
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+            spec={"input_query": "a"})
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    @pytest.mark.parametrize("mode", ["ordered", "unordered"])
+    def test_query_filtering(self, mode):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
+
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat", mode=mode,
+            spec={"input_query": "a where a > 0"})
+
+        assert read_table("//tmp/t2") == [{"a": 1}]
+
+    def test_query_asterisk(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        rows = [
+            {"a": 1, "b": 2, "c": 3},
+            {"b": 5, "c": 6},
+            {"a": 7, "c": 8}]
+        write_table("//tmp/t1", rows)
+
+        schema = [{"name": "z", "type": "int64"},
+            {"name": "a", "type": "int64"},
+            {"name": "y", "type": "int64"},
+            {"name": "b", "type": "int64"},
+            {"name": "x", "type": "int64"},
+            {"name": "c", "type": "int64"},
+            {"name": "u", "type": "int64"}]
+
+        for row in rows:
+            for column in schema:
+                if column["name"] not in row.keys():
+                    row[column["name"]] = None
+
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+            spec={
+                "input_query": "* where a > 0 or b > 0",
+                "input_schema": schema})
+
+        assert_items_equal(read_table("//tmp/t2"), rows)
+
+    def test_query_schema_in_spec(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "string"}]
+        })
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}]
+        })
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t1", {"a": "b"})
+        write_table("//tmp/t2", {"a": "b"})
+
+        map(in_="//tmp/t1", out="//tmp/t_out", command="cat",
+            spec={"input_query": "*", "input_schema": [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}]})
+
+        assert read_table("//tmp/t_out") == [{"a": "b", "b": None}]
+
+        map(in_="//tmp/t2", out="//tmp/t_out", command="cat",
+            spec={"input_query": "*", "input_schema": [{"name": "a", "type": "string"}]})
+
+        assert read_table("//tmp/t_out") == [{"a": "b"}]
+
+    def test_query_udf(self):
+        self._init_udf_registry()
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": i} for i in xrange(-1,1)])
+
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+            spec={"input_query": "a where abs_udf(a) > 0", "input_schema": [{"name": "a", "type": "int64"}]})
+
+        assert read_table("//tmp/t2") == [{"a": -1}]
+
+    def test_query_wrong_schema(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "string"}]
+        })
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+
+        with pytest.raises(YtError):
+            map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+                spec={"input_query": "a", "input_schema": [{"name": "a", "type": "int64"}]})
+
+    def test_query_range_inferrence(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]
+        })
+        create("table", "//tmp/t_out")
+        for i in range(3):
+            write_table("<append=%true>//tmp/t", [{"a": i * 10 + j} for j in xrange(3)])
+        assert get("//tmp/t/@chunk_count") == 3
+
+        def _test(selector, query, rows, chunk_count):
+            op = map(
+                in_="//tmp/t" + selector,
+                out="//tmp/t_out",
+                command="cat",
+                spec={"input_query": query})
+
+            assert_items_equal(read_table("//tmp/t_out"), rows)
+            statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
+            assert get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum") == chunk_count
+
+        _test("", "a where a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)
+        _test("[#0:]", "a where a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)
+        _test("[11:12]", "a where a between 5 and 15", [{"a": i} for i in xrange(11, 12)], 1)
+        _test("[9:20]", "a where a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)
+        _test("[#2:#4]", "a where a <= 10", [{"a": 2}, {"a": 10}], 2)
+        _test("[10]", "a where a > 0", [{"a": 10}], 1)
+
+
 ##################################################################
 
 class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
@@ -2747,6 +2814,9 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
             command="cat")
 
         assert_items_equal(read_table("//tmp/t_out"), [{"a": 1}, {"a": 2}])
+
+
+##################################################################
 
 class TestSandboxTmpfs(YTEnvSetup):
     NUM_MASTERS = 1
@@ -2988,6 +3058,9 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 0
 
+
+##################################################################
+
 class TestDisabledSandboxTmpfs(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -3023,6 +3096,7 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
         assert ["file", "content"] == words
 
 
+##################################################################
 
 class TestFilesInSandbox(YTEnvSetup):
     NUM_MASTERS = 1
@@ -3076,6 +3150,8 @@ class TestFilesInSandbox(YTEnvSetup):
         assert op.get_state() == "aborted"
         assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu"), 0)
 
+
+##################################################################
 
 class TestJobSizeAdjuster(YTEnvSetup):
     NUM_MASTERS = 1

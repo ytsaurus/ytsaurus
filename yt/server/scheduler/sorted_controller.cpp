@@ -108,8 +108,8 @@ protected:
             , Controller_(controller)
             , ChunkPool_(CreateSortedChunkPool(
                 controller->GetSortedChunkPoolOptions(),
-                controller->GetChunkSliceFetcherFactory(),
-                controller->GetDataSources()))
+                controller->ChunkSliceFetcher_,
+                controller->GetInputStreamDirectory()))
         { }
 
         virtual Stroka GetId() const override
@@ -229,14 +229,14 @@ protected:
 
     // Custom bits of preparation pipeline.
 
-    std::vector<TDataSource> GetDataSources()
+    TInputStreamDirectory GetInputStreamDirectory()
     {
-        std::vector<TDataSource> sources;
-        sources.reserve(InputTables.size());
+        std::vector<TInputStreamDescriptor> inputStreams;
+        inputStreams.reserve(InputTables.size());
         for (const auto& inputTable : InputTables) {
-            sources.emplace_back(inputTable.IsTeleportable, inputTable.IsPrimary(), inputTable.IsDynamic /* isVersioned */);
+            inputStreams.emplace_back(inputTable.IsTeleportable, inputTable.IsPrimary(), inputTable.IsDynamic /* isVersioned */);
         }
-        return sources;
+        return TInputStreamDirectory(inputStreams);
     }
 
     virtual bool IsCompleted() const override
@@ -366,13 +366,6 @@ protected:
 
     virtual bool IsKeyGuaranteeEnabled() = 0;
 
-    std::function<IChunkSliceFetcherPtr()> GetChunkSliceFetcherFactory()
-    {
-        return [&] () -> IChunkSliceFetcherPtr {
-            return ChunkSliceFetcher_;
-        };
-    }
-
     virtual EJobType GetJobType() const = 0;
 
     virtual TCpuResource GetCpuLimit() const = 0;
@@ -384,7 +377,7 @@ protected:
         auto tableIndex = GetOutputTeleportTableIndex();
         if (tableIndex) {
             for (int index = 0; index < InputTables.size(); ++index) {
-                if (!InputTables[index].IsDynamic) {
+                if (!InputTables[index].IsDynamic && !InputTables[index].Path.GetColumns()) {
                     InputTables[index].IsTeleportable = ValidateTableSchemaCompatibility(
                         InputTables[index].Schema,
                         OutputTables[*tableIndex].TableUploadOptions.TableSchema,
@@ -609,16 +602,7 @@ public:
                     InferSchemaFromInput(PrimaryKeyColumns_);
                 } else {
                     prepareOutputKeyColumns();
-
-                    for (const auto& inputTable : InputTables) {
-                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
-                            ValidateTableSchemaCompatibility(
-                                inputTable.Schema,
-                                table.TableUploadOptions.TableSchema,
-                                /* ignoreSortOrder */ true)
-                                .ThrowOnError();
-                        }
-                    }
+                    ValidateOutputSchemaCompatibility(true);
                 }
                 break;
 

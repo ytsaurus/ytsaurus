@@ -199,6 +199,28 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert len(read_table("//tmp/t_out")) == 50
 
+    @pytest.mark.xfail(reason="Enable when new sorted pool is enabled by default")
+    def test_several_merge_jobs_per_partition(self):
+        create("table", "//tmp/t_in")
+        rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in xrange(500)]
+        shuffled_rows = rows[::]
+        shuffle(shuffled_rows)
+        write_table("//tmp/t_in", shuffled_rows)
+
+        create("table", "//tmp/t_out")
+
+        sort(in_="//tmp/t_in",
+             out="//tmp/t_out",
+             sort_by="key",
+             spec={"partition_count": 2,
+                   "partition_job_count": 10,
+                   "data_size_per_sort_job": 1,
+                   "partition_job_io" : {"table_writer" :
+                        {"desired_chunk_size" : 1, "block_size" : 1024}}})
+
+        assert read_table("//tmp/t_out") == rows
+        assert get("//tmp/t_out/@chunk_count") >= 10
+
     def test_with_intermediate_account(self):
         v1 = {"key" : "aaa"}
         v2 = {"key" : "bb"}
@@ -620,6 +642,76 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert len(chunks) == 1
         assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
+
+    def test_column_selectors_schema_inference(self):
+        create("table", "//tmp/t", attributes={
+            "schema": make_schema([
+                {"name": "k1", "type": "int64", "sort_order": "ascending"},
+                {"name": "k2", "type": "int64", "sort_order": "ascending"},
+                {"name": "v1", "type": "int64"},
+                {"name": "v2", "type": "int64"}],
+                unique_keys=True)
+        })
+        create("table", "//tmp/t_out")
+        rows = [{"k1": i, "k2": i + 1, "v1": i + 2, "v2": i + 3} for i in xrange(2)]
+        write_table("//tmp/t", rows)
+
+        sort(in_="//tmp/t{k1,v1}",
+             out="//tmp/t_out",
+             sort_by="k1")
+
+        assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k1", "v1")} for r in rows])
+
+        schema = yson.loads('<"unique_keys"=%false;"strict"=%true;>' \
+                + '[{"name"="k1";"sort_order"="ascending";"type"="int64";};{"name"="v1";"type"="int64";};]')
+        assert get("//tmp/t_out/@schema") == schema
+
+        remove("//tmp/t_out")
+        create("table", "//tmp/t_out")
+
+        sort(in_="//tmp/t{k1,k2,v2}",
+             out="//tmp/t_out",
+             sort_by=["k1","k2"])
+
+        assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k1", "k2", "v2")} for r in rows])
+
+        schema = yson.loads('<"unique_keys"=%true;"strict"=%true;>' \
+                + '[{"name"="k1";"sort_order"="ascending";"type"="int64";};' \
+                + '{"name"="k2";"sort_order"="ascending";"type"="int64";};' \
+                + '{"name"="v2";"type"="int64";};]')
+        assert get("//tmp/t_out/@schema") == schema
+
+    def test_column_selectors_output_schema_validation(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}]
+        })
+        create("table", "//tmp/t_out", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+        })
+        rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+        write_table("//tmp/t", rows)
+
+        sort(in_="//tmp/t{key}",
+             out="//tmp/t_out",
+             sort_by="key")
+
+        assert_items_equal(read_table("//tmp/t_out"), [{"key": r["key"]} for r in rows])
+
+    def test_query_filtering(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
+
+        with pytest.raises(YtError):
+            sort(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={"input_query": "a where a > 0"})
+
 
 ##################################################################
 

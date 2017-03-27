@@ -1,4 +1,5 @@
 import pytest
+import yt.yson as yson
 
 from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
@@ -553,21 +554,144 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert_items_equal(read_table("//tmp/t_out"), [self.v1[1], {}, {}])
         assert get("//tmp/t_out/@chunk_count") == 1
 
-    @unix_only
-    def test_query_filtering(self):
-        create("table", "//tmp/t1")
+    @pytest.mark.parametrize("mode", ["ordered", "unordered", "sorted"])
+    def test_column_selectors_schema_inference(self, mode):
+        create("table", "//tmp/t", attributes={
+            "schema": make_schema([
+                {"name": "k1", "type": "int64", "sort_order": "ascending"},
+                {"name": "k2", "type": "int64", "sort_order": "ascending"},
+                {"name": "v1", "type": "int64"},
+                {"name": "v2", "type": "int64"}],
+                unique_keys=True)
+        })
+        create("table", "//tmp/t_out")
+        rows = [{"k1": i, "k2": i + 1, "v1": i + 2, "v2": i + 3} for i in xrange(2)]
+        write_table("//tmp/t", rows)
+
+        if mode != "sorted":
+            merge(mode=mode,
+                  in_="//tmp/t{k1,v1}",
+                  out="//tmp/t_out")
+
+            assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k1", "v1")} for r in rows])
+
+            schema = yson.loads('<"unique_keys"=%false;"strict"=%true;>' \
+                    + '[{"name"="k1";"type"="int64";};{"name"="v1";"type"="int64";};]')
+            if mode != "unordered":
+                schema[0]["sort_order"] = "ascending"
+            assert get("//tmp/t_out/@schema") == schema
+
+            remove("//tmp/t_out")
+            create("table", "//tmp/t_out")
+
+            merge(mode=mode,
+                  in_="//tmp/t{k2,v2}",
+                  out="//tmp/t_out")
+
+            assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k2", "v2")} for r in rows])
+
+            schema = yson.loads('<"unique_keys"=%false;"strict"=%true;>' \
+                    + '[{"name"="k2";"type"="int64";};{"name"="v2";"type"="int64";};]')
+            assert get("//tmp/t_out/@schema") == schema
+
+            remove("//tmp/t_out")
+            create("table", "//tmp/t_out")
+
+        merge(mode=mode,
+              in_="//tmp/t{k1,k2,v2}",
+              out="//tmp/t_out")
+
+        assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k1", "k2", "v2")} for r in rows])
+
+        schema = yson.loads('<"unique_keys"=%false;"strict"=%true;>' \
+                + '[{"name"="k1";"type"="int64";};{"name"="k2";"type"="int64";};' \
+                + '{"name"="v2";"type"="int64";};]')
+        if mode != "unordered":
+            schema.attributes["unique_keys"] = True
+            schema[0]["sort_order"] = "ascending"
+            schema[1]["sort_order"] = "ascending"
+        assert get("//tmp/t_out/@schema") == schema
+
+    @pytest.mark.parametrize("mode", ["ordered", "sorted"])
+    def test_column_selectors_output_schema_validation(self, mode):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}]
+        })
+        create("table", "//tmp/t_out", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+        })
+        rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+        write_table("//tmp/t", rows)
+
+        merge(mode=mode,
+              in_="//tmp/t{key}",
+              out="//tmp/t_out")
+
+        assert_items_equal(read_table("//tmp/t_out"), [{"key": r["key"]} for r in rows])
+
+    @pytest.mark.parametrize("mode", ["ordered", "unordered"])
+    def test_query_filtering(self, mode):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
 
-        merge(mode="unordered",
+        merge(mode=mode,
             in_="//tmp/t1",
             out="//tmp/t2",
-            spec={
-                "force_transform": "true",
-                "input_query": "a where a > 0",
-                "input_schema": [{"name": "a", "type": "int64"}]})
+            spec={"input_query": "a where a > 0"})
 
         assert read_table("//tmp/t2") == [{"a": 1}]
+        assert get("//tmp/t2/@schema") == get("//tmp/t1/@schema")
+
+        remove("//tmp/t2")
+        create("table", "//tmp/t2")
+        merge(mode=mode,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"input_query": "a + 1 as b where a > 0"})
+
+        assert read_table("//tmp/t2") == [{"b": 2}]
+        schema = get("//tmp/t1/@schema")
+        schema[0]["name"] = "b"
+        assert get("//tmp/t2/@schema") == schema
+
+    def test_sorted_merge_query_filtering(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
+
+        with pytest.raises(YtError):
+            merge(mode="sorted",
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={"input_query": "a where a > 0"})
+
+    @pytest.mark.parametrize("mode", ["ordered", "unordered"])
+    def test_query_filtering_output_schema_validation(self, mode):
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}]
+        })
+        sort_order = "ascending" if mode == "ordered" else None
+        create("table", "//tmp/t_out", attributes={
+            "schema": [{"name": "k", "type": "int64", "sort_order": sort_order}]
+        })
+        rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+        write_table("//tmp/t", rows)
+
+        merge(mode=mode,
+              in_="//tmp/t",
+              out="//tmp/t_out",
+              spec={"input_query": "key as k"})
+
+        assert_items_equal(read_table("//tmp/t_out"), [{"k": r["key"]} for r in rows])
 
     @unix_only
     def test_merge_chunk_properties(self):
