@@ -1246,8 +1246,8 @@ public:
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
 
-        if (!table->IsSorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
-            THROW_ERROR_EXCEPTION("Cannot mount an ordered dynamic table in memory");
+        if (!table->IsSorted() && mountConfig->EnableLookupHashTable) {
+            THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" cannot be \"true\" for ordered dynamic table");
         }
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
@@ -1478,8 +1478,8 @@ public:
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
 
-        if (!table->IsSorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
-            THROW_ERROR_EXCEPTION("Cannot mount an ordered dynamic table in memory");
+        if (!table->IsSorted() && mountConfig->EnableLookupHashTable) {
+            THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" cannot be \"true\" for ordered dynamic table");
         }
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);

@@ -948,24 +948,28 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
     snapshot->RetainedTimestamp = RetainedTimestamp_;
 
+    auto addStoreStatistics = [&] (const IStorePtr& store) {
+        if (store->IsChunk()) {
+            auto chunkStore = store->AsChunk();
+            auto preloadState = chunkStore->GetPreloadState();
+            switch (preloadState) {
+                case EStorePreloadState::Scheduled:
+                case EStorePreloadState::Running:
+                    ++snapshot->PreloadPendingStoreCount;
+                    break;
+                case EStorePreloadState::Complete:
+                    ++snapshot->PreloadCompletedStoreCount;
+                    break;
+                default:
+                    break;
+            }
+        }
+    };
+
     auto addPartitionStatistics = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
         snapshot->StoreCount += partitionSnapshot->Stores.size();
         for (const auto& store : partitionSnapshot->Stores) {
-            if (store->IsChunk()) {
-                auto chunkStore = store->AsChunk();
-                auto preloadState = chunkStore->GetPreloadState();
-                switch (preloadState) {
-                    case EStorePreloadState::Scheduled:
-                    case EStorePreloadState::Running:
-                        ++snapshot->PreloadPendingStoreCount;
-                        break;
-                    case EStorePreloadState::Complete:
-                        ++snapshot->PreloadCompletedStoreCount;
-                        break;
-                    default:
-                        break;
-                }
-            }
+            addStoreStatistics(store);
         }
     };
 
@@ -984,6 +988,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
         snapshot->OrderedStores.reserve(StoreRowIndexMap_.size());
         for (const auto& pair : StoreRowIndexMap_) {
             snapshot->OrderedStores.push_back(pair.second);
+            addStoreStatistics(pair.second);
         }
     }
 

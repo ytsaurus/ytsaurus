@@ -1,5 +1,7 @@
 import pytest
 
+from test_dynamic_tables import TestDynamicTablesBase
+
 from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
@@ -9,24 +11,9 @@ from time import sleep
 
 ##################################################################
 
-class TestOrderedDynamicTables(YTEnvSetup):
-    NUM_MASTERS = 3
-    NUM_NODES = 16
-    NUM_SCHEDULERS = 0
-
-    DELTA_MASTER_CONFIG = {
-        "tablet_manager": {
-            "leader_reassignment_timeout" : 1000,
-            "peer_revocation_timeout" : 3000
-        }
-    }
-
-    DELTA_DRIVER_CONFIG = {
-        "max_rows_per_write_request": 2
-    }
-    
+class TestOrderedDynamicTables(TestDynamicTablesBase):
     def _create_simple_table(self, path, dynamic=True, commit_ordering=None, tablet_count=None,
-                             pivot_keys=None):
+                             pivot_keys=None, optimize_for=None):
         attributes={
             "dynamic": dynamic,
             "external": False,
@@ -42,6 +29,8 @@ class TestOrderedDynamicTables(YTEnvSetup):
             attributes["tablet_count"] = tablet_count
         if pivot_keys is not None:
             attributes["pivot_keys"] = pivot_keys
+        if optimize_for is not None:
+            attributes["optimize_for"] = optimize_for
         create("table", path, attributes=attributes)
 
     def test_mount(self):
@@ -515,6 +504,71 @@ class TestOrderedDynamicTables(YTEnvSetup):
 
         actual = read_table("//tmp/t")
         assert actual == rows
+
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
+    def test_in_memory(self, mode, optimize_for):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", optimize_for=optimize_for)
+
+        set("//tmp/t/@in_memory_mode", mode)
+        set("//tmp/t/@max_dynamic_store_row_count", 10)
+        self.sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = self._get_tablet_leader_address(tablet_id)
+
+        def _check_preload_state(state):
+            tablet_data = self._find_tablet_orchid(address, tablet_id)
+            assert all(s["preload_state"] == state for s in tablet_data["stores"].itervalues() if s["store_state"] == "persistent")
+            actual_preload_completed = get("//tmp/t/@tablets/0/statistics/preload_completed_store_count")
+            if state == "complete":
+                assert actual_preload_completed >= 1
+            else:
+                assert actual_preload_completed == 0
+            assert get("//tmp/t/@tablets/0/statistics/preload_pending_store_count") == 0
+            assert get("//tmp/t/@tablets/0/statistics/preload_failed_store_count") == 0
+
+        # Check preload after mount.
+        rows1 = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(0, 10)]
+        insert_rows("//tmp/t", rows1)
+
+        self.sync_unmount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        sleep(3.0)
+
+        _check_preload_state("complete")
+        assert select_rows("a, b, c from [//tmp/t]") == rows1
+
+        # Check preload after flush.
+        rows2 = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i + 1)} for i in xrange(0, 10)]
+        insert_rows("//tmp/t", rows2)
+        self.sync_flush_table("//tmp/t")
+
+        sleep(3.0)
+
+        _check_preload_state("complete")
+        assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
+
+        # Disable in-memory mode
+        set("//tmp/t/@in_memory_mode", "none")
+        remount_table("//tmp/t")
+
+        sleep(3.0)
+
+        _check_preload_state("disabled")
+        assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
+
+        # Re-enable in-memory mode
+        set("//tmp/t/@in_memory_mode", mode)
+        remount_table("//tmp/t")
+
+        sleep(3.0)
+
+        _check_preload_state("complete")
+        assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
+
 
 ##################################################################
 

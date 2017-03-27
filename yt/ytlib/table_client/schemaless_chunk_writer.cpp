@@ -198,7 +198,7 @@ public:
 
     virtual NChunkClient::NProto::TChunkMeta GetNodeMeta() const override
     {
-        return GetMasterMeta();
+        return EncodingChunkWriter_->Meta();
     }
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
