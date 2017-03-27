@@ -178,7 +178,8 @@ def _set_mapper_settings_for_read_from_yt(spec):
     if "mapper" not in spec:
         spec["mapper"] = {}
     # NB: yt2 read usually consumpt less than 600 Mb, but sometimes can use more than 1Gb of memory.
-    spec["mapper"]["cpu_limit"] = 0.5
+    if "cpu_limit" not in spec["mapper"]:
+        spec["mapper"]["cpu_limit"] = 0.5
     spec["mapper"]["memory_limit"] = 4 * GB
     spec["mapper"]["memory_reserve_factor"] = 0.25
     if "tmpfs_size" in spec["mapper"]:
