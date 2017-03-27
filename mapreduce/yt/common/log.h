@@ -24,7 +24,7 @@ public:
     virtual void Log(ELevel level, const TSourceLocation& sourceLocation, const char* format, va_list args) = 0;
 };
 
-using ILoggerPtr = TIntrusivePtr<ILogger>;
+using ILoggerPtr = ::TIntrusivePtr<ILogger>;
 
 void SetLogger(ILoggerPtr logger);
 ILoggerPtr GetLogger();

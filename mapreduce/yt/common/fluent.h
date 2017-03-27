@@ -493,17 +493,17 @@ template <class TState>
 class TFluentYsonHolder
 {
 public:
-    explicit TFluentYsonHolder(TIntrusivePtr<TState> state)
+    explicit TFluentYsonHolder(::TIntrusivePtr<TState> state)
         : State(state)
     { }
 
-    TIntrusivePtr<TState> GetState() const
+    ::TIntrusivePtr<TState> GetState() const
     {
         return State;
     }
 
 private:
-    TIntrusivePtr<TState> State;
+    ::TIntrusivePtr<TState> State;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -523,7 +523,7 @@ struct TFluentYsonUnwrapper< TFluentYsonHolder<TState> >
 
 template <class TState>
 TFluentYsonBuilder::TAny<TFluentYsonHolder<TState>>
-BuildYsonFluentlyWithState(TIntrusivePtr<TState> state)
+BuildYsonFluentlyWithState(::TIntrusivePtr<TState> state)
 {
     return TFluentYsonBuilder::TAny<TFluentYsonHolder<TState>>(
         state->GetConsumer(),
@@ -533,21 +533,21 @@ BuildYsonFluentlyWithState(TIntrusivePtr<TState> state)
 inline TFluentYsonBuilder::TAny<TFluentYsonHolder<TFluentYsonWriterState>>
 BuildYsonStringFluently(EYsonFormat format = YF_TEXT)
 {
-    TIntrusivePtr<TFluentYsonWriterState> state(new TFluentYsonWriterState(format));
+    ::TIntrusivePtr<TFluentYsonWriterState> state(new TFluentYsonWriterState(format));
     return BuildYsonFluentlyWithState(state);
 }
 
 inline TFluentYsonBuilder::TAny<TFluentYsonHolder<TFluentJsonWriterState>>
 BuildJsonStringFluently(EJsonFormat format = JF_TEXT)
 {
-    TIntrusivePtr<TFluentJsonWriterState> state(new TFluentJsonWriterState(format));
+    ::TIntrusivePtr<TFluentJsonWriterState> state(new TFluentJsonWriterState(format));
     return BuildYsonFluentlyWithState(state);
 }
 
 inline TFluentYsonBuilder::TAny<TFluentYsonHolder<TFluentYsonBuilderState>>
 BuildYsonNodeFluently()
 {
-    TIntrusivePtr<TFluentYsonBuilderState> state(new TFluentYsonBuilderState);
+    ::TIntrusivePtr<TFluentYsonBuilderState> state(new TFluentYsonBuilderState);
     return BuildYsonFluentlyWithState(state);
 }
 

@@ -461,21 +461,21 @@ private:
             realPath, Auth_, TransactionId_, format, formatConfig, options);
     }
 
-    TIntrusivePtr<INodeReaderImpl> CreateNodeReader(
+    ::TIntrusivePtr<INodeReaderImpl> CreateNodeReader(
         const TRichYPath& path, const TTableReaderOptions& options) override
     {
         return new TNodeTableReader(
             CreateClientReader(path, DSF_YSON_BINARY, options), options.SizeLimit_);
     }
 
-    TIntrusivePtr<IYaMRReaderImpl> CreateYaMRReader(
+    ::TIntrusivePtr<IYaMRReaderImpl> CreateYaMRReader(
         const TRichYPath& path, const TTableReaderOptions& options) override
     {
         return new TYaMRTableReader(
             CreateClientReader(path, DSF_YAMR_LENVAL, options));
     }
 
-    TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(
+    ::TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(
         const TRichYPath& path,
         const TTableReaderOptions& options,
         const Message* prototype) override
@@ -495,21 +495,21 @@ private:
         }
     }
 
-    TIntrusivePtr<INodeWriterImpl> CreateNodeWriter(
+    ::TIntrusivePtr<INodeWriterImpl> CreateNodeWriter(
         const TRichYPath& path, const TTableWriterOptions& options) override
     {
         return new TNodeTableWriter(
             CreateClientWriter(path, DSF_YSON_BINARY, options));
     }
 
-    TIntrusivePtr<IYaMRWriterImpl> CreateYaMRWriter(
+    ::TIntrusivePtr<IYaMRWriterImpl> CreateYaMRWriter(
         const TRichYPath& path, const TTableWriterOptions& options) override
     {
         return new TYaMRTableWriter(
             CreateClientWriter(path, DSF_YAMR_LENVAL, options));
     }
 
-    TIntrusivePtr<IProtoWriterImpl> CreateProtoWriter(
+    ::TIntrusivePtr<IProtoWriterImpl> CreateProtoWriter(
         const TRichYPath& path,
         const TTableWriterOptions& options,
         const Message* prototype) override

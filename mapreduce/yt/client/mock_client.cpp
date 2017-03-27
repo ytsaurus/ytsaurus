@@ -231,27 +231,27 @@ IFileWriterPtr TMockClient::CreateFileWriter(const TRichYPath&, const TFileWrite
     return new TMockFileWriter();
 }
 
-TIntrusivePtr<INodeReaderImpl> TMockClient::CreateNodeReader(const TRichYPath&, const TTableReaderOptions&) {
+::TIntrusivePtr<INodeReaderImpl> TMockClient::CreateNodeReader(const TRichYPath&, const TTableReaderOptions&) {
     return new TMockNodeTableReader();
 }
 
-TIntrusivePtr<IYaMRReaderImpl> TMockClient::CreateYaMRReader(const TRichYPath&, const TTableReaderOptions&) {
+::TIntrusivePtr<IYaMRReaderImpl> TMockClient::CreateYaMRReader(const TRichYPath&, const TTableReaderOptions&) {
     return new TMockYaMRTableReader();
 }
 
-TIntrusivePtr<IProtoReaderImpl> TMockClient::CreateProtoReader(const TRichYPath&, const TTableReaderOptions&, const ::google::protobuf::Message*) {
+::TIntrusivePtr<IProtoReaderImpl> TMockClient::CreateProtoReader(const TRichYPath&, const TTableReaderOptions&, const ::google::protobuf::Message*) {
     return new TMockProtoTableReader();
 }
 
-TIntrusivePtr<INodeWriterImpl> TMockClient::CreateNodeWriter(const TRichYPath&, const TTableWriterOptions&) {
+::TIntrusivePtr<INodeWriterImpl> TMockClient::CreateNodeWriter(const TRichYPath&, const TTableWriterOptions&) {
     return new TMockNodeTableWriter();
 }
 
-TIntrusivePtr<IYaMRWriterImpl> TMockClient::CreateYaMRWriter(const TRichYPath&, const TTableWriterOptions&) {
+::TIntrusivePtr<IYaMRWriterImpl> TMockClient::CreateYaMRWriter(const TRichYPath&, const TTableWriterOptions&) {
     return new TMockYaMRTableWriter();
 }
 
-TIntrusivePtr<IProtoWriterImpl> TMockClient::CreateProtoWriter(const TRichYPath&, const TTableWriterOptions&, const ::google::protobuf::Message*) {
+::TIntrusivePtr<IProtoWriterImpl> TMockClient::CreateProtoWriter(const TRichYPath&, const TTableWriterOptions&, const ::google::protobuf::Message*) {
     return new TMockProtoTableWriter();
 }
 

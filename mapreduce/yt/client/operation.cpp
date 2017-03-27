@@ -1296,17 +1296,17 @@ TOperationId ExecuteErase(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIntrusivePtr<INodeReaderImpl> CreateJobNodeReader()
+::TIntrusivePtr<INodeReaderImpl> CreateJobNodeReader()
 {
     return new TNodeTableReader(MakeHolder<TJobReader>(0));
 }
 
-TIntrusivePtr<IYaMRReaderImpl> CreateJobYaMRReader()
+::TIntrusivePtr<IYaMRReaderImpl> CreateJobYaMRReader()
 {
     return new TYaMRTableReader(MakeHolder<TJobReader>(0));
 }
 
-TIntrusivePtr<IProtoReaderImpl> CreateJobProtoReader()
+::TIntrusivePtr<IProtoReaderImpl> CreateJobProtoReader()
 {
     if (TConfig::Get()->UseClientProtobuf) {
         return new TProtoTableReader(
@@ -1319,17 +1319,17 @@ TIntrusivePtr<IProtoReaderImpl> CreateJobProtoReader()
     }
 }
 
-TIntrusivePtr<INodeWriterImpl> CreateJobNodeWriter(size_t outputTableCount)
+::TIntrusivePtr<INodeWriterImpl> CreateJobNodeWriter(size_t outputTableCount)
 {
     return new TNodeTableWriter(MakeHolder<TJobWriter>(outputTableCount));
 }
 
-TIntrusivePtr<IYaMRWriterImpl> CreateJobYaMRWriter(size_t outputTableCount)
+::TIntrusivePtr<IYaMRWriterImpl> CreateJobYaMRWriter(size_t outputTableCount)
 {
     return new TYaMRTableWriter(MakeHolder<TJobWriter>(outputTableCount));
 }
 
-TIntrusivePtr<IProtoWriterImpl> CreateJobProtoWriter(size_t outputTableCount)
+::TIntrusivePtr<IProtoWriterImpl> CreateJobProtoWriter(size_t outputTableCount)
 {
     if (TConfig::Get()->UseClientProtobuf) {
         return new TProtoTableWriter(

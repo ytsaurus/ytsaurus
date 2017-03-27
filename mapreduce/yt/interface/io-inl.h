@@ -92,7 +92,7 @@ public:
         : Lock_(MakeAtomicShared<TMutex>())
     { }
 
-    explicit TTableReaderBase(TIntrusivePtr<IReaderImpl> reader)
+    explicit TTableReaderBase(::TIntrusivePtr<IReaderImpl> reader)
         : Reader_(reader)
         , Lock_(MakeAtomicShared<TMutex>())
     { }
@@ -125,7 +125,7 @@ public:
     }
 
 private:
-    TIntrusivePtr<IReaderImpl> Reader_;
+    ::TIntrusivePtr<IReaderImpl> Reader_;
     TAtomicSharedPtr<TMutex> Lock_;
 };
 
@@ -136,7 +136,7 @@ class TTableReader<TNode>
 public:
     using TBase = TTableReaderBase<TNode>;
 
-    explicit TTableReader(TIntrusivePtr<IReaderImpl> reader)
+    explicit TTableReader(::TIntrusivePtr<IReaderImpl> reader)
         : TBase(reader)
     { }
 };
@@ -148,7 +148,7 @@ class TTableReader<TYaMRRow>
 public:
     using TBase = TTableReaderBase<TYaMRRow>;
 
-    explicit TTableReader(TIntrusivePtr<IReaderImpl> reader)
+    explicit TTableReader(::TIntrusivePtr<IReaderImpl> reader)
         : TBase(reader)
     { }
 };
@@ -160,7 +160,7 @@ class TTableReader<Message>
 public:
     using TRowType = Message;
 
-    explicit TTableReader(TIntrusivePtr<IProtoReaderImpl> reader)
+    explicit TTableReader(::TIntrusivePtr<IProtoReaderImpl> reader)
         : Reader_(reader)
     { }
 
@@ -201,7 +201,7 @@ public:
     }
 
 private:
-    TIntrusivePtr<IProtoReaderImpl> Reader_;
+    ::TIntrusivePtr<IProtoReaderImpl> Reader_;
     mutable THolder<Message> CachedRow_;
     TMutex Lock_;
 };
@@ -214,7 +214,7 @@ public:
     using TRowType = T;
     using TBase = TTableReader<Message>;
 
-    explicit TTableReader(TIntrusivePtr<IProtoReaderImpl> reader)
+    explicit TTableReader(::TIntrusivePtr<IProtoReaderImpl> reader)
         : TBase(reader)
     { }
 
@@ -242,7 +242,7 @@ inline TTableReaderPtr<TYaMRRow> IIOClient::CreateTableReader<TYaMRRow>(
 template <class T, class = std::enable_if_t<TIsBaseOf<Message, T>::Value>>
 struct TReaderCreator
 {
-    static TTableReaderPtr<T> Create(TIntrusivePtr<IProtoReaderImpl> reader)
+    static TTableReaderPtr<T> Create(::TIntrusivePtr<IProtoReaderImpl> reader)
     {
         return new TTableReader<T>(reader);
     }
@@ -269,7 +269,7 @@ private:
     using TReaderImpl = typename TRowTraits<TRowType>::IReaderImpl;
 
 public:
-    TTableRangesReader(TIntrusivePtr<TReaderImpl> readerImpl)
+    TTableRangesReader(::TIntrusivePtr<TReaderImpl> readerImpl)
         : ReaderImpl_(readerImpl)
         , Reader_(MakeIntrusive<TTableReader<TRowType>>(readerImpl))
         , IsValid_(Reader_->IsValid())
@@ -294,8 +294,8 @@ public:
     }
 
 private:
-    TIntrusivePtr<TReaderImpl> ReaderImpl_;
-    TIntrusivePtr<TTableReader<TRowType>> Reader_;
+    ::TIntrusivePtr<TReaderImpl> ReaderImpl_;
+    ::TIntrusivePtr<TTableReader<TRowType>> Reader_;
     bool IsValid_;
 };
 
@@ -336,7 +336,7 @@ public:
     using TRowType = T;
     using IWriterImpl = typename TRowTraits<T>::IWriterImpl;
 
-    explicit TTableWriterBase(TIntrusivePtr<IWriterImpl> writer)
+    explicit TTableWriterBase(::TIntrusivePtr<IWriterImpl> writer)
         : Writer_(writer)
         , Locks_(MakeAtomicShared<yvector<TMutex>>(writer->GetStreamCount()))
     { }
@@ -367,7 +367,7 @@ public:
     }
 
 private:
-    TIntrusivePtr<IWriterImpl> Writer_;
+    ::TIntrusivePtr<IWriterImpl> Writer_;
     TAtomicSharedPtr<yvector<TMutex>> Locks_;
 };
 
@@ -378,7 +378,7 @@ class TTableWriter<TNode>
 public:
     using TBase = TTableWriterBase<TNode>;
 
-    explicit TTableWriter(TIntrusivePtr<IWriterImpl> writer)
+    explicit TTableWriter(::TIntrusivePtr<IWriterImpl> writer)
         : TBase(writer)
     { }
 };
@@ -390,7 +390,7 @@ class TTableWriter<TYaMRRow>
 public:
     using TBase = TTableWriterBase<TYaMRRow>;
 
-    explicit TTableWriter(TIntrusivePtr<IWriterImpl> writer)
+    explicit TTableWriter(::TIntrusivePtr<IWriterImpl> writer)
         : TBase(writer)
     { }
 };
@@ -402,7 +402,7 @@ class TTableWriter<Message>
 public:
     using TRowType = Message;
 
-    explicit TTableWriter(TIntrusivePtr<IProtoWriterImpl> writer)
+    explicit TTableWriter(::TIntrusivePtr<IProtoWriterImpl> writer)
         : Writer_(writer)
         , Locks_(writer->GetStreamCount())
     { }
@@ -432,7 +432,7 @@ public:
     }
 
 private:
-    TIntrusivePtr<IProtoWriterImpl> Writer_;
+    ::TIntrusivePtr<IProtoWriterImpl> Writer_;
     yvector<TMutex> Locks_;
 };
 
@@ -444,7 +444,7 @@ public:
     using TRowType = T;
     using TBase = TTableWriter<Message>;
 
-    explicit TTableWriter(TIntrusivePtr<IProtoWriterImpl> writer)
+    explicit TTableWriter(::TIntrusivePtr<IProtoWriterImpl> writer)
         : TBase(writer)
     { }
 
@@ -471,7 +471,7 @@ inline TTableWriterPtr<TYaMRRow> IIOClient::CreateTableWriter<TYaMRRow>(
 template <class T, class = std::enable_if_t<TIsBaseOf<Message, T>::Value>>
 struct TWriterCreator
 {
-    static TTableWriterPtr<T> Create(TIntrusivePtr<IProtoWriterImpl> writer)
+    static TTableWriterPtr<T> Create(::TIntrusivePtr<IProtoWriterImpl> writer)
     {
         return new TTableWriter<T>(writer);
     }
