@@ -225,9 +225,9 @@ public:
         }
     }
 
-    void ProcessUpdatedAndCompletedJobs(
+    virtual void ProcessUpdatedAndCompletedJobs(
         const std::vector<TUpdatedJob>& updatedJobs,
-        const std::vector<TCompletedJob>& completedJobs)
+        const std::vector<TCompletedJob>& completedJobs) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -401,7 +401,7 @@ public:
         }
     }
 
-    void UpdateConfig(const TFairShareStrategyConfigPtr& config)
+    virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
