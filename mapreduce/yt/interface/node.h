@@ -7,10 +7,9 @@
 #include <util/generic/yexception.h>
 #include <util/generic/bt_exception.h>
 
-#include <util/string/printf.h>
+#include <util/generic/variant.h>
 
-#include <util/memory/pool.h>
-#include <array>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,32 +36,34 @@ public:
     using TList = yvector<TNode>;
     using TMap = yhash<Stroka, TNode>;
 
-    TNode()
-    { }
+private:
+    struct TEntity {
+        bool operator==(const TEntity&) const;
+    };
 
-    TNode(const char* s)
-        : Type_(STRING)
-    {
-        String_ = new Stroka(s);
-    }
+    struct TUndefined {
+        bool operator==(const TUndefined&) const;
+    };
 
-    TNode(const TStringBuf& s)
-        : Type_(STRING)
-    {
-        String_ = new Stroka(s);
-    }
+    using TValue = ::TVariant<
+        bool,
+        i64,
+        ui64,
+        double,
+        Stroka,
+        TList,
+        TMap,
+        TEntity,
+        TUndefined
+        >;
 
-    TNode(Stroka s)
-        : Type_(STRING)
-    {
-        String_ = new Stroka(std::move(s));
-    }
+public:
 
-    TNode(int i)
-        : Type_(INT64)
-    {
-        Int64_ = i;
-    }
+    TNode();
+    TNode(const char* s);
+    TNode(const TStringBuf& s);
+    TNode(Stroka s);
+    TNode(int i);
 
     //this case made speccially for prevent mess cast of EType into TNode through TNode(int) constructor
     //usual case of error SomeNode == TNode::UNDEFINED <-- SomeNode indeed will be compared with TNode(0) without this method
@@ -73,561 +74,100 @@ public:
         static_assert(std::is_same<T, EType>::type, "looks like a mistake, may be you forget .GetType()");
     }
 
-    TNode(unsigned int ui)
-        : Type_(UINT64)
-    {
-        Uint64_ = ui;
-    }
+    TNode(unsigned int ui);
+    TNode(long i);
+    TNode(unsigned long ui);
+    TNode(long long i);
+    TNode(unsigned long long ui);
+    TNode(double d);
+    TNode(bool b);
 
-    TNode(long i)
-        : Type_(INT64)
-    {
-        Int64_ = i;
-    }
+    TNode(const TNode& rhs);
+    TNode& operator=(const TNode& rhs);
 
-    TNode(unsigned long ui)
-        : Type_(UINT64)
-    {
-        Uint64_ = ui;
-    }
+    TNode(TNode&& rhs);
+    TNode& operator=(TNode&& rhs);
 
-    TNode(long long i)
-        : Type_(INT64)
-    {
-        Int64_ = i;
-    }
+    ~TNode();
 
-    TNode(unsigned long long ui)
-        : Type_(UINT64)
-    {
-        Uint64_ = ui;
-    }
+    void Clear();
 
-    TNode(double d)
-        : Type_(DOUBLE)
-    {
-        Double_ = d;
-    }
+    bool IsString() const;
+    bool IsInt64() const;
+    bool IsUint64() const;
+    bool IsDouble() const;
+    bool IsBool() const;
+    bool IsList() const;
+    bool IsMap() const;
+    bool IsEntity() const;
 
-    TNode(bool b)
-        : Type_(BOOL)
-    {
-        Bool_ = b;
-    }
+    bool Empty() const;
+    size_t Size() const;
 
-    TNode(const TNode& rhs)
-    {
-        Copy(rhs);
-    }
+    EType GetType() const;
 
-    TNode& operator=(const TNode& rhs)
-    {
-        if (this != &rhs) {
-            Clear();
-            Copy(rhs);
-        }
-        return *this;
-    }
+    const Stroka& AsString() const;
+    i64 AsInt64() const;
+    ui64 AsUint64() const;
+    double AsDouble() const;
+    bool AsBool() const;
+    const TList& AsList() const;
+    const TMap& AsMap() const;
+    TList& AsList();
+    TMap& AsMap();
 
-    TNode(TNode&& rhs)
-    {
-        if (this != &rhs) {
-            Move(std::move(rhs));
-        }
-    }
+    static TNode CreateList();
+    static TNode CreateMap();
+    static TNode CreateEntity();
 
-    TNode& operator=(TNode&& rhs)
-    {
-        if (this != &rhs) {
-            Move(std::move(rhs));
-        }
-        return *this;
-    }
+    const TNode& operator[](size_t index) const;
+    TNode& operator[](size_t index);
 
-    ~TNode()
-    {
-        Clear();
-    }
+    TNode& Add();
+    TNode& Add(const TNode& node);
+    TNode& Add(TNode&& node);
 
-    void Clear()
-    {
-        ClearAttributes();
-        ClearValue();
-    }
+    bool HasKey(const TStringBuf key) const;
 
-    bool IsString() const
-    {
-        return Type_ == STRING;
-    }
+    TNode& operator()(const Stroka& key, const TNode& value);
+    TNode& operator()(const Stroka& key, TNode&& value);
 
-    bool IsInt64() const
-    {
-        return Type_ == INT64;
-    }
-
-    bool IsUint64() const
-    {
-        return Type_ == UINT64;
-    }
-
-    bool IsDouble() const
-    {
-        return Type_ == DOUBLE;
-    }
-
-    bool IsBool() const
-    {
-        return Type_ == BOOL;
-    }
-
-    bool IsList() const
-    {
-        return Type_ == LIST;
-    }
-
-    bool IsMap() const
-    {
-        return Type_ == MAP;
-    }
-
-    bool IsEntity() const
-    {
-        return Type_ == ENTITY;
-    }
-
-    bool Empty() const
-    {
-        switch (Type_) {
-            case STRING:
-                return String_->empty();
-            case LIST:
-                return List_->empty();
-            case MAP:
-                return Map_->empty();
-            default:
-                ythrow TTypeError()
-                    << Sprintf("Empty() called for type %s", ~TypeToString(Type_));
-        }
-    }
-
-    size_t Size() const
-    {
-        switch (Type_) {
-            case STRING:
-                return String_->size();
-            case LIST:
-                return List_->size();
-            case MAP:
-                return Map_->size();
-            default:
-                ythrow TTypeError()
-                    << Sprintf("Size() called for type %s", ~TypeToString(Type_));
-        }
-    }
-
-    EType GetType() const
-    {
-        return Type_;
-    }
-
-    const Stroka& AsString() const
-    {
-        CheckType(STRING);
-        return *String_;
-    }
-
-    i64 AsInt64() const
-    {
-        CheckType(INT64);
-        return Int64_;
-    }
-
-    ui64 AsUint64() const
-    {
-        CheckType(UINT64);
-        return Uint64_;
-    }
-
-    double AsDouble() const
-    {
-        CheckType(DOUBLE);
-        return Double_;
-    }
-
-    bool AsBool() const
-    {
-        CheckType(BOOL);
-        return Bool_;
-    }
-
-    const TList& AsList() const
-    {
-        CheckType(LIST);
-        return *List_;
-    }
-
-    const TMap& AsMap() const
-    {
-        CheckType(MAP);
-        return *Map_;
-    }
-
-    TList& AsList()
-    {
-        CheckType(LIST);
-        return *List_;
-    }
-
-    TMap& AsMap()
-    {
-        CheckType(MAP);
-        return *Map_;
-    }
-
-    static TNode CreateList()
-    {
-        TNode node;
-        node.Type_ = LIST;
-        node.List_ = new TList;
-        return node;
-    }
-
-    static TNode CreateMap()
-    {
-        TNode node;
-        node.Type_ = MAP;
-        node.Map_ = new TMap;
-        return node;
-    }
-
-    static TNode CreateEntity()
-    {
-        TNode node;
-        node.Type_ = ENTITY;
-        return node;
-    }
-
-    // list
-
-    const TNode& operator[](size_t index) const
-    {
-        CheckType(LIST);
-        return (*List_)[index];
-    }
-
-    TNode& operator[](size_t index)
-    {
-        CheckType(LIST);
-        return (*List_)[index];
-    }
-
-    TNode& Add()
-    {
-        AssureList();
-        return List_->emplace_back();
-    }
-
-    TNode& Add(const TNode& node)
-    {
-        AssureList();
-        List_->emplace_back(node);
-        return *this;
-    }
-
-    TNode& Add(TNode&& node)
-    {
-        AssureList();
-        List_->emplace_back(std::move(node));
-        return *this;
-    }
-
-    // map
-
-    bool HasKey(const TStringBuf key) const
-    {
-        CheckType(MAP);
-        return Map_->find(key) != Map_->end();
-    }
-
-    TNode& operator()(const Stroka& key, const TNode& value)
-    {
-        AssureMap();
-        (*Map_)[key] = value;
-        return *this;
-    }
-
-    TNode& operator()(const Stroka& key, TNode&& value)
-    {
-        AssureMap();
-        (*Map_)[key] = std::move(value);
-        return *this;
-    }
-
-    const TNode& operator[](const TStringBuf key) const
-    {
-        CheckType(MAP);
-        static TNode notFound;
-        TMap::const_iterator i = Map_->find(key);
-        if (i == Map_->end()) {
-            return notFound;
-        } else {
-            return i->second;
-        }
-    }
-
-    TNode& operator[](const TStringBuf key)
-    {
-        AssureMap();
-        return (*Map_)[key];
-    }
+    const TNode& operator[](const TStringBuf key) const;
+    TNode& operator[](const TStringBuf key);
 
     // attributes
+    bool HasAttributes() const;
+    void ClearAttributes();
+    const TNode& GetAttributes() const;
+    TNode& Attributes();
 
-    bool HasAttributes() const
-    {
-        return Attributes_ && !Attributes_->Empty();
-    }
+    void MoveWithoutAttributes(TNode&& rhs);
 
-    void ClearAttributes()
-    {
-        if (Attributes_) {
-            delete Attributes_;
-            Attributes_ = nullptr;
-        }
-    }
-
-    const TNode& GetAttributes() const
-    {
-        static TNode notFound = TNode::CreateMap();
-        if (!Attributes_) {
-            return notFound;
-        }
-        return *Attributes_;
-    }
-
-    TNode& Attributes()
-    {
-        if (!Attributes_) {
-            CreateAttributes();
-        }
-        return *Attributes_;
-    }
-
-    void MoveWithoutAttributes(TNode&& rhs)
-    {
-        ClearValue();
-        Type_ = rhs.Type_;
-        memcpy(&Int64_, &rhs.Int64_, sizeof(i64));
-        rhs.Type_ = UNDEFINED;
-        if (rhs.Attributes_) {
-            delete rhs.Attributes_;
-            rhs.Attributes_ = nullptr;
-        }
-    }
-
-    static const Stroka& TypeToString(EType type)
-    {
-        static Stroka typeNames[] = {
-            "UNDEFINED",
-            "STRING",
-            "INT64",
-            "UINT64",
-            "DOUBLE",
-            "BOOL",
-            "LIST",
-            "MAP",
-            "ENTITY"
-        };
-        return typeNames[type];
-    }
+    static const Stroka& TypeToString(EType type);
 
 private:
-    void ClearValue()
-    {
-        switch (Type_) {
-            case UNDEFINED:
-                return;
-            case STRING:
-                delete String_;
-                break;
-            case LIST:
-                delete List_;
-                break;
-            case MAP:
-                delete Map_;
-                break;
-            default:
-                break;
-        }
+    void Copy(const TNode& rhs);
+    void Move(TNode&& rhs);
 
-        Type_ = UNDEFINED;
-    }
+    void CheckType(EType type) const;
 
-    void Copy(const TNode& rhs)
-    {
-        Type_ = rhs.Type_;
+    void AssureMap();
+    void AssureList();
 
-        if (rhs.Attributes_) {
-            if (!Attributes_) {
-                CreateAttributes();
-            }
-            *Attributes_ = *rhs.Attributes_;
-        }
-
-        switch (Type_) {
-            case UNDEFINED:
-                return;
-            case STRING:
-                String_ = new Stroka(*rhs.String_);
-                break;
-            case INT64:
-                Int64_ = rhs.Int64_;
-                break;
-            case UINT64:
-                Uint64_ = rhs.Uint64_;
-                break;
-            case DOUBLE:
-                Double_ = rhs.Double_;
-                break;
-            case BOOL:
-                Bool_ = rhs.Bool_;
-                break;
-            case LIST:
-                List_ = new TList(*rhs.List_);
-                break;
-            case MAP:
-                Map_ = new TMap(*rhs.Map_);
-                break;
-            default:
-                break;
-        }
-    }
-
-    void Swap(TNode& r)
-    {
-        using unsafe_ptr = std::array<size_t, sizeof(TNode)/sizeof(size_t)>*;
-        static_assert(sizeof(TNode) == sizeof(*(unsafe_ptr{})), "can't perform unsafe swap");
-        unsafe_ptr me = (unsafe_ptr)(void*)this;
-        unsafe_ptr other = (unsafe_ptr)(void*)&r;
-        std::swap(*me, *other);
-    }
-
-    void Move(TNode&& rhs)
-    {
-        Swap(rhs);
-    }
-
-    void CheckType(EType type) const
-    {
-        Y_ENSURE_EX(Type_ == type,
-            TTypeError()
-                << Sprintf("TNode type %s expected, actual type %s",
-                    ~TypeToString(type), ~TypeToString(Type_));
-        );
-    }
-
-    void AssureMap()
-    {
-        if (Type_ == UNDEFINED) {
-            Type_ = MAP;
-            Map_ = new TMap;
-        } else {
-            CheckType(MAP);
-        }
-    }
-
-    void AssureList()
-    {
-        if (Type_ == UNDEFINED) {
-            Type_ = LIST;
-            List_ = new TList;
-        } else {
-            CheckType(LIST);
-        }
-    }
-
-    void CreateAttributes()
-    {
-        Attributes_ = new TNode;
-        Attributes_->Type_ = MAP;
-        Attributes_->Map_ = new TMap;
-    }
+    void CreateAttributes();
 
 private:
-    EType Type_ = UNDEFINED;
-    union {
-        Stroka* String_;
-        i64 Int64_;
-        ui64 Uint64_;
-        double Double_;
-        bool Bool_;
-        TList* List_;
-        TMap* Map_;
-    };
-    TNode* Attributes_ = nullptr;
+    TValue Value_;
+    THolder<TNode> Attributes_;
 
     friend bool operator==(const TNode& lhs, const TNode& rhs);
     friend bool operator!=(const TNode& lhs, const TNode& rhs);
 };
 
-inline bool operator==(const TNode& lhs, const TNode& rhs)
-{
-    if (lhs.Type_ != rhs.Type_) {
-        return false;
-    }
+bool operator==(const TNode& lhs, const TNode& rhs);
+bool operator!=(const TNode& lhs, const TNode& rhs);
 
-    if (lhs.Attributes_) {
-        if (rhs.Attributes_) {
-            if (*lhs.Attributes_ != *rhs.Attributes_) {
-                return false;
-            }
-        } else {
-            return false;
-        }
-    } else {
-        if (rhs.Attributes_) {
-            return false;
-        }
-    }
-
-    switch (lhs.Type_) {
-        case TNode::STRING:
-            return *lhs.String_ == *rhs.String_;
-        case TNode::INT64:
-            return lhs.Int64_ == rhs.Int64_;
-        case TNode::UINT64:
-            return lhs.Uint64_ == rhs.Uint64_;
-        case TNode::DOUBLE:
-            return lhs.Double_ == rhs.Double_;
-        case TNode::BOOL:
-            return lhs.Bool_ == rhs.Bool_;
-        case TNode::LIST:
-            return *lhs.List_ == *rhs.List_;
-        case TNode::MAP:
-            return *lhs.Map_ == *rhs.Map_;
-        case TNode::ENTITY:
-            return true;
-        default:
-            return false;
-    }
-}
-
-inline bool operator!=(const TNode& lhs, const TNode& rhs)
-{
-    return !(lhs == rhs);
-}
-
-inline bool GetBool(const TNode& node)
-{
-    if (node.IsBool()) {
-        return node.AsBool();
-    } else if (node.IsString()) {
-        return node.AsString() == "true";
-    } else {
-        ythrow TNode::TTypeError()
-            << "GetBool(): not a boolean or string type";
-    }
-}
+bool GetBool(const TNode& node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
