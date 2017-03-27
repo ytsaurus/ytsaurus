@@ -1,12 +1,13 @@
 #include "master_connector.h"
-#include "private.h"
+
+#include "config.h"
 #include "helpers.h"
+#include "operation_controller.h"
 #include "scheduler.h"
 #include "scheduler_strategy.h"
 #include "serialize.h"
 #include "snapshot_builder.h"
 #include "snapshot_downloader.h"
-#include "config.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 #include <yt/server/cell_scheduler/config.h>

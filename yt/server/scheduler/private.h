@@ -4,7 +4,6 @@
 #include "exec_node.h"
 #include "job.h"
 #include "operation.h"
-#include "operation_controller.h"
 
 #include <yt/core/logging/log.h>
 
@@ -41,6 +40,9 @@ DECLARE_REFCOUNTED_CLASS(TRootElement)
 
 struct TFairShareContext;
 
+class TJobMetrics;
+class TJobMetricsUpdater;
+struct TOperationControllerInitializeResult;
 class TProgressCounter;
 
 using TOperationElementByIdMap = yhash_map<TOperationId, TOperationElement*>;

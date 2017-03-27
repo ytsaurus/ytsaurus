@@ -375,7 +375,7 @@ public:
         return totalNodeCount;
     }
 
-    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
+    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -477,6 +477,11 @@ public:
 
         auto nodeShard = GetNodeShardByJobId(jobId);
         return CreateJobHost(jobId, nodeShard);
+    }
+
+    virtual void SendJobMetricsToStrategy(const TOperationId& operationId, const TJobMetrics& jobMetricsDelta) override
+    {
+        GetStrategy()->ApplyJobMetricsDelta(operationId, jobMetricsDelta);
     }
 
     virtual void ValidatePoolPermission(

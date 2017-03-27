@@ -4,6 +4,7 @@
 #include "config.h"
 #include "job_resources.h"
 #include "scheduler_strategy.h"
+#include "scheduling_context.h"
 
 #include <yt/core/concurrency/async_rw_lock.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -79,11 +80,7 @@ public:
 
         auto asyncGuard = TAsyncLockReaderGuard::Acquire(&ScheduleJobsLock);
 
-        TRootElementSnapshotPtr rootElementSnapshot;
-        {
-            TReaderGuard guard(RootElementSnapshotLock);
-            rootElementSnapshot = RootElementSnapshot;
-        }
+        auto rootElementSnapshot = GetRootSnapshot();
 
         auto jobScheduler =
             BIND(
@@ -231,11 +228,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TRootElementSnapshotPtr rootElementSnapshot;
-        {
-            TReaderGuard guard(RootElementSnapshotLock);
-            rootElementSnapshot = RootElementSnapshot;
-        }
+        TRootElementSnapshotPtr rootElementSnapshot = GetRootSnapshot();
 
         for (const auto& job : updatedJobs) {
             auto* operationElement = rootElementSnapshot->FindOperationElement(job.OperationId);
@@ -249,6 +242,20 @@ public:
             if (operationElement) {
                 operationElement->OnJobFinished(job.JobId);
             }
+        }
+    }
+
+    virtual void ApplyJobMetricsDelta(
+        const TOperationId& operationId,
+        const TJobMetrics& jobMetricsDelta) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TRootElementSnapshotPtr rootElementSnapshot = GetRootSnapshot();
+
+        auto* operationElement = rootElementSnapshot->FindOperationElement(operationId);
+        if (operationElement) {
+            operationElement->ApplyJobMetricsDelta(jobMetricsDelta);
         }
     }
 
@@ -1406,6 +1413,11 @@ private:
             "/pools/resource_demand",
             {tag});
 
+        element->GetJobMetrics().SendToProfiler(
+            Profiler,
+            "/pools/metrics",
+            {tag});
+
         Profiler.Enqueue(
             "/running_operation_count",
             element->RunningOperationCount(),
@@ -1416,6 +1428,11 @@ private:
             element->OperationCount(),
             EMetricType::Gauge,
             {tag});
+    }
+
+    TRootElementSnapshotPtr GetRootSnapshot() const {
+        TReaderGuard guard(RootElementSnapshotLock);
+        return RootElementSnapshot;
     }
 };
 

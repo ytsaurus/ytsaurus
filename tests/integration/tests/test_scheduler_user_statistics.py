@@ -6,15 +6,6 @@ from yt_commands import *
 
 ##################################################################
 
-def get_statistics(statistics, complex_key):
-    result = statistics
-    for part in complex_key.split("."):
-        if part:
-            result = result[part]
-    return result
-
-##################################################################
-
 class TestSchedulerUserStatistics(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5

@@ -920,6 +920,9 @@ public:
 
     NCompression::ECodec JobSpecCodec;
 
+    // How often job metrics should be updated.
+    TDuration JobMetricsBatchInterval;
+
     TSchedulerConfig()
     {
         RegisterParameter("controller_thread_count", ControllerThreadCount)
@@ -1225,6 +1228,9 @@ public:
 
         RegisterParameter("job_spec_codec", JobSpecCodec)
             .Default(NCompression::ECodec::Lz4);
+
+        RegisterParameter("job_metrics_batch_interval", JobMetricsBatchInterval)
+            .Default(TDuration::Minutes(1));
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

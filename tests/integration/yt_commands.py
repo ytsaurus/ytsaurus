@@ -1040,3 +1040,12 @@ def get_guid_from_parts(lo, hi):
     ints[2] = lo & 0xFFFFFFFF
     ints[3] = lo >> 32
     return "{3:x}-{2:x}-{1:x}-{0:x}".format(*ints)
+
+##################################################################
+
+def get_statistics(statistics, complex_key):
+    result = statistics
+    for part in complex_key.split("."):
+        if part:
+            result = result[part]
+    return result

@@ -3,6 +3,9 @@
 
 #include <yt/ytlib/scheduler/helpers.h>
 
+#include <yt/core/ytree/fluent.h>
+
+
 namespace NYT {
 namespace NScheduler {
 

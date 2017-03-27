@@ -30,13 +30,6 @@ def id_to_parts(id):
 
 ##################################################################
 
-def get_statistics(statistics, complex_key):
-    result = statistics
-    for part in complex_key.split("."):
-        if part:
-            result = result[part]
-    return result
-
 def check_all_stderrs(op, expected_content, expected_count, substring=False):
     jobs_path = "//sys/operations/{0}/jobs".format(op.id)
     assert get(jobs_path + "/@count") == expected_count

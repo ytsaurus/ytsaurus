@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+
 #include "chunk_list_pool.h"
 #include "chunk_pool.h"
 #include "config.h"
@@ -215,6 +216,8 @@ public:
 
     virtual void Persist(const TPersistenceContext& context) override;
 
+    std::unique_ptr<TJobMetricsUpdater> CreateJobMetricsUpdater() const;
+
     TOperationControllerBase(
         TSchedulerConfigPtr config,
         TOperationSpecBasePtr spec,
@@ -405,19 +408,12 @@ protected:
     struct TJoblet
         : public TIntrinsicRefCounted
     {
-        //! For serialization only.
-        TJoblet()
-            : JobIndex(-1)
-            , StartRowIndex(-1)
-            , OutputCookie(-1)
-        { }
+    public:
+        //! Default constructor is for serialization only.
+        TJoblet();
+        TJoblet(TOperationControllerBase* controller, TTaskPtr task, int jobIndex);
 
-        TJoblet(TTaskPtr task, int jobIndex)
-            : Task(task)
-            , JobIndex(jobIndex)
-            , StartRowIndex(-1)
-            , OutputCookie(IChunkPoolOutput::NullCookie)
-        { }
+        ~TJoblet();
 
         TTaskPtr Task;
         int JobIndex;
@@ -449,7 +445,12 @@ protected:
         TInstant StartTime;
         TInstant FinishTime;
 
+    public:
         void Persist(const TPersistenceContext& context);
+        void SendJobMetrics(const NJobTrackerClient::TStatistics& jobStatistics, bool flush);
+
+    private:
+        std::unique_ptr<TJobMetricsUpdater> JobMetricsUpdater_;
     };
 
     struct TCompletedJob
@@ -586,6 +587,7 @@ protected:
         virtual TUserJobSpecPtr GetUserJobSpec() const;
 
         virtual EJobType GetJobType() const = 0;
+
     private:
         TOperationControllerBase* Controller;
 
@@ -603,12 +605,15 @@ protected:
         //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
         yhash_map<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
 
+    private:
         TJobResources ApplyMemoryReserve(const TExtendedJobResources& jobResources) const;
 
         void UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics);
+
     protected:
         NLogging::TLogger Logger;
 
+    protected:
         virtual bool CanScheduleJob(
             ISchedulingContext* context,
             const TJobResources& jobLimits);
