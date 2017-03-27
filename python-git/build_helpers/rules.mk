@@ -9,3 +9,7 @@ export DH_VERBOSE=1
 LOCATION := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 export PATH := $(LOCATION):$(PATH)
 export PYTHONPATH := $(LOCATION):$(PYTHONPATH)
+
+override_dh_install:
+	dh_install
+	$(LOCATION)/fix_shebangs.sh
