@@ -143,9 +143,9 @@ def _pretty_format(error, attribute_length_limit=None):
         def printable(c):
             return c in string.ascii_letters + string.digits + string.punctuation + ' '
         def escape(c):
-            return "\\x{0:02x}".format(ord(c))
+            return "\\x{0:02x}".format(ord(c)) if not printable(c) else c
         value = value.replace("\n", "\\n").replace("\t", "\\t")
-        return "".join([escape(c) for c in value if not printable(c)])
+        return "".join(imap(escape, value))
 
     def format_attribute(name, value):
         name = to_native_str(name)
