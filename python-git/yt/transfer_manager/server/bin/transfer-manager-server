@@ -655,6 +655,11 @@ class Application(object):
             if task.pack_yson_bindings is None:
                 task.pack_yson_bindings = self._config.get("pack_yson_bindings", not is_destination_cluster_marx)
 
+            # TODO(asaitgalin): Remove this when marx is updated to version which supports fractional cpu.
+            if is_destination_cluster_marx:
+                copy_spec = get_value(task.copy_spec, {})
+                task.copy_spec = update({"mapper": {"cpu_limit": 0}}, copy_spec)
+
     def _can_run(self, task):
         direction_running_task_count = len(self._running_tasks_per_direction[task.get_direction_id()])
         if direction_running_task_count >= self._config["running_tasks_limit_per_direction"]:
