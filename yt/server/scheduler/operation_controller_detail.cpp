@@ -26,6 +26,7 @@
 #include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/functions_cache.h>
+#include <yt/ytlib/query_client/column_evaluator.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 
@@ -50,6 +51,7 @@
 #include <yt/core/misc/numeric_helpers.h>
 
 #include <yt/core/profiling/scoped_timer.h>
+#include <yt/core/profiling/profiler.h>
 
 #include <functional>
 
@@ -75,10 +77,15 @@ using namespace NApi;
 using namespace NRpc;
 using namespace NTableClient;
 using namespace NQueryClient;
+using namespace NProfiling;
 
 using NNodeTrackerClient::TNodeId;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::TTableReaderOptions;
+
+////////////////////////////////////////////////////////////////////
+
+static NProfiling::TSimpleCounter ScheduledSliceCounter("/scheduled_slice_count");
 
 ////////////////////////////////////////////////////////////////////
 
@@ -266,7 +273,7 @@ void TOperationControllerBase::TInputChunkDescriptor::Persist(const TPersistence
 TOperationControllerBase::TTask::TTask()
     : CachedPendingJobCount(-1)
     , CachedTotalJobCount(-1)
-    , LastDemandSanityCheckTime(TInstant::Zero())
+    , DemandSanityCheckDeadline(0)
     , CompletedFired(false)
     , Logger(OperationLogger)
 { }
@@ -275,7 +282,7 @@ TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     : Controller(controller)
     , CachedPendingJobCount(0)
     , CachedTotalJobCount(0)
-    , LastDemandSanityCheckTime(TInstant::Zero())
+    , DemandSanityCheckDeadline(0)
     , CompletedFired(false)
     , Logger(OperationLogger)
 { }
@@ -509,8 +516,10 @@ void TOperationControllerBase::TTask::ScheduleJob(
         joblet->UserJobMemoryReserveFactor = Controller->GetUserJobMemoryDigest(GetJobType())->GetQuantile(Controller->Config->UserJobMemoryReserveQuantile);
     }
 
+    SchedulerProfiler.Increment(ScheduledSliceCounter, joblet->InputStripeList->TotalChunkCount);
+
     LOG_DEBUG(
-        "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
+        "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
         "Approximate: %v, DataSize: %v (%v local), RowCount: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
         "UserJobMemoryReserveFactor: %v, ResourceLimits: %v)",
         joblet->JobId,
@@ -518,6 +527,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
         jobType,
         address,
         jobIndex,
+        joblet->OutputCookie,
         joblet->InputStripeList->TotalChunkCount,
         joblet->InputStripeList->LocalChunkCount,
         joblet->InputStripeList->IsApproximate,
@@ -600,8 +610,6 @@ void TOperationControllerBase::TTask::Persist(const TPersistenceContext& context
 
     Persist(context, CachedTotalNeededResources);
     Persist(context, CachedMinNeededResources);
-
-    Persist(context, LastDemandSanityCheckTime);
 
     Persist(context, CompletedFired);
 
@@ -738,11 +746,11 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
 {
     // Run sanity check to see if any node can provide enough resources.
     // Don't run these checks too often to avoid jeopardizing performance.
-    auto now = TInstant::Now();
-    if (now < LastDemandSanityCheckTime + Controller->Config->ResourceDemandSanityCheckPeriod) {
+    auto now = NProfiling::GetCpuInstant();
+    if (now < DemandSanityCheckDeadline) {
         return;
     }
-    LastDemandSanityCheckTime = now;
+    DemandSanityCheckDeadline = now + NProfiling::DurationToCpuDuration(Controller->Config->ResourceDemandSanityCheckPeriod);
 
     // Schedule check in controller thread.
     Controller->GetCancelableInvoker()->Invoke(BIND(
@@ -1299,6 +1307,8 @@ void TOperationControllerBase::SafePrepare()
         GetInputTablesAttributes();
     }
 
+    PrepareInputQuery();
+
     // Process files.
     {
         LockUserFiles();
@@ -1471,7 +1481,7 @@ void TOperationControllerBase::SafeRevive()
     ReinstallLivePreview();
 
     // To prevent operation failure on startup if available nodes are missing.
-    AvaialableNodesLastSeenTime_ = NProfiling::GetCpuInstant();
+    AvaialableNodesLastSeenTime_ = GetCpuInstant();
 
     CheckTimeLimitExecutor->Start();
     ProgressBuildExecutor_->Start();
@@ -2537,14 +2547,14 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
 
     if (GetExecNodeDescriptors().empty()) {
-        auto timeout = NProfiling::DurationToCpuDuration(Spec->AvailableNodesMissingTimeout);
-        if (AvaialableNodesLastSeenTime_ + timeout < NProfiling::GetCpuInstant()) {
+        auto timeout = DurationToCpuDuration(Spec->AvailableNodesMissingTimeout);
+        if (AvaialableNodesLastSeenTime_ + timeout < GetCpuInstant()) {
             OnOperationFailed(TError("No online nodes match operation scheduling tag filter")
                 << TErrorAttribute("operation_id", OperationId)
                 << TErrorAttribute("scheduling_tag_filter", Spec->SchedulingTagFilter));
         }
     } else {
-        AvaialableNodesLastSeenTime_ = NProfiling::GetCpuInstant();
+        AvaialableNodesLastSeenTime_ = GetCpuInstant();
     }
 }
 
@@ -2780,7 +2790,7 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     // SafeScheduleJob must be synchronous; context switches are prohibited.
     TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
 
-    NProfiling::TScopedTimer timer;
+    TScopedTimer timer;
     auto scheduleJobResult = New<TScheduleJobResult>();
     DoScheduleJob(context.Get(), jobLimits, scheduleJobResult.Get());
     if (scheduleJobResult->JobStartRequest) {
@@ -2789,12 +2799,14 @@ TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     scheduleJobResult->Duration = timer.GetElapsed();
 
     ScheduleJobStatistics_->RecordJobResult(scheduleJobResult);
-    if (ScheduleJobStatisticsLogTime + Config->ScheduleJobStatisticsLogBackoff < TInstant::Now()) {
+
+    auto now = NProfiling::GetCpuInstant();
+    if (now > ScheduleJobStatisticsLogDeadline_) {
         LOG_DEBUG("Schedule job statistics (Count: %v, TotalDuration: %v, FailureReasons: %v)",
             ScheduleJobStatistics_->Count,
             ScheduleJobStatistics_->Duration,
             ScheduleJobStatistics_->Failed);
-        ScheduleJobStatisticsLogTime = TInstant::Now();
+        ScheduleJobStatisticsLogDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ScheduleJobStatisticsLogBackoff);
     }
 
     return scheduleJobResult;
@@ -2867,10 +2879,12 @@ void TOperationControllerBase::UpdateAllTasks()
 
 void TOperationControllerBase::UpdateAllTasksIfNeeded()
 {
-    if (TInstant::Now() - LastTaskUpdateTime_ >= Config->TaskUpdatePeriod) {
-        UpdateAllTasks();
-        LastTaskUpdateTime_ = TInstant::Now();
+    auto now = NProfiling::GetCpuInstant();
+    if (now < TaskUpdateDeadline_) {
+        return;
     }
+    UpdateAllTasks();
+    TaskUpdateDeadline_ = now + NProfiling::DurationToCpuDuration(Config->TaskUpdatePeriod);
 }
 
 void TOperationControllerBase::MoveTaskToCandidates(
@@ -3156,7 +3170,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     task->SetDelayedTime(now);
                 }
 
-                auto deadline = *task->GetDelayedTime() + task->GetLocalityTimeout();
+                auto deadline = *task->GetDelayedTime() + NProfiling::DurationToCpuDuration(task->GetLocalityTimeout());
                 if (deadline > now) {
                     LOG_DEBUG("Task delayed (Task: %v, Deadline: %v)",
                         task->GetId(),
@@ -3557,9 +3571,26 @@ void TOperationControllerBase::FetchInputTables()
 
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
         auto& table = InputTables[tableIndex];
-        const auto& ranges = table.Path.GetRanges();
+        auto ranges = table.Path.GetRanges();
+        int originalRangeCount = ranges.size();
         if (ranges.empty()) {
             continue;
+        }
+
+        if (InputQuery && InputQuery->Query->OriginalSchema.IsSorted()) {
+            std::vector<TReadRange> inferredRanges;
+            for (const auto& range : table.Path.GetRanges()) {
+                auto lower = range.LowerLimit().HasKey() ? range.LowerLimit().GetKey() : MinKey();
+                auto upper = range.UpperLimit().HasKey() ? range.UpperLimit().GetKey() : MaxKey();
+                auto result = InputQuery->RangeInferrer(TRowRange(lower.Get(), upper.Get()), RowBuffer);
+                for (const auto& inferred : result) {
+                    auto inferredRange = range;
+                    inferredRange.LowerLimit().SetKey(TOwningKey(inferred.first));
+                    inferredRange.UpperLimit().SetKey(TOwningKey(inferred.second));
+                    inferredRanges.push_back(inferredRange);
+                }
+            }
+            ranges = std::move(inferredRanges);
         }
 
         if (ranges.size() > Config->MaxRangesOnTable) {
@@ -3570,8 +3601,9 @@ void TOperationControllerBase::FetchInputTables()
                 << TErrorAttribute("table_path", table.Path.GetPath());
         }
 
-        LOG_INFO("Fetching input table (Path: %v, RangeCount: %v)",
+        LOG_INFO("Fetching input table (Path: %v, RangeCount: %v, InferredRangeCount: %v)",
             table.Path,
+            originalRangeCount,
             ranges.size());
 
         std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
@@ -3581,6 +3613,7 @@ void TOperationControllerBase::FetchInputTables()
             table.CellTag,
             table.Path,
             table.ObjectId,
+            ranges,
             table.ChunkCount,
             Config->MaxChunksPerFetch,
             Config->MaxChunksPerLocateRequest,
@@ -4021,6 +4054,7 @@ void TOperationControllerBase::FetchUserFiles()
                     file.CellTag,
                     file.Path,
                     file.ObjectId,
+                    file.Path.GetRanges(),
                     file.ChunkCount,
                     Config->MaxChunksPerFetch,
                     Config->MaxChunksPerLocateRequest,
@@ -4320,11 +4354,19 @@ void TOperationControllerBase::GetUserFilesAttributes()
     }
 }
 
-void TOperationControllerBase::InitQuerySpec(
-    NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
+void TOperationControllerBase::PrepareInputQuery()
+{ }
+
+void TOperationControllerBase::ParseInputQuery(
     const Stroka& queryString,
     const TNullable<TTableSchema>& schema)
 {
+    for (const auto& table : InputTables) {
+        if (table.Path.GetColumns()) {
+            THROW_ERROR_EXCEPTION("Column filter and QL filter cannot appear in the same operation");
+        }
+    }
+
     auto externalCGInfo = New<TExternalCGInfo>();
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     auto fetchFunctions = [&] (const std::vector<Stroka>& names, const TTypeInferrerMapPtr& typeInferrers) {
@@ -4351,18 +4393,42 @@ void TOperationControllerBase::InitQuerySpec(
         AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
     };
 
-    if (!schema && InputTables.size() > 1) {
-        THROW_ERROR_EXCEPTION("Expect \"input_schema\" for query filtering with multiple input tables");
-    }
+    auto inferSchema = [&] () {
+        std::vector<TTableSchema> schemas;
+        for (const auto& table : InputTables) {
+            schemas.push_back(table.Schema);
+        }
+        return InferInputSchema(schemas, false);
+    };
+
+    TQueryOptions options;
+    options.VerboseLogging = true;
+    options.RangeExpansionLimit = Config->MaxRangesOnTable;
 
     auto query = PrepareJobQuery(
         queryString,
-        schema ? *schema : InputTables[0].Schema,
+        schema ? *schema : inferSchema(),
         fetchFunctions);
+    auto rangeInferrer = CreateRangeInferrer(
+        query->WhereClause,
+        query->OriginalSchema,
+        query->GetKeyColumns(),
+        Host->GetMasterClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
+        BuiltinRangeExtractorMap,
+        options);
 
+    InputQuery.Emplace();
+    InputQuery->Query = std::move(query);
+    InputQuery->ExternalCGInfo = std::move(externalCGInfo);
+    InputQuery->RangeInferrer = std::move(rangeInferrer);
+}
+
+void TOperationControllerBase::WriteInputQueryToJobSpec(
+    NProto::TSchedulerJobSpecExt* schedulerJobSpecExt)
+{
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
-    ToProto(querySpec->mutable_query(), query);
-    ToProto(querySpec->mutable_external_functions(), externalCGInfo->Functions);
+    ToProto(querySpec->mutable_query(), InputQuery->Query);
+    ToProto(querySpec->mutable_external_functions(), InputQuery->ExternalCGInfo->Functions);
 }
 
 void TOperationControllerBase::CollectTotals()
@@ -4753,8 +4819,14 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
     }
 
     auto validateColumnFilter = [] (const TInputTable& table, const TKeyColumns& keyColumns) {
+        auto columns = table.Path.GetColumns();
+        if (!columns) {
+            return;
+        }
+
+        auto columnSet = yhash_set<Stroka>(columns->begin(), columns->end());
         for (const auto& keyColumn : keyColumns) {
-            if (!table.Path.GetChannel().Contains(keyColumn)) {
+            if (columnSet.find(keyColumn) == columnSet.end()) {
                 THROW_ERROR_EXCEPTION("Column filter for input table %v doesn't include key column %Qv",
                     table.Path.GetPath(),
                     keyColumn);
@@ -5350,6 +5422,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             auto dataSource = MakeVersionedDataSource(
                 file.GetPath(),
                 file.Schema,
+                file.Path.GetColumns(),
                 file.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp));
             ToProto(descriptor->mutable_data_source(), dataSource);
             // All chunks go to the same data slice.
@@ -5357,7 +5430,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         } else {
             auto dataSource = file.Type == EObjectType::File
                     ? MakeFileDataSource(file.GetPath())
-                    : MakeUnversionedDataSource(file.GetPath(), file.Schema);
+                    : MakeUnversionedDataSource(file.GetPath(), file.Schema, file.Path.GetColumns());
 
             descriptor->set_type(file.Type == EObjectType::File
                 ? static_cast<int>(EDataSourceType::File)
@@ -5478,10 +5551,13 @@ TDataSourceDirectoryPtr TOperationControllerBase::MakeInputDataSources() const
             ? MakeVersionedDataSource(
                 inputTable.GetPath(),
                 inputTable.Schema,
+                inputTable.Path.GetColumns(),
                 inputTable.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp))
             : MakeUnversionedDataSource(
                 inputTable.GetPath(),
-                inputTable.Schema);
+                inputTable.Schema,
+                inputTable.Path.GetColumns());
+
         dataSourceDirectory->DataSources().push_back(dataSource);
     }
     return dataSourceDirectory;
@@ -5494,6 +5570,7 @@ TDataSourceDirectoryPtr TOperationControllerBase::CreateIntermediateDataSource()
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
         IntermediatePath,
+        Null,
         Null));
 
     return dataSourceDirectory;
@@ -5557,7 +5634,7 @@ NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReader
 NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateIntermediateTableReaderOptions()
 {
     auto options = New<TTableReaderOptions>();
-    options->AllowFetchingSeedsFromMaster = false;
+    options->AllowFetchingSeedsFromMaster = true;
     return options;
 }
 
@@ -5583,16 +5660,14 @@ void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const
 
 void TOperationControllerBase::GetExecNodesInformation()
 {
-    auto now = TInstant::Now();
-    if (LastGetExecNodesInformationTime_ + Config->ControllerUpdateExecNodesInformationDelay > now) {
+    auto now = NProfiling::GetCpuInstant();
+    if (now < GetExecNodesInformationDeadline_) {
         return;
     }
 
     ExecNodeCount_ = Host->GetExecNodeCount();
-
     ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(TSchedulingTagFilter(Spec->SchedulingTagFilter));
-
-    LastGetExecNodesInformationTime_ = TInstant::Now();
+    GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerUpdateExecNodesInformationDelay);
 }
 
 int TOperationControllerBase::GetExecNodeCount()
@@ -5707,6 +5782,8 @@ void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumn
             .ToSortedStrippedColumnAttributes()
             .ToCanonical();
     }
+
+    FilterOutputSchemaByInputColumnSelectors();
 }
 
 void TOperationControllerBase::InferSchemaFromInputOrdered()
@@ -5721,10 +5798,28 @@ void TOperationControllerBase::InferSchemaFromInputOrdered()
         // If only only one input table given, we inherit the whole schema including column attributes.
         outputUploadOptions.SchemaMode = InputTables[0].SchemaMode;
         outputUploadOptions.TableSchema = InputTables[0].Schema;
+        FilterOutputSchemaByInputColumnSelectors();
         return;
     }
 
     InferSchemaFromInput();
+}
+
+void TOperationControllerBase::FilterOutputSchemaByInputColumnSelectors()
+{
+    yhash_set<Stroka> columns;
+    for (const auto& table : InputTables) {
+        if (auto selectors = table.Path.GetColumns()) {
+            for (const auto& column : *selectors) {
+                columns.insert(column);
+            }
+        } else {
+            return;
+        }
+    }
+
+    OutputTables[0].TableUploadOptions.TableSchema =
+        OutputTables[0].TableUploadOptions.TableSchema.Filter(columns);
 }
 
 void TOperationControllerBase::ValidateOutputSchemaOrdered() const
@@ -5735,6 +5830,21 @@ void TOperationControllerBase::ValidateOutputSchemaOrdered() const
     if (InputTables.size() > 1 && OutputTables[0].TableUploadOptions.TableSchema.IsSorted()) {
         THROW_ERROR_EXCEPTION("Cannot generate sorted output for ordered operation with multiple input tables")
             << TErrorAttribute("output_schema", OutputTables[0].TableUploadOptions.TableSchema);
+    }
+}
+
+void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSortOrder) const
+{
+    YCHECK(OutputTables.size() == 1);
+
+    for (const auto& inputTable : InputTables) {
+        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
+            ValidateTableSchemaCompatibility(
+                inputTable.Schema.Filter(inputTable.Path.GetColumns()),
+                OutputTables[0].TableUploadOptions.TableSchema,
+                ignoreSortOrder)
+                .ThrowOnError();
+        }
     }
 }
 
@@ -5797,18 +5907,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, ChunkOriginMap);
 
     Persist(context, JobletMap);
-
-    // COMPAT(psushin),
-    if (context.IsLoad() && context.GetVersion() == 200007) {
-        // NB: Scheduler snapshots need not be stable.
-        yhash_set<TInputChunkPtr> dummy;
-        Persist<
-            TSetSerializer<
-                TDefaultSerializer,
-                TUnsortedTag
-            >
-        >(context, dummy);
-    }
 
     Persist(context, JobIndexGenerator);
 
@@ -5895,9 +5993,11 @@ public:
         DtorInvoker_->Invoke(BIND([underlying = std::move(Underlying_), id = Id_] () mutable {
             auto Logger = OperationLogger;
             Logger.AddTag("OperationId: %v", id);
+            NProfiling::TScopedTimer timer;
             LOG_INFO("Started destroying operation controller");
             underlying.Reset();
-            LOG_INFO("Finished destroying operation controller");
+            LOG_INFO("Finished destroying operation controller (Elapsed: %v)",
+                timer.GetElapsed());
         }));
     }
 

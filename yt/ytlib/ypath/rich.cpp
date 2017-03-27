@@ -3,7 +3,6 @@
 #include <yt/ytlib/chunk_client/chunk_owner_ypath.pb.h>
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
-#include <yt/ytlib/chunk_client/schema.h>
 
 #include <yt/ytlib/table_client/unversioned_row.h>
 
@@ -170,54 +169,29 @@ Stroka ParseAttributes(const Stroka& str, IAttributeDictionary* attributes)
     return TrimLeadingWhitespaces(str.substr(pathStartPosition));
 }
 
-void ParseChannel(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes)
+void ParseColumns(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes)
 {
     if (tokenizer.GetCurrentType() != BeginColumnSelectorToken) {
         return;
     }
 
-    TChannel channel;
+    std::vector<Stroka> columns;
 
     tokenizer.ParseNext();
     while (tokenizer.GetCurrentType() != EndColumnSelectorToken) {
         Stroka begin;
-        bool isRange = false;
         switch (tokenizer.GetCurrentType()) {
             case NYson::ETokenType::String:
                 begin.assign(tokenizer.CurrentToken().GetStringValue());
-                tokenizer.ParseNext();
-                if (tokenizer.GetCurrentType() == RangeToken) {
-                    isRange = true;
-                    tokenizer.ParseNext();
-                }
-                break;
-            case RangeToken:
-                isRange = true;
                 tokenizer.ParseNext();
                 break;
             default:
                 ThrowUnexpectedToken(tokenizer.CurrentToken());
                 Y_UNREACHABLE();
         }
-        if (isRange) {
-            switch (tokenizer.GetCurrentType()) {
-                case NYson::ETokenType::String: {
-                    Stroka end(tokenizer.CurrentToken().GetStringValue());
-                    channel.AddRange(begin, end);
-                    tokenizer.ParseNext();
-                    break;
-                }
-                case ColumnSeparatorToken:
-                case EndColumnSelectorToken:
-                    channel.AddRange(TColumnRange(begin));
-                    break;
-                default:
-                    ThrowUnexpectedToken(tokenizer.CurrentToken());
-                    Y_UNREACHABLE();
-            }
-        } else {
-            channel.AddColumn(begin);
-        }
+
+        columns.push_back(begin);
+
         switch (tokenizer.GetCurrentType()) {
             case ColumnSeparatorToken:
                 tokenizer.ParseNext();
@@ -231,7 +205,7 @@ void ParseChannel(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes
     }
     tokenizer.ParseNext();
 
-    attributes->Set("columns", ConvertToYsonString(channel));
+    attributes->Set("columns", ConvertToYsonString(columns));
 }
 
 void ParseKeyPart(
@@ -416,7 +390,7 @@ TRichYPath TRichYPath::Parse(const Stroka& str)
     if (ypathTokenizer.GetType() == ETokenType::Range) {
         NYson::TTokenizer ysonTokenizer(rangeStr);
         ysonTokenizer.ParseNext();
-        ParseChannel(ysonTokenizer, attributes.get());
+        ParseColumns(ysonTokenizer, attributes.get());
         ParseRowRanges(ysonTokenizer, attributes.get());
         ysonTokenizer.CurrentToken().ExpectType(NYson::ETokenType::EndOfStream);
     }
@@ -474,16 +448,12 @@ void TRichYPath::SetForeign(bool value)
     Attributes().Set("foreign", value);
 }
 
-TChannel TRichYPath::GetChannel() const
+TNullable<std::vector<Stroka>> TRichYPath::GetColumns() const
 {
     if (Attributes().Contains("channel")) {
-        if (Attributes().Contains("columns")) {
-            THROW_ERROR_EXCEPTION("Conflicting attributes 'channel' and 'columns' in YPath");
-        }
-        return GetAttribute(*this, "channel", TChannel::Universal());
-    } else {
-        return GetAttribute(*this, "columns", TChannel::Universal());
+        THROW_ERROR_EXCEPTION("Deprecated attribute 'channel' in YPath");
     }
+    return FindAttribute<std::vector<Stroka>>(*this, "columns");
 }
 
 std::vector<NChunkClient::TReadRange> TRichYPath::GetRanges() const

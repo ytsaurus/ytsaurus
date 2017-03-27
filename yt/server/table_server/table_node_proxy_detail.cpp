@@ -51,7 +51,6 @@ using namespace NTransactionServer;
 using namespace NTabletServer;
 using namespace NNodeTrackerServer;
 
-using NChunkClient::TChannel;
 using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -459,10 +458,9 @@ void TTableNodeProxy::ValidateCustomAttributeUpdate(
 }
 
 void TTableNodeProxy::ValidateFetchParameters(
-    const TChannel& channel,
-    const std::vector<TReadRange>& ranges)
+    const std::vector<NChunkClient::TReadRange>& ranges)
 {
-    TChunkOwnerNodeProxy::ValidateFetchParameters(channel, ranges);
+    TChunkOwnerNodeProxy::ValidateFetchParameters(ranges);
 
     const auto* table = GetThisImpl();
     for (const auto& range : ranges) {

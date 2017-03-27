@@ -76,7 +76,7 @@ protected:
             Inf64 /* inputSliceRowCount */);
     }
 
-    std::function<IChunkSliceFetcherPtr()> GetChunkSliceFetcherFactory()
+    IChunkSliceFetcherPtr PrepareMockChunkSliceFetcher()
     {
         Expectation expectation = EXPECT_CALL(*ChunkSliceFetcher_, Fetch())
             .After(AllChunksAreAdded_)
@@ -86,9 +86,7 @@ protected:
             .After(expectation)
             .WillOnce(ReturnPointee(&DataSlices_));
 
-        return [&] () {
-            return ChunkSliceFetcher_;
-        };
+        return ChunkSliceFetcher_;
     }
 
 
@@ -198,9 +196,12 @@ protected:
         return slices;
     }
 
-    void CreateChunkPool()
+    void CreateChunkPool(bool useChunkSliceFetcher = true, bool useGenericInputStreamDirectory = false)
     {
-        ChunkPool_ = CreateSortedChunkPool(Options_, GetChunkSliceFetcherFactory(), InputTables_);
+        ChunkPool_ = CreateSortedChunkPool(
+            Options_,
+            useChunkSliceFetcher ? PrepareMockChunkSliceFetcher() : nullptr,
+            useGenericInputStreamDirectory ? IntermediateInputStreamDirectory : TInputStreamDirectory(InputTables_));
     }
 
     TInputDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
@@ -248,6 +249,21 @@ protected:
         return cookie;
     }
 
+    void PersistAndRestore()
+    {
+        TBlobOutput output;
+        TSaveContext saveContext;
+        saveContext.SetOutput(&output);
+        Save(saveContext, ChunkPool_);
+        auto blob = output.Flush();
+        ChunkPool_.reset();
+
+        TMemoryInput input(blob.Begin(), blob.Size());
+        TLoadContext loadContext;
+        loadContext.SetRowBuffer(RowBuffer_);
+        loadContext.SetInput(&input);
+        Load(loadContext, ChunkPool_);
+    }
 
     std::vector<TChunkStripeListPtr> GetAllStripeLists()
     {
@@ -431,7 +447,7 @@ protected:
 
     std::vector<TInputChunkSlicePtr> DataSlices_;
 
-    std::vector<TDataSource> InputTables_;
+    std::vector<TInputStreamDescriptor> InputTables_;
 
     yhash_set<IChunkPoolOutput::TCookie> OutputCookies_;
 
@@ -919,6 +935,77 @@ TEST_F(TSortedChunkPoolTest, SortedMergeSimple)
     RegisterTriviallySliceableUnversionedChunk(chunkC);
 
     CreateChunkPool();
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_EQ(1, stripeLists.size());
+
+    CheckEverything(stripeLists, teleportChunks);
+}
+
+TEST_F(TSortedChunkPoolTest, SortedMergeWithPersistBeforeFinish)
+{
+    Options_.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false, false} /* isForeign */,
+        {true, true, true} /* isTeleportable */,
+        {false, false, false} /* isVersioned */
+    );
+    Options_.PrimaryPrefixLength = 1;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
+    auto chunkB = CreateChunk(BuildRow({2}), BuildRow({15}), 1);
+    auto chunkC = CreateChunk(BuildRow({1}), BuildRow({3}), 2);
+
+    CreateChunkPool(false /* useChunkSliceFetcher */);
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    PersistAndRestore();
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_EQ(1, stripeLists.size());
+    EXPECT_EQ(3, stripeLists.front()->Stripes.size());
+}
+
+TEST_F(TSortedChunkPoolTest, SortedMergeSimpleWithGenericInputStreamDirectory)
+{
+    Options_.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false, false} /* isForeign */,
+        {true, true, true} /* isTeleportable */,
+        {false, false, false} /* isVersioned */
+    );
+    Options_.PrimaryPrefixLength = 1;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
+    auto chunkB = CreateChunk(BuildRow({2}), BuildRow({15}), 1);
+    auto chunkC = CreateChunk(BuildRow({1}), BuildRow({3}), 2);
+    auto chunkBSlices = SliceUnversionedChunk(chunkB, {BuildRow({3}), BuildRow({6})}, {KB / 4, KB / 2, KB / 4});
+    RegisterTriviallySliceableUnversionedChunk(chunkA);
+    RegisterSliceableUnversionedChunk(chunkB, chunkBSlices);
+    RegisterTriviallySliceableUnversionedChunk(chunkC);
+
+    CreateChunkPool(true /* useSliceChunkFetcher */, true /* useGenericInputStreamDirectory */);
 
     AddChunk(chunkA);
     AddChunk(chunkB);
@@ -1626,6 +1713,39 @@ TEST_F(TSortedChunkPoolTest, TestCorrectOrderInsideStripe)
     }
 }
 
+TEST_F(TSortedChunkPoolTest, TestNoChunkSliceFetcher)
+{
+    Options_.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false, false} /* isForeign */,
+        {true, true, true} /* isTeleportable */,
+        {false, false, false} /* isVersioned */
+    );
+    Options_.PrimaryPrefixLength = 1;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
+    auto chunkB = CreateChunk(BuildRow({2}), BuildRow({15}), 1);
+    auto chunkC = CreateChunk(BuildRow({1}), BuildRow({3}), 2);
+
+    CreateChunkPool(false /* useChunkSliceFetcher */);
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_EQ(1, stripeLists.size());
+
+    CheckEverything(stripeLists, teleportChunks);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedChunkPoolTestRandomized
@@ -1653,7 +1773,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         {false} /* isVersioned */
     );
     Options_.PrimaryPrefixLength = 1;
-    DataSizePerJob_ = 1;
+    DataSizePerJob_ = 1 * KB;
     InitJobConstraints();
 
     const int chunkCount = 50;
@@ -1708,28 +1828,17 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         EXPECT_FALSE(ChunkPool_->IsCompleted());
 
         // 0..0 - pool is persisted and restored;
-        // 1..49 - chunk is suspended;
-        // 50..79 - chunk is resumed;
-        // 80..89 - chunk is extracted;
-        // 90..92 - chunk is completed;
-        // 93..96 - chunk is failed;
-        // 97..99 - chunk is aborted.
+        // 1..29 - chunk is suspended;
+        // 30..59 - chunk is resumed;
+        // 60..69 - chunk is extracted;
+        // 70..79 - chunk is completed;
+        // 80..89 - chunk is failed;
+        // 90..99 - chunk is aborted.
         int eventType = dice(Gen_);
         if (eventType <= 0) {
             Cdebug << "Persisting and restoring the pool" << Endl;
-            TBlobOutput output;
-            TSaveContext saveContext;
-            saveContext.SetOutput(&output);
-            Save(saveContext, ChunkPool_);
-            auto blob = output.Flush();
-            ChunkPool_.reset();
-
-            TMemoryInput input(blob.Begin(), blob.Size());
-            TLoadContext loadContext;
-            loadContext.SetRowBuffer(RowBuffer_);
-            loadContext.SetInput(&input);
-            Load(loadContext, ChunkPool_);
-        } else if (eventType <= 49) {
+            PersistAndRestore();
+        } else if (eventType <= 29) {
             if (auto randomElement = chooseRandomElement(resumedChunks)) {
                 const auto& chunkId = *randomElement;
                 Cdebug << Format("Suspending chunk %v", chunkId) << Endl;
@@ -1739,7 +1848,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 auto chunk = chunkIdToChunk.at(chunkId);
                 SuspendChunk(inputCookie, chunk);
             }
-        } else if (eventType <= 79) {
+        } else if (eventType <= 59) {
             if (auto randomElement = chooseRandomElement(suspendedChunks)) {
                 const auto& chunkId = *randomElement;
                 Cdebug << Format("Resuming chunk %v", chunkId) << Endl;
@@ -1749,7 +1858,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 auto chunk = chunkIdToChunk.at(chunkId);
                 ResumeChunk(inputCookie, chunk);
             }
-        } else if (eventType <= 89) {
+        } else if (eventType <= 69) {
             if (ChunkPool_->GetPendingJobCount()) {
                 auto outputCookie = ExtractCookie(TNodeId(0));
                 Cdebug << Format("Extracted cookie %v...", outputCookie);
@@ -1759,7 +1868,6 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 auto stripeList = ChunkPool_->GetStripeList(outputCookie);
                 ASSERT_TRUE(stripeList->Stripes[0]);
                 const auto& stripe = stripeList->Stripes[0];
-                ASSERT_TRUE(stripe->DataSlices.size() == 1);
                 const auto& dataSlice = stripe->DataSlices.front();
                 const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
                 const auto& chunkId = chunk->ChunkId();
@@ -1770,7 +1878,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 ASSERT_TRUE(startedChunks.insert(chunkId).second);
                 ASSERT_TRUE(chunkIdToOutputCookie.insert(std::make_pair(chunkId, outputCookie)).second);
             }
-        } else if (eventType <= 92) {
+        } else if (eventType <= 79) {
             if (auto randomElement = chooseRandomElement(startedChunks)) {
                 const auto& chunkId = *randomElement;
                 Cdebug << Format("Completed chunk %v", chunkId) << Endl;
@@ -1780,7 +1888,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 ASSERT_TRUE(completedChunks.insert(chunkId).second);
                 ChunkPool_->Completed(outputCookie, TCompletedJobSummary());
             }
-        } else if (eventType <= 96) {
+        } else if (eventType <= 89) {
             if (auto randomElement = chooseRandomElement(startedChunks)) {
                 const auto& chunkId = *randomElement;
                 Cdebug << Format("Aborted chunk %v", chunkId) << Endl;

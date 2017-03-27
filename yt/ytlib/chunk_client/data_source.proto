@@ -10,6 +10,8 @@ message TDataSource
     optional NTableClient.NProto.TTableSchemaExt table_schema = 2;
     optional uint64 timestamp = 3;
     optional string path = 4;
+    optional bool has_column_filter = 5 [default = false];
+    repeated string columns = 6;
 }
 
 message TDataSourceDirectory

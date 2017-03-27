@@ -1281,7 +1281,7 @@ private:
 
             case EAtomicity::None: {
                 TWriteContext context;
-                context.Phase = EWritePhase::Lock;
+                context.Phase = EWritePhase::Commit;
                 context.CommitTimestamp = TimestampFromTransactionId(transactionId);
                 YCHECK(storeManager->ExecuteWrites(&reader, &context));
 

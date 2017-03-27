@@ -111,9 +111,6 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec)
         ? std::make_unique<TReadLimit>(chunkSpec.upper_limit())
         : nullptr)
     , BoundaryKeys_(FindBoundaryKeys(chunkSpec.chunk_meta()))
-    , Channel_(chunkSpec.has_channel()
-        ? std::make_unique<NProto::TChannel>(chunkSpec.channel())
-        : nullptr)
     , PartitionsExt_(HasProtoExtension<NTableClient::NProto::TPartitionsExt>(chunkSpec.chunk_meta().extensions())
         ? std::make_unique<NTableClient::NProto::TPartitionsExt>(
             GetProtoExtension<NTableClient::NProto::TPartitionsExt>(chunkSpec.chunk_meta().extensions()))
@@ -128,7 +125,6 @@ void TInputChunk::Persist(const TStreamPersistenceContext& context)
     Persist<TUniquePtrSerializer<>>(context, LowerLimit_);
     Persist<TUniquePtrSerializer<>>(context, UpperLimit_);
     Persist<TUniquePtrSerializer<>>(context, BoundaryKeys_);
-    Persist<TUniquePtrSerializer<>>(context, Channel_);
     Persist<TUniquePtrSerializer<>>(context, PartitionsExt_);
 }
 
@@ -139,7 +135,6 @@ size_t TInputChunk::SpaceUsed() const
        (LowerLimit_ ? LowerLimit_->SpaceUsed() : 0) +
        (UpperLimit_ ? UpperLimit_->SpaceUsed() : 0) +
        (BoundaryKeys_ ? BoundaryKeys_->SpaceUsed() : 0) +
-       (Channel_ ? Channel_->SpaceUsed() : 0) +
        (PartitionsExt_ ? PartitionsExt_->SpaceUsed() : 0);
 }
 
@@ -196,9 +191,6 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
     if (inputChunk->UpperLimit_) {
         ToProto(chunkSpec->mutable_upper_limit(), *inputChunk->UpperLimit_);
     }
-    if (inputChunk->Channel_) {
-        chunkSpec->mutable_channel()->CopyFrom(*inputChunk->Channel_);
-    }
     chunkSpec->mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
     chunkSpec->mutable_chunk_meta()->set_version(static_cast<int>(inputChunk->TableChunkFormat_));
     chunkSpec->mutable_chunk_meta()->mutable_extensions();
@@ -217,7 +209,7 @@ Stroka ToString(const TInputChunkPtr& inputChunk)
         "{ChunkId: %v, Replicas: %v, TableIndex: %v, ErasureCodec: %v, TableRowIndex: %v, "
         "RangeIndex: %v, ChunkIndex: %v, TableChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
         "CompressedDataSize: %v, DataWeight: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "
-        "BoundaryKeys: {%v}, Channel: {%v}, PartitionsExt: {%v}}",
+        "BoundaryKeys: {%v}, PartitionsExt: {%v}}",
         inputChunk->ChunkId(),
         JoinToString(inputChunk->Replicas()),
         inputChunk->GetTableIndex(),
@@ -234,7 +226,6 @@ Stroka ToString(const TInputChunkPtr& inputChunk)
         inputChunk->LowerLimit() ? MakeNullable(*inputChunk->LowerLimit()) : Null,
         inputChunk->UpperLimit() ? MakeNullable(*inputChunk->UpperLimit()) : Null,
         inputChunk->BoundaryKeys() ? boundaryKeys : "",
-        inputChunk->Channel() ? inputChunk->Channel()->ShortDebugString() : "",
         inputChunk->PartitionsExt() ? inputChunk->PartitionsExt()->ShortDebugString() : "");
 }
 

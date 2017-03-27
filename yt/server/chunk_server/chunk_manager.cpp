@@ -47,7 +47,6 @@
 #include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/schema.h>
 #include <yt/ytlib/chunk_client/session_id.h>
 #include <yt/ytlib/chunk_client/chunk_service.pb.h>
 

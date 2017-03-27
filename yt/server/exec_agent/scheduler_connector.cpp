@@ -137,7 +137,7 @@ void TSchedulerConnector::SendHeartbeat()
         auto reporter = Bootstrap_->GetStatisticsReporter();
         reporter->SetEnabled(rsp->enable_statistics_reporter());
     }
-    jobController->ProcessHeartbeatResponse(rsp.Get());
+    jobController->ProcessHeartbeatResponse(rsp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

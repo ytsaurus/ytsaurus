@@ -24,9 +24,9 @@ public:
             cellTag)
     { }
 
-    virtual TInstant GetNow() const override
+    virtual NProfiling::TCpuInstant GetNow() const override
     {
-        return TInstant::Now();
+        return NProfiling::GetCpuInstant();
     }
 };
 

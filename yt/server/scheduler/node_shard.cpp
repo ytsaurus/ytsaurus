@@ -297,13 +297,19 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<Stroka, INode
         auto newState = attributes.Get<ENodeState>("state");
         auto ioWeights = attributes.Get<yhash_map<Stroka, double>>("io_weights", {});
 
-        LOG_DEBUG("Handling node %v (nodeId: %v, objectId: %v, newState: %v)", address, nodeId, objectId, newState);
+        LOG_DEBUG("Handling node attributes (NodeId: %v, Address: %v, ObjectId: %v, NewState: %v)",
+            nodeId,
+            address,
+            objectId,
+            newState);
 
         YCHECK(Host_->GetNodeShardId(nodeId) == Id_);
 
         if (IdToNode_.find(nodeId) == IdToNode_.end()) {
             if (newState == ENodeState::Online) {
-                LOG_WARNING("Node %v is not registered in scheduler but online at master", address);
+                LOG_WARNING("Node is not registered at scheduler but online at master (NodeId: %v, Address: %v)",
+                    nodeId,
+                    address);
             }
             continue;
         }
@@ -328,7 +334,11 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<Stroka, INode
         execNode->SetIOWeights(ioWeights);
 
         if (oldState != newState) {
-            LOG_INFO("Node %lv (Address: %v)", newState, address);
+            LOG_INFO("Node state changed (NodeId: %v, Address: %v, State: %v->%v)",
+                nodeId,
+                address,
+                oldState,
+                newState);
         }
     }
 }
@@ -1277,8 +1287,7 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
 {
     auto* response = &rpcContext->Response();
 
-    std::vector<TFuture<void>> asyncResults;
-
+    std::vector<TFuture<TSharedRef>> asyncJobSpecs;
     for (const auto& job : schedulingContext->StartedJobs()) {
         auto* operationState = FindOperationState(job->GetOperationId());
         if (!operationState || operationState->JobsAborted) {
@@ -1314,10 +1323,11 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
         *startInfo->mutable_resource_limits() = job->ResourceUsage().ToNodeResources();
 
         // Build spec asynchronously.
-        asyncResults.push_back(
-            // NB: Hold the context strongly.
-            BIND([startInfo, rpcContext, specBuilder = job->GetSpecBuilder()] () {
-                specBuilder(startInfo->mutable_spec());
+        asyncJobSpecs.push_back(
+            BIND([=, this_ = MakeStrong(this), specBuilder = job->GetSpecBuilder()] () {
+                NJobTrackerClient::NProto::TJobSpec spec;
+                specBuilder(&spec);
+                return SerializeToProtoWithEnvelope(spec, Config_->JobSpecCodec);
             })
             .AsyncVia(Host_->GetJobSpecBuilderInvoker())
             .Run());
@@ -1357,7 +1367,10 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
         }
     }
 
-    return Combine(asyncResults);
+    return Combine(asyncJobSpecs).Apply(BIND([rpcContext] (const std::vector<TSharedRef>& jobSpecs) {
+        auto* response = &rpcContext->Response();
+        response->Attachments() = jobSpecs;
+    }));
 }
 
 void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)

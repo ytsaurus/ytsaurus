@@ -56,8 +56,8 @@ public:
     bool GetForeign() const;
     void SetForeign(bool value);
 
-    // "channel"
-    NChunkClient::TChannel GetChannel() const;
+    // "columns"
+    TNullable<std::vector<Stroka>> GetColumns() const;
 
     // "ranges"
     // COMPAT(ignat): also "lower_limit" and "upper_limit"

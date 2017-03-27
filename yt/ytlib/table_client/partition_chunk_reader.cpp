@@ -172,7 +172,6 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         blockCache,
                         GetUnlimitedThrottler());
 
-                    YCHECK(!chunkSpec.has_channel());
                     YCHECK(!chunkSpec.has_lower_limit());
                     YCHECK(!chunkSpec.has_upper_limit());
 

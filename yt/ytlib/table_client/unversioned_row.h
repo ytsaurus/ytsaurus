@@ -5,8 +5,6 @@
 #include "schema.h"
 #include "unversioned_value.h"
 
-#include <yt/ytlib/chunk_client/schema.pb.h>
-
 #include <yt/core/misc/chunked_memory_pool.h>
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/small_vector.h>
@@ -260,6 +258,10 @@ public:
 
     explicit TUnversionedRow(const TUnversionedRowHeader* header)
         : Header_(header)
+    { }
+
+    explicit TUnversionedRow(TTypeErasedRow erased)
+        : Header_(reinterpret_cast<const TUnversionedRowHeader*>(erased.OpaqueHeader))
     { }
 
     explicit operator bool() const

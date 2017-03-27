@@ -215,9 +215,6 @@ DECLARE_REFCOUNTED_CLASS(TMediumDirectorySynchronizer)
 
 class TReadLimit;
 
-class TChannel;
-using TChannels = std::vector<TChannel>;
-
 using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 

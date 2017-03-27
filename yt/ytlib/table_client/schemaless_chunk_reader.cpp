@@ -59,7 +59,6 @@ using namespace NApi;
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
-using NChunkClient::TChannel;
 using NChunkClient::NProto::TMiscExt;
 
 using NYT::FromProto;
@@ -1774,11 +1773,6 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         blockCache,
                         throttler);
 
-                    using NYT::FromProto;
-                    auto channel = chunkSpec.has_channel()
-                        ? FromProto<TChannel>(chunkSpec.channel())
-                        : TChannel::Universal();
-
                     TReadRange range = {
                         chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
                         chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit()
@@ -1792,7 +1786,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         nameTable,
                         blockCache,
                         keyColumns,
-                        columnFilter.All ? CreateColumnFilter(channel, nameTable) : columnFilter,
+                        columnFilter.All ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                         range,
                         partitionTag);
                 };
@@ -1805,12 +1799,6 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 auto memoryEstimate = GetDataSliceDescriptorReaderMemoryEstimate(dataSliceDescriptor, config);
                 auto createReader = [=] () {
 
-                    YCHECK(!dataSliceDescriptor.ChunkSpecs.empty());
-                    using NYT::FromProto;
-                    auto channel = dataSliceDescriptor.ChunkSpecs[0].has_channel()
-                        ? FromProto<TChannel>(dataSliceDescriptor.ChunkSpecs[0].channel())
-                        : TChannel::Universal();
-
                     return CreateSchemalessMergingMultiChunkReader(
                         config,
                         options,
@@ -1821,7 +1809,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         dataSourceDirectory,
                         dataSliceDescriptor,
                         nameTable,
-                        columnFilter.All ? CreateColumnFilter(channel, nameTable) : columnFilter,
+                        columnFilter.All ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                         throttler);
                 };
 
