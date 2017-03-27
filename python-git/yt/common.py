@@ -140,10 +140,10 @@ class PrettyPrintableDict(dict):
 
 def _pretty_format(error, attribute_length_limit=None):
     def _escape(value):
-        def printable(c):
-            return c in string.ascii_letters + string.digits + string.punctuation + ' '
         def escape(c):
-            return "\\x{0:02x}".format(ord(c)) if not printable(c) else c
+            if c in string.printable:
+                return c
+            return "\\x{0:02x}".format(ord(c))
         value = value.replace("\n", "\\n").replace("\t", "\\t")
         return "".join(imap(escape, value))
 
