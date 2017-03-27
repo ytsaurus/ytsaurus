@@ -5,6 +5,7 @@ from yt.yson import *
 from yt.wrapper import JsonFormat
 from yt.environment.helpers import assert_items_equal, assert_almost_equal
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
+from yt.common import date_string_to_timestamp_mcs
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -26,10 +27,6 @@ def id_to_parts(id):
     id_hi = long(id_parts[2], 16) << 32 | int(id_parts[3], 16)
     id_lo = long(id_parts[0], 16) << 32 | int(id_parts[1], 16)
     return id_hi, id_lo
-
-def datestr_to_timestamp(time_str):
-    dt = datetime.datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ")
-    return int(calendar.timegm(dt.timetuple()) * 1000000 + dt.microsecond)
 
 ##################################################################
 
@@ -1158,8 +1155,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
             row["job_id_lo"] = yson.YsonUint64(id_lo)
             row["type"] = job.attributes["job_type"]
             row["state"] = job.attributes["state"]
-            row["start_time"] = datestr_to_timestamp(job.attributes["start_time"])
-            row["finish_time"] = datestr_to_timestamp(job.attributes["finish_time"])
+            row["start_time"] = date_string_to_timestamp_mcs(job.attributes["start_time"])
+            row["finish_time"] = date_string_to_timestamp_mcs(job.attributes["finish_time"])
             row["address"] = job.attributes["address"]
             rows.append(row)
 
