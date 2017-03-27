@@ -118,6 +118,10 @@ struct ISchedulerStrategy
         const std::vector<TUpdatedJob>& updatedJobs,
         const std::vector<TCompletedJob>& completedJobs) = 0;
 
+    virtual void ApplyJobMetricsDelta(
+        const TOperationId& operationId,
+        const TJobMetrics& jobMetricsDelta) = 0;
+
     virtual void UpdatePools(const NYTree::INodePtr& poolsNode) = 0;
 
     virtual void UpdateOperationRuntimeParams(

@@ -287,6 +287,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/intermediate_chunk_scraper.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_memory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_metrics.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_metrics_updater.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_prober_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_resources.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_size_adjuster.cpp

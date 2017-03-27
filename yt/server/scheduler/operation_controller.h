@@ -1,6 +1,9 @@
 #pragma once
 
 #include "public.h"
+
+#include "private.h"
+
 #include "event_log.h"
 #include "job.h"
 #include "scheduling_context.h"
@@ -161,6 +164,8 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual IJobHostPtr GetJobHost(const TJobId& jobId) const = 0;
+
+    virtual void SendJobMetricsToStrategy(const TOperationId& operationdId, const TJobMetrics& jobMetrics) = 0;
 };
 
 /*!

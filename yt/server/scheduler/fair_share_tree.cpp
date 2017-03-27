@@ -1,5 +1,8 @@
 #include "fair_share_tree.h"
 
+#include "operation_controller.h"
+#include "scheduling_context.h"
+
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/profile_manager.h>
 
@@ -98,11 +101,25 @@ TJobResources TSchedulerElementSharedState::GetResourceUsage()
     return ResourceUsage_;
 }
 
+TJobMetrics TSchedulerElementSharedState::GetJobMetrics()
+{
+    TReaderGuard guard(JobMetricsLock_);
+
+    return JobMetrics_;
+}
+
 void TSchedulerElementSharedState::IncreaseResourceUsage(const TJobResources& delta)
 {
     TWriterGuard guard(ResourceUsageLock_);
 
     ResourceUsage_ += delta;
+}
+
+void TSchedulerElementSharedState::ApplyJobMetricsDelta(const TJobMetrics& delta)
+{
+    TWriterGuard guard(JobMetricsLock_);
+
+    JobMetrics_ += delta;
 }
 
 double TSchedulerElementSharedState::GetResourceUsageRatio(
@@ -255,6 +272,11 @@ TJobResources TSchedulerElement::GetResourceUsage() const
     return resourceUsage;
 }
 
+TJobMetrics TSchedulerElement::GetJobMetrics() const
+{
+    return SharedState_->GetJobMetrics();
+}
+
 double TSchedulerElement::GetResourceUsageRatio() const
 {
     return SharedState_->GetResourceUsageRatio(
@@ -265,6 +287,11 @@ double TSchedulerElement::GetResourceUsageRatio() const
 void TSchedulerElement::IncreaseLocalResourceUsage(const TJobResources& delta)
 {
     SharedState_->IncreaseResourceUsage(delta);
+}
+
+void TSchedulerElement::ApplyJobMetricsDeltaLocal(const TJobMetrics& delta)
+{
+    SharedState_->ApplyJobMetricsDelta(delta);
 }
 
 TSchedulerElement::TSchedulerElement(
@@ -642,6 +669,15 @@ void TCompositeSchedulerElement::IncreaseResourceUsage(const TJobResources& delt
     auto* currentElement = this;
     while (currentElement) {
         currentElement->IncreaseLocalResourceUsage(delta);
+        currentElement = currentElement->GetParent();
+    }
+}
+
+void TCompositeSchedulerElement::ApplyJobMetricsDelta(const TJobMetrics& delta)
+{
+    auto* currentElement = this;
+    while (currentElement) {
+        currentElement->ApplyJobMetricsDeltaLocal(delta);
         currentElement = currentElement->GetParent();
     }
 }
@@ -1755,6 +1791,12 @@ void TOperationElement::IncreaseResourceUsage(const TJobResources& delta)
 {
     IncreaseLocalResourceUsage(delta);
     GetParent()->IncreaseResourceUsage(delta);
+}
+
+void TOperationElement::ApplyJobMetricsDelta(const TJobMetrics& delta)
+{
+    ApplyJobMetricsDeltaLocal(delta);
+    GetParent()->ApplyJobMetricsDelta(delta);
 }
 
 void TOperationElement::IncreaseJobResourceUsage(const TJobId& jobId, const TJobResources& resourcesDelta)

@@ -1,7 +1,9 @@
 #include "node_shard.h"
+
 #include "helpers.h"
-#include "private.h"
+#include "operation_controller.h"
 #include "scheduler_strategy.h"
+#include "scheduling_context.h"
 
 #include <yt/server/exec_agent/public.h>
 
@@ -1397,18 +1399,18 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
                 Config_->SuspiciousInputPipeIdleTimeFraction)
                 .Via(GetInvoker()));
 
-            auto* operationState = FindOperationState(job->GetOperationId());
-            if (operationState) {
-                const auto& controller = operationState->Controller;
-                BIND(&IOperationController::OnJobRunning,
-                    controller,
-                    Passed(std::make_unique<TJobSummary>(job)))
-                    .Via(controller->GetCancelableInvoker())
-                    .Run();
-            }
         }
-
         job->SetStatus(status);
+
+        auto* operationState = FindOperationState(job->GetOperationId());
+        if (operationState) {
+            const auto& controller = operationState->Controller;
+            BIND(&IOperationController::OnJobRunning,
+                controller,
+                Passed(std::make_unique<TJobSummary>(job)))
+                .Via(controller->GetCancelableInvoker())
+                .Run();
+        }
     }
 }
 

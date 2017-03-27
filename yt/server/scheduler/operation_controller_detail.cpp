@@ -4,6 +4,8 @@
 #include "chunk_pool.h"
 #include "helpers.h"
 #include "intermediate_chunk_scraper.h"
+#include "job_metrics.h"
+#include "job_metrics_updater.h"
 
 #include <yt/server/misc/job_table_schema.h>
 
@@ -81,6 +83,8 @@ using namespace NQueryClient;
 using namespace NProfiling;
 
 using NNodeTrackerClient::TNodeId;
+using NProfiling::CpuInstantToInstant;
+using NProfiling::TCpuInstant;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::TTableReaderOptions;
 
@@ -194,6 +198,22 @@ void TOperationControllerBase::TCompletedJob::Persist(const TPersistenceContext&
 
 ////////////////////////////////////////////////////////////////////
 
+TOperationControllerBase::TJoblet::TJoblet()
+    : JobIndex(-1)
+    , StartRowIndex(-1)
+    , OutputCookie(-1)
+{ }
+
+TOperationControllerBase::TJoblet::TJoblet(TOperationControllerBase* controller, TTaskPtr task, int jobIndex)
+    : Task(std::move(task))
+    , JobIndex(jobIndex)
+    , StartRowIndex(-1)
+    , OutputCookie(IChunkPoolOutput::NullCookie)
+    , JobMetricsUpdater_(controller->CreateJobMetricsUpdater())
+{ }
+
+TOperationControllerBase::TJoblet::~TJoblet() = default;
+
 void TOperationControllerBase::TJoblet::Persist(const TPersistenceContext& context)
 {
     // NB: Every joblet is aborted after snapshot is loaded.
@@ -204,6 +224,19 @@ void TOperationControllerBase::TJoblet::Persist(const TPersistenceContext& conte
     Persist(context, NodeDescriptor);
     Persist(context, InputStripeList);
     Persist(context, OutputCookie);
+}
+
+void TOperationControllerBase::TJoblet::SendJobMetrics(const TStatistics& jobStatistics, bool flush)
+{
+    // NOTE: after snapshot is loaded JobMetricsUpdater_ can be missing.
+    if (JobMetricsUpdater_) {
+        const auto timestamp = jobStatistics.GetTimestamp().Get(CpuInstantToInstant(GetCpuInstant()));
+        const auto jobMetrics = TJobMetrics::FromJobTrackerStatistics(jobStatistics);
+        JobMetricsUpdater_->Update(timestamp, jobMetrics);
+        if (flush) {
+            JobMetricsUpdater_->Flush();
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -425,7 +458,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
 
     bool intermediateOutput = IsIntermediateOutput();
     int jobIndex = Controller->JobIndexGenerator.Next();
-    auto joblet = New<TJoblet>(this, jobIndex);
+    auto joblet = New<TJoblet>(Controller, this, jobIndex);
 
     const auto& nodeResourceLimits = context->ResourceLimits();
     auto nodeId = context->GetNodeDescriptor().Id;
@@ -2124,6 +2157,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
 
     UpdateJobStatistics(*jobSummary);
+    joblet->SendJobMetrics(jobSummary->Statistics, true);
 
     if (jobSummary->InterruptReason != EInterruptReason::None) {
         jobSummary->SplitJobCount = EstimateSplitJobCount(*jobSummary);
@@ -2185,6 +2219,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         .Item("error").Value(error);
 
     UpdateJobStatistics(*jobSummary);
+    joblet->SendJobMetrics(jobSummary->Statistics, true);
 
     joblet->Task->OnJobFailed(joblet, *jobSummary);
     if (JobSplitter_) {
@@ -2228,6 +2263,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
         UpdateJobStatistics(*jobSummary);
     }
+    joblet->SendJobMetrics(jobSummary->Statistics, true);
 
     if (abortReason == EAbortReason::FailedChunks) {
         const auto& result = jobSummary->Result;
@@ -2258,6 +2294,10 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TJobSummary> job
             LOG_DEBUG("Job is ready to be split (JobId: %v)", jobId);
             jobHost->InterruptJob(EInterruptReason::JobSplit);
         }
+    }
+
+    if (const auto joblet = FindJoblet(jobSummary->Id)) {
+        joblet->SendJobMetrics(jobSummary->Statistics, false);
     }
 }
 
@@ -5457,6 +5497,11 @@ void TOperationControllerBase::BuildJobSplitterInfo(IYsonConsumer* consumer) con
     YCHECK(JobSplitter_);
 
     JobSplitter_->BuildJobSplitterInfo(consumer);
+}
+
+std::unique_ptr<TJobMetricsUpdater> TOperationControllerBase::CreateJobMetricsUpdater() const
+{
+    return std::make_unique<TJobMetricsUpdater>(Host, OperationId, Config->JobMetricsBatchInterval);
 }
 
 std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetFilePaths() const
