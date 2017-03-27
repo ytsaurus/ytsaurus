@@ -1,11 +1,14 @@
 #pragma once
 
-#include <library/json/json_reader.h>
+#include <util/datetime/base.h>
 
 #include <util/generic/stroka.h>
 #include <util/generic/vector.h>
 #include <util/generic/yexception.h>
-#include <util/datetime/base.h>
+
+namespace NJson {
+    class TJsonValue;
+} // namespace NJson
 
 namespace NYT {
 

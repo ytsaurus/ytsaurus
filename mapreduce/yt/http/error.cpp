@@ -3,6 +3,8 @@
 
 #include <mapreduce/yt/common/config.h>
 
+#include <library/json/json_reader.h>
+
 #include <util/string/builder.h>
 #include <util/stream/str.h>
 
@@ -32,6 +34,8 @@ TError::TError(const TJsonValue& value)
     it = map.find("code");
     if (it != map.end()) {
         Code_ = static_cast<int>(it->second.GetInteger());
+    } else {
+        Code_ = NYT::NClusterErrorCodes::Generic;
     }
 
     it = map.find("inner_errors");
