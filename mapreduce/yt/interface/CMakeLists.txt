@@ -7,7 +7,7 @@ OWNER(
 
 SRCS(
     common.h
-    node.h
+    node.cpp
     cypress.h
     io.h
     operation.h
