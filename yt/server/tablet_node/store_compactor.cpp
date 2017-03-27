@@ -344,10 +344,15 @@ private:
             auto candidate = store->AsSortedChunk();
             candidates.push_back(candidate);
 
-            if ((IsCompactionForced(candidate) || IsPeriodicCompactionNeeded(eden)) &&
-                finalists.size() < config->MaxPartitioningStoreCount)
+            if (IsCompactionForced(candidate) ||
+                IsPeriodicCompactionNeeded(eden) ||
+                IsStoreOutOfTabletRange(candidate, tablet))
             {
                 finalists.push_back(candidate->GetId());
+            }
+
+            if (finalists.size() >= config->MaxPartitioningStoreCount) {
+                break;
             }
         }
 
@@ -422,10 +427,15 @@ private:
             auto candidate = store->AsSortedChunk();
             candidates.push_back(candidate);
 
-            if ((IsCompactionForced(candidate) || IsPeriodicCompactionNeeded(partition)) &&
-                finalists.size() < config->MaxCompactionStoreCount)
+            if (IsCompactionForced(candidate) ||
+                IsPeriodicCompactionNeeded(partition) ||
+                IsStoreOutOfTabletRange(candidate, tablet))
             {
                 finalists.push_back(candidate->GetId());
+            }
+
+            if (finalists.size() >= config->MaxCompactionStoreCount) {
+                break;
             }
         }
 
@@ -1042,7 +1052,7 @@ private:
         return std::make_tuple(writer, readRowCount);
     }
 
-    static bool IsCompactionForced(TSortedChunkStorePtr store)
+    static bool IsCompactionForced(const TSortedChunkStorePtr& store)
     {
         const auto& config = store->GetTablet()->GetConfig();
         if (!config->ForcedCompactionRevision) {
@@ -1069,6 +1079,19 @@ private:
         }
 
         return true;
+    }
+
+    static bool IsStoreOutOfTabletRange(const TSortedChunkStorePtr& store, const TTablet* tablet)
+    {
+        if (store->GetMinKey() < tablet->GetPivotKey()) {
+            return true;
+        }
+
+        if (store->GetMaxKey() >= tablet->GetNextPivotKey()) {
+            return true;
+        }
+
+        return false;
     }
 };
 
