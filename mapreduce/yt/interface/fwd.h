@@ -41,14 +41,14 @@ namespace NYT {
     struct TCreateClientOptions;
 
     class ITransaction;
-    using ITransactionPtr = TIntrusivePtr<ITransaction>;
+    using ITransactionPtr = ::TIntrusivePtr<ITransaction>;
 
     class IClientBase;
 
     class IClient;
 
-    using IClientPtr = TIntrusivePtr<IClient>;
-    using IClientBasePtr = TIntrusivePtr<IClientBase>;
+    using IClientPtr = ::TIntrusivePtr<IClient>;
+    using IClientBasePtr = ::TIntrusivePtr<IClientBase>;
 
     ////////////////////////////////////////////////////////////////////////////////
     // cypress.h
@@ -130,11 +130,11 @@ namespace NYT {
 
     class IFileReader;
 
-    using IFileReaderPtr = TIntrusivePtr<IFileReader>;
+    using IFileReaderPtr = ::TIntrusivePtr<IFileReader>;
 
     class IFileWriter;
 
-    using IFileWriterPtr = TIntrusivePtr<IFileWriter>;
+    using IFileWriterPtr = ::TIntrusivePtr<IFileWriter>;
 
     template <class T, class = void>
     class TTableReader;
@@ -143,13 +143,13 @@ namespace NYT {
     class TTableRangesReader;
 
     template <class T>
-    using TTableReaderPtr = TIntrusivePtr<TTableReader<T>>;
+    using TTableReaderPtr = ::TIntrusivePtr<TTableReader<T>>;
 
     template <class T, class = void>
     class TTableWriter;
 
     template <class T>
-    using TTableWriterPtr = TIntrusivePtr<TTableWriter<T>>;
+    using TTableWriterPtr = ::TIntrusivePtr<TTableWriter<T>>;
 
     struct TYaMRRow;
 

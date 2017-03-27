@@ -18,39 +18,39 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIntrusivePtr<INodeReaderImpl> CreateJobNodeReader();
-TIntrusivePtr<IYaMRReaderImpl> CreateJobYaMRReader();
-TIntrusivePtr<IProtoReaderImpl> CreateJobProtoReader();
+::TIntrusivePtr<INodeReaderImpl> CreateJobNodeReader();
+::TIntrusivePtr<IYaMRReaderImpl> CreateJobYaMRReader();
+::TIntrusivePtr<IProtoReaderImpl> CreateJobProtoReader();
 
-TIntrusivePtr<INodeWriterImpl> CreateJobNodeWriter(size_t outputTableCount);
-TIntrusivePtr<IYaMRWriterImpl> CreateJobYaMRWriter(size_t outputTableCount);
-TIntrusivePtr<IProtoWriterImpl> CreateJobProtoWriter(size_t outputTableCount);
+::TIntrusivePtr<INodeWriterImpl> CreateJobNodeWriter(size_t outputTableCount);
+::TIntrusivePtr<IYaMRWriterImpl> CreateJobYaMRWriter(size_t outputTableCount);
+::TIntrusivePtr<IProtoWriterImpl> CreateJobProtoWriter(size_t outputTableCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-inline TIntrusivePtr<typename TRowTraits<T>::IReaderImpl> CreateJobReaderImpl();
+inline ::TIntrusivePtr<typename TRowTraits<T>::IReaderImpl> CreateJobReaderImpl();
 
 template <>
-inline TIntrusivePtr<INodeReaderImpl> CreateJobReaderImpl<TNode>()
+inline ::TIntrusivePtr<INodeReaderImpl> CreateJobReaderImpl<TNode>()
 {
     return CreateJobNodeReader();
 }
 
 template <>
-inline TIntrusivePtr<IYaMRReaderImpl> CreateJobReaderImpl<TYaMRRow>()
+inline ::TIntrusivePtr<IYaMRReaderImpl> CreateJobReaderImpl<TYaMRRow>()
 {
     return CreateJobYaMRReader();
 }
 
 template <>
-inline TIntrusivePtr<IProtoReaderImpl> CreateJobReaderImpl<Message>()
+inline ::TIntrusivePtr<IProtoReaderImpl> CreateJobReaderImpl<Message>()
 {
     return CreateJobProtoReader();
 }
 
 template <class T>
-inline TIntrusivePtr<typename TRowTraits<T>::IReaderImpl> CreateJobReaderImpl()
+inline ::TIntrusivePtr<typename TRowTraits<T>::IReaderImpl> CreateJobReaderImpl()
 {
     return CreateJobProtoReader();
 }
@@ -90,7 +90,7 @@ struct TProtoWriterCreator;
 template <class T>
 struct TProtoWriterCreator<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
 {
-    static TTableWriterPtr<T> Create(TIntrusivePtr<IProtoWriterImpl> writer)
+    static TTableWriterPtr<T> Create(::TIntrusivePtr<IProtoWriterImpl> writer)
     {
         return new TTableWriter<T>(writer);
     }
@@ -452,7 +452,7 @@ TOperationId IOperationClient::Map(
     CheckFormats<TMapInputRow>("mapper", "input", spec.InputDesc_);
     CheckFormats<TMapOutputRow>("mapper", "output", spec.OutputDesc_);
 
-    TIntrusivePtr<TMapper> mapperPtr(mapper);
+    ::TIntrusivePtr<TMapper> mapperPtr(mapper);
 
     return DoMap(
         spec,
@@ -477,7 +477,7 @@ TOperationId IOperationClient::Reduce(
     CheckFormats<TReduceInputRow>("reducer", "input", spec.InputDesc_);
     CheckFormats<TReduceOutputRow>("reducer", "output", spec.OutputDesc_);
 
-    TIntrusivePtr<TReducer> reducerPtr(reducer);
+    ::TIntrusivePtr<TReducer> reducerPtr(reducer);
 
     return DoReduce(
         spec,
@@ -501,7 +501,7 @@ TOperationId IOperationClient::JoinReduce(
     CheckFormats<TReduceInputRow>("reducer", "input", spec.InputDesc_);
     CheckFormats<TReduceOutputRow>("reducer", "output", spec.OutputDesc_);
 
-    TIntrusivePtr<TReducer> reducerPtr(reducer);
+    ::TIntrusivePtr<TReducer> reducerPtr(reducer);
 
     return DoJoinReduce(
         spec,
@@ -534,8 +534,8 @@ TOperationId IOperationClient::MapReduce(
     TOperationIOSpecBase::TFormatAdder<TMapOutputRow>::Add(outputMapperDesc);
     TOperationIOSpecBase::TFormatAdder<TReduceInputRow>::Add(inputReducerDesc);
 
-    TIntrusivePtr<TMapper> mapperPtr(mapper);
-    TIntrusivePtr<TReducer> reducerPtr(reducer);
+    ::TIntrusivePtr<TMapper> mapperPtr(mapper);
+    ::TIntrusivePtr<TReducer> reducerPtr(reducer);
 
     return DoMapReduce(
         spec,
@@ -569,7 +569,7 @@ TOperationId IOperationClient::MapReduce(
     TMultiFormatDesc dummy, inputReducerDesc;
     TOperationIOSpecBase::TFormatAdder<TReduceInputRow>::Add(inputReducerDesc);
 
-    TIntrusivePtr<TReducer> reducerPtr(reducer);
+    ::TIntrusivePtr<TReducer> reducerPtr(reducer);
 
     return DoMapReduce(
         spec,
@@ -617,9 +617,9 @@ TOperationId IOperationClient::MapReduce(
     TOperationIOSpecBase::TFormatAdder<TReduceCombinerInputRow>::Add(inputReduceCombinerDesc);
     TOperationIOSpecBase::TFormatAdder<TReduceCombinerOutputRow>::Add(outputReduceCombinerDesc);
 
-    TIntrusivePtr<TMapper> mapperPtr(mapper);
-    TIntrusivePtr<TReduceCombiner> reduceCombinerPtr(reduceCombiner);
-    TIntrusivePtr<TReducer> reducerPtr(reducer);
+    ::TIntrusivePtr<TMapper> mapperPtr(mapper);
+    ::TIntrusivePtr<TReduceCombiner> reduceCombinerPtr(reduceCombiner);
+    ::TIntrusivePtr<TReducer> reducerPtr(reducer);
 
     return DoMapReduce(
         spec,
@@ -662,8 +662,8 @@ TOperationId IOperationClient::MapReduce(
     TOperationIOSpecBase::TFormatAdder<TReduceCombinerInputRow>::Add(inputReduceCombinerDesc);
     TOperationIOSpecBase::TFormatAdder<TReduceCombinerOutputRow>::Add(outputReduceCombinerDesc);
 
-    TIntrusivePtr<TReduceCombiner> reduceCombinerPtr(reduceCombiner);
-    TIntrusivePtr<TReducer> reducerPtr(reducer);
+    ::TIntrusivePtr<TReduceCombiner> reduceCombinerPtr(reduceCombiner);
+    ::TIntrusivePtr<TReducer> reducerPtr(reducer);
 
     return DoMapReduce(
         spec,
