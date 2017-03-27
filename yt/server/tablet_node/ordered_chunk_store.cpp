@@ -162,17 +162,6 @@ EStoreType TOrderedChunkStore::GetType() const
     return EStoreType::OrderedChunk;
 }
 
-EInMemoryMode TOrderedChunkStore::GetInMemoryMode() const
-{
-    return EInMemoryMode::None;
-}
-
-void TOrderedChunkStore::SetInMemoryMode(EInMemoryMode mode)
-{ }
-
-void TOrderedChunkStore::Preload(TInMemoryChunkDataPtr chunkData)
-{ }
-
 ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     int tabletIndex,

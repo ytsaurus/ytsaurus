@@ -1,6 +1,8 @@
 import pytest
 import __builtin__
 
+from test_dynamic_tables import TestDynamicTablesBase
+
 from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 from yt.yson import YsonEntity, YsonList, loads
@@ -11,25 +13,7 @@ from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
-class TestSortedDynamicTablesBase(YTEnvSetup):
-    NUM_MASTERS = 3
-    NUM_NODES = 16
-    NUM_SCHEDULERS = 0
-
-    DELTA_MASTER_CONFIG = {
-        "tablet_manager": {
-            "leader_reassignment_timeout" : 1000,
-            "peer_revocation_timeout" : 3000
-        }
-    }
-
-    DELTA_DRIVER_CONFIG = {
-        "max_rows_per_write_request": 2,
-        "table_reader": {
-            "max_chunks_per_fetch": 1,
-        }
-    }
-
+class TestSortedDynamicTablesBase(TestDynamicTablesBase):
     def _create_simple_table(self, path, atomicity=None, optimize_for=None, tablet_cell_bundle=None,
                              tablet_count=None, pivot_keys=None, **extra_attributes):
         attributes = {
@@ -86,36 +70,6 @@ class TestSortedDynamicTablesBase(YTEnvSetup):
                     {"name": "value", "type": "int64", "aggregate": aggregate}]
             })
 
-    def _get_tablet_leader_address(self, tablet_id):
-        cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id")
-        peers = get("//sys/tablet_cells/" + cell_id + "/@peers")
-        leader_peer = list(x for x in peers if x["state"] == "leading")[0]
-        return leader_peer["address"]
-
-    def _get_recursive(self, path, result=None):
-        if result is None or result.attributes.get("opaque", False):
-            result = get(path, attributes=["opaque"])
-        if isinstance(result, dict):
-            for key, value in result.iteritems():
-                result[key] = self._get_recursive(path + "/" + key, value)
-        if isinstance(result, list):
-            for index, value in enumerate(result):
-                result[index] = self._get_recursive(path + "/" + str(index), value)
-        return result
-
-    def _find_tablet_orchid(self, address, tablet_id):
-        path = "//sys/nodes/" + address + "/orchid/tablet_cells"
-        cells = ls(path)
-        for cell_id in cells:
-            if get(path + "/" + cell_id + "/state") == "leading":
-                tablets = ls(path + "/" + cell_id + "/tablets")
-                if tablet_id in tablets:
-                    try:
-                        return self._get_recursive(path + "/" + cell_id + "/tablets/" + tablet_id)
-                    except:
-                        return None
-        return None
-
     def _wait_for_in_memory_stores_preload(self, table):
         for tablet in get(table + "/@tablets"):
             tablet_id = tablet["tablet_id"]
@@ -134,16 +88,7 @@ class TestSortedDynamicTablesBase(YTEnvSetup):
                 return True
             wait(lambda: all_preloaded())
 
-    def _get_pivot_keys(self, path):
-        tablets = get(path + "/@tablets")
-        return [tablet["pivot_key"] for tablet in tablets]
 
-    def _ban_all_peers(self, cell_id):
-        peers = get("#" + cell_id + "/@peers")
-        for x in peers:
-            self.set_node_banned(x["address"], True)
-        clear_metadata_caches()
-    
 ##################################################################
 
 class TestSortedDynamicTables(TestSortedDynamicTablesBase):

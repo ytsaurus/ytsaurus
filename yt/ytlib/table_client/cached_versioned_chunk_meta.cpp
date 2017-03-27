@@ -86,43 +86,20 @@ void TCachedVersionedChunkMeta::Init(
     KeyColumnCount_ = keyColumns.size();
 
     TColumnarChunkMeta::InitExtensions(chunkMeta);
-    TColumnarChunkMeta::InitBlockLastKeys(keyColumns);
+
+    if (KeyColumnCount_ > 0) {
+        TColumnarChunkMeta::InitBlockLastKeys(keyColumns);
+    }
 
     ValidateChunkMeta();
-    //FIXME(savrus) Dirty hack here. In future we will read schema from meta.
-    if (ETableChunkFormat(chunkMeta.version()) == ETableChunkFormat::SchemalessHorizontal) {
-        BuildSchemalessIdMapping(schema, chunkMeta);
-    } else {
-        ValidateSchema(schema);
-    }
+    ValidateSchema(schema);
 
     Schema_ = schema;
 
-    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
-    MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), GetKeyColumnCount());
-    MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), GetKeyColumnCount());
-}
-
-void TCachedVersionedChunkMeta::BuildSchemalessIdMapping(
-    const TTableSchema& readerSchema,
-    const NChunkClient::NProto::TChunkMeta& chunkMeta)
-{
-    auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
-    auto keyColumns = FromProto<TKeyColumns>(keyColumnsExt);
-    ChunkKeyColumnCount_ = keyColumns.size();
-
-    auto nameTableExt = GetProtoExtension<TNameTableExt>(chunkMeta.extensions());
-    auto nameTable = FromProto<TNameTablePtr>(nameTableExt);
-
-    for (int readerIndex = 0; readerIndex < readerSchema.Columns().size(); ++readerIndex) {
-        auto& column = readerSchema.Columns()[readerIndex];
-        auto id = nameTable->FindId(column.Name);
-        if (id) {
-            TColumnIdMapping mapping;
-            mapping.ChunkSchemaIndex = *id;
-            mapping.ReaderSchemaIndex = readerIndex;
-            SchemaIdMapping_.push_back(mapping);
-        }
+    auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
+    if (boundaryKeysExt) {
+        MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt->min()), GetKeyColumnCount());
+        MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt->max()), GetKeyColumnCount());
     }
 }
 

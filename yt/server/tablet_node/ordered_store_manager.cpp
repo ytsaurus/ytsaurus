@@ -1,9 +1,11 @@
-#include "ordered_store_manager.h"
-#include "tablet.h"
-#include "store.h"
-#include "transaction.h"
-#include "ordered_dynamic_store.h"
 #include "config.h"
+#include "in_memory_manager.h"
+#include "in_memory_chunk_writer.h"
+#include "ordered_dynamic_store.h"
+#include "ordered_store_manager.h"
+#include "store.h"
+#include "tablet.h"
+#include "transaction.h"
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 
@@ -207,6 +209,8 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
 
+        auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(tabletSnapshot->Config->InMemoryMode);
+
         auto chunkWriter = CreateConfirmingWriter(
             tabletSnapshot->WriterConfig,
             tabletSnapshot->WriterOptions,
@@ -214,18 +218,21 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             transaction->GetId(),
             NullChunkListId,
             New<TNodeDirectory>(),
-            Client_);
+            Client_,
+            blockCache);
 
         TChunkTimestamps chunkTimestamps;
         chunkTimestamps.MinTimestamp = orderedDynamicStore->GetMinTimestamp();
         chunkTimestamps.MaxTimestamp = orderedDynamicStore->GetMaxTimestamp();
 
-        auto tableWriter = CreateSchemalessChunkWriter(
+        auto tableWriter = CreateInMemorySchemalessChunkWriter(
             tabletSnapshot->WriterConfig,
             tabletSnapshot->WriterOptions,
-            tabletSnapshot->PhysicalSchema,
+            InMemoryManager_,
+            tabletSnapshot,
             chunkWriter,
-            chunkTimestamps);
+            chunkTimestamps,
+            blockCache);
 
         WaitFor(tableWriter->Open())
             .ThrowOnError();

@@ -58,9 +58,6 @@ private:
 
     void ValidateChunkMeta();
     void ValidateSchema(const TTableSchema& readerSchema);
-    void BuildSchemalessIdMapping(
-        const TTableSchema& readerSchema,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
     DECLARE_NEW_FRIEND();
 };

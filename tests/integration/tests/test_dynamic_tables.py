@@ -45,6 +45,17 @@ class TestDynamicTablesBase(YTEnvSetup):
         leader_peer = list(x for x in peers if x["state"] == "leading")[0]
         return leader_peer["address"]
 
+    def _get_recursive(self, path, result=None):
+        if result is None or result.attributes.get("opaque", False):
+            result = get(path, attributes=["opaque"])
+        if isinstance(result, dict):
+            for key, value in result.iteritems():
+                result[key] = self._get_recursive(path + "/" + key, value)
+        if isinstance(result, list):
+            for index, value in enumerate(result):
+                result[index] = self._get_recursive(path + "/" + str(index), value)
+        return result
+
     def _find_tablet_orchid(self, address, tablet_id):
         path = "//sys/nodes/" + address + "/orchid/tablet_cells"
         cells = ls(path)
@@ -52,7 +63,10 @@ class TestDynamicTablesBase(YTEnvSetup):
             if get(path + "/" + cell_id + "/state") == "leading":
                 tablets = ls(path + "/" + cell_id + "/tablets")
                 if tablet_id in tablets:
-                    return get(path + "/" + cell_id + "/tablets/" + tablet_id, ignore_opaque=True)
+                    try:
+                        return self._get_recursive(path + "/" + cell_id + "/tablets/" + tablet_id)
+                    except:
+                        return None
         return None
 
     def _get_pivot_keys(self, path):

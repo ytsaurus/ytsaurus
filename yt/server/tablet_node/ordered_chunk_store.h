@@ -32,11 +32,6 @@ public:
     // IChunkStore implementation.
     virtual EStoreType GetType() const override;
 
-    virtual EInMemoryMode GetInMemoryMode() const override;
-    virtual void SetInMemoryMode(EInMemoryMode mode) override;
-
-    virtual void Preload(TInMemoryChunkDataPtr chunkData) override;
-
     // IOrderedStore implementation.
     virtual NTableClient::ISchemafulReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
