@@ -80,10 +80,10 @@ public:
         , PartitioningSemaphore_(New<TAsyncSemaphore>(Config_->StoreCompactor->MaxConcurrentPartitionings))
         , CompactionSemaphore_(New<TAsyncSemaphore>(Config_->StoreCompactor->MaxConcurrentCompactions))
         , Profiler("/tablet_node/store_compactor")
-        , FeasiblePartitionings_("/feasible_partitionings")
-        , FeasibleCompactions_("/feasible_compactions")
-        , ScheduledPartitionings_("/scheduled_partitionings")
-        , ScheduledCompactions_("/scheduled_compactions")
+        , FeasiblePartitioningsCounter_("/feasible_partitionings")
+        , FeasibleCompactionsCounter_("/feasible_compactions")
+        , ScheduledPartitioningsCounter_("/scheduled_partitionings")
+        , ScheduledCompactionsCounter_("/scheduled_compactions")
     { }
 
     void Start()
@@ -103,10 +103,10 @@ private:
     TAsyncSemaphorePtr CompactionSemaphore_;
 
     const NProfiling::TProfiler Profiler;
-    NProfiling::TSimpleCounter FeasiblePartitionings_;
-    NProfiling::TSimpleCounter FeasibleCompactions_;
-    NProfiling::TSimpleCounter ScheduledPartitionings_;
-    NProfiling::TSimpleCounter ScheduledCompactions_;
+    NProfiling::TSimpleCounter FeasiblePartitioningsCounter_;
+    NProfiling::TSimpleCounter FeasibleCompactionsCounter_;
+    NProfiling::TSimpleCounter ScheduledPartitioningsCounter_;
+    NProfiling::TSimpleCounter ScheduledCompactionsCounter_;
 
     struct TTask
     {
@@ -115,7 +115,7 @@ private:
         TTabletId Tablet;
         TPartitionId Partition;
         std::vector<TStoreId> Stores;
-        size_t Score;
+        ui64 Score;
     };
 
     // Variables below contain per-iteration state for slot scan.
@@ -125,11 +125,10 @@ private:
     std::vector<TTask> PartitioningCandidates_;
     std::vector<TTask> CompactionCandidates_;
 
-    static size_t PackTaskScore(size_t x, size_t y, size_t z)
+    static ui64 PackTaskScore(size_t x, size_t y, size_t z)
     {
-        static_assert(sizeof(size_t) == 8, "size_t must be 64-bit.");
         static constexpr size_t partSize = 21;
-        static constexpr size_t partMask = static_cast<size_t>(1 << 21) - 1;
+        static constexpr size_t partMask = static_cast<size_t>(1 << partSize) - 1;
         size_t result = 0;
         result |= (x & partMask) << (partSize * 2);
         result |= ((partMask + 1) - (y & partMask)) << (partSize * 1); // negative
@@ -176,7 +175,7 @@ private:
         auto guard = Guard(SpinLock_);
 
         if (ScanForPartitioning_) {
-            Profiler.Update(FeasiblePartitionings_, PartitioningCandidates_.size());
+            Profiler.Update(FeasiblePartitioningsCounter_, PartitioningCandidates_.size());
 
             std::partial_sort(
                 PartitioningCandidates_.begin(),
@@ -196,17 +195,17 @@ private:
                     &TStoreCompactor::PartitionEden,
                     MakeStrong(this),
                     Passed(std::move(semaphoreGuard)),
-                    Passed(std::move(task))));
+                    std::move(task)));
                 ++counter;
             }
 
-            Profiler.Increment(ScheduledPartitionings_, counter);
+            Profiler.Increment(ScheduledPartitioningsCounter_, counter);
 
             PartitioningCandidates_.clear();
         }
 
         if (ScanForCompactions_) {
-            Profiler.Update(FeasibleCompactions_, CompactionCandidates_.size());
+            Profiler.Update(FeasibleCompactionsCounter_, CompactionCandidates_.size());
 
             std::partial_sort(
                 CompactionCandidates_.begin(),
@@ -226,11 +225,11 @@ private:
                     &TStoreCompactor::CompactPartition,
                     MakeStrong(this),
                     Passed(std::move(semaphoreGuard)),
-                    Passed(std::move(task))));
+                    std::move(task)));
                 ++counter;
             }
 
-            Profiler.Increment(ScheduledCompactions_, counter);
+            Profiler.Increment(ScheduledCompactionsCounter_, counter);
 
             CompactionCandidates_.clear();
         }
@@ -265,7 +264,6 @@ private:
         }
 
         const auto* tablet = eden->GetTablet();
-        const auto& storeManager = tablet->GetStoreManager();
 
         auto stores = PickStoresForPartitioning(eden);
         if (stores.empty()) {
@@ -299,7 +297,6 @@ private:
         }
 
         const auto* tablet = partition->GetTablet();
-        const auto& storeManager = tablet->GetStoreManager();
 
         auto stores = PickStoresForCompaction(partition);
         if (stores.empty()) {
@@ -315,7 +312,6 @@ private:
         // We aim to improve OSC; compaction improves OSC _only_ if the partition contributes towards OSC.
         // So we consider how constrained is the partition, and how many stores we consider for compaction.
         const int mosc = tablet->GetConfig()->MaxOverlappingStoreCount;
-        const int osc = tablet->GetOverlappingStoreCount();
         const int edenStoreCount = static_cast<int>(tablet->GetEden()->Stores().size());
         const int partitionStoreCount = static_cast<int>(partition->Stores().size());
         // For constrained partitions, this is equivalent to MOSC-OSC; for unconstrained -- includes extra slack.
@@ -509,7 +505,7 @@ private:
     }
 
 
-    void PartitionEden(TAsyncSemaphoreGuard /*guard*/, TTask task)
+    void PartitionEden(TAsyncSemaphoreGuard /*guard*/, const TTask& task)
     {
         const auto& slot = task.Slot;
 
@@ -820,7 +816,7 @@ private:
         return std::make_tuple(writerPool.GetAllWriters(), readRowCount);
     }
 
-    void CompactPartition(TAsyncSemaphoreGuard /*guard*/, TTask task)
+    void CompactPartition(TAsyncSemaphoreGuard /*guard*/, const TTask& task)
     {
         const auto& slot = task.Slot;
 
