@@ -2687,6 +2687,11 @@ private:
     {
         std::vector<TJob> resultJobs;
 
+        TNullable<TInstant> deadline;
+        if (options.Timeout) {
+            deadline = options.Timeout->ToDeadLine();
+        }
+
         auto mergeJob = [] (TJob* target, const TJob& source) {
 #define MERGE_FIELD(name) target->name = source.name
 #define MERGE_NULLABLE_FIELD(name) \
@@ -2801,9 +2806,12 @@ private:
 
             TSelectRowsOptions selectRowsOptions;
             selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
-            selectRowsOptions.Timeout = options.Timeout;
 
-            auto result = WaitFor(SelectRows(query, TSelectRowsOptions()))
+            if (deadline) {
+                selectRowsOptions.Timeout = *deadline - Now();
+            }
+
+            auto result = WaitFor(SelectRows(query, selectRowsOptions))
                 .ValueOrThrow();
 
             const auto& rows = result.Rowset->GetRows();
@@ -2859,8 +2867,7 @@ private:
         if (options.IncludeCypress) {
             TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
 
-            auto path = GetJobsPath(operationId);
-            auto getReq = TYPathProxy::Get(path);
+            auto getReq = TYPathProxy::Get(GetJobsPath(operationId));
             auto attributeFilter = std::vector<Stroka>{
                 "job_type",
                 "state",
@@ -2874,6 +2881,10 @@ private:
             };
 
             ToProto(getReq->mutable_attributes()->mutable_keys(), attributeFilter);
+
+            if (deadline) {
+                proxy.SetDefaultTimeout(*deadline - Now());
+            }
 
             auto getRsp = WaitFor(proxy.Execute(getReq))
                 .ValueOrThrow();
@@ -2926,6 +2937,11 @@ private:
 
             auto path = Format("//sys/scheduler/orchid/scheduler/operations/%v/running_jobs", operationId);
             auto getReq = TYPathProxy::Get(path);
+
+            if (deadline) {
+                proxy.SetDefaultTimeout(*deadline - Now());
+            }
+
             auto getRsp = WaitFor(proxy.Execute(getReq))
                 .ValueOrThrow();
 
