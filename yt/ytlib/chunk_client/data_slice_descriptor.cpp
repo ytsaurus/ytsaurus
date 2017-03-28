@@ -83,10 +83,11 @@ void FromProto(
     dataSlices->clear();
     int currentIndex = 0;
     for (int chunkSpecCount : chunkSpecCountPerDataSlice) {
-        dataSlices->insert(
-            dataSlices->end(),
+        std::vector<NProto::TChunkSpec> dataSliceSpecs(
             chunkSpecs.begin() + currentIndex,
             chunkSpecs.begin() + currentIndex + chunkSpecCount);
+
+        dataSlices->emplace_back(std::move(dataSliceSpecs));
         currentIndex += chunkSpecCount;
     }
 }
