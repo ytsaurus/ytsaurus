@@ -116,6 +116,22 @@ private:
         TPartitionId Partition;
         std::vector<TStoreId> Stores;
         ui64 Score;
+
+        TTask() = default;
+        TTask(const TTask&) = delete;
+        TTask& operator=(const TTask&) = delete;
+        TTask(TTask&&) = default;
+        TTask& operator=(TTask&&) = default;
+
+        void swap(TTask& other)
+        {
+            Slot.Swap(other.Slot);
+            Invoker.Swap(other.Invoker);
+            std::swap(Tablet, other.Tablet);
+            std::swap(Partition, other.Partition);
+            Stores.swap(other.Stores);
+            std::swap(Score, other.Score);
+        }
     };
 
     // Variables below contain per-iteration state for slot scan.
@@ -177,16 +193,18 @@ private:
         if (ScanForPartitioning_) {
             Profiler.Update(FeasiblePartitioningsCounter_, PartitioningCandidates_.size());
 
+            size_t limit = std::min(size_t(PartitioningSemaphore_->GetTotal()), PartitioningCandidates_.size());
             std::partial_sort(
                 PartitioningCandidates_.begin(),
-                PartitioningCandidates_.begin() + PartitioningSemaphore_->GetTotal(),
+                PartitioningCandidates_.begin() + limit,
                 PartitioningCandidates_.end(),
                 [&] (const TTask& lhs, const TTask& rhs) -> bool {
                     return lhs.Score < rhs.Score;
                 });
 
-            size_t counter = 0;
-            for (auto&& task : PartitioningCandidates_) {
+            size_t count = 0;
+            for (; count < limit; ++count) {
+                auto&& task = PartitioningCandidates_[count];
                 auto semaphoreGuard = TAsyncSemaphoreGuard::TryAcquire(PartitioningSemaphore_);
                 if (!semaphoreGuard) {
                     break;
@@ -196,10 +214,9 @@ private:
                     MakeStrong(this),
                     Passed(std::move(semaphoreGuard)),
                     std::move(task)));
-                ++counter;
             }
 
-            Profiler.Increment(ScheduledPartitioningsCounter_, counter);
+            Profiler.Increment(ScheduledPartitioningsCounter_, count);
 
             PartitioningCandidates_.clear();
         }
@@ -207,16 +224,18 @@ private:
         if (ScanForCompactions_) {
             Profiler.Update(FeasibleCompactionsCounter_, CompactionCandidates_.size());
 
+            size_t limit = std::min(size_t(CompactionSemaphore_->GetTotal()), CompactionCandidates_.size());
             std::partial_sort(
                 CompactionCandidates_.begin(),
-                CompactionCandidates_.begin() + CompactionSemaphore_->GetTotal(),
+                CompactionCandidates_.begin() + limit,
                 CompactionCandidates_.end(),
                 [&] (const TTask& lhs, const TTask& rhs) -> bool {
                     return lhs.Score < rhs.Score;
                 });
 
-            size_t counter = 0;
-            for (auto&& task : CompactionCandidates_) {
+            size_t count = 0;
+            for (; count < limit; ++count) {
+                auto&& task = CompactionCandidates_[count];
                 auto semaphoreGuard = TAsyncSemaphoreGuard::TryAcquire(CompactionSemaphore_);
                 if (!semaphoreGuard) {
                     break;
@@ -226,10 +245,9 @@ private:
                     MakeStrong(this),
                     Passed(std::move(semaphoreGuard)),
                     std::move(task)));
-                ++counter;
             }
 
-            Profiler.Increment(ScheduledCompactionsCounter_, counter);
+            Profiler.Increment(ScheduledCompactionsCounter_, count);
 
             CompactionCandidates_.clear();
         }
