@@ -626,7 +626,7 @@ void TOperationControllerBase::TTask::Persist(const TPersistenceContext& context
 
     // COMPAT(babenko)
     if (context.IsLoad() && context.GetVersion() < 200009) {
-        Load<ui64>(context.LoadContext());
+        Load<TNullable<TInstant>>(context.LoadContext());
     }
 
     Persist(context, Controller);
