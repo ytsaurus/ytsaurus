@@ -18,6 +18,8 @@
 #include <yt/ytlib/chunk_client/replication_writer.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
+#include <yt/ytlib/job_proxy/helpers.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -68,8 +70,10 @@ public:
         YCHECK(SchedulerJobSpecExt_.input_table_specs_size() == 1);
         YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
 
-        for (const auto& dataSliceDescriptor : SchedulerJobSpecExt_.input_table_specs(0).data_slice_descriptors()) {
-            for (const auto& inputChunkSpec : dataSliceDescriptor.chunks()) {
+        DataSliceDescriptors_ = UnpackDataSliceDescriptors(SchedulerJobSpecExt_.input_table_specs(0));
+
+        for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
+            for (const auto& inputChunkSpec : dataSliceDescriptor.ChunkSpecs) {
                 YCHECK(!inputChunkSpec.has_lower_limit());
                 YCHECK(!inputChunkSpec.has_upper_limit());
             }
@@ -92,8 +96,8 @@ public:
     virtual TJobResult Run() override
     {
         PROFILE_TIMING ("/remote_copy_time") {
-            for (const auto& dataSliceDescriptor : SchedulerJobSpecExt_.input_table_specs(0).data_slice_descriptors()) {
-                for (const auto& inputChunkSpec : dataSliceDescriptor.chunks()) {
+            for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
+                for (const auto& inputChunkSpec : dataSliceDescriptor.ChunkSpecs) {
                     CopyChunk(inputChunkSpec);
                 }
             }
@@ -111,7 +115,7 @@ public:
     {
         // Caution: progress calculated approximately (assuming all chunks have equal size).
         double chunkProgress = TotalChunkSize_ ? static_cast<double>(CopiedChunkSize_) / *TotalChunkSize_ : 0.0;
-        return (CopiedChunkCount_ + chunkProgress) / SchedulerJobSpecExt_.input_table_specs(0).data_slice_descriptors_size();
+        return (CopiedChunkCount_ + chunkProgress) / DataSliceDescriptors_.size();
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
@@ -141,6 +145,8 @@ private:
     const TRemoteCopyJobSpecExt& RemoteCopyJobSpecExt_;
     const TTableReaderConfigPtr ReaderConfig_;
     const TTableWriterConfigPtr WriterConfig_;
+
+    std::vector<TDataSliceDescriptor> DataSliceDescriptors_;
 
     TTableWriterOptionsPtr WriterOptionsTemplate_;
 
