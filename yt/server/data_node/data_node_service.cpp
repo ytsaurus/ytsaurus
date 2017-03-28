@@ -532,13 +532,20 @@ private:
             : MakeNullable(FromProto<std::vector<int>>(request->extension_tags()));
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
-        context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v",
+        context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v, EnableThrottling: %v",
             chunkId,
             extensionTags,
             partitionTag,
-            workloadDescriptor);
+            workloadDescriptor,
+            request->enable_throttling());
 
         ValidateConnected();
+
+        if (request->enable_throttling() && GetNetOutQueueSize() > Config_->NetOutThrottlingLimit) {
+            response->set_net_throttling(true);
+            context->Reply();
+            return;
+        }
 
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
