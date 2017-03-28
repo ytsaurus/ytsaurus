@@ -561,8 +561,6 @@ protected:
 
         void ResetCachedMinNeededResources();
 
-        DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, DelayedTime);
-
         void AddInput(TChunkStripePtr stripe);
         void AddInput(const std::vector<TChunkStripePtr>& stripes);
         void FinishInput();
@@ -710,7 +708,7 @@ protected:
         std::multimap<i64, TTaskPtr> CandidateTasks;
 
         //! Non-local tasks keyed by deadline.
-        std::multimap<NProfiling::TCpuInstant, TTaskPtr> DelayedTasks;
+        std::multimap<TInstant, TTaskPtr> DelayedTasks;
 
         //! Local tasks keyed by node id.
         yhash_map<NNodeTrackerClient::TNodeId, yhash_set<TTaskPtr>> NodeIdToTasks;

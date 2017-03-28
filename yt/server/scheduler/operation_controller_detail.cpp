@@ -242,8 +242,8 @@ void TOperationControllerBase::TTaskGroup::Persist(const TPersistenceContext& co
         >
     >(context, CandidateTasks);
     // COMPAT(babenko)
-    if (context.IsLoad() && context.GetVersion() < 200008) {
-        std::multimap<TInstant, TTaskPtr> delayedTasks;
+    if (context.IsLoad() && context.GetVersion() == 200008) {
+        std::multimap<NProfiling::TCpuInstant, TTaskPtr> delayedTasks;
         Persist<
             TMultiMapSerializer<
                 TDefaultSerializer,
@@ -251,8 +251,9 @@ void TOperationControllerBase::TTaskGroup::Persist(const TPersistenceContext& co
                 TUnsortedTag
             >
         >(context, delayedTasks);
+        auto now = TInstant::Now();
         for (const auto& pair : delayedTasks) {
-            DelayedTasks.emplace(NProfiling::InstantToCpuInstant(pair.first), pair.second);
+            DelayedTasks.emplace(now, pair.second);
         }
     } else {
         Persist<
@@ -623,7 +624,10 @@ void TOperationControllerBase::TTask::Persist(const TPersistenceContext& context
 {
     using NYT::Persist;
 
-    Persist(context, DelayedTime_);
+    // COMPAT(babenko)
+    if (context.IsLoad() && context.GetVersion() < 200009) {
+        Load<ui64>(context.LoadContext());
+    }
 
     Persist(context, Controller);
 
@@ -2879,7 +2883,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
     const TJobResources& jobLimits,
     TScheduleJobResult* scheduleJobResult)
 {
-    auto now = context->GetNow();
+    auto now = NProfiling::CpuInstantToInstant(context->GetNow());
     const auto& nodeResourceLimits = context->ResourceLimits();
     const auto& address = context->GetNodeDescriptor().Address;
 
@@ -2945,11 +2949,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     continue;
                 }
 
-                if (!task->GetDelayedTime()) {
-                    task->SetDelayedTime(now);
-                }
-
-                auto deadline = *task->GetDelayedTime() + NProfiling::DurationToCpuDuration(task->GetLocalityTimeout());
+                auto deadline = now + task->GetLocalityTimeout();
                 if (deadline > now) {
                     LOG_DEBUG("Task delayed (Task: %v, Deadline: %v)",
                         task->GetId(),
