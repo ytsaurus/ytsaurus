@@ -29,12 +29,10 @@ public:
     TInMemoryChunkWriterBase(
         TInMemoryManagerPtr inMemoryManager,
         TTabletSnapshotPtr tabletSnapshot,
-        TIntrusivePtr<TWriter> underlyingWriter,
-        IChunkWriterPtr underlyingChunkWriter)
+        TIntrusivePtr<TWriter> underlyingWriter)
         : InMemoryManager_(std::move(inMemoryManager))
         , TabletSnapshot_(std::move(tabletSnapshot))
         , UnderlyingWriter_(std::move(underlyingWriter))
-        , UnderlyingChunkWriter_(std::move(underlyingChunkWriter))
     { }
 
     virtual bool Write(const TRange<TRow>& rows) override
@@ -61,7 +59,7 @@ public:
             }
 
             InMemoryManager_->FinalizeChunk(
-                UnderlyingChunkWriter_->GetChunkId(),
+                GetChunkId(),
                 GetNodeMeta(),
                 TabletSnapshot_);
         }));
@@ -99,6 +97,11 @@ public:
         return UnderlyingWriter_->GetNodeMeta();
     }
 
+    virtual TChunkId GetChunkId() const override
+    {
+        return UnderlyingWriter_->GetChunkId();
+    }
+
     virtual TDataStatistics GetDataStatistics() const override
     {
         return UnderlyingWriter_->GetDataStatistics();
@@ -108,7 +111,6 @@ protected:
     const TInMemoryManagerPtr InMemoryManager_;
     const TTabletSnapshotPtr TabletSnapshot_;
     const TIntrusivePtr<TWriter> UnderlyingWriter_;
-    const IChunkWriterPtr UnderlyingChunkWriter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,12 +124,10 @@ public:
     TInMemorySchemalessChunkWriter(
         TInMemoryManagerPtr inMemoryManager,
         TTabletSnapshotPtr tabletSnapshot,
-        ISchemalessChunkWriterPtr underlyingWriter,
-        IChunkWriterPtr underlyingChunkWriter)
+        ISchemalessChunkWriterPtr underlyingWriter)
         : TBase(std::move(inMemoryManager),
             std::move(tabletSnapshot),
-            std::move(underlyingWriter),
-            std::move(underlyingChunkWriter))
+            std::move(underlyingWriter))
     { }
 
     virtual const TNameTablePtr& GetNameTable() const override
@@ -152,12 +152,10 @@ public:
     TInMemoryVersionedChunkWriter(
         TInMemoryManagerPtr inMemoryManager,
         TTabletSnapshotPtr tabletSnapshot,
-        IVersionedChunkWriterPtr underlyingWriter,
-        IChunkWriterPtr underlyingChunkWriter)
+        IVersionedChunkWriterPtr underlyingWriter)
         : TBase(std::move(inMemoryManager),
             std::move(tabletSnapshot),
-            std::move(underlyingWriter),
-            std::move(underlyingChunkWriter))
+            std::move(underlyingWriter))
     { }
 
     virtual i64 GetRowCount() const override
@@ -262,15 +260,14 @@ ISchemalessChunkWriterPtr CreateInMemorySchemalessChunkWriter(
         config,
         options,
         tabletSnapshot->PhysicalSchema,
-        chunkWriter,
+        std::move(chunkWriter),
         chunkTimestamps,
         std::move(blockCache));
 
     return New<TInMemorySchemalessChunkWriter>(
         std::move(inMemoryManager),
         std::move(tabletSnapshot),
-        std::move(underlyingWriter),
-        std::move(chunkWriter));
+        std::move(underlyingWriter));
 }
 
 IVersionedChunkWriterPtr CreateInMemoryVersionedChunkWriter(
@@ -285,14 +282,13 @@ IVersionedChunkWriterPtr CreateInMemoryVersionedChunkWriter(
         config,
         options,
         tabletSnapshot->PhysicalSchema,
-        chunkWriter,
+        std::move(chunkWriter),
         std::move(blockCache));
 
     return New<TInMemoryVersionedChunkWriter>(
         std::move(inMemoryManager),
         std::move(tabletSnapshot),
-        std::move(underlyingWriter),
-        std::move(chunkWriter));
+        std::move(underlyingWriter));
 }
 
 IVersionedMultiChunkWriterPtr CreateInMemoryVersionedMultiChunkWriter(
