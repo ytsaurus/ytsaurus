@@ -871,6 +871,9 @@ public:
                     DoUnmountTablet(tablet, false);
                 }
 
+                LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
+                    action->GetId(),
+                    action->GetState());
                 OnTabletActionStateChanged(action);
                 break;
             }
@@ -887,6 +890,9 @@ public:
                     action->SetState(action->Error().IsOK()
                         ? ETabletActionState::Unmounted
                         : ETabletActionState::Failing);
+                    LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
+                        action->GetId(),
+                        action->GetState());
                     OnTabletActionStateChanged(action);
                 }
                 break;
@@ -1002,6 +1008,9 @@ public:
                 }
 
                 action->SetState(ETabletActionState::Mounting);
+                LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
+                    action->GetId(),
+                    action->GetState());
                 OnTabletActionStateChanged(action);
 
                 break;
@@ -1018,6 +1027,9 @@ public:
 
                 if (mountedCount == action->Tablets().size()) {
                     action->SetState(ETabletActionState::Mounted);
+                    LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
+                        action->GetId(),
+                        action->GetState());
                     OnTabletActionStateChanged(action);
                 }
                 break;
@@ -1025,18 +1037,24 @@ public:
 
             case ETabletActionState::Mounted: {
                 action->SetState(ETabletActionState::Completed);
+                LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
+                    action->GetId(),
+                    action->GetState());
                 OnTabletActionStateChanged(action);
                 break;
             }
 
             case ETabletActionState::Failing: {
-                LOG_DEBUG(action->Error(), "Tablet action failed (ActionId: %v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), action->Error(), "Tablet action failed (ActionId: %v)",
                     action->GetId());
 
                 MountMissedInActionTablets(action);
                 UnbindTabletAction(action);
 
                 action->SetState(ETabletActionState::Failed);
+                LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
+                    action->GetId(),
+                    action->GetState());
                 OnTabletActionStateChanged(action);
                 break;
             }
@@ -1044,6 +1062,9 @@ public:
             case ETabletActionState::Completed:
                 if (!action->Error().IsOK()) {
                     action->SetState(ETabletActionState::Failed);
+                    LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
+                        action->GetId(),
+                        action->GetState());
                 }
                 // No break intentionaly.
             case ETabletActionState::Failed: {
