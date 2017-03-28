@@ -2764,7 +2764,7 @@ class TestJobQuery(YTEnvSetup):
             map(in_="//tmp/t1", out="//tmp/t2", command="cat",
                 spec={"input_query": "a", "input_schema": [{"name": "a", "type": "int64"}]})
 
-    def test_query_range_inferrence(self):
+    def test_query_range_inference(self):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]
         })
