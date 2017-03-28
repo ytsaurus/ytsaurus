@@ -268,7 +268,7 @@ private:
         } catch (const std::exception& ex) {
             SeedsPromise_.Set(TError(
                 "Failed to request seeds for chunk %v from master",
-                ChunkId_) 
+                ChunkId_)
                 << ex);
         }
     }
@@ -1461,6 +1461,14 @@ private:
 
     void RequestMeta()
     {
+        // NB: strong ref here is the only reference that keeps session alive.
+        BIND(&TGetMetaSession::DoRequestMeta, MakeStrong(this))
+            .Via(TDispatcher::Get()->GetReaderInvoker())
+            .Run();
+    }
+
+    void DoRequestMeta()
+    {
         auto reader = Reader_.Lock();
         if (!reader || IsCanceled())
             return;
@@ -1490,6 +1498,7 @@ private:
         proxy.SetDefaultTimeout(reader->Config_->MetaRpcTimeout);
 
         auto req = proxy.GetChunkMeta();
+        req->set_enable_throttling(true);
         ToProto(req->mutable_chunk_id(), reader->ChunkId_);
         req->set_all_extension_tags(!ExtensionTags_);
         if (PartitionTag_) {
@@ -1512,7 +1521,13 @@ private:
             return;
         }
 
-        OnSessionSucceeded(rspOrError.Value()->chunk_meta());
+        const auto& rsp = rspOrError.Value();
+        if (rsp->net_throttling()) {
+            LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
+            RequestMeta();
+        } else {
+            OnSessionSucceeded(rspOrError.Value()->chunk_meta());
+        }
     }
 
     void OnSessionSucceeded(const NProto::TChunkMeta& chunkMeta)
