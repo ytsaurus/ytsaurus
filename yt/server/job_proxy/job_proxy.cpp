@@ -276,7 +276,14 @@ void TJobProxy::Run()
         }
 
         auto unreadDescriptors = Job_->GetUnreadDataSliceDescriptors();
+
+        // COMPAT(psushin): currently we use old and new ways simultaneously to return unread descriptors to scheduler.
         ToProto(schedulerResultExt->mutable_unread_input_data_slice_descriptors(), unreadDescriptors);
+        ToProto(
+            schedulerResultExt->mutable_unread_chunk_specs(),
+            schedulerResultExt->mutable_chunk_spec_count_per_data_slice(),
+            unreadDescriptors);
+
         LOG_DEBUG("Found %v unread input data slice descriptors (SchedulerResultExt: %v)", unreadDescriptors.size(), schedulerResultExt->ShortDebugString());
     }
 

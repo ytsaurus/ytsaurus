@@ -103,8 +103,9 @@ TCallback<TFuture<void>()> TUserJobReadController::PrepareInputActionsQuery(
     {
         const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
         for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
-            for (const auto& dataSliceDescriptor : inputSpec.data_slice_descriptors()) {
-                for (const auto& chunkSpec : dataSliceDescriptor.chunks()) {
+            auto descriptors = UnpackDataSliceDescriptors(inputSpec);
+            for (const auto& dataSliceDescriptor : descriptors) {
+                for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
                     if (chunkSpec.has_channel() && !FromProto<NChunkClient::TChannel>(chunkSpec.channel()).IsUniversal()) {
                         THROW_ERROR_EXCEPTION("Channels and QL filter cannot appear in the same operation");
                     }

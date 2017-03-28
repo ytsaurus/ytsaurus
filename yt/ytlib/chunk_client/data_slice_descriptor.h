@@ -30,12 +30,23 @@ struct TDataSliceDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Deprecated.
 void ToProto(
     NProto::TDataSliceDescriptor* protoDataSliceDescriptor,
     const TDataSliceDescriptor& dataSliceDescriptor);
 void FromProto(
     TDataSliceDescriptor* dataSliceDescriptor,
     const NProto::TDataSliceDescriptor& protoDataSliceDescriptor);
+
+void ToProto(
+    ::google::protobuf::RepeatedPtrField<NProto::TChunkSpec>* chunkSpecs,
+    ::google::protobuf::RepeatedField<int>* chunkSpecCountPerDataSlice,
+    const std::vector<TDataSliceDescriptor>& dataSlices);
+
+void FromProto(
+    std::vector<TDataSliceDescriptor>* dataSlices,
+    const ::google::protobuf::RepeatedPtrField<NProto::TChunkSpec>& chunkSpecs,
+    const ::google::protobuf::RepeatedField<int>& chunkSpecCountPerDataSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 

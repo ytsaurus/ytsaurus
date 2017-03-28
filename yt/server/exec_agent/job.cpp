@@ -814,23 +814,21 @@ private:
             TNullable<TNodeId> unresolvedNodeId;
 
             auto validateNodeIds = [&] (
-                const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TDataSliceDescriptor>& dataSliceDescriptors,
+                const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
                 const TNodeDirectoryPtr& nodeDirectory,
                 TNodeDirectoryBuilder* nodeDirectoryBuilder)
             {
-                for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
-                    for (const auto& chunkSpec : dataSliceDescriptor.chunks()) {
-                        auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
-                        for (auto replica : replicas) {
-                            auto nodeId = replica.GetNodeId();
-                            const auto* descriptor = nodeDirectory->FindDescriptor(nodeId);
-                            if (!descriptor) {
-                                unresolvedNodeId = nodeId;
-                                return;
-                            }
-                            if (nodeDirectoryBuilder) {
-                                nodeDirectoryBuilder->Add(replica);
-                            }
+                for (const auto& chunkSpec : chunkSpecs) {
+                    auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
+                    for (auto replica : replicas) {
+                        auto nodeId = replica.GetNodeId();
+                        const auto* descriptor = nodeDirectory->FindDescriptor(nodeId);
+                        if (!descriptor) {
+                            unresolvedNodeId = nodeId;
+                            return;
+                        }
+                        if (nodeDirectoryBuilder) {
+                            nodeDirectoryBuilder->Add(replica);
                         }
                     }
                 }
@@ -838,7 +836,12 @@ private:
 
             auto validateTableSpecs = [&] (const ::google::protobuf::RepeatedPtrField<TTableInputSpec>& tableSpecs) {
                 for (const auto& tableSpec : tableSpecs) {
-                    validateNodeIds(tableSpec.data_slice_descriptors(), nodeDirectory, &inputNodeDirectoryBuilder);
+                    // COMPAT(psushin).
+                    for (const auto& dataSliceDescriptor : tableSpec.data_slice_descriptors()) {
+                        validateNodeIds(dataSliceDescriptor.chunks(), nodeDirectory, &inputNodeDirectoryBuilder);
+                    }
+
+                    validateNodeIds(tableSpec.chunk_specs(), nodeDirectory, &inputNodeDirectoryBuilder);
                 }
             };
 
@@ -847,7 +850,7 @@ private:
 
             // NB: No need to add these descriptors to the input node directory.
             for (const auto& artifact : Artifacts_) {
-                validateNodeIds(artifact.Key.data_slice_descriptors(), nodeDirectory, nullptr);
+                validateNodeIds(artifact.Key.chunk_specs(), nodeDirectory, nullptr);
             }
 
             if (!unresolvedNodeId) {
@@ -932,7 +935,7 @@ private:
                 key.set_data_source_type(static_cast<int>(EDataSourceType::File));
 
                 for (const auto& chunkSpec : function.chunk_specs()) {
-                    ToProto(key.add_data_slice_descriptors(), TDataSliceDescriptor(chunkSpec));
+                    *key.add_chunk_specs() = chunkSpec;
                 }
 
                 Artifacts_.push_back(TArtifact{
