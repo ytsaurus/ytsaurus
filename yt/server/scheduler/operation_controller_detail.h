@@ -502,6 +502,9 @@ protected:
         , public IPersistent
     {
     public:
+        DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
+
+    public:
         //! For persistence only.
         TTask();
         explicit TTask(TOperationControllerBase* controller);

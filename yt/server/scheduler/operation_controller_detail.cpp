@@ -2927,7 +2927,11 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     continue;
                 }
 
-                auto deadline = now + task->GetLocalityTimeout();
+                if (!task->GetDelayedTime()) {
+                    task->SetDelayedTime(now);        
+                }
+
+                auto deadline = *task->GetDelayedTime() + task->GetLocalityTimeout();
                 if (deadline > now) {
                     LOG_DEBUG("Task delayed (Task: %v, Deadline: %v)",
                         task->GetId(),
