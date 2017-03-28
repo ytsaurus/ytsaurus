@@ -67,6 +67,8 @@ private:
 
     const NTableClient::TKeyComparer KeyComparer_;
 
+    NTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
+
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
