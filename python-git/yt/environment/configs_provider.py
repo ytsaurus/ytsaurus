@@ -205,9 +205,13 @@ def get_at(config, path, default_value=None):
         config = config[part]
     return config
 
-def _set_bind_retry_options(config):
-    set_at(config, "bus_server/bind_retry_count", 10)
-    set_at(config, "bus_server/bind_retry_backoff", 3000)
+def _set_bind_retry_options(config, key=None):
+    if key is None:
+        key = ""
+    else:
+        key = key + "/"
+    set_at(config, "{0}bind_retry_count".format(key), 10)
+    set_at(config, "{0}bind_retry_backoff".format(key), 3000)
 
 def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, fqdn, ports_generator, proxy_logs_dir):
     proxy_config = default_configs.get_proxy_config()
@@ -343,7 +347,7 @@ class ConfigsProvider_18(ConfigsProvider):
                     }
                 })
 
-                _set_bind_retry_options(config)
+                _set_bind_retry_options(config, key="bus_server")
 
                 cell_configs.append(config)
 
@@ -402,18 +406,18 @@ class ConfigsProvider_18(ConfigsProvider):
 
             set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
             config["cluster_connection"] = \
-                self._build_cluster_connection_config(
+                self.build_cluster_connection_config(
                     master_connection_configs,
                     config_template=config["cluster_connection"])
 
-            config["rpc_port"] = next(ports_generator)
+            config["rpc_port"] = 5010 #next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
             set_at(config, "scheduler/snapshot_temp_path", os.path.join(scheduler_dirs[index], "snapshots"))
             set_at(config, "scheduler/orchid_cache_update_period", 0)
 
             config["logging"] = init_logging(config.get("logging"), scheduler_logs_dir,
                                              "scheduler-" + str(index), provision["enable_debug_logging"])
-            _set_bind_retry_options(config)
+            _set_bind_retry_options(config, key="bus_server")
 
             configs.append(config)
 
@@ -496,7 +500,7 @@ class ConfigsProvider_18(ConfigsProvider):
                    deepcopy(provision["node"]["jobs_resource_limits"]), merge=True)
             set_at(config, "resource_limits", _get_node_resource_limits_config(provision), merge=True)
 
-            _set_bind_retry_options(config)
+            _set_bind_retry_options(config, key="bus_server")
 
             configs.append(config)
 
