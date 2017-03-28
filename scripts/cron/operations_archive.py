@@ -440,6 +440,7 @@ TRANSFORMS[10] = [
             ("finish_time", "int64"),
             ("filter_factors", "string"),
             ("result", "any"),
+            ("events", "any"),
             ("alerts", "any")
         ],
         in_memory=True,
