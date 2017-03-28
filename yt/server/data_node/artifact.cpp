@@ -35,9 +35,9 @@ TArtifactKey::TArtifactKey(const NScheduler::NProto::TFileDescriptor& descriptor
             }
         }
     } else {
-        YCHECK(descriptor.chunk_specs_size() > 0);
         mutable_chunk_specs()->MergeFrom(descriptor.chunk_specs());
     }
+
     if (descriptor.has_format()) {
         set_format(descriptor.format());
     }
