@@ -236,3 +236,10 @@ def wait_for_removing_file_lock(locked_file_path, max_wait_time=10, sleep_quantu
         current_wait_time += sleep_quantum
 
     raise YtError("File lock is not removed after {0} seconds".format(max_wait_time))
+
+def canonize_uuid(uuid):
+    def canonize_part(part):
+        if part != "0":
+            return part.lstrip("0")
+        return part
+    return "-".join(map(canonize_part, uuid.split("-")))
