@@ -1,4 +1,5 @@
 from . import default_configs
+from .helpers import canonize_uuid
 
 from yt.wrapper.common import MB, GB
 from yt.wrapper.mappings import VerifiedDict
@@ -8,6 +9,7 @@ from yt.yson import to_yson_type
 from yt.packages.six import iteritems, add_metaclass
 from yt.packages.six.moves import xrange
 
+import random
 import socket
 import abc
 import os
@@ -275,7 +277,9 @@ class ConfigsProvider_18(ConfigsProvider):
 
         cell_tags = [str(provision["master"]["primary_cell_tag"] + index)
                      for index in xrange(provision["master"]["secondary_cell_count"] + 1)]
-        cell_ids = ["ffffffff-ffffffff-%x0259-ffffffff" % int(tag) for tag in cell_tags]
+        random_part = random.randint(0, 2 ** 32 - 1)
+        cell_ids = [canonize_uuid("%x-ffffffff-%x0259-ffffffff" % (random_part, int(tag)))
+                    for tag in cell_tags]
 
         nonvoting_master_count = provision["master"]["cell_nonvoting_master_count"]
 
@@ -406,7 +410,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
             set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
             config["cluster_connection"] = \
-                self.build_cluster_connection_config(
+                self._build_cluster_connection_config(
                     master_connection_configs,
                     config_template=config["cluster_connection"])
 
@@ -418,6 +422,10 @@ class ConfigsProvider_18(ConfigsProvider):
             config["logging"] = init_logging(config.get("logging"), scheduler_logs_dir,
                                              "scheduler-" + str(index), provision["enable_debug_logging"])
             _set_bind_retry_options(config, key="bus_server")
+
+            # TODO(ignat): temporary solution to check that correctness of connected scheduler.
+            # correct solution is to publish cell_id in some separate place in orchid.
+            set_at(config, "scheduler/environment/primary_master_cell_id", config["cluster_connection"]["primary_master"]["cell_id"])
 
             configs.append(config)
 
