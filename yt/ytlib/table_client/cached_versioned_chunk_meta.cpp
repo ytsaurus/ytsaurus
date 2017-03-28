@@ -86,10 +86,7 @@ void TCachedVersionedChunkMeta::Init(
     KeyColumnCount_ = keyColumns.size();
 
     TColumnarChunkMeta::InitExtensions(chunkMeta);
-
-    if (KeyColumnCount_ > 0) {
-        TColumnarChunkMeta::InitBlockLastKeys(keyColumns);
-    }
+    TColumnarChunkMeta::InitBlockLastKeys(keyColumns);
 
     ValidateChunkMeta();
     ValidateSchema(schema);
