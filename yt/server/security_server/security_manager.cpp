@@ -1368,9 +1368,9 @@ private:
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
         // COMPAT(babenko)
-        RecomputeNodeResourceUsage_ = context.GetVersion() < 504;
-        ValidateAccountResourceUsage_ = context.GetVersion() >= 505;
-        RecomputeAccountResourceUsage_ = context.GetVersion() == 505;
+        RecomputeNodeResourceUsage_ = context.GetVersion() < 506;
+        ValidateAccountResourceUsage_ = context.GetVersion() >= 506;
+        RecomputeAccountResourceUsage_ = context.GetVersion() < 506;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1498,6 +1498,12 @@ private:
                 if (RecomputeAccountResourceUsage_) {
                     account->LocalStatistics().ResourceUsage = expectedUsage;
                     account->LocalStatistics().CommittedResourceUsage = expectedCommittedUsage;
+                    if (Bootstrap_->IsPrimaryMaster()) {
+                        account->ClusterStatistics() = TAccountStatistics();
+                        for (const auto& pair : account->MulticellStatistics()) {
+                            account->ClusterStatistics() += pair.second;
+                        }
+                    }
                 }
             }
         }
