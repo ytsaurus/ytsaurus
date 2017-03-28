@@ -20,14 +20,24 @@ TArtifactKey::TArtifactKey(const TChunkId& chunkId)
     set_data_source_type(static_cast<int>(EDataSourceType::File));
     NChunkClient::NProto::TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), chunkId);
-    ToProto(add_data_slice_descriptors(), TDataSliceDescriptor(chunkSpec));
+    *add_chunk_specs() = chunkSpec;
 }
 
 TArtifactKey::TArtifactKey(const NScheduler::NProto::TFileDescriptor& descriptor)
 {
     set_data_source_type(descriptor.data_source().type());
 
-    mutable_data_slice_descriptors()->MergeFrom(descriptor.data_slice_descriptors());
+    if (descriptor.data_slice_descriptors_size() > 0) {
+        // COMPAT(psushin).
+        for (const auto& dataSliceDescriptor : descriptor.data_slice_descriptors()) {
+            for (const auto& chunkSpec : dataSliceDescriptor.chunks()) {
+                *add_chunk_specs() = chunkSpec;
+            }
+        }
+    } else {
+        YCHECK(descriptor.chunk_specs_size() > 0);
+        mutable_chunk_specs()->MergeFrom(descriptor.chunk_specs());
+    }
     if (descriptor.has_format()) {
         set_format(descriptor.format());
     }
@@ -62,19 +72,15 @@ TArtifactKey::operator size_t() const
         }
     };
 
-    auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(data_slice_descriptors());
-    for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
+    for (const auto& spec : chunk_specs()) {
+        auto id = FromProto<TGuid>(spec.chunk_id());
+        result = HashCombine(result, id);
 
-        for (const auto& spec : dataSliceDescriptor.ChunkSpecs) {
-            auto id = FromProto<TGuid>(spec.chunk_id());
-            result = HashCombine(result, id);
-
-            if (spec.has_lower_limit()) {
-                hashReadLimit(spec.lower_limit());
-            }
-            if (spec.has_upper_limit()) {
-                hashReadLimit(spec.upper_limit());
-            }
+        if (spec.has_lower_limit()) {
+            hashReadLimit(spec.lower_limit());
+        }
+        if (spec.has_upper_limit()) {
+            hashReadLimit(spec.upper_limit());
         }
     }
 
@@ -104,7 +110,7 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
     if (has_timestamp() && timestamp() != other.timestamp())
         return false;
 
-    if (data_slice_descriptors_size() != other.data_slice_descriptors_size())
+    if (chunk_specs_size() != other.chunk_specs_size())
         return false;
 
     auto compareLimits = [] (
@@ -132,38 +138,27 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
         return true;
     };
 
-    auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(data_slice_descriptors());
-    auto otherDataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(other.data_slice_descriptors());
+    for (int index = 0; index < chunk_specs_size(); ++index) {
+        const auto& lhs = chunk_specs(index);
+        const auto& rhs = other.chunk_specs(index);
 
-    for (int index = 0; index < dataSliceDescriptors.size(); ++index) {
-        const auto& descriptor = dataSliceDescriptors[index];
-        const auto& otherDescriptor = otherDataSliceDescriptors[index];
+        auto leftId = FromProto<TGuid>(lhs.chunk_id());
+        auto rightId = FromProto<TGuid>(rhs.chunk_id());
 
-        if (descriptor.ChunkSpecs.size() != otherDescriptor.ChunkSpecs.size())
+        if (leftId != rightId)
             return false;
 
-        for (int chunkIndex = 0; chunkIndex < descriptor.ChunkSpecs.size(); ++chunkIndex) {
-            const auto& lhs = descriptor.ChunkSpecs[chunkIndex];
-            const auto& rhs = otherDescriptor.ChunkSpecs[chunkIndex];
+        if (lhs.has_lower_limit() != rhs.has_lower_limit())
+            return false;
 
-            auto leftId = FromProto<TGuid>(lhs.chunk_id());
-            auto rightId = FromProto<TGuid>(rhs.chunk_id());
+        if (lhs.has_lower_limit() && !compareLimits(lhs.lower_limit(), rhs.lower_limit()))
+            return false;
 
-            if (leftId != rightId)
-                return false;
+        if (lhs.has_upper_limit() != rhs.has_upper_limit())
+            return false;
 
-            if (lhs.has_lower_limit() != rhs.has_lower_limit())
-                return false;
-
-            if (lhs.has_lower_limit() && !compareLimits(lhs.lower_limit(), rhs.lower_limit()))
-                return false;
-
-            if (lhs.has_upper_limit() != rhs.has_upper_limit())
-                return false;
-
-            if (lhs.has_upper_limit() && !compareLimits(lhs.upper_limit(), rhs.upper_limit()))
-                return false;
-        }
+        if (lhs.has_upper_limit() && !compareLimits(lhs.upper_limit(), rhs.upper_limit()))
+            return false;
     }
 
     return true;
