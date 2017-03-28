@@ -1878,7 +1878,7 @@ private:
     std::atomic<i64> RowIndex_ = {0};
     std::atomic<i64> RowCount_ = {-1};
 
-    std::atomic<bool> Interrupting_ = {false};
+    std::atomic<bool> Finished_ = {false};
 
     using TBase::ReadyEvent_;
     using TBase::CurrentSession_;
@@ -1923,13 +1923,18 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , RowCount_(GetCumulativeRowCount(dataSliceDescriptors))
-{ }
+{
+    if (dataSliceDescriptors.empty()) {
+        Finished_ = true;
+    }
+}
 
 template <class TBase>
 bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows)
 {
     rows->clear();
-    if (Interrupting_) {
+
+    if (Finished_) {
         RowCount_ = RowIndex_.load();
         return false;
     }
@@ -1938,24 +1943,17 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
         return true;
     }
 
-    // Nothing to read.
-    if (!CurrentReader_) {
-        return false;
-    }
-
     bool readerFinished = !CurrentReader_->Read(rows);
     if (!rows->empty()) {
         RowIndex_ += rows->size();
         return true;
     }
 
-    if (TBase::OnEmptyRead(readerFinished)) {
-        return true;
-    } else {
-        RowCount_ = RowIndex_.load();
-        CurrentReader_ = nullptr;
-        return false;
+    if (!TBase::OnEmptyRead(readerFinished)) {
+        Finished_ = true;
     }
+
+    return true;
 }
 
 template <class TBase>
@@ -1998,8 +1996,8 @@ TKeyColumns TSchemalessMultiChunkReader<TBase>::GetKeyColumns() const
 template <class TBase>
 void TSchemalessMultiChunkReader<TBase>::Interrupt()
 {
-    if (!Interrupting_) {
-        Interrupting_ = true;
+    if (!Finished_) {
+        Finished_ = true;
         TBase::OnInterrupt();
     }
 }
