@@ -410,7 +410,7 @@ class ConfigsProvider_18(ConfigsProvider):
                     master_connection_configs,
                     config_template=config["cluster_connection"])
 
-            config["rpc_port"] = 5010 #next(ports_generator)
+            config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
             set_at(config, "scheduler/snapshot_temp_path", os.path.join(scheduler_dirs[index], "snapshots"))
             set_at(config, "scheduler/orchid_cache_update_period", 0)
