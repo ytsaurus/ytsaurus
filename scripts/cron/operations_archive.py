@@ -3,14 +3,12 @@
 import yt.yson as yson
 import yt.wrapper as yt
 
-import calendar
-import datetime
 import argparse
 import logging
 import subprocess
 
 import yt.tools.dynamic_tables as dynamic_tables
-from yt.tools.dynamic_tables import get_dynamic_table_attributes, make_dynamic_table_attributes
+from yt.tools.dynamic_tables import make_dynamic_table_attributes
 
 class TableInfo(object):
     def __init__(self, key_columns, value_columns, in_memory=False, pivot_keys=None):
@@ -421,6 +419,31 @@ TRANSFORMS[9] = [
             ],
             pivot_keys=DEFAULT_PIVOTS),
         use_default_mapper=True)
+]
+
+TRANSFORMS[10] = [
+    Convert(
+        "ordered_by_id",
+        table_info=TableInfo([
+            ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
+            ("id_hi", "uint64"),
+            ("id_lo", "uint64"),
+        ], [
+            ("state", "string"),
+            ("authenticated_user", "string"),
+            ("operation_type", "string"),
+            ("progress", "any"),
+            ("spec", "any"),
+            ("brief_progress", "any"),
+            ("brief_spec", "any"),
+            ("start_time", "int64"),
+            ("finish_time", "int64"),
+            ("filter_factors", "string"),
+            ("result", "any"),
+            ("alerts", "any")
+        ],
+        in_memory=True,
+        pivot_keys=DEFAULT_PIVOTS))
 ]
 
 def swap_table(target, source, version):
