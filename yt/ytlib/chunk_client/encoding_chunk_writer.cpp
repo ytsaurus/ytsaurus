@@ -81,6 +81,11 @@ double TEncodingChunkWriter::GetCompressionRatio() const
     return EncodingWriter_->GetCompressionRatio();
 }
 
+TChunkId TEncodingChunkWriter::GetChunkId() const
+{
+    return ChunkWriter_->GetChunkId();
+}
+
 NProto::TDataStatistics TEncodingChunkWriter::GetDataStatistics() const
 {
     if (Closed_) {
