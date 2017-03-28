@@ -880,14 +880,15 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     TChunkStripePtr stripe)
 {
     for (const auto& dataSlice : stripe->DataSlices) {
-        ToProto(inputSpec->add_data_slice_descriptors(), dataSlice);
-
-        if (directoryBuilder) {
+            inputSpec->add_chunk_spec_count_per_data_slice(dataSlice->ChunkSlices.size());
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
-                directoryBuilder->Add(replicas);
+                ToProto(inputSpec->add_chunk_specs(), chunkSlice);
+
+                if (directoryBuilder) {
+                    auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
+                    directoryBuilder->Add(replicas);
+                }
             }
-        }
     }
 }
 
@@ -4563,7 +4564,18 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
 
     const auto& result = jobSummary.Result;
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-    auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(schedulerResultExt.unread_input_data_slice_descriptors());
+
+    std::vector<TDataSliceDescriptor> dataSliceDescriptors;
+    if (schedulerResultExt.unread_input_data_slice_descriptors_size() > 0) {
+        // COMPAT(psushin).
+        dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(
+            schedulerResultExt.unread_input_data_slice_descriptors());
+    } else if (schedulerResultExt.unread_chunk_specs_size()) {
+        FromProto(
+            &dataSliceDescriptors,
+            schedulerResultExt.unread_chunk_specs(),
+            schedulerResultExt.chunk_spec_count_per_data_slice());
+    }
 
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
         std::vector<TInputChunkSlicePtr> chunkSliceList;
@@ -5200,6 +5212,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     for (const auto& file : files) {
         auto* descriptor = jobSpec->add_files();
         descriptor->set_file_name(file.FileName);
+        ToProto(descriptor->mutable_chunk_specs(), file.ChunkSpecs);
 
         if (file.Type == EObjectType::Table && file.IsDynamic && file.Schema.IsSorted()) {
             descriptor->set_type(static_cast<int>(EDataSourceType::VersionedTable));
@@ -5208,8 +5221,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
                 file.Schema,
                 file.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp));
             ToProto(descriptor->mutable_data_source(), dataSource);
-            // All chunks go to the same data slice.
-            ToProto(descriptor->add_data_slice_descriptors(), TDataSliceDescriptor(file.ChunkSpecs));
         } else {
             auto dataSource = file.Type == EObjectType::File
                     ? MakeFileDataSource(file.GetPath())
@@ -5220,9 +5231,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
                 : static_cast<int>(EDataSourceType::UnversionedTable));
 
             ToProto(descriptor->mutable_data_source(), dataSource);
-            for (const auto& chunkSpec : file.ChunkSpecs) {
-                ToProto(descriptor->add_data_slice_descriptors(), TDataSliceDescriptor(chunkSpec));
-            }
         }
 
         switch (file.Type) {

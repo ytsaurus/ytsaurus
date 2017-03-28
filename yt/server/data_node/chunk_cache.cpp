@@ -236,7 +236,7 @@ struct TArtifactMetaHeader
     ui64 Version = ExpectedVersion;
 
     static constexpr ui64 ExpectedSignature = 0x313030484d415459ull; // YTAMH001
-    static constexpr ui64 ExpectedVersion = 2;
+    static constexpr ui64 ExpectedVersion = 3;
 };
 
 constexpr ui64 TArtifactMetaHeader::ExpectedSignature;
@@ -529,8 +529,8 @@ private:
     TChunkId GetOrCreateArtifactId(const TArtifactKey& key, bool canPrepareSingleChunk)
     {
         if (canPrepareSingleChunk) {
-            YCHECK(key.data_slice_descriptors_size() == 1 && key.data_slice_descriptors(0).chunks_size() == 1);
-            const auto& chunkSpec = key.data_slice_descriptors(0).chunks(0);
+            YCHECK(key.chunk_specs_size() == 1);
+            const auto& chunkSpec = key.chunk_specs(0);
             return FromProto<TChunkId>(chunkSpec.chunk_id());
         } else {
             return TChunkId(
@@ -546,14 +546,11 @@ private:
         if (EDataSourceType(key.data_source_type()) != EDataSourceType::File) {
             return false;
         }
-        if (key.data_slice_descriptors_size() != 1) {
-            return false;
-        }
-        if (key.data_slice_descriptors(0).chunks_size() != 1) {
+        if (key.chunk_specs_size() != 1) {
             return false;
         }
 
-        const auto& chunk = key.data_slice_descriptors(0).chunks(0);
+        const auto& chunk = key.chunk_specs(0);
         if (chunk.has_lower_limit() && !IsTrivial(chunk.lower_limit())) {
             return false;
         }
@@ -582,7 +579,7 @@ private:
         TNodeDirectoryPtr nodeDirectory,
         TInsertCookie cookie)
     {
-        const auto& chunkSpec = key.data_slice_descriptors(0).chunks(0);
+        const auto& chunkSpec = key.chunk_specs(0);
         auto seedReplicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
         auto Logger = DataNodeLogger;
@@ -688,12 +685,7 @@ private:
         TNodeDirectoryPtr nodeDirectory,
         TInsertCookie cookie)
     {
-        std::vector<TChunkSpec> chunkSpecs;
-
-        for (const auto& descriptor : key.data_slice_descriptors()) {
-            auto dataSliceDescriptor = FromProto<TDataSliceDescriptor>(descriptor);
-            chunkSpecs.push_back(dataSliceDescriptor.GetSingleChunk());
-        }
+        std::vector<TChunkSpec> chunkSpecs(key.chunk_specs().begin(), key.chunk_specs().end());
 
         auto options = New<TMultiChunkReaderOptions>();
         options->EnableP2P = true;
@@ -753,7 +745,7 @@ private:
         auto options = New<NTableClient::TTableReaderOptions>();
         options->EnableP2P = true;
 
-        auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(key.data_slice_descriptors());
+        std::vector<TDataSliceDescriptor> dataSliceDescriptors;
         auto dataSourceDirectory = New<NChunkClient::TDataSourceDirectory>();
 
         TNullable<TTableSchema> schema = key.has_table_schema()
@@ -763,6 +755,10 @@ private:
         switch (EDataSourceType(key.data_source_type())) {
             case EDataSourceType::UnversionedTable:
                 dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(CachedSourcePath, schema));
+
+                for (const auto& chunkSpec : key.chunk_specs()) {
+                    dataSliceDescriptors.push_back(TDataSliceDescriptor(chunkSpec));
+                }
                 break;
 
             case EDataSourceType::VersionedTable:
@@ -771,6 +767,7 @@ private:
                     CachedSourcePath,
                     *schema,
                     key.timestamp()));
+                dataSliceDescriptors.push_back(TDataSliceDescriptor(FromProto<std::vector<TChunkSpec>>(key.chunk_specs())));
                 break;
 
             default:
