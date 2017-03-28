@@ -525,6 +525,9 @@ protected:
         , public IPersistent
     {
     public:
+        DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
+
+    public:
         //! For persistence only.
         TTask();
         explicit TTask(TOperationControllerBase* controller);
@@ -560,8 +563,6 @@ protected:
         virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const = 0;
 
         void ResetCachedMinNeededResources();
-
-        DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, DelayedTime);
 
         void AddInput(TChunkStripePtr stripe);
         void AddInput(const std::vector<TChunkStripePtr>& stripes);
@@ -710,7 +711,7 @@ protected:
         std::multimap<i64, TTaskPtr> CandidateTasks;
 
         //! Non-local tasks keyed by deadline.
-        std::multimap<NProfiling::TCpuInstant, TTaskPtr> DelayedTasks;
+        std::multimap<TInstant, TTaskPtr> DelayedTasks;
 
         //! Local tasks keyed by node id.
         yhash_map<NNodeTrackerClient::TNodeId, yhash_set<TTaskPtr>> NodeIdToTasks;
