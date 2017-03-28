@@ -73,7 +73,6 @@ void RunQuery(
     evaluator->Run(query, reader, writer, functionGenerators, aggregateGenerators, true);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TDataSliceDescriptor> UnpackDataSliceDescriptors(const TTableInputSpec& inputTableSpec)
@@ -83,7 +82,6 @@ std::vector<TDataSliceDescriptor> UnpackDataSliceDescriptors(const TTableInputSp
         return FromProto<std::vector<TDataSliceDescriptor>>(inputTableSpec.data_slice_descriptors());
     } else {
         YCHECK(inputTableSpec.chunk_specs_size() > 0);
-        std::vector<TDataSliceDescriptor> dataSliceDescriptors;
         return FromProto<std::vector<TDataSliceDescriptor>>(
             inputTableSpec.chunk_specs(),
             inputTableSpec.chunk_spec_count_per_data_slice());
