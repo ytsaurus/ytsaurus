@@ -259,8 +259,6 @@ protected:
     NChunkClient::NProto::TMiscExt MiscExt_;
     NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
 
-    NTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
-
     TPreloadedBlockCachePtr PreloadedBlockCache_;
 
     NTableClient::TCacheBasedChunkStatePtr ChunkState_;

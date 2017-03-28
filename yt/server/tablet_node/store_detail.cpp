@@ -829,10 +829,9 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
     }
 
     PreloadedBlockCache_->Preload(chunkData);
-    CachedVersionedChunkMeta_ = chunkData->ChunkMeta;
     ChunkState_ = New<TCacheBasedChunkState>(
         PreloadedBlockCache_,
-        CachedVersionedChunkMeta_,
+        chunkData->ChunkMeta,
         PreloadedBlockCache_->GetLookupHashTable(),
         PerformanceCounters_,
         GetKeyComparer());
