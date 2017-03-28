@@ -39,10 +39,16 @@ def pytest_configure(config):
     def scheduling_func(test_items, process_count):
         suites = defaultdict(list)
         for index, test in enumerate(test_items):
-            match = re.search(r"\[([a-zA-Z0-9]+)\]$", test.name)
+            match = re.search(r"\[([a-zA-Z0-9.-]+)\]$", test.name)
             suite_name = None
-            if match and match.group(1) in ["v3", "native"]:
-                suite_name = match.group(1)
+            if match:
+                # py.test uses "-" as delimiter when
+                # it writes parameters for test.
+                parameters = match.group(1).split("-")
+                for param in parameters:
+                    if param in ["v3", "native"]:
+                        suite_name = param
+                        break
 
             suites[suite_name].append(index)
 
