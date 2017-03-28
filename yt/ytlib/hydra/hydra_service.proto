@@ -76,6 +76,7 @@ message TReqBuildSnapshot
 {
     required NYT.NProto.TGuid epoch_id = 1;
     required int64 revision = 2;
+    optional bool set_read_only = 3 [default = false];
 }
 
 message TRspBuildSnapshot
