@@ -1325,7 +1325,10 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
 
         // Build spec asynchronously.
         asyncJobSpecs.push_back(
-            BIND([=, this_ = MakeStrong(this), specBuilder = job->GetSpecBuilder()] () {
+            BIND([=, this_ = MakeStrong(this), rpcContext = rpcContext, specBuilder = job->GetSpecBuilder()] () {
+                if (rpcContext->IsCanceled()) {
+                    THROW_ERROR_EXCEPTION(NYT::EErrorCode::Canceled, "RPC request canceled");
+                }
                 NJobTrackerClient::NProto::TJobSpec spec;
                 specBuilder(&spec);
                 return SerializeToProtoWithEnvelope(spec, Config_->JobSpecCodec);
