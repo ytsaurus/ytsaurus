@@ -4,6 +4,8 @@
 #include "tablet_cell.h"
 #include "tablet_cell_bundle.h"
 #include "table_replica.h"
+#include "tablet_action.h"
+#include "tablet_action_type_handler.h"
 
 #include <yt/server/cell_master/public.h>
 
@@ -100,7 +102,10 @@ public:
     TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
+    TTablet* GetTabletOrThrow(const TTabletId&);
+
     DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
+    DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
 
 private:
     template <class TImpl>
@@ -109,6 +114,8 @@ private:
     friend class TTabletCellTypeHandler;
     friend class TTabletCellBundleTypeHandler;
     friend class TTableReplicaTypeHandler;
+    friend class TTabletActionTypeHandler;
+    friend class TTabletBalancer;
     class TImpl;
 
     void DestroyTable(NTableServer::TTableNode* table);
@@ -127,6 +134,19 @@ private:
         const NYPath::TYPath& replicaPath,
         NTransactionClient::TTimestamp startReplicationTimestamp);
     void DestroyTableReplica(TTableReplica* replica);
+
+    TTabletAction* CreateTabletAction(
+        const NObjectClient::TObjectId& hintId,
+        ETabletActionKind kind,
+        const std::vector<TTablet*>& tabletIds,
+        const std::vector<TTabletCell*>& cellIds,
+        const std::vector<NTableClient::TOwningKey>& pivotKeys,
+        const TNullable<int>& tabletCount,
+        bool skipFreezing,
+        const TNullable<bool>& freeze,
+        bool preserve);
+
+    void DestroyTabletAction(TTabletAction* action);
 
     const TIntrusivePtr<TImpl> Impl_;
 

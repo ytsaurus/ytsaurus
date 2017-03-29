@@ -11,8 +11,6 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
-#include <yt/ytlib/chunk_client/schema.h>
-
 // TODO(sandello,lukyan): Refine these dependencies.
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/functions.h>
@@ -237,6 +235,8 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
         return *this;
     }
 
+    int newKeyColumnCount = 0;
+    bool inKeyColumns = true;
     std::vector<TColumnSchema> columns;
     for (int id : columnFilter.Indexes) {
         if (id < 0 || id >= Columns_.size()) {
@@ -244,19 +244,48 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
                 Columns_.size() - 1,
                 id);
         }
-        columns.push_back(Columns_[id]);
-    }
 
-    // Validate that key columns go first.
-    for (int index = 1; index < static_cast<int>(columns.size()); ++index) {
-        if (columns[index].SortOrder && !columns[index - 1].SortOrder) {
-            THROW_ERROR_EXCEPTION("Column filter contains key column %Qv after non-key column %Qv",
-                columns[index].Name,
-                columns[index - 1].Name);
+        if (id != columns.size() || !Columns_[id].SortOrder) {
+            inKeyColumns = false;
+        }
+
+        columns.push_back(Columns_[id]);
+
+        if (!inKeyColumns) {
+            columns.back().SortOrder.Reset();
+        }
+
+        if (columns.back().SortOrder) {
+            ++newKeyColumnCount;
         }
     }
 
-    return TTableSchema(std::move(columns));
+    return TTableSchema(
+        std::move(columns),
+        Strict_,
+        UniqueKeys_ && (newKeyColumnCount == GetKeyColumnCount()));
+}
+
+TTableSchema TTableSchema::Filter(const yhash_set<Stroka>& columns) const
+{
+    TColumnFilter filter;
+    filter.All = false;
+    for (const auto& column : Columns()) {
+        if (columns.find(column.Name) != columns.end()) {
+            filter.Indexes.push_back(GetColumnIndex(column));
+        }
+    }
+
+    return Filter(filter);
+}
+
+TTableSchema TTableSchema::Filter(const TNullable<std::vector<Stroka>>& columns) const
+{
+    if (!columns) {
+        return *this;
+    }
+
+    return Filter(yhash_set<Stroka>(columns->begin(), columns->end()));
 }
 
 bool TTableSchema::HasComputedColumns() const
@@ -353,6 +382,11 @@ TTableSchema TTableSchema::ToWrite() const
         }
     }
     return TTableSchema(std::move(columns), Strict_, UniqueKeys_);
+}
+
+TTableSchema TTableSchema::ToVersionedWrite() const
+{
+    return *this;
 }
 
 TTableSchema TTableSchema::ToLookup() const
@@ -1067,21 +1101,17 @@ void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EValueType GetCommonValueType(EValueType lhs, EValueType rhs) {
-    if (lhs == EValueType::Null) {
-        return rhs;
-    } else if (rhs == EValueType::Null) {
-        return lhs;
-    } else if (lhs == rhs) {
-        return lhs;
-    } else {
-        return EValueType::Any;
-    }
-}
 
 TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool discardKeyColumns)
 {
     YCHECK(!schemas.empty());
+
+    // NB: If one schema is not strict then the resulting schema should be an intersection, not union.
+    for (const auto& schema : schemas) {
+        if (!schema.GetStrict()) {
+            THROW_ERROR_EXCEPTION("Input table schema is not strict");
+        }
+    }
 
     int commonKeyColumnPrefix = 0;
     if (!discardKeyColumns) {
@@ -1117,6 +1147,7 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
             }
             column = column
                 .SetExpression(Null)
+                .SetAggregate(Null)
                 .SetLock(Null);
 
             auto it = nameToColumnSchema.find(column.Name);
@@ -1124,8 +1155,6 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
                 nameToColumnSchema[column.Name] = column;
                 columnNames.push_back(column.Name);
             } else {
-                auto commonType = GetCommonValueType(it->second.Type, column.Type);
-                column.Type = it->second.Type = commonType;
                 if (it->second != column) {
                     THROW_ERROR_EXCEPTION(
                         "Conflict while merging schemas, column %Qs has two conflicting declarations",
@@ -1142,14 +1171,7 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
         columns.push_back(nameToColumnSchema[columnName]);
     }
 
-    bool strict = true;
-    for (const auto& schema : schemas) {
-        if (!schema.GetStrict()) {
-            strict = false;
-        }
-    }
-
-    return TTableSchema(std::move(columns), strict);
+    return TTableSchema(std::move(columns), true);
 }
 
 //! Validates that read schema is consistent with existing table schema.

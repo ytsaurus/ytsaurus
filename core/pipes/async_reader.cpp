@@ -251,7 +251,7 @@ private:
             SetResultPromise(Position_);
         }
 #else
-    THROW_ERROR_EXCEPTION("Unsupported platform");
+        THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
     }
 
@@ -306,7 +306,7 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TAsyncReaderImpl);
+DEFINE_REFCOUNTED_TYPE(TAsyncReaderImpl)
 
 ////////////////////////////////////////////////////////////////////////////////
 

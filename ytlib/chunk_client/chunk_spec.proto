@@ -1,7 +1,7 @@
 package NYT.NChunkClient.NProto;
 
 import "yt/core/misc/guid.proto";
-import "yt/ytlib/chunk_client/schema.proto";
+import "yt/ytlib/chunk_client/read_limit.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,12 +20,10 @@ message TChunkSpec
     // Initial seed addresses. The reader may ask the master for additional ones.
     repeated fixed32 replicas = 4;
 
-    // Column filter.
-    optional TChannel channel = 5;
-
+    // Deprecated = 5;
     // Deprecated = 6;
 
-    optional int32 table_index = 7 [default = -1];
+    optional int32 table_index = 7 [default = 0];
 
     // Deprecated = 8;
 
@@ -44,6 +42,17 @@ message TChunkSpec
     // Overrides the corresponding values in TMiscExt.
     optional int64 row_count_override = 14;
     optional int64 uncompressed_data_size_override = 15;
+
+    // Tag of the input data slice this chunk spec belongs to (if any).
+    // It helps us restore the correspondence between data slices that
+    // form the job input and the unread data slices returned as a
+    // job interruption result.
+    optional int64 data_slice_tag = 16;
+
+    // Global chunk index for the operation. Helps to identify chunk_spec
+    // if fetch returns the same chunk with different limits
+    // (e.g. the chunk is shared between dynamic table tablets).
+    optional int64 chunk_index = 17;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

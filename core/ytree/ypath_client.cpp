@@ -313,7 +313,7 @@ void ExecuteVerb(
             Y_UNREACHABLE();
         }
 
-        virtual void LogResponse(const TError& /*error*/) override
+        virtual void LogResponse() override
         { }
 
         virtual void DoReply() override
@@ -470,12 +470,16 @@ static INodePtr WalkNodeByYPath(
         tokenizer.Advance();
         if (tokenizer.GetType() == NYPath::ETokenType::At) {
             tokenizer.Advance();
-            tokenizer.Expect(NYPath::ETokenType::Literal);
-            const auto key = tokenizer.GetLiteralValue();
-            const auto& attributes = currentNode->Attributes();
-            currentNode = attributes.Find<INodePtr>(key);
-            if (!currentNode) {
-                return handleMissingAttribute(key);
+            if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+                return currentNode->Attributes().ToMap();
+            } else {
+                tokenizer.Expect(NYPath::ETokenType::Literal);
+                const auto key = tokenizer.GetLiteralValue();
+                const auto& attributes = currentNode->Attributes();
+                currentNode = attributes.Find<INodePtr>(key);
+                if (!currentNode) {
+                    return handleMissingAttribute(key);
+                }
             }
         } else {
             tokenizer.Expect(NYPath::ETokenType::Literal);

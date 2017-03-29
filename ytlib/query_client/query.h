@@ -251,6 +251,8 @@ struct TJoinClause
     std::vector<TConstExpressionPtr> ForeignEquations;
     std::vector<std::pair<TConstExpressionPtr, bool>> SelfEquations;
 
+    size_t CommonKeyPrefix = 0;
+
     bool IsLeft = false;
 
     TGuid ForeignDataId;
@@ -430,6 +432,8 @@ struct TQuery
     TConstProjectClausePtr ProjectClause;
     TConstOrderClausePtr OrderClause;
 
+    // TODO: Update protocol and fix it
+    // If Limit == std::numeric_limits<i64>::max() - 1, then do ordered read with prefetch
     i64 Limit = std::numeric_limits<i64>::max();
 
     bool UseDisjointGroupBy = false;
@@ -437,7 +441,7 @@ struct TQuery
 
     bool IsOrdered() const
     {
-        if (Limit < std::numeric_limits<i64>::max() ) {
+        if (Limit < std::numeric_limits<i64>::max()) {
             return !OrderClause && !GroupClause;
         } else {
             YCHECK(!OrderClause);
@@ -521,6 +525,13 @@ void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized);
 
 Stroka InferName(TConstExpressionPtr expr, bool omitValues = false);
 Stroka InferName(TConstQueryPtr query, bool omitValues = false);
+
+bool Compare(
+    TConstExpressionPtr lhs,
+    const TTableSchema& lhsSchema,
+    TConstExpressionPtr rhs,
+    const TTableSchema& rhsSchema,
+    size_t maxIndex = std::numeric_limits<size_t>::max());
 
 ////////////////////////////////////////////////////////////////////////////////
 

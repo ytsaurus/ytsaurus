@@ -94,7 +94,24 @@ struct ISchedulerStrategy
      */
     virtual TFuture<void> ValidateOperationStart(const TOperationPtr& operation) = 0;
 
+    //! Validates that operation can be registered without errors.
+    /*!
+     *  Checks limits for the number of concurrent operations.
+     *
+     *  The implementation must be synchronous.
+     */
+    virtual void ValidateOperationCanBeRegistered(const TOperationPtr& operation) = 0;
+
+    //! Register operation in strategy.
+    /*!
+     *  The implementation must throw no exceptions.
+     */
     virtual void RegisterOperation(const TOperationPtr& operation) = 0;
+
+    //! Unregister operation in strategy.
+    /*!
+     *  The implementation must throw no exceptions.
+     */
     virtual void UnregisterOperation(const TOperationPtr& operation) = 0;
 
     virtual void ProcessUpdatedAndCompletedJobs(

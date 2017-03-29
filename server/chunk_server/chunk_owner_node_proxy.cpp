@@ -105,14 +105,12 @@ public:
         TChunkManagerConfigPtr config,
         TChunkList* chunkList,
         TCtxFetchPtr context,
-        const TChannel& channel,
         bool fetchParityReplicas,
         const std::vector<TReadRange>& ranges)
         : Bootstrap_(bootstrap)
         , Config_(config)
         , ChunkList_(chunkList)
         , Context_(context)
-        , Channel_(channel)
         , FetchParityReplicas_(fetchParityReplicas)
         , Ranges_(ranges)
         , NodeDirectoryBuilder_(context->Response().mutable_node_directory())
@@ -141,7 +139,6 @@ private:
     const TChunkManagerConfigPtr Config_;
     TChunkList* const ChunkList_;
     const TCtxFetchPtr Context_;
-    const TChannel Channel_;
     const bool FetchParityReplicas_;
 
     std::vector<TReadRange> Ranges_;
@@ -245,10 +242,6 @@ private:
         auto* chunkSpec = Context_->Response().add_chunks();
 
         chunkSpec->set_table_row_index(rowIndex);
-
-        if (!Channel_.IsUniversal()) {
-            ToProto(chunkSpec->mutable_channel(), Channel_);
-        }
 
         SmallVector<TNodePtrWithIndexes, TypicalReplicaCount> replicas;
 
@@ -959,9 +952,7 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
         medium->GetName());
 }
 
-void TChunkOwnerNodeProxy::ValidateFetchParameters(
-    const TChannel& /*channel*/,
-    const std::vector<TReadRange>& /*ranges*/)
+void TChunkOwnerNodeProxy::ValidateFetchParameters(const std::vector<TReadRange>& /*ranges*/)
 { }
 
 void TChunkOwnerNodeProxy::ValidateInUpdate()
@@ -995,13 +986,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
     ValidateNotExternal();
     ValidateFetch();
 
-    auto channel = request->has_channel()
-        ? NYT::FromProto<TChannel>(request->channel())
-        : TChannel::Universal();
     bool fetchParityReplicas = request->fetch_parity_replicas();
 
     auto ranges = FromProto<std::vector<TReadRange>>(request->ranges());
-    ValidateFetchParameters(channel, ranges);
+    ValidateFetchParameters(ranges);
 
     const auto* node = GetThisImpl<TChunkOwnerBase>();
     auto* chunkList = node->GetChunkList();
@@ -1011,7 +999,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         Bootstrap_->GetConfig()->ChunkManager,
         chunkList,
         context,
-        channel,
         fetchParityReplicas,
         ranges);
 
@@ -1105,7 +1092,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
             } else {
                 auto* snapshotChunkList = lockedNode->GetChunkList();
 
-                auto* newChunkList = chunkManager->CreateChunkList();
+                auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
                 newChunkList->AddOwningNode(lockedNode);
 
                 snapshotChunkList->RemoveOwningNode(lockedNode);
@@ -1114,7 +1101,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
                 chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
 
-                auto* deltaChunkList = chunkManager->CreateChunkList();
+                auto* deltaChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
                 chunkManager->AttachToChunkList(newChunkList, deltaChunkList);
 
                 objectManager->UnrefObject(snapshotChunkList);
@@ -1142,7 +1129,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                 oldChunkList->RemoveOwningNode(lockedNode);
                 objectManager->UnrefObject(oldChunkList);
 
-                auto* newChunkList = chunkManager->CreateChunkList();
+                auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
                 newChunkList->AddOwningNode(lockedNode);
                 lockedNode->SetChunkList(newChunkList);
                 objectManager->RefObject(newChunkList);

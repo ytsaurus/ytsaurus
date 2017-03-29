@@ -723,25 +723,6 @@ void ValidateDynamicValue(const TUnversionedValue& value)
     }
 }
 
-int ApplyIdMapping(
-    const TUnversionedValue& value,
-    const TTableSchema& schema,
-    const TNameTableToSchemaIdMapping* idMappingPtr)
-{
-    auto valueId = value.Id;
-    if (idMappingPtr) {
-        const auto& idMapping = *idMappingPtr;
-        if (valueId >= idMapping.size()) {
-            THROW_ERROR_EXCEPTION("Invalid column id: actual %v, expected in range [0,%v]",
-                valueId,
-                idMapping.size() - 1);
-        }
-        return idMapping[valueId];
-    } else {
-        return valueId;
-    }
-}
-
 void ValidateKeyPart(
     TUnversionedRow row,
     const TTableSchema& schema)
@@ -944,7 +925,7 @@ TUnversionedRow DeserializeFromString(const Stroka& data, const TRowBufferPtr& r
     ui32 valueCount;
     current += ReadVarUint32(current, &valueCount);
 
-    auto row = rowBuffer->Allocate(valueCount);
+    auto row = rowBuffer->AllocateUnversioned(valueCount);
 
     auto* values = row.begin();
     for (int index = 0; index < valueCount; ++index) {
@@ -1099,7 +1080,33 @@ void ValidateReadTimestamp(TTimestamp timestamp)
         timestamp != AsyncLastCommittedTimestamp &&
         (timestamp < MinTimestamp || timestamp > MaxTimestamp))
     {
-        THROW_ERROR_EXCEPTION("Invalid timestamp %v", timestamp);
+        THROW_ERROR_EXCEPTION("Invalid read timestamp %v", timestamp);
+    }
+}
+
+void ValidateWriteTimestamp(TTimestamp timestamp)
+{
+    if (timestamp < MinTimestamp || timestamp > MaxTimestamp) {
+        THROW_ERROR_EXCEPTION("Invalid write timestamp %v", timestamp);
+    }
+}
+
+int ApplyIdMapping(
+    const TUnversionedValue& value,
+    const TTableSchema& schema,
+    const TNameTableToSchemaIdMapping* idMapping)
+{
+    auto valueId = value.Id;
+    if (idMapping) {
+        const auto& idMapping_ = *idMapping;
+        if (valueId >= idMapping_.size()) {
+            THROW_ERROR_EXCEPTION("Invalid column id: actual %v, expected in range [0,%v]",
+                valueId,
+                idMapping_.size() - 1);
+        }
+        return idMapping_[valueId];
+    } else {
+        return valueId;
     }
 }
 
@@ -1119,7 +1126,7 @@ TOwningKey GetKeySuccessorImpl(TKey key, ui32 prefixLength, EValueType sentinelT
 TKey GetKeySuccessorImpl(TKey key, ui32 prefixLength, EValueType sentinelType, const TRowBufferPtr& rowBuffer)
 {
     auto length = std::min(prefixLength, key.GetCount());
-    auto result = rowBuffer->Allocate(length + 1);
+    auto result = rowBuffer->AllocateUnversioned(length + 1);
     for (int index = 0; index < length; ++index) {
         result[index] = rowBuffer->Capture(key[index]);
     }
@@ -1175,21 +1182,21 @@ TKey GetKeyPrefix(TKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer)
         std::min(key.GetCount(), prefixLength));
 }
 
-TKey GetStrictKey(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer)
+TKey GetStrictKey(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
     if (key.GetCount() > keyColumnCount) {
         return GetKeyPrefix(key, keyColumnCount, rowBuffer);
     } else {
-        return WidenKey(key, keyColumnCount, rowBuffer);
+        return WidenKey(key, keyColumnCount, rowBuffer, sentinelType);
     }
 }
 
-TKey GetStrictKeySuccessor(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer)
+TKey GetStrictKeySuccessor(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
     if (key.GetCount() >= keyColumnCount) {
         return GetKeyPrefixSuccessor(key, keyColumnCount, rowBuffer);
     } else {
-        return WidenKeySuccessor(key, keyColumnCount, rowBuffer);
+        return WidenKeySuccessor(key, keyColumnCount, rowBuffer, sentinelType);
     }
 }
 
@@ -1275,7 +1282,7 @@ void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRo
     ui32 valueCount;
     current += ReadVarUint32(current, &valueCount);
 
-    auto mutableRow = rowBuffer->Allocate(valueCount);
+    auto mutableRow = rowBuffer->AllocateUnversioned(valueCount);
     *row = mutableRow;
 
     auto* values = mutableRow.Begin();
@@ -1663,28 +1670,28 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey WidenKey(const TOwningKey& key, ui32 keyColumnCount)
+TOwningKey WidenKey(const TOwningKey& key, ui32 keyColumnCount, EValueType sentinelType)
 {
-    return WidenKeyPrefix(key, key.GetCount(), keyColumnCount);
+    return WidenKeyPrefix(key, key.GetCount(), keyColumnCount, sentinelType);
 }
 
-TKey WidenKey(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer)
+TKey WidenKey(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
-    return WidenKeyPrefix(key, key.GetCount(), keyColumnCount, rowBuffer);
+    return WidenKeyPrefix(key, key.GetCount(), keyColumnCount, rowBuffer, sentinelType);
 }
 
-TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer)
+TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
     YCHECK(keyColumnCount >= key.GetCount());
 
-    auto wideKey = rowBuffer->Allocate(keyColumnCount + 1);
+    auto wideKey = rowBuffer->AllocateUnversioned(keyColumnCount + 1);
 
     for (ui32 index = 0; index < key.GetCount(); ++index) {
         wideKey[index] = rowBuffer->Capture(key[index]);
     }
 
     for (ui32 index = key.GetCount(); index < keyColumnCount; ++index) {
-        wideKey[index] = MakeUnversionedSentinelValue(EValueType::Null);
+        wideKey[index] = MakeUnversionedSentinelValue(sentinelType);
     }
 
     wideKey[keyColumnCount] = MakeUnversionedSentinelValue(EValueType::Max);
@@ -1692,7 +1699,7 @@ TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr
     return wideKey;
 }
 
-TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColumnCount)
+TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColumnCount, EValueType sentinelType)
 {
     YCHECK(prefixLength <= key.GetCount() && prefixLength <= keyColumnCount);
 
@@ -1706,13 +1713,13 @@ TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColu
     }
 
     for (ui32 index = prefixLength; index < keyColumnCount; ++index) {
-        builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null));
+        builder.AddValue(MakeUnversionedSentinelValue(sentinelType));
     }
 
     return builder.FinishRow();
 }
 
-TKey WidenKeyPrefix(TKey key, ui32 prefixLength, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer)
+TKey WidenKeyPrefix(TKey key, ui32 prefixLength, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
     YCHECK(prefixLength <= key.GetCount() && prefixLength <= keyColumnCount);
 
@@ -1720,14 +1727,14 @@ TKey WidenKeyPrefix(TKey key, ui32 prefixLength, ui32 keyColumnCount, const TRow
         return rowBuffer->Capture(key);
     }
 
-    auto wideKey = rowBuffer->Allocate(keyColumnCount);
+    auto wideKey = rowBuffer->AllocateUnversioned(keyColumnCount);
 
     for (ui32 index = 0; index < prefixLength; ++index) {
         wideKey[index] = rowBuffer->Capture(key[index]);
     }
 
     for (ui32 index = prefixLength; index < keyColumnCount; ++index) {
-        wideKey[index] = MakeUnversionedSentinelValue(EValueType::Null);
+        wideKey[index] = MakeUnversionedSentinelValue(sentinelType);
     }
 
     return wideKey;

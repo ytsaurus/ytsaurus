@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
-#include <yt/ytlib/chunk_client/fetcher_base.h>
+#include <yt/ytlib/chunk_client/fetcher.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -35,7 +35,7 @@ public:
     std::vector<NChunkClient::TInputDataSlicePtr> GetDataSlices();
 
 private:
-    const TChunkSliceFetcherPtr ChunkSliceFetcher_;
+    const IChunkSliceFetcherPtr ChunkSliceFetcher_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDataSliceFetcher)

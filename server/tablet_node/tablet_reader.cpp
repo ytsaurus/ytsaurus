@@ -139,6 +139,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
                 tabletSnapshot,
                 bounds.Slice(offsetBegin, offsetEnd),
                 timestamp,
+                false,
                 columnFilter,
                 workloadDescriptor);
         },
@@ -314,9 +315,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
         MakeFormattableRange(stores, TStoreRangeFormatter()));
 
     auto rowMerger = std::make_unique<TSchemafulRowMerger>(
-        rowBuffer
-            ? std::move(rowBuffer)
-            : New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
+        rowBuffer,
         tabletSnapshot->QuerySchema.Columns().size(),
         tabletSnapshot->QuerySchema.GetKeyColumnCount(),
         columnFilter,
@@ -330,6 +329,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
                     tabletSnapshot,
                     keys,
                     timestamp,
+                    false,
                     columnFilter,
                     workloadDescriptor);
             } else {
@@ -345,13 +345,9 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
-    const TWorkloadDescriptor& workloadDescriptor,
-    int concurrency,
-    TRowBufferPtr rowBuffer)
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
-
-    YCHECK(!rowBuffer || concurrency == 1);
 
     if (!tabletSnapshot->PhysicalSchema.IsSorted()) {
         THROW_ERROR_EXCEPTION("Table %v is not sorted",
@@ -378,6 +374,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
         currentIt = nextIt;
     }
 
+    auto rowBuffer = New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>());
+
     auto readerFactory = [
         =,
         tabletSnapshot = std::move(tabletSnapshot),
@@ -403,7 +401,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
         }
     };
 
-    return CreateUnorderedSchemafulReader(std::move(readerFactory), concurrency);
+    return CreatePrefetchingOrderedSchemafulReader(std::move(readerFactory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -437,7 +435,9 @@ IVersionedReaderPtr CreateVersionedTabletReader(
 
     auto rowMerger = std::make_unique<TVersionedRowMerger>(
         New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
+        tabletSnapshot->QuerySchema.GetColumnCount(),
         tabletSnapshot->QuerySchema.GetKeyColumnCount(),
+        TColumnFilter(),
         tabletSnapshot->Config,
         currentTimestamp,
         majorTimestamp,
@@ -459,6 +459,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
                 tabletSnapshot,
                 MakeSingletonRowRange(lowerBound, upperBound),
                 AllCommittedTimestamp,
+                true,
                 TColumnFilter(),
                 workloadDescriptor);
         },

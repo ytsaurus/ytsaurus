@@ -1519,7 +1519,7 @@ private:
                         "Cannot take %Qlv lock for node %v since %Qlv lock is taken by concurrent transaction %v",
                         request.Mode,
                         GetNodePath(trunkNode, transaction),
-                        ELockMode::Exclusive,
+                        existingLock->Request().Mode,
                         existingTransaction->GetId())
                         << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
 

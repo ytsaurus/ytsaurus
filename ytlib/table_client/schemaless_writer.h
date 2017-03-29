@@ -24,7 +24,7 @@ struct ISchemalessWriter
 {
     virtual bool Write(const TRange<TUnversionedRow>& rows) = 0;
 
-    virtual TNameTablePtr GetNameTable() const = 0;
+    virtual const TNameTablePtr& GetNameTable() const = 0;
 
     virtual const TTableSchema& GetSchema() const = 0;
 };

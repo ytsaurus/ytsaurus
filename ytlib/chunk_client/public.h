@@ -203,6 +203,8 @@ DECLARE_REFCOUNTED_CLASS(TInputChunkSlice)
 
 DECLARE_REFCOUNTED_STRUCT(TInputDataSlice)
 
+DECLARE_REFCOUNTED_CLASS(TDataSourceDirectory)
+
 DECLARE_REFCOUNTED_CLASS(TChunkScraper)
 DECLARE_REFCOUNTED_CLASS(TScraperTask)
 DECLARE_REFCOUNTED_CLASS(TThrottlerManager)
@@ -213,15 +215,14 @@ DECLARE_REFCOUNTED_CLASS(TMediumDirectorySynchronizer)
 
 class TReadLimit;
 
-class TChannel;
-using TChannels = std::vector<TChannel>;
-
 using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
 using TPlacementId = TGuid;
 
 struct TDataSliceDescriptor;
+
+DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
 
 ///////////////////////////////////////////////////////////////////////////////
 

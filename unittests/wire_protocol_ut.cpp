@@ -223,9 +223,9 @@ TEST_F(TWireProtocolTest, Regression1)
         0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         // null bitmap = 1 << 3
         0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        // id = 0, type = int64, data = 0
+        // id = 0, type = int64, data = 1
         0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        // id = 1, type = int64, data = 0
+        // id = 1, type = int64, data = 1
         0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         // id = 2, type = string, data = "2"
         0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -234,15 +234,16 @@ TEST_F(TWireProtocolTest, Regression1)
     });
 
     const std::vector<ui32> blobSchemaData({
-        0x00030000,
-        0x00030001,
-        0x00100002,
-        0x00100003,
+        0x00030000, // id = 0, type = int64
+        0x00030001, // id = 1, type = int64
+        0x00100002, // id = 2, type = int64
+        0x00100003, // id = 3, type = int64
     });
 
     TWireProtocolReader reader(TSharedRef::MakeCopy<TWireProtocolTestTag>(
         TRef(blob.data(), blob.size())));
     auto row = reader.ReadSchemafulRow(blobSchemaData, false);
+    EXPECT_TRUE(reader.GetCurrent() == reader.GetEnd());
 
     ASSERT_EQ(row.GetCount(), 4);
 
@@ -280,6 +281,7 @@ TEST_F(TWireProtocolTest, Regression2)
     TWireProtocolReader reader(TSharedRef::MakeCopy<TWireProtocolTestTag>(
         TRef(blob.data(), blob.size())));
     auto row = reader.ReadUnversionedRow(true);
+    EXPECT_TRUE(reader.GetCurrent() == reader.GetEnd());
 
     ASSERT_EQ(row.GetCount(), 3);
 

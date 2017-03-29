@@ -7,6 +7,7 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/reader_factory.h>
 
@@ -73,8 +74,8 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
         FromProto(&chunkNameTable, nameTableExt);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::CorruptedNameTable, 
-            "Failed to deserialize name table for partition chunk reader") 
+            EErrorCode::CorruptedNameTable,
+            "Failed to deserialize name table for partition chunk reader")
             << TErrorAttribute("chunk_id", UnderlyingReader_->GetChunkId())
             << ex;
     }
@@ -146,6 +147,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     INativeClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
+    const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
@@ -153,9 +155,10 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
 {
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
-        switch (dataSliceDescriptor.Type) {
-            case EDataSliceDescriptorType::UnversionedTable: {
-                const auto& chunkSpec = dataSliceDescriptor.GetSingleUnversionedChunk();
+        const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
+        switch (dataSource.GetType()) {
+            case EDataSourceType::UnversionedTable: {
+                const auto& chunkSpec = dataSliceDescriptor.GetSingleChunk();
 
                 auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
                 auto createReader = [=] () {
@@ -169,7 +172,6 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         blockCache,
                         GetUnlimitedThrottler());
 
-                    YCHECK(!chunkSpec.has_channel());
                     YCHECK(!chunkSpec.has_lower_limit());
                     YCHECK(!chunkSpec.has_upper_limit());
 

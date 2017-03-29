@@ -50,11 +50,11 @@ public:
     TNullable<Stroka> GetAuthenticatedUser();
 
     TFuture<void> CheckPermission(
-        TTabletSnapshotPtr tabletSnapshot,
+        const TTabletSnapshotPtr& tabletSnapshot,
         NYTree::EPermission permission);
 
     void ValidatePermission(
-        TTabletSnapshotPtr tabletSnapshot,
+        const TTabletSnapshotPtr& tabletSnapshot,
         NYTree::EPermission permission);
 
     TFuture<void> CheckResourceLimits(

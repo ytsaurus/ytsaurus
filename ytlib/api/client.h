@@ -171,6 +171,7 @@ struct TAlterTableOptions
 {
     TNullable<NTableClient::TTableSchema> Schema;
     TNullable<bool> Dynamic;
+    TNullable<NTableClient::ETableReplicationMode> ReplicationMode;
 };
 
 struct TTrimTableOptions
@@ -274,6 +275,8 @@ struct TTabletReadOptions
 {
     NHydra::EPeerKind ReadFrom = NHydra::EPeerKind::Leader;
     TNullable<TDuration> BackupRequestDelay;
+    //! Ignored when queried via transaction.
+    NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
 };
 
 struct TLookupRowsOptions
@@ -281,8 +284,14 @@ struct TLookupRowsOptions
     , public TTabletReadOptions
 {
     NTableClient::TColumnFilter ColumnFilter;
-    //! Ignored when queried via transaction.
-    NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
+    bool KeepMissingRows = false;
+};
+
+struct TVersionedLookupRowsOptions
+    : public TTimeoutOptions
+    , public TTabletReadOptions
+{
+    NTableClient::TColumnFilter ColumnFilter;
     bool KeepMissingRows = false;
 };
 
@@ -290,8 +299,6 @@ struct TSelectRowsOptions
     : public TTimeoutOptions
     , public TTabletReadOptions
 {
-    //! Ignored when queried via transaction.
-    NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
     //! If null then connection defaults are used.
     TNullable<i64> InputRowLimit;
     //! If null then connection defaults are used.
@@ -540,7 +547,7 @@ struct TAbortJobOptions
 
 struct TSelectRowsResult
 {
-    IRowsetPtr Rowset;
+    IUnversionedRowsetPtr Rowset;
     NQueryClient::TQueryStatistics Statistics;
 };
 
@@ -582,12 +589,17 @@ struct IClientBase
 
 
     // Tables
-    virtual TFuture<IRowsetPtr> LookupRows(
+    virtual TFuture<IUnversionedRowsetPtr> LookupRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
 
+    virtual TFuture<IVersionedRowsetPtr> VersionedLookupRows(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const TVersionedLookupRowsOptions& options = TVersionedLookupRowsOptions()) = 0;
 
     virtual TFuture<TSelectRowsResult> SelectRows(
         const Stroka& query,

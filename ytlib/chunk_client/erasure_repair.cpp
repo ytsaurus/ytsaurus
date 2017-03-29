@@ -164,7 +164,6 @@ private:
     std::vector<std::vector<i64>> RepairPartBlockSizes_;
 
     i64 ErasedDataSize_ = 0;
-
     int ErasedBlockCount_ = 0;
 
     void DoRun()

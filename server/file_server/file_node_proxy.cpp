@@ -71,14 +71,8 @@ private:
         TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
     }
 
-    virtual void ValidateFetchParameters(
-        const TChannel& channel,
-        const std::vector<TReadRange>& ranges) override
+    virtual void ValidateFetchParameters(const std::vector<NChunkClient::TReadRange>& ranges) override
     {
-        if (!channel.IsUniversal()) {
-            THROW_ERROR_EXCEPTION("Column selectors are not supported for files");
-        }
-
         for (const auto& range : ranges) {
             const auto& lowerLimit = range.LowerLimit();
             const auto& upperLimit = range.UpperLimit();

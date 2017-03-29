@@ -87,6 +87,7 @@ TCodegenSource MakeCodegenFilterOp(
 TCodegenSource MakeCodegenJoinOp(
     int index,
     std::vector<std::pair<TCodegenExpression, bool>> equations,
+    size_t commonKeyPrefix,
     TCodegenSource codegenSource);
 
 std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(

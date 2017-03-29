@@ -1,4 +1,7 @@
+#pragma once
+
 #include "framework.h"
+#include "helpers.h"
 
 #include <yt/server/tablet_node/config.h>
 #include <yt/server/tablet_node/sorted_dynamic_store.h>
@@ -131,7 +134,8 @@ protected:
             sorted ? MinKey() : TOwningKey(),
             sorted ? MaxKey() : TOwningKey(),
             GetAtomicity(),
-            GetCommitOrdering());
+            GetCommitOrdering(),
+            ETableReplicationMode::None);
 
         auto storeManager = CreateStoreManager(Tablet_.get());
         Tablet_->SetStoreManager(storeManager);
@@ -195,11 +199,6 @@ protected:
         transaction->SetState(ETransactionState::Aborted);
     }
 
-
-    TUnversionedOwningRow BuildKey(const Stroka& yson)
-    {
-        return NTableClient::YsonToKey(yson);
-    }
 
     TUnversionedOwningRow BuildRow(const Stroka& yson, bool treatMissingAsNull = true)
     {

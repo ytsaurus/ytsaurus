@@ -13,21 +13,23 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const ui32 UncommittedRevision = 0;
-static const ui32 InvalidRevision = std::numeric_limits<ui32>::max();
-static const ui32 MaxRevision = std::numeric_limits<ui32>::max() - 1;
+struct TWriteContext;
 
-static const int TypicalStoreIdCount = 8;
+static constexpr ui32 UncommittedRevision = 0;
+static constexpr ui32 InvalidRevision = std::numeric_limits<ui32>::max();
+static constexpr ui32 MaxRevision = std::numeric_limits<ui32>::max() - 1;
+
+static constexpr int TypicalStoreIdCount = 8;
 using TStoreIdList = SmallVector<TStoreId, TypicalStoreIdCount>;
 
-static const int InitialEditListCapacity = 2;
-static const int EditListCapacityMultiplier = 2;
-static const int MaxEditListCapacity = 256;
+static constexpr int InitialEditListCapacity = 2;
+static constexpr int EditListCapacityMultiplier = 2;
+static constexpr int MaxEditListCapacity = 256;
 
-static const int MaxOrderedDynamicSegments = 32;
-static const int InitialOrderedDynamicSegmentIndex = 10;
+static constexpr int MaxOrderedDynamicSegments = 32;
+static constexpr int InitialOrderedDynamicSegmentIndex = 10;
 
-static const i64 MemoryUsageGranularity = (i64) 1024 * 1024;
+static constexpr i64 MemoryUsageGranularity = (i64) 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 

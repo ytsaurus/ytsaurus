@@ -118,7 +118,7 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreate(
 
     if (!node->IsExternal()) {
         // Create an empty chunk list and reference it from the node.
-        auto* chunkList = chunkManager->CreateChunkList();
+        auto* chunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
         node->SetChunkList(chunkList);
         chunkList->AddOwningNode(node);
         objectManager->RefObject(chunkList);
@@ -253,7 +253,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         if (!isExternal) {
             YCHECK(branchedChunkList->Children().size() == 2);
             deltaTree = branchedChunkList->Children()[1];
-            newOriginatingChunkList = chunkManager->CreateChunkList();
+            newOriginatingChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
 
             originatingChunkList->RemoveOwningNode(originatingNode);
             newOriginatingChunkList->AddOwningNode(originatingNode);
@@ -265,7 +265,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             YCHECK(!topmostCommit); // No need to update properties.
             if (!isExternal) {
                 chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList->Children()[0]);
-                auto* newDeltaChunkList = chunkManager->CreateChunkList();
+                auto* newDeltaChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
                 chunkManager->AttachToChunkList(newOriginatingChunkList, newDeltaChunkList);
                 chunkManager->AttachToChunkList(newDeltaChunkList, originatingChunkList->Children()[1]);
                 chunkManager->AttachToChunkList(newDeltaChunkList, deltaTree);

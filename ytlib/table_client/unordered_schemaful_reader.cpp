@@ -14,6 +14,15 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// 1. Sequential prefetch
+//    - 0
+//    - 1
+//    - all
+// 2. Unordered
+//    - full concurrency and prefetch
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSession
 {
     ISchemafulReaderPtr Reader;
@@ -206,6 +215,56 @@ ISchemafulReaderPtr CreateUnorderedSchemafulReader(
         std::move(getNextReader),
         std::move(sessions),
         exhausted);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemafulReaderPtr CreateOrderedSchemafulReader(
+    std::function<ISchemafulReaderPtr()> getNextReader)
+{
+    return CreateUnorderedSchemafulReader(getNextReader, 1);
+}
+
+ISchemafulReaderPtr CreatePrefetchingOrderedSchemafulReader(
+    std::function<ISchemafulReaderPtr()> getNextReader)
+{
+    auto nextReader = getNextReader();
+    auto readerGenerator = [
+        nextReader = std::move(nextReader),
+        getNextReader = std::move(getNextReader)
+    ] () mutable -> ISchemafulReaderPtr {
+        auto currentReader = nextReader;
+        if (currentReader) {
+            nextReader = getNextReader();
+        }
+
+        return currentReader;
+    };
+
+    return CreateUnorderedSchemafulReader(readerGenerator, 1);
+}
+
+ISchemafulReaderPtr CreateFullPrefetchingOrderedSchemafulReader(
+    std::function<ISchemafulReaderPtr()> getNextReader)
+{
+    std::vector<ISchemafulReaderPtr> readers;
+
+    while (auto nextReader = getNextReader()) {
+        readers.push_back(nextReader);
+    }
+
+    auto readerGenerator = [
+        index = 0,
+        readers = std::move(readers)
+    ] () mutable -> ISchemafulReaderPtr {
+        if (index == readers.size()) {
+            return nullptr;
+        }
+
+        return readers[index++];
+    };
+
+    return CreateUnorderedSchemafulReader(readerGenerator, 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

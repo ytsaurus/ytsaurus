@@ -21,7 +21,7 @@ struct IBlackboxService
         const yhash_map<Stroka, Stroka>& params) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IBlackboxService);
+DEFINE_REFCOUNTED_TYPE(IBlackboxService)
 
 DEFINE_ENUM(EBlackboxStatusId,
     ((Valid)(0))

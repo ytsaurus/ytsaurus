@@ -34,6 +34,7 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
         : miscExt.row_count();
 
     CompressedDataSize_ = miscExt.compressed_data_size();
+    DataWeight_ = miscExt.data_weight();
     MaxBlockSize_ = miscExt.has_max_block_size()
         ? miscExt.max_block_size()
         : DefaultMaxBlockSize;
@@ -89,12 +90,14 @@ void TInputChunkBase::CheckOffsets()
     static_assert(offsetof(TInputChunkBase, TableRowIndex_) == 88, "invalid offset");
     static_assert(offsetof(TInputChunkBase, RangeIndex_) == 96, "invalid offset");
     static_assert(offsetof(TInputChunkBase, TableChunkFormat_) == 100, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, UncompressedDataSize_) == 104, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, RowCount_) == 112, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 120, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 128, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 136, "invalid offset");
-    static_assert(sizeof(TInputChunkBase) == 144, "invalid sizeof");
+    static_assert(offsetof(TInputChunkBase, ChunkIndex_) == 104, "invalid offsetof");
+    static_assert(offsetof(TInputChunkBase, UncompressedDataSize_) == 112, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, RowCount_) == 120, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 128, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, DataWeight_) == 136, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 144, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 152, "invalid offset");
+    static_assert(sizeof(TInputChunkBase) == 160, "invalid sizeof");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,9 +111,6 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec)
         ? std::make_unique<TReadLimit>(chunkSpec.upper_limit())
         : nullptr)
     , BoundaryKeys_(FindBoundaryKeys(chunkSpec.chunk_meta()))
-    , Channel_(chunkSpec.has_channel()
-        ? std::make_unique<NProto::TChannel>(chunkSpec.channel())
-        : nullptr)
     , PartitionsExt_(HasProtoExtension<NTableClient::NProto::TPartitionsExt>(chunkSpec.chunk_meta().extensions())
         ? std::make_unique<NTableClient::NProto::TPartitionsExt>(
             GetProtoExtension<NTableClient::NProto::TPartitionsExt>(chunkSpec.chunk_meta().extensions()))
@@ -125,7 +125,6 @@ void TInputChunk::Persist(const TStreamPersistenceContext& context)
     Persist<TUniquePtrSerializer<>>(context, LowerLimit_);
     Persist<TUniquePtrSerializer<>>(context, UpperLimit_);
     Persist<TUniquePtrSerializer<>>(context, BoundaryKeys_);
-    Persist<TUniquePtrSerializer<>>(context, Channel_);
     Persist<TUniquePtrSerializer<>>(context, PartitionsExt_);
 }
 
@@ -136,7 +135,6 @@ size_t TInputChunk::SpaceUsed() const
        (LowerLimit_ ? LowerLimit_->SpaceUsed() : 0) +
        (UpperLimit_ ? UpperLimit_->SpaceUsed() : 0) +
        (BoundaryKeys_ ? BoundaryKeys_->SpaceUsed() : 0) +
-       (Channel_ ? Channel_->SpaceUsed() : 0) +
        (PartitionsExt_ ? PartitionsExt_->SpaceUsed() : 0);
 }
 
@@ -180,18 +178,18 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
     ToProto(chunkSpec->mutable_chunk_id(), inputChunk->ChunkId_);
     const auto& replicas = inputChunk->GetReplicaList();
     ToProto(chunkSpec->mutable_replicas(), replicas);
-    chunkSpec->set_table_index(inputChunk->TableIndex_);
+    if (inputChunk->TableIndex_ >= 0) {
+        chunkSpec->set_table_index(inputChunk->TableIndex_);
+    }
     chunkSpec->set_erasure_codec(static_cast<int>(inputChunk->ErasureCodec_));
     chunkSpec->set_table_row_index(inputChunk->TableRowIndex_);
     chunkSpec->set_range_index(inputChunk->RangeIndex_);
+    chunkSpec->set_chunk_index(inputChunk->ChunkIndex_);
     if (inputChunk->LowerLimit_) {
         ToProto(chunkSpec->mutable_lower_limit(), *inputChunk->LowerLimit_);
     }
     if (inputChunk->UpperLimit_) {
         ToProto(chunkSpec->mutable_upper_limit(), *inputChunk->UpperLimit_);
-    }
-    if (inputChunk->Channel_) {
-        chunkSpec->mutable_channel()->CopyFrom(*inputChunk->Channel_);
     }
     chunkSpec->mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
     chunkSpec->mutable_chunk_meta()->set_version(static_cast<int>(inputChunk->TableChunkFormat_));
@@ -209,24 +207,25 @@ Stroka ToString(const TInputChunkPtr& inputChunk)
     }
     return Format(
         "{ChunkId: %v, Replicas: %v, TableIndex: %v, ErasureCodec: %v, TableRowIndex: %v, "
-        "RangeIndex: %v, TableChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
-        "CompressedDataSize: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "
-        "BoundaryKeys: {%v}, Channel: {%v}, PartitionsExt: {%v}}",
+        "RangeIndex: %v, ChunkIndex: %v, TableChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
+        "CompressedDataSize: %v, DataWeight: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "
+        "BoundaryKeys: {%v}, PartitionsExt: {%v}}",
         inputChunk->ChunkId(),
         JoinToString(inputChunk->Replicas()),
         inputChunk->GetTableIndex(),
         inputChunk->GetErasureCodec(),
         inputChunk->GetTableRowIndex(),
         inputChunk->GetRangeIndex(),
+        inputChunk->GetChunkIndex(),
         inputChunk->GetTableChunkFormat(),
         inputChunk->GetUncompressedDataSize(),
         inputChunk->GetRowCount(),
         inputChunk->GetCompressedDataSize(),
+        inputChunk->GetDataWeight(),
         inputChunk->GetMaxBlockSize(),
         inputChunk->LowerLimit() ? MakeNullable(*inputChunk->LowerLimit()) : Null,
         inputChunk->UpperLimit() ? MakeNullable(*inputChunk->UpperLimit()) : Null,
         inputChunk->BoundaryKeys() ? boundaryKeys : "",
-        inputChunk->Channel() ? inputChunk->Channel()->ShortDebugString() : "",
         inputChunk->PartitionsExt() ? inputChunk->PartitionsExt()->ShortDebugString() : "");
 }
 

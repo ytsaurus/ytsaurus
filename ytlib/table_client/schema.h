@@ -84,6 +84,8 @@ public:
     int GetColumnIndexOrThrow(const TStringBuf& name) const;
 
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
+    TTableSchema Filter(const yhash_set<Stroka>& columns) const;
+    TTableSchema Filter(const TNullable<std::vector<Stroka>>& columns) const;
 
     bool HasComputedColumns() const;
     bool IsSorted() const;
@@ -107,6 +109,10 @@ public:
     //! For ordered tables, prepends the current schema with |(tablet_index)| key column
     //! but without |$timestamp| column, if any.
     TTableSchema ToWrite() const;
+
+    //! Only applies to sorted replicated tables.
+    //! Returns the current schema as-is.
+    TTableSchema ToVersionedWrite() const;
 
     //! For sorted tables, returns the non-computed key columns.
     //! For ordered tables, returns an empty schema.

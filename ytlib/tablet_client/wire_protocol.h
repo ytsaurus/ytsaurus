@@ -20,6 +20,8 @@
 namespace NYT {
 namespace NTabletClient {
 
+// ToDo(psushin): move to NTableClient.
+
 ///////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EWireProtocolCommand,
@@ -34,6 +36,16 @@ DEFINE_ENUM(EWireProtocolCommand,
     //
     // Output:
     //   * N unversioned rows
+
+    ((VersionedLookupRows)(2))
+    // Finds rows with given keys and fetches their components.
+    //
+    // Input:
+    //   * TReqLookupRows
+    //   * Unversioned rowset containing N keys
+    //
+    // Output:
+    //   * N versioned rows
 
     // Write commands:
 
@@ -50,6 +62,15 @@ DEFINE_ENUM(EWireProtocolCommand,
     //
     // Input:
     //   * Key
+    // Output:
+    //   None
+
+    ((WriteVersionedRow)(102))
+    // Writes a versioned row (possibly inserting new values and/or delete timestamps).
+    // Currently only used by replicator.
+    //
+    // Input:
+    //   * Versioned row
     // Output:
     //   None
 );
@@ -81,6 +102,10 @@ public:
         const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
     void WriteVersionedRow(
         NTableClient::TVersionedRow row);
+
+    void WriteUnversionedValueRange(
+        TRange<NTableClient::TUnversionedValue> valueRange,
+        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
 
     void WriteUnversionedRowset(
         const TRange<NTableClient::TUnversionedRow>& rowset,
@@ -127,7 +152,6 @@ class TWireProtocolReader
 {
 public:
     using TIterator = const char*;
-    using TSchemaData = std::vector<ui32>;
 
     //! Initializes the instance.
     /*!
@@ -166,7 +190,7 @@ public:
     TSharedRange<NTableClient::TVersionedRow> ReadVersionedRowset(const TSchemaData& schemaData, bool deep);
 
     template <class TRow>
-    inline TSharedRange<TRow> ReadRowset(bool deep);
+    inline TSharedRange<TRow> ReadRowset(const TSchemaData& schemaData, bool deep);
 
     static TSchemaData GetSchemaData(
         const NTableClient::TTableSchema& schema,
@@ -180,18 +204,20 @@ private:
 };
 
 template <>
-inline TSharedRange<NTableClient::TUnversionedRow> TWireProtocolReader::ReadRowset<NTableClient::TUnversionedRow>(bool deep)
+inline TSharedRange<NTableClient::TUnversionedRow> TWireProtocolReader::ReadRowset<NTableClient::TUnversionedRow>(
+    const TSchemaData& schemaData,
+    bool deep)
 {
     return ReadUnversionedRowset(deep);
 }
 
-/*
 template <>
-inline TSharedRange<NTableClient::TVersionedRow> TWireProtocolReader::ReadRowset<NTableClient::TVersionedRow>(bool deep)
+inline TSharedRange<NTableClient::TVersionedRow> TWireProtocolReader::ReadRowset<NTableClient::TVersionedRow>(
+    const TSchemaData& schemaData,
+    bool deep)
 {
-    return ReadVersionedRowset(deep);
+    return ReadVersionedRowset(schemaData, deep);
 }
-*/
 
 ///////////////////////////////////////////////////////////////////////////////
 

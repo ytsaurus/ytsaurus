@@ -39,7 +39,7 @@ struct IJobSpecHelper
     virtual bool IsReaderInterruptionSupported() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IJobSpecHelper);
+DEFINE_REFCOUNTED_TYPE(IJobSpecHelper)
 
 ////////////////////////////////////////////////////////////////////////////////
 

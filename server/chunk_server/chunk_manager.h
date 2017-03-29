@@ -85,7 +85,7 @@ public:
         const TNodeList* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName);
 
-    TChunkList* CreateChunkList(bool ordered = true);
+    TChunkList* CreateChunkList(EChunkListKind kind);
 
     void AttachToChunkList(
         TChunkList* chunkList,

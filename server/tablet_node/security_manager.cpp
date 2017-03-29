@@ -241,7 +241,7 @@ public:
     TImpl(
         TSecurityManagerConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
-        : Config_(config)
+        : Config_(std::move(config))
         , Bootstrap_(bootstrap)
         , TablePermissionCache_(New<TTablePermissionCache>(Config_->TablePermissionCache, Bootstrap_))
         , ResourceLimitsCache_(New<TResourceLimitsCache>(Config_->ResourceLimitsCache, Bootstrap_))
@@ -265,7 +265,7 @@ public:
     }
 
     TFuture<void> CheckPermission(
-        TTabletSnapshotPtr tabletSnapshot,
+        const TTabletSnapshotPtr& tabletSnapshot,
         EPermission permission)
     {
         auto maybeUser = GetAuthenticatedUser();
@@ -273,12 +273,21 @@ public:
             return VoidFuture;
         }
 
+        if (tabletSnapshot->ReplicationMode == NTableClient::ETableReplicationMode::AsynchronousSink &&
+            permission == EPermission::Write &&
+            *maybeUser != NSecurityClient::ReplicatorUserName)
+        {
+            THROW_ERROR_EXCEPTION("Only %Qv is allowed to write into tables with %Qlv replication mode",
+                NSecurityClient::ReplicatorUserName,
+                tabletSnapshot->ReplicationMode);
+        }
+
         TTablePermissionKey key{tabletSnapshot->TableId, *maybeUser, permission};
         return TablePermissionCache_->Get(key);
     }
 
     void ValidatePermission(
-        TTabletSnapshotPtr tabletSnapshot,
+        const TTabletSnapshotPtr& tabletSnapshot,
         EPermission permission)
     {
         auto asyncResult = CheckPermission(std::move(tabletSnapshot), permission);
@@ -320,11 +329,12 @@ private:
 TSecurityManager::TSecurityManager(
     TSecurityManagerConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
+    : Impl_(New<TImpl>(
+        std::move(config),
+        bootstrap))
 { }
 
-TSecurityManager::~TSecurityManager()
-{ }
+TSecurityManager::~TSecurityManager() = default;
 
 void TSecurityManager::SetAuthenticatedUser(const Stroka& user)
 {
@@ -342,14 +352,14 @@ TNullable<Stroka> TSecurityManager::GetAuthenticatedUser()
 }
 
 TFuture<void> TSecurityManager::CheckPermission(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     EPermission permission)
 {
     return Impl_->CheckPermission(std::move(tabletSnapshot), permission);
 }
 
 void TSecurityManager::ValidatePermission(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     EPermission permission)
 {
     Impl_->ValidatePermission(std::move(tabletSnapshot), permission);

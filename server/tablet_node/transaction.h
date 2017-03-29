@@ -47,17 +47,23 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Transient);
     DEFINE_BYVAL_RW_PROPERTY(bool, HasLease);
     DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
-    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartTimestamp);
-    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, PrepareTimestamp);
-    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CommitTimestamp);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TSortedDynamicRowRef>, LockedSortedRows);
-    DEFINE_BYREF_RW_PROPERTY(TRingQueue<TSortedDynamicRowRef>, PrelockedSortedRows);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TOrderedDynamicRowRef>, LockedOrderedRows);
-    DEFINE_BYREF_RW_PROPERTY(TRingQueue<TOrderedDynamicRowRef>, PrelockedOrderedRows);
-    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, ImmediateWriteLog);
-    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, DelayedWriteLog);
-    DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, PersistentSignature);
-    DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, TransientSignature);
+
+    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartTimestamp, NullTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, PrepareTimestamp, NullTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CommitTimestamp, NullTimestamp);
+
+    DEFINE_BYREF_RW_PROPERTY(TRingQueue<TSortedDynamicRowRef>, PrelockedRows);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TSortedDynamicRowRef>, LockedRows);
+
+    DEFINE_BYREF_RW_PROPERTY(TRingQueue<TTablet*>, PrelockedTablets);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TTablet*>, LockedTablets);
+
+    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, ImmediateLockedWriteLog);
+    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, ImmediateLocklessWriteLog);
+    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, DelayedLocklessWriteLog);
+
+    DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, PersistentSignature, InitialTransactionSignature);
+    DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, TransientSignature, InitialTransactionSignature);
 
 public:
     explicit TTransaction(const TTransactionId& id);
@@ -82,7 +88,7 @@ public:
     bool IsPrepared() const;
 
 private:
-    TPromise<void> Finished_;
+    TPromise<void> Finished_ = NewPromise<void>();
 
 };
 

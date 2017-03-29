@@ -65,19 +65,18 @@ private:
         TCGVariables Variables;
         std::vector<int> ReferenceIds;
         TConstExpressionPtr Expression;
+        TCGAggregateCallbacks Aggregate;
+        bool IsAggregate = false;
     };
 
     std::vector<TColumn> Columns_;
-    std::unordered_map<int, TCGAggregateCallbacks> Aggregates_;
 
-    TColumnEvaluator(
-        std::vector<TColumn> columns,
-        std::unordered_map<int, TCGAggregateCallbacks> aggregates);
+    explicit TColumnEvaluator(std::vector<TColumn> columns);
 
     DECLARE_NEW_FRIEND();
 };
 
-DEFINE_REFCOUNTED_TYPE(TColumnEvaluator);
+DEFINE_REFCOUNTED_TYPE(TColumnEvaluator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,7 +100,7 @@ private:
     const TIntrusivePtr<TImpl> Impl_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TColumnEvaluatorCache);
+DEFINE_REFCOUNTED_TYPE(TColumnEvaluatorCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

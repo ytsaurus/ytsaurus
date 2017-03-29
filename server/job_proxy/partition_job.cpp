@@ -5,6 +5,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/partitioner.h>
@@ -42,7 +43,10 @@ public:
         const auto& inputSpec = SchedulerJobSpecExt_.input_table_specs(0);
 
         auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
-        auto readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(inputSpec.table_reader_options()));
+
+        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(SchedulerJobSpecExt_.data_source_directory());
+        auto readerOptions = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
+            SchedulerJobSpecExt_.table_reader_options()));
 
         TotalRowCount_ = GetCumulativeRowCount(dataSliceDescriptors);
 
@@ -54,13 +58,14 @@ public:
             YCHECK(!Reader_);
             // NB: don't create parallel reader to eliminate non-deterministic behavior,
             // which is a nightmare for restarted (lost) jobs.
-            Reader_ = CreateSchemalessSequentialMultiChunkReader(
+            Reader_ = CreateSchemalessSequentialMultiReader(
                 Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader,
                 readerOptions,
                 Host_->GetClient(),
                 Host_->LocalDescriptor(),
                 Host_->GetBlockCache(),
                 Host_->GetInputNodeDirectory(),
+                dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
                 columnFilter,
@@ -118,7 +123,11 @@ private:
 
     IPartitionerPtr CreatePartitioner()
     {
-        if (PartitionJobSpecExt_.partition_keys_size() > 0) {
+        if (PartitionJobSpecExt_.has_wire_partition_keys()) {
+            auto wirePartitionKeys = TSharedRef::FromString(PartitionJobSpecExt_.wire_partition_keys());
+            return CreateOrderedPartitioner(wirePartitionKeys);
+        } else if (PartitionJobSpecExt_.partition_keys_size() > 0) {
+            // COMPAT(psushin)
             YCHECK(PartitionJobSpecExt_.partition_keys_size() + 1 == PartitionJobSpecExt_.partition_count());
             auto partitionKeys = FromProto<std::vector<TOwningKey>>(PartitionJobSpecExt_.partition_keys());
             return CreateOrderedPartitioner(std::move(partitionKeys));

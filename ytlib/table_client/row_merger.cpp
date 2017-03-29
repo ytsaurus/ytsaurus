@@ -62,7 +62,7 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
 
     if (!Started_) {
         if (!MergedRow_) {
-            MergedRow_ = RowBuffer_->Allocate(ColumnIds_.size());
+            MergedRow_ = RowBuffer_->AllocateUnversioned(ColumnIds_.size());
         }
 
         const auto* keyBegin = row.BeginKeys();
@@ -225,7 +225,7 @@ TUnversionedRowMerger::TUnversionedRowMerger(
 void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
 {
     if (!Started_) {
-        MergedRow_ = RowBuffer_->Allocate(ColumnCount_);
+        MergedRow_ = RowBuffer_->AllocateUnversioned(ColumnCount_);
 
         for (int index = 0; index < ColumnCount_; ++index) {
             if (index < KeyColumnCount_) {
@@ -311,7 +311,7 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
     if (fullRow) {
         mergedRow = MergedRow_;
     } else {
-        mergedRow = RowBuffer_->Allocate(ColumnCount_);
+        mergedRow = RowBuffer_->AllocateUnversioned(ColumnCount_);
         int currentIndex = 0;
         for (int index = 0; index < MergedRow_.GetCount(); ++index) {
             if (ValidValues_[index]) {
@@ -343,19 +343,42 @@ void TUnversionedRowMerger::Cleanup()
 
 TVersionedRowMerger::TVersionedRowMerger(
     TRowBufferPtr rowBuffer,
+    int columnCount,
     int keyColumnCount,
+    const TColumnFilter& columnFilter,
     TRetentionConfigPtr config,
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
     TColumnEvaluatorPtr columnEvaluator)
     : RowBuffer_(std::move(rowBuffer))
+    , ColumnCount_(columnCount)
     , KeyColumnCount_(keyColumnCount)
     , Config_(std::move(config))
     , CurrentTimestamp_(currentTimestamp)
     , MajorTimestamp_(majorTimestamp)
     , ColumnEvaluator_(std::move(columnEvaluator))
-    , Keys_(KeyColumnCount_)
 {
+    size_t mergedKeyColumnCount = 0;
+    if (columnFilter.All) {
+        for (int id = 0; id < columnCount; ++id) {
+            if (id < keyColumnCount) {
+                ++mergedKeyColumnCount;
+            }
+            ColumnIds_.push_back(id);
+        }
+        Y_ASSERT(mergedKeyColumnCount == keyColumnCount);
+    } else {
+        for (int id : columnFilter.Indexes) {
+            if (id < keyColumnCount) {
+                ++mergedKeyColumnCount;
+            }
+            ColumnIds_.push_back(id);
+        }
+    }
+
+    Keys_.resize(mergedKeyColumnCount);
+    std::sort(ColumnIds_.begin(), ColumnIds_.end());
+
     Cleanup();
 }
 
@@ -378,7 +401,13 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
     if (!Started_) {
         Started_ = true;
         Y_ASSERT(row.GetKeyCount() == KeyColumnCount_);
-        std::copy(row.BeginKeys(), row.EndKeys(), Keys_.data());
+        for (int index = 0; index < ColumnIds_.size(); ++index) {
+            int id = ColumnIds_[index];
+            if (id < KeyColumnCount_) {
+                Y_ASSERT(index < Keys_.size());
+                Keys_.data()[index] = row.BeginKeys()[id];
+            }
+        }
     }
 
     PartialValues_.insert(
@@ -421,6 +450,8 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         PartialValues_.end());
 
     // Scan through input values.
+    auto columnIdsBeginIt = ColumnIds_.begin();
+    auto columnIdsEndIt = ColumnIds_.end();
     auto partialValueIt = PartialValues_.begin();
     while (partialValueIt != PartialValues_.end()) {
         // Extract a range of values for the current column.
@@ -428,6 +459,15 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         auto columnEndIt = partialValueIt + 1;
         while (columnEndIt != PartialValues_.end() && columnEndIt->Id == partialValueIt->Id) {
             ++columnEndIt;
+        }
+
+        // Skip values if the current column is filtered out.
+        while (columnIdsBeginIt != columnIdsEndIt && *columnIdsBeginIt < partialValueIt->Id) {
+            ++columnIdsBeginIt;
+        }
+        if (columnIdsBeginIt == columnIdsEndIt || *columnIdsBeginIt > partialValueIt->Id) {
+            partialValueIt = columnEndIt;
+            continue;
         }
 
         // Merge with delete timestamps and put result into ColumnValues_.
@@ -492,7 +532,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
             --retentionBeginIt;
         }
 
-        // For uggregate columns merge values before MajorTimestamp_ and leave other values.
+        // For aggregate columns merge values before MajorTimestamp_ and leave other values.
         int id = partialValueIt->Id;
         if (ColumnEvaluator_->IsAggregate(id) && retentionBeginIt < ColumnValues_.end()) {
             while (retentionBeginIt != ColumnValues_.begin()
@@ -570,9 +610,8 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
     }
 
     // Construct output row.
-    auto row = TMutableVersionedRow::Allocate(
-        RowBuffer_->GetPool(),
-        KeyColumnCount_,
+    auto row = RowBuffer_->AllocateVersioned(
+        Keys_.size(),
         MergedValues_.size(),
         WriteTimestamps_.size(),
         DeleteTimestamps_.size());
@@ -629,7 +668,7 @@ TSamplingRowMerger::TSamplingRowMerger(
 
 TUnversionedRow TSamplingRowMerger::MergeRow(TVersionedRow row)
 {
-    auto mergedRow = RowBuffer_->Allocate(SampledColumnCount_);
+    auto mergedRow = RowBuffer_->AllocateUnversioned(SampledColumnCount_);
 
     YCHECK(row.GetKeyCount() == KeyColumnCount_);
     for (int index = 0; index < row.GetKeyCount(); ++index) {
