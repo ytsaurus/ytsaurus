@@ -6,7 +6,8 @@ from yt.common import copy_docstring_from
 
 import yt.wrapper.yson as yson
 from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, update, get_value, MB, \
-                              DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources
+                              DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources, \
+                              chunk_iter_rows
 from yt.wrapper.cli_helpers import write_silently, run_main
 from yt.wrapper.default_config import get_default_config
 import yt.wrapper.completers as completers
@@ -335,7 +336,12 @@ def add_find_parser(add_parser):
 
 @copy_docstring_from(yt.read_table)
 def read_table(**args):
-    write_silently(chunk_iter_stream(yt.read_table(**args), 16 * MB))
+    stream = yt.read_table(**args)
+    if yt.config["read_retries"]["enable"]:
+        iterator = chunk_iter_rows(stream, 16 * MB)
+    else:
+        iterator = chunk_iter_stream(stream, 16 * MB)
+    write_silently(iterator)
 
 def add_read_table_parser(add_parser):
     for name, func in [("read", read_table), ("read-table", read_table)]:

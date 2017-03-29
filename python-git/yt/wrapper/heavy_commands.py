@@ -1,5 +1,5 @@
 from .config import get_option, get_config, get_total_request_timeout, get_command_param
-from .common import chunk_iter_blobs, YtError, update, remove_nones_from_dict, \
+from .common import group_blobs_by_size, YtError, update, remove_nones_from_dict, \
                     get_value
 from .retries import Retrier, IteratorRetrier
 from .errors import YtResponseError, YtMasterCommunicationError
@@ -7,7 +7,7 @@ from .ypath import YPathSupportingAppend
 from .transaction import Transaction
 from .transaction_commands import _make_transactional_request
 from .http_helpers import get_retriable_errors
-from .response_stream import ResponseStreamWithDel
+from .response_stream import ResponseStreamWithDel, ResponseStreamWithReadRow
 from .lock_commands import lock
 from .format import YtFormatReadError
 
@@ -106,7 +106,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
             runner = WriteRequestRetrier(transaction_timeout=transaction_timeout,
                                          write_action=write_action,
                                          client=client)
-            for chunk in chunk_iter_blobs(stream, chunk_size):
+            for chunk in group_blobs_by_size(stream, chunk_size):
                 assert isinstance(chunk, list)
                 logger.debug("Processing {0} chunk (length: {1}, transaction: {2})"
                     .format(command_name, len(chunk), get_command_param("transaction_id", client)))
@@ -227,7 +227,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
                 with Transaction(transaction_id=tx.transaction_id, attributes={"title": title}, client=client):
                     lock(path, mode="snapshot", client=client)
             iterator = ReadIterator(command_name, tx, process_response_action, retriable_state_class, client)
-            return ResponseStreamWithDel(
+            return ResponseStreamWithReadRow(
                 get_response=lambda: iterator.last_response,
                 iter_content=iterator,
                 close=lambda: iterator.close(),

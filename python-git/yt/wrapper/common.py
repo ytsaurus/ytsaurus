@@ -88,7 +88,7 @@ def first_not_none(iter):
 def merge_dicts(*dicts):
     return dict(chain(*[iteritems(d) for d in dicts]))
 
-def chunk_iter_blobs(lines, chunk_size):
+def group_blobs_by_size(lines, chunk_size):
     """ Unite lines into large chunks """
     size = 0
     chunk = []
@@ -107,6 +107,10 @@ def chunk_iter_stream(stream, chunk_size):
         if not chunk:
             break
         yield chunk
+
+def chunk_iter_rows(stream, chunk_size):
+    for blob in group_blobs_by_size(stream.read_rows(), chunk_size):
+        yield b"".join(blob)
 
 def chunk_iter_string(string, chunk_size):
     index = 0
