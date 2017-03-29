@@ -35,12 +35,28 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
 
-        Profiler.Increment(ValueCounter_, count);
-
+        // Fast lane.
         if (count == 0) {
             return VoidFuture;
         }
 
+        Profiler.Increment(ValueCounter_, count);
+
+        if (!HasLimit_) {
+            return VoidFuture;
+        }
+
+        while (true) {
+            auto available = Available_.load();
+            if (available <= 0) {
+                break;
+            }
+            if (Available_.compare_exchange_strong(available, available - count)) {
+                return VoidFuture;
+            }
+        }
+
+        // Slow lane.
         TGuard<TSpinLock> guard(SpinLock_);
 
         if (!Limit_) {
@@ -66,12 +82,21 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
 
-        if (Limit_) {
-            TGuard<TSpinLock> guard(SpinLock_);
-            if (Available_ < count) {
-                return false;
+        // Fast lane (only).
+        if (count == 0) {
+            return true;
+        }
+
+        if (HasLimit_) {
+            while (true) {
+                auto available = Available_.load();
+                if (available <= 0) {
+                    return false;
+                }
+                if (Available_.compare_exchange_strong(available, available - count)) {
+                    break;
+                }
             }
-            Available_ -= count;
         }
 
         Profiler.Increment(ValueCounter_, count);
@@ -83,8 +108,12 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
 
-        if (Limit_) {
-            TGuard<TSpinLock> guard(SpinLock_);
+        // Fast lane (only).
+        if (count == 0) {
+            return;
+        }
+
+        if (HasLimit_) {
             Available_ -= count;
         }
 
@@ -95,7 +124,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(SpinLock_);
+        // Fast lane (only).
         return Available_ < 0;
     }
 
@@ -103,9 +132,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        // Slow lane (only).
         TGuard<TSpinLock> guard(SpinLock_);
 
         Limit_ = config->Limit;
+        HasLimit_ = Limit_.HasValue();
         if (Limit_) {
             ThroughputPerPeriod_ = static_cast<i64>(config->Period.SecondsFloat() * (*Limit_));
             Available_ = ThroughputPerPeriod_;
@@ -126,6 +157,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        // Slow lane (only).
         return QueueTotalCount_;
     }
 
@@ -135,9 +167,12 @@ private:
 
     NProfiling::TAggregateCounter ValueCounter_;
 
+    std::atomic<i64> Available_ = {-1};
+    std::atomic<bool> HasLimit_ = {true};
+    std::atomic<i64> QueueTotalCount_ = {0};
+
     //! Protects the section immediately following it.
     TSpinLock SpinLock_;
-    i64 Available_ = -1;
     TNullable<i64> Limit_;
     i64 ThroughputPerPeriod_ = -1;
     TPeriodicExecutorPtr PeriodicExecutor_;
@@ -148,7 +183,6 @@ private:
         TPromise<void> Promise;
     };
 
-    std::atomic<i64> QueueTotalCount_ = {0};
     std::queue<TRequest> Requests_;
 
 
