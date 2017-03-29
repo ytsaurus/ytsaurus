@@ -61,10 +61,17 @@ struct IYPathService
     /*!
      *  If #stable is |true| then the implementation must ensure a stable result.
      */
-    virtual void WriteAttributesFragment(
+    void WriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
-        bool stable) = 0;
+        bool stable);
+
+    //! Wraps WriteAttributesFragment by enclosing attributes with angle brackets.
+    //! If WriteAttributesFragment writes nothing then this method also does nothing.
+    void WriteAttributes(
+        NYson::IAsyncYsonConsumer* consumer,
+        const TNullable<std::vector<Stroka>>& attributeKeys,
+        bool stable);
 
     //! Manages strategy of writing attributes if attribute keys are null.
     virtual bool ShouldHideAttributes() = 0;
@@ -98,12 +105,14 @@ struct IYPathService
     //! the underlying service.
     IYPathServicePtr Cached(TDuration updatePeriod);
 
-    //! Wraps WriteAttributesFragment by enclosing attributes with angle brackets.
-    //! If WriteAttributesFragment writes nothing then this method also does nothing.
-    void WriteAttributes(
+protected:
+    //! Implementation method for WriteAttributesFragment.
+    //! It always write requested attributes and call ShouldHideAttributes.
+    virtual void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
-        bool stable);
+        bool stable) = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IYPathService)

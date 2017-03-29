@@ -104,7 +104,7 @@ bool TYPathServiceBase::DoInvoke(const IServiceContextPtr& /*context*/)
 void TYPathServiceBase::AfterInvoke(const IServiceContextPtr& /*context*/)
 { }
 
-void TYPathServiceBase::WriteAttributesFragment(
+void TYPathServiceBase::DoWriteAttributesFragment(
     NYson::IAsyncYsonConsumer* /*consumer*/,
     const TNullable<std::vector<Stroka>>& /*attributeKeys*/,
     bool /*stable*/)
@@ -1269,7 +1269,7 @@ public:
         return TResolveResult::There(UnderlyingService_, tokenizer.GetSuffix());
     }
 
-    virtual void WriteAttributesFragment(
+    virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
         bool stable) override
