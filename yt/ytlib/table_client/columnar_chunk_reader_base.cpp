@@ -22,9 +22,6 @@ using namespace NTableChunkFormat::NProto;
 
 using NChunkClient::TReadLimit;
 
-static const auto& Logger = TableClientLogger;
-
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnarChunkReaderBase::TColumnarChunkReaderBase(
