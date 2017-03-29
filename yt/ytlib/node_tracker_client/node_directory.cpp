@@ -35,12 +35,12 @@ TNodeDescriptor::TNodeDescriptor(const TNullable<Stroka>& defaultAddress)
 }
 
 TNodeDescriptor::TNodeDescriptor(
-    const TAddressMap& addresses,
-    const TNullable<Stroka>& rack,
-    const TNullable<Stroka>& dc)
-    : Addresses_(addresses)
-    , Rack_(rack)
-    , DataCenter_(dc)
+    TAddressMap addresses,
+    TNullable<Stroka> rack,
+    TNullable<Stroka> dc)
+    : Addresses_(std::move(addresses))
+    , Rack_(std::move(rack))
+    , DataCenter_(std::move(dc))
 { }
 
 bool TNodeDescriptor::IsNull() const
