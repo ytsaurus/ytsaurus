@@ -879,7 +879,9 @@ private:
             return;
         }
 
-        auto* partition = tablet->FindPartition(task.Partition);
+        auto* partition = tablet->GetEden()->GetId() == task.Partition
+            ? tablet->GetEden()
+            : tablet->FindPartition(task.Partition);
         if (!partition) {
             LOG_DEBUG("Partition is missing, aborting compaction");
             return;
