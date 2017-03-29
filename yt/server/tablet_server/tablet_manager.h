@@ -142,6 +142,7 @@ private:
         const std::vector<TTabletCell*>& cellIds,
         const std::vector<NTableClient::TOwningKey>& pivotKeys,
         const TNullable<int>& tabletCount,
+        const TNullable<bool>& freeze,
         bool preserve);
 
     void DestroyTabletAction(TTabletAction* action);
