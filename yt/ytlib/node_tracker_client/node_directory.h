@@ -30,9 +30,9 @@ public:
     explicit TNodeDescriptor(const Stroka& defaultAddress);
     explicit TNodeDescriptor(const TNullable<Stroka>& defaultAddress);
     explicit TNodeDescriptor(
-        const TAddressMap& addresses,
-        const TNullable<Stroka>& rack = Null,
-        const TNullable<Stroka>& dc = Null);
+        TAddressMap addresses,
+        TNullable<Stroka> rack = Null,
+        TNullable<Stroka> dc = Null);
 
     bool IsNull() const;
 
