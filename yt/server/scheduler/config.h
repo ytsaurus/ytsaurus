@@ -726,6 +726,13 @@ public:
     // Maximum number of simultaneously processed heartbeats.
     int HardConcurrentHeartbeatLimit;
 
+    // Controls the rate at which jobs are scheduled in termes of slices per second.
+    NConcurrency::TThroughputThrottlerConfigPtr JobSpecSliceThrottler;
+    // Discriminates between "heavy" and "light" job specs. For those with slice count
+    // not exceeding this threshold no throttling is done.
+    int HeavyJobSpecSliceCountThreshold;
+
+
     // Enables using tmpfs if tmpfs_path is specified in user spec.
     bool EnableTmpfs;
 
@@ -996,14 +1003,18 @@ public:
 
         RegisterParameter("heartbeat_process_backoff", HeartbeatProcessBackoff)
             .Default(TDuration::MilliSeconds(5000));
-
         RegisterParameter("soft_concurrent_heartbeat_limit", SoftConcurrentHeartbeatLimit)
             .Default(50)
             .GreaterThanOrEqual(1);
-
         RegisterParameter("hard_concurrent_heartbeat_limit", HardConcurrentHeartbeatLimit)
             .Default(100)
             .GreaterThanOrEqual(1);
+
+        RegisterParameter("job_spec_slice_throttler", JobSpecSliceThrottler)
+            .Default(New<NConcurrency::TThroughputThrottlerConfig>(500000));
+        RegisterParameter("heavy_job_spec_slice_count_threshold", HeavyJobSpecSliceCountThreshold)
+            .Default(1000)
+            .GreaterThan(0);
 
         RegisterParameter("enable_tmpfs", EnableTmpfs)
             .Default(true);

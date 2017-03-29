@@ -48,6 +48,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/response_keeper.h>
@@ -96,7 +97,6 @@ using NNodeTrackerClient::TNodeDirectory;
 
 static const auto& Logger = SchedulerLogger;
 static const auto& Profiler = SchedulerProfiler;
-static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -120,7 +120,12 @@ public:
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
         , JobSpecBuilderThreadPool_(New<TThreadPool>(Config_->JobSpecBuilderThreadCount, "SpecBuilder"))
         , StatisticsAnalyzerThreadPool_(New<TThreadPool>(Config_->StatisticsAnalyzerThreadCount, "Statistics"))
-        , MasterConnector_(new TMasterConnector(Config_, Bootstrap_))
+        , ReconfigurableJobSpecSliceThrottler_(CreateReconfigurableThroughputThrottler(
+            Config_->JobSpecSliceThrottler,
+            NLogging::TLogger(),
+            NProfiling::TProfiler(SchedulerProfiler.GetPathPrefix() + "/job_spec_slice_throttler")))
+        , JobSpecSliceThrottler_(ReconfigurableJobSpecSliceThrottler_)
+        , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , MainNodesResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/main_nodes_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
@@ -252,13 +257,6 @@ public:
             BIND(&TImpl::UpdateNodeShards, MakeWeak(this)),
             Config_->NodeShardsUpdatePeriod);
         UpdateNodeShardsExecutor_->Start();
-    }
-
-    virtual ISchedulerStrategyPtr GetStrategy() override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return Strategy_;
     }
 
     IYPathServicePtr GetOrchidService()
@@ -905,25 +903,39 @@ public:
     }
 
     // INodeShardHost implementation
-    int GetNodeShardId(TNodeId nodeId) const override
+    virtual int GetNodeShardId(TNodeId nodeId) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return nodeId % NodeShards_.size();
     }
 
-    IInvokerPtr GetStatisticsAnalyzerInvoker() override
+    virtual const ISchedulerStrategyPtr& GetStrategy() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Strategy_;
+    }
+
+    const IInvokerPtr& GetStatisticsAnalyzerInvoker() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return StatisticsAnalyzerThreadPool_->GetInvoker();
     }
 
-    IInvokerPtr GetJobSpecBuilderInvoker() override
+    const IInvokerPtr& GetJobSpecBuilderInvoker() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return JobSpecBuilderThreadPool_->GetInvoker();
+    }
+
+    virtual const IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return JobSpecSliceThrottler_;
     }
 
     TFuture<void> UpdateOperationWithFinishedJob(
@@ -979,27 +991,28 @@ private:
     const TSchedulerConfigPtr InitialConfig_;
     TBootstrap* const Bootstrap_;
 
-    TActionQueuePtr SnapshotIOQueue_;
-    TThreadPoolPtr ControllerThreadPool_;
-    TThreadPoolPtr JobSpecBuilderThreadPool_;
-    TThreadPoolPtr StatisticsAnalyzerThreadPool_;
+    const TActionQueuePtr SnapshotIOQueue_;
+    const TThreadPoolPtr ControllerThreadPool_;
+    const TThreadPoolPtr JobSpecBuilderThreadPool_;
+    const TThreadPoolPtr StatisticsAnalyzerThreadPool_;
 
-    std::unique_ptr<TMasterConnector> MasterConnector_;
+    const IReconfigurableThroughputThrottlerPtr ReconfigurableJobSpecSliceThrottler_;
+    const IThroughputThrottlerPtr JobSpecSliceThrottler_;
+
+    const std::unique_ptr<TMasterConnector> MasterConnector_;
 
     ISchedulerStrategyPtr Strategy_;
 
     TInstant ConnectionTime_;
 
-    TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
-
     typedef yhash_map<TOperationId, TOperationPtr> TOperationIdMap;
     TOperationIdMap IdToOperation_;
 
     typedef std::vector<TExecNodeDescriptor> TExecNodeDescriptors;
-    NConcurrency::TReaderWriterSpinLock ExecNodeDescriptorsLock_;
+    TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptors CachedExecNodeDescriptors_;
 
-    NConcurrency::TReaderWriterSpinLock ExecNodeDescriptorsByTagLock_;
+    TReaderWriterSpinLock ExecNodeDescriptorsByTagLock_;
 
     struct TExecNodeDescriptorsEntry
     {
@@ -1007,6 +1020,7 @@ private:
         NProfiling::TCpuInstant LastUpdateTime;
         TExecNodeDescriptors ExecNodeDescriptors;
     };
+
     mutable yhash_map<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
 
     TProfiler TotalResourceLimitsProfiler_;
@@ -1522,7 +1536,7 @@ private:
             return;
         }
 
-        TSchedulerConfigPtr newConfig = CloneYsonSerializable(InitialConfig_);
+        auto newConfig = CloneYsonSerializable(InitialConfig_);
         try {
             const auto& rsp = rspOrError.Value();
             auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
@@ -1549,6 +1563,7 @@ private:
         if (!AreNodesEqual(oldConfigNode, newConfigNode)) {
             LOG_INFO("Scheduler configuration updated");
             Config_ = newConfig;
+            ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
             for (const auto& operation : GetOperations()) {
                 auto controller = operation->GetController();
                 BIND(&IOperationController::UpdateConfig, controller, Config_)
