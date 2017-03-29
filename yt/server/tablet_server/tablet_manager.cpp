@@ -852,12 +852,22 @@ public:
         }
     }
 
+    void ChangeTabletActionState(TTabletAction* action, ETabletActionState state, bool recursive = true)
+    {
+        action->SetState(state);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
+            action->GetId(),
+            state);
+        if (recursive) {
+            OnTabletActionStateChanged(action);
+        }
+    }
+
     void OnTabletActionDisturbed(TTabletAction* action, const TError& error)
     {
         if (action->Tablets().empty()) {
             action->Error() = error.Sanitize();
-            action->SetState(ETabletActionState::Failed);
-            OnTabletActionStateChanged(action);
+            ChangeTabletActionState(action, ETabletActionState::Failed);
             return;
         }
 
@@ -871,8 +881,7 @@ public:
             case ETabletActionState::Mounting:
                 // Nothing can be done here.
                 action->Error() = error.Sanitize();
-                action->SetState(ETabletActionState::Failed);
-                OnTabletActionStateChanged(action);
+                ChangeTabletActionState(action, ETabletActionState::Failed);
                 break;
 
             case ETabletActionState::Completed:
@@ -910,7 +919,7 @@ public:
                 YCHECK(action->GetState() != ETabletActionState::Failing);
                 action->Error() = TError(ex).Sanitize();
                 if (action->GetState() != ETabletActionState::Unmounting) {
-                    action->SetState(ETabletActionState::Failing);
+                    ChangeTabletActionState(action, ETabletActionState::Failing, false);
                 }
                 repeat = true;
             }
@@ -922,21 +931,15 @@ public:
         switch (action->GetState()) {
             case ETabletActionState::Preparing: {
                 if (action->GetSkipFreezing()) {
-                    action->SetState(ETabletActionState::Frozen);
-                    DoTabletActionStateChanged(action);
+                    ChangeTabletActionState(action, ETabletActionState::Frozen);
                     break;
                 }
-
-                action->SetState(ETabletActionState::Freezing);
 
                 for (auto* tablet : action->Tablets()) {
                     DoFreezeTablet(tablet);
                 }
 
-                LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
-                    action->GetId(),
-                    action->GetState());
-                DoTabletActionStateChanged(action);
+                ChangeTabletActionState(action, ETabletActionState::Freezing);
                 break;
             }
 
@@ -949,29 +952,21 @@ public:
                     }
                 }
                 if (freezingCount == 0) {
-                    action->SetState(action->Error().IsOK()
+                    auto state = action->Error().IsOK()
                         ? ETabletActionState::Frozen
-                        : ETabletActionState::Failing);
-                    LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
-                        action->GetId(),
-                        action->GetState());
-                    DoTabletActionStateChanged(action);
+                        : ETabletActionState::Failing;
+                    ChangeTabletActionState(action, state);
                 }
                 break;
             }
 
             case ETabletActionState::Frozen: {
-                action->SetState(ETabletActionState::Unmounting);
-
                 for (auto* tablet : action->Tablets()) {
                     YCHECK(IsObjectAlive(tablet));
                     DoUnmountTablet(tablet, false);
                 }
 
-                LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
-                    action->GetId(),
-                    action->GetState());
-                DoTabletActionStateChanged(action);
+                ChangeTabletActionState(action, ETabletActionState::Unmounting);
                 break;
             }
 
@@ -984,13 +979,10 @@ public:
                     }
                 }
                 if (unmountingCount == 0) {
-                    action->SetState(action->Error().IsOK()
+                    auto state = action->Error().IsOK()
                         ? ETabletActionState::Unmounted
-                        : ETabletActionState::Failing);
-                    LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
-                        action->GetId(),
-                        action->GetState());
-                    DoTabletActionStateChanged(action);
+                        : ETabletActionState::Failing;
+                    ChangeTabletActionState(action, state);
                 }
                 break;
             }
@@ -1105,11 +1097,7 @@ public:
                         Y_UNREACHABLE();
                 }
 
-                action->SetState(ETabletActionState::Mounting);
-                LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
-                    action->GetId(),
-                    action->GetState());
-                DoTabletActionStateChanged(action);
+                ChangeTabletActionState(action, ETabletActionState::Mounting);
                 break;
             }
 
@@ -1125,21 +1113,13 @@ public:
                 }
 
                 if (mountedCount == action->Tablets().size()) {
-                    action->SetState(ETabletActionState::Mounted);
-                    LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
-                        action->GetId(),
-                        action->GetState());
-                    DoTabletActionStateChanged(action);
+                    ChangeTabletActionState(action, ETabletActionState::Mounted);
                 }
                 break;
             }
 
             case ETabletActionState::Mounted: {
-                action->SetState(ETabletActionState::Completed);
-                LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
-                    action->GetId(),
-                    action->GetState());
-                DoTabletActionStateChanged(action);
+                ChangeTabletActionState(action, ETabletActionState::Completed);
                 break;
             }
 
@@ -1149,21 +1129,13 @@ public:
 
                 MountMissedInActionTablets(action);
                 UnbindTabletAction(action);
-
-                action->SetState(ETabletActionState::Failed);
-                LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
-                    action->GetId(),
-                    action->GetState());
-                DoTabletActionStateChanged(action);
+                ChangeTabletActionState(action, ETabletActionState::Failed);
                 break;
             }
 
             case ETabletActionState::Completed:
                 if (!action->Error().IsOK()) {
-                    action->SetState(ETabletActionState::Failed);
-                    LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
-                        action->GetId(),
-                        action->GetState());
+                    ChangeTabletActionState(action, ETabletActionState::Failed, false);
                 }
                 // No break intentionaly.
             case ETabletActionState::Failed: {
