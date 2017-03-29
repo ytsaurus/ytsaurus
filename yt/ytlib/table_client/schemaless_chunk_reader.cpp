@@ -317,7 +317,6 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
 
 TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
 {
-    YCHECK(ChunkSpec_.chunk_meta().version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
     YCHECK(BlockIndexes_.empty());
 
     InitializeSystemColumnIds();
@@ -351,6 +350,8 @@ void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> ex
         extensionTags);
     ChunkMeta_ = WaitFor(asynChunkMeta)
         .ValueOrThrow();
+
+    YCHECK(ChunkMeta_.version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
 
     BlockMetaExt_ = GetProtoExtension<NProto::TBlockMetaExt>(ChunkMeta_.extensions());
 
@@ -1627,10 +1628,12 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TReadRange& readRange,
     TNullable<int> partitionTag)
 {
-    auto type = EChunkType(chunkSpec.chunk_meta().type());
-    YCHECK(type == EChunkType::Table);
-
-    auto formatVersion = ETableChunkFormat(chunkSpec.chunk_meta().version());
+    ETableChunkFormat formatVersion = ETableChunkFormat::SchemalessHorizontal;
+    if (chunkSpec.has_chunk_meta()) {
+        auto type = EChunkType(chunkSpec.chunk_meta().type());
+        YCHECK(type == EChunkType::Table);
+        formatVersion = ETableChunkFormat(chunkSpec.chunk_meta().version());
+    }
 
     switch (formatVersion) {
         case ETableChunkFormat::SchemalessHorizontal:
@@ -1678,10 +1681,12 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TNullable<int> partitionTag)
 {
-    auto type = EChunkType(chunkSpec.chunk_meta().type());
-    YCHECK(type == EChunkType::Table);
-
-    auto formatVersion = ETableChunkFormat(chunkSpec.chunk_meta().version());
+    ETableChunkFormat formatVersion = ETableChunkFormat::SchemalessHorizontal;
+    if (chunkSpec.has_chunk_meta()) {
+        auto type = EChunkType(chunkSpec.chunk_meta().type());
+        YCHECK(type == EChunkType::Table);
+        formatVersion = ETableChunkFormat(chunkSpec.chunk_meta().version());
+    }
 
     switch (formatVersion) {
         case ETableChunkFormat::SchemalessHorizontal:
@@ -2200,6 +2205,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     boundaries.reserve(chunkSpecs.size());
 
     for (const auto& chunkSpec : chunkSpecs) {
+        YCHECK(chunkSpec.has_chunk_meta());
         TOwningKey minKey;
         if (chunkSpec.has_lower_limit()) {
             auto limit = NYT::FromProto<TReadLimit>(chunkSpec.lower_limit());
