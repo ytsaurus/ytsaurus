@@ -42,6 +42,7 @@
 #include <yt/ytlib/api/native_connection.h>
 
 #include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/erasure/codec.h>
 
@@ -84,13 +85,9 @@ using NTableClient::TTableReaderOptions;
 
 ////////////////////////////////////////////////////////////////////
 
-static NProfiling::TSimpleCounter ScheduledSliceCounter("/scheduled_slice_count");
-
-////////////////////////////////////////////////////////////////////
-
 namespace {
 
-void CommitTransaction(ITransactionPtr transaction)
+void CommitTransaction(const ITransactionPtr& transaction)
 {
     if (!transaction) {
         return;
@@ -468,6 +465,20 @@ void TOperationControllerBase::TTask::ScheduleJob(
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
 
+    int sliceCount = joblet->InputStripeList->TotalChunkCount;
+    const auto& jobSpecSliceThrottler = context->GetJobSpecSliceThrottler();
+    if (sliceCount > Controller->Config->HeavyJobSpecSliceCountThreshold) {
+        if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
+            LOG_DEBUG("Job spec throttling is active (SliceCount: %v)",
+                sliceCount);
+            chunkPoolOutput->Aborted(joblet->OutputCookie);
+            scheduleJobResult->RecordFail(EScheduleJobFailReason::JobSpecThrottling);
+            return;
+        }
+    } else {
+        jobSpecSliceThrottler->Acquire(sliceCount);
+    }
+
     auto estimatedResourceUsage = GetNeededResources(joblet);
     auto neededResources = ApplyMemoryReserve(estimatedResourceUsage);
 
@@ -539,8 +550,6 @@ void TOperationControllerBase::TTask::ScheduleJob(
     if (userJobSpec) {
         joblet->UserJobMemoryReserveFactor = Controller->GetUserJobMemoryDigest(GetJobType())->GetQuantile(Controller->Config->UserJobMemoryReserveQuantile);
     }
-
-    SchedulerProfiler.Increment(ScheduledSliceCounter, joblet->InputStripeList->TotalChunkCount);
 
     LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, SliceCount: %v (%v local), "
