@@ -4,8 +4,6 @@
 #include <yt/server/tablet_server/tablet.h>
 #include <yt/server/tablet_server/tablet_cell_bundle.h>
 
-#include <yt/ytlib/chunk_client/schema.h>
-
 namespace NYT {
 namespace NTableServer {
 
@@ -110,6 +108,7 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, LastCommitTimestamp_);
     Save(context, RetainedTimestamp_);
     Save(context, UnflushedTimestamp_);
+    Save(context, ReplicationMode_);
 }
 
 void TTableNode::Load(NCellMaster::TLoadContext& context)
@@ -129,7 +128,10 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
         Load(context, RetainedTimestamp_);
         Load(context, UnflushedTimestamp_);
     }
-
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 509) {
+        Load(context, ReplicationMode_);
+    }
     // COMPAT(babenko): Cf. YT-5045
     if (Attributes_ && Attributes_->Attributes().empty()) {
         Attributes_.reset();

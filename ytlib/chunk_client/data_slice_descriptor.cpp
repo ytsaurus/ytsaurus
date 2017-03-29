@@ -10,62 +10,55 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDataSliceDescriptor::TDataSliceDescriptor(
-    EDataSliceDescriptorType type,
-    std::vector<NProto::TChunkSpec> chunkSpecs,
-    const TTableSchema& schema,
-    TTimestamp timestamp)
-    : Type(type)
-    , ChunkSpecs(std::move(chunkSpecs))
-    , Schema(schema)
-    , Timestamp(timestamp)
+TDataSliceDescriptor::TDataSliceDescriptor(std::vector<NProto::TChunkSpec> chunkSpecs)
+    : ChunkSpecs(std::move(chunkSpecs))
 { }
 
-const NProto::TChunkSpec& TDataSliceDescriptor::GetSingleUnversionedChunk() const
+TDataSliceDescriptor::TDataSliceDescriptor(const NProto::TChunkSpec& chunkSpec)
 {
-    YCHECK(Type == EDataSliceDescriptorType::UnversionedTable);
+    ChunkSpecs.push_back(chunkSpec);
+}
+
+const NProto::TChunkSpec& TDataSliceDescriptor::GetSingleChunk() const
+{
     YCHECK(ChunkSpecs.size() == 1);
     return ChunkSpecs[0];
 }
 
-const NProto::TChunkSpec& TDataSliceDescriptor::GetSingleFileChunk() const
+TNullable<i64> TDataSliceDescriptor::GetTag() const
 {
-    YCHECK(Type == EDataSliceDescriptorType::File);
-    YCHECK(ChunkSpecs.size() == 1);
-    return ChunkSpecs[0];
+    YCHECK(!ChunkSpecs.empty());
+    TNullable<i64> commonTag = ChunkSpecs.front().has_data_slice_tag()
+        ? MakeNullable(ChunkSpecs.front().data_slice_tag())
+        : Null;
+    for (const auto& chunkSpec : ChunkSpecs) {
+        TNullable<i64> tag = chunkSpec.has_data_slice_tag()
+            ? MakeNullable(chunkSpec.data_slice_tag())
+            : Null;
+        YCHECK(commonTag == tag);
+    }
+    return commonTag;
+}
+
+int TDataSliceDescriptor::GetDataSourceIndex() const
+{
+    return ChunkSpecs.empty()
+        ? 0
+        : ChunkSpecs.front().table_index();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TDataSliceDescriptor* protoDataSliceDescriptor, const TDataSliceDescriptor& dataSliceDescriptor)
 {
-    protoDataSliceDescriptor->set_type(static_cast<int>(dataSliceDescriptor.Type));
     for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
         *protoDataSliceDescriptor->add_chunks() = chunkSpec;
-    }
-
-    // Currently schema is required only for versioned slices.
-    if (dataSliceDescriptor.Type == EDataSliceDescriptorType::VersionedTable) {
-        ToProto(protoDataSliceDescriptor->mutable_schema(), dataSliceDescriptor.Schema);
-        protoDataSliceDescriptor->set_timestamp(static_cast<i64>(dataSliceDescriptor.Timestamp));
     }
 }
 
 void FromProto(TDataSliceDescriptor* dataSliceDescriptor, const NProto::TDataSliceDescriptor& protoDataSliceDescriptor)
 {
-    dataSliceDescriptor->Type = EDataSliceDescriptorType(protoDataSliceDescriptor.type());
     dataSliceDescriptor->ChunkSpecs = std::vector<NProto::TChunkSpec>(protoDataSliceDescriptor.chunks().begin(), protoDataSliceDescriptor.chunks().end());
-    if (dataSliceDescriptor->Type == EDataSliceDescriptorType::VersionedTable) {
-        if (protoDataSliceDescriptor.HasExtension(NProto::TTableSliceDescriptor::table_slice_descriptor)) {
-            // COMPAT(psushin)
-            auto tableSliceDescriptor = protoDataSliceDescriptor.GetExtension(NProto::TTableSliceDescriptor::table_slice_descriptor);
-            FromProto(&dataSliceDescriptor->Schema, tableSliceDescriptor.schema());
-            dataSliceDescriptor->Timestamp = NTableClient::TTimestamp(tableSliceDescriptor.timestamp());
-        } else {
-            FromProto(&dataSliceDescriptor->Schema, protoDataSliceDescriptor.schema());
-            dataSliceDescriptor->Timestamp = NTableClient::TTimestamp(protoDataSliceDescriptor.timestamp());
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,30 +79,6 @@ i64 GetDataSliceDescriptorReaderMemoryEstimate(const TDataSliceDescriptor& dataS
         result += GetChunkReaderMemoryEstimate(chunkSpec, config);
     }
     return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TDataSliceDescriptor MakeFileDataSliceDescriptor(NProto::TChunkSpec chunkSpec)
-{
-    return TDataSliceDescriptor(EDataSliceDescriptorType::File, {std::move(chunkSpec)});
-}
-
-TDataSliceDescriptor MakeUnversionedDataSliceDescriptor(NProto::TChunkSpec chunkSpec)
-{
-    return TDataSliceDescriptor(EDataSliceDescriptorType::UnversionedTable, {std::move(chunkSpec)});
-}
-
-TDataSliceDescriptor MakeVersionedDataSliceDescriptor(
-    std::vector<NProto::TChunkSpec> chunkSpecs,
-    const NTableClient::TTableSchema& schema,
-    NTransactionClient::TTimestamp timestamp)
-{
-    return TDataSliceDescriptor(
-        EDataSliceDescriptorType::VersionedTable,
-        std::move(chunkSpecs),
-        schema,
-        timestamp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

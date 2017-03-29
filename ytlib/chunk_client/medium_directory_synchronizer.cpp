@@ -51,6 +51,11 @@ public:
         return SyncPromise_;
     }
 
+    void Stop()
+    {
+        SyncExecutor_->Stop();
+    }
+
 private:
     const TMediumDirectorySynchronizerConfigPtr Config_;
     const TMediumDirectoryPtr MediumDirectory_;
@@ -133,6 +138,11 @@ TMediumDirectorySynchronizer::~TMediumDirectorySynchronizer() = default;
 TFuture<void> TMediumDirectorySynchronizer::Sync()
 {
     return Impl_->Sync();
+}
+
+void TMediumDirectorySynchronizer::Stop()
+{
+    return Impl_->Stop();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -293,6 +293,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/map_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/master_connector.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/merge_controller.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/sorted_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/node_shard.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/operation.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/operation_controller_detail.cpp
@@ -308,6 +309,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/snapshot_builder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/snapshot_downloader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/sort_controller.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/sorted_chunk_pool.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/security_server/account.cpp
   ${CMAKE_CURRENT_LIST_DIR}/security_server/account_proxy.cpp
@@ -389,6 +391,10 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_cell_bundle_type_handler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_cell_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_cell_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_action.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_action_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_action_type_handler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_balancer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_manager.proto
   ${CMAKE_CURRENT_LIST_DIR}/tablet_server/tablet_proxy.cpp
@@ -444,6 +450,7 @@ SRCS(
 )
 
 PEERDIR(
+  contrib/libs/openssl
   contrib/libs/sparsehash
   library/streams/lz
   library/http/server

@@ -918,7 +918,7 @@ void TMasterConnector::ReportJobHeartbeat()
         LOG_INFO("Successfully reported job heartbeat to master");
 
         const auto& rsp = rspOrError.Value();
-        jobController->ProcessHeartbeatResponse(rsp.Get());
+        jobController->ProcessHeartbeatResponse(rsp);
     }
 
     if (++JobHeartbeatCellIndex_ >= MasterCellTags_.size()) {

@@ -28,13 +28,21 @@ DEFINE_ENUM(EErrorCode,
 );
 
 DEFINE_ENUM(ERowModificationType,
-    ((Write) (0))
-    ((Delete)(1))
+    ((Write)            (0))
+    ((Delete)           (1))
+    ((VersionedWrite)   (2))
 );
 
 ///////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IRowset)
+template <class TRow>
+struct IRowset;
+
+using IUnversionedRowset = IRowset<NTableClient::TUnversionedRow>;
+using IVersionedRowset = IRowset<NTableClient::TVersionedRow>;
+
+DECLARE_REFCOUNTED_TYPE(IUnversionedRowset)
+DECLARE_REFCOUNTED_TYPE(IVersionedRowset)
 DECLARE_REFCOUNTED_STRUCT(IPersistentQueueRowset)
 
 struct TAdminOptions;

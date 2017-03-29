@@ -80,6 +80,7 @@ private:
 i64 GetNumericValue(const TStatistics& statistics, const Stroka& path);
 
 TNullable<i64> FindNumericValue(const TStatistics& statistics, const Stroka& path);
+TNullable<TSummary> FindSummary(const TStatistics& statistics, const Stroka& path);
 
 ////////////////////////////////////////////////////////////////////
 

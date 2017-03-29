@@ -169,6 +169,8 @@ DEFINE_ENUM(EObjectType,
     ((TabletCellBundle)           (706))
     ((TabletCellBundleMap)        (707))
     ((TableReplica)               (709))
+    ((TabletAction)               (711))
+    ((TabletActionMap)            (712))
 
     // Node Tracker stuff
     ((Rack)                       (800))

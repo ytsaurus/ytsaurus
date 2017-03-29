@@ -17,6 +17,8 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// ToDo(psushin): move to NTableClient.
+
 class TChunkSlice
 {
     DEFINE_BYREF_RO_PROPERTY(TReadLimit, LowerLimit);
@@ -72,6 +74,10 @@ std::vector<TChunkSlice> SliceChunk(
     bool sliceByKeys);
 
 void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice);
+void ToProto(
+    const TKeySetWriterPtr& keysWireWriter,
+    NProto::TChunkSlice* protoChunkSlice,
+    const TChunkSlice& chunkSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 

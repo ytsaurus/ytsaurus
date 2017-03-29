@@ -45,7 +45,7 @@ struct IVersionedMultiChunkWriter
     , public virtual NChunkClient::IMultiChunkWriter
 { };
 
-DEFINE_REFCOUNTED_TYPE(IVersionedMultiChunkWriter);
+DEFINE_REFCOUNTED_TYPE(IVersionedMultiChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

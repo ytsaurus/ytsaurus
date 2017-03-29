@@ -224,5 +224,26 @@ bool ParseRequestCancelationHeader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 GetMessageBodySize(const TSharedRefArray& message)
+{
+    return message.Size() >= 2 ? message[1].Size() : 0;
+}
+
+int GetMessageAttachmentCount(const TSharedRefArray& message)
+{
+    return std::max(message.Size() - 2, 0);
+}
+
+i64 GetTotalMesageAttachmentSize(const TSharedRefArray& message)
+{
+    i64 result = 0;
+    for (int index = 2; index < message.Size(); ++index) {
+        result += message[index].Size();
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRpc
 } // namespace NYT

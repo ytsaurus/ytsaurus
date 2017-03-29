@@ -87,111 +87,133 @@ TSortedStoreManager::TSortedStoreManager(
     }
 }
 
-void TSortedStoreManager::ExecuteWrite(
-    TTransaction* transaction,
+bool TSortedStoreManager::IsLockless()
+{
+    return
+        Tablet_->GetAtomicity() == EAtomicity::None ||
+        Tablet_->GetReplicationMode() == ETableReplicationMode::AsynchronousSink;
+}
+
+bool TSortedStoreManager::ExecuteWrites(
     TWireProtocolReader* reader,
-    TTimestamp commitTimestamp,
-    bool prelock)
+    TWriteContext* context)
 {
-    auto command = reader->ReadCommand();
-    switch (command) {
-        case EWireProtocolCommand::WriteRow: {
-            auto row = reader->ReadUnversionedRow(false);
-            WriteRow(
-                transaction,
-                row,
-                commitTimestamp,
-                prelock);
-            break;
+    while (!reader->IsFinished()) {
+        TSortedDynamicRowRef rowRef;
+        auto readerCheckpoint = reader->GetCurrent();
+        auto command = reader->ReadCommand();
+
+
+        switch (command) {
+            case EWireProtocolCommand::WriteRow:
+            case EWireProtocolCommand::DeleteRow:
+                if (Tablet_->GetReplicationMode() != ETableReplicationMode::None) {
+                    THROW_ERROR_EXCEPTION("Unversioned writes in %Qlv replication mode are not allowed",
+                        Tablet_->GetReplicationMode());
+                }
+                break;
+
+            case EWireProtocolCommand::WriteVersionedRow:
+                if (Tablet_->GetReplicationMode() != ETableReplicationMode::AsynchronousSink) {
+                    THROW_ERROR_EXCEPTION("Versioned writes in %Qlv replication mode are not allowed",
+                        Tablet_->GetReplicationMode());
+                }
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported write command %v",
+                    command);
         }
 
-        case EWireProtocolCommand::DeleteRow: {
-            auto key = reader->ReadUnversionedRow(false);
-            DeleteRow(
-                transaction,
-                key,
-                commitTimestamp,
-                prelock);
-            break;
+        switch (command) {
+            case EWireProtocolCommand::WriteRow: {
+                auto row = reader->ReadUnversionedRow(false);
+                rowRef = ModifyRow(row, ERowModificationType::Write, context);
+                break;
+            }
+
+            case EWireProtocolCommand::DeleteRow: {
+                auto key = reader->ReadUnversionedRow(false);
+                rowRef = ModifyRow(key, ERowModificationType::Delete, context);
+                break;
+            }
+
+            case EWireProtocolCommand::WriteVersionedRow: {
+                auto row = reader->ReadVersionedRow(Tablet_->PhysicalSchemaData(), false);
+                rowRef = ModifyRow(row, context);
+                break;
+            }
+
+            default:
+                Y_UNREACHABLE();
         }
 
-        default:
-            THROW_ERROR_EXCEPTION("Unsupported write command %v",
-                command);
+        if (!rowRef) {
+            reader->SetCurrent(readerCheckpoint);
+            return false;
+        }
     }
+    return true;
 }
 
-TSortedDynamicRowRef TSortedStoreManager::WriteRow(
-    TTransaction* transaction,
+TSortedDynamicRowRef TSortedStoreManager::ModifyRow(
     TUnversionedRow row,
-    TTimestamp commitTimestamp,
-    bool prelock)
+    ERowModificationType modificationType,
+    TWriteContext* context)
 {
-    ui32 lockMask = 0;
-    if (commitTimestamp == NullTimestamp) {
-        if (prelock) {
-            // TODO(sandello): YT-4148
-            ValidateOnWrite(transaction->GetId(), row);
-        }
-        lockMask = ComputeLockMask(row);
-        if (prelock) {
-            CheckInactiveStoresLocks(transaction, row, lockMask);
-        }
-    } else {
-        commitTimestamp = GenerateMonotonicCommitTimestamp(commitTimestamp);
+    auto phase = context->Phase;
+    auto atomic = Tablet_->GetAtomicity() == EAtomicity::Full;
+
+    ui32 lockMask = modificationType == ERowModificationType::Write
+        ? ComputeLockMask(row)
+        : TSortedDynamicRow::PrimaryLockMask;
+
+    if (atomic &&
+        phase == EWritePhase::Prelock &&
+        !CheckInactiveStoresLocks(row, lockMask, context))
+    {
+        return TSortedDynamicRowRef();
     }
 
-    auto dynamicRow = ActiveStore_->WriteRow(transaction, row, commitTimestamp, lockMask);
-    auto dynamicRowRef = TSortedDynamicRowRef(ActiveStore_.Get(), this, dynamicRow, true);
+    if (!atomic) {
+        Y_ASSERT(phase == EWritePhase::Commit);
+        context->CommitTimestamp = GenerateMonotonicCommitTimestamp(context->CommitTimestamp);
+    }
 
-    if (commitTimestamp == NullTimestamp) {
-        LockRow(transaction, prelock, dynamicRowRef);
+    auto dynamicRow = ActiveStore_->ModifyRow(row, lockMask, modificationType, context);
+    if (!dynamicRow) {
+        return TSortedDynamicRowRef();
+    }
+
+    auto dynamicRowRef = TSortedDynamicRowRef(ActiveStore_.Get(), this, dynamicRow);
+
+    if (atomic && (phase == EWritePhase::Prelock || phase == EWritePhase::Lock)) {
+        LockRow(context->Transaction, phase == EWritePhase::Prelock, dynamicRowRef);
     }
 
     return dynamicRowRef;
 }
 
-TSortedDynamicRowRef TSortedStoreManager::DeleteRow(
-    TTransaction* transaction,
-    NTableClient::TKey key,
-    TTimestamp commitTimestamp,
-    bool prelock)
+TSortedDynamicRowRef TSortedStoreManager::ModifyRow(
+    TVersionedRow row,
+    TWriteContext* context)
 {
-    if (commitTimestamp == NullTimestamp) {
-        if (prelock) {
-            // TODO(sandello): YT-4148
-            ValidateOnDelete(transaction->GetId(), key);
-            CheckInactiveStoresLocks(
-                transaction,
-                key,
-                TSortedDynamicRow::PrimaryLockMask);
-        }
-    } else {
-        commitTimestamp = GenerateMonotonicCommitTimestamp(commitTimestamp);
-    }
-
-    auto dynamicRow = ActiveStore_->DeleteRow(transaction, key, commitTimestamp);
-    auto dynamicRowRef = TSortedDynamicRowRef(ActiveStore_.Get(), this, dynamicRow, true);
-
-    if (commitTimestamp == NullTimestamp) {
-        LockRow(transaction, prelock, dynamicRowRef);
-    }
-
-    return dynamicRowRef;
+    auto dynamicRow = ActiveStore_->ModifyRow(row, context);
+    return TSortedDynamicRowRef(ActiveStore_.Get(), this, dynamicRow);
 }
 
 void TSortedStoreManager::LockRow(TTransaction* transaction, bool prelock, const TSortedDynamicRowRef& rowRef)
 {
     if (prelock) {
-        transaction->PrelockedSortedRows().push(rowRef);
+        transaction->PrelockedRows().push(rowRef);
     } else {
-        transaction->LockedSortedRows().push_back(rowRef);
+        transaction->LockedRows().push_back(rowRef);
     }
 }
 
 void TSortedStoreManager::ConfirmRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
 {
-    transaction->LockedSortedRows().push_back(rowRef);
+    transaction->LockedRows().push_back(rowRef);
 }
 
 void TSortedStoreManager::PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
@@ -225,6 +247,9 @@ IDynamicStore* TSortedStoreManager::GetActiveStore() const
 
 ui32 TSortedStoreManager::ComputeLockMask(TUnversionedRow row)
 {
+    if (Tablet_->GetAtomicity() == EAtomicity::None) {
+        return 0;
+    }
     const auto& columnIndexToLockIndex = Tablet_->ColumnIndexToLockIndex();
     ui32 lockMask = 0;
     for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
@@ -236,16 +261,19 @@ ui32 TSortedStoreManager::ComputeLockMask(TUnversionedRow row)
     return lockMask;
 }
 
-void TSortedStoreManager::CheckInactiveStoresLocks(
-    TTransaction* transaction,
+bool TSortedStoreManager::CheckInactiveStoresLocks(
     TUnversionedRow row,
-    ui32 lockMask)
+    ui32 lockMask,
+    TWriteContext* context)
 {
+    auto* transaction = context->Transaction;
+
     for (const auto& store : LockedStores_) {
-        store->AsSortedDynamic()->CheckRowLocks(
-            row,
-            transaction,
-            lockMask);
+        auto error = store->AsSortedDynamic()->CheckRowLocks(row, transaction, lockMask);
+        if (!error.IsOK()) {
+            context->Error = error;
+            return false;
+        }
     }
 
     for (auto it = MaxTimestampToStore_.rbegin();
@@ -256,12 +284,18 @@ void TSortedStoreManager::CheckInactiveStoresLocks(
         // Avoid checking locked stores twice.
         if (store->GetType() == EStoreType::SortedDynamic &&
             store->AsSortedDynamic()->GetLockCount() > 0)
+        {
             continue;
-        store->CheckRowLocks(
-            row,
-            transaction,
-            lockMask);
+        }
+
+        auto error = store->CheckRowLocks(row, transaction, lockMask);
+        if (!error.IsOK()) {
+            context->Error = error;
+            return false;
+        }
     }
+
+    return true;
 }
 
 void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDescriptors)
@@ -524,39 +558,6 @@ void TSortedStoreManager::UpdatePartitionSampleKeys(
 
     const auto* mutationContext = GetCurrentMutationContext();
     partition->SetSamplingTime(mutationContext->GetTimestamp());
-}
-
-void TSortedStoreManager::ValidateOnWrite(
-    const TTransactionId& transactionId,
-    TUnversionedRow row)
-{
-    try {
-        ValidateServerDataRow(row, Tablet_->PhysicalSchema());
-        if (row.GetCount() == KeyColumnCount_) {
-            THROW_ERROR_EXCEPTION("Empty writes are not allowed");
-        }
-    } catch (TErrorException& ex) {
-        auto& errorAttributes = ex.Error().Attributes();
-        errorAttributes.Set("transaction_id", transactionId);
-        errorAttributes.Set("tablet_id", Tablet_->GetId());
-        errorAttributes.Set("row", row);
-        throw ex;
-    }
-}
-
-void TSortedStoreManager::ValidateOnDelete(
-    const TTransactionId& transactionId,
-    TKey key)
-{
-    try {
-        ValidateServerKey(key, Tablet_->PhysicalSchema());
-    } catch (TErrorException& ex) {
-        auto& errorAttributes = ex.Error().Attributes();
-        errorAttributes.Set("transaction_id", transactionId);
-        errorAttributes.Set("tablet_id", Tablet_->GetId());
-        errorAttributes.Set("key", key);
-        throw ex;
-    }
 }
 
 void TSortedStoreManager::SchedulePartitionSampling(TPartition* partition)

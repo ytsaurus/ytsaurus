@@ -20,6 +20,7 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, LookupRows);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, VersionedLookupRows);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -58,7 +58,7 @@ struct ICallingConvention
 
 };
 
-DEFINE_REFCOUNTED_TYPE(ICallingConvention);
+DEFINE_REFCOUNTED_TYPE(ICallingConvention)
 
 class TUnversionedValueCallingConvention
     : public ICallingConvention

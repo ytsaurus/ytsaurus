@@ -59,6 +59,9 @@ public:
     //! Default parent pool for operations with unknown pool.
     Stroka DefaultParentPool;
 
+    //! Forbid immediate operations in root.
+    bool ForbidImmediateOperationsInRoot;
+
     // Preemption timeout for operations with small number of jobs will be
     // discounted proportionally to this coefficient.
     double JobCountPreemptionTimeoutCoefficient;
@@ -144,6 +147,9 @@ public:
 
         RegisterParameter("default_parent_pool", DefaultParentPool)
             .Default(RootPoolName);
+
+        RegisterParameter("forbid_immediate_operations_in_root", ForbidImmediateOperationsInRoot)
+            .Default(true);
 
         RegisterParameter("job_count_preemption_timeout_coefficient", JobCountPreemptionTimeoutCoefficient)
             .Default(1.0)
@@ -259,8 +265,8 @@ public:
     //! Controls finer initial slicing of input data to ensure even distribution of data split sizes among jobs.
     double SliceDataSizeMultiplier;
 
-    //! Maximum number of chunk stripes per job.
-    int MaxChunkStripesPerJob;
+    //! Maximum number of primary data slices per job.
+    int MaxDataSlicesPerJob;
 
     i64 MaxSliceDataSize;
     i64 MinSliceDataSize;
@@ -275,8 +281,8 @@ public:
             .Default(0.51)
             .GreaterThan(0.0);
 
-        RegisterParameter("max_chunk_stripes_per_job", MaxChunkStripesPerJob)
-            .Default(10000)
+        RegisterParameter("max_data_slices_per_job", MaxDataSlicesPerJob)
+            .Default(100000)
             .GreaterThan(0);
 
         RegisterParameter("max_slice_data_size", MaxSliceDataSize)
@@ -515,6 +521,74 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TTestingOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOperationAlertsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    // Maximum allowed ratio of unused tmpfs size.
+    double TmpfsAlertMaxUnusedSpaceRatio;
+
+    // Min unused space threshold. If unutilized space is less than
+    // this threshold then operation alert will not be set.
+    i64 TmpfsAlertMinUnusedSpaceThreshold;
+
+    // Maximum allowed aborted jobs time. If it is violated
+    // then operation alert will be set.
+    i64 AbortedJobsAlertMaxAbortedTime;
+
+    // Maximum allowed aborted jobs time ratio.
+    double AbortedJobsAlertMaxAbortedTimeRatio;
+
+    // Minimum desired job duration.
+    TDuration ShortJobsAlertMinJobDuration;
+
+    // Minimum number of completed jobs after which alert can be set.
+    i64 ShortJobsAlertMinJobCount;
+
+    // Minimum partition size to enable data skew check.
+    i64 IntermediateDataSkewAlertMinPartitionSize;
+
+    // Minimum interquartile range to consider data to be skewed.
+    i64 IntermediateDataSkewAlertMinInterquartileRange;
+
+    TOperationAlertsConfig()
+    {
+        RegisterParameter("tmpfs_alert_max_unused_space_ratio", TmpfsAlertMaxUnusedSpaceRatio)
+            .InRange(0.0, 1.0)
+            .Default(0.2);
+
+        RegisterParameter("tmpfs_alert_min_unused_space_threshold", TmpfsAlertMinUnusedSpaceThreshold)
+            .Default((i64) 512 * 1024 * 1024)
+            .GreaterThan(0);
+
+        RegisterParameter("aborted_jobs_alert_max_aborted_time", AbortedJobsAlertMaxAbortedTime)
+            .Default((i64) 10 * 60 * 1000)
+            .GreaterThan(0);
+
+        RegisterParameter("aborted_jobs_alert_max_aborted_time_ratio", AbortedJobsAlertMaxAbortedTimeRatio)
+            .InRange(0.0, 1.0)
+            .Default(0.25);
+
+        RegisterParameter("short_jobs_alert_min_job_duration", ShortJobsAlertMinJobDuration)
+            .Default(TDuration::Minutes(1));
+
+        RegisterParameter("short_jobs_alert_min_job_count", ShortJobsAlertMinJobCount)
+            .Default((i64) 1000);
+
+        RegisterParameter("intermediate_data_skew_alert_min_partition_size", IntermediateDataSkewAlertMinPartitionSize)
+            .Default((i64) 10 * 1024 * 1024 * 1024)
+            .GreaterThan(0);
+
+        RegisterParameter("intermediate_data_skew_alert_min_interquartile_range", IntermediateDataSkewAlertMinInterquartileRange)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationAlertsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -769,12 +843,8 @@ public:
     // Total number of data slices in operation, summed up over all jobs.
     i64 MaxTotalSliceCount;
 
-    // Maximum allowed ratio of unutilized tmpfs size.
-    double TmpfsAlertMaxUnutilizedSpaceRatio;
-
-    // Min unutilized space threshold. If unutilized space is less than
-    // this threshold then operation alert will not be set.
-    i64 TmpfsAlertMinUnutilizedSpaceThreshold;
+    // Config for operation alerts.
+    TOperationAlertsConfigPtr OperationAlertsConfig;
 
     // Chunk size in per-controller row buffers.
     i64 ControllerRowBufferChunkSize;
@@ -785,6 +855,8 @@ public:
 
     // Some special options for testing purposes.
     TTestingOptionsPtr TestingOptions;
+
+    NCompression::ECodec JobSpecCodec;
 
     TSchedulerConfig()
     {
@@ -1070,13 +1142,8 @@ public:
             .Default((i64) 10 * 1000 * 1000)
             .GreaterThan(0);
 
-        RegisterParameter("tmpfs_alert_max_unutilized_space_ratio", TmpfsAlertMaxUnutilizedSpaceRatio)
-            .InRange(0.0, 1.0)
-            .Default(0.2);
-
-        RegisterParameter("tmpfs_alert_min_unutilized_space_threshold", TmpfsAlertMinUnutilizedSpaceThreshold)
-            .Default((i64) 512 * 1024 * 1024)
-            .GreaterThan(0);
+        RegisterParameter("operation_alerts", OperationAlertsConfig)
+            .DefaultNew();
 
         RegisterParameter("controller_row_buffer_chunk_size", ControllerRowBufferChunkSize)
             .Default((i64) 64 * 1024)
@@ -1087,6 +1154,9 @@ public:
 
         RegisterParameter("testing_options", TestingOptions)
             .DefaultNew();
+
+        RegisterParameter("job_spec_codec", JobSpecCodec)
+            .Default(NCompression::ECodec::Lz4);
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

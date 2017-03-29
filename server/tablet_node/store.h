@@ -155,6 +155,9 @@ struct ISortedStore
     *  The reader will be providing values filtered by |timestamp| and columns
     *  filtered by |columnFilter|.
     *
+    *  Depending on |produceAllVersions| flag reader would either provide all value versions
+    *  or just the last one.
+    *
     *  This call is typically synchronous and fast but may occasionally yield.
     *
     *  Thread affinity: any
@@ -163,6 +166,7 @@ struct ISortedStore
         const TTabletSnapshotPtr& tabletSnapshot,
         TSharedRange<NTableClient::TRowRange> bounds,
         TTimestamp timestamp,
+        bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor) = 0;
 
@@ -173,6 +177,9 @@ struct ISortedStore
     *  The reader will be providing values filtered by |timestamp| and columns
     *  filtered by |columnFilter|.
     *
+    *  Depending on |produceAllVersions| flag reader would either provide all value versions
+    *  or just the last one.
+    *
     *  This call is typically synchronous and fast but may occasionally yield.
     *
     *  Thread affinity: any
@@ -181,15 +188,16 @@ struct ISortedStore
         const TTabletSnapshotPtr& tabletSnapshot,
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
+        bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor) = 0;
 
-    //! Checks that #transaction attempting to take locks indicated by #lockMask
-    //! has no conflicts within the store. Throws on failure.
+    //! Checks that the transaction attempting to take locks indicated by #lockMask
+    //! has no conflicts within the store. Returns the error.
     /*!
      *  Thread affinity: any
      */
-    virtual void CheckRowLocks(
+    virtual TError CheckRowLocks(
         TUnversionedRow row,
         TTransaction* transaction,
         ui32 lockMask) = 0;

@@ -8,6 +8,7 @@
 #include "map_controller.h"
 #include "master_connector.h"
 #include "merge_controller.h"
+#include "sorted_controller.h"
 #include "node_shard.h"
 #include "operation_controller.h"
 #include "remote_copy_controller.h"
@@ -419,7 +420,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_WARNING(alert, "Setting %v alert", alertType);
+        if (!alert.IsOK()) {
+            LOG_WARNING(alert, "Setting scheduler alert (AlertType: %lv)", alertType);
+        }
 
         GetMasterConnector()->SetSchedulerAlert(alertType, alert);
     }
@@ -463,6 +466,14 @@ public:
         BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, alert)
             .AsyncVia(GetControlInvoker())
             .Run();
+    }
+
+    virtual IJobHostPtr GetJobHost(const TJobId& jobId) const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto nodeShard = GetNodeShardByJobId(jobId);
+        return CreateJobHost(jobId, nodeShard);
     }
 
     virtual void ValidatePoolPermission(
@@ -1071,7 +1082,7 @@ private:
             : Host_(host)
         { }
 
-        virtual TNameTablePtr GetNameTable() const override
+        virtual const TNameTablePtr& GetNameTable() const override
         {
             return Host_->EventLogWriter_->GetNameTable();
         }
@@ -1623,7 +1634,7 @@ private:
         {
             TWriterGuard guard(ExecNodeDescriptorsLock_);
 
-            CachedExecNodeDescriptors_ = result;
+            CachedExecNodeDescriptors_.swap(result);
         }
 
         // Remove outdated cached exec node descriptor lists.
@@ -1638,23 +1649,23 @@ private:
                     }
                 }
             }
-            {
-                TWriterGuard guard(ExecNodeDescriptorsLock_);
-                for (const auto& filter : toRemove) {
-                    auto it = CachedExecNodeDescriptorsByTags_.find(filter);
-                    if (it->second.LastAccessTime < deadline) {
-                        CachedExecNodeDescriptorsByTags_.erase(it);
+            if (!toRemove.empty()) {
+                {
+                    TWriterGuard guard(ExecNodeDescriptorsLock_);
+                    for (const auto& filter : toRemove) {
+                        auto it = CachedExecNodeDescriptorsByTags_.find(filter);
+                        if (it->second.LastAccessTime < deadline) {
+                            CachedExecNodeDescriptorsByTags_.erase(it);
+                        }
                     }
                 }
-            }
-
-
-            {
-                for (const auto& filter : toRemove) {
-                    for (auto& nodeShard : NodeShards_) {
-                        BIND(&TNodeShard::RemoveOutdatedSchedulingTagFilter, nodeShard, filter)
-                            .AsyncVia(nodeShard->GetInvoker())
-                            .Run();
+                {
+                    for (const auto& filter : toRemove) {
+                        for (auto& nodeShard : NodeShards_) {
+                            BIND(&TNodeShard::RemoveOutdatedSchedulingTagFilter, nodeShard, filter)
+                                .AsyncVia(nodeShard->GetInvoker())
+                                .Run();
+                        }
                     }
                 }
             }
@@ -1692,6 +1703,8 @@ private:
         try {
             auto controller = CreateController(operation.Get());
             operation->SetController(controller);
+
+            Strategy_->ValidateOperationCanBeRegistered(operation);
 
             RegisterOperation(operation);
             registered = true;
@@ -2017,12 +2030,24 @@ private:
             case EOperationType::Sort:
                 controller = CreateSortController(Config_, this, operation);
                 break;
-            case EOperationType::Reduce:
-                controller = CreateReduceController(Config_, this, operation);
+            case EOperationType::Reduce: {
+                auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
+                if (legacySpec->UseLegacyController) {
+                    controller = CreateLegacyReduceController(Config_, this, operation);
+                } else {
+                    controller = CreateSortedReduceController(Config_, this, operation);
+                }
                 break;
-            case EOperationType::JoinReduce:
-                controller = CreateJoinReduceController(Config_, this, operation);
+            }
+            case EOperationType::JoinReduce: {
+                auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
+                if (legacySpec->UseLegacyController) {
+                    controller = CreateLegacyJoinReduceController(Config_, this, operation);
+                } else {
+                    controller = CreateJoinReduceController(Config_, this, operation);
+                }
                 break;
+            }
             case EOperationType::MapReduce:
                 controller = CreateMapReduceController(Config_, this, operation);
                 break;

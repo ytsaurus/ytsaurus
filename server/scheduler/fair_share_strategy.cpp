@@ -125,6 +125,13 @@ public:
             .Run(operation);
     }
 
+    virtual void ValidateOperationCanBeRegistered(const TOperationPtr& operation) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        ValidateOperationCountLimit(operation);
+    }
+
     void RegisterOperation(const TOperationPtr& operation) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -218,9 +225,9 @@ public:
         }
     }
 
-    void ProcessUpdatedAndCompletedJobs(
+    virtual void ProcessUpdatedAndCompletedJobs(
         const std::vector<TUpdatedJob>& updatedJobs,
-        const std::vector<TCompletedJob>& completedJobs)
+        const std::vector<TCompletedJob>& completedJobs) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -394,7 +401,7 @@ public:
         }
     }
 
-    void UpdateConfig(const TFairShareStrategyConfigPtr& config)
+    virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -726,7 +733,7 @@ private:
         // First-chance scheduling.
         int nonPreemptiveScheduleJobCount = 0;
         {
-            LOG_DEBUG("Scheduling new jobs");
+            LOG_TRACE("Scheduling new jobs");
             PROFILE_AGGREGATED_TIMING(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
                 rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
             }
@@ -745,7 +752,7 @@ private:
         }
 
         // Compute discount to node usage.
-        LOG_DEBUG("Looking for preemptable jobs");
+        LOG_TRACE("Looking for preemptable jobs");
         yhash_set<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
         PROFILE_TIMING ("/analyze_preemptable_jobs_time") {
@@ -782,7 +789,7 @@ private:
         // NB: Schedule at most one job.
         int preemptiveScheduleJobCount = 0;
         {
-            LOG_DEBUG("Scheduling new jobs with preemption");
+            LOG_TRACE("Scheduling new jobs with preemption");
             PROFILE_AGGREGATED_TIMING(PreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
                 rootElement->PrescheduleJob(context, /*starvingOnly*/ true, /*aggressiveStarvationEnabled*/ false);
             }
@@ -1288,25 +1295,29 @@ private:
         return spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
     }
 
-    void DoValidateOperationStart(const TOperationPtr& operation)
+    TCompositeSchedulerElementPtr GetDefaultParent()
+    {
+        auto defaultPool = FindPool(Config->DefaultParentPool);
+        if (defaultPool) {
+            return defaultPool;
+        } else {
+            return RootElement;
+        }
+    }
+
+    TCompositeSchedulerElementPtr GetParentElement(const TOperationPtr& operation)
+    {
+        auto parentPool = FindPool(GetOperationPoolName(operation));
+        return parentPool ? parentPool : GetDefaultParent();
+    }
+
+    void ValidateOperationCountLimit(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto parentElement = FindPool(GetOperationPoolName(operation));
+        auto parentElement = GetParentElement(operation);
 
-        TCompositeSchedulerElementPtr ansectorElement;
-        if (parentElement) {
-            ansectorElement = parentElement;
-        } else {
-            auto defaultPool = FindPool(Config->DefaultParentPool);
-            if (defaultPool) {
-                ansectorElement = defaultPool;
-            } else {
-                ansectorElement = RootElement;
-            }
-        }
-
-        auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(ansectorElement);
+        auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(parentElement);
         if (poolWithViolatedLimit) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::TooManyOperations,
@@ -1314,14 +1325,24 @@ private:
                 poolWithViolatedLimit->GetMaxOperationCount(),
                 poolWithViolatedLimit->GetId());
         }
+    }
 
-        if (parentElement && parentElement->AreImmediateOperationsFobidden()) {
+    void DoValidateOperationStart(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        ValidateOperationCountLimit(operation);
+
+        auto immediateParentPool = FindPool(GetOperationPoolName(operation));
+        // NB: Check is not performed if operation is started in default or unknown pool.
+        if (immediateParentPool && immediateParentPool->AreImmediateOperationsFobidden()) {
             THROW_ERROR_EXCEPTION(
                 "Starting operations immediately in pool %Qv is forbidden",
-                parentElement->GetId());
+                immediateParentPool->GetId());
         }
 
-        auto poolPath = GetPoolPath(ansectorElement);
+        auto parentElement = GetParentElement(operation);
+        auto poolPath = GetPoolPath(parentElement);
         const auto& user = operation->GetAuthenticatedUser();
 
         Host->ValidatePoolPermission(poolPath, user, EPermission::Use);

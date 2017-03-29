@@ -28,6 +28,7 @@ using NTabletClient::TStoreId;
 using NTabletClient::ETabletState;
 using NTabletClient::TypicalPeerCount;
 using NTabletClient::TTableReplicaId;
+using NTabletClient::TTabletActionId;
 
 using NTabletClient::TTabletCellConfig;
 using NTabletClient::TTabletCellConfigPtr;
@@ -50,11 +51,31 @@ DEFINE_ENUM(ETableReplicaState,
     ((Enabled)                  (3))
 );
 
+DEFINE_ENUM(ETabletActionKind,
+    ((Move)                     (0))
+    ((Reshard)                  (1))
+);
+
+DEFINE_ENUM(ETabletActionState,
+    ((Preparing)                (0))
+    ((Freezing)                 (1))
+    ((Frozen)                   (2))
+    ((Unmounting)               (3))
+    ((Unmounted)                (4))
+    ((Mounting)                 (5))
+    ((Mounted)                  (6))
+    ((Completed)                (7))
+    ((Failing)                  (8))
+    ((Failed)                   (9))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTabletManager)
+DECLARE_REFCOUNTED_CLASS(TTabletBalancer)
 
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig)
 
 class TTableReplica;
 
@@ -64,6 +85,7 @@ DECLARE_ENTITY_TYPE(TTabletCellBundle, TTabletCellBundleId, NObjectClient::TDire
 DECLARE_ENTITY_TYPE(TTabletCell, TTabletCellId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTableReplica, TTableReplicaId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TTabletAction, TTabletActionId, NObjectClient::TDirectObjectIdHash)
 
 struct TTabletStatistics;
 struct TTabletPerformanceCounter;

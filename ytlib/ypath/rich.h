@@ -54,9 +54,10 @@ public:
 
     // "foreign"
     bool GetForeign() const;
+    void SetForeign(bool value);
 
-    // "channel"
-    NChunkClient::TChannel GetChannel() const;
+    // "columns"
+    TNullable<std::vector<Stroka>> GetColumns() const;
 
     // "ranges"
     // COMPAT(ignat): also "lower_limit" and "upper_limit"
@@ -97,10 +98,6 @@ bool operator== (const TRichYPath& lhs, const TRichYPath& rhs);
 Stroka ToString(const TRichYPath& path);
 
 std::vector<TRichYPath> Normalize(const std::vector<TRichYPath>& paths);
-
-void InitializeFetchRequest(
-    NChunkClient::NProto::TReqFetch* request,
-    const TRichYPath& richPath);
 
 void Serialize(const TRichYPath& richPath, NYson::IYsonConsumer* consumer);
 void Deserialize(TRichYPath& richPath, NYTree::INodePtr node);

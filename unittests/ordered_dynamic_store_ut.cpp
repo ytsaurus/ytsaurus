@@ -20,46 +20,13 @@ protected:
     }
 
 
-    void ConfirmRow(TTransaction* transaction, TOrderedDynamicRow row)
-    {
-        transaction->LockedOrderedRows().push_back(TOrderedDynamicRowRef(Store_.Get(), nullptr, row, true));
-    }
-
-    void PrepareRow(TTransaction* transaction, TOrderedDynamicRow row)
-    {
-        Store_->PrepareRow(transaction, row);
-    }
-
-    void CommitRow(TTransaction* transaction, TOrderedDynamicRow row)
-    {
-        Store_->CommitRow(transaction, row);
-    }
-
-    void AbortRow(TTransaction* transaction, TOrderedDynamicRow row)
-    {
-        Store_->AbortRow(transaction, row);
-    }
-
-
-    TOrderedDynamicRow WriteRow(
-        TTransaction* transaction,
-        const TUnversionedOwningRow& row,
-        bool prelock)
-    {
-        auto dynamicRow = Store_->WriteRow(transaction, row, NullTimestamp);
-        LockRow(transaction, prelock, dynamicRow);
-        return dynamicRow;
-    }
-
     TTimestamp WriteRow(const TUnversionedOwningRow& row)
     {
-        auto transaction = StartTransaction();
-        auto dynamicRow = WriteRow(transaction.get(), row, false);
-        PrepareTransaction(transaction.get());
-        PrepareRow(transaction.get(), dynamicRow);
-        auto ts = CommitTransaction(transaction.get());
-        CommitRow(transaction.get(), dynamicRow);
-        return ts;
+        TWriteContext context;
+        context.Phase = EWritePhase::Commit;
+        context.CommitTimestamp = GenerateTimestamp();
+        EXPECT_NE(TOrderedDynamicRow(), Store_->WriteRow(row, &context));
+        return context.CommitTimestamp;
     }
 
     std::vector<TUnversionedOwningRow> ReadRows(
@@ -125,13 +92,6 @@ private:
     {
         return Store_;
     }
-
-
-    void LockRow(TTransaction* transaction, bool prelock, TOrderedDynamicRow row)
-    {
-        auto rowRef = TOrderedDynamicRowRef(Store_.Get(), nullptr, row, true);
-        TOrderedStoreManager::LockRow(transaction, prelock, rowRef);
-    }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -142,22 +102,9 @@ TEST_F(TOrderedDynamicStoreTest, Empty)
     EXPECT_EQ(0, Store_->GetValueCount());
 }
 
-TEST_F(TOrderedDynamicStoreTest, TransactionalWrite)
+TEST_F(TOrderedDynamicStoreTest, Write)
 {
-    EXPECT_EQ(0, Store_->GetRowCount());
-    EXPECT_EQ(0, Store_->GetValueCount());
-
-    auto transaction = StartTransaction();
-    auto dynamicRow = WriteRow(transaction.get(), BuildRow("a=1"), false);
-    PrepareTransaction(transaction.get());
-    PrepareRow(transaction.get(), dynamicRow);
-
-    EXPECT_EQ(0, Store_->GetRowCount());
-    EXPECT_EQ(0, Store_->GetValueCount());
-
-    CommitTransaction(transaction.get());
-    CommitRow(transaction.get(), dynamicRow);
-
+    WriteRow(BuildRow("a=1"));
     EXPECT_EQ(1, Store_->GetRowCount());
     EXPECT_EQ(3, Store_->GetValueCount());
 }
@@ -178,7 +125,7 @@ TEST_F(TOrderedDynamicStoreTest, SerializeEmpty)
     check();
 }
 
-TEST_F(TOrderedDynamicStoreTest, SerializeNonempty1)
+TEST_F(TOrderedDynamicStoreTest, SerializeNonempty)
 {
     WriteRow(BuildRow("a=1;b=3.14"));
     WriteRow(BuildRow("c=test"));
@@ -186,29 +133,6 @@ TEST_F(TOrderedDynamicStoreTest, SerializeNonempty1)
     auto check = [&] () {
         EXPECT_EQ(2, Store_->GetRowCount());
         EXPECT_EQ(6, Store_->GetValueCount());
-    };
-
-    check();
-
-    auto dump = DumpStore();
-    ReserializeStore();
-    EXPECT_EQ(dump, DumpStore());
-
-    check();
-}
-
-TEST_F(TOrderedDynamicStoreTest, SerializeNonempty2)
-{
-    WriteRow(BuildRow("a=1;b=3.14"));
-
-    auto transaction = StartTransaction();
-    auto dynamicRow = WriteRow(transaction.get(), BuildRow("c=test"), false);
-    PrepareTransaction(transaction.get());
-    PrepareRow(transaction.get(), dynamicRow);
-
-    auto check = [&] () {
-        EXPECT_EQ(1, Store_->GetRowCount());
-        EXPECT_EQ(3, Store_->GetValueCount());
     };
 
     check();
@@ -394,7 +318,7 @@ TEST_F(TOrderedDynamicStoreTimestampColumnTest, Serialize)
     EXPECT_EQ(dump, DumpStore());
 }
 
-///////////////////////////////////////////////////////////////////////////////
+ ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NTabletNode

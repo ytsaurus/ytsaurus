@@ -7,11 +7,13 @@
 #include "private.h"
 #include "operation_controller_detail.h"
 
+#include <yt/ytlib/api/transaction.h>
+
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/ytlib/table_client/config.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/query_client/query.h>
 
 #include <yt/core/concurrency/periodic_yielder.h>
 
@@ -59,7 +61,6 @@ public:
         using NYT::Persist;
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
-        Persist(context, TableReaderOptions);
         Persist(context, IsExplicitJobCount);
         Persist(context, UnorderedPool);
         Persist(context, UnorderedTask);
@@ -75,9 +76,6 @@ protected:
 
     //! The template for starting new jobs.
     TJobSpec JobSpecTemplate;
-
-    //! Table reader options for map jobs.
-    TTableReaderOptionsPtr TableReaderOptions;
 
     //! Flag set when job count was explicitly specified.
     bool IsExplicitJobCount;
@@ -166,11 +164,6 @@ protected:
             return false;
         }
 
-        virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
-        {
-            return Controller->TableReaderOptions;
-        }
-
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
@@ -222,7 +215,8 @@ protected:
 
     virtual bool IsCompleted() const override
     {
-        return UnorderedTask->IsCompleted();
+        // Unordered task may be null, if all chunks were teleported.
+        return !UnorderedTask || UnorderedTask->IsCompleted();
     }
 
     virtual void CustomPrepare() override
@@ -365,8 +359,6 @@ protected:
     {
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
         InitFinalOutputConfig(JobIOConfig);
-
-        TableReaderOptions = CreateTableReaderOptions(Spec->JobIO);
     }
 
     //! Returns |true| if the chunk can be included into the output as-is.
@@ -375,13 +367,24 @@ protected:
         return false;
     }
 
+    virtual void PrepareInputQuery() override
+    {
+        if (Spec->InputQuery) {
+            ParseInputQuery(*Spec->InputQuery, Spec->InputSchema);
+        }
+    }
+
     virtual void InitJobSpecTemplate()
     {
         JobSpecTemplate.set_type(static_cast<int>(GetJobType()));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).GetData());
+
+        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         if (Spec->InputQuery) {
-            InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, *Spec->InputSchema);
+            WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -428,6 +431,17 @@ public:
 
         using NYT::Persist;
         Persist(context, StartRowIndex);
+    }
+
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        return STRINGBUF("data_size_per_job");
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {EJobType::Map};
     }
 
 private:
@@ -583,6 +597,17 @@ public:
         RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, spec->JobProxyMemoryDigest);
     }
 
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        return STRINGBUF("data_size_per_job");
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {EJobType::UnorderedMerge};
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController, 0x9a17a41f);
 
@@ -624,13 +649,24 @@ private:
                 false)
             .IsOK();
 
-        if (Spec->ForceTransform || chunkSpec->Channel() || !isSchemaCompatible) {
+        if (Spec->ForceTransform ||
+            Spec->InputQuery ||
+            !isSchemaCompatible ||
+            InputTables[chunkSpec->GetTableIndex()].Path.GetColumns())
+        {
             return false;
         }
 
         return Spec->CombineChunks
             ? chunkSpec->IsLargeCompleteChunk(Spec->JobIO->TableWriter->DesiredChunkSize)
             : chunkSpec->IsCompleteChunk();
+    }
+
+    virtual void PrepareInputQuery() override
+    {
+        if (Spec->InputQuery) {
+            ParseInputQuery(*Spec->InputQuery, Spec->InputSchema);
+        }
     }
 
     virtual void PrepareOutputTables() override
@@ -644,27 +680,29 @@ private:
             }
         };
 
+        auto inferFromInput = [&] () {
+            if (Spec->InputQuery) {
+                table.TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
+            } else {
+                InferSchemaFromInput();
+            }
+        };
+
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-                    InferSchemaFromInput();
+                    inferFromInput();
                 } else {
                     validateOutputNotSorted();
 
-                    for (const auto& inputTable : InputTables) {
-                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
-                            ValidateTableSchemaCompatibility(
-                                inputTable.Schema,
-                                table.TableUploadOptions.TableSchema,
-                                /* ignoreSortOrder */ true)
-                                .ThrowOnError();
-                        }
+                    if (!Spec->InputQuery) {
+                        ValidateOutputSchemaCompatibility(true);
                     }
                 }
                 break;
 
             case ESchemaInferenceMode::FromInput:
-                InferSchemaFromInput();
+                inferFromInput();
                 break;
 
             case ESchemaInferenceMode::FromOutput:

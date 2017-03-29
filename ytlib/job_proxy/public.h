@@ -7,9 +7,9 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IJobSpecHelper);
-DECLARE_REFCOUNTED_STRUCT(IUserJobIOFactory);
-DECLARE_REFCOUNTED_CLASS(TUserJobReadController);
+DECLARE_REFCOUNTED_STRUCT(IJobSpecHelper)
+DECLARE_REFCOUNTED_STRUCT(IUserJobIOFactory)
+DECLARE_REFCOUNTED_CLASS(TUserJobReadController)
 
 ////////////////////////////////////////////////////////////////////////////////
 

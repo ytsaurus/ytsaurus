@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/ytlib/table_client/unversioned_row.h>
 
@@ -481,7 +481,6 @@ struct TDynamicRowRef
         : Store(nullptr)
         , StoreManager(nullptr)
         , Row()
-        , Immediate(true)
     { }
 
     TDynamicRowRef(const TDynamicRowRef& other) = default;
@@ -489,12 +488,10 @@ struct TDynamicRowRef
     TDynamicRowRef(
         TStore* store,
         TStoreManager* storeManager,
-        TRow row,
-        bool immediate)
+        TRow row)
         : Store(store)
         , StoreManager(storeManager)
         , Row(row)
-        , Immediate(immediate)
     { }
 
 
@@ -520,7 +517,6 @@ struct TDynamicRowRef
     TStore* Store;
     TStoreManager* StoreManager;
     TRow Row;
-    bool Immediate;
 };
 
 using TSortedDynamicRowRef = TDynamicRowRef<
@@ -534,6 +530,31 @@ using TOrderedDynamicRowRef = TDynamicRowRef<
     TOrderedStoreManager,
     TOrderedDynamicRow
 >;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EWritePhase,
+    (Prelock)
+    (Lock)
+    (Commit)
+);
+
+struct TWriteContext
+{
+    EWritePhase Phase;
+
+    TTransaction* Transaction = nullptr;
+    TTimestamp CommitTimestamp = NullTimestamp;
+
+    int RowCount = 0;
+
+    TSortedDynamicStorePtr BlockedStore;
+    TSortedDynamicRow BlockedRow;
+    ui32 BlockedLockMask = 0;
+    TTimestamp BlockedTimestamp = NullTimestamp;
+
+    TError Error;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

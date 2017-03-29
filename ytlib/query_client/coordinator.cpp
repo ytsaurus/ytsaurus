@@ -247,8 +247,13 @@ TQueryStatistics CoordinateAndExecute(
         return reader;
     };
 
-    int topReaderConcurrency = query->IsOrdered() ? 1 : subqueries.size();
-    auto topReader = CreateUnorderedSchemafulReader(std::move(subqueryReaderCreator), topReaderConcurrency);
+    // TODO: Use separate condition for prefetch after protocol update
+    auto topReader = query->IsOrdered()
+        ? (query->Limit == std::numeric_limits<i64>::max() - 1
+            ? CreateFullPrefetchingOrderedSchemafulReader(std::move(subqueryReaderCreator))
+            : CreateOrderedSchemafulReader(std::move(subqueryReaderCreator)))
+        : CreateUnorderedSchemafulReader(std::move(subqueryReaderCreator), subqueries.size());
+
     auto queryStatistics = evaluateTop(topQuery, std::move(topReader), std::move(writer));
 
     for (int index = 0; index < subqueryHolders.size(); ++index) {

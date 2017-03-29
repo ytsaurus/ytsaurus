@@ -90,7 +90,7 @@ void DetachFromChunkList(
     }
 
     auto& children = chunkList->Children();
-    if (chunkList->GetOrdered()) {
+    if (chunkList->IsOrdered()) {
         // Can only handle a prefix of non-trimmed children.
         // Used in ordered tablet trim.
         int childIndex = chunkList->GetTrimmedChildCount();
@@ -200,7 +200,7 @@ void AppendChunkTreeChild(
     TChunkTree* child,
     TChunkTreeStatistics* statistics)
 {
-    if (chunkList->GetOrdered()) {
+    if (chunkList->IsOrdered()) {
         if (!chunkList->Children().empty()) {
             chunkList->CumulativeStatistics().push_back({
                 chunkList->Statistics().LogicalRowCount + statistics->LogicalRowCount,

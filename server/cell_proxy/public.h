@@ -9,7 +9,7 @@ namespace NCellProxy {
 
 class TBootstrap;
 
-DECLARE_REFCOUNTED_CLASS(TCellProxyConfig);
+DECLARE_REFCOUNTED_CLASS(TCellProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -23,6 +23,9 @@ public:
     TDuration ReadStallTimeout;
     TDuration WriteStallTimeout;
 
+    bool VerifyChecksum;
+    bool CalculateChecksum;
+
     TTcpBusConfig()
     {
         RegisterParameter("priority", Priority)
@@ -40,6 +43,10 @@ public:
             .Default(TDuration::Minutes(2));
         RegisterParameter("write_stall_timeout", WriteStallTimeout)
             .Default(TDuration::Minutes(2));
+        RegisterParameter("verify_checksum", VerifyChecksum)
+            .Default(true);
+        RegisterParameter("calculate_checksum", CalculateChecksum)
+            .Default(true);
     }
 };
 

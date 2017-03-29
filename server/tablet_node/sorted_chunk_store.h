@@ -48,6 +48,7 @@ public:
         const TTabletSnapshotPtr& tabletSnapshot,
         TSharedRange<NTableClient::TRowRange> bounds,
         TTimestamp timestamp,
+        bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor) override;
 
@@ -55,10 +56,11 @@ public:
         const TTabletSnapshotPtr& tabletSnapshot,
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
+        bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor) override;
 
-    virtual void CheckRowLocks(
+    virtual TError CheckRowLocks(
         TUnversionedRow row,
         TTransaction* transaction,
         ui32 lockMask) override;
@@ -81,15 +83,16 @@ private:
 
     const NTableClient::TKeyComparer KeyComparer_;
 
-
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
+        bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const TTableSchema& schema);
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         TSharedRange<NTableClient::TRowRange> bounds,
         TTimestamp timestamp,
+        bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const TTableSchema& schema);
 

@@ -23,7 +23,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/callback_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/checkpointable_stream_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/checksum_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_schema_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_slice_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_balancer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_traversing_ut.cpp
@@ -99,6 +98,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/small_string_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/small_vector_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/statistics_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/sorted_chunk_pool_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sorted_store_manager_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ordered_store_manager_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaless_sorted_merging_reader_ut.cpp

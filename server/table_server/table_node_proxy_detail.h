@@ -19,6 +19,13 @@ namespace NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAlterTableOptions
+{
+    TNullable<NTableClient::TTableSchema> Schema;
+    TNullable<bool> Dynamic;
+    TNullable<NTableClient::ETableReplicationMode> ReplicationMode;
+};
+
 class TTableNodeProxy
     : public NCypressServer::TCypressNodeProxyBase<NChunkServer::TChunkOwnerNodeProxy, NYTree::IEntityNode, TTableNode>
 {
@@ -34,19 +41,15 @@ protected:
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    void AlterTable(
-        const TNullable<NTableClient::TTableSchema>& newSchema,
-        const TNullable<bool>& newDynamic);
+
+    void AlterTable(const TAlterTableOptions& options);
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
     virtual void ValidateCustomAttributeUpdate(
         const Stroka& key,
         const NYson::TYsonString& oldValue,
         const NYson::TYsonString& newValue) override;
-    virtual void ValidateFetchParameters(
-        const NChunkClient::TChannel& channel,
-        const std::vector<NChunkClient::TReadRange>& ranges) override;
-
+    virtual void ValidateFetchParameters(const std::vector<NChunkClient::TReadRange>& ranges) override;
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 

@@ -1183,7 +1183,7 @@ protected:
             builder.Flush());
     }
 
-    virtual void LogResponse(const TError& error) override
+    virtual void LogResponse() override
     {
         TStringBuilder builder;
 
@@ -1195,7 +1195,7 @@ protected:
             AppendInfo(&builder, ResponseInfo_);
         }
 
-        AppendInfo(&builder, "Error: %v", error);
+        AppendInfo(&builder, "Error: %v", Error_);
 
         LOG_DEBUG("%v:%v %v -> %v",
             GetService(),

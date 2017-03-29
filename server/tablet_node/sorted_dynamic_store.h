@@ -5,6 +5,7 @@
 #include "sorted_dynamic_comparer.h"
 #include "store_detail.h"
 #include "transaction.h"
+#include "store_manager.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
@@ -22,30 +23,6 @@
 
 namespace NYT {
 namespace NTabletNode {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRowBlockedException
-    : public std::exception
-{
-public:
-    TRowBlockedException(
-        TSortedDynamicStorePtr store,
-        TSortedDynamicRow row,
-        ui32 lockMask,
-        TTimestamp timestamp)
-        : Store_(std::move(store))
-        , Row_(row)
-        , LockMask_(lockMask)
-        , Timestamp_(timestamp)
-    { }
-
-    DEFINE_BYVAL_RO_PROPERTY(TSortedDynamicStorePtr, Store);
-    DEFINE_BYVAL_RO_PROPERTY(TSortedDynamicRow, Row);
-    DEFINE_BYVAL_RO_PROPERTY(ui32, LockMask);
-    DEFINE_BYVAL_RO_PROPERTY(TTimestamp, Timestamp);
-
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,7 +64,7 @@ public:
         ui32 lockMask,
         TTimestamp timestamp);
 
-    //! Writes the row.
+    //! Modifies (writes or deletes) a row.
     /*!
      *  If #commitTimestamp is not null then no locks are checked or taken.
      *  #transaction could be null.
@@ -95,23 +72,25 @@ public:
      *
      *  If #commitTimstamp is null then checks and takes the locks.
      *  #transaction cannot be null.
+     *
      *  On lock failure, throws TErrorException explaining the cause.
-     *  If a blocked row is encountered, throws TRowBlockedException.
+     *
+     *  If a blocked row is encountered, fills the appropriate fields in #writeResult
+     *  and returns null; here #prelock must be |true|.
      */
-    TSortedDynamicRow WriteRow(
-        TTransaction* transaction,
+    TSortedDynamicRow ModifyRow(
         NTableClient::TUnversionedRow row,
-        TTimestamp commitTimestamp,
-        ui32 lockMask);
+        ui32 lockMask,
+        NApi::ERowModificationType modificationType,
+        TWriteContext* context);
 
-    //! Deletes the row.
+    //! Writes a versioned row into the store.
     /*!
-     *  \see WriteRow
+     *  No locks are checked. Timestamps are taken directly from #row.
      */
-    TSortedDynamicRow DeleteRow(
-        TTransaction* transaction,
-        TKey key,
-        TTimestamp commitTimestamp);
+    TSortedDynamicRow ModifyRow(
+        NTableClient::TVersionedRow row,
+        TWriteContext* context);
 
     TSortedDynamicRow MigrateRow(TTransaction* transaction, TSortedDynamicRow row);
     void PrepareRow(TTransaction* transaction, TSortedDynamicRow row);
@@ -137,6 +116,7 @@ public:
         const TTabletSnapshotPtr& tabletSnapshot,
         TSharedRange<NTableClient::TRowRange> bounds,
         TTimestamp timestamp,
+        bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor) override;
 
@@ -144,10 +124,11 @@ public:
         const TTabletSnapshotPtr& tabletSnapshot,
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
+        bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const TWorkloadDescriptor& workloadDescriptor) override;
 
-    virtual void CheckRowLocks(
+    virtual TError CheckRowLocks(
         TUnversionedRow row,
         TTransaction* transaction,
         ui32 lockMask) override;
@@ -179,6 +160,8 @@ private:
     NConcurrency::TReaderWriterSpinLock RowBlockedLock_;
     TRowBlockedHandler RowBlockedHandler_;
 
+    // Reused between ModifyRow calls.
+    std::vector<ui32> WriteRevisions_;
 
     virtual void OnSetPassive() override;
 
@@ -189,20 +172,24 @@ private:
         TSortedDynamicRow row,
         ui32 lockMask,
         TTimestamp timestamp);
-    void ValidateRowNotBlocked(
+    bool CheckRowBlocking(
         TSortedDynamicRow row,
         ui32 lockMask,
-        TTimestamp timestamp);
+        TWriteContext* context);
 
-    void CheckRowLocks(
+    bool CheckRowLocks(
+        TSortedDynamicRow row,
+        ui32 lockMask,
+        TWriteContext* context);
+    TError CheckRowLocks(
         TSortedDynamicRow row,
         TTransaction* transaction,
         ui32 lockMask);
     void AcquireRowLocks(
         TSortedDynamicRow row,
-        TTransaction* transaction,
         ui32 lockMask,
-        bool deleteFlag);
+        NApi::ERowModificationType modificationType,
+        TWriteContext* context);
 
     TValueList PrepareFixedValue(TSortedDynamicRow row, int index);
     void AddDeleteRevision(TSortedDynamicRow row, ui32 revision);

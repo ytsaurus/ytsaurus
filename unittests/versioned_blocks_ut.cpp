@@ -107,7 +107,9 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
         Schema.GetKeyColumnCount() + 2, // Two padding key columns.
         schemaIdMapping,
         KeyComparer_,
-        7);
+        7,
+        false,
+        true);
 
     auto row = TMutableVersionedRow::Allocate(&MemoryPool, 5, 3, 1, 0);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
@@ -139,7 +141,9 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp2)
         Schema.GetKeyColumnCount(),
         schemaIdMapping,
         KeyComparer_,
-        9);
+        9,
+        false,
+        true);
 
     auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
@@ -165,7 +169,9 @@ TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
         Schema.GetKeyColumnCount(),
         schemaIdMapping,
         KeyComparer_,
-        SyncLastCommittedTimestamp);
+        SyncLastCommittedTimestamp,
+        false,
+        true);
 
     auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 0, 1, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
@@ -193,7 +199,9 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
         Schema.GetKeyColumnCount(),
         schemaIdMapping,
         KeyComparer_,
-        AllCommittedTimestamp);
+        AllCommittedTimestamp,
+        true,
+        true);
 
     auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 1, 3, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);

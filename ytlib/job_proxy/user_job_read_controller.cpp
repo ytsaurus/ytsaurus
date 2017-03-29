@@ -100,19 +100,6 @@ TCallback<TFuture<void>()> TUserJobReadController::PrepareInputActionsQuery(
         THROW_ERROR_EXCEPTION("enable_key_switch is not supported when query is set");
     }
 
-    {
-        const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
-        for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
-            for (const auto& dataSliceDescriptor : inputSpec.data_slice_descriptors()) {
-                for (const auto& chunkSpec : dataSliceDescriptor.chunks()) {
-                    if (chunkSpec.has_channel() && !FromProto<NChunkClient::TChannel>(chunkSpec.channel()).IsUniversal()) {
-                        THROW_ERROR_EXCEPTION("Channels and QL filter cannot appear in the same operation");
-                    }
-                }
-            }
-        }
-    }
-
     auto readerFactory = [&] (TNameTablePtr nameTable, TColumnFilter columnFilter) -> ISchemalessReaderPtr {
         InitializeReader(std::move(nameTable), std::move(columnFilter));
         return Reader_;

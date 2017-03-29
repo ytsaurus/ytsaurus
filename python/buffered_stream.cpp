@@ -13,7 +13,7 @@ TBufferedStream::TBufferedStream(size_t capacity)
     , AllowWrite_(NewPromise<void>())
 { }
 
-PyObject* TBufferedStream::Read(size_t size)
+size_t TBufferedStream::WaitDataToRead(size_t size)
 {
     TGuard<TMutex> guard(ReadMutex_);
 
@@ -22,19 +22,17 @@ PyObject* TBufferedStream::Read(size_t size)
     {
         TGuard<TMutex> guard(Mutex_);
 
-        if (Size_ >= size) {
-            return ExtractChunk(size);
-        }
-
-        SizeToRead_ = size;
-        Capacity_ = std::max(Capacity_, size * 2);
-        if (Full_) {
-            Full_ = false;
-            AllowWrite_.Set(TError());
-        }
-        if (!Finished_) {
-            wait = true;
-            AllowRead_.store(false);
+        if (Size_ < size) {
+            SizeToRead_ = size;
+            Capacity_ = std::max(Capacity_, size * 2);
+            if (Full_) {
+                Full_ = false;
+                AllowWrite_.Set(TError());
+            }
+            if (!Finished_) {
+                wait = true;
+                AllowRead_.store(false);
+            }
         }
     }
 
@@ -49,8 +47,25 @@ PyObject* TBufferedStream::Read(size_t size)
 
     {
         TGuard<TMutex> guard(Mutex_);
-        SizeToRead_ = 0;
-        return ExtractChunk(size);
+        return std::min(size, Size_);
+    }
+}
+
+void TBufferedStream::Read(size_t size, char* dest)
+{
+    TGuard<TMutex> guard(ReadMutex_);
+
+    YCHECK(Size_ >= size);
+
+    SizeToRead_ = 0;
+
+    memcpy(dest, Begin_, size);
+    Begin_ += size;
+    Size_ -= size;
+
+    if (Size_ * 2 < Capacity_ && Full_) {
+        Full_ = false;
+        AllowWrite_.Set(TError());
     }
 }
 
@@ -126,24 +141,6 @@ void TBufferedStream::Move(char* dest)
     Begin_ = dest;
 }
 
-PyObject* TBufferedStream::ExtractChunk(size_t size)
-{
-    size = std::min(size, static_cast<size_t>(Size_));
-
-    auto result = Data_.Slice(Begin_, Begin_ + size);
-    Begin_ += size;
-    Size_ -= size;
-
-    if (Size_ * 2 < Capacity_ && Full_) {
-        Full_ = false;
-        AllowWrite_.Set(TError());
-    }
-
-    // NB: we could not call Py::Bytes since it calls PyBytes_Check
-    // that requires GIL in python2.6.
-    return PyBytes_FromStringAndSize(result.Begin(), static_cast<int>(result.Size()));
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 
 TBufferedStreamWrap::TBufferedStreamWrap(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
@@ -158,12 +155,27 @@ Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict& kwargs)
     auto size = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "size"));
     ValidateArgumentsEmpty(args, kwargs);
 
-    PyObject* rawResult;
+    // Shrink size to available data size if stream has finished.
     {
         Py_BEGIN_ALLOW_THREADS
-        rawResult = Stream_->Read(size);
+        size = Stream_->WaitDataToRead(size);
         Py_END_ALLOW_THREADS
     }
+
+#if PY_MAJOR_VERSION >= 3
+    auto* rawResult = PyBytes_FromStringAndSize(nullptr, size);
+    char* underlyingString = PyBytes_AS_STRING(rawResult);
+#else
+    auto* rawResult = PyString_FromStringAndSize(nullptr, size);
+    char* underlyingString = PyString_AS_STRING(rawResult);
+#endif
+
+    {
+        Py_BEGIN_ALLOW_THREADS
+        Stream_->Read(size, underlyingString);
+        Py_END_ALLOW_THREADS
+    }
+
     return Py::Object(rawResult, true);
 }
 

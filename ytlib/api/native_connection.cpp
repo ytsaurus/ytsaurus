@@ -348,6 +348,7 @@ public:
 
     virtual void Terminate() override
     {
+        MediumDirectorySynchronizer_->Stop();
         LightPool_.Reset();
         HeavyPool_.Reset();
     }

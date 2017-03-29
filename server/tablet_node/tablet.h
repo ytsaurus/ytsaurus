@@ -86,7 +86,10 @@ struct TTabletSnapshot
     NTableClient::TTableSchema TableSchema;
     NTableClient::TTableSchema PhysicalSchema;
     NTableClient::TTableSchema QuerySchema;
+    NTabletClient::TSchemaData PhysicalSchemaData;
+    NTabletClient::TSchemaData KeysSchemaData;
     NTransactionClient::EAtomicity Atomicity;
+    NTableClient::ETableReplicationMode ReplicationMode;
     int HashTableSize = 0;
     int OverlappingStoreCount = 0;
     NTransactionClient::TTimestamp RetainedTimestamp = NTransactionClient::MinTimestamp;
@@ -228,6 +231,9 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, TableSchema);
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, PhysicalSchema);
 
+    DEFINE_BYREF_RO_PROPERTY(NTabletClient::TSchemaData, PhysicalSchemaData);
+    DEFINE_BYREF_RO_PROPERTY(NTabletClient::TSchemaData, KeysSchemaData);
+
     DEFINE_BYREF_RO_PROPERTY(std::vector<int>, ColumnIndexToLockIndex);
     DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, LockIndexToName);
 
@@ -243,6 +249,7 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::ECommitOrdering, CommitOrdering);
+    DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableReplicationMode, ReplicationMode);
 
     DEFINE_BYVAL_RO_PROPERTY(int, HashTableSize);
 
@@ -274,7 +281,8 @@ public:
         TOwningKey pivotKey,
         TOwningKey nextPivotKey,
         NTransactionClient::EAtomicity atomicity,
-        NTransactionClient::ECommitOrdering commitOrdering);
+        NTransactionClient::ECommitOrdering commitOrdering,
+        NTableClient::ETableReplicationMode replicationMode);
 
     ETabletState GetPersistentState() const;
 
@@ -340,8 +348,6 @@ public:
 
     TTimestamp GetLastCommitTimestamp() const;
     void SetLastCommitTimestamp(TTimestamp value);
-    TTimestamp GenerateMonotonicCommitTimestamp(TTimestamp hintTimestamp) const;
-    void UpdateLastCommitTimestamp(TTimestamp timestamp);
 
     TTimestamp GetUnflushedTimestamp() const;
 
@@ -356,6 +362,10 @@ public:
     void ValidateMountRevision(i64 mountRevision);
 
     void UpdateUnflushedTimestamp() const;
+
+    i64 Lock();
+    i64 Unlock();
+    i64 GetTabletLockCount() const;
 
 private:
     const TRuntimeTabletDataPtr RuntimeData_ = New<TRuntimeTabletData>();
@@ -386,6 +396,8 @@ private:
     ITabletContext* const Context_;
 
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
+
+    i64 TabletLockCount_ = 0;
 
 
     void Initialize();

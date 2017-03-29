@@ -180,11 +180,10 @@ void TCypressNodeBase::Load(TLoadContext& context)
                 }
                 attributes.erase(it);
             }
+            if (Attributes_->Attributes().empty()) {
+                Attributes_.reset();
+            }
         }
-    }
-    // COMPAT(babenko): Cf. YT-5045
-    if (Attributes_ && Attributes_->Attributes().empty()) {
-        Attributes_.reset();
     }
     Load(context, AccessTime_);
     Load(context, AccessCounter_);
