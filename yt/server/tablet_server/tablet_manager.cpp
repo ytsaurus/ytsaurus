@@ -755,8 +755,26 @@ public:
     {
         for (auto* tablet : action->Tablets()) {
             try {
-                if (IsObjectAlive(tablet) && tablet->GetState() != ETabletState::Mounted) {
-                    DoMountTablet(tablet, nullptr);
+                if (!IsObjectAlive(tablet)) {
+                    continue;
+                }
+
+                switch(tablet->GetState()) {
+                    case ETabletState::Mounted:
+                        break;
+
+                    case ETabletState::Unmounted:
+                        DoMountTablet(tablet, nullptr);
+                        break;
+
+                    case ETabletState::Frozen:
+                        DoUnfreezeTablet(tablet);
+                        break;
+
+                    default:
+                        THROW_ERROR_EXCEPTION("Tablet %v is in unrecognized state %Qv",
+                            tablet->GetId(),
+                            tablet->GetState());
                 }
             } catch (const std::exception& ex) {
                 LOG_ERROR_UNLESS(IsRecovery(), ex, "Error mounting missed in action tablet (TabletId: %v, ActionId: %v)",
@@ -809,6 +827,7 @@ public:
 
         switch (action->GetState()) {
             case ETabletActionState::Unmounting:
+            case ETabletActionState::Freezing:
                 // Wait until tablets are unmounted, then mount them.
                 action->Error() = error.Sanitize();
                 break;
@@ -826,6 +845,7 @@ public:
                 break;
 
             case ETabletActionState::Mounted:
+            case ETabletActionState::Frozen:
             case ETabletActionState::Unmounted:
             case ETabletActionState::Preparing:
             case ETabletActionState::Failing:
@@ -865,9 +885,44 @@ public:
     {
         switch (action->GetState()) {
             case ETabletActionState::Preparing: {
+                action->SetState(ETabletActionState::Freezing);
+
+                for (auto* tablet : action->Tablets()) {
+                    DoFreezeTablet(tablet);
+                }
+
+                LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
+                    action->GetId(),
+                    action->GetState());
+                OnTabletActionStateChanged(action);
+                break;
+            }
+
+            case ETabletActionState::Freezing: {
+                int freezingCount = 0;
+                for (const auto* tablet : action->Tablets()) {
+                    YCHECK(IsObjectAlive(tablet));
+                    if (tablet->GetState() == ETabletState::Freezing) {
+                        ++freezingCount;
+                    }
+                }
+                if (freezingCount == 0) {
+                    action->SetState(action->Error().IsOK()
+                        ? ETabletActionState::Frozen
+                        : ETabletActionState::Failing);
+                    LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
+                        action->GetId(),
+                        action->GetState());
+                    OnTabletActionStateChanged(action);
+                }
+                break;
+            }
+
+            case ETabletActionState::Frozen: {
                 action->SetState(ETabletActionState::Unmounting);
 
                 for (auto* tablet : action->Tablets()) {
+                    YCHECK(IsObjectAlive(tablet));
                     DoUnmountTablet(tablet, false);
                 }
 
@@ -1473,26 +1528,34 @@ public:
             }
         }
 
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
-            auto* cell = tablet->GetCell();
+            DoFreezeTablet(tablet);
+        }
+    }
 
-            if (tablet->GetState() == ETabletState::Mounted) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Freezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
-                    table->GetId(),
-                    tablet->GetId(),
-                    cell->GetId());
+    void DoFreezeTablet(TTablet* tablet)
+    {
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        auto* cell = tablet->GetCell();
+        auto state = tablet->GetState();
+        YCHECK(state == ETabletState::Mounted ||
+            state == ETabletState::Frozen ||
+            state == ETabletState::Freezing);
 
-                tablet->SetState(ETabletState::Freezing);
+        if (tablet->GetState() == ETabletState::Mounted) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Freezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
+                tablet->GetTable()->GetId(),
+                tablet->GetId(),
+                cell->GetId());
 
-                TReqFreezeTablet request;
-                ToProto(request.mutable_tablet_id(), tablet->GetId());
+            tablet->SetState(ETabletState::Freezing);
 
-                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-                hiveManager->PostMessage(mailbox, request);
-            }
+            TReqFreezeTablet request;
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
+
+            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+            hiveManager->PostMessage(mailbox, request);
         }
     }
 
@@ -1523,26 +1586,34 @@ public:
             }
         }
 
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
-            auto* cell = tablet->GetCell();
+            DoUnfreezeTablet(tablet);
+        }
+    }
 
-            if (tablet->GetState() == ETabletState::Frozen) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Unfreezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
-                    table->GetId(),
-                    tablet->GetId(),
-                    cell->GetId());
+    void DoUnfreezeTablet(TTablet* tablet)
+    {
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        auto* cell = tablet->GetCell();
+        auto state = tablet->GetState();
+        YCHECK(state == ETabletState::Mounted ||
+            state == ETabletState::Frozen ||
+            state == ETabletState::Unfreezing);
 
-                tablet->SetState(ETabletState::Unfreezing);
+        if (tablet->GetState() == ETabletState::Frozen) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Unfreezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
+                tablet->GetTable()->GetId(),
+                tablet->GetId(),
+                cell->GetId());
 
-                TReqUnfreezeTablet request;
-                ToProto(request.mutable_tablet_id(), tablet->GetId());
+            tablet->SetState(ETabletState::Unfreezing);
 
-                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-                hiveManager->PostMessage(mailbox, request);
-            }
+            TReqUnfreezeTablet request;
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
+
+            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+            hiveManager->PostMessage(mailbox, request);
         }
     }
 
@@ -2787,6 +2858,7 @@ private:
             cell->GetId());
 
         tablet->SetState(ETabletState::Frozen);
+        OnTabletActionStateChanged(tablet->GetAction());
     }
 
     void HydraOnTabletUnfrozen(TRspUnfreezeTablet* response)
