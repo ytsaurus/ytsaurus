@@ -176,7 +176,7 @@ void TInputChunk::ReleasePartitionsExt()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! ToProto is used to pass chunk specs to job proxy as part of TUserJobSpecExt
+//! ToProto is used to pass chunk specs to job proxy as part of TTableInputSpec.
 void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
 {
     ToProto(chunkSpec->mutable_chunk_id(), inputChunk->ChunkId_);
@@ -185,9 +185,19 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
     if (inputChunk->TableIndex_ >= 0) {
         chunkSpec->set_table_index(inputChunk->TableIndex_);
     }
-    chunkSpec->set_erasure_codec(static_cast<int>(inputChunk->ErasureCodec_));
-    chunkSpec->set_table_row_index(inputChunk->TableRowIndex_);
-    chunkSpec->set_range_index(inputChunk->RangeIndex_);
+
+    if (inputChunk->ErasureCodec_ != NErasure::ECodec::None) {
+        chunkSpec->set_erasure_codec(static_cast<int>(inputChunk->ErasureCodec_));
+    }
+
+    if (inputChunk->TableRowIndex_ > 0) {
+        chunkSpec->set_table_row_index(inputChunk->TableRowIndex_);
+    }
+
+    if (inputChunk->RangeIndex_ > 0) {
+        chunkSpec->set_range_index(inputChunk->RangeIndex_);
+    }
+
     if (inputChunk->LowerLimit_) {
         ToProto(chunkSpec->mutable_lower_limit(), *inputChunk->LowerLimit_);
     }
@@ -197,9 +207,14 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
     if (inputChunk->Channel_) {
         chunkSpec->mutable_channel()->CopyFrom(*inputChunk->Channel_);
     }
-    chunkSpec->mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
-    chunkSpec->mutable_chunk_meta()->set_version(static_cast<int>(inputChunk->TableChunkFormat_));
-    chunkSpec->mutable_chunk_meta()->mutable_extensions();
+
+    // This is the default intermediate table chunk format,
+    // so we omit chunk_meta altogether to minimize job spec size.
+    if (inputChunk->TableChunkFormat_ != ETableChunkFormat::SchemalessHorizontal) {
+        chunkSpec->mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
+        chunkSpec->mutable_chunk_meta()->set_version(static_cast<int>(inputChunk->TableChunkFormat_));
+        chunkSpec->mutable_chunk_meta()->mutable_extensions();
+    }
 }
 
 Stroka ToString(const TInputChunkPtr& inputChunk)
