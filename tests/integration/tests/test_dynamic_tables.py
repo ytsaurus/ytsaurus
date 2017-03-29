@@ -473,7 +473,8 @@ class TestTabletActions(TestDynamicTablesBase):
             "leader_reassignment_timeout" : 1000,
             "peer_revocation_timeout" : 3000,
             "tablet_balancer": {
-                "enabled": True,
+                "enable_in_memory_balancer": True,
+                "enable_tablet_size_balancer": True,
                 "balance_period": 100,
                 "enabled_check_period": 100,
                 "min_tablet_size": 128,
