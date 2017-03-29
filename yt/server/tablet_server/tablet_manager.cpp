@@ -773,7 +773,7 @@ public:
                     continue;
                 }
 
-                switch(tablet->GetState()) {
+                switch (tablet->GetState()) {
                     case ETabletState::Mounted:
                         break;
 
