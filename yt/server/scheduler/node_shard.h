@@ -11,10 +11,9 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/public.h>
 
 #include <yt/core/yson/public.h>
-
 
 namespace NYT {
 namespace NScheduler {
@@ -32,11 +31,13 @@ struct INodeShardHost
 
     virtual int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const = 0;
 
-    virtual ISchedulerStrategyPtr GetStrategy() = 0;
+    virtual const ISchedulerStrategyPtr& GetStrategy() const = 0;
 
-    virtual IInvokerPtr GetStatisticsAnalyzerInvoker() = 0;
+    virtual const IInvokerPtr& GetStatisticsAnalyzerInvoker() const = 0;
 
-    virtual IInvokerPtr GetJobSpecBuilderInvoker() = 0;
+    virtual const IInvokerPtr& GetJobSpecBuilderInvoker() const = 0;
+
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
 
     virtual void ValidateOperationPermission(
         const Stroka& user,
@@ -229,6 +230,7 @@ private:
     NCellScheduler::TBootstrap* const Bootstrap_;
 
     NLogging::TLogger Logger;
+
 
     NLogging::TLogger CreateJobLogger(const TJobId& jobId, EJobState state, const Stroka& address);
 

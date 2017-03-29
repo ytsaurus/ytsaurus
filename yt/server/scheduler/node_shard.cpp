@@ -203,6 +203,7 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
                 auto schedulingContext = CreateSchedulingContext(
                     Config_,
                     node,
+                    Host_->GetJobSpecSliceThrottler(),
                     runningJobs,
                     PrimaryMasterCellTag_);
 
@@ -247,7 +248,6 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to process heartbeat");
         }
-
     }
 
     context->ReplyFrom(scheduleJobsAsyncResult);
