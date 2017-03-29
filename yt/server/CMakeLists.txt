@@ -54,6 +54,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_tree_statistics.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_tree_traverser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_scanner.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_visitor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/medium.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/medium_proxy.cpp
