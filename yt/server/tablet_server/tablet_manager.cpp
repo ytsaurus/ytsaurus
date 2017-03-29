@@ -557,6 +557,7 @@ public:
         const std::vector<TTabletCell*>& cells,
         const std::vector<NTableClient::TOwningKey>& pivotKeys,
         const TNullable<int>& tabletCount,
+        bool skipFreezing,
         TNullable<bool> freeze,
         bool keepFinished)
     {
@@ -652,6 +653,7 @@ public:
         action->TabletCells() = std::move(cells);
         action->PivotKeys() = std::move(pivotKeys);
         action->SetTabletCount(tabletCount);
+        action->SetSkipFreezing(skipFreezing);
         action->SetFreeze(*freeze);
         action->SetKeepFinished(keepFinished);
 
@@ -919,6 +921,12 @@ public:
     {
         switch (action->GetState()) {
             case ETabletActionState::Preparing: {
+                if (action->GetSkipFreezing()) {
+                    action->SetState(ETabletActionState::Frozen);
+                    DoTabletActionStateChanged(action);
+                    break;
+                }
+
                 action->SetState(ETabletActionState::Freezing);
 
                 for (auto* tablet : action->Tablets()) {
@@ -928,7 +936,7 @@ public:
                 LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
                     action->GetId(),
                     action->GetState());
-                OnTabletActionStateChanged(action);
+                DoTabletActionStateChanged(action);
                 break;
             }
 
@@ -947,7 +955,7 @@ public:
                     LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
                         action->GetId(),
                         action->GetState());
-                    OnTabletActionStateChanged(action);
+                    DoTabletActionStateChanged(action);
                 }
                 break;
             }
@@ -963,7 +971,7 @@ public:
                 LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
                     action->GetId(),
                     action->GetState());
-                OnTabletActionStateChanged(action);
+                DoTabletActionStateChanged(action);
                 break;
             }
 
@@ -982,7 +990,7 @@ public:
                     LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
                         action->GetId(),
                         action->GetState());
-                    OnTabletActionStateChanged(action);
+                    DoTabletActionStateChanged(action);
                 }
                 break;
             }
@@ -1101,8 +1109,7 @@ public:
                 LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
                     action->GetId(),
                     action->GetState());
-                OnTabletActionStateChanged(action);
-
+                DoTabletActionStateChanged(action);
                 break;
             }
 
@@ -1122,7 +1129,7 @@ public:
                     LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
                         action->GetId(),
                         action->GetState());
-                    OnTabletActionStateChanged(action);
+                    DoTabletActionStateChanged(action);
                 }
                 break;
             }
@@ -1132,7 +1139,7 @@ public:
                 LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
                     action->GetId(),
                     action->GetState());
-                OnTabletActionStateChanged(action);
+                DoTabletActionStateChanged(action);
                 break;
             }
 
@@ -1147,7 +1154,7 @@ public:
                 LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %Qv)",
                     action->GetId(),
                     action->GetState());
-                OnTabletActionStateChanged(action);
+                DoTabletActionStateChanged(action);
                 break;
             }
 
@@ -2931,6 +2938,7 @@ private:
             cell->GetId());
 
         tablet->SetState(ETabletState::Mounted);
+        OnTabletActionStateChanged(tablet->GetAction());
     }
 
     void HydraUpdateTableReplicaStatistics(TReqUpdateTableReplicaStatistics* request)
@@ -3375,7 +3383,7 @@ private:
         }
 
         try {
-            CreateTabletAction(NullObjectId, kind, tablets, cells, pivotKeys, tabletCount, Null, keepFinished);
+            CreateTabletAction(NullObjectId, kind, tablets, cells, pivotKeys, tabletCount, false, Null, keepFinished);
         } catch (const std::exception& ex) {
             LOG_DEBUG_UNLESS(IsRecovery(), TError(ex), "Error creating tablet action (Kind: %v, Tablets: %v, TabletCellsL %v, PivotKeys %v, TabletCount %v)",
                 kind,
@@ -4243,6 +4251,7 @@ TTabletAction* TTabletManager::CreateTabletAction(
     const std::vector<TTabletCell*>& cellIds,
     const std::vector<NTableClient::TOwningKey>& pivotKeys,
     const TNullable<int>& tabletCount,
+    bool skipFreezing,
     const TNullable<bool>& freeze,
     bool keepFinished)
 {
@@ -4253,6 +4262,7 @@ TTabletAction* TTabletManager::CreateTabletAction(
         cellIds,
         pivotKeys,
         tabletCount,
+        skipFreezing,
         freeze,
         keepFinished);
 }

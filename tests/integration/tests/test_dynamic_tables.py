@@ -494,8 +494,9 @@ class TestTabletActions(TestDynamicTablesBase):
         }
     }
 
+    @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
-    def test_action_move(self, freeze):
+    def test_action_move(self, skip_freezing, freeze):
         set("//sys/@disable_tablet_balancer", True)
         cells = self.sync_create_cells(2)
         self._create_simple_table("//tmp/t")
@@ -503,6 +504,7 @@ class TestTabletActions(TestDynamicTablesBase):
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         action = create("tablet_action", "", attributes={
             "kind": "move",
+            "skip_freezing": skip_freezing,
             "keep_finished": True,
             "tablet_ids": [tablet_id],
             "cell_ids": [cells[1]]})
@@ -516,6 +518,7 @@ class TestTabletActions(TestDynamicTablesBase):
         action = create("tablet_action", "", attributes={
             "kind": "move",
             "keep_finished": True,
+            "skip_freezing": skip_freezing,
             "freeze": not freeze,
             "tablet_ids": [tablet_id],
             "cell_ids": [cells[0]]})
@@ -524,8 +527,9 @@ class TestTabletActions(TestDynamicTablesBase):
         expected_state = "frozen" if not freeze else "mounted"
         assert get("//tmp/t/@tablets/0/state") == expected_state
 
+    @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
-    def test_action_reshard(self, freeze):
+    def test_action_reshard(self, skip_freezing, freeze):
         set("//sys/@disable_tablet_balancer", True)
         cells = self.sync_create_cells(2)
         self._create_simple_table("//tmp/t")
@@ -534,6 +538,7 @@ class TestTabletActions(TestDynamicTablesBase):
         action = create("tablet_action", "", attributes={
             "kind": "reshard",
             "keep_finished": True,
+            "skip_freezing": skip_freezing,
             "tablet_ids": [tablet_id],
             "pivot_keys": [[], [1]]})
         wait(lambda: get("#{0}/@state".format(action)) == "completed")
@@ -548,6 +553,7 @@ class TestTabletActions(TestDynamicTablesBase):
         action = create("tablet_action", "", attributes={
             "kind": "reshard",
             "keep_finished": True,
+            "skip_freezing": skip_freezing,
             "freeze": not freeze,
             "tablet_ids": [tablets[0]["tablet_id"], tablets[1]["tablet_id"]],
             "tablet_count": 1})
@@ -620,8 +626,9 @@ class TestTabletActions(TestDynamicTablesBase):
         assert len(get("//tmp/t/@chunk_ids")) > 1
         assert get("//tmp/t/@tablet_count") == 2
 
+    @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
-    def test_action_failed_after_table_removed(self, freeze):
+    def test_action_failed_after_table_removed(self, skip_freezing, freeze):
         set("//sys/@disable_tablet_balancer", True)
         cells = self.sync_create_cells(2)
         self._create_simple_table("//tmp/t")
@@ -631,6 +638,7 @@ class TestTabletActions(TestDynamicTablesBase):
         action = create("tablet_action", "", attributes={
             "kind": "move",
             "keep_finished": True,
+            "skip_freezing": skip_freezing,
             "tablet_ids": [tablet_id],
             "cell_ids": [cells[1]]})
         remove("//tmp/t")
@@ -638,8 +646,9 @@ class TestTabletActions(TestDynamicTablesBase):
         assert get("#{0}/@error".format(action))
 
     @pytest.mark.parametrize("touch", ["mount", "unmount", "freeze", "unfreeze"])
+    @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
-    def test_action_failed_after_tablet_touched(self, freeze, touch):
+    def test_action_failed_after_tablet_touched(self, skip_freezing, freeze, touch):
         touch_callbacks = {
             "mount": mount_table,
             "unmount": unmount_table,
@@ -659,6 +668,7 @@ class TestTabletActions(TestDynamicTablesBase):
         action = create("tablet_action", "", attributes={
             "kind": "move",
             "keep_finished": True,
+            "skip_freezing": skip_freezing,
             "tablet_ids": [tablet1, tablet2],
             "cell_ids": [cells[1], cells[1]]})
         try:
@@ -673,8 +683,9 @@ class TestTabletActions(TestDynamicTablesBase):
         # FIXME(savrus) Enable after YT-6770
         #wait(lambda: get("//tmp/t/@tablets/0/state") == "unmounted")
 
+    @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
-    def test_action_failed_after_cell_destroyed(self, freeze):
+    def test_action_failed_after_cell_destroyed(self, skip_freezing, freeze):
         set("//sys/@disable_tablet_balancer", True)
         cells = self.sync_create_cells(2)
         self._create_simple_table("//tmp/t")
@@ -683,6 +694,7 @@ class TestTabletActions(TestDynamicTablesBase):
         action = create("tablet_action", "", attributes={
             "kind": "move",
             "keep_finished": True,
+            "skip_freezing": skip_freezing,
             "tablet_ids": [tablet_id],
             "cell_ids": [cells[1]]})
         remove("#" + cells[1])

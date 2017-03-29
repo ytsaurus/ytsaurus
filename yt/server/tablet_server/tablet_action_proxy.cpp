@@ -45,6 +45,7 @@ private:
         attributes->push_back("kind");
         attributes->push_back("state");
         attributes->push_back("keep_finished");
+        attributes->push_back("skip_freezing");
         attributes->push_back("freeze");
         attributes->push_back("tablet_ids");
         attributes->push_back(TAttributeDescriptor("cell_ids")
@@ -78,6 +79,12 @@ private:
         if (key == "keep_finished") {
             BuildYsonFluently(consumer)
                 .Value(action->GetKeepFinished());
+            return true;
+        }
+
+        if (key == "skip_freezing") {
+            BuildYsonFluently(consumer)
+                .Value(action->GetSkipFreezing());
             return true;
         }
 
