@@ -47,7 +47,6 @@ public:
     const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
-    const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const;
     const TCoreDumperPtr& GetCoreDumper() const;
 
     void Run();
@@ -68,7 +67,6 @@ private:
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     NNodeTrackerClient::TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
     NRpc::TResponseKeeperPtr ResponseKeeper_;
-    NChunkClient::TThrottlerManagerPtr ChunkLocationThrottlerManager_;
     TCoreDumperPtr CoreDumper_;
 
     void DoRun();

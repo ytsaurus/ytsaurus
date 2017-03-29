@@ -126,6 +126,9 @@ public:
             NLogging::TLogger(),
             NProfiling::TProfiler(SchedulerProfiler.GetPathPrefix() + "/job_spec_slice_throttler")))
         , JobSpecSliceThrottler_(ReconfigurableJobSpecSliceThrottler_)
+        , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
+            Config_->ChunkLocationThrottler,
+            SchedulerLogger))
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , MainNodesResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/main_nodes_resource_limits")
@@ -880,7 +883,7 @@ public:
 
     virtual const TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const override
     {
-        return Bootstrap_->GetChunkLocationThrottlerManager();
+        return ChunkLocationThrottlerManager_;
     }
 
     virtual IYsonConsumer* GetEventLogConsumer() override
@@ -1007,6 +1010,8 @@ private:
 
     const IReconfigurableThroughputThrottlerPtr ReconfigurableJobSpecSliceThrottler_;
     const IThroughputThrottlerPtr JobSpecSliceThrottler_;
+
+    const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
 
@@ -1572,8 +1577,9 @@ private:
 
         if (!AreNodesEqual(oldConfigNode, newConfigNode)) {
             LOG_INFO("Scheduler configuration updated");
+
             Config_ = newConfig;
-            ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
+
             for (const auto& operation : GetOperations()) {
                 auto controller = operation->GetController();
                 BIND(&IOperationController::UpdateConfig, controller, Config_)
@@ -1590,7 +1596,8 @@ private:
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);
 
-            Bootstrap_->GetChunkLocationThrottlerManager()->Reconfigure(Config_->ChunkLocationThrottler);
+            ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
+            ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
         }
     }
 
