@@ -621,7 +621,7 @@ class TestTabletActions(TestDynamicTablesBase):
         assert get("//tmp/t/@tablet_count") == 2
 
     @pytest.mark.parametrize("freeze", [False, True])
-    def test_action_failed_after_remove(self, freeze):
+    def test_action_failed_after_table_removed(self, freeze):
         set("//sys/@disable_tablet_balancer", True)
         cells = self.sync_create_cells(2)
         self._create_simple_table("//tmp/t")
@@ -637,8 +637,17 @@ class TestTabletActions(TestDynamicTablesBase):
         wait(lambda: get("#{0}/@state".format(action)) == "failed")
         assert get("#{0}/@error".format(action))
 
+    @pytest.mark.parametrize("touch", ["mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("freeze", [False, True])
-    def test_action_failed_after_unmount(self, freeze):
+    def test_action_failed_after_tablet_touched(self, freeze, touch):
+        touch_callbacks = {
+            "mount": mount_table,
+            "unmount": unmount_table,
+            "freeze": freeze_table,
+            "unfreeze": unfreeze_table
+        }
+        callback = touch_callbacks[touch]
+
         set("//sys/@disable_tablet_balancer", True)
         cells = self.sync_create_cells(2)
         self._create_simple_table("//tmp/t")
@@ -652,7 +661,10 @@ class TestTabletActions(TestDynamicTablesBase):
             "keep_finished": True,
             "tablet_ids": [tablet1, tablet2],
             "cell_ids": [cells[1], cells[1]]})
-        unmount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
+        try:
+            callback("//tmp/t", first_tablet_index=0, last_tablet_index=0)
+        except Exception as e:
+            pass
         self._unban_peers(banned_peers)
         wait(lambda: get("#{0}/@state".format(action)) == "failed")
         assert get("#{0}/@error".format(action))

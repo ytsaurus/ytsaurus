@@ -830,6 +830,26 @@ public:
         OnTabletActionDisturbed(action, error);
     }
 
+    void TouchAffectedTabletActions(
+        TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        const Stroka& request)
+    {
+        YCHECK(firstTabletIndex >= 0 && firstTabletIndex <= lastTabletIndex && lastTabletIndex < table->Tablets().size());
+
+        auto error = TError("User request %Qv interfered with the action", request);
+        yhash_set<TTablet*> touchedTablets;
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            touchedTablets.insert(table->Tablets()[index]);
+        }
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            if (auto* action = table->Tablets()[index]->GetAction()) {
+                OnTabletActionTabletsTouched(action, touchedTablets, error);
+            }
+        }
+    }
+
     void OnTabletActionDisturbed(TTabletAction* action, const TError& error)
     {
         if (action->Tablets().empty()) {
@@ -1214,6 +1234,7 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "mount_table");
 
         if (hintCell && hintCell->GetCellBundle() != table->GetTabletCellBundle()) {
             // Will throw :)
@@ -1435,6 +1456,7 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "unmount_table");
 
         if (!force) {
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
@@ -1469,6 +1491,7 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "remount_table");
 
         TTableMountConfigPtr mountConfig;
         NTabletNode::TTabletChunkReaderConfigPtr readerConfig;
@@ -1532,6 +1555,7 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "freeze_table");
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -1590,6 +1614,7 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "unfreeze_table");
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -1644,11 +1669,12 @@ public:
         }
 
         if (!table->Tablets().empty()) {
-            DoUnmountTable(
-                table,
-                true,
-                0,
-                static_cast<int>(table->Tablets().size()) - 1);
+            int firstTabletIndex = 0;
+            int lastTabletIndex =  static_cast<int>(table->Tablets().size()) - 1;
+
+            TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "remove");
+
+            DoUnmountTable(table, true, firstTabletIndex, lastTabletIndex);
 
             const auto& objectManager = Bootstrap_->GetObjectManager();
             for (auto* tablet : table->Tablets()) {
@@ -1694,6 +1720,7 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         auto& tablets = table->Tablets();
         YCHECK(tablets.size() == table->GetChunkList()->Children().size());
@@ -3674,17 +3701,6 @@ private:
         int firstTabletIndex,
         int lastTabletIndex)
     {
-        yhash_set<TTablet*> touchedTablets;
-        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            touchedTablets.insert(table->Tablets()[index]);
-        }
-        auto error = TError("User request interfered with the action");
-        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            if (auto* action = table->Tablets()[index]->GetAction()) {
-                OnTabletActionTabletsTouched(action, touchedTablets, error);
-            }
-        }
-
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
             DoUnmountTablet(tablet, force);
