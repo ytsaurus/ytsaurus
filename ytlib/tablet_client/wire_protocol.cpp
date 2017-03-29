@@ -129,10 +129,22 @@ public:
 
         UnsafeWriteRaw(row.GetHeader(), sizeof(TVersionedRowHeader));
         UnsafeWriteRaw(row.BeginWriteTimestamps(), sizeof(TTimestamp) * row.GetWriteTimestampCount());
-        UnsafeWriteRaw(row.BeginDeleteTimestamps(), sizeof(TTimestamp) * row.GetWriteTimestampCount());
+        UnsafeWriteRaw(row.BeginDeleteTimestamps(), sizeof(TTimestamp) * row.GetDeleteTimestampCount());
 
         UnsafeWriteSchemafulValueRange(TRange<TUnversionedValue>(row.BeginKeys(), row.EndKeys()), nullptr);
         UnsafeWriteVersionedValueRange(TRange<TVersionedValue>(row.BeginValues(), row.EndValues()));
+    }
+
+    void WriteUnversionedValueRange(
+        TRange<TUnversionedValue> valueRange,
+        const TNameTableToSchemaIdMapping* idMapping = nullptr)
+    {
+        size_t bytes = AlignUp(8); // -1 or value count
+        bytes += EstimateUnversionedValueRangeByteSize(valueRange);
+        EnsureCapacity(bytes);
+
+        UnsafeWriteUint64(valueRange.Size());
+        UnsafeWriteUnversionedValueRange(valueRange, idMapping);
     }
 
     void WriteUnversionedRowset(
@@ -482,6 +494,13 @@ void TWireProtocolWriter::WriteVersionedRow(
     Impl_->WriteVersionedRow(row);
 }
 
+void TWireProtocolWriter::WriteUnversionedValueRange(
+    TRange<TUnversionedValue> valueRange,
+    const TNameTableToSchemaIdMapping* idMapping)
+{
+    return Impl_->WriteUnversionedValueRange(valueRange, idMapping);
+}
+
 void TWireProtocolWriter::WriteUnversionedRowset(
     const TRange<TUnversionedRow>& rowset,
     const TNameTableToSchemaIdMapping* idMapping)
@@ -579,7 +598,7 @@ public:
             return TUnversionedRow();
         }
         ValidateRowValueCount(valueCount);
-        auto row = RowBuffer_->Allocate(valueCount);
+        auto row = RowBuffer_->AllocateUnversioned(valueCount);
         DoReadSchemafulValueRange(schemaData, deep, row.Begin(), valueCount);
         return row;
     }
@@ -591,7 +610,7 @@ public:
             return TUnversionedRow();
         }
         ValidateRowValueCount(valueCount);
-        auto row = RowBuffer_->Allocate(valueCount);
+        auto row = RowBuffer_->AllocateUnversioned(valueCount);
         DoReadUnversionedValueRange(deep, row.Begin(), valueCount);
         return row;
     }

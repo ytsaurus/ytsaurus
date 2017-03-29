@@ -1,5 +1,6 @@
 #pragma once
 
+#include "helpers.h"
 #include "private.h"
 #include "progress_counter.h"
 #include "serialize.h"
@@ -51,6 +52,10 @@ struct TChunkStripe
     TChunkStripeStatistics GetStatistics() const;
     int GetChunkCount() const;
 
+    int GetTableIndex() const;
+
+    int GetInputStreamIndex() const;
+
     void Persist(const TPersistenceContext& context);
 
     SmallVector<NChunkClient::TInputDataSlicePtr, 1> DataSlices;
@@ -65,6 +70,9 @@ DEFINE_REFCOUNTED_TYPE(TChunkStripe)
 struct TChunkStripeList
     : public TIntrinsicRefCounted
 {
+    TChunkStripeList() = default;
+    TChunkStripeList(int stripeCount);
+
     TChunkStripeStatisticsVector GetStatistics() const;
     TChunkStripeStatistics GetAggregateStatistics() const;
 
@@ -105,11 +113,53 @@ struct IChunkPoolInput
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkPoolInputBase
+    : public virtual IChunkPoolInput
+{
+public:
+    // IChunkPoolInput implementation.
+
+    virtual void Finish() override;
+
+    // IPersistent implementation.
+
+    virtual void Persist(const TPersistenceContext& context) override;
+
+protected:
+    bool Finished = false;
+};
+
+////////////////////////////////////////////////////////////////////
+
+struct TInputTable
+    : public TLockedUserObject
+{
+    //! Number of chunks in the whole table (without range selectors).
+    int ChunkCount = -1;
+    std::vector<NChunkClient::TInputChunkPtr> Chunks;
+    NTableClient::TTableSchema Schema;
+    NTableClient::ETableSchemaMode SchemaMode;
+    bool IsDynamic;
+
+    //! Set to true when schema of the table is compatible with the output
+    //! teleport table and when no special options set that disallow chunk
+    //! teleporting (like force_transform = %true).
+    bool IsTeleportable = false;
+
+    bool IsForeign() const;
+
+    bool IsPrimary() const;
+
+    void Persist(const TPersistenceContext& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IChunkPoolOutput
     : public virtual IPersistent
 {
     typedef int TCookie;
-    static const TCookie NullCookie = -1;
+    static constexpr TCookie NullCookie = -1;
 
     virtual i64 GetTotalDataSize() const = 0;
     virtual i64 GetRunningDataSize() const = 0;
@@ -133,10 +183,79 @@ struct IChunkPoolOutput
 
     virtual TChunkStripeListPtr GetStripeList(TCookie cookie) = 0;
 
+    virtual const std::vector<NChunkClient::TInputChunkPtr>& GetTeleportChunks() const = 0;
+
     virtual void Completed(TCookie cookie, const TCompletedJobSummary& jobSummary) = 0;
     virtual void Failed(TCookie cookie) = 0;
     virtual void Aborted(TCookie cookie, EAbortReason reason) = 0;
     virtual void Lost(TCookie cookie) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkPoolOutputBase
+    : public virtual IChunkPoolOutput
+{
+public:
+    TChunkPoolOutputBase();
+
+    // IChunkPoolOutput implementation.
+
+    virtual i64 GetTotalDataSize() const override;
+
+    virtual i64 GetRunningDataSize() const override;
+
+    virtual i64 GetCompletedDataSize() const override;
+
+    virtual i64 GetPendingDataSize() const override;
+
+    virtual i64 GetTotalRowCount() const override;
+
+    virtual const TProgressCounter& GetJobCounter() const override;
+
+    // IPersistent implementation.
+
+    virtual void Persist(const TPersistenceContext& context) override;
+
+    virtual const std::vector<NChunkClient::TInputChunkPtr>& GetTeleportChunks() const override;
+
+protected:
+    TProgressCounter DataSizeCounter;
+    TProgressCounter RowCounter;
+    TProgressCounter JobCounter;
+
+    std::vector<NChunkClient::TInputChunkPtr> TeleportChunks_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSuspendableStripe
+{
+public:
+    DEFINE_BYVAL_RW_PROPERTY(IChunkPoolOutput::TCookie, ExtractedCookie);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Teleport, false);
+
+public:
+    TSuspendableStripe();
+    explicit TSuspendableStripe(TChunkStripePtr stripe);
+
+    const TChunkStripePtr& GetStripe() const;
+    const TChunkStripeStatistics& GetStatistics() const;
+    void Suspend();
+    bool IsSuspended() const;
+    void Resume(TChunkStripePtr stripe);
+
+    //! Resume chunk and return a hashmap that defines the correspondence between
+    //! the old and new chunks.
+    yhash_map<NChunkClient::TInputChunkPtr, NChunkClient::TInputChunkPtr> ResumeAndBuildChunkMapping(TChunkStripePtr stripe);
+
+    void Persist(const TPersistenceContext& context);
+
+private:
+    TChunkStripePtr Stripe_;
+    TChunkStripePtr OriginalStripe_ = nullptr;
+    bool Suspended_ = false;
+    TChunkStripeStatistics Statistics_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,6 +283,58 @@ struct IShuffleChunkPool
 std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
     int partitionCount,
     i64 dataSizeThreshold);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TInputStreamDescriptor
+{
+public:
+    //! Used only for persistence.
+    TInputStreamDescriptor() = default;
+    TInputStreamDescriptor(bool isTeleportable, bool isPrimary, bool isVersioned);
+
+    bool IsTeleportable() const;
+    bool IsPrimary() const;
+    bool IsForeign() const;
+    bool IsVersioned() const;
+    bool IsUnversioned() const;
+
+    void Persist(const TPersistenceContext& context);
+
+private:
+    bool IsTeleportable_;
+    bool IsPrimary_;
+    bool IsVersioned_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern TInputStreamDescriptor IntermediateInputStreamDescriptor;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TInputStreamDirectory
+{
+public:
+    //! Used only for persistence
+    TInputStreamDirectory() = default;
+    explicit TInputStreamDirectory(
+        std::vector<TInputStreamDescriptor> descriptors,
+        TInputStreamDescriptor defaultDescriptor = IntermediateInputStreamDescriptor);
+
+    const TInputStreamDescriptor& GetDescriptor(int inputStreamIndex) const;
+
+    int GetDescriptorCount() const;
+
+    void Persist(const TPersistenceContext& context);
+private:
+    std::vector<TInputStreamDescriptor> Descriptors_;
+    TInputStreamDescriptor DefaultDescriptor_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern TInputStreamDirectory IntermediateInputStreamDirectory;
 
 ////////////////////////////////////////////////////////////////////////////////
 

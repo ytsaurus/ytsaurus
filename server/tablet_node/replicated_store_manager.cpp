@@ -36,7 +36,7 @@ TReplicatedStoreManager::TReplicatedStoreManager(
         .AddTag("TabletId: %v, CellId: %v",
             Tablet_->GetId(),
             TabletContext_->GetCellId()))
-    , Underlying_(New<TOrderedStoreManager>(
+    , LogStoreManager_(New<TOrderedStoreManager>(
         Config_,
         Tablet_,
         TabletContext_,
@@ -47,116 +47,119 @@ TReplicatedStoreManager::TReplicatedStoreManager(
 
 bool TReplicatedStoreManager::HasActiveLocks() const
 {
-    return Underlying_->HasActiveLocks();
+    return LogStoreManager_->HasActiveLocks();
 }
 
 bool TReplicatedStoreManager::HasUnflushedStores() const
 {
-    return Underlying_->HasUnflushedStores();
+    return LogStoreManager_->HasUnflushedStores();
 }
 
 void TReplicatedStoreManager::StartEpoch(TTabletSlotPtr slot)
 {
-    Underlying_->StartEpoch(std::move(slot));
+    LogStoreManager_->StartEpoch(std::move(slot));
 }
 
 void TReplicatedStoreManager::StopEpoch()
 {
-    Underlying_->StopEpoch();
+    LogStoreManager_->StopEpoch();
 }
 
-void TReplicatedStoreManager::ExecuteWrite(
-    TTransaction* transaction,
-    TWireProtocolReader* reader,
-    TTimestamp commitTimestamp,
-    bool prelock)
+bool TReplicatedStoreManager::IsLockless()
 {
-    auto command = reader->ReadCommand();
-    switch (command) {
-        case EWireProtocolCommand::WriteRow: {
-            auto row = reader->ReadUnversionedRow(false);
-            WriteRow(
-                transaction,
-                row,
-                commitTimestamp,
-                prelock);
-            break;
-        }
+    return true;
+}
 
-        case EWireProtocolCommand::DeleteRow: {
-            auto key = reader->ReadUnversionedRow(false);
-            DeleteRow(
-                transaction,
-                key,
-                commitTimestamp,
-                prelock);
-            break;
-        }
+bool TReplicatedStoreManager::ExecuteWrites(
+    TWireProtocolReader* reader,
+    TWriteContext* context)
+{
+    Y_ASSERT(context->Phase == EWritePhase::Commit);
+    while (!reader->IsFinished()) {
+        auto command = reader->ReadCommand();
+        switch (command) {
+            case EWireProtocolCommand::WriteRow: {
+                auto row = reader->ReadUnversionedRow(false);
+                LogStoreManager_->WriteRow(
+                    BuildLogRow(row, ERowModificationType::Write),
+                    context);
+                break;
+            }
 
-        default:
-            THROW_ERROR_EXCEPTION("Unsupported write command %v",
-                command);
+            case EWireProtocolCommand::DeleteRow: {
+                auto key = reader->ReadUnversionedRow(false);
+                LogStoreManager_->WriteRow(
+                    BuildLogRow(key, ERowModificationType::Delete),
+                    context);
+                break;
+            }
+
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported write command %v",
+                    command);
+        }
     }
+    return true;
 }
 
 bool TReplicatedStoreManager::IsOverflowRotationNeeded() const
 {
-    return Underlying_->IsOverflowRotationNeeded();
+    return LogStoreManager_->IsOverflowRotationNeeded();
 }
 
 bool TReplicatedStoreManager::IsPeriodicRotationNeeded() const
 {
-    return Underlying_->IsPeriodicRotationNeeded();
+    return LogStoreManager_->IsPeriodicRotationNeeded();
 }
 
 bool TReplicatedStoreManager::IsRotationPossible() const
 {
-    return Underlying_->IsRotationPossible();
+    return LogStoreManager_->IsRotationPossible();
 }
 
 bool TReplicatedStoreManager::IsForcedRotationPossible() const
 {
-    return Underlying_->IsForcedRotationPossible();
+    return LogStoreManager_->IsForcedRotationPossible();
 }
 
 bool TReplicatedStoreManager::IsRotationScheduled() const
 {
-    return Underlying_->IsRotationScheduled();
+    return LogStoreManager_->IsRotationScheduled();
 }
 
 void TReplicatedStoreManager::ScheduleRotation()
 {
-    Underlying_->ScheduleRotation();
+    LogStoreManager_->ScheduleRotation();
 }
 
 void TReplicatedStoreManager::Rotate(bool createNewStore)
 {
-    Underlying_->Rotate(createNewStore);
+    LogStoreManager_->Rotate(createNewStore);
 }
 
 void TReplicatedStoreManager::AddStore(IStorePtr store, bool onMount)
 {
-    Underlying_->AddStore(std::move(store), onMount);
+    LogStoreManager_->AddStore(std::move(store), onMount);
 }
 
 void TReplicatedStoreManager::RemoveStore(IStorePtr store)
 {
-    Underlying_->RemoveStore(std::move(store));
+    LogStoreManager_->RemoveStore(std::move(store));
 }
 
 void TReplicatedStoreManager::BackoffStoreRemoval(IStorePtr store)
 {
-    Underlying_->BackoffStoreRemoval(std::move(store));
+    LogStoreManager_->BackoffStoreRemoval(std::move(store));
 }
 
 bool TReplicatedStoreManager::IsStoreLocked(IStorePtr store) const
 {
-    return Underlying_->IsStoreLocked(std::move(store));
+    return LogStoreManager_->IsStoreLocked(std::move(store));
 }
 
 std::vector<IStorePtr> TReplicatedStoreManager::GetLockedStores() const
 {
-    return Underlying_->GetLockedStores();
+    return LogStoreManager_->GetLockedStores();
 }
 
 IChunkStorePtr TReplicatedStoreManager::PeekStoreForPreload()
@@ -166,65 +169,65 @@ IChunkStorePtr TReplicatedStoreManager::PeekStoreForPreload()
 
 void TReplicatedStoreManager::BeginStorePreload(IChunkStorePtr store, TCallback<TFuture<void>()> callbackFuture)
 {
-    Underlying_->BeginStorePreload(std::move(store), std::move(callbackFuture));
+    LogStoreManager_->BeginStorePreload(std::move(store), std::move(callbackFuture));
 }
 
 void TReplicatedStoreManager::EndStorePreload(IChunkStorePtr store)
 {
-    Underlying_->EndStorePreload(std::move(store));
+    LogStoreManager_->EndStorePreload(std::move(store));
 }
 
 void TReplicatedStoreManager::BackoffStorePreload(IChunkStorePtr store)
 {
-    Underlying_->BackoffStorePreload(std::move(store));
+    LogStoreManager_->BackoffStorePreload(std::move(store));
 }
 
 bool TReplicatedStoreManager::IsStoreFlushable(IStorePtr store) const
 {
-    return Underlying_->IsStoreFlushable(std::move(store));
+    return LogStoreManager_->IsStoreFlushable(std::move(store));
 }
 
 TStoreFlushCallback  TReplicatedStoreManager::BeginStoreFlush(
     IDynamicStorePtr store,
     TTabletSnapshotPtr tabletSnapshot)
 {
-    return Underlying_->BeginStoreFlush(std::move(store), std::move(tabletSnapshot));
+    return LogStoreManager_->BeginStoreFlush(std::move(store), std::move(tabletSnapshot));
 }
 
 void TReplicatedStoreManager::EndStoreFlush(IDynamicStorePtr store)
 {
-    Underlying_->EndStoreFlush(std::move(store));
+    LogStoreManager_->EndStoreFlush(std::move(store));
 }
 
 void TReplicatedStoreManager::BackoffStoreFlush(IDynamicStorePtr store)
 {
-    Underlying_->BackoffStoreFlush(std::move(store));
+    LogStoreManager_->BackoffStoreFlush(std::move(store));
 }
 
 bool TReplicatedStoreManager::IsStoreCompactable(IStorePtr store) const
 {
-    return Underlying_->IsStoreCompactable(std::move(store));
+    return LogStoreManager_->IsStoreCompactable(std::move(store));
 }
 
 void TReplicatedStoreManager::BeginStoreCompaction(IChunkStorePtr store)
 {
-    Underlying_->BeginStoreCompaction(std::move(store));
+    LogStoreManager_->BeginStoreCompaction(std::move(store));
 }
 
 void TReplicatedStoreManager::EndStoreCompaction(IChunkStorePtr store)
 {
-    Underlying_->EndStoreCompaction(std::move(store));
+    LogStoreManager_->EndStoreCompaction(std::move(store));
 }
 
 void TReplicatedStoreManager::BackoffStoreCompaction(IChunkStorePtr store)
 {
-    Underlying_->BackoffStoreCompaction(std::move(store));
+    LogStoreManager_->BackoffStoreCompaction(std::move(store));
 }
 
 void TReplicatedStoreManager::Mount(
     const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors)
 {
-    Underlying_->Mount(storeDescriptors);
+    LogStoreManager_->Mount(storeDescriptors);
 }
 
 void TReplicatedStoreManager::Remount(
@@ -233,7 +236,7 @@ void TReplicatedStoreManager::Remount(
     TTabletChunkWriterConfigPtr writerConfig,
     TTabletWriterOptionsPtr writerOptions)
 {
-    Underlying_->Remount(
+    LogStoreManager_->Remount(
         std::move(mountConfig),
         std::move(readerConfig),
         std::move(writerConfig),
@@ -247,7 +250,7 @@ ISortedStoreManagerPtr TReplicatedStoreManager::AsSorted()
 
 IOrderedStoreManagerPtr TReplicatedStoreManager::AsOrdered()
 {
-    return Underlying_;
+    return LogStoreManager_;
 }
 
 bool TReplicatedStoreManager::SplitPartition(
@@ -269,32 +272,6 @@ void TReplicatedStoreManager::UpdatePartitionSampleKeys(
     const TSharedRange<TKey>& /*keys*/)
 {
     Y_UNREACHABLE();
-}
-
-TOrderedDynamicRowRef  TReplicatedStoreManager::WriteRow(
-    TTransaction* transaction,
-    TUnversionedRow row,
-    TTimestamp commitTimestamp,
-    bool prelock)
-{
-    return Underlying_->WriteRow(
-        transaction,
-        BuildLogRow(row, ERowModificationType::Write),
-        commitTimestamp,
-        prelock);
-}
-
-TOrderedDynamicRowRef TReplicatedStoreManager::DeleteRow(
-    TTransaction* transaction,
-    TKey key,
-    TTimestamp commitTimestamp,
-    bool prelock)
-{
-    return Underlying_->WriteRow(
-        transaction,
-        BuildLogRow(key, ERowModificationType::Delete),
-        commitTimestamp,
-        prelock);
 }
 
 TUnversionedRow TReplicatedStoreManager::BuildLogRow(

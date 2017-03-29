@@ -121,10 +121,28 @@ void CodegenForEachRow(
 // Expressions
 //
 
+void CheckNaN(const TCGModule& module, TCGIRBuilderPtr& builder, Value* lhsValue, Value* rhsValue)
+{
+    CodegenIf<TCGIRBuilderPtr&>(
+        builder,
+        builder->CreateFCmpUNO(lhsValue, rhsValue),
+        [&] (TCGIRBuilderPtr& builder) {
+            builder->CreateCall(
+                module.GetRoutine("ThrowQueryException"),
+                {
+                    builder->CreateGlobalStringPtr("Comparison with NaN")
+                });
+        });
+}
+
 Function* CodegenGroupComparerFunction(
     const std::vector<EValueType>& types,
-    const TCGModule& module)
+    const TCGModule& module,
+    size_t start,
+    size_t finish)
 {
+    YCHECK(finish <= types.size());
+
     return MakeFunction<TComparerFunction>(module.GetModule(), "GroupComparer", [&] (
         TCGIRBuilderPtr& builder,
         Value* lhsRow,
@@ -170,6 +188,7 @@ Function* CodegenGroupComparerFunction(
                             break;
 
                         case EValueType::Double:
+                            CheckNaN(module, builder, lhsData, rhsData);
                             returnIf(builder->CreateFCmpUNE(lhsData, rhsData));
                             break;
 
@@ -204,12 +223,19 @@ Function* CodegenGroupComparerFunction(
 
         YCHECK(!types.empty());
 
-        for (size_t index = 0; index < types.size(); ++index) {
+        for (size_t index = start; index < finish; ++index) {
             codegenEqualOp(index);
         }
 
         builder->CreateRet(builder->getInt8(1));
     });
+}
+
+Function* CodegenGroupComparerFunction(
+    const std::vector<EValueType>& types,
+    const TCGModule& module)
+{
+    return CodegenGroupComparerFunction(types, module, 0, types.size());
 }
 
 Value* CodegenFingerprint64(TCGIRBuilderPtr& builder, Value* x)
@@ -238,8 +264,12 @@ Value* CodegenFingerprint128(TCGIRBuilderPtr& builder, Value* x, Value* y)
 
 Function* CodegenGroupHasherFunction(
     const std::vector<EValueType>& types,
-    const TCGModule& module)
+    const TCGModule& module,
+    size_t start,
+    size_t finish)
 {
+    YCHECK(finish <= types.size());
+
     return MakeFunction<THasherFunction>(module.GetModule(), "GroupHasher", [&] (
         TCGIRBuilderPtr& builder,
         Value* row
@@ -321,11 +351,18 @@ Function* CodegenGroupHasherFunction(
 
         YCHECK(!types.empty());
         Value* result = builder->getInt64(0);
-        for (size_t index = 0; index < types.size(); ++index) {
+        for (size_t index = start; index < finish; ++index) {
             result = codegenHashCombine(builder, result, codegenHashOp(index, builder));
         }
         builder->CreateRet(result);
     });
+}
+
+Function* CodegenGroupHasherFunction(
+    const std::vector<EValueType>& types,
+    const TCGModule& module)
+{
+    return CodegenGroupHasherFunction(types, module, 0, types.size());
 }
 
 Function* CodegenTupleComparerFunction(
@@ -393,6 +430,8 @@ Function* CodegenTupleComparerFunction(
                             break;
 
                         case EValueType::Double:
+                            CheckNaN(module, builder, lhsData, rhsData);
+
                             returnIf(
                                 builder->CreateFCmpUNE(lhsData, rhsData),
                                 [&] (TCGIRBuilderPtr& builder) {
@@ -441,8 +480,6 @@ Function* CodegenTupleComparerFunction(
                 });
         };
 
-        YCHECK(!codegenArgs.empty());
-
         for (int index = 0; index < codegenArgs.size(); ++index) {
             codegenEqualOrLessOp(index);
         }
@@ -453,10 +490,14 @@ Function* CodegenTupleComparerFunction(
 
 Function* CodegenRowComparerFunction(
     const std::vector<EValueType>& types,
-    const TCGModule& module)
+    const TCGModule& module,
+    size_t start,
+    size_t finish)
 {
+    YCHECK(finish <= types.size());
+
     std::vector<std::function<TCGValue(TCGIRBuilderPtr& builder, Value* row)>> compareArgs;
-    for (int index = 0; index < types.size(); ++index) {
+    for (int index = start; index < finish; ++index) {
         compareArgs.push_back([index, type = types[index]] (TCGIRBuilderPtr& builder, Value* row) {
             return TCGValue::CreateFromRow(
                 builder,
@@ -467,6 +508,13 @@ Function* CodegenRowComparerFunction(
     }
 
     return CodegenTupleComparerFunction(compareArgs, module);
+}
+
+Function* CodegenRowComparerFunction(
+    const std::vector<EValueType>& types,
+    const TCGModule& module)
+{
+    return CodegenRowComparerFunction(types, module, 0, types.size());
 }
 
 Value* CodegenLexicographicalCompare(
@@ -1120,11 +1168,13 @@ void CodegenScanOp(
 TCodegenSource MakeCodegenJoinOp(
     int index,
     std::vector<std::pair<TCodegenExpression, bool>> equations,
+    size_t commonKeyPrefix,
     TCodegenSource codegenSource)
 {
     return [
         index,
         MOVE(equations),
+        commonKeyPrefix,
         codegenSource = std::move(codegenSource)
     ] (TCGOperatorContext& builder, const TCodegenConsumer& codegenConsumer) {
         int lookupKeySize = equations.size();
@@ -1205,9 +1255,14 @@ TCodegenSource MakeCodegenJoinOp(
                 builder.GetExecutionContext(),
                 builder.GetOpaqueValue(index),
 
-                CodegenGroupHasherFunction(lookupKeyTypes, *builder.Module),
+                CodegenGroupHasherFunction(lookupKeyTypes, *builder.Module, commonKeyPrefix, lookupKeyTypes.size()),
+                CodegenGroupComparerFunction(lookupKeyTypes, *builder.Module, commonKeyPrefix, lookupKeyTypes.size()),
+                CodegenRowComparerFunction(lookupKeyTypes, *builder.Module, commonKeyPrefix, lookupKeyTypes.size()),
+
+                CodegenGroupComparerFunction(lookupKeyTypes, *builder.Module, 0, commonKeyPrefix),
                 CodegenGroupComparerFunction(lookupKeyTypes, *builder.Module),
                 CodegenRowComparerFunction(lookupKeyTypes, *builder.Module),
+
                 builder->getInt32(lookupKeySize),
 
                 collectRows.ClosurePtr,

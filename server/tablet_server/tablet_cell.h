@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "tablet.h"
+#include "tablet_action.h"
 
 #include <yt/server/cell_master/public.h>
 
@@ -50,6 +51,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellConfigPtr, Config);
 
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTablet*>, Tablets);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TTabletAction*>, Actions);
     DEFINE_BYREF_RW_PROPERTY(TTabletCellStatistics, TotalStatistics);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, PrerequisiteTransaction);

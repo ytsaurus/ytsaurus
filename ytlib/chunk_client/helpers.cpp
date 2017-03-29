@@ -43,6 +43,7 @@ using namespace NObjectClient;
 using namespace NErasure;
 using namespace NNodeTrackerClient;
 using namespace NProto;
+using namespace NYPath;
 using namespace NYTree;
 using namespace NCypressClient;
 
@@ -148,6 +149,71 @@ void ProcessFetchResponse(
     }
 }
 
+void FetchChunkSpecs(
+    const INativeClientPtr& client,
+    const TNodeDirectoryPtr& nodeDirectory,
+    TCellTag cellTag,
+    const TRichYPath& path,
+    const TObjectId& objectId,
+    const std::vector<NChunkClient::TReadRange>& ranges,
+    int chunkCount,
+    int maxChunksPerFetch,
+    int maxChunksPerLocateRequest,
+    const std::function<void(TChunkOwnerYPathProxy::TReqFetchPtr)> initializeFetchRequest,
+    const NLogging::TLogger& logger,
+    std::vector<NProto::TChunkSpec>* chunkSpecs)
+{
+    std::vector<int> rangeIndices;
+
+    auto channel = client->GetMasterChannelOrThrow(
+        EMasterChannelKind::Follower,
+        cellTag);
+    TObjectServiceProxy proxy(channel);
+    auto batchReq = proxy.ExecuteBatch();
+
+    for (int rangeIndex = 0; rangeIndex < static_cast<int>(ranges.size()); ++rangeIndex) {
+        for (i64 index = 0; index < (chunkCount + maxChunksPerFetch - 1) / maxChunksPerFetch; ++index) {
+            auto adjustedRange = ranges[rangeIndex];
+            auto chunkCountLowerLimit = index * maxChunksPerFetch;
+            if (adjustedRange.LowerLimit().HasChunkIndex()) {
+                chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
+            }
+            adjustedRange.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
+
+            auto chunkCountUpperLimit = (index + 1) * maxChunksPerFetch;
+            if (adjustedRange.UpperLimit().HasChunkIndex()) {
+                chunkCountUpperLimit = std::min(chunkCountUpperLimit, adjustedRange.UpperLimit().GetChunkIndex());
+            }
+            adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
+
+            auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(objectId));
+            initializeFetchRequest(req.Get());
+            NYT::ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
+            batchReq->AddRequest(req, "fetch");
+            rangeIndices.push_back(rangeIndex);
+        }
+    }
+
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching input table %v",
+        path.GetPath());
+    const auto& batchRsp = batchRspOrError.Value();
+    auto rspsOrError = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspFetch>("fetch");
+
+    for (int resultIndex = 0; resultIndex < static_cast<int>(rspsOrError.size()); ++resultIndex) {
+        const auto& rsp = rspsOrError[resultIndex].Value();
+        ProcessFetchResponse(
+            client,
+            rsp,
+            cellTag,
+            nodeDirectory,
+            maxChunksPerLocateRequest,
+            rangeIndices[resultIndex],
+            logger,
+            chunkSpecs);
+    }
+}
+
 TChunkReplicaList AllocateWriteTargets(
     INativeClientPtr client,
     const TChunkId& chunkId,
@@ -198,16 +264,25 @@ TChunkReplicaList AllocateWriteTargets(
     req->set_medium_index(mediumDescriptor->Index);
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        batchRspOrError,
-        NChunkClient::EErrorCode::MasterCommunicationFailed,
-        "Error allocating targets for chunk %v",
-        chunkId);
+
+    auto throwOnError = [&] (const TError& error) {
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            error,
+            NChunkClient::EErrorCode::MasterCommunicationFailed,
+            "Error allocating targets for chunk %v",
+            chunkId);
+    };
+
+    throwOnError(batchRspOrError);
     const auto& batchRsp = batchRspOrError.Value();
 
     nodeDirectory->MergeFrom(batchRsp->node_directory());
 
     auto& rsp = batchRsp->subresponses(0);
+    if (rsp.has_error()) {
+        throwOnError(FromProto<TError>(rsp.error()));
+    }
+
     auto replicas = FromProto<TChunkReplicaList>(rsp.replicas());
     if (replicas.empty()) {
         THROW_ERROR_EXCEPTION(

@@ -310,7 +310,7 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TAsyncWriterImpl);
+DEFINE_REFCOUNTED_TYPE(TAsyncWriterImpl)
 
 ////////////////////////////////////////////////////////////////////////////////
 

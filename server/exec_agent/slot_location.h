@@ -87,7 +87,7 @@ private:
     Stroka GetConfigPath(int slotIndex) const;
 };
 
-DEFINE_REFCOUNTED_TYPE(TSlotLocation);
+DEFINE_REFCOUNTED_TYPE(TSlotLocation)
 
 ////////////////////////////////////////////////////////////////////////////////
 

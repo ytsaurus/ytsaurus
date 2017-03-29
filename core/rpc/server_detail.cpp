@@ -76,12 +76,12 @@ void TServiceContextBase::Reply(const TError& error)
         DoReply();
     }
 
-    if (Logger.IsEnabled(LogLevel_)) {
-        LogResponse(error);
-    }
-
     if (AsyncResponseMessage_) {
         AsyncResponseMessage_.Set(GetResponseMessage());
+    }
+
+    if (Logger.IsEnabled(LogLevel_)) {
+        LogResponse();
     }
 }
 
@@ -114,12 +114,12 @@ void TServiceContextBase::Reply(TSharedRefArray responseMessage)
 
     DoReply();
 
-    if (Logger.IsEnabled(LogLevel_)) {
-        LogResponse(Error_);
-    }
-
     if (AsyncResponseMessage_) {
         AsyncResponseMessage_.Set(GetResponseMessage());
+    }
+
+    if (Logger.IsEnabled(LogLevel_)) {
+        LogResponse();
     }
 }
 

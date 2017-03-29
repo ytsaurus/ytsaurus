@@ -455,8 +455,9 @@ class TMultiChunkReaderConfig
 {
 public:
     i64 MaxBufferSize;
+    int MaxChunksPerFetch;
     int MaxChunksPerLocateRequest;
-    int MaxPrefetchWindow;
+    int MaxParallelReaders;
 
     TMultiChunkReaderConfig()
     {
@@ -464,11 +465,14 @@ public:
             .GreaterThan(0L)
             .LessThanOrEqual((i64) 10 * 1024 * 1024 * 1024)
             .Default((i64) 100 * 1024 * 1024);
+        RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
+            .GreaterThan(0)
+            .Default(100000);
         RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
             .GreaterThan(0)
             .Default(10000);
-        RegisterParameter("max_prefetch_window", MaxPrefetchWindow)
-            .GreaterThan(1)
+        RegisterParameter("max_parallel_readers", MaxParallelReaders)
+            .GreaterThanOrEqual(1)
             .LessThanOrEqual(1000)
             .Default(512);
 

@@ -12,6 +12,7 @@
 #include <yt/ytlib/api/rowset.h>
 
 #include <yt/ytlib/rpc_proxy/api_service_proxy.h>
+#include <yt/ytlib/rpc_proxy/helpers.h>
 
 #include <yt/ytlib/security_client/public.h>
 
@@ -57,6 +58,7 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
     }
 
 private:
@@ -103,8 +105,7 @@ private:
                 .ValueOrThrow();
         } else if (credentials.has_token()) {
             auto asyncAuthenticationResult = Bootstrap_->GetTokenAuthenticator()->Authenticate(
-                credentials.token(),
-                credentials.userip());
+                TTokenCredentials{credentials.token(), credentials.userip()});
             authenticationResult = WaitFor(asyncAuthenticationResult)
                 .ValueOrThrow();
         } else {
@@ -156,6 +157,58 @@ private:
         }));
     }
 
+    template <class TContext, class TRequest, class TOptions>
+    static bool LookupRowsPrologue(
+        const TIntrusivePtr<TContext>& context,
+        TRequest* request,
+        const NProto::TRowsetDescriptor& rowsetDescriptor,
+        TNameTablePtr* nameTable,
+        TSharedRange<TUnversionedRow>* keys,
+        TOptions* options)
+    {
+        ValidateRowsetDescriptor(request->rowset_descriptor(), 1, NProto::ERowsetKind::UNVERSIONED);
+        if (request->Attachments().empty()) {
+            context->Reply(TError("Request is missing data"));
+            return false;
+        }
+
+        auto rowset = DeserializeRowset<TUnversionedRow>(
+            request->rowset_descriptor(),
+            MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
+        *nameTable = TNameTable::FromSchema(rowset->Schema());
+        *keys = MakeSharedRange(rowset->GetRows(), rowset);
+
+        options->Timeout = context->GetTimeout();
+        for (int i = 0; i < request->columns_size(); ++i) {
+            options->ColumnFilter.All = false;
+            options->ColumnFilter.Indexes.push_back((*nameTable)->GetIdOrRegisterName(request->columns(i)));
+        }
+        options->Timestamp = request->timestamp();
+        options->KeepMissingRows = request->keep_missing_rows();
+
+        context->SetRequestInfo("Path: %v, Rows: %v", request->path(), keys->Size());
+
+        return true;
+    }
+
+    template <class TContext, class TResponse, class TRow>
+    static void LookupRowsEpilogue(
+        const TIntrusivePtr<TContext>& context,
+        TResponse* response,
+        const TErrorOr<TIntrusivePtr<IRowset<TRow>>>& result)
+    {
+        if (!result.IsOK()) {
+            context->Reply(result);
+        } else {
+            const auto& rowset = result.Value();
+            response->Attachments() = SerializeRowset(
+                rowset->Schema(),
+                rowset->GetRows(),
+                response->mutable_rowset_descriptor());
+            context->Reply();
+        }
+    };
+
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, LookupRows)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context);
@@ -163,50 +216,39 @@ private:
             return;
         }
 
-        if (request->wire_format_version() != 1) {
-            context->Reply(TError("Unsupported wire format version"));
+        TNameTablePtr nameTable;
+        TSharedRange<TUnversionedRow> keys;
+        TLookupRowsOptions options;
+
+        if (!LookupRowsPrologue(context, request, request->rowset_descriptor(), &nameTable, &keys, &options)) {
             return;
         }
 
-        if (request->Attachments().empty()) {
-            context->Reply(TError("Request is missing data"));
+        client->LookupRows(request->path(), std::move(nameTable), std::move(keys), options)
+            .Subscribe(BIND([=] (const TErrorOr<IUnversionedRowsetPtr>& result) {
+                LookupRowsEpilogue(context, response, result);
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, VersionedLookupRows)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context);
+        if (!client) {
             return;
         }
 
-        auto nameTable = New<TNameTable>();
-        for (const auto& desc : request->rowset_column_descriptor()) {
-            YCHECK(nameTable->RegisterName(desc.name()) == desc.id());
+        TNameTablePtr nameTable;
+        TSharedRange<TUnversionedRow> keys;
+        TVersionedLookupRowsOptions options;
+
+        if (!LookupRowsPrologue(context, request, request->rowset_descriptor(), &nameTable, &keys, &options)) {
+            return;
         }
 
-        TWireProtocolReader reader(
-            MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()),
-            New<TRowBuffer>());
-        auto keys = reader.ReadUnversionedRowset(true);
-
-        context->SetRequestInfo("Path: %v, Rows: %v", request->path(), keys.Size());
-
-        client->LookupRows(request->path(), nameTable, keys).Subscribe(BIND([=] (const TErrorOr<IRowsetPtr>& result) {
-            if (!result.IsOK()) {
-                context->Reply(result);
-            } else {
-                const auto& rowset = result.Value();
-                const auto& schema = rowset->Schema();
-
-                int id = 0;
-                for (const auto& column : schema.Columns()) {
-                    auto* desc = response->add_rowset_column_descriptor();
-                    desc->set_id(id++);
-                    desc->set_type(static_cast<int>(column.Type));
-                    desc->set_name(column.Name);
-                }
-
-                TWireProtocolWriter writer;
-                writer.WriteUnversionedRowset(rowset->GetRows());
-                response->Attachments() = writer.Finish();
-                context->Reply();
-            }
-        }));
-
+        client->VersionedLookupRows(request->path(), std::move(nameTable), std::move(keys), options)
+            .Subscribe(BIND([=] (const TErrorOr<IVersionedRowsetPtr>& result) {
+                LookupRowsEpilogue(context, response, result);
+            }));
     }
 };
 

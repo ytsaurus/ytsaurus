@@ -82,6 +82,13 @@ NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForFormat(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NTableClient::IVersionedWriterPtr CreateVersionedWriterForFormat(
+    const TFormat& Format,
+    const NTableClient::TTableSchema& schema,
+    NConcurrency::IAsyncOutputStreamPtr output);
+
+////////////////////////////////////////////////////////////////////////////////
+
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     NTableClient::TNameTablePtr nameTable,

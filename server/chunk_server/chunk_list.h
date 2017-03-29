@@ -6,6 +6,8 @@
 
 #include <yt/server/cell_master/public.h>
 
+#include <yt/ytlib/table_client/unversioned_row.h>
+
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/indexed_vector.h>
@@ -34,9 +36,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, TrimmedChildCount);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTree*>, Children);
 
-    //! If |false|, then child-to-index map is maintained but no sums are accumulated.
-    //! If |true|, then vice versa, sums are accumulated but no child-to-index map exists.
-    DEFINE_BYVAL_RO_PROPERTY(bool, Ordered);
+    //! Chunk list kind: static, dynamic table root or tablet.
+    DEFINE_BYVAL_RO_PROPERTY(EChunkListKind, Kind);
 
     using TChildToIndexMap = yhash_map<TChunkTree*, int>;
     DEFINE_BYREF_RW_PROPERTY(TChildToIndexMap, ChildToIndex);
@@ -57,6 +58,9 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TCumulativeStatisticsEntry>, CumulativeStatistics);
 
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
+
+    // Min key for sorted dynamic tablet chunk lists.
+    DEFINE_BYVAL_RW_PROPERTY(NTableClient::TOwningKey, PivotKey);
 
     // Increases each time the list changes.
     // Enables optimistic locking during chunk tree traversing.
@@ -89,7 +93,9 @@ public:
 
     virtual int GetGCWeight() const override;
 
-    void SetOrdered(bool value);
+    void SetKind(EChunkListKind kind);
+
+    bool IsOrdered() const;
 
 private:
     TIndexedVector<TChunkList*> Parents_;

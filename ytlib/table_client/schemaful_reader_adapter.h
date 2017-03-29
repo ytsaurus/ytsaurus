@@ -14,7 +14,8 @@ typedef std::function<ISchemalessReaderPtr(TNameTablePtr, const TColumnFilter&)>
 
 ISchemafulReaderPtr CreateSchemafulReaderAdapter(
     TSchemalessReaderFactory createReader,
-    const TTableSchema& schema);
+    const TTableSchema& schema,
+    const TColumnFilter& columnFilter = TColumnFilter());
 
 ////////////////////////////////////////////////////////////////////////////////
 

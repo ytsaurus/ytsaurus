@@ -688,11 +688,11 @@ bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove
     Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, TYsonString());
 
     auto* object = Proxy_->Object_;
-    auto* attributes = object->GetMutableAttributes();
-    if (!attributes) {
+    if (!object->GetAttributes()) {
         return false;
     }
 
+    auto* attributes = object->GetMutableAttributes();
     auto it = attributes->Attributes().find(key);
     if (it == attributes->Attributes().end()) {
         return false;

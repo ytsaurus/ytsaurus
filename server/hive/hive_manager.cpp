@@ -190,16 +190,26 @@ public:
 
     void PostMessage(TMailbox* mailbox, const TEncapsulatedMessage& message, bool reliable)
     {
+        PostMessage(TMailboxList{mailbox}, message, reliable);
+    }
+
+    void PostMessage(const TMailboxList& mailboxes, const TEncapsulatedMessage& message, bool reliable)
+    {
         if (reliable) {
-            ReliablePostMessage(mailbox, message);
+            ReliablePostMessage(mailboxes, message);
         } else {
-            UnreliablePostMessage(mailbox, message);
+            UnreliablePostMessage(mailboxes, message);
         }
     }
 
     void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message, bool reliable)
     {
         PostMessage(mailbox, SerializeMessage(message), reliable);
+    }
+
+    void PostMessage(const TMailboxList& mailboxes, const ::google::protobuf::MessageLite& message, bool reliable)
+    {
+        PostMessage(mailboxes, SerializeMessage(message), reliable);
     }
 
 
@@ -507,59 +517,77 @@ private:
     }
 
 
-    void ReliablePostMessage(TMailbox* mailbox, TEncapsulatedMessage message)
+    void ReliablePostMessage(const TMailboxList& mailboxes, const TEncapsulatedMessage& message)
     {
         // A typical mistake is to try sending a Hive message outside of a mutation.
         YCHECK(HasMutationContext());
 
-        auto messageId =
-            mailbox->GetFirstOutcomingMessageId() +
-            mailbox->OutcomingMessages().size();
+        TStringBuilder logMessageBuilder;
+        logMessageBuilder.AppendFormat("Reliable outcoming message added (MutationType: %v, SrcCellId: %v, DstCellIds: {",
+            message.type(),
+            SelfCellId_);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Reliable outcoming message added (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
-            SelfCellId_,
-            mailbox->GetCellId(),
-            messageId,
-            message.type());
+        for (auto* mailbox : mailboxes) {
+            auto messageId =
+                mailbox->GetFirstOutcomingMessageId() +
+                mailbox->OutcomingMessages().size();
 
-        AnnotateWithTraceContext(&message);
-        mailbox->OutcomingMessages().push_back(std::move(message));
+            mailbox->OutcomingMessages().push_back(message);
+            AnnotateWithTraceContext(&mailbox->OutcomingMessages().back());
 
-        MaybePostOutcomingMessages(mailbox, false);
+            if (mailbox != mailboxes.front()) {
+                logMessageBuilder.AppendString(STRINGBUF(", "));
+            }
+            logMessageBuilder.AppendFormat("%v=>%v",
+                mailbox->GetCellId(),
+                messageId);
+
+            MaybePostOutcomingMessages(mailbox, false);
+        }
+
+        logMessageBuilder.AppendString(STRINGBUF("})"));
+        LOG_DEBUG_UNLESS(IsRecovery(), logMessageBuilder.Flush());
+
+        for (auto* mailbox : mailboxes) {
+            MaybePostOutcomingMessages(mailbox, false);
+        }
     }
 
-    void UnreliablePostMessage(TMailbox* mailbox, TEncapsulatedMessage message)
+    void UnreliablePostMessage(const TMailboxList& mailboxes, const TEncapsulatedMessage& message)
     {
-        if (!mailbox->GetConnected()) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Unreliable outcoming message dropped since mailbox is not connected (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
-                SelfCellId_,
-                mailbox->GetCellId(),
-                message.type());
+        TStringBuilder logMessageBuilder;
+        logMessageBuilder.AppendFormat("Sending unreliable outcoming message (MutationType: %v, SrcCellId: %v, DstCellIds: [",
+            message.type(),
+            SelfCellId_);
+
+        for (auto* mailbox : mailboxes) {
+            if (!mailbox->GetConnected()) {
+                continue;
+            }
+
+            auto proxy = FindHiveProxy(mailbox);
+            if (!proxy) {
+                continue;
+            }
+
+            if (mailbox != mailboxes.front()) {
+                logMessageBuilder.AppendString(STRINGBUF(", "));
+            }
+            logMessageBuilder.AppendFormat("%v", mailbox->GetCellId());
+
+            auto req = proxy->SendMessages();
+            req->SetTimeout(Config_->SendRpcTimeout);
+            ToProto(req->mutable_src_cell_id(), SelfCellId_);
+            *req->add_messages() = message;
+            AnnotateWithTraceContext(req->mutable_messages(0));
+
+            req->Invoke().Subscribe(
+                BIND(&TImpl::OnSendMessagesResponse, MakeStrong(this), mailbox->GetCellId())
+                    .Via(EpochAutomatonInvoker_));
         }
 
-        auto proxy = FindHiveProxy(mailbox);
-        if (!proxy) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Unreliable outcoming message dropped since no channel exists (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
-                SelfCellId_,
-                mailbox->GetCellId(),
-                message.type());
-        }
-
-        AnnotateWithTraceContext(&message);
-
-        auto req = proxy->SendMessages();
-        req->SetTimeout(Config_->SendRpcTimeout);
-        ToProto(req->mutable_src_cell_id(), SelfCellId_);
-        *req->add_messages() = message;
-
-        LOG_DEBUG("Sending unreliable outcoming message (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
-            SelfCellId_,
-            mailbox->GetCellId(),
-            message.type());
-
-        req->Invoke().Subscribe(
-            BIND(&TImpl::OnSendMessagesResponse, MakeStrong(this), mailbox->GetCellId())
-                .Via(EpochAutomatonInvoker_));
+        logMessageBuilder.AppendString(STRINGBUF("])"));
+        LOG_DEBUG_UNLESS(IsRecovery(), logMessageBuilder.Flush());
     }
 
 
@@ -1353,9 +1381,19 @@ void THiveManager::PostMessage(TMailbox* mailbox, const TEncapsulatedMessage& me
     Impl_->PostMessage(mailbox, message, reliable);
 }
 
+void THiveManager::PostMessage(const TMailboxList& mailboxes, const TEncapsulatedMessage& message, bool reliable)
+{
+    Impl_->PostMessage(mailboxes, message, reliable);
+}
+
 void THiveManager::PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message, bool reliable)
 {
     Impl_->PostMessage(mailbox, message, reliable);
+}
+
+void THiveManager::PostMessage(const TMailboxList& mailboxes, const ::google::protobuf::MessageLite& message, bool reliable)
+{
+    Impl_->PostMessage(mailboxes, message, reliable);
 }
 
 TFuture<void> THiveManager::SyncWith(const TCellId& cellId)

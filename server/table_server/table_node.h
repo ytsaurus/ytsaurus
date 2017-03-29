@@ -41,6 +41,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, UnflushedTimestamp);
 
+    DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableReplicationMode, ReplicationMode, NTableClient::ETableReplicationMode::None);
+
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);
 

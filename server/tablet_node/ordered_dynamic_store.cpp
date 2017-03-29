@@ -11,9 +11,8 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/ytlib/table_client/row_buffer.h>
-#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/schemaful_reader_adapter.h>
+#include <yt/ytlib/table_client/schemaful_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaful_writer_adapter.h>
 #include <yt/ytlib/table_client/schemaful_reader.h>
 #include <yt/ytlib/table_client/schemaful_writer.h>
@@ -203,52 +202,35 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateSnapshotReader()
 }
 
 TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
-    TTransaction* /*transaction*/,
     TUnversionedRow row,
-    TTimestamp commitTimestamp)
+    TWriteContext* context)
 {
-    auto orderedRow = DoWriteSchemalessRow(row);
+    Y_ASSERT(context->Phase == EWritePhase::Commit);
 
-    if (commitTimestamp == NullTimestamp) {
-        Lock();
-    } else {
-        SetRowCommitTimestamp(orderedRow, commitTimestamp);
-        DoCommitRow(orderedRow);
-        UpdateTimestampRange(commitTimestamp);
+    int columnCount = static_cast<int>(Schema_.Columns().size());
+    auto dynamicRow = RowBuffer_->AllocateUnversioned(columnCount);
+
+    for (int index = 0; index < columnCount; ++index) {
+        dynamicRow[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
     }
 
+    for (const auto& srcValue : row) {
+        auto& dstValue = dynamicRow[srcValue.Id];
+        dstValue = RowBuffer_->Capture(srcValue);
+    }
+
+    if (TimestampColumnId_) {
+        dynamicRow[*TimestampColumnId_] = MakeUnversionedUint64Value(context->CommitTimestamp, *TimestampColumnId_);
+    }
+
+    CommitRow(dynamicRow);
+    UpdateTimestampRange(context->CommitTimestamp);
     OnMemoryUsageUpdated();
 
     ++PerformanceCounters_->DynamicRowWriteCount;
+    ++context->RowCount;
 
-    return orderedRow;
-}
-
-TOrderedDynamicRow TOrderedDynamicStore::MigrateRow(TTransaction* /*transaction*/, TOrderedDynamicRow row)
-{
-    auto result = DoWriteSchemafulRow(row);
-
-    Lock();
-
-    OnMemoryUsageUpdated();
-
-    return result;
-}
-
-void TOrderedDynamicStore::PrepareRow(TTransaction* /*transaction*/, TOrderedDynamicRow /*row*/)
-{ }
-
-void TOrderedDynamicStore::CommitRow(TTransaction* transaction, TOrderedDynamicRow row)
-{
-    SetRowCommitTimestamp(row, transaction->GetCommitTimestamp());
-    DoCommitRow(row);
-    Unlock();
-    UpdateTimestampRange(transaction->GetCommitTimestamp());
-}
-
-void TOrderedDynamicStore::AbortRow(TTransaction* /*transaction*/, TOrderedDynamicRow /*row*/)
-{
-    Unlock();
+    return dynamicRow;
 }
 
 TOrderedDynamicRow TOrderedDynamicStore::GetRow(i64 rowIndex)
@@ -350,29 +332,15 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
     if (Load<bool>(context)) {
         auto chunkMeta = Load<TChunkMeta>(context);
         auto blocks = Load<std::vector<TSharedRef>>(context);
-
         auto chunkReader = CreateMemoryReader(chunkMeta, blocks);
-
-        auto readerFactory = [&] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) -> ISchemalessReaderPtr {
-            TChunkSpec chunkSpec;
-            ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
-            *chunkSpec.mutable_chunk_meta() = chunkMeta;
-            auto tableReaderConfig = New<TChunkReaderConfig>();
-            auto tableReaderOptions = New<TChunkReaderOptions>();
-            return CreateSchemalessChunkReader(
-                MakeUnversionedDataSliceDescriptor(std::move(chunkSpec)),
-                tableReaderConfig,
-                tableReaderOptions,
+        auto tableReader = CreateSchemafulChunkReader(
+                New<TChunkReaderConfig>(),
                 chunkReader,
-                nameTable,
                 GetNullBlockCache(),
+                Schema_,
                 TKeyColumns(),
-                columnFilter,
+                chunkMeta,
                 TReadRange());
-        };
-
-        // TODO(babenko): replace with native schemaful reader
-        auto tableReader = CreateSchemafulReaderAdapter(readerFactory, Schema_);
 
         std::vector<TUnversionedRow> rows;
         rows.reserve(SnapshotRowsPerRead);
@@ -441,26 +409,7 @@ void TOrderedDynamicStore::OnMemoryUsageUpdated()
     SetMemoryUsage(GetUncompressedDataSize());
 }
 
-TOrderedDynamicRow TOrderedDynamicStore::DoWriteSchemafulRow(TUnversionedRow row)
-{
-    return RowBuffer_->Capture(row, true);
-}
-
-TOrderedDynamicRow TOrderedDynamicStore::DoWriteSchemalessRow(TUnversionedRow row)
-{
-    int columnCount = Schema_.Columns().size();
-    auto dynamicRow = RowBuffer_->Allocate(columnCount);
-    for (int index = 0; index < columnCount; ++index) {
-        dynamicRow[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
-    }
-    for (const auto& srcValue : row) {
-        auto& dstValue = dynamicRow[srcValue.Id];
-        dstValue = RowBuffer_->Capture(srcValue);
-    }
-    return dynamicRow;
-}
-
-void TOrderedDynamicStore::DoCommitRow(TOrderedDynamicRow row)
+void TOrderedDynamicStore::CommitRow(TOrderedDynamicRow row)
 {
     if (CurrentSegmentSize_ == CurrentSegmentCapacity_) {
         AllocateCurrentSegment(CurrentSegmentIndex_ + 1);
@@ -471,16 +420,9 @@ void TOrderedDynamicStore::DoCommitRow(TOrderedDynamicRow row)
     StoreValueCount_ += row.GetCount();
 }
 
-void TOrderedDynamicStore::SetRowCommitTimestamp(TOrderedDynamicRow row, TTimestamp commitTimestamp)
-{
-    if (TimestampColumnId_) {
-        row[*TimestampColumnId_] = MakeUnversionedUint64Value(commitTimestamp, *TimestampColumnId_);
-    }
-}
-
 void TOrderedDynamicStore::LoadRow(TUnversionedRow row)
 {
-    DoCommitRow(DoWriteSchemafulRow(row));
+    CommitRow(RowBuffer_->Capture(row, true));
 }
 
 ISchemafulReaderPtr TOrderedDynamicStore::DoCreateReader(

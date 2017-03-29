@@ -7,7 +7,6 @@
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
-#include <yt/ytlib/chunk_client/schema.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -34,9 +33,7 @@ protected:
         const Stroka& key,
         const NYson::TYsonString& oldValue,
         const NYson::TYsonString& newValue) override;
-    virtual void ValidateFetchParameters(
-        const NChunkClient::TChannel& channel,
-        const std::vector<NChunkClient::TReadRange>& ranges);
+    virtual void ValidateFetchParameters(const std::vector<NChunkClient::TReadRange>& ranges);
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
 
