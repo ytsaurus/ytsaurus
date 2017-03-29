@@ -43,6 +43,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/throttler_manager.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -1588,6 +1589,8 @@ private:
 
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);
+
+            Bootstrap_->GetChunkLocationThrottlerManager()->Reconfigure(Config_->ChunkLocationThrottler);
         }
     }
 
