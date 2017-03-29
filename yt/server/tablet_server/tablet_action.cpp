@@ -27,6 +27,7 @@ void TTabletAction::Save(NCellMaster::TSaveContext& context) const
     Save(context, TabletCells_);
     Save(context, PivotKeys_);
     Save(context, TabletCount_);
+    Save(context, Freeze_);
     Save(context, Error_);
     Save(context, KeepFinished_);
 }
@@ -42,6 +43,10 @@ void TTabletAction::Load(NCellMaster::TLoadContext& context)
     Load(context, TabletCells_);
     Load(context, PivotKeys_);
     Load(context, TabletCount_);
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 513) {
+        Load(context, Freeze_);
+    }
     Load(context, Error_);
     Load(context, KeepFinished_);
 }
@@ -50,10 +55,11 @@ void TTabletAction::Load(NCellMaster::TLoadContext& context)
 
 Stroka ToString(const TTabletAction& action)
 {
-    return Format("ActionId: %v, Kind: %v, KeepFinished: %v, TabletCount: %v, Tablets: %v, Cells: %v, PivotKeys: %v",
+    return Format("ActionId: %v, Kind: %v, KeepFinished: %v, Freeze: %v, TabletCount: %v, Tablets: %v, Cells: %v, PivotKeys: %v",
         action.GetId(),
         action.GetKind(),
         action.GetKeepFinished(),
+        action.GetFreeze(),
         action.GetTabletCount(),
         MakeFormattableRange(action.Tablets(), TObjectIdFormatter()),
         MakeFormattableRange(action.TabletCells(), TObjectIdFormatter()),

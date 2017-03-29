@@ -557,6 +557,7 @@ public:
         const std::vector<TTabletCell*>& cells,
         const std::vector<NTableClient::TOwningKey>& pivotKeys,
         const TNullable<int>& tabletCount,
+        TNullable<bool> freeze,
         bool keepFinished)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -571,11 +572,21 @@ public:
                     tablet->GetId(),
                     action->GetId());
             }
-            if (tablet->GetState() != ETabletState::Mounted) {
+            if (tablet->GetState() != ETabletState::Mounted && tablet->GetState() != ETabletState::Frozen) {
                 THROW_ERROR_EXCEPTION("Tablet %v is in state %Qlv",
                     tablet->GetId(),
                     tablet->GetState());
             }
+        }
+
+        if (!freeze) {
+            auto state = tablets[0]->GetState();
+            for (const auto* tablet : tablets) {
+                if (tablet->GetState() != state) {
+                    THROW_ERROR_EXCEPTION("Tablets are in mixed state");
+                }
+            }
+            freeze = state == ETabletState::Frozen;
         }
 
         switch (kind) {
@@ -641,6 +652,7 @@ public:
         action->TabletCells() = std::move(cells);
         action->PivotKeys() = std::move(pivotKeys);
         action->SetTabletCount(tabletCount);
+        action->SetFreeze(*freeze);
         action->SetKeepFinished(keepFinished);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet action created (%v)",
@@ -764,11 +776,13 @@ public:
                         break;
 
                     case ETabletState::Unmounted:
-                        DoMountTablet(tablet, nullptr);
+                        DoMountTablet(tablet, nullptr, action->GetFreeze());
                         break;
 
                     case ETabletState::Frozen:
-                        DoUnfreezeTablet(tablet);
+                        if (!action->GetFreeze()) {
+                            DoUnfreezeTablet(tablet);
+                        }
                         break;
 
                     default:
@@ -964,7 +978,8 @@ public:
                                 action->Tablets()[index],
                                 action->TabletCells().empty()
                                     ? nullptr
-                                    : action->TabletCells()[index]);
+                                    : action->TabletCells()[index],
+                                action->GetFreeze());
                         }
                         break;
                     }
@@ -1049,7 +1064,7 @@ public:
                         DoMountTablets(
                             assignment,
                             mountConfig->InMemoryMode,
-                            false,
+                            action->GetFreeze(),
                             serializedMountConfig,
                             serializedReaderConfig,
                             serializedWriterConfig,
@@ -1075,7 +1090,9 @@ public:
                 int mountedCount = 0;
                 for (const auto* tablet : action->Tablets()) {
                     YCHECK(IsObjectAlive(tablet));
-                    if (tablet->GetState() == ETabletState::Mounted) {
+                    if (tablet->GetState() == ETabletState::Mounted ||
+                        tablet->GetState() == ETabletState::Frozen)
+                    {
                         ++mountedCount;
                     }
                 }
@@ -1264,7 +1281,8 @@ public:
 
     void DoMountTablet(
         TTablet* tablet,
-        TTabletCell* cell)
+        TTabletCell* cell,
+        bool freeze)
     {
         auto* table = tablet->GetTable();
         TTableMountConfigPtr mountConfig;
@@ -1287,7 +1305,7 @@ public:
         DoMountTablets(
             assignment,
             mountConfig->InMemoryMode,
-            false,
+            freeze,
             serializedMountConfig,
             serializedReaderConfig,
             serializedWriterConfig,
@@ -3330,7 +3348,7 @@ private:
         }
 
         try {
-            CreateTabletAction(NullObjectId, kind, tablets, cells, pivotKeys, tabletCount, keepFinished);
+            CreateTabletAction(NullObjectId, kind, tablets, cells, pivotKeys, tabletCount, Null, keepFinished);
         } catch (const std::exception& ex) {
             LOG_DEBUG_UNLESS(IsRecovery(), TError(ex), "Error creating tablet action (Kind: %v, Tablets: %v, TabletCellsL %v, PivotKeys %v, TabletCount %v)",
                 kind,
@@ -4209,6 +4227,7 @@ TTabletAction* TTabletManager::CreateTabletAction(
     const std::vector<TTabletCell*>& cellIds,
     const std::vector<NTableClient::TOwningKey>& pivotKeys,
     const TNullable<int>& tabletCount,
+    const TNullable<bool>& freeze,
     bool keepFinished)
 {
     return Impl_->CreateTabletAction(
@@ -4218,6 +4237,7 @@ TTabletAction* TTabletManager::CreateTabletAction(
         cellIds,
         pivotKeys,
         tabletCount,
+        freeze,
         keepFinished);
 }
 
