@@ -33,7 +33,7 @@ public:
         ENTITY
     };
 
-    using   TList = yvector<TNode>;
+    using TList = yvector<TNode>;
     using TMap = yhash<Stroka, TNode>;
 
 private:
