@@ -610,8 +610,6 @@ def main():
     # NB: parallel testing is enabled by default only for bare metal machines.
     options.enable_parallel_testing = options.is_bare_metal
 
-    # DELETE ME: temporary to run build
-    options.package = True
     teamcity_main(options)
 
 
