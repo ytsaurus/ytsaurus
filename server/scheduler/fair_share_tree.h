@@ -452,16 +452,18 @@ public:
     TJobResources RemoveJob(const TJobId& jobId);
 
     bool IsBlocked(
-        TInstant now,
-        int MaxConcurrentScheduleJobCalls,
-        TDuration ScheduleJobFailBackoffTime) const;
+        NProfiling::TCpuInstant now,
+        int maxConcurrentScheduleJobCalls,
+        NProfiling::TCpuDuration scheduleJobFailBackoffTime) const;
 
     bool TryStartScheduleJob(
-        TInstant now,
+        NProfiling::TCpuInstant now,
         int maxConcurrentScheduleJobCalls,
-        TDuration scheduleJobFailBackoffTime);
+        NProfiling::TCpuDuration scheduleJobFailBackoffTime);
 
-    void FinishScheduleJob(bool enableBackoff, TInstant now);
+    void FinishScheduleJob(
+        bool enableBackoff,
+        NProfiling::TCpuInstant now);
 
     TJobResources Finalize();
 
@@ -595,7 +597,7 @@ private:
     NConcurrency::TReaderWriterSpinLock JobPropertiesMapLock_;
 
     std::atomic<int> ConcurrentScheduleJobCalls_ = {0};
-    std::atomic<TInstant> LastScheduleJobFailTime_ = {TInstant::Zero()};
+    std::atomic<NProfiling::TCpuInstant> LastScheduleJobFailTime_ = {0};
 
     bool Finalized_ = false;
 
@@ -680,7 +682,7 @@ public:
 private:
     TOperationElementSharedStatePtr SharedState_;
 
-    bool IsBlocked(TInstant now) const;
+    bool IsBlocked(NProfiling::TCpuInstant now) const;
 
     TJobResources GetHierarchicalResourceLimits(const TFairShareContext& context) const;
 

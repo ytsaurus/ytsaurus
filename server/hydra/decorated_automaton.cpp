@@ -147,11 +147,11 @@ public:
         , Owner_(decoratedAutomaton)
     { }
 
-    virtual void Invoke(const TClosure& callback) override
+    virtual void Invoke(TClosure callback) override
     {
         auto lockGuard = TSystemLockGuard::Acquire(Owner_);
 
-        auto doInvoke = [=, this_ = MakeStrong(this)] (TSystemLockGuard /*lockGuard*/) {
+        auto doInvoke = [=, this_ = MakeStrong(this), callback = std::move(callback)] (TSystemLockGuard /*lockGuard*/) {
             TCurrentInvokerGuard currentInvokerGuard(this_);
             callback.Run();
         };
@@ -177,13 +177,13 @@ public:
         , Owner_(decoratedAutomaton)
     { }
 
-    virtual void Invoke(const TClosure& callback) override
+    virtual void Invoke(TClosure callback) override
     {
         auto lockGuard = TUserLockGuard::TryAcquire(Owner_);
         if (!lockGuard)
             return;
 
-        auto doInvoke = [=, this_ = MakeStrong(this)] () {
+        auto doInvoke = [=, this_ = MakeStrong(this), callback = std::move(callback)] () {
             if (Owner_->GetState() != EPeerState::Leading &&
                 Owner_->GetState() != EPeerState::Following)
                 return;

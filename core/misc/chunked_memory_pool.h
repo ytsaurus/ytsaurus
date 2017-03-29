@@ -42,10 +42,16 @@ public:
     template <class T>
     T* AllocateUninitialized(int n, int align = alignof(T));
 
+    //! Frees memory range if possible: namely, if the free region is a suffix of last allocated region.
+    void Free(char* from, char* to);
+
     //! Marks all previously allocated small chunks as free for subsequent allocations but
     //! does not deallocate them.
-    //! Disposes all large blocks.
+    //! Purges all large blocks.
     void Clear();
+
+    //! Purges all allocated memory, including small chunks.
+    void Purge();
 
     //! Returns the number of allocated bytes.
     i64 GetSize() const;

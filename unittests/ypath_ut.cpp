@@ -445,6 +445,7 @@ TEST_F(TEmbeddedYPathOpsTest, attributes)
     ExpectEqual(GetNodeByYPath(node, "/home/dir1/@account"), R""("root")"");
     ExpectEqual(GetNodeByYPath(node, "/home/dir1/@user_attr/foo"), R""("bar")"");
     ExpectEqual(GetNodeByYPath(node, "/home/dir1/@user_attr/@omg"), R""("embedded attributes")"");
+    ExpectEqual(GetNodeByYPath(node, "/home/dir1/@"), R""({"account"="root";"user_attr"=<"omg"="embedded attributes";>{"foo"="bar";};})"");
 
     EXPECT_THROW(GetNodeByYPath(node, "/home/dir1/@user_attr/bar"), std::exception);
     EXPECT_THROW(GetNodeByYPath(node, "/home/dir2/@account"), std::exception);

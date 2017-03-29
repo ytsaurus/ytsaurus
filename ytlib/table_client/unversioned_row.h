@@ -5,8 +5,6 @@
 #include "schema.h"
 #include "unversioned_value.h"
 
-#include <yt/ytlib/chunk_client/schema.pb.h>
-
 #include <yt/core/misc/chunked_memory_pool.h>
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/small_vector.h>
@@ -262,6 +260,10 @@ public:
         : Header_(header)
     { }
 
+    explicit TUnversionedRow(TTypeErasedRow erased)
+        : Header_(reinterpret_cast<const TUnversionedRowHeader*>(erased.OpaqueHeader))
+    { }
+
     explicit operator bool() const
     {
         return Header_ != nullptr;
@@ -362,6 +364,7 @@ void ValidateRowCount(int count);
  *  3. Value types must either be null or match those given in #schema.
  *  4. For values marked with #TUnversionedValue::Aggregate flag, the corresponding columns in #schema must
  *  be aggregating.
+ *  5. Versioned values must be sorted by |id| (in ascending order) and then by |timestamp| (in descending order).
  */
 void ValidateClientDataRow(
     TUnversionedRow row,
@@ -410,6 +413,15 @@ void ValidateServerKey(
 //! Checks if #timestamp is sane and can be used for reading data.
 void ValidateReadTimestamp(TTimestamp timestamp);
 
+//! Checks if #timestamp is sane and can be used for writing (versioned) data.
+void ValidateWriteTimestamp(TTimestamp timestamp);
+
+//! An internal helper used by validators.
+int ApplyIdMapping(
+    const TUnversionedValue& value,
+    const TTableSchema& schema,
+    const TNameTableToSchemaIdMapping* idMapping);
+
 //! Returns the successor of |key|, i.e. the key obtained from |key|
 //! by appending a |EValueType::Min| sentinel.
 TOwningKey GetKeySuccessor(TKey key);
@@ -422,21 +434,21 @@ TOwningKey GetKeyPrefixSuccessor(TKey key, ui32 prefixLength);
 TKey GetKeyPrefixSuccessor(TKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer);
 
 //! Returns key of a strict lenght (either trimmed key or widen key)
-TKey GetStrictKey(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer);
-TKey GetStrictKeySuccessor(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer);
+TKey GetStrictKey(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
+TKey GetStrictKeySuccessor(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
 
 //! If #key has more than #prefixLength values then trims it this limit.
 TOwningKey GetKeyPrefix(TKey key, ui32 prefixLength);
 TKey GetKeyPrefix(TKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer);
 
-//! Makes a new, wider key padded with null values.
-TOwningKey WidenKey(const TOwningKey& key, ui32 keyColumnCount);
-TKey WidenKey(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer);
-TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer);
+//! Makes a new, wider key padded with given sentinel values.
+TOwningKey WidenKey(const TOwningKey& key, ui32 keyColumnCount, EValueType sentinelType = EValueType::Null);
+TKey WidenKey(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
+TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
 
 //! Takes prefix of a key and makes it wider.
-TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColumnCount);
-TKey WidenKeyPrefix(TKey key, ui32 prefixLength, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer);
+TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColumnCount, EValueType sentinelType = EValueType::Null);
+TKey WidenKeyPrefix(TKey key, ui32 prefixLength, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
 
 //! Returns the key with no components.
 const TOwningKey EmptyKey();
@@ -787,5 +799,15 @@ struct hash<NYT::NTableClient::TUnversionedValue>
     inline size_t operator()(const NYT::NTableClient::TUnversionedValue& value) const
     {
         return GetHash(value);
+    }
+};
+
+//! A hasher for TUnversionedRow.
+template <>
+struct hash<NYT::NTableClient::TUnversionedRow>
+{
+    inline size_t operator()(const NYT::NTableClient::TUnversionedRow& row) const
+    {
+        return GetHash(row);
     }
 };

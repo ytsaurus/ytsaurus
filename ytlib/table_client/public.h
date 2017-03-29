@@ -93,8 +93,13 @@ DEFINE_ENUM(EOptimizeFor,
     ((Scan)    (1))
 );
 
+DEFINE_ENUM(ETableReplicationMode,
+    ((None)                (0))
+    ((Source)              (1))
+    ((AsynchronousSink)    (2))
+);
+
 DEFINE_ENUM(EErrorCode,
-    ((MasterCommunicationFailed)  (300))
     ((SortOrderViolation)         (301))
     ((InvalidDoubleValue)         (302))
     ((IncomparableType)           (303))
@@ -130,7 +135,7 @@ struct TColumnIdMapping
 };
 
 //! NB: |int| is important since we use negative values to indicate that
-//! certain values need to be dropped. Cf. TRowBuffer::CaptureAndPermuteRow.
+//! certain values need to be dropped. Cf. #TRowBuffer::CaptureAndPermuteRow.
 typedef SmallVector<int, TypicalColumnCount> TNameTableToSchemaIdMapping;
 
 union TUnversionedValueData;
@@ -181,7 +186,7 @@ class TNameTableWriter;
 DECLARE_REFCOUNTED_CLASS(TRowBuffer)
 
 DECLARE_REFCOUNTED_CLASS(TSamplesFetcher)
-DECLARE_REFCOUNTED_CLASS(TChunkSliceFetcher)
+DECLARE_REFCOUNTED_STRUCT(IChunkSliceFetcher)
 DECLARE_REFCOUNTED_CLASS(TDataSliceFetcher)
 
 DECLARE_REFCOUNTED_STRUCT(ISchemafulReader)

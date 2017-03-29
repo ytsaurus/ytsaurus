@@ -44,6 +44,12 @@ struct TMasterHandshakeResult
     std::vector<TOperationReport> OperationReports;
 };
 
+struct TOperationSnapshot
+{
+    int Version = -1;
+    TSharedRef Data;
+};
+
 typedef TCallback<void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr)> TWatcherRequester;
 typedef TCallback<void(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr)> TWatcherHandler;
 
@@ -66,7 +72,7 @@ public:
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation);
     TFuture<void> FlushOperationNode(TOperationPtr operation);
 
-    TFuture<TSharedRef> DownloadSnapshot(const TOperationId& operationId);
+    TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId);
     TFuture<void> RemoveSnapshot(const TOperationId& operationId);
 
     void CreateJobNode(const TCreateJobNodeRequest& createJobNodeRequest);

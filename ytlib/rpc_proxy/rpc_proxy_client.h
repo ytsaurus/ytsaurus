@@ -37,12 +37,17 @@ public:
 
 
     // Tables
-    virtual TFuture<NApi::IRowsetPtr> LookupRows(
+    virtual TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TKey>& keys,
         const NApi::TLookupRowsOptions& options) override;
 
+    virtual TFuture<NApi::IVersionedRowsetPtr> VersionedLookupRows(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const NApi::TVersionedLookupRowsOptions& options) override;
 
     virtual TFuture<NApi::TSelectRowsResult> SelectRows(
         const Stroka& query,
@@ -418,9 +423,10 @@ private:
     const TRpcProxyConnectionPtr Connection_;
 
     NRpc::IChannelPtr Channel_;
+
 };
 
-DEFINE_REFCOUNTED_TYPE(TRpcProxyClient);
+DEFINE_REFCOUNTED_TYPE(TRpcProxyClient)
 
 ////////////////////////////////////////////////////////////////////////////////
 

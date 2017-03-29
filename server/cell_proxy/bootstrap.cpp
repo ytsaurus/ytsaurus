@@ -100,7 +100,8 @@ void TBootstrap::DoRun()
 
     auto blackbox = CreateDefaultBlackboxService(Config_->Blackbox, GetControlInvoker());
     CookieAuthenticator_ = CreateCookieAuthenticator(Config_->CookieAuthenticator, blackbox);
-    TokenAuthenticator_ = CreateTokenAuthenticator(Config_->TokenAuthenticator, blackbox);
+    TokenAuthenticator_ = CreateBlackboxTokenAuthenticator(Config_->TokenAuthenticator, blackbox);
+    TokenAuthenticator_ = CreateCachingTokenAuthenticator(Config_->TokenAuthenticator, TokenAuthenticator_);
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
 

@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <yt/ytlib/chunk_client/config.h>
-#include <yt/ytlib/chunk_client/schema.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -168,7 +167,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TBlobTableWriterConfig);
+DEFINE_REFCOUNTED_TYPE(TBlobTableWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -178,6 +177,7 @@ class TBufferedTableWriterConfig
 public:
     TDuration RetryBackoffTime;
     TDuration FlushPeriod;
+    i64 RowBufferChunkSize;
 
     TBufferedTableWriterConfig()
     {
@@ -185,6 +185,8 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("flush_period", FlushPeriod)
             .Default(TDuration::Seconds(60));
+        RegisterParameter("row_buffer_chunk_size", RowBufferChunkSize)
+            .Default(64 * 1024);
     }
 };
 
@@ -272,7 +274,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TChunkReaderOptions);
+DEFINE_REFCOUNTED_TYPE(TChunkReaderOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -281,7 +283,7 @@ class TTableReaderOptions
     , public NChunkClient::TMultiChunkReaderOptions
 { };
 
-DEFINE_REFCOUNTED_TYPE(TTableReaderOptions);
+DEFINE_REFCOUNTED_TYPE(TTableReaderOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 

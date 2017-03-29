@@ -13,15 +13,19 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TInputDataSlice::TInputDataSlice(
-    EDataSliceDescriptorType type,
+    EDataSourceType type,
     TChunkSliceList chunkSlices,
     TInputSliceLimit lowerLimit,
-    TInputSliceLimit upperLimit)
+    TInputSliceLimit upperLimit,
+    TNullable<i64> tag)
     : LowerLimit_(std::move(lowerLimit))
     , UpperLimit_(std::move(upperLimit))
     , ChunkSlices(std::move(chunkSlices))
     , Type(type)
-{ }
+    , Tag(tag)
+{
+    InputStreamIndex = GetTableIndex();
+}
 
 int TInputDataSlice::GetChunkCount() const
 {
@@ -62,6 +66,9 @@ void TInputDataSlice::Persist(NTableClient::TPersistenceContext& context)
     Persist(context, UpperLimit_);
     Persist(context, ChunkSlices);
     Persist(context, Type);
+    Persist(context, Tag);
+    Persist(context, Disabled);
+    Persist(context, InputStreamIndex);
 }
 
 int TInputDataSlice::GetTableIndex() const
@@ -80,7 +87,12 @@ TInputChunkPtr TInputDataSlice::GetSingleUnversionedChunkOrThrow() const
 
 bool TInputDataSlice::IsTrivial() const
 {
-    return Type == EDataSliceDescriptorType::UnversionedTable && ChunkSlices.size() == 1;
+    return Type == EDataSourceType::UnversionedTable && ChunkSlices.size() == 1;
+}
+
+bool TInputDataSlice::IsEmpty() const
+{
+    return LowerLimit_.Key >= UpperLimit_.Key;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,25 +108,15 @@ Stroka ToString(const TInputDataSlicePtr& dataSlice)
 
 void ToProto(
     NProto::TDataSliceDescriptor* dataSliceDescriptor,
-    TInputDataSlicePtr inputDataSlice,
-    const TTableSchema& schema,
-    TTimestamp timestamp)
+    TInputDataSlicePtr inputDataSlice)
 {
-    std::vector<NProto::TChunkSpec> chunkSpecs;
-
     for (const auto& slice : inputDataSlice->ChunkSlices) {
-        NProto::TChunkSpec spec;
-        ToProto(&spec, slice);
-        chunkSpecs.push_back(std::move(spec));
+        auto* chunk = dataSliceDescriptor->add_chunks();
+        ToProto(chunk, slice);
+        if (inputDataSlice->Tag) {
+            chunk->set_data_slice_tag(*inputDataSlice->Tag);
+        }
     }
-
-    TDataSliceDescriptor descriptor(inputDataSlice->Type, std::move(chunkSpecs));
-    if (inputDataSlice->Type == EDataSliceDescriptorType::VersionedTable) {
-        descriptor.Schema = schema;
-        descriptor.Timestamp = timestamp;
-    }
-
-    ToProto(dataSliceDescriptor, descriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,7 +124,7 @@ void ToProto(
 TInputDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkSlicePtr chunkSlice)
 {
     return New<TInputDataSlice>(
-        EDataSliceDescriptorType::UnversionedTable,
+        EDataSourceType::UnversionedTable,
         TInputDataSlice::TChunkSliceList{chunkSlice},
         chunkSlice->LowerLimit(),
         chunkSlice->UpperLimit());
@@ -150,14 +152,14 @@ TInputDataSlicePtr CreateVersionedInputDataSlice(const std::vector<TInputChunkSl
         chunkSlices.push_back(inputChunk);
     }
     return New<TInputDataSlice>(
-        EDataSliceDescriptorType::VersionedTable,
+        EDataSourceType::VersionedTable,
         std::move(chunkSlices),
         std::move(lowerLimit),
         std::move(upperLimit));
 }
 
 TInputDataSlicePtr CreateInputDataSlice(
-    EDataSliceDescriptorType type,
+    EDataSourceType type,
     const std::vector<TInputChunkSlicePtr>& inputChunks,
     TKey lowerKey,
     TKey upperKey)
@@ -208,11 +210,36 @@ TInputDataSlicePtr CreateInputDataSlice(
         chunkSlices.push_back(CreateInputChunkSlice(*slice, lowerLimit.Key, upperLimit.Key));
     }
 
-    return New<TInputDataSlice>(
+    auto newDataSlice = New<TInputDataSlice>(
         dataSlice->Type,
         std::move(chunkSlices),
         std::move(lowerLimit),
-        std::move(upperLimit));
+        std::move(upperLimit),
+        dataSlice->Tag);
+    newDataSlice->InputStreamIndex = dataSlice->InputStreamIndex;
+    return newDataSlice;
+}
+
+void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const TRowBufferPtr& rowBuffer)
+{
+    TKey minKey;
+    TKey maxKey;
+    for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+        if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
+            if (!minKey || minKey > boundaryKeys->MinKey) {
+                minKey = boundaryKeys->MinKey;
+            }
+            if (!maxKey || maxKey < boundaryKeys->MaxKey) {
+                maxKey = boundaryKeys->MaxKey;
+            }
+        }
+    }
+    if (minKey) {
+        dataSlice->LowerLimit().MergeLowerKey(minKey);
+    }
+    if (maxKey) {
+        dataSlice->UpperLimit().MergeUpperKey(GetKeySuccessor(maxKey, rowBuffer));
+    }
 }
 
 TNullable<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool checkParityParts)
@@ -329,7 +356,7 @@ std::vector<TInputDataSlicePtr> CombineVersionedChunkSlices(const std::vector<TI
             auto upper = index == boundaries.size() ? MaxKey().Get() : std::get<0>(boundaries[index]);
 
             auto slice = CreateInputDataSlice(
-                EDataSliceDescriptorType::VersionedTable,
+                EDataSourceType::VersionedTable,
                 std::move(chunks),
                 currentKey,
                 upper);

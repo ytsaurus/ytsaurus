@@ -98,7 +98,7 @@ class TJob
     DEFINE_BYVAL_RW_PROPERTY(bool, Preempted);
 
     //! Deadline for job to be interrupted.
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, InterruptDeadline);
+    DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, InterruptDeadline);
 
     //! Contains several important values extracted from job statistics.
     DEFINE_BYVAL_RO_PROPERTY(TBriefJobStatisticsPtr, BriefStatistics);
@@ -114,6 +114,12 @@ class TJob
 
     //! Cookie for timeout on interrupted job.
     DEFINE_BYREF_RW_PROPERTY(NConcurrency::TDelayedExecutorCookie, InterruptCookie);
+
+    //! Last time when statistics and resource usage from running job was updated.
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, LastRunningJobUpdateTime);
+
+    //! True if controller requested job interrupt.
+    DEFINE_BYVAL_RW_PROPERTY(bool, InterruptHint, false);
 
 public:
     TJob(
@@ -152,13 +158,15 @@ struct TJobSummary
 {
     explicit TJobSummary(const TJobPtr& job);
     explicit TJobSummary(const TJobId& id);
+    //! Only for testing purpose.
+    TJobSummary() = default;
 
     void ParseStatistics();
 
     const TJobResult Result;
     const TJobId Id;
     const Stroka StatisticsSuffix;
-    const TInstant FinishTime;
+    TNullable<TInstant> FinishTime;
     TNullable<TDuration> PrepareDuration;
     TNullable<TDuration> DownloadDuration;
     TNullable<TDuration> ExecDuration;
@@ -176,9 +184,13 @@ struct TCompletedJobSummary
     : public TJobSummary
 {
     explicit TCompletedJobSummary(const TJobPtr& job, bool abandoned = false);
+    //! Only for testing purpose.
+    TCompletedJobSummary() = default;
 
     const bool Abandoned = false;
     bool Interrupted = false;
+
+    std::vector<NChunkClient::TInputDataSlicePtr> UnreadInputDataSlices;
 };
 
 struct TAbortedJobSummary

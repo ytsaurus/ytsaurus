@@ -22,7 +22,7 @@ public:
     std::vector<Stroka> Addresses;
 };
 
-DEFINE_REFCOUNTED_TYPE(TRpcProxyConnectionConfig);
+DEFINE_REFCOUNTED_TYPE(TRpcProxyConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +36,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TRpcProxyClientConfig);
+DEFINE_REFCOUNTED_TYPE(TRpcProxyClientConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

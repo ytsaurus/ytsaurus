@@ -3,6 +3,9 @@
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/ytlib/chunk_client/key_set.h>
+
+#include <yt/ytlib/table_client/row_buffer.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -119,6 +122,7 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector
     ToProto(req->mutable_key_columns(), KeyColumns_);
     req->set_max_sample_size(MaxSampleSize_);
     req->set_sampling_policy(static_cast<int>(SamplingPolicy_));
+    req->set_keys_in_attachment(true);
     // TODO(babenko): make configurable
     ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
 
@@ -173,6 +177,16 @@ void TSamplesFetcher::OnResponse(
     }
 
     const auto& rsp = rspOrError.Value();
+
+    // We keep reader in the scope as a holder for wire reader and uncompressed attachment.
+    TNullable<TKeySetReader> keysReader;
+    NYT::TRange<TKey> keySet;
+    if (rsp->keys_in_attachment()) {
+        YCHECK(rsp->Attachments().size() == 1);
+        keysReader.Emplace(rsp->Attachments().front());
+        keySet = keysReader->GetKeys();
+    }
+
     for (int index = 0; index < requestedChunkIndexes.size(); ++index) {
         const auto& sampleResponse = rsp->sample_responses(index);
 
@@ -188,7 +202,12 @@ void TSamplesFetcher::OnResponse(
 
         for (const auto& protoSample : sampleResponse.samples()) {
             TKey key;
-            FromProto(&key, protoSample.key(), RowBuffer_);
+            if (protoSample.has_key_index()) {
+                YCHECK(keysReader);
+                key = RowBuffer_->Capture(keySet[protoSample.key_index()]);
+            } else {
+                FromProto(&key, protoSample.key(), RowBuffer_);
+            }
 
             TSample sample{
                 key,

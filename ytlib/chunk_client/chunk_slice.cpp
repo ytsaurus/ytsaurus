@@ -1,7 +1,7 @@
 #include "chunk_slice.h"
 #include "private.h"
 #include "chunk_meta_extensions.h"
-#include "schema.h"
+#include "key_set.h"
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -91,7 +91,7 @@ TChunkSlice::TChunkSlice(
         UpperLimit_ = sliceReq.upper_limit();
     }
     UpperLimit_.MergeUpperRowIndex(upperRowIndex);
-    
+
     RowCount_ = UpperLimit_.GetRowIndex() - LowerLimit_.GetRowIndex();
 }
 
@@ -180,7 +180,7 @@ public:
             YCHECK(i == blockMetaExt.blocks(i).block_index());
             auto indexKey = FromProto<TOwningKey>(blockMetaExt.blocks(i).last_key());
             i64 chunkRowCount = blockMetaExt.blocks(i).chunk_row_count();
-            i64 rowCount = IndexKeys_.empty() 
+            i64 rowCount = IndexKeys_.empty()
                 ? chunkRowCount
                 : chunkRowCount - IndexKeys_.back().ChunkRowCount;
 
@@ -404,6 +404,35 @@ void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice
     if (!IsTrivial(chunkSlice.UpperLimit())) {
         ToProto(protoChunkSlice->mutable_upper_limit(), chunkSlice.UpperLimit());
     }
+    if (chunkSlice.GetSizeOverridden()) {
+        protoChunkSlice->set_uncompressed_data_size_override(chunkSlice.GetDataSize());
+        protoChunkSlice->set_row_count_override(chunkSlice.GetRowCount());
+    }
+}
+
+void ToProto(
+    const TKeySetWriterPtr& keysWriter,
+    NProto::TChunkSlice* protoChunkSlice,
+    const TChunkSlice& chunkSlice)
+{
+    if (chunkSlice.LowerLimit().HasKey()) {
+        int index = keysWriter->WriteKey(chunkSlice.LowerLimit().GetKey());
+        protoChunkSlice->mutable_lower_limit()->set_key_index(index);
+    }
+
+    if (chunkSlice.LowerLimit().HasRowIndex()) {
+        protoChunkSlice->mutable_lower_limit()->set_row_index(chunkSlice.LowerLimit().GetRowIndex());
+    }
+
+    if (chunkSlice.UpperLimit().HasKey()) {
+        int index = keysWriter->WriteKey(chunkSlice.UpperLimit().GetKey());
+        protoChunkSlice->mutable_upper_limit()->set_key_index(index);
+    }
+
+    if (chunkSlice.UpperLimit().HasRowIndex()) {
+        protoChunkSlice->mutable_upper_limit()->set_row_index(chunkSlice.UpperLimit().GetRowIndex());
+    }
+
     if (chunkSlice.GetSizeOverridden()) {
         protoChunkSlice->set_uncompressed_data_size_override(chunkSlice.GetDataSize());
         protoChunkSlice->set_row_count_override(chunkSlice.GetRowCount());

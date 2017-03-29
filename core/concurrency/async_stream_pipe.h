@@ -34,7 +34,7 @@ private:
     TNonblockingQueue<TItem> Queue_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TAsyncStreamPipe);
+DEFINE_REFCOUNTED_TYPE(TAsyncStreamPipe)
 
 ///////////////////////////////////////////////////////////////////////////////
 

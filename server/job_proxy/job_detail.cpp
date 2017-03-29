@@ -6,15 +6,9 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/query_client/config.h>
-#include <yt/ytlib/query_client/evaluator.h>
-#include <yt/ytlib/query_client/query.h>
-#include <yt/ytlib/query_client/functions_cache.h>
-#include <yt/ytlib/query_client/public.h>
-#include <yt/ytlib/query_client/query_statistics.h>
+#include <yt/ytlib/job_proxy/helpers.h>
 
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/ytlib/table_client/schemaless_writer.h>
@@ -96,43 +90,6 @@ void TJob::Interrupt()
     THROW_ERROR_EXCEPTION("Interrupting is not supported for built-in jobs");
 }
 
-void RunQuery(
-    const TQuerySpec& querySpec,
-    const NTableClient::TSchemalessReaderFactory& readerFactory,
-    const NTableClient::TSchemalessWriterFactory& writerFactory)
-{
-    auto query = FromProto<TConstQueryPtr>(querySpec.query());
-    auto resultSchema = query->GetTableSchema();
-    auto resultNameTable = TNameTable::FromSchema(resultSchema);
-    auto schemalessWriter = writerFactory(resultNameTable);
-
-    WaitFor(schemalessWriter->Open())
-        .ThrowOnError();
-
-    auto writer = CreateSchemafulWriterAdapter(schemalessWriter);
-
-    auto externalCGInfo = New<TExternalCGInfo>();
-    FromProto(&externalCGInfo->Functions, querySpec.external_functions());
-
-    auto functionGenerators = New<TFunctionProfilerMap>();
-    auto aggregateGenerators = New<TAggregateProfilerMap>();
-    MergeFrom(functionGenerators.Get(), *BuiltinFunctionCG);
-    MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateCG);
-    FetchJobImplementations(
-        functionGenerators,
-        aggregateGenerators,
-        externalCGInfo,
-        SandboxDirectoryNames[ESandboxKind::Udf]);
-
-    auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
-    auto reader = CreateSchemafulReaderAdapter(readerFactory, query->GetReadSchema());
-
-    LOG_INFO("Reading, evaluating query and writing");
-    {
-        evaluator->Run(query, reader, writer, functionGenerators, aggregateGenerators, true);
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
@@ -150,7 +107,11 @@ TJobResult TSimpleJobBase::Run()
 
         const auto& jobSpec = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
         if (jobSpec.has_input_query_spec()) {
-            RunQuery(jobSpec.input_query_spec(), ReaderFactory_, WriterFactory_);
+            RunQuery(
+                jobSpec.input_query_spec(),
+                ReaderFactory_,
+                WriterFactory_,
+                SandboxDirectoryNames[ESandboxKind::Udf]);
         } else {
             CreateReader();
 

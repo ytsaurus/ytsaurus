@@ -56,7 +56,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TStoreLocationConfigBase);
+DEFINE_REFCOUNTED_TYPE(TStoreLocationConfigBase)
 
 class TStoreLocationConfig
     : public TStoreLocationConfigBase
@@ -115,7 +115,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TStoreLocationConfig);
+DEFINE_REFCOUNTED_TYPE(TStoreLocationConfig)
 
 class TCacheLocationConfig
     : public TStoreLocationConfigBase
@@ -135,7 +135,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TCacheLocationConfig);
+DEFINE_REFCOUNTED_TYPE(TCacheLocationConfig)
 
 class TMultiplexedChangelogConfig
     : public NHydra::TFileChangelogConfig

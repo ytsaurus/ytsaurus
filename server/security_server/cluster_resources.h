@@ -87,6 +87,12 @@ TClusterResources  operator *  (const TClusterResources& lhs, i64 rhs);
 
 TClusterResources  operator -  (const TClusterResources& resources);
 
+bool operator == (const TClusterResources& lhs, const TClusterResources& rhs);
+bool operator != (const TClusterResources& lhs, const TClusterResources& rhs);
+
+void FormatValue(TStringBuilder* builder, const TClusterResources& resources, const TStringBuf& /*format*/);
+Stroka ToString(const TClusterResources& resources);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NSecurityServer

@@ -145,6 +145,7 @@ std::vector<TMutableRow> TTopCollector::GetRows(int rowSize) const
 TJoinClosure::TJoinClosure(
     THasherFunction* lookupHasher,
     TComparerFunction* lookupEqComparer,
+    TComparerFunction* prefixEqComparer,
     int keySize,
     size_t batchSize)
     : Buffer(New<TRowBuffer>(TPermanentBufferTag()))
@@ -152,6 +153,7 @@ TJoinClosure::TJoinClosure(
         InitialGroupOpHashtableCapacity,
         lookupHasher,
         lookupEqComparer)
+    , PrefixEqComparer(prefixEqComparer)
     , KeySize(keySize)
     , BatchSize(batchSize)
 {
@@ -194,7 +196,7 @@ TJoinParameters GetJoinEvaluator(
     const auto& foreignEquations = joinClause.ForeignEquations;
     auto isLeft = joinClause.IsLeft;
     auto canUseSourceRanges = joinClause.CanUseSourceRanges;
-    auto keyPrefix = joinClause.SelfEquations.size();
+    auto commonKeyPrefix = joinClause.CommonKeyPrefix;
     auto& foreignDataId = joinClause.ForeignDataId;
 
     // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
@@ -252,7 +254,7 @@ TJoinParameters GetJoinEvaluator(
         }
     };
 
-    auto getForeignQuery = [subquery, canUseSourceRanges, keyPrefix, joinKeyExprs, foreignDataId, foreignPredicate] (
+    auto getForeignQuery = [subquery, canUseSourceRanges, commonKeyPrefix, joinKeyExprs, foreignDataId, foreignPredicate] (
         std::vector<TRow> keys,
         TRowBufferPtr permanentBuffer)
     {
@@ -271,6 +273,11 @@ TJoinParameters GetJoinEvaluator(
 
             subquery->WhereClause = foreignPredicate;
             subquery->InferRanges = false;
+
+            if (commonKeyPrefix > 0) {
+                // Use ordered read without modification of protocol
+                subquery->Limit = std::numeric_limits<i64>::max() - 1;
+            }
         } else {
             TRowRanges ranges;
 
@@ -293,7 +300,14 @@ TJoinParameters GetJoinEvaluator(
         return std::make_pair(subquery, dataSource);
     };
 
-    return TJoinParameters{isOrdered, isLeft, selfColumns, foreignColumns, getForeignQuery, batchSize};
+    return TJoinParameters{
+        isOrdered,
+        isLeft,
+        selfColumns,
+        foreignColumns,
+        canUseSourceRanges && commonKeyPrefix > 0,
+        getForeignQuery,
+        batchSize};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

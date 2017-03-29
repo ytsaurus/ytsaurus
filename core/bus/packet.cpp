@@ -11,12 +11,13 @@ struct TPacketDecoderTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPacketDecoder::TPacketDecoder(const NLogging::TLogger& logger)
+TPacketDecoder::TPacketDecoder(const NLogging::TLogger& logger, bool verifyChecksum)
     : TPacketTranscoderBase(logger)
     , Allocator_(
         PacketDecoderChunkSize,
         TChunkedMemoryAllocator::DefaultMaxSmallBlockSizeRatio,
         GetRefCountedTypeCookie<TPacketDecoderTag>())
+    , VerifyChecksum_(verifyChecksum)
 {
     Restart();
 }
@@ -92,12 +93,14 @@ bool TPacketDecoder::EndFixedHeaderPhase()
         return false;
     }
 
-    auto expectedChecksum = FixedHeader_.Checksum;
-    if (expectedChecksum != NullChecksum) {
-        auto actualChecksum = GetFixedChecksum();
-        if (expectedChecksum != actualChecksum) {
-            LOG_ERROR("Fixed packet header checksum mismatch");
-            return false;
+    if (VerifyChecksum_) {
+        auto expectedChecksum = FixedHeader_.Checksum;
+        if (expectedChecksum != NullChecksum) {
+            auto actualChecksum = GetFixedChecksum();
+            if (expectedChecksum != actualChecksum) {
+                LOG_ERROR("Fixed packet header checksum mismatch");
+                return false;
+            }
         }
     }
 
@@ -120,12 +123,14 @@ bool TPacketDecoder::EndFixedHeaderPhase()
 
 bool TPacketDecoder::EndVariableHeaderPhase()
 {
-    auto expectedChecksum = PartChecksums_[FixedHeader_.PartCount];
-    if (expectedChecksum != NullChecksum) {
-        auto actualChecksum = GetVariableChecksum();
-        if (expectedChecksum != actualChecksum) {
-            LOG_ERROR("Variable packet header checksum mismatch");
-            return false;
+    if (VerifyChecksum_) {
+        auto expectedChecksum = PartChecksums_[FixedHeader_.PartCount];
+        if (expectedChecksum != NullChecksum) {
+            auto actualChecksum = GetVariableChecksum();
+            if (expectedChecksum != actualChecksum) {
+                LOG_ERROR("Variable packet header checksum mismatch");
+                return false;
+            }
         }
     }
 
@@ -145,12 +150,14 @@ bool TPacketDecoder::EndVariableHeaderPhase()
 
 bool TPacketDecoder::EndMessagePartPhase()
 {
-    auto expectedChecksum = PartChecksums_[PartIndex_];
-    if (expectedChecksum != NullChecksum) {
-        auto actualChecksum = GetChecksum(Parts_[PartIndex_]);
-        if (expectedChecksum != actualChecksum) {
-            LOG_ERROR("Packet part checksum mismatch");
-            return false;
+    if (VerifyChecksum_) {
+        auto expectedChecksum = PartChecksums_[PartIndex_];
+        if (expectedChecksum != NullChecksum) {
+            auto actualChecksum = GetChecksum(Parts_[PartIndex_]);
+            if (expectedChecksum != actualChecksum) {
+                LOG_ERROR("Packet part checksum mismatch");
+                return false;
+            }
         }
     }
 

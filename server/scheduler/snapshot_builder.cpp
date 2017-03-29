@@ -12,6 +12,7 @@
 
 #include <yt/core/concurrency/async_stream.h>
 
+#include <yt/core/misc/checkpointable_stream.h>
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
 
@@ -86,17 +87,19 @@ TFuture<void> TSnapshotBuilder::Run()
 
         operationSuspendFutures.push_back(operation
             ->GetController()
-            ->Suspend().Apply(BIND([=, this_ = MakeStrong(this)] () {
-                if (!ControllersSuspended_) {
-                    job->Suspended = true;
-                    LOG_DEBUG("Controller suspended (OperationId: %v)",
-                        operation->GetId());
-                } else {
-                    LOG_DEBUG("Controller suspended too late (OperationId: %v)",
-                        operation->GetId());
-                }
-            })
-            .AsyncVia(GetCurrentInvoker())));
+            ->Suspend().Apply(
+                BIND([=, this_ = MakeStrong(this)] () {
+                    if (!ControllersSuspended_) {
+                        job->Suspended = true;
+                        LOG_DEBUG("Controller suspended (OperationId: %v)",
+                            operation->GetId());
+                    } else {
+                        LOG_DEBUG("Controller suspended too late (OperationId: %v)",
+                            operation->GetId());
+                    }
+                })
+                .AsyncVia(GetCurrentInvoker())
+            ));
         operationIds.push_back(operation->GetId());
 
         LOG_INFO("Snapshot job registered (OperationId: %v)",
@@ -165,10 +168,13 @@ void DoSnapshotJobs(const std::vector<TBuildSnapshotJob> Jobs_)
 {
     for (const auto& job : Jobs_) {
         TFileOutput outputStream(*job.OutputFile);
-        TBufferedOutput bufferedOutput(&outputStream, PipeWriteBufferSize);
+
+        auto checkpointableOutput = CreateCheckpointableOutputStream(&outputStream);
+        auto bufferedOutput = CreateBufferedCheckpointableOutputStream(checkpointableOutput.get(), PipeWriteBufferSize);
+
         try {
-            job.Operation->GetController()->SaveSnapshot(&bufferedOutput);
-            bufferedOutput.Finish();
+            job.Operation->GetController()->SaveSnapshot(bufferedOutput.get());
+            bufferedOutput->Finish();
             job.OutputFile->Close();
         } catch (const TFileError& ex) {
             // Failed to save snapshot because other side of the pipe was closed.
@@ -256,8 +262,8 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             options.Attributes = std::move(attributes);
             auto transactionOrError = WaitFor(
                 Client_->StartTransaction(
-                NTransactionClient::ETransactionType::Master,
-                options));
+                    NTransactionClient::ETransactionType::Master,
+                    options));
             transaction = transactionOrError.ValueOrThrow();
         }
 
@@ -293,13 +299,14 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             WaitFor(writer->Open())
                 .ThrowOnError();
 
+            auto syncReader = CreateSyncAdapter(job->Reader);
+            auto checkpointableInput = CreateCheckpointableInputStream(syncReader.get());
+
             struct TSnapshotBuilderBufferTag { };
             auto buffer = TSharedMutableRef::Allocate<TSnapshotBuilderBufferTag>(RemoteWriteBufferSize, false);
 
             while (true) {
-                size_t bytesRead = WaitFor(job->Reader->Read(buffer))
-                    .ValueOrThrow();
-
+                size_t bytesRead = checkpointableInput->Read(buffer.Begin(), buffer.Size());
                 if (bytesRead == 0) {
                     break;
                 }

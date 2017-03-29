@@ -6,13 +6,17 @@
 #include "job_memory.h"
 #include "map_controller.h"
 #include "operation_controller_detail.h"
+#include "sorted_chunk_pool.h"
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
+#include <yt/ytlib/chunk_client/key_set.h>
 
 #include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/chunk_slice_fetcher.h>
+#include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/samples_fetcher.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/schemaless_block_writer.h>
@@ -69,9 +73,8 @@ public:
         , Options(options)
         , Config(config)
         , CompletedPartitionCount(0)
-        , SortedMergeJobCounter(0)
-        // Cannot do similar for UnorderedMergeJobCounter since the number of unsorted merge jobs
-        // is hard to predict.
+        // Cannot do similar for SortedMergeJobCounter and UnorderedMergeJobCounter since the number
+        // of unsorted these jobs is hard to predict.
         , SortDataSizeCounter(0)
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
@@ -102,6 +105,7 @@ public:
         Persist(context, Partitions);
 
         Persist(context, PartitionJobSpecTemplate);
+
         Persist(context, IntermediateSortJobSpecTemplate);
         Persist(context, FinalSortJobSpecTemplate);
         Persist(context, SortedMergeJobSpecTemplate);
@@ -112,9 +116,6 @@ public:
         Persist(context, FinalSortJobIOConfig);
         Persist(context, SortedMergeJobIOConfig);
         Persist(context, UnorderedMergeJobIOConfig);
-
-        Persist(context, PartitionTableReaderOptions);
-        Persist(context, PartitionBoundTableReaderOptions);
 
         Persist(context, PartitionPool);
         Persist(context, ShufflePool);
@@ -285,10 +286,6 @@ protected:
     TJobIOConfigPtr SortedMergeJobIOConfig;
     TJobIOConfigPtr UnorderedMergeJobIOConfig;
 
-    //! Table reader options for various job types.
-    TTableReaderOptionsPtr PartitionTableReaderOptions;
-    TTableReaderOptionsPtr PartitionBoundTableReaderOptions;
-
     std::unique_ptr<IChunkPool> PartitionPool;
     std::unique_ptr<IShuffleChunkPool> ShufflePool;
     std::unique_ptr<IChunkPool> SimpleSortPool;
@@ -387,7 +384,7 @@ protected:
         i64 MaxDataSizePerJob = 0;
 
 
-        void UpdateNodeDataSize(const TExecNodeDescriptor& descriptor, i64 delta)
+        void UpdateNodeDataSize(const TJobNodeDescriptor& descriptor, i64 delta)
         {
             if (!Controller->Spec->EnablePartitionedDataBalancing) {
                 return;
@@ -437,12 +434,6 @@ protected:
                 newAvgAdjustedScheduledDataSize + Controller->Spec->PartitionedDataBalancingTolerance * adjustedJobDataSize;
         }
 
-        virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
-        {
-            // TODO(psushin): Distinguish between map and partition.
-            return Controller->PartitionTableReaderOptions;
-        }
-
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
             auto statistics = Controller->PartitionPool->GetApproximateStripeStatistics();
@@ -460,13 +451,6 @@ protected:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
-            auto* partitionJobSpecExt = jobSpec->MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-            for (const auto& partition : Controller->Partitions) {
-                auto key = partition->Key;
-                if (key && key != MinKey()) {
-                    ToProto(partitionJobSpecExt->add_partition_keys(), key);
-                }
-            }
             AddSequentialInputSpec(jobSpec, joblet);
             AddIntermediateOutputSpec(jobSpec, joblet, TKeyColumns());
         }
@@ -635,16 +619,6 @@ protected:
     protected:
         TSortControllerBase* Controller;
         TPartition* Partition;
-
-        virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
-        {
-            if (Controller->SimpleSort) {
-                return Controller->PartitionTableReaderOptions;
-            } else {
-                return Controller->PartitionBoundTableReaderOptions;
-            }
-        }
-
     };
 
     //! Base class implementing sort phase for sort operations
@@ -693,6 +667,14 @@ protected:
             return Controller->IsSortedMergeNeeded(Partition)
                 ? Controller->GetIntermediateSortJobType()
                 : Controller->GetFinalSortJobType();
+        }
+
+        virtual void Persist(const TPersistenceContext& context) override
+        {
+            TPartitionBoundTask::Persist(context);
+
+            using NYT::Persist;
+            Persist(context, CurrentInputStreamIndex_);
         }
 
     protected:
@@ -778,6 +760,7 @@ protected:
             Controller->SortDataSizeCounter.Completed(joblet->InputStripeList->TotalDataSize);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
+                int inputStreamIndex = CurrentInputStreamIndex_++;
                 Controller->IntermediateSortJobCounter.Completed(1);
 
                 // Sort outputs in large partitions are queued for further merge.
@@ -785,6 +768,11 @@ protected:
                 auto& result = const_cast<TJobResult&>(jobSummary.Result);
                 auto* resultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
                 auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunk_specs());
+
+                for (const auto& dataSlice : stripe->DataSlices) {
+                    InferLimitsFromBoundaryKeys(dataSlice, Controller->RowBuffer);
+                    dataSlice->InputStreamIndex = inputStreamIndex;
+                }
 
                 RegisterIntermediate(
                     joblet,
@@ -855,6 +843,9 @@ protected:
                 Partition->SortedMergeTask->FinishInput();
             }
         }
+
+    private:
+        int CurrentInputStreamIndex_ = 0;
     };
 
     //! Implements partition sort for sort operations and
@@ -878,7 +869,7 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return Partition->AssignedNodeId != InvalidNodeId
+            return Partition->AssignedNodeId == InvalidNodeId
                 ? Controller->Spec->SortAssignmentTimeout
                 : Controller->Spec->SortLocalityTimeout;
         }
@@ -1013,7 +1004,7 @@ protected:
 
         TSortedMergeTask(TSortControllerBase* controller, TPartition* partition)
             : TMergeTask(controller, partition)
-            , ChunkPool(CreateAtomicChunkPool())
+            , ChunkPool(controller->CreateSortedMergeChunkPool())
         { }
 
         virtual Stroka GetId() const override
@@ -1027,6 +1018,11 @@ protected:
                 Controller->SimpleSort
                 ? Controller->Spec->SimpleMergeLocalityTimeout
                 : Controller->Spec->MergeLocalityTimeout;
+        }
+
+        virtual i64 GetLocality(TNodeId nodeId) const override
+        {
+            return Partition->AssignedNodeId == nodeId || Partition->AssignedNodeId == InvalidNodeId;
         }
 
         virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const override
@@ -1386,7 +1382,7 @@ protected:
     {
         ShufflePool = CreateShuffleChunkPool(
             static_cast<int>(Partitions.size()),
-            Spec->DataSizePerSortJob);
+            Spec->DataSizePerShuffleJob);
 
         for (auto partition : Partitions) {
             partition->ChunkPoolOutput = ShufflePool->GetOutput(partition->Index);
@@ -1461,7 +1457,6 @@ protected:
         }
 
         LOG_DEBUG("Partition needs sorted merge (Partition: %v)", partition->Index);
-        SortedMergeJobCounter.Increment(1);
         partition->CachedSortedMergeNeeded = true;
         return true;
     }
@@ -1601,6 +1596,23 @@ protected:
         return static_cast<double>(TotalEstimatedCompressedDataSize) / TotalEstimatedInputDataSize;
     }
 
+    void InitTemplatePartitionKeys(TPartitionJobSpecExt* partitionJobSpecExt)
+    {
+        auto keySetWriter = New<TKeySetWriter>();
+        for (const auto& partition : Partitions) {
+            auto key = partition->Key;
+            if (key && key != MinKey()) {
+                keySetWriter->WriteKey(key);
+            }
+        }
+        auto data = keySetWriter->Finish();
+        partitionJobSpecExt->set_wire_partition_keys(ToString(data));
+
+        // COMPAT(psushin).
+        // NB: This dummy key guards us from old nodes and silent sort corruptions.
+        partitionJobSpecExt->add_partition_keys("not_a_key");
+    }
+
     i64 GetMaxPartitionJobBufferSize() const
     {
         return Spec->PartitionJobIO->TableWriter->MaxBufferSize;
@@ -1731,6 +1743,28 @@ protected:
             .Item("partition_size_histogram").Value(*sizeHistogram);
     }
 
+    virtual void AnalyzePartitionHistogram() const override
+    {
+        TError error;
+
+        auto sizeHistogram = ComputePartitionSizeHistogram();
+        auto view = sizeHistogram->GetHistogramView();
+
+        i64 minIqr = Config->OperationAlertsConfig->IntermediateDataSkewAlertMinInterquartileRange;
+
+        if (view.Max > Config->OperationAlertsConfig->IntermediateDataSkewAlertMinPartitionSize) {
+            auto quartiles = ComputeHistogramQuartiles(view);
+            i64 iqr = quartiles.Q75 - quartiles.Q25;
+            if (iqr > minIqr && quartiles.Q50 + 2 * iqr < view.Max) {
+                error = TError(
+                    "Intermediate data skew is too high (see partitions histogram); "
+                    "operation is likely to have stragglers");
+            }
+        }
+
+        Host->SetOperationAlert(OperationId, EOperationAlertType::IntermediateDataSkew, error);
+    }
+
     virtual void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary) override
     {
         TotalOutputRowCount += GetTotalOutputDataStatistics(jobSummary.Statistics).row_count();
@@ -1741,11 +1775,6 @@ protected:
     {
         PartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
         InitIntermediateOutputConfig(PartitionJobIOConfig);
-
-        PartitionTableReaderOptions = CreateTableReaderOptions(Spec->PartitionJobIO);
-
-        // Partition bound tasks read only intermediate chunks,
-        PartitionBoundTableReaderOptions = CreateIntermediateTableReaderOptions();
     }
 
     virtual void CustomPrepare() override
@@ -1782,12 +1811,33 @@ protected:
         }
     }
 
+    std::unique_ptr<IChunkPool> CreateSortedMergeChunkPool()
+    {
+        if (Spec->UseLegacyController) {
+            return CreateAtomicChunkPool();
+        } else {
+            TSortedChunkPoolOptions options;
+            options.EnableKeyGuarantee = GetSortedMergeJobType() == EJobType::SortedReduce;
+            options.PrimaryPrefixLength = GetSortedMergeKeyColumnCount();
+            options.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+            options.JobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(Spec, Options);
+            options.OperationId = OperationId;
+            // NB: otherwise we could easily be persisted during preparing the jobs. Sorted chunk pool
+            // can't handle this.
+            options.EnablePeriodicYielder = false;
+            return CreateSortedChunkPool(options, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
+        }
+    }
+
+
     virtual EJobType GetPartitionJobType() const = 0;
     virtual EJobType GetIntermediateSortJobType() const = 0;
     virtual EJobType GetFinalSortJobType() const = 0;
     virtual EJobType GetSortedMergeJobType() const = 0;
 
     virtual TUserJobSpecPtr GetSortedMergeUserJobSpec() const = 0;
+
+    virtual int GetSortedMergeKeyColumnCount() const = 0;
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TPartitionTask);
@@ -1821,6 +1871,24 @@ public:
         RegisterJobProxyMemoryDigest(EJobType::FinalSort, spec->SortJobProxyMemoryDigest);
         RegisterJobProxyMemoryDigest(EJobType::SortedMerge, spec->MergeJobProxyMemoryDigest);
         RegisterJobProxyMemoryDigest(EJobType::UnorderedMerge, spec->MergeJobProxyMemoryDigest);
+    }
+
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        switch (jobType) {
+            case EJobType::Partition:
+                return STRINGBUF("data_size_per_partition_job");
+            case EJobType::FinalSort:
+                return STRINGBUF("partition_data_size");
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {EJobType::Partition, EJobType::FinalSort};
     }
 
 private:
@@ -1859,15 +1927,7 @@ private:
                     table.TableUploadOptions.TableSchema =
                         table.TableUploadOptions.TableSchema.ToSorted(Spec->SortBy);
 
-                    for (const auto& inputTable : InputTables) {
-                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
-                            ValidateTableSchemaCompatibility(
-                                inputTable.Schema,
-                                table.TableUploadOptions.TableSchema,
-                                /* ignoreSortOrder */ true)
-                            .ThrowOnError();
-                        }
-                    }
+                    ValidateOutputSchemaCompatibility(true);
                 }
                 break;
 
@@ -1913,6 +1973,10 @@ private:
                     Logger);
             }
 
+            auto samplesRowBuffer = New<TRowBuffer>(
+                TRowBufferTag(),
+                Config->ControllerRowBufferChunkSize);
+
             samplesFetcher = New<TSamplesFetcher>(
                 Config->Fetcher,
                 ESamplingPolicy::Sorting,
@@ -1921,7 +1985,7 @@ private:
                 Options->MaxSampleSize,
                 InputNodeDirectory,
                 GetCancelableInvoker(),
-                RowBuffer,
+                samplesRowBuffer,
                 scraperCallback,
                 Host->GetMasterClient(),
                 Logger);
@@ -2090,7 +2154,7 @@ private:
             auto* sample = selectedSamples[sampleIndex];
             // Check for same keys.
             if (CompareRows(sample->Key, Partitions.back()->Key) != 0) {
-                AddPartition(sample->Key);
+                AddPartition(RowBuffer->Capture(sample->Key));
                 ++sampleIndex;
             } else {
                 // Skip same keys.
@@ -2123,7 +2187,7 @@ private:
                     LOG_DEBUG("Partition %v is oversized, skipped %v samples",
                         lastPartition->Index,
                         skippedCount);
-                    AddPartition(selectedSamples[sampleIndex]->Key);
+                    AddPartition(RowBuffer->Capture(selectedSamples[sampleIndex]->Key));
                     ++sampleIndex;
                 }
             }
@@ -2203,6 +2267,8 @@ private:
         {
             PartitionJobSpecTemplate.set_type(static_cast<int>(EJobType::Partition));
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->PartitionJobIO)).GetData());
+            ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
@@ -2212,13 +2278,26 @@ private:
             partitionJobSpecExt->set_partition_count(Partitions.size());
             partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), Spec->SortBy);
+
+            InitTemplatePartitionKeys(partitionJobSpecExt);
         }
+
+        auto intermediateReaderOptions = New<TTableReaderOptions>();
+        intermediateReaderOptions->AllowFetchingSeedsFromMaster = false;
 
         TJobSpec sortJobSpecTemplate;
         {
             auto* schedulerJobSpecExt = sortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
+
+            if (SimpleSort) {
+                schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->PartitionJobIO)).GetData());
+                ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+            } else {
+                schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
+                ToProto(schedulerJobSpecExt->mutable_data_source_directory(), CreateIntermediateDataSource());
+            }
 
             auto* sortJobSpecExt = sortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
             ToProto(sortJobSpecExt->mutable_key_columns(), Spec->SortBy);
@@ -2243,6 +2322,9 @@ private:
             auto* schedulerJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             auto* mergeJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
+            ToProto(schedulerJobSpecExt->mutable_data_source_directory(), CreateIntermediateDataSource());
+
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).GetData());
@@ -2254,6 +2336,9 @@ private:
             UnorderedMergeJobSpecTemplate.set_type(static_cast<int>(EJobType::UnorderedMerge));
             auto* schedulerJobSpecExt = UnorderedMergeJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             auto* mergeJobSpecExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
+
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
+            ToProto(schedulerJobSpecExt->mutable_data_source_directory(), CreateIntermediateDataSource());
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
@@ -2423,6 +2508,11 @@ private:
     {
         return EJobType::Partition;
     }
+
+    virtual int GetSortedMergeKeyColumnCount() const override
+    {
+        return Spec->SortBy.size();
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortController);
@@ -2500,6 +2590,31 @@ public:
                         .Item("command").Value(TrimCommandForBriefSpec(Spec->ReduceCombiner->Command))
                     .EndMap();
             });
+    }
+
+protected:
+    virtual TStringBuf GetDataSizeParameterNameForJob(EJobType jobType) const override
+    {
+        switch (jobType) {
+            case EJobType::PartitionMap:
+            case EJobType::Partition:
+                return STRINGBUF("data_size_per_map_job");
+            case EJobType::PartitionReduce:
+            case EJobType::SortedReduce:
+                return STRINGBUF("partition_data_size");
+           default:
+                Y_UNREACHABLE();
+        }
+    }
+
+    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
+    {
+        return {
+            EJobType::PartitionMap,
+            EJobType::Partition,
+            EJobType::PartitionReduce,
+            EJobType::SortedReduce
+        };
     }
 
 private:
@@ -2718,6 +2833,13 @@ private:
         return Spec->Reducer;
     }
 
+    virtual void PrepareInputQuery() override
+    {
+        if (Spec->InputQuery) {
+            ParseInputQuery(*Spec->InputQuery, Spec->InputSchema);
+        }
+    }
+
     void InitJobSpecTemplates()
     {
         {
@@ -2725,8 +2847,11 @@ private:
 
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->PartitionJobIO)).GetData());
+            ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+
             if (Spec->InputQuery) {
-                InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, *Spec->InputSchema);
+                WriteInputQueryToJobSpec(schedulerJobSpecExt);
             }
 
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
@@ -2748,11 +2873,17 @@ private:
             }
         }
 
+        auto intermediateReaderOptions = New<TTableReaderOptions>();
+        intermediateReaderOptions->AllowFetchingSeedsFromMaster = false;
+
         {
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).GetData());
+
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
+            ToProto(schedulerJobSpecExt->mutable_data_source_directory(), CreateIntermediateDataSource());
 
             if (Spec->ReduceCombiner) {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
@@ -2779,6 +2910,9 @@ private:
             auto* schedulerJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
+            ToProto(schedulerJobSpecExt->mutable_data_source_directory(), CreateIntermediateDataSource());
+
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).GetData());
@@ -2798,6 +2932,9 @@ private:
 
             auto* schedulerJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             auto* reduceJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
+            ToProto(schedulerJobSpecExt->mutable_data_source_directory(), CreateIntermediateDataSource());
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
@@ -3037,6 +3174,11 @@ private:
     virtual TUserJobSpecPtr GetPartitionUserJobSpec() const override
     {
         return Spec->Mapper;
+    }
+
+    virtual int GetSortedMergeKeyColumnCount() const override
+    {
+        return Spec->ReduceBy.size();
     }
 };
 

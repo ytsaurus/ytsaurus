@@ -42,10 +42,7 @@ protected:
         event.Category = "category";
         event.Level = ELogLevel::Debug;
         event.Message = "message";
-        event.FileName = "test.cpp";
-        event.Line = 100;
         event.ThreadId = 0xba;
-        event.Function = "function";
 
         writer->Write(event);
         writer->Flush();

@@ -38,7 +38,7 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    const NChunkClient::TDataSliceDescriptor& dataSliceDescriptor,
+    const NChunkClient::NProto::TChunkSpec& chunkSpec,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
@@ -50,7 +50,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TNullable<int> partitionTag = Null);
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    const NChunkClient::TDataSliceDescriptor& dataSliceDescriptor,
+    const NChunkClient::NProto::TChunkSpec& chunkSpec,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
@@ -83,33 +83,35 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
+ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
     NApi::INativeClientPtr client,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    TColumnFilter columnFilter = TColumnFilter(),
-    const TKeyColumns& keyColumns = TKeyColumns(),
+    const TColumnFilter& columnFilter = TColumnFilter(),
+    const TKeyColumns &keyColumns = TKeyColumns(),
     TNullable<int> partitionTag = Null,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
+ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
     NApi::INativeClientPtr client,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    TColumnFilter columnFilter = TColumnFilter(),
-    const TKeyColumns& keyColumns = TKeyColumns(),
+    const TColumnFilter& columnFilter = TColumnFilter(),
+    const TKeyColumns &keyColumns = TKeyColumns(),
     TNullable<int> partitionTag = Null,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
@@ -122,9 +124,10 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const NChunkClient::TDataSliceDescriptor& dataSliceDescriptor,
     TNameTablePtr nameTable,
-    TColumnFilter columnFilter,
+    const TColumnFilter& columnFilter,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////

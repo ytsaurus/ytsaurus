@@ -208,7 +208,7 @@ public:
         return dataStatistics;
     }
 
-    virtual TNameTablePtr GetNameTable() const override
+    virtual const TNameTablePtr& GetNameTable() const override
     {
         return ChunkNameTable_;
     }
@@ -843,7 +843,7 @@ public:
         }
     }
 
-    virtual TNameTablePtr GetNameTable() const override
+    virtual const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
@@ -1477,7 +1477,7 @@ public:
             .Run();
     }
 
-    virtual TNameTablePtr GetNameTable() const override
+    virtual const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }

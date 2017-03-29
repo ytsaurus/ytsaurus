@@ -49,7 +49,7 @@ private:
     NRpc::IChannelPtr Channel_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TRpcProxyConnection);
+DEFINE_REFCOUNTED_TYPE(TRpcProxyConnection)
 
 NApi::IConnectionPtr CreateRpcProxyConnection(
     TRpcProxyConnectionConfigPtr config);

@@ -231,6 +231,20 @@ DEFINE_REFCOUNTED_TYPE(TOperationWithUserJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(max42): remove this when YT-6547 is closed and legacy controllers are finally deprecated.
+class TOperationWithLegacyControllerSpec
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    bool UseLegacyController;
+
+    TOperationWithLegacyControllerSpec();
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationWithLegacyControllerSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSimpleOperationSpecBase
     : public TOperationSpecBase
 {
@@ -345,6 +359,7 @@ DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationSpec)
 
 class TSortedMergeOperationSpec
     : public TMergeOperationSpec
+    , public TOperationWithLegacyControllerSpec
 { };
 
 DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationSpec)
@@ -371,6 +386,7 @@ DEFINE_REFCOUNTED_TYPE(TEraseOperationSpec)
 class TReduceOperationSpecBase
     : public TSimpleOperationSpecBase
     , public TOperationWithUserJobSpec
+    , public TOperationWithLegacyControllerSpec
 {
 public:
     TUserJobSpecPtr Reducer;
@@ -416,6 +432,7 @@ DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationSpec)
 
 class TSortOperationSpecBase
     : public TOperationSpecBase
+    , public TOperationWithLegacyControllerSpec
 {
 public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
@@ -430,8 +447,8 @@ public:
     TNullable<i64> DataSizePerPartitionJob;
     TNullable<int> PartitionJobCount;
 
-    //! Data size per sort job.
-    i64 DataSizePerSortJob;
+    //! Data size per shuffle job.
+    i64 DataSizePerShuffleJob;
 
     //! The expected ratio of data size after partitioning to data size before partitioning.
     //! For sort operations, this is always 1.0.
@@ -471,6 +488,8 @@ public:
     TLogDigestConfigPtr SortJobProxyMemoryDigest;
     // For partition and partition_map jobs.
     TLogDigestConfigPtr PartitionJobProxyMemoryDigest;
+
+    TNullable<i64> DataSizePerSortedJob;
 
     TSortOperationSpecBase();
 

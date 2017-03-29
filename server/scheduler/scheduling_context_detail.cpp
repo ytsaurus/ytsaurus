@@ -72,7 +72,7 @@ bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) con
 
 TJobPtr TSchedulingContextBase::StartJob(const TOperationId& operationId, const TJobStartRequest& jobStartRequest)
 {
-    auto startTime = GetNow();
+    auto startTime = NProfiling::CpuInstantToInstant(GetNow());
     auto job = New<TJob>(
         jobStartRequest.Id,
         jobStartRequest.Type,

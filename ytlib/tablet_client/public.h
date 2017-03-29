@@ -95,6 +95,8 @@ extern const TTabletCellBundleId NullTabletCellBundleId;
 
 using TTableReplicaId = NObjectClient::TObjectId;
 
+using TTabletActionId = NObjectClient::TObjectId;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TTableMountInfo)
@@ -107,6 +109,8 @@ DECLARE_REFCOUNTED_CLASS(TTableMountCacheConfig)
 
 class TWireProtocolReader;
 class TWireProtocolWriter;
+
+using TSchemaData = std::vector<ui32>;
 
 DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetReader)
 DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetWriter)

@@ -2,19 +2,6 @@ package NYT.NChunkClient.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TRange
-{
-    required bytes begin = 1;
-    required bytes end = 2;
-    required bool infinite = 3;
-}
-
-message TChannel
-{
-    repeated bytes columns = 1;
-    repeated TRange ranges = 2;
-}
-
 // A boundary can be given by:
 // * row index (for tables and journals only)
 // * chunk index
@@ -27,6 +14,10 @@ message TReadLimit
     optional int32 chunk_index = 2;
     optional int64 offset = 3;
     optional bytes key = 4;
+
+    // Sometimes keys in read limis are transported in wire format via attachments.
+    // This index indicates the proper key inside attachments' rowset.
+    optional int32 key_index = 5;
 }
 
 message TReadRange

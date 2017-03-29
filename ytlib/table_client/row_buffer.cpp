@@ -22,9 +22,23 @@ TChunkedMemoryPool* TRowBuffer::GetPool()
     return &Pool_;
 }
 
-TMutableUnversionedRow TRowBuffer::Allocate(int count)
+TMutableUnversionedRow TRowBuffer::AllocateUnversioned(int valueCount)
 {
-    return TMutableUnversionedRow::Allocate(&Pool_, count);
+    return TMutableUnversionedRow::Allocate(&Pool_, valueCount);
+}
+
+TMutableVersionedRow TRowBuffer::AllocateVersioned(
+    int keyCount,
+    int valueCount,
+    int writeTimestampCount,
+    int deleteTimestampCount)
+{
+    return TMutableVersionedRow::Allocate(
+        &Pool_,
+        keyCount,
+        valueCount,
+        writeTimestampCount,
+        deleteTimestampCount);
 }
 
 void TRowBuffer::Capture(TUnversionedValue* value)
@@ -123,6 +137,69 @@ TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(
     return capturedRow;
 }
 
+TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
+    TVersionedRow row,
+    const TTableSchema& tableSchema,
+    const TNameTableToSchemaIdMapping& idMapping)
+{
+    int keyColumnCount = tableSchema.GetKeyColumnCount();
+    YCHECK(keyColumnCount == row.GetKeyCount());
+    YCHECK(keyColumnCount <= idMapping.size());
+
+    int valueCount = 0;
+    int deleteTimestampCount = row.GetDeleteTimestampCount();
+
+    SmallVector<TTimestamp, 64> writeTimestamps;
+    for (const auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
+        ui16 originalId = value->Id;
+        YCHECK(originalId < idMapping.size());
+        int mappedId = idMapping[originalId];
+        if (mappedId < 0) {
+            continue;
+        }
+        YCHECK(mappedId < tableSchema.Columns().size());
+        ++valueCount;
+        writeTimestamps.push_back(value->Timestamp);
+    }
+
+    std::sort(writeTimestamps.begin(), writeTimestamps.end(), std::greater<TTimestamp>());
+    writeTimestamps.erase(std::unique(writeTimestamps.begin(), writeTimestamps.end()), writeTimestamps.end());
+    int writeTimestampCount = static_cast<int>(writeTimestamps.size());
+
+    auto capturedRow = TMutableVersionedRow::Allocate(
+        &Pool_,
+        keyColumnCount,
+        valueCount,
+        writeTimestampCount,
+        deleteTimestampCount);
+
+    ::memcpy(capturedRow.BeginWriteTimestamps(), writeTimestamps.data(), sizeof (TTimestamp) * writeTimestampCount);
+    ::memcpy(capturedRow.BeginDeleteTimestamps(), row.BeginDeleteTimestamps(), sizeof (TTimestamp) * deleteTimestampCount);
+
+    {
+        int index = 0;
+        auto* dstValue = capturedRow.BeginKeys();
+        for (const auto* srcValue = row.BeginKeys(); srcValue != row.EndKeys(); ++srcValue, ++index) {
+            YCHECK(idMapping[index] == index);
+            *dstValue++ = Capture(*srcValue);
+        }
+    }
+
+    {
+        auto* dstValue = capturedRow.BeginValues();
+        for (const auto* srcValue = row.BeginValues(); srcValue != row.EndValues(); ++srcValue) {
+            ui16 originalId = srcValue->Id;
+            int mappedId = idMapping[originalId];
+            if (mappedId < 0) {
+                continue;
+            }
+            *dstValue++ = Capture(*srcValue);
+        }
+    }
+
+    return capturedRow;
+}
+
 i64 TRowBuffer::GetSize() const
 {
     return Pool_.GetSize();
@@ -136,6 +213,11 @@ i64 TRowBuffer::GetCapacity() const
 void TRowBuffer::Clear()
 {
     Pool_.Clear();
+}
+
+void TRowBuffer::Purge()
+{
+    Pool_.Purge();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

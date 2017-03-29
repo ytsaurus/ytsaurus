@@ -200,7 +200,7 @@ TJobSummary::TJobSummary(const TJobPtr& job)
     : Result(job->Status().result())
     , Id(job->GetId())
     , StatisticsSuffix(job->GetStatisticsSuffix())
-    , FinishTime(*job->GetFinishTime())
+    , FinishTime(job->GetFinishTime())
     , ShouldLog(true)
 {
     const auto& status = job->Status();

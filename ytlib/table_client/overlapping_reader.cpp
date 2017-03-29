@@ -328,12 +328,16 @@ TSchemafulOverlappingRangeReaderBase<TRowMerger>::TSchemafulOverlappingRangeRead
 template <class TRowMerger>
 TDataStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDataStatistics() const
 {
-    TReaderGuard guard(SpinLock_);
     auto dataStatistics = DataStatistics_;
 
     for (const auto& session : Sessions_) {
-        if (session.Reader) {
-            dataStatistics += session.Reader->GetDataStatistics();
+        IVersionedReaderPtr reader;
+        {
+            TReaderGuard guard(SpinLock_);
+            reader = session.Reader;
+        }
+        if (reader) {
+            dataStatistics += reader->GetDataStatistics();
         }
     }
 
@@ -399,6 +403,7 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoRead(
         while (ActiveSessions_.begin() != ActiveSessions_.end()) {
             auto* session = *ActiveSessions_.begin();
             auto partialRow = *session->CurrentRow;
+
             Y_ASSERT(session->CurrentRow >= session->Rows.begin() && session->CurrentRow < session->Rows.end());
 
             if (!CurrentKey_.empty()) {
@@ -484,8 +489,11 @@ TFuture<void> TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetReadyEvent(
 template <class TRowMerger>
 void TSchemafulOverlappingRangeReaderBase<TRowMerger>::OpenSession(int index)
 {
-    TWriterGuard guard(SpinLock_);
-    Sessions_[index].Reader = ReaderFactory_(Sessions_[index].Index);
+    auto reader = ReaderFactory_(Sessions_[index].Index);
+    {
+        TWriterGuard guard(SpinLock_);
+        Sessions_[index].Reader = std::move(reader);
+    }
     Sessions_[index].ReadyEvent = Sessions_[index].Reader->Open();
     AwaitingSessions_.push_back(&Sessions_[index]);
 }

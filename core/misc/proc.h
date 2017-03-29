@@ -73,11 +73,6 @@ void SetPermissions(int fd, int permissions);
 
 void CloseAllDescriptors(const std::vector<int>& exceptFor = std::vector<int>());
 
-DEFINE_ENUM(EProcessErrorCode,
-    ((NonZeroExitCode)      (10000))
-    ((Signal)               (10001))
-);
-
 //! Return true iff ytserver was started with root permissions (e.g. via sudo or with suid bit).
 bool HasRootPermissions();
 
@@ -122,7 +117,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TMountTmpfsConfig);
+DEFINE_REFCOUNTED_TYPE(TMountTmpfsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,7 +142,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TUmountConfig);
+DEFINE_REFCOUNTED_TYPE(TUmountConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

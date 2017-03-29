@@ -18,6 +18,7 @@
 #include <yt/server/scheduler/config.h>
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/ytlib/job_prober_client/job_probe.h>
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
@@ -914,10 +915,10 @@ private:
             const auto& querySpec = schedulerJobSpecExt.input_query_spec();
             for (const auto& function : querySpec.external_functions()) {
                 TArtifactKey key;
-                key.set_type(static_cast<int>(NObjectClient::EObjectType::File));
+                key.set_data_source_type(static_cast<int>(EDataSourceType::File));
 
                 for (const auto& chunkSpec : function.chunk_specs()) {
-                    ToProto(key.add_data_slice_descriptors(), MakeFileDataSliceDescriptor(chunkSpec));
+                    ToProto(key.add_data_slice_descriptors(), TDataSliceDescriptor(chunkSpec));
                 }
 
                 Artifacts_.push_back(TArtifact{
@@ -1000,26 +1001,6 @@ private:
 
     // Analyse results.
 
-    static TError BuildJobProxyError(const TError& spawnError)
-    {
-        if (spawnError.IsOK()) {
-            return TError();
-        }
-
-        auto jobProxyError = TError("Job proxy failed") << spawnError;
-
-        if (spawnError.GetCode() == EProcessErrorCode::NonZeroExitCode) {
-            // Try to translate the numeric exit code into some human readable reason.
-            auto reason = EJobProxyExitCode(spawnError.Attributes().Get<int>("exit_code"));
-            const auto& validReasons = TEnumTraits<EJobProxyExitCode>::GetDomainValues();
-            if (std::find(validReasons.begin(), validReasons.end(), reason) != validReasons.end()) {
-                jobProxyError.Attributes().Set("reason", reason);
-            }
-        }
-
-        return jobProxyError;
-    }
-
     TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult)
     {
         if (jobResult.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
@@ -1051,7 +1032,8 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::ArtifactCopyingFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::NodeDirectoryPreparationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::SlotLocationDisabled) ||
-            resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed))
+            resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
+            resultError.FindMatching(EProcessErrorCode::CannotResolveBinary))
         {
             return EAbortReason::Other;
         }
