@@ -34,7 +34,7 @@ private:
         virtual bool Reply(void* param)
         {
             auto impl = (TImpl*) param;
-            TParsedHttpRequest request(Headers[0]);
+            TParsedHttpRequest request(RequestString);
 
             LOG_DEBUG("Started serving HTTP request (Method: %v, Path: %v)",
                 request.Method.ToString(),
@@ -55,7 +55,7 @@ private:
 
                 auto prefix = request.Request.substr(0, slashPosition).ToString();
                 auto suffix = request.Request.substr(slashPosition).ToString();
-                
+
                 {
                     auto it = impl->SyncHandlers.find(prefix);
                     if (it != impl->SyncHandlers.end()) {
@@ -102,7 +102,7 @@ private:
         {
             return (void*) &Impl;
         }
-        
+
     private:
         const TImpl& Impl;
     };
@@ -114,7 +114,7 @@ private:
 private:
     std::unique_ptr<TCallback> Callback;
     std::unique_ptr<THttpServer> Server;
-    
+
     TSyncHandlerMap SyncHandlers;
     TAsyncHandlerMap AsyncHandlers;
 
