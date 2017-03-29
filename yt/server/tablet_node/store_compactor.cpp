@@ -267,25 +267,25 @@ private:
             return;
         }
 
-        ScanPartitionForCompaction(slot, tablet->GetEden());
         ScanEdenForPartitioning(slot, tablet->GetEden());
+        ScanPartitionForCompaction(slot, tablet->GetEden());
 
         for (auto& partition : tablet->PartitionList()) {
             ScanPartitionForCompaction(slot, partition.get());
         }
     }
 
-    void ScanEdenForPartitioning(TTabletSlot* slot, TPartition* eden)
+    bool ScanEdenForPartitioning(TTabletSlot* slot, TPartition* eden)
     {
         if (!ScanForPartitioning_ || eden->GetState() != EPartitionState::Normal) {
-            return;
+            return false;
         }
 
         const auto* tablet = eden->GetTablet();
 
         auto stores = PickStoresForPartitioning(eden);
         if (stores.empty()) {
-            return;
+            return false;
         }
 
         TTask candidate;
@@ -306,19 +306,21 @@ private:
             auto guard = Guard(SpinLock_);
             PartitioningCandidates_.push_back(std::move(candidate));
         }
+
+        return true;
     }
 
-    void ScanPartitionForCompaction(TTabletSlot* slot, TPartition* partition)
+    bool ScanPartitionForCompaction(TTabletSlot* slot, TPartition* partition)
     {
         if (!ScanForCompactions_ || partition->GetState() != EPartitionState::Normal) {
-            return;
+            return false;
         }
 
         const auto* tablet = partition->GetTablet();
 
         auto stores = PickStoresForCompaction(partition);
         if (stores.empty()) {
-            return;
+            return false;
         }
 
         TTask candidate;
@@ -330,10 +332,13 @@ private:
         // We aim to improve OSC; compaction improves OSC _only_ if the partition contributes towards OSC.
         // So we consider how constrained is the partition, and how many stores we consider for compaction.
         const int mosc = tablet->GetConfig()->MaxOverlappingStoreCount;
+        const int osc = tablet->GetOverlappingStoreCount();
         const int edenStoreCount = static_cast<int>(tablet->GetEden()->Stores().size());
         const int partitionStoreCount = static_cast<int>(partition->Stores().size());
         // For constrained partitions, this is equivalent to MOSC-OSC; for unconstrained -- includes extra slack.
-        const size_t score = static_cast<size_t>(std::max(0, mosc - edenStoreCount - partitionStoreCount));
+        const size_t score = partition->IsEden()
+            ? static_cast<size_t>(std::max(0, mosc - osc))
+            : static_cast<size_t>(std::max(0, mosc - edenStoreCount - partitionStoreCount));
         // Pack score into a single 64-bit integer.
         candidate.Score = PackTaskScore(score, candidate.Stores.size(), RandomNumber<size_t>());
 
@@ -341,6 +346,8 @@ private:
             auto guard = Guard(SpinLock_);
             CompactionCandidates_.push_back(std::move(candidate));
         }
+
+        return true;
     }
 
 
@@ -535,22 +542,32 @@ private:
 
     void PartitionEden(TAsyncSemaphoreGuard /*guard*/, const TTask& task)
     {
-        const auto& slot = task.Slot;
+        NLogging::TLogger Logger(TabletNodeLogger);
+        Logger.AddTag("TabletId: %v", task.Tablet);
 
+        const auto& slot = task.Slot;
         const auto& tabletManager = slot->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(task.Tablet);
         if (!tablet) {
+            LOG_DEBUG("Tablet is missing, aborting partitioning");
             return;
         }
 
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->FindTabletSnapshot(task.Tablet);
         if (!tabletSnapshot) {
+            LOG_DEBUG("Tablet snapshot is missing, aborting partitioning");
             return;
         }
 
         auto* eden = tablet->GetEden();
-        if (eden->GetId() != task.Partition || eden->GetState() != EPartitionState::Normal) {
+        if (eden->GetId() != task.Partition) {
+            LOG_DEBUG("Eden is missing, aborting partitioning");
+            return;
+        }
+
+        if (eden->GetState() != EPartitionState::Normal) {
+            LOG_DEBUG("Eden is in improper state, aborting partitioning (EdenState: %v)", eden->GetState());
             return;
         }
 
@@ -561,6 +578,7 @@ private:
         for (const auto& storeId : task.Stores) {
             auto store = tablet->FindStore(storeId)->AsSorted();
             if (!store || !eden->Stores().has(store)) {
+                LOG_DEBUG("Eden store is missing, aborting partitioning (StoreId: %v)", storeId);
                 return;
             }
             auto typedStore = store->AsSortedChunk();
@@ -574,9 +592,6 @@ private:
         }
 
         YCHECK(tablet->GetPivotKey() == pivotKeys[0]);
-
-        NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v", tablet->GetId());
 
         eden->CheckedSetState(EPartitionState::Normal, EPartitionState::Partitioning);
 
@@ -846,22 +861,32 @@ private:
 
     void CompactPartition(TAsyncSemaphoreGuard /*guard*/, const TTask& task)
     {
-        const auto& slot = task.Slot;
+        NLogging::TLogger Logger(TabletNodeLogger);
+        Logger.AddTag("TabletId: %v", task.Tablet);
 
+        const auto& slot = task.Slot;
         const auto& tabletManager = slot->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(task.Tablet);
         if (!tablet) {
+            LOG_DEBUG("Tablet is missing, aborting compaction");
             return;
         }
 
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->FindTabletSnapshot(task.Tablet);
         if (!tabletSnapshot) {
+            LOG_DEBUG("Tablet snapshot is missing, aborting compaction");
             return;
         }
 
         auto* partition = tablet->FindPartition(task.Partition);
-        if (!partition || partition->GetState() != EPartitionState::Normal) {
+        if (!partition) {
+            LOG_DEBUG("Partition is missing, aborting compaction");
+            return;
+        }
+
+        if (partition->GetState() != EPartitionState::Normal) {
+            LOG_DEBUG("Partition is in improper state, aborting compaction (PartitionState: %v)", partition->GetState());
             return;
         }
 
@@ -872,6 +897,7 @@ private:
         for (const auto& storeId : task.Stores) {
             auto store = tablet->FindStore(storeId)->AsSorted();
             if (!store || !partition->Stores().has(store)) {
+                LOG_DEBUG("Partition store is missing, aborting compaction (StoreId: %v)", storeId);
                 return;
             }
             auto typedStore = store->AsSortedChunk();
@@ -879,9 +905,7 @@ private:
             stores.push_back(std::move(typedStore));
         }
 
-        NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v, Eden: %v, PartitionRange: %v .. %v",
-            tablet->GetId(),
+        Logger.AddTag("Eden: %v, PartitionRange: %v .. %v",
             partition->IsEden(),
             partition->GetPivotKey(),
             partition->GetNextPivotKey());
