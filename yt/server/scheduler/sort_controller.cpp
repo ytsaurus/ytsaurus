@@ -1441,7 +1441,7 @@ protected:
         LOG_DEBUG("Partition completed (Partition: %v)", partition->Index);
     }
 
-    bool IsSortedMergeNeeded(TPartitionPtr partition) const
+    virtual bool IsSortedMergeNeeded(TPartitionPtr partition) const
     {
         if (partition->CachedSortedMergeNeeded) {
             return true;
@@ -3019,6 +3019,11 @@ private:
         i64 valueCount) const override
     {
         Y_UNREACHABLE();
+    }
+
+    virtual bool IsSortedMergeNeeded(TPartitionPtr partition) const override
+    {
+        return Spec->ForceReduceCombiners || TSortControllerBase::IsSortedMergeNeeded(partition);
     }
 
     virtual TUserJobSpecPtr GetPartitionSortUserJobSpec(

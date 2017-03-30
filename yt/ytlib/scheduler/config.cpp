@@ -631,6 +631,9 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     RegisterParameter("data_size_per_reduce_job", DataSizePerSortedJob)
         .Default(Null);
 
+    RegisterParameter("force_reduce_combiners", ForceReduceCombiners)
+        .Default(false);
+
     // The following settings are inherited from base but make no sense for map-reduce:
     //   SimpleSortLocalityTimeout
     //   SimpleMergeLocalityTimeout
@@ -664,6 +667,9 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
                 throwError(NTableClient::EControlAttribute::RangeIndex, jobType);
             }
         };
+        if (ForceReduceCombiners && !ReduceCombiner) {
+            THROW_ERROR_EXCEPTION("Found \"force_reduce_combiners\" without \"reduce_combiner\" in operation spec");
+        }
         validateControlAttributes(MergeJobIO->ControlAttributes, "reduce");
         validateControlAttributes(SortJobIO->ControlAttributes, "reduce_combiner");
 

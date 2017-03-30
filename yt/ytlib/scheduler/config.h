@@ -547,6 +547,8 @@ public:
     // For reduce_combiner jobs.
     TLogDigestConfigPtr ReduceCombinerJobProxyMemoryDigest;
 
+    bool ForceReduceCombiners;
+
     TMapReduceOperationSpec();
 
     virtual void OnLoaded() override;
