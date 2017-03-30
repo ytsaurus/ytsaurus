@@ -494,6 +494,17 @@ void TTableNodeProxy::ValidateBeginUpload()
     }
 }
 
+void TTableNodeProxy::ValidateStorageParametersUpdate()
+{
+    TChunkOwnerNodeProxy::ValidateStorageParametersUpdate();
+
+    const auto* node = GetThisImpl();
+    auto state = node->GetTabletState();
+    if (state != ETabletState::None && state != ETabletState::Unmounted) {
+        THROW_ERROR_EXCEPTION("Cannot change storage parameters since not all tables are unmounted");
+    }
+}
+
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Mount)
 {
     DeclareMutating();
