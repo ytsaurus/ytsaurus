@@ -34,6 +34,25 @@ int TDataSliceDescriptor::GetDataSourceIndex() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDataSliceDescriptor CreateIncompatibleDataSliceDescriptor()
+{
+    // This chunk spec is incompatible with old nodes since it doesn't contain required
+    // chunk_meta() field and properly set version().
+    // Newer nodes do well without it.
+    NProto::TChunkSpec chunkSpec;
+    ToProto(chunkSpec.mutable_chunk_id(), TGuid());
+
+    return TDataSliceDescriptor(chunkSpec);
+}
+
+const TDataSliceDescriptor& GetIncompatibleDataSliceDescriptor()
+{
+    static auto incompatibleDataSliceDescriptor = CreateIncompatibleDataSliceDescriptor();
+    return incompatibleDataSliceDescriptor;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TDataSliceDescriptor* protoDataSliceDescriptor, const TDataSliceDescriptor& dataSliceDescriptor)
 {
     for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
