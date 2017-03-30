@@ -454,6 +454,7 @@ PEERDIR(
   contrib/libs/sparsehash
   library/streams/lz
   library/http/server
+  library/http/simple
   yt/${YT_ABI}/yt/ytlib
 )
 
