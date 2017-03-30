@@ -701,7 +701,8 @@ private:
         LOG_INFO("Job proxy finished");
 
         if (!error.IsOK()) {
-            DoSetResult(TError("Job proxy failed") << error);
+            DoSetResult(TError("Job proxy failed")
+                << BuildJobProxyError(error));
         }
 
         Cleanup();
@@ -1017,6 +1018,26 @@ private:
     }
 
     // Analyse results.
+
+    static TError BuildJobProxyError(const TError& spawnError)
+    {
+        if (spawnError.IsOK()) {
+            return TError();
+        }
+
+        auto jobProxyError = TError("Job proxy failed") << spawnError;
+
+        if (spawnError.GetCode() == EProcessErrorCode::NonZeroExitCode) {
+            // Try to translate the numeric exit code into some human readable reason.
+            auto reason = EJobProxyExitCode(spawnError.Attributes().Get<int>("exit_code"));
+            const auto& validReasons = TEnumTraits<EJobProxyExitCode>::GetDomainValues();
+            if (std::find(validReasons.begin(), validReasons.end(), reason) != validReasons.end()) {
+                jobProxyError.Attributes().Set("reason", reason);
+            }
+        }
+
+        return jobProxyError;
+    }
 
     TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult)
     {
