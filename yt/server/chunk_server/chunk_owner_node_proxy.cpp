@@ -654,6 +654,7 @@ void TChunkOwnerNodeProxy::SetReplicationFactor(int replicationFactor)
 
     ValidateReplicationFactor(replicationFactor);
     ValidatePermission(medium, EPermission::Use);
+    ValidateStorageParametersUpdate();
 
     properties[mediumIndex].SetReplicationFactor(replicationFactor);
     ValidateChunkProperties(chunkManager, properties, node->GetPrimaryMediumIndex());
@@ -677,6 +678,8 @@ void TChunkOwnerNodeProxy::SetVital(bool vital)
     if (properties.GetVital() == vital) {
         return;
     }
+
+    ValidateStorageParametersUpdate();
 
     properties.SetVital(vital);
 
@@ -713,6 +716,7 @@ void TChunkOwnerNodeProxy::SetMediaProperties(const TChunkProperties& properties
             primaryMedium->GetName());
     }
 
+    ValidateStorageParametersUpdate();
     ValidateChunkProperties(chunkManager, properties, primaryMediumIndex);
 
     node->Properties() = properties;
@@ -754,6 +758,8 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
         properties[oldMediumIndex].Clear();
     }
 
+    ValidateStorageParametersUpdate();
+    
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     ValidateChunkProperties(chunkManager, properties, mediumIndex);
 
@@ -788,6 +794,9 @@ void TChunkOwnerNodeProxy::ValidateBeginUpload()
 { }
 
 void TChunkOwnerNodeProxy::ValidateFetch()
+{ }
+
+void TChunkOwnerNodeProxy::ValidateStorageParametersUpdate()
 { }
 
 DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
