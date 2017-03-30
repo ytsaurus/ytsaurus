@@ -59,6 +59,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TKeyExtractor>
+TFuture<NYson::TYsonString> ComputeChunkStatistics(
+    NCellMaster::TBootstrap* bootstrap,
+    TChunkList* chunkList,
+    TKeyExtractor keyExtractor);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkServer
 } // namespace NYT
 
