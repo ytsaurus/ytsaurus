@@ -900,21 +900,21 @@ protected:
     //! chunk scraper has encountered unavailable chunk.
     void OnInputChunkUnavailable(
         const NChunkClient::TChunkId& chunkId,
-        TInputChunkDescriptor& descriptor);
+        TInputChunkDescriptor* descriptor);
 
     void OnInputChunkAvailable(
         const NChunkClient::TChunkId& chunkId,
-        TInputChunkDescriptor& descriptor,
-        const NChunkClient::TChunkReplicaList& replicas);
+        const NChunkClient::TChunkReplicaList& replicas,
+        TInputChunkDescriptor* descriptor);
 
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
     virtual bool IsInputDataSizeHistogramSupported() const;
     virtual bool AreForeignTablesSupported() const;
 
-    //! Successfully terminate and finalize operation.
+    //! Successfully terminates and finalizes the operation.
     /*!
-     *  #interrupted flag indicates premature completion and disables standard validation
+     *  #interrupted flag indicates premature completion and disables standard validations.
      */
     virtual void OnOperationCompleted(bool interrupted);
 
