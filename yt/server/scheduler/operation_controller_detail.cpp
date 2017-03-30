@@ -850,16 +850,19 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     TChunkStripePtr stripe)
 {
     for (const auto& dataSlice : stripe->DataSlices) {
-            inputSpec->add_chunk_spec_count_per_data_slice(dataSlice->ChunkSlices.size());
-            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                ToProto(inputSpec->add_chunk_specs(), chunkSlice);
+        inputSpec->add_chunk_spec_count_per_data_slice(dataSlice->ChunkSlices.size());
+        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+            ToProto(inputSpec->add_chunk_specs(), chunkSlice);
 
-                if (directoryBuilder) {
-                    auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
-                    directoryBuilder->Add(replicas);
-                }
+            if (directoryBuilder) {
+                auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
+                directoryBuilder->Add(replicas);
             }
+        }
     }
+
+    // Make spec incompatible with older nodes.
+    ToProto(inputSpec->add_data_slice_descriptors(), GetIncompatibleDataSliceDescriptor());
 }
 
 void TOperationControllerBase::TTask::UpdateInputSpecTotals(
@@ -2972,7 +2975,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                 }
 
                 if (!task->GetDelayedTime()) {
-                    task->SetDelayedTime(now);        
+                    task->SetDelayedTime(now);
                 }
 
                 auto deadline = *task->GetDelayedTime() + task->GetLocalityTimeout();
@@ -4581,15 +4584,15 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
     std::vector<TDataSliceDescriptor> dataSliceDescriptors;
-    if (schedulerResultExt.unread_input_data_slice_descriptors_size() > 0) {
-        // COMPAT(psushin).
-        dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(
-            schedulerResultExt.unread_input_data_slice_descriptors());
-    } else if (schedulerResultExt.unread_chunk_specs_size()) {
+    if (schedulerResultExt.unread_chunk_specs_size() > 0) {
         FromProto(
             &dataSliceDescriptors,
             schedulerResultExt.unread_chunk_specs(),
             schedulerResultExt.chunk_spec_count_per_data_slice());
+    } else if (schedulerResultExt.unread_input_data_slice_descriptors_size() > 0) {
+        // COMPAT(psushin).
+        dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(
+            schedulerResultExt.unread_input_data_slice_descriptors());
     }
 
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
