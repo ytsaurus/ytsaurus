@@ -411,6 +411,86 @@ PEERDIR(
   yt/${YT_ABI}/yt/core
 )
 
+LLVM_BC(
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/udf/hyperloglog.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/unversioned_value.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/../contrib/farmhash/farmhash.cc
+  NAME hyperloglog
+  SYMBOLS
+    cardinality_init
+    cardinality_update
+    cardinality_merge
+    cardinality_finalize
+)
+
+LLVM_BC(
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/udf/farm_hash.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/unversioned_value.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/../contrib/farmhash/farmhash.cc
+  NAME farm_hash
+  SYMBOLS
+    farm_hash
+)
+
+LLVM_BC(
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/udf/regex.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/function_context.cpp
+  NAME regex
+  SYMBOLS
+    regex_full_match
+    regex_partial_match
+    regex_replace_first
+    regex_replace_all
+    regex_extract
+    regex_escape
+)
+
+LLVM_BC(${CMAKE_CURRENT_LIST_DIR}/query_client/udf/avg.c NAME avg SYMBOLS avg)
+LLVM_BC(${CMAKE_CURRENT_LIST_DIR}/query_client/udf/concat.c NAME concat SYMBOLS concat)
+LLVM_BC(${CMAKE_CURRENT_LIST_DIR}/query_client/udf/first.c NAME first SYMBOLS first)
+LLVM_BC(${CMAKE_CURRENT_LIST_DIR}/query_client/udf/is_prefix.c NAME is_prefix SYMBOLS is_prefix)
+LLVM_BC(${CMAKE_CURRENT_LIST_DIR}/query_client/udf/is_substr.c NAME is_substr SYMBOLS is_substr)
+LLVM_BC(${CMAKE_CURRENT_LIST_DIR}/query_client/udf/max.c NAME max SYMBOLS max)
+LLVM_BC(${CMAKE_CURRENT_LIST_DIR}/query_client/udf/min.c NAME min SYMBOLS min)
+LLVM_BC(${CMAKE_CURRENT_LIST_DIR}/query_client/udf/sleep.c NAME sleep SYMBOLS sleep)
+LLVM_BC(${CMAKE_CURRENT_LIST_DIR}/query_client/udf/sum.c NAME sum SYMBOLS sum)
+
+LLVM_BC(
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/udf/ypath_get.c
+  NAME ypath_get
+  SYMBOLS
+    try_get_int64
+    get_int64
+    try_get_uint64
+    get_uint64
+    try_get_double
+    get_double
+    try_get_boolean
+    get_boolean
+    try_get_string
+    get_string
+)
+
+LLVM_BC(
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/udf/lower.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/../../../../util/charset/utf8.cpp
+  NAME lower
+  SYMBOLS
+    lower
+)
+
+LLVM_BC(
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/udf/dates.c
+  NAME dates
+  SYMBOLS
+    format_timestamp
+    timestamp_floor_hour
+    timestamp_floor_day
+    timestamp_floor_week
+    timestamp_floor_month
+    timestamp_floor_year
+)
+
 END()
 
 ################################################################################
