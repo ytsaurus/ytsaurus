@@ -245,9 +245,7 @@ bool TGuid::FromString(const TStringBuf &str, TGuid* guid)
 
 Stroka ToString(const TGuid& guid)
 {
-    TStringBuilder builder;
-    FormatValue(&builder, guid, STRINGBUF("v"));
-    return builder.Flush();
+    return ToStringViaBuilder(guid);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

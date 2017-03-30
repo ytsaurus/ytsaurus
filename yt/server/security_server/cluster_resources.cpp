@@ -261,9 +261,7 @@ void FormatValue(TStringBuilder* builder, const TClusterResources& resources, co
 
 Stroka ToString(const TClusterResources& resources)
 {
-    TStringBuilder builder;
-    FormatValue(&builder, resources, TStringBuf());
-    return builder.Flush();
+    return ToStringViaBuilder(resources);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
