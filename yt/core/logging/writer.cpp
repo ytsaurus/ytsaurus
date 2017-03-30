@@ -14,6 +14,8 @@
 namespace NYT {
 namespace NLogging {
 
+using namespace NProfiling;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TLogger Logger(SystemLoggingCategory);
@@ -26,7 +28,7 @@ namespace {
 TLogEvent GetBannerEvent()
 {
     TLogEvent event;
-    event.Instant = NProfiling::GetCpuInstant();
+    event.Instant = GetCpuInstant();
     event.Category = SystemLoggingCategory;
     event.Level = ELogLevel::Info;
     event.Message = Format("Logging started (Version: %v, BuildHost: %v, BuildTime: %v)",
@@ -43,28 +45,31 @@ class TStreamLogWriterBase::TCachingDateFormatter
 public:
     TCachingDateFormatter()
     {
-        Update(NProfiling::GetCpuInstant());
+        Update(GetCpuInstant());
     }
 
-    void Format(TMessageBuffer* out, NProfiling::TCpuInstant instant)
+    void Format(TMessageBuffer* out, TCpuInstant instant)
     {
-        if (instant >= Deadline_) {
+        if (instant <= Liveline_ || instant >= Deadline_) {
             Update(instant);
         }
         out->AppendString(Cached_.GetData());
     }
 
 private:
-    void Update(NProfiling::TCpuInstant instant)
+    void Update(TCpuInstant instant)
     {
         Cached_.Reset();
-        FormatDateTime(&Cached_,  NProfiling::CpuInstantToInstant(instant));
+        FormatDateTime(&Cached_,  CpuInstantToInstant(instant));
         Cached_.AppendChar('\0');
-        Deadline_ = instant + NProfiling::DurationToCpuDuration(TDuration::MicroSeconds(500));
+        auto period = DurationToCpuDuration(TDuration::MicroSeconds(500));
+        Deadline_ = instant + period;
+        Liveline_ = instant - period;
     }
 
     TMessageBuffer Cached_;
-    NProfiling::TCpuInstant Deadline_;
+    TCpuInstant Deadline_;
+    TCpuInstant Liveline_;
 };
 
 TStreamLogWriterBase::TStreamLogWriterBase()
