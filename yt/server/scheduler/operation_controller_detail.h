@@ -498,6 +498,9 @@ protected:
         , public IPersistent
     {
     public:
+        DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
+
+    public:
         //! For persistence only.
         TTask();
         explicit TTask(TOperationControllerBase* controller);
@@ -533,8 +536,6 @@ protected:
         virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const = 0;
 
         void ResetCachedMinNeededResources();
-
-        DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, DelayedTime);
 
         void AddInput(TChunkStripePtr stripe);
         void AddInput(const std::vector<TChunkStripePtr>& stripes);
@@ -689,7 +690,7 @@ protected:
         std::multimap<i64, TTaskPtr> CandidateTasks;
 
         //! Non-local tasks keyed by deadline.
-        std::multimap<NProfiling::TCpuInstant, TTaskPtr> DelayedTasks;
+        std::multimap<TInstant, TTaskPtr> DelayedTasks;
 
         //! Local tasks keyed by node id.
         yhash_map<NNodeTrackerClient::TNodeId, yhash_set<TTaskPtr>> NodeIdToTasks;
@@ -916,21 +917,21 @@ protected:
     //! chunk scraper has encountered unavailable chunk.
     void OnInputChunkUnavailable(
         const NChunkClient::TChunkId& chunkId,
-        TInputChunkDescriptor& descriptor);
+        TInputChunkDescriptor* descriptor);
 
     void OnInputChunkAvailable(
         const NChunkClient::TChunkId& chunkId,
-        TInputChunkDescriptor& descriptor,
-        const NChunkClient::TChunkReplicaList& replicas);
+        const NChunkClient::TChunkReplicaList& replicas,
+        TInputChunkDescriptor* descriptor);
 
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
     virtual bool IsInputDataSizeHistogramSupported() const;
     virtual bool AreForeignTablesSupported() const;
 
-    //! Successfully terminate and finalize operation.
+    //! Successfully terminates and finalizes the operation.
     /*!
-     *  #interrupted flag indicates premature completion and disables standard validation
+     *  #interrupted flag indicates premature completion and disables standard validations.
      */
     virtual void OnOperationCompleted(bool interrupted);
 
@@ -1143,7 +1144,7 @@ private:
     //! Aggregated schedule job statistics.
     TScheduleJobStatisticsPtr ScheduleJobStatistics_;
 
-    //! Deadline after which schedule job statistics can be logged logged.
+    //! Deadline after which schedule job statistics can be logged.
     NProfiling::TCpuInstant ScheduleJobStatisticsLogDeadline_ = 0;
 
     //! One output table can have row count limit on operation.

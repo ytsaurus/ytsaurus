@@ -43,6 +43,7 @@
 #include <yt/ytlib/api/native_connection.h>
 
 #include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/erasure/codec.h>
 
@@ -85,13 +86,9 @@ using NTableClient::TTableReaderOptions;
 
 ////////////////////////////////////////////////////////////////////
 
-static NProfiling::TSimpleCounter ScheduledSliceCounter("/scheduled_slice_count");
-
-////////////////////////////////////////////////////////////////////
-
 namespace {
 
-void CommitTransaction(ITransactionPtr transaction)
+void CommitTransaction(const ITransactionPtr& transaction)
 {
     if (!transaction) {
         return;
@@ -444,6 +441,21 @@ void TOperationControllerBase::TTask::ScheduleJob(
     }
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
+
+    int sliceCount = joblet->InputStripeList->TotalChunkCount;
+    const auto& jobSpecSliceThrottler = context->GetJobSpecSliceThrottler();
+    if (sliceCount > Controller->Config->HeavyJobSpecSliceCountThreshold) {
+        if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
+            LOG_DEBUG("Job spec throttling is active (SliceCount: %v)",
+                sliceCount);
+            chunkPoolOutput->Aborted(joblet->OutputCookie);
+            scheduleJobResult->RecordFail(EScheduleJobFailReason::JobSpecThrottling);
+            return;
+        }
+    } else {
+        jobSpecSliceThrottler->Acquire(sliceCount);
+    }
+
     auto estimatedResourceUsage = GetNeededResources(joblet);
     auto neededResources = ApplyMemoryReserve(estimatedResourceUsage);
 
@@ -515,8 +527,6 @@ void TOperationControllerBase::TTask::ScheduleJob(
     if (userJobSpec) {
         joblet->UserJobMemoryReserveFactor = Controller->GetUserJobMemoryDigest(GetJobType())->GetQuantile(Controller->Config->UserJobMemoryReserveQuantile);
     }
-
-    SchedulerProfiler.Increment(ScheduledSliceCounter, joblet->InputStripeList->TotalChunkCount);
 
     LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
@@ -601,7 +611,10 @@ void TOperationControllerBase::TTask::Persist(const TPersistenceContext& context
 {
     using NYT::Persist;
 
-    Persist(context, DelayedTime_);
+    // COMPAT(babenko)
+    if (context.IsLoad() && context.GetVersion() < 200009) {
+        Load<ui64>(context.LoadContext());
+    }
 
     Persist(context, Controller);
 
@@ -831,14 +844,15 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     TChunkStripePtr stripe)
 {
     for (const auto& dataSlice : stripe->DataSlices) {
-        ToProto(inputSpec->add_data_slice_descriptors(), dataSlice);
-
-        if (directoryBuilder) {
+            inputSpec->add_chunk_spec_count_per_data_slice(dataSlice->ChunkSlices.size());
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
-                directoryBuilder->Add(replicas);
+                ToProto(inputSpec->add_chunk_specs(), chunkSlice);
+
+                if (directoryBuilder) {
+                    auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
+                    directoryBuilder->Add(replicas);
+                }
             }
-        }
     }
 }
 
@@ -1434,8 +1448,8 @@ void TOperationControllerBase::SafeMaterialize()
 
         State = EControllerState::Running;
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Materialization failed");
         auto wrappedError = TError("Materialization failed") << ex;
+        LOG_ERROR(wrappedError);
         OnOperationFailed(wrappedError);
         return;
     }
@@ -2263,7 +2277,7 @@ void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
         IntermediateChunkScraper->Start();
     } else {
         LOG_DEBUG("Input chunk has failed (ChunkId: %v)", chunkId);
-        OnInputChunkUnavailable(chunkId, it->second);
+        OnInputChunkUnavailable(chunkId, &it->second);
     }
 }
 
@@ -2286,18 +2300,22 @@ void TOperationControllerBase::SafeOnInputChunkLocated(const TChunkId& chunkId, 
     auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
 
     if (IsUnavailable(replicas, codecId, IsParityReplicasFetchEnabled())) {
-        OnInputChunkUnavailable(chunkId, descriptor);
+        OnInputChunkUnavailable(chunkId, &descriptor);
     } else {
-        OnInputChunkAvailable(chunkId, descriptor, replicas);
+        OnInputChunkAvailable(chunkId, replicas, &descriptor);
     }
 }
 
-void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor, const TChunkReplicaList& replicas)
+void TOperationControllerBase::OnInputChunkAvailable(
+    const TChunkId& chunkId,
+    const TChunkReplicaList& replicas,
+    TInputChunkDescriptor* descriptor)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    if (descriptor.State != EInputChunkState::Waiting)
+    if (descriptor->State != EInputChunkState::Waiting) {
         return;
+    }
 
     LOG_TRACE("Input chunk is available (ChunkId: %v)", chunkId);
 
@@ -2309,13 +2327,13 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
     }
 
     // Update replicas in place for all input chunks with current chunkId.
-    for (auto& chunkSpec : descriptor.InputChunks) {
+    for (auto& chunkSpec : descriptor->InputChunks) {
         chunkSpec->SetReplicaList(replicas);
     }
 
-    descriptor.State = EInputChunkState::Active;
+    descriptor->State = EInputChunkState::Active;
 
-    for (const auto& inputStripe : descriptor.InputStripes) {
+    for (const auto& inputStripe : descriptor->InputStripes) {
         --inputStripe.Stripe->WaitingChunkCount;
         if (inputStripe.Stripe->WaitingChunkCount > 0)
             continue;
@@ -2329,12 +2347,13 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
     }
 }
 
-void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor)
+void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, TInputChunkDescriptor* descriptor)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    if (descriptor.State != EInputChunkState::Active)
+    if (descriptor->State != EInputChunkState::Active) {
         return;
+    }
 
     ++ChunkLocatedCallCount;
     if (ChunkLocatedCallCount >= Config->ChunkScraper->MaxChunksPerRequest) {
@@ -2355,8 +2374,8 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
             break;
 
         case EUnavailableChunkAction::Skip: {
-            descriptor.State = EInputChunkState::Skipped;
-            for (const auto& inputStripe : descriptor.InputStripes) {
+            descriptor->State = EInputChunkState::Skipped;
+            for (const auto& inputStripe : descriptor->InputStripes) {
                 inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
 
                 inputStripe.Stripe->DataSlices.erase(
@@ -2382,8 +2401,8 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
         }
 
         case EUnavailableChunkAction::Wait: {
-            descriptor.State = EInputChunkState::Waiting;
-            for (const auto& inputStripe : descriptor.InputStripes) {
+            descriptor->State = EInputChunkState::Waiting;
+            for (const auto& inputStripe : descriptor->InputStripes) {
                 if (inputStripe.Stripe->WaitingChunkCount == 0) {
                     inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
                 }
@@ -3100,7 +3119,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
     const TJobResources& jobLimits,
     TScheduleJobResult* scheduleJobResult)
 {
-    auto now = context->GetNow();
+    auto now = NProfiling::CpuInstantToInstant(context->GetNow());
     const auto& nodeResourceLimits = context->ResourceLimits();
     const auto& address = context->GetNodeDescriptor().Address;
 
@@ -3167,10 +3186,10 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                 }
 
                 if (!task->GetDelayedTime()) {
-                    task->SetDelayedTime(now);
+                    task->SetDelayedTime(now);        
                 }
 
-                auto deadline = *task->GetDelayedTime() + NProfiling::DurationToCpuDuration(task->GetLocalityTimeout());
+                auto deadline = *task->GetDelayedTime() + task->GetLocalityTimeout();
                 if (deadline > now) {
                     LOG_DEBUG("Task delayed (Task: %v, Deadline: %v)",
                         task->GetId(),
@@ -4769,7 +4788,18 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
 
     const auto& result = jobSummary.Result;
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-    auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(schedulerResultExt.unread_input_data_slice_descriptors());
+
+    std::vector<TDataSliceDescriptor> dataSliceDescriptors;
+    if (schedulerResultExt.unread_input_data_slice_descriptors_size() > 0) {
+        // COMPAT(psushin).
+        dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(
+            schedulerResultExt.unread_input_data_slice_descriptors());
+    } else if (schedulerResultExt.unread_chunk_specs_size()) {
+        FromProto(
+            &dataSliceDescriptors,
+            schedulerResultExt.unread_chunk_specs(),
+            schedulerResultExt.chunk_spec_count_per_data_slice());
+    }
 
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
         std::vector<TInputChunkSlicePtr> chunkSliceList;
@@ -5416,6 +5446,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     for (const auto& file : files) {
         auto* descriptor = jobSpec->add_files();
         descriptor->set_file_name(file.FileName);
+        ToProto(descriptor->mutable_chunk_specs(), file.ChunkSpecs);
 
         if (file.Type == EObjectType::Table && file.IsDynamic && file.Schema.IsSorted()) {
             descriptor->set_type(static_cast<int>(EDataSourceType::VersionedTable));
@@ -5425,8 +5456,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
                 file.Path.GetColumns(),
                 file.Path.GetTimestamp().Get(AsyncLastCommittedTimestamp));
             ToProto(descriptor->mutable_data_source(), dataSource);
-            // All chunks go to the same data slice.
-            ToProto(descriptor->add_data_slice_descriptors(), TDataSliceDescriptor(file.ChunkSpecs));
         } else {
             auto dataSource = file.Type == EObjectType::File
                     ? MakeFileDataSource(file.GetPath())
@@ -5437,9 +5466,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
                 : static_cast<int>(EDataSourceType::UnversionedTable));
 
             ToProto(descriptor->mutable_data_source(), dataSource);
-            for (const auto& chunkSpec : file.ChunkSpecs) {
-                ToProto(descriptor->add_data_slice_descriptors(), TDataSliceDescriptor(chunkSpec));
-            }
         }
 
         switch (file.Type) {

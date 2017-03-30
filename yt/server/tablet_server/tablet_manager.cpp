@@ -3765,7 +3765,7 @@ private:
         // Prepare tablet writer options.
         const auto& chunkProperties = table->Properties();
         auto primaryMediumIndex = table->GetPrimaryMediumIndex();
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
         *writerOptions = New<TTableWriterOptions>();
         (*writerOptions)->ReplicationFactor = chunkProperties[primaryMediumIndex].GetReplicationFactor();

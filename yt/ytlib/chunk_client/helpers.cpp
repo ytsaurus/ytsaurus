@@ -231,7 +231,7 @@ TChunkReplicaList AllocateWriteTargets(
     LOG_DEBUG(
         "Allocating write targets "
         "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, Medium: %v, PreferLocalHost: %v, "
-        "ForbiddenAddresses: [%v])",
+        "ForbiddenAddresses: %v)",
         chunkId,
         desiredTargetCount,
         minTargetCount,

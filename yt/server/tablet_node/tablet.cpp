@@ -914,7 +914,7 @@ void TTablet::StopEpoch()
     }
 }
 
-IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
+IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
 {
     return EpochAutomatonInvokers_[queue];
 }
@@ -1097,13 +1097,14 @@ void TTablet::ValidateMountRevision(i64 mountRevision)
 
 void TTablet::UpdateOverlappingStoreCount()
 {
-    OverlappingStoreCount_ = 0;
+    int overlappingStoreCount = 0;
     for (const auto& partition : PartitionList_) {
-        OverlappingStoreCount_ = std::max(
-            OverlappingStoreCount_,
+        overlappingStoreCount = std::max(
+            overlappingStoreCount ,
             static_cast<int>(partition->Stores().size()));
     }
-    OverlappingStoreCount_ += Eden_->Stores().size();
+    overlappingStoreCount += Eden_->Stores().size();
+    OverlappingStoreCount_ = overlappingStoreCount;
 }
 
 void TTablet::UpdateUnflushedTimestamp() const
