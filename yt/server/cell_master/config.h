@@ -151,8 +151,6 @@ public:
     //! If |true| then |//sys/@provision_lock| is set during cluster initialization.
     bool EnableProvisionLock;
 
-    TDuration AutomatonThreadLogBatchingPeriod;
-
     TCellMasterConfig();
 };
 

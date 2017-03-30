@@ -247,6 +247,10 @@ public:
     //! sufficiently high to proceed with applying mutations.
     TDuration ChangelogQuorumCheckRetryPeriod;
 
+    //! Setting this to non-zero enables batching log messages from automaton thread
+    //! during active (leading and following) stages.
+    TDuration AutomatonThreadLogBatchingPeriod;
+
     TDistributedHydraManagerConfig()
     {
         RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
@@ -311,6 +315,9 @@ public:
 
         RegisterParameter("changelog_quorum_check_retry_period", ChangelogQuorumCheckRetryPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("automaton_thread_log_batching_period", AutomatonThreadLogBatchingPeriod)
+            .Default(TDuration::Zero());
 
         RegisterValidator([&] () {
             if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {
