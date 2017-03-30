@@ -1079,7 +1079,8 @@ private:
             if (exitCode == EJobProxyExitCode::HeartbeatFailed ||
                 exitCode == EJobProxyExitCode::ResultReportFailed ||
                 exitCode == EJobProxyExitCode::ResourcesUpdateFailed ||
-                exitCode == EJobProxyExitCode::GetJobSpecFailed)
+                exitCode == EJobProxyExitCode::GetJobSpecFailed ||
+                exitCode == EJobProxyExitCode::InvalidSpecVersion)
             {
                 return EAbortReason::Other;
             }
