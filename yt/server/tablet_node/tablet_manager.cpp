@@ -1887,7 +1887,6 @@ private:
             rowRef.StoreManager->CommitRow(transaction, rowRef);
         }
         lockedRows.clear();
-        ClearTransactionWriteLog(&transaction->ImmediateLockedWriteLog());
 
         // Check if above CommitRow calls caused store locks to be released.
         CheckIfImmediateLockedTabletsFullyUnlocked(transaction);
@@ -1911,7 +1910,6 @@ private:
 
             locklessRowCount += context.RowCount;
         }
-        ClearTransactionWriteLog(&transaction->ImmediateLocklessWriteLog());
 
         LOG_DEBUG_UNLESS(IsRecovery() || lockedRowCount + locklessRowCount == 0,
             "Immediate rows committed (TransactionId: %v, LockedRowCount: %v, LocklessRowCount: %v)",
@@ -1922,6 +1920,9 @@ private:
         if (transaction->DelayedLocklessWriteLog().Empty()) {
             UnlockLockedTablets(transaction);
         }
+
+        ClearTransactionWriteLog(&transaction->ImmediateLockedWriteLog());
+        ClearTransactionWriteLog(&transaction->ImmediateLocklessWriteLog());
     }
 
     void OnTransactionSerialized(TTransaction* transaction) noexcept
@@ -1952,7 +1953,6 @@ private:
 
             rowCount += context.RowCount;
         }
-        ClearTransactionWriteLog(&transaction->DelayedLocklessWriteLog());
 
         LOG_DEBUG_UNLESS(IsRecovery() || rowCount == 0,
             "Delayed rows committed (TransactionId: %v, RowCount: %v)",
@@ -1960,6 +1960,8 @@ private:
             rowCount);
 
         UnlockLockedTablets(transaction);
+
+        ClearTransactionWriteLog(&transaction->DelayedLocklessWriteLog());
     }
 
     void OnTransactionAborted(TTransaction* transaction)
