@@ -169,7 +169,7 @@ TJobController::TImpl::TImpl(
     YCHECK(bootstrap);
 
     for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
-        JobOriginToTag_[origin] = TProfileManager::Get()->RegisterTag("origin", Format("%lv", origin));
+        JobOriginToTag_[origin] = TProfileManager::Get()->RegisterTag("origin", FormatEnum(origin));
     }
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
@@ -623,16 +623,16 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
             .Item("resource_usage").Value(GetResourceUsage())
             .Item("active_job_count").DoMapFor(
                 TEnumTraits<EJobOrigin>::GetDomainValues(),
-                [&] (TFluentMap fluent, const EJobOrigin origin) {
-                    fluent.Item(Format("%lv", origin)).Value(jobs[origin].size());
+                [&] (TFluentMap fluent, EJobOrigin origin) {
+                    fluent.Item(FormatEnum(origin)).Value(jobs[origin].size());
                 })
             .Item("active_jobs").DoMapFor(
                 TEnumTraits<EJobOrigin>::GetDomainValues(),
-                [&] (TFluentMap fluent, const EJobOrigin origin) {
-                    fluent.Item(Format("%lv", origin)).DoMapFor(
+                [&] (TFluentMap fluent, EJobOrigin origin) {
+                    fluent.Item(FormatEnum(origin)).DoMapFor(
                         jobs[origin],
                         [&] (TFluentMap fluent, IJobPtr job) {
-                            fluent.Item(Format("%lv", job->GetId()))
+                            fluent.Item(ToString(job->GetId()))
                                 .BeginMap()
                                     .Item("job_state").Value(job->GetState())
                                     .Item("job_phase").Value(job->GetPhase())
