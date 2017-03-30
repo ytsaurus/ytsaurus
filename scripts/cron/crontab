@@ -29,6 +29,10 @@
 
 # Nightly compression statistics
 */5 * * * * TITLE="compression statistics on hahn" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=hahn.yt.yandex.net /opt/cron/push_nightly_process_watcher_stats.py --tasks-root //sys/cron/compression/tasks --service nightly_compression >>/opt/cron/push_nightly_compression_stats.log 2>&1
+# Nightly compression statistics
+*/5 * * * * TITLE="compression statistics on banach" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=banach.yt.yandex.net /opt/cron/push_nightly_process_watcher_stats.py --tasks-root //sys/cron/compression/tasks --service nightly_compression >>/opt/cron/push_nightly_compression_stats.log 2>&1
+# Nightly compression statistics
+*/5 * * * * TITLE="compression statistics on freud" /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN_PATH=/opt/cron/token YT_PROXY=freud.yt.yandex.net /opt/cron/push_nightly_process_watcher_stats.py --tasks-root //sys/cron/compression/tasks --service nightly_compression >>/opt/cron/push_nightly_compression_stats.log 2>&1
 
 # Nightly tests
 0 */5 * * * YT_PROXY=hume.yt.yandex.net  /opt/cron/nightly_tests/synth/cron.sh /opt/cron/nightly_tests/logs >>/opt/cron/nightly_tests.log 2>&1
