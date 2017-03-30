@@ -665,8 +665,7 @@ TJobController::TJobController(
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         config,
-        bootstrap
-    ))
+        bootstrap))
 { }
 
 void TJobController::RegisterFactory(
