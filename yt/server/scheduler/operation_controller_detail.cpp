@@ -2251,7 +2251,7 @@ void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
         IntermediateChunkScraper->Start();
     } else {
         LOG_DEBUG("Input chunk has failed (ChunkId: %v)", chunkId);
-        OnInputChunkUnavailable(chunkId, it->second);
+        OnInputChunkUnavailable(chunkId, &it->second);
     }
 }
 
@@ -2274,18 +2274,22 @@ void TOperationControllerBase::SafeOnInputChunkLocated(const TChunkId& chunkId, 
     auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
 
     if (IsUnavailable(replicas, codecId, IsParityReplicasFetchEnabled())) {
-        OnInputChunkUnavailable(chunkId, descriptor);
+        OnInputChunkUnavailable(chunkId, &descriptor);
     } else {
-        OnInputChunkAvailable(chunkId, descriptor, replicas);
+        OnInputChunkAvailable(chunkId, replicas, &descriptor);
     }
 }
 
-void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor, const TChunkReplicaList& replicas)
+void TOperationControllerBase::OnInputChunkAvailable(
+    const TChunkId& chunkId,
+    const TChunkReplicaList& replicas,
+    TInputChunkDescriptor* descriptor)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    if (descriptor.State != EInputChunkState::Waiting)
+    if (descriptor->State != EInputChunkState::Waiting) {
         return;
+    }
 
     LOG_TRACE("Input chunk is available (ChunkId: %v)", chunkId);
 
@@ -2297,13 +2301,13 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
     }
 
     // Update replicas in place for all input chunks with current chunkId.
-    for (auto& chunkSpec : descriptor.InputChunks) {
+    for (auto& chunkSpec : descriptor->InputChunks) {
         chunkSpec->SetReplicaList(replicas);
     }
 
-    descriptor.State = EInputChunkState::Active;
+    descriptor->State = EInputChunkState::Active;
 
-    for (const auto& inputStripe : descriptor.InputStripes) {
+    for (const auto& inputStripe : descriptor->InputStripes) {
         --inputStripe.Stripe->WaitingChunkCount;
         if (inputStripe.Stripe->WaitingChunkCount > 0)
             continue;
@@ -2317,12 +2321,13 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
     }
 }
 
-void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor)
+void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, TInputChunkDescriptor* descriptor)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    if (descriptor.State != EInputChunkState::Active)
+    if (descriptor->State != EInputChunkState::Active) {
         return;
+    }
 
     ++ChunkLocatedCallCount;
     if (ChunkLocatedCallCount >= Config->ChunkScraper->MaxChunksPerRequest) {
@@ -2343,8 +2348,8 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
             break;
 
         case EUnavailableChunkAction::Skip: {
-            descriptor.State = EInputChunkState::Skipped;
-            for (const auto& inputStripe : descriptor.InputStripes) {
+            descriptor->State = EInputChunkState::Skipped;
+            for (const auto& inputStripe : descriptor->InputStripes) {
                 inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
 
                 inputStripe.Stripe->DataSlices.erase(
@@ -2370,8 +2375,8 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
         }
 
         case EUnavailableChunkAction::Wait: {
-            descriptor.State = EInputChunkState::Waiting;
-            for (const auto& inputStripe : descriptor.InputStripes) {
+            descriptor->State = EInputChunkState::Waiting;
+            for (const auto& inputStripe : descriptor->InputStripes) {
                 if (inputStripe.Stripe->WaitingChunkCount == 0) {
                     inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
                 }
