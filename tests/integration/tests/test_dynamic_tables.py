@@ -59,6 +59,20 @@ class TestDynamicTables(YTEnvSetup):
         tablets = get(path + "/@tablets")
         return [tablet["pivot_key"] for tablet in tablets]
 
+    def _ban_all_peers(self, cell_id):
+        address_list = []
+        peers = get("#" + cell_id + "/@peers")
+        for x in peers:
+            addr = x["address"]
+            address_list.append(addr)
+            self.set_node_banned(addr, True)
+        clear_metadata_caches()
+        return address_list
+
+    def _unban_peers(self, address_list):
+        for addr in address_list:
+            self.set_node_banned(addr, False)
+
 
     def test_force_unmount_on_remove(self):
         self.sync_create_cells(1)
@@ -284,12 +298,6 @@ class TestDynamicTables(YTEnvSetup):
 
         assert lookup_rows("//tmp/t", keys) == rows
 
-    def _ban_all_peers(self, cell_id):
-        peers = get("#" + cell_id + "/@peers")
-        for x in peers:
-            self.set_node_banned(x["address"], True)
-        clear_metadata_caches()
-
     def test_run_reassign_all_peers(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
         self.sync_create_cells(1, tablet_cell_bundle="b")
@@ -437,6 +445,49 @@ class TestDynamicTables(YTEnvSetup):
         with pytest.raises(YtError): reshard_table("//tmp/t", [[], [1]])
         with pytest.raises(YtError): freeze_table("//tmp/t")
         with pytest.raises(YtError): unfreeze_table("//tmp/t")
+
+    @pytest.mark.parametrize("freeze", [False, True])
+    @pytest.mark.parametrize("second_command", ["freeze", "unfreeze"])
+    @pytest.mark.parametrize("first_command", ["unmount", "freeze", "unfreeze"])
+    def test_state_transition_conflict(self, freeze, first_command, second_command):
+        callbacks = {
+            "unmount": lambda x: unmount_table(x),
+            "freeze": lambda x: freeze_table(x),
+            "unfreeze": lambda x: unfreeze_table(x)
+        }
+
+        M = "mounted"
+        F = "frozen"
+        E = "error"
+
+        expect = None
+        if freeze:
+            expect = {
+                "unmount":  {"freeze": E, "unfreeze": E},
+                "freeze":   {"freeze": F, "unfreeze": M},
+                "unfreeze": {"freeze": E, "unfreeze": M},
+            }
+        else:
+            expect = {
+                "unmount":  {"freeze": E, "unfreeze": E},
+                "freeze":   {"freeze": F, "unfreeze": E},
+                "unfreeze": {"freeze": F, "unfreeze": M},
+            }
+
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t", freeze=freeze)
+        cell = get("//tmp/t/@tablets/0/cell_id")
+        banned_peers = self._ban_all_peers(cell)
+        callbacks[first_command]("//tmp/t")
+        expected = expect[first_command][second_command]
+        if expected == E:
+            with pytest.raises(YtError):
+                callbacks[second_command]("//tmp/t")
+        else:
+            callbacks[second_command]("//tmp/t")
+            self._unban_peers(banned_peers)
+            self._wait_for_tablets("//tmp/t", expected)
 
 ##################################################################
 
