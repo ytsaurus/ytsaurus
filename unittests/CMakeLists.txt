@@ -79,6 +79,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/pipes_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/preprocessor_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/process_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ring_queue_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/random_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/read_limit_ut.cpp
