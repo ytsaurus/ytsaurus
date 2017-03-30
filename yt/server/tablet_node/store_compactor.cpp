@@ -540,7 +540,7 @@ private:
     }
 
 
-    void PartitionEden(TAsyncSemaphoreGuard /*guard*/, const TTask& task)
+    void PartitionEden(TAsyncSemaphoreGuard guard, const TTask& task)
     {
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v", task.Tablet);
@@ -666,6 +666,9 @@ private:
             int rowCount;
             std::tie(writers, rowCount) = WaitFor(asyncResult)
                 .ValueOrThrow();
+
+            // We can release semaphore, because we are no longer actively using resources.
+            guard.Release();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
@@ -859,7 +862,7 @@ private:
         return std::make_tuple(writerPool.GetAllWriters(), readRowCount);
     }
 
-    void CompactPartition(TAsyncSemaphoreGuard /*guard*/, const TTask& task)
+    void CompactPartition(TAsyncSemaphoreGuard guard, const TTask& task)
     {
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v", task.Tablet);
@@ -989,6 +992,9 @@ private:
             int rowCount;
             std::tie(writer, rowCount) = WaitFor(asyncResult)
                 .ValueOrThrow();
+
+            // We can release semaphore, because we are no longer actively using resources.
+            guard.Release();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
