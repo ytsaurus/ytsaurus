@@ -244,6 +244,7 @@ DEFINE_ENUM(EScheduleJobFailReason,
     (NoCandidateTasks)
     (ResourceOvercommit)
     (TaskRefusal)
+    (JobSpecThrottling)
 );
 
 struct TScheduleJobResult

@@ -63,7 +63,6 @@ bool TVersionedWriter::Write(const TRange<TVersionedRow>& rows)
         }
     };
 
-    int columnCount = static_cast<int>(Schema_.Columns().size());
     for (auto row : rows) {
         if (!row) {
             Consumer_->OnEntity();

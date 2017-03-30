@@ -42,6 +42,9 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/profile_manager.h>
+
 #include <yt/core/ytree/helpers.h>
 
 namespace NYT {
@@ -59,8 +62,8 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t MaxRowsPerRead = 1024;
-static const size_t MaxRowsPerWrite = 1024;
+static const size_t MaxRowsPerRead = 65536;
+static const size_t MaxRowsPerWrite = 65536;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,14 +77,21 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ThreadPool_(New<TThreadPool>(Config_->StoreCompactor->ThreadPoolSize, "StoreCompact"))
-        , CompactionSemaphore_(New<TAsyncSemaphore>(Config_->StoreCompactor->MaxConcurrentCompactions))
         , PartitioningSemaphore_(New<TAsyncSemaphore>(Config_->StoreCompactor->MaxConcurrentPartitionings))
+        , CompactionSemaphore_(New<TAsyncSemaphore>(Config_->StoreCompactor->MaxConcurrentCompactions))
+        , Profiler("/tablet_node/store_compactor")
+        , FeasiblePartitioningsCounter_("/feasible_partitionings")
+        , FeasibleCompactionsCounter_("/feasible_compactions")
+        , ScheduledPartitioningsCounter_("/scheduled_partitionings")
+        , ScheduledCompactionsCounter_("/scheduled_compactions")
     { }
 
     void Start()
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
-        slotManager->SubscribeScanSlot(BIND(&TStoreCompactor::ScanSlot, MakeStrong(this)));
+        slotManager->SubscribeBeginSlotScan(BIND(&TStoreCompactor::OnBeginSlotScan, MakeStrong(this)));
+        slotManager->SubscribeScanSlot(BIND(&TStoreCompactor::OnScanSlot, MakeStrong(this)));
+        slotManager->SubscribeEndSlotScan(BIND(&TStoreCompactor::OnEndSlotScan, MakeStrong(this)));
     }
 
 private:
@@ -89,10 +99,81 @@ private:
     NCellNode::TBootstrap* const Bootstrap_;
 
     TThreadPoolPtr ThreadPool_;
-    TAsyncSemaphorePtr CompactionSemaphore_;
     TAsyncSemaphorePtr PartitioningSemaphore_;
+    TAsyncSemaphorePtr CompactionSemaphore_;
 
-    void ScanSlot(const TTabletSlotPtr& slot)
+    const NProfiling::TProfiler Profiler;
+    NProfiling::TSimpleCounter FeasiblePartitioningsCounter_;
+    NProfiling::TSimpleCounter FeasibleCompactionsCounter_;
+    NProfiling::TSimpleCounter ScheduledPartitioningsCounter_;
+    NProfiling::TSimpleCounter ScheduledCompactionsCounter_;
+
+    struct TTask
+    {
+        TTabletSlotPtr Slot;
+        IInvokerPtr Invoker;
+        TTabletId Tablet;
+        TPartitionId Partition;
+        std::vector<TStoreId> Stores;
+        ui64 Score;
+
+        TTask() = default;
+        TTask(const TTask&) = delete;
+        TTask& operator=(const TTask&) = delete;
+        TTask(TTask&&) = default;
+        TTask& operator=(TTask&&) = default;
+
+        void swap(TTask& other)
+        {
+            Slot.Swap(other.Slot);
+            Invoker.Swap(other.Invoker);
+            std::swap(Tablet, other.Tablet);
+            std::swap(Partition, other.Partition);
+            Stores.swap(other.Stores);
+            std::swap(Score, other.Score);
+        }
+    };
+
+    // Variables below contain per-iteration state for slot scan.
+    TSpinLock SpinLock_;
+    bool ScanForPartitioning_;
+    bool ScanForCompactions_;
+    std::vector<TTask> PartitioningCandidates_;
+    std::vector<TTask> CompactionCandidates_;
+
+    static ui64 PackTaskScore(size_t x, size_t y, size_t z)
+    {
+        static constexpr size_t partSize = 21;
+        static constexpr size_t partMask = static_cast<size_t>(1 << partSize) - 1;
+        size_t result = 0;
+        result |= (x & partMask) << (partSize * 2);
+        result |= ((partMask + 1) - (y & partMask)) << (partSize * 1); // negative
+        result |= (z & partMask) << (partSize * 0);
+        return result;
+    }
+
+    void OnBeginSlotScan()
+    {
+        // NB: Strictly speaking, redundant.
+        auto guard = Guard(SpinLock_);
+
+        // Save some scheduling resources by skipping unnecessary work.
+        ScanForPartitioning_ = PartitioningSemaphore_->IsReady();
+        ScanForCompactions_ = CompactionSemaphore_->IsReady();
+        PartitioningCandidates_.clear(); // Though must be clear already.
+        CompactionCandidates_.clear(); // Though must be clear already.
+    }
+
+    void OnScanSlot(const TTabletSlotPtr& slot)
+    {
+        NProfiling::TTagIdList tagIdList;
+        tagIdList.push_back(NProfiling::TProfileManager::Get()->RegisterTag("slot", slot->GetIndex()));
+        PROFILE_TIMING("/scan_time", tagIdList) {
+            OnScanSlotImpl(slot, tagIdList);
+        }
+    }
+
+    void OnScanSlotImpl(const TTabletSlotPtr& slot, const NProfiling::TTagIdList& tagIdList)
     {
         if (slot->GetAutomatonState() != EPeerState::Leading) {
             return;
@@ -100,12 +181,79 @@ private:
 
         const auto& tabletManager = slot->GetTabletManager();
         for (const auto& pair : tabletManager->Tablets()) {
-            auto* tablet = pair.second;
-            ScanTablet(slot, tablet);
+            ScanTablet(slot.Get(), pair.second);
         }
     }
 
-    void ScanTablet(const TTabletSlotPtr& slot, TTablet* tablet)
+    void OnEndSlotScan()
+    {
+        // NB: Strictly speaking, redundant.
+        auto guard = Guard(SpinLock_);
+
+        if (ScanForPartitioning_) {
+            Profiler.Update(FeasiblePartitioningsCounter_, PartitioningCandidates_.size());
+
+            size_t limit = std::min(size_t(PartitioningSemaphore_->GetTotal()), PartitioningCandidates_.size());
+            std::partial_sort(
+                PartitioningCandidates_.begin(),
+                PartitioningCandidates_.begin() + limit,
+                PartitioningCandidates_.end(),
+                [&] (const TTask& lhs, const TTask& rhs) -> bool {
+                    return lhs.Score < rhs.Score;
+                });
+
+            size_t count = 0;
+            for (; count < limit; ++count) {
+                auto&& task = PartitioningCandidates_[count];
+                auto semaphoreGuard = TAsyncSemaphoreGuard::TryAcquire(PartitioningSemaphore_);
+                if (!semaphoreGuard) {
+                    break;
+                }
+                task.Invoker->Invoke(BIND(
+                    &TStoreCompactor::PartitionEden,
+                    MakeStrong(this),
+                    Passed(std::move(semaphoreGuard)),
+                    std::move(task)));
+            }
+
+            Profiler.Increment(ScheduledPartitioningsCounter_, count);
+
+            PartitioningCandidates_.clear();
+        }
+
+        if (ScanForCompactions_) {
+            Profiler.Update(FeasibleCompactionsCounter_, CompactionCandidates_.size());
+
+            size_t limit = std::min(size_t(CompactionSemaphore_->GetTotal()), CompactionCandidates_.size());
+            std::partial_sort(
+                CompactionCandidates_.begin(),
+                CompactionCandidates_.begin() + limit,
+                CompactionCandidates_.end(),
+                [&] (const TTask& lhs, const TTask& rhs) -> bool {
+                    return lhs.Score < rhs.Score;
+                });
+
+            size_t count = 0;
+            for (; count < limit; ++count) {
+                auto&& task = CompactionCandidates_[count];
+                auto semaphoreGuard = TAsyncSemaphoreGuard::TryAcquire(CompactionSemaphore_);
+                if (!semaphoreGuard) {
+                    break;
+                }
+                task.Invoker->Invoke(BIND(
+                    &TStoreCompactor::CompactPartition,
+                    MakeStrong(this),
+                    Passed(std::move(semaphoreGuard)),
+                    std::move(task)));
+            }
+
+            Profiler.Increment(ScheduledCompactionsCounter_, count);
+
+            CompactionCandidates_.clear();
+        }
+    }
+
+    void ScanTablet(TTabletSlot* slot, TTablet* tablet)
     {
         if (tablet->GetState() != ETabletState::Mounted) {
             return;
@@ -119,100 +267,100 @@ private:
             return;
         }
 
-        ScanPartitionForCompaction(slot, tablet->GetEden());
         ScanEdenForPartitioning(slot, tablet->GetEden());
+        ScanPartitionForCompaction(slot, tablet->GetEden());
 
         for (auto& partition : tablet->PartitionList()) {
             ScanPartitionForCompaction(slot, partition.get());
         }
     }
 
-    void ScanEdenForPartitioning(const TTabletSlotPtr& slot, TPartition* eden)
+    bool ScanEdenForPartitioning(TTabletSlot* slot, TPartition* eden)
     {
-        if (eden->GetState() != EPartitionState::Normal) {
-            return;
+        if (!ScanForPartitioning_ || eden->GetState() != EPartitionState::Normal) {
+            return false;
         }
 
-        auto* tablet = eden->GetTablet();
-        const auto& storeManager = tablet->GetStoreManager();
+        const auto* tablet = eden->GetTablet();
 
         auto stores = PickStoresForPartitioning(eden);
         if (stores.empty()) {
-            return;
+            return false;
         }
 
-        auto guard = TAsyncSemaphoreGuard::TryAcquire(PartitioningSemaphore_);
-        if (!guard) {
-            return;
+        TTask candidate;
+        candidate.Slot = slot;
+        candidate.Invoker = tablet->GetEpochAutomatonInvoker();
+        candidate.Tablet = tablet->GetId();
+        candidate.Partition = eden->GetId();
+        candidate.Stores = std::move(stores);
+        // We aim to improve OSC; partitioning unconditionally improves OSC (given at least two stores).
+        // So we consider how constrained is the tablet, and how many stores we consider for partitioning.
+        const int mosc = tablet->GetConfig()->MaxOverlappingStoreCount;
+        const int osc = tablet->GetOverlappingStoreCount();
+        const size_t score = static_cast<size_t>(std::max(0, mosc - osc));
+        // Pack score into a single 64-bit integer. This is equivalent to order on (Score, -Stores, Random) tuples.
+        candidate.Score = PackTaskScore(score, candidate.Stores.size(), RandomNumber<size_t>());
+
+        {
+            auto guard = Guard(SpinLock_);
+            PartitioningCandidates_.push_back(std::move(candidate));
         }
 
-        std::vector<TOwningKey> pivotKeys;
-        for (const auto& partition : tablet->PartitionList()) {
-            pivotKeys.push_back(partition->GetPivotKey());
-        }
-
-        for (const auto& store : stores) {
-            storeManager->BeginStoreCompaction(store);
-        }
-
-        eden->CheckedSetState(EPartitionState::Normal, EPartitionState::Partitioning);
-
-        tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
-            &TStoreCompactor::PartitionEden,
-            MakeStrong(this),
-            Passed(std::move(guard)),
-            slot,
-            eden,
-            pivotKeys,
-            stores));
+        return true;
     }
 
-    void ScanPartitionForCompaction(const TTabletSlotPtr& slot, TPartition* partition)
+    bool ScanPartitionForCompaction(TTabletSlot* slot, TPartition* partition)
     {
-        if (partition->GetState() != EPartitionState::Normal) {
-            return;
+        if (!ScanForCompactions_ || partition->GetState() != EPartitionState::Normal) {
+            return false;
         }
 
-        auto* tablet = partition->GetTablet();
-        const auto& storeManager = tablet->GetStoreManager();
+        const auto* tablet = partition->GetTablet();
 
         auto stores = PickStoresForCompaction(partition);
         if (stores.empty()) {
-            return;
+            return false;
         }
 
-        auto guard = TAsyncSemaphoreGuard::TryAcquire(CompactionSemaphore_);
-        if (!guard) {
-            return;
+        TTask candidate;
+        candidate.Slot = slot;
+        candidate.Invoker = tablet->GetEpochAutomatonInvoker();
+        candidate.Tablet = tablet->GetId();
+        candidate.Partition = partition->GetId();
+        candidate.Stores = std::move(stores);
+        // We aim to improve OSC; compaction improves OSC _only_ if the partition contributes towards OSC.
+        // So we consider how constrained is the partition, and how many stores we consider for compaction.
+        const int mosc = tablet->GetConfig()->MaxOverlappingStoreCount;
+        const int osc = tablet->GetOverlappingStoreCount();
+        const int edenStoreCount = static_cast<int>(tablet->GetEden()->Stores().size());
+        const int partitionStoreCount = static_cast<int>(partition->Stores().size());
+        // For constrained partitions, this is equivalent to MOSC-OSC; for unconstrained -- includes extra slack.
+        const size_t score = partition->IsEden()
+            ? static_cast<size_t>(std::max(0, mosc - osc))
+            : static_cast<size_t>(std::max(0, mosc - edenStoreCount - partitionStoreCount));
+        // Pack score into a single 64-bit integer.
+        candidate.Score = PackTaskScore(score, candidate.Stores.size(), RandomNumber<size_t>());
+
+        {
+            auto guard = Guard(SpinLock_);
+            CompactionCandidates_.push_back(std::move(candidate));
         }
 
-        auto majorTimestamp = ComputeMajorTimestamp(partition, stores);
-
-        for (const auto& store : stores) {
-            storeManager->BeginStoreCompaction(store);
-        }
-
-        partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Compacting);
-
-        tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
-            &TStoreCompactor::CompactPartition,
-            MakeStrong(this),
-            Passed(std::move(guard)),
-            slot,
-            partition,
-            stores,
-            majorTimestamp));
+        return true;
     }
 
 
-    std::vector<TSortedChunkStorePtr> PickStoresForPartitioning(TPartition* eden)
+    std::vector<TStoreId> PickStoresForPartitioning(TPartition* eden)
     {
+        std::vector<TStoreId> finalists;
+
         const auto* tablet = eden->GetTablet();
         const auto& storeManager = tablet->GetStoreManager();
         const auto& config = tablet->GetConfig();
 
         std::vector<TSortedChunkStorePtr> candidates;
-        std::vector<TSortedChunkStorePtr> forcedCandidates;
+
         for (const auto& store : eden->Stores()) {
             if (!storeManager->IsStoreCompactable(store)) {
                 continue;
@@ -221,23 +369,28 @@ private:
             auto candidate = store->AsSortedChunk();
             candidates.push_back(candidate);
 
-            if ((IsCompactionForced(candidate) || IsPeriodicCompactionNeeded(eden)) &&
-                forcedCandidates.size() < config->MaxPartitioningStoreCount)
+            if (IsCompactionForced(candidate) ||
+                IsPeriodicCompactionNeeded(eden) ||
+                IsStoreOutOfTabletRange(candidate, tablet))
             {
-                forcedCandidates.push_back(candidate);
+                finalists.push_back(candidate->GetId());
+            }
+
+            if (finalists.size() >= config->MaxPartitioningStoreCount) {
+                break;
             }
         }
 
         // Check for forced candidates.
-        if (!forcedCandidates.empty()) {
-            return forcedCandidates;
+        if (!finalists.empty()) {
+            return finalists;
         }
 
         // Sort by decreasing data size.
         std::sort(
             candidates.begin(),
             candidates.end(),
-            [] (TSortedChunkStorePtr lhs, TSortedChunkStorePtr rhs) {
+            [] (const TSortedChunkStorePtr& lhs, const TSortedChunkStorePtr& rhs) {
                 return lhs->GetUncompressedDataSize() > rhs->GetUncompressedDataSize();
             });
 
@@ -257,13 +410,20 @@ private:
             }
         }
 
-        return bestStoreCount >= 0
-            ? std::vector<TSortedChunkStorePtr>(candidates.begin(), candidates.begin() + bestStoreCount)
-            : std::vector<TSortedChunkStorePtr>();
+        if (bestStoreCount > 0) {
+            finalists.reserve(bestStoreCount);
+            for (int i = 0; i < bestStoreCount; ++i) {
+                finalists.push_back(candidates[i]->GetId());
+            }
+        }
+
+        return finalists;
     }
 
-    std::vector<TSortedChunkStorePtr> PickStoresForCompaction(TPartition* partition)
+    std::vector<TStoreId> PickStoresForCompaction(TPartition* partition)
     {
+        std::vector<TStoreId> finalists;
+
         const auto* tablet = partition->GetTablet();
         const auto& storeManager = tablet->GetStoreManager();
         const auto& config = tablet->GetConfig();
@@ -278,7 +438,7 @@ private:
 #endif
 
         std::vector<TSortedChunkStorePtr> candidates;
-        std::vector<TSortedChunkStorePtr> forcedCandidates;
+
         for (const auto& store : partition->Stores()) {
             if (!storeManager->IsStoreCompactable(store)) {
                 continue;
@@ -292,16 +452,21 @@ private:
             auto candidate = store->AsSortedChunk();
             candidates.push_back(candidate);
 
-            if ((IsCompactionForced(candidate) || IsPeriodicCompactionNeeded(partition)) &&
-                forcedCandidates.size() < config->MaxCompactionStoreCount)
+            if (IsCompactionForced(candidate) ||
+                IsPeriodicCompactionNeeded(partition) ||
+                IsStoreOutOfTabletRange(candidate, tablet))
             {
-                forcedCandidates.push_back(candidate);
+                finalists.push_back(candidate->GetId());
+            }
+
+            if (finalists.size() >= config->MaxCompactionStoreCount) {
+                break;
             }
         }
 
         // Check for forced candidates.
-        if (!forcedCandidates.empty()) {
-            return forcedCandidates;
+        if (!finalists.empty()) {
+            return finalists;
         }
 
         // Sort by increasing data size.
@@ -313,7 +478,7 @@ private:
             });
 
         const auto* eden = tablet->GetEden();
-        int overlappingStoreCount = partition->Stores().size() + eden->Stores().size();
+        int overlappingStoreCount = static_cast<int>(partition->Stores().size() + eden->Stores().size());
         bool tooManyOverlappingStores = overlappingStoreCount >= config->MaxOverlappingStoreCount;
 
         for (int i = 0; i < candidates.size(); ++i) {
@@ -336,11 +501,15 @@ private:
 
             int storeCount = j - i;
             if (storeCount >= config->MinCompactionStoreCount) {
-                return std::vector<TSortedChunkStorePtr>(candidates.begin() + i, candidates.begin() + j);
+                finalists.reserve(storeCount);
+                while (i < j) {
+                    finalists.push_back(candidates[i]->GetId());
+                    ++i;
+                }
             }
         }
 
-        return std::vector<TSortedChunkStorePtr>();
+        return finalists;
     }
 
     static TTimestamp ComputeMajorTimestamp(
@@ -354,6 +523,7 @@ private:
 
         auto* tablet = partition->GetTablet();
         auto* eden = tablet->GetEden();
+
         for (const auto& store : eden->Stores()) {
             handleStore(store);
         }
@@ -370,33 +540,66 @@ private:
     }
 
 
-    void PartitionEden(
-        TAsyncSemaphoreGuard /*guard*/,
-        const TTabletSlotPtr& slot,
-        TPartition* eden,
-        const std::vector<TOwningKey>& pivotKeys,
-        const std::vector<TSortedChunkStorePtr>& stores)
+    void PartitionEden(TAsyncSemaphoreGuard /*guard*/, const TTask& task)
     {
-        auto* tablet = eden->GetTablet();
-        const auto& storeManager = tablet->GetStoreManager();
-        const auto& tabletId = tablet->GetId();
-        const auto& tabletPivotKey = tablet->GetPivotKey();
-        const auto& nextTabletPivotKey = tablet->GetNextPivotKey();
-
-        YCHECK(tabletPivotKey == pivotKeys[0]);
-
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId);
-        if (!tabletSnapshot)
-            return;
-
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v", tabletId);
+        Logger.AddTag("TabletId: %v", task.Tablet);
+
+        const auto& slot = task.Slot;
+        const auto& tabletManager = slot->GetTabletManager();
+        auto* tablet = tabletManager->FindTablet(task.Tablet);
+        if (!tablet) {
+            LOG_DEBUG("Tablet is missing, aborting partitioning");
+            return;
+        }
+
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(task.Tablet);
+        if (!tabletSnapshot) {
+            LOG_DEBUG("Tablet snapshot is missing, aborting partitioning");
+            return;
+        }
+
+        auto* eden = tablet->GetEden();
+        if (eden->GetId() != task.Partition) {
+            LOG_DEBUG("Eden is missing, aborting partitioning");
+            return;
+        }
+
+        if (eden->GetState() != EPartitionState::Normal) {
+            LOG_DEBUG("Eden is in improper state, aborting partitioning (EdenState: %v)", eden->GetState());
+            return;
+        }
+
+        const auto& storeManager = tablet->GetStoreManager();
+
+        std::vector<TSortedChunkStorePtr> stores;
+        stores.reserve(task.Stores.size());
+        for (const auto& storeId : task.Stores) {
+            auto store = tablet->FindStore(storeId)->AsSorted();
+            if (!store || !eden->Stores().has(store)) {
+                LOG_DEBUG("Eden store is missing, aborting partitioning (StoreId: %v)", storeId);
+                return;
+            }
+            auto typedStore = store->AsSortedChunk();
+            YCHECK(typedStore);
+            stores.push_back(std::move(typedStore));
+        }
+
+        std::vector<TOwningKey> pivotKeys;
+        for (const auto& partition : tablet->PartitionList()) {
+            pivotKeys.push_back(partition->GetPivotKey());
+        }
+
+        YCHECK(tablet->GetPivotKey() == pivotKeys[0]);
+
+        eden->CheckedSetState(EPartitionState::Normal, EPartitionState::Partitioning);
 
         try {
             i64 dataSize = 0;
             for (const auto& store : stores) {
                 dataSize += store->GetUncompressedDataSize();
+                storeManager->BeginStoreCompaction(store);
             }
 
             auto timestampProvider = Bootstrap_
@@ -417,8 +620,8 @@ private:
             auto reader = CreateVersionedTabletReader(
                 tabletSnapshot,
                 std::vector<ISortedStorePtr>(stores.begin(), stores.end()),
-                tabletPivotKey,
-                nextTabletPivotKey,
+                tablet->GetPivotKey(),
+                tablet->GetNextPivotKey(),
                 currentTimestamp,
                 MinTimestamp, // NB: No major compaction during Eden partitioning.
                 TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning));
@@ -431,7 +634,7 @@ private:
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Format("Eden partitioning: tablet %v",
-                    tabletId));
+                    tabletSnapshot->TabletId));
                 options.Attributes = std::move(attributes);
 
                 auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
@@ -454,7 +657,7 @@ private:
                     tabletSnapshot,
                     transaction,
                     pivotKeys,
-                    nextTabletPivotKey,
+                    tablet->GetNextPivotKey(),
                     Logger)
                 .AsyncVia(ThreadPool_->GetInvoker())
                 .Run();
@@ -465,7 +668,7 @@ private:
                 .ValueOrThrow();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
-            ToProto(actionRequest.mutable_tablet_id(), tabletId);
+            ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
             actionRequest.set_mount_revision(tablet->GetMountRevision());
 
             TStoreIdList storeIdsToRemove;
@@ -488,8 +691,6 @@ private:
                 }
             }
 
-            // NB: No exceptions must be thrown beyond this point!
-
             LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
                 rowCount,
                 storeIdsToAdd,
@@ -499,7 +700,6 @@ private:
             transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
             transaction->AddAction(slot->GetCellId(), actionData);
 
-            const auto& tabletManager = slot->GetTabletManager();
             WaitFor(tabletManager->CommitTabletStoresUpdateTransaction(tablet, transaction))
                 .ThrowOnError();
 
@@ -659,38 +859,66 @@ private:
         return std::make_tuple(writerPool.GetAllWriters(), readRowCount);
     }
 
-    void CompactPartition(
-        TAsyncSemaphoreGuard /*guard*/,
-        const TTabletSlotPtr& slot,
-        TPartition* partition,
-        const std::vector<TSortedChunkStorePtr>& stores,
-        TTimestamp majorTimestamp)
+    void CompactPartition(TAsyncSemaphoreGuard /*guard*/, const TTask& task)
     {
-        // Capture everything needed below.
-        // NB: Avoid accessing tablet from pool invoker.
-        auto* tablet = partition->GetTablet();
-        auto storeManager = tablet->GetStoreManager();
-        auto tabletId = tablet->GetId();
-        auto mountRevision = tablet->GetMountRevision();
-        auto tabletPivotKey = tablet->GetPivotKey();
-        auto nextTabletPivotKey = tablet->GetNextPivotKey();
-
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId);
-        if (!tabletSnapshot)
-            return;
-
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v, Eden: %v, PartitionRange: %v .. %v",
-            tabletId,
+        Logger.AddTag("TabletId: %v", task.Tablet);
+
+        const auto& slot = task.Slot;
+        const auto& tabletManager = slot->GetTabletManager();
+        auto* tablet = tabletManager->FindTablet(task.Tablet);
+        if (!tablet) {
+            LOG_DEBUG("Tablet is missing, aborting compaction");
+            return;
+        }
+
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(task.Tablet);
+        if (!tabletSnapshot) {
+            LOG_DEBUG("Tablet snapshot is missing, aborting compaction");
+            return;
+        }
+
+        auto* partition = tablet->GetEden()->GetId() == task.Partition
+            ? tablet->GetEden()
+            : tablet->FindPartition(task.Partition);
+        if (!partition) {
+            LOG_DEBUG("Partition is missing, aborting compaction");
+            return;
+        }
+
+        if (partition->GetState() != EPartitionState::Normal) {
+            LOG_DEBUG("Partition is in improper state, aborting compaction (PartitionState: %v)", partition->GetState());
+            return;
+        }
+
+        const auto& storeManager = tablet->GetStoreManager();
+
+        std::vector<TSortedChunkStorePtr> stores;
+        stores.reserve(task.Stores.size());
+        for (const auto& storeId : task.Stores) {
+            auto store = tablet->FindStore(storeId)->AsSorted();
+            if (!store || !partition->Stores().has(store)) {
+                LOG_DEBUG("Partition store is missing, aborting compaction (StoreId: %v)", storeId);
+                return;
+            }
+            auto typedStore = store->AsSortedChunk();
+            YCHECK(typedStore);
+            stores.push_back(std::move(typedStore));
+        }
+
+        Logger.AddTag("Eden: %v, PartitionRange: %v .. %v",
             partition->IsEden(),
             partition->GetPivotKey(),
             partition->GetNextPivotKey());
+
+        partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Compacting);
 
         try {
             i64 dataSize = 0;
             for (const auto& store : stores) {
                 dataSize += store->GetUncompressedDataSize();
+                storeManager->BeginStoreCompaction(store);
             }
 
             auto timestampProvider = Bootstrap_
@@ -700,6 +928,7 @@ private:
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
 
+            auto majorTimestamp = ComputeMajorTimestamp(partition, stores);
             auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tablet->GetConfig()->MinDataTtl).first;
             majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
 
@@ -715,8 +944,8 @@ private:
             auto reader = CreateVersionedTabletReader(
                 tabletSnapshot,
                 std::vector<ISortedStorePtr>(stores.begin(), stores.end()),
-                tabletPivotKey,
-                nextTabletPivotKey,
+                tablet->GetPivotKey(),
+                tablet->GetNextPivotKey(),
                 currentTimestamp,
                 majorTimestamp,
                 TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction));
@@ -762,8 +991,8 @@ private:
                 .ValueOrThrow();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
-            ToProto(actionRequest.mutable_tablet_id(), tabletId);
-            actionRequest.set_mount_revision(mountRevision);
+            ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
+            actionRequest.set_mount_revision(tablet->GetMountRevision());
             actionRequest.set_retained_timestamp(retainedTimestamp);
 
             TStoreIdList storeIdsToRemove;
@@ -867,7 +1096,7 @@ private:
         return std::make_tuple(writer, readRowCount);
     }
 
-    static bool IsCompactionForced(TSortedChunkStorePtr store)
+    static bool IsCompactionForced(const TSortedChunkStorePtr& store)
     {
         const auto& config = store->GetTablet()->GetConfig();
         if (!config->ForcedCompactionRevision) {
@@ -894,6 +1123,19 @@ private:
         }
 
         return true;
+    }
+
+    static bool IsStoreOutOfTabletRange(const TSortedChunkStorePtr& store, const TTablet* tablet)
+    {
+        if (store->GetMinKey() < tablet->GetPivotKey()) {
+            return true;
+        }
+
+        if (store->GetMaxKey() >= tablet->GetNextPivotKey()) {
+            return true;
+        }
+
+        return false;
     }
 };
 
