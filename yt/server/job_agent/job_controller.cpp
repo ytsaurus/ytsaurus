@@ -62,7 +62,7 @@ public:
     std::vector<IJobPtr> GetJobs() const;
 
     TNodeResources GetResourceLimits() const;
-    TNodeResources GetResourceUsage(bool includeWaiting = true) const;
+    TNodeResources GetResourceUsage(bool includeWaiting = false) const;
     void SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits);
 
     void SetDisableSchedulerJobs(bool value);
