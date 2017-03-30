@@ -203,7 +203,7 @@ struct TRichYPath
     // Timestamp of dynamic table.
     // NOTE: it is _not_ unix timestamp
     // (instead it's transaction timestamp, that is more complex structure).
-    FLUENT_FIELD_OPTION(ui64, Timestamp);
+    FLUENT_FIELD_OPTION(i64, Timestamp);
 
     TRichYPath()
     { }
