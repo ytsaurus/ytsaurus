@@ -56,8 +56,6 @@ TCellMasterConfig::TCellMasterConfig()
         .DefaultNew();
     RegisterParameter("enable_provision_lock", EnableProvisionLock)
         .Default(true);
-    RegisterParameter("automaton_thread_log_batching_period", AutomatonThreadLogBatchingPeriod)
-        .Default(TDuration::MilliSeconds(10));
 
     RegisterValidator([&] () {
         if (SecondaryMasters.size() > MaxSecondaryMasterCells) {
