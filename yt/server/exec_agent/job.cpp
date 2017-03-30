@@ -701,7 +701,8 @@ private:
         LOG_INFO("Job proxy finished");
 
         if (!error.IsOK()) {
-            DoSetResult(TError("Job proxy failed") << error);
+            DoSetResult(TError("Job proxy failed")
+                << BuildJobProxyError(error));
         }
 
         Cleanup();
