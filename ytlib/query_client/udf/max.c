@@ -1,4 +1,4 @@
-#include <yt_udf.h>
+#include "yt_udf.h"
 #include <string.h>
 
 static int string_less_than(
@@ -20,6 +20,7 @@ void max_init(
     TExpressionContext* context,
     TUnversionedValue* result)
 {
+    (void)context;
     result->Type = Null;
 }
 
@@ -29,6 +30,7 @@ static void max_iteration(
     TUnversionedValue* state,
     TUnversionedValue* newValue)
 {
+    (void)context;
     if (newValue->Type == Null) {
         result->Type = state->Type;
         result->Length = state->Length;
@@ -78,6 +80,7 @@ void max_finalize(
     TUnversionedValue* result,
     TUnversionedValue* state)
 {
+    (void)context;
     result->Type = state->Type;
     result->Length = state->Length;
     result->Data = state->Data;
