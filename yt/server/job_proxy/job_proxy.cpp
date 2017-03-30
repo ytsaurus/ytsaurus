@@ -194,6 +194,14 @@ void TJobProxy::RetrieveJobSpec()
     }
 
     const auto& rsp = rspOrError.Value();
+
+    if (rsp->job_spec().version() != GetJobSpecVersion()) {
+        LOG_WARNING("Invalid job spec version (Expected: %v, Actual: %v)",
+            GetJobSpecVersion(),
+            rsp->job_spec().version());
+        Exit(EJobProxyExitCode::InvalidSpecVersion);
+    }
+
     JobSpecHelper_ = CreateJobSpecHelper(rsp->job_spec());
     const auto& resourceUsage = rsp->resource_usage();
 
