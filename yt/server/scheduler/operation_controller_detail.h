@@ -1215,8 +1215,6 @@ private:
     //! An internal helper for invoking OnOperationFailed with an error
     //! built by data from `ex`.
     void FailOperation(const TAssertionFailedException& ex);
-
-    static bool IsGlobalJobFailReason(EScheduleJobFailReason reason);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
