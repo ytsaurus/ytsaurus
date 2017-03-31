@@ -1213,7 +1213,6 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "mount_table");
 
         if (hintCell && hintCell->GetCellBundle() != table->GetTabletCellBundle()) {
             // Will throw :)
@@ -1246,6 +1245,9 @@ public:
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
         ValidateTableMountConfig(table, mountConfig);
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
@@ -1432,7 +1434,6 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "unmount_table");
 
         if (!force) {
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
@@ -1451,6 +1452,9 @@ public:
             }
         }
 
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
+
         DoUnmountTable(table, force, firstTabletIndex, lastTabletIndex);
     }
 
@@ -1467,7 +1471,6 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "remount_table");
 
         TTableMountConfigPtr mountConfig;
         NTabletNode::TTabletChunkReaderConfigPtr readerConfig;
@@ -1475,6 +1478,9 @@ public:
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
         ValidateTableMountConfig(table, mountConfig);
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
@@ -1528,7 +1534,6 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "freeze_table");
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -1542,6 +1547,9 @@ public:
                     state);
             }
         }
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -1587,7 +1595,6 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "unfreeze_table");
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -1601,6 +1608,9 @@ public:
                     state);
             }
         }
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -1693,7 +1703,6 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         auto& tablets = table->Tablets();
         YCHECK(tablets.size() == table->GetChunkList()->Children().size());
@@ -1784,6 +1793,9 @@ public:
                 }
             }
         }
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         // Create new tablets.
         std::vector<TTablet*> newTablets;
