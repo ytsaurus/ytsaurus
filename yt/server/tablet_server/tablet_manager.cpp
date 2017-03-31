@@ -1245,10 +1245,7 @@ public:
         NTabletNode::TTabletChunkWriterConfigPtr writerConfig;
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
-
-        if (!table->IsSorted() && mountConfig->EnableLookupHashTable) {
-            THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" cannot be \"true\" for ordered dynamic table");
-        }
+        ValidateTableMountConfig(table, mountConfig);
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
@@ -1477,10 +1474,7 @@ public:
         NTabletNode::TTabletChunkWriterConfigPtr writerConfig;
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
-
-        if (!table->IsSorted() && mountConfig->EnableLookupHashTable) {
-            THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" cannot be \"true\" for ordered dynamic table");
-        }
+        ValidateTableMountConfig(table, mountConfig);
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
@@ -3727,6 +3721,15 @@ private:
             }
 
             DoTabletUnmounted(tablet);
+        }
+    }
+
+    void ValidateTableMountConfig(
+        const TTableNode* table,
+        const TTableMountConfigPtr& mountConfig)
+    {
+        if (!table->IsSorted() && mountConfig->EnableLookupHashTable) {
+            THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" cannot be \"true\" for ordered dynamic table");
         }
     }
 
