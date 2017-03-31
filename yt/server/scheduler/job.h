@@ -233,25 +233,27 @@ struct TJobStartRequest
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EScheduleJobFailReason,
-    (Unknown)
-    (OperationNotRunning)
-    (NoPendingJobs)
-    (NotEnoughChunkLists)
-    (NotEnoughResources)
-    (Timeout)
-    (EmptyInput)
-    (NoLocalJobs)
-    (TaskDelayed)
-    (NoCandidateTasks)
-    (ResourceOvercommit)
-    (TaskRefusal)
-    (JobSpecThrottling)
+    ((Unknown)                    ( 0))
+    ((OperationNotRunning)        ( 1))
+    ((NoPendingJobs)              ( 2))
+    ((NotEnoughChunkLists)        ( 3))
+    ((NotEnoughResources)         ( 4))
+    ((Timeout)                    ( 5))
+    ((EmptyInput)                 ( 6))
+    ((NoLocalJobs)                ( 7))
+    ((TaskDelayed)                ( 8))
+    ((NoCandidateTasks)           ( 9))
+    ((ResourceOvercommit)         (10))
+    ((TaskRefusal)                (11))
+    ((JobSpecThrottling)          (12))
 );
 
 struct TScheduleJobResult
     : public TIntrinsicRefCounted
 {
     void RecordFail(EScheduleJobFailReason reason);
+    bool IsBackoffNeeded() const;
+    bool IsScheduleStopNeeded() const;
 
     TNullable<TJobStartRequest> JobStartRequest;
     TEnumIndexedVector<int, EScheduleJobFailReason> Failed;

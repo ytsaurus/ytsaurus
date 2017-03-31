@@ -1635,14 +1635,11 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
     if (!scheduleJobResult->JobStartRequest) {
         disableOperationElement();
 
-        bool enableBackoff = false;
-        if (scheduleJobResult->Failed[EScheduleJobFailReason::NotEnoughResources] == 0 &&
-            scheduleJobResult->Failed[EScheduleJobFailReason::NoLocalJobs] == 0)
-        {
+        bool enableBackoff = scheduleJobResult->IsBackoffNeeded();
+        if (enableBackoff) {
             LOG_DEBUG("Failed to schedule job, backing off (OperationId: %v, Reasons: %v)",
                 OperationId_,
                 scheduleJobResult->Failed);
-            enableBackoff = true;
         }
 
         SharedState_->FinishScheduleJob(/*enableBackoff*/ enableBackoff, now);
