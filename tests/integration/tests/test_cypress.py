@@ -5,7 +5,10 @@ import datetime
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from yt.yson import to_yson_type, YsonEntity
+from yt.environment.helpers import assert_items_equal
+
 from datetime import timedelta
+
 from dateutil.tz import tzlocal
 
 ##################################################################
@@ -492,10 +495,20 @@ class TestCypress(YTEnvSetup):
     def test_copy_acd(self):
         create("table", "//tmp/t1")
         set("//tmp/t1/@inherit_acl", False)
-        set("//tmp/t1/@acl", [make_ace("deny", "guest", "write")])
+        acl = [make_ace("deny", "guest", "write")]
+        set("//tmp/t1/@acl", acl)
         copy("//tmp/t1", "//tmp/t2")
+        assert get("//tmp/t2/@inherit_acl")
+        assert_items_equal(get("//tmp/t2/@acl"), [])
+
+    def test_move_acd(self):
+        create("table", "//tmp/t1")
+        set("//tmp/t1/@inherit_acl", False)
+        acl = [make_ace("deny", "guest", "write")]
+        set("//tmp/t1/@acl", acl)
+        move("//tmp/t1", "//tmp/t2")
         assert not get("//tmp/t2/@inherit_acl")
-        assert len(get("//tmp/t2/@acl")) == 1
+        assert_items_equal(get("//tmp/t2/@acl"), acl)
 
 
     def test_move_simple1(self):
