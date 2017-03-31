@@ -137,10 +137,6 @@ public:
         , TotalFailedJobTimeCounter_("/total_failed_job_time")
         , TotalAbortedJobTimeCounter_("/total_aborted_job_time")
         , CoreSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSafeCoreDumps))
-        , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
-            Config_->ChunkLocationThrottler,
-            Logger,
-            Profiler))
     {
         YCHECK(config);
         YCHECK(bootstrap);
@@ -1086,8 +1082,6 @@ private:
     TPeriodicExecutorPtr UpdateNodeShardsExecutor_;
 
     const TAsyncSemaphorePtr CoreSemaphore_;
-
-    NChunkClient::TThrottlerManagerPtr ChunkLocationThrottlerManager_;
 
     Stroka ServiceAddress_;
 
