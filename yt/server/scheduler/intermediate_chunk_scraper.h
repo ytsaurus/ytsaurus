@@ -38,7 +38,7 @@ public:
 
 private:
     const TIntermediateChunkScraperConfigPtr Config_;
-    const IInvokerPtr& Invoker_;
+    const IInvokerPtr Invoker_;
     const NChunkClient::TThrottlerManagerPtr ThrottlerManager_;
     const NApi::INativeClientPtr Client_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;

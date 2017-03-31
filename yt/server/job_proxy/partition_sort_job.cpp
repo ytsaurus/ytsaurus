@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/chunk_client/data_source.h>
 
+#include <yt/ytlib/job_proxy/helpers.h>
+
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/ytlib/table_client/schemaless_partition_sort_reader.h>
@@ -50,7 +52,7 @@ public:
 
         YCHECK(SchedulerJobSpecExt_.input_table_specs_size() == 1);
         const auto& inputSpec = SchedulerJobSpecExt_.input_table_specs(0);
-        auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
+        auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(SchedulerJobSpecExt_.data_source_directory());
 

@@ -160,7 +160,7 @@ void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const
     YCHECK(!IsNull());
 #ifdef _linux_
     auto path = GetPath(name);
-    TFileOutput output(TFile(path, OpenMode::WrOnly));
+    TFileOutput output(TFile(path, EOpenModeFlag::WrOnly));
     output << value;
 #endif
 }
@@ -170,7 +170,7 @@ void TNonOwningCGroup::Append(const Stroka& name, const Stroka& value) const
     YCHECK(!IsNull());
 #ifdef _linux_
     auto path = GetPath(name);
-    TFileOutput output(TFile(path, OpenMode::ForAppend));
+    TFileOutput output(TFile(path, EOpenModeFlag::ForAppend));
     output << value;
 #endif
 }

@@ -1291,7 +1291,6 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/test_node/inner_node",
                prerequisite_revisions=[{"path": "//tmp/test_node", "transaction_id": "0-0-0-0", "revision": revision}])
 
-
 ##################################################################
 
 class TestCypressMulticell(TestCypress):

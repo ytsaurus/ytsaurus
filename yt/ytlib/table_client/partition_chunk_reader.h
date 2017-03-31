@@ -38,7 +38,6 @@ public:
         TNameTablePtr nameTable,
         NChunkClient::IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns,
-        const NChunkClient::NProto::TChunkMeta& masterMeta,
         int partitionTag);
 
     template <class TValueInsertIterator, class TRowDescriptorInsertIterator>

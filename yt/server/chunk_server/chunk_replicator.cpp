@@ -1659,7 +1659,6 @@ void TChunkReplicator::OnRefresh()
     LOG_DEBUG("Incremental chunk refresh iteration started");
 
     PROFILE_TIMING ("/refresh_time") {
-        auto chunkManager = Bootstrap_->GetChunkManager();
         auto deadline = GetCpuInstant() - ChunkRefreshDelay_;
         while (totalCount < Config_->MaxChunksPerRefresh &&
                RefreshScanner_->HasUnscannedChunk(deadline))
@@ -1925,7 +1924,7 @@ void TChunkReplicator::OnPropertiesUpdate()
         request.updates_size());
 
     if (request.updates_size() > 0) {
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto asyncResult = chunkManager
             ->CreateUpdateChunkPropertiesMutation(request)
             ->CommitAndLog(Logger);

@@ -61,6 +61,37 @@ void FromProto(TDataSliceDescriptor* dataSliceDescriptor, const NProto::TDataSli
     dataSliceDescriptor->ChunkSpecs = std::vector<NProto::TChunkSpec>(protoDataSliceDescriptor.chunks().begin(), protoDataSliceDescriptor.chunks().end());
 }
 
+void ToProto(
+    ::google::protobuf::RepeatedPtrField<NProto::TChunkSpec>* chunkSpecs,
+    ::google::protobuf::RepeatedField<int>* chunkSpecCountPerDataSlice,
+    const std::vector<TDataSliceDescriptor>& dataSlices)
+{
+    for (const auto& dataSlice : dataSlices) {
+        chunkSpecCountPerDataSlice->Add(dataSlice.ChunkSpecs.size());
+
+        for (const auto& chunkSpec : dataSlice.ChunkSpecs) {
+            *chunkSpecs->Add() = chunkSpec;
+        }
+    }
+}
+
+void FromProto(
+    std::vector<TDataSliceDescriptor>* dataSlices,
+    const ::google::protobuf::RepeatedPtrField<NProto::TChunkSpec>& chunkSpecs,
+    const ::google::protobuf::RepeatedField<int>& chunkSpecCountPerDataSlice)
+{
+    dataSlices->clear();
+    int currentIndex = 0;
+    for (int chunkSpecCount : chunkSpecCountPerDataSlice) {
+        std::vector<NProto::TChunkSpec> dataSliceSpecs(
+            chunkSpecs.begin() + currentIndex,
+            chunkSpecs.begin() + currentIndex + chunkSpecCount);
+
+        dataSlices->emplace_back(std::move(dataSliceSpecs));
+        currentIndex += chunkSpecCount;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 GetCumulativeRowCount(const std::vector<TDataSliceDescriptor>& dataSliceDescriptors)

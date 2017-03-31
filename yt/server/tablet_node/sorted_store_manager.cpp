@@ -435,7 +435,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             Client_,
             blockCache);
 
-        auto tableWriter = CreateVersionedChunkInMemoryWriter(
+        auto tableWriter = CreateInMemoryVersionedChunkWriter(
             tabletSnapshot->WriterConfig,
             writerOptions,
             InMemoryManager_,

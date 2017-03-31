@@ -78,6 +78,10 @@ public:
             return;
         }
 
+        if (!Config_->EnableTabletSizeBalancer) {
+            return;
+        }
+
         if (!IsObjectAlive(tablet) ||
             tablet->GetAction() ||
             QueuedTabletIds_.find(tablet->GetId()) != QueuedTabletIds_.end() ||
@@ -178,6 +182,10 @@ private:
 
     void ReassignInMemoryTablets()
     {
+        if (!Config_->EnableInMemoryBalancer) {
+            return;
+        }
+
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         const auto& cells = tabletManager->TabletCells();
 
@@ -390,10 +398,6 @@ private:
     {
         const auto& worldInitializer = Bootstrap_->GetWorldInitializer();
         if (!worldInitializer->IsInitialized()) {
-            return;
-        }
-
-        if (!Config_->Enabled) {
             return;
         }
 

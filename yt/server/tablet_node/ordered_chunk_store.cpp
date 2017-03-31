@@ -162,17 +162,6 @@ EStoreType TOrderedChunkStore::GetType() const
     return EStoreType::OrderedChunk;
 }
 
-EInMemoryMode TOrderedChunkStore::GetInMemoryMode() const
-{
-    return EInMemoryMode::None;
-}
-
-void TOrderedChunkStore::SetInMemoryMode(EInMemoryMode mode)
-{ }
-
-void TOrderedChunkStore::Preload(TInMemoryChunkDataPtr chunkData)
-{ }
-
 ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     int tabletIndex,
@@ -214,7 +203,7 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
         std::move(blockCache),
         readSchema,
         TKeyColumns(),
-        *ChunkMeta_,
+        GetChunkMeta(),
         {readRange});
 
     return New<TReader>(
@@ -226,9 +215,9 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
         lowerRowIndex);
 }
 
-IBlockCachePtr TOrderedChunkStore::GetBlockCache()
+TKeyComparer TOrderedChunkStore::GetKeyComparer()
 {
-    return GetNullBlockCache();
+    return TKeyComparer();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

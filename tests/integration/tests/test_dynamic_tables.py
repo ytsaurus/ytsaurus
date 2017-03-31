@@ -45,6 +45,17 @@ class TestDynamicTablesBase(YTEnvSetup):
         leader_peer = list(x for x in peers if x["state"] == "leading")[0]
         return leader_peer["address"]
 
+    def _get_recursive(self, path, result=None):
+        if result is None or result.attributes.get("opaque", False):
+            result = get(path, attributes=["opaque"])
+        if isinstance(result, dict):
+            for key, value in result.iteritems():
+                result[key] = self._get_recursive(path + "/" + key, value)
+        if isinstance(result, list):
+            for index, value in enumerate(result):
+                result[index] = self._get_recursive(path + "/" + str(index), value)
+        return result
+
     def _find_tablet_orchid(self, address, tablet_id):
         path = "//sys/nodes/" + address + "/orchid/tablet_cells"
         cells = ls(path)
@@ -52,7 +63,10 @@ class TestDynamicTablesBase(YTEnvSetup):
             if get(path + "/" + cell_id + "/state") == "leading":
                 tablets = ls(path + "/" + cell_id + "/tablets")
                 if tablet_id in tablets:
-                    return get(path + "/" + cell_id + "/tablets/" + tablet_id, ignore_opaque=True)
+                    try:
+                        return self._get_recursive(path + "/" + cell_id + "/tablets/" + tablet_id)
+                    except:
+                        return None
         return None
 
     def _get_pivot_keys(self, path):
@@ -465,6 +479,48 @@ class TestDynamicTables(TestDynamicTablesBase):
         for peer in get("#{0}/@peers".format(default_cell)):
             assert peer["address"] != node
 
+    @pytest.mark.parametrize("freeze", [False, True])
+    @pytest.mark.parametrize("second_command", ["freeze", "unfreeze"])
+    @pytest.mark.parametrize("first_command", ["unmount", "freeze", "unfreeze"])
+    def test_state_transition_conflict(self, freeze, first_command, second_command):
+        callbacks = {
+            "unmount": lambda x: unmount_table(x),
+            "freeze": lambda x: freeze_table(x),
+            "unfreeze": lambda x: unfreeze_table(x)
+        }
+
+        M = "mounted"
+        F = "frozen"
+        E = "error"
+
+        expect = None
+        if freeze:
+            expect = {
+                "unmount":  {"freeze": E, "unfreeze": E},
+                "freeze":   {"freeze": F, "unfreeze": M},
+                "unfreeze": {"freeze": E, "unfreeze": M},
+            }
+        else:
+            expect = {
+                "unmount":  {"freeze": E, "unfreeze": E},
+                "freeze":   {"freeze": F, "unfreeze": E},
+                "unfreeze": {"freeze": F, "unfreeze": M},
+            }
+
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t", freeze=freeze)
+        cell = get("//tmp/t/@tablets/0/cell_id")
+        banned_peers = self._ban_all_peers(cell)
+        callbacks[first_command]("//tmp/t")
+        expected = expect[first_command][second_command]
+        if expected == E:
+            with pytest.raises(YtError):
+                callbacks[second_command]("//tmp/t")
+        else:
+            callbacks[second_command]("//tmp/t")
+            self._unban_peers(banned_peers)
+            self._wait_for_tablets("//tmp/t", expected)
 
 ##################################################################
 
@@ -474,7 +530,8 @@ class TestTabletActions(TestDynamicTablesBase):
             "leader_reassignment_timeout" : 1000,
             "peer_revocation_timeout" : 3000,
             "tablet_balancer": {
-                "enabled": True,
+                "enable_in_memory_balancer": True,
+                "enable_tablet_size_balancer": True,
                 "balance_period": 100,
                 "enabled_check_period": 100,
                 "min_tablet_size": 128,
@@ -495,38 +552,78 @@ class TestTabletActions(TestDynamicTablesBase):
         }
     }
 
-    def test_action_move(self):
+    @pytest.mark.parametrize("skip_freezing", [False, True])
+    @pytest.mark.parametrize("freeze", [False, True])
+    def test_action_move(self, skip_freezing, freeze):
         set("//sys/@disable_tablet_balancer", True)
         cells = self.sync_create_cells(2)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t", cell_id=cells[0])
+        self.sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         action = create("tablet_action", "", attributes={
             "kind": "move",
+            "skip_freezing": skip_freezing,
             "keep_finished": True,
             "tablet_ids": [tablet_id],
             "cell_ids": [cells[1]]})
         wait(lambda: get("#{0}/@state".format(action)) == "completed")
         assert get("//tmp/t/@tablets/0/cell_id") == cells[1]
+        expected_state = "frozen" if freeze else "mounted"
+        assert get("//tmp/t/@tablets/0/state") == expected_state
+        remove("#" + action)
+        sleep(1.0)
 
-    def test_action_reshard(self):
+        action = create("tablet_action", "", attributes={
+            "kind": "move",
+            "keep_finished": True,
+            "skip_freezing": skip_freezing,
+            "freeze": not freeze,
+            "tablet_ids": [tablet_id],
+            "cell_ids": [cells[0]]})
+        wait(lambda: get("#{0}/@state".format(action)) == "completed")
+        assert get("//tmp/t/@tablets/0/cell_id") == cells[0]
+        expected_state = "frozen" if not freeze else "mounted"
+        assert get("//tmp/t/@tablets/0/state") == expected_state
+
+    @pytest.mark.parametrize("skip_freezing", [False, True])
+    @pytest.mark.parametrize("freeze", [False, True])
+    def test_action_reshard(self, skip_freezing, freeze):
         set("//sys/@disable_tablet_balancer", True)
         cells = self.sync_create_cells(2)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t", cell_id=cells[0])
+        self.sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         action = create("tablet_action", "", attributes={
             "kind": "reshard",
             "keep_finished": True,
+            "skip_freezing": skip_freezing,
             "tablet_ids": [tablet_id],
             "pivot_keys": [[], [1]]})
         wait(lambda: get("#{0}/@state".format(action)) == "completed")
         tablets = list(get("//tmp/t/@tablets"))
         assert len(tablets) == 2
-        assert tablets[0]["state"] == "mounted"
-        assert tablets[1]["state"] == "mounted"
+        expected_state = "frozen" if freeze else "mounted"
+        assert tablets[0]["state"] == expected_state
+        assert tablets[1]["state"] == expected_state
+        remove("#" + action)
+        sleep(1.0)
 
-    def test_tablet_cell_balance(self):
+        action = create("tablet_action", "", attributes={
+            "kind": "reshard",
+            "keep_finished": True,
+            "skip_freezing": skip_freezing,
+            "freeze": not freeze,
+            "tablet_ids": [tablets[0]["tablet_id"], tablets[1]["tablet_id"]],
+            "tablet_count": 1})
+        wait(lambda: get("#{0}/@state".format(action)) == "completed")
+        tablets = list(get("//tmp/t/@tablets"))
+        assert len(tablets) == 1
+        expected_state = "frozen" if not freeze else "mounted"
+        assert tablets[0]["state"] == expected_state
+
+
+    @pytest.mark.parametrize("freeze", [False, True])
+    def test_tablet_cell_balance(self, freeze):
         set("//sys/@disable_tablet_balancer", True)
         cells = self.sync_create_cells(2)
         self._create_simple_table("//tmp/t1")
@@ -539,11 +636,15 @@ class TestTabletActions(TestDynamicTablesBase):
         insert_rows("//tmp/t2", [{"key": 1, "value": "1"}])
         self.sync_flush_table("//tmp/t1")
         self.sync_flush_table("//tmp/t2")
+        if freeze:
+            self.sync_freeze_table("//tmp/t1")
+            self.sync_freeze_table("//tmp/t2")
 
         remove("//sys/@disable_tablet_balancer")
         sleep(1)
-        self._wait_for_tablets("//tmp/t1", "mounted")
-        self._wait_for_tablets("//tmp/t2", "mounted")
+        expected_state = "frozen" if freeze else "mounted"
+        self._wait_for_tablets("//tmp/t1", expected_state)
+        self._wait_for_tablets("//tmp/t2", expected_state)
         cell0 = get("//tmp/t1/@tablets/0/cell_id")
         cell1 = get("//tmp/t2/@tablets/0/cell_id")
         assert cell0 != cell1
@@ -583,56 +684,82 @@ class TestTabletActions(TestDynamicTablesBase):
         assert len(get("//tmp/t/@chunk_ids")) > 1
         assert get("//tmp/t/@tablet_count") == 2
 
-    def test_action_failed_after_remove(self):
+    @pytest.mark.parametrize("skip_freezing", [False, True])
+    @pytest.mark.parametrize("freeze", [False, True])
+    def test_action_failed_after_table_removed(self, skip_freezing, freeze):
         set("//sys/@disable_tablet_balancer", True)
         cells = self.sync_create_cells(2)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t", cell_id=cells[0])
+        self.sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         self._ban_all_peers(cells[0])
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         action = create("tablet_action", "", attributes={
             "kind": "move",
             "keep_finished": True,
+            "skip_freezing": skip_freezing,
             "tablet_ids": [tablet_id],
             "cell_ids": [cells[1]]})
         remove("//tmp/t")
-        wait(lambda: get("#{}/@state".format(action)) == "failed")
-        assert get("#{}/@error".format(action))
+        wait(lambda: get("#{0}/@state".format(action)) == "failed")
+        assert get("#{0}/@error".format(action))
 
-    def test_action_failed_after_unmount(self):
+    @pytest.mark.parametrize("touch", ["mount", "unmount", "freeze", "unfreeze"])
+    @pytest.mark.parametrize("skip_freezing", [False, True])
+    @pytest.mark.parametrize("freeze", [False, True])
+    def test_action_failed_after_tablet_touched(self, skip_freezing, freeze, touch):
+        touch_callbacks = {
+            "mount": mount_table,
+            "unmount": unmount_table,
+            "freeze": freeze_table,
+            "unfreeze": unfreeze_table
+        }
+        callback = touch_callbacks[touch]
+
         set("//sys/@disable_tablet_balancer", True)
         cells = self.sync_create_cells(2)
         self._create_simple_table("//tmp/t")
         reshard_table("//tmp/t", [[], [1]])
-        self.sync_mount_table("//tmp/t", cell_id=cells[0])
+        self.sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         banned_peers = self._ban_all_peers(cells[0])
         tablet1 = get("//tmp/t/@tablets/0/tablet_id")
         tablet2 = get("//tmp/t/@tablets/1/tablet_id")
         action = create("tablet_action", "", attributes={
             "kind": "move",
             "keep_finished": True,
+            "skip_freezing": skip_freezing,
             "tablet_ids": [tablet1, tablet2],
             "cell_ids": [cells[1], cells[1]]})
-        unmount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
+        try:
+            callback("//tmp/t", first_tablet_index=0, last_tablet_index=0)
+        except Exception as e:
+            pass
         self._unban_peers(banned_peers)
-        wait(lambda: get("#{}/@state".format(action)) == "failed")
-        assert get("#{}/@error".format(action))
+        wait(lambda: get("#{0}/@state".format(action)) == "failed")
+        assert get("#{0}/@error".format(action))
+        expected_state = "frozen" if freeze else "mounted"
+        wait(lambda: get("//tmp/t/@tablets/1/state") == expected_state)
+        # FIXME(savrus) Enable after YT-6770
+        #wait(lambda: get("//tmp/t/@tablets/0/state") == "unmounted")
 
-    def test_action_failed_after_cell_destroyed(self):
+    @pytest.mark.parametrize("skip_freezing", [False, True])
+    @pytest.mark.parametrize("freeze", [False, True])
+    def test_action_failed_after_cell_destroyed(self, skip_freezing, freeze):
         set("//sys/@disable_tablet_balancer", True)
         cells = self.sync_create_cells(2)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t", cell_id=cells[0])
+        self.sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         action = create("tablet_action", "", attributes={
             "kind": "move",
             "keep_finished": True,
+            "skip_freezing": skip_freezing,
             "tablet_ids": [tablet_id],
             "cell_ids": [cells[1]]})
         remove("#" + cells[1])
-        wait(lambda: get("#{}/@state".format(action)) == "failed")
-        assert get("#{}/@error".format(action))
-
+        wait(lambda: get("#{0}/@state".format(action)) == "failed")
+        assert get("#{0}/@error".format(action))
+        expected_state = "frozen" if freeze else "mounted"
+        self._wait_for_tablets("//tmp/t", expected_state)
 
 ##################################################################
 

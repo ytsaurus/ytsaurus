@@ -32,6 +32,7 @@ PEERDIR(
   yt/${YT_ABI}/yt/server
   library/http/simple
   library/getopt
+  library/http/simple
 )
 
 END()

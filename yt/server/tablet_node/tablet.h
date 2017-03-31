@@ -353,7 +353,7 @@ public:
 
     void StartEpoch(TTabletSlotPtr slot);
     void StopEpoch();
-    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default);
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
 
     TTabletSnapshotPtr BuildSnapshot(TTabletSlotPtr slot) const;
 
