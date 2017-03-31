@@ -40,7 +40,7 @@ TDataSliceDescriptor CreateIncompatibleDataSliceDescriptor()
     // chunk_meta() field and properly set version().
     // Newer nodes do well without it.
     NProto::TChunkSpec chunkSpec;
-    ToProto(chunkSpec.mutable_chunk_id(), TGuid());
+    ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
 
     return TDataSliceDescriptor(chunkSpec);
 }

@@ -2263,6 +2263,11 @@ IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()
 
 void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
 {
+    if (chunkId == NullChunkId) {
+        LOG_WARNING("Incompatible unavailable chunk found; deprecated node version");
+        return;
+    }
+
     auto it = InputChunkMap.find(chunkId);
     if (it == InputChunkMap.end()) {
         LOG_DEBUG("Intermediate chunk has failed (ChunkId: %v)", chunkId);
