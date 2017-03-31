@@ -46,6 +46,8 @@ public:
     {
         auto kind = attributes->GetAndRemove<ETabletActionKind>("kind");
         auto tabletCount = attributes->FindAndRemove<int>("tablet_count");
+        auto skipFreezing = attributes->GetAndRemove<bool>("skip_freezing", false);
+        auto freeze = attributes->FindAndRemove<bool>("freeze");
         auto keepFinished = attributes->GetAndRemove<bool>("keep_finished", false);
         auto tabletIds = attributes->GetAndRemove<std::vector<TTabletId>>("tablet_ids");
         auto cellIds = attributes->GetAndRemove<std::vector<TTabletCellId>>(
@@ -73,6 +75,8 @@ public:
             cells,
             pivotKeys,
             tabletCount,
+            skipFreezing,
+            freeze,
             keepFinished);
     }
 

@@ -97,6 +97,8 @@ private:
             .SetPresent(chunk->IsConfirmed()));
         descriptors->push_back(TAttributeDescriptor("chunk_type")
             .SetPresent(chunk->IsConfirmed()));
+        descriptors->push_back(TAttributeDescriptor("table_chunk_format")
+            .SetPresent(chunk->IsConfirmed() && EChunkType(chunk->ChunkMeta().type()) == EChunkType::Table));
         descriptors->push_back(TAttributeDescriptor("meta_size")
             .SetPresent(chunk->IsConfirmed() && miscExt.has_meta_size()));
         descriptors->push_back(TAttributeDescriptor("compressed_data_size")
@@ -315,6 +317,13 @@ private:
                 auto type = EChunkType(chunk->ChunkMeta().type());
                 BuildYsonFluently(consumer)
                     .Value(type);
+                return true;
+            }
+
+            if (key == "table_chunk_format" && EChunkType(chunk->ChunkMeta().type()) == EChunkType::Table) {
+                auto format = ETableChunkFormat(chunk->ChunkMeta().version());
+                BuildYsonFluently(consumer)
+                    .Value(format);
                 return true;
             }
 

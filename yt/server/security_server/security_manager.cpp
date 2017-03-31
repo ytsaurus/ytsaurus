@@ -1368,9 +1368,9 @@ private:
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
         // COMPAT(babenko)
-        RecomputeNodeResourceUsage_ = context.GetVersion() < 504;
-        ValidateAccountResourceUsage_ = context.GetVersion() >= 511;
-        RecomputeAccountResourceUsage_ = context.GetVersion() <= 511;
+        RecomputeNodeResourceUsage_ = context.GetVersion() < 513;
+        ValidateAccountResourceUsage_ = context.GetVersion() >= 513;
+        RecomputeAccountResourceUsage_ = context.GetVersion() < 513;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1426,7 +1426,7 @@ private:
             {
                 TClusterResources NodeUsage;
                 TClusterResources NodeCommittedUsage;
-                TClusterResources TxUsage;
+                TClusterResources StagingUsage;
             };
 
             yhash_map<TAccount*, TStat> statMap;
@@ -1438,73 +1438,72 @@ private:
 
             for (const auto& pair : cypressManager->Nodes()) {
                 const auto* node = pair.second;
-                auto oldCached = node->CachedResourceUsage();
-                TClusterResources newCached;
-                if (!node->IsExternal() && node->GetAccountingEnabled()) {
-                    const auto& handler = cypressManager->GetHandler(node);
-                    newCached = handler->GetAccountingResourceUsage(node);
-                }
-
-                if (oldCached != newCached) {
-                    LOG_INFO("XXX node %v usage mismatch: %v != %v",
-                        node->GetVersionedId(),
-                        oldCached,
-                        newCached);
-                }
-
+                const auto& usage = node->CachedResourceUsage();
                 auto* account = node->GetAccount();
                 auto& stat = statMap[account];
-                stat.NodeUsage += oldCached;
+                stat.NodeUsage += usage;
                 if (node->IsTrunk()) {
-                    stat.NodeCommittedUsage += oldCached;
+                    stat.NodeCommittedUsage += usage;
                 }
             }
 
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            for (const auto& pair1 : transactionManager->Transactions()) {
-                const auto* transaction = pair1.second;
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            for (const auto& pair : chunkManager->Chunks()) {
+                const auto* chunk = pair.second;
+                if (!chunk->IsStaged() || !chunk->IsConfirmed() || chunk->IsJournal()) {
+                    continue;
+                }
+                auto* transaction = chunk->GetStagingTransaction();
                 if (!transaction->GetAccountingEnabled()) {
                     continue;
                 }
-                for (const auto& pair2 : transaction->AccountResourceUsage()) {
-                    auto* account = pair2.first;
-                    auto& stat = statMap[account];
-                    stat.TxUsage += pair2.second;
-                }
+                auto* account = chunk->GetStagingAccount();
+                auto& stat = statMap[account];
+                stat.StagingUsage += chunk->GetResourceUsage();
             }
 
             for (const auto& pair : statMap) {
                 auto* account = pair.first;
                 const auto& stat = pair.second;
                 bool log = false;
-                auto expectedUsage = stat.NodeUsage + stat.TxUsage;
+                auto expectedUsage = stat.NodeUsage + stat.StagingUsage;
                 auto expectedCommittedUsage = stat.NodeCommittedUsage;
                 if (account->LocalStatistics().ResourceUsage != expectedUsage) {
+                    LOG_ERROR("Unexpected error: %v account usage mismatch",
+                        account->GetName());
                     log = true;
                 }
                 if (account->LocalStatistics().CommittedResourceUsage != expectedCommittedUsage) {
+                    LOG_ERROR("Unexpected error: %v account committed usage mismatch",
+                        account->GetName());
                     log = true;
                 }
                 if (log) {
-                    LOG_INFO("XXX %v account usage %v",
+                    LOG_ERROR("XXX %v account usage %v",
                         account->GetName(),
                         account->LocalStatistics().ResourceUsage);
-                    LOG_INFO("XXX %v account committed usage %v",
+                    LOG_ERROR("XXX %v account committed usage %v",
                         account->GetName(),
                         account->LocalStatistics().CommittedResourceUsage);
-                    LOG_INFO("XXX %v node usage %v",
+                    LOG_ERROR("XXX %v node usage %v",
                         account->GetName(),
                         stat.NodeUsage);
-                    LOG_INFO("XXX %v node committed usage %v",
+                    LOG_ERROR("XXX %v node committed usage %v",
                         account->GetName(),
                         stat.NodeCommittedUsage);
-                    LOG_INFO("XXX %v tx usage %v",
+                    LOG_ERROR("XXX %v staging usage %v",
                         account->GetName(),
-                        stat.TxUsage);
+                        stat.StagingUsage);
                 }
                 if (RecomputeAccountResourceUsage_) {
                     account->LocalStatistics().ResourceUsage = expectedUsage;
                     account->LocalStatistics().CommittedResourceUsage = expectedCommittedUsage;
+                    if (Bootstrap_->IsPrimaryMaster()) {
+                        account->ClusterStatistics() = TAccountStatistics();
+                        for (const auto& pair : account->MulticellStatistics()) {
+                            account->ClusterStatistics() += pair.second;
+                        }
+                    }
                 }
             }
         }

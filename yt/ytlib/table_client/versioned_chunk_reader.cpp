@@ -86,27 +86,28 @@ std::vector<TColumnIdMapping> BuildSchemalessHorizontalSchemaIdMapping(
     const TColumnFilter& columnFilter,
     const TCachedVersionedChunkMetaPtr& chunkMeta)
 {
+    int keyColumnCount = chunkMeta->GetChunkKeyColumnCount();
     std::vector<TColumnIdMapping> idMapping;
-    idMapping.resize(chunkMeta->SchemaIdMapping().size(), TColumnIdMapping{-1,-1});
+    idMapping.resize(
+        keyColumnCount + chunkMeta->SchemaIdMapping().size(),
+        TColumnIdMapping{-1,-1});
+
+    for (int index = 0; index < keyColumnCount; ++index) {
+        idMapping[index].ReaderSchemaIndex = index;
+    }
 
     if (columnFilter.All) {
         for (const auto& mapping : chunkMeta->SchemaIdMapping()) {
             YCHECK(mapping.ChunkSchemaIndex < idMapping.size());
+            YCHECK(mapping.ChunkSchemaIndex >= keyColumnCount);
             idMapping[mapping.ChunkSchemaIndex].ReaderSchemaIndex = mapping.ReaderSchemaIndex;
         }
     } else {
-        for (int index = 0; index < chunkMeta->GetChunkKeyColumnCount(); ++index) {
-            idMapping[index].ReaderSchemaIndex = index;
-        }
-
         for (auto index : columnFilter.Indexes) {
-            if (index < chunkMeta->GetKeyColumnCount()) {
-                continue;
-            }
-
             for (const auto& mapping : chunkMeta->SchemaIdMapping()) {
                 if (mapping.ReaderSchemaIndex == index) {
                     YCHECK(mapping.ChunkSchemaIndex < idMapping.size());
+                    YCHECK(mapping.ChunkSchemaIndex >= keyColumnCount);
                     idMapping[mapping.ChunkSchemaIndex].ReaderSchemaIndex = mapping.ReaderSchemaIndex;
                     break;
                 }

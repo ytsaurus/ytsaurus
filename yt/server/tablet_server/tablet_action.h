@@ -42,6 +42,12 @@ public:
     //! Desired number of tablets (for reshard).
     DEFINE_BYVAL_RW_PROPERTY(TNullable<int>, TabletCount);
 
+    //! Skip initial freezing pass while performing tablet action.
+    DEFINE_BYVAL_RW_PROPERTY(bool, SkipFreezing);
+
+    //! Freeze tablets when action is completed.
+    DEFINE_BYVAL_RW_PROPERTY(bool, Freeze);
+
     //! Contains error if tablet action failed.
     DEFINE_BYREF_RW_PROPERTY(TError, Error);
 

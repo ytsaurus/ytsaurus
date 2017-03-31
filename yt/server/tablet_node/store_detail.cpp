@@ -3,6 +3,7 @@
 #include "automaton.h"
 #include "tablet.h"
 #include "config.h"
+#include "in_memory_manager.h"
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 
@@ -21,10 +22,13 @@
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -359,6 +363,98 @@ void TDynamicStoreBase::UpdateTimestampRange(TTimestamp commitTimestamp)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TPreloadedBlockCache
+    : public IBlockCache
+{
+public:
+    TPreloadedBlockCache(
+        TIntrusivePtr<TChunkStoreBase> owner,
+        const TChunkId& chunkId,
+        EBlockType type,
+        IBlockCachePtr underlyingCache)
+        : Owner_(owner)
+        , ChunkId_(chunkId)
+        , Type_(type)
+        , UnderlyingCache_(std::move(underlyingCache))
+    { }
+
+    DEFINE_BYVAL_RO_PROPERTY(IChunkLookupHashTablePtr, LookupHashTable);
+
+    ~TPreloadedBlockCache()
+    {
+        auto owner = Owner_.Lock();
+        if (!owner)
+            return;
+
+        owner->SetMemoryUsage(0);
+    }
+
+    virtual void Put(
+        const TBlockId& id,
+        EBlockType type,
+        const TSharedRef& data,
+        const TNullable<NNodeTrackerClient::TNodeDescriptor>& source) override
+    {
+        UnderlyingCache_->Put(id, type, data, source);
+    }
+
+    virtual TSharedRef Find(
+        const TBlockId& id,
+        EBlockType type) override
+    {
+        Y_ASSERT(id.ChunkId == ChunkId_);
+
+        if (type == Type_ && IsPreloaded()) {
+            Y_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
+            return Blocks_[id.BlockIndex];
+        } else {
+            return UnderlyingCache_->Find(id, type);
+        }
+    }
+
+    virtual EBlockType GetSupportedBlockTypes() const override
+    {
+        return Type_;
+    }
+
+    void Preload(TInMemoryChunkDataPtr chunkData)
+    {
+        auto owner = Owner_.Lock();
+        if (!owner)
+            return;
+
+        Blocks_ = std::move(chunkData->Blocks);
+        LookupHashTable_ = chunkData->LookupHashTable;
+
+        i64 dataSize = GetByteSize(Blocks_);
+        if (LookupHashTable_) {
+            dataSize += LookupHashTable_->GetByteSize();
+        }
+
+        owner->SetMemoryUsage(dataSize);
+
+        Preloaded_ = true;
+    }
+
+    bool IsPreloaded() const
+    {
+        return Preloaded_.load();
+    }
+
+private:
+    const TWeakPtr<TChunkStoreBase> Owner_;
+    const TChunkId ChunkId_;
+    const EBlockType Type_;
+    const IBlockCachePtr UnderlyingCache_;
+
+    std::vector<TSharedRef> Blocks_;
+    std::atomic<bool> Preloaded_ = {false};
+};
+
+DEFINE_REFCOUNTED_TYPE(TPreloadedBlockCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkStoreBase::TChunkStoreBase(
     TTabletManagerConfigPtr config,
     const TStoreId& id,
@@ -658,6 +754,111 @@ TInstant TChunkStoreBase::GetLastCompactionAttemptTimestamp() const
 void TChunkStoreBase::UpdateCompactionAttemptTimestamp()
 {
     LastCompactionAttemptTimestamp_ = Now();
+}
+
+EInMemoryMode TChunkStoreBase::GetInMemoryMode() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(SpinLock_);
+    return InMemoryMode_;
+}
+
+void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TWriterGuard guard(SpinLock_);
+
+    if (InMemoryMode_ == mode) {
+        return;
+    }
+
+    ChunkState_.Reset();
+    PreloadedBlockCache_.Reset();
+
+    if (PreloadFuture_) {
+        PreloadFuture_.Cancel();
+        PreloadFuture_.Reset();
+    }
+    if (PreloadBackoffFuture_) {
+        PreloadBackoffFuture_.Cancel();
+        PreloadBackoffFuture_.Reset();
+    }
+
+    if (mode == EInMemoryMode::None) {
+        PreloadState_ = EStorePreloadState::Disabled;
+    } else {
+        auto blockType =
+               mode == EInMemoryMode::Compressed      ? EBlockType::CompressedData :
+            /* mode == EInMemoryMode::Uncompressed */   EBlockType::UncompressedData;
+
+        PreloadedBlockCache_ = New<TPreloadedBlockCache>(
+            this,
+            StoreId_,
+            blockType,
+            BlockCache_);
+
+        switch (PreloadState_) {
+            case EStorePreloadState::Disabled:
+            case EStorePreloadState::Running:
+            case EStorePreloadState::Complete:
+                PreloadState_ = EStorePreloadState::None;
+                break;
+            case EStorePreloadState::None:
+            case EStorePreloadState::Scheduled:
+                break;
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+
+    ChunkReader_.Reset();
+
+    InMemoryMode_ = mode;
+}
+
+void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TWriterGuard guard(SpinLock_);
+
+    if (chunkData->InMemoryMode != InMemoryMode_) {
+        return;
+    }
+
+    PreloadedBlockCache_->Preload(chunkData);
+    ChunkState_ = New<TCacheBasedChunkState>(
+        PreloadedBlockCache_,
+        chunkData->ChunkMeta,
+        PreloadedBlockCache_->GetLookupHashTable(),
+        PerformanceCounters_,
+        GetKeyComparer());
+}
+
+IBlockCachePtr TChunkStoreBase::GetBlockCache()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(SpinLock_);
+    return PreloadedBlockCache_ ? PreloadedBlockCache_ : BlockCache_;
+}
+
+
+bool TChunkStoreBase::ValidateBlockCachePreloaded()
+{
+    if (InMemoryMode_ == EInMemoryMode::None) {
+        return false;
+    }
+
+    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+        THROW_ERROR_EXCEPTION("Chunk data is not preloaded yet")
+            << TErrorAttribute("tablet_id", TabletId_)
+            << TErrorAttribute("store_id", StoreId_);
+    }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

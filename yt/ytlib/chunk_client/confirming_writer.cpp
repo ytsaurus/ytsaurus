@@ -115,7 +115,7 @@ TConfirmingWriter::TConfirmingWriter(
     INativeClientPtr client,
     IBlockCachePtr blockCache,
     IThroughputThrottlerPtr throttler)
-    : Config_(config)
+    : Config_(CloneYsonSerializable(config))
     , Options_(options)
     , CellTag_(cellTag)
     , TransactionId_(transactionId)
@@ -126,6 +126,13 @@ TConfirmingWriter::TConfirmingWriter(
     , Throttler_(throttler)
     , Logger(ChunkClientLogger)
 {
+    Config_->UploadReplicationFactor = std::min(
+        Config_->UploadReplicationFactor,
+        Options_->ReplicationFactor);
+    Config_->MinUploadReplicationFactor = std::min(
+        Config_->MinUploadReplicationFactor,
+        Options_->ReplicationFactor);
+
     Logger.AddTag("TransactionId: %v", TransactionId_);
 }
 

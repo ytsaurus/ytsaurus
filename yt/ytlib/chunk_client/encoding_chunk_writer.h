@@ -39,6 +39,8 @@ public:
 
     double GetCompressionRatio() const;
 
+    TChunkId GetChunkId() const;
+
     NProto::TDataStatistics GetDataStatistics() const;
 
 private:

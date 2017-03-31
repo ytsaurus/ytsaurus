@@ -17,7 +17,9 @@ class TTabletBalancerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    bool Enabled;
+    bool EnableInMemoryBalancer;
+    bool EnableTabletSizeBalancer;
+
     TDuration BalancePeriod;
     TDuration EnabledCheckPeriod;
 
@@ -31,7 +33,10 @@ public:
 
     TTabletBalancerConfig()
     {
-        RegisterParameter("enabled", Enabled)
+        RegisterParameter("enable_in_memory_balancer", EnableInMemoryBalancer)
+            .Default(false);
+
+        RegisterParameter("enable_tablet_size_balancer", EnableTabletSizeBalancer)
             .Default(false);
 
         RegisterParameter("balance_period", BalancePeriod)

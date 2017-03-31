@@ -62,7 +62,7 @@ public:
     NNodeTrackerClient::NProto::TNodeResources GetResourceLimits() const;
 
     //! Return the current resource usage.
-    NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(bool includeWaiting = true) const;
+    NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(bool includeWaiting = false) const;
 
     //! Set resource limits overrides.
     void SetResourceLimitsOverrides(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimits);

@@ -1037,8 +1037,19 @@ private:
         auto requestedState = ETabletState(request->state());
 
         switch (requestedState) {
-            case ETabletState::UnmountFlushing:
             case ETabletState::FreezeFlushing: {
+                auto state = tablet->GetState();
+                if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
+                    LOG_INFO_UNLESS(IsRecovery(), "Trying to switch state to %Qv while tablet in %Qlv state, ignored (TabletId: %v)",
+                        requestedState,
+                        state,
+                        tabletId);
+                    return;
+                }
+                // No break intentionaly
+            }
+
+            case ETabletState::UnmountFlushing: {
                 tablet->SetState(requestedState);
 
                 const auto& storeManager = tablet->GetStoreManager();
@@ -1048,8 +1059,9 @@ private:
                     storeManager->Rotate(requestedState == ETabletState::FreezeFlushing);
                 }
 
-                LOG_INFO_IF(IsLeader(), "Waiting for all tablet stores to be flushed (TabletId: %v)",
-                    tabletId);
+                LOG_INFO_IF(IsLeader(), "Waiting for all tablet stores to be flushed (TabletId: %v, NewState: %v)",
+                    tabletId,
+                    requestedState);
 
                 if (IsLeader()) {
                     CheckIfTabletFullyFlushed(tablet);
@@ -1081,6 +1093,15 @@ private:
             }
 
             case ETabletState::Frozen: {
+                auto state = tablet->GetState();
+                if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
+                    LOG_INFO_UNLESS(IsRecovery(), "Trying to switch state to %Qv while tablet in %Qlv state, ignored (TabletId: %v)",
+                        requestedState,
+                        state,
+                        tabletId);
+                    return;
+                }
+
                 tablet->SetState(ETabletState::Frozen);
 
                 for (const auto& pair : tablet->StoreIdMap()) {
@@ -1886,7 +1907,6 @@ private:
             rowRef.StoreManager->CommitRow(transaction, rowRef);
         }
         lockedRows.clear();
-        ClearTransactionWriteLog(&transaction->ImmediateLockedWriteLog());
 
         // Check if above CommitRow calls caused store locks to be released.
         CheckIfImmediateLockedTabletsFullyUnlocked(transaction);
@@ -1910,7 +1930,6 @@ private:
 
             locklessRowCount += context.RowCount;
         }
-        ClearTransactionWriteLog(&transaction->ImmediateLocklessWriteLog());
 
         LOG_DEBUG_UNLESS(IsRecovery() || lockedRowCount + locklessRowCount == 0,
             "Immediate rows committed (TransactionId: %v, LockedRowCount: %v, LocklessRowCount: %v)",
@@ -1921,6 +1940,9 @@ private:
         if (transaction->DelayedLocklessWriteLog().Empty()) {
             UnlockLockedTablets(transaction);
         }
+
+        ClearTransactionWriteLog(&transaction->ImmediateLockedWriteLog());
+        ClearTransactionWriteLog(&transaction->ImmediateLocklessWriteLog());
     }
 
     void OnTransactionSerialized(TTransaction* transaction) noexcept
@@ -1951,7 +1973,6 @@ private:
 
             rowCount += context.RowCount;
         }
-        ClearTransactionWriteLog(&transaction->DelayedLocklessWriteLog());
 
         LOG_DEBUG_UNLESS(IsRecovery() || rowCount == 0,
             "Delayed rows committed (TransactionId: %v, RowCount: %v)",
@@ -1959,6 +1980,8 @@ private:
             rowCount);
 
         UnlockLockedTablets(transaction);
+
+        ClearTransactionWriteLog(&transaction->DelayedLocklessWriteLog());
     }
 
     void OnTransactionAborted(TTransaction* transaction)
@@ -2200,9 +2223,6 @@ private:
             return;
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "All tablet locks released (TabletId: %v)",
-            tablet->GetId());
-
         ETabletState newTransientState;
         ETabletState newPersistentState;
         switch (state) {
@@ -2218,6 +2238,10 @@ private:
                 Y_UNREACHABLE();
         }
         tablet->SetState(newTransientState);
+
+        LOG_INFO_UNLESS(IsRecovery(), "All tablet locks released (TabletId: %v, NewState: %v)",
+            tablet->GetId(),
+            newTransientState);
 
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
@@ -2237,9 +2261,6 @@ private:
             return;
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "All tablet stores flushed (TabletId: %v)",
-            tablet->GetId());
-
         ETabletState newTransientState;
         ETabletState newPersistentState;
         switch (state) {
@@ -2255,6 +2276,10 @@ private:
                 Y_UNREACHABLE();
         }
         tablet->SetState(newTransientState);
+
+        LOG_INFO_UNLESS(IsRecovery(), "All tablet stores flushed (TabletId: %v, NewState: %v)",
+            tablet->GetId(),
+            newTransientState);
 
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
