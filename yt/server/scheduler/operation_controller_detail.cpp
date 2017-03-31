@@ -2805,6 +2805,9 @@ void TOperationControllerBase::DoScheduleLocalJob(
     auto nodeId = context->GetNodeDescriptor().Id;
 
     for (const auto& group : TaskGroups) {
+        if (scheduleJobResult->IsScheduleStopNeeded()) {
+            break;
+        }
         if (!Dominates(jobLimits, group->MinNeededResources)) {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
             continue;
@@ -2816,7 +2819,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
         }
 
         i64 bestLocality = 0;
-        TTaskPtr bestTask = nullptr;
+        TTaskPtr bestTask;
 
         auto& localTasks = localTasksIt->second;
         auto it = localTasks.begin();
@@ -2855,7 +2858,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
 
         if (!IsRunning()) {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationNotRunning);
-            return;
+            break;
         }
 
         if (bestTask) {
@@ -2872,13 +2875,16 @@ void TOperationControllerBase::DoScheduleLocalJob(
             if (!HasEnoughChunkLists(bestTask->IsIntermediateOutput(), bestTask->IsStderrTableEnabled(), bestTask->IsCoreTableEnabled())) {
                 LOG_DEBUG("Job chunk list demand is not met");
                 scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
-                return;
+                break;
             }
 
             bestTask->ScheduleJob(context, jobLimits, scheduleJobResult);
             if (scheduleJobResult->JobStartRequest) {
                 UpdateTask(bestTask);
-                return;
+                break;
+            }
+            if (scheduleJobResult->IsScheduleStopNeeded()) {
+                break;
             }
         } else {
             // NB: This is one of the possible reasons, hopefully the most probable.
@@ -2897,6 +2903,9 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
     const auto& address = context->GetNodeDescriptor().Address;
 
     for (const auto& group : TaskGroups) {
+        if (scheduleJobResult->IsScheduleStopNeeded()) {
+            break;
+        }
         if (!Dominates(jobLimits, group->MinNeededResources)) {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
             continue;
@@ -2975,7 +2984,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
 
                 if (!IsRunning()) {
                     scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationNotRunning);
-                    return;
+                    break;
                 }
 
                 LOG_DEBUG(
@@ -2990,14 +2999,16 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                 if (!HasEnoughChunkLists(task->IsIntermediateOutput(), task->IsStderrTableEnabled(), task->IsCoreTableEnabled())) {
                     LOG_DEBUG("Job chunk list demand is not met");
                     scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
-                    return;
+                    break;
                 }
 
                 task->ScheduleJob(context, jobLimits, scheduleJobResult);
                 if (scheduleJobResult->JobStartRequest) {
                     UpdateTask(task);
-                    LOG_DEBUG("Processed %v tasks", processedTaskCount);
-                    return;
+                    break;
+                }
+                if (scheduleJobResult->IsScheduleStopNeeded()) {
+                    break;
                 }
 
                 // If task failed to schedule job, its min resources might have been updated.
@@ -3009,11 +3020,14 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     candidateTasks.insert(std::make_pair(minMemory, task));
                 }
             }
+
             if (processedTaskCount == noPendingJobsTaskCount) {
                 scheduleJobResult->RecordFail(EScheduleJobFailReason::NoCandidateTasks);
             }
 
-            LOG_DEBUG("Processed %v tasks", processedTaskCount);
+            LOG_DEBUG("Non-local tasks processed (TotalCount: %v, NoPendingJobsCount: %v)",
+                processedTaskCount,
+                noPendingJobsTaskCount);
         }
     }
 }
