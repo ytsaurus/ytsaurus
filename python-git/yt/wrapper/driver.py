@@ -28,8 +28,6 @@ def process_params(obj):
         obj = dict_cls((k, process_params(v)) for k, v in iteritems(obj))
     elif hasattr(obj, "to_yson_type"):
         obj = obj.to_yson_type()
-    elif obj is True or obj is False:
-        obj = bool_to_string(obj)
     else:
         obj = copy(obj)
 
