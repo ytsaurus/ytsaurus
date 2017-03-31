@@ -8,6 +8,9 @@
 #include <yt/core/misc/finally.h>
 #include <yt/core/pipes/pipe.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/delayed_executor.h>
+
 #include <util/folder/dirut.h>
 
 #include <util/string/ascii.h>
@@ -41,6 +44,9 @@ static const pid_t InvalidProcessId = -1;
 
 static const int ExecveRetryCount = 5;
 static const auto ExecveRetryTimeout = TDuration::Seconds(1);
+
+static const int ResolveRetryCount = 5;
+static const auto ResolveRetryTimeout = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -321,8 +327,24 @@ void TProcess::DoSpawn()
     YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
     // Resolve binary path.
-    ResolvedPath_ = ResolveBinaryPath(Path_)
-        .ValueOrThrow();
+    std::vector<TError> innerErrors;
+    for (int retryIndex = ResolveRetryCount; retryIndex >= 0; --retryIndex) {
+        auto errorOrPath = ResolveBinaryPath(Path_);
+        if (errorOrPath.IsOK()) {
+            ResolvedPath_ = errorOrPath.Value();
+            break;
+        } else {
+            innerErrors.push_back(errorOrPath);
+        }
+
+        if (retryIndex == 0) {
+            auto error = TError("Failed to resolve binary path %v", Path_);
+            error.InnerErrors() = innerErrors;
+            error.ThrowOnError();
+        } else {
+            WaitFor(TDelayedExecutor::MakeDelayed(ResolveRetryTimeout));
+        }
+    }
 
     // Make sure no spawn action closes Pipe_.WriteFD
     TPipeFactory pipeFactory(MaxSpawnActionFD_ + 1);
