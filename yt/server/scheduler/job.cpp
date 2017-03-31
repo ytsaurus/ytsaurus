@@ -296,6 +296,21 @@ void TScheduleJobResult::RecordFail(EScheduleJobFailReason reason)
     ++Failed[reason];
 }
 
+bool TScheduleJobResult::IsBackoffNeeded() const
+{
+    return
+        !JobStartRequest &&
+        Failed[EScheduleJobFailReason::NotEnoughResources] == 0 ||
+        Failed[EScheduleJobFailReason::NoLocalJobs] == 0;
+}
+
+bool TScheduleJobResult::IsScheduleStopNeeded() const
+{
+    return
+        Failed[EScheduleJobFailReason::NotEnoughChunkLists] > 0 ||
+        Failed[EScheduleJobFailReason::JobSpecThrottling] > 0;
+}
+
 void TScheduleJobStatistics::RecordJobResult(const TScheduleJobResultPtr& scheduleJobResult)
 {
     for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
