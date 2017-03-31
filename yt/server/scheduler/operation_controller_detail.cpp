@@ -448,7 +448,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
         if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
             LOG_DEBUG("Job spec throttling is active (SliceCount: %v)",
                 sliceCount);
-            chunkPoolOutput->Aborted(joblet->OutputCookie);
+            chunkPoolOutput->Aborted(joblet->OutputCookie, EAbortReason::SchedulingJobSpecThrottling);
             scheduleJobResult->RecordFail(EScheduleJobFailReason::JobSpecThrottling);
             return;
         }
@@ -3186,7 +3186,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                 }
 
                 if (!task->GetDelayedTime()) {
-                    task->SetDelayedTime(now);        
+                    task->SetDelayedTime(now);
                 }
 
                 auto deadline = *task->GetDelayedTime() + task->GetLocalityTimeout();
