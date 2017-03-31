@@ -300,7 +300,7 @@ bool TScheduleJobResult::IsBackoffNeeded() const
 {
     return
         !JobStartRequest &&
-        Failed[EScheduleJobFailReason::NotEnoughResources] == 0 ||
+        Failed[EScheduleJobFailReason::NotEnoughResources] == 0 &&
         Failed[EScheduleJobFailReason::NoLocalJobs] == 0;
 }
 
