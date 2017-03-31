@@ -1232,7 +1232,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
             self.sync_unmount_table("//tmp/t")
             pivots = ([[]] + [[x] for x in xrange(0, items, items / wave)]) if wave % 2 == 0 else [[]]
-            reshard_table("//tmp/t", pivots)
+            for i in xrange(30):
+                try:
+                    reshard_table("//tmp/t", pivots)
+                    break
+                except:
+                    sleep(1)
             self.sync_mount_table("//tmp/t")
 
             verify()
@@ -1788,8 +1793,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
 
-    @pytest.mark.xfail(run = False, reason = "Fails on teamcity")
-    def test_deleted_rows_revive(self):
+    def test_reshard_with_uncovered_chunk_fails(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         set("//tmp/t/@min_data_ttl", 0)
@@ -1803,7 +1807,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         root_chunk_list = get("//tmp/t/@chunk_list_id")
         tablet_chunk_lists = get("#{0}/@child_ids".format(root_chunk_list))
 
-        self.sync_mount_table("//tmp/t")
+        mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
+        wait(lambda: get("//tmp/t/@tablets/1/state") == "mounted")
         delete_rows("//tmp/t", [{"key": 1}])
         self.sync_unmount_table("//tmp/t")
 
@@ -1811,24 +1816,14 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
         mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
         wait(lambda: get("//tmp/t/@tablets/1/state") == "mounted")
-        wait(lambda: get("#{0}/@child_ids".format(tablet_chunk_lists[1])) == [])
+        wait(lambda: chunk_id not in get("#{0}/@child_ids".format(tablet_chunk_lists[1])))
         self.sync_unmount_table("//tmp/t")
-        remove("//tmp/t/@forced_compaction_revision")
 
         assert get("#{0}/@child_ids".format(tablet_chunk_lists[0])) == [chunk_id]
-        assert get("#{0}/@child_ids".format(tablet_chunk_lists[1])) == []
+        assert chunk_id not in get("#{0}/@child_ids".format(tablet_chunk_lists[1]))
         assert get("#{0}/@child_ids".format(tablet_chunk_lists[2])) == [chunk_id]
-
-        # FXIME: Replace not_expected by expected in checks below when YT-6743 is fixed.
-        expected = [{"key": i, "value": str(i)} for i in (0, 2)]
-        not_expected = rows
-
-        assert read_table("//tmp/t") == expected
-        reshard_table("//tmp/t", [[]])
-        assert read_table("//tmp/t") == not_expected
-        self.sync_mount_table("//tmp/t")
-        assert lookup_rows("//tmp/t", [{"key": row["key"]} for row in rows]) == not_expected
-        assert_items_equal(select_rows("* from [//tmp/t]"), not_expected)
+        with pytest.raises(YtError):
+            reshard_table("//tmp/t", [[]])
  
 ##################################################################
 
