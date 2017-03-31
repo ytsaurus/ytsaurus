@@ -55,6 +55,7 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/ytlib/tablet_client/config.h>
 
@@ -1804,6 +1805,50 @@ public:
             }
         }
 
+        std::vector<TChunk*> chunks;
+
+        // For each chunk verify that it is covered (without holes) by old tablets.
+        if (table->IsPhysicallySorted()) {
+            const auto& tabletChunkTrees = table->GetChunkList()->Children();
+            std::vector<yhash_set<TChunk*>> chunkSets(lastTabletIndex + 1);
+
+            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                std::vector<TChunk*> tabletChunks;
+                EnumerateChunksInChunkTree(tabletChunkTrees[index]->AsChunkList(), &tabletChunks);
+                chunkSets[index].insert(tabletChunks.begin(), tabletChunks.end());
+                chunks.insert(chunks.end(), tabletChunks.begin(), tabletChunks.end());
+            }
+
+            std::sort(chunks.begin(), chunks.end(), TObjectRefComparer::Compare);
+            chunks.erase(
+                std::unique(chunks.begin(), chunks.end()),
+                chunks.end());
+            int keyColumnCount = table->TableSchema().GetKeyColumnCount();
+            auto oldTablets = std::vector<TTablet*>(
+                tablets.begin() + firstTabletIndex,
+                tablets.begin() + lastTabletIndex + 1);
+
+            for (auto* chunk : chunks) {
+                auto keyPair = GetChunkBoundaryKeys(chunk->ChunkMeta(), keyColumnCount);
+                auto range = GetIntersectingTablets(oldTablets, keyPair.first, keyPair.second);
+                for (auto it = range.first; it != range.second; ++it) {
+                    auto* tablet = *it;
+                    if (chunkSets[tablet->GetIndex()].find(chunk) == chunkSets[tablet->GetIndex()].end()) {
+                        THROW_ERROR_EXCEPTION("Chunk %v crosses boundary of tablet %v but is missing from its chunk list;"
+                            " please wait until stores are compacted",
+                            chunk->GetId(),
+                            tablet->GetId())
+                        << TErrorAttribute("chunk_min_key", keyPair.first)
+                        << TErrorAttribute("chunk_max_key", keyPair.second)
+                        << TErrorAttribute("pivot_key", tablet->GetPivotKey())
+                        << TErrorAttribute("next_pivot_key", tablet->GetIndex() < table->Tablets().size() - 1
+                            ? table->Tablets()[tablet->GetIndex() + 1]->GetPivotKey()
+                            : MaxKey());
+                    }
+                }
+            }
+        }
+
         // Do after all validations.
         TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
@@ -1877,18 +1922,10 @@ public:
 
         if (table->IsPhysicallySorted()) {
             // Move chunks from the resharded tablets to appropriate chunk lists.
-            auto chunks = enumerateChunks(firstTabletIndex, lastTabletIndex);
-            std::sort(chunks.begin(), chunks.end(), TObjectRefComparer::Compare);
-            chunks.erase(
-                std::unique(chunks.begin(), chunks.end()),
-                chunks.end());
-
             int keyColumnCount = table->TableSchema().GetKeyColumnCount();
             for (auto* chunk : chunks) {
-                auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
-                auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumnCount);
-                auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumnCount);
-                auto range = GetIntersectingTablets(newTablets, minKey, maxKey);
+                auto keyPair = GetChunkBoundaryKeys(chunk->ChunkMeta(), keyColumnCount);
+                auto range = GetIntersectingTablets(newTablets, keyPair.first, keyPair.second);
                 for (auto it = range.first; it != range.second; ++it) {
                     auto* tablet = *it;
                     chunkManager->AttachToChunkList(

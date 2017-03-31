@@ -6,6 +6,7 @@
 #include <yt/ytlib/formats/format.h>
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/ytlib/cypress_client/public.h>
 
@@ -25,7 +26,6 @@ class TOutputResult;
 } // namespace NScheduler
 
 namespace NTableClient {
-
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -119,6 +119,12 @@ Stroka KeyToYson(TUnversionedRow row);
 //////////////////////////////////////////////////////////////////////////////////
 
 NScheduler::NProto::TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer);
+
+//////////////////////////////////////////////////////////////////////////////////
+
+std::pair<TOwningKey, TOwningKey> GetChunkBoundaryKeys(
+    const NChunkClient::NProto::TChunkMeta& chunkMeta,
+    int keyColumnCount);
 
 //////////////////////////////////////////////////////////////////////////////////
 
