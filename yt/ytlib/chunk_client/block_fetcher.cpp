@@ -26,9 +26,7 @@ TBlockFetcher::TBlockFetcher(
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId)
-    : UncompressedDataSize_(0)
-    , CompressedDataSize_(0)
-    , Config_(std::move(config))
+    : Config_(std::move(config))
     , BlockInfos_(std::move(blockInfos))
     , ChunkReader_(std::move(chunkReader))
     , BlockCache_(std::move(blockCache))
@@ -312,6 +310,16 @@ void TBlockFetcher::RequestBlocks(
 bool TBlockFetcher::IsFetchingCompleted()
 {
     return IsFetchingCompleted_;
+}
+
+i64 TBlockFetcher::GetUncompressedDataSize() const
+{
+    return UncompressedDataSize_;
+}
+
+i64 TBlockFetcher::GetCompressedDataSize() const
+{
+    return CompressedDataSize_;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
