@@ -65,7 +65,8 @@ protected:
     void CloneCoreEpilogue(
         TCypressNodeBase* sourceNode,
         TCypressNodeBase* clonedNode,
-        ICypressNodeFactory* factory);
+        ICypressNodeFactory* factory,
+        ENodeCloneMode mode);
 
 };
 
@@ -186,7 +187,11 @@ public:
         DoClone(typedSourceNode, typedClonedNode, factory, mode);
 
         // Run core epilogue stuff.
-        CloneCoreEpilogue(sourceNode, clonedNode, factory);
+        CloneCoreEpilogue(
+            sourceNode,
+            clonedNode,
+            factory,
+            mode);
 
         return clonedNode;
     }

@@ -146,7 +146,8 @@ TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
 void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     TCypressNodeBase* sourceNode,
     TCypressNodeBase* clonedNode,
-    ICypressNodeFactory* factory)
+    ICypressNodeFactory* factory,
+    ENodeCloneMode mode)
 {
     // Copy attributes directly to suppress validation.
     auto keyToAttribute = GetNodeAttributes(
@@ -160,10 +161,12 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
         }
     }
 
-    // Copy ACD.
-    clonedNode->Acd().SetInherit(sourceNode->Acd().GetInherit());
-    for (const auto& ace : sourceNode->Acd().Acl().Entries) {
-        clonedNode->Acd().AddEntry(ace);
+    // Copy ACD, but only in move.
+    if (mode == ENodeCloneMode::Move) {
+        clonedNode->Acd().SetInherit(sourceNode->Acd().GetInherit());
+        for (const auto& ace : sourceNode->Acd().Acl().Entries) {
+            clonedNode->Acd().AddEntry(ace);
+        }
     }
 
     // Copy "opaque" flag.
