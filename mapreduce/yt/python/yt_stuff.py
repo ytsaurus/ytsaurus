@@ -330,6 +330,9 @@ class YtStuff(object):
 
         return yatest.common.execute(cmd, env=env, *args, **kwargs)
 
+    def get_yt_cli_binary(self):
+        return os.path.join(self.yt_bins_path, 'yt2')
+
     @_timing
     def start_local_yt(self):
         max_retries = int(yatest.common.get_param(
