@@ -703,17 +703,21 @@ class TestTabletActions(TestDynamicTablesBase):
         wait(lambda: get("#{0}/@state".format(action)) == "failed")
         assert get("#{0}/@error".format(action))
 
-    @pytest.mark.parametrize("touch", ["mount", "unmount", "freeze", "unfreeze"])
+    # TODO(savrus) Add "mount" to touch variants
+    @pytest.mark.parametrize("touch", ["unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
     def test_action_failed_after_tablet_touched(self, skip_freezing, freeze, touch):
-        touch_callbacks = {
-            "mount": mount_table,
-            "unmount": unmount_table,
-            "freeze": freeze_table,
-            "unfreeze": unfreeze_table
+        touches = {
+            "mount": [mount_table, "mounted"],
+            "unmount": [unmount_table, "unmounted"],
+            "freeze": [freeze_table, "frozen"],
+            "unfreeze": [unfreeze_table, "mounted"]
         }
-        callback = touch_callbacks[touch]
+        touch_callback = touches[touch][0]
+        expected_touch_state = touches[touch][1]
+        expected_action_state = "failed"
+        expected_state = "frozen" if freeze else "mounted"
 
         set("//sys/@disable_tablet_balancer", True)
         cells = self.sync_create_cells(2)
@@ -730,16 +734,16 @@ class TestTabletActions(TestDynamicTablesBase):
             "tablet_ids": [tablet1, tablet2],
             "cell_ids": [cells[1], cells[1]]})
         try:
-            callback("//tmp/t", first_tablet_index=0, last_tablet_index=0)
+            touch_callback("//tmp/t", first_tablet_index=0, last_tablet_index=0)
         except Exception as e:
-            pass
+            expected_touch_state = expected_state
+            expected_action_state = "completed"
         self._unban_peers(banned_peers)
-        wait(lambda: get("#{0}/@state".format(action)) == "failed")
-        assert get("#{0}/@error".format(action))
-        expected_state = "frozen" if freeze else "mounted"
+        wait(lambda: get("#{0}/@state".format(action)) == expected_action_state)
+        if expected_action_state == "failed":
+            assert get("#{0}/@error".format(action))
         wait(lambda: get("//tmp/t/@tablets/1/state") == expected_state)
-        # FIXME(savrus) Enable after YT-6770
-        #wait(lambda: get("//tmp/t/@tablets/0/state") == "unmounted")
+        wait(lambda: get("//tmp/t/@tablets/0/state") == expected_touch_state)
 
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
