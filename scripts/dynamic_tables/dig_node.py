@@ -18,7 +18,15 @@ def checked(rsp, default=None):
         raise RuntimeError(rsp["error"])
     return rsp["output"]
 
-def dig(node):
+def get_statistics_mode(dig_mode, in_memory_mode):
+    if dig_mode == "memory":
+        return in_memory_mode
+    elif dig_mode == "compressed_disk":
+        return "compressed"
+    elif dig_mode == "uncompressed_disk":
+        return "uncompressed"
+
+def dig(node, dig_mode):
     path_cache = dict()
     mode_cache = dict()
 
@@ -63,7 +71,7 @@ def dig(node):
     filtered_tables = []
     filtered_tablets = []
     for table, tablet in zip(tables, tablets):
-        if mode_cache[table] != "none":
+        if dig_mode != "memory" or mode_cache[table] != "none":
             filtered_tables.append(table)
             filtered_tablets.append(tablet)
 
@@ -80,7 +88,8 @@ def dig(node):
     reqs = []
     for table, tablet in zip(filtered_tables, filtered_tablets):
         reqs.append({"command": "get", "parameters": {
-            "path": "#" + tablet + "/@statistics/" + mode_cache[table] + "_data_size"}})
+            "path": "#" + tablet + "/@statistics/" + get_statistics_mode(dig_mode, mode_cache[table]) + "_data_size"
+        }})
 
     print "Digging {} tablet statistics...".format(len(reqs))
     rsps = yt.execute_batch(reqs)
@@ -106,8 +115,9 @@ def dig(node):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("node", type=str, nargs=1)
+    parser.add_argument("node", type=str, help="node address to dig")
+    parser.add_argument("--mode", type=str, default="memory", help="compressed_disk, uncompressed_disk or memory (default: memory)")
 
     args = parser.parse_args()
 
-    dig(args.node[0])
+    dig(args.node, args.mode)
