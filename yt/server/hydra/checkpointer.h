@@ -54,7 +54,7 @@ public:
      *  \returns
      *  \note Thread affinity: AutomatonThread
      */
-    TBuildSnapshotResult BuildSnapshot();
+    TBuildSnapshotResult BuildSnapshot(bool setReadOnly);
 
     //! Returns |true| iff a snapshot can be built.
     /*!

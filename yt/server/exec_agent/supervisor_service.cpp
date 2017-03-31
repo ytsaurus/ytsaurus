@@ -49,7 +49,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
     auto job = jobController->GetJobOrThrow(jobId);
 
     *response->mutable_job_spec() = job->GetSpec();
-    const auto& resources = job->GetResourceUsage();
+    auto resources = job->GetResourceUsage();
 
     auto* jobProxyResources = response->mutable_resource_usage();
     jobProxyResources->set_cpu(resources.cpu());

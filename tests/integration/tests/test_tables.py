@@ -1051,6 +1051,15 @@ class TestTables(YTEnvSetup):
             {"key": "x", "index": 1, "value": "world!"}])
         assert "hello world!" == read_blob_table("//tmp/ttt", part_index_column_name="index", data_column_name="value")
 
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_table_chunk_format_statistics(self, optimize_for):
+        create("table", "//tmp/t", attributes={"optimize_for": optimize_for})
+        write_table("//tmp/t", [{"a": "b"}])
+        chunk_format = "schemaless_horizontal" if optimize_for == "lookup" else "unversioned_columnar"
+        assert get("//tmp/t/@table_chunk_format_statistics/{0}/chunk_count".format(chunk_format)) == 1
+        chunk = get("//tmp/t/@chunk_ids")[0]
+        assert get("#{0}/@table_chunk_format".format(chunk)) == chunk_format
+
 ##################################################################
 
 def check_multicell_statistics(path, chunk_count_map):
