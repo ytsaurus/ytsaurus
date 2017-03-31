@@ -49,6 +49,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/response_keeper.h>
@@ -97,7 +98,6 @@ using NNodeTrackerClient::TNodeDirectory;
 
 static const auto& Logger = SchedulerLogger;
 static const auto& Profiler = SchedulerProfiler;
-static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -121,7 +121,15 @@ public:
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
         , JobSpecBuilderThreadPool_(New<TThreadPool>(Config_->JobSpecBuilderThreadCount, "SpecBuilder"))
         , StatisticsAnalyzerThreadPool_(New<TThreadPool>(Config_->StatisticsAnalyzerThreadCount, "Statistics"))
-        , MasterConnector_(new TMasterConnector(Config_, Bootstrap_))
+        , ReconfigurableJobSpecSliceThrottler_(CreateReconfigurableThroughputThrottler(
+            Config_->JobSpecSliceThrottler,
+            NLogging::TLogger(),
+            NProfiling::TProfiler(SchedulerProfiler.GetPathPrefix() + "/job_spec_slice_throttler")))
+        , JobSpecSliceThrottler_(ReconfigurableJobSpecSliceThrottler_)
+        , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
+            Config_->ChunkLocationThrottler,
+            SchedulerLogger))
+        , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , MainNodesResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/main_nodes_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
@@ -129,10 +137,6 @@ public:
         , TotalFailedJobTimeCounter_("/total_failed_job_time")
         , TotalAbortedJobTimeCounter_("/total_aborted_job_time")
         , CoreSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSafeCoreDumps))
-        , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
-            Config_->ChunkLocationThrottler,
-            Logger,
-            Profiler))
     {
         YCHECK(config);
         YCHECK(bootstrap);
@@ -262,13 +266,6 @@ public:
         UpdateNodeShardsExecutor_->Start();
     }
 
-    virtual ISchedulerStrategyPtr GetStrategy() override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return Strategy_;
-    }
-
     IYPathServicePtr GetOrchidService()
     {
         auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
@@ -318,7 +315,7 @@ public:
         return ConnectionTime_;
     }
 
-    TOperationPtr FindOperation(const TOperationId& id)
+    TOperationPtr FindOperation(const TOperationId& id) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -326,7 +323,7 @@ public:
         return it == IdToOperation_.end() ? nullptr : it->second;
     }
 
-    TOperationPtr GetOperation(const TOperationId& id)
+    TOperationPtr GetOperation(const TOperationId& id) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -335,7 +332,7 @@ public:
         return operation;
     }
 
-    TOperationPtr GetOperationOrThrow(const TOperationId& id)
+    TOperationPtr GetOperationOrThrow(const TOperationId& id) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -944,25 +941,39 @@ public:
     }
 
     // INodeShardHost implementation
-    int GetNodeShardId(TNodeId nodeId) const override
+    virtual int GetNodeShardId(TNodeId nodeId) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return nodeId % NodeShards_.size();
     }
 
-    IInvokerPtr GetStatisticsAnalyzerInvoker() override
+    virtual const ISchedulerStrategyPtr& GetStrategy() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Strategy_;
+    }
+
+    const IInvokerPtr& GetStatisticsAnalyzerInvoker() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return StatisticsAnalyzerThreadPool_->GetInvoker();
     }
 
-    IInvokerPtr GetJobSpecBuilderInvoker() override
+    const IInvokerPtr& GetJobSpecBuilderInvoker() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return JobSpecBuilderThreadPool_->GetInvoker();
+    }
+
+    virtual const IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return JobSpecSliceThrottler_;
     }
 
     TFuture<void> UpdateOperationWithFinishedJob(
@@ -1018,27 +1029,30 @@ private:
     const TSchedulerConfigPtr InitialConfig_;
     TBootstrap* const Bootstrap_;
 
-    TActionQueuePtr SnapshotIOQueue_;
-    TThreadPoolPtr ControllerThreadPool_;
-    TThreadPoolPtr JobSpecBuilderThreadPool_;
-    TThreadPoolPtr StatisticsAnalyzerThreadPool_;
+    const TActionQueuePtr SnapshotIOQueue_;
+    const TThreadPoolPtr ControllerThreadPool_;
+    const TThreadPoolPtr JobSpecBuilderThreadPool_;
+    const TThreadPoolPtr StatisticsAnalyzerThreadPool_;
 
-    std::unique_ptr<TMasterConnector> MasterConnector_;
+    const IReconfigurableThroughputThrottlerPtr ReconfigurableJobSpecSliceThrottler_;
+    const IThroughputThrottlerPtr JobSpecSliceThrottler_;
+
+    const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
+
+    const std::unique_ptr<TMasterConnector> MasterConnector_;
 
     ISchedulerStrategyPtr Strategy_;
 
     TInstant ConnectionTime_;
 
-    TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
-
     typedef yhash_map<TOperationId, TOperationPtr> TOperationIdMap;
     TOperationIdMap IdToOperation_;
 
     typedef std::vector<TExecNodeDescriptor> TExecNodeDescriptors;
-    NConcurrency::TReaderWriterSpinLock ExecNodeDescriptorsLock_;
+    TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TExecNodeDescriptors CachedExecNodeDescriptors_;
 
-    NConcurrency::TReaderWriterSpinLock ExecNodeDescriptorsByTagLock_;
+    TReaderWriterSpinLock ExecNodeDescriptorsByTagLock_;
 
     struct TExecNodeDescriptorsEntry
     {
@@ -1046,6 +1060,7 @@ private:
         NProfiling::TCpuInstant LastUpdateTime;
         TExecNodeDescriptors ExecNodeDescriptors;
     };
+
     mutable yhash_map<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
 
     TProfiler TotalResourceLimitsProfiler_;
@@ -1067,8 +1082,6 @@ private:
     TPeriodicExecutorPtr UpdateNodeShardsExecutor_;
 
     const TAsyncSemaphorePtr CoreSemaphore_;
-
-    NChunkClient::TThrottlerManagerPtr ChunkLocationThrottlerManager_;
 
     Stroka ServiceAddress_;
 
@@ -1418,7 +1431,8 @@ private:
             EOperationState::Aborting,
             EOperationState::Aborted,
             ELogEventType::OperationAborted,
-            TError("Operation transaction has expired or was aborted"));
+            TError("User transaction %v has expired or was aborted",
+                operation->GetUserTransaction()->GetId()));
     }
 
     void OnSchedulerTransactionAborted(TOperationPtr operation)
@@ -1567,7 +1581,7 @@ private:
             return;
         }
 
-        TSchedulerConfigPtr newConfig = CloneYsonSerializable(InitialConfig_);
+        auto newConfig = CloneYsonSerializable(InitialConfig_);
         try {
             const auto& rsp = rspOrError.Value();
             auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
@@ -1593,7 +1607,9 @@ private:
 
         if (!AreNodesEqual(oldConfigNode, newConfigNode)) {
             LOG_INFO("Scheduler configuration updated");
+
             Config_ = newConfig;
+
             for (const auto& operation : GetOperations()) {
                 auto controller = operation->GetController();
                 BIND(&IOperationController::UpdateConfig, controller, Config_)
@@ -1609,6 +1625,9 @@ private:
 
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);
+
+            ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
+            ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
         }
     }
 
@@ -2459,13 +2478,13 @@ private:
         virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
         {
             TOperationId operationId = TOperationId::FromString(key);
-            auto iterator = Scheduler_->IdToOperation_.find(operationId);
-            if (iterator == Scheduler_->IdToOperation_.end()) {
+            auto operation = Scheduler_->FindOperation(operationId);
+            if (!operation) {
                 return nullptr;
             }
 
             return IYPathService::FromProducer(
-                BIND(&TScheduler::TImpl::BuildOperationYson, MakeStrong(Scheduler_), iterator->second));
+                BIND(&TScheduler::TImpl::BuildOperationYson, MakeStrong(Scheduler_), operation));
         }
 
     private:

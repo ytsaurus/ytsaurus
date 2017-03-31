@@ -62,7 +62,7 @@ public:
     std::vector<IJobPtr> GetJobs() const;
 
     TNodeResources GetResourceLimits() const;
-    TNodeResources GetResourceUsage(bool includeWaiting = true) const;
+    TNodeResources GetResourceUsage(bool includeWaiting = false) const;
     void SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits);
 
     void SetDisableSchedulerJobs(bool value);
@@ -169,7 +169,7 @@ TJobController::TImpl::TImpl(
     YCHECK(bootstrap);
 
     for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
-        JobOriginToTag_[origin] = TProfileManager::Get()->RegisterTag("origin", Format("%lv", origin));
+        JobOriginToTag_[origin] = TProfileManager::Get()->RegisterTag("origin", FormatEnum(origin));
     }
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
@@ -274,7 +274,7 @@ void TJobController::TImpl::StartWaitingJobs()
     bool resourcesUpdated = false;
 
     {
-        auto usedResources = GetResourceUsage(false);
+        auto usedResources = GetResourceUsage();
         auto memoryToRelease = tracker->GetUsed(EMemoryCategory::Jobs) - usedResources.memory();
         if (memoryToRelease > 0) {
             tracker->Release(EMemoryCategory::Jobs, memoryToRelease);
@@ -288,7 +288,7 @@ void TJobController::TImpl::StartWaitingJobs()
             continue;
 
         auto jobResources = job->GetResourceUsage();
-        auto usedResources = GetResourceUsage(false);
+        auto usedResources = GetResourceUsage();
         if (!HasEnoughResources(jobResources, usedResources)) {
             LOG_DEBUG("Not enough resources to start waiting job (JobId: %v, JobResources: %v, UsedResources: %v)",
                 job->GetId(),
@@ -438,7 +438,7 @@ bool TJobController::TImpl::CheckResourceUsageDelta(const TNodeResources& delta)
 {
     // Nonincreasing resources cannot lead to overdraft.
     auto nodeLimits = GetResourceLimits();
-    auto newUsage = GetResourceUsage(false) + delta;
+    auto newUsage = GetResourceUsage() + delta;
 
     #define XX(name, Name) if (delta.name() > 0 && nodeLimits.name() < newUsage.name()) { return false; }
     ITERATE_NODE_RESOURCES(XX)
@@ -476,7 +476,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
     request->set_node_id(masterConnector->GetNodeId());
     ToProto(request->mutable_node_descriptor(), masterConnector->GetLocalDescriptor());
     *request->mutable_resource_limits() = GetResourceLimits();
-    *request->mutable_resource_usage() = GetResourceUsage();
+    *request->mutable_resource_usage() = GetResourceUsage(/* includeWaiting */ true);
 
     // A container for all scheduler jobs that are candidate to send statistics. This set contains
     // only the running jobs since all completed/aborted/failed jobs always send their statistics.
@@ -623,16 +623,16 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
             .Item("resource_usage").Value(GetResourceUsage())
             .Item("active_job_count").DoMapFor(
                 TEnumTraits<EJobOrigin>::GetDomainValues(),
-                [&] (TFluentMap fluent, const EJobOrigin origin) {
-                    fluent.Item(Format("%lv", origin)).Value(jobs[origin].size());
+                [&] (TFluentMap fluent, EJobOrigin origin) {
+                    fluent.Item(FormatEnum(origin)).Value(jobs[origin].size());
                 })
             .Item("active_jobs").DoMapFor(
                 TEnumTraits<EJobOrigin>::GetDomainValues(),
-                [&] (TFluentMap fluent, const EJobOrigin origin) {
-                    fluent.Item(Format("%lv", origin)).DoMapFor(
+                [&] (TFluentMap fluent, EJobOrigin origin) {
+                    fluent.Item(FormatEnum(origin)).DoMapFor(
                         jobs[origin],
                         [&] (TFluentMap fluent, IJobPtr job) {
-                            fluent.Item(Format("%lv", job->GetId()))
+                            fluent.Item(ToString(job->GetId()))
                                 .BeginMap()
                                     .Item("job_state").Value(job->GetState())
                                     .Item("job_phase").Value(job->GetPhase())
@@ -654,7 +654,7 @@ void TJobController::TImpl::OnProfiling()
     for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
         Profiler.Enqueue("/active_job_count", jobs[origin].size(), EMetricType::Gauge, {JobOriginToTag_[origin]});
     }
-    ProfileResources(ResourceUsageProfiler_, GetResourceUsage(false /* includeWaiting */));
+    ProfileResources(ResourceUsageProfiler_, GetResourceUsage());
     ProfileResources(ResourceLimitsProfiler_, GetResourceLimits());
 }
 
@@ -665,8 +665,7 @@ TJobController::TJobController(
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         config,
-        bootstrap
-    ))
+        bootstrap))
 { }
 
 void TJobController::RegisterFactory(

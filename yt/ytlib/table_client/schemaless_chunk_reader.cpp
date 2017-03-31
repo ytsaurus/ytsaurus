@@ -317,7 +317,6 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
 
 TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
 {
-    YCHECK(ChunkSpec_.chunk_meta().version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
     YCHECK(BlockIndexes_.empty());
 
     InitializeSystemColumnIds();
@@ -351,6 +350,8 @@ void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> ex
         extensionTags);
     ChunkMeta_ = WaitFor(asynChunkMeta)
         .ValueOrThrow();
+
+    YCHECK(ChunkMeta_.version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
 
     BlockMetaExt_ = GetProtoExtension<NProto::TBlockMetaExt>(ChunkMeta_.extensions());
 
@@ -1633,10 +1634,12 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TReadRange& readRange,
     TNullable<int> partitionTag)
 {
-    auto type = EChunkType(chunkSpec.chunk_meta().type());
-    YCHECK(type == EChunkType::Table);
-
-    auto formatVersion = ETableChunkFormat(chunkSpec.chunk_meta().version());
+    ETableChunkFormat formatVersion = ETableChunkFormat::SchemalessHorizontal;
+    if (chunkSpec.has_chunk_meta()) {
+        auto type = EChunkType(chunkSpec.chunk_meta().type());
+        YCHECK(type == EChunkType::Table);
+        formatVersion = ETableChunkFormat(chunkSpec.chunk_meta().version());
+    }
 
     switch (formatVersion) {
         case ETableChunkFormat::SchemalessHorizontal:
@@ -1684,10 +1687,12 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TNullable<int> partitionTag)
 {
-    auto type = EChunkType(chunkSpec.chunk_meta().type());
-    YCHECK(type == EChunkType::Table);
-
-    auto formatVersion = ETableChunkFormat(chunkSpec.chunk_meta().version());
+    ETableChunkFormat formatVersion = ETableChunkFormat::SchemalessHorizontal;
+    if (chunkSpec.has_chunk_meta()) {
+        auto type = EChunkType(chunkSpec.chunk_meta().type());
+        YCHECK(type == EChunkType::Table);
+        formatVersion = ETableChunkFormat(chunkSpec.chunk_meta().version());
+    }
 
     switch (formatVersion) {
         case ETableChunkFormat::SchemalessHorizontal:
@@ -1873,7 +1878,7 @@ private:
     std::atomic<i64> RowIndex_ = {0};
     std::atomic<i64> RowCount_ = {-1};
 
-    std::atomic<bool> Interrupting_ = {false};
+    std::atomic<bool> Finished_ = {false};
 
     using TBase::ReadyEvent_;
     using TBase::CurrentSession_;
@@ -1918,13 +1923,18 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , RowCount_(GetCumulativeRowCount(dataSliceDescriptors))
-{ }
+{
+    if (dataSliceDescriptors.empty()) {
+        Finished_ = true;
+    }
+}
 
 template <class TBase>
 bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows)
 {
     rows->clear();
-    if (Interrupting_) {
+
+    if (Finished_) {
         RowCount_ = RowIndex_.load();
         return false;
     }
@@ -1933,24 +1943,17 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
         return true;
     }
 
-    // Nothing to read.
-    if (!CurrentReader_) {
-        return false;
-    }
-
     bool readerFinished = !CurrentReader_->Read(rows);
     if (!rows->empty()) {
         RowIndex_ += rows->size();
         return true;
     }
 
-    if (TBase::OnEmptyRead(readerFinished)) {
-        return true;
-    } else {
-        RowCount_ = RowIndex_.load();
-        CurrentReader_ = nullptr;
-        return false;
+    if (!TBase::OnEmptyRead(readerFinished)) {
+        Finished_ = true;
     }
+
+    return true;
 }
 
 template <class TBase>
@@ -1993,8 +1996,8 @@ TKeyColumns TSchemalessMultiChunkReader<TBase>::GetKeyColumns() const
 template <class TBase>
 void TSchemalessMultiChunkReader<TBase>::Interrupt()
 {
-    if (!Interrupting_) {
-        Interrupting_ = true;
+    if (!Finished_) {
+        Finished_ = true;
         TBase::OnInterrupt();
     }
 }
@@ -2197,6 +2200,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     boundaries.reserve(chunkSpecs.size());
 
     auto extractMinKey = [] (const TChunkSpec& chunkSpec) {
+        YCHECK(chunkSpec.has_chunk_meta());
         if (chunkSpec.has_lower_limit()) {
             auto limit = FromProto<TReadLimit>(chunkSpec.lower_limit());
             if (limit.HasKey()) {

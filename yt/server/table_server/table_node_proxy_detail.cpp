@@ -7,6 +7,7 @@
 
 #include <yt/server/chunk_server/chunk.h>
 #include <yt/server/chunk_server/chunk_list.h>
+#include <yt/server/chunk_server/chunk_visitor.h>
 
 #include <yt/server/node_tracker_server/node_directory_builder.h>
 
@@ -124,6 +125,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetCustom(true));
     descriptors->push_back(TAttributeDescriptor("replication_mode")
         .SetPresent(table->IsSorted() && table->IsDynamic()));
+    descriptors->push_back(TAttributeDescriptor("table_chunk_format_statistics")
+        .SetExternal(table->IsExternal())
+        .SetOpaque(true));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
@@ -307,6 +311,24 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
     }
 
     return TBase::GetBuiltinAttribute(key, consumer);
+}
+
+TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(const Stroka& key)
+{
+    const auto* table = GetThisImpl();
+    auto* chunkList = table->GetChunkList();
+    auto isExternal = table->IsExternal();
+
+    if (!isExternal) {
+        if (key == "table_chunk_format_statistics") {
+            return ComputeChunkStatistics(
+                Bootstrap_,
+                chunkList,
+                [] (const TChunk* chunk) { return ETableChunkFormat(chunk->ChunkMeta().version()); });
+        }
+    }
+
+    return TBase::GetBuiltinAttributeAsync(key);
 }
 
 void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)

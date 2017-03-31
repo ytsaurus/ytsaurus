@@ -2,10 +2,12 @@
 #include "private.h"
 #include "job_detail.h"
 
-#include <yt/ytlib/object_client/helpers.h>
-
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/data_source.h>
+
+#include <yt/ytlib/job_proxy/helpers.h>
+
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
@@ -57,10 +59,8 @@ public:
 
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
         for (const auto& inputSpec : SchedulerJobSpecExt_.input_table_specs()) {
-            for (const auto& descriptor : inputSpec.data_slice_descriptors()) {
-                auto dataSliceDescriptor = FromProto<TDataSliceDescriptor>(descriptor);
-                dataSliceDescriptors.push_back(std::move(dataSliceDescriptor));
-            }
+            auto descriptors = UnpackDataSliceDescriptors(inputSpec);
+            dataSliceDescriptors.insert(dataSliceDescriptors.end(), descriptors.begin(), descriptors.end());
         }
 
         TotalRowCount_ = SchedulerJobSpecExt_.input_row_count();

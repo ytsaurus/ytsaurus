@@ -303,7 +303,7 @@ public:
                     ++foreignIt;
                     lastJoined = currentKey;
                 } else if (fullLessComparer(currentKey->first, *foreignIt)) {
-                    if (lastJoined != currentKey) {
+                    if (isLeft && lastJoined != currentKey) {
                         JoinRowsNull(chainedRows, startIndex);
                         lastJoined = currentKey;
                     }

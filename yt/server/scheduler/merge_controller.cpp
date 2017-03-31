@@ -216,6 +216,11 @@ protected:
             return Controller->GetJobType();
         }
 
+        virtual bool HasInputLocality() const override
+        {
+            return false;
+        }
+
     protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
