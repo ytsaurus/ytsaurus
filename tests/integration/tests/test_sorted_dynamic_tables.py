@@ -88,7 +88,6 @@ class TestSortedDynamicTablesBase(TestDynamicTablesBase):
                 return True
             wait(lambda: all_preloaded())
 
-
 ##################################################################
 
 class TestSortedDynamicTables(TestSortedDynamicTablesBase):
@@ -1831,7 +1830,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", [{"key": row["key"]} for row in rows]) == not_expected
         assert_items_equal(select_rows("* from [//tmp/t]"), not_expected)
  
-
 ##################################################################
 
 class TestSortedDynamicTablesResourceLimits(TestSortedDynamicTablesBase):
@@ -1868,7 +1866,6 @@ class TestSortedDynamicTablesResourceLimits(TestSortedDynamicTablesBase):
 
         set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
         self.sync_unmount_table("//tmp/t")
-
 
 ##################################################################
 

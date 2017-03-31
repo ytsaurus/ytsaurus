@@ -569,7 +569,6 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         _check_preload_state("complete")
         assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
 
-
 ##################################################################
 
 class TestOrderedDynamicTablesMulticell(TestOrderedDynamicTables):
