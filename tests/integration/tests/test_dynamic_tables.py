@@ -87,7 +87,6 @@ class TestDynamicTablesBase(YTEnvSetup):
         for addr in address_list:
             self.set_node_banned(addr, False)
 
-
 ##################################################################
 
 class TestDynamicTables(TestDynamicTablesBase):
@@ -523,7 +522,6 @@ class TestDynamicTables(TestDynamicTablesBase):
             self._unban_peers(banned_peers)
             self._wait_for_tablets("//tmp/t", expected)
 
-
 ##################################################################
 
 class TestTabletActions(TestDynamicTablesBase):
@@ -762,7 +760,6 @@ class TestTabletActions(TestDynamicTablesBase):
         assert get("#{0}/@error".format(action))
         expected_state = "frozen" if freeze else "mounted"
         self._wait_for_tablets("//tmp/t", expected_state)
-
 
 ##################################################################
 
