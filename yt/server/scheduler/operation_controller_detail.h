@@ -1159,7 +1159,7 @@ private:
     //! Exec node count do not consider scheduling tag.
     //! But descriptors do.
     int ExecNodeCount_ = 0;
-    std::vector<TExecNodeDescriptor> ExecNodesDescriptors_;
+    TExecNodeDescriptorListPtr ExecNodesDescriptors_ = New<TExecNodeDescriptorList>();
 
     NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
     NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;
