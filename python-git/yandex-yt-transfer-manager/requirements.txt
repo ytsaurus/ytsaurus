@@ -7,3 +7,4 @@ python-zlib-fork-safe==0.0.2-0
 pympler==0.4.2
 cherrypy==5.1.0
 six==1.10.0
+simplejson==2.3.2
