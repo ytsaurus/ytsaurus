@@ -23,6 +23,8 @@ public:
     TDuration BalancePeriod;
     TDuration EnabledCheckPeriod;
 
+    double CellBalanceFactor;
+
     i64 MinTabletSize;
     i64 MaxTabletSize;
     i64 DesiredTabletSize;
@@ -44,6 +46,9 @@ public:
 
         RegisterParameter("enabled_check_period", EnabledCheckPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("cell_balance_factor", CellBalanceFactor)
+            .Default(0.05);
 
         RegisterParameter("min_tablet_size", MinTabletSize)
             .Default((i64) 1024 * 1024 * 1024);

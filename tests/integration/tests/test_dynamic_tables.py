@@ -533,6 +533,7 @@ class TestTabletActions(TestDynamicTablesBase):
                 "enable_in_memory_balancer": True,
                 "enable_tablet_size_balancer": True,
                 "balance_period": 100,
+                "cell_balance_factor": 0.0,
                 "enabled_check_period": 100,
                 "min_tablet_size": 128,
                 "max_tablet_size": 512,
@@ -624,7 +625,7 @@ class TestTabletActions(TestDynamicTablesBase):
 
 
     @pytest.mark.parametrize("freeze", [False, True])
-    def test_tablet_cell_balance(self, freeze):
+    def test_cells_balance(self, freeze):
         set("//sys/@disable_tablet_balancer", True)
         cells = self.sync_create_cells(2)
         self._create_simple_table("//tmp/t1")
