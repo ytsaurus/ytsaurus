@@ -262,7 +262,7 @@ INodeTypeHandlerPtr CreateTabletActionMapTypeHandler(TBootstrap* bootstrap)
 
     return CreateVirtualTypeHandler(
         bootstrap,
-        EObjectType::TabletMap,
+        EObjectType::TabletActionMap,
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualTabletActionMap>(bootstrap, owningNode);
         }),
