@@ -5474,7 +5474,7 @@ int TOperationControllerBase::GetExecNodeCount()
 const std::vector<TExecNodeDescriptor>& TOperationControllerBase::GetExecNodeDescriptors()
 {
     GetExecNodesInformation();
-    return ExecNodesDescriptors_;
+    return ExecNodesDescriptors_->Descriptors;
 }
 
 bool TOperationControllerBase::ShouldSkipSanityCheck()

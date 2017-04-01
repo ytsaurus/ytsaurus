@@ -101,7 +101,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
+    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
 
     //! Called by a controller to notify the host that the operation has
     //! finished successfully.

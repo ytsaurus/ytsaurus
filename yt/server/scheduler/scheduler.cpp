@@ -362,7 +362,7 @@ public:
         return totalNodeCount;
     }
 
-    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
+    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -386,14 +386,14 @@ public:
             }
         }
 
-        std::vector<TExecNodeDescriptor> result;
+        auto result = New<TExecNodeDescriptorList>();
 
         {
             TReaderGuard guard(ExecNodeDescriptorsLock_);
 
-            for (const auto& descriptor : CachedExecNodeDescriptors_) {
+            for (const auto& descriptor : CachedExecNodeDescriptors_->Descriptors) {
                 if (filter.CanSchedule(descriptor.Tags)) {
-                    result.push_back(descriptor);
+                    result->Descriptors.push_back(descriptor);
                 }
             }
         }
@@ -1008,9 +1008,8 @@ private:
     typedef yhash_map<TOperationId, TOperationPtr> TOperationIdMap;
     TOperationIdMap IdToOperation_;
 
-    typedef std::vector<TExecNodeDescriptor> TExecNodeDescriptors;
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
-    TExecNodeDescriptors CachedExecNodeDescriptors_;
+    TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
 
     TReaderWriterSpinLock ExecNodeDescriptorsByTagLock_;
 
@@ -1018,7 +1017,7 @@ private:
     {
         NProfiling::TCpuInstant LastAccessTime;
         NProfiling::TCpuInstant LastUpdateTime;
-        TExecNodeDescriptors ExecNodeDescriptors;
+        TExecNodeDescriptorListPtr ExecNodeDescriptors;
     };
 
     mutable yhash_map<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
@@ -1588,7 +1587,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        std::vector<TFuture<std::vector<TExecNodeDescriptor>>> shardDescriptorsFutures;
+        std::vector<TFuture<TExecNodeDescriptorListPtr>> shardDescriptorsFutures;
         for (auto& nodeShard : NodeShards_) {
             shardDescriptorsFutures.push_back(BIND(&TNodeShard::GetExecNodeDescriptors, nodeShard)
                 .AsyncVia(nodeShard->GetInvoker())
@@ -1598,15 +1597,18 @@ private:
         auto shardDescriptors = WaitFor(Combine(shardDescriptorsFutures))
             .ValueOrThrow();
 
-        std::vector<TExecNodeDescriptor> result;
+        auto result = New<TExecNodeDescriptorList>();
         for (const auto& descriptors : shardDescriptors) {
-            result.insert(result.end(), descriptors.begin(), descriptors.end());
+            result->Descriptors.insert(
+                result->Descriptors.end(),
+                descriptors->Descriptors.begin(),
+                descriptors->Descriptors.end());
         }
 
         {
             TWriterGuard guard(ExecNodeDescriptorsLock_);
 
-            CachedExecNodeDescriptors_.swap(result);
+            std::swap(CachedExecNodeDescriptors_, result);
         }
 
         // Remove outdated cached exec node descriptor lists.
