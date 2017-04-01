@@ -232,7 +232,7 @@ private:
                     continue;
                 }
 
-                if (tabletSize < 2 * (cellSize - mean) && tabletSize < 2 * (mean - top.first)) {
+                if (tabletSize < cellSize - top.first) {
                     LOG_DEBUG("Tablet balancer would like to move tablet (TabletId: %v, SrcCellId: %v, DstCellId: %v)",
                         tablet->GetId(),
                         cell->GetId(),
