@@ -40,6 +40,8 @@ struct TUpdatedJob;
 struct TCompletedJob;
 
 struct TExecNodeDescriptor;
+DECLARE_REFCOUNTED_STRUCT(TExecNodeDescriptorList);
+
 DECLARE_REFCOUNTED_CLASS(TExecNode)
 
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyConfig)
