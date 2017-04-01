@@ -227,7 +227,7 @@ private:
                 auto top = queue.top();
 
                 if (static_cast<double>(cellSize - top.first) / cellSize < Config_->CellBalanceFactor) {
-                    continue;
+                    break;
                 }
 
                 auto statistics = tabletManager->GetTabletStatistics(tablet);
