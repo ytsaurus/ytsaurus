@@ -112,7 +112,7 @@ public:
 
     yhash_set<TOperationId> ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context);
 
-    std::vector<TExecNodeDescriptor> GetExecNodeDescriptors();
+    TExecNodeDescriptorListPtr GetExecNodeDescriptors();
     void RemoveOutdatedSchedulingTagFilter(const TSchedulingTagFilter& filter);
 
     void HandleNodesAttributes(const std::vector<std::pair<Stroka, NYTree::INodePtr>>& nodeMaps);
@@ -188,7 +188,7 @@ private:
 
     NProfiling::TCpuInstant CachedExecNodeDescriptorsLastUpdateTime_ = 0;
     NConcurrency::TReaderWriterSpinLock CachedExecNodeDescriptorsLock_;
-    std::vector<TExecNodeDescriptor> CachedExecNodeDescriptors_;
+    TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
 
     yhash_map<TSchedulingTagFilter, TJobResources> SchedulingTagFilterToResources_;
 

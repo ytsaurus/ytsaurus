@@ -258,17 +258,16 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
     return operationsToLog;
 }
 
-std::vector<TExecNodeDescriptor> TNodeShard::GetExecNodeDescriptors()
+TExecNodeDescriptorListPtr TNodeShard::GetExecNodeDescriptors()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    std::vector<TExecNodeDescriptor> result;
-    result.reserve(IdToNode_.size());
+    auto result = New<TExecNodeDescriptorList>();
+    result->Descriptors.reserve(IdToNode_.size());
     for (const auto& pair : IdToNode_) {
         const auto& node = pair.second;
-        if (node->GetMasterState() == ENodeState::Online)
-        {
-            result.push_back(node->BuildExecDescriptor());
+        if (node->GetMasterState() == ENodeState::Online) {
+            result->Descriptors.push_back(node->BuildExecDescriptor());
         }
     }
 
@@ -729,7 +728,7 @@ TJobResources TNodeShard::CalculateResourceLimits(const TSchedulingTagFilter& fi
 
     {
         TReaderGuard guard(CachedExecNodeDescriptorsLock_);
-        for (const auto& node : CachedExecNodeDescriptors_) {
+        for (const auto& node : CachedExecNodeDescriptors_->Descriptors) {
             if (node.CanSchedule(filter)) {
                 resources += node.ResourceLimits;
             }
