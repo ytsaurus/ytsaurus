@@ -566,6 +566,7 @@ class TestTabletActions(TestDynamicTablesBase):
             "keep_finished": True,
             "tablet_ids": [tablet_id],
             "cell_ids": [cells[1]]})
+        assert action == ls("//sys/tablet_actions")[0]
         wait(lambda: get("#{0}/@state".format(action)) == "completed")
         assert get("//tmp/t/@tablets/0/cell_id") == cells[1]
         expected_state = "frozen" if freeze else "mounted"
