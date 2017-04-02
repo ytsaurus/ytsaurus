@@ -323,6 +323,8 @@ class YTEnvSetup(object):
             self._remove_racks(driver=driver)
             self._remove_data_centers(driver=driver)
             self._remove_pools(driver=driver)
+            self._remove_tablet_actions(driver=driver)
+            self._reenable_tablet_balancer(driver=driver)
 
             yt_commands.gc_collect(driver=driver)
 
@@ -511,6 +513,15 @@ class YTEnvSetup(object):
 
     def _remove_pools(self, driver=None):
         yt_commands.remove("//sys/pools/*", driver=driver)
+
+    def _remove_tablet_actions(self, driver=None):
+        actions = yt_commands.get("//sys/tablet_actions", driver=driver)
+        for action in actions:
+            yt_commands.remove("#" + str(action))
+
+    def _reenable_tablet_balancer(self, driver=None):
+        if yt_commands.exists("//sys/@disable_tablet_balancer", driver=driver):
+            yt_commands.remove("//sys/@disable_tablet_balancer", driver=driver)
 
     def _find_ut_file(self, file_name):
         unittester_path = find_executable("unittester")
