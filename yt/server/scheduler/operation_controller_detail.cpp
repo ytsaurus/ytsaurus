@@ -2815,7 +2815,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
 
     for (const auto& group : TaskGroups) {
         if (scheduleJobResult->IsScheduleStopNeeded()) {
-            break;
+            return;
         }
         if (!Dominates(jobLimits, group->MinNeededResources)) {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
@@ -2867,7 +2867,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
 
         if (!IsRunning()) {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationNotRunning);
-            break;
+            return;
         }
 
         if (bestTask) {
@@ -2884,16 +2884,16 @@ void TOperationControllerBase::DoScheduleLocalJob(
             if (!HasEnoughChunkLists(bestTask->IsIntermediateOutput(), bestTask->IsStderrTableEnabled(), bestTask->IsCoreTableEnabled())) {
                 LOG_DEBUG("Job chunk list demand is not met");
                 scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
-                break;
+                return;
             }
 
             bestTask->ScheduleJob(context, jobLimits, scheduleJobResult);
             if (scheduleJobResult->JobStartRequest) {
                 UpdateTask(bestTask);
-                break;
+                return;
             }
             if (scheduleJobResult->IsScheduleStopNeeded()) {
-                break;
+                return;
             }
         } else {
             // NB: This is one of the possible reasons, hopefully the most probable.
@@ -2913,7 +2913,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
 
     for (const auto& group : TaskGroups) {
         if (scheduleJobResult->IsScheduleStopNeeded()) {
-            break;
+            return;
         }
         if (!Dominates(jobLimits, group->MinNeededResources)) {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
@@ -2993,7 +2993,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
 
                 if (!IsRunning()) {
                     scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationNotRunning);
-                    break;
+                    return;
                 }
 
                 LOG_DEBUG(
@@ -3008,16 +3008,16 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                 if (!HasEnoughChunkLists(task->IsIntermediateOutput(), task->IsStderrTableEnabled(), task->IsCoreTableEnabled())) {
                     LOG_DEBUG("Job chunk list demand is not met");
                     scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
-                    break;
+                    return;
                 }
 
                 task->ScheduleJob(context, jobLimits, scheduleJobResult);
                 if (scheduleJobResult->JobStartRequest) {
                     UpdateTask(task);
-                    break;
+                    return;
                 }
                 if (scheduleJobResult->IsScheduleStopNeeded()) {
-                    break;
+                    return;
                 }
 
                 // If task failed to schedule job, its min resources might have been updated.
