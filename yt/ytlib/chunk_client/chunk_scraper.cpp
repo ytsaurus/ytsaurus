@@ -219,7 +219,7 @@ void TChunkScraper::CreateTasks(const yhash_set<TChunkId>& chunkIds)
     for (const auto& cellChunks : chunksByCells) {
         auto cellTag = cellChunks.first;
         auto throttler = ThrottlerManager_->GetThrottler(cellTag);
-        auto masterChannel = MasterClient_->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower, cellTag);
+        auto masterChannel = MasterClient_->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, cellTag);
         auto task = New<TScraperTask>(
             Config_,
             Invoker_,
