@@ -320,11 +320,12 @@ class YTEnvSetup(object):
             self._remove_groups(driver=driver)
             self._remove_tablet_cells(driver=driver)
             self._remove_tablet_cell_bundles(driver=driver)
+            # FIXME(savrus) conflict with test_master_cells_sync
+            #self._remove_tablet_actions(driver=driver)
+            self._reenable_tablet_balancer(driver=driver)
             self._remove_racks(driver=driver)
             self._remove_data_centers(driver=driver)
             self._remove_pools(driver=driver)
-            self._remove_tablet_actions(driver=driver)
-            self._reenable_tablet_balancer(driver=driver)
 
             yt_commands.gc_collect(driver=driver)
 
@@ -515,9 +516,9 @@ class YTEnvSetup(object):
         yt_commands.remove("//sys/pools/*", driver=driver)
 
     def _remove_tablet_actions(self, driver=None):
-        actions = yt_commands.get("//sys/tablet_actions", driver=driver)
+        actions = yt_commands.ls("//sys/tablet_actions", driver=driver)
         for action in actions:
-            yt_commands.remove("#" + str(action))
+            yt_commands.remove("#" + str(action), driver=driver)
 
     def _reenable_tablet_balancer(self, driver=None):
         if yt_commands.exists("//sys/@disable_tablet_balancer", driver=driver):

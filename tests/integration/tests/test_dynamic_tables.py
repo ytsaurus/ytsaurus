@@ -586,6 +586,7 @@ class TestTabletActions(TestDynamicTablesBase):
         assert get("//tmp/t/@tablets/0/cell_id") == cells[0]
         expected_state = "frozen" if not freeze else "mounted"
         assert get("//tmp/t/@tablets/0/state") == expected_state
+        remove("#" + action)
 
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
@@ -622,6 +623,7 @@ class TestTabletActions(TestDynamicTablesBase):
         assert len(tablets) == 1
         expected_state = "frozen" if not freeze else "mounted"
         assert tablets[0]["state"] == expected_state
+        remove("#" + action)
 
 
     @pytest.mark.parametrize("freeze", [False, True])
@@ -704,6 +706,7 @@ class TestTabletActions(TestDynamicTablesBase):
         remove("//tmp/t")
         wait(lambda: get("#{0}/@state".format(action)) == "failed")
         assert get("#{0}/@error".format(action))
+        remove("#" + action)
 
     # TODO(savrus) Add "mount" to touch variants
     @pytest.mark.parametrize("touch", ["unmount", "freeze", "unfreeze"])
@@ -746,6 +749,7 @@ class TestTabletActions(TestDynamicTablesBase):
             assert get("#{0}/@error".format(action))
         wait(lambda: get("//tmp/t/@tablets/1/state") == expected_state)
         wait(lambda: get("//tmp/t/@tablets/0/state") == expected_touch_state)
+        remove("#" + action)
 
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
@@ -766,6 +770,7 @@ class TestTabletActions(TestDynamicTablesBase):
         assert get("#{0}/@error".format(action))
         expected_state = "frozen" if freeze else "mounted"
         self._wait_for_tablets("//tmp/t", expected_state)
+        remove("#" + action)
 
 ##################################################################
 
