@@ -610,7 +610,7 @@ void TOperationControllerBase::TTask::Persist(const TPersistenceContext& context
 
     // COMPAT(babenko)
     if (context.IsLoad() && context.GetVersion() < 200009) {
-        Load<ui64>(context.LoadContext());
+        Load<TNullable<TInstant>>(context.LoadContext());
     }
 
     Persist(context, Controller);
@@ -2827,7 +2827,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
 
     for (const auto& group : TaskGroups) {
         if (scheduleJobResult->IsScheduleStopNeeded()) {
-            break;
+            return;
         }
         if (!Dominates(jobLimits, group->MinNeededResources)) {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
@@ -2905,7 +2905,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
                 break;
             }
             if (scheduleJobResult->IsScheduleStopNeeded()) {
-                break;
+                return;
             }
         } else {
             // NB: This is one of the possible reasons, hopefully the most probable.
@@ -2925,7 +2925,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
 
     for (const auto& group : TaskGroups) {
         if (scheduleJobResult->IsScheduleStopNeeded()) {
-            break;
+            return;
         }
         if (!Dominates(jobLimits, group->MinNeededResources)) {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
@@ -3026,10 +3026,10 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                 task->ScheduleJob(context, jobLimits, scheduleJobResult);
                 if (scheduleJobResult->JobStartRequest) {
                     UpdateTask(task);
-                    break;
+                    return;
                 }
                 if (scheduleJobResult->IsScheduleStopNeeded()) {
-                    break;
+                    return;
                 }
 
                 // If task failed to schedule job, its min resources might have been updated.
