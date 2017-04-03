@@ -1103,7 +1103,8 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
             LOG_DEBUG(error, "Job aborted, removal scheduled");
             if (job->GetPreempted() && error.GetCode() == NExecAgent::EErrorCode::AbortByScheduler) {
                 auto error = TError("Job preempted")
-                    << TErrorAttribute("abort_reason", EAbortReason::Preemption);
+                    << TErrorAttribute("abort_reason", EAbortReason::Preemption)
+                    << TErrorAttribute("preempt_reason", job->GetPreemptReason());
                 auto status = JobStatusFromError(error);
                 OnJobAborted(job, &status);
             } else {
@@ -1671,10 +1672,11 @@ void TNodeShard::DoUnregisterJob(const TJobPtr& job)
 
 void TNodeShard::PreemptJob(const TJobPtr& job, TCpuInstant interruptDeadline)
 {
-    LOG_DEBUG("Preempting job (Interruptible: %v, JobId: %v, OperationId: %v)",
-        job->GetInterruptible(),
+    LOG_DEBUG("Preempting job (InterruptDeadline: %v, JobId: %v, OperationId: %v, Reason: %Qv)",
+        interruptDeadline,
         job->GetId(),
-        job->GetOperationId());
+        job->GetOperationId(),
+        job->GetPreemptReason());
 
     job->SetPreempted(true);
 
