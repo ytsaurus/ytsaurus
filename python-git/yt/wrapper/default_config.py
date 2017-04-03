@@ -371,6 +371,8 @@ default_config = {
     "write_retries": retries_config(count=6, enable=True, backoff={"policy": "rounded_up_to_request_timeout"})\
         .update_template_dict({
             "chunk_size": 512 * common.MB,
+            # Parent transaction wrapping whole write process.
+            # If "transaction_id" is not specified it will be automatically created.
             "transaction_id": None,
         }),
 
