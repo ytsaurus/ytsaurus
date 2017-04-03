@@ -1135,6 +1135,7 @@ private:
 
         auto stat = suspendableStripe.GetStatistics();
 
+        suspendableStripe.SetExtractedCookie(extractedStripeList->Cookie);
         AddStripeToList(
             suspendableStripe.GetStripe(),
             stat.DataSize,
