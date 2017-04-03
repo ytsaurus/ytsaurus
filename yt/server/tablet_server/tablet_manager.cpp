@@ -1232,7 +1232,14 @@ public:
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             const auto* tablet = allTablets[index];
             auto state = tablet->GetState();
-            if (state == ETabletState::Unmounting) {
+            if (state != ETabletState::Unmounted && (freeze
+                    ? state != ETabletState::Frozen &&
+                        state != ETabletState::Freezing &&
+                        state != ETabletState::FrozenMounting
+                    : state != ETabletState::Mounted &&
+                        state != ETabletState::Mounting &&
+                        state != ETabletState::Unfreezing))
+            {
                 THROW_ERROR_EXCEPTION("Tablet %v is in %Qlv state",
                     tablet->GetId(),
                     state);
@@ -1335,7 +1342,7 @@ public:
             objectManager->RefObject(cell);
 
             YCHECK(tablet->GetState() == ETabletState::Unmounted);
-            tablet->SetState(ETabletState::Mounting);
+            tablet->SetState(freeze ? ETabletState::FrozenMounting : ETabletState::Mounting);
             tablet->SetInMemoryMode(inMemoryMode);
 
             const auto* context = GetCurrentMutationContext();
@@ -1494,6 +1501,7 @@ public:
 
             if (state == ETabletState::Mounted ||
                 state == ETabletState::Mounting ||
+                state == ETabletState::FrozenMounting ||
                 state == ETabletState::Frozen ||
                 state == ETabletState::Freezing)
             {
@@ -1539,6 +1547,7 @@ public:
             auto* tablet = table->Tablets()[index];
             auto state = tablet->GetState();
             if (state != ETabletState::Mounted &&
+                state != ETabletState::FrozenMounting &&
                 state != ETabletState::Freezing &&
                 state != ETabletState::Frozen)
             {
@@ -1563,6 +1572,7 @@ public:
         auto* cell = tablet->GetCell();
         auto state = tablet->GetState();
         YCHECK(state == ETabletState::Mounted ||
+            state == ETabletState::FrozenMounting ||
             state == ETabletState::Frozen ||
             state == ETabletState::Freezing);
 
@@ -2818,7 +2828,7 @@ private:
         }
 
         auto state = tablet->GetState();
-        if (state != ETabletState::Mounting) {
+        if (state != ETabletState::Mounting && state != ETabletState::FrozenMounting) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
@@ -3697,8 +3707,15 @@ private:
         TTablet* tablet,
         bool force)
     {
-        if (tablet->GetState() == ETabletState::Unmounted) {
+        auto state = tablet->GetState();
+        if (state == ETabletState::Unmounted) {
             return;
+        }
+        if (!force) {
+            YCHECK(state == ETabletState::Mounted ||
+                state == ETabletState::Frozen ||
+                state == ETabletState::Freezing ||
+                state == ETabletState::Unmounting);
         }
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();

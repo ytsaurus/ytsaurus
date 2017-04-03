@@ -32,6 +32,7 @@ DEFINE_ENUM(ETabletState,
     ((Freezing)        (4))
     ((Frozen)          (5))
     ((Unfreezing)      (6))
+    ((FrozenMounting)  (7))
 
     // Aggregated states
     ((None)          (100))

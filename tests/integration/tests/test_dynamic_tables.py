@@ -479,48 +479,110 @@ class TestDynamicTables(TestDynamicTablesBase):
         for peer in get("#{0}/@peers".format(default_cell)):
             assert peer["address"] != node
 
-    @pytest.mark.parametrize("freeze", [False, True])
-    @pytest.mark.parametrize("second_command", ["freeze", "unfreeze"])
-    @pytest.mark.parametrize("first_command", ["unmount", "freeze", "unfreeze"])
-    def test_state_transition_conflict(self, freeze, first_command, second_command):
+##################################################################
+
+class TestDynamicTableStateTransitions(TestDynamicTables):
+
+    def _get_expected_state(self, initial, first_command, second_command):
+        M = "mounted"
+        F = "frozen"
+        E = "error"
+        U = "unmounted"
+
+        expected = {
+            "mounted":
+                {
+                    "mount":        {"mount": M, "frozen_mount": E, "unmount": U, "freeze": F, "unfreeze": M},
+                    # frozen_mount
+                    "unmount":      {"mount": E, "frozen_mount": E, "unmount": U, "freeze": E, "unfreeze": E},
+                    "freeze":       {"mount": E, "frozen_mount": F, "unmount": U, "freeze": F, "unfreeze": E},
+                    "unfreeze":     {"mount": M, "frozen_mount": E, "unmount": U, "freeze": F, "unfreeze": M},
+                },
+            "frozen":
+                {
+                    # mount
+                    "frozen_mount": {"mount": E, "frozen_mount": F, "unmount": U, "freeze": F, "unfreeze": M},
+                    "unmount":      {"mount": E, "frozen_mount": E, "unmount": U, "freeze": E, "unfreeze": E},
+                    "freeze":       {"mount": E, "frozen_mount": F, "unmount": U, "freeze": F, "unfreeze": M},
+                    "unfreeze":     {"mount": M, "frozen_mount": E, "unmount": E, "freeze": E, "unfreeze": M},
+                },
+            "unmounted":
+                {
+                    "mount":        {"mount": M, "frozen_mount": E, "unmount": E, "freeze": E, "unfreeze": E},
+                    "frozen_mount": {"mount": E, "frozen_mount": F, "unmount": E, "freeze": F, "unfreeze": E},
+                    "unmount":      {"mount": M, "frozen_mount": F, "unmount": U, "freeze": E, "unfreeze": E},
+                    # freeze
+                    # unfreeze
+                }
+            }
+        return expected[initial][first_command][second_command]
+
+    def _get_callback(self, command):
         callbacks = {
+            "mount": lambda x: mount_table(x),
+            "frozen_mount": lambda x: mount_table(x, freeze=True),
             "unmount": lambda x: unmount_table(x),
             "freeze": lambda x: freeze_table(x),
             "unfreeze": lambda x: unfreeze_table(x)
         }
+        return callbacks[command]
 
-        M = "mounted"
-        F = "frozen"
-        E = "error"
-
-        expect = None
-        if freeze:
-            expect = {
-                "unmount":  {"freeze": E, "unfreeze": E},
-                "freeze":   {"freeze": F, "unfreeze": M},
-                "unfreeze": {"freeze": E, "unfreeze": M},
-            }
-        else:
-            expect = {
-                "unmount":  {"freeze": E, "unfreeze": E},
-                "freeze":   {"freeze": F, "unfreeze": E},
-                "unfreeze": {"freeze": F, "unfreeze": M},
-            }
-
+    @pytest.mark.parametrize(["initial", "command"], [
+        ["mounted", "frozen_mount"],
+        ["frozen", "mount"],
+        ["unmounted", "freeze"],
+        ["unmounted", "unfreeze"]])
+    def test_initial_incompatible(self, initial, command):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t", freeze=freeze)
-        cell = get("//tmp/t/@tablets/0/cell_id")
-        banned_peers = self._ban_all_peers(cell)
-        callbacks[first_command]("//tmp/t")
-        expected = expect[first_command][second_command]
-        if expected == E:
+
+        if initial == "mounted":
+            self.sync_mount_table("//tmp/t")
+        elif initial == "frozen":
+            self.sync_mount_table("//tmp/t", freeze=True)
+
+        with pytest.raises(YtError):
+            self._get_callback(command)("//tmp/t")
+
+    def _do_test_transition(self, initial, first_command, second_command, banned_peers=[]):
+        self._get_callback(first_command)("//tmp/t")
+        expected = self._get_expected_state(initial, first_command, second_command)
+        if expected == "error":
             with pytest.raises(YtError):
-                callbacks[second_command]("//tmp/t")
+                self._get_callback(second_command)("//tmp/t")
         else:
-            callbacks[second_command]("//tmp/t")
+            self._get_callback(second_command)("//tmp/t")
             self._unban_peers(banned_peers)
             self._wait_for_tablets("//tmp/t", expected)
+
+    @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
+    @pytest.mark.parametrize("first_command", ["mount", "unmount", "freeze", "unfreeze"])
+    def test_state_transition_conflict_mounted(self, first_command, second_command):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        cell = get("//tmp/t/@tablets/0/cell_id")
+        banned_peers = self._ban_all_peers(cell)
+        self.sync_create_cells(1)
+        self._do_test_transition("mounted", first_command, second_command, banned_peers)
+
+    @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
+    @pytest.mark.parametrize("first_command", ["frozen_mount", "unmount", "freeze", "unfreeze"])
+    def test_state_transition_conflict_frozen(self, first_command, second_command):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t", freeze=True)
+        cell = get("//tmp/t/@tablets/0/cell_id")
+        banned_peers = self._ban_all_peers(cell)
+        self.sync_create_cells(1)
+        self._do_test_transition("frozen", first_command, second_command, banned_peers)
+
+    @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
+    @pytest.mark.parametrize("first_command", ["mount", "frozen_mount", "unmount"])
+    def test_state_transition_conflict_unmounted(self, first_command, second_command):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self._do_test_transition("unmounted", first_command, second_command)
 
 ##################################################################
 
@@ -705,8 +767,7 @@ class TestTabletActions(TestDynamicTablesBase):
         wait(lambda: get("#{0}/@state".format(action)) == "failed")
         assert get("#{0}/@error".format(action))
 
-    # TODO(savrus) Add "mount" to touch variants
-    @pytest.mark.parametrize("touch", ["unmount", "freeze", "unfreeze"])
+    @pytest.mark.parametrize("touch", ["mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
     def test_action_failed_after_tablet_touched(self, skip_freezing, freeze, touch):
