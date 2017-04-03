@@ -92,6 +92,7 @@ class YTEnvSetup(object):
     NUM_NONVOTING_MASTERS = 0
     NUM_SECONDARY_MASTER_CELLS = 0
     START_SECONDARY_MASTER_CELLS = True
+    MULTICELL_TEARDOWN_ENABLE = True
     NUM_NODES = 5
     NUM_SCHEDULERS = 0
 
@@ -320,12 +321,12 @@ class YTEnvSetup(object):
             self._remove_groups(driver=driver)
             self._remove_tablet_cells(driver=driver)
             self._remove_tablet_cell_bundles(driver=driver)
-            # FIXME(savrus) conflict with test_master_cells_sync
-            #self._remove_tablet_actions(driver=driver)
-            self._reenable_tablet_balancer(driver=driver)
             self._remove_racks(driver=driver)
             self._remove_data_centers(driver=driver)
             self._remove_pools(driver=driver)
+            self._reenable_tablet_balancer(driver=driver)
+            if self.MULTICELL_TEARDOWN_ENABLE:
+                self._remove_tablet_actions(driver=driver)
 
             yt_commands.gc_collect(driver=driver)
 
