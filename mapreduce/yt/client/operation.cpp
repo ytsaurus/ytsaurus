@@ -130,6 +130,7 @@ class TJobPreparer
 public:
     TJobPreparer(
         const TAuth& auth,
+        const TTransactionId& transactionId,
         const Stroka& commandLineName,
         const TUserJobSpec& spec,
         IJob* job,
@@ -138,6 +139,7 @@ public:
         const TMultiFormatDesc& outputDesc,
         const TOperationOptions& options)
         : Auth_(auth)
+        , TransactionId_(transactionId)
         , Spec_(spec)
         , InputDesc_(inputDesc)
         , OutputDesc_(outputDesc)
@@ -209,6 +211,7 @@ public:
 
 private:
     TAuth Auth_;
+    TTransactionId TransactionId_;
     TUserJobSpec Spec_;
     TMultiFormatDesc InputDesc_;
     TMultiFormatDesc OutputDesc_;
@@ -334,13 +337,13 @@ private:
     void UploadFilesFromSpec()
     {
         for (const auto& file : Spec_.Files_) {
-            if (!Exists(Auth_, TTransactionId(), file.Path_)) {
+            if (!Exists(Auth_, TransactionId_, file.Path_)) {
                 ythrow yexception() << "File " << file.Path_ << " does not exist";
             }
 
             if (ShouldMountSandbox()) {
                 auto size = NodeFromYsonString(
-                    Get(Auth_, TTransactionId(), file.Path_ + "/@uncompressed_data_size")
+                    Get(Auth_, TransactionId_, file.Path_ + "/@uncompressed_data_size")
                 ).AsInt64();
 
                 TotalFileSize_ += RoundUpFileSize(static_cast<ui64>(size));
@@ -835,6 +838,7 @@ TOperationId ExecuteMap(
 
     TJobPreparer map(
         auth,
+        transactionId,
         "--yt-map",
         spec.MapperSpec_,
         mapper,
@@ -906,6 +910,7 @@ TOperationId ExecuteReduce(
 
     TJobPreparer reduce(
         auth,
+        transactionId,
         "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
@@ -980,6 +985,7 @@ TOperationId ExecuteJoinReduce(
 
     TJobPreparer reduce(
         auth,
+        transactionId,
         "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
@@ -1083,6 +1089,7 @@ TOperationId ExecuteMapReduce(
 
     TJobPreparer reduce(
         auth,
+        transactionId,
         "--yt-reduce",
         spec.ReducerSpec_,
         reducer,
@@ -1098,6 +1105,7 @@ TOperationId ExecuteMapReduce(
         .DoIf(mapper, [&] (TFluentMap fluent) {
             TJobPreparer map(
                 auth,
+                transactionId,
                 "--yt-map",
                 spec.MapperSpec_,
                 mapper,
@@ -1119,6 +1127,7 @@ TOperationId ExecuteMapReduce(
         .DoIf(reduceCombiner, [&] (TFluentMap fluent) {
             TJobPreparer combine(
                 auth,
+                transactionId,
                 "--yt-reduce",
                 spec.ReduceCombinerSpec_,
                 reduceCombiner,
