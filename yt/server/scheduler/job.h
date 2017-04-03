@@ -98,6 +98,9 @@ class TJob
     //! Flag that marks job as preempted by scheduler.
     DEFINE_BYVAL_RW_PROPERTY(bool, Preempted);
 
+    //! String describing preemption reason.
+    DEFINE_BYVAL_RW_PROPERTY(Stroka, PreemptReason);
+
     //! The purpose of the job interruption.
     DEFINE_BYVAL_RW_PROPERTY(EInterruptReason, InterruptReason, EInterruptReason::None);
 

@@ -787,6 +787,7 @@ private:
 
         // Second-chance scheduling.
         // NB: Schedule at most one job.
+        TJobPtr jobStartedUsingPreemption = nullptr;
         int preemptiveScheduleJobCount = 0;
         {
             LOG_TRACE("Scheduling new jobs with preemption");
@@ -806,6 +807,7 @@ private:
                     break;
                 }
                 if (schedulingContext->StartedJobs().size() > startedBeforePreemption) {
+                    jobStartedUsingPreemption = schedulingContext->StartedJobs().back();
                     break;
                 }
             }
@@ -882,6 +884,9 @@ private:
             }
 
             if (nodeLimitsViolated || (poolsLimitsViolated && poolLimitsViolated(job))) {
+                job->SetPreemptReason(Format("Preempted to start job %v of operation %v",
+                    jobStartedUsingPreemption->GetId(),
+                    jobStartedUsingPreemption->GetOperationId()));
                 PreemptJob(job, operationElement, context);
             }
         }
