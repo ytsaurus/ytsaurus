@@ -1307,23 +1307,23 @@ TOperationId ExecuteErase(
 
 ::TIntrusivePtr<INodeReaderImpl> CreateJobNodeReader()
 {
-    return new TNodeTableReader(MakeHolder<TJobReader>(0));
+    return new TNodeTableReader(::MakeIntrusive<TJobReader>(0));
 }
 
 ::TIntrusivePtr<IYaMRReaderImpl> CreateJobYaMRReader()
 {
-    return new TYaMRTableReader(MakeHolder<TJobReader>(0));
+    return new TYaMRTableReader(::MakeIntrusive<TJobReader>(0));
 }
 
 ::TIntrusivePtr<IProtoReaderImpl> CreateJobProtoReader()
 {
     if (TConfig::Get()->UseClientProtobuf) {
         return new TProtoTableReader(
-            MakeHolder<TJobReader>(0),
+            ::MakeIntrusive<TJobReader>(0),
             GetJobInputDescriptors());
     } else {
         return new TLenvalProtoTableReader(
-            MakeHolder<TJobReader>(0),
+            ::MakeIntrusive<TJobReader>(0),
             GetJobInputDescriptors());
     }
 }

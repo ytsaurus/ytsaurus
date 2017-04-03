@@ -115,7 +115,7 @@ void ReadMessageFromNode(const TNode& node, Message* row)
 ////////////////////////////////////////////////////////////////////////////////
 
 TProtoTableReader::TProtoTableReader(
-    THolder<TProxyInput> input,
+    ::TIntrusivePtr<TProxyInput> input,
     yvector<const Descriptor*>&& descriptors)
     : NodeReader_(new TNodeTableReader(std::move(input)))
     , Descriptors_(std::move(descriptors))
@@ -158,7 +158,7 @@ void TProtoTableReader::NextKey()
 ////////////////////////////////////////////////////////////////////////////////
 
 TLenvalProtoTableReader::TLenvalProtoTableReader(
-    THolder<TProxyInput> input,
+    ::TIntrusivePtr<TProxyInput> input,
     yvector<const Descriptor*>&& descriptors)
     : TLenvalTableReader(std::move(input))
     , Descriptors_(std::move(descriptors))

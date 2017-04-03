@@ -4,6 +4,7 @@
 
 #include <mapreduce/yt/interface/common.h>
 #include <mapreduce/yt/interface/node.h>
+#include <mapreduce/yt/interface/io.h>
 
 #include <library/http/io/stream.h>
 
@@ -17,15 +18,6 @@
 namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
-
-enum EDataStreamFormat
-{
-    DSF_YSON_TEXT,
-    DSF_YSON_BINARY,
-    DSF_YAMR_LENVAL,
-    DSF_BYTES,
-    DSF_PROTO
-};
 
 class THttpHeader
 {

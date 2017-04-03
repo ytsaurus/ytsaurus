@@ -32,6 +32,8 @@ public:
 
     IFileWriterPtr CreateFileWriter(const TRichYPath&, const TFileWriterOptions&) override;
 
+    TRawTableReaderPtr CreateRawReader(const TRichYPath& path, EDataStreamFormat format, const TTableReaderOptions& options, const Stroka& formatConfig) override;
+
     ::TIntrusivePtr<INodeReaderImpl> CreateNodeReader(const TRichYPath&, const TTableReaderOptions&) override;
 
     ::TIntrusivePtr<IYaMRReaderImpl> CreateYaMRReader(const TRichYPath&, const TTableReaderOptions&) override;

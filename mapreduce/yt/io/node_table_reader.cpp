@@ -233,7 +233,7 @@ void TRowBuilder::Finalize()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeTableReader::TNodeTableReader(THolder<TProxyInput> input, size_t sizeLimit)
+TNodeTableReader::TNodeTableReader(::TIntrusivePtr<TProxyInput> input, size_t sizeLimit)
     : Input_(std::move(input))
     , RowQueue_(sizeLimit)
 {

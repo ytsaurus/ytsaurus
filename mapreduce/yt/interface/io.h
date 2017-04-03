@@ -14,6 +14,17 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+enum EDataStreamFormat
+{
+    DSF_YSON_TEXT,
+    DSF_YSON_BINARY,
+    DSF_YAMR_LENVAL,
+    DSF_BYTES,
+    DSF_PROTO
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct INodeReaderImpl;
 struct IYaMRReaderImpl;
 struct IProtoReaderImpl;
@@ -37,6 +48,13 @@ class IFileReader
 class IFileWriter
     : public TThrRefBase
     , public TOutputStream
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRawTableReader
+    : public TThrRefBase
+    , public TInputStream
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,6 +156,12 @@ public:
     TTableWriterPtr<T> CreateTableWriter(
         const TRichYPath& path,
         const TTableWriterOptions& options = TTableWriterOptions());
+
+    virtual TRawTableReaderPtr CreateRawReader(
+        const TRichYPath& path,
+        EDataStreamFormat format,
+        const TTableReaderOptions& options,
+        const Stroka& formatConfig = Stroka()) = 0;
 
 private:
     virtual ::TIntrusivePtr<INodeReaderImpl> CreateNodeReader(

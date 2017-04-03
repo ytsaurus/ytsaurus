@@ -28,7 +28,7 @@ class TYaMRTableReader
     , public TLenvalTableReader
 {
 public:
-    explicit TYaMRTableReader(THolder<TProxyInput> input);
+    explicit TYaMRTableReader(::TIntrusivePtr<TProxyInput> input);
     ~TYaMRTableReader() override;
 
     const TYaMRRow& GetRow() const override;
