@@ -7,7 +7,7 @@ from .ypath import YPathSupportingAppend
 from .transaction import Transaction
 from .transaction_commands import _make_transactional_request
 from .http_helpers import get_retriable_errors
-from .response_stream import ResponseStreamWithDel, ResponseStreamWithReadRow
+from .response_stream import ResponseStreamWithReadRow
 from .lock_commands import lock
 from .format import YtFormatReadError
 
