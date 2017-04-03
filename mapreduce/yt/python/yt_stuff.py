@@ -27,10 +27,35 @@ class YtConfig(object):
         self.yt_id = kwargs.get("yt_id")
 
         self.proxy_port = kwargs.get("proxy_port")
-        self.node_config = kwargs.get("node_config")
         self.node_count = kwargs.get("node_count")
-        self.proxy_config = kwargs.get("proxy_config")
-        self.scheduler_config = kwargs.get("scheduler_config")
+
+        self.node_config = kwargs.get("node_config")
+
+        config_with_disabled_retries = tempfile.NamedTemporaryFile(delete=False)
+        config_with_disabled_retries.write("""
+            {
+                "bus_server" = {
+                    "bind_retry_count" = 1;
+                };
+            }"""
+        )
+        config_with_disabled_retries.close()
+
+        self.node_config = kwargs.get("node_config") or config_with_disabled_retries.name
+        self.scheduler_config = kwargs.get("scheduler_config") or config_with_disabled_retries.name
+        self.master_config = kwargs.get("master_config") or config_with_disabled_retries.name
+
+        proxy_config_with_disabled_retries = tempfile.NamedTemporaryFile(delete=False)
+        proxy_config_with_disabled_retries.write("""
+            {
+                "bind_retry_count": 1
+            }
+            """
+        )
+        proxy_config_with_disabled_retries.close()
+
+        self.proxy_config = kwargs.get("proxy_config") or proxy_config_with_disabled_retries.name
+
         self.yt_path = kwargs.get("yt_path")
 
         self.save_all_logs = kwargs.get("save_all_logs")
