@@ -1,6 +1,6 @@
 #pragma once
 
-#include <util/stream/input.h>
+#include <mapreduce/yt/interface/io.h>
 
 class yexception;
 
@@ -9,7 +9,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProxyInput
-    : public TInputStream
+    : public TRawTableReader
 {
 public:
     virtual bool OnStreamError(

@@ -11,7 +11,7 @@ class TProxyInput;
 class TLenvalTableReader
 {
 public:
-    explicit TLenvalTableReader(THolder<TProxyInput> input);
+    explicit TLenvalTableReader(::TIntrusivePtr<TProxyInput> input);
     virtual ~TLenvalTableReader();
 
 protected:
@@ -43,7 +43,7 @@ protected:
     virtual void SkipRow() = 0;
 
 protected:
-    THolder<TProxyInput> Input_;
+    ::TIntrusivePtr<TProxyInput> Input_;
 
     bool Valid_ = true;
     bool Finished_ = false;

@@ -67,7 +67,7 @@ class TNodeTableReader
     : public INodeReaderImpl
 {
 public:
-    explicit TNodeTableReader(THolder<TProxyInput> input, size_t sizeLimit = 4 << 20);
+    explicit TNodeTableReader(::TIntrusivePtr<TProxyInput> input, size_t sizeLimit = 4 << 20);
     ~TNodeTableReader() override;
 
     const TNode& GetRow() const override;
@@ -87,7 +87,7 @@ private:
     static void* FetchThread(void* opaque);
 
 private:
-    THolder<TProxyInput> Input_;
+    ::TIntrusivePtr<TProxyInput> Input_;
 
     bool Valid_ = true;
     bool Finished_ = false;

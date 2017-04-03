@@ -22,7 +22,7 @@ const i32 CONTROL_ATTR_ROW_INDEX   = -4;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLenvalTableReader::TLenvalTableReader(THolder<TProxyInput> input)
+TLenvalTableReader::TLenvalTableReader(::TIntrusivePtr<TProxyInput> input)
     : Input_(std::move(input))
 { }
 

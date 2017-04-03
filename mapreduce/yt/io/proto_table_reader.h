@@ -16,7 +16,7 @@ class TProtoTableReader
 {
 public:
     explicit TProtoTableReader(
-        THolder<TProxyInput> input,
+        ::TIntrusivePtr<TProxyInput> input,
         yvector<const ::google::protobuf::Descriptor*>&& descriptors);
     ~TProtoTableReader() override;
 
@@ -41,7 +41,7 @@ class TLenvalProtoTableReader
 {
 public:
     explicit TLenvalProtoTableReader(
-        THolder<TProxyInput> input,
+        ::TIntrusivePtr<TProxyInput> input,
         yvector<const ::google::protobuf::Descriptor*>&& descriptors);
     ~TLenvalProtoTableReader() override;
 

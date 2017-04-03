@@ -291,6 +291,15 @@ public:
         return new TFileWriter(realPath, Auth_, TransactionId_, options);
     }
 
+    TRawTableReaderPtr CreateRawReader(
+        const TRichYPath& path,
+        EDataStreamFormat format,
+        const TTableReaderOptions& options,
+        const Stroka& formatConfig = Stroka()) override
+    {
+        return CreateClientReader(path, format, options, formatConfig).Get();
+    }
+
     // operations
 
     TOperationId DoMap(
@@ -432,13 +441,13 @@ protected:
     TTransactionId TransactionId_;
 
 private:
-    THolder<TClientReader> CreateClientReader(
+    ::TIntrusivePtr<TClientReader> CreateClientReader(
         const TRichYPath& path,
         EDataStreamFormat format,
         const TTableReaderOptions& options,
         const Stroka& formatConfig = Stroka())
     {
-        return MakeHolder<TClientReader>(
+        return ::MakeIntrusive<TClientReader>(
             CanonizePath(Auth_, path),
             Auth_,
             TransactionId_,

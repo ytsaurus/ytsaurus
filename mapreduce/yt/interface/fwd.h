@@ -136,6 +136,10 @@ namespace NYT {
 
     using IFileWriterPtr = ::TIntrusivePtr<IFileWriter>;
 
+    class TRawTableReader;
+
+    using TRawTableReaderPtr = ::TIntrusivePtr<TRawTableReader>;
+
     template <class T, class = void>
     class TTableReader;
 

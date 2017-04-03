@@ -69,6 +69,16 @@ namespace {
         void DoFinish() override {}
     };
 
+    class TMockRawTableReader
+        : public TRawTableReader
+    {
+    protected:
+        size_t DoRead(void*, size_t) override {
+            return 0;
+        }
+    };
+
+
     class TMockNodeTableReader
         : public INodeReaderImpl
     {
@@ -229,6 +239,10 @@ IFileReaderPtr TMockClient::CreateFileReader(const TRichYPath&, const TFileReade
 
 IFileWriterPtr TMockClient::CreateFileWriter(const TRichYPath&, const TFileWriterOptions&) {
     return new TMockFileWriter();
+}
+
+TRawTableReaderPtr TMockClient::CreateRawReader(const TRichYPath&, EDataStreamFormat, const TTableReaderOptions&, const Stroka&) {
+    return new TMockRawTableReader();
 }
 
 ::TIntrusivePtr<INodeReaderImpl> TMockClient::CreateNodeReader(const TRichYPath&, const TTableReaderOptions&) {

@@ -81,7 +81,7 @@ TMaybe<TNode> GetTableFormats(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYaMRTableReader::TYaMRTableReader(THolder<TProxyInput> input)
+TYaMRTableReader::TYaMRTableReader(::TIntrusivePtr<TProxyInput> input)
     : TLenvalTableReader(std::move(input))
 {
     TLenvalTableReader::Next();
