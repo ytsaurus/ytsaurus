@@ -632,7 +632,7 @@ def _prepare_binary(binary, operation_type, input_format, output_format,
         start_time = time.time()
         if isinstance(input_format, YamrFormat) and group_by is not None and set(group_by) != set(["key"]):
             raise YtError("Yamr format does not support reduce by %r", group_by)
-        binary, files, tmpfs_size, environment, local_files_to_remove = \
+        wrap_result = \
             py_wrapper.wrap(function=binary,
                             operation_type=operation_type,
                             input_format=input_format,
@@ -642,9 +642,9 @@ def _prepare_binary(binary, operation_type, input_format, output_format,
                             client=client)
 
         logger.debug("Collecting python modules and uploading to cypress takes %.2lf seconds", time.time() - start_time)
-        return binary, files, tmpfs_size, environment, local_files_to_remove
+        return wrap_result
     else:
-        return binary, [], 0, {}, []
+        return py_wrapper.WrapResult(cmd=binary, files=[], tmpfs_size=0, environment={}, local_files_to_remove=[], title=None)
 
 
 def _prepare_destination_tables(tables, client=None):
@@ -691,15 +691,19 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
             paths.insert(0, ld_library_path)
         ld_library_path = os.pathsep.join(paths)
 
-    binary, additional_files, tmpfs_size, environment, additional_local_files_to_remove = \
-        _prepare_binary(binary, op_type, input_format, output_format,
-                        group_by, file_uploader, client=client)
+    prepare_result = _prepare_binary(binary, op_type, input_format, output_format,
+                                     group_by, file_uploader, client=client)
+
+    tmpfs_size = prepare_result.tmpfs_size
+    environment = prepare_result.environment
+    binary = prepare_result.cmd
+    title = prepare_result.title
 
     if ld_library_path is not None:
         environment["LD_LIBRARY_PATH"] = ld_library_path
 
     if local_files_to_remove is not None:
-        local_files_to_remove += additional_local_files_to_remove
+        local_files_to_remove += prepare_result.local_files_to_remove
 
     spec = update(
         {
@@ -708,7 +712,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
                 "output_format": output_format.to_yson_type(),
                 "command": binary,
                 "file_paths":
-                    flatten(files + additional_files + list(imap(lambda path: TablePath(path, client=client), file_paths))),
+                    flatten(files + prepare_result.files + list(imap(lambda path: TablePath(path, client=client), file_paths))),
                 "use_yamr_descriptors": bool_to_string(get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"]),
                 "check_input_fully_consumed": bool_to_string(get_config(client)["yamr_mode"]["check_input_fully_consumed"])
             }
@@ -744,6 +748,8 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
 
     if environment:
         spec = update({op_type: {"environment": environment}}, spec)
+    if title:
+        spec = update({op_type: {"title": title}}, spec)
 
     # NB: Configured by common rule now.
     memory_limit = get_value(memory_limit, get_config(client)["memory_limit"])
@@ -763,8 +769,8 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
 
 def _configure_spec(spec, client):
     started_by = get_started_by()
-    spec = update({"started_by": started_by}, spec)
     spec = update(deepcopy(get_config(client)["spec_defaults"]), spec)
+    spec = update({"started_by": started_by}, spec)
     if get_config(client)["pool"] is not None:
         spec = update(spec, {"pool": get_config(client)["pool"]})
     if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
