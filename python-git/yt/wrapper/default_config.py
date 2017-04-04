@@ -235,7 +235,9 @@ default_config = {
             "library_filter": None
         },
         # Ignore client yt_yson_bindings if platform on the cluster differs from client platform.
-        "ignore_yson_bindings_for_incompatible_platforms": True
+        "ignore_yson_bindings_for_incompatible_platforms": True,
+        # Enable using function name as operation title.
+        "use_function_name_as_title": True,
     },
 
     # Enables special behavior if client works with local mode cluster.

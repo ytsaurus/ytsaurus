@@ -42,6 +42,16 @@ OPERATION_REQUIRED_MODULES = ["yt.wrapper.py_runner_helpers"]
 
 SINGLE_INDEPENDENT_BINARY_CASE = None
 
+class WrapResult(object):
+    __slots__ = ["cmd", "files", "tmpfs_size", "environment", "local_files_to_remove", "title"]
+    def __init__(self, cmd, files=None, tmpfs_size=0, environment=None, local_files_to_remove=None, title=None):
+        self.cmd = cmd
+        self.files = files
+        self.tmpfs_size = tmpfs_size
+        self.environment = environment
+        self.local_files_to_remove = local_files_to_remove
+        self.title = title
+
 # Md5 tools.
 def init_md5():
     return []
@@ -501,6 +511,11 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
     environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = \
        str(int(get_config(client)["allow_http_requests_to_yt_from_job"]))
 
+    if get_config(client)["pickling"]["use_function_name_as_title"]:
+        title = get_function_name(function)
+    else:
+        title = None
+
     caller_arguments = build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_argument_builder, environment, client)
     function_and_config_arguments = build_function_and_config_arguments(
         function, operation_type, input_format, output_format, group_by,
@@ -519,17 +534,16 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
         main_file_arguments = build_main_file_arguments(function, create_temp_file, file_argument_builder)
 
     cmd = " ".join(caller_arguments + function_and_config_arguments + modules_arguments + main_file_arguments)
-    return cmd, uploaded_files, tmpfs_size, environment
+    return WrapResult(cmd=cmd, files=uploaded_files, tmpfs_size=tmpfs_size, environment=environment, title=title, local_files_to_remove=None)
 
 def wrap(client, **kwargs):
     local_mode = is_local_mode(client)
     remove_temp_files = get_config(client)["clear_local_temp_files"] and not local_mode
 
     with TempfilesManager(remove_temp_files, get_config(client)["local_temp_directory"]) as tempfiles_manager:
-        cmd, uploaded_files, tmpfs_size, environment = do_wrap(tempfiles_manager=tempfiles_manager, client=client, local_mode=local_mode, **kwargs)
-        local_files_to_remove = tempfiles_manager._tempfiles_pool if enable_local_files_usage_in_job(client) else []
-        return cmd, uploaded_files, tmpfs_size, environment, local_files_to_remove
-
+        result = do_wrap(tempfiles_manager=tempfiles_manager, client=client, local_mode=local_mode, **kwargs)
+        result.local_files_to_remove = tempfiles_manager._tempfiles_pool if enable_local_files_usage_in_job(client) else []
+        return result
 
 def enable_python_job_processing_for_standalone_binary():
     """Enables alternative method to run python functions as jobs in YT operations.
