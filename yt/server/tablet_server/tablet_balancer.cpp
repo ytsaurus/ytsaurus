@@ -156,7 +156,9 @@ private:
         if (TabletIdQueue_.empty()) {
             BalanceTabletCells();
         } else {
-            BalanceTablets();
+            PROFILE_TIMING("/balance_tablets") {
+                BalanceTablets();
+            }
         }
     }
 
@@ -189,7 +191,10 @@ private:
             return;
         }
 
-        ReassignInMemoryTablets();
+        PROFILE_TIMING("/balance_cells_memory") {
+            ReassignInMemoryTablets();
+        }
+
         // TODO(savrus) balance other tablets.
     }
 
