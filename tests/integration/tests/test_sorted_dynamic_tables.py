@@ -88,6 +88,22 @@ class TestSortedDynamicTablesBase(TestDynamicTablesBase):
                 return True
             wait(lambda: all_preloaded())
 
+    def _reshard_with_retries(self, path, pivots):
+        resharded = False
+        for i in xrange(4):
+            try:
+                self.sync_unmount_table(path)
+                reshard_table(path, pivots)
+                resharded = True
+            except:
+                pass
+            self.sync_mount_table(path)
+            if resharded:
+                break
+            sleep(5)
+        assert resharded
+
+
 ##################################################################
 
 class TestSortedDynamicTables(TestSortedDynamicTablesBase):
@@ -698,26 +714,21 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     def test_reshard_data(self):
         self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t1", optimize_for = "scan")
-        self.sync_mount_table("//tmp/t1")
-
-        def reshard(pivots):
-            self.sync_unmount_table("//tmp/t1")
-            reshard_table("//tmp/t1", pivots)
-            self.sync_mount_table("//tmp/t1")
+        self._create_simple_table("//tmp/t", optimize_for = "scan")
+        self.sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": str(i)} for i in xrange(3)]
-        insert_rows("//tmp/t1", rows)
-        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
+        insert_rows("//tmp/t", rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
-        reshard([[], [1]])
-        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
+        self._reshard_with_retries("//tmp/t", [[], [1]])
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
-        reshard([[], [1], [2]])
-        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
+        self._reshard_with_retries("//tmp/t", [[], [1], [2]])
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
-        reshard([[]])
-        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
+        self._reshard_with_retries("//tmp/t", [[]])
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
     def test_metadata_cache_invalidation(self):
         def sync_mount_table_and_preserve_cache(path, **kwargs):
@@ -1216,21 +1227,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             actual = lookup_rows("//tmp/t", [{"key": key} for key in keys])
             assert actual == expected
 
-        def reshard(pivots):
-            resharded = False
-            for i in xrange(3):
-                try:
-                    self.sync_unmount_table("//tmp/t")
-                    reshard_table("//tmp/t", pivots)
-                    resharded = True
-                except:
-                    pass
-                self.sync_mount_table("//tmp/t")
-                if resharded:
-                    break
-                sleep(2)
-            assert resharded
-
         verify()
 
         rounds = 10
@@ -1246,7 +1242,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             verify()
 
             pivots = ([[]] + [[x] for x in xrange(0, items, items / wave)]) if wave % 2 == 0 else [[]]
-            reshard(pivots)
+            self._reshard_with_retries("//tmp/t", pivots)
 
             verify()
 
