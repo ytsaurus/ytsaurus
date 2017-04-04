@@ -15,9 +15,11 @@ import yt.packages.requests as requests
 import os
 import pytest
 import time
+import uuid
 
 TM_CONFIG_PATH = "config.json"
-SANDBOX_PATH = os.path.join(os.path.dirname(__file__), "tests.sandbox")
+SANDBOX_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests.sandbox")
+TEST_RUN_PATH = os.path.join(SANDBOX_PATH, "run_" + uuid.uuid4().hex[:8])
 
 MAX_WAIT_TIME = 60
 SLEEP_QUANTUM = 0.1
@@ -34,7 +36,7 @@ def _write_node_content(path, node_type, client):
         client.write_table(path, [{"a": 1}, {"b": 2}, {"c": 3}])
 
 def _start_transfer_manager(config):
-    config_path = os.path.join(SANDBOX_PATH, TM_CONFIG_PATH)
+    config_path = os.path.join(TEST_RUN_PATH, TM_CONFIG_PATH)
     json.dump(config, open(config_path, "w"))
 
     tests_path = os.path.split(__file__)[0]
@@ -53,8 +55,8 @@ def _start_transfer_manager(config):
 @pytest.mark.skipif(PY3, reason="Transfer manager is available only for Python 2")
 class TestTransferManager(object):
     def setup_class(self):
-        self._first_cluster_yt_instance = start(node_count=3, path=SANDBOX_PATH)
-        self._second_cluster_yt_instance = start(node_count=3, path=SANDBOX_PATH)
+        self._first_cluster_yt_instance = start(node_count=3, path=TEST_RUN_PATH, enable_debug_logging=True, id="first")
+        self._second_cluster_yt_instance = start(node_count=3, path=TEST_RUN_PATH, enable_debug_logging=True, id="second")
 
         self.first_cluster_client = self._first_cluster_yt_instance.create_client()
         self.second_cluster_client = self._second_cluster_yt_instance.create_client()
@@ -73,7 +75,7 @@ class TestTransferManager(object):
         tm_config["logging"]["port"] = next(port_iterator)
         tm_config["task_executor"]["port"] = next(port_iterator)
         tm_config["yt_backend_options"]["proxy"] = first_cluster_url
-        tm_config["logging"]["filename"] = os.path.join(SANDBOX_PATH, "tm_log")
+        tm_config["logging"]["filename"] = os.path.join(TEST_RUN_PATH, "transfer_manager.log")
 
         self._tm_process = _start_transfer_manager(tm_config)
 
@@ -94,14 +96,15 @@ class TestTransferManager(object):
         self.tm_client = TransferManager("http://localhost:{0}".format(tm_config["port"]), token="test_token")
 
     def teardown_class(self):
-        stop(self._first_cluster_yt_instance.id, path=SANDBOX_PATH)
-        stop(self._second_cluster_yt_instance.id, path=SANDBOX_PATH)
+        stop(self._first_cluster_yt_instance.id, path=TEST_RUN_PATH)
+        stop(self._second_cluster_yt_instance.id, path=TEST_RUN_PATH)
         self._tm_process.terminate()
         self._tm_process.wait()
 
     def setup(self):
-        self.first_cluster_client.create("map_node", "//tm")
-        self.second_cluster_client.create("map_node", "//tm")
+        for dir in ("//tm", "//tmp/yt_wrapper/file_storage"):
+            for client in (self.first_cluster_client, self.second_cluster_client):
+                client.create("map_node", dir, recursive=True, ignore_existing=True)
 
     def teardown(self):
         self.first_cluster_client.remove("//tm", force=True, recursive=True)
