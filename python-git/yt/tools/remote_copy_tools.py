@@ -358,8 +358,8 @@ def set_codec(yt_client, dst, codec, codec_type, dst_type="table"):
 
 def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
                   copy_spec_template=None, postprocess_spec_template=None,
-                  compression_codec=None, erasure_codec=None, additional_attributes=None,
-                  schema_inference_mode=None):
+                  compression_codec=None, erasure_codec=None, external=None,
+                  additional_attributes=None, schema_inference_mode=None):
     copy_spec_template = get_value(copy_spec_template, {})
     if schema_inference_mode is not None:
         copy_spec_template["schema_inference_mode"] = schema_inference_mode
@@ -396,6 +396,9 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
         if cluster_connection is not None:
             kwargs["cluster_connection"] = cluster_connection
 
+        if external is not None:
+            destination_client.create("table", dst, attributes={"external": external})
+
         destination_client.run_remote_copy(
             src,
             dst,
@@ -404,9 +407,9 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
             spec=copy_spec_template,
             **kwargs)
 
-        for name, codec in [("compression_codec", compression_codec), ("erasure_codec", erasure_codec)]:
-            if codec is None:
-                destination_client.set(dst + "/@" + name, source_client.get(str(src) + "/@" + name))
+        for attr_name, value in [("compression_codec", compression_codec), ("erasure_codec", erasure_codec), ("optimize_for", None)]:
+            if value is None:
+                destination_client.set(dst + "/@" + attr_name, source_client.get(str(src) + "/@" + attr_name))
 
         if erasure_codec is not None or compression_codec is not None:
             transform(str(dst), compression_codec=compression_codec, erasure_codec=erasure_codec,
@@ -416,8 +419,8 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
 
 def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, data_proxy_role, token_storage_path,
                                 copy_spec_template=None, postprocess_spec_template=None, default_tmp_dir=None,
-                                compression_codec=None, erasure_codec=None, intermediate_format=None,
-                                small_table_size_threshold=None, force_copy_with_operation=False,
+                                compression_codec=None, erasure_codec=None, external=None,
+                                intermediate_format=None, small_table_size_threshold=None, force_copy_with_operation=False,
                                 additional_attributes=None, schema_inference_mode=None, pack_yt_wrapper=True,
                                 pack_yson_bindings=True):
     schema_inference_mode = get_value(schema_inference_mode, "auto")
@@ -450,6 +453,10 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, dat
             if erasure_codec is None:
                 erasure_codec = source_client.get(str(src) + "/@erasure_codec")
             set_codec(destination_client, dst, compression_codec, "compression")
+
+            destination_client.set(str(dst) + "/@optimize_for", source_client.get(str(src) + "/@optimize_for"))
+            if external is not None:
+                destination_client.set(str(dst) + "/@external", external)
 
             sorted_by = None
             if source_client.exists(src + "/@sorted_by"):
