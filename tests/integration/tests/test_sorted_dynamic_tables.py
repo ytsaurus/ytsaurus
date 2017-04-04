@@ -1216,6 +1216,21 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             actual = lookup_rows("//tmp/t", [{"key": key} for key in keys])
             assert actual == expected
 
+        def reshard(pivots):
+            resharded = False
+            for i in xrange(3):
+                try:
+                    self.sync_unmount_table("//tmp/t")
+                    reshard_table("//tmp/t", pivots)
+                    resharded = True
+                except:
+                    pass
+                self.sync_mount_table("//tmp/t")
+                if resharded:
+                    break
+                sleep(2)
+            assert resharded
+
         verify()
 
         rounds = 10
@@ -1230,15 +1245,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
             verify()
 
-            self.sync_unmount_table("//tmp/t")
             pivots = ([[]] + [[x] for x in xrange(0, items, items / wave)]) if wave % 2 == 0 else [[]]
-            for i in xrange(30):
-                try:
-                    reshard_table("//tmp/t", pivots)
-                    break
-                except:
-                    sleep(1)
-            self.sync_mount_table("//tmp/t")
+            reshard(pivots)
 
             verify()
 
