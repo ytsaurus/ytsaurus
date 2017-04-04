@@ -66,12 +66,12 @@ class YsonWriterTestBase(object):
     def test_custom_integers(self):
         class MyInt(int):
             pass
-        assert self.dumps(MyInt(10)) == "10"
+        assert self.dumps(MyInt(10)) == b"10"
 
         if not PY3:
             class MyLong(long):
                 pass
-            assert self.dumps(MyLong(10)) == "10"
+            assert self.dumps(MyLong(10)) == b"10"
 
     def test_context_in_errors(self):
         try:
