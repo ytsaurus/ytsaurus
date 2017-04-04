@@ -126,6 +126,7 @@ def execute_task(task, message_queue, config, logger):
                     default_tmp_dir=config.get("default_tmp_dir"),
                     small_table_size_threshold=config.get("small_table_size_threshold"),
                     force_copy_with_operation=force_copy_with_operation,
+                    external=task.external,
                     additional_attributes=task.additional_attributes,
                     schema_inference_mode=task.schema_inference_mode,
                     pack_yt_wrapper=task.pack_yt_wrapper,
@@ -143,6 +144,7 @@ def execute_task(task, message_queue, config, logger):
                     postprocess_spec_template=postprocess_spec,
                     compression_codec=task.destination_compression_codec,
                     erasure_codec=task.destination_erasure_codec,
+                    external=task.external,
                     additional_attributes=task.additional_attributes,
                     schema_inference_mode=task.schema_inference_mode)
         elif source_client._type == "yt" and destination_client._type == "kiwi":

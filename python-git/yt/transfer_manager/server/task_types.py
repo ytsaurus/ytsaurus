@@ -15,7 +15,7 @@ class Task(object):
                  kwworm_options=None, pool=None, meta=None, destination_compression_codec=None,
                  destination_erasure_codec=None, destination_force_sort=None, copy_spec=None, postprocess_spec=None,
                  job_timeout=None, intermediate_format=None, lease_timeout=None, queue_name=None,
-                 force_copy_with_operation=None, additional_attributes=None, table_for_errors=None,
+                 force_copy_with_operation=None, external=None, additional_attributes=None, table_for_errors=None,
                  schema_inference_mode=None, temp_files_dir=None, hive_json_format_attributes=None,
                  data_proxy_role=None, logger=None, pack_yt_wrapper=None, pack_yson_bindings=None):
         self.source_cluster = source_cluster
@@ -48,6 +48,7 @@ class Task(object):
         self.postprocess_spec = postprocess_spec
         self.intermediate_format = intermediate_format
         self.force_copy_with_operation = force_copy_with_operation
+        self.external = external
         self.additional_attributes = additional_attributes
         self.table_for_errors = table_for_errors
         self.schema_inference_mode = schema_inference_mode
