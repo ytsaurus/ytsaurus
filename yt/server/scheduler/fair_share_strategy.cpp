@@ -884,7 +884,7 @@ private:
             }
 
             if (nodeLimitsViolated || (poolsLimitsViolated && poolLimitsViolated(job))) {
-                job->SetPreemptReason(Format("Preempted to start job %v of operation %v",
+                job->SetPreemptionReason(Format("Preempted to start job %v of operation %v",
                     jobStartedUsingPreemption->GetId(),
                     jobStartedUsingPreemption->GetOperationId()));
                 PreemptJob(job, operationElement, context);
