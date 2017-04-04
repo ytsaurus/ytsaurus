@@ -13,6 +13,8 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
+#include <yt/core/profiling/profiler.h>
+
 #include <queue>
 
 namespace NYT {
@@ -58,6 +60,11 @@ public:
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
             BIND(&TImpl::OnCheckEnabled, MakeWeak(this)),
             Config_->EnabledCheckPeriod))
+        , Profiler("/tablet_server/tablet_balancer")
+        , MemoryMoveCounter_("/in_memory_moves")
+        , MergeCounter_("/tablet_merges")
+        , SplitCounter_("/tablet_splits")
+        , QueueSizeCounter_("/queue_size")
     { }
 
     void Start()
@@ -119,6 +126,7 @@ public:
         if (needAction) {
             TabletIdQueue_.push_back(tablet->GetId());
             QueuedTabletIds_.insert(tablet->GetId());
+            Profiler.Increment(QueueSizeCounter_);
             LOG_DEBUG("Put tablet %v into balancer queue", tablet->GetId());
         }
     }
@@ -133,6 +141,11 @@ private:
     std::deque<TTabletId> TabletIdQueue_;
     yhash_set<TTabletId> QueuedTabletIds_;
 
+    const NProfiling::TProfiler Profiler;
+    NProfiling::TSimpleCounter MemoryMoveCounter_;
+    NProfiling::TSimpleCounter MergeCounter_;
+    NProfiling::TSimpleCounter SplitCounter_;
+    NProfiling::TSimpleCounter QueueSizeCounter_;
 
     void Balance()
     {
@@ -258,6 +271,7 @@ private:
                     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
                     CreateMutation(hydraManager, request)
                         ->CommitAndLog(Logger);
+                    Profiler.Increment(MemoryMoveCounter_);
                 }
             }
         }
@@ -311,6 +325,8 @@ private:
                 SplitTablet(tablet);
             }
         }
+
+        Profiler.Update(QueueSizeCounter_, TabletIdQueue_.size());
     }
 
     i64 GetTabletSize(TTablet* tablet)
@@ -370,6 +386,7 @@ private:
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         CreateMutation(hydraManager, request)
             ->CommitAndLog(Logger);
+        Profiler.Increment(MergeCounter_);
     }
 
     void SplitTablet(TTablet* tablet)
@@ -396,6 +413,7 @@ private:
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         CreateMutation(hydraManager, request)
             ->CommitAndLog(Logger);
+        Profiler.Increment(SplitCounter_);
     }
 
 
