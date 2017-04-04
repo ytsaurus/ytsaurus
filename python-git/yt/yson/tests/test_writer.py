@@ -7,12 +7,22 @@ import pytest
 import yt.yson.writer
 from yt.yson import YsonUint64, YsonInt64, YsonEntity, YsonMap, YsonError
 from yt.packages.six import b, PY3
+from yt.packages.six.moves import map as imap
 
 try:
     import yt_yson_bindings
 except ImportError:
     yt_yson_bindings = None
 
+import os
+import subprocess
+
+def get_debian_version(root):
+    output = subprocess.check_output(["dpkg-parsechangelog"], cwd=root)
+    return tuple(imap(int, output.split("Version:")[1].split()[0].split(".")))
+
+PARENT_REPO_DIR = os.path.abspath(os.path.join(__file__, "../../../../../"))
+VERSION = get_debian_version(PARENT_REPO_DIR)
 
 class YsonWriterTestBase(object):
     @staticmethod
@@ -47,6 +57,17 @@ class YsonWriterTestBase(object):
             self.dumps(YsonUint64(-2 ** 63))
         with pytest.raises(Exception):
             self.dumps(YsonInt64(2 ** 63 + 1))
+
+    @pytest.mark.skipif("VERSION < (19, 2)")
+    def test_custom_integers(self):
+        class MyInt(int):
+            pass
+        assert self.dumps(MyInt(10)) == "10"
+
+        if not PY3:
+            class MyLong(long):
+                pass
+            assert self.dumps(MyLong(10)) == "10"
 
     def test_context_in_errors(self):
         try:
