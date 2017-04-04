@@ -161,7 +161,8 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
         }
         consumer->OnInt64Scalar(value);
     } else {
-        Y_UNREACHABLE();
+        // Object 'obj' is of some type inhereted from integer.
+        consumeAsLong();
     }
 }
 
