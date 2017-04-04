@@ -406,9 +406,11 @@ private:
             return;
         }
 
+        auto wasEnabled = Enabled_;
+
         try {
             if (Bootstrap_->IsPrimaryMaster()) {
-                OnCheckEnabledPrimary();
+                Enabled_ = OnCheckEnabledPrimary();
             } else {
                 Enabled_ = false;
             }
@@ -416,9 +418,13 @@ private:
             LOG_ERROR(ex, "Error updating tablet balancer state, disabling until the next attempt");
             Enabled_ = false;
         }
+
+        if (Enabled_ && !wasEnabled) {
+            LOG_INFO("Tablet balancer enabled");
+        }
     }
 
-    void OnCheckEnabledPrimary()
+    bool OnCheckEnabledPrimary()
     {
         bool enabled = true;
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -428,13 +434,38 @@ private:
             if (Enabled_) {
                 LOG_INFO("Tablet balancer is disabled by //sys/@disable_tablet_balancer setting");
             }
-
             enabled = false;
         }
-        Enabled_ = enabled;
-        if (Enabled_) {
-            LOG_INFO("Tablet balancer enabled");
+        return enabled ? OnCheckEnabledWorkHours() : false;
+
+    }
+
+    bool OnCheckEnabledWorkHours()
+    {
+        bool enabled = true;
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto resolver = cypressManager->CreateResolver();
+        auto sysNode = resolver->ResolvePath("//sys");
+        auto officeHours = sysNode->Attributes().Find<std::vector<int>>("tablet_balancer_office_hours");
+        if (!officeHours) {
+            return enabled;
         }
+        if (officeHours->size() != 2) {
+            LOG_INFO("Expected two integers in //sys/@tablet_balancer_office_hours, but got %v",
+                *officeHours);
+            return enabled;
+        }
+
+        tm localTime;
+        Now().LocalTime(&localTime);
+        int hour = localTime.tm_hour;
+        if (hour < (*officeHours)[0] || hour > (*officeHours)[1]) {
+            if (Enabled_) {
+                LOG_INFO("Tablet balancer is disabled by //sys/@tablet_balancer_office_hours");
+            }
+            enabled = false;
+        }
+        return enabled;
     }
 };
 
