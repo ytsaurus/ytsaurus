@@ -286,8 +286,10 @@ TFuture<void> TBlobSession::DoFlushBlocks(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    // TODO(psushin): verify monotonicity of blockIndex
-    ValidateBlockIsInWindow(blockIndex);
+    if (!IsInWindow(blockIndex)) {
+        LOG_DEBUG("Blocks are already flushed (BlockIndex: %v)", blockIndex);
+        return VoidFuture;
+    }
 
     const auto& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
