@@ -13,7 +13,7 @@ from yt.common import format_error, date_string_to_datetime, to_native_str
 
 from yt.packages.decorator import decorator
 from yt.packages.six import iteritems, iterkeys
-from yt.packages.six.moves import builtins, filter as ifilter
+from yt.packages.six.moves import builtins, filter as ifilter, map as imap
 
 import logging
 from datetime import datetime
@@ -127,14 +127,22 @@ def get_operation_state(operation, client=None):
         config["proxy"]["request_retry_count"] = retry_count
 
 def get_operation_progress(operation, client=None):
+    def calculate_total(counter):
+        if isinstance(counter, dict):
+            return sum(imap(calculate_total, counter.itervalues()))
+        return counter
+
     try:
         attributes = get_operation_attributes(operation, client=client)
         progress = attributes.get("progress", {}).get("jobs", {})
-        # Fix aborted progress counter
-        if progress and "aborted" in progress and \
-            isinstance(progress["aborted"], dict) and \
-            "total" in progress["aborted"]:
-            progress["aborted"] = progress["aborted"]["total"]
+        for key in progress:
+            # Show total for hierarchical count.
+            if key in progress and isinstance(progress[key], dict):
+                if "total" in progress[key]:
+                    progress[key] = progress[key]["total"]
+                else:
+                    progress[key] = calculate_total(progress[key])
+
     except YtResponseError as err:
         if err.is_resolve_error():
             progress = {}
