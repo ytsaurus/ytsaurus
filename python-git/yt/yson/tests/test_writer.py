@@ -18,7 +18,11 @@ import os
 import subprocess
 
 def get_debian_version(root):
-    output = subprocess.check_output(["dpkg-parsechangelog"], cwd=root)
+    try:
+        output = subprocess.check_output(["dpkg-parsechangelog"], cwd=root)
+    except subprocess.CalledProcessError:
+        # Infinite version
+        return (100, )
     return tuple(imap(int, output.split("Version:")[1].split()[0].split(".")))
 
 PARENT_REPO_DIR = os.path.abspath(os.path.join(__file__, "../../../../../"))
