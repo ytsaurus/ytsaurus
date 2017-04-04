@@ -143,9 +143,12 @@ def get_operation_progress(operation, client=None):
     return progress
 
 def order_progress(progress):
+    filter_out = ["completed_details"]
     keys = ["running", "completed", "pending", "failed", "aborted", "lost", "total"]
     result = []
     for key in keys:
+        if key in filter_out:
+            continue
         if key in progress:
             result.append((key, progress[key]))
     for key, value in iteritems(progress):
