@@ -714,7 +714,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     def test_reshard_data(self):
         self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t", optimize_for = "scan")
+        self._create_simple_table("//tmp/t", optimize_for="scan")
         self.sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": str(i)} for i in xrange(3)]
@@ -728,6 +728,29 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
         self._reshard_with_retries("//tmp/t", [[]])
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+    def test_reshard_single_chunk(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", disable_compaction_and_partitioning=True)
+        self.sync_mount_table("//tmp/t")
+
+        def reshard(pivots):
+            self.sync_unmount_table("//tmp/t")
+            reshard_table("//tmp/t", pivots)
+            self.sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(3)]
+        insert_rows("//tmp/t", rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        reshard([[], [1]])
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        reshard([[], [1], [2]])
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        reshard([[]])
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
     def test_metadata_cache_invalidation(self):
