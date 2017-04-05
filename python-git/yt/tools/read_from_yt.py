@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import sys
+import os
 import argparse
 import tarfile
 import json
@@ -71,13 +72,6 @@ def read(proxy, token, config, transaction, format, table, input_type):
             for chunk in chunk_iter_stream(read_stream, READ_CHUNK_SIZE):
                 sys.stdout.write(chunk)
 
-def get_token(token_file):
-    if token_file is not None:
-        with open(token_file, "rb") as fin:
-            return fin.read().strip()
-
-    return None
-
 def main():
     parser = argparse.ArgumentParser(description="Command to read from yt cluster")
     parser.add_argument("--proxy", required=True)
@@ -86,7 +80,6 @@ def main():
     parser.add_argument("--input-type", required=True)
     parser.add_argument("--tx")
     parser.add_argument("--config-file", help="File with client config in JSON format")
-    parser.add_argument("--token-file", help="File with token")
     parser.add_argument("--package-file", action="append")
     args = parser.parse_args()
 
@@ -99,7 +92,7 @@ def main():
         sys.path.insert(0, ".")
 
     read(proxy=args.proxy,
-         token=get_token(args.token_file),
+         token=os.environ.get("YT_SECURE_VAULT_TOKEN"),
          config=json.load(open(args.config_file)),
          table=args.table,
          transaction=args.tx,

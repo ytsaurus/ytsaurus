@@ -74,7 +74,6 @@ config = {
     "path": "//transfer_manager",
     "error_details_length_limit": 50000,
     "tasks_limit_per_user": 40,
-    "token_storage_path": "//tm_token_storage",
     "task_executor": {
         "port": None
     },
