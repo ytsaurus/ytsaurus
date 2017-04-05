@@ -366,6 +366,12 @@ struct IOperationController
 
     //! Called to get a cached YSON string representing the current brief progress.
     virtual NYson::TYsonString GetBriefProgress() const = 0;
+
+    //! Returns |true| when controller can build job splitter info.
+    virtual bool HasJobSplitterInfo() const = 0;
+
+    //! Called to construct a YSON representing job splitter state.
+    virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

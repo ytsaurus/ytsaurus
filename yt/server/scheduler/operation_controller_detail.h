@@ -201,6 +201,7 @@ public:
     virtual bool IsForgotten() const override;
 
     virtual bool HasProgress() const override;
+    virtual bool HasJobSplitterInfo() const override;
 
     virtual void Resume() override;
     virtual TFuture<void> Suspend() override;
@@ -210,6 +211,7 @@ public:
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
+    virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const override;
 
     virtual NYson::TYsonString GetProgress() const override;
     virtual NYson::TYsonString GetBriefProgress() const override;

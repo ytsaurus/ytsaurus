@@ -2379,6 +2379,7 @@ private:
         auto controller = operation->GetController();
 
         bool hasControllerProgress = operation->HasControllerProgress();
+        bool hasControllerJobSplitterInfo = operation->HasControllerJobSplitterInfo();
         BuildYsonFluently(consumer)
             .BeginMap()
                 // Include the complete list of attributes.
@@ -2414,6 +2415,17 @@ private:
                                     .Run(operation->GetId(), consumer));
                         }
                     })
+                .EndMap()
+                .Item("job_splitter").BeginAttributes()
+                    .Item("opaque").Value("true")
+                .EndAttributes()
+                .BeginMap()
+                    .DoIf(hasControllerJobSplitterInfo, BIND([=] (IYsonConsumer* consumer) {
+                        WaitFor(
+                            BIND(&IOperationController::BuildJobSplitterInfo, controller)
+                                .AsyncVia(controller->GetInvoker())
+                                .Run(consumer));
+                    }))
                 .EndMap()
                 .Do([=] (IYsonConsumer* consumer) {
                     WaitFor(

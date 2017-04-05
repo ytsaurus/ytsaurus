@@ -21,6 +21,7 @@ struct IJobSplitter
         const TCompletedJobSummary& summary,
         i64 unreadRowCount) const = 0;
     virtual bool IsJobSplittable(const TJobId& jobId) const = 0;
+    virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
