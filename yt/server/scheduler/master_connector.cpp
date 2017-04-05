@@ -1314,6 +1314,7 @@ private:
         auto batchReq = StartObjectBatchRequest();
         auto req = TYPathProxy::Remove(GetSnapshotPath(operationId));
         req->set_force(true);
+        GenerateMutationId(req);
         batchReq->AddRequest(req, "remove_snapshot");
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -1351,6 +1352,7 @@ private:
             auto req = TCypressYPathProxy::Create(jobPath);
             req->set_type(static_cast<int>(EObjectType::MapNode));
             ToProto(req->mutable_node_attributes(), *attributes);
+            GenerateMutationId(req);
             batchReq->AddRequest(req, "create");
         }
 
