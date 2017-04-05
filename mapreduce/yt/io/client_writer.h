@@ -29,7 +29,7 @@ public:
     void OnRowFinished(size_t tableIndex) override;
 
 private:
-    THolder<TBlockWriter> BlockWriter_;
+    ::TIntrusivePtr<TBlockWriter> BlockWriter_;
 
     static const size_t BUFFER_SIZE = 64 << 20;
 };

@@ -78,6 +78,17 @@ namespace {
         }
     };
 
+    class TMockRawTableWriter
+        : public TRawTableWriter
+    {
+    public:
+        ~TMockRawTableWriter() override {}
+        void NotifyRowEnd() override {}
+
+    protected:
+        void DoWrite(const void*, size_t) override {}
+        void DoFinish() override {}
+    };
 
     class TMockNodeTableReader
         : public INodeReaderImpl
@@ -243,6 +254,10 @@ IFileWriterPtr TMockClient::CreateFileWriter(const TRichYPath&, const TFileWrite
 
 TRawTableReaderPtr TMockClient::CreateRawReader(const TRichYPath&, EDataStreamFormat, const TTableReaderOptions&, const Stroka&) {
     return new TMockRawTableReader();
+}
+
+TRawTableWriterPtr TMockClient::CreateRawWriter(const TRichYPath&, EDataStreamFormat, const TTableWriterOptions&, const Stroka&) {
+    return new TMockRawTableWriter();
 }
 
 ::TIntrusivePtr<INodeReaderImpl> TMockClient::CreateNodeReader(const TRichYPath&, const TTableReaderOptions&) {

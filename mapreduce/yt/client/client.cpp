@@ -24,6 +24,7 @@
 #include <mapreduce/yt/io/proto_helpers.h>
 #include <mapreduce/yt/io/file_reader.h>
 #include <mapreduce/yt/io/file_writer.h>
+#include <mapreduce/yt/io/block_writer.h>
 
 #include <library/yson/json_writer.h>
 
@@ -300,6 +301,23 @@ public:
         return CreateClientReader(path, format, options, formatConfig).Get();
     }
 
+    TRawTableWriterPtr CreateRawWriter(
+        const TRichYPath& path,
+        EDataStreamFormat format,
+        const TTableWriterOptions& options,
+        const Stroka& formatConfig = Stroka()) override
+    {
+        return ::MakeIntrusive<TBlockWriter>(
+            Auth_,
+            TransactionId_,
+            GetWriteTableCommand(),
+            format,
+            formatConfig,
+            CanonizePath(Auth_, path),
+            BUFFER_SIZE,
+            options).Get();
+    }
+
     // operations
 
     TOperationId DoMap(
@@ -537,7 +555,12 @@ private:
                 std::move(descriptors));
         }
     }
+
+    // Raw table writer buffer size
+    static const size_t BUFFER_SIZE;
 };
+
+const size_t TClientBase::BUFFER_SIZE = 64 << 20;
 
 class TTransaction
     : public ITransaction

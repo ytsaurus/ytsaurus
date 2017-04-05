@@ -57,6 +57,19 @@ class TRawTableReader
     , public TInputStream
 { };
 
+class TRawTableWriter
+    : public TThrRefBase
+    , public TOutputStream
+{
+public:
+    // Should be called after complete record is written.
+    // When this method is called TRowTableWriter checks its buffer size
+    // and if it is full it sends data to YT.
+    // NOTE: TRowTableWriter never sends partial records to YT (due to retries).
+
+    virtual void NotifyRowEnd() = 0;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, class>
@@ -161,6 +174,12 @@ public:
         const TRichYPath& path,
         EDataStreamFormat format,
         const TTableReaderOptions& options,
+        const Stroka& formatConfig = Stroka()) = 0;
+
+    virtual TRawTableWriterPtr CreateRawWriter(
+        const TRichYPath& path,
+        EDataStreamFormat format,
+        const TTableWriterOptions& options,
         const Stroka& formatConfig = Stroka()) = 0;
 
 private:

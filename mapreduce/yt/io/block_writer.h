@@ -3,6 +3,7 @@
 #include "helpers.h"
 
 #include <mapreduce/yt/interface/common.h>
+#include <mapreduce/yt/interface/io.h>
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/http/transaction.h>
 
@@ -19,7 +20,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockWriter
-    : public TOutputStream
+    : public TRawTableWriter
 {
 public:
     template <class TWriterOptions>
@@ -50,7 +51,7 @@ public:
         SecondaryParameters_ = FormIORequestParameters(secondaryPath, options);
     }
 
-    void DoFlushIfNeeded();
+    void NotifyRowEnd() override;
 
 protected:
     void DoWrite(const void* buf, size_t len) override;

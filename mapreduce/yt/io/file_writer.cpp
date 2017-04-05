@@ -35,7 +35,7 @@ TFileWriter::~TFileWriter()
 void TFileWriter::DoWrite(const void* buf, size_t len)
 {
     BlockWriter_.Write(buf, len);
-    BlockWriter_.DoFlushIfNeeded();
+    BlockWriter_.NotifyRowEnd();
 }
 
 void TFileWriter::DoFinish()
