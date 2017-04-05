@@ -3256,6 +3256,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
             attributes->Set("schema", *schema);
         }
         ToProto(req->mutable_node_attributes(), *attributes);
+        GenerateMutationId(req);
 
         batchReq->AddRequest(req, key);
     };
@@ -3368,6 +3369,7 @@ void TOperationControllerBase::LockLivePreviewTables()
         auto req = TCypressYPathProxy::Lock(FromObjectId(table.LivePreviewTableId));
         req->set_mode(static_cast<int>(ELockMode::Exclusive));
         SetTransactionId(req, AsyncSchedulerTransaction->GetId());
+        GenerateMutationId(req);
         batchReq->AddRequest(req, key);
     };
 
