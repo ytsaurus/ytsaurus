@@ -140,6 +140,10 @@ namespace NYT {
 
     using TRawTableReaderPtr = ::TIntrusivePtr<TRawTableReader>;
 
+    class TRawTableWriter;
+
+    using TRawTableWriterPtr = ::TIntrusivePtr<TRawTableWriter>;
+
     template <class T, class = void>
     class TTableReader;
 

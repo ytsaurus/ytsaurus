@@ -40,7 +40,7 @@ TOutputStream* TClientWriter::GetStream(size_t tableIndex) const
 
 void TClientWriter::OnRowFinished(size_t)
 {
-    BlockWriter_->DoFlushIfNeeded();
+    BlockWriter_->NotifyRowEnd();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

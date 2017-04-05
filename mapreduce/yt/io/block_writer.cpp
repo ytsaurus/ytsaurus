@@ -8,7 +8,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TBlockWriter::DoFlushIfNeeded()
+void TBlockWriter::NotifyRowEnd()
 {
     if (Buffer_.Size() >= BufferSize_) {
         FlushBuffer(false);
