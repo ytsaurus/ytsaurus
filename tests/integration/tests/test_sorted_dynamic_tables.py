@@ -770,7 +770,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             sync_mount_table_and_preserve_cache(path)
 
         self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t1")
+        self._create_simple_table("//tmp/t1", disable_compaction_and_partitioning=True)
         self.sync_mount_table("//tmp/t1")
 
         rows = [{"key": i, "value": str(i)} for i in xrange(3)]
@@ -797,7 +797,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         reshard_and_preserve_cache("//tmp/t1", [[], [1], [2]])
         assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
-
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_any_value_type(self, optimize_for):
