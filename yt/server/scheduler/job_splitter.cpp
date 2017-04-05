@@ -9,6 +9,8 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NProfiling;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -109,6 +111,27 @@ public:
         return jobCount;
     }
 
+    virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const override
+    {
+        BuildYsonMapFluently(consumer)
+            .Item("build_time").Value(CpuInstantToInstant(GetCpuInstant()))
+            .Item("running_job_count").Value(RunningJobs_.size())
+            .Item("max_running_job_count").Value(MaxRunningJobCount_)
+            .Item("running_jobs").DoMapFor(RunningJobs_,
+                [&] (TFluentMap fluent, const std::pair<TJobId, TRunningJob>& pair) {
+                    const auto& job = pair.second;
+                    fluent
+                        .Item(ToString(pair.first)).BeginMap()
+                            .Do(BIND(&TRunningJob::BuildRunningJobInfo, &job))
+                            .Item("candidate").Value(Statistics_.GetInterruptHint(pair.first))
+                        .EndMap();
+                })
+            .Item("statistics").BeginMap()
+                .Do(BIND(&TStatistics::BuildStatistics, &Statistics_))
+            .EndMap()
+            .Item("config").Value(Config_);
+    }
+
 private:
     class TStatistics
     {
@@ -166,12 +189,19 @@ private:
             return InterruptCandidateSet_.find(jobId) != InterruptCandidateSet_.end();
         }
 
+        void BuildStatistics(NYson::IYsonConsumer* consumer) const
+        {
+            BuildYsonMapFluently(consumer)
+                .Item("median_remaining_duration").Value(SecondsFromNow(MedianCompletionTime_))
+                .Item("next_update_time").Value(CpuInstantToInstant(NextUpdateTime_));
+        }
+
     private:
         TJobSplitterConfigPtr Config_;
         yhash_set<std::pair<TCpuInstant, TJobId>> CompletionTimeSet_;
         yhash_set<TJobId> InterruptCandidateSet_;
         TCpuInstant NextUpdateTime_ = 0;
-        TCpuInstant MedianCompletionTime_;
+        TCpuInstant MedianCompletionTime_ = GetCpuInstant();
     };
 
     class TRunningJob
@@ -189,13 +219,13 @@ private:
                 return;
             }
             ExecDuration_ = summary.ExecDuration.Get(TDuration());
-            i64 rowCount = FindNumericValue(summary.Statistics, "/data/input/row_count").Get(0);
-            if (rowCount == 0) {
+            RowCount_ = FindNumericValue(summary.Statistics, "/data/input/row_count").Get(0);
+            if (RowCount_ == 0) {
                 return;
             }
-            double execTimePerRow = std::max(ExecDuration_.SecondsFloat() / rowCount, 1e-12);
-            if (rowCount < TotalRowCount_) {
-                RemainingDuration_ = TDuration::Seconds((TotalRowCount_ - rowCount) * execTimePerRow);
+            SecondsPerRow_ = std::max(ExecDuration_.SecondsFloat() / RowCount_, 1e-12);
+            if (RowCount_ < TotalRowCount_) {
+                RemainingDuration_ = TDuration::Seconds((TotalRowCount_ - RowCount_) * SecondsPerRow_);
             } else {
                 RemainingDuration_ = TDuration();
             }
@@ -225,6 +255,15 @@ private:
             return TotalRowCount_;
         }
 
+        void BuildRunningJobInfo(NYson::IYsonConsumer* consumer) const
+        {
+            BuildYsonMapFluently(consumer)
+                .Item("row_count").Value(RowCount_)
+                .Item("total_row_count").Value(TotalRowCount_)
+                .Item("seconds_per_row").Value(SecondsPerRow_)
+                .Item("remaining_duration").Value(SecondsFromNow(CompletionTime_));
+        }
+
     private:
         i64 TotalRowCount_ = 1.0;
         i64 TotalDataSize_ = 1.0;
@@ -232,6 +271,8 @@ private:
         TDuration ExecDuration_;
         TDuration RemainingDuration_;
         TCpuInstant CompletionTime_ = 0;
+        i64 RowCount_ = 0;
+        double SecondsPerRow_ = 0;
     };
 
     TJobSplitterConfigPtr Config_;

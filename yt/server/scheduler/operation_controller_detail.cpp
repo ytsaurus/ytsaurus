@@ -5062,6 +5062,11 @@ bool TOperationControllerBase::HasProgress() const
     return IsPrepared() && ProgressString_ && BriefProgressString_;
 }
 
+bool TOperationControllerBase::HasJobSplitterInfo() const
+{
+    return IsPrepared() && JobSplitter_;
+}
+
 void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer) const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -5189,6 +5194,14 @@ TYsonString TOperationControllerBase::BuildInputPathYson(const TJobId& jobId) co
         joblet->InputStripeList,
         OperationType,
         joblet->JobType);
+}
+
+void TOperationControllerBase::BuildJobSplitterInfo(IYsonConsumer* consumer) const
+{
+    VERIFY_INVOKER_AFFINITY(SuspendableInvoker);
+    YCHECK(JobSplitter_);
+
+    JobSplitter_->BuildJobSplitterInfo(consumer);
 }
 
 std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetFilePaths() const
@@ -5966,6 +5979,11 @@ public:
         return Underlying_->HasProgress();
     }
 
+    virtual bool HasJobSplitterInfo() const override
+    {
+        return Underlying_->HasJobSplitterInfo();
+    }
+
     virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const override
     {
         Underlying_->BuildOperationAttributes(consumer);
@@ -5999,6 +6017,11 @@ public:
     virtual TYsonString BuildInputPathYson(const TJobId& jobId) const override
     {
         return Underlying_->BuildInputPathYson(jobId);
+    }
+
+    virtual void BuildJobSplitterInfo(IYsonConsumer* consumer) const override
+    {
+        Underlying_->BuildJobSplitterInfo(consumer);
     }
 
     virtual TYsonString GetProgress() const override
