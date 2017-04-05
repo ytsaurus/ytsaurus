@@ -12,7 +12,7 @@ import yt.logger as logger
 from yt.common import format_error, date_string_to_datetime, to_native_str
 
 from yt.packages.decorator import decorator
-from yt.packages.six import iteritems, iterkeys
+from yt.packages.six import iteritems, iterkeys, itervalues
 from yt.packages.six.moves import builtins, filter as ifilter, map as imap
 
 import logging
@@ -129,7 +129,7 @@ def get_operation_state(operation, client=None):
 def get_operation_progress(operation, client=None):
     def calculate_total(counter):
         if isinstance(counter, dict):
-            return sum(imap(calculate_total, counter.itervalues()))
+            return sum(imap(calculate_total, itervalues(counter)))
         return counter
 
     try:
