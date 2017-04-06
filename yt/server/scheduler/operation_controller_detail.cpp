@@ -4043,12 +4043,12 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 }
 
                 table->Options->CompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
-                table->Options->ErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+                table->Options->ErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec");
                 table->Options->ReplicationFactor = attributes->Get<int>("replication_factor");
                 table->Options->MediumName = attributes->Get<Stroka>("primary_medium");
                 table->Options->Account = attributes->Get<Stroka>("account");
                 table->Options->ChunksVital = attributes->Get<bool>("vital");
-                table->Options->OptimizeFor = attributes->Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
+                table->Options->OptimizeFor = attributes->Get<EOptimizeFor>("optimize_for");
                 table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
 
                 // Workaround for YT-5827.

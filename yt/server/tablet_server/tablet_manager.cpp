@@ -3841,9 +3841,9 @@ private:
         (*writerOptions)->MediumName = primaryMedium->GetName();
         (*writerOptions)->Account = table->GetAccount()->GetName();
         (*writerOptions)->CompressionCodec = tableAttributes.Get<NCompression::ECodec>("compression_codec");
-        (*writerOptions)->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+        (*writerOptions)->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec");
         (*writerOptions)->ChunksVital = chunkProperties.GetVital();
-        (*writerOptions)->OptimizeFor = tableAttributes.Get<EOptimizeFor>("optimize_for", NTableClient::EOptimizeFor::Lookup);
+        (*writerOptions)->OptimizeFor = tableAttributes.Get<EOptimizeFor>("optimize_for");
     }
 
     static void ParseTabletRange(
