@@ -852,7 +852,11 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     for (const auto& dataSlice : stripe->DataSlices) {
         inputSpec->add_chunk_spec_count_per_data_slice(dataSlice->ChunkSlices.size());
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-            ToProto(inputSpec->add_chunk_specs(), chunkSlice);
+            auto newChunkSpec = inputSpec->add_chunk_specs();
+            ToProto(newChunkSpec, chunkSlice);
+            if (dataSlice->Tag) {
+                newChunkSpec->set_data_slice_tag(*dataSlice->Tag);
+            }
 
             if (directoryBuilder) {
                 auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
