@@ -38,7 +38,7 @@ void TMediumChunkProperties::Load(NCellMaster::TLoadContext& context)
     DataPartsOnly_ = Load<decltype(DataPartsOnly_)>(context);
 }
 
-void FormatValue(TStringBuilder* builder, const TMediumChunkProperties& properties, const TStringBuf& /*format*/)
+void FormatValue(TStringBuilder* builder, const TMediumChunkProperties& properties, const TStringBuf& /*spec*/)
 {
     builder->AppendFormat("{ReplicationFactor: %v, DataPartsOnly: %v}",
         properties.GetReplicationFactor(),
@@ -47,9 +47,7 @@ void FormatValue(TStringBuilder* builder, const TMediumChunkProperties& properti
 
 Stroka ToString(const TMediumChunkProperties& properties)
 {
-    TStringBuilder builder;
-    FormatValue(&builder, properties, TStringBuf());
-    return builder.Flush();
+    return ToStringViaBuilder(properties);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,7 +93,7 @@ bool TChunkProperties::IsValid() const
     return false;
 }
 
-void FormatValue(TStringBuilder* builder, const TChunkProperties& properties, const TStringBuf& format)
+void FormatValue(TStringBuilder* builder, const TChunkProperties& properties, const TStringBuf& /*spec*/)
 {
     builder->AppendFormat("{Vital: %v, Media: {", properties.GetVital());
 
@@ -121,9 +119,7 @@ void FormatValue(TStringBuilder* builder, const TChunkProperties& properties, co
 
 Stroka ToString(const TChunkProperties& properties)
 {
-    TStringBuilder builder;
-    FormatValue(&builder, properties, TStringBuf());
-    return builder.Flush();
+    return ToStringViaBuilder(properties);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

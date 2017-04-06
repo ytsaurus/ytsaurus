@@ -290,6 +290,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_prober_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_resources.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_size_adjuster.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_splitter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_tracker_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/map_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/master_connector.cpp

@@ -27,15 +27,15 @@ TArtifactKey::TArtifactKey(const NScheduler::NProto::TFileDescriptor& descriptor
 {
     set_data_source_type(descriptor.data_source().type());
 
-    if (descriptor.data_slice_descriptors_size() > 0) {
+    if (descriptor.chunk_specs_size() > 0) {
+        mutable_chunk_specs()->MergeFrom(descriptor.chunk_specs());
+    } else {
         // COMPAT(psushin).
         for (const auto& dataSliceDescriptor : descriptor.data_slice_descriptors()) {
             for (const auto& chunkSpec : dataSliceDescriptor.chunks()) {
                 *add_chunk_specs() = chunkSpec;
             }
         }
-    } else {
-        mutable_chunk_specs()->MergeFrom(descriptor.chunk_specs());
     }
 
     if (descriptor.has_format()) {

@@ -46,16 +46,14 @@ TVersionedObjectId TVersionedObjectId::FromString(const TStringBuf& str)
     return TVersionedObjectId(objectId, transactionId);
 }
 
-void FormatValue(TStringBuilder* builder, const TVersionedObjectId& id)
+void FormatValue(TStringBuilder* builder, const TVersionedObjectId& id, const TStringBuf& /*spec*/)
 {
     builder->AppendFormat("%v:%v", id.ObjectId, id.TransactionId);
 }
 
 Stroka ToString(const TVersionedObjectId& id)
 {
-    TStringBuilder builder;
-    FormatValue(&builder, id);
-    return builder.Flush();
+    return ToStringViaBuilder(id);
 }
 
 bool operator == (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs)

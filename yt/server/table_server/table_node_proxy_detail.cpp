@@ -524,13 +524,14 @@ void TTableNodeProxy::ValidateBeginUpload()
     }
 }
 
-void TTableNodeProxy::ValidateStorageSettingsUpdate()
+void TTableNodeProxy::ValidateStorageParametersUpdate()
 {
-    TBase::ValidateStorageSettingsUpdate();
+    TChunkOwnerNodeProxy::ValidateStorageParametersUpdate();
 
-    const auto* table = GetThisImpl();
-    if (table->IsDynamic() && table->GetTabletState() != ETabletState::Unmounted) {
-        THROW_ERROR_EXCEPTION("Cannot change storage settings when not all tablets are unmounted");
+    const auto* node = GetThisImpl();
+    auto state = node->GetTabletState();
+    if (state != ETabletState::None && state != ETabletState::Unmounted) {
+        THROW_ERROR_EXCEPTION("Cannot change storage parameters since not all tablets are unmounted");
     }
 }
 

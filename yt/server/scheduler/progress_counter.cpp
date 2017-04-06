@@ -15,11 +15,9 @@ TProgressCounter::TProgressCounter()
     : TotalEnabled_(false)
     , Total_(0)
     , Running_(0)
-    , Completed_(0)
     , Pending_(0)
     , Failed_(0)
     , Lost_(0)
-    , Interrupted_(0)
 { }
 
 TProgressCounter::TProgressCounter(i64 total)
@@ -33,13 +31,12 @@ void TProgressCounter::Set(i64 total)
     TotalEnabled_ = true;
     Total_ = total;
     Running_ = 0;
-    Completed_ = 0;
     Pending_ = total;
     Failed_ = 0;
     Lost_ = 0;
-    Interrupted_ = 0;
 
     std::fill(Aborted_.begin(), Aborted_.end(), 0);
+    std::fill(Completed_.begin(), Completed_.end(), 0);
 }
 
 bool TProgressCounter::IsTotalEnabled() const
@@ -67,9 +64,19 @@ i64 TProgressCounter::GetRunning() const
     return Running_;
 }
 
-i64 TProgressCounter::GetCompleted() const
+i64 TProgressCounter::GetCompletedTotal() const
 {
-    return Completed_;
+    return std::accumulate(Completed_.begin(), Completed_.end(), 0LL);
+}
+
+i64 TProgressCounter::GetCompleted(EInterruptReason reason) const
+{
+    return Completed_[reason];
+}
+
+i64 TProgressCounter::GetInterruptedTotal() const
+{
+    return GetCompletedTotal() - Completed_[EInterruptReason::None];
 }
 
 i64 TProgressCounter::GetPending() const
@@ -114,11 +121,6 @@ i64 TProgressCounter::GetLost() const
     return Lost_;
 }
 
-i64 TProgressCounter::GetInterrupted() const
-{
-    return Interrupted_;
-}
-
 void TProgressCounter::Start(i64 count)
 {
     if (TotalEnabled_) {
@@ -128,11 +130,11 @@ void TProgressCounter::Start(i64 count)
     Running_ += count;
 }
 
-void TProgressCounter::Completed(i64 count)
+void TProgressCounter::Completed(i64 count, EInterruptReason reason)
 {
     YCHECK(Running_ >= count);
     Running_ -= count;
-    Completed_ += count;
+    Completed_[reason] += count;
 }
 
 void TProgressCounter::Failed(i64 count)
@@ -158,23 +160,18 @@ void TProgressCounter::Aborted(i64 count, EAbortReason reason)
 
 void TProgressCounter::Lost(i64 count)
 {
-    YCHECK(Completed_ >= count);
-    Completed_ -= count;
+    YCHECK(Completed_[EInterruptReason::None] >= count);
+    Completed_[EInterruptReason::None] -= count;
     Lost_ += count;
     if (TotalEnabled_) {
         Pending_ += count;
     }
 }
 
-void TProgressCounter::Interrupted(i64 count)
-{
-    Interrupted_ += count;
-}
-
 void TProgressCounter::Finalize()
 {
     if (TotalEnabled_) {
-        Total_ = Completed_;
+        Total_ = GetCompletedTotal();
         Pending_ = 0;
         Running_ = 0;
     }
@@ -190,7 +187,6 @@ void TProgressCounter::Persist(const TStreamPersistenceContext& context)
     Persist(context, Pending_);
     Persist(context, Failed_);
     Persist(context, Lost_);
-    Persist(context, Interrupted_);
     Persist(context, Aborted_);
 }
 
@@ -206,19 +202,19 @@ Stroka ToString(const TProgressCounter& counter)
         ? Format("{T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v, I: %v}",
             counter.GetTotal(),
             counter.GetRunning(),
-            counter.GetCompleted(),
+            counter.GetCompletedTotal(),
             counter.GetPending(),
             counter.GetFailed(),
             counter.GetAbortedTotal(),
             counter.GetLost(),
-            counter.GetInterrupted())
+            counter.GetInterruptedTotal())
         : Format("{R: %v, C: %v, F: %v, A: %v, L: %v, I: %v}",
             counter.GetRunning(),
-            counter.GetCompleted(),
+            counter.GetCompletedTotal(),
             counter.GetFailed(),
             counter.GetAbortedTotal(),
             counter.GetLost(),
-            counter.GetInterrupted());
+            counter.GetInterruptedTotal());
 }
 
 void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
@@ -231,7 +227,14 @@ void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
                     .Item("pending").Value(counter.GetPending());
             })
             .Item("running").Value(counter.GetRunning())
-            .Item("completed").Value(counter.GetCompleted())
+            .Item("completed").Value(counter.GetCompletedTotal())
+            .Item("completed_details").BeginMap()
+                .Item("total").Value(counter.GetCompletedTotal())
+                .DoFor(TEnumTraits<EInterruptReason>::GetDomainValues(), [&] (TFluentMap fluent, EInterruptReason reason) {
+                    fluent
+                        .Item(FormatEnum(reason)).Value(counter.GetCompleted(reason));
+                })
+            .EndMap()
             .Item("failed").Value(counter.GetFailed())
             .Item("aborted").BeginMap()
                 // NB(ignat): temporaly output total aborted job count as scheduled aborted jobs count.
@@ -254,7 +257,6 @@ void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
                 .EndMap()
             .EndMap()
             .Item("lost").Value(counter.GetLost())
-            .Item("interrupted").Value(counter.GetInterrupted())
         .EndMap();
 }
 

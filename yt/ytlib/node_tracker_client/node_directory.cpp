@@ -114,9 +114,7 @@ void FormatValue(TStringBuilder* builder, const TNodeDescriptor& descriptor, con
 
 Stroka ToString(const TNodeDescriptor& descriptor)
 {
-    TStringBuilder builder;
-    FormatValue(&builder, descriptor, TStringBuf());
-    return builder.Flush();
+    return ToStringViaBuilder(descriptor);
 }
 
 const Stroka& GetDefaultAddress(const TAddressMap& addresses)

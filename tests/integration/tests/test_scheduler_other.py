@@ -1802,7 +1802,8 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         spec={
             "pool": "fake_pool",
-            "locality_timeout": 0
+            "locality_timeout": 0,
+            "enable_job_splitting": False,
         }
         if interruptible:
             data_size_per_job = get("//tmp/t_in/@uncompressed_data_size")

@@ -129,6 +129,9 @@ public:
     //! Returns |true| if operation controller progress can be built.
     bool HasControllerProgress() const;
 
+    //! Returns |true| if operation controller job splitter info can be built.
+    bool HasControllerJobSplitterInfo() const;
+
     //! Returns the codicil guard holding the operation id.
     TCodicilGuard MakeCodicilGuard() const;
 

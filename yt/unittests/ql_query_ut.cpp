@@ -747,7 +747,7 @@ protected:
         ActionQueue_->Shutdown();
     }
 
-    void Evaluate(
+    TQueryPtr Evaluate(
         const Stroka& query,
         const TDataSplit& dataSplit,
         const std::vector<Stroka>& owningSource,
@@ -759,7 +759,7 @@ protected:
         std::map<Stroka, TDataSplit> dataSplits;
         dataSplits["//t"] = dataSplit;
 
-        BIND(&TQueryEvaluateTest::DoEvaluate, this)
+        return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
@@ -770,10 +770,10 @@ protected:
                 outputRowLimit,
                 EFailureLocation::Nowhere)
             .Get()
-            .ThrowOnError();
+            .ValueOrThrow();
     }
 
-    void Evaluate(
+    TQueryPtr Evaluate(
         const Stroka& query,
         const std::map<Stroka, TDataSplit>& dataSplits,
         const std::vector<std::vector<Stroka>>& owningSources,
@@ -781,7 +781,7 @@ protected:
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
-        BIND(&TQueryEvaluateTest::DoEvaluate, this)
+        return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
@@ -792,10 +792,10 @@ protected:
                 outputRowLimit,
                 EFailureLocation::Nowhere)
             .Get()
-            .ThrowOnError();
+            .ValueOrThrow();
     }
 
-    void EvaluateExpectingError(
+    TQueryPtr EvaluateExpectingError(
         const Stroka& query,
         const TDataSplit& dataSplit,
         const std::vector<Stroka>& owningSource,
@@ -807,7 +807,7 @@ protected:
         std::map<Stroka, TDataSplit> dataSplits;
         dataSplits["//t"] = dataSplit;
 
-        BIND(&TQueryEvaluateTest::DoEvaluate, this)
+        return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
@@ -818,10 +818,10 @@ protected:
                 outputRowLimit,
                 failureLocation)
             .Get()
-            .ThrowOnError();
+            .ValueOrThrow();
     }
 
-    void DoEvaluate(
+    TQueryPtr DoEvaluate(
         const Stroka& query,
         const std::map<Stroka, TDataSplit>& dataSplits,
         const std::vector<std::vector<Stroka>>& owningSources,
@@ -878,12 +878,15 @@ protected:
 
             auto resultRowset = WaitFor(asyncResultRowset).ValueOrThrow();
             resultMatcher(resultRowset->GetRows(), TTableSchema(primaryQuery->GetTableSchema()));
+
+            return primaryQuery;
         };
 
         if (failureLocation != EFailureLocation::Nowhere) {
             EXPECT_THROW(prepareAndExecute(), TErrorException);
+            return nullptr;
         } else {
-            prepareAndExecute();
+            return prepareAndExecute();
         }
     }
 
@@ -2408,6 +2411,63 @@ TEST_F(TQueryEvaluateTest, TestJoinManySimple)
         splits,
         sources,
         OrderedResultMatcher(result, {"a", "b"}));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestSortMergeJoin)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64, ESortOrder::Ascending},
+        {"b", EValueType::Int64}
+    }, 0);
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "a=1;b=10",
+        "a=3;b=30",
+        "a=5;b=50",
+        "a=7;b=70",
+        "a=9;b=90"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"c", EValueType::Int64, ESortOrder::Ascending},
+        {"d", EValueType::Int64}
+    }, 1);
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        "c=1;d=10",
+        "c=2;d=20",
+        "c=4;d=40",
+        "c=5;d=50",
+        "c=7;d=70",
+        "c=8;d=80"
+    });
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+        {"d", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "a=1;b=10;d=10",
+        "a=5;b=50;d=50",
+        "a=7;b=70;d=70"
+    }, resultSplit);
+
+    auto query = Evaluate("a, b, d FROM [//left] join [//right] on a = c", splits, sources, ResultMatcher(result));
+
+    EXPECT_EQ(query->JoinClauses.size(), 1);
+    const auto& joinClauses = query->JoinClauses;
+
+    EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+    EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1);
 
     SUCCEED();
 }

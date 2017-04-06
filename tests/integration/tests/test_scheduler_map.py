@@ -4,6 +4,10 @@ from yt_commands import *
 from yt.yson import *
 from yt.wrapper import JsonFormat
 from yt.environment.helpers import assert_items_equal, assert_almost_equal
+from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
+from yt.common import date_string_to_timestamp_mcs
+
+import yt.environment.init_operation_archive as init_operation_archive
 
 from flaky import flaky
 
@@ -13,6 +17,8 @@ import __builtin__
 import os
 import sys
 from collections import defaultdict
+import calendar
+import datetime
 
 ##################################################################
 
@@ -481,7 +487,8 @@ class TestJobProber(YTEnvSetup):
             if key not in profiling_info:
                 profiling_info[key] = value["value"]
 
-        job_count = {"state": defaultdict(int), "reason": defaultdict(int)}
+        job_count = {"state": defaultdict(int), "abort_reason": defaultdict(int)}
+        print "profiling_info:", profiling_info
         for key, value in profiling_info.iteritems():
             state = dict(key)["state"]
             job_count["state"][state] += value
@@ -490,8 +497,8 @@ class TestJobProber(YTEnvSetup):
             state = dict(key)["state"]
             if state != "aborted":
                 continue
-            reason = dict(key)["reason"]
-            job_count["reason"][reason] += value
+            abort_reason = dict(key)["abort_reason"]
+            job_count["abort_reason"][abort_reason] += value
 
         return job_count
 
@@ -538,10 +545,10 @@ class TestJobProber(YTEnvSetup):
                 count = 5
             assert value == count
 
-        for reason in end_profiling["reason"]:
-            print reason, start_profiling["reason"][reason], end_profiling["reason"][reason]
-            value = end_profiling["reason"][reason] - start_profiling["reason"][reason]
-            assert value == (1 if reason == "user_request" else 0)
+        for abort_reason in end_profiling["abort_reason"]:
+            print abort_reason, start_profiling["abort_reason"][abort_reason], end_profiling["abort_reason"][abort_reason]
+            value = end_profiling["abort_reason"][abort_reason] - start_profiling["abort_reason"][abort_reason]
+            assert value == (1 if abort_reason == "user_request" else 0)
 
 
 ##################################################################
@@ -553,7 +560,19 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "watchers_update_period": 100
+            "watchers_update_period": 100,
+            "operations_update_period" : 10,
+            "running_jobs_update_period" : 10,
+            "map_operation_options": {
+                "job_splitter": {
+                    "min_job_time": 5000,
+                    "min_total_data_size": 1024,
+                    "update_period": 100,
+                    "median_excess_duration": 3000,
+                    "candidate_percentile": 0.8,
+                    "max_jobs_per_split": 3,
+                },
+            },
         }
     }
 
@@ -1055,6 +1074,108 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert res == "STDERR-OUTPUT\n"
         self.sync_unmount_table(stderrs_archive_path)
         remove(stderrs_archive_path)
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_list_jobs(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="list_jobs",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            precommand="echo STDERR-OUTPUT >&2",
+            command="cat",
+            spec={
+                "mapper": {
+                    "input_format": "json",
+                    "output_format": "json"
+                },
+                "job_count" : 3
+            })
+
+        job_ids = op.jobs
+
+        res = list_jobs(op.id, include_archive=False, include_runtime=True)
+        assert sorted([job["job_id"] for job in res]) == sorted(job_ids)
+        op.resume_jobs()
+        op.track()
+        res = list_jobs(op.id, include_archive=False, include_cypress=True)
+        assert sorted([job["job_id"] for job in res]) == sorted(job_ids)
+
+        client = self.Env.create_native_client()
+        self.sync_create_cells(1)
+
+        driver_config_path = self.Env.config_paths["driver"]
+
+        with open(driver_config_path, "rb") as f:
+            driver_config = yson.load(f)
+
+        client_config = {
+            "backend": "native",
+            "driver_config": driver_config
+        }
+
+        init_operation_archive.transform_archive(
+            client,
+            0,
+            7,
+            False,
+            "//sys/operations_archive",
+            default_client_config=client_config,
+            shard_count=1,
+            environment={"PYTHONPATH": os.environ["PYTHONPATH"]})
+
+        jobs_archive_path = "//sys/operations_archive/jobs"
+        
+        rows = []
+
+        jobs = get("//sys/operations/{}/jobs".format(op.id), attributes=[
+            "job_type",
+            "state",
+            "start_time",
+            "finish_time",
+            "address",
+            "error",
+            "statistics",
+            "size",
+            "uncompressed_data_size" 
+        ])
+
+        for job_id, job in jobs.iteritems():
+            op_id_hi, op_id_lo = id_to_parts(op.id)
+            id_hi, id_lo = id_to_parts(job_id)
+            row = {}
+            row["operation_id_hi"] = yson.YsonUint64(op_id_hi)
+            row["operation_id_lo"] = yson.YsonUint64(op_id_lo)
+            row["job_id_hi"] = yson.YsonUint64(id_hi)
+            row["job_id_lo"] = yson.YsonUint64(id_lo)
+            row["type"] = job.attributes["job_type"]
+            row["state"] = job.attributes["state"]
+            row["start_time"] = date_string_to_timestamp_mcs(job.attributes["start_time"])
+            row["finish_time"] = date_string_to_timestamp_mcs(job.attributes["finish_time"])
+            row["address"] = job.attributes["address"]
+            rows.append(row)
+
+        insert_rows(jobs_archive_path, rows)
+
+        remove("//sys/operations/{}".format(op.id))
+
+        res = list_jobs(op.id)
+        assert sorted([job["job_id"] for job in res]) == sorted(job_ids)
+
+        res = list_jobs(op.id, offset=1, limit=3, sort_field="start_time")
+        assert len(res) == 2
+        assert sorted(res, key=lambda item: item["start_time"]) == res
+
+        res = list_jobs(op.id, offset=0, limit=2, sort_field="start_time", sort_order="descending")
+        assert len(res) == 2
+        assert sorted(res, key=lambda item: item["start_time"], reverse=True) == res
+
+        remove("//sys/operations_archive")
 
     @unix_only
     def test_sorted_output(self):
@@ -2048,12 +2169,12 @@ print row + table_index
         jobs_path = "//sys/operations/{0}/jobs".format(op.id)
         job_ids = ls(jobs_path)
         assert len(job_ids) == 1
-        expected = yson.loads('''[
+        expected = yson.loads("""[
             <ranges=[{lower_limit={row_index=0};upper_limit={row_index=6}}]>"//tmp/in1";
             <ranges=[
                 {lower_limit={row_index=0;key=["00001"]};upper_limit={row_index=14;key=["00004"]}};
                 {lower_limit={row_index=16;key=["00005"]};upper_limit={row_index=22;key=["00006"]}}
-            ]>"//tmp/in2"]''')
+            ]>"//tmp/in2"]""")
         actual = get("{0}/{1}/@input_paths".format(jobs_path, job_ids[0]))
         assert expected == actual
 
@@ -2391,6 +2512,7 @@ print row + table_index
                 "job_io" : {
                     "buffer_row_count" : 1,
                 },
+                "enable_job_splitting": False,
             })
 
         interrupt_job(op.jobs[0])
@@ -2445,10 +2567,11 @@ print row + table_index
                 "job_io" : {
                     "buffer_row_count" : 1,
                 },
+                "enable_job_splitting": False,
             })
         op.track()
 
-        assert get("//sys/operations/{0}/@progress/jobs/interrupted".format(op.id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/completed_details/total".format(op.id)) == 1
         assert get("//sys/operations/{0}/@progress/jobs/completed".format(op.id)) == 1
 
     def test_ordered_map_many_jobs(self):
@@ -2518,6 +2641,61 @@ print row + table_index
 
         with pytest.raises(YtError):
             map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"attribute": "really_large" * (2 * 10 ** 6)}, verbose=False)
+
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_map_job_splitter(self, ordered):
+        create("table", "//tmp/in_1")
+        write_table(
+            "<append=true>//tmp/in_1",
+            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)])
+
+        input_ = ["//tmp/in_1"] * 5
+        output = "//tmp/output"
+        create("table", output)
+
+        command="""
+while read ROW; do
+    if [ "$YT_JOB_INDEX" == 0 ]; then
+        sleep 1
+    else
+        sleep 0.1
+    fi
+    echo "$ROW"
+done
+"""
+
+        op = map(
+            ordered=ordered,
+            dont_track=True,
+            label="split_job",
+            in_=input_,
+            out=output,
+            command=command,
+            spec={
+                "mapper": {
+                    "format": "dsv",
+                },
+                "data_size_per_job": 21 * 1024 * 1024,
+                "max_failed_job_count": 1,
+                "job_io": {
+                    "buffer_row_count": 1,
+                },
+            })
+
+        op.track()
+
+        completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
+        completed_details = get("//sys/operations/{0}/@progress/jobs/completed_details".format(op.id))
+        assert completed >= 6
+        assert completed_details["job_split"] >= 1
+        assert completed_details["total"] == completed
+        expected = read_table("//tmp/in_1", verbose=False)
+        for row in expected:
+            del row["data"]
+        got = read_table(output, verbose=False)
+        for row in got:
+            del row["data"]
+        assert sorted(got) == sorted(expected * 5)
 
 
 ##################################################################

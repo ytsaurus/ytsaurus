@@ -12,6 +12,24 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period" : 10,
+            "running_jobs_update_period" : 10,
+            "join_reduce_operation_options" : {
+                "job_splitter" : {
+                    "min_job_time": 5000,
+                    "min_total_data_size": 1024,
+                    "update_period": 100,
+                    "median_excess_duration": 3000,
+                    "candidate_percentile": 0.8,
+                    "max_jobs_per_split": 3,
+                }
+            }
+        }
+    }
+
     @unix_only
     def test_join_reduce_tricky_chunk_boundaries(self):
         create("table", "//tmp/in1")
@@ -857,6 +875,7 @@ echo {v = 2} >&7
                 "job_io" : {
                     "buffer_row_count" : 1,
                 },
+                "enable_job_splitting": False,
             })
 
         interrupt_job(op.jobs[0])
@@ -880,3 +899,72 @@ echo {v = 2} >&7
         assert row_table_count["(t_2)"] == 6
         assert job_indexes[1] == 4
         assert get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/join_reduce/sum".format(op.id)) == len(result) - 2
+
+    @pytest.mark.xfail(run = True, reason = "max42 should support TChunkStripeList->TotalRowCount in TSortedChunkPool")
+    def test_join_reduce_job_splitter(self):
+        create("table", "//tmp/in_1")
+        for j in range(20):
+            write_table(
+                "<append=true>//tmp/in_1",
+                [{"key": "%08d" % (j * 4 + i), "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(4)],
+                sorted_by = ["key"],
+                table_writer = {
+                    "block_size": 1024,
+                })
+
+        create("table", "//tmp/in_2")
+        for j in range(20):
+            write_table(
+                "//tmp/in_2",
+                [{"key": "(%08d)" % ((j * 10 + i) / 2), "value": "(t_2)"} for i in range(10)],
+                sorted_by = ["key"],
+                table_writer = {
+                    "block_size": 1024,
+                })
+
+        input_ = ["<foreign=true>//tmp/in_2"] + ["//tmp/in_1"]
+        output = "//tmp/output"
+        create("table", output)
+
+        command="""
+while read ROW; do
+    if [ "$YT_JOB_INDEX" == 0 ]; then
+        sleep 2
+    else
+        sleep 0.2
+    fi
+    echo "$ROW"
+done
+"""
+
+        op = join_reduce(
+            dont_track=True,
+            label="split_job",
+            in_=input_,
+            out=output,
+            command=command,
+            join_by="key",
+            spec={
+                "reducer": {
+                    "format": "dsv",
+                },
+                "data_size_per_job": 17 * 1024 * 1024,
+                "max_failed_job_count": 1,
+                "job_io": {
+                    "buffer_row_count" : 1,
+                },
+            })
+
+        op.track()
+
+        completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
+        completed_details = get("//sys/operations/{0}/@progress/jobs/completed_details".format(op.id))
+        assert completed >= 6
+        assert completed_details["job_split"] >= 1
+        assert completed_details["total"] == completed
+
+
+##################################################################
+
+class TestSchedulerJoinReduceCommandsMulticell(TestSchedulerJoinReduceCommands):
+    NUM_SECONDARY_MASTER_CELLS = 2

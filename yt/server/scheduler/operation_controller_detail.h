@@ -7,6 +7,7 @@
 #include "event_log.h"
 #include "job_memory.h"
 #include "job_resources.h"
+#include "job_splitter.h"
 #include "operation_controller.h"
 #include "serialize.h"
 #include "helpers.h"
@@ -196,6 +197,7 @@ public:
     virtual bool IsForgotten() const override;
 
     virtual bool HasProgress() const override;
+    virtual bool HasJobSplitterInfo() const override;
 
     virtual void Resume() override;
     virtual TFuture<void> Suspend() override;
@@ -204,6 +206,7 @@ public:
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
+    virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const override;
 
     virtual NYson::TYsonString GetProgress() const override;
     virtual NYson::TYsonString GetBriefProgress() const override;
@@ -880,7 +883,7 @@ protected:
     bool OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
 
     virtual bool IsJobInterruptible() const;
-    void OnJobInterrupted(const TCompletedJobSummary& jobSummary);
+    int EstimateSplitJobCount(const TCompletedJobSummary& jobSummary);
     std::vector<NChunkClient::TInputDataSlicePtr> ExtractInputDataSlices(const TCompletedJobSummary& jobSummary) const;
     virtual void ReinstallUnreadInputDataSlices(const std::vector<NChunkClient::TInputDataSlicePtr>& inputDataSlices);
 
@@ -1100,6 +1103,8 @@ protected:
 
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const;
 
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const;
+
 private:
     typedef TOperationControllerBase TThis;
 
@@ -1163,7 +1168,7 @@ private:
     //! Exec node count do not consider scheduling tag.
     //! But descriptors do.
     int ExecNodeCount_ = 0;
-    std::vector<TExecNodeDescriptor> ExecNodesDescriptors_;
+    TExecNodeDescriptorListPtr ExecNodesDescriptors_ = New<TExecNodeDescriptorList>();
 
     NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
     NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;
@@ -1205,6 +1210,8 @@ private:
     bool ShouldSkipSanityCheck();
 
     void UpdateJobStatistics(const TJobSummary& jobSummary);
+
+    std::unique_ptr<IJobSplitter> JobSplitter_;
 
     NApi::INativeClientPtr CreateClient();
     void UpdateAllTasksIfNeeded();

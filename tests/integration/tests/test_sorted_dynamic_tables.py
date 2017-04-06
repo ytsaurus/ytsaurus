@@ -246,19 +246,18 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     def test_lookup_versioned(self):
         self.sync_create_cells(1)
 
-        self._create_simple_table("//tmp/t", min_data_versions=2)
+        self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": "a:" + str(i)} for i in xrange(10)]
-        insert_rows("//tmp/t", rows)
-        generate_timestamp()
-
-        rows = [{"key": i, "value": "b:" + str(i)} for i in xrange(10)]
-        insert_rows("//tmp/t", rows)
-        generate_timestamp()
+        for prefix in ["a", "b"]:
+            rows = [{"key": i, "value": prefix + ":" + str(i)} for i in xrange(10)]
+            insert_rows("//tmp/t", rows)
+            generate_timestamp()
 
         keys = [{"key": i} for i in xrange(10)]
         actual = lookup_rows("//tmp/t", keys, versioned=True)
+
+        assert len(actual) == len(keys)
 
         for i, key in enumerate(keys):
             row = actual[i]
@@ -269,6 +268,35 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             assert len(row["value"]) == 2
             assert "%s" % row["value"][0] == "b:" + str(key["key"])
             assert "%s" % row["value"][1] == "a:" + str(key["key"])
+
+    def test_lookup_versioned_YT_6800(self):
+        self.sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t",
+            min_data_versions=0, min_data_ttl=0,
+            max_data_versions=1000, max_data_ttl=1000000)
+        self.sync_mount_table("//tmp/t")
+
+        for prefix in ["a", "b", "c"]:
+            rows = [{"key": i, "value": prefix + ":" + str(i)} for i in xrange(10)]
+            insert_rows("//tmp/t", rows)
+            generate_timestamp()
+
+        keys = [{"key": i} for i in xrange(10)]
+        actual = lookup_rows("//tmp/t", keys, versioned=True)
+
+        assert len(actual) == len(keys)
+
+        for i, key in enumerate(keys):
+            row = actual[i]
+            assert "write_timestamps" in row.attributes
+            assert len(row.attributes["write_timestamps"]) == 3
+            assert "delete_timestamps" in row.attributes
+            assert row["key"] == key["key"]
+            assert len(row["value"]) == 3
+            assert "%s" % row["value"][0] == "c:" + str(key["key"])
+            assert "%s" % row["value"][1] == "b:" + str(key["key"])
+            assert "%s" % row["value"][2] == "a:" + str(key["key"])
 
     def test_read_invalid_limits(self):
         self.sync_create_cells(1)

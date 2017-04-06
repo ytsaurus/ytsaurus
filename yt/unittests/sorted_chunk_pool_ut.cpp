@@ -108,7 +108,8 @@ protected:
         int tableIndex,
         i64 size = 1 * KB,
         const TKey& lowerLimit = TKey(),
-        const TKey& upperLimit = TKey())
+        const TKey& upperLimit = TKey(),
+        i64 rowCount = 1000)
     {
         auto inputChunk = New<TInputChunk>();
         inputChunk->ChunkId() = TChunkId::Create();
@@ -119,7 +120,8 @@ protected:
             TOwningKey(maxBoundaryKey)
         });
         inputChunk->SetTableIndex(tableIndex);
-        inputChunk->SetTableRowIndex(UnversionedTableRowCounts_[tableIndex]++);
+        inputChunk->SetTableRowIndex(UnversionedTableRowCounts_[tableIndex]);
+        UnversionedTableRowCounts_[tableIndex] += rowCount;
         if (lowerLimit) {
             inputChunk->LowerLimit() = std::make_unique<TReadLimit>(TOwningKey(lowerLimit));
         }
@@ -129,6 +131,7 @@ protected:
         if (!InputTables_[tableIndex].IsVersioned() && !InputTables_[tableIndex].IsForeign()) {
             CreatedUnversionedPrimaryChunks_.insert(inputChunk);
         }
+        inputChunk->SetRowCount(rowCount);
         return inputChunk;
     }
 
@@ -177,11 +180,24 @@ protected:
     std::vector<TInputChunkSlicePtr> SliceUnversionedChunk(
         TInputChunkPtr chunk,
         std::vector<TKey> internalPoints,
-        std::vector<i64> sliceSizes)
+        std::vector<i64> sliceSizes = std::vector<i64>(),
+        std::vector<i64> sliceRowCounts = std::vector<i64>())
     {
-        YCHECK(internalPoints.size() + 1 == sliceSizes.size());
+        if (sliceSizes.empty()) {
+            sliceSizes.assign(internalPoints.size() + 1, chunk->GetUncompressedDataSize() / (internalPoints.size() + 1));
+        } else {
+            YCHECK(internalPoints.size() + 1 == sliceSizes.size());
+        }
+        if (sliceRowCounts.empty()) {
+            sliceRowCounts.assign(internalPoints.size() + 1, chunk->GetRowCount() / (internalPoints.size() + 1));
+        } else {
+            YCHECK(internalPoints.size() + 1 == sliceSizes.size());
+        }
+
         YCHECK(!InputTables_[chunk->GetTableIndex()].IsVersioned());
+
         TKey lastKey = chunk->LowerLimit() ? chunk->LowerLimit()->GetKey() : chunk->BoundaryKeys()->MinKey;
+        i64 currentRow = 0;
         std::vector<TInputChunkSlicePtr> slices;
         for (int index = 0; index <= internalPoints.size(); ++index) {
             TKey upperLimit = index < internalPoints.size()
@@ -190,7 +206,10 @@ protected:
                 ? chunk->UpperLimit()->GetKey()
                 : GetKeySuccessor(chunk->BoundaryKeys()->MaxKey, RowBuffer_));
             slices.emplace_back(New<TInputChunkSlice>(chunk, lastKey, upperLimit));
-            slices.back()->OverrideSize(1 /* rowCount */, sliceSizes[index]);
+            slices.back()->LowerLimit().RowIndex = currentRow;
+            currentRow += sliceRowCounts[index];
+            slices.back()->UpperLimit().RowIndex = currentRow;
+            slices.back()->OverrideSize(sliceRowCounts[index], sliceSizes[index]);
             lastKey = upperLimit;
         }
         return slices;
@@ -1658,7 +1677,7 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
         CreateInputDataSlice(stripeList->Stripes[1]->DataSlices.front(), BuildRow({14}))
     };
     TCompletedJobSummary jobSummary;
-    jobSummary.Interrupted = true;
+    jobSummary.InterruptReason = EInterruptReason::Preemption;
     jobSummary.UnreadInputDataSlices = unreadDataSlices;
     ChunkPool_->Completed(ExtractedCookies_.front(), jobSummary);
 
@@ -1711,6 +1730,49 @@ TEST_F(TSortedChunkPoolTest, TestCorrectOrderInsideStripe)
     for (int index = 0; index + 1 < stripe->DataSlices.size(); ++index) {
         ASSERT_EQ(*stripe->DataSlices[index]->UpperLimit().RowIndex, *stripe->DataSlices[index + 1]->LowerLimit().RowIndex);
     }
+}
+
+TEST_F(TSortedChunkPoolTest, TestTrickyCase)
+{
+    Options_.EnableKeyGuarantee = false;
+    InitTables(
+        {false},
+        {false},
+        {false}
+    );
+    Options_.PrimaryPrefixLength = 1;
+    DataSizePerJob_ = 10 * KB;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(BuildRow({100}), BuildRow({100}), 0, 12 * KB);
+    auto chunkB = CreateChunk(BuildRow({100}), BuildRow({200}), 0, 3 * KB);
+    auto chunkASlices = SliceUnversionedChunk(chunkA, {BuildRow({100})}, {9 * KB, 3 * KB}, {500, 500});
+    chunkASlices[1]->LowerLimit().Key = BuildRow({100});
+    RegisterSliceableUnversionedChunk(chunkA, chunkASlices);
+    RegisterTriviallySliceableUnversionedChunk(chunkB);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    auto stripeLists = GetAllStripeLists();
+    ASSERT_EQ(stripeLists.size(), 2);
+    ASSERT_EQ(stripeLists[0]->Stripes.size(), 1);
+    ASSERT_EQ(stripeLists[1]->Stripes.size(), 1);
+    std::vector<TInputChunkPtr> chunkSequence;
+    for (const auto& dataSlice : stripeLists[0]->Stripes[0]->DataSlices) {
+        chunkSequence.push_back(dataSlice->GetSingleUnversionedChunkOrThrow());
+    }
+    for (const auto& dataSlice : stripeLists[1]->Stripes[0]->DataSlices) {
+        chunkSequence.push_back(dataSlice->GetSingleUnversionedChunkOrThrow());
+    }
+    chunkSequence.erase(std::unique(chunkSequence.begin(), chunkSequence.end()), chunkSequence.end());
+    ASSERT_EQ(chunkSequence.size(), 2);
 }
 
 TEST_F(TSortedChunkPoolTest, TestNoChunkSliceFetcher)

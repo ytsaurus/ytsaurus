@@ -240,7 +240,7 @@ struct TVersionedObjectId
 };
 
 //! Formats id into a string (for debugging and logging purposes mainly).
-void FormatValue(TStringBuilder* builder, const TVersionedObjectId& id);
+void FormatValue(TStringBuilder* builder, const TVersionedObjectId& id, const TStringBuf& spec);
 
 //! Converts id into a string (for debugging and logging purposes mainly).
 Stroka ToString(const TVersionedObjectId& id);

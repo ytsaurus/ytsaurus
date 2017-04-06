@@ -1442,7 +1442,7 @@ protected:
         LOG_DEBUG("Partition completed (Partition: %v)", partition->Index);
     }
 
-    bool IsSortedMergeNeeded(TPartitionPtr partition) const
+    virtual bool IsSortedMergeNeeded(TPartitionPtr partition) const
     {
         if (partition->CachedSortedMergeNeeded) {
             return true;
@@ -1524,7 +1524,7 @@ protected:
             if (!SimpleSort) {
                 if (!PartitionTask->IsCompleted())
                     return;
-                if (SortDataSizeCounter.GetCompleted() < SortDataSizeCounter.GetTotal() * Spec->MergeStartThreshold)
+                if (SortDataSizeCounter.GetCompletedTotal() < SortDataSizeCounter.GetTotal() * Spec->MergeStartThreshold)
                     return;
             }
 
@@ -2481,7 +2481,7 @@ private:
             // Jobs
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
-            JobCounter.GetCompleted(),
+            JobCounter.GetCompletedTotal(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),
@@ -3079,6 +3079,11 @@ private:
         Y_UNREACHABLE();
     }
 
+    virtual bool IsSortedMergeNeeded(TPartitionPtr partition) const override
+    {
+        return Spec->ForceReduceCombiners || TSortControllerBase::IsSortedMergeNeeded(partition);
+    }
+
     virtual TUserJobSpecPtr GetPartitionSortUserJobSpec(
         TPartitionPtr partition) const override
     {
@@ -3151,7 +3156,7 @@ private:
             // Jobs
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
-            JobCounter.GetCompleted(),
+            JobCounter.GetCompletedTotal(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),
