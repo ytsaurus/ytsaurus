@@ -4,6 +4,13 @@ from .helpers import TEST_DIR, PYTHONPATH, get_test_dir_path, get_test_file_path
                      set_config_option, build_python_egg, TESTS_SANDBOX, run_python_script_with_check, \
                      ENABLE_JOB_CONTROL, dumps_yt_config
 
+# Necessary for tests.
+try:
+    import yt.wrapper.tests.test_module
+    has_test_module = True
+except ImportError:
+    has_test_module = False
+
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
 from yt.common import which, makedirp
 from yt.wrapper.common import parse_bool
@@ -1265,3 +1272,43 @@ if __name__ == "__main__":
         time.sleep(0.5)
         os.kill(process.pid, signal.SIGINT)
         process.wait(2)
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_module_filter(self):
+        assert has_test_module
+
+        def mapper_test_module(row):
+            import yt.wrapper.tests.test_module
+            assert yt.wrapper.tests.test_module
+
+            yield row
+
+        def mapper_no_test_module(row):
+            try:
+                import yt.wrapper.tests.test_module
+                assert yt.wrapper.tests.test_module
+                print("NOT OK", file=sys.stderr)
+                raise Exception()
+            except ImportError:
+                print("OK", file=sys.stderr)
+
+            yield row
+
+        table = TEST_DIR + "/table"
+
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        filter = lambda module: hasattr(module, "__file__") and not "test_module" in module.__file__
+        filter_string = 'lambda module: hasattr(module, "__file__") and not "test_module" in module.__file__'
+
+        yt.run_map(mapper_test_module, table, table)
+        check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+
+        with set_config_option("pickling/module_filter", filter):
+            yt.run_map(mapper_no_test_module, table, table)
+        check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+
+        with set_config_option("pickling/module_filter", filter_string):
+            yt.run_map(mapper_no_test_module, table, table)
+        check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+
