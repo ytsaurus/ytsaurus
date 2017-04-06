@@ -607,6 +607,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     auto* node = GetThisImpl<TChunkOwnerBase>();
 
     if (key == "replication_factor") {
+        ValidateStorageParametersUpdate();
         int replicationFactor = ConvertTo<int>(value);
         SetReplicationFactor(replicationFactor);
         return true;
