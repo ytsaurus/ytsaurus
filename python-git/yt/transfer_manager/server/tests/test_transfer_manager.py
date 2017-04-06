@@ -52,6 +52,14 @@ def _start_transfer_manager(config):
     return subprocess.Popen([script_binary_path, requirements_path, tm_binary_path, config_path],
                             preexec_fn=os.setsid)
 
+def _abort_operations_and_transactions(client):
+    for operation in client.list("//sys/operations"):
+        client.abort_operation(operation)
+
+    for transaction in client.list("//sys/transactions", attributes=["owner", "title"]):
+        if transaction.attributes["owner"] == "root" and transaction.attributes["title"] != "Transfer manager lock":
+            client.abort_transaction(transaction)
+
 @pytest.mark.skipif(PY3, reason="Transfer manager is available only for Python 2")
 class TestTransferManager(object):
     def setup_class(self):
@@ -107,6 +115,12 @@ class TestTransferManager(object):
                 client.create("map_node", dir, recursive=True, ignore_existing=True)
 
     def teardown(self):
+        for task in self.tm_client.get_tasks():
+            self.tm_client.abort_task(task["id"])
+
+        _abort_operations_and_transactions(self.first_cluster_client)
+        _abort_operations_and_transactions(self.second_cluster_client)
+
         self.first_cluster_client.remove("//tm", force=True, recursive=True)
         self.second_cluster_client.remove("//tm", force=True, recursive=True)
 
