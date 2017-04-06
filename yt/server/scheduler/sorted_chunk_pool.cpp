@@ -1167,10 +1167,6 @@ private:
                     }
                 }
 
-                if (lhs.RowIndex != rhs.RowIndex) {
-                    return lhs.RowIndex < rhs.RowIndex;
-                }
-
                 if (lhs.DataSlice->Type == EDataSourceType::UnversionedTable &&
                     rhs.DataSlice->Type == EDataSourceType::UnversionedTable)
                 {
@@ -1178,7 +1174,7 @@ private:
                     const auto& lhsChunk = lhs.DataSlice->GetSingleUnversionedChunkOrThrow();
                     const auto& rhsChunk = rhs.DataSlice->GetSingleUnversionedChunkOrThrow();
 
-                    auto cmpResult = lhsChunk->GetTableRowIndex() - rhsChunk->GetTableRowIndex();
+                    auto cmpResult = (lhsChunk->GetTableRowIndex() + lhs.RowIndex) - (rhsChunk->GetTableRowIndex() + rhs.RowIndex);
                     if (cmpResult != 0) {
                         return cmpResult < 0;
                     }
