@@ -1492,6 +1492,10 @@ void TOperationControllerBase::SafeRevive()
     CheckTimeLimitExecutor->Start();
     ProgressBuildExecutor_->Start();
     ExecNodesCheckExecutor->Start();
+    auto jobSplitterConfig = GetJobSplitterConfig();
+    if (jobSplitterConfig) {
+        JobSplitter_ = CreateJobSplitter(jobSplitterConfig, OperationId);
+    }
 
     State = EControllerState::Running;
 }
