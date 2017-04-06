@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -ex
 
 CURRENT_DIR="$(pwd)"
 
