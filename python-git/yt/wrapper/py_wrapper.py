@@ -232,6 +232,11 @@ class Zip(object):
         if type is None:
             self.md5 = hex_md5(self.hash)
 
+def load_function(func):
+    if isinstance(func, str):
+        func = eval(func)
+    return func
+
 def create_modules_archive_default(tempfiles_manager, custom_python_used, client):
     for module_name in OPERATION_REQUIRED_MODULES:
         import_module(module_name)
@@ -239,7 +244,7 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
     logging_level = logging.getLevelName(get_config(client)["pickling"]["find_module_file_error_logging_level"])
 
     files_to_compress = {}
-    module_filter = get_config(client)["pickling"]["module_filter"]
+    module_filter = load_function(get_config(client)["pickling"]["module_filter"])
     extra_modules = getattr(sys, "extra_modules", set())
     for name, module in list(iteritems(sys.modules)):
         if module_filter is not None and not module_filter(module):
