@@ -469,6 +469,7 @@ class TransferManager(object):
                                 TM_TASK_URL_PATTERN.format(id=task_id, backend_tag=self._backend_tag))
 
                 failed_tasks, finished = poller.fetch_tasks_for_restart()
+                time.sleep(0.5)
 
         if sync:
             aborted_task_count, failed_task_count = poller.join()
