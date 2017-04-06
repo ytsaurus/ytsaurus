@@ -161,16 +161,22 @@ public:
         ServiceAddress_ = BuildServiceAddress(localHostName, port);
 
         for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
-            JobStateToTag_[state] = TProfileManager::Get()->RegisterTag("state", Format("%lv", state));
+            JobStateToTag_[state] = TProfileManager::Get()->RegisterTag("state", FormatEnum(state));
         }
+        
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-            JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("type", Format("%lv", type));
+            JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("type", FormatEnum(type));
         }
+        
         for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
             if (IsMarker(reason)) {
                 continue;
             }
-            JobAbortReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("reason", Format("%lv", reason));
+            JobAbortReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("abort_reason", FormatEnum(reason));
+        }
+        
+        for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
+            JobInterruptReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("interrupt_reason", FormatEnum(reason));
         }
     }
 
@@ -369,7 +375,7 @@ public:
         return totalNodeCount;
     }
 
-    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
+    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -393,14 +399,14 @@ public:
             }
         }
 
-        std::vector<TExecNodeDescriptor> result;
+        auto result = New<TExecNodeDescriptorList>();
 
         {
             TReaderGuard guard(ExecNodeDescriptorsLock_);
 
-            for (const auto& descriptor : CachedExecNodeDescriptors_) {
+            for (const auto& descriptor : CachedExecNodeDescriptors_->Descriptors) {
                 if (filter.CanSchedule(descriptor.Tags)) {
-                    result.push_back(descriptor);
+                    result->Descriptors.push_back(descriptor);
                 }
             }
         }
@@ -1048,9 +1054,8 @@ private:
     typedef yhash_map<TOperationId, TOperationPtr> TOperationIdMap;
     TOperationIdMap IdToOperation_;
 
-    typedef std::vector<TExecNodeDescriptor> TExecNodeDescriptors;
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
-    TExecNodeDescriptors CachedExecNodeDescriptors_;
+    TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
 
     TReaderWriterSpinLock ExecNodeDescriptorsByTagLock_;
 
@@ -1058,7 +1063,7 @@ private:
     {
         NProfiling::TCpuInstant LastAccessTime;
         NProfiling::TCpuInstant LastUpdateTime;
-        TExecNodeDescriptors ExecNodeDescriptors;
+        TExecNodeDescriptorListPtr ExecNodeDescriptors;
     };
 
     mutable yhash_map<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
@@ -1074,6 +1079,7 @@ private:
     TEnumIndexedVector<TTagId, EJobState> JobStateToTag_;
     TEnumIndexedVector<TTagId, EJobType> JobTypeToTag_;
     TEnumIndexedVector<TTagId, EAbortReason> JobAbortReasonToTag_;
+    TEnumIndexedVector<TTagId, EInterruptReason> JobInterruptReasonToTag_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr LoggingExecutor_;
@@ -1240,15 +1246,17 @@ private:
 
         std::vector<TJobCounter> shardJobCounter(NodeShards_.size());
         std::vector<TAbortedJobCounter> shardAbortedJobCounter(NodeShards_.size());
+        std::vector<TCompletedJobCounter> shardCompletedJobCounter(NodeShards_.size());
 
         for (int i = 0; i < NodeShards_.size(); ++i) {
             auto& nodeShard = NodeShards_[i];
             shardJobCounter[i] = nodeShard->GetJobCounter();
             shardAbortedJobCounter[i] = nodeShard->GetAbortedJobCounter();
+            shardCompletedJobCounter[i] = nodeShard->GetCompletedJobCounter();
         }
 
-        for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
-            for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+        for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+            for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
                 TTagIdList commonTags = {JobStateToTag_[state], JobTypeToTag_[type]};
                 if (state == EJobState::Aborted) {
                     for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
@@ -1260,6 +1268,16 @@ private:
                         int counter = 0;
                         for (int i = 0; i < NodeShards_.size(); ++i) {
                             counter += shardAbortedJobCounter[i][reason][state][type];
+                        }
+                        Profiler.Enqueue("/job_count", counter, EMetricType::Counter, tags);
+                    }
+                } else if (state == EJobState::Completed) {
+                    for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
+                        auto tags = commonTags;
+                        tags.push_back(JobInterruptReasonToTag_[reason]);
+                        int counter = 0;
+                        for (int i = 0; i < NodeShards_.size(); ++i) {
+                            counter += shardCompletedJobCounter[i][reason][state][type];
                         }
                         Profiler.Enqueue("/job_count", counter, EMetricType::Counter, tags);
                     }
@@ -1635,7 +1653,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        std::vector<TFuture<std::vector<TExecNodeDescriptor>>> shardDescriptorsFutures;
+        std::vector<TFuture<TExecNodeDescriptorListPtr>> shardDescriptorsFutures;
         for (auto& nodeShard : NodeShards_) {
             shardDescriptorsFutures.push_back(BIND(&TNodeShard::GetExecNodeDescriptors, nodeShard)
                 .AsyncVia(nodeShard->GetInvoker())
@@ -1645,15 +1663,18 @@ private:
         auto shardDescriptors = WaitFor(Combine(shardDescriptorsFutures))
             .ValueOrThrow();
 
-        std::vector<TExecNodeDescriptor> result;
+        auto result = New<TExecNodeDescriptorList>();
         for (const auto& descriptors : shardDescriptors) {
-            result.insert(result.end(), descriptors.begin(), descriptors.end());
+            result->Descriptors.insert(
+                result->Descriptors.end(),
+                descriptors->Descriptors.begin(),
+                descriptors->Descriptors.end());
         }
 
         {
             TWriterGuard guard(ExecNodeDescriptorsLock_);
 
-            CachedExecNodeDescriptors_.swap(result);
+            std::swap(CachedExecNodeDescriptors_, result);
         }
 
         // Remove outdated cached exec node descriptor lists.
@@ -2393,6 +2414,7 @@ private:
         auto controller = operation->GetController();
 
         bool hasControllerProgress = operation->HasControllerProgress();
+        bool hasControllerJobSplitterInfo = operation->HasControllerJobSplitterInfo();
         BuildYsonFluently(consumer)
             .BeginMap()
                 // Include the complete list of attributes.
@@ -2428,6 +2450,17 @@ private:
                                     .Run(operation->GetId(), consumer));
                         }
                     })
+                .EndMap()
+                .Item("job_splitter").BeginAttributes()
+                    .Item("opaque").Value("true")
+                .EndAttributes()
+                .BeginMap()
+                    .DoIf(hasControllerJobSplitterInfo, BIND([=] (IYsonConsumer* consumer) {
+                        WaitFor(
+                            BIND(&IOperationController::BuildJobSplitterInfo, controller)
+                                .AsyncVia(controller->GetInvoker())
+                                .Run(consumer));
+                    }))
                 .EndMap()
                 .Do([=] (IYsonConsumer* consumer) {
                     WaitFor(

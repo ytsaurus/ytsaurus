@@ -56,6 +56,20 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////
 
+class TListJobsCommand
+    : public TTypedCommand<NApi::TListJobsOptions>
+{
+public:
+    TListJobsCommand();
+
+private:
+    NJobTrackerClient::TOperationId OperationId;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+//////////////////////////////////////////////////////////////////////////////
+
 class TStraceJobCommand
     : public TTypedCommand<NApi::TStraceJobOptions>
 {

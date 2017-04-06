@@ -111,6 +111,13 @@ bool TOperation::HasControllerProgress() const
         Controller_->HasProgress();
 }
 
+bool TOperation::HasControllerJobSplitterInfo() const
+{
+    return State_ == EOperationState::Running &&
+        Controller_ &&
+        Controller_->HasJobSplitterInfo();
+}
+
 TCodicilGuard TOperation::MakeCodicilGuard() const
 {
     return TCodicilGuard(CodicilData_);

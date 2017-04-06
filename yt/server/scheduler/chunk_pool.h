@@ -46,7 +46,7 @@ TChunkStripeStatisticsVector AggregateStatistics(
 struct TChunkStripe
     : public TIntrinsicRefCounted
 {
-    explicit TChunkStripe(bool foreign = false);
+    TChunkStripe(bool foreign = false, bool solid = false);
     explicit TChunkStripe(NChunkClient::TInputDataSlicePtr dataSlice, bool foreign = false);
 
     TChunkStripeStatistics GetStatistics() const;
@@ -61,6 +61,7 @@ struct TChunkStripe
     SmallVector<NChunkClient::TInputDataSlicePtr, 1> DataSlices;
     int WaitingChunkCount = 0;
     bool Foreign = false;
+    bool Solid = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkStripe)

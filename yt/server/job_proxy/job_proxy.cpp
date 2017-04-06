@@ -188,6 +188,14 @@ void TJobProxy::RetrieveJobSpec()
     }
 
     const auto& rsp = rspOrError.Value();
+
+    if (rsp->job_spec().version() != GetJobSpecVersion()) {
+        LOG_WARNING("Invalid job spec version (Expected: %v, Actual: %v)",
+            GetJobSpecVersion(),
+            rsp->job_spec().version());
+        Exit(EJobProxyExitCode::InvalidSpecVersion);
+    }
+
     JobSpecHelper_ = CreateJobSpecHelper(rsp->job_spec());
     const auto& resourceUsage = rsp->resource_usage();
 
@@ -278,7 +286,11 @@ void TJobProxy::Run()
             schedulerResultExt->mutable_chunk_spec_count_per_data_slice(),
             unreadDescriptors);
 
-        LOG_DEBUG("Found %v unread input data slice descriptors (SchedulerResultExt: %v)", unreadDescriptors.size(), schedulerResultExt->ShortDebugString());
+        LOG_DEBUG_IF(
+            unreadDescriptors.size() > 0,
+            "Unread input data slice descriptors found (DescriptorCount: %v, SchedulerResultExt: %v)",
+            unreadDescriptors.size(),
+            schedulerResultExt->ShortDebugString());
     }
 
     auto statistics = ConvertToYsonString(GetStatistics());

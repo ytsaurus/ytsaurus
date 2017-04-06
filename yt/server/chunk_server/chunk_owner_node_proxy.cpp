@@ -607,21 +607,20 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     auto* node = GetThisImpl<TChunkOwnerBase>();
 
     if (key == "replication_factor") {
-        ValidateStorageSettingsUpdate();
         int replicationFactor = ConvertTo<int>(value);
         SetReplicationFactor(replicationFactor);
         return true;
     }
 
     if (key == "vital") {
-        ValidateStorageSettingsUpdate();
+        ValidateStorageParametersUpdate();
         bool vital = ConvertTo<bool>(value);
         SetVital(vital);
         return true;
     }
 
     if (key == "primary_medium") {
-        ValidateStorageSettingsUpdate();
+        ValidateStorageParametersUpdate();
         auto mediumName = ConvertTo<Stroka>(value);
         auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
         SetPrimaryMedium(medium);
@@ -629,7 +628,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     }
 
     if (key == "media") {
-        ValidateStorageSettingsUpdate();
+        ValidateStorageParametersUpdate();
         auto serializableProperties = ConvertTo<TSerializableChunkProperties>(value);
         auto properties = node->Properties(); // Copying for modification.
         serializableProperties.ToChunkProperties(&properties, chunkManager);
@@ -790,7 +789,7 @@ void TChunkOwnerNodeProxy::ValidateBeginUpload()
 void TChunkOwnerNodeProxy::ValidateFetch()
 { }
 
-void TChunkOwnerNodeProxy::ValidateStorageSettingsUpdate()
+void TChunkOwnerNodeProxy::ValidateStorageParametersUpdate()
 {
     ValidateNoTransaction();
 }

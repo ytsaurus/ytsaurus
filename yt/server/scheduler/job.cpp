@@ -21,6 +21,7 @@ using namespace NYPath;
 using namespace NJobTrackerClient;
 using namespace NChunkClient::NProto;
 using namespace NProto;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -241,7 +242,9 @@ TCompletedJobSummary::TCompletedJobSummary(const TJobPtr& job, bool abandoned)
     , Abandoned(abandoned)
 {
     const auto& schedulerResultExt = Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-    Interrupted = schedulerResultExt.unread_input_data_slice_descriptors_size() != 0;
+    InterruptReason = job->GetInterruptReason();
+    YCHECK((InterruptReason == EInterruptReason::None && schedulerResultExt.unread_input_data_slice_descriptors_size() == 0) ||
+        (InterruptReason != EInterruptReason::None && schedulerResultExt.unread_input_data_slice_descriptors_size() != 0));
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -294,6 +297,21 @@ TJobStartRequest::TJobStartRequest(
 void TScheduleJobResult::RecordFail(EScheduleJobFailReason reason)
 {
     ++Failed[reason];
+}
+
+bool TScheduleJobResult::IsBackoffNeeded() const
+{
+    return
+        !JobStartRequest &&
+        Failed[EScheduleJobFailReason::NotEnoughResources] == 0 &&
+        Failed[EScheduleJobFailReason::NoLocalJobs] == 0;
+}
+
+bool TScheduleJobResult::IsScheduleStopNeeded() const
+{
+    return
+        Failed[EScheduleJobFailReason::NotEnoughChunkLists] > 0 ||
+        Failed[EScheduleJobFailReason::JobSpecThrottling] > 0;
 }
 
 void TScheduleJobStatistics::RecordJobResult(const TScheduleJobResultPtr& scheduleJobResult)
