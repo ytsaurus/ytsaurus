@@ -1324,10 +1324,9 @@ done
         op.track()
 
         completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
-        completed_details = get("//sys/operations/{0}/@progress/jobs/completed_details".format(op.id))
-        assert completed >= 6
-        assert completed_details["job_split"] >= 1
-        assert completed_details["total"] == completed
+        interrupted = completed["interrupted"]
+        assert completed["total"] >= 6
+        assert interrupted["job_split"] >= 1
 
 
 ##################################################################
