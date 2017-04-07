@@ -29,19 +29,21 @@ class TTableNode
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TTableSchema, TableSchema);
-    DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableSchemaMode, SchemaMode);
+    DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableSchemaMode, SchemaMode, NTableClient::ETableSchemaMode::Weak);
 
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, LastCommitTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, LastCommitTimestamp, NTransactionClient::NullTimestamp);
 
     DEFINE_BYVAL_RW_PROPERTY(NTabletServer::TTabletCellBundle*, TabletCellBundle);
 
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ECommitOrdering, CommitOrdering);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::EAtomicity, Atomicity, NTransactionClient::EAtomicity::Full);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ECommitOrdering, CommitOrdering, NTransactionClient::ECommitOrdering::Weak);
 
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, UnflushedTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp, NTransactionClient::NullTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, UnflushedTimestamp, NTransactionClient::NullTimestamp);
 
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableReplicationMode, ReplicationMode, NTableClient::ETableReplicationMode::None);
+
+    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TTableNode, NTableClient::EOptimizeFor, OptimizeFor);
 
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);

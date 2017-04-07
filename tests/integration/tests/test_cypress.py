@@ -87,7 +87,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/@test_attribute", 10)
         remove("//tmp/@test_attribute")
 
-        for path in ["//tmp/@test_attribute", "//tmp/@test_attribute/inner", "//tmp/@erasure_codec",
+        for path in ["//tmp/@test_attribute", "//tmp/@test_attribute/inner",
                      "//tmp/@recursive_resource_usage/disk_space_per_medium", "//tmp/@recursive_resource_usage/missing"]:
             with pytest.raises(YtError):
                 remove(path)
@@ -415,6 +415,23 @@ class TestCypress(YTEnvSetup):
         set("//tmp/t1/@compression_codec", "zlib_6")
         copy("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t2/@compression_codec") == "zlib_6"
+
+    def test_compression_codec_in_tx(self):
+        create("table", "//tmp/t", attributes={"compression_codec": "none"})
+        assert get("//tmp/t/@compression_codec") == "none" 
+        tx = start_transaction()
+        assert get("//tmp/t/@compression_codec", tx=tx) == "none"
+        set("//tmp/t/@compression_codec", "lz4", tx=tx)
+        assert get("//tmp/t/@compression_codec", tx=tx) == "lz4"
+        assert get("//tmp/t/@compression_codec") == "none"
+        locks = get("//tmp/t/@locks")
+        assert len(locks) == 1
+        assert locks[0]["mode"] == "shared"
+        assert locks[0]["transaction_id"] == tx
+        assert locks[0]["attribute_key"] == "compression_codec"
+        with pytest.raises(YtError): set("//tmp/t/@compression_codec", "lz4")
+        commit_transaction(tx)
+        assert get("//tmp/t/@compression_codec") == "lz4"
 
     def test_copy_id1(self):
         set("//tmp/a", 123)

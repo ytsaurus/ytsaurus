@@ -169,7 +169,7 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
         }
     }
 
-    // Copy "opaque" flag.
+    // Copy builtin attributes.
     clonedNode->SetOpaque(sourceNode->GetOpaque());
 }
 
