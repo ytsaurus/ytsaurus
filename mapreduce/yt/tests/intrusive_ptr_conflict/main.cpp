@@ -7,12 +7,20 @@
 // This file tests that our public headers always use ::TIntrusivePtr.
 
 namespace NYT {
-    template <class T>
-    class TIntrusivePtr;
+
+    // We intentionaly use wrong template parameter here,
+    // so any attempt to use NYT::TIntrusivePtr
+    // inside following headers will lead to errors.
+    template <int T>
+    class TIntrusivePtr
+    { };
+
 } // namespace NYT
 
 #include <mapreduce/yt/interface/client.h>
 
-int main(int /*argc*/, const char** /*argv*/){
+int main(int argc, const char** argv){
+    NYT::Initialize(argc, argv);
+    auto client = NYT::CreateClient("localhost");
     return 0;
 }
