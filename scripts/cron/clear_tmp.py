@@ -32,6 +32,7 @@ def main():
     parser.add_argument("--max-disk-space", type=int, default=None)
     parser.add_argument("--max-chunk-count", type=int, default=None)
     parser.add_argument("--max-node-count", type=int, default=50000)
+    parser.add_argument("--max-dir-node-count", type=int, default=40000)
     parser.add_argument("--safe-age", type=int, default=10, help="Objects that younger than safe-age minutes will not be removed")
     parser.add_argument("--max-age", type=int, default=7, help="Objects that older than max-age days will be removed")
     parser.add_argument("--do-not-remove-objects-with-other-account", action="store_true", default=False, help="By default all objects in directory will be removed")
@@ -62,6 +63,7 @@ def main():
         else: #dir case
             dirs.append(obj)
     dir_sizes = dict((str(obj), obj.attributes["count"]) for obj in dirs)
+    remaining_dir_sizes = dict((str(obj), obj.attributes["count"]) for obj in dirs)
 
     object_to_attributes = {}
 
@@ -101,8 +103,10 @@ def main():
                 if target_path in object_to_attributes and object_to_attributes[target_path]["locks"]:
                     continue
 
+        dir_node_count = remaining_dir_sizes.get(os.path.dirname(obj), 0)
+
         # filter object by age, total size and count
-        if (age > max_age or disk_space > args.max_disk_space or node_count > args.max_node_count or chunk_count > args.max_chunk_count) and age > safe_age:
+        if (age > max_age or disk_space > args.max_disk_space or node_count > args.max_node_count or chunk_count > args.max_chunk_count or dir_node_count > args.max_dir_node_count) and age > safe_age:
             if "hash" in obj.attributes:
                 hash_str = obj.attributes["hash"]
                 link = os.path.join(os.path.dirname(obj), "hash", hash_str[-2:], hash_str)
@@ -111,6 +115,8 @@ def main():
                 link = os.path.join(os.path.dirname(obj), "hash", hash_str)
                 if link in links:
                     add_to_remove(link)
+            if dir_node_count > 0:
+                remaining_dir_sizes[os.path.dirname(obj)] -= 1
             add_to_remove(obj)
 
     # log and remove
