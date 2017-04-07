@@ -148,7 +148,7 @@ struct TExecNodeDescriptor
 
 //! An immutable ref-counted list of TExecNodeDescriptor-s.
 struct TExecNodeDescriptorList
-    : public TSimpleRefCounted
+    : public TIntrinsicRefCounted
 {
     std::vector<TExecNodeDescriptor> Descriptors;
 };
