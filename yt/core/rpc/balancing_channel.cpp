@@ -291,7 +291,7 @@ private:
         const auto& balancingExt = request->Header().GetExtension(NProto::TBalancingExt::balancing_ext);
         return balancingExt.enable_stickness()
             ? PickStickyViableChannel(request, balancingExt.sticky_group_size())
-            : PickRandomViableChannel();
+            : PickRandomViableChannel(request);
     }
 
     IChannelPtr PickStickyViableChannel(const IClientRequestPtr& request, int stickyGroupSize)
@@ -317,10 +317,17 @@ private:
             it = HashToViableChannel_.begin();
         }
 
+        LOG_DEBUG("Sticky peer selected (RequestId: %v, RequestHash: %v, RandomIndex: %v/%v, Address: %v)",
+            request->GetRequestId(),
+            hash,
+            randomIndex,
+            stickyGroupSize,
+            it->first.second);
+
         return it->second;
     }
 
-    IChannelPtr PickRandomViableChannel()
+    IChannelPtr PickRandomViableChannel(const IClientRequestPtr& request)
     {
         auto hash = RandomNumber<size_t>();
 
@@ -334,6 +341,10 @@ private:
         if (it == HashToViableChannel_.end()) {
             it = HashToViableChannel_.begin();
         }
+
+        LOG_DEBUG("Random peer selected (RequestId: %v, Address: %v)",
+            request->GetRequestId(),
+            it->first.second);
 
         return it->second;
     }
