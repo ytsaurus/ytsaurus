@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/core/misc/nullable.h>
+#include <yt/core/misc/ref.h>
 
 namespace NYT {
 namespace NYson {
@@ -55,6 +56,14 @@ private:
 
 void ParseYsonStringBuffer(
     const TStringBuf& buffer,
+    EYsonType type,
+    IYsonConsumer* consumer,
+    bool enableLinePositionInfo = false,
+    i64 memoryLimit = std::numeric_limits<i64>::max(),
+    bool enableContext = true);
+
+void ParseYsonSharedRefArray(
+    const TSharedRefArray& refArray,
     EYsonType type,
     IYsonConsumer* consumer,
     bool enableLinePositionInfo = false,

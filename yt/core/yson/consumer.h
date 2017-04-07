@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/misc/ref.h>
+
 namespace NYT {
 namespace NYson {
 
@@ -102,7 +104,7 @@ struct IYsonConsumer
 
     // Extension methods.
     void OnRaw(const TYsonString& yson);
-
+    void OnRaw(const TSharedRefArray& refArray, EYsonType type);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
