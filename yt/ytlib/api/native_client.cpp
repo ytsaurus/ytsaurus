@@ -1040,6 +1040,10 @@ private:
             auto* cachingHeaderExt = request->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
             cachingHeaderExt->set_success_expiration_time(ToProto(options.ExpireAfterSuccessfulUpdateTime));
             cachingHeaderExt->set_failure_expiration_time(ToProto(options.ExpireAfterFailedUpdateTime));
+
+            auto* balancingHeaderExt = request->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+            balancingHeaderExt->set_enable_stickness(true);
+            balancingHeaderExt->set_sticky_group_size(options.CacheStickyGroupSize);
         }
     }
 
