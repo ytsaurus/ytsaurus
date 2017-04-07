@@ -1638,7 +1638,7 @@ cat > /dev/null; echo {hello=world}
         path = "//sys/operations/{0}/@state".format(op.id)
         assert get(path) != "completed"
         while op.get_job_count("completed") < 3:
-            time.sleep(0.2)
+            time.sleep(0.3)
 
         op.complete()
         assert get(path) == "completed"
@@ -2571,8 +2571,8 @@ print row + table_index
             })
         op.track()
 
-        assert get("//sys/operations/{0}/@progress/jobs/completed_details/total".format(op.id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/completed".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/completed/total".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/completed/non-interrupted".format(op.id)) == 1
 
     def test_ordered_map_many_jobs(self):
         create("table", "//tmp/t_input")
@@ -2685,10 +2685,9 @@ done
         op.track()
 
         completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
-        completed_details = get("//sys/operations/{0}/@progress/jobs/completed_details".format(op.id))
-        assert completed >= 6
-        assert completed_details["job_split"] >= 1
-        assert completed_details["total"] == completed
+        interrupted = completed["interrupted"]
+        assert completed["total"] >= 6
+        assert interrupted["job_split"] >= 1
         expected = read_table("//tmp/in_1", verbose=False)
         for row in expected:
             del row["data"]
@@ -2732,8 +2731,8 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
             try:
                 jobs = get("//sys/operations/{0}/@progress/jobs".format(op.id), verbose=False)
                 assert jobs["running"] == 0
-                assert jobs["completed"] == 0
-                if jobs["aborted"] > 0:
+                assert jobs["completed"]["total"] == 0
+                if jobs["aborted"]["non_scheduled"]["scheduling_timeout"] > 0:
                     break
             except:
                 pass

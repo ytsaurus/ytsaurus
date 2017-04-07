@@ -227,13 +227,17 @@ void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
                     .Item("pending").Value(counter.GetPending());
             })
             .Item("running").Value(counter.GetRunning())
-            .Item("completed").Value(counter.GetCompletedTotal())
-            .Item("completed_details").BeginMap()
+            .Item("completed").BeginMap()
+                .Item("interrupted").BeginMap()
+                    .DoFor(TEnumTraits<EInterruptReason>::GetDomainValues(), [&] (TFluentMap fluent, EInterruptReason reason) {
+                        if (reason != EInterruptReason::None) {
+                            fluent
+                                .Item(FormatEnum(reason)).Value(counter.GetCompleted(reason));
+                        }
+                    })
+                .EndMap()
+                .Item("non-interrupted").Value(counter.GetCompleted(EInterruptReason::None))
                 .Item("total").Value(counter.GetCompletedTotal())
-                .DoFor(TEnumTraits<EInterruptReason>::GetDomainValues(), [&] (TFluentMap fluent, EInterruptReason reason) {
-                    fluent
-                        .Item(FormatEnum(reason)).Value(counter.GetCompleted(reason));
-                })
             .EndMap()
             .Item("failed").Value(counter.GetFailed())
             .Item("aborted").BeginMap()

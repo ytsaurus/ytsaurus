@@ -1036,7 +1036,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
         for iter in xrange(100):
             jobs_exist = exists(operation_path + "/@brief_progress/jobs")
             if jobs_exist:
-                completed_jobs = get(operation_path + "/@brief_progress/jobs/completed")
+                completed_jobs = get(operation_path + "/@brief_progress/jobs/completed/total")
                 if completed_jobs == 2:
                     break
             time.sleep(0.1)
