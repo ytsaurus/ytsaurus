@@ -83,13 +83,11 @@ public:
         TKeyToIndexMultimap KeyToIndexes;
 
         bool SuppressUpstreamSync = false;
-        bool SerializePrepared = false;
 
 
         explicit TReqExecuteBatch(NRpc::IChannelPtr channel);
         DECLARE_NEW_FRIEND();
 
-        virtual void PrepareSerialize() override;
         virtual TSharedRef SerializeBody() const override;
 
     };
