@@ -432,10 +432,6 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor("data_weight")
         .SetPresent(node->HasDataWeight()));
     descriptors->push_back("compression_ratio");
-    descriptors->push_back(TAttributeDescriptor("compression_codec")
-        .SetCustom(true));
-    descriptors->push_back(TAttributeDescriptor("erasure_codec")
-        .SetCustom(true));
     descriptors->push_back("update_mode");
     descriptors->push_back(TAttributeDescriptor("replication_factor"));
     descriptors->push_back(TAttributeDescriptor("vital")
@@ -444,6 +440,8 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor("primary_medium")
         .SetReplicated(true));
+    descriptors->push_back("compression_codec");
+    descriptors->push_back("erasure_codec");
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
@@ -531,6 +529,18 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
 
         BuildYsonFluently(consumer)
             .Value(medium->GetName());
+        return true;
+    }
+
+    if (key == "compression_codec") {
+        BuildYsonFluently(consumer)
+            .Value(node->GetCompressionCodec());
+        return true;
+    }
+
+    if (key == "erasure_codec") {
+        BuildYsonFluently(consumer)
+            .Value(node->GetErasureCodec());
         return true;
     }
 
@@ -634,6 +644,24 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         auto properties = node->Properties(); // Copying for modification.
         serializableProperties.ToChunkProperties(&properties, chunkManager);
         SetMediaProperties(properties);
+        return true;
+    }
+
+    if (key == "compression_codec") {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+        auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(key));
+        node->SetCompressionCodec(ConvertTo<NCompression::ECodec>(value));
+
+        return true;
+    }
+
+    if (key == "erasure_codec") {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+        auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(key));
+        node->SetErasureCodec(ConvertTo<NErasure::ECodec>(value));
+
         return true;
     }
 
