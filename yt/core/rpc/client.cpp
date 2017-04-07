@@ -43,7 +43,11 @@ TClientRequest::TClientRequest(
 
 TSharedRefArray TClientRequest::Serialize()
 {
-    PrepareSerialize();
+    if (!FirstTimeSerialization_) {
+        Header_.set_retry(true);
+    }
+    FirstTimeSerialization_ = false;
+
     return CreateRequestMessage(
         Header_,
         GetSerializedBody(),
@@ -127,10 +131,15 @@ void TClientRequest::SetRetry(bool value)
 
 size_t TClientRequest::GetHash() const
 {
-    if (Hash_ == 0) {
-        Hash_ = static_cast<size_t>(GetChecksum(GetSerializedBody()));
+    if (!Hash_) {
+        size_t hash = 0;
+        hash = HashCombine(hash, GetChecksum(GetSerializedBody()));
+        for (const auto& attachment : Attachments_) {
+            hash = HashCombine(hash, GetChecksum(attachment));
+        }
+        Hash_ = hash;
     }
-    return Hash_;
+    return *Hash_;
 }
 
 TClientContextPtr TClientRequest::CreateClientContext()
@@ -166,14 +175,6 @@ void TClientRequest::TraceRequest(const NTracing::TTraceContext& traceContext)
         traceContext,
         ClientHostAnnotation,
         TAddressResolver::Get()->GetLocalHostName());
-}
-
-void TClientRequest::PrepareSerialize()
-{
-    if (!FirstTimeSerialization_) {
-        Header_.set_retry(true);
-    }
-    FirstTimeSerialization_ = false;
 }
 
 const TSharedRef& TClientRequest::GetSerializedBody() const

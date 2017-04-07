@@ -119,7 +119,7 @@ protected:
 
     NProto::TRequestHeader Header_;
     mutable TSharedRef SerializedBody_;
-    mutable size_t Hash_ = 0;
+    mutable TNullable<size_t> Hash_;
     bool FirstTimeSerialization_ = true;
 
 
@@ -132,7 +132,6 @@ protected:
 
     virtual bool IsHeavy() const override;
 
-    virtual void PrepareSerialize();
     virtual TSharedRef SerializeBody() const = 0;
 
     TClientContextPtr CreateClientContext();
