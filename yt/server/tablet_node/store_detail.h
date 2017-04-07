@@ -186,6 +186,8 @@ public:
 
     const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
 
+    TInstant GetCreationTime() const;
+
     // IStore implementation.
     virtual TTimestamp GetMinTimestamp() const override;
     virtual TTimestamp GetMaxTimestamp() const override;
@@ -247,7 +249,6 @@ protected:
     // Cached for fast retrieval from ChunkMeta_.
     NChunkClient::NProto::TMiscExt MiscExt_;
     NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
-
 
     NDataNode::IChunkPtr PrepareChunk();
     NChunkClient::IChunkReaderPtr PrepareChunkReader(NDataNode::IChunkPtr chunk);

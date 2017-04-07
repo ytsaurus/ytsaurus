@@ -142,6 +142,8 @@ private:
         descriptors->push_back(TAttributeDescriptor("eden")
             .SetPresent(chunk->IsConfirmed()));
         descriptors->push_back("scan_flags");
+        descriptors->push_back(TAttributeDescriptor("creation_time")
+            .SetPresent(miscExt.has_creation_time()));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
@@ -412,6 +414,12 @@ private:
             if (key == "eden") {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.eden());
+                return true;
+            }
+
+            if (key == "creation_time" && miscExt.has_creation_time()) {
+                BuildYsonFluently(consumer)
+                    .Value(miscExt.creation_time());
                 return true;
             }
         }
