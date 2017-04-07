@@ -114,6 +114,11 @@ public:
         Y_UNREACHABLE();
     }
 
+    virtual size_t GetHash() const override
+    {
+        return 0;
+    }
+
 private:
     const std::unique_ptr<TRequestHeader> Header_;
     const TSharedRefArray Message_;

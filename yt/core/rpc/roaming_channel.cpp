@@ -127,7 +127,7 @@ public:
         Y_ASSERT(request);
         Y_ASSERT(responseHandler);
 
-        auto asyncChannel = Provider_->GetChannel(request->GetService());
+        auto asyncChannel = Provider_->GetChannel(request);
 
         // NB: Optimize for the typical case of sync channel acquisition.
         auto channelOrError = asyncChannel.TryGet();

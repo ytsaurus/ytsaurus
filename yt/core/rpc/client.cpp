@@ -4,6 +4,7 @@
 #include "message.h"
 
 #include <yt/core/misc/address.h>
+#include <yt/core/misc/checksum.h>
 
 #include <iterator>
 
@@ -42,18 +43,10 @@ TClientRequest::TClientRequest(
 
 TSharedRefArray TClientRequest::Serialize()
 {
-    if (!FirstTimeSerialization_) {
-        Header_.set_retry(true);
-    }
-    FirstTimeSerialization_ = false;
-
-    if (!SerializedBody_) {
-        SerializedBody_ = SerializeBody();
-    }
-
+    PrepareSerialize();
     return CreateRequestMessage(
         Header_,
-        SerializedBody_,
+        GetSerializedBody(),
         Attachments_);
 }
 
@@ -132,6 +125,14 @@ void TClientRequest::SetRetry(bool value)
     Header_.set_retry(value);
 }
 
+size_t TClientRequest::GetHash() const
+{
+    if (Hash_ == 0) {
+        Hash_ = static_cast<size_t>(GetChecksum(GetSerializedBody()));
+    }
+    return Hash_;
+}
+
 TClientContextPtr TClientRequest::CreateClientContext()
 {
     auto traceContext = NTracing::CreateChildTraceContext();
@@ -165,6 +166,22 @@ void TClientRequest::TraceRequest(const NTracing::TTraceContext& traceContext)
         traceContext,
         ClientHostAnnotation,
         TAddressResolver::Get()->GetLocalHostName());
+}
+
+void TClientRequest::PrepareSerialize()
+{
+    if (!FirstTimeSerialization_) {
+        Header_.set_retry(true);
+    }
+    FirstTimeSerialization_ = false;
+}
+
+const TSharedRef& TClientRequest::GetSerializedBody() const
+{
+    if (!SerializedBody_) {
+        SerializedBody_ = SerializeBody();
+    }
+    return SerializedBody_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -46,6 +46,8 @@ struct IClientRequest
 
     virtual bool GetRetry() const = 0;
     virtual void SetRetry(bool value) = 0;
+
+    virtual size_t GetHash() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientRequest)
@@ -110,11 +112,14 @@ public:
     virtual bool GetRetry() const override;
     virtual void SetRetry(bool value) override;
 
+    virtual size_t GetHash() const override;
+
 protected:
     const IChannelPtr Channel_;
 
     NProto::TRequestHeader Header_;
-    TSharedRef SerializedBody_;
+    mutable TSharedRef SerializedBody_;
+    mutable size_t Hash_ = 0;
     bool FirstTimeSerialization_ = true;
 
 
@@ -127,7 +132,8 @@ protected:
 
     virtual bool IsHeavy() const override;
 
-    virtual TSharedRef SerializeBody() = 0;
+    virtual void PrepareSerialize();
+    virtual TSharedRef SerializeBody() const = 0;
 
     TClientContextPtr CreateClientContext();
 
@@ -135,6 +141,7 @@ protected:
 
 private:
     void TraceRequest(const NTracing::TTraceContext& traceContext);
+    const TSharedRef& GetSerializedBody() const;
 
 };
 
@@ -175,7 +182,7 @@ public:
     }
 
 private:
-    virtual TSharedRef SerializeBody() override
+    virtual TSharedRef SerializeBody() const override
     {
         return SerializeToProtoWithEnvelope(*this, Codec_, false);
     }

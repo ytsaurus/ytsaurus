@@ -83,8 +83,14 @@ int TObjectServiceProxy::TReqExecuteBatch::GetSize() const
     return static_cast<int>(InnerRequestMessages.size());
 }
 
-TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody()
+void TObjectServiceProxy::TReqExecuteBatch::PrepareSerialize()
 {
+    TClientRequest::PrepareSerialize();
+
+    if (SerializePrepared) {
+        return;
+    }
+
     // Push TPrerequisitesExt down to individual requests.
     if (Header_.HasExtension(NProto::TPrerequisitesExt::prerequisites_ext)) {
         const auto& batchPrerequisitesExt = Header_.GetExtension(NProto::TPrerequisitesExt::prerequisites_ext);
@@ -99,17 +105,27 @@ TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody()
         Header_.ClearExtension(NProto::TPrerequisitesExt::prerequisites_ext);
     }
 
+    // Prepare attachments.
+    for (const auto& innerRequestMessage : InnerRequestMessages) {
+        if (innerRequestMessage) {
+            Attachments_.insert(Attachments_.end(), innerRequestMessage.Begin(), innerRequestMessage.End());
+        }
+    }
+
+    SerializePrepared = true;
+}
+
+TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
+{
     NProto::TReqExecute req;
     req.set_suppress_upstream_sync(SuppressUpstreamSync);
     for (const auto& innerRequestMessage : InnerRequestMessages) {
         if (innerRequestMessage) {
             req.add_part_counts(innerRequestMessage.Size());
-            Attachments_.insert(Attachments_.end(), innerRequestMessage.Begin(), innerRequestMessage.End());
         } else {
             req.add_part_counts(0);
         }
     }
-
     return SerializeToProtoWithEnvelope(req);
 }
 
