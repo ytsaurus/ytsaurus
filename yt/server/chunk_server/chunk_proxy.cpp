@@ -419,7 +419,7 @@ private:
 
             if (key == "creation_time" && miscExt.has_creation_time()) {
                 BuildYsonFluently(consumer)
-                    .Value(miscExt.creation_time());
+                    .Value(TInstant(miscExt.creation_time()));
                 return true;
             }
         }
