@@ -1123,18 +1123,24 @@ private:
                 0LL /* RowIndex */
             };
         } else {
+            int leftRowIndex = dataSlice->LowerLimit().RowIndex.Get(0);
             leftEndpoint = {
                 EEndpointType::Left,
                 dataSlice,
                 GetStrictKey(dataSlice->LowerLimit().Key, PrimaryPrefixLength_ + 1, RowBuffer_, EValueType::Max),
-                dataSlice->LowerLimit().RowIndex.Get(0)
+                leftRowIndex
             };
+
+            int rightRowIndex = dataSlice->UpperLimit().RowIndex.Get(
+                    dataSlice->Type == EDataSourceType::UnversionedTable
+                    ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
+                    : 0);
 
             rightEndpoint = {
                 EEndpointType::Right,
                 dataSlice,
                 GetStrictKeySuccessor(dataSlice->UpperLimit().Key, PrimaryPrefixLength_, RowBuffer_, EValueType::Max),
-                dataSlice->UpperLimit().RowIndex.Get(std::numeric_limits<i64>::max())
+                rightRowIndex
             };
         }
 
@@ -1366,7 +1372,7 @@ private:
                         EEndpointType::ForeignRight,
                         dataSlice,
                         dataSlice->UpperLimit().Key,
-                        dataSlice->UpperLimit().RowIndex.Get(std::numeric_limits<i64>::max())
+                        dataSlice->UpperLimit().RowIndex.Get(0)
                     };
                     Endpoints_.emplace_back(leftEndpoint);
                     Endpoints_.emplace_back(rightEndpoint);
