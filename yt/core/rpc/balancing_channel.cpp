@@ -317,7 +317,7 @@ private:
             it = HashToViableChannel_.begin();
         }
 
-        LOG_DEBUG("Sticky peer selected (RequestId: %v, RequestHash: %v, RandomIndex: %v/%v, Address: %v)",
+        LOG_DEBUG("Sticky peer selected (RequestId: %v, RequestHash: %x, RandomIndex: %v/%v, Address: %v)",
             request->GetRequestId(),
             hash,
             randomIndex,
