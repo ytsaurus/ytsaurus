@@ -39,12 +39,14 @@ create_stub_repository()
 configure_arcadia_mirror()
 {
     name=$1
+    path=${name//-//}
+    path=${path/\/\//-}
     xname=arcadia-$name
     root=$MIRRORS_DIRECTORY/$xname.git
 
     create_stub_repository $root || true
 
-    (cd $root && git config --local svn-remote.svn.url "svn+ssh://arcadia.yandex.ru/arc/trunk/arcadia/${name//-//}")
+    (cd $root && git config --local svn-remote.svn.url "svn+ssh://arcadia.yandex.ru/arc/trunk/arcadia/$path")
     (cd $root && git config --local svn-remote.svn.fetch ":refs/remotes/git-svn")
 
     (cd $root && git config --remove-section remote.origin) || true
@@ -58,13 +60,15 @@ configure_arcadia_mirror()
 configure_github_mirror()
 {
     name=$1
+    path=${name//-//}
+    path=${path/\/\//-}
     xname=github-$name
     root=$MIRRORS_DIRECTORY/$xname.git
 
     create_stub_repository $root || true
 
     (cd $root && git config --remove-section remote.github) || true
-    (cd $root && git config --local remote.github.url "git://github.com/${name/-//}")
+    (cd $root && git config --local remote.github.url "git://github.com/$path")
     (cd $root && git config --local remote.github.mirror true)
     (cd $root && git config --local remote.github.tagopt --no-tags)
     (cd $root && git config --local --unset-all remote.github.fetch) || true
@@ -86,6 +90,7 @@ configure_github_mirror()
 mkdir -p $MIRRORS_DIRECTORY
 
 configure_arcadia_mirror contrib-libs-base64
+configure_arcadia_mirror contrib-libs-c--ares
 configure_arcadia_mirror contrib-libs-libbz2
 configure_arcadia_mirror contrib-libs-libiconv
 configure_arcadia_mirror contrib-libs-lz4
