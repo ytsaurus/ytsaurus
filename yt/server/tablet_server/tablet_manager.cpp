@@ -1102,10 +1102,7 @@ public:
             if (table->IsReplicated()) {
                 const auto* replicatedTable = table->As<TReplicatedTableNode>();
                 for (auto* replica : replicatedTable->Replicas()) {
-                    auto pair = newTablet->Replicas().emplace(replica, TTableReplicaInfo());
-                    YCHECK(pair.second);
-                    auto& replicaInfo = pair.first->second;
-                    replicaInfo.SetState(ETableReplicaState::None);
+                    YCHECK(newTablet->Replicas().emplace(replica, TTableReplicaInfo()).second);
                 }
             }
         }
