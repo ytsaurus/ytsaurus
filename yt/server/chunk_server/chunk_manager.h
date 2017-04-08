@@ -115,6 +115,7 @@ public:
     void UnstageChunkList(TChunkList* chunkList, bool recursive);
 
     TNodePtrWithIndexesList LocateChunk(TChunkPtrWithIndexes chunkWithIndexes);
+    void TouchChunk(TChunkPtrWithIndexes chunkWithIndexes);
 
     void ClearChunkList(TChunkList* chunkList);
 
