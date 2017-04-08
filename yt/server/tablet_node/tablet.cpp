@@ -946,11 +946,11 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->QuerySchema = PhysicalSchema_.ToQuery();
     snapshot->Atomicity = Atomicity_;
     snapshot->HashTableSize = HashTableSize_;
+    snapshot->StoreCount = static_cast<int>(StoreIdMap_.size());
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
     snapshot->RetainedTimestamp = RetainedTimestamp_;
 
     auto addPartitionStatistics = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
-        snapshot->StoreCount += partitionSnapshot->Stores.size();
         for (const auto& store : partitionSnapshot->Stores) {
             if (store->IsChunk()) {
                 auto chunkStore = store->AsChunk();
