@@ -249,7 +249,9 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/credentials_injecting_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_client.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_client_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_connection.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_transaction.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/config.cpp

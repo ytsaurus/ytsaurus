@@ -1,7 +1,10 @@
 package NYT.NRpcProxy.NProto;
 
 import "yt/core/rpc/rpc.proto";
+import "yt/core/misc/guid.proto";
 
+////////////////////////////////////////////////////////////////////////////////
+// Authentication.
 ////////////////////////////////////////////////////////////////////////////////
 
 message TCredentialsExt
@@ -19,6 +22,38 @@ message TCredentialsExt
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Scalars.
+////////////////////////////////////////////////////////////////////////////////
+
+/*
+Durations and serialized as int64, in microseconds.
+
+Instants are serialized as int64, in microseconds since unix epoch.
+
+Guids are serialized as a pair of fixed64 (see yt/core/misc/guid.proto).
+*/
+
+enum ETransactionType
+{
+    MASTER = 0;
+    TABLET = 1;
+}
+
+enum ERowModificationType
+{
+    WRITE = 0;
+    DELETE = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Rowsets.
+////////////////////////////////////////////////////////////////////////////////
+
+/*
+Each rowset is decodeable solely with the descriptor, which encodes rowset kind,
+column names and column types. Actual data is passed via attachments in the wire
+protocol.
+*/
 
 enum ERowsetKind
 {
@@ -27,7 +62,6 @@ enum ERowsetKind
     VERSIONED = 2;
 }
 
-// Specifies how to decode rowset data passed via attachments.
 message TRowsetDescriptor
 {
     // Currently, there is only one version. This field is reserved for future changes.
@@ -50,6 +84,62 @@ message TRowsetDescriptor
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartTransaction
+{
+    required ETransactionType type = 1;
+
+    optional int64 timeout = 2;
+
+    // If not null then the transaction must use this externally provided id.
+    // Only applicable to tablet transactions.
+    optional NYT.NProto.TGuid id = 3;
+
+    optional NYT.NProto.TGuid parent_id = 4;
+
+    optional bool auto_abort = 5 [default = true];
+    optional bool sticky = 6 [default = false];
+    optional bool ping = 7 [default = true];
+    optional bool ping_ancestors = 8 [default = true];
+
+    // TODO(sandello): Attributes, atomicity, durability.
+}
+
+message TRspStartTransaction
+{
+    required NYT.NProto.TGuid id = 1;
+    required uint64 start_timestamp = 2;
+}
+
+message TReqPingTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    optional bool sticky = 6 [default = false];
+}
+
+message TRspPingTransaction
+{
+}
+
+message TReqCommitTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    optional bool sticky = 6 [default = false];
+}
+
+message TRspCommitTransaction
+{
+}
+
+message TReqAbortTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    optional bool sticky = 6 [default = false];
+}
+
+message TRspAbortTransaction
+{
+}
 
 message TReqGetNode
 {
@@ -91,6 +181,29 @@ message TReqVersionedLookupRows
 message TRspVersionedLookupRows
 {
     required TRowsetDescriptor rowset_descriptor = 200;
+}
+
+message TReqSelectRows
+{
+    required string query = 1;
+}
+
+message TRspSelectRows
+{
+    required TRowsetDescriptor rowset_descriptor = 200;
+}
+
+message TReqModifyRows
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required string path = 2;
+    repeated ERowModificationType row_modification_types = 3;
+
+    required TRowsetDescriptor rowset_descriptor = 200;
+}
+
+message TRspModifyRows
+{
 }
 
 ////////////////////////////////////////////////////////////////////////////////
