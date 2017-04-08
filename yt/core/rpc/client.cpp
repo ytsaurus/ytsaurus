@@ -133,9 +133,9 @@ size_t TClientRequest::GetHash() const
 {
     if (!Hash_) {
         size_t hash = 0;
-        hash = HashCombine(hash, GetChecksum(GetSerializedBody()));
+        HashCombine(hash, GetChecksum(GetSerializedBody()));
         for (const auto& attachment : Attachments_) {
-            hash = HashCombine(hash, GetChecksum(attachment));
+            HashCombine(hash, GetChecksum(attachment));
         }
         Hash_ = hash;
     }
