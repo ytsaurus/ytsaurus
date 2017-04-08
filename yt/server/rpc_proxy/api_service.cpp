@@ -9,6 +9,7 @@
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/rowset.h>
 
 #include <yt/ytlib/rpc_proxy/api_service_proxy.h>
@@ -38,6 +39,8 @@ using namespace NCompression;
 using namespace NBlackbox;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NObjectClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,9 +59,18 @@ public:
             RpcProxyLogger)
         , Bootstrap_(bootstrap)
     {
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNode));
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows));
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
     }
 
 private:
@@ -136,6 +148,136 @@ private:
         }
     }
 
+    ITransactionPtr GetTransactionOrAbortContext(
+        const IServiceContextPtr& context,
+        const TTransactionId& transactionId,
+        const TTransactionAttachOptions& options)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context);
+        if (!client) {
+            return nullptr;
+        }
+
+        auto transaction = client->AttachTransaction(transactionId, options);
+
+        if (!transaction) {
+            context->Reply(TError("No such transaction %v", transactionId));
+            return nullptr;
+        }
+
+        context->SetRequestInfo("TransactionId: %v", transactionId);
+
+        return transaction;
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, StartTransaction)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context);
+        if (!client) {
+            return;
+        }
+
+        TTransactionStartOptions options;
+        if (request->has_timeout()) {
+            options.Timeout = FromProto<TDuration>(request->timeout());
+        }
+        if (request->has_id()) {
+            FromProto(&options.Id, request->id());
+        }
+        if (request->has_parent_id()) {
+            FromProto(&options.ParentId, request->parent_id());
+        }
+        options.AutoAbort = request->auto_abort();
+        options.Sticky = request->sticky();
+        options.Ping = request->ping();
+        options.PingAncestors = request->ping_ancestors();
+
+        client->StartTransaction(NTransactionClient::ETransactionType(request->type()), options)
+            .Subscribe(BIND([=] (const TErrorOr<ITransactionPtr>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    const auto& value = result.Value();
+                    ToProto(response->mutable_id(), value->GetId());
+                    response->set_start_timestamp(value->GetStartTimestamp());
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, PingTransaction)
+    {
+        auto transactionAttachOptions = TTransactionAttachOptions{};
+        transactionAttachOptions.Ping = true;
+        transactionAttachOptions.PingAncestors = true;
+        transactionAttachOptions.Sticky = request->sticky();
+        auto transaction = GetTransactionOrAbortContext(
+            context,
+            FromProto<TTransactionId>(request->transaction_id()),
+            transactionAttachOptions);
+        if (!transaction) {
+            return;
+        }
+
+        // TODO(sandello): Options!
+        transaction->Ping().Subscribe(BIND([=] (const TErrorOr<void>& result) {
+            if (!result.IsOK()) {
+                context->Reply(result);
+            } else {
+                context->Reply();
+            }
+        }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, CommitTransaction)
+    {
+        auto transactionAttachOptions = TTransactionAttachOptions{};
+        transactionAttachOptions.Ping = false;
+        transactionAttachOptions.PingAncestors = false;
+        transactionAttachOptions.Sticky = request->sticky();
+        auto transaction = GetTransactionOrAbortContext(
+            context,
+            FromProto<TTransactionId>(request->transaction_id()),
+            transactionAttachOptions);
+        if (!transaction) {
+            return;
+        }
+
+        // TODO(sandello): Options!
+        transaction->Commit().Subscribe(BIND([=] (const TErrorOr<TTransactionCommitResult>& result) {
+            if (!result.IsOK()) {
+                context->Reply(result);
+            } else {
+                // TODO(sandello): Fill me.
+                context->Reply();
+            }
+        }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, AbortTransaction)
+    {
+        auto transactionAttachOptions = TTransactionAttachOptions{};
+        transactionAttachOptions.Ping = false;
+        transactionAttachOptions.PingAncestors = false;
+        transactionAttachOptions.Sticky = request->sticky();
+        auto transaction = GetTransactionOrAbortContext(
+            context,
+            FromProto<TTransactionId>(request->transaction_id()),
+            transactionAttachOptions);
+        if (!transaction) {
+            return;
+        }
+
+        // TODO(sandello): Options!
+        transaction->Abort().Subscribe(BIND([=] (const TErrorOr<void>& result) {
+            if (!result.IsOK()) {
+                context->Reply(result);
+            } else {
+                context->Reply();
+            }
+        }));
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GetNode)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context);
@@ -147,14 +289,15 @@ private:
 
         // TODO(sandello): Inject options into req/rsp structure.
         auto options = TGetNodeOptions();
-        client->GetNode(request->path(), options).Subscribe(BIND([=] (const TErrorOr<NYson::TYsonString>& result) {
-            if (!result.IsOK()) {
-                context->Reply(result);
-            } else {
-                response->set_data(result.Value().GetData());
-                context->Reply();
-            }
-        }));
+        client->GetNode(request->path(), options)
+            .Subscribe(BIND([=] (const TErrorOr<NYson::TYsonString>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    response->set_data(result.Value().GetData());
+                    context->Reply();
+                }
+            }));
     }
 
     template <class TContext, class TRequest, class TOptions>
@@ -200,10 +343,10 @@ private:
         if (!result.IsOK()) {
             context->Reply(result);
         } else {
-            const auto& rowset = result.Value();
+            const auto& value = result.Value();
             response->Attachments() = SerializeRowset(
-                rowset->Schema(),
-                rowset->GetRows(),
+                value->Schema(),
+                value->GetRows(),
                 response->mutable_rowset_descriptor());
             context->Reply();
         }
@@ -250,6 +393,75 @@ private:
                 LookupRowsEpilogue(context, response, result);
             }));
     }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, SelectRows)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context);
+        if (!client) {
+            return;
+        }
+
+        TSelectRowsOptions options; // TODO: Fill all options.
+
+        client->SelectRows(request->query(), options)
+            .Subscribe(BIND([=] (const TErrorOr<TSelectRowsResult>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    const auto& value = result.Value();
+                    response->Attachments() = SerializeRowset(
+                        value.Rowset->Schema(),
+                        value.Rowset->GetRows(),
+                        response->mutable_rowset_descriptor());
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ModifyRows)
+    {
+        auto transactionAttachOptions = TTransactionAttachOptions{};
+        transactionAttachOptions.Ping = false;
+        transactionAttachOptions.PingAncestors = false;
+        transactionAttachOptions.Sticky = true; // XXX(sandello): Fix me!
+        auto transaction = GetTransactionOrAbortContext(
+            context,
+            FromProto<TTransactionId>(request->transaction_id()),
+            transactionAttachOptions);
+        if (!transaction) {
+            return;
+        }
+
+        auto rowset = DeserializeRowset<TUnversionedRow>(
+            request->rowset_descriptor(),
+            MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
+
+        const auto& rowsetRows = rowset->GetRows();
+        auto rowsetSize = rowset->GetRows().Size();
+
+        if (rowsetSize != request->row_modification_types_size()) {
+            THROW_ERROR_EXCEPTION("Row count mismatch");
+        }
+
+        std::vector<TRowModification> modifications;
+        modifications.reserve(rowsetSize);
+        for (size_t index = 0; index < rowsetSize; ++index) {
+            modifications.push_back({
+                ERowModificationType(request->row_modification_types(index)),
+                rowsetRows[index]
+            });
+        }
+
+        TModifyRowsOptions options;
+        transaction->ModifyRows(
+            request->path(),
+            TNameTable::FromSchema(rowset->Schema()),
+            MakeSharedRange(std::move(modifications), rowset),
+            options);
+
+        context->Reply();
+    }
+
 };
 
 IServicePtr CreateApiService(

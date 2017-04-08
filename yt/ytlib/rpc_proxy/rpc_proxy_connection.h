@@ -17,10 +17,10 @@ class TRpcProxyConnection
     : public NApi::IConnection
 {
 public:
-    TRpcProxyConnection(TRpcProxyConnectionConfigPtr config);
+    TRpcProxyConnection(
+        TRpcProxyConnectionConfigPtr config,
+        NConcurrency::TActionQueuePtr actionQueue);
     ~TRpcProxyConnection();
-
-    void Initialize();
 
     virtual NObjectClient::TCellTag GetCellTag() override;
 
@@ -42,11 +42,9 @@ public:
 
 private:
     const TRpcProxyConnectionConfigPtr Config_;
+    const NConcurrency::TActionQueuePtr ActionQueue_;
 
     friend class TRpcProxyClient;
-
-    NConcurrency::TActionQueuePtr ActionQueue_;
-    NRpc::IChannelPtr Channel_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRpcProxyConnection)
