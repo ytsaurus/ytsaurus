@@ -436,7 +436,13 @@ class TestDynamicTables(TestDynamicTablesBase):
 
 ##################################################################
 
-class TestDynamicTableStateTransitions(TestDynamicTables):
+class TestDynamicTableStateTransitions(TestDynamicTablesBase):
+    DELTA_MASTER_CONFIG = {
+        "tablet_manager": {
+            "leader_reassignment_timeout" : 1000,
+            "peer_revocation_timeout" : 600000
+        }
+    }
 
     def _get_expected_state(self, initial, first_command, second_command):
         M = "mounted"
