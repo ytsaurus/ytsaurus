@@ -42,7 +42,6 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TransactionClientLogger;
 static std::atomic<ui32> TabletTransactionHashCounter; // used as a part of transaction id
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,6 +110,8 @@ class TTransaction::TImpl
 public:
     explicit TImpl(TIntrusivePtr<TTransactionManager::TImpl> owner)
         : Owner_(owner)
+        , Logger(NLogging::TLogger(TransactionClientLogger)
+            .AddTag("CellTag: %v", Owner_->TimestampProvider_->GetCellTag()))
     { }
 
     ~TImpl()
@@ -140,13 +141,8 @@ public:
 
         switch (Atomicity_) {
             case EAtomicity::Full:
-                if (options.Id) {
-                    auto startTimestamp = TimestampFromTransactionId(options.Id);
-                    return OnGotStartTimestamp(options, startTimestamp);
-                } else {
-                    return Owner_->TimestampProvider_->GenerateTimestamps()
-                        .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
-                }
+                return Owner_->TimestampProvider_->GenerateTimestamps()
+                    .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
 
             case EAtomicity::None:
                 return StartNonAtomicTabletTransaction();
@@ -438,6 +434,7 @@ private:
     TTimestamp StartTimestamp_ = NullTimestamp;
     TTransactionId Id_;
 
+    const NLogging::TLogger Logger;
 
 
     static void ValidateStartOptions(
