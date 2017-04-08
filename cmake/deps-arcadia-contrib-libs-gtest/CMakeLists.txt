@@ -4,6 +4,6 @@ set(SRCS
   ${BASE}/src/gtest-all.cc
 )
 
-include_directories(${CMAKE_SOURCE_DIR}/contrib/libs/gtest)
+include_directories(${BASE})
 
 add_library(${NAME} STATIC ${SRCS})
