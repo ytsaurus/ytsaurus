@@ -862,7 +862,7 @@ private:
             // NB: "this" could be dying; can't capture it.
             auto transactionId = Id_;
             asyncResults.push_back(asyncRspOrError.Apply(
-                BIND([=] (const TTransactionSupervisorServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
+                BIND([=, Logger = Logger] (const TTransactionSupervisorServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
                     if (rspOrError.IsOK()) {
                         LOG_DEBUG("Transaction aborted (TransactionId: %v, CellId: %v)",
                             transactionId,
