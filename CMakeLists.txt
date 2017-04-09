@@ -351,8 +351,8 @@ add_custom_target(version
   COMMENT "Stamping YT..."
 )
 
-add_custom_target(build-type ALL
-    COMMAND echo "BUILD_TYPE = \"${CMAKE_BUILD_TYPE}\"" > ${CMAKE_SOURCE_DIR}/tests/integration/build_type.py
-    COMMENT "Writing build type..."
-    VERBATIM
-)
+if(CMAKE_VERSION VERSION_GREATER "3.0")
+  file(LOCK ${CMAKE_SOURCE_DIR}/tests/integration/build_type.py)
+endif()
+file(WRITE ${CMAKE_SOURCE_DIR}/tests/integration/build_type.py "BUILD_TYPE = \"${CMAKE_BUILD_TYPE}\"")
+
