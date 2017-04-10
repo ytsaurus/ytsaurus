@@ -78,7 +78,9 @@ private:
     void Disable(const TError& error);
     void ValidateEnabled() const;
 
-    void ValidateNotExists(const Stroka& path) const;
+    static void ValidateFileName(const Stroka& fileName);
+    static void ValidateNotExists(const Stroka& path);
+
     bool IsInsideTmpfs(const Stroka& path) const;
 
     void EnsureNotInUse(const Stroka& path) const;
