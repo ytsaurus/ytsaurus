@@ -58,4 +58,6 @@ add_definitions(
 
 set_source_files_properties(${SRCS} PROPERTIES LANGUAGE C)
 
+include_directories(${BASE})
+
 add_library(${NAME} STATIC ${SRCS})
