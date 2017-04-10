@@ -386,7 +386,7 @@ class YtStuff(object):
                 time.sleep(time_to_sleep)
         else:
             self._save_logs(save_yt_all=True)
-            raise Exception("Can't start local YT for %d attempts." % max_retries)
+            raise Exception("Can't start local YT with id %s for %d attempts." % (self.yt_id, max_retries))
 
 
     def suspend_local_yt(self):
