@@ -786,7 +786,7 @@ class JsonFormat(Format):
         return JsonFormat._wrap_json_module(module)
 
     def __init__(self, process_table_index=None, control_attributes_mode="generator",
-                 table_index_column="@table_index", attributes=None, raw=None, enable_ujson=True):
+                 table_index_column="@table_index", attributes=None, raw=None, enable_ujson=False):
         """
         :param bool process_table_index: DEPRECATED! process input and output table switchers in `dump_rows`\
          and `load_rows`. See `wiki <https://wiki.yandex-team.ru/yt/userdoc/tableswitch#yson>`_.
