@@ -250,12 +250,18 @@ def find_tables_to_compress(root):
 
     return compression_queues, total_table_count
 
+def configure_client():
+    command_params = yt.config.get_option("COMMAND_PARAMS", None)
+    command_params["suppress_access_tracking"] = True
+
 def main():
     parser = argparse.ArgumentParser(description="Script finds tables to compress on cluster")
     parser.add_argument("--search-root", default="/", help='path to search tables, default is "/"')
     parser.add_argument("--tasks-root", required=True, help="compression task lists root path")
 
     args = parser.parse_args()
+
+    configure_client()
 
     compression_queues, total_table_count = find_tables_to_compress(args.search_root)
     if total_table_count == 0:
