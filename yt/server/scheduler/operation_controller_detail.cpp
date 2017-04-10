@@ -4123,6 +4123,13 @@ void TOperationControllerBase::GetUserFilesAttributes()
                 THROW_ERROR_EXCEPTION("Empty user file name for %v",
                     path);
             }
+
+            if (NFS::GetFileName(fileName) != fileName) {
+                THROW_ERROR_EXCEPTION("User file name for %v cannot include nested directories", path)
+                    << TErrorAttribute("file_name", fileName);
+            }
+
+
             if (!userFileNames[file.Stage].insert(fileName).second) {
                 THROW_ERROR_EXCEPTION("Duplicate user file name %Qv for %v",
                     fileName,
