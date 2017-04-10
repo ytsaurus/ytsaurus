@@ -43,10 +43,10 @@ void TNodeVisitor::VisitAny(const TNode& node)
             VisitBool(node);
             break;
         case TNode::LIST:
-            VisitList(node);
+            VisitList(node.AsList());
             break;
         case TNode::MAP:
-            VisitMap(node);
+            VisitMap(node.AsMap());
             break;
         case TNode::ENTITY:
             VisitEntity();
@@ -83,20 +83,20 @@ void TNodeVisitor::VisitBool(const TNode& node)
     Consumer_->OnBooleanScalar(node.AsBool());
 }
 
-void TNodeVisitor::VisitList(const TNode& node)
+void TNodeVisitor::VisitList(const TNode::TList& nodeList)
 {
     Consumer_->OnBeginList();
-    for (const auto& item : node.AsList()) {
+    for (const auto& item : nodeList) {
         Consumer_->OnListItem();
         VisitAny(item);
     }
     Consumer_->OnEndList();
 }
 
-void TNodeVisitor::VisitMap(const TNode& node)
+void TNodeVisitor::VisitMap(const TNode::TMap& nodeMap)
 {
     Consumer_->OnBeginMap();
-    for (const auto& item : node.AsMap()) {
+    for (const auto& item : nodeMap) {
         Consumer_->OnKeyedItem(item.first);
         VisitAny(item.second);
     }
