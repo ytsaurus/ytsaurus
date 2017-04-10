@@ -787,6 +787,15 @@ class JsonFormat(Format):
 
     def __init__(self, process_table_index=None, control_attributes_mode="generator",
                  table_index_column="@table_index", attributes=None, raw=None, enable_ujson=True):
+        """
+        :param bool process_table_index: DEPRECATED! process input and output table switchers in `dump_rows`\
+         and `load_rows`. See `wiki <https://wiki.yandex-team.ru/yt/userdoc/tableswitch#yson>`_.
+        :param str control_attributes_mode: mode of processing rows with control attributes, must be one of \
+        ["row_fields", "iterator", "generator", "none"]. In "row_fields" mode attributes are put in the regular rows with \
+        as "@row_index", "@range_index" and "@table_index". Also "@table_index" key is parsed from output rows. \
+        In "iterator" mode attributes rows object is iterator and control attributes are available as fields of the iterator. \
+        In "none" (or deprecated "generator") mode rows are unmodified.
+        """
         attributes = get_value(attributes, {})
         super(JsonFormat, self).__init__("json", attributes, raw, self._ENCODING)
         self.process_table_index = process_table_index
