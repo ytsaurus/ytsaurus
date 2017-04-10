@@ -64,6 +64,8 @@ def safe_get(path, **kwargs):
     except yt.YtResponseError as err:
         if err.is_access_denied():
             logger.warning("Failed to get node %s, access denied", path)
+        elif err.is_resolve_error():
+            logger.warning("Failed to get node %s, node does not exist", path)
         else:
             raise
 
