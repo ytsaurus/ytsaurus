@@ -124,22 +124,30 @@ private:
     bool AlwaysCreateAttributes_;
     TNullable<Stroka> Encoding_;
 
+    // NOTE: Not using specific PyCXX objects (e.g. Py::Bytes) here and below to avoid
+    // unnecessary checks.
+    using PyObjectPtr = std::unique_ptr<PyObject, decltype(&Py::_XDECREF)>;
+
     std::queue<Py::Object> Objects_;
 
-    std::stack<std::pair<Py::Object, EPythonObjectType>> ObjectStack_;
+    std::stack<std::pair<PyObjectPtr, EPythonObjectType>> ObjectStack_;
     // NB(ignat): to avoid using Stroka we need to make tricky bufferring while reading from input stream.
-    std::stack<Stroka> Keys_;
-    TNullable<Py::Object> Attributes_;
+    std::stack<PyObject*> Keys_;
+    TNullable<PyObjectPtr> Attributes_;
+
+    yhash_map<TStringBuf, PyObjectPtr> KeyCache_;
+    std::vector<PyObjectPtr> OriginalKeyCache_;
 
     void AddObject(
-        PyObject* obj,
+        PyObjectPtr obj,
         const Py::Callable& type,
         EPythonObjectType objType = EPythonObjectType::Other,
         bool forceYsonTypeCreation = false);
-    void AddObject(PyObject* obj);
 
-    void Push(const Py::Object& obj, EPythonObjectType objectType);
-    Py::Object Pop();
+    void Push(PyObjectPtr objPtr, EPythonObjectType objectType);
+    PyObjectPtr Pop();
+
+    static PyObjectPtr MakePyObjectPtr(PyObject* obj);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -64,7 +64,6 @@ public:
         Consumer_.reset(new NYTree::TPythonObjectBuilder(alwaysCreateAttributes, encoding));
         Parser_.reset(new NYson::TYsonParser(Consumer_.get(), NYson::EYsonType::ListFragment));
         IsStreamRead_ = false;
-
     }
 
     Py::Object iter()
