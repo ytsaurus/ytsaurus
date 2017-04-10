@@ -7,6 +7,10 @@
 class TInputStream;
 class TOutputStream;
 
+namespace NJson {
+    class TJsonValue;
+} // namespace NJson
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,7 +18,10 @@ namespace NYT {
 TNode NodeFromYsonString(const Stroka& input, EYsonType type = YT_NODE);
 Stroka NodeToYsonString(const TNode& node, EYsonFormat format = YF_TEXT);
 
+// TODO: EYsonType argument should be removed since it doesn't affect anything
+// (check unittest MakeSureThatSecondParamDoesntAffectAnything)
 TNode NodeFromJsonString(const Stroka& input, EYsonType type = YT_NODE);
+TNode NodeFromJsonValue(const NJson::TJsonValue& input);
 
 Stroka NodeListToYsonString(const TNode::TList& nodes);
 

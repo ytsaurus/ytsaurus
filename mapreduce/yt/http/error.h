@@ -1,5 +1,7 @@
 #pragma once
 
+#include <mapreduce/yt/interface/node.h>
+
 #include <util/datetime/base.h>
 
 #include <util/generic/stroka.h>
@@ -18,8 +20,10 @@ class TError
 {
 public:
     TError();
+    TError(const Stroka& message);
     TError(int code, const Stroka& message);
     TError(const NJson::TJsonValue& value);
+    TError(const TNode& value);
 
     int GetCode() const;
     const Stroka& GetMessage() const;
@@ -32,10 +36,16 @@ public:
 
     bool ContainsText(const TStringBuf& text) const;
 
+    bool HasAttributes() const;
+    const TNode::TMap& GetAttributes() const;
+
+    Stroka GetYsonText() const;
+
 private:
     int Code_;
     Stroka Message_;
     yvector<TError> InnerErrors_;
+    TNode::TMap Attributes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,11 +55,13 @@ class TErrorResponse
 {
 public:
     TErrorResponse(int httpCode, const Stroka& requestId);
+    TErrorResponse(int httpCode, TError error);
 
     // Check if response is actually not a error.
     bool IsOk() const;
 
-    void SetRawError(const Stroka& rawError);
+    void SetRawError(const Stroka& message);
+    void SetError(TError error);
     void ParseFromJsonError(const Stroka& jsonError);
 
     int GetHttpCode() const;
@@ -90,7 +102,6 @@ public:
 private:
     int HttpCode_;
     Stroka RequestId_;
-    Stroka RawError_;
     TError Error_;
 
     bool Retriable_;

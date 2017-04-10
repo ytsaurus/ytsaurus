@@ -2,8 +2,11 @@
 #include "error_codes.h"
 
 #include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/node_visitor.h>
 
 #include <library/json/json_reader.h>
+#include <library/yson/writer.h>
 
 #include <util/string/builder.h>
 #include <util/stream/str.h>
@@ -12,10 +15,72 @@ namespace NYT {
 
 using namespace NJson;
 
-////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////
+
+static void WriteErrorDescription(const TError& error, TOutputStream* out)
+{
+    (*out) << '`' << error.GetMessage() << '\'';
+    const auto& innerErrorList = error.InnerErrors();
+    if (!innerErrorList.empty()) {
+        (*out) << " { ";
+        bool first = true;
+        for (const auto& innerError : innerErrorList) {
+            if (first) {
+                first = false;
+            } else {
+                (*out) << " ; ";
+            }
+            WriteErrorDescription(innerError, out);
+        }
+        (*out) << " }";
+    }
+}
+
+static void SerializeError(const TError& error, IYsonConsumer* consumer)
+{
+    consumer->OnBeginMap();
+    {
+        consumer->OnKeyedItem("code");
+        consumer->OnInt64Scalar(error.GetCode());
+
+        consumer->OnKeyedItem("message");
+        consumer->OnStringScalar(error.GetMessage());
+
+        if (!error.GetAttributes().empty()) {
+            consumer->OnKeyedItem("attributes");
+            consumer->OnBeginMap();
+            {
+                for (const auto& item : error.GetAttributes()) {
+                    consumer->OnKeyedItem(item.first);
+                    TNodeVisitor(consumer).Visit(item.second);
+                }
+            }
+            consumer->OnEndMap();
+        }
+
+        if (!error.InnerErrors().empty()) {
+            consumer->OnKeyedItem("inner_errors");
+            {
+                consumer->OnBeginList();
+                for (const auto& innerError : error.InnerErrors()) {
+                    SerializeError(innerError, consumer);
+                }
+                consumer->OnEndList();
+            }
+        }
+    }
+    consumer->OnEndMap();
+}
+
+////////////////////////////////////////////////////////////////////
 
 TError::TError()
     : Code_(0)
+{ }
+
+TError::TError(const Stroka& message)
+    : Code_(NYT::NClusterErrorCodes::Generic)
+    , Message_(message)
 { }
 
 TError::TError(int code, const Stroka& message)
@@ -43,6 +108,46 @@ TError::TError(const TJsonValue& value)
         const TJsonValue::TArray& innerErrors = it->second.GetArray();
         for (const auto& innerError : innerErrors) {
             InnerErrors_.push_back(TError(innerError));
+        }
+    }
+
+    it = map.find("attributes");
+    if (it != map.end()) {
+        auto attributes = NYT::NodeFromJsonValue(it->second);
+        if (attributes.IsMap()) {
+            Attributes_ = std::move(attributes.AsMap());
+        }
+    }
+}
+
+TError::TError(const TNode& node)
+{
+    const auto& map = node.AsMap();
+    auto it = map.find("message");
+    if (it != map.end()) {
+        Message_ = it->second.AsString();
+    }
+
+    it = map.find("code");
+    if (it != map.end()) {
+        Code_ = static_cast<int>(it->second.AsInt64());
+    } else {
+        Code_ = NYT::NClusterErrorCodes::Generic;
+    }
+
+    it = map.find("inner_errors");
+    if (it != map.end()) {
+        const auto& innerErrors = it->second.AsList();
+        for (const auto& innerError : innerErrors) {
+            InnerErrors_.push_back(TError(innerError));
+        }
+    }
+
+    it = map.find("attributes");
+    if (it != map.end()) {
+        auto& attributes = it->second;
+        if (attributes.IsMap()) {
+            Attributes_ = std::move(attributes.AsMap());
         }
     }
 }
@@ -111,6 +216,24 @@ bool TError::ContainsText(const TStringBuf& text) const
     return false;
 }
 
+bool TError::HasAttributes() const
+{
+    return !Attributes_.empty();
+}
+
+const TNode::TMap& TError::GetAttributes() const
+{
+    return Attributes_;
+}
+
+Stroka TError::GetYsonText() const
+{
+    TStringStream out;
+    TYsonWriter writer(&out, YF_TEXT);
+    SerializeError(*this, &writer);
+    return std::move(out.Str());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TErrorResponse::TErrorResponse(int httpCode, const Stroka& requestId)
@@ -123,15 +246,20 @@ bool TErrorResponse::IsOk() const
     return Error_.GetCode() == 0;
 }
 
-void TErrorResponse::SetRawError(const Stroka& rawError)
+void TErrorResponse::SetRawError(const Stroka& message)
 {
-    RawError_ = rawError;
+    Error_ = TError(message);
+    Setup();
+}
+
+void TErrorResponse::SetError(TError error)
+{
+    Error_ = std::move(error);
     Setup();
 }
 
 void TErrorResponse::ParseFromJsonError(const Stroka& jsonError)
 {
-    RawError_ = jsonError;
     Error_.ParseFrom(jsonError);
     Setup();
 }
@@ -154,6 +282,11 @@ bool TErrorResponse::IsRetriable() const
 TDuration TErrorResponse::GetRetryInterval() const
 {
     return RetryInterval_;
+}
+
+const TError& TErrorResponse::GetError() const
+{
+    return Error_;
 }
 
 bool TErrorResponse::IsResolveError() const
@@ -203,7 +336,9 @@ bool TErrorResponse::IsConcurrentOperationsLimitReached() const
 
 void TErrorResponse::Setup()
 {
-    *this << Error_.GetMessage() << ". Raw error: " << RawError_;
+    TStringStream s;
+    WriteErrorDescription(Error_, &s);
+    *this << s.Str() << "; full error: " << Error_.GetYsonText();
 
     Retriable_ = true;
     RetryInterval_ = TConfig::Get()->RetryInterval;
@@ -229,6 +364,6 @@ void TErrorResponse::Setup()
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
