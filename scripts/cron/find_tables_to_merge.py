@@ -21,6 +21,9 @@ def configure_logger():
     logger.handlers[0].setFormatter(formatter)
     logger = logging.LoggerAdapter(logger, extra={"yt_proxy": yt.config["proxy"]["url"]})
 
+def configure_client():
+    command_params = yt.config.get_option("COMMAND_PARAMS", None)
+    command_params["suppress_access_tracking"] = True
 
 def main():
     parser = ArgumentParser()
@@ -43,6 +46,7 @@ def main():
         yt.config.set_proxy(args.proxy)
 
     configure_logger()
+    configure_client()
 
     logger.info("Finding tables to merge")
 

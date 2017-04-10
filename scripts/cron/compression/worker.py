@@ -71,12 +71,17 @@ def configure_logging(args):
     yt_logger.set_formatter(formatter)
     yt_logger.BASIC_FORMATTER = formatter
 
+def configure_client():
+    command_params = yt.config.get_option("COMMAND_PARAMS", None)
+    command_params["suppress_access_tracking"] = True
+
 def main():
     parser = ArgumentParser(description="Run compression")
     parser.add_argument("--tasks-path", required=True, help="path to compression tasks list")
     parser.add_argument("--id", required=True, help="worker id, useful for logging")
     args = parser.parse_args()
 
+    configure_client()
     configure_logging(args)
     process_tasks_from_list(args.tasks_path, compress, process_forever=True)
 
