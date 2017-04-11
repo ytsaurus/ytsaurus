@@ -1,5 +1,6 @@
 #pragma once
 
+#include "client_method_options.h"
 #include "fwd.h"
 #include "common.h"
 #include "node.h"
@@ -22,78 +23,6 @@ enum ENodeType : int
     NT_FILE,
     NT_TABLE,
     NT_DOCUMENT
-};
-
-struct TCreateOptions
-{
-    using TSelf = TCreateOptions;
-
-    FLUENT_FIELD_DEFAULT(bool, Recursive, false);
-    FLUENT_FIELD_DEFAULT(bool, IgnoreExisting, false);
-    FLUENT_FIELD_OPTION(TNode, Attributes);
-};
-
-struct TRemoveOptions
-{
-    using TSelf = TRemoveOptions;
-
-    FLUENT_FIELD_DEFAULT(bool, Recursive, false);
-    FLUENT_FIELD_DEFAULT(bool, Force, false);
-};
-
-struct TGetOptions
-{
-    using TSelf = TGetOptions;
-
-    FLUENT_FIELD_OPTION(TAttributeFilter, AttributeFilter);
-    FLUENT_FIELD_OPTION(i64, MaxSize); // TODO: rename to limit
-    FLUENT_FIELD_DEFAULT(bool, IgnoreOpaque, false);
-};
-
-struct TListOptions
-{
-    using TSelf = TListOptions;
-
-    FLUENT_FIELD_OPTION(TAttributeFilter, AttributeFilter);
-    FLUENT_FIELD_OPTION(i64, MaxSize); // TODO: rename to limit
-};
-
-// https://wiki.yandex-team.ru/yt/userdoc/api/#copy
-struct TCopyOptions
-{
-    using TSelf = TCopyOptions;
-
-    FLUENT_FIELD_DEFAULT(bool, Recursive, false);
-    FLUENT_FIELD_DEFAULT(bool, Force, false);
-    FLUENT_FIELD_DEFAULT(bool, PreserveAccount, false);
-    FLUENT_FIELD_OPTION(bool, PreserveExpirationTime);
-};
-
-// https://wiki.yandex-team.ru/yt/userdoc/api/#move
-struct TMoveOptions
-{
-    using TSelf = TMoveOptions;
-
-    FLUENT_FIELD_DEFAULT(bool, Recursive, false);
-    FLUENT_FIELD_DEFAULT(bool, Force, false);
-    FLUENT_FIELD_DEFAULT(bool, PreserveAccount, false);
-    FLUENT_FIELD_OPTION(bool, PreserveExpirationTime);
-};
-
-struct TLinkOptions
-{
-    using TSelf = TLinkOptions;
-
-    FLUENT_FIELD_DEFAULT(bool, Recursive, false);
-    FLUENT_FIELD_DEFAULT(bool, IgnoreExisting, false);
-    FLUENT_FIELD_OPTION(TNode, Attributes);
-};
-
-struct TConcatenateOptions
-{
-    using TSelf = TConcatenateOptions;
-
-    FLUENT_FIELD_DEFAULT(bool, Append, false);
 };
 
 class ICypressClient

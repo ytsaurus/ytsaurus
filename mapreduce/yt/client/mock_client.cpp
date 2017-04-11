@@ -367,6 +367,10 @@ ui64 TMockClient::GenerateTimestamp() {
     return 0;
 }
 
+void TMockClient::ExecuteBatch(const TBatchRequest& /*batchRequest*/, const TExecuteBatchOptions& /*options*/) {
+    ythrow yexception() << "not implemented";
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

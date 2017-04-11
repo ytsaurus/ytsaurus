@@ -1,6 +1,8 @@
 #pragma once
 
 #include "fwd.h"
+
+#include "client_method_options.h"
 #include "common.h"
 #include "node.h"
 #include "mpl.h"
@@ -115,37 +117,6 @@ struct TYaMRRow
     TStringBuf SubKey;
     TStringBuf Value;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TDerived>
-struct TIOOptions
-{
-    using TSelf = TDerived;
-
-    FLUENT_FIELD_OPTION(TNode, Config);
-};
-
-struct TFileReaderOptions
-    : public TIOOptions<TFileReaderOptions>
-{
-    FLUENT_FIELD_OPTION(i64, Offset);
-    FLUENT_FIELD_OPTION(i64, Length);
-};
-
-struct TFileWriterOptions
-    : public TIOOptions<TFileWriterOptions>
-{ };
-
-struct TTableReaderOptions
-    : public TIOOptions<TTableReaderOptions>
-{
-    FLUENT_FIELD_DEFAULT(size_t, SizeLimit, 4 << 20);
-};
-
-struct TTableWriterOptions
-    : public TIOOptions<TTableWriterOptions>
-{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
