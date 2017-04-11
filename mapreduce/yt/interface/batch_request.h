@@ -16,8 +16,7 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////
 
 struct IBatchRequest {
-    virtual ~IBatchRequest()
-    {}
+    virtual ~IBatchRequest() = default;
 
     virtual NThreading::TFuture<TLockId> Create(
         const TYPath& path,
