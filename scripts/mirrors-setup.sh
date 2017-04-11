@@ -135,3 +135,4 @@ configure_github_mirror cython-backports_abc
 configure_github_mirror micheles-decorator
 configure_github_mirror dateutil-dateutil
 configure_github_mirror terencehonles-fusepy
+configure_github_mirror tqdm-tqdm
