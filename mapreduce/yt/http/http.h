@@ -17,6 +17,8 @@
 
 namespace NYT {
 
+class TNode;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 class THttpHeader
@@ -45,6 +47,7 @@ public:
     void SetOutputFormat(const Stroka& format);
 
     void SetParameters(const Stroka& parameters);
+    void SetParameters(const TNode& parameters);
     Stroka GetParameters() const;
 
     void SetRequestCompression(const Stroka& compression);

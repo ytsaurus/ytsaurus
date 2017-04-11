@@ -3,8 +3,9 @@
 #include "abortable_http_response.h"
 #include "error.h"
 
-#include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/log.h>
 
 #include <library/json/json_writer.h>
 #include <library/string_utils/base64/base64.h>
@@ -108,6 +109,11 @@ void THttpHeader::SetOutputFormat(const Stroka& format)
 void THttpHeader::SetParameters(const Stroka& parameters)
 {
     Parameters = parameters;
+}
+
+void THttpHeader::SetParameters(const TNode& parameters)
+{
+    Parameters = NodeToYsonString(parameters);
 }
 
 Stroka THttpHeader::GetParameters() const

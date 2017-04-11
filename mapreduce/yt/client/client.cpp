@@ -1,5 +1,8 @@
+#include "batch_request_impl.h"
 #include "operation.h"
 #include "mock_client.h"
+
+#include "rpc_parameters_serialization.h"
 
 #include <mapreduce/yt/interface/client.h>
 
@@ -29,37 +32,6 @@
 #include <library/yson/json_writer.h>
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-Stroka ToString(ELockMode mode)
-{
-    switch (mode) {
-        case LM_EXCLUSIVE: return "exclusive";
-        case LM_SHARED: return "shared";
-        case LM_SNAPSHOT: return "snapshot";
-        default:
-            ythrow yexception() << "Invalid lock mode " << static_cast<int>(mode);
-    }
-}
-
-Stroka ToString(ENodeType type)
-{
-    switch (type) {
-        case NT_STRING: return "string_node";
-        case NT_INT64: return "int64_node";
-        case NT_UINT64: return "uint64_node";
-        case NT_DOUBLE: return "double_node";
-        case NT_BOOLEAN: return "boolean_node";
-        case NT_MAP: return "map_node";
-        case NT_LIST: return "list_node";
-        case NT_FILE: return "file";
-        case NT_TABLE: return "table";
-        case NT_DOCUMENT: return "document";
-        default:
-            ythrow yexception() << "Invalid node type " << static_cast<int>(type);
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,7 +69,7 @@ public:
     {
         THttpHeader header("POST", "create");
         header.AddPath(AddPathPrefix(path));
-        header.AddParam("type", ToString(type));
+        header.AddParam("type", NDetail::ToString(type));
         header.AddTransactionId(TransactionId_);
         header.AddMutationId();
 
@@ -597,7 +569,7 @@ public:
     {
         THttpHeader header("POST", "lock");
         header.AddPath(AddPathPrefix(path));
-        header.AddParam("mode", ToString(mode));
+        header.AddParam("mode", NDetail::ToString(mode));
         header.AddTransactionId(TransactionId_);
         header.AddMutationId();
 
@@ -788,6 +760,25 @@ public:
         THttpHeader header("GET", "generate_timestamp");
         auto response = RetryRequest(Auth_, header, "", true);
         return NodeFromYsonString(response).AsUint64();
+    }
+
+    void ExecuteBatch(const TBatchRequest& request, const TExecuteBatchOptions& options) override
+    {
+        request.Impl_->MarkExecuted();
+        try {
+            THttpHeader header("POST", "execute_batch");
+            auto parameters = TNode()("requests", request.Impl_->GetParameterList());
+            if (options.Concurrency_) {
+                parameters["concurrency"] = *options.Concurrency_;
+            }
+            header.SetParameters(parameters);
+            header.AddMutationId();
+            auto response = RetryRequest(Auth_, header);
+            request.Impl_->ParseResponse(NodeFromYsonString(response));
+        } catch (const yexception& e) {
+            request.Impl_->SetErrorResult(e.what());
+            throw;
+        }
     }
 
 private:

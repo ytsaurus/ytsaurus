@@ -1,6 +1,9 @@
 #pragma once
 
 #include "fwd.h"
+
+#include "client_method_options.h"
+#include "batch_request.h"
 #include "cypress.h"
 #include "io.h"
 #include "node.h"
@@ -19,93 +22,6 @@ enum ELockMode : int
     LM_EXCLUSIVE,
     LM_SHARED,
     LM_SNAPSHOT
-};
-
-struct TStartTransactionOptions
-{
-    using TSelf = TStartTransactionOptions;
-
-    FLUENT_FIELD_DEFAULT(bool, PingAncestors, false);
-    FLUENT_FIELD_OPTION(TDuration, Timeout);
-    FLUENT_FIELD_OPTION(TNode, Attributes);
-};
-
-// https://wiki.yandex-team.ru/yt/userdoc/api/#lock
-struct TLockOptions
-{
-    using TSelf = TLockOptions;
-
-    FLUENT_FIELD_DEFAULT(bool, Waitable, false);
-    FLUENT_FIELD_OPTION(Stroka, AttributeKey);
-    FLUENT_FIELD_OPTION(Stroka, ChildKey);
-};
-
-template <class TDerived>
-struct TTabletOptions
-{
-    using TSelf = TDerived;
-
-    FLUENT_FIELD_OPTION(i64, FirstTabletIndex);
-    FLUENT_FIELD_OPTION(i64, LastTabletIndex);
-};
-
-struct TMountTableOptions
-    : public TTabletOptions<TMountTableOptions>
-{
-    FLUENT_FIELD_OPTION(TTabletCellId, CellId);
-    FLUENT_FIELD_DEFAULT(bool, Freeze, false);
-};
-
-struct TUnmountTableOptions
-    : public TTabletOptions<TUnmountTableOptions>
-{
-    FLUENT_FIELD_DEFAULT(bool, Force, false);
-};
-
-struct TRemountTableOptions
-    : public TTabletOptions<TRemountTableOptions>
-{ };
-
-struct TReshardTableOptions
-    : public TTabletOptions<TReshardTableOptions>
-{ };
-
-struct TAlterTableOptions
-{
-    using TSelf = TAlterTableOptions;
-
-    FLUENT_FIELD_OPTION(TTableSchema, Schema);
-    FLUENT_FIELD_OPTION(bool, Dynamic);
-};
-
-struct TLookupRowsOptions
-{
-    using TSelf = TLookupRowsOptions;
-
-    FLUENT_FIELD_OPTION(TDuration, Timeout);
-    FLUENT_FIELD_OPTION(TKeyColumns, Columns);
-    FLUENT_FIELD_DEFAULT(bool, KeepMissingRows, false);
-};
-
-struct TSelectRowsOptions
-{
-    using TSelf = TSelectRowsOptions;
-
-    FLUENT_FIELD_OPTION(TDuration, Timeout);
-    FLUENT_FIELD_OPTION(i64, InputRowLimit);
-    FLUENT_FIELD_OPTION(i64, OutputRowLimit);
-    FLUENT_FIELD_DEFAULT(ui64, RangeExpansionLimit, 1000);
-    FLUENT_FIELD_DEFAULT(bool, FailOnIncompleteResult, true);
-    FLUENT_FIELD_DEFAULT(bool, VerboseLogging, false);
-    FLUENT_FIELD_DEFAULT(bool, EnableCodeCache, true);
-};
-
-struct TCreateClientOptions
-{
-    using TSelf = TCreateClientOptions;
-
-    FLUENT_FIELD(Stroka, Token);
-    FLUENT_FIELD(Stroka, TokenPath);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,6 +105,19 @@ public:
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
     virtual ui64 GenerateTimestamp() = 0;
+
+    // Execute several light requests in parallel.
+    // It is undefined in which order these requests are executed.
+    //
+    // Single TBatchRequest instance may be executed only once
+    // and cannot be modified (filled with additional requests) after execution.
+    // Exception is thrown on attempt to modify executed batch request
+    // or execute it again.
+    //
+    // https://wiki.yandex-team.ru/yt/userdoc/api/#executebatch18.4
+    virtual void ExecuteBatch(
+        const TBatchRequest& batchRequest,
+        const TExecuteBatchOptions& executeBatch = TExecuteBatchOptions()) = 0;
 };
 
 IClientPtr CreateClient(
