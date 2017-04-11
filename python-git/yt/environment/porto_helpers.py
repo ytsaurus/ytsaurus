@@ -45,7 +45,7 @@ class PortoSubprocess(object):
         if stdout is not None:
             p._container.SetProperty("stdout_path", stdout.name)
         if stderr is not None:
-            p._container.SetProperty("stderr_path", stdin.name)
+            p._container.SetProperty("stderr_path", stderr.name)
         if cwd is not None:
             p._container.SetProperty("cwd", cwd)
         if preexec_fn is not None:
