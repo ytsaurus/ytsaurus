@@ -30,6 +30,8 @@ static Stroka GenerateRandomData(size_t size, ui64 seed = 42) {
     return result;
 }
 
+////////////////////////////////////////////////////////////////////
+
 class TTestReaderFixture {
 public:
     TTestReaderFixture()
