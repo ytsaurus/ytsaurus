@@ -1,14 +1,17 @@
-#include <library/unittest/registar.h>
+#include "lib.h"
 
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/http/error.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 
+#include <library/unittest/registar.h>
+
 #include <util/generic/guid.h>
 #include <util/system/env.h>
 
 using namespace NYT;
+using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -32,18 +35,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////
-
-IClientPtr CreateTestClient()
-{
-    Stroka ytProxy = GetEnv("YT_PROXY");
-    if (ytProxy.empty()) {
-        ythrow yexception() << "YT_PROXY env variable must be set";
-    }
-    auto client = CreateClient(ytProxy);
-    client->Remove("//testing", TRemoveOptions().Recursive(true).Force(true));
-    client->Create("//testing", ENodeType::NT_MAP, TCreateOptions());
-    return client;
-}
 
 template<>
 void Out<NYT::TNode>(TOutputStream& s, const NYT::TNode& node)
