@@ -95,6 +95,8 @@ public:
 
     virtual TJobResult Run() override
     {
+        Host_->OnPrepared();
+
         PROFILE_TIMING ("/remote_copy_time") {
             for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
                 for (const auto& inputChunkSpec : dataSliceDescriptor.ChunkSpecs) {
