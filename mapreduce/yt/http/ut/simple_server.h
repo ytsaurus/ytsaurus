@@ -21,7 +21,10 @@ public:
 
     void Stop();
 
+    int GetPort() const;
+
 private:
+    const int Port;
     THolder<IMtpQueue> ThreadPool;
     THolder<IThreadPool::IThread> ListenerThread;
     THolder<TInetStreamSocket> SendFinishSocket;

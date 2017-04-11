@@ -1,48 +1,123 @@
 #include "simple_server.h"
 
 #include <mapreduce/yt/http/http.h>
+#include <mapreduce/yt/common/config.h>
+
+#include <library/threading/future/async.h>
+
+#include <library/http/io/stream.h>
 
 #include <library/unittest/registar.h>
 #include <library/unittest/tests_data.h>
-#include <library/http/io/stream.h>
 
 #include <util/string/builder.h>
 #include <util/stream/tee.h>
+#include <util/system/thread.h>
 
+using namespace NYT;
+
+THolder<TSimpleServer> CreateSimpleHttpServer() {
+    TPortManager pm;
+    int port = pm.GetPort();
+    return MakeHolder<TSimpleServer>(
+        port,
+        [] (TInputStream* input, TOutputStream* output) {
+            try {
+                while (true) {
+                    THttpInput httpInput(input);
+                    httpInput.ReadAll();
+
+                    THttpOutput httpOutput(output);
+                    httpOutput.EnableKeepAlive(true);
+                    httpOutput << "HTTP/1.1 200 OK\r\n";
+                    httpOutput << "\r\n";
+                    for (size_t i = 0; i != 10000; ++i) {
+                        httpOutput << "The grass was greener";
+                    }
+                    httpOutput.Flush();
+                }
+            } catch (const yexception&) {
+            }
+        });
+}
+
+
+class TConnectionPoolConfigGuard {
+public:
+    TConnectionPoolConfigGuard(int newSize) {
+        OldValue = TConfig::Get()->ConnectionPoolSize;
+        TConfig::Get()->ConnectionPoolSize = newSize;
+    }
+
+    ~TConnectionPoolConfigGuard() {
+        TConfig::Get()->ConnectionPoolSize = OldValue;
+    }
+
+private:
+    int OldValue;
+};
+
+class TFuncThread : public TSimpleThread {
+public:
+    using TFunc = std::function<void()>;
+
+public:
+    TFuncThread(const TFunc& func)
+        : Func(func)
+    { }
+
+    virtual void* ThreadProc() throw () {
+        Func();
+        return nullptr;
+    }
+
+private:
+    TFunc Func;
+};
 
 SIMPLE_UNIT_TEST_SUITE(NConnectionPoolSuite) {
     SIMPLE_UNIT_TEST(TestReleaseUnread) {
-        TPortManager pm;
-        int port = pm.GetPort();
-        TSimpleServer simpleServer(
-            port,
-            [] (TInputStream* input, TOutputStream* output) {
-                try {
-                    while (true) {
-                        THttpInput httpInput(input);
-                        httpInput.ReadAll();
+        auto simpleServer = CreateSimpleHttpServer();
 
-                        THttpOutput httpOutput(output);
-                        httpOutput.EnableKeepAlive(true);
-                        httpOutput << "HTTP/1.1 200 OK\r\n";
-                        httpOutput << "\r\n";
-                        for (size_t i = 0; i != 10000; ++i) {
-                            httpOutput << "The grass was greener";
-                        }
-                        httpOutput.Flush();
-                    }
-                } catch (const yexception&) {
-                }
-            });
-
-        Stroka hostName = TStringBuilder() << "localhost:" << port;
+        const Stroka hostName = TStringBuilder() << "localhost:" << simpleServer->GetPort();
 
         for (size_t i = 0; i != 10; ++i) {
-            NYT::THttpRequest request(hostName);
+            THttpRequest request(hostName);
             request.Connect();
-            request.StartRequest(NYT::THttpHeader("GET", "foo"));
+            request.StartRequest(THttpHeader("GET", "foo"));
             request.FinishRequest();
             request.GetResponseStream();
+        }
+    }
+
+    SIMPLE_UNIT_TEST(TestConcurrency) {
+        TConnectionPoolConfigGuard g(1);
+
+        auto simpleServer = CreateSimpleHttpServer();
+        const Stroka hostName = TStringBuilder() << "localhost:" << simpleServer->GetPort();
+        auto threadPool = CreateMtpQueue(20);
+
+        const auto func = [&] {
+            for (int i = 0; i != 100; ++i) {
+                THttpRequest request(hostName);
+                request.Connect();
+                request.StartRequest(THttpHeader("GET", "foo"));
+                request.FinishRequest();
+                auto res = request.GetResponseStream();
+                res->ReadAll();
+            }
+        };
+
+        yvector<THolder<TFuncThread>> threads;
+        for (int i = 0; i != 10; ++i) {
+            threads.push_back(MakeHolder<TFuncThread>(func));
+        };
+
+        for (auto& t : threads) {
+            t->Start();
+        }
+        for (auto& t : threads) {
+            t->Join();
         }
     }
 }

@@ -7,9 +7,10 @@
 #include <util/thread/queue.h>
 
 TSimpleServer::TSimpleServer(int port, TRequestHandler requestHandler)
+    : Port(port)
 {
     auto listenSocket = MakeAtomicShared<TInetStreamSocket>();
-    TSockAddrInet addr((TIpHost)INADDR_ANY, port);
+    TSockAddrInet addr((TIpHost)INADDR_ANY, Port);
     SetSockOpt(*listenSocket, SOL_SOCKET, SO_REUSEADDR, 1);
     int ret = listenSocket->Bind(&addr);
     Y_ENSURE_EX(ret == 0, TSystemError() << "Can not bind");
@@ -58,15 +59,6 @@ TSimpleServer::TSimpleServer(int port, TRequestHandler requestHandler)
     });
 }
 
-void TSimpleServer::Stop()
-{
-    // Just send something to indicate shutdown.
-    SendFinishSocket->Send("X", 1);
-    ListenerThread->Join();
-    ThreadPool->Stop();
-    ThreadPool.Destroy();
-}
-
 TSimpleServer::~TSimpleServer()
 {
     try {
@@ -76,3 +68,17 @@ TSimpleServer::~TSimpleServer()
     } catch (...) {
     }
 }
+
+void TSimpleServer::Stop()
+{
+    // Just send something to indicate shutdown.
+    SendFinishSocket->Send("X", 1);
+    ListenerThread->Join();
+    ThreadPool->Stop();
+    ThreadPool.Destroy();
+}
+
+int TSimpleServer::GetPort() const {
+    return Port;
+}
+

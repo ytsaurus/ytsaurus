@@ -12,6 +12,7 @@
 #include <util/generic/guid.h>
 #include <util/network/socket.h>
 #include <util/stream/input.h>
+#include <util/system/mutex.h>
 #include <util/system/rwlock.h>
 #include <util/generic/ptr.h>
 
@@ -123,7 +124,7 @@ private:
 
 private:
     TConnectionMap Connections_;
-    TRWMutex Lock_;
+    TMutex Lock_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

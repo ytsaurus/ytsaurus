@@ -284,7 +284,7 @@ TConnectionPtr TConnectionPool::Connect(
     }
 
     {
-        TReadGuard guard(Lock_);
+        auto guard = Guard(Lock_);
         auto now = TInstant::Now();
         auto range = Connections_.equal_range(hostName);
         for (auto it = range.first; it != range.second; ++it) {
@@ -303,12 +303,6 @@ TConnectionPtr TConnectionPool::Connect(
     }
 
     TConnectionPtr connection(new TConnection);
-    {
-        TWriteGuard guard(Lock_);
-        Connections_.insert({hostName, connection});
-        static ui32 connectionId = 0;
-        connection->Id = ++connectionId;
-    }
 
     auto networkAddress = TAddressCache::Get()->Resolve(hostName);
     TSocketHolder socket(DoConnect(networkAddress));
@@ -318,6 +312,13 @@ TConnectionPtr TConnectionPool::Connect(
 
     connection->DeadLine = TInstant::Now() + socketTimeout;
     connection->Socket->SetSocketTimeout(socketTimeout.Seconds());
+
+    {
+        auto guard = Guard(Lock_);
+        static ui32 connectionId = 0;
+        connection->Id = ++connectionId;
+        Connections_.insert({hostName, connection});
+    }
 
     LOG_DEBUG("Connection #%u opened",
         connection->Id);
@@ -339,7 +340,7 @@ void TConnectionPool::Invalidate(
     const Stroka& hostName,
     TConnectionPtr connection)
 {
-    TWriteGuard guard(Lock_);
+    auto guard = Guard(Lock_);
     auto range = Connections_.equal_range(hostName);
     for (auto it = range.first; it != range.second; ++it) {
         if (it->second == connection) {
@@ -353,14 +354,12 @@ void TConnectionPool::Invalidate(
 
 void TConnectionPool::Refresh()
 {
-    TWriteGuard guard(Lock_);
+    auto guard = Guard(Lock_);
 
     // simple, since we don't expect too many connections
     using TItem = std::pair<TInstant, TConnectionMap::iterator>;
     std::vector<TItem> sortedConnections;
     for (auto it = Connections_.begin(); it != Connections_.end(); ++it) {
-        // We save DeadLine here cause it can be changed (from Connect) during our sorting.
-        // TODO: we access DeadLine in nonatomic way
         sortedConnections.emplace_back(it->second->DeadLine, it);
     }
 
