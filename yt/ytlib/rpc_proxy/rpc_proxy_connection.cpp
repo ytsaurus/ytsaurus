@@ -1,6 +1,10 @@
 #include "rpc_proxy_connection.h"
 #include "rpc_proxy_client.h"
 #include "config.h"
+#include "credentials_injecting_channel.h"
+#include "private.h"
+
+#include <yt/core/misc/address.h>
 
 #include <yt/core/concurrency/action_queue.h>
 
@@ -11,6 +15,8 @@ namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = RpcProxyClientLogger;
+
 using namespace NApi;
 using namespace NBus;
 using namespace NRpc;
@@ -18,21 +24,15 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRpcProxyConnection::TRpcProxyConnection(TRpcProxyConnectionConfigPtr config)
+TRpcProxyConnection::TRpcProxyConnection(
+    TRpcProxyConnectionConfigPtr config,
+    NConcurrency::TActionQueuePtr actionQueue)
     : Config_(std::move(config))
+    , ActionQueue_(std::move(actionQueue))
 { }
 
 TRpcProxyConnection::~TRpcProxyConnection()
 { }
-
-void TRpcProxyConnection::Initialize()
-{
-    ActionQueue_ = New<TActionQueue>("RpcConnect");
-
-    // TODO(sandello): Implement balancing on top of available peers.
-    const auto& address = Config_->Addresses[RandomNumber(Config_->Addresses.size())];
-    Channel_ = GetBusChannelFactory()->CreateChannel(address);
-}
 
 NObjectClient::TCellTag TRpcProxyConnection::GetCellTag()
 {
@@ -66,7 +66,45 @@ IAdminPtr TRpcProxyConnection::CreateAdmin(const TAdminOptions& options)
 
 IClientPtr TRpcProxyConnection::CreateClient(const TClientOptions& options)
 {
-    return New<TRpcProxyClient>(MakeStrong(this), options);
+    // TODO(sandello): Extract this to a new TAddressResolver method.
+    auto localHostname = TAddressResolver::Get()->GetLocalHostName();
+    auto localAddress = TAddressResolver::Get()->Resolve(localHostname).Get().ValueOrThrow();
+
+    auto localAddressString = ToString(localAddress);
+    YCHECK(localAddressString.has_prefix("tcp://"));
+    localAddressString = localAddressString.substr(6);
+    {
+        auto index = localAddressString.rfind(':');
+        if (index != Stroka::npos) {
+            localAddressString = localAddressString.substr(0, index);
+        }
+    }
+    if (localAddressString.has_prefix("[") && localAddressString.has_suffix("]")) {
+        localAddressString = localAddressString.substr(1, localAddressString.length() - 2);
+    }
+
+    LOG_DEBUG("Originating address is %v", localAddressString);
+
+    const auto& address = Config_->Addresses[RandomNumber(Config_->Addresses.size())];
+    auto channel = GetBusChannelFactory()->CreateChannel(address);
+
+    if (options.Token) {
+        channel = CreateTokenInjectingChannel(
+            channel,
+            options.User,
+            *options.Token,
+            localAddressString);
+    } else if (options.SessionId || options.SslSessionId) {
+        channel = CreateCookieInjectingChannel(
+            channel,
+            options.User,
+            "yt.yandex-team.ru", // TODO(sandello): where to get this?
+            options.SessionId.Get(Stroka()),
+            options.SslSessionId.Get(Stroka()),
+            localAddressString);
+    }
+
+    return New<TRpcProxyClient>(MakeStrong(this), std::move(channel));
 }
 
 NHiveClient::ITransactionParticipantPtr TRpcProxyConnection::CreateTransactionParticipant(
@@ -88,8 +126,8 @@ void TRpcProxyConnection::Terminate()
 
 IConnectionPtr CreateRpcProxyConnection(TRpcProxyConnectionConfigPtr config)
 {
-    auto connection = New<TRpcProxyConnection>(std::move(config));
-    connection->Initialize();
+    auto actionQueue = New<TActionQueue>("RpcConnect");
+    auto connection = New<TRpcProxyConnection>(std::move(config), std::move(actionQueue));
     return connection;
 }
 

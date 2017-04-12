@@ -16,12 +16,16 @@ TInputDataSlice::TInputDataSlice(
     EDataSourceType type,
     TChunkSliceList chunkSlices,
     TInputSliceLimit lowerLimit,
-    TInputSliceLimit upperLimit)
+    TInputSliceLimit upperLimit,
+    TNullable<i64> tag)
     : LowerLimit_(std::move(lowerLimit))
     , UpperLimit_(std::move(upperLimit))
     , ChunkSlices(std::move(chunkSlices))
     , Type(type)
-{ }
+    , Tag(tag)
+{
+    InputStreamIndex = GetTableIndex();
+}
 
 int TInputDataSlice::GetChunkCount() const
 {
@@ -62,6 +66,9 @@ void TInputDataSlice::Persist(NTableClient::TPersistenceContext& context)
     Persist(context, UpperLimit_);
     Persist(context, ChunkSlices);
     Persist(context, Type);
+    Persist(context, Tag);
+    Persist(context, Disabled);
+    Persist(context, InputStreamIndex);
 }
 
 int TInputDataSlice::GetTableIndex() const
@@ -83,6 +90,20 @@ bool TInputDataSlice::IsTrivial() const
     return Type == EDataSourceType::UnversionedTable && ChunkSlices.size() == 1;
 }
 
+bool TInputDataSlice::IsEmpty() const
+{
+    return LowerLimit_.Key >= UpperLimit_.Key;
+}
+
+std::pair<TInputDataSlicePtr, TInputDataSlicePtr> TInputDataSlice::SplitByRowIndex(i64 rowIndex) const
+{
+    YCHECK(IsTrivial());
+    auto slices = ChunkSlices[0]->SplitByRowIndex(rowIndex);
+
+    return std::make_pair(CreateUnversionedInputDataSlice(slices.first),
+        CreateUnversionedInputDataSlice(slices.second));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TInputDataSlicePtr& dataSlice)
@@ -99,7 +120,11 @@ void ToProto(
     TInputDataSlicePtr inputDataSlice)
 {
     for (const auto& slice : inputDataSlice->ChunkSlices) {
-        ToProto(dataSliceDescriptor->add_chunks(), slice);
+        auto* chunk = dataSliceDescriptor->add_chunks();
+        ToProto(chunk, slice);
+        if (inputDataSlice->Tag) {
+            chunk->set_data_slice_tag(*inputDataSlice->Tag);
+        }
     }
 }
 
@@ -194,11 +219,36 @@ TInputDataSlicePtr CreateInputDataSlice(
         chunkSlices.push_back(CreateInputChunkSlice(*slice, lowerLimit.Key, upperLimit.Key));
     }
 
-    return New<TInputDataSlice>(
+    auto newDataSlice = New<TInputDataSlice>(
         dataSlice->Type,
         std::move(chunkSlices),
         std::move(lowerLimit),
-        std::move(upperLimit));
+        std::move(upperLimit),
+        dataSlice->Tag);
+    newDataSlice->InputStreamIndex = dataSlice->InputStreamIndex;
+    return newDataSlice;
+}
+
+void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const TRowBufferPtr& rowBuffer)
+{
+    TKey minKey;
+    TKey maxKey;
+    for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+        if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
+            if (!minKey || minKey > boundaryKeys->MinKey) {
+                minKey = boundaryKeys->MinKey;
+            }
+            if (!maxKey || maxKey < boundaryKeys->MaxKey) {
+                maxKey = boundaryKeys->MaxKey;
+            }
+        }
+    }
+    if (minKey) {
+        dataSlice->LowerLimit().MergeLowerKey(minKey);
+    }
+    if (maxKey) {
+        dataSlice->UpperLimit().MergeUpperKey(GetKeySuccessor(maxKey, rowBuffer));
+    }
 }
 
 TNullable<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool checkParityParts)
@@ -266,6 +316,24 @@ bool CanMergeSlices(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& 
         return true;
     }
     return false;
+}
+
+i64 GetCumulativeRowCount(const std::vector<TInputDataSlicePtr>& dataSlices)
+{
+    i64 result = 0;
+    for (const auto& dataSlice : dataSlices) {
+        result += dataSlice->GetRowCount();
+    }
+    return result;
+}
+
+i64 GetCumulativeDataSize(const std::vector<TInputDataSlicePtr>& dataSlices)
+{
+    i64 result = 0;
+    for (const auto& dataSlice : dataSlices) {
+        result += dataSlice->GetDataSize();
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

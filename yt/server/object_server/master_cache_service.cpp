@@ -89,11 +89,11 @@ private:
         operator size_t() const
         {
             size_t result = 0;
-            result = HashCombine(result, User);
-            result = HashCombine(result, Path);
-            result = HashCombine(result, Service);
-            result = HashCombine(result, Method);
-            result = HashCombine(result, RequestBodyHash);
+            HashCombine(result, User);
+            HashCombine(result, Path);
+            HashCombine(result, Service);
+            HashCombine(result, Method);
+            HashCombine(result, RequestBodyHash);
             return result;
         }
 

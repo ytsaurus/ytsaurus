@@ -206,6 +206,178 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
         ContainsRegex("Column .* occurs both in main and joined tables"));
 }
 
+TEST_F(TQueryPrepareTest, SortMergeJoin)
+{
+    {
+        TDataSplit dataSplit;
+
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        TTableSchema tableSchema({
+            TColumnSchema("hash", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("int64(farm_hash(cid))")),
+            TColumnSchema("cid", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("pid", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("id", EValueType::Int64),
+            TColumnSchema("__shard__", EValueType::Int64),
+            TColumnSchema("PhraseID", EValueType::Int64),
+            TColumnSchema("price", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, tableSchema);
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//bids"), _))
+            .WillRepeatedly(Return(WrapInFuture(dataSplit)));
+    }
+
+    {
+        TDataSplit dataSplit;
+
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        TTableSchema tableSchema({
+            TColumnSchema("ExportIDHash", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("int64(farm_hash(ExportID))")),
+            TColumnSchema("ExportID", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("GroupExportID", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("PhraseID", EValueType::Uint64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("UpdateTime", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Shows", EValueType::Int64),
+            TColumnSchema("Clicks", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, tableSchema);
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//DirectPhraseStat"), _))
+            .WillRepeatedly(Return(WrapInFuture(dataSplit)));
+    }
+
+    {
+        TDataSplit dataSplit;
+
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        TTableSchema tableSchema({
+            TColumnSchema("hash", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("int64(farm_hash(pid))")),
+            TColumnSchema("pid", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("__shard__", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("status", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, tableSchema);
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//phrases"), _))
+            .WillRepeatedly(Return(WrapInFuture(dataSplit)));
+    }
+
+    {
+        TDataSplit dataSplit;
+
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        TTableSchema tableSchema({
+            TColumnSchema("hash", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("int64(farm_hash(cid))")),
+            TColumnSchema("cid", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("__shard__", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("value", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, tableSchema);
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//campaigns"), _))
+            .WillRepeatedly(Return(WrapInFuture(dataSplit)));
+    }
+
+    {
+        Stroka queryString = "* from [//bids] D\n"
+            "left join [//campaigns] C on D.cid = C.cid\n"
+            "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
+            "left join [//phrases] P on (D.pid,D.__shard__) = (P.pid,P.__shard__)";
+
+        auto query = PreparePlanFragment(&PrepareMock_, queryString).first;
+
+        EXPECT_EQ(query->JoinClauses.size(), 3);
+        const auto& joinClauses = query->JoinClauses;
+
+        EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 2);
+
+        EXPECT_EQ(joinClauses[1]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2);
+
+        EXPECT_EQ(joinClauses[2]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
+    }
+
+    {
+        Stroka queryString = "* from [//bids] D\n"
+            "left join [//campaigns] C on (D.cid,D.__shard__) = (C.cid,C.__shard__)\n"
+            "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
+            "left join [//phrases] P on (D.pid,D.__shard__) = (P.pid,P.__shard__)";
+
+        auto query = PreparePlanFragment(&PrepareMock_, queryString).first;
+
+        EXPECT_EQ(query->JoinClauses.size(), 3);
+        const auto& joinClauses = query->JoinClauses;
+
+        EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 2);
+
+        EXPECT_EQ(joinClauses[1]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2);
+
+        EXPECT_EQ(joinClauses[2]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
+    }
+
+    {
+        Stroka queryString = "* from [//bids] D\n"
+            "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
+            "left join [//campaigns] C on (D.cid,D.__shard__) = (C.cid,C.__shard__)\n"
+            "left join [//phrases] P on (D.pid,D.__shard__) = (P.pid,P.__shard__)";
+
+        auto query = PreparePlanFragment(&PrepareMock_, queryString).first;
+
+        EXPECT_EQ(query->JoinClauses.size(), 3);
+        const auto& joinClauses = query->JoinClauses;
+
+        EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 3);
+
+        EXPECT_EQ(joinClauses[1]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2);
+
+        EXPECT_EQ(joinClauses[2]->CanUseSourceRanges, true);
+        EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
+    }
+
+
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobQueryPrepareTest
@@ -575,7 +747,7 @@ protected:
         ActionQueue_->Shutdown();
     }
 
-    void Evaluate(
+    TQueryPtr Evaluate(
         const Stroka& query,
         const TDataSplit& dataSplit,
         const std::vector<Stroka>& owningSource,
@@ -587,7 +759,7 @@ protected:
         std::map<Stroka, TDataSplit> dataSplits;
         dataSplits["//t"] = dataSplit;
 
-        BIND(&TQueryEvaluateTest::DoEvaluate, this)
+        return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
@@ -598,10 +770,10 @@ protected:
                 outputRowLimit,
                 EFailureLocation::Nowhere)
             .Get()
-            .ThrowOnError();
+            .ValueOrThrow();
     }
 
-    void Evaluate(
+    TQueryPtr Evaluate(
         const Stroka& query,
         const std::map<Stroka, TDataSplit>& dataSplits,
         const std::vector<std::vector<Stroka>>& owningSources,
@@ -609,7 +781,7 @@ protected:
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
-        BIND(&TQueryEvaluateTest::DoEvaluate, this)
+        return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
@@ -620,10 +792,10 @@ protected:
                 outputRowLimit,
                 EFailureLocation::Nowhere)
             .Get()
-            .ThrowOnError();
+            .ValueOrThrow();
     }
 
-    void EvaluateExpectingError(
+    TQueryPtr EvaluateExpectingError(
         const Stroka& query,
         const TDataSplit& dataSplit,
         const std::vector<Stroka>& owningSource,
@@ -635,7 +807,7 @@ protected:
         std::map<Stroka, TDataSplit> dataSplits;
         dataSplits["//t"] = dataSplit;
 
-        BIND(&TQueryEvaluateTest::DoEvaluate, this)
+        return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
@@ -646,10 +818,10 @@ protected:
                 outputRowLimit,
                 failureLocation)
             .Get()
-            .ThrowOnError();
+            .ValueOrThrow();
     }
 
-    void DoEvaluate(
+    TQueryPtr DoEvaluate(
         const Stroka& query,
         const std::map<Stroka, TDataSplit>& dataSplits,
         const std::vector<std::vector<Stroka>>& owningSources,
@@ -691,7 +863,7 @@ protected:
             };
 
             ISchemafulWriterPtr writer;
-            TFuture<IRowsetPtr> asyncResultRowset;
+            TFuture<IUnversionedRowsetPtr> asyncResultRowset;
 
             std::tie(writer, asyncResultRowset) = CreateSchemafulRowsetWriter(primaryQuery->GetTableSchema());
 
@@ -705,14 +877,16 @@ protected:
                 executeCallback);
 
             auto resultRowset = WaitFor(asyncResultRowset).ValueOrThrow();
-
             resultMatcher(resultRowset->GetRows(), TTableSchema(primaryQuery->GetTableSchema()));
+
+            return primaryQuery;
         };
 
         if (failureLocation != EFailureLocation::Nowhere) {
             EXPECT_THROW(prepareAndExecute(), TErrorException);
+            return nullptr;
         } else {
-            prepareAndExecute();
+            return prepareAndExecute();
         }
     }
 
@@ -2241,6 +2415,63 @@ TEST_F(TQueryEvaluateTest, TestJoinManySimple)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestSortMergeJoin)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64, ESortOrder::Ascending},
+        {"b", EValueType::Int64}
+    }, 0);
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "a=1;b=10",
+        "a=3;b=30",
+        "a=5;b=50",
+        "a=7;b=70",
+        "a=9;b=90"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"c", EValueType::Int64, ESortOrder::Ascending},
+        {"d", EValueType::Int64}
+    }, 1);
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        "c=1;d=10",
+        "c=2;d=20",
+        "c=4;d=40",
+        "c=5;d=50",
+        "c=7;d=70",
+        "c=8;d=80"
+    });
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+        {"d", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "a=1;b=10;d=10",
+        "a=5;b=50;d=50",
+        "a=7;b=70;d=70"
+    }, resultSplit);
+
+    auto query = Evaluate("a, b, d FROM [//left] join [//right] on a = c", splits, sources, ResultMatcher(result));
+
+    EXPECT_EQ(query->JoinClauses.size(), 1);
+    const auto& joinClauses = query->JoinClauses;
+
+    EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+    EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestJoin)
 {
     std::map<Stroka, TDataSplit> splits;
@@ -2496,7 +2727,6 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
     }
 
     std::vector<TOwningRow> result;
-
     for (const auto& row : source) {
         result.push_back(YsonToRow(row, split, false));
     }
@@ -2510,6 +2740,24 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
     std::reverse(result.begin(), result.end());
     limitedResult.assign(result.begin(), result.begin() + 100);
     Evaluate("* FROM [//t] order by a * 3 - 1 desc limit 100", split, source, ResultMatcher(limitedResult));
+
+
+    source.clear();
+    for (int i = 0; i < 10; ++i) {
+        auto value = 10 - i;
+        source.push_back(Stroka() + "a=" + ToString(i % 3) + ";b=" + ToString(value));
+    }
+
+    result.clear();
+    for (const auto& row : source) {
+        result.push_back(YsonToRow(row, split, false));
+    }
+
+    EXPECT_THROW_THAT(
+        [&] {
+            Evaluate("* FROM [//t] order by 0.0 / double(a) limit 100", split, source, ResultMatcher(result));
+        },
+        HasSubstr("Comparison with NaN"));
 
     SUCCEED();
 }

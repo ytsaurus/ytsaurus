@@ -79,7 +79,7 @@ public:
     virtual TFuture<void> GetReadyEvent() override;
 
     virtual i64 GetTableRowIndex() const override;
-    virtual TNameTablePtr GetNameTable() const override;
+    virtual const TNameTablePtr& GetNameTable() const override;
     virtual i64 GetTotalRowCount() const override;
 
     virtual TKeyColumns GetKeyColumns() const override;
@@ -201,6 +201,11 @@ void TSchemalessTableReader::DoOpen()
 
         dynamic = attributes->Get<bool>("dynamic");
         schema = attributes->Get<TTableSchema>("schema");
+
+        // XXX(savrus) Remove in 19.2
+        if (dynamic) {
+            THROW_ERROR_EXCEPTION("Read table for dynamic tables is not supported");
+        }
 
         if (timestamp && !(dynamic && schema.IsSorted())) {
             THROW_ERROR_EXCEPTION("Invalid attribute %Qv: table %Qv is not sorted dynamic",
@@ -352,7 +357,7 @@ i64 TSchemalessTableReader::GetTotalRowCount() const
     return UnderlyingReader_->GetTotalRowCount();
 }
 
-TNameTablePtr TSchemalessTableReader::GetNameTable() const
+const TNameTablePtr& TSchemalessTableReader::GetNameTable() const
 {
     YCHECK(UnderlyingReader_);
     return UnderlyingReader_->GetNameTable();

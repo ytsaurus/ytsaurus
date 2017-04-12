@@ -88,7 +88,7 @@ public:
         explicit TReqExecuteBatch(NRpc::IChannelPtr channel);
         DECLARE_NEW_FRIEND();
 
-        virtual TSharedRef SerializeBody() override;
+        virtual TSharedRef SerializeBody() const override;
 
     };
 

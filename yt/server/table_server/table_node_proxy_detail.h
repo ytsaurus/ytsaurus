@@ -37,6 +37,7 @@ protected:
     void AlterTable(
         const TNullable<NTableClient::TTableSchema>& newSchema,
         const TNullable<bool>& newDynamic);
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
     virtual void ValidateCustomAttributeUpdate(
@@ -51,6 +52,7 @@ protected:
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
     virtual void ValidateBeginUpload() override;
+    virtual void ValidateStorageParametersUpdate() override;
 
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Mount);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Unmount);

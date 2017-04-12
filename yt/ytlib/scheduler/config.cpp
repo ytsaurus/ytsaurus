@@ -257,8 +257,8 @@ TInputlyQueryableSpec::TInputlyQueryableSpec()
         .Default();
 
     RegisterValidator([&] () {
-        if (InputQuery && !InputSchema) {
-            THROW_ERROR_EXCEPTION("Expected to see \"input_schema\" in operation spec");
+        if (InputSchema && !InputQuery) {
+            THROW_ERROR_EXCEPTION("Found \"input_schema\" without \"input_query\" in operation spec");
         }
     });
 }
@@ -274,6 +274,9 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
         .Default();
     RegisterParameter("core_table_writer_config", CoreTableWriterConfig)
         .DefaultNew();
+
+    RegisterParameter("enable_job_splitting", EnableJobSplitting)
+        .Default(true);
 }
 
 void TOperationWithUserJobSpec::OnLoaded()
@@ -285,6 +288,12 @@ void TOperationWithUserJobSpec::OnLoaded()
     if (CoreTablePath) {
         *CoreTablePath = CoreTablePath->Normalize();
     }
+}
+
+TOperationWithLegacyControllerSpec::TOperationWithLegacyControllerSpec()
+{
+    RegisterParameter("use_legacy_controller", UseLegacyController)
+        .Default(true);
 }
 
 TSimpleOperationSpecBase::TSimpleOperationSpecBase()
@@ -479,7 +488,7 @@ TSortOperationSpecBase::TSortOperationSpecBase()
     RegisterParameter("partition_data_size", PartitionDataSize)
         .Default()
         .GreaterThan(0);
-    RegisterParameter("data_size_per_sort_job", DataSizePerSortJob)
+    RegisterParameter("data_size_per_sort_job", DataSizePerShuffleJob)
         .Default((i64)2 * 1024 * 1024 * 1024)
         .GreaterThan(0);
     RegisterParameter("shuffle_start_threshold", ShuffleStartThreshold)
@@ -554,6 +563,9 @@ TSortOperationSpec::TSortOperationSpec()
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 
+    RegisterParameter("data_size_per_sorted_merge_job", DataSizePerSortedJob)
+        .Default(Null);
+
     RegisterInitializer([&] () {
         PartitionJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
         PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
@@ -616,6 +628,12 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     RegisterParameter("reduce_combiner_job_proxy_memory_digest", ReduceCombinerJobProxyMemoryDigest)
         .Default(New<TLogDigestConfig>(0.5, 1.0, 1.0));
 
+    RegisterParameter("data_size_per_reduce_job", DataSizePerSortedJob)
+        .Default(Null);
+
+    RegisterParameter("force_reduce_combiners", ForceReduceCombiners)
+        .Default(false);
+
     // The following settings are inherited from base but make no sense for map-reduce:
     //   SimpleSortLocalityTimeout
     //   SimpleMergeLocalityTimeout
@@ -649,6 +667,9 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
                 throwError(NTableClient::EControlAttribute::RangeIndex, jobType);
             }
         };
+        if (ForceReduceCombiners && !ReduceCombiner) {
+            THROW_ERROR_EXCEPTION("Found \"force_reduce_combiners\" without \"reduce_combiner\" in operation spec");
+        }
         validateControlAttributes(MergeJobIO->ControlAttributes, "reduce");
         validateControlAttributes(SortJobIO->ControlAttributes, "reduce_combiner");
 

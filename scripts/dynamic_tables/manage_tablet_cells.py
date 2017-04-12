@@ -32,6 +32,8 @@ def main():
                         help="Changelog read quorum for newly created tablet cells")
     parser.add_argument("--write-quorum", "--WQ", type=int, default=3,
                         help="Changelog write quorum for newly created tablet cells")
+    parser.add_argument("--bundle", "--B", type=str, default="default",
+                        help="Assigns to specified tablet cell bundle")
     parser.add_argument("--thread-count", type=int, default=20,
                         help="Number of worker threads")
     parser.add_argument("--silent", action="store_true", default=False,
@@ -57,6 +59,7 @@ def main():
             "changelog_replication_factor": args.replication_factor,
             "changelog_read_quorum": args.read_quorum,
             "changelog_write_quorum": args.write_quorum,
+            "tablet_cell_bundle": args.bundle,
         }
 
         tablet_cells_per_thread = 1 + args.count / args.thread_count

@@ -7,6 +7,7 @@
 #include "event_log.h"
 #include "job_memory.h"
 #include "job_resources.h"
+#include "job_splitter.h"
 #include "operation_controller.h"
 #include "serialize.h"
 #include "helpers.h"
@@ -33,6 +34,8 @@
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/value_consumer.h>
+
+#include <yt/ytlib/query_client/public.h>
 
 #include <yt/core/actions/cancelable_context.h>
 
@@ -136,11 +139,13 @@ private: \
 
     IMPLEMENT_SAFE_VOID_METHOD(Prepare, (), (), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(Materialize, (), (), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(Revive, (), (), INVOKER_AFFINITY(CancelableInvoker))
 
     IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (const TJobId& jobId, TInstant startTime), (jobId, startTime), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<TJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
 
     IMPLEMENT_SAFE_VOID_METHOD(SaveSnapshot, (TOutputStream* output), (output), THREAD_AFFINITY_ANY())
 
@@ -179,7 +184,6 @@ public:
     virtual void Initialize() override;
 
     void InitializeReviving(TControllerTransactionsPtr operationTransactions);
-    void Revive();
 
     virtual std::vector<NApi::ITransactionPtr> GetTransactions() override;
 
@@ -197,6 +201,7 @@ public:
     virtual bool IsForgotten() const override;
 
     virtual bool HasProgress() const override;
+    virtual bool HasJobSplitterInfo() const override;
 
     virtual void Resume() override;
     virtual TFuture<void> Suspend() override;
@@ -206,6 +211,7 @@ public:
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
+    virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const override;
 
     virtual NYson::TYsonString GetProgress() const override;
     virtual NYson::TYsonString GetBriefProgress() const override;
@@ -273,9 +279,10 @@ protected:
     i64 TotalEstimatedCompressedDataSize = 0;
     i64 TotalEstimatedInputDataSize = 0;
 
-    // Total uncompressed data size for primary tables.
+    // Total uncompressed data size for input tables.
     // Used only during preparation, not persisted.
     i64 PrimaryInputDataSize = 0;
+    i64 ForeignInputDataSize = 0;
 
     int ChunkLocatedCallCount = 0;
     int UnavailableInputChunkCount = 0;
@@ -312,42 +319,7 @@ protected:
         void Persist(const TPersistenceContext& context);
     };
 
-    //! Common pattern in scheduler is to lock input object and
-    //! then request attributes of this object by id.
-    struct TLockedUserObject
-        : public NChunkClient::TUserObject
-    {
-        virtual Stroka GetPath() const override
-        {
-            return NObjectClient::FromObjectId(ObjectId);
-        }
-    };
-
-    struct TInputTable
-        : public TLockedUserObject
-    {
-        //! Number of chunks in the whole table (without range selectors).
-        int ChunkCount = -1;
-        std::vector<NChunkClient::TInputChunkPtr> Chunks;
-        NTableClient::TTableSchema Schema;
-        NTableClient::ETableSchemaMode SchemaMode;
-        bool IsDynamic;
-
-        bool IsForeign() const
-        {
-            return Path.GetForeign();
-        }
-
-        bool IsPrimary() const
-        {
-            return !IsForeign();
-        }
-
-        void Persist(const TPersistenceContext& context);
-    };
-
     std::vector<TInputTable> InputTables;
-
 
     struct TJobBoundaryKeys
     {
@@ -425,6 +397,14 @@ protected:
     };
 
     std::vector<TUserFile> Files;
+
+    struct TInputQuery
+    {
+        NQueryClient::TQueryPtr Query;
+        NQueryClient::TExternalCGInfoPtr ExternalCGInfo;
+    };
+
+    TNullable<TInputQuery> InputQuery;
 
     struct TJoblet
         : public TIntrinsicRefCounted
@@ -816,10 +796,13 @@ protected:
     void InitInputChunkScraper();
     void InitIntermediateChunkScraper();
     void SuspendUnavailableInputStripes();
-    void InitQuerySpec(
-        NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
+
+    void ParseInputQuery(
         const Stroka& queryString,
-        const NQueryClient::TTableSchema& schema);
+        const TNullable<NQueryClient::TTableSchema>& schema);
+    void WriteInputQueryToJobSpec(
+        NProto::TSchedulerJobSpecExt* schedulerJobSpecExt);
+    virtual void PrepareInputQuery();
 
     void PickIntermediateDataCell();
     void InitChunkListPool();
@@ -883,7 +866,7 @@ protected:
     bool OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
 
     virtual bool IsJobInterruptible() const;
-    void OnJobInterrupted(const TCompletedJobSummary& jobSummary);
+    int EstimateSplitJobCount(const TCompletedJobSummary& jobSummary);
     std::vector<NChunkClient::TInputDataSlicePtr> ExtractInputDataSlices(const TCompletedJobSummary& jobSummary) const;
     virtual void ReinstallUnreadInputDataSlices(const std::vector<NChunkClient::TInputDataSlicePtr>& inputDataSlices);
 
@@ -920,21 +903,21 @@ protected:
     //! chunk scraper has encountered unavailable chunk.
     void OnInputChunkUnavailable(
         const NChunkClient::TChunkId& chunkId,
-        TInputChunkDescriptor& descriptor);
+        TInputChunkDescriptor* descriptor);
 
     void OnInputChunkAvailable(
         const NChunkClient::TChunkId& chunkId,
-        TInputChunkDescriptor& descriptor,
-        const NChunkClient::TChunkReplicaList& replicas);
+        const NChunkClient::TChunkReplicaList& replicas,
+        TInputChunkDescriptor* descriptor);
 
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
     virtual bool IsInputDataSizeHistogramSupported() const;
     virtual bool AreForeignTablesSupported() const;
 
-    //! Successfully terminate and finalize operation.
+    //! Successfully terminates and finalizes the operation.
     /*!
-     *  #interrupted flag indicates premature completion and disables standard validation
+     *  #interrupted flag indicates premature completion and disables standard validations.
      */
     virtual void OnOperationCompleted(bool interrupted);
 
@@ -1099,6 +1082,8 @@ protected:
     void InferSchemaFromInputOrdered();
     void ValidateOutputSchemaOrdered() const;
 
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const;
+
 private:
     typedef TOperationControllerBase TThis;
 
@@ -1143,7 +1128,7 @@ private:
     //! Aggregated schedule job statistics.
     TScheduleJobStatisticsPtr ScheduleJobStatistics_;
 
-    //! Deadline after which schedule job statistics can be logged logged.
+    //! Deadline after which schedule job statistics can be logged.
     NProfiling::TCpuInstant ScheduleJobStatisticsLogDeadline_ = 0;
 
     //! One output table can have row count limit on operation.
@@ -1184,6 +1169,8 @@ private:
     TSpinLock ProgressLock_;
     const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
 
+    i64 CurrentInputDataSliceTag_ = 0;
+
     void BuildAndSaveProgress();
 
     void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics);
@@ -1199,6 +1186,8 @@ private:
     bool ShouldSkipSanityCheck();
 
     void UpdateJobStatistics(const TJobSummary& jobSummary);
+
+    std::unique_ptr<IJobSplitter> JobSplitter_;
 
     NApi::INativeClientPtr CreateClient();
     void UpdateAllTasksIfNeeded();
@@ -1228,8 +1217,6 @@ private:
     //! An internal helper for invoking OnOperationFailed with an error
     //! built by data from `ex`.
     void FailOperation(const TAssertionFailedException& ex);
-
-    static bool IsGlobalJobFailReason(EScheduleJobFailReason reason);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -22,15 +22,19 @@ static const Stroka NullAddress("<Null>");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TNodeDescriptor::TNodeDescriptor()
+    : DefaultAddress_(NullAddress)
+{ }
+
 TNodeDescriptor::TNodeDescriptor(const Stroka& defaultAddress)
-{
-    YCHECK(Addresses_.insert(std::make_pair(DefaultNetworkName, defaultAddress)).second);
-}
+    : Addresses_{std::make_pair(DefaultNetworkName, defaultAddress)}
+    , DefaultAddress_(defaultAddress)
+{ }
 
 TNodeDescriptor::TNodeDescriptor(const TNullable<Stroka>& defaultAddress)
 {
     if (defaultAddress) {
-        YCHECK(Addresses_.insert(std::make_pair(DefaultNetworkName, *defaultAddress)).second);
+        *this = TNodeDescriptor(*defaultAddress);
     }
 }
 
@@ -39,6 +43,7 @@ TNodeDescriptor::TNodeDescriptor(
     TNullable<Stroka> rack,
     TNullable<Stroka> dc)
     : Addresses_(std::move(addresses))
+    , DefaultAddress_(NNodeTrackerClient::GetDefaultAddress(Addresses_))
     , Rack_(std::move(rack))
     , DataCenter_(std::move(dc))
 { }
@@ -48,9 +53,14 @@ bool TNodeDescriptor::IsNull() const
     return Addresses_.empty();
 }
 
+const TAddressMap& TNodeDescriptor::Addresses() const
+{
+    return Addresses_;
+}
+
 const Stroka& TNodeDescriptor::GetDefaultAddress() const
 {
-    return IsNull() ? NullAddress : NNodeTrackerClient::GetDefaultAddress(Addresses_);
+    return DefaultAddress_;
 }
 
 const Stroka& TNodeDescriptor::GetAddress(const TNetworkPreferenceList& networks) const
@@ -63,38 +73,71 @@ TNullable<Stroka> TNodeDescriptor::FindAddress(const TNetworkPreferenceList& net
     return NNodeTrackerClient::FindAddress(Addresses(), networks);
 }
 
+const TNullable<Stroka>& TNodeDescriptor::GetRack() const
+{
+    return Rack_;
+}
+
+const TNullable<Stroka>& TNodeDescriptor::GetDataCenter() const
+{
+    return DataCenter_;
+}
+
 void TNodeDescriptor::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Addresses_);
+    if (context.IsLoad()) {
+        DefaultAddress_ = NNodeTrackerClient::GetDefaultAddress(Addresses_);
+    }
     Persist(context, Rack_);
     Persist(context, DataCenter_);
 }
 
+void FormatValue(TStringBuilder* builder, const TNodeDescriptor& descriptor, const TStringBuf& /*spec*/)
+{
+    if (descriptor.IsNull()) {
+        builder->AppendString(NullAddress);
+        return;
+    }
+
+    builder->AppendString(descriptor.GetDefaultAddress());
+    if (const auto& rack = descriptor.GetRack()) {
+        builder->AppendChar('@');
+        builder->AppendString(*rack);
+    }
+    if (const auto& dataCenter = descriptor.GetDataCenter()) {
+        builder->AppendChar('#');
+        builder->AppendString(*dataCenter);
+    }
+}
+
 Stroka ToString(const TNodeDescriptor& descriptor)
 {
-    TStringBuilder builder;
-    if (descriptor.IsNull()) {
-        builder.AppendString("<Null>");
-    } else {
-        builder.AppendString(descriptor.GetDefaultAddress());
-        if (auto rack = descriptor.GetRack()) {
-            builder.AppendChar('@');
-            builder.AppendString(*rack);
-        }
-        if (auto dc = descriptor.GetDataCenter()) {
-            builder.AppendChar('#');
-            builder.AppendString(*dc);
-        }
-    }
-    return builder.Flush();
+    return ToStringViaBuilder(descriptor);
 }
 
 const Stroka& GetDefaultAddress(const TAddressMap& addresses)
 {
+    if (addresses.empty()) {
+        return NullAddress;
+    }
     auto it = addresses.find(DefaultNetworkName);
     YCHECK(it != addresses.end());
     return it->second;
+}
+
+const Stroka& GetDefaultAddress(const NProto::TAddressMap& addresses)
+{
+    if (addresses.entries_size() == 0) {
+        return NullAddress;
+    }
+    for (const auto& entry : addresses.entries()) {
+        if (entry.network() == DefaultNetworkName) {
+            return entry.address();
+        }
+    }
+    Y_UNREACHABLE();
 }
 
 EAddressLocality ComputeAddressLocality(const TNodeDescriptor& first, const TNodeDescriptor& second)
@@ -186,13 +229,39 @@ bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
     return !(lhs == rhs);
 }
 
+bool operator == (const TNodeDescriptor& lhs, const NProto::TNodeDescriptor& rhs)
+{
+    if (lhs.GetDefaultAddress() != GetDefaultAddress(rhs.addresses())) {
+        return false;
+    }
+
+    const auto& lhsMaybeRack = lhs.GetRack();
+    auto lhsRack = lhsMaybeRack ? TStringBuf(*lhsMaybeRack) : TStringBuf();
+    if (lhsRack != rhs.rack()) {
+        return false;
+    }
+
+    const auto& lhsMaybeDataCenter= lhs.GetDataCenter();
+    auto lhsDataCenter = lhsMaybeDataCenter ? TStringBuf(*lhsMaybeDataCenter) : TStringBuf();
+    if (lhsDataCenter != rhs.data_center()) {
+        return false;
+    }
+
+    return true;
+}
+
+bool operator != (const TNodeDescriptor& lhs, const NProto::TNodeDescriptor& rhs)
+{
+    return !(lhs == rhs);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 void TNodeDirectory::MergeFrom(const NProto::TNodeDirectory& source)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
     for (const auto& item : source.items()) {
-        DoAddDescriptor(item.node_id(), FromProto<TNodeDescriptor>(item.node_descriptor()));
+        DoAddDescriptor(item.node_id(), item.node_descriptor());
     }
 }
 
@@ -227,13 +296,32 @@ void TNodeDirectory::AddDescriptor(TNodeId id, const TNodeDescriptor& descriptor
 void TNodeDirectory::DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor)
 {
     auto it = IdToDescriptor_.find(id);
-    if (it != IdToDescriptor_.end() && descriptor == *it->second) {
+    if (it != IdToDescriptor_.end() && *it->second == descriptor) {
         return;
     }
-    Descriptors_.emplace_back(std::make_unique<TNodeDescriptor>(descriptor));
-    const auto* capturedDescriptor = Descriptors_.back().get();
+
+    auto descriptorHolder = std::make_unique<TNodeDescriptor>(descriptor);
+    DoAddCapturedDescriptor(id, std::move(descriptorHolder));
+}
+
+void TNodeDirectory::DoAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& protoDescriptor)
+{
+    auto it = IdToDescriptor_.find(id);
+    if (it != IdToDescriptor_.end() && *it->second == protoDescriptor) {
+        return;
+    }
+
+    auto descriptorHolder = std::make_unique<TNodeDescriptor>();
+    FromProto(descriptorHolder.get(), protoDescriptor);
+    DoAddCapturedDescriptor(id, std::move(descriptorHolder));
+}
+
+void TNodeDirectory::DoAddCapturedDescriptor(TNodeId id, std::unique_ptr<TNodeDescriptor> descriptorHolder)
+{
+    auto* capturedDescriptor = descriptorHolder.get();
+    Descriptors_.emplace_back(std::move(descriptorHolder));
     IdToDescriptor_[id] = capturedDescriptor;
-    AddressToDescriptor_[descriptor.GetDefaultAddress()] = capturedDescriptor;
+    AddressToDescriptor_[capturedDescriptor->GetDefaultAddress()] = capturedDescriptor;
 }
 
 const TNodeDescriptor* TNodeDirectory::FindDescriptor(TNodeId id) const

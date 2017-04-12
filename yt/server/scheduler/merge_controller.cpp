@@ -1,4 +1,5 @@
 #include "merge_controller.h"
+#include "sorted_controller.h"
 #include "private.h"
 #include "chunk_list_pool.h"
 #include "chunk_pool.h"
@@ -14,8 +15,10 @@
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/chunk_slices_fetcher.h>
+#include <yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
+
+#include <yt/ytlib/query_client/query.h>
 
 #include <yt/core/concurrency/periodic_yielder.h>
 
@@ -277,6 +280,10 @@ protected:
             TTask::OnJobCompleted(joblet, jobSummary);
 
             RegisterOutput(joblet, PartitionIndex, jobSummary);
+
+            if (jobSummary.InterruptReason != EInterruptReason::None) {
+                Controller->ReinstallUnreadInputDataSlices(jobSummary.UnreadInputDataSlices);
+            }
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
@@ -420,7 +427,7 @@ protected:
     bool HasLargeActiveTask()
     {
         YCHECK(MaxDataSizePerJob > 0);
-        return CurrentTaskDataSize >= MaxDataSizePerJob || CurrentTaskChunkCount >= Options->MaxChunkStripesPerJob;
+        return CurrentTaskDataSize >= MaxDataSizePerJob || CurrentTaskChunkCount >= Options->MaxDataSlicesPerJob;
     }
 
     void AddSliceToStripe(const TInputDataSlicePtr& dataSlice, std::vector<TChunkStripePtr>& stripes)
@@ -462,7 +469,7 @@ protected:
     }
 
     //! Create new task from unread input data slices.
-    void AddTaskForUnreadInputDataSlices(std::vector<TInputDataSlicePtr> inputDataSlices)
+    void AddTaskForUnreadInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices)
     {
         CurrentTaskDataSize = 0;
         CurrentTaskChunkCount = 0;
@@ -478,7 +485,7 @@ protected:
 
     virtual bool IsCompleted() const override
     {
-        return Tasks.size() == JobCounter.GetCompleted();
+        return Tasks.size() == JobCounter.GetCompletedTotal();
     }
 
     virtual void DoInitialize() override
@@ -571,11 +578,11 @@ protected:
             "UnavailableInputChunks: %v",
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
-            JobCounter.GetCompleted(),
+            JobCounter.GetCompletedTotal(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),
-            JobCounter.GetInterrupted(),
+            JobCounter.GetInterruptedTotal(),
             UnavailableInputChunkCount);
     }
 
@@ -707,6 +714,7 @@ public:
         TOperation* operation)
         : TOrderedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
+        , Options(options)
     {
         RegisterJobProxyMemoryDigest(EJobType::OrderedMap, spec->JobProxyMemoryDigest);
         RegisterUserJobMemoryDigest(EJobType::OrderedMap, spec->Mapper->MemoryReserveFactor);
@@ -734,6 +742,8 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController, 0x1e5a7e32);
 
     TMapOperationSpecPtr Spec;
+    TMapOperationOptionsPtr Options;
+
 
     i64 StartRowIndex = 0;
 
@@ -811,7 +821,8 @@ private:
         return true;
     }
 
-    virtual void ReinstallUnreadInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices) override
+    virtual void ReinstallUnreadInputDataSlices(
+        const std::vector<TInputDataSlicePtr>& inputDataSlices) override
     {
         AddTaskForUnreadInputDataSlices(inputDataSlices);
     }
@@ -832,6 +843,20 @@ private:
         return ComputeUserJobMemoryReserve(EJobType::OrderedMap, Spec->Mapper);
     }
 
+    virtual void PrepareInputQuery() override
+    {
+        if (Spec->InputQuery) {
+            ParseInputQuery(*Spec->InputQuery, Spec->InputSchema);
+        }
+    }
+
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+    {
+        return IsJobInterruptible() && Config->EnableJobSplitting && Spec->EnableJobSplitting
+            ? Options->JobSplitter
+            : nullptr;
+    }
+
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(static_cast<int>(EJobType::OrderedMap));
@@ -841,7 +866,7 @@ private:
         ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
         if (Spec->InputQuery) {
-            InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
+            WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -911,30 +936,48 @@ private:
 
     TOrderedMergeOperationSpecPtr Spec;
 
+    virtual void PrepareInputQuery() override
+    {
+        if (Spec->InputQuery) {
+            ParseInputQuery(*Spec->InputQuery, Spec->InputSchema);
+        }
+    }
+
     virtual void PrepareOutputTables() override
     {
         auto& table = OutputTables[0];
 
+        auto inferFromInput = [&] () {
+            if (Spec->InputQuery) {
+                table.TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
+            } else {
+                InferSchemaFromInputOrdered();
+            }
+        };
+
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-                    InferSchemaFromInputOrdered();
+                    inferFromInput();
                 } else {
                     ValidateOutputSchemaOrdered();
-                    for (const auto& inputTable : InputTables) {
-                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
-                            ValidateTableSchemaCompatibility(
-                                inputTable.Schema,
-                                table.TableUploadOptions.TableSchema,
-                                /* ignoreSortOrder */ true)
-                                .ThrowOnError();
+
+                    if (!Spec->InputQuery) {
+                        for (const auto& inputTable : InputTables) {
+                            if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
+                                ValidateTableSchemaCompatibility(
+                                    inputTable.Schema,
+                                    table.TableUploadOptions.TableSchema,
+                                    /* ignoreSortOrder */ true)
+                                    .ThrowOnError();
+                            }
                         }
                     }
                 }
                 break;
 
             case ESchemaInferenceMode::FromInput:
-                InferSchemaFromInputOrdered();
+                inferFromInput();
                 break;
 
             case ESchemaInferenceMode::FromOutput:
@@ -959,7 +1002,7 @@ private:
 
     virtual bool IsTeleportChunk(const TInputChunkPtr& chunkSpec) const override
     {
-        if (Spec->ForceTransform) {
+        if (Spec->ForceTransform || Spec->InputQuery) {
             return false;
         }
 
@@ -986,7 +1029,7 @@ private:
         ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
         if (Spec->InputQuery) {
-            InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
+            WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -1169,11 +1212,11 @@ DEFINE_ENUM(EEndpointType,
 );
 
 //! Handles sorted merge and reduce operations.
-class TSortedMergeControllerBase
+class TLegacySortedMergeControllerBase
     : public TMergeControllerBase
 {
 public:
-    TSortedMergeControllerBase(
+    TLegacySortedMergeControllerBase(
         TSchedulerConfigPtr config,
         TSimpleOperationSpecBasePtr spec,
         TSortedMergeOperationOptionsPtr options,
@@ -1204,7 +1247,7 @@ protected:
         { }
 
         TManiacTask(
-            TSortedMergeControllerBase* controller,
+            TLegacySortedMergeControllerBase* controller,
             int taskIndex,
             int partitionIndex)
             : TMergeTask(controller, taskIndex, partitionIndex)
@@ -1222,7 +1265,7 @@ protected:
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TManiacTask, 0xb3ed19a2);
 
-        TSortedMergeControllerBase* Controller;
+        TLegacySortedMergeControllerBase* Controller;
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
@@ -1263,13 +1306,13 @@ protected:
     //! The actual (adjusted) key columns.
     std::vector<Stroka> SortKeyColumns;
 
-    TChunkSliceFetcherPtr ChunkSliceFetcher;
+    IChunkSliceFetcherPtr ChunkSliceFetcher;
 
     TJobSpec ManiacJobSpecTemplate;
 
     std::vector<TInputDataSlicePtr> VersionedDataSlices;
 
-    virtual bool ShouldSlicePrimaryTableByKeys()
+    virtual bool ShouldSlicePrimaryTableByKeys() const
     {
         return true;
     }
@@ -1307,7 +1350,7 @@ protected:
                 Logger);
         }
 
-        ChunkSliceFetcher = New<TChunkSliceFetcher>(
+        ChunkSliceFetcher = CreateChunkSliceFetcher(
             Config->Fetcher,
             ChunkSliceSize,
             SortKeyColumns,
@@ -1423,28 +1466,28 @@ protected:
     { }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeControllerBase::TManiacTask);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacySortedMergeControllerBase::TManiacTask);
 
 ////////////////////////////////////////////////////////////////////
 
-class TSortedMergeController
-    : public TSortedMergeControllerBase
+class TLegacySortedMergeController
+    : public TLegacySortedMergeControllerBase
 {
 public:
-    TSortedMergeController(
+    TLegacySortedMergeController(
         TSchedulerConfigPtr config,
         TSortedMergeOperationSpecPtr spec,
         TSortedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedMergeControllerBase(config, spec, options, host, operation)
+        : TLegacySortedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedMerge, spec->JobProxyMemoryDigest);
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController, 0xbc6daa18);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TLegacySortedMergeController, 0xbc6daa18);
 
     TSortedMergeOperationSpecPtr Spec;
 
@@ -1673,7 +1716,7 @@ private:
 
             auto hasLargeActiveTask = [&] () {
                 return HasLargeActiveTask() ||
-                    CurrentTaskChunkCount + globalOpenedSlices.size() >= Options->MaxChunkStripesPerJob;
+                    CurrentTaskChunkCount + globalOpenedSlices.size() >= Options->MaxDataSlicesPerJob;
             };
 
             while (!hasLargeActiveTask() && !maniacs.empty()) {
@@ -1749,7 +1792,7 @@ private:
     virtual void PrepareOutputTables() override
     {
         // Check that all input tables are sorted by the same key columns.
-        TSortedMergeControllerBase::PrepareOutputTables();
+        TLegacySortedMergeControllerBase::PrepareOutputTables();
 
         auto& table = OutputTables[0];
         table.TableUploadOptions.LockMode = ELockMode::Exclusive;
@@ -1828,7 +1871,7 @@ private:
     }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacySortedMergeController);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -1852,12 +1895,17 @@ IOperationControllerPtr CreateMergeController(
                 operation);
         }
         case EMergeMode::Sorted: {
-            return New<TSortedMergeController>(
-                config,
-                ParseOperationSpec<TSortedMergeOperationSpec>(spec),
-                config->SortedMergeOperationOptions,
-                host,
-                operation);
+            auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(spec);
+            if (legacySpec->UseLegacyController) {
+                return New<TLegacySortedMergeController>(
+                    config,
+                    ParseOperationSpec<TSortedMergeOperationSpec>(spec),
+                    config->SortedMergeOperationOptions,
+                    host,
+                    operation);
+            } else {
+                return CreateSortedMergeController(config, host, operation);
+            }
         }
         default:
             Y_UNREACHABLE();
@@ -1866,23 +1914,24 @@ IOperationControllerPtr CreateMergeController(
 
 ////////////////////////////////////////////////////////////////////
 
-class TReduceControllerBase
-    : public TSortedMergeControllerBase
+class TLegacyReduceControllerBase
+    : public TLegacySortedMergeControllerBase
 {
 public:
-    TReduceControllerBase(
+    TLegacyReduceControllerBase(
         TSchedulerConfigPtr config,
         TReduceOperationSpecBasePtr spec,
         TReduceOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedMergeControllerBase(config, spec, options, host, operation)
+        : TLegacySortedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
+        , Options(options)
     { }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
-        TSortedMergeControllerBase::BuildBriefSpec(consumer);
+        TLegacySortedMergeControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)
             .Item("reducer").BeginMap()
                 .Item("command").Value(TrimCommandForBriefSpec(Spec->Reducer->Command))
@@ -1892,7 +1941,7 @@ public:
     // Persistence.
     virtual void Persist(const TPersistenceContext& context) override
     {
-        TSortedMergeControllerBase::Persist(context);
+        TLegacySortedMergeControllerBase::Persist(context);
 
         using NYT::Persist;
         Persist(context, StartRowIndex);
@@ -1903,6 +1952,7 @@ public:
 
 protected:
     TReduceOperationSpecBasePtr Spec;
+    TReduceOperationOptionsPtr Options;
 
     i64 StartRowIndex = 0;
 
@@ -1924,7 +1974,7 @@ protected:
 
     virtual void DoInitialize() override
     {
-        TSortedMergeControllerBase::DoInitialize();
+        TLegacySortedMergeControllerBase::DoInitialize();
 
         int teleportOutputCount = 0;
         for (int i = 0; i < static_cast<int>(OutputTables.size()); ++i) {
@@ -2004,7 +2054,7 @@ protected:
             }
         }
 
-        TSortedMergeControllerBase::AddPendingDataSlice(dataSlice);
+        TLegacySortedMergeControllerBase::AddPendingDataSlice(dataSlice);
     }
 
     virtual void EndTaskIfActive() override
@@ -2055,7 +2105,7 @@ protected:
         CurrentTaskMinForeignKey = TKey();
         CurrentTaskMaxForeignKey = TKey();
 
-        TSortedMergeControllerBase::EndTaskIfActive();
+        TLegacySortedMergeControllerBase::EndTaskIfActive();
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -2102,7 +2152,8 @@ protected:
         return result;
     }
 
-    virtual void ReinstallUnreadInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices) override
+    virtual void ReinstallUnreadInputDataSlices(
+        const std::vector<TInputDataSlicePtr>& inputDataSlices) override
     {
         AddTaskForUnreadInputDataSlices(inputDataSlices);
     }
@@ -2126,6 +2177,13 @@ protected:
     virtual i64 GetUserJobMemoryReserve() const override
     {
         return ComputeUserJobMemoryReserve(GetJobType(), Spec->Reducer);
+    }
+
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+    {
+        return IsJobInterruptible() && Config->EnableJobSplitting && Spec->EnableJobSplitting
+            ? Options->JobSplitter
+            : nullptr;
     }
 
     virtual void InitJobSpecTemplate() override
@@ -2188,16 +2246,16 @@ protected:
 
 ////////////////////////////////////////////////////////////////////
 
-class TReduceController
-    : public TReduceControllerBase
+class TLegacyReduceController
+    : public TLegacyReduceControllerBase
 {
 public:
-    TReduceController(
+    TLegacyReduceController(
         TSchedulerConfigPtr config,
         TReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TReduceControllerBase(config, spec, config->ReduceOperationOptions, host, operation)
+        : TLegacyReduceControllerBase(config, spec, config->ReduceOperationOptions, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::SortedReduce, spec->JobProxyMemoryDigest);
@@ -2207,17 +2265,17 @@ public:
     // Persistence.
     virtual void Persist(const TPersistenceContext& context) override
     {
-        TReduceControllerBase::Persist(context);
+        TLegacyReduceControllerBase::Persist(context);
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceController, 0xacd16dbc);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TLegacyReduceController, 0xacd16dbc);
 
     TReduceOperationSpecPtr Spec;
 
     virtual void DoInitialize() override
     {
-        TReduceControllerBase::DoInitialize();
+        TLegacyReduceControllerBase::DoInitialize();
 
         int foreignInputCount = 0;
         for (auto& table : InputTables) {
@@ -2281,7 +2339,7 @@ private:
     virtual bool IsTeleportCandidate(TInputChunkPtr chunkSpec) const override
     {
         return
-            TSortedMergeControllerBase::IsTeleportCandidate(chunkSpec) &&
+            TLegacySortedMergeControllerBase::IsTeleportCandidate(chunkSpec) &&
             InputTables[chunkSpec->GetTableIndex()].Path.GetTeleport();
     }
 
@@ -2427,7 +2485,7 @@ private:
 
         auto hasLargeActiveTask = [&] () {
             return HasLargeActiveTask() ||
-                CurrentTaskChunkCount + openedSlices.size() >= Options->MaxChunkStripesPerJob;
+                CurrentTaskChunkCount + openedSlices.size() >= Options->MaxDataSlicesPerJob;
         };
 
         int startIndex = 0;
@@ -2509,29 +2567,29 @@ private:
     }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceController);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyReduceController);
 
-IOperationControllerPtr CreateReduceController(
+IOperationControllerPtr CreateLegacyReduceController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TReduceOperationSpec>(operation->GetSpec());
-    return New<TReduceController>(config, spec, host, operation);
+    return New<TLegacyReduceController>(config, spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////
 
-class TJoinReduceController
-    : public TReduceControllerBase
+class TLegacyJoinReduceController
+    : public TLegacyReduceControllerBase
 {
 public:
-    TJoinReduceController(
+    TLegacyJoinReduceController(
         TSchedulerConfigPtr config,
         TJoinReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TReduceControllerBase(config, spec, config->JoinReduceOperationOptions, host, operation)
+        : TLegacyReduceControllerBase(config, spec, config->JoinReduceOperationOptions, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::JoinReduce, spec->JobProxyMemoryDigest);
@@ -2541,17 +2599,17 @@ public:
     // Persistence.
     virtual void Persist(const TPersistenceContext& context) override
     {
-        TReduceControllerBase::Persist(context);
+        TLegacyReduceControllerBase::Persist(context);
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TJoinReduceController, 0xc0fd3095);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TLegacyJoinReduceController, 0xc0fd3095);
 
     TJoinReduceOperationSpecPtr Spec;
 
     virtual void DoInitialize() override
     {
-        TReduceControllerBase::DoInitialize();
+        TLegacyReduceControllerBase::DoInitialize();
 
         if (InputTables.size() < 2) {
             THROW_ERROR_EXCEPTION("At least two input tables are required");
@@ -2641,7 +2699,7 @@ private:
         EndTaskIfActive();
     }
 
-    virtual bool ShouldSlicePrimaryTableByKeys() override
+    virtual bool ShouldSlicePrimaryTableByKeys() const override
     {
         // JoinReduce slices by row indexes.
         return false;
@@ -2658,15 +2716,15 @@ private:
     }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceController);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyJoinReduceController);
 
-IOperationControllerPtr CreateJoinReduceController(
+IOperationControllerPtr CreateLegacyJoinReduceController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TJoinReduceOperationSpec>(operation->GetSpec());
-    return New<TJoinReduceController>(config, spec, host, operation);
+    return New<TLegacyJoinReduceController>(config, spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////

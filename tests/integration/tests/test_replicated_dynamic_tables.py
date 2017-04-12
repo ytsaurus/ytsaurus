@@ -354,7 +354,19 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         reshard_table("//tmp/t", [[], [10], [20]])
         tablets = get("//tmp/t/@tablets")
+
+        # ensuring that we have correctly populated data here
+        tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 3
+        assert tablets[0]["index"] == 0
+        assert tablets[0]["pivot_key"] == []
+        assert tablets[1]["index"] == 1
+        assert tablets[1]["pivot_key"] == [10]
+        assert tablets[2]["index"] == 2
+        assert tablets[2]["pivot_key"] == [20]
+
+        self.sync_mount_table("//tmp/t")
+        self.sync_unmount_table("//tmp/t")
 
     def test_replica_ops_require_exclusive_lock(self):
         self._create_cells()

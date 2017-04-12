@@ -6,8 +6,6 @@
 
 #include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
-#include <yt/ytlib/node_tracker_client/helpers.h>
-
 namespace NYT {
 namespace NScheduler {
 

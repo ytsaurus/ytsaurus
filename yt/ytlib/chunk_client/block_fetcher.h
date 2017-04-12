@@ -27,10 +27,6 @@ class TBlockFetcher
     : public virtual TRefCounted
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(i64, UncompressedDataSize);
-    DEFINE_BYVAL_RO_PROPERTY(i64, CompressedDataSize);
-
-public:
     struct TBlockInfo
     {
         int Index;
@@ -71,7 +67,16 @@ public:
     //! Returns true if all blocks are fetched and false otherwise.
     bool IsFetchingCompleted();
 
+    //! Returns total uncompressed size of read blocks.
+    i64 GetUncompressedDataSize() const;
+
+    //! Returns total compressed size of read blocks.
+    i64 GetCompressedDataSize() const;
+
 private:
+    std::atomic<i64> UncompressedDataSize_ = {0};
+    std::atomic<i64> CompressedDataSize_ = {0};
+
     void FetchNextGroup(NConcurrency::TAsyncSemaphoreGuard AsyncSemaphoreGuard);
 
     void RequestBlocks(

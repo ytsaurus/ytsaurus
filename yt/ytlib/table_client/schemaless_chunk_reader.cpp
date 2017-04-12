@@ -102,7 +102,7 @@ public:
         }
     }
 
-    virtual TNameTablePtr GetNameTable() const override
+    virtual const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
@@ -1864,7 +1864,7 @@ public:
 
     virtual i64 GetTotalRowCount() const override;
 
-    virtual TNameTablePtr GetNameTable() const override;
+    virtual const TNameTablePtr& GetNameTable() const override;
 
     virtual TKeyColumns GetKeyColumns() const override;
 
@@ -1987,7 +1987,7 @@ i64 TSchemalessMultiChunkReader<TBase>::GetTableRowIndex() const
 }
 
 template <class TBase>
-TNameTablePtr TSchemalessMultiChunkReader<TBase>::GetNameTable() const
+const TNameTablePtr& TSchemalessMultiChunkReader<TBase>::GetNameTable() const
 {
     return NameTable_;
 }
@@ -2133,7 +2133,7 @@ public:
     virtual bool IsFetchingCompleted() const override;
     virtual i64 GetSessionRowIndex() const override;
     virtual i64 GetTotalRowCount() const override;
-    virtual TNameTablePtr GetNameTable() const override;
+    virtual const TNameTablePtr& GetNameTable() const override;
     virtual TKeyColumns GetKeyColumns() const override;
     virtual i64 GetTableRowIndex() const override;
 
@@ -2293,7 +2293,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             upperLimit.GetKey(),
             columnFilter,
             performanceCounters,
-            timestamp);
+            timestamp,
+            false);
     };
 
     struct TSchemalessMergingMultiChunkReaderBufferTag
@@ -2433,7 +2434,7 @@ i64 TSchemalessMergingMultiChunkReader::GetTableRowIndex() const
     return 0;
 }
 
-TNameTablePtr TSchemalessMergingMultiChunkReader::GetNameTable() const
+const TNameTablePtr& TSchemalessMergingMultiChunkReader::GetNameTable() const
 {
     return UnderlyingReader_->GetNameTable();
 }

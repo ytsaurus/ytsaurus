@@ -46,7 +46,8 @@ public:
         const std::vector<TColumnIdMapping>& schemaIdMapping,
         const TKeyComparer& keyComparer,
         TTimestamp timestamp,
-        bool initialize = true);
+        bool produceAllVersions,
+        bool initialize);
 
     virtual bool NextRow() override;
 
@@ -63,6 +64,7 @@ private:
     typedef TReadOnlyBitmap<ui64> TBitmap;
 
     const TTimestamp Timestamp_;
+    const bool ProduceAllVersions_;
     const int ChunkKeyColumnCount_;
     const int KeyColumnCount_;
 
@@ -101,14 +103,14 @@ private:
     const TKeyComparer& KeyComparer_;
 
     bool JumpToRowIndex(i64 index);
-    TVersionedRow ReadAllValues(TChunkedMemoryPool* memoryPool);
-    TVersionedRow ReadValuesByTimestamp(TChunkedMemoryPool* memoryPool);
+    TVersionedRow ReadAllVersions(TChunkedMemoryPool* memoryPool);
+    TVersionedRow ReadOneVersion(TChunkedMemoryPool* memoryPool);
 
     TTimestamp ReadTimestamp(int timestampIndex);
     void ReadValue(TVersionedValue* value, int valueIndex, int id, int chunkSchemaId);
     void ReadKeyValue(TUnversionedValue* value, int id);
 
-    Y_FORCE_INLINE TTimestamp ReadValueTimestamp(int valueIndex, int id);
+    Y_FORCE_INLINE TTimestamp ReadValueTimestamp(int valueIndex);
     Y_FORCE_INLINE void ReadStringLike(TUnversionedValue* value, const char* ptr);
 
     ui32 GetColumnValueCount(int schemaColumnId) const;

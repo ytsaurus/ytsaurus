@@ -53,7 +53,7 @@ i64 GetInputIOMemorySize(
     if (stat.ChunkCount == 0)
         return 0;
 
-    int concurrentReaders = std::min(stat.ChunkCount, ioConfig->TableReader->MaxPrefetchWindow);
+    int concurrentReaders = std::min(stat.ChunkCount, ioConfig->TableReader->MaxParallelReaders);
 
     // Group can be overcommited by one block.
     i64 groupSize = stat.MaxBlockSize + ioConfig->TableReader->GroupSize;

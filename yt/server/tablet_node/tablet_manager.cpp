@@ -946,8 +946,19 @@ private:
         auto requestedState = ETabletState(request->state());
 
         switch (requestedState) {
-            case ETabletState::UnmountFlushing:
             case ETabletState::FreezeFlushing: {
+                auto state = tablet->GetState();
+                if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
+                    LOG_INFO_UNLESS(IsRecovery(), "Trying to switch state to %Qv while tablet in %Qlv state, ignored (TabletId: %v)",
+                        requestedState,
+                        state,
+                        tabletId);
+                    return;
+                }
+                // No break intentionaly
+            }
+
+            case ETabletState::UnmountFlushing: {
                 tablet->SetState(requestedState);
 
                 const auto& storeManager = tablet->GetStoreManager();
@@ -992,6 +1003,15 @@ private:
             }
 
             case ETabletState::Frozen: {
+                auto state = tablet->GetState();
+                if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
+                    LOG_INFO_UNLESS(IsRecovery(), "Trying to switch state to %Qv while tablet in %Qlv state, ignored (TabletId: %v)",
+                        requestedState,
+                        state,
+                        tabletId);
+                    return;
+                }
+
                 tablet->SetState(ETabletState::Frozen);
 
                 for (const auto& pair : tablet->StoreIdMap()) {
@@ -1972,6 +1992,15 @@ private:
         switch (command) {
             case EWireProtocolCommand::LookupRows:
                 LookupRows(
+                    std::move(tabletSnapshot),
+                    timestamp,
+                    workloadDescriptor,
+                    reader,
+                    writer);
+                break;
+
+            case EWireProtocolCommand::VersionedLookupRows:
+                VersionedLookupRows(
                     std::move(tabletSnapshot),
                     timestamp,
                     workloadDescriptor,

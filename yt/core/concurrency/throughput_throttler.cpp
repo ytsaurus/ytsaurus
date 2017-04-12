@@ -157,7 +157,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        // Slow lane (only).
+        // Fast lane (only).
         return QueueTotalCount_;
     }
 

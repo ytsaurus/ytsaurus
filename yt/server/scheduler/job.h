@@ -4,6 +4,7 @@
 #include "job_resources.h"
 
 #include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/job_tracker_client/job.pb.h>
 #include <yt/ytlib/job_tracker_client/statistics.h>
@@ -97,8 +98,14 @@ class TJob
     //! Flag that marks job as preempted by scheduler.
     DEFINE_BYVAL_RW_PROPERTY(bool, Preempted);
 
+    //! String describing preemption reason.
+    DEFINE_BYVAL_RW_PROPERTY(Stroka, PreemptionReason);
+
+    //! The purpose of the job interruption.
+    DEFINE_BYVAL_RW_PROPERTY(EInterruptReason, InterruptReason, EInterruptReason::None);
+
     //! Deadline for job to be interrupted.
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, InterruptDeadline);
+    DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, InterruptDeadline, 0);
 
     //! Contains several important values extracted from job statistics.
     DEFINE_BYVAL_RO_PROPERTY(TBriefJobStatisticsPtr, BriefStatistics);
@@ -112,8 +119,8 @@ class TJob
     //! Account for node in cypress.
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Account);
 
-    //! Cookie for timeout on interrupted job.
-    DEFINE_BYREF_RW_PROPERTY(NConcurrency::TDelayedExecutorCookie, InterruptCookie);
+    //! Last time when statistics and resource usage from running job was updated.
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, LastRunningJobUpdateTime);
 
 public:
     TJob(
@@ -142,6 +149,8 @@ public:
     void SetStatus(TJobStatus* status);
 
     const Stroka& GetStatisticsSuffix() const;
+
+    void InterruptJob(EInterruptReason reason, NProfiling::TCpuInstant interruptDeadline);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)
@@ -152,13 +161,15 @@ struct TJobSummary
 {
     explicit TJobSummary(const TJobPtr& job);
     explicit TJobSummary(const TJobId& id);
+    //! Only for testing purpose.
+    TJobSummary() = default;
 
     void ParseStatistics();
 
     const TJobResult Result;
     const TJobId Id;
     const Stroka StatisticsSuffix;
-    const TInstant FinishTime;
+    TNullable<TInstant> FinishTime;
     TNullable<TDuration> PrepareDuration;
     TNullable<TDuration> DownloadDuration;
     TNullable<TDuration> ExecDuration;
@@ -176,9 +187,14 @@ struct TCompletedJobSummary
     : public TJobSummary
 {
     explicit TCompletedJobSummary(const TJobPtr& job, bool abandoned = false);
+    //! Only for testing purpose.
+    TCompletedJobSummary() = default;
 
     const bool Abandoned = false;
-    bool Interrupted = false;
+
+    std::vector<NChunkClient::TInputDataSlicePtr> UnreadInputDataSlices;
+    EInterruptReason InterruptReason = EInterruptReason::None;
+    int SplitJobCount = 1;
 };
 
 struct TAbortedJobSummary

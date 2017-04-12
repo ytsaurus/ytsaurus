@@ -343,19 +343,42 @@ void TUnversionedRowMerger::Cleanup()
 
 TVersionedRowMerger::TVersionedRowMerger(
     TRowBufferPtr rowBuffer,
+    int columnCount,
     int keyColumnCount,
+    const TColumnFilter& columnFilter,
     TRetentionConfigPtr config,
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
     TColumnEvaluatorPtr columnEvaluator)
     : RowBuffer_(std::move(rowBuffer))
+    , ColumnCount_(columnCount)
     , KeyColumnCount_(keyColumnCount)
     , Config_(std::move(config))
     , CurrentTimestamp_(currentTimestamp)
     , MajorTimestamp_(majorTimestamp)
     , ColumnEvaluator_(std::move(columnEvaluator))
-    , Keys_(KeyColumnCount_)
 {
+    size_t mergedKeyColumnCount = 0;
+    if (columnFilter.All) {
+        for (int id = 0; id < columnCount; ++id) {
+            if (id < keyColumnCount) {
+                ++mergedKeyColumnCount;
+            }
+            ColumnIds_.push_back(id);
+        }
+        Y_ASSERT(mergedKeyColumnCount == keyColumnCount);
+    } else {
+        for (int id : columnFilter.Indexes) {
+            if (id < keyColumnCount) {
+                ++mergedKeyColumnCount;
+            }
+            ColumnIds_.push_back(id);
+        }
+    }
+
+    Keys_.resize(mergedKeyColumnCount);
+    std::sort(ColumnIds_.begin(), ColumnIds_.end());
+
     Cleanup();
 }
 
@@ -378,7 +401,13 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
     if (!Started_) {
         Started_ = true;
         Y_ASSERT(row.GetKeyCount() == KeyColumnCount_);
-        std::copy(row.BeginKeys(), row.EndKeys(), Keys_.data());
+        for (int index = 0; index < ColumnIds_.size(); ++index) {
+            int id = ColumnIds_[index];
+            if (id < KeyColumnCount_) {
+                Y_ASSERT(index < Keys_.size());
+                Keys_.data()[index] = row.BeginKeys()[id];
+            }
+        }
     }
 
     PartialValues_.insert(
@@ -421,6 +450,8 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         PartialValues_.end());
 
     // Scan through input values.
+    auto columnIdsBeginIt = ColumnIds_.begin();
+    auto columnIdsEndIt = ColumnIds_.end();
     auto partialValueIt = PartialValues_.begin();
     while (partialValueIt != PartialValues_.end()) {
         // Extract a range of values for the current column.
@@ -428,6 +459,15 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         auto columnEndIt = partialValueIt + 1;
         while (columnEndIt != PartialValues_.end() && columnEndIt->Id == partialValueIt->Id) {
             ++columnEndIt;
+        }
+
+        // Skip values if the current column is filtered out.
+        while (columnIdsBeginIt != columnIdsEndIt && *columnIdsBeginIt < partialValueIt->Id) {
+            ++columnIdsBeginIt;
+        }
+        if (columnIdsBeginIt == columnIdsEndIt || *columnIdsBeginIt > partialValueIt->Id) {
+            partialValueIt = columnEndIt;
+            continue;
         }
 
         // Merge with delete timestamps and put result into ColumnValues_.
@@ -467,7 +507,8 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         // Adjust safety limit by MinDataTtl.
         while (safetyEndIt != ColumnValues_.begin()) {
             auto timestamp = (safetyEndIt - 1)->Timestamp;
-            if (timestamp < CurrentTimestamp_ &&
+            if (CurrentTimestamp_ < MaxTimestamp &&
+                timestamp < CurrentTimestamp_ &&
                 TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > Config_->MinDataTtl)
             {
                 break;
@@ -483,7 +524,8 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
             }
 
             auto timestamp = (retentionBeginIt - 1)->Timestamp;
-            if (timestamp < CurrentTimestamp_ &&
+            if (CurrentTimestamp_ < MaxTimestamp &&
+                timestamp < CurrentTimestamp_ &&
                 TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > Config_->MaxDataTtl)
             {
                 break;
@@ -492,7 +534,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
             --retentionBeginIt;
         }
 
-        // For uggregate columns merge values before MajorTimestamp_ and leave other values.
+        // For aggregate columns merge values before MajorTimestamp_ and leave other values.
         int id = partialValueIt->Id;
         if (ColumnEvaluator_->IsAggregate(id) && retentionBeginIt < ColumnValues_.end()) {
             while (retentionBeginIt != ColumnValues_.begin()
@@ -572,7 +614,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
     // Construct output row.
     auto row = TMutableVersionedRow::Allocate(
         RowBuffer_->GetPool(),
-        KeyColumnCount_,
+        Keys_.size(),
         MergedValues_.size(),
         WriteTimestamps_.size(),
         DeleteTimestamps_.size());

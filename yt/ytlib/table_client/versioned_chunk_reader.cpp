@@ -119,12 +119,12 @@ std::vector<TColumnIdMapping> BuildSchemalessHorizontalSchemaIdMapping(
 
 struct TVersionedChunkReaderPoolTag { };
 
-class TVersionedChunkReaderBase
+class TSimpleVersionedChunkReaderBase
     : public IVersionedReader
     , public TChunkReaderBase
 {
 public:
-    TVersionedChunkReaderBase(
+    TSimpleVersionedChunkReaderBase(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
@@ -132,10 +132,10 @@ public:
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp,
-        TKeyComparer keyComparer = [] (TKey lhs, TKey rhs) {
+        bool produceAllVersions,
+        TKeyComparer keyComparer = [] (auto lhs, auto rhs) {
             return CompareRows(lhs, rhs);
         });
-
 
     virtual TFuture<void> Open() override
     {
@@ -145,6 +145,7 @@ public:
 protected:
     const TCachedVersionedChunkMetaPtr ChunkMeta_;
     const TTimestamp Timestamp_;
+    const bool ProduceAllVersions_;
     const TKeyComparer KeyComparer_;
 
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
@@ -158,7 +159,7 @@ protected:
     TChunkReaderPerformanceCountersPtr PerformanceCounters_;
 };
 
-TVersionedChunkReaderBase::TVersionedChunkReaderBase(
+TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
     TChunkReaderConfigPtr config,
     TCachedVersionedChunkMetaPtr chunkMeta,
     IChunkReaderPtr underlyingReader,
@@ -166,6 +167,7 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
     const TColumnFilter& columnFilter,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp,
+    bool produceAllVersions,
     TKeyComparer keyComparer)
     : TChunkReaderBase(
         std::move(config),
@@ -173,6 +175,7 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
         std::move(blockCache))
     , ChunkMeta_(std::move(chunkMeta))
     , Timestamp_(timestamp)
+    , ProduceAllVersions_(produceAllVersions)
     , KeyComparer_(std::move(keyComparer))
     , SchemaIdMapping_(BuildVersionedSimpleSchemaIdMapping(columnFilter, ChunkMeta_))
     , MemoryPool_(TVersionedChunkReaderPoolTag())
@@ -188,7 +191,7 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSimpleVersionedRangeChunkReader
-    : public TVersionedChunkReaderBase
+    : public TSimpleVersionedChunkReaderBase
 {
 public:
     TSimpleVersionedRangeChunkReader(
@@ -200,15 +203,17 @@ public:
         TOwningKey upperLimit,
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
-        TTimestamp timestamp)
-        : TVersionedChunkReaderBase(
+        TTimestamp timestamp,
+        bool produceAllVersions)
+        : TSimpleVersionedChunkReaderBase(
             std::move(config),
             std::move(chunkMeta),
             std::move(underlyingReader),
             std::move(blockCache),
             columnFilter,
             std::move(performanceCounters),
-            timestamp)
+            timestamp,
+            produceAllVersions)
         , LowerLimit_(std::move(lowerLimit))
         , UpperLimit_(std::move(upperLimit))
     {
@@ -291,33 +296,23 @@ private:
 
     virtual void InitFirstBlock() override
     {
-        CheckBlockUpperLimits(
-            ChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
-            NChunkClient::TReadLimit(UpperLimit_),
-            ChunkMeta_->GetKeyColumnCount());
-
-        YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
-        BlockReader_.reset(new TSimpleVersionedBlockReader(
-            CurrentBlock_.Get().ValueOrThrow(),
-            ChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
-            ChunkMeta_->ChunkSchema(),
-            ChunkMeta_->GetChunkKeyColumnCount(),
-            ChunkMeta_->GetKeyColumnCount(),
-            SchemaIdMapping_,
-            KeyComparer_,
-            Timestamp_));
-
+        InitImpl();
         YCHECK(BlockReader_->SkipToKey(LowerLimit_));
     }
 
     virtual void InitNextBlock() override
     {
         ++CurrentBlockIndex_;
+        InitImpl();
+    }
 
+    void InitImpl()
+    {
         CheckBlockUpperLimits(
             ChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
             NChunkClient::TReadLimit(UpperLimit_),
             ChunkMeta_->GetKeyColumnCount());
+
         YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
 
         BlockReader_.reset(new TSimpleVersionedBlockReader(
@@ -328,14 +323,17 @@ private:
             ChunkMeta_->GetKeyColumnCount(),
             SchemaIdMapping_,
             KeyComparer_,
-            Timestamp_));
+            Timestamp_,
+            ProduceAllVersions_,
+            true));
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSimpleVersionedLookupChunkReader
-    : public TVersionedChunkReaderBase
+    : public TSimpleVersionedChunkReaderBase
 {
 public:
     TSimpleVersionedLookupChunkReader(
@@ -347,8 +345,9 @@ public:
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TKeyComparer keyComparer,
-        TTimestamp timestamp)
-        : TVersionedChunkReaderBase(
+        TTimestamp timestamp,
+        bool produceAllVersions)
+        : TSimpleVersionedChunkReaderBase(
             std::move(config),
             std::move(chunkMeta),
             std::move(underlyingReader),
@@ -356,6 +355,7 @@ public:
             columnFilter,
             std::move(performanceCounters),
             timestamp,
+            produceAllVersions,
             std::move(keyComparer))
         , Keys_(keys)
         , KeyFilterTest_(Keys_.Size(), true)
@@ -448,11 +448,11 @@ private:
         for (int keyIndex = 0; keyIndex < Keys_.Size(); ++keyIndex) {
             auto& key = Keys_[keyIndex];
 #if 0
-            //FIXME(savrus): use bloom filter here.
-    if (!VersionedChunkMeta_->KeyFilter().Contains(key)) {
-        KeyFilterTest_[keyIndex] = false;
-        continue;
-    }
+            // FIXME(savrus): Use bloom filter here.
+            if (!VersionedChunkMeta_->KeyFilter().Contains(key)) {
+                KeyFilterTest_[keyIndex] = false;
+                continue;
+            }
 #endif
             int blockIndex = GetBlockIndexByKey(
                 key,
@@ -498,7 +498,9 @@ private:
             ChunkMeta_->GetKeyColumnCount(),
             SchemaIdMapping_,
             KeyComparer_,
-            Timestamp_));
+            Timestamp_,
+            ProduceAllVersions_,
+            true));
     }
 };
 
@@ -1176,7 +1178,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TOwningKey upperLimit,
     const TColumnFilter& columnFilter,
     TChunkReaderPerformanceCountersPtr performanceCounters,
-    TTimestamp timestamp)
+    TTimestamp timestamp,
+    bool produceAllVersions)
 {
     switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::VersionedSimple:
@@ -1189,7 +1192,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 std::move(upperLimit),
                 columnFilter,
                 std::move(performanceCounters),
-                timestamp);
+                timestamp,
+                produceAllVersions);
 
         case ETableChunkFormat::VersionedColumnar:
             if (timestamp == AllCommittedTimestamp) {
@@ -1218,6 +1222,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
         case ETableChunkFormat::UnversionedColumnar:
         case ETableChunkFormat::SchemalessHorizontal: {
+            // COMPAT(sandello): Fix me.
+            if (produceAllVersions && timestamp != AllCommittedTimestamp) {
+                THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp");
+            }
+
             auto chunkTimestamp = static_cast<TTimestamp>(chunkMeta->Misc().min_timestamp());
             if (timestamp < chunkTimestamp) {
                 return CreateEmptyVersionedReader();
@@ -1272,11 +1281,9 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TColumnFilter& columnFilter,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TKeyComparer keyComparer,
-    TTimestamp timestamp)
+    TTimestamp timestamp,
+    bool produceAllVersions)
 {
-    // Lookup doesn't support reading all values.
-    YCHECK(timestamp != AllCommittedTimestamp);
-
     switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::VersionedSimple:
             return New<TSimpleVersionedLookupChunkReader>(
@@ -1288,10 +1295,14 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 columnFilter,
                 std::move(performanceCounters),
                 std::move(keyComparer),
-                timestamp);
+                timestamp,
+                produceAllVersions);
 
-
-        case ETableChunkFormat::VersionedColumnar:
+        case ETableChunkFormat::VersionedColumnar: {
+            // COMPAT(sandello): Fix me.
+            if (produceAllVersions && timestamp != AllCommittedTimestamp) {
+                THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp");
+            }
             return New<TColumnarVersionedLookupChunkReader>(
                 std::move(config),
                 std::move(chunkMeta),
@@ -1301,9 +1312,15 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 columnFilter,
                 std::move(performanceCounters),
                 timestamp);
+        }
 
         case ETableChunkFormat::UnversionedColumnar:
         case ETableChunkFormat::SchemalessHorizontal: {
+            // COMPAT(sandello): Fix me.
+            if (produceAllVersions && timestamp != AllCommittedTimestamp) {
+                THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp");
+            }
+
             auto chunkTimestamp = static_cast<TTimestamp>(chunkMeta->Misc().min_timestamp());
             if (timestamp < chunkTimestamp) {
                 return CreateEmptyVersionedReader(keys.Size());

@@ -105,7 +105,7 @@ class TPacketDecoder
     : public TPacketTranscoderBase<TPacketDecoder>
 {
 public:
-    explicit TPacketDecoder(const NLogging::TLogger& logger);
+    TPacketDecoder(const NLogging::TLogger& logger, bool verifyChecksum);
 
     bool Advance(size_t size);
     void Restart();
@@ -125,6 +125,8 @@ private:
     std::vector<TSharedRef> Parts_;
 
     size_t PacketSize_ = 0;
+
+    const bool VerifyChecksum_;
 
     bool EndFixedHeaderPhase();
     bool EndVariableHeaderPhase();

@@ -47,51 +47,27 @@ static const TProfiler StatisticsProfiler("/statistics_reporter");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TStatisticsTableDescriptor
-{
-    TStatisticsTableDescriptor()
-        : NameTable(New<TNameTable>())
-        , Ids(NameTable)
-    { }
+TStatisticsTableDescriptor::TStatisticsTableDescriptor()
+    : NameTable(New<TNameTable>())
+    , Ids(NameTable)
+{ }
 
-    struct TIndex
-    {
-        explicit TIndex(const TNameTablePtr& n)
-            : OperationIdHi(n->RegisterName("operation_id_hi"))
-            , OperationIdLo(n->RegisterName("operation_id_lo"))
-            , JobIdHi(n->RegisterName("job_id_hi"))
-            , JobIdLo(n->RegisterName("job_id_lo"))
-            , Type(n->RegisterName("type"))
-            , State(n->RegisterName("state"))
-            , StartTime(n->RegisterName("start_time"))
-            , FinishTime(n->RegisterName("finish_time"))
-            , Address(n->RegisterName("address"))
-            , Error(n->RegisterName("error"))
-            , Spec(n->RegisterName("spec"))
-            , SpecVersion(n->RegisterName("spec_version"))
-            , Statistics(n->RegisterName("statistics"))
-            , Events(n->RegisterName("events"))
-        { }
-
-        const int OperationIdHi;
-        const int OperationIdLo;
-        const int JobIdHi;
-        const int JobIdLo;
-        const int Type;
-        const int State;
-        const int StartTime;
-        const int FinishTime;
-        const int Address;
-        const int Error;
-        const int Spec;
-        const int SpecVersion;
-        const int Statistics;
-        const int Events;
-    };
-
-    const TNameTablePtr NameTable;
-    const TIndex Ids;
-};
+TStatisticsTableDescriptor::TIndex::TIndex(const TNameTablePtr& n)
+    : OperationIdHi(n->RegisterName("operation_id_hi"))
+    , OperationIdLo(n->RegisterName("operation_id_lo"))
+    , JobIdHi(n->RegisterName("job_id_hi"))
+    , JobIdLo(n->RegisterName("job_id_lo"))
+    , Type(n->RegisterName("type"))
+    , State(n->RegisterName("state"))
+    , StartTime(n->RegisterName("start_time"))
+    , FinishTime(n->RegisterName("finish_time"))
+    , Address(n->RegisterName("address"))
+    , Error(n->RegisterName("error"))
+    , Spec(n->RegisterName("spec"))
+    , SpecVersion(n->RegisterName("spec_version"))
+    , Statistics(n->RegisterName("statistics"))
+    , Events(n->RegisterName("events"))
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
