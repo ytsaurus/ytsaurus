@@ -12,13 +12,16 @@ class TProxyInput
     : public TRawTableReader
 {
 public:
-    virtual bool OnStreamError(
-        const yexception& e,
-        bool keepRanges,
-        ui32 rangeIndex,
-        ui64 rowIndex) = 0;
+    virtual bool Retry(
+        const TMaybe<ui32>& /*rangeIndex*/,
+        const TMaybe<ui64>& /*rowIndex*/) override
+    {
+        return false;
+    }
 
-    virtual bool HasRangeIndices() const = 0;
+    virtual bool HasRangeIndices() const override {
+        return false;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

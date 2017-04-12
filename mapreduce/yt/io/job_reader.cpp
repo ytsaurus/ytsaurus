@@ -18,14 +18,6 @@ size_t TJobReader::DoRead(void* buf, size_t len)
     return BufferedInput_.Read(buf, len);
 }
 
-bool TJobReader::OnStreamError(
-    const yexception& e,
-    bool /*keepRanges*/, ui32 /*rangeIndex*/, ui64 /*rowIndex*/)
-{
-    LOG_ERROR("Read error: %s", e.what());
-    return false;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
