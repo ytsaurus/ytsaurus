@@ -49,7 +49,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     IBlockCachePtr blockCache)
     : Logger(ChunkClientLogger)
     , Client_(client)
-    , Config_(NYTree::CloneYsonSerializable(config))
+    , Config_(config)
     , Options_(options)
     , CellTag_(cellTag)
     , TransactionId_(transactionId)
@@ -59,10 +59,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     , NodeDirectory_(New<TNodeDirectory>())
 {
     YCHECK(Config_);
-
-    Config_->UploadReplicationFactor = std::min(
-        Options_->ReplicationFactor,
-        Config_->UploadReplicationFactor);
+    YCHECK(Options_);
 
     Logger.AddTag("TransactionId: %v", TransactionId_);
 }

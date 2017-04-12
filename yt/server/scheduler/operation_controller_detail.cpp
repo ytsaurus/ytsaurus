@@ -109,20 +109,6 @@ void TOperationControllerBase::TLivePreviewTableBase::Persist(const TPersistence
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TInputTable::Persist(const TPersistenceContext& context)
-{
-    TUserObject::Persist(context);
-
-    using NYT::Persist;
-    Persist(context, ChunkCount);
-    Persist(context, Chunks);
-    Persist(context, Schema);
-    Persist(context, SchemaMode);
-    Persist(context, IsDynamic);
-}
-
-////////////////////////////////////////////////////////////////////
-
 void TOperationControllerBase::TJobBoundaryKeys::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -238,29 +224,13 @@ void TOperationControllerBase::TTaskGroup::Persist(const TPersistenceContext& co
             TUnsortedTag
         >
     >(context, CandidateTasks);
-    // COMPAT(babenko)
-    if (context.IsLoad() && context.GetVersion() == 200008) {
-        std::multimap<NProfiling::TCpuInstant, TTaskPtr> delayedTasks;
-        Persist<
-            TMultiMapSerializer<
-                TDefaultSerializer,
-                TDefaultSerializer,
-                TUnsortedTag
-            >
-        >(context, delayedTasks);
-        auto now = TInstant::Now();
-        for (const auto& pair : delayedTasks) {
-            DelayedTasks.emplace(now, pair.second);
-        }
-    } else {
-        Persist<
-            TMultiMapSerializer<
-                TDefaultSerializer,
-                TDefaultSerializer,
-                TUnsortedTag
-            >
-        >(context, DelayedTasks);
-    }
+    Persist<
+        TMultiMapSerializer<
+            TDefaultSerializer,
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, DelayedTasks);
     Persist<
         TMapSerializer<
             TDefaultSerializer,
@@ -539,7 +509,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
         jobType,
         neededResources,
         restarted,
-        controller->IsJobInterruptible(),
+        Controller->IsJobInterruptible(),
         jobSpecBuilder,
         Controller->Spec->JobNodeAccount);
 
@@ -552,7 +522,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
     }
 
     LOG_DEBUG(
-        "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, SliceCount: %v (%v local), "
+        "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
         "Approximate: %v, DataSize: %v (%v local), RowCount: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
         "UserJobMemoryReserveFactor: %v, ResourceLimits: %v)",
         joblet->JobId,
@@ -560,6 +530,7 @@ void TOperationControllerBase::TTask::ScheduleJob(
         jobType,
         address,
         jobIndex,
+        joblet->OutputCookie,
         joblet->InputStripeList->TotalChunkCount,
         joblet->InputStripeList->LocalChunkCount,
         joblet->InputStripeList->IsApproximate,
@@ -597,6 +568,10 @@ void TOperationControllerBase::TTask::ScheduleJob(
     Controller->UpdateEstimatedHistogram(joblet);
 
     OnJobStarted(joblet);
+
+    if (Controller->JobSplitter_) {
+        Controller->JobSplitter_->OnJobStarted(joblet->JobId, joblet->InputStripeList);
+    }
 }
 
 bool TOperationControllerBase::TTask::IsPending() const
@@ -646,11 +621,6 @@ void TOperationControllerBase::TTask::Persist(const TPersistenceContext& context
     Persist(context, CachedTotalNeededResources);
     Persist(context, CachedMinNeededResources);
 
-    // COMPAT(babenko)
-    if (context.IsLoad() && context.GetVersion() < 200008) {
-        Load<TInstant>(context.LoadContext());
-    }
-
     Persist(context, CompletedFired);
 
     Persist(context, LostJobCookieMap);
@@ -679,7 +649,7 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
         auto inputStatistics = GetTotalInputDataStatistics(statistics);
         auto outputStatistics = GetTotalOutputDataStatistics(statistics);
         // It's impossible to check row count preservation on interrupted job.
-        if (Controller->IsRowCountPreserved() && !jobSummary.Interrupted) {
+        if (Controller->IsRowCountPreserved() && jobSummary.InterruptReason == EInterruptReason::None) {
             LOG_ERROR_IF(inputStatistics.row_count() != outputStatistics.row_count(),
                 "Input/output row count mismatch in completed job (Input: %v, Output: %v, Task: %v)",
                 inputStatistics.row_count(),
@@ -882,7 +852,11 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     for (const auto& dataSlice : stripe->DataSlices) {
         inputSpec->add_chunk_spec_count_per_data_slice(dataSlice->ChunkSlices.size());
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-            ToProto(inputSpec->add_chunk_specs(), chunkSlice);
+            auto newChunkSpec = inputSpec->add_chunk_specs();
+            ToProto(newChunkSpec, chunkSlice);
+            if (dataSlice->Tag) {
+                newChunkSpec->set_data_slice_tag(*dataSlice->Tag);
+            }
 
             if (directoryBuilder) {
                 auto replicas = chunkSlice->GetInputChunk()->GetReplicaList();
@@ -1336,6 +1310,8 @@ void TOperationControllerBase::SafePrepare()
         GetInputTablesAttributes();
     }
 
+    PrepareInputQuery();
+
     // Process files.
     {
         LockUserFiles();
@@ -1457,11 +1433,15 @@ void TOperationControllerBase::SafeMaterialize()
         CheckTimeLimitExecutor->Start();
         ProgressBuildExecutor_->Start();
         ExecNodesCheckExecutor->Start();
+        auto jobSplitterConfig = GetJobSplitterConfig();
+        if (jobSplitterConfig) {
+            JobSplitter_ = CreateJobSplitter(jobSplitterConfig, OperationId);
+        }
 
         State = EControllerState::Running;
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Materialization failed");
         auto wrappedError = TError("Materialization failed") << ex;
+        LOG_ERROR(wrappedError);
         OnOperationFailed(wrappedError);
         return;
     }
@@ -1478,7 +1458,7 @@ void TOperationControllerBase::SafeSaveSnapshot(TOutputStream* output)
     Save(context, this);
 }
 
-void TOperationControllerBase::Revive()
+void TOperationControllerBase::SafeRevive()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
@@ -1512,6 +1492,10 @@ void TOperationControllerBase::Revive()
     CheckTimeLimitExecutor->Start();
     ProgressBuildExecutor_->Start();
     ExecNodesCheckExecutor->Start();
+    auto jobSplitterConfig = GetJobSplitterConfig();
+    if (jobSplitterConfig) {
+        JobSplitter_ = CreateJobSplitter(jobSplitterConfig, OperationId);
+    }
 
     State = EControllerState::Running;
 }
@@ -2095,9 +2079,13 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         }
     }
 
+    if (jobSummary->InterruptReason != EInterruptReason::None) {
+        jobSummary->UnreadInputDataSlices = ExtractInputDataSlices(*jobSummary);
+    }
+
     jobSummary->ParseStatistics();
 
-    JobCounter.Completed(1);
+    JobCounter.Completed(1, jobSummary->InterruptReason);
 
     auto joblet = GetJoblet(jobId);
 
@@ -2109,9 +2097,17 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     UpdateJobStatistics(*jobSummary);
 
+    if (jobSummary->InterruptReason != EInterruptReason::None) {
+        jobSummary->SplitJobCount = EstimateSplitJobCount(*jobSummary);
+        LOG_DEBUG("Job interrupted (JobId: %v, InterruptReason: %v, UnreadDataSliceCount: %v, SplitJobCount: %v)",
+            jobSummary->Id,
+            jobSummary->InterruptReason,
+            jobSummary->UnreadInputDataSlices.size(),
+            jobSummary->SplitJobCount);
+    }
     joblet->Task->OnJobCompleted(joblet, *jobSummary);
-    if (jobSummary->Interrupted) {
-        OnJobInterrupted(*jobSummary);
+    if (JobSplitter_) {
+        JobSplitter_->OnJobCompleted(*jobSummary);
     }
 
     RemoveJoblet(jobId);
@@ -2163,6 +2159,9 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     UpdateJobStatistics(*jobSummary);
 
     joblet->Task->OnJobFailed(joblet, *jobSummary);
+    if (JobSplitter_) {
+        JobSplitter_->OnJobFailed(*jobSummary);
+    }
 
     RemoveJoblet(jobId);
 
@@ -2211,8 +2210,27 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     joblet->Task->OnJobAborted(joblet, *jobSummary);
+    if (JobSplitter_) {
+        JobSplitter_->OnJobAborted(*jobSummary);
+    }
 
     RemoveJoblet(jobId);
+}
+
+void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TJobSummary> jobSummary)
+{
+    jobSummary->ParseStatistics();
+
+    if (JobSplitter_) {
+        const auto& jobId = jobSummary->Id;
+        auto joblet = GetJoblet(jobId);
+        JobSplitter_->OnJobRunning(*jobSummary);
+        if (GetPendingJobCount() == 0 && JobSplitter_->IsJobSplittable(jobId)) {
+            auto jobHost = Host->GetJobHost(jobId);
+            LOG_DEBUG("Job is ready to be split (JobId: %v)", jobId);
+            jobHost->InterruptJob(EInterruptReason::JobSplit);
+        }
+    }
 }
 
 void TOperationControllerBase::FinalizeJoblet(
@@ -2221,7 +2239,7 @@ void TOperationControllerBase::FinalizeJoblet(
 {
     auto& statistics = jobSummary->Statistics;
 
-    joblet->FinishTime = jobSummary->FinishTime;
+    joblet->FinishTime = *(jobSummary->FinishTime);
     {
         auto duration = joblet->FinishTime - joblet->StartTime;
         statistics.AddSample("/time/total", duration.MilliSeconds());
@@ -2280,7 +2298,7 @@ void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
         IntermediateChunkScraper->Start();
     } else {
         LOG_DEBUG("Input chunk has failed (ChunkId: %v)", chunkId);
-        OnInputChunkUnavailable(chunkId, it->second);
+        OnInputChunkUnavailable(chunkId, &it->second);
     }
 }
 
@@ -2303,18 +2321,22 @@ void TOperationControllerBase::SafeOnInputChunkLocated(const TChunkId& chunkId, 
     auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
 
     if (IsUnavailable(replicas, codecId, IsParityReplicasFetchEnabled())) {
-        OnInputChunkUnavailable(chunkId, descriptor);
+        OnInputChunkUnavailable(chunkId, &descriptor);
     } else {
-        OnInputChunkAvailable(chunkId, descriptor, replicas);
+        OnInputChunkAvailable(chunkId, replicas, &descriptor);
     }
 }
 
-void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor, const TChunkReplicaList& replicas)
+void TOperationControllerBase::OnInputChunkAvailable(
+    const TChunkId& chunkId,
+    const TChunkReplicaList& replicas,
+    TInputChunkDescriptor* descriptor)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    if (descriptor.State != EInputChunkState::Waiting)
+    if (descriptor->State != EInputChunkState::Waiting) {
         return;
+    }
 
     LOG_TRACE("Input chunk is available (ChunkId: %v)", chunkId);
 
@@ -2326,13 +2348,13 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
     }
 
     // Update replicas in place for all input chunks with current chunkId.
-    for (auto& chunkSpec : descriptor.InputChunks) {
+    for (auto& chunkSpec : descriptor->InputChunks) {
         chunkSpec->SetReplicaList(replicas);
     }
 
-    descriptor.State = EInputChunkState::Active;
+    descriptor->State = EInputChunkState::Active;
 
-    for (const auto& inputStripe : descriptor.InputStripes) {
+    for (const auto& inputStripe : descriptor->InputStripes) {
         --inputStripe.Stripe->WaitingChunkCount;
         if (inputStripe.Stripe->WaitingChunkCount > 0)
             continue;
@@ -2346,12 +2368,13 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
     }
 }
 
-void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor)
+void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, TInputChunkDescriptor* descriptor)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    if (descriptor.State != EInputChunkState::Active)
+    if (descriptor->State != EInputChunkState::Active) {
         return;
+    }
 
     ++ChunkLocatedCallCount;
     if (ChunkLocatedCallCount >= Config->ChunkScraper->MaxChunksPerRequest) {
@@ -2372,26 +2395,23 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
             break;
 
         case EUnavailableChunkAction::Skip: {
-            descriptor.State = EInputChunkState::Skipped;
-            for (const auto& inputStripe : descriptor.InputStripes) {
+            descriptor->State = EInputChunkState::Skipped;
+            for (const auto& inputStripe : descriptor->InputStripes) {
                 inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
 
-                // Remove given chunk from the stripe list.
-                SmallVector<TInputDataSlicePtr, 1> slices;
-                std::swap(inputStripe.Stripe->DataSlices, slices);
-
-                std::copy_if(
-                    slices.begin(),
-                    slices.end(),
-                    inputStripe.Stripe->DataSlices.begin(),
-                    [&] (TInputDataSlicePtr slice) {
-                        try {
-                            return chunkId != slice->GetSingleUnversionedChunkOrThrow()->ChunkId();
-                        } catch (const std::exception& ex) {
-                            //FIXME(savrus) allow data slices to be unavailable.
-                            THROW_ERROR_EXCEPTION("Dynamic table chunk became unavailable") << ex;
-                        }
-                    });
+                inputStripe.Stripe->DataSlices.erase(
+                    std::remove_if(
+                        inputStripe.Stripe->DataSlices.begin(),
+                        inputStripe.Stripe->DataSlices.end(),
+                        [&] (TInputDataSlicePtr slice) {
+                            try {
+                                return chunkId == slice->GetSingleUnversionedChunkOrThrow()->ChunkId();
+                            } catch (const std::exception& ex) {
+                                //FIXME(savrus) allow data slices to be unavailable.
+                                THROW_ERROR_EXCEPTION("Dynamic table chunk became unavailable") << ex;
+                            }
+                        }),
+                    inputStripe.Stripe->DataSlices.end());
 
                 // Reinstall patched stripe.
                 inputStripe.Task->GetChunkPoolInput()->Resume(inputStripe.Cookie, inputStripe.Stripe);
@@ -2402,8 +2422,8 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
         }
 
         case EUnavailableChunkAction::Wait: {
-            descriptor.State = EInputChunkState::Waiting;
-            for (const auto& inputStripe : descriptor.InputStripes) {
+            descriptor->State = EInputChunkState::Waiting;
+            for (const auto& inputStripe : descriptor->InputStripes) {
                 if (inputStripe.Stripe->WaitingChunkCount == 0) {
                     inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
                 }
@@ -2869,7 +2889,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
 
         if (!IsRunning()) {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationNotRunning);
-            return;
+            break;
         }
 
         if (bestTask) {
@@ -2886,13 +2906,13 @@ void TOperationControllerBase::DoScheduleLocalJob(
             if (!HasEnoughChunkLists(bestTask->IsIntermediateOutput(), bestTask->IsStderrTableEnabled(), bestTask->IsCoreTableEnabled())) {
                 LOG_DEBUG("Job chunk list demand is not met");
                 scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
-                return;
+                break;
             }
 
             bestTask->ScheduleJob(context, jobLimits, scheduleJobResult);
             if (scheduleJobResult->JobStartRequest) {
                 UpdateTask(bestTask);
-                return;
+                break;
             }
             if (scheduleJobResult->IsScheduleStopNeeded()) {
                 return;
@@ -2995,7 +3015,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
 
                 if (!IsRunning()) {
                     scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationNotRunning);
-                    return;
+                    break;
                 }
 
                 LOG_DEBUG(
@@ -3010,7 +3030,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                 if (!HasEnoughChunkLists(task->IsIntermediateOutput(), task->IsStderrTableEnabled(), task->IsCoreTableEnabled())) {
                     LOG_DEBUG("Job chunk list demand is not met");
                     scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
-                    return;
+                    break;
                 }
 
                 task->ScheduleJob(context, jobLimits, scheduleJobResult);
@@ -3244,6 +3264,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
             attributes->Set("schema", *schema);
         }
         ToProto(req->mutable_node_attributes(), *attributes);
+        GenerateMutationId(req);
 
         batchReq->AddRequest(req, key);
     };
@@ -3356,6 +3377,7 @@ void TOperationControllerBase::LockLivePreviewTables()
         auto req = TCypressYPathProxy::Lock(FromObjectId(table.LivePreviewTableId));
         req->set_mode(static_cast<int>(ELockMode::Exclusive));
         SetTransactionId(req, AsyncSchedulerTransaction->GetId());
+        GenerateMutationId(req);
         batchReq->AddRequest(req, key);
     };
 
@@ -4101,6 +4123,13 @@ void TOperationControllerBase::GetUserFilesAttributes()
                 THROW_ERROR_EXCEPTION("Empty user file name for %v",
                     path);
             }
+
+            if (NFS::GetFileName(fileName) != fileName) {
+                THROW_ERROR_EXCEPTION("User file name for %v cannot include nested directories", path)
+                    << TErrorAttribute("file_name", fileName);
+            }
+
+
             if (!userFileNames[file.Stage].insert(fileName).second) {
                 THROW_ERROR_EXCEPTION("Duplicate user file name %Qv for %v",
                     fileName,
@@ -4200,10 +4229,12 @@ void TOperationControllerBase::GetUserFilesAttributes()
     }
 }
 
-void TOperationControllerBase::InitQuerySpec(
-    NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
+void TOperationControllerBase::PrepareInputQuery()
+{ }
+
+void TOperationControllerBase::ParseInputQuery(
     const Stroka& queryString,
-    const TTableSchema& schema)
+    const TNullable<TTableSchema>& schema)
 {
     auto externalCGInfo = New<TExternalCGInfo>();
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
@@ -4231,11 +4262,31 @@ void TOperationControllerBase::InitQuerySpec(
         AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
     };
 
-    auto query = PrepareJobQuery(queryString, schema, fetchFunctions);
+    auto inferSchema = [&] () {
+        std::vector<TTableSchema> schemas;
+        for (const auto& table : InputTables) {
+            schemas.push_back(table.Schema);
+        }
+        return InferInputSchema(schemas, true);
+    };
 
+    auto query = PrepareJobQuery(
+        queryString,
+        schema ? *schema : inferSchema(),
+        fetchFunctions);
+
+    InputQuery.Emplace();
+    InputQuery->Query = std::move(query);
+    InputQuery->ExternalCGInfo = std::move(externalCGInfo);
+}
+
+void TOperationControllerBase::WriteInputQueryToJobSpec(
+    NProto::TSchedulerJobSpecExt* schedulerJobSpecExt)
+{
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
-    ToProto(querySpec->mutable_query(), query);
-    ToProto(querySpec->mutable_external_functions(), externalCGInfo->Functions);
+    ToProto(querySpec->mutable_query(), InputQuery->Query);
+    ToProto(querySpec->mutable_external_functions(), InputQuery->ExternalCGInfo->Functions);
+    InputQuery.Reset();
 }
 
 void TOperationControllerBase::CollectTotals()
@@ -4271,6 +4322,8 @@ void TOperationControllerBase::CollectTotals()
 
             if (table.IsPrimary()) {
                 PrimaryInputDataSize += inputChunk->GetUncompressedDataSize();
+            } else {
+                ForeignInputDataSize += inputChunk->GetUncompressedDataSize();
             }
 
             TotalEstimatedInputDataSize += inputChunk->GetUncompressedDataSize();
@@ -4555,17 +4608,10 @@ bool TOperationControllerBase::IsJobInterruptible() const
     return false;
 }
 
-void TOperationControllerBase::OnJobInterrupted(const TCompletedJobSummary& jobSummary)
+void TOperationControllerBase::ReinstallUnreadInputDataSlices(
+    const std::vector<NChunkClient::TInputDataSlicePtr>& inputDataSlices)
 {
-    JobCounter.Interrupted(1);
-
-    const auto& inputDataSlices = ExtractInputDataSlices(jobSummary);
-
-    LOG_DEBUG("Job interrupted (JobId: %v, UnreadDataSliceCount: %v)",
-        jobSummary.Id,
-        inputDataSlices.size());
-
-    ReinstallUnreadInputDataSlices(inputDataSlices);
+    Y_UNREACHABLE();
 }
 
 std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices(const TCompletedJobSummary& jobSummary) const
@@ -4600,7 +4646,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
                 inputChunks.end(),
                 [&] (const TInputChunkPtr& inputChunk) -> bool {
                     return inputChunk->GetTableIndex() == protoChunkSpec.table_index() &&
-                        inputChunk->GetRangeIndex() == protoChunkSpec.range_index();
+                           inputChunk->GetRangeIndex() == protoChunkSpec.range_index();
                 });
             YCHECK(chunkIt != inputChunks.end());
             auto chunkSlice = New<TInputChunkSlice>(*chunkIt, RowBuffer, protoChunkSpec);
@@ -4612,13 +4658,21 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::ExtractInputDataSlices
             YCHECK(chunkSliceList.size() == 1);
             dataSliceList.emplace_back(CreateUnversionedInputDataSlice(chunkSliceList[0]));
         }
+        dataSliceList.back()->Tag = dataSliceDescriptor.GetTag();
     }
     return dataSliceList;
 }
 
-void TOperationControllerBase::ReinstallUnreadInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices)
+int TOperationControllerBase::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary)
 {
-    Y_UNREACHABLE();
+    const auto& inputDataSlices = jobSummary.UnreadInputDataSlices;
+    int jobCount = 1;
+
+    if (JobSplitter_) {
+        i64 unreadRowCount = GetCumulativeRowCount(inputDataSlices);
+        jobCount = JobSplitter_->EstimateJobCount(jobSummary, unreadRowCount);
+    }
+    return jobCount;
 }
 
 TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
@@ -4885,6 +4939,10 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
 {
     yhash_set<TChunkId> visitedChunks;
 
+    for (const auto& slice : stripe->DataSlices) {
+        slice->Tag = CurrentInputDataSliceTag_++;
+    }
+
     TStripeDescriptor stripeDescriptor;
     stripeDescriptor.Stripe = stripe;
     stripeDescriptor.Task = task;
@@ -5009,6 +5067,11 @@ void TOperationControllerBase::RemoveJoblet(const TJobId& jobId)
 bool TOperationControllerBase::HasProgress() const
 {
     return IsPrepared() && ProgressString_ && BriefProgressString_;
+}
+
+bool TOperationControllerBase::HasJobSplitterInfo() const
+{
+    return IsPrepared() && JobSplitter_;
 }
 
 void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer) const
@@ -5138,6 +5201,14 @@ TYsonString TOperationControllerBase::BuildInputPathYson(const TJobId& jobId) co
         joblet->InputStripeList,
         OperationType,
         joblet->JobType);
+}
+
+void TOperationControllerBase::BuildJobSplitterInfo(IYsonConsumer* consumer) const
+{
+    VERIFY_INVOKER_AFFINITY(SuspendableInvoker);
+    YCHECK(JobSplitter_);
+
+    JobSplitter_->BuildJobSplitterInfo(consumer);
 }
 
 std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetFilePaths() const
@@ -5610,6 +5681,11 @@ void TOperationControllerBase::ValidateOutputSchemaOrdered() const
     }
 }
 
+TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfig() const
+{
+    return nullptr;
+}
+
 IDigest* TOperationControllerBase::GetJobProxyMemoryDigest(EJobType jobType)
 {
     auto iter = JobProxyMemoryDigests_.find(jobType);
@@ -5670,18 +5746,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     Persist(context, JobletMap);
 
-    // COMPAT(psushin),
-    if (context.IsLoad() && context.GetVersion() < 200007) {
-        // NB: Scheduler snapshots need not be stable.
-        yhash_set<TInputChunkPtr> dummy;
-        Persist<
-            TSetSerializer<
-                TDefaultSerializer,
-                TUnsortedTag
-            >
-        >(context, dummy);
-    }
-
     Persist(context, JobIndexGenerator);
 
     Persist(context, JobStatistics);
@@ -5709,6 +5773,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     Persist(context, EstimatedInputDataSizeHistogram_);
     Persist(context, InputDataSizeHistogram_);
+
+    Persist(context, CurrentInputDataSliceTag_);
 
     if (context.IsLoad()) {
         for (const auto& task : Tasks) {
@@ -5898,6 +5964,11 @@ public:
         Underlying_->OnJobAborted(std::move(jobSummary));
     }
 
+    virtual void OnJobRunning(std::unique_ptr<TJobSummary> jobSummary) override
+    {
+        Underlying_->OnJobRunning(std::move(jobSummary));
+    }
+
     virtual TScheduleJobResultPtr ScheduleJob(
         ISchedulingContextPtr context,
         const TJobResources& jobLimits) override
@@ -5913,6 +5984,11 @@ public:
     virtual bool HasProgress() const override
     {
         return Underlying_->HasProgress();
+    }
+
+    virtual bool HasJobSplitterInfo() const override
+    {
+        return Underlying_->HasJobSplitterInfo();
     }
 
     virtual void BuildOperationAttributes(NYson::IYsonConsumer* consumer) const override
@@ -5948,6 +6024,11 @@ public:
     virtual TYsonString BuildInputPathYson(const TJobId& jobId) const override
     {
         return Underlying_->BuildInputPathYson(jobId);
+    }
+
+    virtual void BuildJobSplitterInfo(IYsonConsumer* consumer) const override
+    {
+        Underlying_->BuildJobSplitterInfo(consumer);
     }
 
     virtual TYsonString GetProgress() const override

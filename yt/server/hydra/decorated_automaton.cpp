@@ -29,6 +29,8 @@
 
 #include <yt/core/rpc/response_keeper.h>
 
+#include <yt/core/logging/log_manager.h>
+
 #include <util/random/random.h>
 
 #include <util/system/file.h>
@@ -48,9 +50,6 @@ static const i64 SnapshotTransferBlockSize = (i64) 1024 * 1024;
 static const auto& Profiler = HydraProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TSystemLockGuard::TSystemLockGuard()
-{ }
 
 TSystemLockGuard::TSystemLockGuard(TSystemLockGuard&& other)
     : Automaton_(std::move(other.Automaton_))
@@ -92,9 +91,6 @@ TSystemLockGuard::TSystemLockGuard(TDecoratedAutomatonPtr automaton)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TUserLockGuard::TUserLockGuard()
-{ }
 
 TUserLockGuard::TUserLockGuard(TUserLockGuard&& other)
     : Automaton_(std::move(other.Automaton_))
@@ -147,11 +143,11 @@ public:
         , Owner_(decoratedAutomaton)
     { }
 
-    virtual void Invoke(const TClosure& callback) override
+    virtual void Invoke(TClosure callback) override
     {
         auto lockGuard = TSystemLockGuard::Acquire(Owner_);
 
-        auto doInvoke = [=, this_ = MakeStrong(this)] (TSystemLockGuard /*lockGuard*/) {
+        auto doInvoke = [=, this_ = MakeStrong(this), callback = std::move(callback)] (TSystemLockGuard /*lockGuard*/) {
             TCurrentInvokerGuard currentInvokerGuard(this_);
             callback.Run();
         };
@@ -177,13 +173,13 @@ public:
         , Owner_(decoratedAutomaton)
     { }
 
-    virtual void Invoke(const TClosure& callback) override
+    virtual void Invoke(TClosure callback) override
     {
         auto lockGuard = TUserLockGuard::TryAcquire(Owner_);
         if (!lockGuard)
             return;
 
-        auto doInvoke = [=, this_ = MakeStrong(this)] () {
+        auto doInvoke = [=, this_ = MakeStrong(this), callback = std::move(callback)] () {
             if (Owner_->GetState() != EPeerState::Leading &&
                 Owner_->GetState() != EPeerState::Following)
                 return;
@@ -1217,6 +1213,9 @@ void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 {
     YCHECK(!EpochContext_);
     EpochContext_ = epochContext;
+
+    // Enable batching for log messages.
+    NLogging::TLogManager::Get()->SetPerThreadBatchingPeriod(Config_->AutomatonThreadLogBatchingPeriod);
 }
 
 void TDecoratedAutomaton::StopEpoch()
@@ -1248,6 +1247,9 @@ void TDecoratedAutomaton::StopEpoch()
     }
     RecoveryRecordCount_ = 0;
     RecoveryDataSize_ = 0;
+
+    // Disable batching for log messages.
+    NLogging::TLogManager::Get()->SetPerThreadBatchingPeriod(TDuration::Zero());
 }
 
 void TDecoratedAutomaton::MaybeStartSnapshotBuilder()

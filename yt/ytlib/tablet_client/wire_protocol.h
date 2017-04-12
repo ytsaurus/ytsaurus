@@ -37,6 +37,16 @@ DEFINE_ENUM(EWireProtocolCommand,
     // Output:
     //   * N unversioned rows
 
+    ((VersionedLookupRows)(2))
+    // Finds rows with given keys and fetches their components.
+    //
+    // Input:
+    //   * TReqLookupRows
+    //   * Unversioned rowset containing N keys
+    //
+    // Output:
+    //   * N versioned rows
+
     // Write commands:
 
     ((WriteRow)(100))
@@ -172,7 +182,7 @@ public:
     TSharedRange<NTableClient::TVersionedRow> ReadVersionedRowset(const TSchemaData& schemaData, bool deep);
 
     template <class TRow>
-    inline TSharedRange<TRow> ReadRowset(bool deep);
+    inline TSharedRange<TRow> ReadRowset(const TSchemaData& schemaData, bool deep);
 
     static TSchemaData GetSchemaData(
         const NTableClient::TTableSchema& schema,
@@ -186,18 +196,20 @@ private:
 };
 
 template <>
-inline TSharedRange<NTableClient::TUnversionedRow> TWireProtocolReader::ReadRowset<NTableClient::TUnversionedRow>(bool deep)
+inline TSharedRange<NTableClient::TUnversionedRow> TWireProtocolReader::ReadRowset<NTableClient::TUnversionedRow>(
+    const TSchemaData& schemaData,
+    bool deep)
 {
     return ReadUnversionedRowset(deep);
 }
 
-/*
 template <>
-inline TSharedRange<NTableClient::TVersionedRow> TWireProtocolReader::ReadRowset<NTableClient::TVersionedRow>(bool deep)
+inline TSharedRange<NTableClient::TVersionedRow> TWireProtocolReader::ReadRowset<NTableClient::TVersionedRow>(
+    const TSchemaData& schemaData,
+    bool deep)
 {
-    return ReadVersionedRowset(deep);
+    return ReadVersionedRowset(schemaData, deep);
 }
-*/
 
 ///////////////////////////////////////////////////////////////////////////////
 

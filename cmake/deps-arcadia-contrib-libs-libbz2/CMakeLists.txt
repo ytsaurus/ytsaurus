@@ -10,4 +10,6 @@ set(SRCS
   ${BASE}/randtable.c
 )
 
+set_source_files_properties(${SRCS} PROPERTIES LANGUAGE C)
+
 add_library(${NAME} STATIC ${SRCS})

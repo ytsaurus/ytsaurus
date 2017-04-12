@@ -151,7 +151,10 @@ TErrorOr<Stroka> ResolveBinaryPath(const Stroka& binary)
     };
 
     auto done = [&] () {
-        auto error = TError("Could not resolve binary %Qlv", binary);
+        auto error = TError(
+            EProcessErrorCode::CannotResolveBinary,
+            "Cannot resolve binary %Qlv",
+            binary);
         error.InnerErrors().swap(accumulatedErrors);
         return error;
     };

@@ -8,6 +8,7 @@
 #include "map_controller.h"
 #include "master_connector.h"
 #include "merge_controller.h"
+#include "sorted_controller.h"
 #include "node_shard.h"
 #include "operation_controller.h"
 #include "remote_copy_controller.h"
@@ -125,6 +126,9 @@ public:
             NLogging::TLogger(),
             NProfiling::TProfiler(SchedulerProfiler.GetPathPrefix() + "/job_spec_slice_throttler")))
         , JobSpecSliceThrottler_(ReconfigurableJobSpecSliceThrottler_)
+        , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
+            Config_->ChunkLocationThrottler,
+            SchedulerLogger))
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , MainNodesResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/main_nodes_resource_limits")
@@ -157,13 +161,16 @@ public:
         ServiceAddress_ = BuildServiceAddress(localHostName, port);
 
         for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
-            JobStateToTag_[state] = TProfileManager::Get()->RegisterTag("state", Format("%lv", state));
+            JobStateToTag_[state] = TProfileManager::Get()->RegisterTag("state", FormatEnum(state));
         }
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-            JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("type", Format("%lv", type));
+            JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("type", FormatEnum(type));
         }
         for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
-            JobAbortReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("reason", Format("%lv", reason));
+            JobAbortReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("abort_reason", FormatEnum(reason));
+        }
+        for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
+            JobInterruptReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("interrupt_reason", FormatEnum(reason));
         }
     }
 
@@ -308,7 +315,7 @@ public:
         return ConnectionTime_;
     }
 
-    TOperationPtr FindOperation(const TOperationId& id)
+    TOperationPtr FindOperation(const TOperationId& id) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -316,7 +323,7 @@ public:
         return it == IdToOperation_.end() ? nullptr : it->second;
     }
 
-    TOperationPtr GetOperation(const TOperationId& id)
+    TOperationPtr GetOperation(const TOperationId& id) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -325,7 +332,7 @@ public:
         return operation;
     }
 
-    TOperationPtr GetOperationOrThrow(const TOperationId& id)
+    TOperationPtr GetOperationOrThrow(const TOperationId& id) const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -434,6 +441,14 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return CoreSemaphore_;
+    }
+
+    virtual IJobHostPtr GetJobHost(const TJobId& jobId) const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto nodeShard = GetNodeShardByJobId(jobId);
+        return CreateJobHost(jobId, nodeShard);
     }
 
     virtual void ValidatePoolPermission(
@@ -871,7 +886,7 @@ public:
 
     virtual const TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const override
     {
-        return Bootstrap_->GetChunkLocationThrottlerManager();
+        return ChunkLocationThrottlerManager_;
     }
 
     virtual IYsonConsumer* GetEventLogConsumer() override
@@ -999,6 +1014,8 @@ private:
     const IReconfigurableThroughputThrottlerPtr ReconfigurableJobSpecSliceThrottler_;
     const IThroughputThrottlerPtr JobSpecSliceThrottler_;
 
+    const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
+
     const std::unique_ptr<TMasterConnector> MasterConnector_;
 
     ISchedulerStrategyPtr Strategy_;
@@ -1033,6 +1050,7 @@ private:
     TEnumIndexedVector<TTagId, EJobState> JobStateToTag_;
     TEnumIndexedVector<TTagId, EJobType> JobTypeToTag_;
     TEnumIndexedVector<TTagId, EAbortReason> JobAbortReasonToTag_;
+    TEnumIndexedVector<TTagId, EInterruptReason> JobInterruptReasonToTag_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr LoggingExecutor_;
@@ -1054,7 +1072,7 @@ private:
             : Host_(host)
         { }
 
-        virtual TNameTablePtr GetNameTable() const override
+        virtual const TNameTablePtr& GetNameTable() const override
         {
             return Host_->EventLogWriter_->GetNameTable();
         }
@@ -1199,15 +1217,17 @@ private:
 
         std::vector<TJobCounter> shardJobCounter(NodeShards_.size());
         std::vector<TAbortedJobCounter> shardAbortedJobCounter(NodeShards_.size());
+        std::vector<TCompletedJobCounter> shardCompletedJobCounter(NodeShards_.size());
 
         for (int i = 0; i < NodeShards_.size(); ++i) {
             auto& nodeShard = NodeShards_[i];
             shardJobCounter[i] = nodeShard->GetJobCounter();
             shardAbortedJobCounter[i] = nodeShard->GetAbortedJobCounter();
+            shardCompletedJobCounter[i] = nodeShard->GetCompletedJobCounter();
         }
 
-        for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
-            for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+        for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+            for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
                 TTagIdList commonTags = {JobStateToTag_[state], JobTypeToTag_[type]};
                 if (state == EJobState::Aborted) {
                     for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
@@ -1216,6 +1236,16 @@ private:
                         int counter = 0;
                         for (int i = 0; i < NodeShards_.size(); ++i) {
                             counter += shardAbortedJobCounter[i][reason][state][type];
+                        }
+                        Profiler.Enqueue("/job_count", counter, EMetricType::Counter, tags);
+                    }
+                } else if (state == EJobState::Completed) {
+                    for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
+                        auto tags = commonTags;
+                        tags.push_back(JobInterruptReasonToTag_[reason]);
+                        int counter = 0;
+                        for (int i = 0; i < NodeShards_.size(); ++i) {
+                            counter += shardCompletedJobCounter[i][reason][state][type];
                         }
                         Profiler.Enqueue("/job_count", counter, EMetricType::Counter, tags);
                     }
@@ -1386,7 +1416,8 @@ private:
             EOperationState::Aborting,
             EOperationState::Aborted,
             ELogEventType::OperationAborted,
-            TError("Operation transaction has expired or was aborted"));
+            TError("User transaction %v has expired or was aborted",
+                operation->GetUserTransaction()->GetId()));
     }
 
     void OnSchedulerTransactionAborted(TOperationPtr operation)
@@ -1561,8 +1592,9 @@ private:
 
         if (!AreNodesEqual(oldConfigNode, newConfigNode)) {
             LOG_INFO("Scheduler configuration updated");
+
             Config_ = newConfig;
-            ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
+
             for (const auto& operation : GetOperations()) {
                 auto controller = operation->GetController();
                 BIND(&IOperationController::UpdateConfig, controller, Config_)
@@ -1579,7 +1611,8 @@ private:
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);
 
-            Bootstrap_->GetChunkLocationThrottlerManager()->Reconfigure(Config_->ChunkLocationThrottler);
+            ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
+            ReconfigurableJobSpecSliceThrottler_->Reconfigure(Config_->JobSpecSliceThrottler);
         }
     }
 
@@ -1677,6 +1710,8 @@ private:
         try {
             auto controller = CreateController(operation.Get());
             operation->SetController(controller);
+
+            Strategy_->ValidateOperationCanBeRegistered(operation);
 
             RegisterOperation(operation);
             registered = true;
@@ -2001,12 +2036,24 @@ private:
             case EOperationType::Sort:
                 controller = CreateSortController(Config_, this, operation);
                 break;
-            case EOperationType::Reduce:
-                controller = CreateReduceController(Config_, this, operation);
+            case EOperationType::Reduce: {
+                auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
+                if (legacySpec->UseLegacyController) {
+                    controller = CreateLegacyReduceController(Config_, this, operation);
+                } else {
+                    controller = CreateSortedReduceController(Config_, this, operation);
+                }
                 break;
-            case EOperationType::JoinReduce:
-                controller = CreateJoinReduceController(Config_, this, operation);
+            }
+            case EOperationType::JoinReduce: {
+                auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
+                if (legacySpec->UseLegacyController) {
+                    controller = CreateLegacyJoinReduceController(Config_, this, operation);
+                } else {
+                    controller = CreateJoinReduceController(Config_, this, operation);
+                }
                 break;
+            }
             case EOperationType::MapReduce:
                 controller = CreateMapReduceController(Config_, this, operation);
                 break;
@@ -2332,6 +2379,7 @@ private:
         auto controller = operation->GetController();
 
         bool hasControllerProgress = operation->HasControllerProgress();
+        bool hasControllerJobSplitterInfo = operation->HasControllerJobSplitterInfo();
         BuildYsonFluently(consumer)
             .BeginMap()
                 // Include the complete list of attributes.
@@ -2367,6 +2415,17 @@ private:
                                     .Run(operation->GetId(), consumer));
                         }
                     })
+                .EndMap()
+                .Item("job_splitter").BeginAttributes()
+                    .Item("opaque").Value("true")
+                .EndAttributes()
+                .BeginMap()
+                    .DoIf(hasControllerJobSplitterInfo, BIND([=] (IYsonConsumer* consumer) {
+                        WaitFor(
+                            BIND(&IOperationController::BuildJobSplitterInfo, controller)
+                                .AsyncVia(controller->GetInvoker())
+                                .Run(consumer));
+                    }))
                 .EndMap()
                 .Do([=] (IYsonConsumer* consumer) {
                     WaitFor(
@@ -2417,13 +2476,13 @@ private:
         virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
         {
             TOperationId operationId = TOperationId::FromString(key);
-            auto iterator = Scheduler_->IdToOperation_.find(operationId);
-            if (iterator == Scheduler_->IdToOperation_.end()) {
+            auto operation = Scheduler_->FindOperation(operationId);
+            if (!operation) {
                 return nullptr;
             }
 
             return IYPathService::FromProducer(
-                BIND(&TScheduler::TImpl::BuildOperationYson, MakeStrong(Scheduler_), iterator->second));
+                BIND(&TScheduler::TImpl::BuildOperationYson, MakeStrong(Scheduler_), operation));
         }
 
     private:

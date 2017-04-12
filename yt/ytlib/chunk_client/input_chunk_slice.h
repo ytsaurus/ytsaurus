@@ -41,6 +41,8 @@ struct TInputSliceLimit
     void Persist(const NTableClient::TPersistenceContext& context);
 };
 
+Stroka ToString(const TInputSliceLimit& limit);
+
 void FormatValue(TStringBuilder* builder, const TInputSliceLimit& limit, const TStringBuf& format);
 
 bool IsTrivial(const TInputSliceLimit& limit);
@@ -60,9 +62,9 @@ public:
     DECLARE_BYVAL_RO_PROPERTY(int, PartIndex);
     DECLARE_BYVAL_RO_PROPERTY(i64, MaxBlockSize);
 
-    DEFINE_BYVAL_RO_PROPERTY(TInputChunkPtr, InputChunk);
-    DEFINE_BYREF_RO_PROPERTY(TInputSliceLimit, LowerLimit);
-    DEFINE_BYREF_RO_PROPERTY(TInputSliceLimit, UpperLimit);
+    DEFINE_BYVAL_RW_PROPERTY(TInputChunkPtr, InputChunk);
+    DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, LowerLimit);
+    DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, UpperLimit);
 
 public:
     TInputChunkSlice() = default;
@@ -104,10 +106,13 @@ public:
 
     //! Tries to split chunk slice into parts of almost equal size, about #sliceDataSize.
     std::vector<TInputChunkSlicePtr> SliceEvenly(i64 sliceDataSize, i64 sliceRowCount) const;
+    std::pair<TInputChunkSlicePtr, TInputChunkSlicePtr>  SplitByRowIndex(i64 splitRow) const;
 
     i64 GetLocality(int replicaIndex) const;
 
     void Persist(const NTableClient::TPersistenceContext& context);
+
+    void OverrideSize(i64 rowCount, i64 dataSize);
 
 private:
     int PartIndex_ = DefaultPartIndex;
@@ -115,8 +120,6 @@ private:
     bool SizeOverridden_ = false;
     i64 DataSize_ = 0;
     i64 RowCount_ = 0;
-
-    void OverrideSize(i64 rowCount, i64 dataSize);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputChunkSlice)
@@ -151,6 +154,8 @@ TInputChunkSlicePtr CreateInputChunkSlice(
 std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(
     const TInputChunkPtr& inputChunk,
     NErasure::ECodec codecId);
+
+void InferLimitsFromBoundaryKeys(const TInputChunkSlicePtr& chunkSlice, const NTableClient::TRowBufferPtr& rowBuffer);
 
 std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
     const TInputChunkPtr& inputChunk,

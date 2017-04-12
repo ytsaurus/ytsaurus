@@ -29,6 +29,7 @@
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>
 #include <util/system/yield.h>
+#include <util/system/tls.h>
 
 #include <util/string/vector.h>
 
@@ -58,8 +59,14 @@ using namespace NProfiling;
 static TLogger Logger(SystemLoggingCategory);
 static const auto& Profiler = LoggingProfiler;
 
-static const auto ProfilingPeriod = TDuration::Seconds(1);
-static const auto DequeuePeriod = TDuration::MilliSeconds(100);
+static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
+static constexpr auto DequeuePeriod = TDuration::MilliSeconds(100);
+static constexpr int PerThreadBatchingReserveCapacity = 256;
+
+static __thread TDuration PerThreadBatchingPeriod;
+static __thread NProfiling::TCpuInstant PerThreadBatchingDeadline;
+static __thread std::vector<TLogEvent>* PerThreadBatchingEvents;
+Y_STATIC_THREAD(std::vector<TLogEvent>) PerThreadBatchingEventsHolder;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -351,21 +358,23 @@ public:
 
     void Shutdown()
     {
-        if (LoggingThread_->IsStarted() && LoggingThread_->GetId() != ::TThread::CurrentThreadId()) {
-            // Waiting for output of all previous messages.
-            // Waiting no more than 1 second to prevent hanging.
+        ShutdownRequested_ = true;
+
+        if (LoggingThread_->GetId() == ::TThread::CurrentThreadId()) {
+            FlushWriters();
+        } else {
+            // Wait for all previously enqueued messages to be flushed
+            // but no more than ShutdownGraceTimeout to prevent hanging.
             auto now = TInstant::Now();
             auto enqueuedEvents = EnqueuedEvents_.load();
-            while (enqueuedEvents > WrittenEvents_.load() &&
-                TInstant::Now() - now < Config_->ShutdownGraceTimeout)
-            {
+            while (enqueuedEvents > FlushedEvents_.load() &&
+                   TInstant::Now() - now < Config_->ShutdownGraceTimeout) {
                 SchedYield();
             }
         }
 
         EventQueue_->Shutdown();
         LoggingThread_->Shutdown();
-        FlushWriters();
     }
 
     /*!
@@ -401,20 +410,14 @@ public:
 
             // Collect last-minute information.
             TRawFormatter<1024> formatter;
-            formatter.AppendString("\n*** Fatal error encountered in ");
-            formatter.AppendString(event.Function);
-            formatter.AppendString(" (");
-            formatter.AppendString(event.FileName);
-            formatter.AppendString(":");
-            formatter.AppendNumber(event.Line);
-            formatter.AppendString(") ***\n");
+            formatter.AppendString("\n*** Fatal error ***\n");
             formatter.AppendString(event.Message.c_str());
             formatter.AppendString("\n*** Aborting ***\n");
 
             HandleEintr(::write, 2, formatter.GetData(), formatter.GetBytesWritten());
 
             // Add fatal message to log and notify event log queue.
-            PushLogEvent(std::move(event));
+            PushEvent(std::move(event));
 
             // Flush everything and die.
             Shutdown();
@@ -457,7 +460,14 @@ public:
             return;
         }
 
-        PushLogEvent(std::move(event));
+        if (PerThreadBatchingPeriod != TDuration::Zero()) {
+            BatchEvent(std::move(event));
+            if (NProfiling::GetCpuInstant() > PerThreadBatchingDeadline) {
+                FlushBatchedEvents();
+            }
+        } else {
+            PushEvent(std::move(event));
+        }
     }
 
     void Reopen()
@@ -465,8 +475,26 @@ public:
         ReopenRequested_ = true;
     }
 
+    void SetPerThreadBatchingPeriod(TDuration value)
+    {
+        if (PerThreadBatchingPeriod == value) {
+            return;
+        }
+        FlushBatchedEvents();
+        PerThreadBatchingPeriod = value;
+    }
+
+    TDuration GetPerThreadBatchingPeriod() const
+    {
+        return PerThreadBatchingPeriod;
+    }
+
 private:
-    using TLoggerQueueItem = TVariant<TLogEvent, TLogConfigPtr>;
+    using TLoggerQueueItem = TVariant<
+        TLogEvent,
+        std::vector<TLogEvent>,
+        TLogConfigPtr
+    >;
 
     class TThread
         : public TSchedulerThread
@@ -518,6 +546,7 @@ private:
     EBeginExecuteResult BeginExecute()
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
+
         return EventQueue_->BeginExecute(&CurrentAction_);
     }
 
@@ -561,15 +590,6 @@ private:
         YCHECK(pair.second);
 
         return pair.first->second;
-    }
-
-    void Write(const TLogEvent& event)
-    {
-        VERIFY_THREAD_AFFINITY(LoggingThread);
-
-        for (const auto& writer : GetWriters(event)) {
-            writer->Write(event);
-        }
     }
 
     std::unique_ptr<TNotificationWatch> CreateNoficiationWatch(ILogWriterPtr writer, const Stroka& fileName)
@@ -699,6 +719,24 @@ private:
         }
     }
 
+    void WriteEvent(const TLogEvent& event)
+    {
+        if (ReopenRequested_) {
+            ReopenRequested_ = false;
+            ReloadWriters();
+        }
+        for (const auto& writer : GetWriters(event)) {
+            writer->Write(event);
+        }
+    }
+
+    void WriteEvents(const std::vector<TLogEvent>& events)
+    {
+        for (const auto& event : events) {
+            WriteEvent(event);
+        }
+    }
+
     void FlushWriters()
     {
         for (auto& pair : Writers_) {
@@ -754,11 +792,39 @@ private:
         }
     }
 
-    void PushLogEvent(TLogEvent&& event)
+    void PushEvent(TLogEvent&& event)
     {
         ++EnqueuedEvents_;
         LoggerQueue_.Enqueue(std::move(event));
     }
+
+    void PushLogEvents(std::vector<TLogEvent>&& events)
+    {
+        EnqueuedEvents_ += events.size();
+        LoggerQueue_.Enqueue(std::move(events));
+    }
+
+
+    void BatchEvent(TLogEvent&& event)
+    {
+        if (!PerThreadBatchingEvents) {
+            PerThreadBatchingEvents = &PerThreadBatchingEventsHolder;
+        }
+        PerThreadBatchingEvents->emplace_back(std::move(event));
+    }
+
+    void FlushBatchedEvents()
+    {
+        if (!PerThreadBatchingEvents) {
+            PerThreadBatchingEvents = &PerThreadBatchingEventsHolder;
+        }
+        std::vector<TLogEvent> newEvents;
+        newEvents.reserve(PerThreadBatchingReserveCapacity);
+        newEvents.swap(*PerThreadBatchingEvents);
+        PushLogEvents(std::move(newEvents));
+        PerThreadBatchingDeadline = NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(PerThreadBatchingPeriod);
+    }
+
 
     void OnProfiling()
     {
@@ -778,27 +844,30 @@ private:
 
         int eventsWritten = 0;
         while (LoggerQueue_.DequeueAll(true, [&] (const TLoggerQueueItem& item) {
-            if (const auto* configPtr = item.TryAs<TLogConfigPtr>()) {
-                UpdateConfig(*configPtr);
-            } else if (const auto* eventPtr = item.TryAs<TLogEvent>()) {
-                if (ReopenRequested_) {
-                    ReopenRequested_ = false;
-                    ReloadWriters();
-                }
-
-                Write(*eventPtr);
+            if (const auto* config = item.TryAs<TLogConfigPtr>()) {
+                UpdateConfig(*config);
+            } else if (const auto* event = item.TryAs<TLogEvent>()) {
+                WriteEvent(*event);
                 ++eventsWritten;
+            } else if (const auto* events = item.TryAs<std::vector<TLogEvent>>()) {
+                WriteEvents(*events);
+                eventsWritten += events->size();
             } else {
                 Y_UNREACHABLE();
             }
         }))
         { }
 
-        if (eventsWritten > 0 && !Config_->FlushPeriod) {
-            FlushWriters();
+        if (eventsWritten == 0) {
+            return;
         }
 
         WrittenEvents_ += eventsWritten;
+
+        if (!Config_->FlushPeriod || ShutdownRequested_) {
+            FlushWriters();
+            FlushedEvents_ = WrittenEvents_.load();
+        }
     }
 
 
@@ -828,6 +897,7 @@ private:
 
     std::atomic<ui64> EnqueuedEvents_ = {0};
     std::atomic<ui64> WrittenEvents_ = {0};
+    std::atomic<ui64> FlushedEvents_ = {0};
 
     yhash_map<Stroka, ILogWriterPtr> Writers_;
     yhash_map<std::pair<Stroka, ELogLevel>, std::vector<ILogWriterPtr>> CachedWriters_;
@@ -898,6 +968,16 @@ void TLogManager::Enqueue(TLogEvent&& event)
 void TLogManager::Reopen()
 {
     Impl_->Reopen();
+}
+
+void TLogManager::SetPerThreadBatchingPeriod(TDuration value)
+{
+    Impl_->SetPerThreadBatchingPeriod(value);
+}
+
+TDuration TLogManager::GetPerThreadBatchingPeriod() const
+{
+    return Impl_->GetPerThreadBatchingPeriod();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

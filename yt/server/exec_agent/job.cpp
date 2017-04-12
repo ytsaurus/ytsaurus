@@ -1070,7 +1070,8 @@ private:
             resultError.FindMatching(NExecAgent::EErrorCode::ArtifactCopyingFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::NodeDirectoryPreparationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::SlotLocationDisabled) ||
-            resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed))
+            resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
+            resultError.FindMatching(EProcessErrorCode::CannotResolveBinary))
         {
             return EAbortReason::Other;
         }

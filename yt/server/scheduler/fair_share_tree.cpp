@@ -1868,7 +1868,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
     if (!scheduleJobResultWithTimeoutOrError.IsOK()) {
         auto scheduleJobResult = New<TScheduleJobResult>();
         if (scheduleJobResultWithTimeoutOrError.GetCode() == NYT::EErrorCode::Timeout) {
-            LOG_WARNING("Controller of operation %v is scheduling for too long, aborting ScheduleJob",
+            LOG_WARNING("Controller is scheduling for too long, aborting (OperationId: %v)",
                 OperationId_);
             ++scheduleJobResult->Failed[EScheduleJobFailReason::Timeout];
             // If ScheduleJob was not canceled we need to abort created job.
@@ -2048,7 +2048,7 @@ int TRootElement::GetMaxOperationCount() const
 
 bool TRootElement::AreImmediateOperationsFobidden() const
 {
-    return true;
+    return StrategyConfig_->ForbidImmediateOperationsInRoot;
 }
 
 TSchedulerElementPtr TRootElement::Clone(TCompositeSchedulerElement* /*clonedParent*/)

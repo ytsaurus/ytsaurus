@@ -36,9 +36,7 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
-    const TWorkloadDescriptor& workloadDescriptor,
-    int concurrency,
-    NTableClient::TRowBufferPtr rowBuffer = nullptr);
+    const TWorkloadDescriptor& workloadDescriptor);
 
 //! Creates a range reader that merges data from all given #stores and
 //! returns all versions of each value.

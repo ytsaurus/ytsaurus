@@ -125,6 +125,13 @@ public:
             .Run(operation);
     }
 
+    virtual void ValidateOperationCanBeRegistered(const TOperationPtr& operation) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        ValidateOperationCountLimit(operation);
+    }
+
     void RegisterOperation(const TOperationPtr& operation) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -780,6 +787,7 @@ private:
 
         // Second-chance scheduling.
         // NB: Schedule at most one job.
+        TJobPtr jobStartedUsingPreemption;
         int preemptiveScheduleJobCount = 0;
         {
             LOG_TRACE("Scheduling new jobs with preemption");
@@ -799,6 +807,7 @@ private:
                     break;
                 }
                 if (schedulingContext->StartedJobs().size() > startedBeforePreemption) {
+                    jobStartedUsingPreemption = schedulingContext->StartedJobs().back();
                     break;
                 }
             }
@@ -825,29 +834,30 @@ private:
                 return lhs->GetStartTime() > rhs->GetStartTime();
             });
 
-        auto poolLimitsViolated = [&] (const TJobPtr& job) -> bool {
+        auto findPoolWithViolatedLimitsForJob = [&] (const TJobPtr& job) -> TCompositeSchedulerElement* {
             auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
             if (!operationElement) {
-                return false;
+                return nullptr;
             }
 
             auto* parent = operationElement->GetParent();
             while (parent) {
                 if (!Dominates(parent->ResourceLimits(), parent->GetResourceUsage())) {
-                    return true;
+                    return parent;
                 }
                 parent = parent->GetParent();
             }
-            return false;
+            return nullptr;
         };
 
-        auto anyPoolLimitsViolated = [&] () -> bool {
+        auto findPoolWithViolatedLimits = [&] () -> TCompositeSchedulerElement* {
             for (const auto& job : schedulingContext->StartedJobs()) {
-                if (poolLimitsViolated(job)) {
-                    return true;
+                auto violatedPool = findPoolWithViolatedLimitsForJob(job);
+                if (violatedPool) {
+                    return violatedPool;
                 }
             }
-            return false;
+            return nullptr;
         };
 
         bool nodeLimitsViolated = true;
@@ -867,15 +877,30 @@ private:
                 nodeLimitsViolated = !Dominates(schedulingContext->ResourceLimits(), schedulingContext->ResourceUsage());
             }
             if (!nodeLimitsViolated && poolsLimitsViolated) {
-                poolsLimitsViolated = anyPoolLimitsViolated();
+                poolsLimitsViolated = findPoolWithViolatedLimits() == nullptr;
             }
 
             if (!nodeLimitsViolated && !poolsLimitsViolated) {
                 break;
             }
 
-            if (nodeLimitsViolated || (poolsLimitsViolated && poolLimitsViolated(job))) {
+            if (nodeLimitsViolated) {
+                if (jobStartedUsingPreemption) {
+                    job->SetPreemptionReason(Format("Preempted to start job %v of operation %v",
+                        jobStartedUsingPreemption->GetId(),
+                        jobStartedUsingPreemption->GetOperationId()));
+                } else {
+                    job->SetPreemptionReason(Format("Node resource limits violated"));
+                }
                 PreemptJob(job, operationElement, context);
+            }
+            if (poolsLimitsViolated) {
+                auto violatedPool = findPoolWithViolatedLimitsForJob(job);
+                if (violatedPool) {
+                    job->SetPreemptionReason(Format("Preempted due to violation of limits on pool %v",
+                        violatedPool->GetId()));
+                    PreemptJob(job, operationElement, context);
+                }
             }
         }
 
@@ -1288,25 +1313,29 @@ private:
         return spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
     }
 
-    void DoValidateOperationStart(const TOperationPtr& operation)
+    TCompositeSchedulerElementPtr GetDefaultParent()
+    {
+        auto defaultPool = FindPool(Config->DefaultParentPool);
+        if (defaultPool) {
+            return defaultPool;
+        } else {
+            return RootElement;
+        }
+    }
+
+    TCompositeSchedulerElementPtr GetParentElement(const TOperationPtr& operation)
+    {
+        auto parentPool = FindPool(GetOperationPoolName(operation));
+        return parentPool ? parentPool : GetDefaultParent();
+    }
+
+    void ValidateOperationCountLimit(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto parentElement = FindPool(GetOperationPoolName(operation));
+        auto parentElement = GetParentElement(operation);
 
-        TCompositeSchedulerElementPtr ansectorElement;
-        if (parentElement) {
-            ansectorElement = parentElement;
-        } else {
-            auto defaultPool = FindPool(Config->DefaultParentPool);
-            if (defaultPool) {
-                ansectorElement = defaultPool;
-            } else {
-                ansectorElement = RootElement;
-            }
-        }
-
-        auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(ansectorElement);
+        auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(parentElement);
         if (poolWithViolatedLimit) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::TooManyOperations,
@@ -1314,14 +1343,24 @@ private:
                 poolWithViolatedLimit->GetMaxOperationCount(),
                 poolWithViolatedLimit->GetId());
         }
+    }
 
-        if (parentElement && parentElement->AreImmediateOperationsFobidden()) {
+    void DoValidateOperationStart(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        ValidateOperationCountLimit(operation);
+
+        auto immediateParentPool = FindPool(GetOperationPoolName(operation));
+        // NB: Check is not performed if operation is started in default or unknown pool.
+        if (immediateParentPool && immediateParentPool->AreImmediateOperationsFobidden()) {
             THROW_ERROR_EXCEPTION(
                 "Starting operations immediately in pool %Qv is forbidden",
-                parentElement->GetId());
+                immediateParentPool->GetId());
         }
 
-        auto poolPath = GetPoolPath(ansectorElement);
+        auto parentElement = GetParentElement(operation);
+        auto poolPath = GetPoolPath(parentElement);
         const auto& user = operation->GetAuthenticatedUser();
 
         Host->ValidatePoolPermission(poolPath, user, EPermission::Use);

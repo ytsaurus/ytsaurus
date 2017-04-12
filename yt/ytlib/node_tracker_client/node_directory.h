@@ -21,12 +21,7 @@ namespace NNodeTrackerClient {
 class TNodeDescriptor
 {
 public:
-    DEFINE_BYREF_RO_PROPERTY(TAddressMap, Addresses);
-    DEFINE_BYVAL_RO_PROPERTY(TNullable<Stroka>, Rack);
-    DEFINE_BYVAL_RO_PROPERTY(TNullable<Stroka>, DataCenter);
-
-public:
-    TNodeDescriptor() = default;
+    TNodeDescriptor();
     explicit TNodeDescriptor(const Stroka& defaultAddress);
     explicit TNodeDescriptor(const TNullable<Stroka>& defaultAddress);
     explicit TNodeDescriptor(
@@ -36,21 +31,38 @@ public:
 
     bool IsNull() const;
 
+    const TAddressMap& Addresses() const;
+
     const Stroka& GetDefaultAddress() const;
 
     const Stroka& GetAddress(const TNetworkPreferenceList& networks) const;
     TNullable<Stroka> FindAddress(const TNetworkPreferenceList& networks) const;
 
+    const TNullable<Stroka>& GetRack() const;
+    const TNullable<Stroka>& GetDataCenter() const;
+
     void Persist(const TStreamPersistenceContext& context);
+
+private:
+    TAddressMap Addresses_;
+    Stroka DefaultAddress_;
+    TNullable<Stroka> Rack_;
+    TNullable<Stroka> DataCenter_;
+
 };
 
 bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs);
 bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs);
 
+bool operator == (const TNodeDescriptor& lhs, const NProto::TNodeDescriptor& rhs);
+bool operator != (const TNodeDescriptor& lhs, const NProto::TNodeDescriptor& rhs);
+
+void FormatValue(TStringBuilder* builder, const TNodeDescriptor& descriptor, const TStringBuf& spec);
 Stroka ToString(const TNodeDescriptor& descriptor);
 
 // Accessors for some well-known addresses.
 const Stroka& GetDefaultAddress(const TAddressMap& addresses);
+const Stroka& GetDefaultAddress(const NProto::TAddressMap& addresses);
 
 const Stroka& GetAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 TNullable<Stroka> FindAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
@@ -110,6 +122,8 @@ private:
     std::vector<std::unique_ptr<TNodeDescriptor>> Descriptors_;
 
     void DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
+    void DoAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& protoDescriptor);
+    void DoAddCapturedDescriptor(TNodeId id, std::unique_ptr<TNodeDescriptor> descriptorHolder);
 
 };
 

@@ -107,6 +107,11 @@ void TInputSliceLimit::Persist(const TPersistenceContext& context)
     Persist(context, Key);
 }
 
+Stroka ToString(const TInputSliceLimit& limit)
+{
+    return Format("RowIndex: %v, Key: %v", limit.RowIndex, limit.Key);
+}
+
 void FormatValue(TStringBuilder* builder, const TInputSliceLimit& limit, const TStringBuf& /*format*/)
 {
     builder->AppendFormat("{RowIndex: %v, Key: %v}",
@@ -277,6 +282,28 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataSize
     return result;
 }
 
+std::pair<TInputChunkSlicePtr, TInputChunkSlicePtr> TInputChunkSlice::SplitByRowIndex(i64 splitRow) const
+{
+    i64 lowerRowIndex = LowerLimit_.RowIndex.Get(0);
+    i64 upperRowIndex = UpperLimit_.RowIndex.Get(InputChunk_->GetRowCount());
+
+    i64 rowCount = upperRowIndex - lowerRowIndex;
+
+    YCHECK(splitRow > 0 && splitRow < rowCount);
+
+    return std::make_pair(
+        New<TInputChunkSlice>(
+            *this,
+            lowerRowIndex,
+            lowerRowIndex + splitRow,
+            GetDataSize() / rowCount * splitRow),
+        New<TInputChunkSlice>(
+            *this,
+            lowerRowIndex + splitRow,
+            upperRowIndex,
+            GetDataSize() / rowCount * (rowCount - splitRow)));
+}
+
 i64 TInputChunkSlice::GetLocality(int replicaPartIndex) const
 {
     i64 result = GetDataSize();
@@ -407,6 +434,14 @@ std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(
     }
 
     return slices;
+}
+
+void InferLimitsFromBoundaryKeys(const TInputChunkSlicePtr& chunkSlice, const TRowBufferPtr& rowBuffer)
+{
+    if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
+        chunkSlice->LowerLimit().MergeLowerKey(boundaryKeys->MinKey);
+        chunkSlice->UpperLimit().MergeUpperKey(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer));
+    }
 }
 
 std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(

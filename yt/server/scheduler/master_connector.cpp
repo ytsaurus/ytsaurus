@@ -604,7 +604,7 @@ private:
         // - Request operations and their states.
         void ListOperations()
         {
-            auto batchReq = Owner->StartObjectBatchRequest();
+            auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
             {
                 auto req = TYPathProxy::List("//sys/operations");
                 std::vector<Stroka> attributeKeys{
@@ -639,7 +639,7 @@ private:
         // - Recreate operation instance from fetched data.
         void RequestOperationAttributes()
         {
-            auto batchReq = Owner->StartObjectBatchRequest();
+            auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
             {
                 LOG_INFO("Fetching attributes and secure vaults for %v unfinished operations",
                     OperationIds.size());
@@ -721,7 +721,7 @@ private:
         // Update global watchers.
         void UpdateGlobalWatchers()
         {
-            auto batchReq = Owner->StartObjectBatchRequest();
+            auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
             for (auto requester : Owner->GlobalWatcherRequesters) {
                 requester.Run(batchReq);
             }
@@ -743,7 +743,7 @@ private:
     {
         TObjectServiceProxy proxy(Bootstrap
             ->GetMasterClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
+            ->GetMasterChannelOrThrow(channelKind, cellTag));
         auto batchReq = proxy.ExecuteBatch();
         YCHECK(LockTransaction);
         auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
@@ -1314,6 +1314,7 @@ private:
         auto batchReq = StartObjectBatchRequest();
         auto req = TYPathProxy::Remove(GetSnapshotPath(operationId));
         req->set_force(true);
+        GenerateMutationId(req);
         batchReq->AddRequest(req, "remove_snapshot");
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -1351,6 +1352,7 @@ private:
             auto req = TCypressYPathProxy::Create(jobPath);
             req->set_type(static_cast<int>(EObjectType::MapNode));
             ToProto(req->mutable_node_attributes(), *attributes);
+            GenerateMutationId(req);
             batchReq->AddRequest(req, "create");
         }
 

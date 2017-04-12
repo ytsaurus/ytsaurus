@@ -260,3 +260,6 @@ void GTEST_TEST_CLASS_NAME_(test_case_name, test_name)::TestInnerBody()
 void PrintTo(const Stroka& string, ::std::ostream* os);
 void PrintTo(const TStringBuf& string, ::std::ostream* os);
 
+#define FRAMEWORK_INL_H_
+#include "framework-inl.h"
+#undef FRAMEWORK_INL_H_

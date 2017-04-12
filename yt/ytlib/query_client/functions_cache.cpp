@@ -436,7 +436,7 @@ TFunctionImplKey::operator size_t() const
 
     for (const auto& spec : ChunkSpecs) {
         auto id = FromProto<TGuid>(spec.chunk_id());
-        result = HashCombine(result, id);
+        HashCombine(result, id);
     }
 
     return result;

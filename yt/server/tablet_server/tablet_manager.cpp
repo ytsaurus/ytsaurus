@@ -1098,6 +1098,13 @@ public:
             }
             newTablet->SetRetainedTimestamp(retainedTimestamp);
             newTablets.push_back(newTablet);
+
+            if (table->IsReplicated()) {
+                const auto* replicatedTable = table->As<TReplicatedTableNode>();
+                for (auto* replica : replicatedTable->Replicas()) {
+                    YCHECK(newTablet->Replicas().emplace(replica, TTableReplicaInfo()).second);
+                }
+            }
         }
 
         // Drop old tablets.
@@ -2965,7 +2972,7 @@ private:
         // Prepare tablet writer options.
         const auto& chunkProperties = table->Properties();
         auto primaryMediumIndex = table->GetPrimaryMediumIndex();
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
         *writerOptions = New<TTableWriterOptions>();
         (*writerOptions)->ReplicationFactor = chunkProperties[primaryMediumIndex].GetReplicationFactor();

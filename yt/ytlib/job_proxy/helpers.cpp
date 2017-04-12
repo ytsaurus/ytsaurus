@@ -83,7 +83,6 @@ std::vector<TDataSliceDescriptor> UnpackDataSliceDescriptors(const TTableInputSp
             inputTableSpec.chunk_spec_count_per_data_slice());
     } else {
         // COMPAT(psushin).
-        YCHECK(inputTableSpec.data_slice_descriptors_size() > 0);
         return FromProto<std::vector<TDataSliceDescriptor>>(inputTableSpec.data_slice_descriptors());
     }
 }

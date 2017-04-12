@@ -22,8 +22,8 @@ struct TInputDataSlice
 public:
     using TChunkSliceList = SmallVector<TInputChunkSlicePtr, 1>;
 
-    DEFINE_BYREF_RO_PROPERTY(TInputSliceLimit, LowerLimit);
-    DEFINE_BYREF_RO_PROPERTY(TInputSliceLimit, UpperLimit);
+    DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, LowerLimit);
+    DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, UpperLimit);
 
 public:
     TInputDataSlice() = default;
@@ -31,7 +31,8 @@ public:
         EDataSourceType type,
         TChunkSliceList chunkSlices,
         TInputSliceLimit lowerLimit,
-        TInputSliceLimit upperLimit);
+        TInputSliceLimit upperLimit,
+        TNullable<i64> tag = Null);
 
     int GetChunkCount() const;
     i64 GetDataSize() const;
@@ -42,13 +43,29 @@ public:
 
     void Persist(NTableClient::TPersistenceContext& context);
 
-    // Check that data slice is an old single-chunk slice. Used for compatibility.
+    //! Check that data slice is an old single-chunk slice. Used for compatibility.
     bool IsTrivial() const;
+
+    //! Check that lower limit >= upper limit, i.e. that slice must be empty.
+    bool IsEmpty() const;
 
     TInputChunkPtr GetSingleUnversionedChunkOrThrow() const;
 
+    std::pair<TInputDataSlicePtr, TInputDataSlicePtr> SplitByRowIndex(i64 splitRow) const;
+
     TChunkSliceList ChunkSlices;
     EDataSourceType Type;
+
+    //! A tag that helps us restore the correspondence between
+    //! the unread data slices and the original data slices.
+    TNullable<i64> Tag;
+
+    //! Flag showing that the slice should not be considered when forming the job input.
+    bool Disabled = false;
+
+    //! An index of an input stream this data slice corresponds to. If this is a data
+    //! slice of some input table, it should normally be equal to `GetTableIndex()`.
+    int InputStreamIndex = -1;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputDataSlice)
@@ -79,9 +96,13 @@ TInputDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkSlicePtr chunkSlic
 TInputDataSlicePtr CreateVersionedInputDataSlice(
     const std::vector<TInputChunkSlicePtr>& inputChunks);
 
+void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const NTableClient::TRowBufferPtr& rowBuffer);
+
 TNullable<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool checkParityParts);
 bool CompareDataSlicesByLowerLimit(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& slice2);
 bool CanMergeSlices(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& slice2);
+i64 GetCumulativeRowCount(const std::vector<TInputDataSlicePtr>& dataSlices);
+i64 GetCumulativeDataSize(const std::vector<TInputDataSlicePtr>& dataSlices);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -59,6 +59,9 @@ public:
     //! Default parent pool for operations with unknown pool.
     Stroka DefaultParentPool;
 
+    //! Forbid immediate operations in root.
+    bool ForbidImmediateOperationsInRoot;
+
     // Preemption timeout for operations with small number of jobs will be
     // discounted proportionally to this coefficient.
     double JobCountPreemptionTimeoutCoefficient;
@@ -144,6 +147,9 @@ public:
 
         RegisterParameter("default_parent_pool", DefaultParentPool)
             .Default(RootPoolName);
+
+        RegisterParameter("forbid_immediate_operations_in_root", ForbidImmediateOperationsInRoot)
+            .Default(true);
 
         RegisterParameter("job_count_preemption_timeout_coefficient", JobCountPreemptionTimeoutCoefficient)
             .Default(1.0)
@@ -250,6 +256,50 @@ DEFINE_REFCOUNTED_TYPE(TJobSizeAdjusterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobSplitterConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration MinJobTime;
+    double ExecToPrepareTimeRatio;
+    i64 MinTotalDataSize;
+    TDuration UpdatePeriod;
+    TDuration MedianExcessDuration;
+    double CandidatePercentile;
+    int MaxJobsPerSplit;
+
+    TJobSplitterConfig()
+    {
+        RegisterParameter("min_job_time", MinJobTime)
+            .Default(TDuration::Seconds(60));
+
+        RegisterParameter("exec_to_prepare_time_ratio", ExecToPrepareTimeRatio)
+            .Default(20.0);
+
+        RegisterParameter("min_total_data_size", MinTotalDataSize)
+            .Default((i64)1024 * 1024 * 1024);
+
+        RegisterParameter("update_period", UpdatePeriod)
+            .Default(TDuration::Seconds(60));
+
+        RegisterParameter("median_excess_duration", MedianExcessDuration)
+            .Default(TDuration::Minutes(3));
+
+        RegisterParameter("candidate_percentile", CandidatePercentile)
+            .GreaterThanOrEqual(0.5)
+            .LessThanOrEqual(1.0)
+            .Default(0.8);
+
+        RegisterParameter("max_jobs_per_split", MaxJobsPerSplit)
+            .GreaterThan(0)
+            .Default(5);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationOptions
     : public NYTree::TYsonSerializable
 {
@@ -259,8 +309,8 @@ public:
     //! Controls finer initial slicing of input data to ensure even distribution of data split sizes among jobs.
     double SliceDataSizeMultiplier;
 
-    //! Maximum number of chunk stripes per job.
-    int MaxChunkStripesPerJob;
+    //! Maximum number of primary data slices per job.
+    int MaxDataSlicesPerJob;
 
     i64 MaxSliceDataSize;
     i64 MinSliceDataSize;
@@ -275,8 +325,8 @@ public:
             .Default(0.51)
             .GreaterThan(0.0);
 
-        RegisterParameter("max_chunk_stripes_per_job", MaxChunkStripesPerJob)
-            .Default(10000)
+        RegisterParameter("max_data_slices_per_job", MaxDataSlicesPerJob)
+            .Default(100000)
             .GreaterThan(0);
 
         RegisterParameter("max_slice_data_size", MaxSliceDataSize)
@@ -326,10 +376,13 @@ class TMapOperationOptions
 {
 public:
     TJobSizeAdjusterConfigPtr JobSizeAdjuster;
+    TJobSplitterConfigPtr JobSplitter;
 
     TMapOperationOptions()
     {
         RegisterParameter("job_size_adjuster", JobSizeAdjuster)
+            .DefaultNew();
+        RegisterParameter("job_splitter", JobSplitter)
             .DefaultNew();
 
         RegisterInitializer([&] () {
@@ -370,8 +423,13 @@ class TReduceOperationOptions
     : public TSortedMergeOperationOptions
 {
 public:
+    TJobSplitterConfigPtr JobSplitter;
+
     TReduceOperationOptions()
     {
+        RegisterParameter("job_splitter", JobSplitter)
+            .DefaultNew();
+
         RegisterInitializer([&] () {
             DataSizePerJob = (i64) 128 * 1024 * 1024;
         });
@@ -741,6 +799,9 @@ public:
 
     bool EnableMapJobSizeAdjustment;
 
+    // Enable splitting of long jobs.
+    bool EnableJobSplitting;
+
     //! Acl used for intermediate tables and stderrs additional to acls specified by user.
     NYTree::IListNodePtr AdditionalIntermediateDataAcl;
 
@@ -783,6 +844,8 @@ public:
 
     // Some special options for testing purposes.
     TTestingOptionsPtr TestingOptions;
+
+    NCompression::ECodec JobSpecCodec;
 
     TSchedulerConfig()
     {
@@ -1020,6 +1083,8 @@ public:
             .Default(true);
         RegisterParameter("enable_map_job_size_adjustment", EnableMapJobSizeAdjustment)
             .Default(true);
+        RegisterParameter("enable_job_splitting", EnableJobSplitting)
+            .Default(true);
 
         RegisterParameter("additional_intermediate_data_acl", AdditionalIntermediateDataAcl)
             .Default(NYTree::BuildYsonNodeFluently()
@@ -1078,6 +1143,9 @@ public:
 
         RegisterParameter("testing_options", TestingOptions)
             .DefaultNew();
+
+        RegisterParameter("job_spec_codec", JobSpecCodec)
+            .Default(NCompression::ECodec::Lz4);
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

@@ -37,8 +37,6 @@
 #include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 
-#include <yt/ytlib/chunk_client/throttler_manager.h>
-
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
@@ -145,10 +143,6 @@ void TBootstrap::DoRun()
     NodeDirectorySynchronizer_->Start();
 
     Scheduler_ = New<TScheduler>(Config_->Scheduler, this);
-
-    ChunkLocationThrottlerManager_ = New<TThrottlerManager>(
-        Config_->Scheduler->ChunkLocationThrottler,
-        SchedulerLogger);
 
     ResponseKeeper_ = New<TResponseKeeper>(
         Config_->ResponseKeeper,
@@ -259,11 +253,6 @@ const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const
 const TResponseKeeperPtr& TBootstrap::GetResponseKeeper() const
 {
     return ResponseKeeper_;
-}
-
-const TThrottlerManagerPtr& TBootstrap::GetChunkLocationThrottlerManager() const
-{
-    return ChunkLocationThrottlerManager_;
 }
 
 const TCoreDumperPtr& TBootstrap::GetCoreDumper() const

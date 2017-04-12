@@ -21,6 +21,7 @@ using namespace NYPath;
 using namespace NJobTrackerClient;
 using namespace NChunkClient::NProto;
 using namespace NProto;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -200,7 +201,7 @@ TJobSummary::TJobSummary(const TJobPtr& job)
     : Result(job->Status().result())
     , Id(job->GetId())
     , StatisticsSuffix(job->GetStatisticsSuffix())
-    , FinishTime(*job->GetFinishTime())
+    , FinishTime(job->GetFinishTime())
     , ShouldLog(true)
 {
     const auto& status = job->Status();
@@ -241,7 +242,9 @@ TCompletedJobSummary::TCompletedJobSummary(const TJobPtr& job, bool abandoned)
     , Abandoned(abandoned)
 {
     const auto& schedulerResultExt = Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-    Interrupted = schedulerResultExt.unread_input_data_slice_descriptors_size() != 0;
+    InterruptReason = job->GetInterruptReason();
+    YCHECK((InterruptReason == EInterruptReason::None && schedulerResultExt.unread_input_data_slice_descriptors_size() == 0) ||
+        (InterruptReason != EInterruptReason::None && schedulerResultExt.unread_input_data_slice_descriptors_size() != 0));
 }
 
 ////////////////////////////////////////////////////////////////////

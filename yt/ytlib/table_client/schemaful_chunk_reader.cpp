@@ -60,7 +60,8 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
     chunkSpec.mutable_chunk_meta()->MergeFrom(chunkMeta);
 
     switch (formatVersion) {
-        case ETableChunkFormat::SchemalessHorizontal: {
+        case ETableChunkFormat::SchemalessHorizontal:
+        case ETableChunkFormat::UnversionedColumnar: {
             auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
                 return CreateSchemalessChunkReader(
                     chunkSpec,

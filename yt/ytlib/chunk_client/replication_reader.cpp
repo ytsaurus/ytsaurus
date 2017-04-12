@@ -142,11 +142,11 @@ public:
             SeedsPromise_ = MakePromise(InitialSeedReplicas_);
         }
 
-        LOG_DEBUG("Reader initialized (InitialSeedReplicas: %v, FetchPromPeers: %v, LocalAddress: %v, PopulateCache: %v, "
+        LOG_DEBUG("Reader initialized (InitialSeedReplicas: %v, FetchPromPeers: %v, LocalDescriptor: %v, PopulateCache: %v, "
             "AllowFetchingSeedsFromMaster: %v, Networks: %v)",
             MakeFormattableRange(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
             Config_->FetchFromPeers,
-            LocalDescriptor_.GetDefaultAddress(),
+            LocalDescriptor_,
             Config_->PopulateCache,
             Options_->AllowFetchingSeedsFromMaster,
             Networks_);

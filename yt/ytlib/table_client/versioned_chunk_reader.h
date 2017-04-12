@@ -47,7 +47,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TOwningKey upperLimit,
     const TColumnFilter& columnFilter,
     TChunkReaderPerformanceCountersPtr performanceCounters,
-    TTimestamp timestamp = SyncLastCommittedTimestamp);
+    TTimestamp timestamp,
+    bool produceAllVersions);
 
 //! Creates a versioned chunk reader for a given set of keys.
 /*!
@@ -63,7 +64,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TColumnFilter& columnFilter,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TKeyComparer keyComparer,
-    TTimestamp timestamp = SyncLastCommittedTimestamp);
+    TTimestamp timestamp,
+    bool produceAllVersions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

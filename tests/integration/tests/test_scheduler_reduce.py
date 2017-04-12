@@ -13,6 +13,24 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period" : 10,
+            "running_jobs_update_period" : 10,
+            "reduce_operation_options" : {
+                "job_splitter" : {
+                    "min_job_time": 5000,
+                    "min_total_data_size": 1024,
+                    "update_period": 100,
+                    "median_excess_duration": 3000,
+                    "candidate_percentile": 0.8,
+                    "max_jobs_per_split": 3,
+                }
+            }
+        }
+    }
+
     def _create_simple_dynamic_table(self, path, optimize_for="lookup"):
         create("table", path,
             attributes = {
@@ -21,6 +39,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 "optimize_for": optimize_for
             })
 
+    # TODO(max42): eventually remove this test as it duplicates unittest TSortedChunkPoolTest/SortedReduceSimple.
     @unix_only
     def test_tricky_chunk_boundaries(self):
         create("table", "//tmp/in1")
@@ -806,7 +825,7 @@ echo {v = 2} >&7
 
         reduce(
             in_ = ["<foreign=true>//tmp/foreign"] + ["//tmp/t{0}".format(i) for i in range(4)],
-            out = ["//tmp/output"],
+            out = ["<sorted_by=[key]>//tmp/output"],
             command = "grep @table_index=0 | head -n 1",
             reduce_by = ["key","value"],
             join_by = ["key"],
@@ -1037,16 +1056,6 @@ echo {v = 2} >&7
         with pytest.raises(YtError):
             op.track();
 
-        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
-        job_ids = ls(jobs_path)
-        assert len(job_ids) == 1
-        actual = get("{0}/{1}/@input_paths".format(jobs_path, job_ids[0]))
-        expected = yson.loads('''[
-            <ranges=[{lower_limit={key=["00001"]};upper_limit={key=["00004";<type="max";>#]}}];"foreign"=%true>"//tmp/in1";
-            <ranges=[{lower_limit={key=["00001"]};upper_limit={key=["00004"]}}]>"//tmp/in2";
-        ]''')
-        assert expected == actual
-
     @unix_only
     def test_computed_columns(self):
         create("table", "//tmp/t1")
@@ -1214,6 +1223,7 @@ echo {v = 2} >&7
                     "buffer_row_count" : 1,
                 },
                 "data_size_per_job" : 256 * 1024 * 1024,
+                "enable_job_splitting": False,
             },
             **kwargs)
 
@@ -1244,6 +1254,81 @@ echo {v = 2} >&7
         else:
             assert job_indexes[1] == 3
         assert get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/sorted_reduce/sum".format(op.id)) == len(result) - 2
+
+    def test_query_filtering(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
+
+        with pytest.raises(YtError):
+            reduce(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                command="cat",
+                spec={"input_query": "a where a > 0"})
+
+    @pytest.mark.xfail(run = True, reason = "max42 should support TChunkStripeList->TotalRowCount in TSortedChunkPool")
+    def test_reduce_job_splitter(self):
+        create("table", "//tmp/in_1")
+        for j in range(5):
+            write_table(
+                "<append=true>//tmp/in_1",
+                [{"key": "%08d" % (j * 4 + i), "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(4)],
+                sorted_by = ["key", "value"],
+                table_writer = {
+                    "block_size": 1024,
+                })
+
+        create("table", "//tmp/in_2")
+        write_table(
+            "//tmp/in_2",
+            [{"key": "(%08d)" % (i / 2), "value": "(t_2)"} for i in range(40)],
+            sorted_by = ["key"])
+
+        input_ = ["<foreign=true>//tmp/in_2"] + ["//tmp/in_1"] * 5
+        output = "//tmp/output"
+        create("table", output)
+
+        command="""
+while read ROW; do
+    if [ "$YT_JOB_INDEX" == 0 ]; then
+        sleep 2
+    else
+        sleep 0.2
+    fi
+    echo "$ROW"
+done
+"""
+
+        op = reduce(
+            dont_track=True,
+            label="split_job",
+            in_=input_,
+            out=output,
+            command=command,
+            reduce_by=["key", "value"],
+            join_by="key",
+            spec={
+                "reducer": {
+                    "format": "dsv",
+                },
+                "data_size_per_job": 21 * 1024 * 1024,
+                "max_failed_job_count": 1,
+                "job_io": {
+                    "buffer_row_count" : 1,
+                },
+            })
+
+        op.track()
+
+        completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
+        completed_details = get("//sys/operations/{0}/@progress/jobs/completed_details".format(op.id))
+        assert completed >= 6
+        assert completed_details["job_split"] >= 1
+        assert completed_details["total"] == completed
+
 
 ##################################################################
 

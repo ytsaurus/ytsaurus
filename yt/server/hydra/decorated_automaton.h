@@ -69,7 +69,7 @@ class TSystemLockGuard
     : private TNonCopyable
 {
 public:
-    TSystemLockGuard();
+    TSystemLockGuard() = default;
     TSystemLockGuard(TSystemLockGuard&& other);
     ~TSystemLockGuard();
 
@@ -94,7 +94,7 @@ class TUserLockGuard
     : private TNonCopyable
 {
 public:
-    TUserLockGuard();
+    TUserLockGuard() = default;
     TUserLockGuard(TUserLockGuard&& other);
     ~TUserLockGuard();
 

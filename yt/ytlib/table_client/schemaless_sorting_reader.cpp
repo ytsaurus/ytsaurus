@@ -129,7 +129,7 @@ public:
         Y_UNREACHABLE();
     }
 
-    virtual TNameTablePtr GetNameTable() const override
+    virtual const TNameTablePtr& GetNameTable() const override
     {
         return UnderlyingReader_->GetNameTable();
     }

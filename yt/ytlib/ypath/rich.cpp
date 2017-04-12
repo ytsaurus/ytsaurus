@@ -269,6 +269,11 @@ void ParseKeyPart(
             break;
         }
 
+        case NYson::ETokenType::Hash: {
+            value = MakeUnversionedSentinelValue(EValueType::Null);
+            break;
+        }
+
         default:
             ThrowUnexpectedToken(tokenizer.CurrentToken());
             break;
@@ -462,6 +467,11 @@ bool TRichYPath::GetPrimary() const
 bool TRichYPath::GetForeign() const
 {
     return GetAttribute(*this, "foreign", false);
+}
+
+void TRichYPath::SetForeign(bool value)
+{
+    Attributes().Set("foreign", value);
 }
 
 TChannel TRichYPath::GetChannel() const
