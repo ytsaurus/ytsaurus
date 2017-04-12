@@ -73,6 +73,11 @@ public:
             GetCurrentInvoker(),
             BIND(&TFairShareStrategy::OnFairShareLogging, MakeWeak(this)),
             Config->FairShareLogPeriod);
+
+        MinNeededJobResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
+            GetCurrentInvoker(),
+            BIND(&TFairShareStrategy::OnMinNeededJobResourcesUpdate, MakeWeak(this)),
+            Config->MinNeededResourcesUpdatePeriod);
     }
 
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
@@ -98,6 +103,7 @@ public:
 
         FairShareLoggingExecutor_->Start();
         FairShareUpdateExecutor_->Start();
+        MinNeededJobResourcesUpdateExecutor_->Start();
     }
 
     virtual void ResetState() override
@@ -106,6 +112,7 @@ public:
 
         FairShareLoggingExecutor_->Stop();
         FairShareUpdateExecutor_->Stop();
+        MinNeededJobResourcesUpdateExecutor_->Stop();
 
         // Do fair share update in order to rebuild tree snapshot
         // to drop references to old nodes.
@@ -711,6 +718,7 @@ private:
 
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
+    TPeriodicExecutorPtr MinNeededJobResourcesUpdateExecutor_;
 
     TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
 
@@ -729,6 +737,17 @@ private:
     void OnFairShareUpdate()
     {
         OnFairShareUpdateAt(TInstant::Now());
+    }
+
+    void OnMinNeededJobResourcesUpdate() override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Starting min needed job resources update");
+        for (const auto& pair : OperationIdToElement) {
+            pair.second->UpdateMinNeededJobResources();
+        }
+        LOG_INFO("Min needed job resources successfully updated");
     }
 
     void OnFairShareLogging()
