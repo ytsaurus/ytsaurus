@@ -5,7 +5,8 @@
 #include <util/system/defaults.h>
 
 #ifndef _win_
-#define ENABLE_GLIBC_STACKTRACE
+#define ENABLE_LIBUNWIND_STACKTRACE
+// #define ENABLE_GLIBC_STACKTRACE
 
 ////////////////////////////////////////////////////////////////////////////////
 // libgcc-based implementation.
@@ -90,7 +91,8 @@ int GetStackTrace__libgcc(void** result, int maxFrames, int skipFrames)
 ////////////////////////////////////////////////////////////////////////////////
 // glibc-based implementation.
 ////////////////////////////////////////////////////////////////////////////////
-#ifdef ENABLE_GLIBC_STACKTRACE
+#if 0
+// #ifdef ENABLE_GLIBC_STACKTRACE
 
 extern "C" {
 #include <execinfo.h>
@@ -126,13 +128,15 @@ int GetStackTrace__glibc(void** result, int maxFrames, int skipFrames)
 ////////////////////////////////////////////////////////////////////////////////
 // libunwind-based implementation.
 ////////////////////////////////////////////////////////////////////////////////
-#if 0
-// #ifdef ENABLE_LIBUNWIND_STACKTRACE
+// #if 0
+#ifdef ENABLE_LIBUNWIND_STACKTRACE
 
 extern "C" {
-// #define UNW_LOCAL_ONLY
-// #include <libunwind.h>
+#define UNW_LOCAL_ONLY
+#include <contrib/libs/libunwind_master/include/libunwind.h>
 }
+
+#include <stdlib.h>
 
 namespace NYT {
 namespace {
