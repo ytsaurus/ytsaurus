@@ -446,49 +446,6 @@ class TestDynamicTables(YTEnvSetup):
         with pytest.raises(YtError): freeze_table("//tmp/t")
         with pytest.raises(YtError): unfreeze_table("//tmp/t")
 
-    @pytest.mark.parametrize("freeze", [False, True])
-    @pytest.mark.parametrize("second_command", ["freeze", "unfreeze"])
-    @pytest.mark.parametrize("first_command", ["unmount", "freeze", "unfreeze"])
-    def test_state_transition_conflict(self, freeze, first_command, second_command):
-        callbacks = {
-            "unmount": lambda x: unmount_table(x),
-            "freeze": lambda x: freeze_table(x),
-            "unfreeze": lambda x: unfreeze_table(x)
-        }
-
-        M = "mounted"
-        F = "frozen"
-        E = "error"
-
-        expect = None
-        if freeze:
-            expect = {
-                "unmount":  {"freeze": E, "unfreeze": E},
-                "freeze":   {"freeze": F, "unfreeze": M},
-                "unfreeze": {"freeze": E, "unfreeze": M},
-            }
-        else:
-            expect = {
-                "unmount":  {"freeze": E, "unfreeze": E},
-                "freeze":   {"freeze": F, "unfreeze": E},
-                "unfreeze": {"freeze": F, "unfreeze": M},
-            }
-
-        self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t", freeze=freeze)
-        cell = get("//tmp/t/@tablets/0/cell_id")
-        banned_peers = self._ban_all_peers(cell)
-        callbacks[first_command]("//tmp/t")
-        expected = expect[first_command][second_command]
-        if expected == E:
-            with pytest.raises(YtError):
-                callbacks[second_command]("//tmp/t")
-        else:
-            callbacks[second_command]("//tmp/t")
-            self._unban_peers(banned_peers)
-            self._wait_for_tablets("//tmp/t", expected)
-
     def test_no_storage_change_for_mounted(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
