@@ -638,7 +638,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
 
     auto firstPartitionIt = PartitionList_.begin() + firstIndex;
     auto lastPartitionIt = PartitionList_.begin() + lastIndex;
-    for (auto it = firstPartitionIt; it !=  lastPartitionIt; ++it) {
+    for (auto it = firstPartitionIt; it != lastPartitionIt + 1; ++it) {
         PartitionMap_.erase((*it)->GetId());
     }
     YCHECK(PartitionMap_.insert(std::make_pair(mergedPartition->GetId(), mergedPartition.get())).second);
