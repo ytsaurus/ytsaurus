@@ -2592,6 +2592,22 @@ private:
             trimmedRowCount);
     }
 
+    
+    virtual void OnRecoveryComplete() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnRecoveryComplete();
+
+        for (const auto& pair : TabletCellMap_) {
+            auto* cell = pair.second;
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
+            UpdateCellDirectory(cell);
+        }
+    }
+
     virtual void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -2602,13 +2618,6 @@ private:
             TabletTracker_->Start();
         }
 
-        for (const auto& pair : TabletCellMap_) {
-            auto* cell = pair.second;
-            if (!IsObjectAlive(cell)) {
-                continue;
-            }
-            UpdateCellDirectory(cell);
-        }
 
         CleanupExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),

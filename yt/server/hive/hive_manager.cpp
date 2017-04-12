@@ -289,7 +289,7 @@ private:
     {
         context->SetRequestInfo();
 
-        ValidatePeer(EPeerKind::Leader);
+        ValidatePeer(EPeerKind::LeaderOrFollower);
 
         auto registeredCellList = CellDirectory_->GetRegisteredCells();
         yhash_map<TCellId, TCellInfo> registeredCellMap;
