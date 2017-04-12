@@ -322,7 +322,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_chunk_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_partition_sort_reader.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_reader_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_row_reorderer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_sorted_merging_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_sorting_reader.cpp
