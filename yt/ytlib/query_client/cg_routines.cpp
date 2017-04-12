@@ -453,14 +453,17 @@ void JoinOpHelper(
     closure.ProcessJoinBatch = [&] () {
         closure.ProcessSegment();
 
+        auto keysToRows = std::move(closure.KeysToRows);
+        auto chainedRows = std::move(closure.ChainedRows);
+
         LOG_DEBUG("Collected %v join keys from %v rows",
-            closure.KeysToRows.size(),
-            closure.ChainedRows.size());
+            keysToRows.size(),
+            chainedRows.size());
 
         std::vector<TRow> keys;
-        keys.reserve(closure.KeysToRows.size());
+        keys.reserve(keysToRows.size());
 
-        for (const auto& item : closure.KeysToRows) {
+        for (const auto& item : keysToRows) {
             keys.push_back(item.first);
         }
 
@@ -475,8 +478,6 @@ void JoinOpHelper(
         // allRows have format (join key... , other columns...)
 
         auto& joinLookup = closure.Lookup;
-        auto chainedRows = std::move(closure.ChainedRows);
-
         auto isLeft = parameters->IsLeft;
 
         if (!parameters->IsOrdered) {
@@ -505,7 +506,6 @@ void JoinOpHelper(
 
             if (parameters->IsSortMergeJoin) {
                 // Sort-merge join
-                auto keysToRows = std::move(closure.KeysToRows);
                 batchState.SortMergeJoin(
                     context,
                     keysToRows,
