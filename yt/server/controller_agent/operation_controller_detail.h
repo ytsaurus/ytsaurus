@@ -199,6 +199,8 @@ public:
     virtual int GetPendingJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
 
+    virtual std::vector<TJobResources> GetMinNeededJobResources() const override;
+
     virtual bool IsForgotten() const override;
 
     virtual bool HasProgress() const override;
@@ -765,7 +767,6 @@ protected:
         }
 
         void Persist(const TPersistenceContext& context);
-
     };
 
     NApi::ITransactionPtr StartTransaction(
@@ -780,6 +781,7 @@ protected:
     void RegisterTaskGroup(TTaskGroupPtr group);
 
     void UpdateTask(TTaskPtr task);
+    void UpdateDynamicNeededResources(TTaskPtr task);
 
     void UpdateAllTasks();
 
@@ -811,6 +813,9 @@ protected:
     void AnalyzeJobsIOUsage() const;
     void AnalyzeJobsDuration() const;
     void AnalyzeOperationProgess() const;
+
+    void CheckMinNeededResourcesSanity();
+    void UpdateCachedMaxAvailableExecNodeResources();
 
     void DoScheduleJob(
         NScheduler::ISchedulingContext* context,
@@ -1233,6 +1238,12 @@ private:
     //! Periodically checks operation progress and registers operation alerts if necessary.
     NConcurrency::TPeriodicExecutorPtr AnalyzeOperationProgressExecutor;
 
+    //! Periodically checks min needed resources of tasks for sanity.
+    NConcurrency::TPeriodicExecutorPtr MinNeededResourcesSanityCheckExecutor;
+
+    //! Periodically updates cached max available exec node resources.
+    NConcurrency::TPeriodicExecutorPtr MaxAvailableExecNodeResourcesUpdateExecutor;
+
     //! Exec node count do not consider scheduling tag.
     //! But descriptors do.
     int ExecNodeCount_ = 0;
@@ -1240,6 +1251,8 @@ private:
 
     NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
     NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;
+
+    TNullable<TJobResources> CachedMaxAvailableExecNodeResources_;
 
     const std::unique_ptr<NTableClient::IValueConsumer> EventLogValueConsumer_;
     const std::unique_ptr<NYson::IYsonConsumer> EventLogTableConsumer_;

@@ -22,6 +22,7 @@ DEFINE_ENUM(EDeactivationReason,
     (TryStartScheduleJobFailed)
     (ScheduleJobFailed)
     (NoBestLeafDescendant)
+    (MinNeededResourcesUnsatisfied)
 );
 
 ////////////////////////////////////////////////////////////////////
@@ -489,6 +490,9 @@ public:
 
     TJobResources Finalize();
 
+    void SetMinNeededJobResources(std::vector<TJobResources> jobResources);
+    std::vector<TJobResources> GetMinNeededJobResources() const;
+
 private:
     template <typename T>
     class TListWithSize
@@ -626,6 +630,9 @@ private:
     NJobTrackerClient::TStatistics ControllerTimeStatistics_;
 
     void IncreaseJobResourceUsage(TJobProperties& properties, const TJobResources& resourcesDelta);
+
+    NConcurrency::TReaderWriterSpinLock CachedMinNeededJobResourcesLock_;
+    std::vector<TJobResources> CachedMinNeededJobResources_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElementSharedState)
@@ -651,6 +658,7 @@ public:
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
     virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;
+    virtual void UpdateMinNeededJobResources();
 
     virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const override;
 
@@ -705,11 +713,13 @@ public:
 private:
     TOperationElementSharedStatePtr SharedState_;
 
+    bool HasJobsSatisfyingResourceLimits(const TJobResources& resourceLimits) const;
+
     bool IsBlocked(NProfiling::TCpuInstant now) const;
 
     TJobResources GetHierarchicalResourceLimits(const TFairShareContext& context) const;
 
-    TScheduleJobResultPtr DoScheduleJob(TFairShareContext& context);
+    TScheduleJobResultPtr DoScheduleJob(TFairShareContext& context, const TJobResources& jobLimits);
 
     TJobResources ComputeResourceDemand() const;
     TJobResources ComputeResourceLimits() const;

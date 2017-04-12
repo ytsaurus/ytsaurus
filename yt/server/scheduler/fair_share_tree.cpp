@@ -1421,6 +1421,18 @@ TJobResources TOperationElementSharedState::AddJob(const TJobId& jobId, const TJ
     return resourceUsage;
 }
 
+void TOperationElementSharedState::SetMinNeededJobResources(std::vector<TJobResources> jobResources)
+{
+    TWriterGuard guard(CachedMinNeededJobResourcesLock_);
+    CachedMinNeededJobResources_ = std::move(jobResources);
+}
+
+std::vector<TJobResources> TOperationElementSharedState::GetMinNeededJobResources() const
+{
+    TReaderGuard guard(CachedMinNeededJobResourcesLock_);
+    return CachedMinNeededJobResources_;
+}
+
 TJobResources TOperationElement::Finalize()
 {
     return SharedState_->Finalize();
@@ -1598,6 +1610,16 @@ TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limi
     }
 }
 
+bool TOperationElement::HasJobsSatisfyingResourceLimits(const TJobResources& resourceLimits) const
+{
+    for (const auto& jobResources : SharedState_->GetMinNeededJobResources()) {
+        if (Dominates(resourceLimits, jobResources)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicAttributesList)
 {
     auto& attributes = dynamicAttributesList[GetTreeIndex()];
@@ -1605,6 +1627,23 @@ void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList& dynamicA
     attributes.BestLeafDescendant = this;
 
     TSchedulerElement::UpdateDynamicAttributes(dynamicAttributesList);
+}
+
+void TOperationElement::UpdateMinNeededJobResources()
+{
+    YCHECK(!Cloned_);
+
+    BIND(&NControllerAgent::IOperationController::GetMinNeededJobResources, Controller_)
+        .AsyncVia(Controller_->GetCancelableInvoker())
+        .Run()
+        .Subscribe(
+            BIND([this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TJobResources>>& resultOrError) {
+                if (!resultOrError.IsOK()) {
+                    LOG_WARNING(resultOrError, "Failed to update min needed resources from controller");
+                    return;
+                }
+                SharedState_->SetMinNeededJobResources(std::move(resultOrError.Value()));
+        }));
 }
 
 void TOperationElement::PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled)
@@ -1673,6 +1712,18 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
         return false;
     }
 
+    auto jobLimits = GetHierarchicalResourceLimits(context);
+
+    if (!HasJobsSatisfyingResourceLimits(jobLimits)) {
+        LOG_DEBUG(
+            "No pending jobs can statisfy available resource limits "
+            "(OperationId: %v, Limits: %v)",
+            OperationId_,
+            FormatResources(jobLimits));
+        disableOperationElement(EDeactivationReason::MinNeededResourcesUnsatisfied);
+        return false;
+    }
+
     if (!SharedState_->TryStartScheduleJob(
         now,
         StrategyConfig_->MaxConcurrentControllerScheduleJobCalls,
@@ -1683,7 +1734,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
     }
 
     NProfiling::TScopedTimer timer;
-    auto scheduleJobResult = DoScheduleJob(context);
+    auto scheduleJobResult = DoScheduleJob(context, jobLimits);
     auto scheduleJobDuration = timer.GetElapsed();
     context.TotalScheduleJobDuration += scheduleJobDuration;
     context.ExecScheduleJobDuration += scheduleJobResult->Duration;
@@ -1930,10 +1981,8 @@ TJobResources TOperationElement::GetHierarchicalResourceLimits(const TFairShareC
     return limits;
 }
 
-TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& context)
+TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& context, const TJobResources& jobLimits)
 {
-    auto jobLimits = GetHierarchicalResourceLimits(context);
-
     auto scheduleJobResultFuture = BIND(&NControllerAgent::IOperationController::ScheduleJob, Controller_)
         .AsyncVia(Controller_->GetCancelableInvoker())
         .Run(context.SchedulingContext, jobLimits);

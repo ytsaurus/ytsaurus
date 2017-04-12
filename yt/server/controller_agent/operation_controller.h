@@ -340,6 +340,12 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
      */
+    //! Called periodically during heartbeat to obtain min needed resources to schedule any operation job.
+    virtual std::vector<TJobResources> GetMinNeededJobResources() const = 0;
+
+    /*!
+     *  \note Invoker affinity: Cancellable controller invoker
+     */
     //! Called in the end of heartbeat when scheduler agrees to run operation job.
     virtual void OnJobStarted(const TJobId& jobId, TInstant startTime) = 0;
 

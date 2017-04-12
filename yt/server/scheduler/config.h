@@ -95,6 +95,9 @@ public:
     //! Backoff for printing tree scheduling info in heartbeat.
     TDuration HeartbeatTreeSchedulingInfoLogBackoff;
 
+    //! How often min needed resources for jobs are retrieved from controller.
+    TDuration MinNeededResourcesUpdatePeriod;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -189,6 +192,9 @@ public:
 
         RegisterParameter("heartbeat_tree_scheduling_info_log_period", HeartbeatTreeSchedulingInfoLogBackoff)
             .Default(TDuration::MilliSeconds(100));
+
+        RegisterParameter("min_needed_resources_update_period", MinNeededResourcesUpdatePeriod)
+            .Default(TDuration::Seconds(3));
 
         RegisterValidator([&] () {
             if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
@@ -733,6 +739,9 @@ public:
     //! Missing jobs are checked not more often then this period.
     TDuration CheckMissingJobsPeriod;
 
+    //! Max available exec node resources are updated not more often then this period.
+    TDuration MaxAvailableExecNodeResourcesUpdatePeriod;
+
     //! Maximum allowed running time of operation. Null value is interpreted as infinity.
     TNullable<TDuration> OperationTimeLimit;
 
@@ -1016,6 +1025,9 @@ public:
             .Default(TDuration::Seconds(10));
 
         RegisterParameter("check_missing_jobs_period", CheckMissingJobsPeriod)
+            .Default(TDuration::Seconds(10));
+
+        RegisterParameter("max_available_exec_node_resources_update_period", MaxAvailableExecNodeResourcesUpdatePeriod)
             .Default(TDuration::Seconds(10));
 
         RegisterParameter("operation_time_limit", OperationTimeLimit)

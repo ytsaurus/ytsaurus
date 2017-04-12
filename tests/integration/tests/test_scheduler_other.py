@@ -2793,7 +2793,6 @@ class TestMainNodesFilter(YTEnvSetup):
         assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_ratio".format(op.id)), 1.0)
         assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op.id)), 2.0)
 
-
 class TestNewPoolMetrics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -2807,6 +2806,7 @@ class TestNewPoolMetrics(YTEnvSetup):
             "fair_share_profiling_period": 100,
         },
     }
+
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "enable_cgroups": True,
@@ -2888,3 +2888,86 @@ class TestNewPoolMetrics(YTEnvSetup):
         jobs_11 = ls("//sys/operations/{0}/jobs".format(op11.id))
         assert len(jobs_11) >= 2
 
+class TestMinNeededResources(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "safe_scheduler_online_time": 500,
+            "min_needed_resources_update_period": 200
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "memory": 10 * 1024 * 1024 * 1024,
+                    "cpu": 3
+                }
+            }
+        },
+        "resource_limits": {
+            "memory": 20 * 1024 * 1024 * 1024
+        }
+    }
+
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1
+        }
+    }
+
+    def test_min_needed_resources(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": 1}])
+        create("table", "//tmp/t_out")
+
+        op1 = map(
+            command="sleep 100; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "mapper": {
+                    "memory_limit": 8 * 1024 * 1024 * 1024,
+                    "memory_reserve_factor": 1.0,
+                    "cpu_limit": 1
+                }
+            },
+            dont_track=True)
+
+        op1_path = "//sys/scheduler/orchid/scheduler/operations/" + op1.id
+        wait(lambda: exists(op1_path) and get(op1_path + "/state") == "running")
+
+        time.sleep(3.0)
+
+        assert get(op1_path + "/progress/schedule_job_statistics/count") > 0
+
+        create("table", "//tmp/t2_in")
+        write_table("//tmp/t2_in", [{"x": 1}])
+        create("table", "//tmp/t2_out")
+
+        op2 = map(
+            command="cat",
+            in_="//tmp/t2_in",
+            out="//tmp/t2_out",
+            spec={
+                "mapper": {
+                    "memory_limit": 3 * 1024 * 1024 * 1024,
+                    "memory_reserve_factor": 1.0,
+                    "cpu_limit": 1
+                }
+            },
+            dont_track=True)
+
+        op2_path = "//sys/scheduler/orchid/scheduler/operations/" + op2.id
+        wait(lambda: exists(op2_path) and get(op2_path + "/state") == "running")
+
+        time.sleep(3.0)
+        assert get(op2_path + "/progress/schedule_job_statistics/count") == 0
+
+        abort_op(op1.id)
+
+        op2.track()

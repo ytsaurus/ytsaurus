@@ -848,36 +848,13 @@ void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
         return;
     }
 
-    const auto& nodeDescriptors = Controller->GetExecNodeDescriptors();
-    for (const auto& descriptor : nodeDescriptors) {
-        if (Dominates(descriptor.ResourceLimits, neededResources)) {
-            return;
-        }
+    if (!Dominates(*Controller->CachedMaxAvailableExecNodeResources_, neededResources)) {
+        // It seems nobody can satisfy the demand.
+        Controller->OnOperationFailed(
+            TError("No online node can satisfy the resource demand")
+                << TErrorAttribute("task", GetId())
+                << TErrorAttribute("needed_resources", neededResources));
     }
-
-    // It seems nobody can satisfy the demand.
-    Controller->OnOperationFailed(
-        TError("No online node can satisfy the resource demand")
-            << TErrorAttribute("task", GetId())
-            << TErrorAttribute("needed_resources", neededResources));
-}
-
-void TOperationControllerBase::TTask::CheckResourceDemandSanity(
-    const TJobResources& neededResources)
-{
-    // Run sanity check to see if any node can provide enough resources.
-    // Don't run these checks too often to avoid jeopardizing performance.
-    auto now = NProfiling::GetCpuInstant();
-    if (now < DemandSanityCheckDeadline) {
-        return;
-    }
-    DemandSanityCheckDeadline = now + NProfiling::DurationToCpuDuration(Controller->Config->ResourceDemandSanityCheckPeriod);
-
-    // Schedule check in controller thread.
-    Controller->GetCancelableInvoker()->Invoke(BIND(
-        &TTask::DoCheckResourceDemandSanity,
-        MakeWeak(this),
-        neededResources));
 }
 
 void TOperationControllerBase::TTask::CheckResourceDemandSanity(
@@ -890,10 +867,15 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
 
     // First check if this very node has enough resources (including those currently
     // allocated by other jobs).
-    if (Dominates(nodeResourceLimits, neededResources))
+    if (Dominates(nodeResourceLimits, neededResources)) {
         return;
+    }
 
-    CheckResourceDemandSanity(neededResources);
+    // Schedule check in controller thread.
+    Controller->GetCancelableInvoker()->Invoke(BIND(
+        &TTask::DoCheckResourceDemandSanity,
+        MakeWeak(this),
+        neededResources));
 }
 
 void TOperationControllerBase::TTask::AddPendingHint()
@@ -1216,6 +1198,14 @@ TOperationControllerBase::TOperationControllerBase(
         GetCancelableInvoker(),
         BIND(&TThis::AnalyzeOperationProgess, MakeWeak(this)),
         Config->OperationProgressAnalysisPeriod))
+    , MinNeededResourcesSanityCheckExecutor(New<TPeriodicExecutor>(
+        GetCancelableInvoker(),
+        BIND(&TThis::CheckMinNeededResourcesSanity, MakeWeak(this)),
+        Config->ResourceDemandSanityCheckPeriod))
+    , MaxAvailableExecNodeResourcesUpdateExecutor(New<TPeriodicExecutor>(
+        GetCancelableInvoker(),
+        BIND(&TThis::UpdateCachedMaxAvailableExecNodeResources, MakeWeak(this)),
+        Config->MaxAvailableExecNodeResourcesUpdatePeriod))
     , EventLogValueConsumer_(Host->CreateLogConsumer())
     , EventLogTableConsumer_(new TTableConsumer(EventLogValueConsumer_.get()))
     , CodicilData_(MakeOperationCodicilString(OperationId))
@@ -1585,6 +1575,8 @@ void TOperationControllerBase::SafeMaterialize()
         ProgressBuildExecutor_->Start();
         ExecNodesCheckExecutor->Start();
         AnalyzeOperationProgressExecutor->Start();
+        MinNeededResourcesSanityCheckExecutor->Start();
+        MaxAvailableExecNodeResourcesUpdateExecutor->Start();
 
         auto jobSplitterConfig = GetJobSplitterConfig();
         if (jobSplitterConfig) {
@@ -1646,6 +1638,8 @@ void TOperationControllerBase::SafeRevive()
     ProgressBuildExecutor_->Start();
     ExecNodesCheckExecutor->Start();
     AnalyzeOperationProgressExecutor->Start();
+    MinNeededResourcesSanityCheckExecutor->Start();
+    MaxAvailableExecNodeResourcesUpdateExecutor->Start();
 
     auto jobSplitterConfig = GetJobSplitterConfig();
     if (jobSplitterConfig) {
@@ -3118,6 +3112,44 @@ void TOperationControllerBase::AnalyzeOperationProgess() const
     AnalyzeJobsDuration();
 }
 
+void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    const auto& nodeDescriptors = GetExecNodeDescriptors();
+
+    TJobResources maxAvailableResources;
+    for (const auto& descriptor : nodeDescriptors) {
+        maxAvailableResources = Max(maxAvailableResources, descriptor.ResourceLimits);
+    }
+
+    CachedMaxAvailableExecNodeResources_ = maxAvailableResources;
+}
+
+void TOperationControllerBase::CheckMinNeededResourcesSanity()
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    if (ShouldSkipSanityCheck()) {
+        return;
+    }
+
+    for (const auto& task : Tasks) {
+        if (task->GetPendingJobCount() == 0) {
+            continue;
+        }
+
+        const auto& neededResources = task->GetMinNeededResources();
+        if (!Dominates(*CachedMaxAvailableExecNodeResources_, neededResources)) {
+            OnOperationFailed(
+                TError("No online node can satisfy the resource demand")
+                    << TErrorAttribute("task_id", task->GetId())
+                    << TErrorAttribute("needed_resources", neededResources)
+                    << TErrorAttribute("max_available_resources", *CachedMaxAvailableExecNodeResources_));
+        }
+    }
+}
+
 TScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContextPtr context,
     const TJobResources& jobLimits)
@@ -3235,7 +3267,6 @@ void TOperationControllerBase::MoveTaskToCandidates(
     std::multimap<i64, TTaskPtr>& candidateTasks)
 {
     const auto& neededResources = task->GetMinNeededResources();
-    task->CheckResourceDemandSanity(neededResources);
     i64 minMemory = neededResources.GetMemory();
     candidateTasks.insert(std::make_pair(minMemory, task));
     LOG_DEBUG("Task moved to candidates (Task: %v, MinMemory: %v)",
@@ -3669,6 +3700,38 @@ TJobResources TOperationControllerBase::GetNeededResources() const
 
     TReaderGuard guard(CachedNeededResourcesLock);
     return CachedNeededResources;
+}
+
+std::vector<TJobResources> TOperationControllerBase::GetMinNeededJobResources() const
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    yhash_map<EJobType, TJobResources> minNeededJobResources;
+
+    for (const auto& task: Tasks) {
+        if (task->GetPendingJobCount() == 0) {
+            continue;
+        }
+
+        auto jobType = task->GetJobType();
+        auto resources = task->GetMinNeededResources();
+
+        auto resIt = minNeededJobResources.find(jobType);
+        if (resIt == minNeededJobResources.end()) {
+            minNeededJobResources[jobType] = resources;
+        } else {
+            resIt->second = Min(resIt->second, resources);
+        }
+    }
+
+    std::vector<TJobResources> result;
+    for (const auto& pair : minNeededJobResources) {
+        result.push_back(pair.second);
+        LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %lv, MinNeededResources: %v)",
+            pair.first,
+            FormatResources(pair.second));
+    }
+    return result;
 }
 
 i64 TOperationControllerBase::ComputeUserJobMemoryReserve(EJobType jobType, TUserJobSpecPtr userJobSpec) const
@@ -5724,6 +5787,11 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
             .Item("intermediate_supported").Value(IsIntermediateLivePreviewSupported())
             .Item("stderr_supported").Value(StderrTable.HasValue())
         .EndMap()
+        .Item("schedule_job_statistics").BeginMap()
+            .Item("count").Value(ScheduleJobStatistics_->Count)
+            .Item("duration").Value(ScheduleJobStatistics_->Duration)
+            .Item("failed").Value(ScheduleJobStatistics_->Failed)
+        .EndMap()
         .DoIf(EstimatedInputDataSizeHistogram_.operator bool(), [=] (TFluentMap fluent) {
             EstimatedInputDataSizeHistogram_->BuildHistogramView();
             fluent
@@ -6301,6 +6369,10 @@ bool TOperationControllerBase::ShouldSkipSanityCheck()
         return true;
     }
 
+    if (!CachedMaxAvailableExecNodeResources_) {
+        return true;
+    }
+
     return false;
 }
 
@@ -6726,6 +6798,11 @@ public:
     virtual TJobResources GetNeededResources() const override
     {
         return Underlying_->GetNeededResources();
+    }
+
+    virtual std::vector<TJobResources> GetMinNeededJobResources() const
+    {
+        return Underlying_->GetMinNeededJobResources();
     }
 
     virtual void OnJobStarted(const TJobId& jobId, TInstant startTime) override
