@@ -2,7 +2,6 @@
 
 #include <util/datetime/base.h>
 
-//TODO: check if we can move FLUENT_* macro to this file
 #include "common.h"
 
 namespace NYT {
