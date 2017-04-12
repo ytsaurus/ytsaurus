@@ -13,7 +13,6 @@
 #include "schemaful_reader.h"
 #include "schemaless_block_reader.h"
 #include "schemaless_chunk_reader.h"
-#include "schemaless_reader_adapter.h"
 #include "versioned_chunk_reader.h"
 
 #include <yt/ytlib/api/native_connection.h>
@@ -2123,58 +2122,274 @@ public:
         TColumnFilter columnFilter,
         IThroughputThrottlerPtr throttler);
 
-    virtual TFuture<void> GetReadyEvent() override;
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override;
-    virtual TDataStatistics GetDataStatistics() const override;
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override;
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        auto promise = NewPromise<void>();
+        promise.TrySetFrom(ErrorPromise_.ToFuture());
+        promise.TrySetFrom(UnderlyingReader_->GetReadyEvent());
+        return promise.ToFuture();
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return UnderlyingReader_->GetDataStatistics();
+    }
+
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        // ToDo(psushin): every reader must implement this method eventually.
+        return std::vector<TChunkId>();
+    }
+
+    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    {
+        rows->clear();
+        SchemafulRows_.clear();
+        MemoryPool_.Clear();
+
+        if (Interrupting_) {
+            return false;
+        }
+
+        if (ErrorPromise_.IsSet()) {
+            return true;
+        }
+
+        SchemafulRows_.reserve(rows->capacity());
+        HasMore_ = UnderlyingReader_->Read(&SchemafulRows_);
+        if (SchemafulRows_.empty()) {
+            return HasMore_;
+        }
+
+        LastKey_ = GetKeyPrefix(SchemafulRows_.back(), Schema_.GetKeyColumnCount());
+
+        YCHECK(HasMore_);
+
+        try {
+            for (int index = 0; index < SchemafulRows_.size(); ++index) {
+                auto schemalessRow = TMutableUnversionedRow::Allocate(&MemoryPool_, SchemaColumnCount_ + SystemColumnCount_);
+                auto schemafulRow = SchemafulRows_[index];
+
+                int schemalessValueIndex = 0;
+                for (int valueIndex = 0; valueIndex < schemafulRow.GetCount(); ++valueIndex) {
+                    const auto& value = schemafulRow[valueIndex];
+                    auto id = IdMapping_[value.Id];
+
+                    if (id >= 0) {
+                        ValidateDataValue(value);
+                        schemalessRow[schemalessValueIndex] = value;
+                        schemalessRow[schemalessValueIndex].Id = id;
+                        ++schemalessValueIndex;
+                    }
+                }
+
+                schemalessRow.SetCount(SchemaColumnCount_);
+
+                if (Options_->EnableRangeIndex) {
+                    *schemalessRow.End() = MakeUnversionedInt64Value(RangeIndex_, RangeIndexId_);
+                    schemalessRow.SetCount(schemalessRow.GetCount() + 1);
+                }
+                if (Options_->EnableTableIndex) {
+                    *schemalessRow.End() = MakeUnversionedInt64Value(TableIndex_, TableIndexId_);
+                    schemalessRow.SetCount(schemalessRow.GetCount() + 1);
+                }
+
+                rows->push_back(schemalessRow);
+            }
+
+            RowIndex_ += rows->size();
+        } catch (const std::exception& ex) {
+            SchemafulRows_.clear();
+            rows->clear();
+
+            ErrorPromise_.Set(ex);
+        }
+
+        return true;
+    }
+
     virtual std::vector<TDataSliceDescriptor> GetUnreadDataSliceDescriptors(
-        const TRange<TUnversionedRow>& unreadRows) const override;
-    virtual void Interrupt() override;
-    virtual bool IsFetchingCompleted() const override;
-    virtual i64 GetSessionRowIndex() const override;
-    virtual i64 GetTotalRowCount() const override;
-    virtual const TNameTablePtr& GetNameTable() const override;
-    virtual TKeyColumns GetKeyColumns() const override;
-    virtual i64 GetTableRowIndex() const override;
+        const TRange<TUnversionedRow>& unreadRows) const override
+    {
+        std::vector<TDataSliceDescriptor> unreadDescriptors;
+        TOwningKey firstUnreadKey;
+
+        if (unreadRows.Empty()) {
+            if (!HasMore_) {
+                // Return the empty vector.
+                return unreadDescriptors;
+            }
+            unreadDescriptors.emplace_back(DataSliceDescriptor_);
+            if (!LastKey_) {
+                // Return the whole data slice descriptor.
+                return unreadDescriptors;
+            }
+            firstUnreadKey = GetKeySuccessor(LastKey_);
+        } else {
+            unreadDescriptors.emplace_back(DataSliceDescriptor_);
+            auto firstSchemafulUnreadRow = SchemafulRows_[SchemafulRows_.size() - unreadRows.Size()];
+            firstUnreadKey = GetKeyPrefix(firstSchemafulUnreadRow, Schema_.GetKeyColumnCount());
+        }
+
+        for (auto& descriptor : unreadDescriptors) {
+            for (auto& chunk : descriptor.ChunkSpecs) {
+                ToProto(chunk.mutable_lower_limit()->mutable_key(), firstUnreadKey);
+                // TODO: Estimate row count and data size.
+            }
+        }
+        return unreadDescriptors;
+    }
+
+    virtual void Interrupt() override
+    {
+        Interrupting_ = true;
+        ErrorPromise_.TrySet(TError());
+    }
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        return false;
+    }
+
+    virtual i64 GetSessionRowIndex() const override
+    {
+        return RowIndex_;
+    }
+
+    virtual i64 GetTotalRowCount() const override
+    {
+        return RowCount_;
+    }
+
+    virtual const TNameTablePtr& GetNameTable() const override
+    {
+        return NameTable_;
+    }
+
+    virtual TKeyColumns GetKeyColumns() const override
+    {
+        return KeyColumns_;
+    }
+
+    virtual i64 GetTableRowIndex() const override
+    {
+        // Versioned data don't have table row index;
+        return 0;
+    }
 
 private:
-    const ISchemalessReaderPtr UnderlyingReader_;
-
-    const TDataSliceDescriptor& DataSliceDescriptor_;
-    int KeyColumnCount_;
-    std::atomic<bool> Interrupting_ = {false};
-    std::atomic<bool> Finished_ = {false};
-    TOwningKey LastKey_;
-    TFuture<void> ReadyEvent_;
-    TPromise<void> CompletionError_ = NewPromise<void>();
-
-    i64 RowIndex_ = 0;
+    const TTableReaderOptionsPtr Options_;
+    const ISchemafulReaderPtr UnderlyingReader_;
+    const TDataSliceDescriptor DataSliceDescriptor_;
+    const TTableSchema Schema_;
+    const std::vector<int> IdMapping_;
+    const TNameTablePtr NameTable_;
     const i64 RowCount_;
 
-    TSchemalessMergingMultiChunkReader(
-        ISchemalessReaderPtr underlyingReader,
-        const TDataSliceDescriptor& dataSliceDescriptor,
-        int keyColumnCount,
-        i64 rowCount);
+    // We keep rows received from underlying schemaful reader
+    // to define proper lower limit during interrupt.
+    std::vector<TUnversionedRow> SchemafulRows_;
 
-    TFuture<void> CombineCompletionError(TFuture<void> future);
+    std::atomic<bool> Interrupting_ = {false};
+    std::atomic<bool> HasMore_ = {false};
+    TOwningKey LastKey_;
+
+    i64 RowIndex_ = 0;
+
+    TChunkedMemoryPool MemoryPool_;
+
+    int TableIndexId_ = -1;
+    int RangeIndexId_ = -1;
+    int TableIndex_ = -1;
+    int RangeIndex_ = -1;
+    int SystemColumnCount_ = 0;
+
+    // Number of "active" columns in id mapping.
+    int SchemaColumnCount_ = 0;
+
+    // Columns that output row stream is sorted by. May not coincide with schema key columns,
+    // because some column may be filtered out by the column filter.
+    TKeyColumns KeyColumns_;
+
+    TPromise<void> ErrorPromise_ = NewPromise<void>();
+
+    TSchemalessMergingMultiChunkReader(
+        TTableReaderOptionsPtr options,
+        ISchemafulReaderPtr underlyingReader,
+        const TDataSliceDescriptor& dataSliceDescriptor,
+        TTableSchema schema,
+        std::vector<int> idMapping,
+        TNameTablePtr nameTable,
+        i64 rowCount)
+        : Options_(options)
+        , UnderlyingReader_(std::move(underlyingReader))
+        , DataSliceDescriptor_(dataSliceDescriptor)
+        , Schema_(std::move(schema))
+        , IdMapping_(idMapping)
+        , NameTable_(nameTable)
+        , RowCount_(rowCount)
+    {
+        if (!DataSliceDescriptor_.ChunkSpecs.empty()) {
+            TableIndex_ = DataSliceDescriptor_.ChunkSpecs.front().table_index();
+            RangeIndex_ = DataSliceDescriptor_.ChunkSpecs.front().range_index();
+        }
+
+        if (Options_->EnableRangeIndex) {
+            ++SystemColumnCount_;
+            RangeIndexId_ = NameTable_->GetIdOrRegisterName(RangeIndexColumnName);
+        }
+
+        if (Options_->EnableTableIndex) {
+            ++SystemColumnCount_;
+            TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
+        }
+
+        for(auto id : IdMapping_) {
+            if (id >= 0) {
+                ++SchemaColumnCount_;
+            }
+        }
+
+        for (int index = 0; index < Schema_.GetKeyColumnCount(); ++index) {
+            if (IdMapping_[index] < 0) {
+                break;
+            }
+
+            KeyColumns_.push_back(Schema_.Columns()[index].Name);
+        }
+    }
 
     DECLARE_NEW_FRIEND();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemalessMergingMultiChunkReader::TSchemalessMergingMultiChunkReader(
-    ISchemalessReaderPtr underlyingReader,
-    const TDataSliceDescriptor& dataSliceDescriptor,
-    int keyColumnCount,
-    i64 rowCount)
-    : UnderlyingReader_(std::move(underlyingReader))
-    , DataSliceDescriptor_(dataSliceDescriptor)
-    , KeyColumnCount_(keyColumnCount)
-    , RowCount_(rowCount)
+std::pair<TTableSchema, TColumnFilter> CreateVersionedReadParameters(
+    const TTableSchema& schema,
+    const TColumnFilter& columnFilter)
 {
-    ReadyEvent_ = CombineCompletionError(UnderlyingReader_->GetReadyEvent());
+    if (columnFilter.All) {
+        return std::make_pair(schema, columnFilter);
+    }
+
+    std::vector<NTableClient::TColumnSchema> columns;
+    for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
+        columns.push_back(schema.Columns()[index]);
+    }
+
+    TColumnFilter newColumnFilter;
+    newColumnFilter.All = false;
+
+    for (int index : columnFilter.Indexes) {
+        if (index >= schema.GetKeyColumnCount()) {
+            newColumnFilter.Indexes.push_back(columns.size());
+            columns.push_back(schema.Columns()[index]);
+        } else {
+            newColumnFilter.Indexes.push_back(index);
+        }
+    }
+
+    return std::make_pair(TTableSchema(std::move(columns)), std::move(newColumnFilter));
 }
 
 ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
@@ -2197,8 +2412,32 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     const auto& tableSchema = *dataSource.Schema();
     auto timestamp = dataSource.GetTimestamp();
 
+    // Convert name table column filter to schema column filter.
     for (auto& index : columnFilter.Indexes) {
         index = tableSchema.GetColumnIndex(nameTable->GetName(index));
+    }
+
+    TTableSchema versionedReadSchema;
+    TColumnFilter versionedColumnFilter;
+    std::tie(versionedReadSchema, versionedColumnFilter) = CreateVersionedReadParameters(
+        tableSchema,
+        columnFilter);
+
+    std::vector<int> idMapping(versionedReadSchema.GetColumnCount());
+
+    try {
+        for (int columnIndex = 0; columnIndex < versionedReadSchema.Columns().size(); ++columnIndex) {
+            const auto& column = versionedReadSchema.Columns()[columnIndex];
+            if (versionedColumnFilter.Contains(columnIndex)) {
+                idMapping[columnIndex] = nameTable->GetIdOrRegisterName(column.Name);
+            } else {
+                // We should skip this column in schemaless reading.
+                idMapping[columnIndex] = -1;
+            }
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to update name table for schemaless merging multi chunk reader")
+            << ex;
     }
 
     std::vector<TOwningKey> boundaries;
@@ -2234,8 +2473,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         blockCache,
         nodeDirectory,
         chunkSpecs,
-        columnFilter,
-        tableSchema,
+        versionedReadSchema,
         performanceCounters,
         timestamp
     ] (int index) -> IVersionedReaderPtr {
@@ -2280,7 +2518,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         auto asyncChunkMeta = TCachedVersionedChunkMeta::Load(
             chunkReader,
             config->WorkloadDescriptor,
-            tableSchema);
+            versionedReadSchema);
         auto chunkMeta = WaitFor(asyncChunkMeta)
             .ValueOrThrow();
 
@@ -2291,7 +2529,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             std::move(chunkMeta),
             lowerLimit.GetKey(),
             upperLimit.GetKey(),
-            columnFilter,
+            TColumnFilter(),
             performanceCounters,
             timestamp,
             false);
@@ -2302,10 +2540,10 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     auto rowMerger = std::make_unique<TSchemafulRowMerger>(
         New<TRowBuffer>(TSchemalessMergingMultiChunkReaderBufferTag()),
-        tableSchema.Columns().size(),
-        tableSchema.GetKeyColumnCount(),
-        columnFilter,
-        client->GetNativeConnection()->GetColumnEvaluatorCache()->Find(tableSchema));
+        versionedReadSchema.Columns().size(),
+        versionedReadSchema.GetKeyColumnCount(),
+        TColumnFilter(),
+        client->GetNativeConnection()->GetColumnEvaluatorCache()->Find(versionedReadSchema));
 
     auto schemafulReader = CreateSchemafulOverlappingRangeReader(
         std::move(boundaries),
@@ -2320,128 +2558,16 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
         });
 
-    auto schemalessReader = CreateSchemalessReaderAdapter(
-        std::move(schemafulReader),
-        std::move(options),
-        std::move(nameTable),
-        tableSchema,
-        chunkSpecs.empty() ? -1 : chunkSpecs[0].table_index(),
-        chunkSpecs.empty() ? -1 : chunkSpecs[0].range_index());
-
     i64 rowCount = NChunkClient::GetCumulativeRowCount(chunkSpecs);
 
     return New<TSchemalessMergingMultiChunkReader>(
-        std::move(schemalessReader),
+        std::move(options),
+        std::move(schemafulReader),
         dataSliceDescriptor,
-        tableSchema.GetKeyColumnCount(),
+        versionedReadSchema,
+        std::move(idMapping),
+        std::move(nameTable),
         rowCount);
-}
-
-TFuture<void> TSchemalessMergingMultiChunkReader::CombineCompletionError(TFuture<void> future)
-{
-    auto promise = NewPromise<void>();
-    promise.TrySetFrom(CompletionError_.ToFuture());
-    promise.TrySetFrom(future);
-    return promise.ToFuture();
-}
-
-bool TSchemalessMergingMultiChunkReader::Read(std::vector<TUnversionedRow>* rows)
-{
-    if (Interrupting_) {
-        rows->clear();
-        return false;
-    }
-    bool result = UnderlyingReader_->Read(rows);
-    RowIndex_ += rows->size();
-    if (!rows->empty()) {
-        LastKey_ = GetKeyPrefix(rows->back(), KeyColumnCount_);
-    }
-    if (!result) {
-        Finished_ = true;
-    }
-    ReadyEvent_ = CombineCompletionError(UnderlyingReader_->GetReadyEvent());
-    return result;
-}
-
-TFuture<void> TSchemalessMergingMultiChunkReader::GetReadyEvent()
-{
-    return ReadyEvent_;
-}
-
-TDataStatistics TSchemalessMergingMultiChunkReader::GetDataStatistics() const
-{
-    return UnderlyingReader_->GetDataStatistics();
-}
-
-std::vector<TChunkId> TSchemalessMergingMultiChunkReader::GetFailedChunkIds() const
-{
-    return UnderlyingReader_->GetFailedChunkIds();
-}
-
-std::vector<TDataSliceDescriptor> TSchemalessMergingMultiChunkReader::GetUnreadDataSliceDescriptors(
-    const TRange<TUnversionedRow>& unreadRows) const
-{
-    std::vector<TDataSliceDescriptor> unreadDescriptors;
-    TOwningKey firstUnreadKey;
-
-    if (unreadRows.Empty()) {
-        if (Finished_) {
-            // Return the empty vector.
-            return unreadDescriptors;
-        }
-        unreadDescriptors.emplace_back(DataSliceDescriptor_);
-        if (!LastKey_) {
-            // Return the whole data slice descriptor.
-            return unreadDescriptors;
-        }
-        firstUnreadKey = GetKeySuccessor(LastKey_);
-    } else {
-        unreadDescriptors.emplace_back(DataSliceDescriptor_);
-        firstUnreadKey = GetKeyPrefix(unreadRows[0], KeyColumnCount_);
-    }
-    for (auto& descriptor : unreadDescriptors) {
-        for (auto& chunk : descriptor.ChunkSpecs) {
-            ToProto(chunk.mutable_lower_limit()->mutable_key(), firstUnreadKey);
-            // TODO: Estimate row count and data size.
-        }
-    }
-    return unreadDescriptors;
-}
-
-void TSchemalessMergingMultiChunkReader::Interrupt()
-{
-    Interrupting_ = true;
-    CompletionError_.TrySet(TError());
-}
-
-bool TSchemalessMergingMultiChunkReader::IsFetchingCompleted() const
-{
-    return UnderlyingReader_->IsFetchingCompleted();
-}
-
-i64 TSchemalessMergingMultiChunkReader::GetTotalRowCount() const
-{
-    return RowCount_;
-}
-
-i64 TSchemalessMergingMultiChunkReader::GetSessionRowIndex() const
-{
-    return RowIndex_;
-}
-
-i64 TSchemalessMergingMultiChunkReader::GetTableRowIndex() const
-{
-    return 0;
-}
-
-const TNameTablePtr& TSchemalessMergingMultiChunkReader::GetNameTable() const
-{
-    return UnderlyingReader_->GetNameTable();
-}
-
-TKeyColumns TSchemalessMergingMultiChunkReader::GetKeyColumns() const
-{
-    return UnderlyingReader_->GetKeyColumns();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
