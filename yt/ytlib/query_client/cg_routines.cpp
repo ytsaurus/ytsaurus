@@ -167,6 +167,10 @@ void InsertJoinRow(
     TMutableRow key = *keyPtr;
 
     if (!closure->LastKey || !closure->PrefixEqComparer(key, closure->LastKey)) {
+        if (closure->LastKey) {
+            YCHECK(CompareRows(closure->LastKey, key, closure->CommonKeyPrefixDebug) <= 0);
+        }
+
         closure->ProcessSegment();
         closure->LastKey = key;
         closure->Lookup.clear();
@@ -430,6 +434,7 @@ void JoinOpHelper(
     void (*consumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size))
 {
     TJoinClosure closure(lookupHasher, lookupEqComparer, prefixEqComparer, keySize, parameters->BatchSize);
+    closure.CommonKeyPrefixDebug = parameters->CommonKeyPrefixDebug;
 
     closure.ProcessSegment = [&] () {
         auto offset = closure.KeysToRows.size();
@@ -464,6 +469,7 @@ void JoinOpHelper(
             consumeRows,
             parameters->SelfColumns,
             parameters->ForeignColumns);
+        YCHECK(std::is_sorted(keys.begin(), keys.end()));
 
         // Join rowsets.
         // allRows have format (join key... , other columns...)
