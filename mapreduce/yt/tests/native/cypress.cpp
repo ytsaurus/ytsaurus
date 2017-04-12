@@ -55,35 +55,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_TEST(TCypress, List)
-{
-    Client()->Create(Node(), NT_MAP);
-
-    Stroka node(Node());
-    Client()->Create(node + "/int", NT_INT64);
-    Client()->Create(node + "/uint", NT_UINT64);
-    Client()->Create(node + "/double", NT_DOUBLE);
-    Client()->Create(node + "/bool", NT_BOOLEAN);
-    Client()->Create(node + "/string", NT_STRING);
-    Client()->Create(node + "/map", NT_MAP);
-    Client()->Create(node + "/list", NT_LIST);
-    Client()->Create(node + "/file", NT_FILE);
-    Client()->Create(node + "/table", NT_TABLE);
-    Client()->Create(node + "/document", NT_DOCUMENT);
-
-    auto list = Client()->List(Node(),
-        TListOptions().AttributeFilter(TAttributeFilter().AddAttribute("type")));
-
-    for (auto e : list) {
-        Cout << e.AsString() << ": "
-            << e.GetAttributes()["type"].AsString() << Endl;
-    }
-
-    Client()->Remove(Node(), TRemoveOptions().Force(true).Recursive(true));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 YT_TEST(TCypress, Copy)
 {
     Client()->Create(Node(), NT_STRING);

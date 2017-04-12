@@ -10,6 +10,13 @@
 using namespace NYT;
 using namespace NYT::NTesting;
 
+static TNode::TList SortedStrings(TNode::TList input) {
+    std::sort(input.begin(), input.end(), [] (const TNode& lhs, const TNode& rhs) {
+        return lhs.AsString() < rhs.AsString();
+    });
+    return input;
+}
+
 SIMPLE_UNIT_TEST_SUITE(CypressClient) {
     SIMPLE_UNIT_TEST(TestCreateAllTypes)
     {
@@ -136,5 +143,40 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
             TGetOptions().AttributeFilter(TAttributeFilter().AddAttribute("attr_name")));
 
         UNIT_ASSERT_VALUES_EQUAL(nodeWithAttr.GetAttributes().AsMap().at("attr_name"), TNode("attr_value"));
+    }
+
+    SIMPLE_UNIT_TEST(TestList)
+    {
+        auto client = CreateTestClient();
+        auto tx = client->StartTransaction();
+        client->Set("//testing/foo", 5);
+        client->Set("//testing/bar", "bar");
+        client->Set("//testing/bar", "bar");
+        client->Set("//testing/bar/@attr_name", "attr_value");
+        tx->Set("//testing/tx_qux", "gg");
+
+        auto res = client->List("//testing");
+
+        UNIT_ASSERT_VALUES_EQUAL(
+            SortedStrings(res),
+            TNode::TList({"bar", "foo"}));
+
+        auto txRes = tx->List("//testing");
+        UNIT_ASSERT_VALUES_EQUAL(
+            SortedStrings(txRes),
+            TNode::TList({"bar", "foo", "tx_qux"}));
+
+        auto maxSizeRes = client->List("//testing", TListOptions().MaxSize(1));
+        UNIT_ASSERT_VALUES_EQUAL(maxSizeRes.size(), 1);
+        UNIT_ASSERT(yhash_set<Stroka>({"foo", "bar"}).has(maxSizeRes[0].AsString()));
+
+        auto attrFilterRes = client->List("//testing",
+            TListOptions().AttributeFilter(TAttributeFilter().AddAttribute("attr_name")));
+        attrFilterRes = SortedStrings(attrFilterRes);
+        auto barNode = TNode("bar");
+        barNode.Attributes()("attr_name", "attr_value");
+        UNIT_ASSERT_VALUES_EQUAL(
+            attrFilterRes,
+            TNode::TList({barNode, "foo"}));
     }
 }
