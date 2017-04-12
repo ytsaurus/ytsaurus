@@ -72,6 +72,15 @@ namespace {
     class TMockRawTableReader
         : public TRawTableReader
     {
+    public:
+        virtual bool Retry(const TMaybe<ui32>&, const TMaybe<ui64>&) override {
+            return false;
+        }
+
+        virtual bool HasRangeIndices() const override {
+            return false;
+        }
+
     protected:
         size_t DoRead(void*, size_t) override {
             return 0;

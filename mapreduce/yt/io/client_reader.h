@@ -25,11 +25,9 @@ public:
         const Stroka& formatConfig,
         const TTableReaderOptions& options);
 
-    bool OnStreamError(
-        const yexception& e,
-        bool keepRanges,
-        ui32 rangeIndex,
-        ui64 rowIndex) override;
+    bool Retry(
+        const TMaybe<ui32>& rangeIndex,
+        const TMaybe<ui64>& rowIndex) override;
 
     bool HasRangeIndices() const override { return true; }
 
@@ -53,7 +51,7 @@ private:
 
 private:
     void TransformYPath();
-    void CreateRequest(bool initial, ui32 rangeIndex = 0ul, ui64 rowIndex = 0ull);
+    void CreateRequest(const TMaybe<ui32>& rangeIndex = Nothing(), const TMaybe<ui64>& rowIndex = Nothing());
 };
 
 ////////////////////////////////////////////////////////////////////////////////

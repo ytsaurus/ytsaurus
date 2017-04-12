@@ -42,23 +42,18 @@ TClientReader::TClientReader(
 {
     Lock(Auth_, ReadTransaction_->GetId(), path.Path_, "snapshot");
     TransformYPath();
-    CreateRequest(true);
+    CreateRequest();
 }
 
-bool TClientReader::OnStreamError(
-    const yexception& e,
-    bool keepRanges,
-    ui32 rangeIndex,
-    ui64 rowIndex)
+bool TClientReader::Retry(
+    const TMaybe<ui32>& rangeIndex,
+    const TMaybe<ui64>& rowIndex)
 {
-    LOG_ERROR("RSP %s - %s",
-        ~Request_->GetRequestId(), e.what());
-
     if (--RetriesLeft_ == 0) {
         return false;
     }
 
-    CreateRequest(keepRanges, rangeIndex, rowIndex);
+    CreateRequest(rangeIndex, rowIndex);
     return true;
 }
 
@@ -93,7 +88,7 @@ void TClientReader::TransformYPath()
     }
 }
 
-void TClientReader::CreateRequest(bool keepRanges, ui32 rangeIndex, ui64 rowIndex)
+void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<ui64>& rowIndex)
 {
     const int lastAttempt = TConfig::Get()->ReadRetryCount - 1;
 
@@ -120,18 +115,18 @@ void TClientReader::CreateRequest(bool keepRanges, ui32 rangeIndex, ui64 rowInde
                 header.SetOutputFormat(FormatConfig_);
             }
 
-            if (!keepRanges) {
+            if (rowIndex.Defined()) {
                 auto& ranges = Path_.Ranges_;
                 if (ranges.empty()) {
                     ranges.push_back(TReadRange());
                 } else {
-                    if (rangeIndex >= ranges.size()) {
+                    if (rangeIndex.GetOrElse(0) >= ranges.size()) {
                         LOG_FATAL("Range index %" PRIu32 " is out of range, input ranges count is %" PRISZT,
-                            rangeIndex, ranges.size());
+                            rangeIndex.GetOrElse(0), ranges.size());
                     }
-                    ranges.erase(ranges.begin(), ranges.begin() + rangeIndex);
+                    ranges.erase(ranges.begin(), ranges.begin() + rangeIndex.GetOrElse(0));
                 }
-                ranges.begin()->LowerLimit(TReadLimit().RowIndex(rowIndex));
+                ranges.begin()->LowerLimit(TReadLimit().RowIndex(*rowIndex));
             }
 
             header.SetParameters(FormIORequestParameters(Path_, Options_));

@@ -16,14 +16,6 @@ class TJobReader
 public:
     explicit TJobReader(int fd);
 
-    bool OnStreamError(
-        const yexception& e,
-        bool keepRanges,
-        ui32 rangeIndex,
-        ui64 rowIndex) override;
-
-    bool HasRangeIndices() const override { return false; }
-
 protected:
     size_t DoRead(void* buf, size_t len) override;
 

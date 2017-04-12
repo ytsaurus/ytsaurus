@@ -11,6 +11,8 @@
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
+#include <util/generic/yexception.h>
+#include <util/generic/maybe.h>
 
 namespace NYT {
 
@@ -57,7 +59,25 @@ class IFileWriter
 class TRawTableReader
     : public TThrRefBase
     , public TInputStream
-{ };
+{
+public:
+    // Retries table read starting from the specified rangeIndex and rowIndex.
+    // If rowIndex is empty then entire last request will be retried.
+    // Otherwise the request will be modified to retrieve table data starting from the specified
+    // rangeIndex and rowIndex.
+    // The method returns 'true' on successful request retry. If it returns 'false' then
+    // the error is fatal and Retry() shouldn't be called any more.
+    // After successful retry the user should reset rangeIndex / rowIndex values and read new ones
+    // from the stream
+    virtual bool Retry(
+        const TMaybe<ui32>& rangeIndex,
+        const TMaybe<ui64>& rowIndex) = 0;
+
+    // Returns 'true' if the input stream may contain table ranges.
+    // The TRawTableReader user is responsible to track active range index in this case
+    // in order to pass it to Retry().
+    virtual bool HasRangeIndices() const = 0;
+};
 
 class TRawTableWriter
     : public TThrRefBase

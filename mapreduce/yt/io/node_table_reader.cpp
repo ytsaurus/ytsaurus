@@ -367,8 +367,8 @@ void TNodeTableReader::PrepareParsing()
 
 void TNodeTableReader::OnStreamError()
 {
-    if (Input_->OnStreamError(Exception_, !RowIndex_.Defined(),
-        RangeIndex_.GetOrElse(0ul), RowIndex_.GetOrElse(0ull)))
+    LOG_ERROR("Read error: %s", Exception_.what());
+    if (Input_->Retry(RangeIndex_, RowIndex_))
     {
         RowIndex_.Clear();
         RangeIndex_.Clear();

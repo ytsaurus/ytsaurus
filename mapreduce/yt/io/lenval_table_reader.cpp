@@ -3,6 +3,7 @@
 #include "proxy_input.h"
 
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/http/requests.h>
 
 #include <util/string/printf.h>
@@ -45,13 +46,13 @@ size_t TLenvalTableReader::Load(void *buf, size_t len)
     try {
         count = Input_->Load(buf, len);
     } catch (yexception& e) {
+        LOG_ERROR("Read error: %s", e.what());
         hasError = true;
         ex = e;
     }
 
     if (hasError) {
-        if (Input_->OnStreamError(ex, !RowIndex_.Defined(),
-            RangeIndex_.GetOrElse(0ul), RowIndex_.GetOrElse(0ull)))
+        if (Input_->Retry(RangeIndex_, RowIndex_))
         {
             RowIndex_.Clear();
             RangeIndex_.Clear();
