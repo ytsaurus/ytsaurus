@@ -384,7 +384,12 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
 
         for attr_name, value in [("compression_codec", compression_codec), ("erasure_codec", erasure_codec), ("optimize_for", None)]:
             if value is None:
-                destination_client.set(dst + "/@" + attr_name, source_client.get(str(src) + "/@" + attr_name))
+                try:
+                    destination_client.set(dst + "/@" + attr_name, source_client.get(str(src) + "/@" + attr_name))
+                except yt.YtError as err:
+                    # Attribute 'optimize_for' may be missing on old tables.
+                    if not err.is_resolve_error():
+                        raise
 
         if erasure_codec is not None or compression_codec is not None:
             transform(str(dst), compression_codec=compression_codec, erasure_codec=erasure_codec,
@@ -428,7 +433,13 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, dat
                 erasure_codec = source_client.get(str(src) + "/@erasure_codec")
             set_codec(destination_client, dst, compression_codec, "compression")
 
-            destination_client.set(str(dst) + "/@optimize_for", source_client.get(str(src) + "/@optimize_for"))
+            try:
+                destination_client.set(str(dst) + "/@optimize_for", source_client.get(str(src) + "/@optimize_for"))
+            except yt.YtError as err:
+                # Attribute 'optimize_for' may be missing on old tables.
+                if not err.is_resolve_error():
+                    raise
+
             if external is not None:
                 destination_client.set(str(dst) + "/@external", external)
 
