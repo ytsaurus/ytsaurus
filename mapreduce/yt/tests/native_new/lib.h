@@ -2,6 +2,16 @@
 
 #include <mapreduce/yt/interface/client.h>
 
+////////////////////////////////////////////////////////////////////
+
+template<>
+void Out<NYT::TNode>(TOutputStream& s, const NYT::TNode& node);
+
+template<>
+void Out<TGUID>(TOutputStream& s, const TGUID& guid);
+
+////////////////////////////////////////////////////////////////////
+
 namespace NYT {
 namespace NTesting {
 
