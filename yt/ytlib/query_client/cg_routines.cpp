@@ -168,7 +168,7 @@ void InsertJoinRow(
 
     if (!closure->LastKey || !closure->PrefixEqComparer(key, closure->LastKey)) {
         if (closure->LastKey) {
-            YCHECK(CompareRows(closure->LastKey, key, closure->CommonKeyPrefixDebug) <= 0);
+            Y_ASSERT(CompareRows(closure->LastKey, key, closure->CommonKeyPrefixDebug) <= 0);
         }
 
         closure->ProcessSegment();
@@ -472,7 +472,7 @@ void JoinOpHelper(
             consumeRows,
             parameters->SelfColumns,
             parameters->ForeignColumns);
-        YCHECK(std::is_sorted(keys.begin(), keys.end()));
+        Y_ASSERT(std::is_sorted(keys.begin(), keys.end()));
 
         // Join rowsets.
         // allRows have format (join key... , other columns...)
