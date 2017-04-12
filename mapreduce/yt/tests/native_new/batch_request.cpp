@@ -3,7 +3,6 @@
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/http/error.h>
 #include <mapreduce/yt/common/config.h>
-#include <mapreduce/yt/common/helpers.h>
 
 #include <library/unittest/registar.h>
 
@@ -35,18 +34,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////
-
-template<>
-void Out<NYT::TNode>(TOutputStream& s, const NYT::TNode& node)
-{
-    s << "TNode:" << NodeToYsonString(node);
-}
-
-template<>
-void Out<TGUID>(TOutputStream& s, const TGUID& guid)
-{
-    s << GetGuidAsString(guid);
-}
 
 static TNode::TList SortedStrings(TNode::TList input) {
     std::sort(input.begin(), input.end(), [] (const TNode& lhs, const TNode& rhs) {
