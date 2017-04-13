@@ -107,7 +107,7 @@ class YsonLexer(object):
 
         state = self._get_start_state(ch)
         self._read_char()
-        return YsonToken(type=state)
+        return YsonToken(value=ch, type=state)
 
     def get_position_info(self):
         return self._line_index, self._position, self._offset
