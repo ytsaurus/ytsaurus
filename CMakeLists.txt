@@ -1,29 +1,3 @@
-################################################################################
-IF(YMAKE)
-################################################################################
-
-OWNER(sandello)
-
-RECURSE(
-  build
-  core
-  ytlib
-  server
-  python
-  nodejs
-  server/cell_master_program
-  server/cell_node_program
-  server/cell_scheduler_program
-  server/job_proxy_program
-  server/exec_program
-  server/core_forwarder
-  unittests
-)
-
-################################################################################
-ELSE()
-################################################################################
-
 include_directories(
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include # for udfs
@@ -65,7 +39,3 @@ if(YT_BUILD_ENABLE_NODEJS)
 else()
   message(STATUS "Omitting NodeJS bindings from build (YT_BUILD_ENABLE_NODEJS = OFF)")
 endif()
-
-################################################################################
-ENDIF()
-################################################################################
