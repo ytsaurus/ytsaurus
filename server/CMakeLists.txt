@@ -1,8 +1,3 @@
-IF(YMAKE)
-  SET(CMAKE_CURRENT_LIST_DIR .)
-  SET(YT_ABI 19_1)
-ENDIF()
-
 SET(PROTO_NAMESPACE yt/${YT_ABI})
 
 SET(YT_SRCS
@@ -407,51 +402,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/transaction_server/transaction_service.cpp
 )
 
-################################################################################
-IF(YMAKE)
-################################################################################
-
-LIBRARY(ytserver)
-
-OWNER(sandello)
-
-NO_COMPILER_WARNINGS()
-NO_WERROR()
-
-CXXFLAGS(
-  -std=c++1y
-  -Wno-sign-compare
-  -Wno-unused-parameter
-  -Wno-unused-value
-  -Wno-switch
-  -Wno-type-limits
-  -Wno-c++14-extensions
-  -DYT_IN_ARCADIA
-)
-
-ADDINCL(
-  yt/${YT_ABI}/yt
-  yt/${YT_ABI}/yt/contrib/tclap
-)
-
-SRCS(
-  ${YT_SRCS}
-)
-
-PEERDIR(
-  contrib/libs/openssl
-  contrib/libs/sparsehash
-  library/streams/lz
-  library/http/server
-  yt/${YT_ABI}/yt/ytlib
-)
-
-END()
-
-################################################################################
-ELSE()
-################################################################################
-
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 
 add_library(yt-library-server ${YT_SRCS_RESOLVED})
@@ -571,7 +521,4 @@ install(
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE SETUID
 )
 
-################################################################################
-ENDIF()
-################################################################################
 
