@@ -36,6 +36,7 @@ def test_abort_transactions_on_operation_fail(yt_stuff):
         check_exit_code=False,
         collect_cores=False,
         env={
+            'YT_LOG_LEVEL': 'DEBUG',
             'MR_RUNTIME': 'YT',
             'YT_PROXY': yt_stuff.get_server(),
             'SLEEP_SECONDS': '0',
@@ -60,6 +61,7 @@ def test_abort_transactions_on_signal(yt_stuff):
         check_exit_code=False,
         collect_cores=False,
         env={
+            'YT_LOG_LEVEL': 'DEBUG',
             'MR_RUNTIME': 'YT',
             'YT_PROXY': yt_stuff.get_server(),
             'SLEEP_SECONDS': '30',

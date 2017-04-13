@@ -3,6 +3,7 @@
 #include "requests.h"
 
 #include <mapreduce/yt/common/config.h>
+#include <mapreduce/yt/common/finally_guard.h>
 
 #include <util/datetime/base.h>
 
@@ -58,8 +59,12 @@ void TPingableTransaction::Stop(bool commit)
     if (!Running_) {
         return;
     }
-    Running_ = false;
-    Thread_.Join();
+
+    NDetail::TFinallyGuard g([&] {
+        Running_ = false;
+        Thread_.Join();
+    });
+
     if (commit) {
         CommitTransaction(Auth_, TransactionId_);
     } else {

@@ -107,8 +107,7 @@ Stroka RetryRequest(
     THttpHeader& header,
     const Stroka& body = "",
     bool isHeavy = false,
-    bool isOperation = false,
-    std::function<void()> errorCallback = {});
+    bool isOperation = false);
 
 void RetryHeavyWriteRequest(
     const TAuth& auth,
