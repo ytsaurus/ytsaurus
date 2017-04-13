@@ -146,7 +146,8 @@ YtApplicationUpravlyator.prototype._getManagedGroups = function()
         attributes: [
             "upravlyator_managed",
             "upravlyator_name",
-            "upravlyator_help"
+            "upravlyator_help",
+            "upravlyator_responsibles",
         ]
     })
     .then(
@@ -162,7 +163,16 @@ YtApplicationUpravlyator.prototype._getManagedGroups = function()
             var value = utils.getYsonValue(group);
             var name = utils.getYsonAttribute(group, "upravlyator_name");
             var help = utils.getYsonAttribute(group, "upravlyator_help");
-            result[value] = { name: name || value, help: help };
+            var responsibles = utils.getYsonAttribute(group, "upravlyator_responsibles");
+            var local = { name: name || value, help: help };
+            if (responsibles) {
+                var responsibilities = responsibles.map(function(name) {
+                    return { username: name, notify: false };
+                })
+                local["responsibilities"] = responsibilities;
+            }
+
+            result[value] = local;
         });
 
         total = groups.length;
