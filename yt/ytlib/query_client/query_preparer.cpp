@@ -620,12 +620,12 @@ TConstExpressionPtr FoldConstants(
                 TUnversionedValue lhs = lhsLiteralExpr->Value;
                 TUnversionedValue rhs = rhsLiteralExpr->Value;
 
-                YCHECK(targetType == rhs.Type);
+                YCHECK(targetType == lhs.Type);
                 YCHECK(IsArithmeticType(targetType));
 
                 if (lhs.Type != rhs.Type) {
-                    if (IsArithmeticType(lhs.Type)) {
-                        lhs = CastValueWithCheck(lhs, targetType);
+                    if (IsArithmeticType(rhs.Type)) {
+                        rhs = CastValueWithCheck(rhs, targetType);
                     } else {
                         ThrowTypeMismatchError(
                             lhs.Type,
