@@ -1,8 +1,10 @@
 #include "batch_request_impl.h"
 #include "rpc_parameters_serialization.h"
 
+#include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/interface/node.h>
 #include <mapreduce/yt/http/error.h>
+#include <mapreduce/yt/http/retry_request.h>
 
 #include <util/generic/guid.h>
 
@@ -62,7 +64,6 @@ struct TBatchRequestImpl::IResponseItemParser
     ~IResponseItemParser() = default;
 
     virtual void SetResponse(TMaybe<TNode> node) = 0;
-    virtual void SetException(const Stroka& error) = 0;
     virtual void SetException(std::exception_ptr e) = 0;
 };
 
@@ -79,11 +80,6 @@ public:
     TResponseParserBase()
         : Result(NewPromise<TReturnType>())
     { }
-
-    virtual void SetException(const Stroka& ex) override
-    {
-        Result.SetException(ex);
-    }
 
     virtual void SetException(std::exception_ptr e) override
     {
@@ -317,8 +313,18 @@ const TNode& TBatchRequestImpl::GetParameterList() const
     return RequestList_;
 }
 
-void TBatchRequestImpl::ParseResponse(TNode node) const
+void TBatchRequestImpl::ParseResponse(const TResponseInfo& requestResult, const IRetryPolicy& retryPolicy, TDuration* maxRetryInterval)
 {
+    TNode node = NodeFromYsonString(requestResult.Response);
+    return ParseResponse(node, requestResult.RequestId, retryPolicy, maxRetryInterval);
+}
+
+void TBatchRequestImpl::ParseResponse(TNode node, const Stroka& requestId, const IRetryPolicy& retryPolicy, TDuration* maxRetryInterval)
+{
+    Y_VERIFY(maxRetryInterval);
+    *maxRetryInterval = TDuration::Zero();
+
+
     EnsureType(node, TNode::LIST);
     auto& list = node.AsList();
     const auto size = list.size();
@@ -328,6 +334,8 @@ void TBatchRequestImpl::ParseResponse(TNode node) const
             " size of server response: " << size << '.';
     }
 
+    TNode retryRequestList = TNode::CreateList();
+    yvector<::TIntrusivePtr<IResponseItemParser>> retryResponseParserList;
     for (size_t i = 0; i != size; ++i) {
         try {
             EnsureType(list[i], TNode::MAP);
@@ -340,10 +348,15 @@ void TBatchRequestImpl::ParseResponse(TNode node) const
                 if (errorIt == responseNode.end()) {
                     ResponseParserList_[i]->SetResponse(Nothing());
                 } else {
-                    // TODO: we should set proper request id here.
-                    TErrorResponse error(0, "<unknown>");
+                    TErrorResponse error(400, requestId);
                     error.SetError(TError(errorIt->second));
-                    ResponseParserList_[i]->SetException(std::make_exception_ptr(error));
+                    if (auto curInterval = retryPolicy.GetRetryInterval(error)) {
+                        retryRequestList.AsList().emplace_back(std::move(RequestList_[i]));
+                        retryResponseParserList.emplace_back(ResponseParserList_[i]);
+                        *maxRetryInterval = Max(*curInterval, *maxRetryInterval);
+                    } else {
+                        ResponseParserList_[i]->SetException(std::make_exception_ptr(error));
+                    }
                 }
             }
         } catch (const yexception& e) {
@@ -351,13 +364,21 @@ void TBatchRequestImpl::ParseResponse(TNode node) const
             ResponseParserList_[i]->SetException(std::current_exception());
         }
     }
+    RequestList_ = std::move(retryRequestList);
+    ResponseParserList_ = std::move(retryResponseParserList);
 }
 
-void TBatchRequestImpl::SetErrorResult(const Stroka& message) const
+void TBatchRequestImpl::SetErrorResult(std::exception_ptr e) const
 {
     for (const auto& parser : ResponseParserList_) {
-        parser->SetException(message);
+        parser->SetException(e);
     }
+}
+
+size_t TBatchRequestImpl::BatchSize() const
+{
+    Y_VERIFY(ResponseParserList_.size() == RequestList_.AsList().size(), "Internal C++ YT wrapper bug");
+    return ResponseParserList_.size();
 }
 
 ////////////////////////////////////////////////////////////////////

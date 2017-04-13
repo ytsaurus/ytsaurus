@@ -1,11 +1,18 @@
 #pragma once
 
 #include <mapreduce/yt/interface/node.h>
+
 #include <library/threading/future/future.h>
+
 #include <util/generic/ptr.h>
+
+#include <exception>
 
 namespace NYT {
 namespace NDetail {
+
+struct IRetryPolicy;
+struct TResponseInfo;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,8 +29,12 @@ public:
     void MarkExecuted();
 
     const TNode& GetParameterList() const;
-    void ParseResponse(TNode node) const;
-    void SetErrorResult(const Stroka& error) const;
+
+    size_t BatchSize() const;
+
+    void ParseResponse(const TResponseInfo& requestResult, const IRetryPolicy& retryPolicy, TDuration* maxRetryInterval);
+    void ParseResponse(TNode response, const Stroka& requestId, const IRetryPolicy& retryPolicy, TDuration* maxRetryInterval);
+    void SetErrorResult(std::exception_ptr e) const;
 
     NThreading::TFuture<TNodeId> Create(
         const TTransactionId& transaction,
@@ -78,7 +89,7 @@ private:
 
 private:
     yvector<::TIntrusivePtr<IResponseItemParser>> ResponseParserList_;
-    TNode RequestList_;
+    TNode RequestList_ = TNode::CreateList();
     bool Executed_ = false;
 };
 

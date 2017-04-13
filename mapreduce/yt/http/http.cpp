@@ -81,6 +81,11 @@ void THttpHeader::AddMutationId()
     AddParam("mutation_id", CreateGuidAsString());
 }
 
+bool THttpHeader::HasMutationId() const
+{
+    return Params.has("mutation_id");
+}
+
 void THttpHeader::SetToken(const Stroka& token)
 {
     Token = token;

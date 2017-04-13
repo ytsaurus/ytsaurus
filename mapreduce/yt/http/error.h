@@ -104,7 +104,7 @@ private:
     Stroka RequestId_;
     TError Error_;
 
-    bool Retriable_;
+    bool Retriable_ = false;
     TDuration RetryInterval_;
 
     void Setup();

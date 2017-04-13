@@ -13,6 +13,7 @@
 
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/http/requests.h>
+#include <mapreduce/yt/http/retry_request.h>
 
 #include <mapreduce/yt/io/client_reader.h>
 #include <mapreduce/yt/io/client_writer.h>
@@ -30,6 +31,8 @@
 #include <mapreduce/yt/io/block_writer.h>
 
 #include <library/yson/json_writer.h>
+
+#include <exception>
 
 namespace NYT {
 
@@ -765,18 +768,30 @@ public:
     void ExecuteBatch(const TBatchRequest& request, const TExecuteBatchOptions& options) override
     {
         request.Impl_->MarkExecuted();
+
+        NDetail::TAttemptLimitedRetryPolicy retryPolicy(TConfig::Get()->RetryCount);
+
         try {
-            THttpHeader header("POST", "execute_batch");
-            auto parameters = TNode()("requests", request.Impl_->GetParameterList());
-            if (options.Concurrency_) {
-                parameters["concurrency"] = *options.Concurrency_;
+            while (request.Impl_->BatchSize()) {
+                TDuration retryInterval;
+                THttpHeader header("POST", "execute_batch");
+                auto parameters = TNode()("requests", request.Impl_->GetParameterList());
+                if (options.Concurrency_) {
+                    parameters["concurrency"] = *options.Concurrency_;
+                }
+                header.SetParameters(parameters);
+                header.AddMutationId();
+                auto result = RetryRequest(Auth_, header, TStringBuf(), retryPolicy);
+                request.Impl_->ParseResponse(std::move(result), retryPolicy, &retryInterval);
+                if (request.Impl_->BatchSize()) {
+                    Y_VERIFY(retryInterval > TDuration::Zero(), "C++ API internal bug");
+                    Sleep(retryInterval);
+                    LOG_INFO("%ld subrequests of batch have retriable errors, will retry",
+                        request.Impl_->BatchSize());
+                }
             }
-            header.SetParameters(parameters);
-            header.AddMutationId();
-            auto response = RetryRequest(Auth_, header);
-            request.Impl_->ParseResponse(NodeFromYsonString(response));
         } catch (const yexception& e) {
-            request.Impl_->SetErrorResult(e.what());
+            request.Impl_->SetErrorResult(std::current_exception());
             throw;
         }
     }
