@@ -1,8 +1,3 @@
-IF(YMAKE)
-  SET(CMAKE_CURRENT_LIST_DIR .)
-  SET(YT_ABI 19_1)
-ENDIF()
-
 SET(PROTO_NAMESPACE yt/${YT_ABI})
 
 SET(YT_SRCS
@@ -358,56 +353,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/shutdown.cpp
 )
 
-################################################################################
-IF(YMAKE)
-################################################################################
-
-LIBRARY()
-
-OWNER(sandello)
-
-CXXFLAGS(
-  -std=c++1y
-  -Wno-sign-compare
-  -Wno-unused-parameter
-  -Wno-unused-value
-  -Wno-unused-const-variable
-  -Wno-unused-function
-  -Wno-switch
-  -Wno-type-limits
-  -Wno-c++14-extensions
-  -DYT_IN_ARCADIA
-)
-
-IF(GCC)
-  CXXFLAGS(-Wno-maybe-uninitialized)
-ENDIF()
-
-ADDINCL(
-  contrib/libs/llvm37/include
-  contrib/libs/sparsehash/src
-  contrib/libs/re2
-)
-
-SRCS(
-  ${YT_SRCS}
-)
-
-PEERDIR(
-  contrib/libs/llvm37/lib
-  contrib/libs/re2
-  contrib/libs/protobuf
-  contrib/libs/yajl
-  mapreduce/yt/interface/protos
-  yt/${YT_ABI}/yt/core
-)
-
-END()
-
-################################################################################
-ELSE()
-################################################################################
-
 set(YT_SOURCE_FILES)
 protoc(${CMAKE_SOURCE_DIR}/mapreduce/yt/interface/protos/extension.proto YT_SOURCE_FILES)
 include(query_client/CMakeLists.txt)
@@ -422,8 +367,3 @@ target_link_libraries(yt-library-client
   deps-arcadia-contrib-libs-yajl
   yt-core
 )
-
-################################################################################
-ENDIF()
-################################################################################
-
