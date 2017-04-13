@@ -18,7 +18,7 @@ prepare_archive_directory() {
     local yt_python_version="$1" && shift
     local yt_yson_bindings_version="$1" && shift
 
-    local yt_web_interface_version="0.6.0-624" # Fixed for now
+    local yt_web_interface_version="0.7.0-694" # Fixed for now
     local nodejs_version="0.8.26" # Fixed for now
 
     local current_dir="$(pwd)"
