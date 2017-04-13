@@ -1,8 +1,3 @@
-IF(YMAKE)
-  SET(CMAKE_CURRENT_LIST_DIR .)
-  SET(YT_ABI 19_2)
-ENDIF()
-
 SET(PROTO_NAMESPACE yt/${YT_ABI})
 
 SET(YT_SRCS
@@ -236,49 +231,6 @@ IF(NOT OS_WINDOWS)
   SET(YT_SRCS ${YT_SRCS} ${CMAKE_CURRENT_LIST_DIR}/concurrency/execution_context-supp.S)
 ENDIF()
 
-################################################################################
-IF(YMAKE)
-################################################################################
-
-LIBRARY()
-
-OWNER(sandello)
-
-NO_WERROR()
-
-CXXFLAGS(
-  -std=c++1y
-  -Wno-sign-compare
-  -Wno-unused-function
-  -Wno-unused-parameter
-  -Wno-unused-value
-  -Wno-c++14-extensions
-  -DYT_IN_ARCADIA
-)
-
-ADDINCL(
-  contrib/libs/llvm37/include
-)
-
-SRCS(${YT_SRCS})
-
-PEERDIR(
-  contrib/libs/llvm37/lib
-  contrib/libs/snappy
-  contrib/libs/brotli/dec
-  contrib/libs/brotli/enc
-  contrib/libs/zstd07
-  contrib/libs/lzmasdk
-  yt/${YT_ABI}/yt/build
-  yt/${YT_ABI}/yt/contrib
-)
-
-END()
-
-################################################################################
-ELSE()
-################################################################################
-
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 add_library(yt-core STATIC ${YT_SRCS_RESOLVED})
 
@@ -322,8 +274,3 @@ endif()
 if(NOT APPLE)
   target_link_libraries(yt-core -lutil)
 endif()
-
-################################################################################
-ENDIF()
-################################################################################
-
