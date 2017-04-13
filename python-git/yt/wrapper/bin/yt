@@ -954,20 +954,9 @@ def main():
         parser = fix_parser(subparsers.add_parser(command_name, *args, description=help,
                                                   help=pythonic_help, **kwargs))
         parser.set_defaults(func=function)
+
+        add_structured_argument(parser, "--params", "specify additional params")
         return parser
-
-    def add_run_operation_parser(command_name, function=None, help=None, *args, **kwargs):
-        def action(*args, **kwargs):
-            print_statistics = kwargs.get("print_statistics", False)
-            if "print_statistics" in kwargs:
-                del kwargs["print_statistics"]
-
-            operation = function(*args, **kwargs)
-
-            if print_statistics:
-                print(dump_data(operation.attributes()["progress"]), file=sys.stderr)
-
-        return add_parser(command_name, action, help=help, pythonic_help=extract_help(help, function), *args, **kwargs)
 
     add_exists_parser(add_parser)
     add_list_parser(add_parser)
@@ -1078,7 +1067,13 @@ def main():
     args = parser.parse_args(unparsed)
 
     func_args = dict(vars(args))
-    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config", "cell_id"):
+
+    if func_args["params"] is not None:
+        params = func_args["params"]
+        for key in params:
+            yt.config.COMMAND_PARAMS[key] = params[key]
+
+    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config", "cell_id", "params"):
         func_args.pop(key)
     args.func(**func_args)
 
