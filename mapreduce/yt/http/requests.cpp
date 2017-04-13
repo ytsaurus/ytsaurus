@@ -99,13 +99,12 @@ TTransactionId StartTransaction(
 void TransactionRequest(
     const TAuth& auth,
     const Stroka& command,
-    const TTransactionId& transactionId,
-    std::function<void()> errorCallback = {})
+    const TTransactionId& transactionId)
 {
     THttpHeader header("POST", command);
     header.AddTransactionId(transactionId);
     header.AddMutationId();
-    RetryRequest(auth, header, "", false, false, errorCallback);
+    RetryRequest(auth, header, "", false, false);
 }
 
 void PingTransaction(
@@ -132,8 +131,7 @@ void CommitTransaction(
     const TAuth& auth,
     const TTransactionId& transactionId)
 {
-    TransactionRequest(auth, "commit_tx", transactionId,
-        [&] () { PingTransaction(auth, transactionId); });
+    TransactionRequest(auth, "commit_tx", transactionId);
 
     LOG_INFO("Transaction %s commited", ~GetGuidAsString(transactionId));
 }
@@ -281,8 +279,7 @@ Stroka RetryRequest(
     THttpHeader& header,
     const Stroka& body,
     bool isHeavy,
-    bool isOperation,
-    std::function<void()> errorCallback)
+    bool isOperation)
 {
     int retryCount = isOperation ?
         TConfig::Get()->StartOperationRetryCount :
@@ -362,10 +359,6 @@ Stroka RetryRequest(
 
         if (!hasError) {
             return response;
-        }
-
-        if (errorCallback) {
-            errorCallback();
         }
 
         Sleep(retryInterval);
