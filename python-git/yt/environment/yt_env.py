@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from .configs_provider import init_logging, get_default_provision, create_configs_provider
 from .default_configs import get_watcher_config
-from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator, wait_for_removing_file_lock
+from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator, wait_for_removing_file_lock, WEB_INTERFACE_RESOURCES_PATH
 from .porto_helpers import PortoSubprocess, porto_avaliable
 
 from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which, to_native_str
@@ -867,15 +867,14 @@ class YTInstance(object):
         self.log_paths["proxy"] = _config_safe_get(config, config_path, "logging/filename")
 
         # UI configuration
-        web_interface_resources_path = os.environ.get("YT_LOCAL_THOR_PATH", "/usr/share/yt-thor")
-        if not os.path.exists(web_interface_resources_path):
+        if not os.path.exists(WEB_INTERFACE_RESOURCES_PATH):
             logger.warning("Failed to configure UI, web interface resources are not installed. "
                            "Try to install yandex-yt-web-interface or set YT_LOCAL_THOR_PATH.")
             return
 
         ui_config_path = os.path.join(proxy_dir, "ui", "config.js")
         if not self._load_existing_environment:
-            shutil.copytree(web_interface_resources_path, os.path.join(proxy_dir, "ui"))
+            shutil.copytree(WEB_INTERFACE_RESOURCES_PATH, os.path.join(proxy_dir, "ui"))
             write_config(ui_config, ui_config_path, format=None)
         else:
             if not os.path.isfile(ui_config_path):
