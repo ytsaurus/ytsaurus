@@ -64,6 +64,18 @@ class Kiwi(object):
         command = "./kwworm " + " ".join(imap(self._option_to_str, self._join_options(self.kwworm_options, kwworm_options)))
         return command.format(kiwi_url=self.url, kiwi_user=kiwi_user)
 
+def _force_parent_dir(path, client):
+    try:
+        type = client.get(path + "/@type")
+        if type in ["link", "map_node"]:
+            return
+        raise yt.YtError("Parent directory {0} exists and has non-directory type {1}".format(path, type))
+    except yt.YtResponseError as err:
+        if not err.is_resolve_error():
+            raise
+
+    client.create("map_node", path, recursive=True, ignore_existing=True)
+
 def _check_output(command, silent=False, **kwargs):
     logger.info("Executing command '{}'".format(command))
     result = subprocess.check_output(command, preexec_fn=set_pdeathsig, **kwargs)
@@ -357,7 +369,7 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
             raise yt.YtError("Failed to merge source table {0}, no write permission. "
                              "If you can not get a write permission use 'proxy' copy method".format(str(src)))
 
-    destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
+    _force_parent_dir(os.path.dirname(dst), client=destination_client)
 
     cluster_connection = None
     try:
@@ -410,7 +422,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, dat
 
     attributes = {"title": "copy_yt_to_yt_through_proxy"}
 
-    destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
+    _force_parent_dir(os.path.dirname(dst), client=destination_client)
 
     destination_client.config["table_writer"] = {
         "max_row_weight": 128 * MB,
@@ -532,7 +544,7 @@ def copy_file_yt_to_yt(source_client, destination_client, src, dst, data_proxy_r
 
     attributes = {"title": "copy_file_yt_to_yt"}
 
-    destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
+    _force_parent_dir(os.path.dirname(dst), client=destination_client)
 
     try:
         with source_client.Transaction(attributes=attributes), destination_client.Transaction(attributes=attributes):
@@ -807,7 +819,7 @@ def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, cop
     read_config, files = hive_client.get_table_config_and_files(*source)
     read_command = hive_client.get_read_command(read_config)
 
-    yt_client.create("map_node", os.path.dirname(destination_table), recursive=True, ignore_existing=True)
+    _force_parent_dir(os.path.dirname(destination_table), client=yt_client)
 
     json_format_attributes = get_value(json_format_attributes, {})
 

@@ -48,8 +48,9 @@ def _start_transfer_manager(config):
     requirements_path = os.path.join(python_path, "yandex-yt-transfer-manager", "requirements.txt")
     tm_binary_path = os.path.join(tm_server_path, "bin", "transfer-manager-server")
     script_binary_path = os.path.join(tests_path, "prepare_and_start_tm.sh")
+    venv_path = os.path.join(SANDBOX_PATH, "tmvenv")
 
-    return subprocess.Popen([script_binary_path, requirements_path, tm_binary_path, config_path],
+    return subprocess.Popen([script_binary_path, requirements_path, tm_binary_path, config_path, venv_path],
                             preexec_fn=os.setsid)
 
 def _abort_operations_and_transactions(client):
@@ -245,6 +246,45 @@ class TestTransferManager(object):
         assert list(self.second_cluster_client.read_table("//tm/test_table")) == \
                list(self.first_cluster_client.read_table("//tm/test_table"))
 
+    @pytest.mark.parametrize("copy_method,force_copy_with_operation",
+                             [("proxy", False), ("native", False), ("proxy", True)])
+    def test_destination_directory(self, copy_method, force_copy_with_operation):
+        params = {"copy_method": copy_method, "force_copy_with_operation": force_copy_with_operation}
+
+        self.first_cluster_client.write_table("//tm/test_table", [{"a": 1}])
+
+        # missing dir case
+        self.tm_client.add_task("clusterA", "//tm/test_table", "clusterB", "//tm/test_dir/test_table",
+                                sync=True, params=params)
+        assert list(self.second_cluster_client.read_table("//tm/test_dir/test_table")) == [{"a": 1}]
+
+        self.second_cluster_client.remove("//tm/test_dir", force=True, recursive=True)
+
+        # link case
+        self.second_cluster_client.create("map_node", "//tm/map_node")
+        self.second_cluster_client.link("//tm/map_node", "//tm/test_dir")
+        self.tm_client.add_task("clusterA", "//tm/test_table", "clusterB", "//tm/test_dir/test_table",
+                                sync=True, params=params)
+        assert list(self.second_cluster_client.read_table("//tm/test_dir/test_table")) == [{"a": 1}]
+        assert list(self.second_cluster_client.read_table("//tm/map_node/test_table")) == [{"a": 1}]
+
+        self.second_cluster_client.remove("//tm/test_dir", force=True, recursive=True)
+
+        # document case
+        self.second_cluster_client.create("document", "//tm/test_dir")
+
+        task_id = self.tm_client.add_task("clusterA", "//tm/test_table", "clusterB", "//tm/test_dir/test_table",
+                                          params=params)
+
+        task_info = None
+        for _ in xrange(5):
+            task_info = self.tm_client.get_task_info(task_id)
+            if task_info["state"] in ["failed", "aborted", "completed"]:
+                break
+            time.sleep(1)
+
+        assert task_info["state"] == "failed"
+
     def test_skip_if_destination_exists(self):
         self.first_cluster_client.write_table("//tm/test_table", [{"a": 1}])
         self.second_cluster_client.write_table("//tm/test_table", [{"b": 2}])
@@ -252,3 +292,4 @@ class TestTransferManager(object):
         self.tm_client.add_task("clusterA", "//tm/test_table", "clusterB", "//tm/test_table",
                                 sync=True, params={"copy_method": "proxy", "skip_if_destination_exists": True})
         assert list(self.second_cluster_client.read_table("//tm/test_table")) == [{"b": 2}]
+
