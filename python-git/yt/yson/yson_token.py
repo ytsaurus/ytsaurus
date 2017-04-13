@@ -110,6 +110,9 @@ class YsonToken(object):
     def expect_type(self, type_or_types):
         token_type = self.get_type()
         expected_types = flatten(type_or_types)
+        if token_type is None:
+            raise YsonError("Unexpected '{0}' while parsing node".format(self.get_value()))
+
         if token_type not in expected_types:
             if token_type == TOKEN_END_OF_STREAM:
                 raise YsonError("Unexpected end of stream; expected types are {0}".format(expected_types))
