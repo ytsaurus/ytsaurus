@@ -1,5 +1,5 @@
 from . import default_configs
-from .helpers import canonize_uuid
+from .helpers import canonize_uuid, WEB_INTERFACE_RESOURCES_PATH
 
 from yt.wrapper.common import MB, GB
 from yt.wrapper.mappings import VerifiedDict
@@ -563,9 +563,16 @@ class ConfigsProvider_18(ConfigsProvider):
         masters = "primaryMaster: {0}".format(address_blocks[0])
         if provision["master"]["secondary_cell_count"]:
             masters += ", secondaryMasters: [ '{0}' ]".format("', '".join(address_blocks[1:]))
-        return default_configs.get_ui_config()\
-            .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
-            .replace("%%masters%%", masters)
+
+        template_conf_path = os.path.join(WEB_INTERFACE_RESOURCES_PATH, "configs/localmode.js.tmpl")
+        if os.path.exists(template_conf_path):
+            return open(template_conf_path).read()\
+                .replace("%%proxy%%", "'{0}'".format(proxy_address))
+        else:
+            return default_configs.get_ui_config()\
+                .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
+                .replace("%%masters%%", masters)
+
 
 class ConfigsProvider_18_3_18_4(ConfigsProvider_18):
     def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir):
