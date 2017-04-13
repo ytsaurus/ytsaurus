@@ -481,6 +481,21 @@ test_dynamic_table_commands()
     sync_mount_unmount_table "$table" unmount
 }
 
+test_sandbox_file_name_specification()
+{
+    local table="//home/wrapper_test/table"
+    echo -ne "a=b\n" | $YT write "$table" --format "dsv"
+
+    echo "content" >$SANDBOX_DIR/script
+    local file_to_upload="$SANDBOX_DIR/script"
+
+    $YT map "ls some_file >/dev/null && cat" \
+        --src "$table" \
+        --dst "$table" \
+        --local-file "<file_name=some_file>$file_to_upload" \
+        --format dsv
+}
+
 tear_down
 run_test test_cypress_commands
 run_test test_list_long_format
@@ -500,3 +515,4 @@ run_test test_json_structured_format
 run_test test_transform
 run_test test_create_temp_table
 run_test test_dynamic_table_commands
+run_test test_sandbox_file_name_specification
