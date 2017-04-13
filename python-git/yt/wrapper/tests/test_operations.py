@@ -1312,3 +1312,18 @@ if __name__ == "__main__":
             yt.run_map(mapper_no_test_module, table, table)
         check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
+    @add_failed_operation_stderrs_to_error_message
+    def test_sandbox_file_name_specification(self, yt_env):
+        def mapper(row):
+            with open("cool_name.dat") as f:
+                yield {"k": f.read().strip()}
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}])
+
+        dir_ = yt_env.env.path
+        with tempfile.NamedTemporaryFile("w", dir=dir_, prefix="mapper", delete=False) as f:
+            f.write("etwas")
+
+        yt.run_map(mapper, table, table, files=['<file_name="cool_name.dat">' + f.name])
+        check(yt.read_table(table), [{"k": "etwas"}])

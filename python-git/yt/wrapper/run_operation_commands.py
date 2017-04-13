@@ -53,10 +53,13 @@ from .table_commands import create_temp_table, create_table, is_empty, is_sorted
 from .transaction import Transaction, null_transaction_id
 from .ypath import TablePath
 
+from yt.common import to_native_str
+
 import yt.logger as logger
 import yt.yson as yson
+from yt.yson.parser import YsonParser
 
-from yt.packages.six import text_type, binary_type
+from yt.packages.six import text_type, binary_type, PY3
 from yt.packages.six.moves import map as imap
 
 import os
@@ -64,6 +67,11 @@ import sys
 import time
 import types
 from copy import deepcopy
+
+try:
+    from cStringIO import StringIO as BytesIO
+except ImportError:  # Python 3
+    from io import BytesIO
 
 @forbidden_inside_job
 def run_erase(table, spec=None, sync=True, client=None):
@@ -954,14 +962,31 @@ class FileUploader(object):
                 if isinstance(file, (text_type, binary_type)):
                     file_params = {"filename": file}
                 else:
-                    file_params = file
-                filename = file_params["filename"]
+                    file_params = deepcopy(file)
+
+                # Hacky way to split string into file path and file path attributes.
+                filename = file_params.pop("filename")
+                if PY3:
+                    filename_bytes = filename.encode("utf-8")
+                else:
+                    filename_bytes = filename
+
+                stream = BytesIO(filename_bytes)
+                parser = YsonParser(
+                    stream,
+                    encoding="utf-8" if PY3 else None,
+                    always_create_attributes=True)
+
+                attributes = {}
+                if parser._has_attributes():
+                    attributes = parser._parse_attributes()
+                    filename = to_native_str(stream.read())
 
                 self.disk_size += get_disk_size(filename)
 
-                path = upload_file_to_cache(client=self.client, **file_params)
+                path = upload_file_to_cache(filename=filename, client=self.client, **file_params)
                 file_paths.append(yson.to_yson_type(path, attributes={
                     "executable": is_executable(filename, client=self.client),
-                    "file_name": os.path.basename(filename),
+                    "file_name": attributes.get("file_name", os.path.basename(filename)),
                 }))
         return file_paths
