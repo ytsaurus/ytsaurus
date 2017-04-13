@@ -38,6 +38,7 @@ public:
     void AddPath(const Stroka& path);
     void AddOperationId(const TOperationId& operationId);
     void AddMutationId();
+    bool HasMutationId() const;
 
     void SetToken(const Stroka& token);
 
