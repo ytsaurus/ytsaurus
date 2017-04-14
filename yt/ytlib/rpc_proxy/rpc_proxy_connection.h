@@ -7,6 +7,7 @@
 #include <yt/core/rpc/public.h>
 
 #include <yt/ytlib/api/connection.h>
+#include <yt/core/logging/log.h>
 
 namespace NYT {
 namespace NRpcProxy {
@@ -21,6 +22,8 @@ public:
         TRpcProxyConnectionConfigPtr config,
         NConcurrency::TActionQueuePtr actionQueue);
     ~TRpcProxyConnection();
+
+    // IConnection methods.
 
     virtual NObjectClient::TCellTag GetCellTag() override;
 
@@ -44,7 +47,24 @@ private:
     const TRpcProxyConnectionConfigPtr Config_;
     const NConcurrency::TActionQueuePtr ActionQueue_;
 
+    NLogging::TLogger Logger;
+
+    TSpinLock SpinLock_;
+    yhash_set<TWeakPtr<TRpcProxyTransaction>> Transactions_;
+
+    NConcurrency::TPeriodicExecutorPtr PingExecutor_;
+
+protected:
     friend class TRpcProxyClient;
+    friend class TRpcProxyTransaction;
+
+    // Implementation-specific methods.
+
+    void RegisterTransaction(TRpcProxyTransaction* transaction);
+    void UnregisterTransaction(TRpcProxyTransaction* transaction);
+
+    void OnPing();
+    void OnPingCompleted(const TErrorOr<std::vector<TError>>& pingResults);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRpcProxyConnection)

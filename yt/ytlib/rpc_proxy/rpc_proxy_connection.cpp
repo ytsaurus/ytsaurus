@@ -1,5 +1,6 @@
 #include "rpc_proxy_connection.h"
 #include "rpc_proxy_client.h"
+#include "rpc_proxy_transaction.h"
 #include "config.h"
 #include "credentials_injecting_channel.h"
 #include "private.h"
@@ -7,6 +8,7 @@
 #include <yt/core/misc/address.h>
 
 #include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/rpc/bus_channel.h>
 
@@ -29,7 +31,10 @@ TRpcProxyConnection::TRpcProxyConnection(
     NConcurrency::TActionQueuePtr actionQueue)
     : Config_(std::move(config))
     , ActionQueue_(std::move(actionQueue))
-{ }
+    , Logger(RpcProxyClientLogger)
+{
+    Logger.AddTag("Connection: %p", this);
+}
 
 TRpcProxyConnection::~TRpcProxyConnection()
 { }
@@ -122,6 +127,61 @@ void TRpcProxyConnection::ClearMetadataCaches()
 void TRpcProxyConnection::Terminate()
 {
     Y_UNIMPLEMENTED();
+}
+
+void TRpcProxyConnection::RegisterTransaction(TRpcProxyTransaction* transaction)
+{
+    auto guard = Guard(SpinLock_);
+    YCHECK(Transactions_.insert(MakeWeak(transaction)).second);
+
+    if (Transactions_.empty() && !PingExecutor_) {
+        PingExecutor_ = New<TPeriodicExecutor>(
+            ActionQueue_->GetInvoker(),
+            BIND(&TRpcProxyConnection::OnPing, MakeWeak(this)),
+            Config_->PingPeriod);
+    }
+}
+
+void TRpcProxyConnection::UnregisterTransaction(TRpcProxyTransaction* transaction)
+{
+    auto guard = Guard(SpinLock_);
+    Transactions_.erase(MakeWeak(transaction));
+
+    if (Transactions_.empty() && PingExecutor_) {
+        PingExecutor_->Stop();
+        PingExecutor_.Reset();
+    }
+}
+
+void TRpcProxyConnection::OnPing()
+{
+    std::vector<TRpcProxyTransactionPtr> activeTransactions;
+
+    {
+        auto guard = Guard(SpinLock_);
+        activeTransactions.reserve(Transactions_.size());
+        for (const auto& transaction : Transactions_) {
+            auto activeTransaction = transaction.Lock();
+            if (activeTransaction) {
+                activeTransactions.push_back(std::move(activeTransaction));
+            }
+        }
+    }
+
+    std::vector<TFuture<void>> pingResults;
+    pingResults.reserve(activeTransactions.size());
+    for (const auto& activeTransaction : activeTransactions) {
+        pingResults.push_back(activeTransaction->Ping());
+    }
+
+    CombineAll(pingResults).Subscribe(BIND(&TRpcProxyConnection::OnPingCompleted, MakeWeak(this)));
+}
+
+void TRpcProxyConnection::OnPingCompleted(const TErrorOr<std::vector<TError>>& pingResults)
+{
+    if (pingResults.IsOK()) {
+        LOG_DEBUG("Pinged %v transactions", pingResults.Value().size());
+    }
 }
 
 IConnectionPtr CreateRpcProxyConnection(TRpcProxyConnectionConfigPtr config)
