@@ -56,6 +56,8 @@ public:
     bool GetForeign() const;
     void SetForeign(bool value);
 
+    bool HasNontrivialRanges() const;
+
     // "channel"
     NChunkClient::TChannel GetChannel() const;
 

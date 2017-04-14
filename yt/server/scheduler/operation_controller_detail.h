@@ -832,6 +832,7 @@ protected:
 
     bool InputHasDynamicTables() const;
     bool InputHasVersionedTables() const;
+    bool InputHasReadLimits() const;
 
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;
