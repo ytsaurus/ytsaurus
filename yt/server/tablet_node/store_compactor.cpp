@@ -263,7 +263,12 @@ private:
             return;
         }
 
-        if (tablet->GetConfig()->DisableCompactionAndPartitioning) {
+        const auto& config = tablet->GetConfig();
+        if (config->DisableCompactionAndPartitioning) {
+            return;
+        }
+
+        if (config->InMemoryMode != EInMemoryMode::None && Bootstrap_->GetTabletSlotManager()->IsOutOfMemory()) {
             return;
         }
 
