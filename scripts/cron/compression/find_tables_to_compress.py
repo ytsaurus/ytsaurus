@@ -110,7 +110,8 @@ class StatisticsRequestRetrier(Retrier):
                 "command": "get",
                 "parameters": {
                     "path": table,
-                    "attributes": ["compression_statistics", "erasure_statistics", "chunk_count"]
+                    "attributes": ["compression_statistics", "erasure_statistics", "chunk_count"],
+                    "suppress_access_tracking": True
                 }
             }
             requests.append(request)
