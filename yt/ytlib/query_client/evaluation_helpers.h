@@ -116,11 +116,18 @@ struct TJoinParameters
     size_t BatchSize;
 };
 
+struct TChainedRow
+{
+    TRow Row;
+    TRow Key;
+    int NextRowIndex;
+};
+
 struct TJoinClosure
 {
     TRowBufferPtr Buffer;
     TJoinLookup Lookup;
-    std::vector<std::pair<TRow, int>> ChainedRows;
+    std::vector<TChainedRow> ChainedRows;
 
     TComparerFunction* PrefixEqComparer;
     int KeySize;
