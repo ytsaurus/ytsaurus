@@ -90,6 +90,10 @@ private:
             return;
         }
 
+        for (const auto& partition : tablet->PartitionList()) {
+            ScanPartitionToSample(slot, partition.get());
+        }
+
         if (tablet->GetConfig()->DisableCompactionAndPartitioning) {
             return;
         }
@@ -110,7 +114,6 @@ private:
             (estimatedMaxOverlappingStoreCount - currentMaxOverlappingStoreCount);
         for (const auto& partition : tablet->PartitionList()) {
             ScanPartitionToMerge(slot, partition.get(), maxAllowedOverlappingStoreCount);
-            ScanPartitionToSample(slot, partition.get());
         }
     }
 
