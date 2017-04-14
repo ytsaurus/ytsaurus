@@ -28,7 +28,7 @@ def is_locked(obj):
 def main():
     parser = argparse.ArgumentParser(description="Clean operations from cypress.")
     parser.add_argument("--directory", default="//tmp")
-    parser.add_argument("--account", default="tmp")
+    parser.add_argument("--account")
     parser.add_argument("--max-disk-space", type=int, default=None)
     parser.add_argument("--max-chunk-count", type=int, default=None)
     parser.add_argument("--max-node-count", type=int, default=50000)
@@ -42,13 +42,13 @@ def main():
     safe_age = timedelta(minutes=args.safe_age)
     max_age = timedelta(days=args.max_age)
 
-    if args.max_disk_space is None:
+    if args.max_disk_space is None and args.account is not None:
         args.max_disk_space = yt.get("//sys/accounts/{0}/@resource_limits/disk_space".format(args.account)) / 2
 
-    if args.max_chunk_count is None:
+    if args.max_chunk_count is None and args.account is not None:
         args.max_chunk_count = yt.get("//sys/accounts/{0}/@resource_limits/chunk_count".format(args.account)) / 2
 
-    if args.max_node_count is None:
+    if args.max_node_count is None and args.account is not None:
         args.max_node_count = yt.get("//sys/accounts/{0}/@resource_limits/node_count".format(args.account)) / 2
 
     # collect aux objects
@@ -106,7 +106,10 @@ def main():
         dir_node_count = remaining_dir_sizes.get(os.path.dirname(obj), 0)
 
         # filter object by age, total size and count
-        if (age > max_age or disk_space > args.max_disk_space or node_count > args.max_node_count or chunk_count > args.max_chunk_count or dir_node_count > args.max_dir_node_count) and age > safe_age:
+        node_count_violated = args.max_node_count is not None and node_count > args.max_node_count
+        disk_space_violated = args.max_disk_space is not None and disk_space > args.max_disk_space
+        chunk_count_violated = args.max_chunk_count is not None and chunk_count > args.max_chunk_count
+        if (age > max_age or disk_space_violated or node_count_violated or chunk_count_violated or dir_node_count > args.max_dir_node_count) and age > safe_age:
             if "hash" in obj.attributes:
                 hash_str = obj.attributes["hash"]
                 link = os.path.join(os.path.dirname(obj), "hash", hash_str[-2:], hash_str)
