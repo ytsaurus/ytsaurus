@@ -222,6 +222,9 @@ private:
                 .DoMapFor(chunkManager->Media(),
                     [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
                         const auto* medium = pair.second;
+                        if (medium->GetCache()) {
+                            return;
+                        }
                         fluent
                             .Item(medium->GetName()).Value(statistics.SpacePerMedium[medium->GetIndex()].Available);
                     });
