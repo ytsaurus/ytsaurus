@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -ex
 
 cd yt/wrapper && make && cd -
 
