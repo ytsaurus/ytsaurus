@@ -26,33 +26,7 @@ template <class TCodec>
 class TCodecBase
     : public ICodec
 {
-private:
-    TSharedRef Run(
-        void (TCodec::*converter)(StreamSource* source, TBlob* output),
-        TRefCountedTypeCookie blobCookie,
-        const TSharedRef& ref)
-    {
-        ByteArraySource input(ref.Begin(), ref.Size());
-        auto outputBlob = TBlob(blobCookie, 0, false);
-        (static_cast<TCodec*>(this)->*converter)(&input, &outputBlob);
-        return TSharedRef::FromBlob(std::move(outputBlob));
-    }
-
-    TSharedRef Run(
-        void (TCodec::*converter)(StreamSource* source, TBlob* output),
-        TRefCountedTypeCookie blobCookie,
-        const std::vector<TSharedRef>& refs)
-    {
-        if (refs.size() == 1) {
-            return Run(converter, blobCookie, refs.front());
-        }
-
-        TVectorRefsSource input(refs);
-        auto outputBlob = TBlob(blobCookie, 0, false);
-        (static_cast<TCodec*>(this)->*converter)(&input, &outputBlob);
-        return TSharedRef::FromBlob(std::move(outputBlob));
-    }
-
+public:
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
         return Run(&TCodec::DoCompress, GetRefCountedTypeCookie<TCompressedBlockTag<TCodec>>(), block);
@@ -73,6 +47,44 @@ private:
         return Run(&TCodec::DoDecompress, GetRefCountedTypeCookie<TDecompressedBlockTag<TCodec>>(), blocks);
     }
 
+private:
+    TSharedRef Run(
+        void (TCodec::*converter)(StreamSource* source, TBlob* output),
+        TRefCountedTypeCookie blobCookie,
+        const TSharedRef& ref)
+    {
+        ByteArraySource input(ref.Begin(), ref.Size());
+        auto outputBlob = TBlob(blobCookie, 0, false);
+        (static_cast<TCodec*>(this)->*converter)(&input, &outputBlob);
+        return FinalizeBlob(&outputBlob, blobCookie);
+    }
+
+    TSharedRef Run(
+        void (TCodec::*converter)(StreamSource* source, TBlob* output),
+        TRefCountedTypeCookie blobCookie,
+        const std::vector<TSharedRef>& refs)
+    {
+        if (refs.size() == 1) {
+            return Run(converter, blobCookie, refs.front());
+        }
+
+        TVectorRefsSource input(refs);
+        auto outputBlob = TBlob(blobCookie, 0, false);
+        (static_cast<TCodec*>(this)->*converter)(&input, &outputBlob);
+        return FinalizeBlob(&outputBlob, blobCookie);
+    }
+
+    static TSharedRef FinalizeBlob(TBlob* blob, TRefCountedTypeCookie blobCookie)
+    {
+        // For blobs smaller than 16K, do nothing.
+        // For others, allow up to 5% capacity overhead.
+        if (blob->Capacity() >= 16 * 1024 &&
+            blob->Capacity() >= 1.05 * blob->Size())
+        {
+            *blob = TBlob(blobCookie, blob->Begin(), blob->Size());
+        }
+        return TSharedRef::FromBlob(std::move(*blob));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
