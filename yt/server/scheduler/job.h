@@ -166,11 +166,13 @@ struct TJobSummary
     //! Only for testing purpose.
     TJobSummary() = default;
 
+    void Persist(const TPersistenceContext& context);
+
     void ParseStatistics();
 
-    const TJobResult Result;
-    const TJobId Id;
-    const Stroka StatisticsSuffix;
+    TJobResult Result;
+    TJobId Id;
+    Stroka StatisticsSuffix;
     TNullable<TInstant> FinishTime;
     TNullable<TDuration> PrepareDuration;
     TNullable<TDuration> DownloadDuration;
@@ -192,7 +194,9 @@ struct TCompletedJobSummary
     //! Only for testing purpose.
     TCompletedJobSummary() = default;
 
-    const bool Abandoned = false;
+    void Persist(const TPersistenceContext& context);
+
+    bool Abandoned = false;
 
     std::vector<NChunkClient::TInputDataSlicePtr> UnreadInputDataSlices;
     EInterruptReason InterruptReason = EInterruptReason::None;

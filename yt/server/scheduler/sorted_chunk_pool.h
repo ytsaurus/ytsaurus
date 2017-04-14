@@ -26,11 +26,24 @@ struct TSortedChunkPoolOptions
     void Persist(const TPersistenceContext& context);
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct IChunkSliceFetcherFactory
+    : public IPersistent
+    , public TRefCounted
+{
+    virtual NTableClient::IChunkSliceFetcherPtr CreateChunkSliceFetcher() = 0;
+
+    virtual void Persist(const TPersistenceContext& context) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcherFactory);
+
 ////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IChunkPool> CreateSortedChunkPool(
     const TSortedChunkPoolOptions& options,
-    NYT::NTableClient::IChunkSliceFetcherPtr chunkSliceFetcher,
+    IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
     TInputStreamDirectory dataSourceDirectory);
 
 ////////////////////////////////////////////////////////////////////

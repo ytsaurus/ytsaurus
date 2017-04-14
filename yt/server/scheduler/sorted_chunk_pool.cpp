@@ -362,6 +362,13 @@ public:
         return Jobs_[cookie].StripeList();
     }
 
+    void InvalidateAllJobs()
+    {
+        while (FirstValidJobIndex_ < Jobs_.size()) {
+            Jobs_[FirstValidJobIndex_++].Invalidate();
+        }
+    }
+
     void SetLogger(TLogger logger)
     {
         Logger = logger;
@@ -374,6 +381,9 @@ private:
 
     //! A mapping between input cookie and all jobs that are affected by its suspension.
     std::vector<std::vector<IChunkPoolOutput::TCookie>> InputCookieToAffectedOutputCookies_;
+
+    //! All jobs before this job were invalidated.
+    int FirstValidJobIndex_ = 0;
 
     //! An internal representation of a finalized job.
     class TJob
@@ -410,7 +420,12 @@ private:
         {
             SuspendedStripeCount_ += delta;
             YCHECK(SuspendedStripeCount_ >= 0);
+            UpdateSelf();
+        }
 
+        void Invalidate()
+        {
+            Invalidated_ = true;
             UpdateSelf();
         }
 
@@ -424,6 +439,7 @@ private:
             Persist(context, State_);
             Persist(context, DataSize_);
             Persist(context, RowCount_);
+            Persist(context, Invalidated_);
             if (context.IsLoad()) {
                 // We must add ourselves to the job pool.
                 UpdateSelf();
@@ -441,18 +457,26 @@ private:
         //! Is true for a job if it is in the pending state and has suspended stripes.
         //! Changes of this flag are accompanied with SuspendSelf()/ResumeSelf().
         bool Suspended_ = false;
+        //! Is true for a job that was invalidated (when pool was rebuilt from scratch).
+        bool Invalidated_ = false;
 
         //! Adds or removes self from the job pool according to the job state and suspended stripe count.
         void UpdateSelf()
         {
-            bool inPoolDesired = State_ == EManagedJobState::Pending && SuspendedStripeCount_ == 0;
+            bool inPoolDesired =
+                State_ == EManagedJobState::Pending &&
+                SuspendedStripeCount_ == 0 &&
+                !Invalidated_;
             if (InPool_ && !inPoolDesired) {
                 RemoveSelf();
             } else if (!InPool_ && inPoolDesired) {
                 AddSelf();
             }
 
-            bool suspendedDesired = State_ == EManagedJobState::Pending && SuspendedStripeCount_ > 0;
+            bool suspendedDesired =
+                State_ == EManagedJobState::Pending &&
+                SuspendedStripeCount_ > 0 &&
+                !Invalidated_;
             if (Suspended_ && !suspendedDesired) {
                 ResumeSelf();
             } else if (!Suspended_ && suspendedDesired) {
@@ -512,9 +536,9 @@ public:
 
     TSortedChunkPool(
         const TSortedChunkPoolOptions& options,
-        IChunkSliceFetcherPtr chunkSliceFetcher,
+        IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
         TInputStreamDirectory inputStreamDirectory)
-        : ChunkSliceFetcher_(std::move(chunkSliceFetcher))
+        : ChunkSliceFetcherFactory_(std::move(chunkSliceFetcherFactory))
         , EnableKeyGuarantee_(options.EnableKeyGuarantee)
         , InputStreamDirectory_(std::move(inputStreamDirectory))
         , PrimaryPrefixLength_(options.PrimaryPrefixLength)
@@ -545,12 +569,6 @@ public:
         auto cookie = static_cast<int>(Stripes_.size());
         Stripes_.emplace_back(stripe);
 
-        for (const auto& dataSlice : stripe->DataSlices) {
-            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                InputChunkMapping_[chunkSlice->GetInputChunk()] = chunkSlice->GetInputChunk();
-            }
-        }
-
         int streamIndex = stripe->GetInputStreamIndex();
 
         if (InputStreamDirectory_.GetDescriptor(streamIndex).IsForeign()) {
@@ -565,15 +583,7 @@ public:
         YCHECK(!Finished);
         TChunkPoolInputBase::Finish();
 
-        FindTeleportChunks();
-        FetchNonTeleportPrimaryDataSlices();
-        PrepareForeignSources();
-        SortEndpoints();
-        BuildJobs();
-        AttachForeignSlices();
-        FinalizeJobs();
-
-        FreeMemory();
+        DoFinish();
     }
 
     virtual void Suspend(IChunkPoolInput::TCookie cookie) override
@@ -588,12 +598,26 @@ public:
     virtual void Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
     {
         auto& suspendableStripe = Stripes_[cookie];
-        auto newChunkMapping = suspendableStripe.ResumeAndBuildChunkMapping(stripe);
-        for (const auto& pair : newChunkMapping) {
-            InputChunkMapping_[pair.first] = pair.second;
-        }
-        if (Finished) {
-            JobManager_->Resume(cookie);
+        if (!Finished) {
+            suspendableStripe.Resume(stripe);
+        } else {
+            auto newChunkMappingOrError = suspendableStripe.ResumeAndBuildChunkMapping(stripe);
+            if (!newChunkMappingOrError.IsOK()) {
+                suspendableStripe.Resume(stripe);
+                auto error = TError("Chunk stripe resumption failed")
+                    << newChunkMappingOrError
+                    << TErrorAttribute("input_cookie", cookie);
+                LOG_WARNING(newChunkMappingOrError, "Rebuilding all jobs because of error during resumption");
+                InvalidateCurrentJobs();
+                PoolOutputInvalidated_.Fire(newChunkMappingOrError);
+                DoFinish();
+            } else {
+                auto& newChunkMapping = newChunkMappingOrError.ValueOrThrow();
+                for (const auto& pair : newChunkMapping) {
+                    InputChunkMapping_[pair.first] = pair.second;
+                }
+                JobManager_->Resume(cookie);
+            }
         }
     }
 
@@ -772,18 +796,23 @@ public:
         Persist(context, MinTeleportChunkSize_);
         Persist(context, MaxTotalSliceCount_);
         Persist(context, JobSizeConstraints_);
-
+        Persist(context, ChunkSliceFetcherFactory_);
+        Persist(context, TeleportChunks_);
         Persist(context, SupportLocality_);
         Persist(context, JobManager_);
         Persist(context, OperationId_);
         Persist(context, ChunkPoolId_);
         Persist(context, DataSlicesByTag_);
+        Persist(context, ForeignStripeCookiesByStreamIndex_);
         if (context.IsLoad()) {
             Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
             Logger.AddTag("OperationId: %v", OperationId_);
             JobManager_->SetLogger(Logger);
         }
     }
+
+public:
+    DEFINE_SIGNAL(void(const TError& error), PoolOutputInvalidated)
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedChunkPool, 0x91bca805);
@@ -802,8 +831,8 @@ private:
     //! (both unversioned and versioned) and their input cookies.
     yhash_map<TInputDataSlicePtr, IChunkPoolInput::TCookie> PrimaryDataSliceToInputCookie_;
 
-    //! Used to additionally slice the unversioned slices.
-    IChunkSliceFetcherPtr ChunkSliceFetcher_;
+    //! A factory that is used to spawn chunk slice fetcher.
+    IChunkSliceFetcherFactoryPtr ChunkSliceFetcherFactory_;
 
     struct TEndpoint
     {
@@ -880,12 +909,25 @@ private:
 
     bool EnablePeriodicYielder_;
 
+    void InitInputChunkMapping()
+    {
+        for (const auto& suspendableStripe : Stripes_) {
+            for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
+                for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                    InputChunkMapping_[chunkSlice->GetInputChunk()] = chunkSlice->GetInputChunk();
+                }
+            }
+        }
+    }
+
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
     //! (for versioned stripes).
     void FetchNonTeleportPrimaryDataSlices()
     {
-        // If ChunkSliceFetcher_ == nullptr, we form chunk slices manually by putting them
+        auto chunkSliceFetcher = ChunkSliceFetcherFactory_ ? ChunkSliceFetcherFactory_->CreateChunkSliceFetcher() : nullptr;
+
+        // If chunkSliceFetcher == nullptr, we form chunk slices manually by putting them
         // into this vector.
         std::vector<TInputChunkSlicePtr> unversionedChunkSlices;
 
@@ -900,12 +942,12 @@ private:
                 continue;
             }
 
-            // Unversioned data slices should be additionally sliced using ChunkSliceFetcher_,
+            // Unversioned data slices should be additionally sliced using chunkSliceFetcher,
             // while versioned slices are taken as is.
             if (stripe->DataSlices.front()->Type == EDataSourceType::UnversionedTable) {
                 auto inputChunk = stripe->DataSlices.front()->GetSingleUnversionedChunkOrThrow();
-                if (ChunkSliceFetcher_) {
-                    ChunkSliceFetcher_->AddChunk(inputChunk);
+                if (chunkSliceFetcher) {
+                    chunkSliceFetcher->AddChunk(inputChunk);
                 } else {
                     auto chunkSlice = CreateInputChunkSlice(inputChunk);
                     InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_);
@@ -919,10 +961,10 @@ private:
             }
         }
 
-        if (ChunkSliceFetcher_) {
-            WaitFor(ChunkSliceFetcher_->Fetch())
+        if (chunkSliceFetcher) {
+            WaitFor(chunkSliceFetcher->Fetch())
                 .ThrowOnError();
-            unversionedChunkSlices = ChunkSliceFetcher_->GetChunkSlices();
+            unversionedChunkSlices = chunkSliceFetcher->GetChunkSlices();
         }
 
         for (const auto& chunkSlice : unversionedChunkSlices) {
@@ -1459,12 +1501,40 @@ private:
         }
     }
 
+    void DoFinish()
+    {
+        // NB(max42): this method may be run several times (in particular, when
+        // the resumed input is not consistent with the original input).
+
+        InitInputChunkMapping();
+        FindTeleportChunks();
+        FetchNonTeleportPrimaryDataSlices();
+        PrepareForeignSources();
+        SortEndpoints();
+        BuildJobs();
+        AttachForeignSlices();
+        FinalizeJobs();
+
+        FreeMemory();
+    }
+
+    void InvalidateCurrentJobs()
+    {
+        DataSlicesByTag_.clear();
+        TeleportChunks_.clear();
+        TotalSliceCount_ = 0;
+        InputChunkMapping_.clear();
+        for (auto& stripe : Stripes_) {
+            stripe.ReplaceOriginalStripe();
+            stripe.SetTeleport(false);
+        }
+        JobManager_->InvalidateAllJobs();
+    }
+
     void FreeMemory()
     {
         PrimaryDataSliceToInputCookie_.clear();
         Endpoints_.clear();
-        ForeignStripeCookiesByStreamIndex_.clear();
-        JobSizeConstraints_.Reset();
         Jobs_.clear();
     }
 };
@@ -1475,10 +1545,10 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedChunkPool);
 
 std::unique_ptr<IChunkPool> CreateSortedChunkPool(
     const TSortedChunkPoolOptions& options,
-    IChunkSliceFetcherPtr chunkSliceFetcher,
+    IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
     TInputStreamDirectory inputStreamDirectory)
 {
-    return std::make_unique<TSortedChunkPool>(options, std::move(chunkSliceFetcher), std::move(inputStreamDirectory));
+    return std::make_unique<TSortedChunkPool>(options, std::move(chunkSliceFetcherFactory), std::move(inputStreamDirectory));
 }
 
 ////////////////////////////////////////////////////////////////////

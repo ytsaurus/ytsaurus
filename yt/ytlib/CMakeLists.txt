@@ -295,7 +295,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta.proto
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta_extensions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_reader_base.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_slice_fetcher.cpp
+        table_client/chunk_slice_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_reader_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_meta.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/helpers.cpp

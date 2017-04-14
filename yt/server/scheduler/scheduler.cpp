@@ -744,7 +744,9 @@ public:
     TFuture<void> AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const Stroka& user)
     {
         auto nodeShard = GetNodeShardByJobId(jobId);
-        return BIND(&TNodeShard::AbortJob, nodeShard, jobId, interruptTimeout, user)
+        // A neat way to choose the proper overload.
+        typedef void (TNodeShard::*CorrectSignature)(const TJobId&, const TNullable<TDuration>&, const Stroka&);
+        return BIND(static_cast<CorrectSignature>(&TNodeShard::AbortJob), nodeShard, jobId, interruptTimeout, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
     }
@@ -770,7 +772,6 @@ public:
             LogOperationProgress(operation);
         }
     }
-
 
     // ISchedulerStrategyHost implementation
     virtual TMasterConnector* GetMasterConnector() override

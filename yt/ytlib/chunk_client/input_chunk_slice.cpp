@@ -8,16 +8,19 @@
 
 #include <yt/core/erasure/codec.h>
 #include <yt/core/misc/numeric_helpers.h>
+#include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/numeric_helpers.h>
 
 #include <cmath>
+
 
 namespace NYT {
 namespace NChunkClient {
 
 using namespace NTableClient;
 using namespace NTableClient::NProto;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -32,6 +32,8 @@
 
 #include <yt/ytlib/object_client/public.h>
 
+#include <yt/server/table_server/public.h>
+
 namespace NYT {
 namespace NScheduler {
 
