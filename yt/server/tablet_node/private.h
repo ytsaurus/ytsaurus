@@ -27,7 +27,7 @@ static const int MaxEditListCapacity = 256;
 static const int MaxOrderedDynamicSegments = 32;
 static const int InitialOrderedDynamicSegmentIndex = 10;
 
-static const i64 MemoryUsageGranularity = (i64) 1024 * 1024;
+static const i64 MemoryUsageGranularity = (i64) 16 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
