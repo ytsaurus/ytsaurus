@@ -33,8 +33,10 @@ struct TBriefJobStatistics
 
     i64 ProcessedInputRowCount = 0;
     i64 ProcessedInputDataSize = 0;
+    i64 ProcessedInputCompressedDataSize = 0;
     i64 ProcessedOutputRowCount = 0;
     i64 ProcessedOutputDataSize = 0;
+    i64 ProcessedOutputCompressedDataSize = 0;
     // Time is given in milliseconds.
     TNullable<i64> InputPipeIdleTime = Null;
     TNullable<i64> JobProxyCpuUsage = Null;

@@ -285,15 +285,8 @@ private:
             writtenReplicas = writer->GetWrittenChunkReplicas();
         }
 
-        // Prepare data statistics.
-        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
-
-        TDataStatistics chunkStatistics;
-        chunkStatistics.set_compressed_data_size(miscExt.compressed_data_size());
-        chunkStatistics.set_uncompressed_data_size(miscExt.uncompressed_data_size());
-        chunkStatistics.set_row_count(miscExt.row_count());
-        chunkStatistics.set_chunk_count(1);
-        DataStatistics_ += chunkStatistics;
+        // Update data statistics.
+        DataStatistics_.set_chunk_count(DataStatistics_.chunk_count());
 
         // Confirm chunk.
         LOG_INFO("Confirming output chunk");
@@ -357,6 +350,8 @@ private:
                 auto result = WaitFor(writer->GetReadyEvent());
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error writing block");
             }
+
+            DataStatistics_.set_compressed_data_size(DataStatistics_.compressed_data_size() + block.Size());
         }
 
         {
