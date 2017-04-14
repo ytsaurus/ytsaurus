@@ -217,7 +217,8 @@ void TJobProxy::RetrieveJobSpec()
     NetworkUsage_ = resourceUsage.network();
 
     // We never report to node less memory usage, than was initially reserved.
-    TotalMaxMemoryUsage_ = JobProxyMemoryReserve_;
+    TotalMaxMemoryUsage_ = JobProxyMemoryReserve_ - Config_->AheadMemoryReserve;
+    ApprovedMemoryReserve_ = JobProxyMemoryReserve_;
 
     std::vector<Stroka> annotations{
         Format("OperationId: %v", OperationId_),
@@ -526,7 +527,7 @@ const IJobSpecHelperPtr& TJobProxy::GetJobSpecHelper() const
     return JobSpecHelper_;
 }
 
-void TJobProxy::UpdateResourceUsage()
+void TJobProxy::UpdateResourceUsage(i64 memoryReserve)
 {
     // Fire-and-forget.
     auto req = SupervisorProxy_->UpdateResourceUsage();
@@ -534,8 +535,8 @@ void TJobProxy::UpdateResourceUsage()
     auto* resourceUsage = req->mutable_resource_usage();
     resourceUsage->set_cpu(CpuLimit_);
     resourceUsage->set_network(NetworkUsage_);
-    resourceUsage->set_memory(TotalMaxMemoryUsage_);
-    req->Invoke().Subscribe(BIND(&TJobProxy::OnResourcesUpdated, MakeWeak(this)));
+    resourceUsage->set_memory(memoryReserve);
+    req->Invoke().Subscribe(BIND(&TJobProxy::OnResourcesUpdated, MakeWeak(this), memoryReserve));
 }
 
 void TJobProxy::SetUserJobMemoryUsage(i64 memoryUsage)
@@ -543,21 +544,24 @@ void TJobProxy::SetUserJobMemoryUsage(i64 memoryUsage)
     UserJobCurrentMemoryUsage_ = memoryUsage;
 }
 
-void TJobProxy::OnResourcesUpdated(const TError& error)
+void TJobProxy::OnResourcesUpdated(i64 memoryReserve, const TError& error)
 {
     if (!error.IsOK()) {
         LOG_ERROR(error, "Failed to update resource usage");
         Exit(EJobProxyExitCode::ResourcesUpdateFailed);
     }
 
-    LOG_DEBUG("Successfully updated resource usage");
+    if (ApprovedMemoryReserve_ < memoryReserve) {
+        LOG_DEBUG("Successfully updated resource usage (MemoryReserve: %v)", memoryReserve);
+        ApprovedMemoryReserve_ = memoryReserve;
+    }
 }
 
 void TJobProxy::ReleaseNetwork()
 {
     LOG_DEBUG("Releasing network");
     NetworkUsage_ = 0;
-    UpdateResourceUsage();
+    UpdateResourceUsage(ApprovedMemoryReserve_);
 }
 
 void TJobProxy::OnPrepared()
@@ -630,11 +634,23 @@ void TJobProxy::CheckMemoryUsage()
     i64 totalMemoryUsage = UserJobCurrentMemoryUsage_ + jobProxyMemoryUsage;
 
     if (TotalMaxMemoryUsage_ < totalMemoryUsage) {
-        LOG_DEBUG("Total memory usage increased from %v to %v, asking node for resource usage update",
+        LOG_DEBUG("Total memory usage increased (OldTotalMaxMemoryUsage: %v, NewTotalMaxMemoryUsage: %v)",
             TotalMaxMemoryUsage_,
             totalMemoryUsage);
         TotalMaxMemoryUsage_ = totalMemoryUsage;
-        UpdateResourceUsage();
+        if (TotalMaxMemoryUsage_ > ApprovedMemoryReserve_) {
+            LOG_ERROR("Total memory usage exceeded the limit approved by the node "
+                "(TotalMaxMemoryUsage: %v, ApprovedMemoryReserve: %v, AheadMemoryReserve: %v)",
+                TotalMaxMemoryUsage_,
+                ApprovedMemoryReserve_.load(),
+                Config_->AheadMemoryReserve);
+            Exit(EJobProxyExitCode::ResourceOverdraft);
+        }
+    }
+    i64 memoryReserve = TotalMaxMemoryUsage_ + Config_->AheadMemoryReserve;
+    if (ApprovedMemoryReserve_ < memoryReserve) {
+        LOG_DEBUG("Asking node for resource usage update (MemoryReserve: %v)", memoryReserve);
+        UpdateResourceUsage(memoryReserve);
     }
 }
 
