@@ -1,7 +1,6 @@
 #include "batch_request_impl.h"
-#include "operation.h"
 #include "mock_client.h"
-
+#include "operation.h"
 #include "rpc_parameters_serialization.h"
 
 #include <mapreduce/yt/interface/client.h>
@@ -71,17 +70,8 @@ public:
         const TCreateOptions& options) override
     {
         THttpHeader header("POST", "create");
-        header.AddPath(AddPathPrefix(path));
-        header.AddParam("type", NDetail::ToString(type));
-        header.AddTransactionId(TransactionId_);
         header.AddMutationId();
-
-        header.AddParam("recursive", options.Recursive_);
-        header.AddParam("ignore_existing", options.IgnoreExisting_);
-        if (options.Attributes_) {
-            header.SetParameters(AttributesToYsonString(*options.Attributes_));
-        }
-
+        header.SetParameters(NDetail::SerializeParamsForCreate(TransactionId_, path, type, options));
         return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
@@ -90,12 +80,8 @@ public:
         const TRemoveOptions& options) override
     {
         THttpHeader header("POST", "remove");
-        header.AddPath(AddPathPrefix(path));
-        header.AddTransactionId(TransactionId_);
         header.AddMutationId();
-
-        header.AddParam("recursive", options.Recursive_);
-        header.AddParam("force", options.Force_);
+        header.SetParameters(NDetail::SerializeParamsForRemove(TransactionId_, path, options));
         RetryRequest(Auth_, header);
     }
 
@@ -103,8 +89,7 @@ public:
         const TYPath& path) override
     {
         THttpHeader header("GET", "exists");
-        header.AddPath(AddPathPrefix(path));
-        header.AddTransactionId(TransactionId_);
+        header.SetParameters(NDetail::SerializeParamsForExists(TransactionId_, path));
         return ParseBoolFromResponse(RetryRequest(Auth_, header));
     }
 
@@ -113,16 +98,7 @@ public:
         const TGetOptions& options) override
     {
         THttpHeader header("GET", "get");
-        header.AddPath(AddPathPrefix(path));
-        header.AddTransactionId(TransactionId_);
-
-        if (options.AttributeFilter_) {
-            header.SetParameters(AttributeFilterToYsonString(*options.AttributeFilter_));
-        }
-        if (options.MaxSize_) {
-            header.AddParam("max_size", *options.MaxSize_);
-        }
-        header.AddParam("ignore_opaque", options.IgnoreOpaque_);
+        header.SetParameters(NDetail::SerializeParamsForGet(TransactionId_, path, options));
         return NodeFromYsonString(RetryRequest(Auth_, header));
     }
 
@@ -131,9 +107,8 @@ public:
         const TNode& value) override
     {
         THttpHeader header("PUT", "set");
-        header.AddPath(AddPathPrefix(path));
-        header.AddTransactionId(TransactionId_);
         header.AddMutationId();
+        header.SetParameters(NDetail::SerializeParamsForSet(TransactionId_, path));
         RetryRequest(Auth_, header, NodeToYsonString(value));
     }
 
@@ -150,15 +125,7 @@ public:
         if (path.empty() && updatedPath.EndsWith('/')) {
             updatedPath.pop_back();
         }
-        header.AddPath(updatedPath);
-        header.AddTransactionId(TransactionId_);
-
-        if (options.AttributeFilter_) {
-            header.SetParameters(AttributeFilterToYsonString(*options.AttributeFilter_));
-        }
-        if (options.MaxSize_) {
-            header.AddParam("max_size", *options.MaxSize_);
-        }
+        header.SetParameters(NDetail::SerializeParamsForList(TransactionId_, updatedPath, options));
         return NodeFromYsonString(RetryRequest(Auth_, header)).AsList();
     }
 
