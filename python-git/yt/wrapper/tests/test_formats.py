@@ -91,7 +91,7 @@ def test_yson_table_switch():
 
     yson_rows = format.load_rows(BytesIO(input))
     parsed_rows = [dict(yson) for yson in yson_rows]
-    true_input_rows = [{'a': 1, "@row_index": 0},
+    true_input_rows = [{'a': 1, '@table_index': None, "@row_index": 0},
                        {'a': 1, '@table_index': 1, "@row_index": 1},
                        {'b': 2, '@table_index': 1, "@row_index": 2}]
     assert true_input_rows == parsed_rows

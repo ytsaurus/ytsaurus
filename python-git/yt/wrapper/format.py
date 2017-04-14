@@ -252,8 +252,7 @@ class Format(object):
                         range_index = attributes[range_index_attribute_name]
                     continue
 
-                if table_index is not None:
-                    row[table_index_column_name] = table_index
+                row[table_index_column_name] = table_index
                 if range_index is not None:
                     row[range_index_column_name] = range_index
                 if row_index is not None:
@@ -538,7 +537,7 @@ class YsonFormat(Format):
 
         for row in rows:
             new_table_index = row.get(self._coerced_table_index_column, 0)
-            if new_table_index != table_index:
+            if new_table_index is not None and new_table_index != table_index:
                 attributes = {table_index_column: new_table_index}
                 yield yson.to_yson_type(None, attributes=attributes)
                 table_index = new_table_index
@@ -862,7 +861,7 @@ class JsonFormat(Format):
             new_table_index = row[self.table_index_column] \
                 if self.table_index_column in row \
                 else 0
-            if new_table_index != table_index:
+            if new_table_index is not None and new_table_index != table_index:
                 table_index = new_table_index
                 yield {"$value": None, "$attributes": {"table_index": table_index}}
             if self.table_index_column in row:
