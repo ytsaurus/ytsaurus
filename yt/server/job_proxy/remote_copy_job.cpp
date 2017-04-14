@@ -286,7 +286,13 @@ private:
         }
 
         // Update data statistics.
-        DataStatistics_.set_chunk_count(DataStatistics_.chunk_count());
+        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
+        TDataStatistics chunkStatistics;
+        chunkStatistics.set_uncompressed_data_size(miscExt.uncompressed_data_size());
+        chunkStatistics.set_row_count(miscExt.row_count());
+        chunkStatistics.set_chunk_count(1);
+        DataStatistics_ += chunkStatistics;
+        //DataStatistics_.set_chunk_count(DataStatistics_.chunk_count());
 
         // Confirm chunk.
         LOG_INFO("Confirming output chunk");
