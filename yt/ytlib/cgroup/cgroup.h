@@ -87,6 +87,7 @@ class TCGroup
 {
 protected:
     TCGroup(const Stroka& type, const Stroka& name);
+    TCGroup(TNonOwningCGroup&& other);
     TCGroup(TCGroup&& other);
 
 public:
@@ -118,7 +119,11 @@ public:
 
     explicit TCpuAccounting(const Stroka& name);
 
+    TStatistics GetStatisticsRecursive() const;
     TStatistics GetStatistics() const;
+
+private:
+    TCpuAccounting(TNonOwningCGroup&& nonOwningCGroup);
 };
 
 void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsumer* consumer);
