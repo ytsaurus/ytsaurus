@@ -516,6 +516,15 @@ void TRichYPath::SetRanges(const std::vector<NChunkClient::TReadRange>& value)
     Attributes().Remove("upper_limit");
 }
 
+bool TRichYPath::HasNontrivialRanges() const
+{
+    auto maybeLowerLimit = FindAttribute<TReadLimit>(*this, "lower_limit");
+    auto maybeUpperLimit = FindAttribute<TReadLimit>(*this, "upper_limit");
+    auto maybeRanges = FindAttribute<std::vector<TReadRange>>(*this, "ranges");
+
+    return maybeUpperLimit || maybeUpperLimit || maybeRanges;
+}
+
 TNullable<Stroka> TRichYPath::GetFileName() const
 {
     return FindAttribute<Stroka>(*this, "file_name");

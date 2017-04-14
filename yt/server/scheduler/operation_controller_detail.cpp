@@ -4547,6 +4547,16 @@ bool TOperationControllerBase::InputHasVersionedTables() const
     return false;
 }
 
+bool TOperationControllerBase::InputHasReadLimits() const
+{
+    for (const auto& table : InputTables) {
+        if (table.Path.HasNontrivialRanges()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void TOperationControllerBase::SliceUnversionedChunks(
     const std::vector<TInputChunkPtr>& unversionedChunks,
     const IJobSizeConstraintsPtr& jobSizeConstraints,

@@ -42,6 +42,28 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted") ==  True
         assert get("//tmp/t_out/@sorted_by") ==  ["key"]
 
+    def test_simple_read_limits(self):
+        v1 = {"key" : "aaa", "value" : "2"}
+        v2 = {"key" : "bb", "value" : "5"}
+        v3 = {"key" : "bbxx", "value" : "1"}
+        v4 = {"key" : "zfoo", "value" : "4"}
+        v5 = {"key" : "zzz", "value" : "3"}
+
+        create("table", "//tmp/t_in")
+        write_table(
+            "<schema=[{name=key; type=string; sort_order=ascending}; {name=value;type=string}]>//tmp/t_in",
+            [v1, v2, v3, v4, v5])
+
+        create("table", "//tmp/t_out")
+
+        sort(in_="<lower_limit={key=[b]}; upper_limit={key=[z]}>//tmp/t_in",
+             out="//tmp/t_out",
+             sort_by="value")
+
+        assert read_table("//tmp/t_out") == [v3, v2]
+        assert get("//tmp/t_out/@sorted") ==  True
+        assert get("//tmp/t_out/@sorted_by") ==  ["value"]
+
     def test_key_weight_limit(self):
         v1 = {"key" : "aaa"}
         v2 = {"key" : "bb"}
