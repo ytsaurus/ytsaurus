@@ -1,16 +1,13 @@
 #!/usr/bin/python
 
-import os
 import yt.yson as yson
 import yt.wrapper as yt
 from yt.wrapper.client import Yt
 
-import calendar
-import datetime
 import argparse
 import logging
 
-from yt.tools.dynamic_tables import get_dynamic_table_attributes, make_dynamic_table_attributes, mount_table_new, unmount_table_new, DynamicTablesClient
+from yt.tools.dynamic_tables import make_dynamic_table_attributes, mount_table_new, unmount_table_new, DynamicTablesClient
 
 from yt.packages.six.moves import xrange
 
