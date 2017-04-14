@@ -98,26 +98,28 @@ private:
             return;
         }
 
-        int currentMaxOverlappingStoreCount = tablet->GetEden()->Stores().size();
+        int currentMaxOverlappingStoreCount = 0;
         for (const auto& partition : tablet->PartitionList()) {
             currentMaxOverlappingStoreCount = std::max(
                 currentMaxOverlappingStoreCount,
                 int(partition->Stores().size()));
         }
+        currentMaxOverlappingStoreCount += tablet->GetEden()->Stores().size();
         int estimatedMaxOverlappingStoreCount = currentMaxOverlappingStoreCount;
 
         for (const auto& partition : tablet->PartitionList()) {
-            ScanPartitionToSplit(slot, partition.get(), estimatedMaxOverlappingStoreCount);
+            ScanPartitionToSplit(slot, partition.get(), &estimatedMaxOverlappingStoreCount);
         }
 
         int maxAllowedOverlappingStoreCount = tablet->GetConfig()->MaxOverlappingStoreCount -
             (estimatedMaxOverlappingStoreCount - currentMaxOverlappingStoreCount);
+
         for (const auto& partition : tablet->PartitionList()) {
             ScanPartitionToMerge(slot, partition.get(), maxAllowedOverlappingStoreCount);
         }
     }
 
-    void ScanPartitionToSplit(TTabletSlotPtr slot, TPartition* partition, int& estimatedMaxOverlappingStoreCount)
+    void ScanPartitionToSplit(TTabletSlotPtr slot, TPartition* partition, int* estimatedMaxOverlappingStoreCount)
     {
         auto* tablet = partition->GetTablet();
         const auto& config = tablet->GetConfig();
@@ -125,14 +127,14 @@ private:
         i64 actualDataSize = partition->GetUncompressedDataSize();
         int estimatedStoresDelta = partition->Stores().size();
 
-        if (estimatedStoresDelta + estimatedMaxOverlappingStoreCount <= config->MaxOverlappingStoreCount &&
+        if (estimatedStoresDelta + *estimatedMaxOverlappingStoreCount <= config->MaxOverlappingStoreCount &&
             actualDataSize > config->MaxPartitionDataSize) {
             int splitFactor = std::min(std::min(
                 actualDataSize / config->DesiredPartitionDataSize + 1,
                 actualDataSize / config->MinPartitioningDataSize),
                 static_cast<i64>(config->MaxPartitionCount - partitionCount));
             if (splitFactor > 1 && RunSplit(slot, partition, splitFactor)) {
-                estimatedMaxOverlappingStoreCount += estimatedStoresDelta;
+                *estimatedMaxOverlappingStoreCount += estimatedStoresDelta;
             }
         }
     }
