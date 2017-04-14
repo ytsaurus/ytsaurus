@@ -987,7 +987,7 @@ protected:
             return Controller->MergeTaskGroup;
         }
 
-    private:
+    protected:
         virtual void OnTaskCompleted() override
         {
             if (!Partition->Completed) {
@@ -1013,8 +1013,10 @@ protected:
 
         TSortedMergeTask(TSortControllerBase* controller, TPartition* partition)
             : TMergeTask(controller, partition)
-            , ChunkPool(controller->CreateSortedMergeChunkPool())
-        { }
+            , ChunkPool_(controller->CreateSortedMergeChunkPool())
+        {
+            SetupCallbacks();
+        }
 
         virtual Stroka GetId() const override
         {
@@ -1044,7 +1046,7 @@ protected:
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
-            return ChunkPool.get();
+            return ChunkPool_.get();
         }
 
         virtual void Persist(const TPersistenceContext& context) override
@@ -1052,13 +1054,65 @@ protected:
             TMergeTask::Persist(context);
 
             using NYT::Persist;
-            Persist(context, ChunkPool);
+            Persist(context, ChunkPool_);
+            Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, ActiveJoblets_);
+            Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, InvalidatedJoblets_);
+            Persist(context, JobOutputs_);
+
+            if (context.IsLoad()) {
+                SetupCallbacks();
+            }
         }
 
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeTask, 0x4ab19c75);
 
-        std::unique_ptr<IChunkPool> ChunkPool;
+        std::unique_ptr<IChunkPool> ChunkPool_;
+
+        yhash_set<TJobletPtr> ActiveJoblets_;
+        yhash_set<TJobletPtr> InvalidatedJoblets_;
+
+        struct TJobOutput
+        {
+            TJobletPtr Joblet;
+            int PartitionIndex;
+            TCompletedJobSummary JobSummary;
+
+            void Persist(const TPersistenceContext& context)
+            {
+                using NYT::Persist;
+
+                Persist(context, Joblet);
+                Persist(context, PartitionIndex);
+                Persist(context, JobSummary);
+            }
+        };
+        std::vector<TJobOutput> JobOutputs_;
+
+        void SetupCallbacks()
+        {
+            ChunkPool_->SubscribePoolOutputInvalidated(BIND(&TSortedMergeTask::AbortAllActiveJoblets, MakeWeak(this)));
+        }
+
+        void AbortAllActiveJoblets(const TError& error)
+        {
+            LOG_WARNING(error, "Aborting all jobs in task because of pool output invalidation (Task: %v)", GetId());
+            for (const auto& joblet : ActiveJoblets_) {
+                Controller->Host->GetJobHost(joblet->JobId)->AbortJob(
+                        TError("Job is aborted due to chunk pool output invalidation")
+                            << error);
+                InvalidatedJoblets_.insert(joblet);
+            }
+            JobOutputs_.clear();
+        }
+
+        void RegisterAllOutputs()
+        {
+            for (auto& jobOutput : JobOutputs_) {
+                YCHECK(!InvalidatedJoblets_.has(jobOutput.Joblet));
+                RegisterOutput(std::move(jobOutput.Joblet), jobOutput.PartitionIndex, jobOutput.JobSummary);
+            }
+        }
 
         virtual bool IsActive() const override
         {
@@ -1068,14 +1122,14 @@ protected:
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
             auto result = Controller->GetSortedMergeResources(
-                ChunkPool->GetApproximateStripeStatistics());
+                ChunkPool_->GetApproximateStripeStatistics());
             AddFootprintAndUserJobResources(result);
             return result;
         }
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
-            return ChunkPool.get();
+            return ChunkPool_.get();
         }
 
         virtual EJobType GetJobType() const override
@@ -1102,6 +1156,7 @@ protected:
             Controller->SortedMergeJobCounter.Start(1);
 
             TMergeTask::OnJobStarted(joblet);
+            YCHECK(ActiveJoblets_.insert(joblet).second);
         }
 
         virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
@@ -1109,7 +1164,10 @@ protected:
             TMergeTask::OnJobCompleted(joblet, jobSummary);
 
             Controller->SortedMergeJobCounter.Completed(1);
-            RegisterOutput(joblet, Partition->Index, jobSummary);
+            YCHECK(ActiveJoblets_.erase(joblet) == 1);
+            if (!InvalidatedJoblets_.has(joblet)) {
+                JobOutputs_.emplace_back(TJobOutput{std::move(joblet), Partition->Index, jobSummary});
+            }
         }
 
         virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
@@ -1117,6 +1175,7 @@ protected:
             Controller->SortedMergeJobCounter.Failed(1);
 
             TMergeTask::OnJobFailed(joblet, jobSummary);
+            YCHECK(ActiveJoblets_.erase(joblet) == 1);
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
@@ -1124,6 +1183,14 @@ protected:
             Controller->SortedMergeJobCounter.Aborted(1, jobSummary.AbortReason);
 
             TMergeTask::OnJobAborted(joblet, jobSummary);
+            YCHECK(ActiveJoblets_.erase(joblet) == 1);
+        }
+
+        virtual void OnTaskCompleted() override
+        {
+            TMergeTask::OnTaskCompleted();
+
+            RegisterAllOutputs();
         }
     };
 

@@ -634,6 +634,17 @@ void TNodeShard::AbortJob(const TJobId& jobId, const TNullable<TDuration>& inter
     }
 }
 
+void TNodeShard::AbortJob(const TJobId& jobId, const TError& error)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    auto job = GetJobOrThrow(jobId);
+    LOG_DEBUG(error, "Aborting job by internal request (JobId: %v, OperationId: %v)",
+        jobId,
+        job->GetOperationId());
+    auto status = JobStatusFromError(error);
+    OnJobAborted(job, &status);
+}
 
 void TNodeShard::BuildNodesYson(IYsonConsumer* consumer)
 {
@@ -1816,6 +1827,15 @@ public:
     virtual TFuture<void> InterruptJob(EInterruptReason reason) override
     {
         return BIND(&TNodeShard::InterruptJob, NodeShard_, JobId_, reason)
+            .AsyncVia(NodeShard_->GetInvoker())
+            .Run();
+    }
+
+    virtual TFuture<void> AbortJob(const TError& error) override
+    {
+        // A neat way to choose the proper overload.
+        typedef void (TNodeShard::*CorrectSignature)(const TJobId&, const TError&);
+        return BIND(static_cast<CorrectSignature>(&TNodeShard::AbortJob), NodeShard_, JobId_, error)
             .AsyncVia(NodeShard_->GetInvoker())
             .Run();
     }

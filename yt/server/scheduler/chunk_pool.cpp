@@ -321,9 +321,35 @@ yhash_map<TInputChunkPtr, TInputChunkPtr> TSuspendableStripe::ResumeAndBuildChun
         YCHECK(tagToDataSlice.insert(std::make_pair(*dataSlice->Tag, dataSlice)).second);
     }
 
-    for (const auto& originalDataSlice : OriginalStripe_->DataSlices) {
-        auto it = tagToDataSlice.find(*originalDataSlice->Tag);
-        addToMapping(originalDataSlice, it == tagToDataSlice.end() ? nullptr : it->second);
+    TError stripeInconsistencyError;
+    for (int index = 0; index < OriginalStripe_->DataSlices.size(); ++index) {
+        const auto& originalSlice = OriginalStripe_->DataSlices[index];
+        auto it = tagToDataSlice.find(*originalSlice->Tag);
+        if (it != tagToDataSlice.end()) {
+            const auto& newSlice = it->second;
+            if (originalSlice->Type == EDataSourceType::UnversionedTable) {
+                const auto& originalChunk = originalSlice->GetSingleUnversionedChunkOrThrow();
+                const auto& newChunk = newSlice->GetSingleUnversionedChunkOrThrow();
+                if (*originalChunk->BoundaryKeys() != *newChunk->BoundaryKeys()) {
+                    THROW_ERROR_EXCEPTION("Corresponding chunks in original and new stripes have different boundary keys")
+                        << TErrorAttribute("data_slice_tag", *originalSlice->Tag)
+                        << TErrorAttribute("original_chunk_id", originalChunk->ChunkId())
+                        << TErrorAttribute("original_boundary_keys", *originalChunk->BoundaryKeys())
+                        << TErrorAttribute("new_chunk_id", newChunk->ChunkId())
+                        << TErrorAttribute("new_boundary_keys", *newChunk->BoundaryKeys());
+                    break;
+                }
+            }
+            addToMapping(originalSlice, newSlice);
+            tagToDataSlice.erase(it);
+        } else {
+            addToMapping(originalSlice, nullptr);
+        }
+    }
+
+    if (!tagToDataSlice.empty()) {
+        THROW_ERROR_EXCEPTION("New stripe has extra data slices")
+            << TErrorAttribute("extra_data_slice_tag", tagToDataSlice.begin()->first);
     }
 
     // NB: do not update statistics on resume to preserve counters.
@@ -331,6 +357,11 @@ yhash_map<TInputChunkPtr, TInputChunkPtr> TSuspendableStripe::ResumeAndBuildChun
     Stripe_ = stripe;
 
     return mapping;
+}
+
+void TSuspendableStripe::ReplaceOriginalStripe()
+{
+    OriginalStripe_ = Stripe_;
 }
 
 void TSuspendableStripe::Persist(const TPersistenceContext& context)

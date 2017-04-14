@@ -23,6 +23,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/checkpointable_stream_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/checksum_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_schema_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_slice_fetcher_mock.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_slice_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_balancer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_traversing_ut.cpp

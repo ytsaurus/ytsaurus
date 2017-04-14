@@ -139,6 +139,8 @@ public:
 
     void AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const Stroka& user);
 
+    void AbortJob(const TJobId& jobId, const TError& error);
+
     void InterruptJob(const TJobId& jobId, EInterruptReason reason);
 
     void BuildNodesYson(NYson::IYsonConsumer* consumer);

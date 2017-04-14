@@ -292,7 +292,7 @@ print "x={0}\ty={1}".format(x, y)
                      "reducer": {"format": "dsv"},
                      "resource_limits" : { "user_slots" : 1}})
 
-        assert len(read_table("//tmp/t_out")) == 1 
+        assert len(read_table("//tmp/t_out")) == 1
 
     def test_intermediate_live_preview(self):
         create_user("u")
