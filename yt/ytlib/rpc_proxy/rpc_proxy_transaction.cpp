@@ -29,10 +29,14 @@ TRpcProxyTransaction::TRpcProxyTransaction(
     , TransactionId_(transactionId)
     , StartTimestamp_(startTimestamp)
     , Sticky_(sticky)
-{ }
+{
+    Connection_->RegisterTransaction(this);
+}
 
 TRpcProxyTransaction::~TRpcProxyTransaction()
-{ }
+{
+    Connection_->UnregisterTransaction(this);
+}
 
 TRpcProxyConnectionPtr TRpcProxyTransaction::GetRpcProxyConnection()
 {
