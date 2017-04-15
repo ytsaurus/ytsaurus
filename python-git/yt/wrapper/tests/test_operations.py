@@ -860,10 +860,11 @@ print(op.id)
         finally:
             yt.config["pickling"]["create_modules_archive_function"] = None
 
+    @add_failed_operation_stderrs_to_error_message
     def test_pickling(self):
         def foo(rec):
-            import test_module
-            assert test_module.TEST == 1
+            import my_test_module
+            assert my_test_module.TEST == 1
             yield rec
 
         with tempfile.NamedTemporaryFile(mode="w",
@@ -873,7 +874,7 @@ print(op.id)
                                          delete=False) as f:
             f.write("TEST = 1")
 
-        with set_config_option("pickling/additional_files_to_archive", [(f.name, "test_module.py")]):
+        with set_config_option("pickling/additional_files_to_archive", [(f.name, "my_test_module.py")]):
             table = TEST_DIR + "/table"
             yt.write_table(table, [{"x": 1}])
             yt.run_map(foo, table, table)
