@@ -37,8 +37,12 @@ def to_yson_type(value, attributes=None, always_create_attributes=True):
         result = YsonMap(value)
     else:
         result = YsonEntity()
+
     if attributes is not None:
         result.attributes = attributes
+    else:
+        result.attributes = {}
+
     return result
 
 def json_to_yson(json_tree, encode_key=False):
