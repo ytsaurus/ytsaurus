@@ -1949,7 +1949,8 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
     const auto& stripeList = stripeLists[0];
     std::vector<TInputDataSlicePtr> unreadDataSlices = {
         CreateInputDataSlice(stripeList->Stripes[0]->DataSlices.front(), BuildRow({13})),
-        CreateInputDataSlice(stripeList->Stripes[1]->DataSlices.front(), BuildRow({14}))
+        CreateInputDataSlice(stripeList->Stripes[1]->DataSlices.front(), BuildRow({14})),
+        CreateInputDataSlice(stripeList->Stripes[3]->DataSlices.front(), BuildRow({13}))
     };
     TCompletedJobSummary jobSummary;
     jobSummary.InterruptReason = EInterruptReason::Preemption;
@@ -1959,12 +1960,194 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
     ExtractOutputCookiesWhilePossible();
     ASSERT_EQ(ExtractedCookies_.size(), 2);
     auto newStripeList = ChunkPool_->GetStripeList(ExtractedCookies_.back());
+    ASSERT_EQ(newStripeList->Stripes.size(), 3);
     ASSERT_EQ(newStripeList->Stripes[0]->DataSlices.size(), 1);
     ASSERT_EQ(newStripeList->Stripes[0]->DataSlices.front()->LowerLimit().Key, BuildRow({13}));
     ASSERT_EQ(newStripeList->Stripes[1]->DataSlices.size(), 1);
     ASSERT_EQ(newStripeList->Stripes[1]->DataSlices.front()->LowerLimit().Key, BuildRow({14}));
-    ASSERT_TRUE(newStripeList->Stripes[2]->DataSlices.empty());
-    ASSERT_EQ(newStripeList->Stripes[3]->DataSlices.size(), 1);
+    ASSERT_EQ(newStripeList->Stripes[2]->DataSlices.size(), 1);
+}
+
+TEST_F(TSortedChunkPoolTest, TestJobSplitSimple)
+{
+    Options_.EnableKeyGuarantee = false;
+    InitTables(
+        {false} /* isForeign */,
+        {false} /* isTeleportable */,
+        {false} /* isVersioned */
+    );
+    Options_.PrimaryPrefixLength = 1;
+    DataSizePerJob_ = Inf64;
+    InitJobConstraints();
+    PrepareNewMock();
+
+    const int chunkCount = 100;
+    for (int index = 0; index < chunkCount; ++index) {
+        auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
+        CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunk);
+    }
+
+    CreateChunkPool();
+
+    for (const auto& chunk : CreatedUnversionedPrimaryChunks_) {
+        AddChunk(chunk);
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    auto stripeLists = GetAllStripeLists();
+    TCompletedJobSummary jobSummary;
+    jobSummary.InterruptReason = EInterruptReason::JobSplit;
+    jobSummary.UnreadInputDataSlices = std::vector<TInputDataSlicePtr>(
+        stripeLists[0]->Stripes[0]->DataSlices.begin(),
+        stripeLists[0]->Stripes[0]->DataSlices.end());
+    jobSummary.SplitJobCount = 10;
+    ChunkPool_->Completed(*OutputCookies_.begin(), jobSummary);
+
+    OutputCookies_.clear();
+
+    ExtractOutputCookiesWhilePossible();
+    stripeLists = GetAllStripeLists();
+    ASSERT_LE(8, stripeLists.size());
+    ASSERT_LE(stripeLists.size(), 12);
+}
+
+TEST_F(TSortedChunkPoolTest, TestJobSplitWithForeign)
+{
+    Options_.EnableKeyGuarantee = false;
+    InitTables(
+        {false, true} /* isForeign */,
+        {false, false} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    Options_.PrimaryPrefixLength = 1;
+    Options_.ForeignPrefixLength = 1;
+    DataSizePerJob_ = Inf64;
+    InitJobConstraints();
+    PrepareNewMock();
+
+    std::vector<TInputChunkPtr> allChunks;
+    const int chunkCount = 100;
+    for (int index = 0; index < chunkCount; ++index) {
+        auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
+        CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunk);
+        allChunks.emplace_back(std::move(chunk));
+    }
+
+    const int foreignChunkCount = 5;
+
+    for (int index = 0; index < foreignChunkCount; ++index) {
+        auto chunk = CreateChunk(BuildRow({index * 40}), BuildRow({index * 40 + 39}), 1);
+        allChunks.emplace_back(std::move(chunk));
+    }
+
+    CreateChunkPool();
+
+    for (const auto& chunk : allChunks) {
+        AddChunk(std::move(chunk));
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    auto stripeLists = GetAllStripeLists();
+    TCompletedJobSummary jobSummary;
+    jobSummary.InterruptReason = EInterruptReason::JobSplit;
+    std::vector<TInputDataSlicePtr> unreadSlices;
+    unreadSlices.insert(
+        unreadSlices.end(),
+        stripeLists[0]->Stripes[0]->DataSlices.begin(),
+        stripeLists[0]->Stripes[0]->DataSlices.end());
+    unreadSlices.insert(
+        unreadSlices.end(),
+        stripeLists[0]->Stripes[1]->DataSlices.begin(),
+        stripeLists[0]->Stripes[1]->DataSlices.end());
+    jobSummary.SplitJobCount = 10;
+    jobSummary.UnreadInputDataSlices = std::move(unreadSlices);
+    ChunkPool_->Completed(*OutputCookies_.begin(), jobSummary);
+
+    OutputCookies_.clear();
+
+    ExtractOutputCookiesWhilePossible();
+    stripeLists = GetAllStripeLists();
+    ASSERT_LE(8, stripeLists.size());
+    ASSERT_LE(stripeLists.size(), 12);
+
+    for (const auto& stripeList : stripeLists) {
+        ASSERT_EQ(stripeList->Stripes.size(), 2);
+        ASSERT_LE(stripeList->Stripes[1]->DataSlices.size(), 2);
+    }
+}
+
+TEST_F(TSortedChunkPoolTest, TestJobSplitStripeSuspension)
+{
+    Options_.EnableKeyGuarantee = false;
+    InitTables(
+        {false, true} /* isForeign */,
+        {false, false} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    Options_.PrimaryPrefixLength = 1;
+    Options_.ForeignPrefixLength = 1;
+    DataSizePerJob_ = Inf64;
+    InitJobConstraints();
+    PrepareNewMock();
+
+    std::vector<TInputChunkPtr> allChunks;
+    const int chunkCount = 100;
+    for (int index = 0; index < chunkCount; ++index) {
+        auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
+        CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunk);
+        allChunks.emplace_back(std::move(chunk));
+    }
+
+    const int foreignChunkCount = 5;
+
+    for (int index = 0; index < foreignChunkCount; ++index) {
+        auto chunk = CreateChunk(BuildRow({index * 40}), BuildRow({index * 40 + 39}), 1);
+        allChunks.emplace_back(std::move(chunk));
+    }
+
+    CreateChunkPool();
+
+    for (const auto& chunk : allChunks) {
+        AddChunk(std::move(chunk));
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    auto stripeLists = GetAllStripeLists();
+    TCompletedJobSummary jobSummary;
+    jobSummary.InterruptReason = EInterruptReason::JobSplit;
+    std::vector<TInputDataSlicePtr> unreadSlices;
+    unreadSlices.insert(
+        unreadSlices.end(),
+        stripeLists[0]->Stripes[0]->DataSlices.begin(),
+        stripeLists[0]->Stripes[0]->DataSlices.end());
+    unreadSlices.insert(
+        unreadSlices.end(),
+        stripeLists[0]->Stripes[1]->DataSlices.begin(),
+        stripeLists[0]->Stripes[1]->DataSlices.end());
+    jobSummary.SplitJobCount = 10;
+    jobSummary.UnreadInputDataSlices = std::move(unreadSlices);
+    ChunkPool_->Completed(*OutputCookies_.begin(), jobSummary);
+
+    OutputCookies_.clear();
+
+    int pendingJobCount = ChunkPool_->GetPendingJobCount();
+    ASSERT_LE(8, pendingJobCount);
+    ASSERT_LE(pendingJobCount, 12);
+    ChunkPool_->Suspend(0);
+    ASSERT_EQ(ChunkPool_->GetPendingJobCount(), pendingJobCount - 1);
+    for (int cookie = chunkCount; cookie < chunkCount + foreignChunkCount; ++cookie) {
+        ChunkPool_->Suspend(cookie);
+    }
+    ASSERT_EQ(0, ChunkPool_->GetPendingJobCount());
 }
 
 TEST_F(TSortedChunkPoolTest, TestCorrectOrderInsideStripe)
