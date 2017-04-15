@@ -1874,16 +1874,18 @@ protected:
         if (Spec->UseLegacyController) {
             return CreateAtomicChunkPool();
         } else {
-            TSortedChunkPoolOptions options;
-            options.EnableKeyGuarantee = GetSortedMergeJobType() == EJobType::SortedReduce;
-            options.PrimaryPrefixLength = GetSortedMergeKeyColumnCount();
-            options.MaxTotalSliceCount = Config->MaxTotalSliceCount;
-            options.JobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(Spec, Options);
-            options.OperationId = OperationId;
+            TSortedChunkPoolOptions chunkPoolOptions;
+            TSortedJobOptions jobOptions;
+            jobOptions.EnableKeyGuarantee = GetSortedMergeJobType() == EJobType::SortedReduce;
+            jobOptions.PrimaryPrefixLength = GetSortedMergeKeyColumnCount();
+            jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
             // NB: otherwise we could easily be persisted during preparing the jobs. Sorted chunk pool
             // can't handle this.
-            options.EnablePeriodicYielder = false;
-            return CreateSortedChunkPool(options, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
+            jobOptions.EnablePeriodicYielder = false;
+            chunkPoolOptions.OperationId = OperationId;
+            chunkPoolOptions.SortedJobOptions = jobOptions;
+            chunkPoolOptions.JobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(Spec, Options);
+            return CreateSortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
         }
     }
 

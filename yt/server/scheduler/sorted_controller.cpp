@@ -497,15 +497,18 @@ private:
 
     TSortedChunkPoolOptions GetSortedChunkPoolOptions()
     {
-        TSortedChunkPoolOptions options;
-        options.EnableKeyGuarantee = IsKeyGuaranteeEnabled();
-        options.PrimaryPrefixLength = PrimaryKeyColumns_.size();
-        options.ForeignPrefixLength = ForeignKeyColumns_.size();
-        options.MaxTotalSliceCount = Config->MaxTotalSliceCount;
-        options.MinTeleportChunkSize = MinTeleportChunkSize();
-        options.JobSizeConstraints = JobSizeConstraints_;
-        options.OperationId = OperationId;
-        return options;
+        TSortedChunkPoolOptions chunkPoolOptions;
+        TSortedJobOptions jobOptions;
+        jobOptions.EnableKeyGuarantee = IsKeyGuaranteeEnabled();
+        jobOptions.PrimaryPrefixLength = PrimaryKeyColumns_.size();
+        jobOptions.ForeignPrefixLength = ForeignKeyColumns_.size();
+        jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+        jobOptions.EnablePeriodicYielder = true;
+        chunkPoolOptions.SortedJobOptions = jobOptions;
+        chunkPoolOptions.MinTeleportChunkSize = MinTeleportChunkSize();
+        chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
+        chunkPoolOptions.OperationId = OperationId;
+        return chunkPoolOptions;
     }
 };
 
