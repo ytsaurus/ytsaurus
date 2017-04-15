@@ -321,7 +321,6 @@ yhash_map<TInputChunkPtr, TInputChunkPtr> TSuspendableStripe::ResumeAndBuildChun
         YCHECK(tagToDataSlice.insert(std::make_pair(*dataSlice->Tag, dataSlice)).second);
     }
 
-    TError stripeInconsistencyError;
     for (int index = 0; index < OriginalStripe_->DataSlices.size(); ++index) {
         const auto& originalSlice = OriginalStripe_->DataSlices[index];
         auto it = tagToDataSlice.find(*originalSlice->Tag);
