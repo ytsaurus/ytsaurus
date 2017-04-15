@@ -89,32 +89,20 @@ bool TOrderedStoreManager::ExecuteWrites(
     TWireProtocolReader* reader,
     TWriteContext* context)
 {
-    switch (context->Phase) {
-        case EWritePhase::Prelock:
-        case EWritePhase::Lock:
-            // Skip until EOS.
-            reader->SetCurrent(reader->GetEnd());
-            break;
-
-        case EWritePhase::Commit:
-            while (!reader->IsFinished()) {
-                auto command = reader->ReadCommand();
-                switch (command) {
-                    case EWireProtocolCommand::WriteRow: {
-                        auto row = reader->ReadUnversionedRow(false);
-                        WriteRow(row, context);
-                        break;
-                    }
-
-                    default:
-                        THROW_ERROR_EXCEPTION("Unsupported write command %v",
-                            command);
-                }
+    YCHECK(context->Phase == EWritePhase::Commit);
+    while (!reader->IsFinished()) {
+        auto command = reader->ReadCommand();
+        switch (command) {
+            case EWireProtocolCommand::WriteRow: {
+                auto row = reader->ReadUnversionedRow(false);
+                WriteRow(row, context);
+                break;
             }
-            break;
 
-        default:
-            Y_UNREACHABLE();
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported write command %v",
+                    command);
+        }
     }
     return true;
 }
