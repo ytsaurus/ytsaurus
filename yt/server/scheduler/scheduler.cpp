@@ -169,7 +169,7 @@ public:
         }
         
         for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
-            if (IsMarker(reason)) {
+            if (IsSentinelReason(reason)) {
                 continue;
             }
             JobAbortReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("abort_reason", FormatEnum(reason));
@@ -1260,7 +1260,7 @@ private:
                 TTagIdList commonTags = {JobStateToTag_[state], JobTypeToTag_[type]};
                 if (state == EJobState::Aborted) {
                     for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
-                        if (IsMarker(reason)) {
+                        if (IsSentinelReason(reason)) {
                             continue;
                         }
                         auto tags = commonTags;
