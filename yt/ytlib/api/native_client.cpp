@@ -3937,7 +3937,10 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Transaction rows sent successfully");
+            LOG_DEBUG("Transaction rows sent successfully (BatchIndex: %v/%v)",
+                InvokeBatchIndex_,
+                Batches_.size());
+
             owner->Transaction_->ConfirmParticipant(TabletInfo_->CellId);
             ++InvokeBatchIndex_;
             InvokeNextBatch();
@@ -4052,6 +4055,15 @@ private:
             if (!result.IsOK()) {
                 LOG_DEBUG(result, "Error sending transaction actions");
                 THROW_ERROR result;
+            }
+
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return;
+            }
+
+            if (TypeFromId(CellId_) == EObjectType::TabletCell) {
+                owner->Transaction_->ConfirmParticipant(CellId_);
             }
 
             LOG_DEBUG("Transaction actions sent successfully");
