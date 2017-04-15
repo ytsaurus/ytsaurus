@@ -1,7 +1,6 @@
 #pragma once
 
 #include "framework.h"
-#include "helpers.h"
 
 #include <yt/server/tablet_node/config.h>
 #include <yt/server/tablet_node/sorted_dynamic_store.h>
@@ -204,6 +203,12 @@ protected:
     {
         return NTableClient::YsonToSchemafulRow(yson, Tablet_->PhysicalSchema(), treatMissingAsNull);
     }
+
+    TUnversionedOwningRow BuildKey(const Stroka& yson)
+    {
+        return NTableClient::YsonToKey(yson);
+    }
+
 
     bool AreRowsEqual(TUnversionedRow row, const Stroka& yson)
     {
