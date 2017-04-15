@@ -149,7 +149,7 @@ void TProgressCounter::Failed(i64 count)
 
 void TProgressCounter::Aborted(i64 count, EAbortReason reason)
 {
-    YCHECK(!IsMarker(reason));
+    YCHECK(!IsSentinelReason(reason));
     YCHECK(Running_ >= count);
     Running_ -= count;
     Aborted_[reason] += count;

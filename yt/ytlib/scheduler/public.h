@@ -73,13 +73,13 @@ DEFINE_ENUM(EAbortReason,
     (NodeOffline)
     (WaitingTimeout)
     (Unknown)
-    (SchedulingBeginMarker)
+    (SchedulingFirst)
     (SchedulingTimeout)
     (SchedulingResourceOvercommit)
     (SchedulingOperationSuspended)
     (SchedulingJobSpecThrottling)
     (SchedulingOther)
-    (SchedulingEndMarker)
+    (SchedulingLast)
 );
 
 DEFINE_ENUM(EInterruptReason,
