@@ -1,9 +1,11 @@
 #include "sorted_chunk_pool.h"
 
-#include <yt/core/concurrency/periodic_yielder.h>
-
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/ytlib/table_client/row_buffer.h>
+
+#include <yt/core/concurrency/periodic_yielder.h>
+
+#include <yt/core/misc/numeric_helpers.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -37,7 +39,7 @@ DEFINE_ENUM(EEndpointType,
 
 ////////////////////////////////////////////////////////////////////
 
-class TJobBuilder
+class TJobStub
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(TKey, LowerPrimaryKey, MaxKey().Get());
@@ -58,7 +60,7 @@ public:
     friend class TJobManager;
 
 public:
-    TJobBuilder() = default;
+    TJobStub() = default;
 
     void AddDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie, bool isPrimary)
     {
@@ -219,36 +221,49 @@ public:
         JobCounter_.Set(0);
     }
 
-    //! Add a job that is built in a given builder.
-    void AddJob(std::unique_ptr<TJobBuilder> jobBuilder)
+    void AddJobs(std::vector<std::unique_ptr<TJobStub>> jobStubs)
     {
-        YCHECK(jobBuilder);
+        for (auto&& jobStub : jobStubs) {
+            AddJob(std::move(jobStub));
+        }
+    }
+
+    //! Add a job that is built from the given stub.
+    void AddJob(std::unique_ptr<TJobStub> jobStub)
+    {
+        YCHECK(jobStub);
         IChunkPoolOutput::TCookie outputCookie = Jobs_.size();
 
         LOG_DEBUG("Sorted job finished (Index: %v, PrimaryDataSize: %v, PrimaryRowCount: %v, "
             "PrimarySliceCount: %v, ForeignDataSize: %v, ForeignRowCount: %v, "
             "ForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
             outputCookie,
-            jobBuilder->GetPrimaryDataSize(),
-            jobBuilder->GetPrimaryRowCount(),
-            jobBuilder->GetPrimarySliceCount(),
-            jobBuilder->GetForeignDataSize(),
-            jobBuilder->GetForeignRowCount(),
-            jobBuilder->GetForeignSliceCount(),
-            jobBuilder->LowerPrimaryKey(),
-            jobBuilder->UpperPrimaryKey());
+            jobStub->GetPrimaryDataSize(),
+            jobStub->GetPrimaryRowCount(),
+            jobStub->GetPrimarySliceCount(),
+            jobStub->GetForeignDataSize(),
+            jobStub->GetForeignRowCount(),
+            jobStub->GetForeignSliceCount(),
+            jobStub->LowerPrimaryKey(),
+            jobStub->UpperPrimaryKey());
+
+        int initialSuspendedStripeCount = 0;
 
         //! We know which input cookie formed this job, so for each of them we
         //! have to remember newly created job in order to be able to suspend/resume it
         //! when some input cookie changes its state.
-        for (auto inputCookie : jobBuilder->InputCookies_) {
+        for (auto inputCookie : jobStub->InputCookies_) {
             if (InputCookieToAffectedOutputCookies_.size() <= inputCookie) {
                 InputCookieToAffectedOutputCookies_.resize(inputCookie + 1);
             }
             InputCookieToAffectedOutputCookies_[inputCookie].emplace_back(outputCookie);
+            if (SuspendedInputCookies_.has(inputCookie)) {
+                ++initialSuspendedStripeCount;
+            }
         }
 
-        Jobs_.emplace_back(this /* owner */, std::move(jobBuilder), outputCookie);
+        Jobs_.emplace_back(this /* owner */, std::move(jobStub), outputCookie);
+        Jobs_.back().ChangeSuspendedStripeCountBy(initialSuspendedStripeCount);
 
         JobCounter_.Increment(1);
         DataSizeCounter_.Increment(Jobs_.back().GetDataSize());
@@ -312,6 +327,8 @@ public:
             return;
         }
 
+        YCHECK(SuspendedInputCookies_.insert(inputCookie).second);
+
         for (auto outputCookie : InputCookieToAffectedOutputCookies_[inputCookie]) {
             Jobs_[outputCookie].ChangeSuspendedStripeCountBy(+1);
         }
@@ -325,9 +342,17 @@ public:
             return;
         }
 
+        YCHECK(SuspendedInputCookies_.erase(inputCookie) == 1);
+
         for (auto outputCookie : InputCookieToAffectedOutputCookies_[inputCookie]) {
             Jobs_[outputCookie].ChangeSuspendedStripeCountBy(-1);
         }
+    }
+
+    void Invalidate(IChunkPoolInput::TCookie inputCookie)
+    {
+        YCHECK(0 <= inputCookie && inputCookie < Jobs_.size());
+        Jobs_[inputCookie].Invalidate();
     }
 
     void Persist(const TPersistenceContext& context)
@@ -338,6 +363,8 @@ public:
         Persist(context, RowCounter_);
         Persist(context, JobCounter_);
         Persist(context, Jobs_);
+        Persist(context, FirstValidJobIndex_);
+        Persist(context, SuspendedInputCookies_);
     }
 
     TChunkStripeStatisticsVector GetApproximateStripeStatistics() const
@@ -365,7 +392,10 @@ public:
     void InvalidateAllJobs()
     {
         while (FirstValidJobIndex_ < Jobs_.size()) {
-            Jobs_[FirstValidJobIndex_++].Invalidate();
+            if (!Jobs_[FirstValidJobIndex_].IsInvalidated()) {
+                Jobs_[FirstValidJobIndex_].Invalidate();
+            }
+            FirstValidJobIndex_++;
         }
     }
 
@@ -385,6 +415,9 @@ private:
     //! All jobs before this job were invalidated.
     int FirstValidJobIndex_ = 0;
 
+    //! All input cookies that are currently suspended.
+    yhash_set<IChunkPoolInput::TCookie> SuspendedInputCookies_;
+
     //! An internal representation of a finalized job.
     class TJob
     {
@@ -400,7 +433,7 @@ private:
         TJob()
         { }
 
-        TJob(TJobManager* owner, std::unique_ptr<TJobBuilder> jobBuilder, IChunkPoolOutput::TCookie cookie)
+        TJob(TJobManager* owner, std::unique_ptr<TJobStub> jobBuilder, IChunkPoolOutput::TCookie cookie)
             : DataSize_(jobBuilder->GetDataSize())
             , RowCount_(jobBuilder->GetRowCount())
             , StripeList_(std::move(jobBuilder->StripeList_))
@@ -425,8 +458,14 @@ private:
 
         void Invalidate()
         {
+            YCHECK(!Invalidated_);
             Invalidated_ = true;
             UpdateSelf();
+        }
+
+        bool IsInvalidated()
+        {
+            return Invalidated_;
         }
 
         void Persist(const TPersistenceContext& context)
@@ -521,6 +560,467 @@ DECLARE_REFCOUNTED_TYPE(TJobManager);
 
 ////////////////////////////////////////////////////////////////////
 
+//! A class that keeps the correspondence between the tags on output
+//! data slices (these tags are the only way to recognize the returned
+//! unread data slices) and some chunk pool local information that is
+//! assigned to the data slices (such as input stripe cookie).
+class TOutputDataSliceRegistry
+{
+public:
+    int RegisterDataSlice(const TInputDataSlicePtr& dataSlice)
+    {
+        dataSlice->Tag = CurrentTag_;
+        InputCookies_.emplace_back(-1);
+        return CurrentTag_++;
+    }
+
+    IChunkPoolInput::TCookie& InputCookie(int tag)
+    {
+        YCHECK(0 <= tag && tag < CurrentTag_);
+        return InputCookies_[tag];
+    }
+
+    void Clear()
+    {
+        CurrentTag_ = 0;
+        InputCookies_.clear();
+    }
+
+    void Persist(const TPersistenceContext& context)
+    {
+        using NYT::Persist;
+
+        Persist(context, CurrentTag_);
+        Persist(context, InputCookies_);
+    }
+private:
+    int CurrentTag_ = 0;
+    std::vector<IChunkPoolInput::TCookie> InputCookies_;
+};
+
+////////////////////////////////////////////////////////////////////
+
+struct TSortedJobOptions
+{
+    bool EnableKeyGuarantee;
+    int PrimaryPrefixLength;
+    int ForeignPrefixLength;
+
+    //! An upper bound for a total number of slices that is allowed. If this value
+    //! is exceeded, an exception is thrown.
+    i64 MaxTotalSliceCount;
+
+    void Persist(const TPersistenceContext& context)
+    {
+        using NYT::Persist;
+
+        Persist(context, EnableKeyGuarantee);
+        Persist(context, PrimaryPrefixLength);
+        Persist(context, ForeignPrefixLength);
+        Persist(context, MaxTotalSliceCount);
+    }
+};
+
+//! A class that incapsulates the whole logic of building sorted* jobs.
+//! This class defines a transient object (it is never persisted).
+class TSortedJobBuilder
+    : public TRefCounted
+{
+public:
+    TSortedJobBuilder(
+        const TSortedJobOptions& options,
+        IJobSizeConstraintsPtr jobSizeConstraints,
+        const TRowBufferPtr& rowBuffer,
+        TPeriodicYielder yielder,
+        const std::vector<TInputChunkPtr>& teleportChunks,
+        TOutputDataSliceRegistry& registry,
+        const TLogger& logger)
+        : Options_(options)
+        , JobSizeConstraints_(std::move(jobSizeConstraints))
+        , RowBuffer_(rowBuffer)
+        , Yielder_(yielder)
+        , TeleportChunks_(teleportChunks)
+        , Registry_(registry)
+        , Logger(logger)
+    { }
+
+    void AddForeignDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie)
+    {
+        DataSliceToInputCookie_[dataSlice] = cookie;
+
+        if (dataSlice->InputStreamIndex >= ForeignDataSlices_.size()) {
+            ForeignDataSlices_.resize(dataSlice->InputStreamIndex + 1);
+        }
+        ForeignDataSlices_[dataSlice->InputStreamIndex].emplace_back(dataSlice);
+
+        // NB: We do not need to shorten keys here. Endpoints of type "Foreign" only make
+        // us to stop, to add all foreign slices up to the current moment and to check
+        // if we already have to end the job due to the large data size or slice count.
+        TEndpoint leftEndpoint = {
+            EEndpointType::ForeignRight,
+            dataSlice,
+            dataSlice->LowerLimit().Key,
+            dataSlice->LowerLimit().RowIndex.Get(0)
+        };
+        TEndpoint rightEndpoint = {
+            EEndpointType::ForeignRight,
+            dataSlice,
+            dataSlice->UpperLimit().Key,
+            dataSlice->UpperLimit().RowIndex.Get(0)
+        };
+
+        try {
+            ValidateClientKey(leftEndpoint.Key);
+            ValidateClientKey(rightEndpoint.Key);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION(
+                "Error validating sample key in input stream %v",
+                dataSlice->InputStreamIndex)
+                    << ex;
+        }
+
+        Endpoints_.emplace_back(leftEndpoint);
+        Endpoints_.emplace_back(rightEndpoint);
+    }
+
+    void AddPrimaryDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie)
+    {
+        if (dataSlice->LowerLimit().Key >= dataSlice->UpperLimit().Key) {
+            // This can happen if ranges were specified.
+            // Chunk slice fetcher can produce empty slices.
+            return;
+        }
+
+        DataSliceToInputCookie_[dataSlice] = cookie;
+
+        TEndpoint leftEndpoint;
+        TEndpoint rightEndpoint;
+
+        if (Options_.EnableKeyGuarantee) {
+            leftEndpoint = {
+                EEndpointType::Left,
+                dataSlice,
+                GetKeyPrefix(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_),
+                0LL /* RowIndex */
+            };
+
+            rightEndpoint = {
+                EEndpointType::Right,
+                dataSlice,
+                GetKeySuccessor(GetKeyPrefix(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_), RowBuffer_),
+                0LL /* RowIndex */
+            };
+        } else {
+            int leftRowIndex = dataSlice->LowerLimit().RowIndex.Get(0);
+            leftEndpoint = {
+                EEndpointType::Left,
+                dataSlice,
+                GetStrictKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength + 1, RowBuffer_, EValueType::Max),
+                leftRowIndex
+            };
+
+            int rightRowIndex = dataSlice->UpperLimit().RowIndex.Get(
+                    dataSlice->Type == EDataSourceType::UnversionedTable
+                    ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
+                    : 0);
+
+            rightEndpoint = {
+                EEndpointType::Right,
+                dataSlice,
+                GetStrictKeySuccessor(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Max),
+                rightRowIndex
+            };
+        }
+
+        try {
+            ValidateClientKey(leftEndpoint.Key);
+            ValidateClientKey(rightEndpoint.Key);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION(
+                "Error validating sample key in input stream %v",
+                dataSlice->InputStreamIndex)
+                    << ex;
+        }
+
+        Endpoints_.push_back(leftEndpoint);
+        Endpoints_.push_back(rightEndpoint);
+    }
+
+    std::vector<std::unique_ptr<TJobStub>> Build()
+    {
+        SortEndpoints();
+        BuildJobs();
+        AttachForeignSlices();
+        for (auto& job : Jobs_) {
+            job->Finalize();
+        }
+        return std::move(Jobs_);
+    }
+
+private:
+    void SortEndpoints()
+    {
+        LOG_INFO("Sorting %v endpoints", static_cast<int>(Endpoints_.size()));
+        std::sort(
+            Endpoints_.begin(),
+            Endpoints_.end(),
+            [=] (const TEndpoint& lhs, const TEndpoint& rhs) -> bool {
+                {
+                    auto cmpResult = CompareRows(lhs.Key, rhs.Key);
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
+                }
+
+                if (lhs.DataSlice->Type == EDataSourceType::UnversionedTable &&
+                    rhs.DataSlice->Type == EDataSourceType::UnversionedTable)
+                {
+                    // If keys are equal, we put slices in the same order they are in the original input stream.
+                    const auto& lhsChunk = lhs.DataSlice->GetSingleUnversionedChunkOrThrow();
+                    const auto& rhsChunk = rhs.DataSlice->GetSingleUnversionedChunkOrThrow();
+
+                    auto cmpResult = (lhsChunk->GetTableRowIndex() + lhs.RowIndex) - (rhsChunk->GetTableRowIndex() + rhs.RowIndex);
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
+                    }
+                }
+
+                {
+                    auto cmpResult = static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
+                    if (cmpResult != 0) {
+                        return cmpResult > 0;
+                    }
+                }
+
+                return false;
+            });
+    }
+
+    void BuildJobs()
+    {
+        Jobs_.emplace_back(std::make_unique<TJobStub>());
+
+        yhash_map<TInputDataSlicePtr, TKey> openedSlicesLowerLimits;
+        i64 openedSlicesTotalDataSize = 0;
+
+        // An index of a closest teleport chunk to the right of current endpoint.
+        int nextTeleportChunk = 0;
+
+        auto endJob = [&] (const TKey& lastKey) {
+            auto upperKey = GetKeyPrefixSuccessor(lastKey, Options_.PrimaryPrefixLength, RowBuffer_);
+            for (auto iterator = openedSlicesLowerLimits.begin(); iterator != openedSlicesLowerLimits.end(); ) {
+                auto nextIterator = std::next(iterator);
+                const auto& dataSlice = iterator->first;
+                auto& lowerLimit = iterator->second;
+                auto exactDataSlice = CreateInputDataSlice(dataSlice, lowerLimit, upperKey);
+                int tag = Registry_.RegisterDataSlice(exactDataSlice);
+                Registry_.InputCookie(tag) = DataSliceToInputCookie_[dataSlice];
+                Jobs_.back()->AddDataSlice(
+                        exactDataSlice,
+                        DataSliceToInputCookie_[dataSlice],
+                        true /* isPrimary */);
+                lowerLimit = upperKey;
+                if (lowerLimit >= dataSlice->UpperLimit().Key) {
+                    openedSlicesTotalDataSize -= dataSlice->GetDataSize();
+                    openedSlicesLowerLimits.erase(iterator);
+                }
+                iterator = nextIterator;
+            }
+            // If current job does not contain primary data slices then we can re-use it,
+            // otherwise we should create a new job.
+            if (Jobs_.back()->GetSliceCount() > 0) {
+                LOG_DEBUG("Sorted job created (Index: %v, PrimaryDataSize: %v, PrimaryRowCount: %v, "
+                   "PrimarySliceCount_: %v, PreliminaryForeignDataSize: %v, PreliminaryForeignRowCount: %v, "
+                   "PreliminaryForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
+                    static_cast<int>(Jobs_.size()) - 1,
+					Jobs_.back()->GetPrimaryDataSize(),
+					Jobs_.back()->GetPrimaryRowCount(),
+					Jobs_.back()->GetPrimarySliceCount(),
+					Jobs_.back()->GetPreliminaryForeignDataSize(),
+					Jobs_.back()->GetPreliminaryForeignRowCount(),
+					Jobs_.back()->GetPreliminaryForeignSliceCount(),
+					Jobs_.back()->LowerPrimaryKey(),
+					Jobs_.back()->UpperPrimaryKey());
+
+                TotalSliceCount_ += Jobs_.back()->GetSliceCount();
+                CheckTotalSliceCountLimit();
+                Jobs_.emplace_back(std::make_unique<TJobStub>());
+            }
+        };
+
+        for (int index = 0, nextKeyIndex = 0; index < Endpoints_.size(); ++index) {
+            Yielder_.TryYield();
+            auto key = Endpoints_[index].Key;
+            while (nextKeyIndex != Endpoints_.size() && Endpoints_[nextKeyIndex].Key == key) {
+                ++nextKeyIndex;
+            }
+
+            auto nextKey = (nextKeyIndex == Endpoints_.size()) ? TKey() : Endpoints_[nextKeyIndex].Key;
+            bool nextKeyIsLeft = (nextKeyIndex == Endpoints_.size()) ? false : Endpoints_[nextKeyIndex].Type == EEndpointType::Left;
+
+            while (nextTeleportChunk < TeleportChunks_.size() &&
+                   CompareRows(TeleportChunks_[nextTeleportChunk]->BoundaryKeys()->MinKey, key, Options_.PrimaryPrefixLength) < 0)
+            {
+                ++nextTeleportChunk;
+            }
+
+            if (Endpoints_[index].Type == EEndpointType::Left) {
+                openedSlicesLowerLimits[Endpoints_[index].DataSlice] = TKey();
+                openedSlicesTotalDataSize += Endpoints_[index].DataSlice->GetDataSize();
+            } else if (Endpoints_[index].Type == EEndpointType::Right) {
+                const auto& dataSlice = Endpoints_[index].DataSlice;
+                auto it = openedSlicesLowerLimits.find(dataSlice);
+                // It might have happened that we already removed this slice from the
+                // `openedSlicesLowerLimits` during one of the previous `endJob` calls.
+                if (it != openedSlicesLowerLimits.end()) {
+                    auto exactDataSlice = CreateInputDataSlice(dataSlice, it->second);
+                    int tag = Registry_.RegisterDataSlice(exactDataSlice);
+                    Registry_.InputCookie(tag) = DataSliceToInputCookie_[dataSlice];
+                    Jobs_.back()->AddDataSlice(exactDataSlice, DataSliceToInputCookie_[dataSlice], true /* isPrimary */);
+                    openedSlicesLowerLimits.erase(it);
+                    openedSlicesTotalDataSize -= dataSlice->GetDataSize();
+                }
+            } else if (Endpoints_[index].Type == EEndpointType::ForeignRight) {
+                Jobs_.back()->AddPreliminaryForeignDataSlice(Endpoints_[index].DataSlice);
+            }
+
+            // If next teleport chunk is closer than next data slice then we are obligated to close the job here.
+            bool shouldEndHere = nextKeyIndex == index + 1 &&
+                nextKeyIsLeft &&
+                (nextTeleportChunk != TeleportChunks_.size() &&
+                CompareRows(TeleportChunks_[nextTeleportChunk]->BoundaryKeys()->MinKey, nextKey, Options_.PrimaryPrefixLength) <= 0);
+
+            // If key guarantee is enabled, we can not end here if next data slice may contain the same reduce key.
+            bool canEndHere = !Options_.EnableKeyGuarantee || index + 1 == nextKeyIndex;
+
+            // The contrary would mean that teleport chunk was chosen incorrectly, because teleport chunks
+            // should not normally intersect the other data slices.
+            YCHECK(!(shouldEndHere && !canEndHere));
+
+            bool jobIsLargeEnough =
+                Jobs_.back()->GetPreliminarySliceCount() + openedSlicesLowerLimits.size() > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
+                Jobs_.back()->GetPreliminaryDataSize() + openedSlicesTotalDataSize > JobSizeConstraints_->GetDataSizePerJob();
+
+            if (canEndHere && (shouldEndHere || jobIsLargeEnough)) {
+                endJob(key);
+            }
+        }
+        endJob(MaxKey());
+        if (!Jobs_.empty() && Jobs_.back()->GetSliceCount() == 0) {
+            Jobs_.pop_back();
+        }
+        YCHECK(openedSlicesTotalDataSize == 0);
+        LOG_INFO("Created %v jobs", Jobs_.size());
+    }
+
+    void AttachForeignSlices()
+    {
+        for (int streamIndex = 0; streamIndex < ForeignDataSlices_.size(); ++streamIndex) {
+            Yielder_.TryYield();
+
+            int startJobIndex = 0;
+
+            for (const auto& foreignDataSlice : ForeignDataSlices_[streamIndex]) {
+                Yielder_.TryYield();
+
+                while (
+                    startJobIndex != Jobs_.size() &&
+                    CompareRows(Jobs_[startJobIndex]->UpperPrimaryKey(), foreignDataSlice->LowerLimit().Key, Options_.ForeignPrefixLength) < 0)
+                {
+                    ++startJobIndex;
+                }
+                if (startJobIndex == Jobs_.size()) {
+                    break;
+                }
+                for (
+                    int jobIndex = startJobIndex;
+                    jobIndex < Jobs_.size() &&
+                    CompareRows(Jobs_[jobIndex]->LowerPrimaryKey(), foreignDataSlice->UpperLimit().Key, Options_.ForeignPrefixLength) <= 0;
+                    ++jobIndex)
+                {
+                    Yielder_.TryYield();
+
+                    auto exactForeignDataSlice = CreateInputDataSlice(
+                        foreignDataSlice,
+                        GetKeyPrefix(Jobs_[jobIndex]->LowerPrimaryKey(), Options_.ForeignPrefixLength, RowBuffer_),
+                        GetKeyPrefixSuccessor(Jobs_[jobIndex]->UpperPrimaryKey(), Options_.ForeignPrefixLength, RowBuffer_));
+                    int tag = Registry_.RegisterDataSlice(exactForeignDataSlice);
+                    Registry_.InputCookie(tag) = DataSliceToInputCookie_.at(foreignDataSlice);
+                    TotalSliceCount_++;
+                    Jobs_[jobIndex]->AddDataSlice(
+                        exactForeignDataSlice,
+                        DataSliceToInputCookie_.at(foreignDataSlice),
+                        false /* isPrimary */);
+                }
+            }
+            CheckTotalSliceCountLimit();
+        }
+    }
+
+    void CheckTotalSliceCountLimit() const
+    {
+        if (TotalSliceCount_ > Options_.MaxTotalSliceCount) {
+            THROW_ERROR_EXCEPTION("Total number of data slices in sorted pool is too large.")
+                << TErrorAttribute("actual_total_slice_count", TotalSliceCount_)
+                << TErrorAttribute("max_total_slice_count", Options_.MaxTotalSliceCount)
+                << TErrorAttribute("current_job_count", Jobs_.size());
+        }
+    }
+
+    TSortedJobOptions Options_;
+
+    IJobSizeConstraintsPtr JobSizeConstraints_;
+
+    TRowBufferPtr RowBuffer_;
+
+    struct TEndpoint
+    {
+        EEndpointType Type;
+        TInputDataSlicePtr DataSlice;
+        TKey Key;
+        i64 RowIndex;
+
+        void Persist(const TPersistenceContext& context)
+        {
+            using NYT::Persist;
+            Persist(context, Type);
+            Persist(context, DataSlice);
+            Persist(context, Key);
+        }
+    };
+
+    //! Endpoints of primary table slices in SortedReduce and SortedMerge.
+    std::vector<TEndpoint> Endpoints_;
+
+    //! Vector keeping the pool-side state of all jobs that depend on the data from this pool.
+    //! These items are merely stubs of a future jobs that are filled during the BuildJobsBy{Key/TableIndices}()
+    //! call, and when current job is finished it is passed to the `JobManager_` that becomes responsible
+    //! for its future.
+    std::vector<std::unique_ptr<TJobStub>> Jobs_;
+
+    //! Stores correspondence between primary data slices added via `AddPrimaryDataSlice`
+    //! (both unversioned and versioned) and their input cookies.
+    yhash_map<TInputDataSlicePtr, IChunkPoolInput::TCookie> DataSliceToInputCookie_;
+
+    TPeriodicYielder Yielder_;
+
+    std::vector<std::vector<TInputDataSlicePtr>> ForeignDataSlices_;
+
+    //! Stores the number of slices in all jobs up to current moment.
+    i64 TotalSliceCount_ = 0;
+
+    const std::vector<TInputChunkPtr>& TeleportChunks_;
+
+    TOutputDataSliceRegistry& Registry_;
+
+    const TLogger& Logger;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSortedJobBuilder);
+DECLARE_REFCOUNTED_TYPE(TSortedJobBuilder);
+
+////////////////////////////////////////////////////////////////////
+
 class TSortedChunkPool
     : public TChunkPoolInputBase
     // We delegate dealing with progress counters to the TJobManager class,
@@ -544,7 +1044,6 @@ public:
         , PrimaryPrefixLength_(options.PrimaryPrefixLength)
         , ForeignPrefixLength_(options.ForeignPrefixLength)
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
-        , MaxTotalSliceCount_(options.MaxTotalSliceCount)
         , JobSizeConstraints_(options.JobSizeConstraints)
         , SupportLocality_(options.SupportLocality)
         , OperationId_(options.OperationId)
@@ -554,6 +1053,11 @@ public:
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
         Logger.AddTag("OperationId: %v", OperationId_);
         JobManager_->SetLogger(Logger);
+
+        SortedJobOptions_.EnableKeyGuarantee = options.EnableKeyGuarantee;
+        SortedJobOptions_.PrimaryPrefixLength = options.PrimaryPrefixLength;
+        SortedJobOptions_.ForeignPrefixLength = options.ForeignPrefixLength;
+        SortedJobOptions_.MaxTotalSliceCount = options.MaxTotalSliceCount;
     }
 
     // IChunkPoolInput implementation.
@@ -601,6 +1105,7 @@ public:
         if (!Finished) {
             suspendableStripe.Resume(stripe);
         } else {
+            JobManager_->Resume(cookie);
             auto newChunkMappingOrError = suspendableStripe.ResumeAndBuildChunkMapping(stripe);
             if (!newChunkMappingOrError.IsOK()) {
                 suspendableStripe.Resume(stripe);
@@ -616,7 +1121,6 @@ public:
                 for (const auto& pair : newChunkMapping) {
                     InputChunkMapping_[pair.first] = pair.second;
                 }
-                JobManager_->Resume(cookie);
             }
         }
     }
@@ -674,9 +1178,6 @@ public:
             YCHECK(stripe);
             const auto& mappedStripe = (mappedStripeList->Stripes[stripeIndex] = New<TChunkStripe>(stripe->Foreign));
             for (const auto& dataSlice : stripe->DataSlices) {
-                if (dataSlice->Disabled) {
-                    continue;
-                }
                 TInputDataSlice::TChunkSliceList mappedChunkSlices;
                 for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                     auto iterator = mapping.find(chunkSlice->GetInputChunk());
@@ -701,32 +1202,12 @@ public:
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
         if (jobSummary.InterruptReason != EInterruptReason::None) {
-            yhash_set<i64> partiallyReadSliceTags;
-            for (const auto& dataSlice : jobSummary.UnreadInputDataSlices) {
-                auto tag = dataSlice->Tag;
-                YCHECK(tag);
-                YCHECK(0 <= *tag && *tag < DataSlicesByTag_.size());
-                partiallyReadSliceTags.insert(*tag);
-                auto originalDataSlice = DataSlicesByTag_[*tag];
-                originalDataSlice->LowerLimit() = dataSlice->LowerLimit();
-                for (const auto& chunkSlice : originalDataSlice->ChunkSlices) {
-                    chunkSlice->LowerLimit() = dataSlice->LowerLimit();
-                }
-            }
-            // The slices that weren't even mentioned in UnreadInputDataSlices were completely read, so
-            // we should disable them for further extraction.
-            auto stripeList = JobManager_->GetStripeList(cookie);
-            for (const auto& stripe : stripeList->Stripes) {
-                if (stripe->Foreign) {
-                    continue;
-                }
-                for (const auto& dataSlice : stripe->DataSlices) {
-                    YCHECK(dataSlice->Tag);
-                    if (!partiallyReadSliceTags.has(*dataSlice->Tag)) {
-                        dataSlice->Disabled = true;
-                    }
-                }
-            }
+            JobManager_->Invalidate(cookie);
+            LOG_INFO("Splitting job (OutputCookie: %v, InterruptReason: %v, SplitJobCount: %v)",
+                cookie,
+                jobSummary.InterruptReason,
+                jobSummary.SplitJobCount);
+            SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
         }
         JobManager_->Completed(cookie, jobSummary.InterruptReason);
     }
@@ -794,7 +1275,7 @@ public:
         Persist(context, PrimaryPrefixLength_);
         Persist(context, ForeignPrefixLength_);
         Persist(context, MinTeleportChunkSize_);
-        Persist(context, MaxTotalSliceCount_);
+        Persist(context, SortedJobOptions_);
         Persist(context, JobSizeConstraints_);
         Persist(context, ChunkSliceFetcherFactory_);
         Persist(context, TeleportChunks_);
@@ -802,7 +1283,7 @@ public:
         Persist(context, JobManager_);
         Persist(context, OperationId_);
         Persist(context, ChunkPoolId_);
-        Persist(context, DataSlicesByTag_);
+        Persist(context, Registry_);
         Persist(context, ForeignStripeCookiesByStreamIndex_);
         if (context.IsLoad()) {
             Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
@@ -821,37 +1302,11 @@ private:
     //! events.
     TJobManagerPtr JobManager_ = New<TJobManager>();
 
-    //! Vector keeping the pool-side state of all jobs that depend on the data from this pool.
-    //! These items are merely stubs of a future jobs that are filled during the BuildJobsBy{Key/TableIndices}()
-    //! call, and when current job is finished it is passed to the `JobManager_` that becomes responsible
-    //! for its future.
-    std::vector<std::unique_ptr<TJobBuilder>> Jobs_;
-
-    //! Stores correspondence between primary data slices added via `AddPrimaryDataSlice`
-    //! (both unversioned and versioned) and their input cookies.
-    yhash_map<TInputDataSlicePtr, IChunkPoolInput::TCookie> PrimaryDataSliceToInputCookie_;
+    //! All options necessary for sorted job builder.
+    TSortedJobOptions SortedJobOptions_;
 
     //! A factory that is used to spawn chunk slice fetcher.
     IChunkSliceFetcherFactoryPtr ChunkSliceFetcherFactory_;
-
-    struct TEndpoint
-    {
-        EEndpointType Type;
-        TInputDataSlicePtr DataSlice;
-        TKey Key;
-        i64 RowIndex;
-
-        void Persist(const TPersistenceContext& context)
-        {
-            using NYT::Persist;
-            Persist(context, Type);
-            Persist(context, DataSlice);
-            Persist(context, Key);
-        }
-    };
-
-    //! Endpoints of primary table slices in SortedReduce and SortedMerge.
-    std::vector<TEndpoint> Endpoints_;
 
     //! During the pool lifetime some input chunks may be suspended and replaced with
     //! another chunks on resumption. We keep track of all such substitutions in this
@@ -876,24 +1331,14 @@ private:
     //! chunks of at least that size will be teleported.
     i64 MinTeleportChunkSize_;
 
-    //! An upper bound for a total number of slices that is allowed. If this value
-    //! is exceeded, an exception is thrown.
-    i64 MaxTotalSliceCount_;
-
     //! All stripes that were added to this pool.
     std::vector<TSuspendableStripe> Stripes_;
 
     //! Stores input cookies of all foreign stripes grouped by input stream index.
     std::vector<std::vector<int>> ForeignStripeCookiesByStreamIndex_;
 
-    //! Stores the number of slices in all jobs up to current moment.
-    i64 TotalSliceCount_ = 0;
-
     //! Stores all input chunks to be teleported.
     std::vector<TInputChunkPtr> TeleportChunks_;
-
-    //! Stores all data slices inside this pool indexed by their tags.
-    std::vector<TInputDataSlicePtr> DataSlicesByTag_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
@@ -909,6 +1354,8 @@ private:
 
     bool EnablePeriodicYielder_;
 
+    TOutputDataSliceRegistry Registry_;
+
     void InitInputChunkMapping()
     {
         for (const auto& suspendableStripe : Stripes_) {
@@ -923,7 +1370,7 @@ private:
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
     //! (for versioned stripes).
-    void FetchNonTeleportPrimaryDataSlices()
+    void FetchNonTeleportPrimaryDataSlices(const TSortedJobBuilderPtr& builder)
     {
         auto chunkSliceFetcher = ChunkSliceFetcherFactory_ ? ChunkSliceFetcherFactory_->CreateChunkSliceFetcher() : nullptr;
 
@@ -933,6 +1380,8 @@ private:
 
         yhash_map<TInputChunkPtr, IChunkPoolInput::TCookie> unversionedInputChunkToInputCookie;
         yhash_map<TInputChunkPtr, int> unversionedInputChunkToInputStreamIndex;
+
+        std::vector<std::pair<TInputDataSlicePtr, IChunkPoolInput::TCookie>> nonTeleportPrimaryDataSlices;
 
         for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
             const auto& suspendableStripe = Stripes_[inputCookie];
@@ -957,7 +1406,7 @@ private:
                 unversionedInputChunkToInputCookie[inputChunk] = inputCookie;
                 unversionedInputChunkToInputStreamIndex[inputChunk] = stripe->GetInputStreamIndex();
             } else {
-                AddPrimaryDataSlice(stripe->DataSlices.front(), inputCookie);
+                builder->AddPrimaryDataSlice(stripe->DataSlices.front(), inputCookie);
             }
         }
 
@@ -983,12 +1432,12 @@ private:
                 for (const auto& smallerSlice : smallerSlices) {
                     auto dataSlice = CreateUnversionedInputDataSlice(smallerSlice);
                     dataSlice->InputStreamIndex = inputStreamIndex;
-                    AddPrimaryDataSlice(dataSlice, inputCookie);
+                    builder->AddPrimaryDataSlice(dataSlice, inputCookie);
                 }
             } else {
                 auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
                 dataSlice->InputStreamIndex = inputStreamIndex;
-                AddPrimaryDataSlice(dataSlice, inputCookie);
+                builder->AddPrimaryDataSlice(dataSlice, inputCookie);
             }
         }
         unversionedInputChunkToInputCookie.clear();
@@ -1030,7 +1479,7 @@ private:
         // is a hard work :(
         //
         // To overcome this difficulty, we additionally subtract the number of single-key slices that define the same key as our chunk.
-        TPeriodicYielder yielder = GetPeriodicYielder();
+        auto yielder = GetPeriodicYielder();
 
         std::vector<TKey> lowerLimits, upperLimits;
         yhash_map<TKey, int> singleKeySliceNumber;
@@ -1132,238 +1581,11 @@ private:
         LOG_INFO("Teleported %v chunks of total size %v", TeleportChunks_.size(), totalTeleportChunkSize);
     }
 
-    void AddPrimaryDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie)
+    void PrepareForeignDataSlices(const TSortedJobBuilderPtr& builder)
     {
-        if (dataSlice->LowerLimit().Key >= dataSlice->UpperLimit().Key) {
-            // This can happen if ranges were specified.
-            // Chunk slice fetcher can produce empty slices.
-            return;
-        }
+        auto yielder = GetPeriodicYielder();
 
-        PrimaryDataSliceToInputCookie_[dataSlice] = cookie;
-
-        TEndpoint leftEndpoint;
-        TEndpoint rightEndpoint;
-
-        if (EnableKeyGuarantee_) {
-            leftEndpoint = {
-                EEndpointType::Left,
-                dataSlice,
-                GetKeyPrefix(dataSlice->LowerLimit().Key, PrimaryPrefixLength_, RowBuffer_),
-                0LL /* RowIndex */
-            };
-
-            rightEndpoint = {
-                EEndpointType::Right,
-                dataSlice,
-                GetKeySuccessor(GetKeyPrefix(dataSlice->UpperLimit().Key, PrimaryPrefixLength_, RowBuffer_), RowBuffer_),
-                0LL /* RowIndex */
-            };
-        } else {
-            int leftRowIndex = dataSlice->LowerLimit().RowIndex.Get(0);
-            leftEndpoint = {
-                EEndpointType::Left,
-                dataSlice,
-                GetStrictKey(dataSlice->LowerLimit().Key, PrimaryPrefixLength_ + 1, RowBuffer_, EValueType::Max),
-                leftRowIndex
-            };
-
-            int rightRowIndex = dataSlice->UpperLimit().RowIndex.Get(
-                    dataSlice->Type == EDataSourceType::UnversionedTable
-                    ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
-                    : 0);
-
-            rightEndpoint = {
-                EEndpointType::Right,
-                dataSlice,
-                GetStrictKeySuccessor(dataSlice->UpperLimit().Key, PrimaryPrefixLength_, RowBuffer_, EValueType::Max),
-                rightRowIndex
-            };
-        }
-
-
-        try {
-            ValidateClientKey(leftEndpoint.Key);
-            ValidateClientKey(rightEndpoint.Key);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION(
-                "Error validating sample key in input stream %v",
-                dataSlice->InputStreamIndex)
-                << ex;
-        }
-
-        Endpoints_.push_back(leftEndpoint);
-        Endpoints_.push_back(rightEndpoint);
-    }
-
-    void SortEndpoints()
-    {
-        LOG_INFO("Sorting %v endpoints", static_cast<int>(Endpoints_.size()));
-        std::sort(
-            Endpoints_.begin(),
-            Endpoints_.end(),
-            [=] (const TEndpoint& lhs, const TEndpoint& rhs) -> bool {
-                {
-                    auto cmpResult = CompareRows(lhs.Key, rhs.Key);
-                    if (cmpResult != 0) {
-                        return cmpResult < 0;
-                    }
-                }
-
-                if (lhs.DataSlice->Type == EDataSourceType::UnversionedTable &&
-                    rhs.DataSlice->Type == EDataSourceType::UnversionedTable)
-                {
-                    // If keys are equal, we put slices in the same order they are in the original input stream.
-                    const auto& lhsChunk = lhs.DataSlice->GetSingleUnversionedChunkOrThrow();
-                    const auto& rhsChunk = rhs.DataSlice->GetSingleUnversionedChunkOrThrow();
-
-                    auto cmpResult = (lhsChunk->GetTableRowIndex() + lhs.RowIndex) - (rhsChunk->GetTableRowIndex() + rhs.RowIndex);
-                    if (cmpResult != 0) {
-                        return cmpResult < 0;
-                    }
-                }
-
-                {
-                    auto cmpResult = static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
-                    if (cmpResult != 0) {
-                        return cmpResult > 0;
-                    }
-                }
-
-                return false;
-            });
-    }
-
-    void CheckTotalSliceCountLimit() const
-    {
-        if (TotalSliceCount_ > MaxTotalSliceCount_) {
-            THROW_ERROR_EXCEPTION("Total number of data slices in sorted pool is too large.")
-                    << TErrorAttribute("actual_total_slice_count", TotalSliceCount_)
-                    << TErrorAttribute("max_total_slice_count", MaxTotalSliceCount_)
-                    << TErrorAttribute("current_job_count", Jobs_.size());
-        }
-    }
-
-    void BuildJobs()
-    {
-        TPeriodicYielder yielder = GetPeriodicYielder();
-
-        Jobs_.emplace_back(std::make_unique<TJobBuilder>());
-
-        yhash_map<TInputDataSlicePtr, TKey> openedSlicesLowerLimits;
-        i64 openedSlicesTotalDataSize = 0;
-
-        // An index of a closest teleport chunk to the right of current endpoint.
-        int nextTeleportChunk = 0;
-
-        auto endJob = [&] (const TKey& lastKey) {
-            auto upperKey = GetKeyPrefixSuccessor(lastKey, PrimaryPrefixLength_, RowBuffer_);
-            for (auto iterator = openedSlicesLowerLimits.begin(); iterator != openedSlicesLowerLimits.end(); ) {
-                auto nextIterator = std::next(iterator);
-                const auto& dataSlice = iterator->first;
-                auto& lowerLimit = iterator->second;
-                auto exactDataSlice = CreateInputDataSlice(dataSlice, lowerLimit, upperKey);
-                TagPrimaryDataSlice(exactDataSlice);
-                Jobs_.back()->AddDataSlice(
-                    exactDataSlice,
-                    PrimaryDataSliceToInputCookie_[dataSlice],
-                    true /* isPrimary */);
-                lowerLimit = upperKey;
-                if (lowerLimit >= dataSlice->UpperLimit().Key) {
-                    openedSlicesTotalDataSize -= dataSlice->GetDataSize();
-                    openedSlicesLowerLimits.erase(iterator);
-                }
-                iterator = nextIterator;
-            }
-            // If current job does not contain primary data slices then we can re-use it,
-            // otherwise we should create a new job.
-            if (Jobs_.back()->GetSliceCount() > 0) {
-                LOG_DEBUG("Sorted job created (Index: %v, PrimaryDataSize: %v, PrimaryRowCount: %v, "
-                    "PrimarySliceCount_: %v, PreliminaryForeignDataSize: %v, PreliminaryForeignRowCount: %v, "
-                    "PreliminaryForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
-                    static_cast<int>(Jobs_.size()) - 1,
-                    Jobs_.back()->GetPrimaryDataSize(),
-                    Jobs_.back()->GetPrimaryRowCount(),
-                    Jobs_.back()->GetPrimarySliceCount(),
-                    Jobs_.back()->GetPreliminaryForeignDataSize(),
-                    Jobs_.back()->GetPreliminaryForeignRowCount(),
-                    Jobs_.back()->GetPreliminaryForeignSliceCount(),
-                    Jobs_.back()->LowerPrimaryKey(),
-                    Jobs_.back()->UpperPrimaryKey());
-
-                TotalSliceCount_ += Jobs_.back()->GetSliceCount();
-                CheckTotalSliceCountLimit();
-                Jobs_.emplace_back(std::make_unique<TJobBuilder>());
-            }
-        };
-
-        for (int index = 0, nextKeyIndex = 0; index < Endpoints_.size(); ++index) {
-            yielder.TryYield();
-            auto key = Endpoints_[index].Key;
-            while (nextKeyIndex != Endpoints_.size() && Endpoints_[nextKeyIndex].Key == key) {
-                ++nextKeyIndex;
-            }
-
-            auto nextKey = (nextKeyIndex == Endpoints_.size()) ? TKey() : Endpoints_[nextKeyIndex].Key;
-            bool nextKeyIsLeft = (nextKeyIndex == Endpoints_.size()) ? false : Endpoints_[nextKeyIndex].Type == EEndpointType::Left;
-
-            while (nextTeleportChunk < TeleportChunks_.size() &&
-                CompareRows(TeleportChunks_[nextTeleportChunk]->BoundaryKeys()->MinKey, key, PrimaryPrefixLength_) < 0)
-            {
-                ++nextTeleportChunk;
-            }
-
-            if (Endpoints_[index].Type == EEndpointType::Left) {
-                openedSlicesLowerLimits[Endpoints_[index].DataSlice] = TKey();
-                openedSlicesTotalDataSize += Endpoints_[index].DataSlice->GetDataSize();
-            } else if (Endpoints_[index].Type == EEndpointType::Right) {
-                const auto& dataSlice = Endpoints_[index].DataSlice;
-                auto it = openedSlicesLowerLimits.find(dataSlice);
-                // It might have happened that we already removed this slice from the
-                // `openedSlicesLowerLimits` during one of the previous `endJob` calls.
-                if (it != openedSlicesLowerLimits.end()) {
-                    auto exactDataSlice = CreateInputDataSlice(dataSlice, it->second);
-                    TagPrimaryDataSlice(exactDataSlice);
-                    Jobs_.back()->AddDataSlice(exactDataSlice, PrimaryDataSliceToInputCookie_[dataSlice], true /* isPrimary */);
-                    openedSlicesLowerLimits.erase(it);
-                    openedSlicesTotalDataSize -= dataSlice->GetDataSize();
-                }
-            } else if (Endpoints_[index].Type == EEndpointType::ForeignRight) {
-                Jobs_.back()->AddPreliminaryForeignDataSlice(Endpoints_[index].DataSlice);
-            }
-
-            // If next teleport chunk is closer than next data slice then we are obligated to close the job here.
-            bool shouldEndHere = nextKeyIndex == index + 1 &&
-                nextKeyIsLeft &&
-                (nextTeleportChunk != TeleportChunks_.size() &&
-                CompareRows(TeleportChunks_[nextTeleportChunk]->BoundaryKeys()->MinKey, nextKey, PrimaryPrefixLength_) <= 0);
-
-            // If key guarantee is enabled, we can not end here if next data slice may contain the same reduce key.
-            bool canEndHere = !EnableKeyGuarantee_ || index + 1 == nextKeyIndex;
-
-            // The contrary would mean that teleport chunk was chosen incorrectly, because teleport chunks
-            // should not normally intersect the other data slices.
-            YCHECK(!(shouldEndHere && !canEndHere));
-
-            bool jobIsLargeEnough =
-                Jobs_.back()->GetPreliminarySliceCount() + openedSlicesLowerLimits.size() > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
-                Jobs_.back()->GetPreliminaryDataSize() + openedSlicesTotalDataSize > JobSizeConstraints_->GetDataSizePerJob();
-
-            if (canEndHere && (shouldEndHere || jobIsLargeEnough)) {
-                endJob(key);
-            }
-        }
-        endJob(MaxKey());
-        if (!Jobs_.empty() && Jobs_.back()->GetSliceCount() == 0) {
-            Jobs_.pop_back();
-        }
-        YCHECK(openedSlicesTotalDataSize == 0);
-        LOG_INFO("Created %v jobs", Jobs_.size());
-    }
-
-    void PrepareForeignSources()
-    {
-        TPeriodicYielder yielder = GetPeriodicYielder();
+        std::vector<std::pair<TInputDataSlicePtr, IChunkPoolInput::TCookie>> foreignDataSlices;
 
         for (int streamIndex = 0; streamIndex < ForeignStripeCookiesByStreamIndex_.size(); ++streamIndex) {
             if (!InputStreamDirectory_.GetDescriptor(streamIndex).IsForeign()) {
@@ -1396,83 +1618,14 @@ private:
             }
             for (const auto& inputCookie : stripeCookies) {
                 for (const auto& dataSlice : Stripes_[inputCookie].GetStripe()->DataSlices) {
-                    // NB: We do not need to shorten keys here. Endpoints of type "Foreign" only make
-                    // us to stop, to add all foreign slices up to the current moment and to check
-                    // if we already have to end the job due to the large data size or slice count.
-                    TEndpoint leftEndpoint = {
-                        EEndpointType::ForeignRight,
-                        dataSlice,
-                        dataSlice->LowerLimit().Key,
-                        dataSlice->LowerLimit().RowIndex.Get(0)
-                    };
-                    TEndpoint rightEndpoint = {
-                        EEndpointType::ForeignRight,
-                        dataSlice,
-                        dataSlice->UpperLimit().Key,
-                        dataSlice->UpperLimit().RowIndex.Get(0)
-                    };
-                    Endpoints_.emplace_back(leftEndpoint);
-                    Endpoints_.emplace_back(rightEndpoint);
+                    builder->AddForeignDataSlice(dataSlice, inputCookie);
                 }
             }
         }
     }
 
-    void AttachForeignSlices()
+    void SetupSuspendedStripes()
     {
-        TPeriodicYielder yielder = GetPeriodicYielder();
-
-        for (int streamIndex = 0; streamIndex < ForeignStripeCookiesByStreamIndex_.size(); ++streamIndex) {
-            if (!InputStreamDirectory_.GetDescriptor(streamIndex).IsForeign()) {
-                continue;
-            }
-
-            yielder.TryYield();
-
-            int startJobIndex = 0;
-
-            for (int inputCookie : ForeignStripeCookiesByStreamIndex_[streamIndex]) {
-                const auto& stripe = Stripes_[inputCookie].GetStripe();
-                for (const auto& foreignDataSlice : stripe->DataSlices) {
-                    yielder.TryYield();
-
-                    while (
-                        startJobIndex != Jobs_.size() &&
-                        CompareRows(Jobs_[startJobIndex]->UpperPrimaryKey(), foreignDataSlice->LowerLimit().Key, ForeignPrefixLength_) < 0)
-                    {
-                        ++startJobIndex;
-                    }
-                    if (startJobIndex == Jobs_.size()) {
-                        break;
-                    }
-                    for (
-                        int jobIndex = startJobIndex;
-                        jobIndex < Jobs_.size() &&
-                        CompareRows(Jobs_[jobIndex]->LowerPrimaryKey(), foreignDataSlice->UpperLimit().Key, ForeignPrefixLength_) <= 0;
-                        ++jobIndex)
-                    {
-                        yielder.TryYield();
-
-                        auto exactForeignDataSlice = CreateInputDataSlice(
-                            foreignDataSlice,
-                            GetKeyPrefix(Jobs_[jobIndex]->LowerPrimaryKey(), ForeignPrefixLength_, RowBuffer_),
-                            GetKeyPrefixSuccessor(Jobs_[jobIndex]->UpperPrimaryKey(), ForeignPrefixLength_, RowBuffer_));
-                        TotalSliceCount_++;
-                        Jobs_[jobIndex]->AddDataSlice(exactForeignDataSlice, inputCookie, false /* isPrimary */);
-                    }
-                }
-                CheckTotalSliceCountLimit();
-            }
-        }
-    }
-
-    void FinalizeJobs()
-    {
-        for (auto& job : Jobs_) {
-            job->Finalize();
-            JobManager_->AddJob(std::move(job));
-        }
-
         for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
             const auto& stripe = Stripes_[inputCookie];
             if (stripe.IsSuspended() && !stripe.GetTeleport()) {
@@ -1484,12 +1637,6 @@ private:
     bool CanScheduleJob() const
     {
         return Finished && JobManager_->GetPendingJobCount() != 0;
-    }
-
-    void TagPrimaryDataSlice(const TInputDataSlicePtr& dataSlice)
-    {
-        dataSlice->Tag = DataSlicesByTag_.size();
-        DataSlicesByTag_.emplace_back(dataSlice);
     }
 
     TPeriodicYielder GetPeriodicYielder()
@@ -1506,36 +1653,76 @@ private:
         // NB(max42): this method may be run several times (in particular, when
         // the resumed input is not consistent with the original input).
 
+        SetupSuspendedStripes();
         InitInputChunkMapping();
         FindTeleportChunks();
-        FetchNonTeleportPrimaryDataSlices();
-        PrepareForeignSources();
-        SortEndpoints();
-        BuildJobs();
-        AttachForeignSlices();
-        FinalizeJobs();
 
-        FreeMemory();
+        auto builder = New<TSortedJobBuilder>(
+            SortedJobOptions_,
+            JobSizeConstraints_,
+            RowBuffer_,
+            GetPeriodicYielder(),
+            TeleportChunks_,
+            Registry_,
+            Logger);
+
+        FetchNonTeleportPrimaryDataSlices(builder);
+        PrepareForeignDataSlices(builder);
+        auto jobStubs = builder->Build();
+        JobManager_->AddJobs(std::move(jobStubs));
+    }
+
+    void SplitJob(std::vector<TInputDataSlicePtr> unreadInputDataSlices, int splitJobCount)
+    {
+        i64 totalDataSize = 0;
+        for (const auto& dataSlice : unreadInputDataSlices) {
+            totalDataSize += dataSlice->GetDataSize();
+        }
+        i64 dataSizePerJob = DivCeil(totalDataSize, static_cast<i64>(splitJobCount));
+        // We create new job size constraints by incorporating the new desired data size per job
+        // into the old job size constraints.
+        auto jobSizeConstraints = CreateExplicitJobSizeConstraints(
+            false /* canAdjustDataSizePerJob */,
+            false /* isExplicitJobCount */,
+            splitJobCount /* jobCount */,
+            dataSizePerJob,
+            JobSizeConstraints_->GetMaxDataSlicesPerJob(),
+            JobSizeConstraints_->GetMaxDataSizePerJob(),
+            JobSizeConstraints_->GetInputSliceDataSize(),
+            JobSizeConstraints_->GetInputSliceRowCount());
+        // Teleport chunks do not affect the job split process since each original
+        // job is already located between the teleport chunks.
+        std::vector<TInputChunkPtr> teleportChunks;
+        auto builder = New<TSortedJobBuilder>(
+            SortedJobOptions_,
+            std::move(jobSizeConstraints),
+            RowBuffer_,
+            GetPeriodicYielder(),
+            teleportChunks,
+            Registry_,
+            Logger);
+        for (const auto& dataSlice : unreadInputDataSlices) {
+            int inputCookie = Registry_.InputCookie(*dataSlice->Tag);
+            if (InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary()) {
+                builder->AddPrimaryDataSlice(dataSlice, inputCookie);
+            } else {
+                builder->AddForeignDataSlice(dataSlice, inputCookie);
+            }
+        }
+        auto jobs = builder->Build();
+        JobManager_->AddJobs(std::move(jobs));
     }
 
     void InvalidateCurrentJobs()
     {
-        DataSlicesByTag_.clear();
+        Registry_.Clear();
         TeleportChunks_.clear();
-        TotalSliceCount_ = 0;
         InputChunkMapping_.clear();
         for (auto& stripe : Stripes_) {
             stripe.ReplaceOriginalStripe();
             stripe.SetTeleport(false);
         }
         JobManager_->InvalidateAllJobs();
-    }
-
-    void FreeMemory()
-    {
-        PrimaryDataSliceToInputCookie_.clear();
-        Endpoints_.clear();
-        Jobs_.clear();
     }
 };
 
