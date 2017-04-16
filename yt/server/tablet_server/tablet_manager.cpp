@@ -295,7 +295,11 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        hiveManager->RemoveMailbox(cell->GetId());
+        const auto& cellId = cell->GetId();
+        auto* mailbox = hiveManager->FindMailbox(cellId);
+        if (mailbox) {
+            hiveManager->RemoveMailbox(mailbox);
+        }
 
         for (const auto& peer : cell->Peers()) {
             if (peer.Node) {
@@ -323,7 +327,7 @@ public:
         AbortPrerequisiteTransaction(cell);
         AbortCellSubtreeTransactions(cell);
 
-        auto cellNodeProxy = FindCellNode(cell->GetId());
+        auto cellNodeProxy = FindCellNode(cellId);
         if (cellNodeProxy) {
             try {
                 // NB: Subtree transactions were already aborted in AbortPrerequisiteTransaction.
