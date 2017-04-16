@@ -728,9 +728,6 @@ class TestCypress(YTEnvSetup):
     def test_create_recursive_success(self):
         create("map_node", "//tmp/a/b", recursive=True)
 
-    def test_create_ignore_existing_fail(self):
-        with pytest.raises(YtError): create("map_node", "//tmp/a/b")
-
     def test_create_ignore_existing_success(self):
         create("map_node", "//tmp/a/b", recursive=True)
         create("map_node", "//tmp/a/b", ignore_existing=True)

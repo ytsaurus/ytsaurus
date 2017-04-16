@@ -192,7 +192,7 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
     }
 }
 
-void TObjectProxyBase::WriteAttributesFragment(
+void TObjectProxyBase::DoWriteAttributesFragment(
     IAsyncYsonConsumer* consumer,
     const TNullable<std::vector<Stroka>>& attributeKeys,
     bool stable)

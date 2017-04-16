@@ -263,7 +263,12 @@ private:
             return;
         }
 
-        if (tablet->GetConfig()->DisableCompactionAndPartitioning) {
+        const auto& config = tablet->GetConfig();
+        if (config->DisableCompactionAndPartitioning) {
+            return;
+        }
+
+        if (config->InMemoryMode != EInMemoryMode::None && Bootstrap_->GetTabletSlotManager()->IsOutOfMemory()) {
             return;
         }
 
@@ -370,7 +375,7 @@ private:
             candidates.push_back(candidate);
 
             if (IsCompactionForced(candidate) ||
-                IsPeriodicCompactionNeeded(eden) ||
+                IsPeriodicCompactionNeeded(candidate) ||
                 IsStoreOutOfTabletRange(candidate, tablet))
             {
                 finalists.push_back(candidate->GetId());
@@ -453,7 +458,7 @@ private:
             candidates.push_back(candidate);
 
             if (IsCompactionForced(candidate) ||
-                IsPeriodicCompactionNeeded(partition) ||
+                IsPeriodicCompactionNeeded(candidate) ||
                 IsStoreOutOfTabletRange(candidate, tablet))
             {
                 finalists.push_back(candidate->GetId());
@@ -1117,14 +1122,14 @@ private:
         return true;
     }
 
-    static bool IsPeriodicCompactionNeeded(TPartition* partition)
+    static bool IsPeriodicCompactionNeeded(const TSortedChunkStorePtr& store)
     {
-        const auto& config = partition->GetTablet()->GetConfig();
+        const auto& config = store->GetTablet()->GetConfig();
         if (!config->AutoCompactionPeriod) {
             return false;
         }
 
-        if (TInstant::Now() < partition->GetCompactionTime() + *config->AutoCompactionPeriod) {
+        if (TInstant::Now() < store->GetCreationTime() + *config->AutoCompactionPeriod) {
             return false;
         }
 

@@ -277,7 +277,7 @@ public:
             .Default(20.0);
 
         RegisterParameter("min_total_data_size", MinTotalDataSize)
-            .Default((i64)50 * 1024 * 1024 * 1024);
+            .Default((i64)1024 * 1024 * 1024);
 
         RegisterParameter("update_period", UpdatePeriod)
             .Default(TDuration::Seconds(60));

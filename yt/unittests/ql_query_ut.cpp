@@ -2303,6 +2303,53 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit3)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestJoinLimit4)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64, ESortOrder::Ascending},
+        {"ut", EValueType::Int64, ESortOrder::Ascending},
+        {"b", EValueType::Int64, ESortOrder::Ascending},
+        {"v", EValueType::Int64}
+    }, 0);
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "a=1;ut=123456;b=10"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"b", EValueType::Int64, ESortOrder::Ascending},
+        {"c", EValueType::Int64}
+    }, 1);
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        "b=10;c=100"
+    });
+
+    auto resultSplit = MakeSplit({
+        {"a.ut", EValueType::Int64},
+        {"b.c", EValueType::Int64},
+        {"a.b", EValueType::Int64},
+        {"b.b", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "\"a.ut\"=123456;\"b.c\"=100;\"a.b\"=10;\"b.b\"=10"
+    }, resultSplit);
+
+    Evaluate(
+        "a.ut, b.c, a.b, b.b FROM [//left] a join [//right] b on a.b=b.b limit 1",
+        splits,
+        sources,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
 {
     std::map<Stroka, TDataSplit> splits;

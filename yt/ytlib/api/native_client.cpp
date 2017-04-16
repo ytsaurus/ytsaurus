@@ -992,7 +992,7 @@ private:
     }
 
     void SetTransactionId(
-        IClientRequestPtr request,
+        const IClientRequestPtr& request,
         const TTransactionalOptions& options,
         bool allowNullTransaction)
     {
@@ -1001,7 +1001,7 @@ private:
 
 
     void SetPrerequisites(
-        IClientRequestPtr request,
+        const IClientRequestPtr& request,
         const TPrerequisiteOptions& options)
     {
         if (options.PrerequisiteTransactionIds.empty() && options.PrerequisiteRevisions.empty()) {
@@ -1023,7 +1023,7 @@ private:
 
 
     static void SetSuppressAccessTracking(
-        IClientRequestPtr request,
+        const IClientRequestPtr& request,
         const TSuppressableAccessTrackingOptions& commandOptions)
     {
         if (commandOptions.SuppressAccessTracking) {
@@ -1035,13 +1035,24 @@ private:
     }
 
     static void SetCachingHeader(
-        IClientRequestPtr request,
+        const IClientRequestPtr& request,
         const TMasterReadOptions& options)
     {
         if (options.ReadFrom == EMasterChannelKind::Cache) {
             auto* cachingHeaderExt = request->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
             cachingHeaderExt->set_success_expiration_time(ToProto(options.ExpireAfterSuccessfulUpdateTime));
             cachingHeaderExt->set_failure_expiration_time(ToProto(options.ExpireAfterFailedUpdateTime));
+        }
+    }
+
+    static void SetBalancingHeader(
+        const IClientRequestPtr& request,
+        const TMasterReadOptions& options)
+    {
+        if (options.ReadFrom == EMasterChannelKind::Cache) {
+            auto* balancingHeaderExt = request->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+            balancingHeaderExt->set_enable_stickness(true);
+            balancingHeaderExt->set_sticky_group_size(options.CacheStickyGroupSize);
         }
     }
 
@@ -1757,11 +1768,14 @@ private:
         const TYPath& path,
         const TGetNodeOptions& options)
     {
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto batchReq = proxy->ExecuteBatch();
+        SetBalancingHeader(batchReq, options);
+
         auto req = TYPathProxy::Get(path);
         SetTransactionId(req, options, true);
         SetSuppressAccessTracking(req, options);
         SetCachingHeader(req, options);
-
         if (options.Attributes) {
             ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
         }
@@ -1771,9 +1785,11 @@ private:
         if (options.Options) {
             ToProto(req->mutable_options(), *options.Options);
         }
+        batchReq->AddRequest(req);
 
-        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
-        auto rsp = WaitFor(proxy->Execute(req))
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0)
             .ValueOrThrow();
 
         return TYsonString(rsp->value());
@@ -1833,21 +1849,27 @@ private:
         const TYPath& path,
         const TListNodeOptions& options)
     {
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto batchReq = proxy->ExecuteBatch();
+        SetBalancingHeader(batchReq, options);
+
         auto req = TYPathProxy::List(path);
         SetTransactionId(req, options, true);
         SetSuppressAccessTracking(req, options);
         SetCachingHeader(req, options);
-
         if (options.Attributes) {
             ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
         }
         if (options.MaxSize) {
             req->set_limit(*options.MaxSize);
         }
+        batchReq->AddRequest(req);
 
-        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
-        auto rsp = WaitFor(proxy->Execute(req))
+        auto batchRsp = WaitFor(batchReq->Invoke())
             .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspList>(0)
+            .ValueOrThrow();
+
         return TYsonString(rsp->value());
     }
 
@@ -2233,13 +2255,20 @@ private:
         const TYPath& path,
         const TNodeExistsOptions& options)
     {
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto batchReq = proxy->ExecuteBatch();
+        SetBalancingHeader(batchReq, options);
+
         auto req = TYPathProxy::Exists(path);
         SetTransactionId(req, options, true);
         SetCachingHeader(req, options);
+        batchReq->AddRequest(req);
 
-        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
-        auto rsp = WaitFor(proxy->Execute(req))
+        auto batchRsp = WaitFor(batchReq->Invoke())
             .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspExists>(0)
+            .ValueOrThrow();
+
         return rsp->value();
     }
 
@@ -2264,6 +2293,7 @@ private:
             .ValueOrThrow();
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>(0)
             .ValueOrThrow();
+
         return FromProto<TObjectId>(rsp->object_id());
     }
 
@@ -2302,14 +2332,20 @@ private:
         EPermission permission,
         const TCheckPermissionOptions& options)
     {
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto batchReq = proxy->ExecuteBatch();
+        SetBalancingHeader(batchReq, options);
+
         auto req = TObjectYPathProxy::CheckPermission(path);
         req->set_user(user);
         req->set_permission(static_cast<int>(permission));
         SetTransactionId(req, options, true);
         SetCachingHeader(req, options);
+        batchReq->AddRequest(req);
 
-        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
-        auto rsp = WaitFor(proxy->Execute(req))
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TObjectYPathProxy::TRspCheckPermission>(0)
             .ValueOrThrow();
 
         TCheckPermissionResult result;
@@ -3092,14 +3128,20 @@ private:
     TClusterMeta DoGetClusterMeta(
         const TGetClusterMetaOptions& options)
     {
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto batchReq = proxy->ExecuteBatch();
+        SetBalancingHeader(batchReq, options);
+
         auto req = TMasterYPathProxy::GetClusterMeta();
         req->set_populate_node_directory(options.PopulateNodeDirectory);
         req->set_populate_cluster_directory(options.PopulateClusterDirectory);
         req->set_populate_medium_directory(options.PopulateMediumDirectory);
         SetCachingHeader(req, options);
+        batchReq->AddRequest(req);
 
-        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
-        auto rsp = WaitFor(proxy->Execute(req))
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspGetClusterMeta>(0)
             .ValueOrThrow();
 
         TClusterMeta meta;
@@ -4007,7 +4049,10 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Transaction rows sent successfully");
+            LOG_DEBUG("Transaction rows sent successfully (BatchIndex: %v/%v)",
+                InvokeBatchIndex_,
+                Batches_.size());
+
             owner->Transaction_->ConfirmParticipant(TabletInfo_->CellId);
             ++InvokeBatchIndex_;
             InvokeNextBatch();
@@ -4122,6 +4167,15 @@ private:
             if (!result.IsOK()) {
                 LOG_DEBUG(result, "Error sending transaction actions");
                 THROW_ERROR result;
+            }
+
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return;
+            }
+
+            if (TypeFromId(CellId_) == EObjectType::TabletCell) {
+                owner->Transaction_->ConfirmParticipant(CellId_);
             }
 
             LOG_DEBUG("Transaction actions sent successfully");

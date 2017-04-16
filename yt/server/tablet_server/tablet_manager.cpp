@@ -308,7 +308,11 @@ public:
         YCHECK(cell->Actions().empty());
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        hiveManager->RemoveMailbox(cell->GetId());
+        const auto& cellId = cell->GetId();
+        auto* mailbox = hiveManager->FindMailbox(cellId);
+        if (mailbox) {
+            hiveManager->RemoveMailbox(mailbox);
+        }
 
         for (const auto& peer : cell->Peers()) {
             if (peer.Node) {
@@ -336,7 +340,7 @@ public:
         AbortPrerequisiteTransaction(cell);
         AbortCellSubtreeTransactions(cell);
 
-        auto cellNodeProxy = FindCellNode(cell->GetId());
+        auto cellNodeProxy = FindCellNode(cellId);
         if (cellNodeProxy) {
             try {
                 // NB: Subtree transactions were already aborted in AbortPrerequisiteTransaction.
@@ -1864,6 +1868,13 @@ public:
             }
             newTablet->SetRetainedTimestamp(retainedTimestamp);
             newTablets.push_back(newTablet);
+
+            if (table->IsReplicated()) {
+                const auto* replicatedTable = table->As<TReplicatedTableNode>();
+                for (auto* replica : replicatedTable->Replicas()) {
+                    YCHECK(newTablet->Replicas().emplace(replica, TTableReplicaInfo()).second);
+                }
+            }
         }
 
         // Drop old tablets.
@@ -3420,6 +3431,22 @@ private:
         }
     }
 
+    
+    virtual void OnRecoveryComplete() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnRecoveryComplete();
+
+        for (const auto& pair : TabletCellMap_) {
+            auto* cell = pair.second;
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
+            UpdateCellDirectory(cell);
+        }
+    }
+
     virtual void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -3428,16 +3455,9 @@ private:
 
         if (Bootstrap_->IsPrimaryMaster()) {
             TabletTracker_->Start();
+
             TabletBalancer_ = New<TTabletBalancer>(Config_->TabletBalancer, Bootstrap_);
             TabletBalancer_->Start();
-        }
-
-        for (const auto& pair : TabletCellMap_) {
-            auto* cell = pair.second;
-            if (!IsObjectAlive(cell)) {
-                continue;
-            }
-            UpdateCellDirectory(cell);
         }
 
         CleanupExecutor_ = New<TPeriodicExecutor>(

@@ -49,9 +49,10 @@ struct hash<NYT::NBlackbox::TTokenCredentials>
 {
     inline size_t operator()(const NYT::NBlackbox::TTokenCredentials& credentials) const
     {
-        return HashCombineImpl(
-            THash<Stroka>()(credentials.Token),
-            THash<Stroka>()(credentials.UserIp));
+        size_t result  = 0;
+        NYT::HashCombine(result, credentials.Token);
+        NYT::HashCombine(result, credentials.UserIp);
+        return result;
     }
 };
 

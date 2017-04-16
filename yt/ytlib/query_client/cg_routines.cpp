@@ -157,16 +157,21 @@ void InsertJoinRow(
 {
     CHECK_STACK();
 
+    TMutableRow key = *keyPtr;
+
     i64 chainIndex = closure->ChainedRows.size();
-    closure->ChainedRows.emplace_back(closure->Buffer->Capture(row), -1);
 
     if (chainIndex >= context->JoinRowLimit) {
         throw TInterruptedIncompleteException();
     }
 
-    TMutableRow key = *keyPtr;
+    closure->ChainedRows.emplace_back(TChainedRow{closure->Buffer->Capture(row), key, -1});
 
     if (!closure->LastKey || !closure->PrefixEqComparer(key, closure->LastKey)) {
+        if (closure->LastKey) {
+            Y_ASSERT(CompareRows(closure->LastKey, key, closure->CommonKeyPrefixDebug) <= 0);
+        }
+
         closure->ProcessSegment();
         closure->LastKey = key;
         closure->Lookup.clear();
@@ -181,7 +186,8 @@ void InsertJoinRow(
         *keyPtr = closure->Buffer->AllocateUnversioned(closure->KeySize);
     } else {
         auto& startIndex = inserted.first->second.first;
-        closure->ChainedRows.back().second = startIndex;
+        closure->ChainedRows.back().Key = inserted.first->first;
+        closure->ChainedRows.back().NextRowIndex = startIndex;
         startIndex = chainIndex;
     }
 
@@ -254,32 +260,32 @@ public:
         }
     }
 
-    void JoinRows(const std::vector<std::pair<TRow, int>>& chainedRows, int startIndex, TRow foreignRow)
+    void JoinRows(const std::vector<TChainedRow>& chainedRows, int startIndex, TRow foreignRow)
     {
         for (
             int chainedRowIndex = startIndex;
             chainedRowIndex >= 0;
-            chainedRowIndex = chainedRows[chainedRowIndex].second)
+            chainedRowIndex = chainedRows[chainedRowIndex].NextRowIndex)
         {
-            JoinRow(chainedRows[chainedRowIndex].first, foreignRow);
+            JoinRow(chainedRows[chainedRowIndex].Row, foreignRow);
         }
     }
 
-    void JoinRowsNull(const std::vector<std::pair<TRow, int>>& chainedRows, int startIndex)
+    void JoinRowsNull(const std::vector<TChainedRow>& chainedRows, int startIndex)
     {
         for (
             int chainedRowIndex = startIndex;
             chainedRowIndex >= 0;
-            chainedRowIndex = chainedRows[chainedRowIndex].second)
+            chainedRowIndex = chainedRows[chainedRowIndex].NextRowIndex)
         {
-            JoinRowNull(chainedRows[chainedRowIndex].first);
+            JoinRowNull(chainedRows[chainedRowIndex].Row);
         }
     }
 
     void SortMergeJoin(
         TExecutionContext* context,
         const std::vector<std::pair<TRow, int>>& keysToRows,
-        const std::vector<std::pair<TRow, int>>& chainedRows,
+        const std::vector<TChainedRow>& chainedRows,
         TComparerFunction* fullEqComparer,
         TComparerFunction* fullLessComparer,
         const ISchemafulReaderPtr& reader,
@@ -344,7 +350,7 @@ public:
     void HashJoin(
         TExecutionContext* context,
         TJoinLookup* joinLookup,
-        const std::vector<std::pair<TRow, int>>& chainedRows,
+        const std::vector<TChainedRow>& chainedRows,
         const ISchemafulReaderPtr& reader,
         bool isLeft)
     {
@@ -430,6 +436,7 @@ void JoinOpHelper(
     void (*consumeRows)(void** closure, TRowBuffer*, TRow* rows, i64 size))
 {
     TJoinClosure closure(lookupHasher, lookupEqComparer, prefixEqComparer, keySize, parameters->BatchSize);
+    closure.CommonKeyPrefixDebug = parameters->CommonKeyPrefixDebug;
 
     closure.ProcessSegment = [&] () {
         auto offset = closure.KeysToRows.size();
@@ -448,14 +455,17 @@ void JoinOpHelper(
     closure.ProcessJoinBatch = [&] () {
         closure.ProcessSegment();
 
+        auto keysToRows = std::move(closure.KeysToRows);
+        auto chainedRows = std::move(closure.ChainedRows);
+
         LOG_DEBUG("Collected %v join keys from %v rows",
-            closure.KeysToRows.size(),
-            closure.ChainedRows.size());
+            keysToRows.size(),
+            chainedRows.size());
 
         std::vector<TRow> keys;
-        keys.reserve(closure.KeysToRows.size());
+        keys.reserve(keysToRows.size());
 
-        for (const auto& item : closure.KeysToRows) {
+        for (const auto& item : keysToRows) {
             keys.push_back(item.first);
         }
 
@@ -464,13 +474,12 @@ void JoinOpHelper(
             consumeRows,
             parameters->SelfColumns,
             parameters->ForeignColumns);
+        Y_ASSERT(std::is_sorted(keys.begin(), keys.end()));
 
         // Join rowsets.
         // allRows have format (join key... , other columns...)
 
         auto& joinLookup = closure.Lookup;
-        auto chainedRows = std::move(closure.ChainedRows);
-
         auto isLeft = parameters->IsLeft;
 
         if (!parameters->IsOrdered) {
@@ -499,7 +508,6 @@ void JoinOpHelper(
 
             if (parameters->IsSortMergeJoin) {
                 // Sort-merge join
-                auto keysToRows = std::move(closure.KeysToRows);
                 batchState.SortMergeJoin(
                     context,
                     keysToRows,
@@ -552,8 +560,9 @@ void JoinOpHelper(
             LOG_DEBUG("Joining started");
 
             for (const auto& item : chainedRows) {
-                auto row = item.first;
-                auto equalRange = foreignLookup.equal_range(row);
+                auto row = item.Row;
+                auto key = item.Key;
+                auto equalRange = foreignLookup.equal_range(key);
                 for (auto it = equalRange.first; it != equalRange.second; ++it) {
                     batchState.JoinRow(row, *it);
                 }

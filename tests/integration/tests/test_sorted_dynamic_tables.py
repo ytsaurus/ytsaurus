@@ -1910,7 +1910,7 @@ class TestSortedDynamicTablesResourceLimits(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
 
-        set("//sys/accounts/test_account/@resource_limits/" + resource, 1000)
+        set("//sys/accounts/test_account/@resource_limits/" + resource, 10000)
         insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
 
         set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
