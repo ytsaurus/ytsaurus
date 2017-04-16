@@ -690,6 +690,8 @@ private:
                     context.Phase = EWritePhase::Lock;
                     context.Transaction = transaction;
                     YCHECK(storeManager->ExecuteWrites(&reader, &context));
+
+                    tablet->SetWriteLogsRowCount(tablet->GetWriteLogsRowCount() + 1);
                 }
             };
             applyWrites(transaction->ImmediateLockedWriteLog());
@@ -704,6 +706,7 @@ private:
 
                     LockTablet(tablet);
                     transaction->LockedTablets().push_back(tablet);
+                    tablet->SetWriteLogsRowCount(tablet->GetWriteLogsRowCount() + 1);
                 }
             };
             lockTablets(transaction->ImmediateLocklessWriteLog());
@@ -1185,7 +1188,7 @@ private:
                 auto* writeLog = immediate
                     ? (lockless ? &transaction->ImmediateLocklessWriteLog() : &transaction->ImmediateLockedWriteLog())
                     : &transaction->DelayedLocklessWriteLog();
-                EnqueueTransactionWriteRecord(transaction, writeLog, writeRecord, signature);
+                EnqueueTransactionWriteRecord(tablet, transaction, writeLog, writeRecord, signature);
 
                 LOG_DEBUG_UNLESS(writeLog == &transaction->ImmediateLockedWriteLog(),
                     "Rows batched (TabletId: %v, TransactionId: %v, WriteRecordSize: %v, Immediate: %v, Lockless: %v)",
@@ -1234,7 +1237,7 @@ private:
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto signature = request->signature();
         auto lockless = request->lockless();
-        auto rowCount = reuqest->row_count();
+        auto rowCount = request->row_count();
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -1271,7 +1274,7 @@ private:
                 auto* writeLog = immediate
                     ? (lockless ? &transaction->ImmediateLocklessWriteLog() : &transaction->ImmediateLockedWriteLog())
                     : &transaction->DelayedLocklessWriteLog();
-                EnqueueTransactionWriteRecord(transaction, writeLog, writeRecord, signature);
+                EnqueueTransactionWriteRecord(tablet, transaction, writeLog, writeRecord, signature);
 
                 if (immediate && !lockless) {
                     TWriteContext context;
@@ -2047,11 +2050,13 @@ private:
     }
 
     void EnqueueTransactionWriteRecord(
+        TTablet* tablet,
         TTransaction* transaction,
         TTransactionWriteLog* writeLog,
         const TTransactionWriteRecord& record,
         TTransactionSignature signature)
     {
+        tablet->SetWriteLogsRowCount(tablet->GetWriteLogsRowCount() + record.RowCount);
         WriteLogsMemoryTrackerGuard_.UpdateSize(record.GetByteSize());
         writeLog->Enqueue(record);
         transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
@@ -2059,7 +2064,15 @@ private:
 
     void ClearTransactionWriteLog(TTransactionWriteLog* writeLog)
     {
-        WriteLogsMemoryTrackerGuard_.UpdateSize(-GetTransactionWriteLogMemoryUsage(*writeLog));
+        i64 byteSize = 0;
+        for (const auto& record : *writeLog) {
+            auto* tablet = FindTablet(record.TabletId);
+            if (tablet) {
+                tablet->SetWriteLogsRowCount(tablet->GetWriteLogsRowCount() - record.RowCount);
+            }
+            byteSize += record.GetByteSize();
+        }
+        WriteLogsMemoryTrackerGuard_.UpdateSize(-byteSize);
         writeLog->Clear();
     }
 
@@ -2337,6 +2350,9 @@ private:
             auto& replicaInfo = pair.second;
             StopTableReplicaEpoch(&replicaInfo);
         }
+
+        tablet->SetPrelockedRowCount(0);
+        tablet->SetWriteLogsRowCount(0);
     }
 
 
@@ -2392,6 +2408,11 @@ private:
             .BeginMap()
                 .Item("table_id").Value(tablet->GetTableId())
                 .Item("state").Value(tablet->GetState())
+                .Item("hash_table_size").Value(tablet->GetHashTableSize())
+                .Item("overlapping_store_count").Value(tablet->GetOverlappingStoreCount())
+                .Item("retained_timestamp").Value(tablet->GetRetainedTimestamp())
+                .Item("prelocked_row_count").Value(tablet->GetPrelockedRowCount())
+                .Item("write_logs_row_count").Value(tablet->GetWriteLogsRowCount())
                 .Item("config")
                     .BeginAttributes()
                         .Item("opaque").Value(true)
