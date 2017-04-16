@@ -595,7 +595,7 @@ private:
         // - Request operations and their states.
         void ListOperations()
         {
-            auto batchReq = Owner->StartObjectBatchRequest();
+            auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
             {
                 auto req = TYPathProxy::List("//sys/operations");
                 std::vector<Stroka> attributeKeys{
@@ -630,7 +630,7 @@ private:
         // - Recreate operation instance from fetched data.
         void RequestOperationAttributes()
         {
-            auto batchReq = Owner->StartObjectBatchRequest();
+            auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
             {
                 LOG_INFO("Fetching attributes and secure vaults for %v unfinished operations",
                     OperationIds.size());
@@ -712,7 +712,7 @@ private:
         // Update global watchers.
         void UpdateGlobalWatchers()
         {
-            auto batchReq = Owner->StartObjectBatchRequest();
+            auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
             for (auto requester : Owner->GlobalWatcherRequesters) {
                 requester.Run(batchReq);
             }
@@ -734,7 +734,7 @@ private:
     {
         TObjectServiceProxy proxy(Bootstrap
             ->GetMasterClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
+            ->GetMasterChannelOrThrow(channelKind, cellTag));
         auto batchReq = proxy.ExecuteBatch();
         YCHECK(LockTransaction);
         auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);

@@ -417,6 +417,14 @@ class TestDynamicTables(TestDynamicTablesBase):
         with pytest.raises(YtError): freeze_table("//tmp/t")
         with pytest.raises(YtError): unfreeze_table("//tmp/t")
 
+    def test_no_storage_change_for_mounted(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        with pytest.raises(YtError): set("//tmp/t/@vital", False)
+        with pytest.raises(YtError): set("//tmp/t/@replication_factor", 2)
+        with pytest.raises(YtError): set("//tmp/t/@media", {"default": {"replication_factor": 2}})
+
     def test_cell_bundle_node_tag_filter(self):
         node = list(get("//sys/nodes"))[0]
         with pytest.raises(YtError):
@@ -788,14 +796,6 @@ class TestTabletActions(TestDynamicTablesBase):
         assert get("#{0}/@error".format(action))
         expected_state = "frozen" if freeze else "mounted"
         self._wait_for_tablets("//tmp/t", expected_state)
-
-    def test_no_storage_change_for_mounted(self):
-        self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
-        with pytest.raises(YtError): set("//tmp/t/@vital", False)
-        with pytest.raises(YtError): set("//tmp/t/@replication_factor", 2)
-        with pytest.raises(YtError): set("//tmp/t/@media", {"default": {"replication_factor": 2}})
 
 ##################################################################
 

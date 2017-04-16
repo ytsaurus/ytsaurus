@@ -185,11 +185,14 @@ protected:
     {
         if (sliceSizes.empty()) {
             sliceSizes.assign(internalPoints.size() + 1, chunk->GetUncompressedDataSize() / (internalPoints.size() + 1));
+            // Fix the first size to fix the error because of integer division.
+            sliceSizes[0] += chunk->GetUncompressedDataSize() - (internalPoints.size() + 1) * sliceSizes[0];
         } else {
             YCHECK(internalPoints.size() + 1 == sliceSizes.size());
         }
         if (sliceRowCounts.empty()) {
             sliceRowCounts.assign(internalPoints.size() + 1, chunk->GetRowCount() / (internalPoints.size() + 1));
+            sliceRowCounts[0] += chunk->GetRowCount() - (internalPoints.size() + 1) * sliceRowCounts[0];
         } else {
             YCHECK(internalPoints.size() + 1 == sliceSizes.size());
         }
@@ -201,15 +204,17 @@ protected:
         std::vector<TInputChunkSlicePtr> slices;
         for (int index = 0; index <= internalPoints.size(); ++index) {
             TKey upperLimit = index < internalPoints.size()
-                ? GetStrictKeySuccessor(internalPoints[index], Options_.PrimaryPrefixLength, RowBuffer_)
+                ? GetKeySuccessor(internalPoints[index], RowBuffer_)
                 : (chunk->UpperLimit()
                 ? chunk->UpperLimit()->GetKey()
                 : GetKeySuccessor(chunk->BoundaryKeys()->MaxKey, RowBuffer_));
             slices.emplace_back(New<TInputChunkSlice>(chunk, lastKey, upperLimit));
-            slices.back()->LowerLimit().RowIndex = currentRow;
-            currentRow += sliceRowCounts[index];
-            slices.back()->UpperLimit().RowIndex = currentRow;
-            slices.back()->OverrideSize(sliceRowCounts[index], sliceSizes[index]);
+            if (!internalPoints.empty()) {
+                slices.back()->LowerLimit().RowIndex = currentRow;
+                currentRow += sliceRowCounts[index];
+                slices.back()->UpperLimit().RowIndex = currentRow;
+                slices.back()->OverrideSize(sliceRowCounts[index], sliceSizes[index]);
+            }
             lastKey = upperLimit;
         }
         return slices;
@@ -303,6 +308,7 @@ protected:
         yhash_map<TInputChunkPtr, std::vector<TInputChunkSlicePtr>> chunkSlicesByInputChunk;
         yhash_set<TInputChunkPtr> teleportChunksSet(teleportChunks.begin(), teleportChunks.end());
 
+        // Check that data slices from each stripe are all from the same table.
         for (const auto& stripeList : stripeLists) {
             for (const auto& stripe : stripeList->Stripes) {
                 ASSERT_TRUE(!stripe->DataSlices.empty());
@@ -323,22 +329,54 @@ protected:
             if (teleportChunksSet.has(inputChunk)) {
                 continue;
             }
-            TKey chunkLowerKey = inputChunk->LowerLimit()
+            TKey chunkLowerKey = inputChunk->LowerLimit() && inputChunk->LowerLimit()->HasKey()
                 ? inputChunk->LowerLimit()->GetKey()
                 : inputChunk->BoundaryKeys()->MinKey;
-            TKey chunkUpperKey = inputChunk->UpperLimit()
+            TKey chunkUpperKey = inputChunk->UpperLimit() && inputChunk->UpperLimit()->HasKey()
                 ? inputChunk->UpperLimit()->GetKey()
                 : GetKeySuccessor(inputChunk->BoundaryKeys()->MaxKey, RowBuffer_);
+            i64 chunkLowerRowIndex = inputChunk->LowerLimit() && inputChunk->LowerLimit()->HasRowIndex()
+                ? inputChunk->LowerLimit()->GetRowIndex()
+                : 0;
+            i64 chunkUpperRowIndex = inputChunk->UpperLimit() && inputChunk->UpperLimit()->HasRowIndex()
+                ? inputChunk->UpperLimit()->GetRowIndex()
+                : inputChunk->GetRowCount();
 
-            TKey lastKey = chunkLowerKey;
+            TKey lastLowerKey;
+            TKey lastUpperKey = chunkLowerKey;
+            i64 lastLeftRowIndex = -1;
+            i64 lastRightRowIndex = chunkLowerRowIndex;
             auto it = chunkSlicesByInputChunk.find(inputChunk);
             ASSERT_TRUE(chunkSlicesByInputChunk.end() != it);
             auto& chunkSlices = it->second;
             for (const auto& chunkSlice : chunkSlices) {
-                EXPECT_EQ(lastKey, chunkSlice->LowerLimit().Key);
-                lastKey = chunkSlice->UpperLimit().Key;
+                TKey chunkSliceLowerKey = chunkSlice->LowerLimit().Key;
+                TKey chunkSliceUpperKey = chunkSlice->UpperLimit().Key;
+                i64 chunkSliceLowerRowIndex = chunkSlice->LowerLimit().RowIndex
+                    ? *chunkSlice->LowerLimit().RowIndex
+                    : chunkLowerRowIndex;
+                i64 chunkSliceUpperRowIndex = chunkSlice->UpperLimit().RowIndex
+                    ? *chunkSlice->UpperLimit().RowIndex
+                    : chunkUpperRowIndex;
+
+                bool keysCoincide = lastUpperKey == chunkSliceLowerKey;
+                bool rowIndicesCoincide = lastRightRowIndex == chunkSliceLowerRowIndex;
+                EXPECT_TRUE(keysCoincide || rowIndicesCoincide);
+                if (!keysCoincide) {
+                    EXPECT_EQ(lastLowerKey, chunkSliceLowerKey);
+                    EXPECT_EQ(lastUpperKey, chunkSliceUpperKey);
+                }
+                if (!rowIndicesCoincide) {
+                    EXPECT_EQ(lastLeftRowIndex, chunkSliceLowerRowIndex);
+                    EXPECT_EQ(lastRightRowIndex, chunkSliceUpperRowIndex);
+                }
+                lastLowerKey = chunkSliceLowerKey;
+                lastUpperKey = chunkSliceUpperKey;
+                lastLeftRowIndex = chunkSliceLowerRowIndex;
+                lastRightRowIndex = chunkSliceUpperRowIndex;
             }
-            EXPECT_EQ(lastKey, chunkUpperKey);
+            EXPECT_EQ(lastUpperKey, chunkUpperKey);
+            EXPECT_EQ(lastRightRowIndex, chunkUpperRowIndex);
         }
 
         // Second check.
@@ -348,11 +386,11 @@ protected:
             if (lhsChunk != rhsChunk) {
                 return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
             } else {
-                return lhs->LowerLimit().Key < rhs->LowerLimit().Key;
+                return lhs->LowerLimit().Key <= rhs->LowerLimit().Key;
             }
         };
         auto versionedDataSliceComparator = [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
-            return lhs->LowerLimit().Key < rhs->LowerLimit().Key;
+            return lhs->LowerLimit().Key <= rhs->LowerLimit().Key;
         };
 
         for (const auto& stripeList : stripeLists) {
@@ -395,6 +433,28 @@ protected:
         }
     }
 
+    //! Check that jobs do not overlap by keys. Applicable only when Options_.EnableKeyGuarantee is true.
+    void CheckKeyGuarantee(const std::vector<TChunkStripeListPtr>& stripeLists)
+    {
+        TKey lastUpperKey;
+        for (const auto& stripeList : stripeLists) {
+            TKey lowerKey = MaxKey();
+            TKey upperKey = MinKey();
+            for (const auto& stripe : stripeList->Stripes) {
+                for (const auto& dataSlice : stripe->DataSlices) {
+                    if (lowerKey > dataSlice->LowerLimit().Key) {
+                        lowerKey = dataSlice->LowerLimit().Key;
+                    }
+                    if (upperKey < dataSlice->UpperLimit().Key) {
+                        upperKey = dataSlice->UpperLimit().Key;
+                    }
+                }
+            }
+            EXPECT_LE(lastUpperKey, lowerKey);
+            lastUpperKey = upperKey;
+        }
+    }
+
     //! Find all teleport chunks naively (in quadratic time) and check that chunk pool detected exactly
     //! the same chunks.
     void CheckTeleportChunks(const std::vector<TInputChunkPtr>& teleportChunks)
@@ -404,7 +464,7 @@ protected:
     }
 
     //! Check the correctness of joined data (in quadratic time).
-    void CheckCorrectnessOfJoin(const std::vector<TChunkStripeListPtr> chunkStripes)
+    void CheckCorrectnessOfJoin(const std::vector<TChunkStripeListPtr>& stripeLists)
     {
         // TODO(max42): implement a naive procedure here.
     }
@@ -420,6 +480,9 @@ protected:
         CheckTeleportChunks(teleportChunks);
         CheckStripeListsContainOnlyActiveChunks();
         CheckForeignStripesAreMarkedAsForeign();
+        if (Options_.EnableKeyGuarantee) {
+            CheckKeyGuarantee(stripeLists);
+        }
     }
 
     void CheckForeignStripesAreMarkedAsForeign()
@@ -1773,6 +1836,61 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase)
     }
     chunkSequence.erase(std::unique(chunkSequence.begin(), chunkSequence.end()), chunkSequence.end());
     ASSERT_EQ(chunkSequence.size(), 2);
+
+    auto teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    CheckEverything(stripeLists, teleportChunks);
+}
+
+
+TEST_F(TSortedChunkPoolTest, TestTrickyCase2)
+{
+    Options_.EnableKeyGuarantee = false;
+    InitTables(
+        {false},
+        {false},
+        {false}
+    );
+    Options_.PrimaryPrefixLength = 1;
+    DataSizePerJob_ = 10 * KB;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(BuildRow({100}), BuildRow({100}), 0, 12 * KB);
+    auto chunkB = CreateChunk(BuildRow({100}), BuildRow({100}), 0, KB / 10);
+    auto chunkC = CreateChunk(BuildRow({100}), BuildRow({200}), 0, 3 * KB);
+    auto chunkASlices = SliceUnversionedChunk(chunkA, {BuildRow({100})}, {9 * KB, 3 * KB}, {500, 500});
+    chunkASlices[1]->LowerLimit().Key = BuildRow({100});
+    RegisterSliceableUnversionedChunk(chunkA, chunkASlices);
+    RegisterTriviallySliceableUnversionedChunk(chunkB);
+    RegisterTriviallySliceableUnversionedChunk(chunkC);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    auto stripeLists = GetAllStripeLists();
+    ASSERT_EQ(stripeLists.size(), 2);
+    ASSERT_EQ(stripeLists[0]->Stripes.size(), 1);
+    ASSERT_EQ(stripeLists[1]->Stripes.size(), 1);
+    std::vector<TInputChunkPtr> chunkSequence;
+    for (const auto& dataSlice : stripeLists[0]->Stripes[0]->DataSlices) {
+        chunkSequence.push_back(dataSlice->GetSingleUnversionedChunkOrThrow());
+    }
+    for (const auto& dataSlice : stripeLists[1]->Stripes[0]->DataSlices) {
+        chunkSequence.push_back(dataSlice->GetSingleUnversionedChunkOrThrow());
+    }
+    chunkSequence.erase(std::unique(chunkSequence.begin(), chunkSequence.end()), chunkSequence.end());
+    ASSERT_EQ(chunkSequence.size(), 3);
+
+    auto teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    CheckEverything(stripeLists, teleportChunks);
 }
 
 TEST_F(TSortedChunkPoolTest, TestNoChunkSliceFetcher)

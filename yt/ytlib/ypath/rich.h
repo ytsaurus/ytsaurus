@@ -63,6 +63,7 @@ public:
     // COMPAT(ignat): also "lower_limit" and "upper_limit"
     std::vector<NChunkClient::TReadRange> GetRanges() const;
     void SetRanges(const std::vector<NChunkClient::TReadRange>& value);
+    bool HasNontrivialRanges() const;
 
     // "file_name"
     TNullable<Stroka> GetFileName() const;

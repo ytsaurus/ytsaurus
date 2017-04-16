@@ -73,6 +73,7 @@ struct ITransaction
 
     // Tables
 
+    // TODO(sandello): Make write & delete non-virtual wrappers around ModifyRows.
     virtual void WriteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,

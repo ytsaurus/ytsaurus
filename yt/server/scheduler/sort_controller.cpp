@@ -1414,7 +1414,11 @@ protected:
     virtual void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
-            if (IsRowCountPreserved() && !InputHasVersionedTables()) {
+            auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
+
+            if (IsRowCountPreserved() && !(SimpleSort && isNontrivialInput)) {
+                // We don't check row count for simple sort if nontrivial read limits are specified,
+                // since input row count can be estimated inaccurate.
                 i64 totalInputRowCount = 0;
                 for (auto partition : Partitions) {
                     totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();

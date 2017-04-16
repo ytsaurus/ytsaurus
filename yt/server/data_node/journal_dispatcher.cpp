@@ -36,8 +36,8 @@ struct TJournalDispatcher::TCachedChangelogKey
     operator size_t() const
     {
         size_t result = 0;
-        result = HashCombine(result, Location);
-        result = HashCombine(result, ChunkId);
+        HashCombine(result, Location);
+        HashCombine(result, ChunkId);
         return result;
     }
 

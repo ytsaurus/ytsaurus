@@ -62,9 +62,11 @@ bool CheckJobActivity(
     double inputPipeIdleTimeFraction)
 {
     bool wasActive = lhs->ProcessedInputRowCount < rhs->ProcessedInputRowCount;
-    wasActive |= lhs->ProcessedInputDataSize < rhs->ProcessedInputDataSize;
+    wasActive |= lhs->ProcessedInputUncompressedDataSize < rhs->ProcessedInputUncompressedDataSize;
+    wasActive |= lhs->ProcessedInputCompressedDataSize < rhs->ProcessedInputCompressedDataSize;
     wasActive |= lhs->ProcessedOutputRowCount < rhs->ProcessedOutputRowCount;
-    wasActive |= lhs->ProcessedOutputDataSize < rhs->ProcessedOutputDataSize;
+    wasActive |= lhs->ProcessedOutputUncompressedDataSize < rhs->ProcessedOutputUncompressedDataSize;
+    wasActive |= lhs->ProcessedOutputCompressedDataSize < rhs->ProcessedOutputCompressedDataSize;
     if (lhs->JobProxyCpuUsage && rhs->JobProxyCpuUsage) {
         wasActive |= *lhs->JobProxyCpuUsage + cpuUsageThreshold < *rhs->JobProxyCpuUsage;
     }
@@ -84,8 +86,10 @@ void Serialize(const TBriefJobStatistics& briefJobStatistics, IYsonConsumer* con
         .EndAttributes()
         .BeginMap()
             .Item("processed_input_row_count").Value(briefJobStatistics.ProcessedInputRowCount)
-            .Item("processed_input_data_size").Value(briefJobStatistics.ProcessedInputDataSize)
-            .Item("processed_output_data_size").Value(briefJobStatistics.ProcessedOutputDataSize)
+            .Item("processed_input_data_size").Value(briefJobStatistics.ProcessedInputUncompressedDataSize)
+            .Item("processed_input_compressed_data_size").Value(briefJobStatistics.ProcessedInputCompressedDataSize)
+            .Item("processed_output_data_size").Value(briefJobStatistics.ProcessedOutputUncompressedDataSize)
+            .Item("processed_output_compressed_data_size").Value(briefJobStatistics.ProcessedOutputCompressedDataSize)
             .DoIf(static_cast<bool>(briefJobStatistics.InputPipeIdleTime), [&] (TFluentMap fluent) {
                 fluent.Item("input_pipe_idle_time").Value(*briefJobStatistics.InputPipeIdleTime);
             })
@@ -134,13 +138,15 @@ TBriefJobStatisticsPtr TJob::BuildBriefStatistics(const TYsonString& statisticsY
 
     auto briefStatistics = New<TBriefJobStatistics>();
     briefStatistics->ProcessedInputRowCount = GetNumericValue(statistics, "/data/input/row_count");
-    briefStatistics->ProcessedInputDataSize = GetNumericValue(statistics, "/data/input/uncompressed_data_size");
+    briefStatistics->ProcessedInputUncompressedDataSize = GetNumericValue(statistics, "/data/input/uncompressed_data_size");
+    briefStatistics->ProcessedInputCompressedDataSize = GetNumericValue(statistics, "/data/input/compressed_data_size");
     briefStatistics->InputPipeIdleTime = FindNumericValue(statistics, "/user_job/pipes/input/idle_time");
     briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, "/job_proxy/cpu/user");
     briefStatistics->Timestamp = statistics.GetTimestamp().Get(TInstant::Now());
 
     auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
-    briefStatistics->ProcessedOutputDataSize = outputDataStatistics.uncompressed_data_size();
+    briefStatistics->ProcessedOutputUncompressedDataSize = outputDataStatistics.uncompressed_data_size();
+    briefStatistics->ProcessedOutputCompressedDataSize = outputDataStatistics.compressed_data_size();
     briefStatistics->ProcessedOutputRowCount = outputDataStatistics.row_count();
 
     return briefStatistics;

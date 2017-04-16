@@ -643,7 +643,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
 
     auto firstPartitionIt = PartitionList_.begin() + firstIndex;
     auto lastPartitionIt = PartitionList_.begin() + lastIndex;
-    for (auto it = firstPartitionIt; it !=  lastPartitionIt; ++it) {
+    for (auto it = firstPartitionIt; it != lastPartitionIt + 1; ++it) {
         PartitionMap_.erase((*it)->GetId());
     }
     YCHECK(PartitionMap_.insert(std::make_pair(mergedPartition->GetId(), mergedPartition.get())).second);
@@ -945,6 +945,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->Atomicity = Atomicity_;
     snapshot->ReplicationMode = ReplicationMode_;
     snapshot->HashTableSize = HashTableSize_;
+    snapshot->StoreCount = static_cast<int>(StoreIdMap_.size());
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
     snapshot->RetainedTimestamp = RetainedTimestamp_;
 
@@ -967,7 +968,6 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     };
 
     auto addPartitionStatistics = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
-        snapshot->StoreCount += partitionSnapshot->Stores.size();
         for (const auto& store : partitionSnapshot->Stores) {
             addStoreStatistics(store);
         }

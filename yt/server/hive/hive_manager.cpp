@@ -180,8 +180,9 @@ public:
         return mailbox;
     }
 
-    void RemoveMailbox(const TCellId& cellId)
+    void RemoveMailbox(TMailbox* mailbox)
     {
+        auto cellId = mailbox->GetCellId();
         MailboxMap_.Remove(cellId);
         LOG_INFO_UNLESS(IsRecovery(), "Mailbox removed (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
@@ -289,7 +290,7 @@ private:
     {
         context->SetRequestInfo();
 
-        ValidatePeer(EPeerKind::Leader);
+        ValidatePeer(EPeerKind::LeaderOrFollower);
 
         auto registeredCellList = CellDirectory_->GetRegisteredCells();
         yhash_map<TCellId, TCellInfo> registeredCellMap;
@@ -489,15 +490,9 @@ private:
     {
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto* mailbox = FindMailbox(cellId);
-        if (!mailbox) {
-            return;
+        if (mailbox) {
+            RemoveMailbox(mailbox);
         }
-
-        MailboxMap_.Remove(cellId);
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Mailbox unregistered (SrcCellId: %v, DstCellId: %v)",
-            SelfCellId_,
-            cellId);
     }
 
 
@@ -1371,9 +1366,9 @@ TMailbox* THiveManager::GetMailboxOrThrow(const TCellId& cellId)
     return Impl_->GetMailboxOrThrow(cellId);
 }
 
-void THiveManager::RemoveMailbox(const TCellId& cellId)
+void THiveManager::RemoveMailbox(TMailbox* mailbox)
 {
-    Impl_->RemoveMailbox(cellId);
+    Impl_->RemoveMailbox(mailbox);
 }
 
 void THiveManager::PostMessage(TMailbox* mailbox, const TEncapsulatedMessage& message, bool reliable)
