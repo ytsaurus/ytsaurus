@@ -166,8 +166,7 @@ private:
 
     void OnScanSlot(const TTabletSlotPtr& slot)
     {
-        NProfiling::TTagIdList tagIdList;
-        tagIdList.push_back(NProfiling::TProfileManager::Get()->RegisterTag("slot", slot->GetIndex()));
+        const auto& tagIdList = slot->GetTagIdList();
         PROFILE_TIMING("/scan_time", tagIdList) {
             OnScanSlotImpl(slot, tagIdList);
         }
