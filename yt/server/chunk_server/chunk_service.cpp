@@ -142,14 +142,9 @@ private:
         for (const auto& protoChunkId : request->subrequests()) {
             auto chunkId = FromProto<TChunkId>(protoChunkId);
             auto chunkIdWithIndex = DecodeChunkId(chunkId);
-
             auto* chunk = chunkManager->FindChunk(chunkIdWithIndex.Id);
             if (IsObjectAlive(chunk)) {
-                TChunkPtrWithIndexes chunkWithIndexes(
-                    chunk,
-                    chunkIdWithIndex.ReplicaIndex,
-                    AllMediaIndex);
-                chunkManager->TouchChunk(chunkWithIndexes);
+                chunkManager->TouchChunk(chunk);
             }
         }
 
