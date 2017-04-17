@@ -82,6 +82,24 @@ for line in sys.stdin:
 
 class TestJobTool(object):
     JOB_TOOL_BINARY = os.path.join(os.path.dirname(TESTS_LOCATION), "bin", "yt-job-tool")
+
+    def _prepare_job_environment(self, yt_env_job_archive, operation_id, job_id, full=False):
+        args = [
+            sys.executable,
+            self.JOB_TOOL_BINARY,
+            "prepare-job-environment",
+            operation_id,
+            job_id,
+            "--job-path",
+            os.path.join(yt_env_job_archive.env.path, "test_job_tool", "job_" + job_id),
+            "--proxy",
+            yt_env_job_archive.config["proxy"]["url"]
+        ]
+        if full:
+            args += ["--full"]
+            wait_record_in_job_archive(operation_id, job_id)
+        return subprocess.check_output(args).strip()
+
     def _check(self, operation_id, yt_env_job_archive, check_running=False, full=False, expect_ok_return_code=False):
         if not check_running:
             jobs = yt.list("//sys/operations/{0}/jobs".format(operation_id))
@@ -94,21 +112,8 @@ class TestJobTool(object):
                     break
 
         job_id = jobs[0]
-        args = [
-            sys.executable,
-            self.JOB_TOOL_BINARY,
-            "prepare-job-environment",
-            operation_id,
-            job_id,
-            "--job-path",
-            os.path.join(yt_env_job_archive.env.path, "test_job_tool", "job_" + jobs[0]),
-            "--proxy",
-            yt_env_job_archive.config["proxy"]["url"]
-        ]
-        if full:
-            args += ["--full"]
-            wait_record_in_job_archive(operation_id, job_id)
-        job_path = subprocess.check_output(args).strip()
+
+        job_path = self._prepare_job_environment(yt_env_job_archive, operation_id, job_id, full)
 
         assert open(os.path.join(job_path, "sandbox", "_test_file")).read().strip() == "stringdata"
         assert "1\t2\n" == open(os.path.join(job_path, "input")).read()
@@ -187,3 +192,22 @@ class TestJobTool(object):
 
         op = yt.run_map(copy_mapper, table, TEST_DIR + "/output", format="yamr", yt_files=[file_])
         self._check(op.id, yt_env_job_archive, full=True, expect_ok_return_code=True)
+
+    def test_run_sh(self, yt_env_job_archive):
+        def copy_mapper(rec):
+            sys.stderr.write("vzshukh")
+            sys.stderr.flush()
+            yield rec
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"key": "1", "value": "2"}])
+
+        file_ = TEST_DIR + "/_test_file"
+        yt.write_file(file_, b"stringdata")
+
+        op = yt.run_map(copy_mapper, table, TEST_DIR + "/output", format="yamr", yt_files=[file_])
+        job_id = yt.list("//sys/operations/{0}/jobs".format(op.id))[0]
+        path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
+        p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        _, p_stderr = p.communicate()
+        assert p_stderr == u"vzshukh".encode('ascii')

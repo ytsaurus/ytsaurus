@@ -5,7 +5,7 @@ from __future__ import print_function
 from yt.common import makedirp
 from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.common import parse_bool, DoNotReplaceAction, chunk_iter_stream, MB
-from yt.wrapper.job_runner import make_run_script
+from yt.wrapper.job_runner import make_run_script, get_output_descriptor_list
 import yt.logger as logger
 import yt.yson as yson
 import yt.wrapper as yt
@@ -49,6 +49,45 @@ ORCHID_JOB_PATH_PATTERN = "//sys/scheduler/orchid/scheduler/operations/{0}/runni
 OPERATION_ARCHIVE_JOBS_PATH = "//sys/operations_archive/jobs"
 
 JobInfo = collections.namedtuple("JobInfo", ["job_type", "is_running"])
+
+def make_run_sh(run_sh_path, operation_id, job_id, sandbox_path, command, input,
+                output_path, output_table_count, use_yamr_descriptors):
+    output_descriptor_list = get_output_descriptor_list(output_table_count, use_yamr_descriptors)
+
+    # We don't want to redirect stderr.
+    output_descriptor_list.remove(2)
+
+    output_descriptors_spec = " ".join(
+        "{d}> {output_path}/{d}".format(d=d, output_path=output_path)
+        for d in output_descriptor_list)
+
+    script = """\
+#!/usr/bin/env bash
+
+cd {sandbox_path}
+mkdir -p {output_path}
+
+export YT_JOB_INDEX=0
+export YT_JOB_START_ROW_INDEX=0
+export YT_OPERATION_ID={operation_id}
+export YT_JOB_ID={job_id}
+export YT_STARTED_BY_JOB_TOOL=1
+
+INPUT_DATA="{input}"
+
+{command} < $INPUT_DATA {output_descriptors_spec}
+""".format(
+    sandbox_path=sandbox_path,
+    operation_id=operation_id,
+    job_id=job_id,
+    command=command,
+    input=input,
+    output_path=output_path,
+    output_descriptors_spec=output_descriptors_spec)
+
+    with open(run_sh_path, "w") as out:
+        out.write(script)
+    os.chmod(run_sh_path, 0o744)
 
 def add_hybrid_argument(parser, name, group_required=True, **kwargs):
     group = parser.add_mutually_exclusive_group(required=group_required)
@@ -209,23 +248,38 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
         logger.info("Job has no files to download")
 
     command_path = os.path.join(job_path, "command")
+    job_command = attributes["spec"][op_type]["command"]
     with open(command_path, "w") as fout:
-        fout.write(attributes["spec"][op_type]["command"])
+        fout.write(job_command)
     logger.info("Command was written to %s", command_path)
 
+    output_table_count = len(attributes["spec"]["output_table_paths"])
+    use_yamr_descriptors = parse_bool(attributes["spec"][op_type].get("use_yamr_descriptors", False))
+
+    output_path = os.path.join(job_path, "output")
     run_config = {
         "command_path": command_path,
         "sandbox_path": sandbox_path,
         "input_path": job_input_path,
-        "output_path": os.path.join(job_path, "output"),
-        "output_table_count": len(attributes["spec"]["output_table_paths"]),
-        "use_yamr_descriptors": attributes["spec"][op_type].get("use_yamr_descriptors", False),
+        "output_path": output_path,
+        "output_table_count": output_table_count,
+        "use_yamr_descriptors": use_yamr_descriptors,
         "job_id": job_id,
         "operation_id": operation_id
     }
     with open(os.path.join(job_path, "run_config"), "wb") as fout:
         yson.dump(run_config, fout, yson_format="pretty")
     make_run_script(job_path)
+    make_run_sh(
+        os.path.join(job_path, "run.sh"),
+        operation_id=run_config["operation_id"],
+        job_id=run_config["job_id"],
+        sandbox_path=sandbox_path,
+        command=job_command,
+        input=job_input_path,
+        output_path=output_path,
+        output_table_count=output_table_count,
+        use_yamr_descriptors=use_yamr_descriptors)
 
     if run:
         run_job(job_path)
