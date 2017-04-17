@@ -3323,16 +3323,19 @@ public:
 
     virtual TFuture<ITransactionPtr> StartForeignTransaction(
         const IClientPtr& client,
-        const TTransactionStartOptions& options_) override
+        const TForeignTransactionStartOptions& options) override
     {
         if (client->GetConnection()->GetCellTag() == GetConnection()->GetCellTag()) {
             return MakeFuture<ITransactionPtr>(this);
         }
 
-        auto options = options_;
-        options.Id = GetId();
+        TTransactionStartOptions adjustedOptions(options);
+        adjustedOptions.Id = GetId();
+        if (options.InheritStartTimestamp) {
+            adjustedOptions.StartTimestamp = GetStartTimestamp();
+        }
 
-        return client->StartTransaction(GetType(), options)
+        return client->StartTransaction(GetType(), adjustedOptions)
             .Apply(BIND([this, this_ = MakeStrong(this)] (const ITransactionPtr& transaction) {
                 RegisterForeignTransaction(transaction);
                 return transaction;
@@ -3606,6 +3609,7 @@ public:
 private:
     const TNativeClientPtr Client_;
     const NTransactionClient::TTransactionPtr Transaction_;
+
     const IInvokerPtr CommitInvoker_;
     const NLogging::TLogger Logger;
 
@@ -4273,8 +4277,8 @@ private:
             };
 
             std::vector<TFuture<TTransactionFlushResult>> asyncFlushResults;
-            for (const auto& slave : GetForeignTransactions()) {
-                asyncFlushResults.push_back(slave->Flush());
+            for (const auto& transaction: GetForeignTransactions()) {
+                asyncFlushResults.push_back(transaction->Flush());
             }
 
             auto flushResults = WaitFor(Combine(asyncFlushResults))

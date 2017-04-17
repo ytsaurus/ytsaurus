@@ -141,8 +141,12 @@ public:
 
         switch (Atomicity_) {
             case EAtomicity::Full:
-                return Owner_->TimestampProvider_->GenerateTimestamps()
-                    .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
+                if (options.StartTimestamp != NullTimestamp) {
+                    return OnGotStartTimestamp(options, options.StartTimestamp);
+                } else {
+                    return Owner_->TimestampProvider_->GenerateTimestamps()
+                        .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
+                }
 
             case EAtomicity::None:
                 return StartNonAtomicTabletTransaction();
@@ -691,6 +695,7 @@ private:
                 }
             }
             req->set_force_2pc(options.Force2PC);
+            req->set_inherit_commit_timestamp(options.InheritCommitTimestamp);
             SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
             return req->Invoke().Apply(
