@@ -20,6 +20,13 @@ from functools import partial
 
 SCRIPT_DIR = os.path.dirname(__file__)
 
+def get_output_descriptor_list(output_table_count, use_yamr_descriptors):
+    if use_yamr_descriptors:
+        return [1, 2] + [i + 3 for i in xrange(output_table_count)]
+    else:
+        # descriptor #5 is for job statistics
+        return [2, 5] + [3 * i + 1 for i in xrange(output_table_count)]
+
 def preexec_dup2(new_fds, output_path):
     for new_fd in new_fds:
         fd = os.open(os.path.join(output_path, str(new_fd)), os.O_CREAT | os.O_WRONLY)
@@ -43,14 +50,7 @@ def main():
     with open(config["command_path"], "r") as fin:
         command = fin.read()
 
-    use_yamr_descriptors = parse_bool(config["use_yamr_descriptors"])
-    if use_yamr_descriptors:
-        new_fds = [1, 2] + [i + 3 for i in xrange(config["output_table_count"])]
-    else:
-        new_fds = [2] + [3 * i + 1 for i in xrange(config["output_table_count"])]
-
-    if not use_yamr_descriptors:
-        new_fds.append(5)  # Job statistics are written to fifth descriptor
+    new_fds = get_output_descriptor_list(config["output_table_count"], config["use_yamr_descriptors"])
 
     makedirp(config["output_path"])
 
