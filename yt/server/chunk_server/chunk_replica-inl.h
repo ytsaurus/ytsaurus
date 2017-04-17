@@ -124,7 +124,7 @@ Y_FORCE_INLINE TPtrWithIndexes<T>::TPtrWithIndexes(T* ptr, int replicaIndex, int
         (static_cast<uintptr_t>(mediumIndex) << 52))
 {
     static_assert(
-        ChunkReplicaIndexBound * MediumIndexBound <= 0x100,
+        NChunkClient::ChunkReplicaIndexBound * NChunkClient::MediumIndexBound <= 0x100,
         "Replica and medium indexes must fit into a single byte.");
 
     Y_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xfff0000000000000LL) == 0);
