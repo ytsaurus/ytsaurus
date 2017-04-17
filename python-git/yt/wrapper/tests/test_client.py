@@ -34,7 +34,7 @@ class TestClient(object):
 
         with set_config_option("proxy/url", None):
             if yt.config["backend"] != "native":
-                assert http._get_user_name("", client=client) == "root"
+                assert client.get_user_name("") == "root"
 
             client.set(TEST_DIR + "/node", "abc")
             assert client.get(TEST_DIR + "/node") == "abc"
@@ -177,14 +177,14 @@ class TestClient(object):
     def test_get_user_name(self):
         if yt.config["backend"] != "native":
             # With disabled authentication in proxy it always return root
-            assert http._get_user_name("") == "root"
+            assert yt.get_user_name("") == "root"
 
-        #assert http._get_user_name("") == None
-        #assert http._get_user_name("12345") == None
+        #assert get_user_name("") == None
+        #assert get_user_name("12345") == None
 
         #token = "".join(["a"] * 16)
         #yt.set("//sys/tokens/" + token, "user")
-        #assert http._get_user_name(token) == "user"
+        #assert get_user_name(token) == "user"
 
     def test_get_token(self):
         client = Yt(token="a" * 32)

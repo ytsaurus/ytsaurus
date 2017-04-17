@@ -4,8 +4,6 @@ from copy import deepcopy
 
 from .errors import IncorrectTokenError
 
-from yt.wrapper.http_helpers import _get_user_name
-
 from yt.packages.six import iteritems
 from yt.packages.six.moves import _thread as thread
 
@@ -89,7 +87,7 @@ def get_token_and_user(request, client):
         user = "guest"
         token = ""
     else:
-        user = _get_user_name(token, headers=headers, client=client)
+        user = client.get_user_name(token, headers=headers)
         if not user:
             raise IncorrectTokenError("Authorization token is incorrect: " + token)
     return token, user

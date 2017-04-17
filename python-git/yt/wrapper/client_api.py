@@ -14,6 +14,7 @@ from .transform import transform
 from .job_commands import run_job_shell, get_job_stderr
 from .etc_commands import execute_batch, dump_job_context
 from .ypath import TablePath
+from .http_helpers import get_user_name
 from .batch_api import *
 
 all_names = [key for key in locals().keys() if not key.startswith("_")]
