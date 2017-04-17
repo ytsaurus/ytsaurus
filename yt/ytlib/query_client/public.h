@@ -51,6 +51,12 @@ typedef TIntrusivePtr<const TOrderClause> TConstOrderClausePtr;
 DECLARE_REFCOUNTED_STRUCT(TProjectClause)
 typedef TIntrusivePtr<const TProjectClause> TConstProjectClausePtr;
 
+DECLARE_REFCOUNTED_STRUCT(TBaseQuery)
+typedef TIntrusivePtr<const TBaseQuery> TConstBaseQueryPtr;
+
+DECLARE_REFCOUNTED_STRUCT(TFrontQuery)
+typedef TIntrusivePtr<const TFrontQuery> TConstFrontQueryPtr;
+
 DECLARE_REFCOUNTED_STRUCT(TQuery)
 typedef TIntrusivePtr<const TQuery> TConstQueryPtr;
 

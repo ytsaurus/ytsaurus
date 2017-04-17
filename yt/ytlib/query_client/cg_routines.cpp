@@ -58,7 +58,7 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TRow row)
 
     auto* statistics = context->Statistics;
 
-    if (statistics->RowsWritten >= context->Limit) {
+    if (context->IsOrdered && statistics->RowsWritten >= context->Limit) {
         throw TInterruptedCompleteException();
     }
 
