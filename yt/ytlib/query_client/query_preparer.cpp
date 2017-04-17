@@ -1378,8 +1378,6 @@ TConstGroupClausePtr BuildGroupClause(
     const TTypedExpressionBuilder& builder)
 {
     auto groupClause = New<TGroupClause>();
-    groupClause->IsMerge = false;
-    groupClause->IsFinal = true;
     groupClause->TotalsMode = totalsMode;
 
     for (const auto& expressionAst : expressionsAst) {

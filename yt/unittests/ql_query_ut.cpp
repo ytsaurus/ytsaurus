@@ -2809,6 +2809,65 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestGroupByTotalsOrderBy)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<std::pair<i64, i64>> sourceValues;
+    for (int i = 0; i < 10000; ++i) {
+        auto value = std::rand() % 100000 + 10000;
+        sourceValues.emplace_back(value, value * 10);
+    }
+
+    for (int i = 0; i < 10000; ++i) {
+        auto value = 10000 - i;
+        sourceValues.emplace_back(value, value * 10);
+    }
+
+    std::vector<std::pair<i64, i64>> groupedValues(200, std::make_pair(0, 0));
+    i64 totalSum = 0;
+    for (const auto& row : sourceValues) {
+        i64 x = row.first % 200;
+        groupedValues[x].first = x;
+        groupedValues[x].second += row.second;
+        totalSum += row.second;
+    }
+
+    std::sort(
+        groupedValues.begin(),
+        groupedValues.end(), [] (const std::pair<i64, i64>& lhs, const std::pair<i64, i64>& rhs) {
+            return lhs.second < rhs.second;
+        });
+
+    groupedValues.resize(50);
+
+    std::vector<Stroka> source;
+    for (const auto& row : sourceValues) {
+        source.push_back(Stroka() + "a=" + ToString(row.first) + ";b=" + ToString(row.second));
+    }
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"y", EValueType::Int64}
+    });
+
+    std::vector<TOwningRow> result;
+    result.push_back(YsonToRow("y=" + ToString(totalSum), resultSplit, true));
+
+    for (const auto& row : groupedValues) {
+        Stroka resultRow = Stroka() + "x=" + ToString(row.first) + ";y=" + ToString(row.second);
+        result.push_back(YsonToRow(resultRow, resultSplit, false));
+    }
+
+    Evaluate("x, sum(b) as y FROM [//t] group by a % 200 as x with totals order by y limit 50",
+        split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestUdf)
 {
     auto split = MakeSplit({

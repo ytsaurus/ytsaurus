@@ -46,7 +46,7 @@ TQueryStatistics CoordinateAndExecute(
     ISchemafulWriterPtr writer,
     const std::vector<TRefiner>& ranges,
     std::function<TEvaluateResult(TConstQueryPtr, int)> evaluateSubquery,
-    std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop);
+    std::function<TQueryStatistics(TConstFrontQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop);
 
 ////////////////////////////////////////////////////////////////////////////////
 
