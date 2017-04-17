@@ -22,6 +22,8 @@
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/action.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/ytlib/api/connection.h>
 
 #include <yt/core/concurrency/scheduler.h>
@@ -230,7 +232,7 @@ private:
                 true,
                 [transactionId = commit->GetTransactionId(), commitTimestamps = commit->CommitTimestamps()]
                 (const ITransactionParticipantPtr& participant) {
-                    auto cellTag = participant->GetTimestampProvider()->GetCellTag();
+                    auto cellTag = CellTagFromId(participant->GetCellId());
                     auto commitTimestamp = commitTimestamps.GetTimestamp(cellTag);
                     return participant->CommitTransaction(transactionId, commitTimestamp);
                 });
@@ -736,7 +738,7 @@ private:
 
         try {
             // Any exception thrown here is caught below.
-            auto commitTimestamp = commitTimestamps.GetTimestamp(TimestampProvider_->GetCellTag());
+            auto commitTimestamp = commitTimestamps.GetTimestamp(CellTagFromId(SelfCellId_));
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
             if (commit) {
@@ -840,7 +842,7 @@ private:
 
         if (commit->GetPersistentState() != ECommitState::Prepare) {
             LOG_ERROR_UNLESS(IsRecovery(),
-                "Requested to excute phase two commit for transaction in wrong state; ignored (TransactionId: %v, State: %v)",
+                "Requested to execute phase two commit for transaction in wrong state; ignored (TransactionId: %v, State: %v)",
                 transactionId,
                 commit->GetPersistentState());
             return;
@@ -854,7 +856,7 @@ private:
 
         try {
             // Any exception thrown here is caught below.
-            auto commitTimestamp = commitTimestamps.GetTimestamp(TimestampProvider_->GetCellTag());
+            auto commitTimestamp = commitTimestamps.GetTimestamp(CellTagFromId(SelfCellId_));
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
             LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: coordinator failure; ignored (TransactionId: %v, State: %v)",
@@ -1187,12 +1189,13 @@ private:
 
         auto generateAtCell = [&] (const TCellId& cellId) {
             try {
-                auto participant = GetParticipant(cellId);
-                auto timestampProvider = participant->GetTimestampProviderOrThrow();
-                auto cellTag = timestampProvider->GetCellTag();
+                auto cellTag = CellTagFromId(cellId);
                 if (!timestampProviderCellTags.insert(cellTag).second) {
                     return;
                 }
+
+                auto participant = GetParticipant(cellId);
+                auto timestampProvider = participant->GetTimestampProviderOrThrow();
 
                 LOG_DEBUG("Generating commit timestamp (TransactionId: %v, TimestampProviderCellTag: %v)",
                     transactionId,
