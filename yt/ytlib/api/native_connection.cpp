@@ -116,7 +116,6 @@ public:
             timestampProviderConfig->RpcTimeout = Config_->PrimaryMaster->RpcTimeout;
         }
         TimestampProvider_ = CreateRemoteTimestampProvider(
-            PrimaryMasterCellTag_,
             timestampProviderConfig,
             LightChannelFactory_);
 

@@ -508,7 +508,6 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetAutomaton());
 
     auto timestampProvider = CreateRemoteTimestampProvider(
-        CellTagFromId(Config_->PrimaryMaster->CellId),
         Config_->TimestampProvider,
         lightChannelFactory);
 
