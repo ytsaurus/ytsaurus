@@ -394,10 +394,10 @@ def get_token(token=None, client=None):
 
     return token
 
-def _get_user_name(token=None, headers=None, client=None):
+def get_user_name(token=None, headers=None, client=None):
     """Requests auth method at proxy to receive user name by token or by cookies in header."""
     if get_backend_type(client) != "http":
-        raise YtError("Function '_get_user_name' cannot be implemented for not http clients")
+        raise YtError("Function 'get_user_name' cannot be implemented for not http clients")
 
     if token is None and headers is None:
         token = get_token(client=client)

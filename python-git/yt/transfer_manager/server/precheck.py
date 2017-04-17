@@ -1,6 +1,5 @@
 from .helpers import get_cluster_version
 
-from yt.wrapper.http_helpers import _get_user_name
 import yt.wrapper as yt
 
 import os
@@ -43,7 +42,7 @@ def perform_precheck(task, clusters_configuration, logger):
         # NB: copy operations usually create directories if it do not exits.
         #if not destination_client.exists(destination_dir):
         #    raise yt.YtError("Destination directory {} should exist".format(destination_dir))
-        destination_user = _get_user_name(task.destination_cluster_token, client=destination_client)
+        destination_user = destination_client.get_user_name(task.destination_cluster_token)
         if destination_user is None:
             raise yt.YtError("User is not authenticated. Please log in (supply correct token) to write to {0}".format(destination_dir))
         if not destination_exists and not _has_write_permission_on_yt(destination_client, destination_user, destination_dir):
