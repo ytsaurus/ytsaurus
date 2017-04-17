@@ -226,7 +226,7 @@ public:
         , AggregateProfilers_(aggregateProfilers)
     { }
 
-    void Profile(TCodegenSource& codegenSource, TConstQueryPtr query, size_t* slotCount);
+    void Profile(TCodegenSource* codegenSource, TConstQueryPtr query, size_t* slotCount);
 
 protected:
     TCodegenExpression Profile(const TNamedItem& namedExpression, const TTableSchema& schema);
@@ -234,7 +234,7 @@ protected:
     TConstAggregateProfilerMapPtr AggregateProfilers_;
 };
 
-void TQueryProfiler::Profile(TCodegenSource& codegenSource, TConstQueryPtr query, size_t* slotCount)
+void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query, size_t* slotCount)
 {
     Fold(static_cast<int>(EFoldingObjectType::ScanOp));
 
@@ -534,14 +534,14 @@ TCGQueryCallbackGenerator Profile(
 
     size_t slotCount = 0;
     TCodegenSource codegenSource = &CodegenEmptyOp;
-    profiler.Profile(codegenSource, query, &slotCount);
+    profiler.Profile(&codegenSource, query, &slotCount);
 
     return [
             MOVE(codegenSource),
             slotCount,
             opaqueValuesCount = variables->GetOpaqueCount()
         ] () {
-            return CodegenEvaluate(codegenSource, slotCount, opaqueValuesCount);
+            return CodegenEvaluate(&codegenSource, slotCount, opaqueValuesCount);
         };
 }
 
