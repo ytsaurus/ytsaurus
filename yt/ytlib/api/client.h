@@ -223,18 +223,28 @@ struct TTransactionStartOptions
     , public TPrerequisiteOptions
 {
     TNullable<TDuration> Timeout;
+
     //! If not null then the transaction must use this externally provided id.
-    //! Only applicable to tablet trasactions.
+    //! Only applicable to tablet transactions.
     NTransactionClient::TTransactionId Id;
+
     NTransactionClient::TTransactionId ParentId;
+
     bool AutoAbort = true;
     bool Sticky = false;
+
     TNullable<TDuration> PingPeriod;
     bool Ping = true;
     bool PingAncestors = true;
+
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
+
     NTransactionClient::EAtomicity Atomicity = NTransactionClient::EAtomicity::Full;
     NTransactionClient::EDurability Durability = NTransactionClient::EDurability::Sync;
+
+    //! If not null then the transaction must use this externally provided start timestamp.
+    //! Only applicable to tablet transactions.
+    NTransactionClient::TTimestamp StartTimestamp = NTransactionClient::NullTimestamp;
 };
 
 struct TTransactionAttachOptions
@@ -254,8 +264,12 @@ struct TTransactionCommitOptions
     //! If none, then a random participant is chosen as a coordinator.
     NElection::TCellId CoordinatorCellId;
 
-    //! If |true| then two-phase-commit procotol is executed regardless of the number of participants.
+    //! If |true| then two-phase-commit protocol is executed regardless of the number of participants.
     bool Force2PC = false;
+
+    //! If |true| then all participants will use the commit timestamp provided by the coordinator.
+    //! If |false| then the participants will use individual commit timestamps based on their cell tag.
+    bool InheritCommitTimestamp = false;
 };
 
 struct TTransactionCommitResult

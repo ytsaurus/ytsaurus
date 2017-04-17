@@ -45,13 +45,14 @@ public:
         return !CellDirectory_->IsCellUnregistered(CellId_);
     }
 
-    virtual TFuture<void> PrepareTransaction(const TTransactionId& transactionId) override
+    virtual TFuture<void> PrepareTransaction(const TTransactionId& transactionId, TTimestamp prepareTimestamp) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqPrepareTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
                 auto req = proxy->PrepareTransaction();
                 PrepareRequest(req);
                 ToProto(req->mutable_transaction_id(), transactionId);
+                req->set_prepare_timestamp(prepareTimestamp);
                 return req;
             });
     }
