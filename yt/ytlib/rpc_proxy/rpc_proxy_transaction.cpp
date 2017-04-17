@@ -126,7 +126,7 @@ void TRpcProxyTransaction::DeleteRows(
     std::vector<TRowModification> modifications;
     modifications.reserve(keys.Size());
     for (auto key : keys) {
-        modifications.push_back({ERowModificationType::Write, key.ToTypeErasedRow()});
+        modifications.push_back({ERowModificationType::Delete, key.ToTypeErasedRow()});
     }
 
     ModifyRows(
