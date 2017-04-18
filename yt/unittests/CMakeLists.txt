@@ -139,6 +139,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ytree_fluent_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yverify_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/zigzag_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/mpsc_queue_ut.cpp
 )
 
 ################################################################################
