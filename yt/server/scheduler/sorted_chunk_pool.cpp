@@ -272,7 +272,7 @@ public:
 
     IChunkPoolOutput::TCookie ExtractCookie()
     {
-        auto cookie = CookiePool_.front();
+        auto cookie = *(CookiePool_.begin());
 
         JobCounter_.Start(1);
         DataSizeCounter_.Start(Jobs_[cookie].GetDataSize());
@@ -345,7 +345,8 @@ public:
         if (CookiePool_.size() == 0) {
             return TChunkStripeStatisticsVector();
         }
-        const auto& job = Jobs_[CookiePool_.front()];
+        auto cookie = *(CookiePool_.begin());
+        const auto& job = Jobs_[cookie];
         return job.StripeList()->GetStatistics();
     }
 
@@ -369,7 +370,7 @@ public:
 private:
     //! бассейн с печеньками^W^W^W
     //! The list of all job cookies that are in state `Pending` (i.e. do not depend on suspended data).
-    std::list<IChunkPoolOutput::TCookie> CookiePool_;
+    yhash_set<IChunkPoolOutput::TCookie> CookiePool_;
 
     //! A mapping between input cookie and all jobs that are affected by its suspension.
     std::vector<std::vector<IChunkPoolOutput::TCookie>> InputCookieToAffectedOutputCookies_;
@@ -394,7 +395,6 @@ private:
             , RowCount_(jobBuilder->GetRowCount())
             , StripeList_(std::move(jobBuilder->StripeList_))
             , Owner_(owner)
-            , CookiePoolIterator_(Owner_->CookiePool_.end())
             , Cookie_(cookie)
         {
             UpdateSelf();
@@ -426,7 +426,6 @@ private:
             Persist(context, RowCount_);
             if (context.IsLoad()) {
                 // We must add ourselves to the job pool.
-                CookiePoolIterator_ = Owner_->CookiePool_.end();
                 UpdateSelf();
             }
         }
@@ -434,7 +433,6 @@ private:
     private:
         TJobManager* Owner_ = nullptr;
         int SuspendedStripeCount_ = 0;
-        std::list<int>::iterator CookiePoolIterator_;
         IChunkPoolOutput::TCookie Cookie_;
 
         //! Is true for a job if it is present in owner's CookiePool_.
@@ -464,16 +462,13 @@ private:
 
         void RemoveSelf()
         {
-            YCHECK(CookiePoolIterator_ != Owner_->CookiePool_.end());
-            Owner_->CookiePool_.erase(CookiePoolIterator_);
-            CookiePoolIterator_ = Owner_->CookiePool_.end();
+            YCHECK(Owner_->CookiePool_.erase(Cookie_) == 1);
             InPool_ = false;
         }
 
         void AddSelf()
         {
-            YCHECK(CookiePoolIterator_ == Owner_->CookiePool_.end());
-            CookiePoolIterator_ = Owner_->CookiePool_.insert(Owner_->CookiePool_.end(), Cookie_);
+            YCHECK(Owner_->CookiePool_.insert(Cookie_).second);
             InPool_ = true;
         }
 
