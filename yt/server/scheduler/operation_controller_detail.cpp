@@ -1967,6 +1967,10 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
             req->set_chunk_properties_update_needed(table->ChunkPropertiesUpdateNeeded);
             ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema);
             req->set_schema_mode(static_cast<int>(table->TableUploadOptions.SchemaMode));
+            req->set_optimize_for(static_cast<int>(table->TableUploadOptions.OptimizeFor));
+            req->set_compression_codec(static_cast<int>(table->TableUploadOptions.CompressionCodec));
+            req->set_erasure_codec(static_cast<int>(table->TableUploadOptions.ErasureCodec));
+
             SetTransactionId(req, table->UploadTransactionId);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "end_upload");
@@ -3680,7 +3684,10 @@ void TOperationControllerBase::GetOutputTablesSchema()
                 auto req = TTableYPathProxy::Get(objectIdPath + "/@");
                 std::vector<Stroka> attributeKeys{
                     "schema_mode",
-                    "schema"
+                    "schema",
+                    "optimize_for",
+                    "compression_codec",
+                    "erasure_codec"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 if (table->OutputType == EOutputTableType::Output) {
@@ -3707,8 +3714,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
 
             table->TableUploadOptions = GetTableUploadOptions(
                 path,
-                attributes->Get<TTableSchema>("schema"),
-                attributes->Get<ETableSchemaMode>("schema_mode"),
+                *attributes,
                 0); // Here we assume zero row count, we will do additional check later.
 
             //TODO(savrus) I would like to see commit ts here. But as for now, start ts suffices.
@@ -3811,10 +3817,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 std::vector<Stroka> attributeKeys{
                     "account",
                     "chunk_writer",
-                    "compression_codec",
                     "effective_acl",
-                    "erasure_codec",
-                    "optimize_for",
                     "primary_medium",
                     "replication_factor",
                     "row_count",
@@ -3855,13 +3858,13 @@ void TOperationControllerBase::BeginUploadOutputTables()
                     table->Options->ValidateSorted = false;
                 }
 
-                table->Options->CompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
-                table->Options->ErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+                table->Options->CompressionCodec = table->TableUploadOptions.CompressionCodec;
+                table->Options->ErasureCodec = table->TableUploadOptions.ErasureCodec;
                 table->Options->ReplicationFactor = attributes->Get<int>("replication_factor");
                 table->Options->MediumName = attributes->Get<Stroka>("primary_medium");
                 table->Options->Account = attributes->Get<Stroka>("account");
                 table->Options->ChunksVital = attributes->Get<bool>("vital");
-                table->Options->OptimizeFor = attributes->Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
+                table->Options->OptimizeFor = table->TableUploadOptions.OptimizeFor;
                 table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
 
                 // Workaround for YT-5827.

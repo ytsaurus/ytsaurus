@@ -1574,19 +1574,19 @@ private:
 
             TableUploadOptions_ = GetTableUploadOptions(
                 RichPath_,
-                attributes.Get<TTableSchema>("schema"),
-                attributes.Get<ETableSchemaMode>("schema_mode"),
-                attributes.Get<i64>("row_count"));
+                attributes,
+                attributes.Get<i64>("row_count")
+            );
 
             Options_->ReplicationFactor = attributes.Get<int>("replication_factor");
             Options_->MediumName = attributes.Get<Stroka>("primary_medium");
-            Options_->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
-            Options_->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec");
+            Options_->CompressionCodec = TableUploadOptions_.CompressionCodec;
+            Options_->ErasureCodec = TableUploadOptions_.ErasureCodec;
             Options_->Account = attributes.Get<Stroka>("account");
             Options_->ChunksVital = attributes.Get<bool>("vital");
             Options_->ValidateSorted = TableUploadOptions_.TableSchema.IsSorted();
             Options_->ValidateUniqueKeys = TableUploadOptions_.TableSchema.GetUniqueKeys();
-            Options_->OptimizeFor = attributes.Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
+            Options_->OptimizeFor = TableUploadOptions_.OptimizeFor;
             Options_->EvaluateComputedColumns = TableUploadOptions_.TableSchema.HasComputedColumns();
 
             auto writerConfig = attributes.FindYson("chunk_writer");
@@ -1721,6 +1721,10 @@ private:
             *req->mutable_statistics() = UnderlyingWriter_->GetDataStatistics();
             ToProto(req->mutable_table_schema(), TableUploadOptions_.TableSchema);
             req->set_schema_mode(static_cast<int>(TableUploadOptions_.SchemaMode));
+            req->set_optimize_for(static_cast<int>(TableUploadOptions_.OptimizeFor));
+            req->set_compression_codec(static_cast<int>(TableUploadOptions_.CompressionCodec));
+            req->set_erasure_codec(static_cast<int>(TableUploadOptions_.ErasureCodec));
+
             SetTransactionId(req, UploadTransaction_);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "end_upload");

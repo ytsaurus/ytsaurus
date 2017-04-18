@@ -458,6 +458,8 @@ struct TFileWriterOptions
     , public TPrerequisiteOptions
 {
     bool Append = true;
+    TNullable<NCompression::ECodec> CompressionCodec;
+    TNullable<NErasure::ECodec> ErasureCodec;
     TFileWriterConfigPtr Config;
 };
 
