@@ -5,6 +5,7 @@
 
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/ytlib/chunk_client/schema.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -159,6 +160,17 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
 
         if (lhs.has_upper_limit() && !compareLimits(lhs.upper_limit(), rhs.upper_limit()))
             return false;
+
+        if (lhs.has_channel() != rhs.has_channel())
+            return false;
+
+        if (lhs.has_channel()) {
+            auto lhsChannel = FromProto<NChunkClient::TChannel>(lhs.channel());
+            auto rhsChannel = FromProto<NChunkClient::TChannel>(rhs.channel());
+            if (lhsChannel != rhsChannel) {
+                return false;
+            }
+        }
     }
 
     return true;
