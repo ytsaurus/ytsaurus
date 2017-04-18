@@ -5,7 +5,7 @@ class YsonType(object):
         if attribute == "attributes":
             self.__dict__[attribute] = {}
             return self.__dict__[attribute]
-        raise AttributeError("Attributes '%s' not found" % attribute)
+        raise AttributeError("Attribute '%s' not found" % attribute)
 
     def __eq__(self, other):
         if hasattr(other, "attributes"):
