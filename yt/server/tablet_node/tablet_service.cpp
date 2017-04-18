@@ -77,6 +77,7 @@ private:
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto signature = request->signature();
+        auto rowCount = request->row_count();
         auto requestCodecId = NCompression::ECodec(request->request_codec());
 
         ValidateTabletTransactionId(transactionId);
@@ -85,7 +86,8 @@ private:
         auto durability = EDurability(request->durability());
 
         context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %v, "
-            "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x, RequestCodec: %v",
+            "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x, RowCount: %v, "
+            "RequestCodec: %v",
             tabletId,
             transactionId,
             transactionStartTimestamp,
@@ -93,6 +95,7 @@ private:
             atomicity,
             durability,
             signature,
+            rowCount,
             requestCodecId);
 
         // NB: Must serve the whole request within a single epoch.
@@ -134,6 +137,7 @@ private:
                 transactionStartTimestamp,
                 transactionTimeout,
                 signature,
+                rowCount,
                 &reader,
                 &commitResult);
         }
