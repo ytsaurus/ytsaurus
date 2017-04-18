@@ -55,7 +55,7 @@ public:
     typedef TypeBuilder<i64, Cross> TInt64;
     typedef TypeBuilder<ui64, Cross> TUint64;
     typedef TypeBuilder<double, Cross> TDouble;
-    typedef TypeBuilder<NYT::NTabletNode::TDynamicString*, Cross> TString;
+    typedef TypeBuilder<NYT::NTabletNode::TDynamicString*, Cross> TStringType;
 
     enum Fields
     {
