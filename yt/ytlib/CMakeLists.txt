@@ -253,7 +253,9 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/credentials_injecting_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_client.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_client_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_connection.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_transaction.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/config.cpp
@@ -324,7 +326,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_chunk_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_partition_sort_reader.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_reader_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_row_reorderer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_sorted_merging_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_sorting_reader.cpp

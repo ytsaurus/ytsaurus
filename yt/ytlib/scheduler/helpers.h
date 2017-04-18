@@ -34,7 +34,7 @@ int GetJobSpecVersion();
 
 bool IsSchedulingReason(EAbortReason reason);
 bool IsNonSchedulingReason(EAbortReason reason);
-bool IsMarker(EAbortReason reason);
+bool IsSentinelReason(EAbortReason reason);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -117,15 +117,6 @@ IChunkReaderPtr CreateRemoteReader(
     IBlockCachePtr blockCache,
     NConcurrency::IThroughputThrottlerPtr throttler);
 
-IChunkReaderPtr CreateRemoteReader(
-    const TChunkId& chunkId,
-    TReplicationReaderConfigPtr config,
-    TRemoteReaderOptionsPtr options,
-    NApi::INativeClientPtr client,
-    const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
-    IBlockCachePtr blockCache,
-    NConcurrency::IThroughputThrottlerPtr throttler);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TUserObject

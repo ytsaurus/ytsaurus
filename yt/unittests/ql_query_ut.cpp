@@ -747,7 +747,7 @@ protected:
         ActionQueue_->Shutdown();
     }
 
-    void Evaluate(
+    TQueryPtr Evaluate(
         const Stroka& query,
         const TDataSplit& dataSplit,
         const std::vector<Stroka>& owningSource,
@@ -759,7 +759,7 @@ protected:
         std::map<Stroka, TDataSplit> dataSplits;
         dataSplits["//t"] = dataSplit;
 
-        BIND(&TQueryEvaluateTest::DoEvaluate, this)
+        return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
@@ -770,10 +770,10 @@ protected:
                 outputRowLimit,
                 EFailureLocation::Nowhere)
             .Get()
-            .ThrowOnError();
+            .ValueOrThrow();
     }
 
-    void Evaluate(
+    TQueryPtr Evaluate(
         const Stroka& query,
         const std::map<Stroka, TDataSplit>& dataSplits,
         const std::vector<std::vector<Stroka>>& owningSources,
@@ -781,7 +781,7 @@ protected:
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
-        BIND(&TQueryEvaluateTest::DoEvaluate, this)
+        return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
@@ -792,10 +792,10 @@ protected:
                 outputRowLimit,
                 EFailureLocation::Nowhere)
             .Get()
-            .ThrowOnError();
+            .ValueOrThrow();
     }
 
-    void EvaluateExpectingError(
+    TQueryPtr EvaluateExpectingError(
         const Stroka& query,
         const TDataSplit& dataSplit,
         const std::vector<Stroka>& owningSource,
@@ -807,7 +807,7 @@ protected:
         std::map<Stroka, TDataSplit> dataSplits;
         dataSplits["//t"] = dataSplit;
 
-        BIND(&TQueryEvaluateTest::DoEvaluate, this)
+        return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
@@ -818,10 +818,10 @@ protected:
                 outputRowLimit,
                 failureLocation)
             .Get()
-            .ThrowOnError();
+            .ValueOrThrow();
     }
 
-    void DoEvaluate(
+    TQueryPtr DoEvaluate(
         const Stroka& query,
         const std::map<Stroka, TDataSplit>& dataSplits,
         const std::vector<std::vector<Stroka>>& owningSources,
@@ -878,12 +878,15 @@ protected:
 
             auto resultRowset = WaitFor(asyncResultRowset).ValueOrThrow();
             resultMatcher(resultRowset->GetRows(), TTableSchema(primaryQuery->GetTableSchema()));
+
+            return primaryQuery;
         };
 
         if (failureLocation != EFailureLocation::Nowhere) {
             EXPECT_THROW(prepareAndExecute(), TErrorException);
+            return nullptr;
         } else {
-            prepareAndExecute();
+            return prepareAndExecute();
         }
     }
 
@@ -2300,6 +2303,53 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit3)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestJoinLimit4)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64, ESortOrder::Ascending},
+        {"ut", EValueType::Int64, ESortOrder::Ascending},
+        {"b", EValueType::Int64, ESortOrder::Ascending},
+        {"v", EValueType::Int64}
+    }, 0);
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "a=1;ut=123456;b=10"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"b", EValueType::Int64, ESortOrder::Ascending},
+        {"c", EValueType::Int64}
+    }, 1);
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        "b=10;c=100"
+    });
+
+    auto resultSplit = MakeSplit({
+        {"a.ut", EValueType::Int64},
+        {"b.c", EValueType::Int64},
+        {"a.b", EValueType::Int64},
+        {"b.b", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "\"a.ut\"=123456;\"b.c\"=100;\"a.b\"=10;\"b.b\"=10"
+    }, resultSplit);
+
+    Evaluate(
+        "a.ut, b.c, a.b, b.b FROM [//left] a join [//right] b on a.b=b.b limit 1",
+        splits,
+        sources,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
 {
     std::map<Stroka, TDataSplit> splits;
@@ -2408,6 +2458,63 @@ TEST_F(TQueryEvaluateTest, TestJoinManySimple)
         splits,
         sources,
         OrderedResultMatcher(result, {"a", "b"}));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestSortMergeJoin)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64, ESortOrder::Ascending},
+        {"b", EValueType::Int64}
+    }, 0);
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "a=1;b=10",
+        "a=3;b=30",
+        "a=5;b=50",
+        "a=7;b=70",
+        "a=9;b=90"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"c", EValueType::Int64, ESortOrder::Ascending},
+        {"d", EValueType::Int64}
+    }, 1);
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        "c=1;d=10",
+        "c=2;d=20",
+        "c=4;d=40",
+        "c=5;d=50",
+        "c=7;d=70",
+        "c=8;d=80"
+    });
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+        {"d", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "a=1;b=10;d=10",
+        "a=5;b=50;d=50",
+        "a=7;b=70;d=70"
+    }, resultSplit);
+
+    auto query = Evaluate("a, b, d FROM [//left] join [//right] on a = c", splits, sources, ResultMatcher(result));
+
+    EXPECT_EQ(query->JoinClauses.size(), 1);
+    const auto& joinClauses = query->JoinClauses;
+
+    EXPECT_EQ(joinClauses[0]->CanUseSourceRanges, true);
+    EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1);
 
     SUCCEED();
 }
@@ -2698,6 +2805,65 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
             Evaluate("* FROM [//t] order by 0.0 / double(a) limit 100", split, source, ResultMatcher(result));
         },
         HasSubstr("Comparison with NaN"));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestGroupByTotalsOrderBy)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<std::pair<i64, i64>> sourceValues;
+    for (int i = 0; i < 10000; ++i) {
+        auto value = std::rand() % 100000 + 10000;
+        sourceValues.emplace_back(value, value * 10);
+    }
+
+    for (int i = 0; i < 10000; ++i) {
+        auto value = 10000 - i;
+        sourceValues.emplace_back(value, value * 10);
+    }
+
+    std::vector<std::pair<i64, i64>> groupedValues(200, std::make_pair(0, 0));
+    i64 totalSum = 0;
+    for (const auto& row : sourceValues) {
+        i64 x = row.first % 200;
+        groupedValues[x].first = x;
+        groupedValues[x].second += row.second;
+        totalSum += row.second;
+    }
+
+    std::sort(
+        groupedValues.begin(),
+        groupedValues.end(), [] (const std::pair<i64, i64>& lhs, const std::pair<i64, i64>& rhs) {
+            return lhs.second < rhs.second;
+        });
+
+    groupedValues.resize(50);
+
+    std::vector<Stroka> source;
+    for (const auto& row : sourceValues) {
+        source.push_back(Stroka() + "a=" + ToString(row.first) + ";b=" + ToString(row.second));
+    }
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"y", EValueType::Int64}
+    });
+
+    std::vector<TOwningRow> result;
+    result.push_back(YsonToRow("y=" + ToString(totalSum), resultSplit, true));
+
+    for (const auto& row : groupedValues) {
+        Stroka resultRow = Stroka() + "x=" + ToString(row.first) + ";y=" + ToString(row.second);
+        result.push_back(YsonToRow(resultRow, resultSplit, false));
+    }
+
+    Evaluate("x, sum(b) as y FROM [//t] group by a % 200 as x with totals order by y limit 50",
+        split, source, ResultMatcher(result));
 
     SUCCEED();
 }

@@ -63,6 +63,9 @@ message TMiscExt
 
     // Indicates if the chunk contains a sorted rowsed with unique keys (tables only).
     optional bool unique_keys = 16 [default = false];
+
+    // Chunk creation time.
+    optional uint64 creation_time = 17 [default = 0];
 }
 
 message TPartInfo

@@ -342,6 +342,7 @@ describe("YtCommand - command descriptors", function() {
             'join_reduce',
             'link',
             'list',
+            'list_jobs',
             'lock',
             'lookup_rows',
             'map',

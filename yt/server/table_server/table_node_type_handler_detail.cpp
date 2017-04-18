@@ -186,6 +186,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
 {
     originatingNode->TableSchema() = branchedNode->TableSchema();
     originatingNode->SetSchemaMode(branchedNode->GetSchemaMode());
+    originatingNode->MergeOptimizeFor(originatingNode, branchedNode);
 
     TBase::DoMerge(originatingNode, branchedNode);
 }
@@ -216,6 +217,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     clonedNode->SetRetainedTimestamp(sourceNode->GetRetainedTimestamp());
     clonedNode->SetUnflushedTimestamp(sourceNode->GetUnflushedTimestamp());
     clonedNode->SetReplicationMode(sourceNode->GetReplicationMode());
+    clonedNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
     tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());

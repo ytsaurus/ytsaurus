@@ -9,8 +9,6 @@
 
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/server/program/names.h>
-
 namespace NYT {
 namespace NTools {
 

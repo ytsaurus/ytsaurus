@@ -55,6 +55,7 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/ytlib/tablet_client/config.h>
 
@@ -307,7 +308,11 @@ public:
         YCHECK(cell->Actions().empty());
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        hiveManager->RemoveMailbox(cell->GetId());
+        const auto& cellId = cell->GetId();
+        auto* mailbox = hiveManager->FindMailbox(cellId);
+        if (mailbox) {
+            hiveManager->RemoveMailbox(mailbox);
+        }
 
         for (const auto& peer : cell->Peers()) {
             if (peer.Node) {
@@ -335,7 +340,7 @@ public:
         AbortPrerequisiteTransaction(cell);
         AbortCellSubtreeTransactions(cell);
 
-        auto cellNodeProxy = FindCellNode(cell->GetId());
+        auto cellNodeProxy = FindCellNode(cellId);
         if (cellNodeProxy) {
             try {
                 // NB: Subtree transactions were already aborted in AbortPrerequisiteTransaction.
@@ -1213,7 +1218,6 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "mount_table");
 
         if (hintCell && hintCell->GetCellBundle() != table->GetTabletCellBundle()) {
             // Will throw :)
@@ -1233,7 +1237,14 @@ public:
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             const auto* tablet = allTablets[index];
             auto state = tablet->GetState();
-            if (state == ETabletState::Unmounting) {
+            if (state != ETabletState::Unmounted && (freeze
+                    ? state != ETabletState::Frozen &&
+                        state != ETabletState::Freezing &&
+                        state != ETabletState::FrozenMounting
+                    : state != ETabletState::Mounted &&
+                        state != ETabletState::Mounting &&
+                        state != ETabletState::Unfreezing))
+            {
                 THROW_ERROR_EXCEPTION("Tablet %v is in %Qlv state",
                     tablet->GetId(),
                     state);
@@ -1246,6 +1257,9 @@ public:
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
         ValidateTableMountConfig(table, mountConfig);
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
@@ -1333,7 +1347,7 @@ public:
             objectManager->RefObject(cell);
 
             YCHECK(tablet->GetState() == ETabletState::Unmounted);
-            tablet->SetState(ETabletState::Mounting);
+            tablet->SetState(freeze ? ETabletState::FrozenMounting : ETabletState::Mounting);
             tablet->SetInMemoryMode(inMemoryMode);
 
             const auto* context = GetCurrentMutationContext();
@@ -1432,7 +1446,6 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "unmount_table");
 
         if (!force) {
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
@@ -1451,6 +1464,9 @@ public:
             }
         }
 
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
+
         DoUnmountTable(table, force, firstTabletIndex, lastTabletIndex);
     }
 
@@ -1467,7 +1483,6 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "remount_table");
 
         TTableMountConfigPtr mountConfig;
         NTabletNode::TTabletChunkReaderConfigPtr readerConfig;
@@ -1475,6 +1490,9 @@ public:
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
         ValidateTableMountConfig(table, mountConfig);
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
@@ -1488,6 +1506,7 @@ public:
 
             if (state == ETabletState::Mounted ||
                 state == ETabletState::Mounting ||
+                state == ETabletState::FrozenMounting ||
                 state == ETabletState::Frozen ||
                 state == ETabletState::Freezing)
             {
@@ -1528,12 +1547,12 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "freeze_table");
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
             auto state = tablet->GetState();
             if (state != ETabletState::Mounted &&
+                state != ETabletState::FrozenMounting &&
                 state != ETabletState::Freezing &&
                 state != ETabletState::Frozen)
             {
@@ -1542,6 +1561,9 @@ public:
                     state);
             }
         }
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -1555,6 +1577,7 @@ public:
         auto* cell = tablet->GetCell();
         auto state = tablet->GetState();
         YCHECK(state == ETabletState::Mounted ||
+            state == ETabletState::FrozenMounting ||
             state == ETabletState::Frozen ||
             state == ETabletState::Freezing);
 
@@ -1587,7 +1610,6 @@ public:
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "unfreeze_table");
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -1601,6 +1623,9 @@ public:
                     state);
             }
         }
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -1693,7 +1718,6 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         auto& tablets = table->Tablets();
         YCHECK(tablets.size() == table->GetChunkList()->Children().size());
@@ -1785,6 +1809,53 @@ public:
             }
         }
 
+        std::vector<TChunk*> chunks;
+
+        // For each chunk verify that it is covered (without holes) by old tablets.
+        if (table->IsPhysicallySorted()) {
+            const auto& tabletChunkTrees = table->GetChunkList()->Children();
+            std::vector<yhash_set<TChunk*>> chunkSets(lastTabletIndex + 1);
+
+            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                std::vector<TChunk*> tabletChunks;
+                EnumerateChunksInChunkTree(tabletChunkTrees[index]->AsChunkList(), &tabletChunks);
+                chunkSets[index].insert(tabletChunks.begin(), tabletChunks.end());
+                chunks.insert(chunks.end(), tabletChunks.begin(), tabletChunks.end());
+            }
+
+            std::sort(chunks.begin(), chunks.end(), TObjectRefComparer::Compare);
+            chunks.erase(
+                std::unique(chunks.begin(), chunks.end()),
+                chunks.end());
+            int keyColumnCount = table->TableSchema().GetKeyColumnCount();
+            auto oldTablets = std::vector<TTablet*>(
+                tablets.begin() + firstTabletIndex,
+                tablets.begin() + lastTabletIndex + 1);
+
+            for (auto* chunk : chunks) {
+                auto keyPair = GetChunkBoundaryKeys(chunk->ChunkMeta(), keyColumnCount);
+                auto range = GetIntersectingTablets(oldTablets, keyPair.first, keyPair.second);
+                for (auto it = range.first; it != range.second; ++it) {
+                    auto* tablet = *it;
+                    if (chunkSets[tablet->GetIndex()].find(chunk) == chunkSets[tablet->GetIndex()].end()) {
+                        THROW_ERROR_EXCEPTION("Chunk %v crosses boundary of tablet %v but is missing from its chunk list;"
+                            " please wait until stores are compacted",
+                            chunk->GetId(),
+                            tablet->GetId())
+                        << TErrorAttribute("chunk_min_key", keyPair.first)
+                        << TErrorAttribute("chunk_max_key", keyPair.second)
+                        << TErrorAttribute("pivot_key", tablet->GetPivotKey())
+                        << TErrorAttribute("next_pivot_key", tablet->GetIndex() < table->Tablets().size() - 1
+                            ? table->Tablets()[tablet->GetIndex() + 1]->GetPivotKey()
+                            : MaxKey());
+                    }
+                }
+            }
+        }
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
+
         // Create new tablets.
         std::vector<TTablet*> newTablets;
         for (int index = 0; index < newTabletCount; ++index) {
@@ -1797,6 +1868,13 @@ public:
             }
             newTablet->SetRetainedTimestamp(retainedTimestamp);
             newTablets.push_back(newTablet);
+
+            if (table->IsReplicated()) {
+                const auto* replicatedTable = table->As<TReplicatedTableNode>();
+                for (auto* replica : replicatedTable->Replicas()) {
+                    YCHECK(newTablet->Replicas().emplace(replica, TTableReplicaInfo()).second);
+                }
+            }
         }
 
         // Drop old tablets.
@@ -1855,18 +1933,10 @@ public:
 
         if (table->IsPhysicallySorted()) {
             // Move chunks from the resharded tablets to appropriate chunk lists.
-            auto chunks = enumerateChunks(firstTabletIndex, lastTabletIndex);
-            std::sort(chunks.begin(), chunks.end(), TObjectRefComparer::Compare);
-            chunks.erase(
-                std::unique(chunks.begin(), chunks.end()),
-                chunks.end());
-
             int keyColumnCount = table->TableSchema().GetKeyColumnCount();
             for (auto* chunk : chunks) {
-                auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
-                auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumnCount);
-                auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumnCount);
-                auto range = GetIntersectingTablets(newTablets, minKey, maxKey);
+                auto keyPair = GetChunkBoundaryKeys(chunk->ChunkMeta(), keyColumnCount);
+                auto range = GetIntersectingTablets(newTablets, keyPair.first, keyPair.second);
                 for (auto it = range.first; it != range.second; ++it) {
                     auto* tablet = *it;
                     chunkManager->AttachToChunkList(
@@ -2806,7 +2876,7 @@ private:
         }
 
         auto state = tablet->GetState();
-        if (state != ETabletState::Mounting) {
+        if (state != ETabletState::Mounting && state != ETabletState::FrozenMounting) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
@@ -3361,6 +3431,22 @@ private:
         }
     }
 
+    
+    virtual void OnRecoveryComplete() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnRecoveryComplete();
+
+        for (const auto& pair : TabletCellMap_) {
+            auto* cell = pair.second;
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
+            UpdateCellDirectory(cell);
+        }
+    }
+
     virtual void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -3369,16 +3455,9 @@ private:
 
         if (Bootstrap_->IsPrimaryMaster()) {
             TabletTracker_->Start();
+
             TabletBalancer_ = New<TTabletBalancer>(Config_->TabletBalancer, Bootstrap_);
             TabletBalancer_->Start();
-        }
-
-        for (const auto& pair : TabletCellMap_) {
-            auto* cell = pair.second;
-            if (!IsObjectAlive(cell)) {
-                continue;
-            }
-            UpdateCellDirectory(cell);
         }
 
         CleanupExecutor_ = New<TPeriodicExecutor>(
@@ -3685,8 +3764,15 @@ private:
         TTablet* tablet,
         bool force)
     {
-        if (tablet->GetState() == ETabletState::Unmounted) {
+        auto state = tablet->GetState();
+        if (state == ETabletState::Unmounted) {
             return;
+        }
+        if (!force) {
+            YCHECK(state == ETabletState::Mounted ||
+                state == ETabletState::Frozen ||
+                state == ETabletState::Freezing ||
+                state == ETabletState::Unmounting);
         }
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
@@ -3775,9 +3861,9 @@ private:
         (*writerOptions)->MediumName = primaryMedium->GetName();
         (*writerOptions)->Account = table->GetAccount()->GetName();
         (*writerOptions)->CompressionCodec = tableAttributes.Get<NCompression::ECodec>("compression_codec");
-        (*writerOptions)->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+        (*writerOptions)->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec");
         (*writerOptions)->ChunksVital = chunkProperties.GetVital();
-        (*writerOptions)->OptimizeFor = tableAttributes.Get<EOptimizeFor>("optimize_for", NTableClient::EOptimizeFor::Lookup);
+        (*writerOptions)->OptimizeFor = tableAttributes.Get<EOptimizeFor>("optimize_for");
     }
 
     static void ParseTabletRange(

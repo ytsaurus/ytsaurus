@@ -141,11 +141,11 @@ TFuture<TChangelogInfo> DiscoverChangelog(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TComputeQuorumRecordCountSession
+class TComputeQuorumQuorumInfoSession
     : public TRefCounted
 {
 public:
-    TComputeQuorumRecordCountSession(
+    TComputeQuorumQuorumInfoSession(
         TDistributedHydraManagerConfigPtr config,
         TCellManagerPtr cellManager,
         int changelogId)
@@ -161,9 +161,9 @@ public:
         YCHECK(CellManager_);
     }
 
-    TFuture<int> Run()
+    TFuture<TChangelogQuorumInfo> Run()
     {
-        BIND(&TComputeQuorumRecordCountSession::DoRun, MakeStrong(this))
+        BIND(&TComputeQuorumQuorumInfoSession::DoRun, MakeStrong(this))
             .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
             .Run();
         return Promise_;
@@ -176,9 +176,10 @@ private:
 
     const NLogging::TLogger Logger;
 
-    std::vector<int> RecordCounts_;
+    std::vector<int> RecordCountsLo_;
+    std::vector<int> RecordCountsHi_;
     std::vector<TError> InnerErrors_;
-    TPromise<int> Promise_ = NewPromise<int>();
+    TPromise<TChangelogQuorumInfo> Promise_ = NewPromise<TChangelogQuorumInfo>();
 
 
     void DoRun()
@@ -201,11 +202,11 @@ private:
             auto req = proxy.LookupChangelog();
             req->set_changelog_id(ChangelogId_);
             asyncResults.push_back(req->Invoke().Apply(
-                BIND(&TComputeQuorumRecordCountSession::OnResponse, MakeStrong(this), peerId)));
+                BIND(&TComputeQuorumQuorumInfoSession::OnResponse, MakeStrong(this), peerId)));
         }
 
         Combine(asyncResults).Subscribe(
-            BIND(&TComputeQuorumRecordCountSession::OnComplete, MakeStrong(this)));
+            BIND(&TComputeQuorumQuorumInfoSession::OnComplete, MakeStrong(this)));
     }
 
     void OnResponse(
@@ -215,13 +216,16 @@ private:
         if (rspOrError.IsOK()) {
             const auto& rsp = rspOrError.Value();
             int recordCount = rsp->record_count();
-            RecordCounts_.push_back(recordCount);
+            RecordCountsLo_.push_back(recordCount);
+            RecordCountsHi_.push_back(recordCount);
 
             LOG_DEBUG("Changelog info received (PeerId: %v, RecordCount: %v)",
                 peerId,
                 recordCount);
         } else {
             InnerErrors_.push_back(rspOrError);
+            RecordCountsLo_.push_back(std::numeric_limits<int>::min());
+            RecordCountsHi_.push_back(std::numeric_limits<int>::max());
 
             LOG_WARNING(rspOrError, "Error requesting changelog info (PeerId: %v)",
                 peerId);
@@ -230,33 +234,29 @@ private:
 
     void OnComplete(const TError&)
     {
+        std::sort(RecordCountsLo_.begin(), RecordCountsLo_.end());
+        std::sort(RecordCountsHi_.begin(), RecordCountsHi_.end());
+
         int quorum = CellManager_->GetQuorumPeerCount();
-        if (RecordCounts_.size() < quorum) {
-            auto error = TError("Unable to compute quorum record count for changelog %v: too few replicas alive, %v found, %v needed",
-                ChangelogId_,
-                RecordCounts_.size(),
-                quorum)
-                << InnerErrors_;
-            Promise_.Set(error);
-            return;
-        }
+        TChangelogQuorumInfo result{
+            RecordCountsLo_[quorum - 1],
+            RecordCountsHi_[quorum - 1]
+        };
 
-        std::sort(RecordCounts_.begin(), RecordCounts_.end());
-        int result = RecordCounts_[quorum - 1];
-
-        LOG_INFO("Changelog quorum record count computed successfully (RecordCount: %v)",
-            result);
+        LOG_INFO("Changelog quorum info count computed successfully (RecordCountLo: %v, RecordCountHi: %v)",
+            result.RecordCountLo,
+            result.RecordCountHi);
 
         Promise_.Set(result);
     }
 };
 
-TFuture<int> ComputeQuorumRecordCount(
+TFuture<TChangelogQuorumInfo> ComputeChangelogQuorumInfo(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     int changelogId)
 {
-    auto session = New<TComputeQuorumRecordCountSession>(
+    auto session = New<TComputeQuorumQuorumInfoSession>(
         std::move(config),
         std::move(cellManager),
         changelogId);

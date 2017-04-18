@@ -1,7 +1,9 @@
 #include "node_shard.h"
+
 #include "helpers.h"
-#include "private.h"
+#include "operation_controller.h"
 #include "scheduler_strategy.h"
+#include "scheduling_context.h"
 
 #include <yt/server/exec_agent/public.h>
 
@@ -91,6 +93,9 @@ void TNodeShard::OnMasterDisconnected()
             JobCounter_[state][type] = 0;
             for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
                 AbortedJobCounter_[reason][state][type] = 0;
+            }
+            for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
+                CompletedJobCounter_[reason][state][type] = 0;
             }
         }
     }
@@ -255,17 +260,16 @@ yhash_set<TOperationId> TNodeShard::ProcessHeartbeat(const TScheduler::TCtxHeart
     return operationsToLog;
 }
 
-std::vector<TExecNodeDescriptor> TNodeShard::GetExecNodeDescriptors()
+TExecNodeDescriptorListPtr TNodeShard::GetExecNodeDescriptors()
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    std::vector<TExecNodeDescriptor> result;
-    result.reserve(IdToNode_.size());
+    auto result = New<TExecNodeDescriptorList>();
+    result->Descriptors.reserve(IdToNode_.size());
     for (const auto& pair : IdToNode_) {
         const auto& node = pair.second;
-        if (node->GetMasterState() == ENodeState::Online)
-        {
-            result.push_back(node->BuildExecDescriptor());
+        if (node->GetMasterState() == ENodeState::Online) {
+            result->Descriptors.push_back(node->BuildExecDescriptor());
         }
     }
 
@@ -595,7 +599,7 @@ void TNodeShard::AbortJob(const TJobId& jobId, const TNullable<TDuration>& inter
             job->GetOperationId());
     }
 
-    if (interruptTimeout.Get(TDuration::Zero()) != TDuration::Zero() && !job->InterruptCookie()) {
+    if (interruptTimeout.Get(TDuration::Zero()) != TDuration::Zero()) {
         if (!job->GetInterruptible()) {
             THROW_ERROR_EXCEPTION("Cannot interrupt job %v of type %Qlv because such job type does not support interruption",
                 jobId,
@@ -618,30 +622,12 @@ void TNodeShard::AbortJob(const TJobId& jobId, const TNullable<TDuration>& inter
             jobId,
             interruptTimeout);
 
-        // Abort job after timeout.
-        job->InterruptCookie() = TDelayedExecutor::Submit(
-            BIND(&TNodeShard::OnInterruptTimeout, MakeWeak(this), jobId, user).Via(GetCurrentInvoker()),
-            *interruptTimeout);
+        DoInterruptJob(job, EInterruptReason::UserRequest, DurationToCpuDuration(*interruptTimeout), user);
     } else {
         LOG_DEBUG("Aborting job by user request (JobId: %v, OperationId: %v, User: %v)",
             jobId,
             job->GetOperationId(),
             user);
-
-        auto status = JobStatusFromError(TError("Job aborted by user request")
-            << TErrorAttribute("abort_reason", EAbortReason::UserRequest)
-            << TErrorAttribute("user", user));
-        OnJobAborted(job, &status);
-    }
-}
-
-void TNodeShard::OnInterruptTimeout(const TJobId& jobId, const Stroka& user)
-{
-    auto job = FindJob(jobId);
-    if (job) {
-        LOG_DEBUG("Aborting job after interrupt timeout (JobId: %v, OperationId: %v)",
-            jobId,
-            job->GetOperationId());
 
         auto status = JobStatusFromError(TError("Job aborted by user request")
             << TErrorAttribute("abort_reason", EAbortReason::UserRequest)
@@ -744,7 +730,7 @@ TJobResources TNodeShard::CalculateResourceLimits(const TSchedulingTagFilter& fi
 
     {
         TReaderGuard guard(CachedExecNodeDescriptorsLock_);
-        for (const auto& node : CachedExecNodeDescriptors_) {
+        for (const auto& node : CachedExecNodeDescriptors_->Descriptors) {
             if (node.CanSchedule(filter)) {
                 resources += node.ResourceLimits;
             }
@@ -808,6 +794,15 @@ TAbortedJobCounter TNodeShard::GetAbortedJobCounter()
     TReaderGuard guard(JobCounterLock_);
 
     return AbortedJobCounter_;
+}
+
+TCompletedJobCounter TNodeShard::GetCompletedJobCounter()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(JobCounterLock_);
+
+    return CompletedJobCounter_;
 }
 
 TJobTimeStatisticsDelta TNodeShard::GetJobTimeStatisticsDelta()
@@ -1110,7 +1105,8 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
             LOG_DEBUG(error, "Job aborted, removal scheduled");
             if (job->GetPreempted() && error.GetCode() == NExecAgent::EErrorCode::AbortByScheduler) {
                 auto error = TError("Job preempted")
-                    << TErrorAttribute("abort_reason", EAbortReason::Preemption);
+                    << TErrorAttribute("abort_reason", EAbortReason::Preemption)
+                    << TErrorAttribute("preemption_reason", job->GetPreemptionReason());
                 auto status = JobStatusFromError(error);
                 OnJobAborted(job, &status);
             } else {
@@ -1133,6 +1129,16 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                         job->SetProgress(jobStatus->progress());
                         if (updateRunningJob) {
                             OnJobRunning(job, jobStatus);
+                        }
+                        if (job->GetInterruptReason() != EInterruptReason::None) {
+                            ToProto(response->add_jobs_to_interrupt(), jobId);
+                        }
+                        if (job->GetInterruptDeadline() != 0 && now > job->GetInterruptDeadline()) {
+                            LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v, JobId: %v, OperationId: %v)",
+                                CpuInstantToInstant(job->GetInterruptDeadline()),
+                                jobId,
+                                job->GetOperationId());
+                            ToProto(response->add_jobs_to_abort(), jobId);
                         }
                         break;
 
@@ -1342,7 +1348,6 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
     }
 
     auto now = GetCpuInstant();
-    auto interruptDeadline = now + DurationToCpuDuration(Config_->JobInterruptTimeout);
     for (const auto& job : schedulingContext->PreemptedJobs()) {
         if (!OperationExists(job->GetOperationId()) || job->GetHasPendingUnregistration()) {
             LOG_DEBUG("Dangling preempted job found (JobId: %v, OperationId: %v)",
@@ -1352,21 +1357,14 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
         }
 
         if (job->GetInterruptible() && Config_->JobInterruptTimeout != TDuration::Zero()) {
-            if (job->GetPreempted()) {
-                if (now > job->GetInterruptDeadline()) {
-                    LOG_DEBUG("Preempted job interrupt deadline reached, aborting (InterruptDeadline: %v, JobId: %v, OperationId: %v)",
-                        CpuInstantToInstant(job->GetInterruptDeadline()),
-                        job->GetId(),
-                        job->GetOperationId());
-                    ToProto(response->add_jobs_to_abort(), job->GetId());
-                }
-                // Else do nothing: job was already interrupted, by deadline not reached yet.
-            } else {
+            if (!job->GetPreempted()) {
+                auto interruptDeadline = now + DurationToCpuDuration(Config_->JobInterruptTimeout);
                 PreemptJob(job, interruptDeadline);
                 ToProto(response->add_jobs_to_interrupt(), job->GetId());
             }
+            // Else do nothing: job was already interrupted, by deadline not reached yet.
         } else {
-            PreemptJob(job, Null);
+            PreemptJob(job, 0);
             ToProto(response->add_jobs_to_abort(), job->GetId());
         }
     }
@@ -1401,18 +1399,18 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
                 Config_->SuspiciousInputPipeIdleTimeFraction)
                 .Via(GetInvoker()));
 
-            auto* operationState = FindOperationState(job->GetOperationId());
-            if (operationState) {
-                const auto& controller = operationState->Controller;
-                BIND(&IOperationController::OnJobRunning,
-                    controller,
-                    Passed(std::make_unique<TJobSummary>(job)))
-                    .Via(controller->GetCancelableInvoker())
-                    .Run();
-            }
         }
-
         job->SetStatus(status);
+
+        auto* operationState = FindOperationState(job->GetOperationId());
+        if (operationState) {
+            const auto& controller = operationState->Controller;
+            BIND(&IOperationController::OnJobRunning,
+                controller,
+                Passed(std::make_unique<TJobSummary>(job)))
+                .Via(controller->GetCancelableInvoker())
+                .Run();
+        }
     }
 }
 
@@ -1427,6 +1425,15 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
         job->GetState() == EJobState::Waiting ||
         job->GetState() == EJobState::None)
     {
+        // The value of status may be nullptr on abandoned jobs.
+        if (status != nullptr) {
+            const auto& result = status->result();
+            const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+            if (schedulerResultExt.unread_input_data_slice_descriptors_size() == 0) {
+                job->SetInterruptReason(EInterruptReason::None);
+            }
+        }
+
         SetJobState(job, EJobState::Completed);
         job->SetStatus(status);
 
@@ -1598,6 +1605,8 @@ void TNodeShard::IncreaseProfilingCounter(const TJobPtr& job, i64 value)
     TJobCounter* counter = &JobCounter_;
     if (job->GetState() == EJobState::Aborted) {
         counter = &AbortedJobCounter_[GetAbortReason(job->Status().result())];
+    } else if (job->GetState() == EJobState::Completed) {
+        counter = &CompletedJobCounter_[job->GetInterruptReason()];
     }
     (*counter)[job->GetState()][job->GetType()] += value;
 }
@@ -1628,10 +1637,6 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
 
 void TNodeShard::UnregisterJob(const TJobPtr& job)
 {
-    if (job->InterruptCookie()) {
-        TDelayedExecutor::CancelAndClear(job->InterruptCookie());
-    }
-
     auto node = job->GetNode();
 
     if (node->GetHasOngoingJobsScheduling()) {
@@ -1667,26 +1672,50 @@ void TNodeShard::DoUnregisterJob(const TJobPtr& job)
     }
 }
 
-void TNodeShard::PreemptJob(const TJobPtr& job, const TNullable<TCpuInstant>& interruptDeadline)
+void TNodeShard::PreemptJob(const TJobPtr& job, TCpuInstant interruptDeadline)
 {
-    LOG_DEBUG("Preempting job (InterruptDeadline: %v, Interruptible: %v, JobId: %v, OperationId: %v)",
-        interruptDeadline,
-        job->GetInterruptible(),
+    LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v, Interruptible: %v, Reason: %Qv)",
         job->GetId(),
-        job->GetOperationId());
+        job->GetOperationId(),
+        job->GetInterruptible(),
+        job->GetPreemptionReason());
 
     job->SetPreempted(true);
 
-    if (interruptDeadline) {
-        job->SetInterruptDeadline(*interruptDeadline);
+    if (interruptDeadline != 0) {
+        DoInterruptJob(job, EInterruptReason::Preemption, interruptDeadline);
     }
 }
 
-void TNodeShard::SetInterruptHint(const TJobId& jobId, bool hint)
+void TNodeShard::DoInterruptJob(
+    const TJobPtr& job,
+    EInterruptReason reason,
+    TCpuDuration interruptTimeout,
+    TNullable<Stroka> interruptUser)
+{
+    LOG_DEBUG("Interrupting job (Reason: %v, InterruptTimeout: %.3g, JobId: %v, OperationId: %v)",
+        reason,
+        CpuDurationToDuration(interruptTimeout).SecondsFloat(),
+        job->GetId(),
+        job->GetOperationId());
+
+    if (job->GetInterruptReason() == EInterruptReason::None && reason != EInterruptReason::None) {
+        job->SetInterruptReason(reason);
+    }
+
+    if (interruptTimeout != 0) {
+        auto interruptDeadline = GetCpuInstant() + interruptTimeout;
+        if (interruptDeadline < job->GetInterruptDeadline()) {
+            job->SetInterruptDeadline(interruptDeadline);
+        }
+    }
+}
+
+void TNodeShard::InterruptJob(const TJobId& jobId, EInterruptReason reason)
 {
     auto job = FindJob(jobId);
     if (job) {
-        job->SetInterruptHint(hint);
+        DoInterruptJob(job, reason);
     }
 }
 
@@ -1786,9 +1815,9 @@ public:
         , NodeShard_(nodeShard)
     { }
 
-    virtual TFuture<void> SetInterruptHint(bool hint) override
+    virtual TFuture<void> InterruptJob(EInterruptReason reason) override
     {
-        return BIND(&TNodeShard::SetInterruptHint, NodeShard_, JobId_, hint)
+        return BIND(&TNodeShard::InterruptJob, NodeShard_, JobId_, reason)
             .AsyncVia(NodeShard_->GetInvoker())
             .Run();
     }

@@ -13,6 +13,8 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
+#include <yt/core/profiling/profiler.h>
+
 #include <queue>
 
 namespace NYT {
@@ -58,6 +60,11 @@ public:
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
             BIND(&TImpl::OnCheckEnabled, MakeWeak(this)),
             Config_->EnabledCheckPeriod))
+        , Profiler("/tablet_server/tablet_balancer")
+        , MemoryMoveCounter_("/in_memory_moves")
+        , MergeCounter_("/tablet_merges")
+        , SplitCounter_("/tablet_splits")
+        , QueueSizeCounter_("/queue_size")
     { }
 
     void Start()
@@ -119,6 +126,7 @@ public:
         if (needAction) {
             TabletIdQueue_.push_back(tablet->GetId());
             QueuedTabletIds_.insert(tablet->GetId());
+            Profiler.Increment(QueueSizeCounter_);
             LOG_DEBUG("Put tablet %v into balancer queue", tablet->GetId());
         }
     }
@@ -133,6 +141,11 @@ private:
     std::deque<TTabletId> TabletIdQueue_;
     yhash_set<TTabletId> QueuedTabletIds_;
 
+    const NProfiling::TProfiler Profiler;
+    NProfiling::TSimpleCounter MemoryMoveCounter_;
+    NProfiling::TSimpleCounter MergeCounter_;
+    NProfiling::TSimpleCounter SplitCounter_;
+    NProfiling::TSimpleCounter QueueSizeCounter_;
 
     void Balance()
     {
@@ -143,7 +156,9 @@ private:
         if (TabletIdQueue_.empty()) {
             BalanceTabletCells();
         } else {
-            BalanceTablets();
+            PROFILE_TIMING("/balance_tablets") {
+                BalanceTablets();
+            }
         }
     }
 
@@ -176,7 +191,10 @@ private:
             return;
         }
 
-        ReassignInMemoryTablets();
+        PROFILE_TIMING("/balance_cells_memory") {
+            ReassignInMemoryTablets();
+        }
+
         // TODO(savrus) balance other tablets.
     }
 
@@ -225,6 +243,11 @@ private:
                 }
 
                 auto top = queue.top();
+
+                if (static_cast<double>(cellSize - top.first) / cellSize < Config_->CellBalanceFactor) {
+                    break;
+                }
+
                 auto statistics = tabletManager->GetTabletStatistics(tablet);
                 auto tabletSize = statistics.MemorySize;
 
@@ -232,7 +255,7 @@ private:
                     continue;
                 }
 
-                if (tabletSize < 2 * (cellSize - mean) && tabletSize < 2 * (mean - top.first)) {
+                if (tabletSize < cellSize - top.first) {
                     LOG_DEBUG("Tablet balancer would like to move tablet (TabletId: %v, SrcCellId: %v, DstCellId: %v)",
                         tablet->GetId(),
                         cell->GetId(),
@@ -253,6 +276,7 @@ private:
                     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
                     CreateMutation(hydraManager, request)
                         ->CommitAndLog(Logger);
+                    Profiler.Increment(MemoryMoveCounter_);
                 }
             }
         }
@@ -306,6 +330,8 @@ private:
                 SplitTablet(tablet);
             }
         }
+
+        Profiler.Update(QueueSizeCounter_, TabletIdQueue_.size());
     }
 
     i64 GetTabletSize(TTablet* tablet)
@@ -365,6 +391,7 @@ private:
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         CreateMutation(hydraManager, request)
             ->CommitAndLog(Logger);
+        Profiler.Increment(MergeCounter_);
     }
 
     void SplitTablet(TTablet* tablet)
@@ -391,6 +418,7 @@ private:
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         CreateMutation(hydraManager, request)
             ->CommitAndLog(Logger);
+        Profiler.Increment(SplitCounter_);
     }
 
 
@@ -401,9 +429,11 @@ private:
             return;
         }
 
+        auto wasEnabled = Enabled_;
+
         try {
             if (Bootstrap_->IsPrimaryMaster()) {
-                OnCheckEnabledPrimary();
+                Enabled_ = OnCheckEnabledPrimary();
             } else {
                 Enabled_ = false;
             }
@@ -411,9 +441,13 @@ private:
             LOG_ERROR(ex, "Error updating tablet balancer state, disabling until the next attempt");
             Enabled_ = false;
         }
+
+        if (Enabled_ && !wasEnabled) {
+            LOG_INFO("Tablet balancer enabled");
+        }
     }
 
-    void OnCheckEnabledPrimary()
+    bool OnCheckEnabledPrimary()
     {
         bool enabled = true;
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -423,13 +457,38 @@ private:
             if (Enabled_) {
                 LOG_INFO("Tablet balancer is disabled by //sys/@disable_tablet_balancer setting");
             }
-
             enabled = false;
         }
-        Enabled_ = enabled;
-        if (Enabled_) {
-            LOG_INFO("Tablet balancer enabled");
+        return enabled ? OnCheckEnabledWorkHours() : false;
+
+    }
+
+    bool OnCheckEnabledWorkHours()
+    {
+        bool enabled = true;
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto resolver = cypressManager->CreateResolver();
+        auto sysNode = resolver->ResolvePath("//sys");
+        auto officeHours = sysNode->Attributes().Find<std::vector<int>>("tablet_balancer_office_hours");
+        if (!officeHours) {
+            return enabled;
         }
+        if (officeHours->size() != 2) {
+            LOG_INFO("Expected two integers in //sys/@tablet_balancer_office_hours, but got %v",
+                *officeHours);
+            return enabled;
+        }
+
+        tm localTime;
+        Now().LocalTime(&localTime);
+        int hour = localTime.tm_hour;
+        if (hour < (*officeHours)[0] || hour > (*officeHours)[1]) {
+            if (Enabled_) {
+                LOG_INFO("Tablet balancer is disabled by //sys/@tablet_balancer_office_hours");
+            }
+            enabled = false;
+        }
+        return enabled;
     }
 };
 

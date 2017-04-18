@@ -21,14 +21,11 @@ using namespace NTabletServer;
 
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
-    , SchemaMode_(ETableSchemaMode::Weak)
-    , LastCommitTimestamp_(NullTimestamp)
-    , TabletCellBundle_(nullptr)
-    , Atomicity_(NTransactionClient::EAtomicity::Full)
-    , CommitOrdering_(NTransactionClient::ECommitOrdering::Weak)
-    , RetainedTimestamp_(NTransactionClient::NullTimestamp)
-    , UnflushedTimestamp_(NTransactionClient::NullTimestamp)
-{ }
+{
+    if (IsTrunk()) {
+        SetOptimizeFor(EOptimizeFor::Lookup);
+    }
+}
 
 EObjectType TTableNode::GetObjectType() const
 {
@@ -109,6 +106,7 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, RetainedTimestamp_);
     Save(context, UnflushedTimestamp_);
     Save(context, ReplicationMode_);
+    Save(context, OptimizeFor_);
 }
 
 void TTableNode::Load(NCellMaster::TLoadContext& context)
@@ -132,9 +130,28 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= 509) {
         Load(context, ReplicationMode_);
     }
-    // COMPAT(babenko): Cf. YT-5045
-    if (Attributes_ && Attributes_->Attributes().empty()) {
-        Attributes_.reset();
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 513) {
+        Load(context, OptimizeFor_);
+    } else {
+        if (Attributes_) {
+            auto& attributes = Attributes_->Attributes();
+            {
+                static const Stroka optimizeForAttributeName("optimize_for");
+                auto it = attributes.find(optimizeForAttributeName);
+                if (it != attributes.end()) {
+                    const auto& value = it->second;
+                    try {
+                        OptimizeFor_.Set(NYTree::ConvertTo<EOptimizeFor>(value));
+                    } catch (...) {
+                    }
+                    attributes.erase(it);
+                }
+            }
+            if (Attributes_->Attributes().empty()) {
+                Attributes_.reset();
+            }
+        }
     }
 }
 

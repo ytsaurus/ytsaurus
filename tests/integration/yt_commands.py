@@ -190,6 +190,10 @@ def get_job_stderr(operation_id, job_id, **kwargs):
     kwargs["job_id"] = job_id
     return execute_command("get_job_stderr", kwargs)
 
+def list_jobs(operation_id, **kwargs):
+    kwargs["operation_id"] = operation_id
+    return execute_command_with_output_format("list_jobs", kwargs)
+
 def strace_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
     result = execute_command('strace_job', kwargs)
@@ -600,6 +604,8 @@ class Operation(object):
 
     def get_job_count(self, state):
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/{1}".format(self.id, state)
+        if state == "aborted" or state == "completed":
+            path += "/total"
         if not exists(path):
             return 0
         return get(path, verbose=False)
@@ -1034,3 +1040,12 @@ def get_guid_from_parts(lo, hi):
     ints[2] = lo & 0xFFFFFFFF
     ints[3] = lo >> 32
     return "{3:x}-{2:x}-{1:x}-{0:x}".format(*ints)
+
+##################################################################
+
+def get_statistics(statistics, complex_key):
+    result = statistics
+    for part in complex_key.split("."):
+        if part:
+            result = result[part]
+    return result

@@ -149,9 +149,7 @@ void FormatValue(
 
 Stroka ToString(const TWorkloadDescriptor& descriptor)
 {
-    TStringBuilder builder;
-    FormatValue(&builder, descriptor, TStringBuf());
-    return builder.Flush();
+    return ToStringViaBuilder(descriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -30,7 +30,7 @@ struct ISchedulerStrategyHost
 
     virtual int GetExecNodeCount() const = 0;
     virtual int GetTotalNodeCount() const = 0;
-    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
+    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
 
     virtual void ValidatePoolPermission(
         const NYPath::TYPath& path,
@@ -117,6 +117,10 @@ struct ISchedulerStrategy
     virtual void ProcessUpdatedAndCompletedJobs(
         const std::vector<TUpdatedJob>& updatedJobs,
         const std::vector<TCompletedJob>& completedJobs) = 0;
+
+    virtual void ApplyJobMetricsDelta(
+        const TOperationId& operationId,
+        const TJobMetrics& jobMetricsDelta) = 0;
 
     virtual void UpdatePools(const NYTree::INodePtr& poolsNode) = 0;
 

@@ -7,6 +7,7 @@
 #include "guid.h"
 #include "mpl.h"
 #include "nullable.h"
+#include "variant.h"
 #include "property.h"
 #include "ref.h"
 #include "serialize_dump.h"
@@ -616,6 +617,70 @@ struct TNullableSerializer
             nullable.Reset();
             SERIALIZATION_DUMP_WRITE(context, "null");
         }
+    }
+};
+
+template <class... Ts>
+struct TVariantSerializerTraits;
+
+template <class T, class... Ts>
+struct TVariantSerializerTraits<T, Ts...>
+{
+    template <class C, class V>
+    static void Save(C& context, int tag, const V& variant)
+    {
+        if (tag == 0) {
+            NYT::Save(context, variant.template As<T>());
+        } else {
+            TVariantSerializerTraits<Ts...>::Save(context, tag - 1, variant);
+        }
+    }
+
+    template <class C, class V>
+    static void Load(C& context, int tag, V& variant)
+    {
+        if (tag == 0) {
+            variant = T();
+            NYT::Load(context, variant.template As<T>());
+        } else {
+            TVariantSerializerTraits<Ts...>::Load(context, tag - 1, variant);
+        }
+    }
+};
+
+template <>
+struct TVariantSerializerTraits<>
+{
+    template <class C, class V>
+    static void Save(C& /*context*/, int /*tag*/, const V& /*variant*/)
+    {
+        // Invalid TVariant tag.
+        Y_UNREACHABLE();
+    }
+
+    template <class C, class V>
+    static void Load(C& /*context*/, int /*tag*/, V& /*variant*/)
+    {
+        // Invalid TVariant tag.
+        Y_UNREACHABLE();
+    }
+};
+
+struct TVariantSerializer
+{
+    template <class... Ts, class C>
+    static void Save(C& context, const TVariant<Ts...>& variant)
+    {
+        NYT::Save(context, variant.Tag());
+        TVariantSerializerTraits<Ts...>::Save(context, variant.Tag(), variant);
+    }
+
+    template <class... Ts, class C>
+    static void Load(C& context, TVariant<Ts...>& variant)
+    {
+        int tag = NYT::Load<int>(context);
+        YCHECK(tag >= 0 && tag < sizeof...(Ts));
+        TVariantSerializerTraits<Ts...>::Load(context, variant.Tag(), variant);
     }
 };
 
@@ -1438,6 +1503,12 @@ template <class T, class C>
 struct TSerializerTraits<TNullable<T>, C, void>
 {
     typedef TNullableSerializer<> TSerializer;
+};
+
+template <class... Ts, class C>
+struct TSerializerTraits<TVariant<Ts...>, C, void>
+{
+    typedef TVariantSerializer TSerializer;
 };
 
 template <class T, class C>

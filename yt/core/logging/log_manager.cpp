@@ -358,21 +358,23 @@ public:
 
     void Shutdown()
     {
-        if (LoggingThread_->IsStarted() && LoggingThread_->GetId() != ::TThread::CurrentThreadId()) {
-            // Waiting for output of all previous messages.
-            // Waiting no more than 1 second to prevent hanging.
+        ShutdownRequested_ = true;
+
+        if (LoggingThread_->GetId() == ::TThread::CurrentThreadId()) {
+            FlushWriters();
+        } else {
+            // Wait for all previously enqueued messages to be flushed
+            // but no more than ShutdownGraceTimeout to prevent hanging.
             auto now = TInstant::Now();
             auto enqueuedEvents = EnqueuedEvents_.load();
-            while (enqueuedEvents > WrittenEvents_.load() &&
-                TInstant::Now() - now < Config_->ShutdownGraceTimeout)
-            {
+            while (enqueuedEvents > FlushedEvents_.load() &&
+                   TInstant::Now() - now < Config_->ShutdownGraceTimeout) {
                 SchedYield();
             }
         }
 
         EventQueue_->Shutdown();
         LoggingThread_->Shutdown();
-        FlushWriters();
     }
 
     /*!
@@ -544,6 +546,7 @@ private:
     EBeginExecuteResult BeginExecute()
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
+
         return EventQueue_->BeginExecute(&CurrentAction_);
     }
 
@@ -855,11 +858,16 @@ private:
         }))
         { }
 
-        if (eventsWritten > 0 && !Config_->FlushPeriod) {
-            FlushWriters();
+        if (eventsWritten == 0) {
+            return;
         }
 
         WrittenEvents_ += eventsWritten;
+
+        if (!Config_->FlushPeriod || ShutdownRequested_) {
+            FlushWriters();
+            FlushedEvents_ = WrittenEvents_.load();
+        }
     }
 
 
@@ -889,6 +897,7 @@ private:
 
     std::atomic<ui64> EnqueuedEvents_ = {0};
     std::atomic<ui64> WrittenEvents_ = {0};
+    std::atomic<ui64> FlushedEvents_ = {0};
 
     yhash_map<Stroka, ILogWriterPtr> Writers_;
     yhash_map<std::pair<Stroka, ELogLevel>, std::vector<ILogWriterPtr>> CachedWriters_;

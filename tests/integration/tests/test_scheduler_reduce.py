@@ -13,6 +13,24 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period" : 10,
+            "running_jobs_update_period" : 10,
+            "reduce_operation_options" : {
+                "job_splitter" : {
+                    "min_job_time": 5000,
+                    "min_total_data_size": 1024,
+                    "update_period": 100,
+                    "median_excess_duration": 3000,
+                    "candidate_percentile": 0.8,
+                    "max_jobs_per_split": 3,
+                }
+            }
+        }
+    }
+
     def _create_simple_dynamic_table(self, path, optimize_for="lookup"):
         create("table", path,
             attributes = {
@@ -1205,6 +1223,7 @@ echo {v = 2} >&7
                     "buffer_row_count" : 1,
                 },
                 "data_size_per_job" : 256 * 1024 * 1024,
+                "enable_job_splitting": False,
             },
             **kwargs)
 
@@ -1249,6 +1268,65 @@ echo {v = 2} >&7
                 out="//tmp/t2",
                 command="cat",
                 spec={"input_query": "a where a > 0"})
+
+    @pytest.mark.xfail(run = True, reason = "max42 should support TChunkStripeList->TotalRowCount in TSortedChunkPool")
+    def test_reduce_job_splitter(self):
+        create("table", "//tmp/in_1")
+        for j in range(5):
+            write_table(
+                "<append=true>//tmp/in_1",
+                [{"key": "%08d" % (j * 4 + i), "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(4)],
+                sorted_by = ["key", "value"],
+                table_writer = {
+                    "block_size": 1024,
+                })
+
+        create("table", "//tmp/in_2")
+        write_table(
+            "//tmp/in_2",
+            [{"key": "(%08d)" % (i / 2), "value": "(t_2)"} for i in range(40)],
+            sorted_by = ["key"])
+
+        input_ = ["<foreign=true>//tmp/in_2"] + ["//tmp/in_1"] * 5
+        output = "//tmp/output"
+        create("table", output)
+
+        command="""
+while read ROW; do
+    if [ "$YT_JOB_INDEX" == 0 ]; then
+        sleep 2
+    else
+        sleep 0.2
+    fi
+    echo "$ROW"
+done
+"""
+
+        op = reduce(
+            dont_track=True,
+            label="split_job",
+            in_=input_,
+            out=output,
+            command=command,
+            reduce_by=["key", "value"],
+            join_by="key",
+            spec={
+                "reducer": {
+                    "format": "dsv",
+                },
+                "data_size_per_job": 21 * 1024 * 1024,
+                "max_failed_job_count": 1,
+                "job_io": {
+                    "buffer_row_count" : 1,
+                },
+            })
+
+        op.track()
+
+        completed = get("//sys/operations/{0}/@progress/jobs/completed".format(op.id))
+        interrupted = completed["interrupted"]
+        assert completed["total"] >= 6
+        assert interrupted["job_split"] >= 1
 
 
 ##################################################################

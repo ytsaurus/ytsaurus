@@ -86,7 +86,7 @@ public:
     void SchedulePropertiesUpdate(TChunk* chunk);
     void SchedulePropertiesUpdate(TChunkList* chunkList);
 
-    void TouchChunk(TChunkPtrWithIndexes chunkWithIndexes);
+    void TouchChunk(TChunk* chunk);
 
     TJobPtr FindJob(const TJobId& id);
 

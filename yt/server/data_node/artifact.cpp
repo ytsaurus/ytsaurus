@@ -27,15 +27,15 @@ TArtifactKey::TArtifactKey(const NScheduler::NProto::TFileDescriptor& descriptor
 {
     set_data_source_type(descriptor.data_source().type());
 
-    if (descriptor.data_slice_descriptors_size() > 0) {
+    if (descriptor.chunk_specs_size() > 0) {
+        mutable_chunk_specs()->MergeFrom(descriptor.chunk_specs());
+    } else {
         // COMPAT(psushin).
         for (const auto& dataSliceDescriptor : descriptor.data_slice_descriptors()) {
             for (const auto& chunkSpec : dataSliceDescriptor.chunks()) {
                 *add_chunk_specs() = chunkSpec;
             }
         }
-    } else {
-        mutable_chunk_specs()->MergeFrom(descriptor.chunk_specs());
     }
 
     if (descriptor.has_format()) {
@@ -54,27 +54,27 @@ TArtifactKey::TArtifactKey(const NScheduler::NProto::TFileDescriptor& descriptor
 TArtifactKey::operator size_t() const
 {
     size_t result = 0;
-    result = HashCombine(result, data_source_type());
+    HashCombine(result, data_source_type());
 
     if (has_format()) {
-        result = HashCombine(result, format());
+        HashCombine(result, format());
     }
 
     auto hashReadLimit = [&] (const NChunkClient::NProto::TReadLimit& limit) {
         if (limit.has_row_index()) {
-            result = HashCombine(result, limit.row_index());
+            HashCombine(result, limit.row_index());
         }
         if (limit.has_offset()) {
-            result = HashCombine(result, limit.offset());
+            HashCombine(result, limit.offset());
         }
         if (limit.has_key()) {
-            result = HashCombine(result, limit.key());
+            HashCombine(result, limit.key());
         }
     };
 
     for (const auto& spec : chunk_specs()) {
         auto id = FromProto<TGuid>(spec.chunk_id());
-        result = HashCombine(result, id);
+        HashCombine(result, id);
 
         if (spec.has_lower_limit()) {
             hashReadLimit(spec.lower_limit());

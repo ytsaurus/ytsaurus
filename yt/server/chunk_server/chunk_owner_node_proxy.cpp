@@ -432,10 +432,6 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor("data_weight")
         .SetPresent(node->HasDataWeight()));
     descriptors->push_back("compression_ratio");
-    descriptors->push_back(TAttributeDescriptor("compression_codec")
-        .SetCustom(true));
-    descriptors->push_back(TAttributeDescriptor("erasure_codec")
-        .SetCustom(true));
     descriptors->push_back("update_mode");
     descriptors->push_back(TAttributeDescriptor("replication_factor"));
     descriptors->push_back(TAttributeDescriptor("vital")
@@ -444,6 +440,8 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor("primary_medium")
         .SetReplicated(true));
+    descriptors->push_back("compression_codec");
+    descriptors->push_back("erasure_codec");
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
@@ -534,6 +532,18 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
         return true;
     }
 
+    if (key == "compression_codec") {
+        BuildYsonFluently(consumer)
+            .Value(node->GetCompressionCodec());
+        return true;
+    }
+
+    if (key == "erasure_codec") {
+        BuildYsonFluently(consumer)
+            .Value(node->GetErasureCodec());
+        return true;
+    }
+
     return TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(key, consumer);
 }
 
@@ -607,21 +617,21 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     auto* node = GetThisImpl<TChunkOwnerBase>();
 
     if (key == "replication_factor") {
-        ValidateStorageSettingsUpdate();
+        ValidateStorageParametersUpdate();
         int replicationFactor = ConvertTo<int>(value);
         SetReplicationFactor(replicationFactor);
         return true;
     }
 
     if (key == "vital") {
-        ValidateStorageSettingsUpdate();
+        ValidateStorageParametersUpdate();
         bool vital = ConvertTo<bool>(value);
         SetVital(vital);
         return true;
     }
 
     if (key == "primary_medium") {
-        ValidateStorageSettingsUpdate();
+        ValidateStorageParametersUpdate();
         auto mediumName = ConvertTo<Stroka>(value);
         auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
         SetPrimaryMedium(medium);
@@ -629,11 +639,29 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     }
 
     if (key == "media") {
-        ValidateStorageSettingsUpdate();
+        ValidateStorageParametersUpdate();
         auto serializableProperties = ConvertTo<TSerializableChunkProperties>(value);
         auto properties = node->Properties(); // Copying for modification.
         serializableProperties.ToChunkProperties(&properties, chunkManager);
         SetMediaProperties(properties);
+        return true;
+    }
+
+    if (key == "compression_codec") {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+        auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(key));
+        node->SetCompressionCodec(ConvertTo<NCompression::ECodec>(value));
+
+        return true;
+    }
+
+    if (key == "erasure_codec") {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+        auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(key));
+        node->SetErasureCodec(ConvertTo<NErasure::ECodec>(value));
+
         return true;
     }
 
@@ -790,7 +818,7 @@ void TChunkOwnerNodeProxy::ValidateBeginUpload()
 void TChunkOwnerNodeProxy::ValidateFetch()
 { }
 
-void TChunkOwnerNodeProxy::ValidateStorageSettingsUpdate()
+void TChunkOwnerNodeProxy::ValidateStorageParametersUpdate()
 {
     ValidateNoTransaction();
 }

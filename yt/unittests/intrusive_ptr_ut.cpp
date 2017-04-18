@@ -94,7 +94,7 @@ private:
 
 // This is a simple object with simple reference counting.
 class TObjectWithSimpleRC
-    : public TSimpleRefCounted
+    : public TIntrinsicRefCounted
 {
 public:
     explicit TObjectWithSimpleRC(TOutputStream* output)

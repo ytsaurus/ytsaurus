@@ -140,7 +140,7 @@ void SetSorted(TDataSplit* dataSplit, bool isSorted)
         *miscProto);
 }
 
-NLogging::TLogger MakeQueryLogger(TConstQueryPtr query)
+NLogging::TLogger MakeQueryLogger(TConstBaseQueryPtr query)
 {
     return NLogging::TLogger(QueryClientLogger)
         .AddTag("FragmentId: %v", query->Id);
