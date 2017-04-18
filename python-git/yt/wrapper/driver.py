@@ -141,6 +141,6 @@ def make_formatted_request(command_name, params, format, **kwargs):
         if has_yson_bindings:
             return yson.loads(result)
         else:
-            return json_to_yson(json.loads(result))
+            return json_to_yson(json.loads(result), encoding="latin-1")
     else:
         return result
