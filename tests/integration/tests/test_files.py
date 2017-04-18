@@ -200,7 +200,19 @@ class TestFiles(YTEnvSetup):
 
         with pytest.raises(YtError):
             concatenate(["//tmp", "//tmp/t"], "//tmp/t")
-        
+
+    def test_set_compression(self):
+        create("file", "//tmp/f")
+
+        write_file("<compression_codec=lz4>//tmp/f", "a")
+        assert get("//tmp/f/@compression_codec") == "lz4"
+
+        write_file("<compression_codec=none>//tmp/f", "a")
+        assert get("//tmp/f/@compression_codec") == "none"
+
+        with pytest.raises(YtError):
+            write_file("<append=true;compression_codec=none>//tmp/f", "a")
+
 ##################################################################
 
 class TestFilesMulticell(TestFiles):

@@ -2695,6 +2695,24 @@ done
             del row["data"]
         assert sorted(got) == sorted(expected * 5)
 
+    def test_ypath_attributes_on_output_tables(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", {"a": "b" * 10000})
+
+        for optimize_for in ["lookup", "scan"]:
+            create("table", "//tmp/tout1_" + optimize_for)
+            map(in_="//tmp/t1", out="<optimize_for={0}>//tmp/tout1_{0}".format(optimize_for), command="cat")
+            assert get("//tmp/tout1_{}/@optimize_for".format(optimize_for)) == optimize_for
+
+        for compression_codec in ["none", "lz4"]:
+            create("table", "//tmp/tout2_" + compression_codec)
+            map(in_="//tmp/t1", out="<compression_codec={0}>//tmp/tout2_{0}".format(compression_codec), command="cat")
+
+            stats = get("//tmp/tout2_{}/@compression_statistics".format(compression_codec))
+            assert compression_codec in stats, str(stats)
+            assert stats[compression_codec]["chunk_count"] > 0
+
+
 
 ##################################################################
 
