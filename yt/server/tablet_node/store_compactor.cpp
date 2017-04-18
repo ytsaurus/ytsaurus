@@ -656,8 +656,8 @@ private:
         std::vector<TSortedChunkStorePtr> stores;
         stores.reserve(task.Stores.size());
         for (const auto& storeId : task.Stores) {
-            auto store = tablet->FindStore(storeId)->AsSorted();
-            if (!store || !eden->Stores().has(store)) {
+            auto store = tablet->FindStore(storeId);
+            if (!store || !eden->Stores().has(store->AsSorted())) {
                 LOG_DEBUG("Eden store is missing, aborting partitioning (StoreId: %v)", storeId);
                 return;
             }
@@ -986,8 +986,8 @@ private:
         std::vector<TSortedChunkStorePtr> stores;
         stores.reserve(task.Stores.size());
         for (const auto& storeId : task.Stores) {
-            auto store = tablet->FindStore(storeId)->AsSorted();
-            if (!store || !partition->Stores().has(store)) {
+            auto store = tablet->FindStore(storeId);
+            if (!store || !partition->Stores().has(store->AsSorted())) {
                 LOG_DEBUG("Partition store is missing, aborting compaction (StoreId: %v)", storeId);
                 return;
             }
