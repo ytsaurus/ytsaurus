@@ -4023,6 +4023,7 @@ private:
             req->set_durability(static_cast<int>(owner->GetDurability()));
             req->set_signature(cellSession->AllocateRequestSignature());
             req->set_request_codec(static_cast<int>(Config_->WriteRequestCodec));
+            req->set_row_count(batch->RowCount);
             req->Attachments().push_back(batch->RequestData);
 
             LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x)",

@@ -24,8 +24,15 @@ namespace NTabletNode {
 
 struct TTransactionWriteRecord
 {
+    TTransactionWriteRecord() = default;
+    TTransactionWriteRecord(
+        const TTabletId& tabletId,
+        TSharedRef data,
+        int rowCount);
+
     TTabletId TabletId;
     TSharedRef Data;
+    int RowCount = 0;
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
@@ -33,7 +40,7 @@ struct TTransactionWriteRecord
     i64 GetByteSize() const;
 };
 
-const size_t TransactionWriteLogChunkSize = 256;
+constexpr size_t TransactionWriteLogChunkSize = 256;
 using TTransactionWriteLog = TPersistentQueue<TTransactionWriteRecord, TransactionWriteLogChunkSize>;
 using TTransactionWriteLogSnapshot = TPersistentQueueSnapshot<TTransactionWriteRecord, TransactionWriteLogChunkSize>;
 
