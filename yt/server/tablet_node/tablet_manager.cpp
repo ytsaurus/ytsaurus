@@ -293,17 +293,6 @@ public:
             if (lockless) {
                 // Skip the whole message.
                 reader->SetCurrent(reader->GetEnd());
-                switch (atomicity) {
-                    case EAtomicity::Full:
-                        transaction->PrelockedTablets().push(tablet);
-                        break;
-                    case EAtomicity::None:
-                        NonAtomicallyPrelockedTablets_.push(tablet);
-                        break;
-                    default:
-                        Y_UNREACHABLE();
-                }
-                LockTablet(tablet);
                 context.RowCount = rowCount;
             } else {
                 storeManager->ExecuteWrites(reader, &context);
@@ -327,6 +316,9 @@ public:
                 auto compressedRecordData = ChangelogCodec_->Compress(recordData);
                 TTransactionWriteRecord writeRecord(tabletId, recordData, context.RowCount);
 
+                PrelockedTablets_.push(tablet);
+                LockTablet(tablet);
+
                 TReqWriteRows hydraRequest;
                 ToProto(hydraRequest.mutable_transaction_id(), transactionId);
                 hydraRequest.set_transaction_start_timestamp(transactionStartTimestamp);
@@ -342,7 +334,6 @@ public:
                     ->SetHandler(BIND(
                         &TImpl::HydraLeaderExecuteWrite,
                         MakeStrong(this),
-                        tablet->GetMountRevision(),
                         transactionId,
                         adjustedSignature,
                         lockless,
@@ -580,7 +571,7 @@ private:
     TTabletContext TabletContext_;
     TEntityMap<TTablet, TTabletMapTraits> TabletMap_;
 
-    TRingQueue<TTablet*> NonAtomicallyPrelockedTablets_;
+    TRingQueue<TTablet*> PrelockedTablets_;
 
     yhash_set<IDynamicStorePtr> OrphanedStores_;
     yhash_map<TTabletId, std::unique_ptr<TTablet>> OrphanedTablets_;
@@ -767,9 +758,9 @@ private:
 
         StopEpoch();
 
-        while (!NonAtomicallyPrelockedTablets_.empty()) {
-            auto* tablet = NonAtomicallyPrelockedTablets_.front();
-            NonAtomicallyPrelockedTablets_.pop();
+        while (!PrelockedTablets_.empty()) {
+            auto* tablet = PrelockedTablets_.front();
+            PrelockedTablets_.pop();
             UnlockTablet(tablet);
         }
     }
@@ -1131,35 +1122,27 @@ private:
 
 
     void HydraLeaderExecuteWrite(
-        i64 mountRevision,
         const TTransactionId& transactionId,
         TTransactionSignature signature,
         bool lockless,
         const TTransactionWriteRecord& writeRecord,
         TMutationContext* /*context*/) noexcept
     {
-        auto* tablet = FindTablet(writeRecord.TabletId);
-        if (!tablet) {
-            // NB: Tablet could be missing if it was, e.g., forcefully removed.
-            return;
-        }
+        auto atomicity = AtomicityFromTransactionId(transactionId);
 
-        if (mountRevision != tablet->GetMountRevision()) {
-            // Same as above.
-            return;
-        }
+        auto* tablet = PrelockedTablets_.front();
+        PrelockedTablets_.pop();
+        YCHECK(tablet->GetId() == writeRecord.TabletId);
 
         TTransaction* transaction = nullptr;
-        auto atomicity = AtomicityFromTransactionId(transactionId);
         switch (atomicity) {
             case EAtomicity::Full: {
                 const auto& transactionManager = Slot_->GetTransactionManager();
                 transaction = transactionManager->MakeTransactionPersistent(transactionId);
 
                 if (lockless) {
-                    auto* tablet = transaction->PrelockedTablets().front();
-                    transaction->PrelockedTablets().pop();
                     transaction->LockedTablets().push_back(tablet);
+                    LockTablet(tablet);
 
                     LOG_DEBUG_UNLESS(IsRecovery(), "Prelocked tablet confirmed (TabletId: %v, TransactionId: %v, "
                         "RowCount: %v, LockCount: %v)",
@@ -1216,17 +1199,15 @@ private:
                     writeRecord.RowCount,
                     writeRecord.Data.Size(),
                     context.CommitTimestamp);
-
-                YCHECK(NonAtomicallyPrelockedTablets_.front() == tablet);
-                NonAtomicallyPrelockedTablets_.pop();
-                UnlockTablet(tablet);
-                CheckIfTabletFullyUnlocked(tablet);
                 break;
             }
 
             default:
                 Y_UNREACHABLE();
         }
+
+        UnlockTablet(tablet);
+        CheckIfTabletFullyUnlocked(tablet);
     }
 
     void HydraFollowerWriteRows(TReqWriteRows* request) noexcept
@@ -2012,7 +1993,6 @@ private:
         // Check if above AbortRow calls caused store locks to be released.
         CheckIfImmediateLockedTabletsFullyUnlocked(transaction);
 
-        YCHECK(transaction->PrelockedTablets().empty());
         auto lockedTabletCount = transaction->LockedTablets().size();
         UnlockLockedTablets(transaction);
         LOG_DEBUG_UNLESS(IsRecovery() || lockedTabletCount == 0,
@@ -2035,8 +2015,6 @@ private:
                 rowRef.StoreManager->AbortRow(transaction, rowRef);
             }
         }
-
-        UnlockPrelockedTablets(transaction);
     }
 
 
@@ -2195,16 +2173,6 @@ private:
         while (!tablets.empty()) {
             auto* tablet = tablets.back();
             tablets.pop_back();
-            UnlockTablet(tablet);
-        }
-    }
-
-    void UnlockPrelockedTablets(TTransaction* transaction)
-    {
-        auto& tablets = transaction->PrelockedTablets();
-        while (!tablets.empty()) {
-            auto* tablet = tablets.front();
-            tablets.pop();
             UnlockTablet(tablet);
         }
     }
