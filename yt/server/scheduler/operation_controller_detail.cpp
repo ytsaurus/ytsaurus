@@ -4138,8 +4138,8 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     path);
             }
 
-            if (NFS::GetFileName(fileName) != fileName) {
-                THROW_ERROR_EXCEPTION("User file name for %v cannot include nested directories", path)
+            if (!NFS::GetRealPath("sandbox").is_prefix(NFS::GetRealPath(NFS::CombinePaths("sandbox", fileName)))) {
+                THROW_ERROR_EXCEPTION("User file name cannot reference outside of sandbox directory")
                     << TErrorAttribute("file_name", fileName);
             }
 
