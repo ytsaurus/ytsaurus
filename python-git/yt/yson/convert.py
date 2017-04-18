@@ -45,7 +45,7 @@ def to_yson_type(value, attributes=None, always_create_attributes=True):
 
     return result
 
-def json_to_yson(json_tree, encode_key=False):
+def json_to_yson(json_tree, encode_key=False, encoding=None):
     """Converts json representation to YSON representation."""
     if encode_key:
         if json_tree.startswith("$"):
@@ -58,7 +58,7 @@ def json_to_yson(json_tree, encode_key=False):
         if PY3:
             result = YsonUnicode(value)
         else:  # COMPAT
-            result = YsonString(value.encode("utf-8"))
+            result = YsonString(value.encode("utf-8" if encoding is None else encoding))
     elif isinstance(value, binary_type):
         result = YsonString(value)
     elif value is False or value is True:
@@ -84,7 +84,7 @@ def json_to_yson(json_tree, encode_key=False):
         result.attributes = json_to_yson(json_tree["$attributes"])
     return result
 
-def yson_to_json(yson_tree, print_attributes=True):
+def yson_to_json(yson_tree, print_attributes=True, encoding=None):
     def fix_key(key):
         if key and key[0] == "$":
             return "$" + key
@@ -102,6 +102,8 @@ def yson_to_json(yson_tree, print_attributes=True):
         return process_dict(yson_tree)
     elif isinstance(yson_tree, YsonEntity):
         return None
+    elif PY3 and isinstance(yson_tree, YsonString):
+        return str(yson_tree).decode("utf-8" if encoding is None else encoding)
     elif isinstance(yson_tree, bool) or isinstance(yson_tree, YsonBoolean):
         return "true" if yson_tree else "false"
     else:
