@@ -50,8 +50,6 @@
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/ypath_proxy.h>
 
-#include <yt/core/logging/log_manager.h>
-
 namespace NYT {
 namespace NCellMaster {
 
@@ -83,10 +81,6 @@ public:
 
         AutomatonQueue_ = New<TFairShareActionQueue>("Automaton", TEnumTraits<EAutomatonThreadQueue>::GetDomainNames());
         Automaton_ = New<TMasterAutomaton>(Bootstrap_);
-
-        GetAutomatonInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)] {
-            NLogging::TLogManager::Get()->SetPerThreadBatchingPeriod(Config_->AutomatonThreadLogBatchingPeriod);
-        }));
 
         TransactionTrackerQueue_ = New<TActionQueue>("TxTracker");
 

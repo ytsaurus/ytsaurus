@@ -108,7 +108,7 @@ Stroka InferName(TConstExpressionPtr expr, bool omitValues)
     }
 }
 
-Stroka InferName(TConstQueryPtr query, bool omitValues)
+Stroka InferName(TConstBaseQueryPtr query, bool omitValues)
 {
     auto namedItemFormatter = [&] (TStringBuilder* builder, const TNamedItem& item) {
         builder->AppendFormat("%v AS %v",
@@ -132,9 +132,11 @@ Stroka InferName(TConstQueryPtr query, bool omitValues)
     }
     clauses.emplace_back("SELECT " + str);
 
-    if (query->WhereClause) {
-        str = InferName(query->WhereClause, omitValues);
-        clauses.push_back(Stroka("WHERE ") + str);
+    if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
+        if (derivedQuery->WhereClause) {
+            str = InferName(derivedQuery->WhereClause, omitValues);
+            clauses.push_back(Stroka("WHERE ") + str);
+        }
     }
     if (query->GroupClause) {
         str = JoinToString(query->GroupClause->GroupItems, namedItemFormatter);
@@ -647,16 +649,13 @@ void ToProto(NProto::TGroupClause* proto, const TConstGroupClausePtr& original)
 {
     ToProto(proto->mutable_group_items(), original->GroupItems);
     ToProto(proto->mutable_aggregate_items(), original->AggregateItems);
-    proto->set_is_merge(original->IsMerge);
-    proto->set_is_final(original->IsFinal);
     proto->set_totals_mode(static_cast<int>(original->TotalsMode));
 }
 
 void FromProto(TConstGroupClausePtr* original, const NProto::TGroupClause& serialized)
 {
     auto result = New<TGroupClause>();
-    result->IsMerge = serialized.is_merge();
-    result->IsFinal = serialized.is_final();
+
     result->TotalsMode = ETotalsMode(serialized.totals_mode());
     FromProto(&result->GroupItems, serialized.group_items());
     FromProto(&result->AggregateItems, serialized.aggregate_items());
@@ -720,6 +719,7 @@ void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
     serialized->set_limit(original->Limit);
     serialized->set_use_disjoint_group_by(original->UseDisjointGroupBy);
     serialized->set_infer_ranges(original->InferRanges);
+    serialized->set_is_final(original->IsFinal);
 
     ToProto(serialized->mutable_original_schema(), original->OriginalSchema);
     ToProto(serialized->mutable_schema_mapping(), original->SchemaMapping);
@@ -757,6 +757,7 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
     result->Limit = serialized.limit();
     result->UseDisjointGroupBy = serialized.use_disjoint_group_by();
     result->InferRanges = serialized.infer_ranges();
+    FromProto(&result->IsFinal, serialized.is_final());
 
     FromProto(&result->OriginalSchema, serialized.original_schema());
     FromProto(&result->SchemaMapping, serialized.schema_mapping());

@@ -32,6 +32,22 @@ def set_banned_flag(value, nodes=None):
         assert get("//sys/nodes/{0}/@state".format(address)) == state
         print >>sys.stderr, "Node {0} is {1}".format(address, state)
 
+##################################################################
+
+def get_pool_metrics(metric_key):
+    result = {}
+    for entry in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/metrics/{0}".format(metric_key))):
+        pool = entry["tags"]["pool"]
+        if pool not in result:
+            result[pool] = entry["value"]
+    return result
+
+def get_cypress_metrics(operation_id, key):
+    statistics = get("//sys/operations/{0}/@progress/job_statistics".format(operation_id))
+    return get_statistics(statistics, "{0}.$.completed.map.sum".format(key))
+
+##################################################################
+
 class PrepareTables(object):
     def _create_table(self, table):
         create("table", table)
@@ -1036,7 +1052,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
         for iter in xrange(100):
             jobs_exist = exists(operation_path + "/@brief_progress/jobs")
             if jobs_exist:
-                completed_jobs = get(operation_path + "/@brief_progress/jobs/completed")
+                completed_jobs = get(operation_path + "/@brief_progress/jobs/completed/total")
                 if completed_jobs == 2:
                     break
             time.sleep(0.1)
@@ -1802,7 +1818,8 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         spec={
             "pool": "fake_pool",
-            "locality_timeout": 0
+            "locality_timeout": 0,
+            "enable_job_splitting": False,
         }
         if interruptible:
             data_size_per_job = get("//tmp/t_in/@uncompressed_data_size")
@@ -2694,6 +2711,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "short_jobs_duration" not in get("//sys/operations/{0}/@alerts".format(op.id))
 
+
 class TestMainNodesFilter(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 2
@@ -2731,3 +2749,99 @@ class TestMainNodesFilter(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/running".format(op.id)) == 2
         assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_ratio".format(op.id)), 1.0)
         assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op.id)), 2.0)
+
+
+class TestNewPoolMetrics(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "job_metrics_batch_interval": 3000, # 3 sec
+            "fair_share_update_period": 100,
+            "profiling_update_period": 100,
+            "fair_share_profiling_period": 100,
+        },
+    }
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "enable_cgroups": True,
+            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],
+            "slot_manager": {
+                "enforce_job_control": True,
+                "job_environment" : {
+                    "type" : "cgroups",
+                    "supported_cgroups": [
+                        "cpuacct",
+                        "blkio",
+                        "memory",
+                        "cpu"],
+                },
+            },
+            "scheduler_connector": {
+                "heartbeat_period": 100, # 100 msec
+            },
+        }
+    }
+
+    @unix_only
+    def test_map(self):
+        create("map_node", "//sys/pools/parent")
+        create("map_node", "//sys/pools/parent/child1")
+        create("map_node", "//sys/pools/parent/child2")
+
+        # Give scheduler some time to apply new pools.
+        time.sleep(1)
+
+        create("table", "//t_input")
+        create("table", "//t_output")
+
+        # write table of 2 chunks because we want 2 jobs
+        write_table("//t_input", [{"key": i} for i in xrange(0, 100)])
+        write_table("<append=%true>//t_input", [{"key": i} for i in xrange(100, 500)])
+
+        # our command does the following
+        # - writes (and syncs) something to disk
+        # - works for some time (to ensure that it sends several heartbeats
+        # - writes something to stderr because we want to find our jobs in //sys/operations later
+        map_cmd = """for i in $(seq 10) ; do echo 5 > foo$i ; sync ; sleep 0.5 ; done ; cat ; echo done > /dev/stderr"""
+
+        op11 = map(
+            in_="//t_input",
+            out="//t_output",
+            waiting_jobs=False,
+            command=map_cmd,
+            spec={"job_count": 2, "pool": "child1"},
+        )
+        op12 = map(
+            in_="//t_input",
+            out="//t_output",
+            waiting_jobs=False,
+            command=map_cmd,
+            spec={"job_count": 2, "pool": "child1"},
+        )
+
+        op2 = map(
+            in_="//t_input",
+            out="//t_output",
+            waiting_jobs=False,
+            command=map_cmd,
+            spec={"job_count": 2, "pool": "child2"},
+        )
+        # Give scheduler some time to update metrics in the orchid.
+        time.sleep(1)
+
+        pool_metrics = get_pool_metrics("disk_writes")
+
+        op11_writes = get_cypress_metrics(op11.id, "user_job.block_io.io_write")
+        op12_writes = get_cypress_metrics(op12.id, "user_job.block_io.io_write")
+        op2_writes = get_cypress_metrics(op2.id, "user_job.block_io.io_write")
+
+        assert pool_metrics["child1"] == op11_writes + op12_writes > 0
+        assert pool_metrics["child2"] == op2_writes > 0
+        assert pool_metrics["parent"] == op11_writes + op12_writes + op2_writes > 0
+
+        jobs_11 = ls("//sys/operations/{0}/jobs".format(op11.id))
+        assert len(jobs_11) >= 2
+

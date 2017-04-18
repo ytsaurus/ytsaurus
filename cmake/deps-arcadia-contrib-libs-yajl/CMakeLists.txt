@@ -11,18 +11,16 @@ set(SRCS_C
   ${BASE}/yajl_tree.c
   ${BASE}/yajl_version.c
 )
-  
-set(SRCS_CPP
+set(SRCS_CXX
   ${BASE}/yajl_parser.cpp
 )
 
 set_source_files_properties(${SRCS_C} PROPERTIES LANGUAGE C)
-set_source_files_properties(${SRCS_CPP} PROPERTIES LANGUAGE CXX)
-
+set_source_files_properties(${SRCS_CXX} PROPERTIES LANGUAGE CXX)
 
 include_directories(${CMAKE_SOURCE_DIR})
 
-add_library(${NAME} STATIC ${SRCS_C} ${SRCS_CPP})
+add_library(${NAME} STATIC ${SRCS_C} ${SRCS_CXX})
 
 if(CMAKE_COMPILER_IS_GNUCXX)
   set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS -w)

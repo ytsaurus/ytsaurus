@@ -155,6 +155,7 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
         try {
             // This validations do not disable slot.
             ValidateNotExists(destinationPath);
+            ValidateFileName(destinationName);
         } catch (const std::exception& ex) {
             // Job will be failed.
             THROW_ERROR_EXCEPTION(
@@ -216,6 +217,7 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
         try {
             // This validations do not disable slot.
             ValidateNotExists(linkPath);
+            ValidateFileName(linkName);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
                 << ex;
@@ -425,10 +427,17 @@ void TSlotLocation::DecreaseSessionCount()
     --SessionCount_;
 }
 
-void TSlotLocation::ValidateNotExists(const Stroka& path) const
+void TSlotLocation::ValidateNotExists(const Stroka& path)
 {
     if (NFS::Exists(path)) {
         THROW_ERROR_EXCEPTION("Path %v already exists", path);
+    }
+}
+
+void TSlotLocation::ValidateFileName(const Stroka& fileName)
+{
+    if (NFS::GetFileName(fileName) != fileName) {
+        THROW_ERROR_EXCEPTION("File name cannot include nested directories");
     }
 }
 

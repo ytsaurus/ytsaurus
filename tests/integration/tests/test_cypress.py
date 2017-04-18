@@ -5,7 +5,10 @@ import datetime
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from yt.yson import to_yson_type, YsonEntity
+from yt.environment.helpers import assert_items_equal
+
 from datetime import timedelta
+
 from dateutil.tz import tzlocal
 
 ##################################################################
@@ -84,7 +87,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/@test_attribute", 10)
         remove("//tmp/@test_attribute")
 
-        for path in ["//tmp/@test_attribute", "//tmp/@test_attribute/inner", "//tmp/@erasure_codec",
+        for path in ["//tmp/@test_attribute", "//tmp/@test_attribute/inner",
                      "//tmp/@recursive_resource_usage/disk_space_per_medium", "//tmp/@recursive_resource_usage/missing"]:
             with pytest.raises(YtError):
                 remove(path)
@@ -413,6 +416,23 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t2/@compression_codec") == "zlib_6"
 
+    def test_compression_codec_in_tx(self):
+        create("table", "//tmp/t", attributes={"compression_codec": "none"})
+        assert get("//tmp/t/@compression_codec") == "none" 
+        tx = start_transaction()
+        assert get("//tmp/t/@compression_codec", tx=tx) == "none"
+        set("//tmp/t/@compression_codec", "lz4", tx=tx)
+        assert get("//tmp/t/@compression_codec", tx=tx) == "lz4"
+        assert get("//tmp/t/@compression_codec") == "none"
+        locks = get("//tmp/t/@locks")
+        assert len(locks) == 1
+        assert locks[0]["mode"] == "shared"
+        assert locks[0]["transaction_id"] == tx
+        assert locks[0]["attribute_key"] == "compression_codec"
+        with pytest.raises(YtError): set("//tmp/t/@compression_codec", "lz4")
+        commit_transaction(tx)
+        assert get("//tmp/t/@compression_codec") == "lz4"
+
     def test_copy_id1(self):
         set("//tmp/a", 123)
         a_id = get("//tmp/a/@id")
@@ -492,10 +512,20 @@ class TestCypress(YTEnvSetup):
     def test_copy_acd(self):
         create("table", "//tmp/t1")
         set("//tmp/t1/@inherit_acl", False)
-        set("//tmp/t1/@acl", [make_ace("deny", "guest", "write")])
+        acl = [make_ace("deny", "guest", "write")]
+        set("//tmp/t1/@acl", acl)
         copy("//tmp/t1", "//tmp/t2")
+        assert get("//tmp/t2/@inherit_acl")
+        assert_items_equal(get("//tmp/t2/@acl"), [])
+
+    def test_move_acd(self):
+        create("table", "//tmp/t1")
+        set("//tmp/t1/@inherit_acl", False)
+        acl = [make_ace("deny", "guest", "write")]
+        set("//tmp/t1/@acl", acl)
+        move("//tmp/t1", "//tmp/t2")
         assert not get("//tmp/t2/@inherit_acl")
-        assert len(get("//tmp/t2/@acl")) == 1
+        assert_items_equal(get("//tmp/t2/@acl"), acl)
 
 
     def test_move_simple1(self):
@@ -697,9 +727,6 @@ class TestCypress(YTEnvSetup):
 
     def test_create_recursive_success(self):
         create("map_node", "//tmp/a/b", recursive=True)
-
-    def test_create_ignore_existing_fail(self):
-        with pytest.raises(YtError): create("map_node", "//tmp/a/b")
 
     def test_create_ignore_existing_success(self):
         create("map_node", "//tmp/a/b", recursive=True)

@@ -31,8 +31,6 @@ using TRefCounted = TRefCountedImpl<true>;
  *  Compared to TRefCounted, Ref/unref calls are somewhat cheaper.
  *  Also instances of TSimpleRefCounted have smaller memory footprint.
  */
-using TSimpleRefCounted = TRefCountedImpl<false>;
-// Compatibility alias.
 using TIntrinsicRefCounted = TRefCountedImpl<false>;
 
 using TRefCountedTypeCookie = int;

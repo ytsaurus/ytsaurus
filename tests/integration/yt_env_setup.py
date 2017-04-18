@@ -92,6 +92,7 @@ class YTEnvSetup(object):
     NUM_NONVOTING_MASTERS = 0
     NUM_SECONDARY_MASTER_CELLS = 0
     START_SECONDARY_MASTER_CELLS = True
+    MULTICELL_TEARDOWN_ENABLE = True
     NUM_NODES = 5
     NUM_SCHEDULERS = 0
 
@@ -323,6 +324,9 @@ class YTEnvSetup(object):
             self._remove_racks(driver=driver)
             self._remove_data_centers(driver=driver)
             self._remove_pools(driver=driver)
+            self._reenable_tablet_balancer(driver=driver)
+            if self.MULTICELL_TEARDOWN_ENABLE:
+                self._remove_tablet_actions(driver=driver)
 
             yt_commands.gc_collect(driver=driver)
 
@@ -341,10 +345,14 @@ class YTEnvSetup(object):
         print "Waiting for chunk replicator to become enabled..."
         wait(lambda: yt_commands.get("//sys/@chunk_replicator_enabled", driver=driver))
 
-    def wait_for_cells(self, driver=None):
+    def wait_for_cells(self, cell_ids=None, driver=None):
         print "Waiting for tablet cells to become healthy..."
-        wait(lambda: all(c.attributes["health"] == "good"
-                         for c in yt_commands.ls("//sys/tablet_cells", attributes=["health"], driver=driver)))
+        def get_cells():
+            cells = yt_commands.ls("//sys/tablet_cells", attributes=["health", "id"], driver=driver)
+            if cell_ids == None:
+                return cells
+            return [cell for cell in cells if cell.attributes["id"] in cell_ids]
+        wait(lambda: all(c.attributes["health"] == "good" for c in get_cells()))
 
     def sync_create_cells(self, cell_count, tablet_cell_bundle="default", driver=None):
         cell_ids = []
@@ -353,7 +361,7 @@ class YTEnvSetup(object):
                 "tablet_cell_bundle": tablet_cell_bundle
             }, driver=driver)
             cell_ids.append(cell_id)
-        self.wait_for_cells(driver=driver)
+        self.wait_for_cells(cell_ids, driver=driver)
         return cell_ids
 
     def wait_for_tablet_state(self, path, states, driver=None):
@@ -511,6 +519,15 @@ class YTEnvSetup(object):
 
     def _remove_pools(self, driver=None):
         yt_commands.remove("//sys/pools/*", driver=driver)
+
+    def _remove_tablet_actions(self, driver=None):
+        actions = yt_commands.ls("//sys/tablet_actions", driver=driver)
+        for action in actions:
+            yt_commands.remove("#" + str(action), driver=driver)
+
+    def _reenable_tablet_balancer(self, driver=None):
+        if yt_commands.exists("//sys/@disable_tablet_balancer", driver=driver):
+            yt_commands.remove("//sys/@disable_tablet_balancer", driver=driver)
 
     def _find_ut_file(self, file_name):
         unittester_path = find_executable("unittester")

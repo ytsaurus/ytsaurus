@@ -166,8 +166,7 @@ private:
 
     void OnScanSlot(const TTabletSlotPtr& slot)
     {
-        NProfiling::TTagIdList tagIdList;
-        tagIdList.push_back(NProfiling::TProfileManager::Get()->RegisterTag("slot", slot->GetIndex()));
+        const auto& tagIdList = slot->GetTagIdList();
         PROFILE_TIMING("/scan_time", tagIdList) {
             OnScanSlotImpl(slot, tagIdList);
         }
@@ -263,7 +262,12 @@ private:
             return;
         }
 
-        if (tablet->GetConfig()->DisableCompactionAndPartitioning) {
+        const auto& config = tablet->GetConfig();
+        if (config->DisableCompactionAndPartitioning) {
+            return;
+        }
+
+        if (config->InMemoryMode != EInMemoryMode::None && Bootstrap_->GetTabletSlotManager()->IsOutOfMemory()) {
             return;
         }
 
@@ -370,7 +374,7 @@ private:
             candidates.push_back(candidate);
 
             if (IsCompactionForced(candidate) ||
-                IsPeriodicCompactionNeeded(eden) ||
+                IsPeriodicCompactionNeeded(candidate) ||
                 IsStoreOutOfTabletRange(candidate, tablet))
             {
                 finalists.push_back(candidate->GetId());
@@ -453,7 +457,7 @@ private:
             candidates.push_back(candidate);
 
             if (IsCompactionForced(candidate) ||
-                IsPeriodicCompactionNeeded(partition) ||
+                IsPeriodicCompactionNeeded(candidate) ||
                 IsStoreOutOfTabletRange(candidate, tablet))
             {
                 finalists.push_back(candidate->GetId());
@@ -540,7 +544,7 @@ private:
     }
 
 
-    void PartitionEden(TAsyncSemaphoreGuard /*guard*/, const TTask& task)
+    void PartitionEden(TAsyncSemaphoreGuard guard, const TTask& task)
     {
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v", task.Tablet);
@@ -666,6 +670,9 @@ private:
             int rowCount;
             std::tie(writers, rowCount) = WaitFor(asyncResult)
                 .ValueOrThrow();
+
+            // We can release semaphore, because we are no longer actively using resources.
+            guard.Release();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
@@ -859,7 +866,7 @@ private:
         return std::make_tuple(writerPool.GetAllWriters(), readRowCount);
     }
 
-    void CompactPartition(TAsyncSemaphoreGuard /*guard*/, const TTask& task)
+    void CompactPartition(TAsyncSemaphoreGuard guard, const TTask& task)
     {
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v", task.Tablet);
@@ -990,6 +997,9 @@ private:
             std::tie(writer, rowCount) = WaitFor(asyncResult)
                 .ValueOrThrow();
 
+            // We can release semaphore, because we are no longer actively using resources.
+            guard.Release();
+
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
             actionRequest.set_mount_revision(tablet->GetMountRevision());
@@ -1111,14 +1121,14 @@ private:
         return true;
     }
 
-    static bool IsPeriodicCompactionNeeded(TPartition* partition)
+    static bool IsPeriodicCompactionNeeded(const TSortedChunkStorePtr& store)
     {
-        const auto& config = partition->GetTablet()->GetConfig();
+        const auto& config = store->GetTablet()->GetConfig();
         if (!config->AutoCompactionPeriod) {
             return false;
         }
 
-        if (TInstant::Now() < partition->GetCompactionTime() + *config->AutoCompactionPeriod) {
+        if (TInstant::Now() < store->GetCreationTime() + *config->AutoCompactionPeriod) {
             return false;
         }
 

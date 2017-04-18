@@ -88,6 +88,22 @@ class TestSortedDynamicTablesBase(TestDynamicTablesBase):
                 return True
             wait(lambda: all_preloaded())
 
+    def _reshard_with_retries(self, path, pivots):
+        resharded = False
+        for i in xrange(4):
+            try:
+                self.sync_unmount_table(path)
+                reshard_table(path, pivots)
+                resharded = True
+            except:
+                pass
+            self.sync_mount_table(path)
+            if resharded:
+                break
+            sleep(5)
+        assert resharded
+
+
 ##################################################################
 
 class TestSortedDynamicTables(TestSortedDynamicTablesBase):
@@ -230,19 +246,18 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     def test_lookup_versioned(self):
         self.sync_create_cells(1)
 
-        self._create_simple_table("//tmp/t", min_data_versions=2)
+        self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": "a:" + str(i)} for i in xrange(10)]
-        insert_rows("//tmp/t", rows)
-        generate_timestamp()
-
-        rows = [{"key": i, "value": "b:" + str(i)} for i in xrange(10)]
-        insert_rows("//tmp/t", rows)
-        generate_timestamp()
+        for prefix in ["a", "b"]:
+            rows = [{"key": i, "value": prefix + ":" + str(i)} for i in xrange(10)]
+            insert_rows("//tmp/t", rows)
+            generate_timestamp()
 
         keys = [{"key": i} for i in xrange(10)]
         actual = lookup_rows("//tmp/t", keys, versioned=True)
+
+        assert len(actual) == len(keys)
 
         for i, key in enumerate(keys):
             row = actual[i]
@@ -253,6 +268,35 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             assert len(row["value"]) == 2
             assert "%s" % row["value"][0] == "b:" + str(key["key"])
             assert "%s" % row["value"][1] == "a:" + str(key["key"])
+
+    def test_lookup_versioned_YT_6800(self):
+        self.sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t",
+            min_data_versions=0, min_data_ttl=0,
+            max_data_versions=1000, max_data_ttl=1000000)
+        self.sync_mount_table("//tmp/t")
+
+        for prefix in ["a", "b", "c"]:
+            rows = [{"key": i, "value": prefix + ":" + str(i)} for i in xrange(10)]
+            insert_rows("//tmp/t", rows)
+            generate_timestamp()
+
+        keys = [{"key": i} for i in xrange(10)]
+        actual = lookup_rows("//tmp/t", keys, versioned=True)
+
+        assert len(actual) == len(keys)
+
+        for i, key in enumerate(keys):
+            row = actual[i]
+            assert "write_timestamps" in row.attributes
+            assert len(row.attributes["write_timestamps"]) == 3
+            assert "delete_timestamps" in row.attributes
+            assert row["key"] == key["key"]
+            assert len(row["value"]) == 3
+            assert "%s" % row["value"][0] == "c:" + str(key["key"])
+            assert "%s" % row["value"][1] == "b:" + str(key["key"])
+            assert "%s" % row["value"][2] == "a:" + str(key["key"])
 
     def test_read_invalid_limits(self):
         self.sync_create_cells(1)
@@ -698,26 +742,44 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     def test_reshard_data(self):
         self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t1", optimize_for = "scan")
-        self.sync_mount_table("//tmp/t1")
-
-        def reshard(pivots):
-            self.sync_unmount_table("//tmp/t1")
-            reshard_table("//tmp/t1", pivots)
-            self.sync_mount_table("//tmp/t1")
+        self._create_simple_table("//tmp/t", optimize_for="scan")
+        self.sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": str(i)} for i in xrange(3)]
-        insert_rows("//tmp/t1", rows)
-        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
+        insert_rows("//tmp/t", rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        self._reshard_with_retries("//tmp/t", [[], [1]])
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        self._reshard_with_retries("//tmp/t", [[], [1], [2]])
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        self._reshard_with_retries("//tmp/t", [[]])
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+    def test_reshard_single_chunk(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", disable_compaction_and_partitioning=True)
+        self.sync_mount_table("//tmp/t")
+
+        def reshard(pivots):
+            self.sync_unmount_table("//tmp/t")
+            reshard_table("//tmp/t", pivots)
+            self.sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(3)]
+        insert_rows("//tmp/t", rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
         reshard([[], [1]])
-        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
         reshard([[], [1], [2]])
-        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
         reshard([[]])
-        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
     def test_metadata_cache_invalidation(self):
         def sync_mount_table_and_preserve_cache(path, **kwargs):
@@ -736,7 +798,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             sync_mount_table_and_preserve_cache(path)
 
         self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t1")
+        self._create_simple_table("//tmp/t1", disable_compaction_and_partitioning=True)
         self.sync_mount_table("//tmp/t1")
 
         rows = [{"key": i, "value": str(i)} for i in xrange(3)]
@@ -763,7 +825,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         reshard_and_preserve_cache("//tmp/t1", [[], [1], [2]])
         assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
-
 
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_any_value_type(self, optimize_for):
@@ -1230,10 +1291,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
             verify()
 
-            self.sync_unmount_table("//tmp/t")
             pivots = ([[]] + [[x] for x in xrange(0, items, items / wave)]) if wave % 2 == 0 else [[]]
-            reshard_table("//tmp/t", pivots)
-            self.sync_mount_table("//tmp/t")
+            self._reshard_with_retries("//tmp/t", pivots)
 
             verify()
 
@@ -1788,8 +1847,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
 
-    @pytest.mark.xfail(run = False, reason = "Fails on teamcity")
-    def test_deleted_rows_revive(self):
+    def test_reshard_with_uncovered_chunk_fails(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         set("//tmp/t/@min_data_ttl", 0)
@@ -1803,7 +1861,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         root_chunk_list = get("//tmp/t/@chunk_list_id")
         tablet_chunk_lists = get("#{0}/@child_ids".format(root_chunk_list))
 
-        self.sync_mount_table("//tmp/t")
+        mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
+        wait(lambda: get("//tmp/t/@tablets/1/state") == "mounted")
         delete_rows("//tmp/t", [{"key": 1}])
         self.sync_unmount_table("//tmp/t")
 
@@ -1811,24 +1870,14 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
         mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
         wait(lambda: get("//tmp/t/@tablets/1/state") == "mounted")
-        wait(lambda: get("#{0}/@child_ids".format(tablet_chunk_lists[1])) == [])
+        wait(lambda: chunk_id not in get("#{0}/@child_ids".format(tablet_chunk_lists[1])))
         self.sync_unmount_table("//tmp/t")
-        remove("//tmp/t/@forced_compaction_revision")
 
         assert get("#{0}/@child_ids".format(tablet_chunk_lists[0])) == [chunk_id]
-        assert get("#{0}/@child_ids".format(tablet_chunk_lists[1])) == []
+        assert chunk_id not in get("#{0}/@child_ids".format(tablet_chunk_lists[1]))
         assert get("#{0}/@child_ids".format(tablet_chunk_lists[2])) == [chunk_id]
-
-        # FXIME: Replace not_expected by expected in checks below when YT-6743 is fixed.
-        expected = [{"key": i, "value": str(i)} for i in (0, 2)]
-        not_expected = rows
-
-        assert read_table("//tmp/t") == expected
-        reshard_table("//tmp/t", [[]])
-        assert read_table("//tmp/t") == not_expected
-        self.sync_mount_table("//tmp/t")
-        assert lookup_rows("//tmp/t", [{"key": row["key"]} for row in rows]) == not_expected
-        assert_items_equal(select_rows("* from [//tmp/t]"), not_expected)
+        with pytest.raises(YtError):
+            reshard_table("//tmp/t", [[]])
  
 ##################################################################
 
@@ -1861,7 +1910,7 @@ class TestSortedDynamicTablesResourceLimits(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
 
-        set("//sys/accounts/test_account/@resource_limits/" + resource, 1000)
+        set("//sys/accounts/test_account/@resource_limits/" + resource, 10000)
         insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
 
         set("//sys/accounts/test_account/@resource_limits/" + resource, 0)

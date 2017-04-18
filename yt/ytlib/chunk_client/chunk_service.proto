@@ -30,6 +30,17 @@ message TRspLocateChunks
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqTouchChunks
+{
+    // Each subrequest is chunk id.
+    repeated NYT.NProto.TGuid subrequests = 1;
+}
+
+message TRspTouchChunks
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqAllocateWriteTargets
 {
     message TSubrequest

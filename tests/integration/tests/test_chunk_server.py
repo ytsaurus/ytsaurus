@@ -4,6 +4,7 @@ from yt_commands import *
 from yt.yson import to_yson_type
 from yt.environment.helpers import assert_items_equal
 
+import json
 from time import sleep
 
 ##################################################################
@@ -129,6 +130,10 @@ class TestChunkServer(YTEnvSetup):
         chunks = ls("//sys/chunks")
         for c in chunks:
             assert len(c.attributes) == 0
+
+        chunks_json = execute_command("list", {"path": "//sys/chunks", "output_format": "json"})
+        for c in json.loads(chunks_json):
+            assert isinstance(c, basestring)
 
 ##################################################################
 

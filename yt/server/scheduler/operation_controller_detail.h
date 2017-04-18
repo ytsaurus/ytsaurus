@@ -1,12 +1,14 @@
 #pragma once
 
 #include "private.h"
+
 #include "chunk_list_pool.h"
 #include "chunk_pool.h"
 #include "config.h"
 #include "event_log.h"
 #include "job_memory.h"
 #include "job_resources.h"
+#include "job_splitter.h"
 #include "operation_controller.h"
 #include "serialize.h"
 #include "helpers.h"
@@ -196,6 +198,7 @@ public:
     virtual bool IsForgotten() const override;
 
     virtual bool HasProgress() const override;
+    virtual bool HasJobSplitterInfo() const override;
 
     virtual void Resume() override;
     virtual TFuture<void> Suspend() override;
@@ -204,6 +207,7 @@ public:
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
+    virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const override;
 
     virtual NYson::TYsonString GetProgress() const override;
     virtual NYson::TYsonString GetBriefProgress() const override;
@@ -211,6 +215,8 @@ public:
     NYson::TYsonString BuildInputPathYson(const TJobId& jobId) const override;
 
     virtual void Persist(const TPersistenceContext& context) override;
+
+    std::unique_ptr<TJobMetricsUpdater> CreateJobMetricsUpdater() const;
 
     TOperationControllerBase(
         TSchedulerConfigPtr config,
@@ -402,19 +408,12 @@ protected:
     struct TJoblet
         : public TIntrinsicRefCounted
     {
-        //! For serialization only.
-        TJoblet()
-            : JobIndex(-1)
-            , StartRowIndex(-1)
-            , OutputCookie(-1)
-        { }
+    public:
+        //! Default constructor is for serialization only.
+        TJoblet();
+        TJoblet(TOperationControllerBase* controller, TTaskPtr task, int jobIndex);
 
-        TJoblet(TTaskPtr task, int jobIndex)
-            : Task(task)
-            , JobIndex(jobIndex)
-            , StartRowIndex(-1)
-            , OutputCookie(IChunkPoolOutput::NullCookie)
-        { }
+        ~TJoblet();
 
         TTaskPtr Task;
         int JobIndex;
@@ -446,7 +445,12 @@ protected:
         TInstant StartTime;
         TInstant FinishTime;
 
+    public:
         void Persist(const TPersistenceContext& context);
+        void SendJobMetrics(const NJobTrackerClient::TStatistics& jobStatistics, bool flush);
+
+    private:
+        std::unique_ptr<TJobMetricsUpdater> JobMetricsUpdater_;
     };
 
     struct TCompletedJob
@@ -583,6 +587,7 @@ protected:
         virtual TUserJobSpecPtr GetUserJobSpec() const;
 
         virtual EJobType GetJobType() const = 0;
+
     private:
         TOperationControllerBase* Controller;
 
@@ -600,12 +605,15 @@ protected:
         //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
         yhash_map<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
 
+    private:
         TJobResources ApplyMemoryReserve(const TExtendedJobResources& jobResources) const;
 
         void UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics);
+
     protected:
         NLogging::TLogger Logger;
 
+    protected:
         virtual bool CanScheduleJob(
             ISchedulingContext* context,
             const TJobResources& jobLimits);
@@ -840,6 +848,7 @@ protected:
 
     bool InputHasDynamicTables() const;
     bool InputHasVersionedTables() const;
+    bool InputHasReadLimits() const;
 
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;
@@ -880,7 +889,7 @@ protected:
     bool OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
 
     virtual bool IsJobInterruptible() const;
-    void OnJobInterrupted(const TCompletedJobSummary& jobSummary);
+    int EstimateSplitJobCount(const TCompletedJobSummary& jobSummary);
     std::vector<NChunkClient::TInputDataSlicePtr> ExtractInputDataSlices(const TCompletedJobSummary& jobSummary) const;
     virtual void ReinstallUnreadInputDataSlices(const std::vector<NChunkClient::TInputDataSlicePtr>& inputDataSlices);
 
@@ -1100,6 +1109,8 @@ protected:
 
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const;
 
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const;
+
 private:
     typedef TOperationControllerBase TThis;
 
@@ -1163,7 +1174,7 @@ private:
     //! Exec node count do not consider scheduling tag.
     //! But descriptors do.
     int ExecNodeCount_ = 0;
-    std::vector<TExecNodeDescriptor> ExecNodesDescriptors_;
+    TExecNodeDescriptorListPtr ExecNodesDescriptors_ = New<TExecNodeDescriptorList>();
 
     NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
     NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;
@@ -1205,6 +1216,8 @@ private:
     bool ShouldSkipSanityCheck();
 
     void UpdateJobStatistics(const TJobSummary& jobSummary);
+
+    std::unique_ptr<IJobSplitter> JobSplitter_;
 
     NApi::INativeClientPtr CreateClient();
     void UpdateAllTasksIfNeeded();

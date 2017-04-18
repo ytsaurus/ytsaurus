@@ -5,6 +5,8 @@
 
 #include <yt/server/cell_node/public.h>
 
+#include <yt/ytlib/table_client/public.h>
+
 #include <yt/ytlib/api/public.h>
 
 #include <yt/core/misc/nullable.h>
@@ -13,6 +15,36 @@
 
 namespace NYT {
 namespace NJobAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TStatisticsTableDescriptor
+{
+    TStatisticsTableDescriptor();
+
+    struct TIndex
+    {
+        explicit TIndex(const NTableClient::TNameTablePtr& n);
+
+        const int OperationIdHi;
+        const int OperationIdLo;
+        const int JobIdHi;
+        const int JobIdLo;
+        const int Type;
+        const int State;
+        const int StartTime;
+        const int FinishTime;
+        const int Address;
+        const int Error;
+        const int Spec;
+        const int SpecVersion;
+        const int Statistics;
+        const int Events;
+    };
+
+    const NTableClient::TNameTablePtr NameTable;
+    const TIndex Ids;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -130,8 +130,6 @@ message TGroupClause
 {
     repeated TNamedItem group_items = 1;
     repeated TAggregateItem aggregate_items = 2;
-    required bool is_merge = 4;
-    required bool is_final = 5;
     required uint32 totals_mode = 6;
 }
 
@@ -171,6 +169,7 @@ message TQuery
 
     optional bool use_disjoint_group_by = 13 [default = false];
     optional bool infer_ranges = 14 [default = true];
+    required bool is_final = 15;
 }
 
 message TQueryOptions

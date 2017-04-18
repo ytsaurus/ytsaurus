@@ -30,7 +30,7 @@ TCGExpressionCallbackGenerator Profile(
     const TConstFunctionProfilerMapPtr& functionProfilers = BuiltinFunctionCG.Get());
 
 TCGQueryCallbackGenerator Profile(
-    TConstQueryPtr query,
+    TConstBaseQueryPtr query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     const TConstFunctionProfilerMapPtr& functionProfilers = BuiltinFunctionCG.Get(),

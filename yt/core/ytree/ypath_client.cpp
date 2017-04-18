@@ -112,6 +112,11 @@ void TYPathRequest::SetMutationId(const NRpc::TMutationId& /*id*/)
     Y_UNREACHABLE();
 }
 
+size_t TYPathRequest::GetHash() const
+{
+    return 0;
+}
+
 const NRpc::NProto::TRequestHeader& TYPathRequest::Header() const
 {
     return Header_;

@@ -81,7 +81,7 @@ class TYPathServiceBase
 public:
     virtual void Invoke(const NRpc::IServiceContextPtr& context) override;
     virtual TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
-    virtual void WriteAttributesFragment(
+    virtual void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
         bool stable) override;
