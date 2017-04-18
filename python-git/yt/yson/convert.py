@@ -103,7 +103,7 @@ def yson_to_json(yson_tree, print_attributes=True, encoding=None):
     elif isinstance(yson_tree, YsonEntity):
         return None
     elif PY3 and isinstance(yson_tree, YsonString):
-        return str(yson_tree).decode("utf-8" if encoding is None else encoding)
+        return yson_tree.decode("utf-8" if encoding is None else encoding)
     elif isinstance(yson_tree, bool) or isinstance(yson_tree, YsonBoolean):
         return "true" if yson_tree else "false"
     else:

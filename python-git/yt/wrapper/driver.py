@@ -111,21 +111,25 @@ def make_formatted_request(command_name, params, format, **kwargs):
     response_format = None
 
     has_yson_bindings = (yson.TYPE == "BINARY")
-    if format is None:
-        if get_config(client)["force_using_yson_for_formatted_requests"] or has_yson_bindings:
-            params["output_format"] = "yson"
-            response_format = "yson"
-        else:
-            params["output_format"] = "json"
-            response_format = "json"
-    else:
-        if isinstance(format, str):
-            format = create_format(format)
-        params["output_format"] = format.to_yson_type()
+    use_yson = get_config(client)["force_using_yson_for_formatted_requests"] or has_yson_bindings
 
     is_batch = get_option("_client_type", client) == "batch"
-    if is_batch and format is not None:
-        raise YtError("Batch request is not supported for formatted requests")
+    if is_batch:
+        # NB: batch executor always use YSON format.
+        if format is not None:
+            raise YtError("Batch request is not supported for formatted requests")
+    else:
+        if format is None:
+            if use_yson:
+                params["output_format"] = "yson"
+                response_format = "yson"
+            else:
+                params["output_format"] = "json"
+                response_format = "json"
+        else:
+            if isinstance(format, str):
+                format = create_format(format)
+            params["output_format"] = format.to_yson_type()
 
     decode_content = format is not None
     result = make_request(command_name, params,
@@ -138,7 +142,7 @@ def make_formatted_request(command_name, params, format, **kwargs):
         return result
 
     if format is None:
-        if has_yson_bindings:
+        if use_yson:
             return yson.loads(result)
         else:
             return json_to_yson(json.loads(result), encoding="latin-1")
