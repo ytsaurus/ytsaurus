@@ -381,7 +381,7 @@ public:
 
     TChunkStripeStatisticsVector GetApproximateStripeStatistics() const
     {
-        if (CookiePool_.size() == 0) {
+        if (CookiePoolSize_ == 0) {
             return TChunkStripeStatisticsVector();
         }
         auto cookie = *(CookiePool_.begin());
@@ -391,7 +391,7 @@ public:
 
     int GetPendingJobCount() const
     {
-        return CookiePool_.size();
+        return CookiePoolSize_;
     }
 
     const TChunkStripeListPtr& GetStripeList(IChunkPoolOutput::TCookie cookie)
@@ -419,7 +419,12 @@ public:
 private:
     //! бассейн с печеньками^W^W^W
     //! The list of all job cookies that are in state `Pending` (i.e. do not depend on suspended data).
-    yhash_set<IChunkPoolOutput::TCookie> CookiePool_;
+    std::list<IChunkPoolOutput::TCookie> CookiePool_;
+
+    //! The size of a cookie pool.
+    //! TODO(max42): std::list<T>::size() works in O(1) only since gcc 5. Remove this
+    //! when release binaries are built under newer version of compiler.
+    int CookiePoolSize_ = 0;
 
     //! A mapping between input cookie and all jobs that are affected by its suspension.
     std::vector<std::vector<IChunkPoolOutput::TCookie>> InputCookieToAffectedOutputCookies_;
@@ -540,13 +545,18 @@ private:
 
         void RemoveSelf()
         {
-            YCHECK(Owner_->CookiePool_.erase(Cookie_) == 1);
+            YCHECK(CookiePoolIterator_ != Owner_->CookiePool_.end());
+            Owner_->CookiePool_.erase(CookiePoolIterator_);
+            --Owner_->CookiePoolSize_;
+            CookiePoolIterator_ = Owner_->CookiePool_.end();
             InPool_ = false;
         }
 
         void AddSelf()
         {
-            YCHECK(Owner_->CookiePool_.insert(Cookie_).second);
+            YCHECK(CookiePoolIterator_ == Owner_->CookiePool_.end());
+            ++Owner_->CookiePoolSize_;
+            CookiePoolIterator_ = Owner_->CookiePool_.insert(Owner_->CookiePool_.end(), Cookie_);
             InPool_ = true;
         }
 
