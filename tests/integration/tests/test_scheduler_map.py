@@ -17,8 +17,6 @@ import __builtin__
 import os
 import sys
 from collections import defaultdict
-import calendar
-import datetime
 
 ##################################################################
 
@@ -686,6 +684,32 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/t_output") == [{"hello": "world"}]
 
+    def test_file_with_subdir(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"hello": "world"}])
+
+        file = "//tmp/test_file"
+        create("file", file)
+        write_file(file, "{value=42};\n")
+
+        map(in_="//tmp/t_input",
+            out=["//tmp/t_output"],
+            command="cat dir/my_file >&2; cat",
+            file=[to_yson_type("//tmp/test_file", attributes={"file_name": "dir/my_file"})],
+            verbose=True)
+
+        with pytest.raises(YtError):
+            map(in_="//tmp/t_input",
+                out=["//tmp/t_output"],
+                command="cat dir/my_file >&2; cat",
+                file=[to_yson_type("//tmp/test_file", attributes={"file_name": "../dir/my_file"})],
+                spec={"max_failed_job_count": 1},
+                verbose=True)
+
+        assert read_table("//tmp/t_output") == [{"hello": "world"}]
+
     def test_two_inputs_at_the_same_time(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output1")
@@ -1130,7 +1154,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             environment={"PYTHONPATH": os.environ["PYTHONPATH"]})
 
         jobs_archive_path = "//sys/operations_archive/jobs"
-        
+
         rows = []
 
         jobs = get("//sys/operations/{}/jobs".format(op.id), attributes=[
@@ -1142,7 +1166,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             "error",
             "statistics",
             "size",
-            "uncompressed_data_size" 
+            "uncompressed_data_size"
         ])
 
         for job_id, job in jobs.iteritems():
@@ -3089,7 +3113,9 @@ class TestSandboxTmpfs(YTEnvSetup):
             })
 
         script = "#!/usr/bin/env python\n"\
-                 "import sys; sys.stdout.write(sys.stdin.read())\n"
+                 "import sys\n"\
+                 "sys.stdout.write(sys.stdin.read())\n"\
+                 "with open('test_file', 'w') as f: f.write('Hello world!')"
         create("file", "//tmp/script")
         write_file("//tmp/script", script)
         set("//tmp/script/@executable", True)
