@@ -1462,6 +1462,10 @@ void TOperationElementSharedState::IncreaseJobResourceUsage(
     if (!properties.Preemptable) {
         NonpreemptableResourceUsage_ += resourcesDelta;
     }
+    if (properties.AggressivelyPreemptable) {
+        YCHECK(properties.Preemptable);
+        AggressivelyPreemptableResourceUsage_ += resourcesDelta;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -1812,12 +1816,24 @@ void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& r
 {
     auto delta = SharedState_->AddJob(jobId, resourceUsage);
     IncreaseResourceUsage(delta);
+
+    SharedState_->UpdatePreemptableJobsList(
+        Attributes_.FairShareRatio,
+        TotalResourceLimits_,
+        StrategyConfig_->PreemptionSatisfactionThreshold,
+        StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
 }
 
 void TOperationElement::OnJobFinished(const TJobId& jobId)
 {
     auto resourceUsage = SharedState_->RemoveJob(jobId);
     IncreaseResourceUsage(-resourceUsage);
+
+    SharedState_->UpdatePreemptableJobsList(
+        Attributes_.FairShareRatio,
+        TotalResourceLimits_,
+        StrategyConfig_->PreemptionSatisfactionThreshold,
+        StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
 }
 
 void TOperationElement::BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap)
