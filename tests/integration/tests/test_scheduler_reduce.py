@@ -1332,6 +1332,20 @@ done
         assert completed_details["job_split"] >= 1
         assert completed_details["total"] == completed
 
+    def test_intermediate_live_preview(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "foo", "type": "string", "sort_order": "ascending"}]})
+        write_table("//tmp/t1", {"foo": "bar"})
+        create("table", "//tmp/t2")
+
+        op = reduce(dont_track=True, command="cat; sleep 3",
+                    in_="//tmp/t1", out="//tmp/t2",
+                    reduce_by=["foo"])
+
+        time.sleep(2)
+        assert exists("//sys/operations/{0}/output_0".format(op.id))
+
+        op.track()
+        assert read_table("//tmp/t2") == [{"foo": "bar"}]
 
 ##################################################################
 
