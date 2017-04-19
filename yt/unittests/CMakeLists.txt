@@ -1,8 +1,3 @@
-IF(YMAKE)
-  SET(CMAKE_CURRENT_LIST_DIR .)
-  SET(YT_ABI 19_2)
-ENDIF()
-
 SET(PROTO_NAMESPACE yt/${YT_ABI})
 
 # Some tests are commented due to arcadia issues.
@@ -79,6 +74,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/pipes_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/preprocessor_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/process_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ring_queue_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/random_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/read_limit_ut.cpp
@@ -140,54 +136,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/zigzag_ut.cpp
 )
 
-################################################################################
-IF(YMAKE)
-################################################################################
-
-PROGRAM(unittester)
-
-OWNER(sandello)
-
-CXXFLAGS(
-  -std=c++1y
-  -Wno-sign-compare
-  -Wno-unused-parameter
-  -Wno-unused-value
-  -Wno-unused-const-variable
-  -Wno-unused-function
-  -Wno-switch
-  -Wno-type-limits
-  -Wno-c++14-extensions
-  -DYT_IN_ARCADIA
-)
-
-IF(GCC)
-  CXXFLAGS(-Wno-maybe-uninitialized)
-ENDIF()
-
-ADDINCL(
-  yt/${YT_ABI}/yt
-  contrib/libs/gtest
-  contrib/libs/gmock
-)
-
-SRCS(
-  ${YT_SRCS}
-)
-
-PEERDIR(
-  yt/${YT_ABI}/yt/ytlib
-  yt/${YT_ABI}/yt/server
-  contrib/libs/gtest
-  contrib/libs/gmock
-)
-
-END()
-
-################################################################################
-ELSE()
-################################################################################
-
 set(YT_SOURCE_FILES)
 
 list(APPEND YT_SRCS
@@ -246,9 +194,3 @@ target_link_libraries(unittester
   deps-arcadia-contrib-libs-gtest
   deps-arcadia-contrib-libs-gmock
 )
-
-
-################################################################################
-ENDIF()
-################################################################################
-

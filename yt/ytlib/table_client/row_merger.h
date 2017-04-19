@@ -112,7 +112,6 @@ public:
 
 private:
     const TRowBufferPtr RowBuffer_;
-    const int ColumnCount_;
     const int KeyColumnCount_;
     const TRetentionConfigPtr Config_;
     const TTimestamp CurrentTimestamp_;
