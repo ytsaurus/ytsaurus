@@ -474,6 +474,9 @@ void TPythonObjectBuilder::AddObject(
         auto tuplePtr = MakePyObjectPtr(PyTuple_New(1));
         PyTuple_SetItem(tuplePtr.get(), 0, Py::new_reference_to(obj.get()));
         obj = MakePyObjectPtr(PyObject_CallObject(type.ptr(), tuplePtr.get()));
+        if (!obj.get()) {
+            throw Py::Exception();
+        }
     }
 
     if (Attributes_) {
