@@ -7,6 +7,7 @@
 
 #include <yt/server/chunk_server/chunk.h>
 #include <yt/server/chunk_server/chunk_list.h>
+#include <yt/server/chunk_server/chunk_visitor.h>
 
 #include <yt/server/node_tracker_server/node_directory_builder.h>
 
@@ -117,13 +118,15 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back("atomicity");
     descriptors->push_back(TAttributeDescriptor("commit_ordering")
         .SetPresent(!table->IsSorted()));
-    descriptors->push_back(TAttributeDescriptor("optimize_for")
-        .SetCustom(true));
+    descriptors->push_back(TAttributeDescriptor("optimize_for"));
     descriptors->push_back(TAttributeDescriptor("schema_mode"));
     descriptors->push_back(TAttributeDescriptor("chunk_writer")
         .SetCustom(true));
     descriptors->push_back(TAttributeDescriptor("replication_mode")
         .SetPresent(table->IsSorted() && table->IsDynamic()));
+    descriptors->push_back(TAttributeDescriptor("table_chunk_format_statistics")
+        .SetExternal(table->IsExternal())
+        .SetOpaque(true));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
@@ -300,6 +303,12 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
         return true;
     }
 
+    if (key == "optimize_for") {
+        BuildYsonFluently(consumer)
+            .Value(table->GetOptimizeFor());
+        return true;
+    }
+
     if (key == "replication_mode" && trunkTable->IsSorted() && trunkTable->IsDynamic()) {
         BuildYsonFluently(consumer)
             .Value(trunkTable->GetReplicationMode());
@@ -307,6 +316,24 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
     }
 
     return TBase::GetBuiltinAttribute(key, consumer);
+}
+
+TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(const Stroka& key)
+{
+    const auto* table = GetThisImpl();
+    auto* chunkList = table->GetChunkList();
+    auto isExternal = table->IsExternal();
+
+    if (!isExternal) {
+        if (key == "table_chunk_format_statistics") {
+            return ComputeChunkStatistics(
+                Bootstrap_,
+                chunkList,
+                [] (const TChunk* chunk) { return ETableChunkFormat(chunk->ChunkMeta().version()); });
+        }
+    }
+
+    return TBase::GetBuiltinAttributeAsync(key);
 }
 
 void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)
@@ -401,6 +428,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& 
 
         auto* lockedTable = LockThisImpl();
         tabletManager->SetTabletCellBundle(lockedTable, cellBundle);
+
         return true;
     }
 
@@ -415,6 +443,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& 
 
         auto atomicity = ConvertTo<NTransactionClient::EAtomicity>(value);
         lockedTable->SetAtomicity(atomicity);
+
         return true;
     }
 
@@ -430,6 +459,16 @@ bool TTableNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& 
         auto* lockedTable = LockThisImpl();
         auto ordering = ConvertTo<NTransactionClient::ECommitOrdering>(value);
         lockedTable->SetCommitOrdering(ordering);
+
+        return true;
+    }
+
+    if (key == "optimize_for") {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+        auto* lockedTable = LockThisImpl<TTableNode>(TLockRequest::MakeSharedAttribute(key));
+        lockedTable->SetOptimizeFor(ConvertTo<EOptimizeFor>(value));
+
         return true;
     }
 
@@ -441,14 +480,6 @@ void TTableNodeProxy::ValidateCustomAttributeUpdate(
     const TYsonString& oldValue,
     const TYsonString& newValue)
 {
-    if (key == "optimize_for") {
-        if (!newValue) {
-            ThrowCannotRemoveAttribute(key);
-        }
-        ConvertTo<EOptimizeFor>(newValue);
-        return;
-    }
-
     if (key == "chunk_writer" && newValue) {
         ConvertTo<TTableWriterConfigPtr>(newValue);
         return;
@@ -502,13 +533,14 @@ void TTableNodeProxy::ValidateBeginUpload()
     }
 }
 
-void TTableNodeProxy::ValidateStorageSettingsUpdate()
+void TTableNodeProxy::ValidateStorageParametersUpdate()
 {
-    TBase::ValidateStorageSettingsUpdate();
+    TChunkOwnerNodeProxy::ValidateStorageParametersUpdate();
 
-    const auto* table = GetThisImpl();
-    if (table->IsDynamic() && table->GetTabletState() != ETabletState::Unmounted) {
-        THROW_ERROR_EXCEPTION("Cannot change storage settings when not all tablets are unmounted");
+    const auto* node = GetThisImpl();
+    auto state = node->GetTabletState();
+    if (state != ETabletState::None && state != ETabletState::Unmounted) {
+        THROW_ERROR_EXCEPTION("Cannot change storage parameters since not all tablets are unmounted");
     }
 }
 

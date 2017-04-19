@@ -49,6 +49,25 @@ int TDataSliceDescriptor::GetDataSourceIndex() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDataSliceDescriptor CreateIncompatibleDataSliceDescriptor()
+{
+    // This chunk spec is incompatible with old nodes since it doesn't contain required
+    // chunk_meta() field and properly set version().
+    // Newer nodes do well without it.
+    NProto::TChunkSpec chunkSpec;
+    ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
+
+    return TDataSliceDescriptor(chunkSpec);
+}
+
+const TDataSliceDescriptor& GetIncompatibleDataSliceDescriptor()
+{
+    static auto incompatibleDataSliceDescriptor = CreateIncompatibleDataSliceDescriptor();
+    return incompatibleDataSliceDescriptor;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TDataSliceDescriptor* protoDataSliceDescriptor, const TDataSliceDescriptor& dataSliceDescriptor)
 {
     for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
@@ -59,6 +78,37 @@ void ToProto(NProto::TDataSliceDescriptor* protoDataSliceDescriptor, const TData
 void FromProto(TDataSliceDescriptor* dataSliceDescriptor, const NProto::TDataSliceDescriptor& protoDataSliceDescriptor)
 {
     dataSliceDescriptor->ChunkSpecs = std::vector<NProto::TChunkSpec>(protoDataSliceDescriptor.chunks().begin(), protoDataSliceDescriptor.chunks().end());
+}
+
+void ToProto(
+    ::google::protobuf::RepeatedPtrField<NProto::TChunkSpec>* chunkSpecs,
+    ::google::protobuf::RepeatedField<int>* chunkSpecCountPerDataSlice,
+    const std::vector<TDataSliceDescriptor>& dataSlices)
+{
+    for (const auto& dataSlice : dataSlices) {
+        chunkSpecCountPerDataSlice->Add(dataSlice.ChunkSpecs.size());
+
+        for (const auto& chunkSpec : dataSlice.ChunkSpecs) {
+            *chunkSpecs->Add() = chunkSpec;
+        }
+    }
+}
+
+void FromProto(
+    std::vector<TDataSliceDescriptor>* dataSlices,
+    const ::google::protobuf::RepeatedPtrField<NProto::TChunkSpec>& chunkSpecs,
+    const ::google::protobuf::RepeatedField<int>& chunkSpecCountPerDataSlice)
+{
+    dataSlices->clear();
+    int currentIndex = 0;
+    for (int chunkSpecCount : chunkSpecCountPerDataSlice) {
+        std::vector<NProto::TChunkSpec> dataSliceSpecs(
+            chunkSpecs.begin() + currentIndex,
+            chunkSpecs.begin() + currentIndex + chunkSpecCount);
+
+        dataSlices->emplace_back(std::move(dataSliceSpecs));
+        currentIndex += chunkSpecCount;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -643,7 +643,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
 
     auto firstPartitionIt = PartitionList_.begin() + firstIndex;
     auto lastPartitionIt = PartitionList_.begin() + lastIndex;
-    for (auto it = firstPartitionIt; it !=  lastPartitionIt; ++it) {
+    for (auto it = firstPartitionIt; it != lastPartitionIt + 1; ++it) {
         PartitionMap_.erase((*it)->GetId());
     }
     YCHECK(PartitionMap_.insert(std::make_pair(mergedPartition->GetId(), mergedPartition.get())).second);
@@ -914,7 +914,7 @@ void TTablet::StopEpoch()
     }
 }
 
-IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
+IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
 {
     return EpochAutomatonInvokers_[queue];
 }
@@ -945,27 +945,31 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->Atomicity = Atomicity_;
     snapshot->ReplicationMode = ReplicationMode_;
     snapshot->HashTableSize = HashTableSize_;
+    snapshot->StoreCount = static_cast<int>(StoreIdMap_.size());
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
     snapshot->RetainedTimestamp = RetainedTimestamp_;
 
-    auto addPartitionStatistics = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
-        snapshot->StoreCount += partitionSnapshot->Stores.size();
-        for (const auto& store : partitionSnapshot->Stores) {
-            if (store->IsChunk()) {
-                auto chunkStore = store->AsChunk();
-                auto preloadState = chunkStore->GetPreloadState();
-                switch (preloadState) {
-                    case EStorePreloadState::Scheduled:
-                    case EStorePreloadState::Running:
-                        ++snapshot->PreloadPendingStoreCount;
-                        break;
-                    case EStorePreloadState::Complete:
-                        ++snapshot->PreloadCompletedStoreCount;
-                        break;
-                    default:
-                        break;
-                }
+    auto addStoreStatistics = [&] (const IStorePtr& store) {
+        if (store->IsChunk()) {
+            auto chunkStore = store->AsChunk();
+            auto preloadState = chunkStore->GetPreloadState();
+            switch (preloadState) {
+                case EStorePreloadState::Scheduled:
+                case EStorePreloadState::Running:
+                    ++snapshot->PreloadPendingStoreCount;
+                    break;
+                case EStorePreloadState::Complete:
+                    ++snapshot->PreloadCompletedStoreCount;
+                    break;
+                default:
+                    break;
             }
+        }
+    };
+
+    auto addPartitionStatistics = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
+        for (const auto& store : partitionSnapshot->Stores) {
+            addStoreStatistics(store);
         }
     };
 
@@ -984,6 +988,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
         snapshot->OrderedStores.reserve(StoreRowIndexMap_.size());
         for (const auto& pair : StoreRowIndexMap_) {
             snapshot->OrderedStores.push_back(pair.second);
+            addStoreStatistics(pair.second);
         }
     }
 
@@ -1092,13 +1097,14 @@ void TTablet::ValidateMountRevision(i64 mountRevision)
 
 void TTablet::UpdateOverlappingStoreCount()
 {
-    OverlappingStoreCount_ = 0;
+    int overlappingStoreCount = 0;
     for (const auto& partition : PartitionList_) {
-        OverlappingStoreCount_ = std::max(
-            OverlappingStoreCount_,
+        overlappingStoreCount = std::max(
+            overlappingStoreCount ,
             static_cast<int>(partition->Stores().size()));
     }
-    OverlappingStoreCount_ += Eden_->Stores().size();
+    overlappingStoreCount += Eden_->Stores().size();
+    OverlappingStoreCount_ = overlappingStoreCount;
 }
 
 void TTablet::UpdateUnflushedTimestamp() const

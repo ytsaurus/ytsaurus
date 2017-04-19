@@ -16,14 +16,11 @@ message TReqExecute
     required TQueryOptions options = 2;
     repeated TDataRanges data_sources = 3;
     required int32 response_codec = 4; // ECodec
-    optional bool schemaful_response = 7 [default=false];
 }
 
 message TRspExecute
 {
     required TQueryStatistics query_statistics = 1;
-    optional bool schemaful_response = 2 [default=false];
-
     // Attachements contains wire-encoded data.
 }
 

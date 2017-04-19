@@ -1141,43 +1141,121 @@ TCodegenExpression MakeCodegenInOpExpr(
 // Operators
 //
 
-void CodegenScanOp(
-    TCGOperatorContext& builder,
-    const TCodegenConsumer& codegenConsumer)
-{
-    auto consume = MakeClosure<void(TRowBuffer*, TRow*, i64)>(builder, "ScanOpInner", [&] (
-        TCGOperatorContext& builder,
-        Value* buffer,
-        Value* rows,
-        Value* size
-    ) {
-        TCGContext innerBulder(builder, buffer);
-        CodegenForEachRow(innerBulder, rows, size, codegenConsumer);
-        innerBulder->CreateRetVoid();
-    });
+void CodegenEmptyOp(TCGOperatorContext& builder)
+{ }
 
-    builder->CreateCall(
-        builder.Module->GetRoutine("ScanOpHelper"),
-        {
-            builder.GetExecutionContext(),
-            consume.ClosurePtr,
-            consume.Function
+size_t MakeCodegenScanOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount)
+{
+    size_t consumerSlot = (*slotCount)++;
+
+    *codegenSource = [
+        consumerSlot,
+        codegenSource = std::move(*codegenSource)
+    ] (TCGOperatorContext& builder) {
+        codegenSource(builder);
+
+        auto consume = MakeClosure<void(TRowBuffer*, TRow*, i64)>(builder, "ScanOpInner", [&] (
+            TCGOperatorContext& builder,
+            Value* buffer,
+            Value* rows,
+            Value* size
+        ) {
+            TCGContext innerBulder(builder, buffer);
+            CodegenForEachRow(innerBulder, rows, size, builder[consumerSlot]);
+            innerBulder->CreateRetVoid();
         });
+
+        builder->CreateCall(
+            builder.Module->GetRoutine("ScanOpHelper"),
+            {
+                builder.GetExecutionContext(),
+                consume.ClosurePtr,
+                consume.Function
+            });
+    };
+
+    return consumerSlot;
 }
 
-TCodegenSource MakeCodegenJoinOp(
+std::tuple<size_t, size_t, size_t> MakeCodegenSplitterOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    size_t streamIndex)
+{
+    size_t finalConsumerSlot = (*slotCount)++;
+    size_t intermediateConsumerSlot = (*slotCount)++;
+    size_t totalsConsumerSlot = (*slotCount)++;
+
+    *codegenSource = [
+        finalConsumerSlot,
+        intermediateConsumerSlot,
+        totalsConsumerSlot,
+        producerSlot,
+        streamIndex,
+        codegenSource = std::move(*codegenSource)
+    ] (TCGOperatorContext& builder) {
+        builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
+            auto* ifFinalBB = builder->CreateBBHere("ifFinal");
+            auto* ifIntermediateBB = builder->CreateBBHere("ifIntermediate");
+            auto* ifTotalsBB = builder->CreateBBHere("ifTotals");
+            auto* endIfBB = builder->CreateBBHere("endIf");
+
+            auto streamIndexValue = TCGValue::CreateFromRow(
+                builder,
+                row,
+                streamIndex,
+                EValueType::Uint64,
+                "reference.streamIndex");
+
+            auto switcher = builder->CreateSwitch(streamIndexValue.GetData(), endIfBB);
+
+            switcher->addCase(builder->getInt64(static_cast<ui64>(EStreamTag::Final)), ifFinalBB);
+            switcher->addCase(builder->getInt64(static_cast<ui64>(EStreamTag::Intermediate)), ifIntermediateBB);
+            switcher->addCase(builder->getInt64(static_cast<ui64>(EStreamTag::Totals)), ifTotalsBB);
+
+            builder->SetInsertPoint(ifFinalBB);
+            builder[finalConsumerSlot](builder, row);
+            builder->CreateBr(endIfBB);
+
+            builder->SetInsertPoint(ifIntermediateBB);
+            builder[intermediateConsumerSlot](builder, row);
+            builder->CreateBr(endIfBB);
+
+            builder->SetInsertPoint(ifTotalsBB);
+            builder[totalsConsumerSlot](builder, row);
+            builder->CreateBr(endIfBB);
+
+            builder->SetInsertPoint(endIfBB);
+        };
+
+        codegenSource(builder);
+    };
+
+    return std::make_tuple(finalConsumerSlot, intermediateConsumerSlot, totalsConsumerSlot);
+}
+
+size_t MakeCodegenJoinOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
     int index,
     std::vector<std::pair<TCodegenExpression, bool>> equations,
-    size_t commonKeyPrefix,
-    TCodegenSource codegenSource)
+    size_t commonKeyPrefix)
 {
-    return [
+    size_t consumerSlot = (*slotCount)++;
+    *codegenSource = [
+        consumerSlot,
+        producerSlot,
         index,
         MOVE(equations),
         commonKeyPrefix,
-        codegenSource = std::move(codegenSource)
-    ] (TCGOperatorContext& builder, const TCodegenConsumer& codegenConsumer) {
+        codegenSource = std::move(*codegenSource)
+    ] (TCGOperatorContext& builder) {
         int lookupKeySize = equations.size();
+        // TODO(lukyan): Do not fill in consumer
         std::vector<EValueType> lookupKeyTypes(lookupKeySize);
 
         auto collectRows = MakeClosure<void(TJoinClosure*, TRowBuffer*)>(builder, "CollectRows", [&] (
@@ -1195,39 +1273,39 @@ TCodegenSource MakeCodegenJoinOp(
                     keyPtr
                 });
 
-            codegenSource(
-                builder,
-                [&] (TCGContext& builder, Value* row) {
-                    Value* keyPtrRef = builder->ViaClosure(keyPtr);
-                    Value* keyRef = builder->CreateLoad(keyPtrRef);
+            builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
+                Value* keyPtrRef = builder->ViaClosure(keyPtr);
+                Value* keyRef = builder->CreateLoad(keyPtrRef);
 
-                    for (int column = 0; column < lookupKeySize; ++column) {
-                        if (!equations[column].second) {
-                            auto joinKeyValue = equations[column].first(builder, row);
-                            lookupKeyTypes[column] = joinKeyValue.GetStaticType();
-                            joinKeyValue.StoreToRow(builder, keyRef, column, column);
-                        }
+                for (int column = 0; column < lookupKeySize; ++column) {
+                    if (!equations[column].second) {
+                        auto joinKeyValue = equations[column].first(builder, row);
+                        lookupKeyTypes[column] = joinKeyValue.GetStaticType();
+                        joinKeyValue.StoreToRow(builder, keyRef, column, column);
                     }
+                }
 
-                    for (int column = 0; column < lookupKeySize; ++column) {
-                        if (equations[column].second) {
-                            auto evaluatedColumn = equations[column].first(builder, keyRef);
-                            lookupKeyTypes[column] = evaluatedColumn.GetStaticType();
-                            evaluatedColumn.StoreToRow(builder, keyRef, column, column);
-                        }
+                for (int column = 0; column < lookupKeySize; ++column) {
+                    if (equations[column].second) {
+                        auto evaluatedColumn = equations[column].first(builder, keyRef);
+                        lookupKeyTypes[column] = evaluatedColumn.GetStaticType();
+                        evaluatedColumn.StoreToRow(builder, keyRef, column, column);
                     }
+                }
 
-                    Value* joinClosureRef = builder->ViaClosure(joinClosure);
+                Value* joinClosureRef = builder->ViaClosure(joinClosure);
 
-                    builder->CreateCall(
-                        builder.Module->GetRoutine("InsertJoinRow"),
-                        {
-                            builder.GetExecutionContext(),
-                            joinClosureRef,
-                            keyPtrRef,
-                            row
-                        });
-                });
+                builder->CreateCall(
+                    builder.Module->GetRoutine("InsertJoinRow"),
+                    {
+                        builder.GetExecutionContext(),
+                        joinClosureRef,
+                        keyPtrRef,
+                        row
+                    });
+            };
+
+            codegenSource(builder);
 
             builder->CreateRetVoid();
         });
@@ -1244,7 +1322,7 @@ TCodegenSource MakeCodegenJoinOp(
                 innerBuilder,
                 joinedRows,
                 size,
-                codegenConsumer);
+                builder[consumerSlot]);
 
             innerBuilder->CreateRetVoid();
         });
@@ -1272,68 +1350,115 @@ TCodegenSource MakeCodegenJoinOp(
                 consumeJoinedRows.Function
             });
     };
+
+    return consumerSlot;
 }
 
-TCodegenSource MakeCodegenFilterOp(
-    TCodegenExpression codegenPredicate,
-    TCodegenSource codegenSource)
+size_t MakeCodegenFilterOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    TCodegenExpression codegenPredicate)
 {
-    return [
+    size_t consumerSlot = (*slotCount)++;
+
+    *codegenSource = [
+        consumerSlot,
+        producerSlot,
         MOVE(codegenPredicate),
-        codegenSource = std::move(codegenSource)
-    ] (TCGOperatorContext& builder, const TCodegenConsumer& codegenConsumer) {
-        codegenSource(
-            builder,
-            [&] (TCGContext& builder, Value* row) {
-                auto predicateResult = codegenPredicate(builder, row);
+        codegenSource = std::move(*codegenSource)
+    ] (TCGOperatorContext& builder) {
+        builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
+            auto predicateResult = codegenPredicate(builder, row);
 
-                auto* ifBB = builder->CreateBBHere("if");
-                auto* endifBB = builder->CreateBBHere("endif");
+            auto* ifBB = builder->CreateBBHere("if");
+            auto* endIfBB = builder->CreateBBHere("endIf");
 
-                auto* notIsNull = builder->CreateNot(predicateResult.IsNull());
-                auto* isTrue = builder->CreateICmpEQ(predicateResult.GetData(), builder->getInt8(true));
+            auto* notIsNull = builder->CreateNot(predicateResult.IsNull());
+            auto* isTrue = builder->CreateICmpEQ(predicateResult.GetData(), builder->getInt8(true));
 
-                builder->CreateCondBr(
-                    builder->CreateAnd(notIsNull, isTrue),
-                    ifBB,
-                    endifBB);
+            builder->CreateCondBr(
+                builder->CreateAnd(notIsNull, isTrue),
+                ifBB,
+                endIfBB);
 
-                builder->SetInsertPoint(ifBB);
-                codegenConsumer(builder, row);
-                builder->CreateBr(endifBB);
+            builder->SetInsertPoint(ifBB);
+            builder[consumerSlot](builder, row);
+            builder->CreateBr(endIfBB);
 
-                builder->SetInsertPoint(endifBB);
-            });
+            builder->SetInsertPoint(endIfBB);
+        };
+
+        codegenSource(builder);
     };
+
+    return consumerSlot;
 }
 
-TCodegenSource MakeCodegenProjectOp(
-    std::vector<TCodegenExpression> codegenArgs,
-    TCodegenSource codegenSource)
+size_t MakeCodegenAddStreamOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    std::vector<EValueType> sourceSchema,
+    EStreamTag value)
 {
-    return [
+    std::vector<TCodegenExpression> codegenProjectExprs;
+    for (size_t index = 0; index < sourceSchema.size(); ++index) {
+        codegenProjectExprs.push_back(MakeCodegenReferenceExpr(index, sourceSchema[index], ""));
+    }
+
+    codegenProjectExprs.push_back([value] (TCGExprContext& builder, Value* row) {
+            return TCGValue::CreateFromValue(
+                builder,
+                builder->getInt1(false),
+                nullptr,
+                builder->getInt64(static_cast<ui64>(value)),
+                EValueType::Uint64,
+                "streamIndex");
+        });
+
+    return MakeCodegenProjectOp(
+        codegenSource,
+        slotCount,
+        producerSlot,
+        std::move(codegenProjectExprs));
+}
+
+size_t MakeCodegenProjectOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    std::vector<TCodegenExpression> codegenArgs)
+{
+    size_t consumerSlot = (*slotCount)++;
+
+    *codegenSource = [
+        consumerSlot,
+        producerSlot,
         MOVE(codegenArgs),
-        codegenSource = std::move(codegenSource)
-    ] (TCGOperatorContext& builder, const TCodegenConsumer& codegenConsumer) {
+        codegenSource = std::move(*codegenSource)
+    ] (TCGOperatorContext& builder) {
         int projectionCount = codegenArgs.size();
 
         Value* newRow = CodegenAllocateRow(builder, projectionCount);
 
-        codegenSource(
-            builder,
-            [&] (TCGContext& builder, Value* row) {
-                Value* newRowRef = builder->ViaClosure(newRow);
+        builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
+            Value* newRowRef = builder->ViaClosure(newRow);
 
-                for (int index = 0; index < projectionCount; ++index) {
-                    auto id = index;
+            for (int index = 0; index < projectionCount; ++index) {
+                auto id = index;
 
-                    codegenArgs[index](builder, row)
-                        .StoreToRow(builder, newRowRef, index, id);
-                }
+                codegenArgs[index](builder, row)
+                    .StoreToRow(builder, newRowRef, index, id);
+            }
 
-                codegenConsumer(builder, newRowRef);
-            });
+            builder[consumerSlot](builder, newRowRef);
+        };
+
+        codegenSource(builder);
     };
+
+    return consumerSlot;
 }
 
 std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
@@ -1437,17 +1562,12 @@ std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenAggregateUpd
 
 std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateFinalize(
     std::vector<TCodegenAggregate> codegenAggregates,
-    int keySize,
-    bool isFinal)
+    int keySize)
 {
     return [
         MOVE(codegenAggregates),
-        keySize,
-        isFinal
+        keySize
     ] (TCGContext& builder, Value* row) {
-        if (!isFinal) {
-            return;
-        }
         for (int index = 0; index < codegenAggregates.size(); index++) {
             auto id = keySize + index;
             auto valuesPtr = CodegenValuesPtrFromRow(builder, row);
@@ -1466,37 +1586,87 @@ std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateFinaliz
     };
 }
 
-TCodegenSource MakeCodegenGroupOp(
+std::tuple<size_t, size_t> MakeCodegenSplitOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot)
+{
+    size_t firstSlot = (*slotCount)++;
+    size_t secondSlot = (*slotCount)++;
+
+    *codegenSource = [
+        firstSlot,
+        secondSlot,
+        producerSlot,
+        codegenSource = std::move(*codegenSource)
+    ] (TCGOperatorContext& builder) {
+        builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
+            builder[firstSlot](builder, row);
+            builder[secondSlot](builder, row);
+        };
+
+        codegenSource(builder);
+    };
+
+    return std::make_tuple(firstSlot, secondSlot);
+}
+
+size_t MakeCodegenMergeOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t firstSlot,
+    size_t secondSlot)
+{
+    size_t consumerSlot = (*slotCount)++;
+
+    *codegenSource = [
+        consumerSlot,
+        firstSlot,
+        secondSlot,
+        codegenSource = std::move(*codegenSource)
+    ] (TCGOperatorContext& builder) {
+        builder[firstSlot] = builder[consumerSlot];
+        builder[secondSlot] = builder[consumerSlot];
+
+        codegenSource(builder);
+    };
+
+    return consumerSlot;
+}
+
+size_t MakeCodegenGroupOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
     std::function<void(TCGContext&, Value*)> codegenInitialize,
     std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateGroups,
     std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateAggregateArgs,
     std::function<void(TCGContext&, Value*, Value*)> codegenUpdate,
-    std::function<void(TCGContext&, Value*)> codegenFinalize,
-    TCodegenSource codegenSource,
     std::vector<EValueType> keyTypes,
     bool isMerge,
     int groupRowSize,
-    bool appendToSource,
     bool checkNulls)
 {
     // codegenInitialize calls the aggregates' initialisation functions
     // codegenEvaluateGroups evaluates the group expressions
     // codegenEvaluateAggregateArgs evaluates the aggregates' arguments
     // codegenUpdate calls the aggregates' update or merge functions
-    // codegenFinalize calls the aggregates' finalize functions if needed
-    return [
+
+    size_t consumerSlot = (*slotCount)++;
+
+    *codegenSource = [
+        consumerSlot,
+        producerSlot,
         MOVE(codegenInitialize),
         MOVE(codegenEvaluateGroups),
         MOVE(codegenEvaluateAggregateArgs),
         MOVE(codegenUpdate),
-        MOVE(codegenFinalize),
-        MOVE(codegenSource),
+        codegenSource = std::move(*codegenSource),
         MOVE(keyTypes),
         isMerge,
         groupRowSize,
-        appendToSource,
         checkNulls
-    ] (TCGOperatorContext& builder, const TCodegenConsumer& codegenConsumer) {
+    ] (TCGOperatorContext& builder) {
         auto collect = MakeClosure<void(TGroupByClosure*, TRowBuffer*)>(builder, "CollectGroups", [&] (
             TCGOperatorContext& builder,
             Value* groupByClosure,
@@ -1513,13 +1683,7 @@ TCodegenSource MakeCodegenGroupOp(
                     newRowPtr
                 });
 
-            codegenSource(
-                builder,
-                [&] (TCGContext& builder, Value* row) {
-                    if (appendToSource) {
-                        codegenConsumer(builder, row);
-                    }
-
+                builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
                     Value* bufferRef = builder->ViaClosure(buffer);
                     Value* newRowPtrRef = builder->ViaClosure(newRowPtr);
                     Value* newRowRef = builder->CreateLoad(newRowPtrRef);
@@ -1573,7 +1737,9 @@ TCodegenSource MakeCodegenGroupOp(
                         codegenUpdate(innerBuilder, row, groupRow);
                     }
 
-                });
+                };
+
+            codegenSource(builder);
 
             builder->CreateRetVoid();
         });
@@ -1584,20 +1750,12 @@ TCodegenSource MakeCodegenGroupOp(
             Value* finalGroupedRows,
             Value* size
         ) {
-            auto codegenFinalizingConsumer = [
-                MOVE(codegenConsumer),
-                MOVE(codegenFinalize)
-            ] (TCGContext& builder, Value* row) {
-                codegenFinalize(builder, row);
-                codegenConsumer(builder, row);
-            };
-
             TCGContext innerBuilder(builder, buffer);
             CodegenForEachRow(
                 innerBuilder,
                 finalGroupedRows,
                 size,
-                codegenFinalizingConsumer);
+                builder[consumerSlot]);
 
             innerBuilder->CreateRetVoid();
         });
@@ -1619,22 +1777,58 @@ TCodegenSource MakeCodegenGroupOp(
             });
 
     };
+
+    return consumerSlot;
 }
 
-TCodegenSource MakeCodegenOrderOp(
+size_t MakeCodegenFinalizeOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    std::function<void(TCGContext&, Value*)> codegenFinalize)
+{
+    // codegenFinalize calls the aggregates' finalize functions if needed
+
+    size_t consumerSlot = (*slotCount)++;
+
+    *codegenSource = [
+        consumerSlot,
+        producerSlot,
+        MOVE(codegenFinalize),
+        codegenSource = std::move(*codegenSource)
+    ] (TCGOperatorContext& builder) {
+        builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
+            codegenFinalize(builder, row);
+            builder[consumerSlot](builder, row);
+        };
+
+        codegenSource(builder);
+    };
+
+    return consumerSlot;
+}
+
+size_t MakeCodegenOrderOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
     std::vector<TCodegenExpression> codegenExprs,
+    std::vector<EValueType> orderColumnTypes,
     std::vector<EValueType> sourceSchema,
-    TCodegenSource codegenSource,
     const std::vector<bool>& isDesc)
 {
-    return [
+    size_t consumerSlot = (*slotCount)++;
+
+    *codegenSource = [
+        consumerSlot,
+        producerSlot,
         isDesc,
         MOVE(codegenExprs),
+        MOVE(orderColumnTypes),
         MOVE(sourceSchema),
-        codegenSource = std::move(codegenSource)
-    ] (TCGOperatorContext& builder, const TCodegenConsumer& codegenConsumer) {
+        codegenSource = std::move(*codegenSource)
+    ] (TCGOperatorContext& builder) {
         auto schemaSize = sourceSchema.size();
-        std::vector<EValueType> orderColumnTypes;
 
         auto collectRows = MakeClosure<void(TTopCollector*)>(builder, "CollectRows", [&] (
             TCGOperatorContext& builder,
@@ -1642,35 +1836,34 @@ TCodegenSource MakeCodegenOrderOp(
         ) {
             Value* newRow = CodegenAllocateRow(builder, schemaSize + codegenExprs.size());
 
-            codegenSource(
-                builder,
-                [&] (TCGContext& builder, Value* row) {
-                    Value* topCollectorRef = builder->ViaClosure(topCollector);
-                    Value* newRowRef = builder->ViaClosure(newRow);
+            builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
+                Value* topCollectorRef = builder->ViaClosure(topCollector);
+                Value* newRowRef = builder->ViaClosure(newRow);
 
-                    for (size_t index = 0; index < schemaSize; ++index) {
-                        auto type = sourceSchema[index];
-                        TCGValue::CreateFromRow(
-                            builder,
-                            row,
-                            index,
-                            type)
-                            .StoreToRow(builder, newRowRef, index, index);
-                    }
+                for (size_t index = 0; index < schemaSize; ++index) {
+                    auto type = sourceSchema[index];
+                    TCGValue::CreateFromRow(
+                        builder,
+                        row,
+                        index,
+                        type)
+                        .StoreToRow(builder, newRowRef, index, index);
+                }
 
-                    for (size_t index = 0; index < codegenExprs.size(); ++index) {
-                        auto columnIndex = schemaSize + index;
+                for (size_t index = 0; index < codegenExprs.size(); ++index) {
+                    auto columnIndex = schemaSize + index;
 
-                        auto orderValue = codegenExprs[index](builder, row);
-                        orderColumnTypes.push_back(orderValue.GetStaticType());
+                    auto orderValue = codegenExprs[index](builder, row);
 
-                        orderValue.StoreToRow(builder, newRowRef, columnIndex, columnIndex);
-                    }
+                    orderValue.StoreToRow(builder, newRowRef, columnIndex, columnIndex);
+                }
 
-                    builder->CreateCall(
-                        builder.Module->GetRoutine("AddRow"),
-                        {topCollectorRef, newRowRef});
-                });
+                builder->CreateCall(
+                    builder.Module->GetRoutine("AddRow"),
+                    {topCollectorRef, newRowRef});
+            };
+
+            codegenSource(builder);
 
             builder->CreateRetVoid();
         });
@@ -1686,7 +1879,7 @@ TCodegenSource MakeCodegenOrderOp(
                 innerBuilder,
                 orderedRows,
                 size,
-                codegenConsumer);
+                builder[consumerSlot]);
 
             builder->CreateRetVoid();
         });
@@ -1719,34 +1912,30 @@ TCodegenSource MakeCodegenOrderOp(
                 builder->getInt32(schemaSize)
             });
     };
+
+    return consumerSlot;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TCGQueryCallback CodegenEvaluate(TCodegenSource codegenSource, size_t opaqueValuesCount)
+void MakeCodegenWriteOp(
+    TCodegenSource* codegenSource,
+    size_t producerSlot)
 {
-    auto module = TCGModule::Create(GetQueryRoutineRegistry());
-    const auto entryFunctionName = Stroka("EvaluateQuery");
-
-    MakeFunction<TCGQuerySignature>(module->GetModule(), entryFunctionName.c_str(), [&] (
-        TCGIRBuilderPtr& baseBuilder,
-        Value* opaqueValuesPtr,
-        Value* executionContextPtr
-    ) {
-        TCGOperatorContext builder(TCGBaseContext(baseBuilder, opaqueValuesPtr, opaqueValuesCount, module), executionContextPtr);
-
+    *codegenSource = [
+        producerSlot,
+        codegenSource = std::move(*codegenSource)
+    ] (TCGOperatorContext& builder) {
         auto collect = MakeClosure<void(TWriteOpClosure*)>(builder, "WriteOpInner", [&] (
             TCGOperatorContext& builder,
             Value* writeRowClosure
         ) {
-            codegenSource(
-                builder,
-                [&] (TCGContext& builder, Value* row) {
-                    Value* writeRowClosureRef = builder->ViaClosure(writeRowClosure);
-                    builder->CreateCall(
-                        module->GetRoutine("WriteRow"),
-                        {builder.GetExecutionContext(), writeRowClosureRef, row});
-                });
+            builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
+                Value* writeRowClosureRef = builder->ViaClosure(writeRowClosure);
+                builder->CreateCall(
+                    builder.Module->GetRoutine("WriteRow"),
+                    {builder.GetExecutionContext(), writeRowClosureRef, row});
+            };
+
+            codegenSource(builder);
 
             builder->CreateRetVoid();
         });
@@ -1758,6 +1947,32 @@ TCGQueryCallback CodegenEvaluate(TCodegenSource codegenSource, size_t opaqueValu
                 collect.ClosurePtr,
                 collect.Function
             });
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCGQueryCallback CodegenEvaluate(
+    const TCodegenSource* codegenSource,
+    size_t slotCount,
+    size_t opaqueValuesCount)
+{
+    auto module = TCGModule::Create(GetQueryRoutineRegistry());
+    const auto entryFunctionName = Stroka("EvaluateQuery");
+
+    MakeFunction<TCGQuerySignature>(module->GetModule(), entryFunctionName.c_str(), [&] (
+        TCGIRBuilderPtr& baseBuilder,
+        Value* opaqueValuesPtr,
+        Value* executionContextPtr
+    ) {
+        std::vector<std::shared_ptr<TCodegenConsumer>> consumers(slotCount);
+
+        TCGOperatorContext builder(
+            TCGBaseContext(baseBuilder, opaqueValuesPtr, opaqueValuesCount, module),
+            executionContextPtr,
+            &consumers);
+
+        (*codegenSource)(builder);
 
         builder->CreateRetVoid();
     });

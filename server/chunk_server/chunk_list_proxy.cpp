@@ -55,7 +55,7 @@ private:
             .SetOpaque(true));
     }
 
-    void TraverseTree(TChunkTree* chunkTree, NYson::IYsonConsumer* consumer)
+    void TraverseTree(const TChunkTree* chunkTree, NYson::IYsonConsumer* consumer)
     {
         switch (chunkTree->GetType()) {
             case EObjectType::Chunk:
@@ -74,9 +74,13 @@ private:
                 consumer->OnEndAttributes();
 
                 consumer->OnBeginList();
-                for (auto* child : chunkList->Children()) {
+                for (const auto* child : chunkList->Children()) {
                     consumer->OnListItem();
-                    TraverseTree(child, consumer);
+                    if (child) {
+                        TraverseTree(child, consumer);
+                    } else {
+                        consumer->OnEntity();
+                    }
                 }
                 consumer->OnEndList();
                 break;

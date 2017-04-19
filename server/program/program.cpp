@@ -111,7 +111,12 @@ int TProgram::Exit(int code) const noexcept
 
 void TProgram::OnError(const Stroka& message) const noexcept
 {
-    Cerr << message << Endl;
+    try {
+        Cerr << message << Endl;
+    } catch (...) {
+        // Just ignore it; STDERR might be closed already,
+        // and write() would result in EPIPE.
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

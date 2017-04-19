@@ -18,11 +18,87 @@
 
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
+#include <yt/core/misc/variant.h>
+
+#include <yt/core/compression/public.h>
+
+#include <yt/core/erasure/public.h>
 
 #include <queue>
 
 namespace NYT {
 namespace NCypressServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+class TVersionedBuiltinAttribute
+{
+public:
+    struct TNull
+    {
+        void Persist(NCellMaster::TPersistenceContext& context);
+    };
+
+    struct TTombstone
+    {
+        void Persist(NCellMaster::TPersistenceContext& context);
+    };
+
+    // NB: Don't reorder the types; tags are used for persistence.
+    using TBoxedT = TVariant<TNull, TTombstone, T>;
+
+    template <class TOwner>
+    const T& Get(
+        TVersionedBuiltinAttribute<T> TOwner::*member,
+        const TOwner* node) const;
+
+    void Set(T value);
+    void Reset();
+    void Remove();
+
+    template <class TOwner>
+    void Merge(
+        TVersionedBuiltinAttribute<T> TOwner::*member,
+        TOwner* originatingNode,
+        const TOwner* branchedNode);
+
+    void Persist(NCellMaster::TPersistenceContext& context);
+
+private:
+    TBoxedT BoxedValue_{TNull()};
+
+};
+
+#define DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(ownerType, attrType, name) \
+    private: \
+        ::NYT::NCypressServer::TVersionedBuiltinAttribute<attrType> name##_; \
+        \
+    public: \
+        const attrType& Get##name() const \
+        { \
+            return name##_.Get(&ownerType::name##_, this); \
+        } \
+        \
+        void Set##name(attrType value) \
+        { \
+            name##_.Set(std::move(value)); \
+        } \
+        \
+        void Reset##name() \
+        { \
+            name##_.Reset(); \
+        } \
+        \
+        void Remove##name() \
+        { \
+            name##_.Remove(); \
+        } \
+        \
+        void Merge##name(ownerType* originatingNode, const ownerType* branchedNode) \
+        { \
+            name##_.Merge(&ownerType::name##_, originatingNode, branchedNode); \
+        }
 
 ////////////////////////////////////////////////////////////////////////////////
 

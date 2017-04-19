@@ -1,12 +1,12 @@
-#include "chunk_owner_node_proxy.h"
-#include "private.h"
 #include "chunk.h"
 #include "chunk_list.h"
 #include "chunk_manager.h"
-#include "chunk_tree_traverser.h"
+#include "chunk_owner_node_proxy.h"
+#include "chunk_visitor.h"
 #include "config.h"
 #include "helpers.h"
 #include "medium.h"
+#include "private.h"
 
 #include <yt/server/cell_master/config.h>
 #include <yt/server/cell_master/multicell_manager.h>
@@ -378,185 +378,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkVisitorBase
-    : public IChunkVisitor
-{
-public:
-    TFuture<TYsonString> Run()
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto callbacks = CreatePreemptableChunkTraverserCallbacks(
-            Bootstrap_,
-            NCellMaster::EAutomatonThreadQueue::ChunkStatisticsTraverser);
-        TraverseChunkTree(
-            std::move(callbacks),
-            this,
-            ChunkList_);
-
-        return Promise_;
-    }
-
-protected:
-    NCellMaster::TBootstrap* const Bootstrap_;
-    TChunkList* const ChunkList_;
-
-    TPromise<TYsonString> Promise_ = NewPromise<TYsonString>();
-
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
-
-    TChunkVisitorBase(
-        NCellMaster::TBootstrap* bootstrap,
-        TChunkList* chunkList)
-        : Bootstrap_(bootstrap)
-        , ChunkList_(chunkList)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-    }
-
-    virtual void OnFinish(const TError& error) override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        if (error.IsOK()) {
-            OnSuccess();
-        } else {
-            Promise_.Set(TError("Error traversing chunk tree") << error);
-        }
-    }
-
-    virtual void OnSuccess() = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TChunkIdsAttributeVisitor
-    : public TChunkVisitorBase
-{
-public:
-    TChunkIdsAttributeVisitor(
-        NCellMaster::TBootstrap* bootstrap,
-        TChunkList* chunkList)
-        : TChunkVisitorBase(bootstrap, chunkList)
-        , Writer_(&Stream_)
-    {
-        Writer_.OnBeginList();
-    }
-
-private:
-    TStringStream Stream_;
-    TBufferedBinaryYsonWriter Writer_;
-
-    virtual bool OnChunk(
-        TChunk* chunk,
-        i64 /*rowIndex*/,
-        const TReadLimit& /*startLimit*/,
-        const TReadLimit& /*endLimit*/) override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        Writer_.OnListItem();
-        Writer_.OnStringScalar(ToString(chunk->GetId()));
-
-        return true;
-    }
-
-    virtual void OnSuccess() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        Writer_.OnEndList();
-        Writer_.Flush();
-        Promise_.Set(TYsonString(Stream_.Str()));
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKeyExtractor>
-class TChunkStatisticsVisitor
-    : public TChunkVisitorBase
-{
-public:
-    TChunkStatisticsVisitor(
-        NCellMaster::TBootstrap* bootstrap,
-        TChunkList* chunkList,
-        TKeyExtractor keyExtractor)
-        : TChunkVisitorBase(bootstrap, chunkList)
-        , KeyExtractor_(keyExtractor)
-    { }
-
-private:
-    const TKeyExtractor KeyExtractor_;
-
-    using TKey = typename std::result_of<TKeyExtractor(const TChunk*)>::type;
-    using TStatiticsMap = yhash_map<TKey, TChunkTreeStatistics>;
-    TStatiticsMap StatisticsMap_;
-
-    virtual bool OnChunk(
-        TChunk* chunk,
-        i64 /*rowIndex*/,
-        const TReadLimit& /*startLimit*/,
-        const TReadLimit& /*endLimit*/) override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        StatisticsMap_[KeyExtractor_(chunk)].Accumulate(chunk->GetStatistics());
-        return true;
-    }
-
-    virtual void OnSuccess() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto result = BuildYsonStringFluently()
-            .DoMapFor(StatisticsMap_, [=] (TFluentMap fluent, const typename TStatiticsMap::value_type& pair) {
-                const auto& statistics = pair.second;
-                // TODO(panin): maybe use here the same method as in attributes
-                fluent
-                    .Item(FormatKey(pair.first)).BeginMap()
-                        .Item("chunk_count").Value(statistics.ChunkCount)
-                        .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
-                        .Item("compressed_data_size").Value(statistics.CompressedDataSize)
-                        .Item("data_weight").Value(statistics.DataWeight)
-                    .EndMap();
-            });
-        Promise_.Set(result);
-    }
-
-
-    template <class T>
-    static Stroka FormatKey(T value, typename TEnumTraits<T>::TType* = 0)
-    {
-        return FormatEnum(value);
-    }
-
-    static Stroka FormatKey(TCellTag value)
-    {
-        return ToString(value);
-    }
-};
-
-namespace {
-
-template <class TKeyExtractor>
-TFuture<TYsonString> ComputeChunkStatistics(
-    NCellMaster::TBootstrap* bootstrap,
-    TChunkList* chunkList,
-    TKeyExtractor keyExtractor)
-{
-    auto visitor = New<TChunkStatisticsVisitor<TKeyExtractor>>(
-        bootstrap,
-        chunkList,
-        keyExtractor);
-    return visitor->Run();
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 TChunkOwnerNodeProxy::TChunkOwnerNodeProxy(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
@@ -611,10 +432,6 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor("data_weight")
         .SetPresent(node->HasDataWeight()));
     descriptors->push_back("compression_ratio");
-    descriptors->push_back(TAttributeDescriptor("compression_codec")
-        .SetCustom(true));
-    descriptors->push_back(TAttributeDescriptor("erasure_codec")
-        .SetCustom(true));
     descriptors->push_back("update_mode");
     descriptors->push_back(TAttributeDescriptor("replication_factor"));
     descriptors->push_back(TAttributeDescriptor("vital")
@@ -623,6 +440,8 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor("primary_medium")
         .SetReplicated(true));
+    descriptors->push_back("compression_codec");
+    descriptors->push_back("erasure_codec");
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
@@ -713,6 +532,18 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
         return true;
     }
 
+    if (key == "compression_codec") {
+        BuildYsonFluently(consumer)
+            .Value(node->GetCompressionCodec());
+        return true;
+    }
+
+    if (key == "erasure_codec") {
+        BuildYsonFluently(consumer)
+            .Value(node->GetErasureCodec());
+        return true;
+    }
+
     return TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(key, consumer);
 }
 
@@ -786,21 +617,21 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     auto* node = GetThisImpl<TChunkOwnerBase>();
 
     if (key == "replication_factor") {
-        ValidateStorageSettingsUpdate();
+        ValidateStorageParametersUpdate();
         int replicationFactor = ConvertTo<int>(value);
         SetReplicationFactor(replicationFactor);
         return true;
     }
 
     if (key == "vital") {
-        ValidateStorageSettingsUpdate();
+        ValidateStorageParametersUpdate();
         bool vital = ConvertTo<bool>(value);
         SetVital(vital);
         return true;
     }
 
     if (key == "primary_medium") {
-        ValidateStorageSettingsUpdate();
+        ValidateStorageParametersUpdate();
         auto mediumName = ConvertTo<Stroka>(value);
         auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
         SetPrimaryMedium(medium);
@@ -808,11 +639,29 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     }
 
     if (key == "media") {
-        ValidateStorageSettingsUpdate();
+        ValidateStorageParametersUpdate();
         auto serializableProperties = ConvertTo<TSerializableChunkProperties>(value);
         auto properties = node->Properties(); // Copying for modification.
         serializableProperties.ToChunkProperties(&properties, chunkManager);
         SetMediaProperties(properties);
+        return true;
+    }
+
+    if (key == "compression_codec") {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+        auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(key));
+        node->SetCompressionCodec(ConvertTo<NCompression::ECodec>(value));
+
+        return true;
+    }
+
+    if (key == "erasure_codec") {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+        auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(key));
+        node->SetErasureCodec(ConvertTo<NErasure::ECodec>(value));
+
         return true;
     }
 
@@ -969,7 +818,7 @@ void TChunkOwnerNodeProxy::ValidateBeginUpload()
 void TChunkOwnerNodeProxy::ValidateFetch()
 { }
 
-void TChunkOwnerNodeProxy::ValidateStorageSettingsUpdate()
+void TChunkOwnerNodeProxy::ValidateStorageParametersUpdate()
 {
     ValidateNoTransaction();
 }

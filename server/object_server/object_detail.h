@@ -43,7 +43,7 @@ public:
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
     virtual void Invoke(const NRpc::IServiceContextPtr& context) override;
-    virtual void WriteAttributesFragment(
+    virtual void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
         bool stable) override;

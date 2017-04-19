@@ -508,7 +508,6 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetAutomaton());
 
     auto timestampProvider = CreateRemoteTimestampProvider(
-        CellTagFromId(Config_->PrimaryMaster->CellId),
         Config_->TimestampProvider,
         lightChannelFactory);
 
@@ -626,6 +625,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateTabletCellMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellBundleMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateTabletActionMapTypeHandler(this));
 
     RpcServer_->Configure(Config_->RpcServer);
 }

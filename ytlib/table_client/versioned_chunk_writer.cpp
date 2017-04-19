@@ -147,6 +147,11 @@ public:
         return EncodingChunkWriter_->Meta();
     }
 
+    virtual TChunkId GetChunkId() const override
+    {
+        return EncodingChunkWriter_->GetChunkId();
+    }
+
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         return EncodingChunkWriter_->GetDataStatistics();

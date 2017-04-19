@@ -25,6 +25,27 @@ TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(IChannelPtr channel)
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
 TObjectServiceProxy::TReqExecuteBatch::Invoke()
 {
+    // Push TPrerequisitesExt down to individual requests.
+    if (Header_.HasExtension(NProto::TPrerequisitesExt::prerequisites_ext)) {
+        const auto& batchPrerequisitesExt = Header_.GetExtension(NProto::TPrerequisitesExt::prerequisites_ext);
+        for (auto& innerRequestMessage : InnerRequestMessages) {
+            NRpc::NProto::TRequestHeader requestHeader;
+            YCHECK(ParseRequestHeader(innerRequestMessage, &requestHeader));
+            auto* prerequisitesExt = requestHeader.MutableExtension(NProto::TPrerequisitesExt::prerequisites_ext);
+            prerequisitesExt->mutable_transactions()->MergeFrom(batchPrerequisitesExt.transactions());
+            prerequisitesExt->mutable_revisions()->MergeFrom(batchPrerequisitesExt.revisions());
+            innerRequestMessage = SetRequestHeader(innerRequestMessage, requestHeader);
+        }
+        Header_.ClearExtension(NProto::TPrerequisitesExt::prerequisites_ext);
+    }
+
+    // Prepare attachments.
+    for (const auto& innerRequestMessage : InnerRequestMessages) {
+        if (innerRequestMessage) {
+            Attachments_.insert(Attachments_.end(), innerRequestMessage.Begin(), innerRequestMessage.End());
+        }
+    }
+
     auto clientContext = CreateClientContext();
     auto batchRsp = New<TRspExecuteBatch>(clientContext, KeyToIndexes);
     auto promise = batchRsp->GetPromise();
@@ -83,33 +104,17 @@ int TObjectServiceProxy::TReqExecuteBatch::GetSize() const
     return static_cast<int>(InnerRequestMessages.size());
 }
 
-TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody()
+TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
 {
-    // Push TPrerequisitesExt down to individual requests.
-    if (Header_.HasExtension(NProto::TPrerequisitesExt::prerequisites_ext)) {
-        const auto& batchPrerequisitesExt = Header_.GetExtension(NProto::TPrerequisitesExt::prerequisites_ext);
-        for (auto& innerRequestMessage : InnerRequestMessages) {
-            NRpc::NProto::TRequestHeader requestHeader;
-            YCHECK(ParseRequestHeader(innerRequestMessage, &requestHeader));
-            auto* prerequisitesExt = requestHeader.MutableExtension(NProto::TPrerequisitesExt::prerequisites_ext);
-            prerequisitesExt->mutable_transactions()->MergeFrom(batchPrerequisitesExt.transactions());
-            prerequisitesExt->mutable_revisions()->MergeFrom(batchPrerequisitesExt.revisions());
-            innerRequestMessage = SetRequestHeader(innerRequestMessage, requestHeader);
-        }
-        Header_.ClearExtension(NProto::TPrerequisitesExt::prerequisites_ext);
-    }
-
     NProto::TReqExecute req;
     req.set_suppress_upstream_sync(SuppressUpstreamSync);
     for (const auto& innerRequestMessage : InnerRequestMessages) {
         if (innerRequestMessage) {
             req.add_part_counts(innerRequestMessage.Size());
-            Attachments_.insert(Attachments_.end(), innerRequestMessage.Begin(), innerRequestMessage.End());
         } else {
             req.add_part_counts(0);
         }
     }
-
     return SerializeToProtoWithEnvelope(req);
 }
 

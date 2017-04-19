@@ -4,6 +4,7 @@ import "yt/ytlib/chunk_client/chunk_spec.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(psushin): deprecated.
 message TDataSliceDescriptor
 {
     // Chunks comprising the input.

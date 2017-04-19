@@ -22,7 +22,7 @@ struct IRoamingChannelProvider
 
     //! Returns the actual channel to be used for sending to service with
     //! a given #serviceName.
-    virtual TFuture<IChannelPtr> GetChannel(const Stroka& serviceName) = 0;
+    virtual TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& request) = 0;
 
     //! Terminates the cached channels, if any.
     virtual TFuture<void> Terminate(const TError& error) = 0;

@@ -155,18 +155,18 @@ void TChunkReplicator::Stop()
     }
 }
 
-void TChunkReplicator::TouchChunk(TChunkPtrWithIndexes chunkWithIndexes)
+void TChunkReplicator::TouchChunk(TChunk* chunk)
 {
-    Y_ASSERT(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
-    auto mediumIndex = chunkWithIndexes.GetMediumIndex();
-    auto* chunk = chunkWithIndexes.GetPtr();
-    auto repairIt = chunk->GetRepairQueueIterator(mediumIndex);
-    if (!repairIt) {
-        return;
+    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+        auto repairIt = chunk->GetRepairQueueIterator(mediumIndex);
+        if (!repairIt) {
+            continue;
+        }
+        ChunkRepairQueue_.erase(*repairIt);
+        TChunkPtrWithIndexes chunkWithIndexes(chunk, GenericChunkReplicaIndex, mediumIndex);
+        auto newRepairIt = ChunkRepairQueue_.insert(ChunkRepairQueue_.begin(), chunkWithIndexes);
+        chunk->SetRepairQueueIterator(mediumIndex, newRepairIt);
     }
-    ChunkRepairQueue_.erase(*repairIt);
-    auto newRepairIt = ChunkRepairQueue_.insert(ChunkRepairQueue_.begin(), chunkWithIndexes);
-    chunk->SetRepairQueueIterator(mediumIndex, newRepairIt);
 }
 
 TJobPtr TChunkReplicator::FindJob(const TJobId& id)
@@ -1659,7 +1659,6 @@ void TChunkReplicator::OnRefresh()
     LOG_DEBUG("Incremental chunk refresh iteration started");
 
     PROFILE_TIMING ("/refresh_time") {
-        auto chunkManager = Bootstrap_->GetChunkManager();
         auto deadline = GetCpuInstant() - ChunkRefreshDelay_;
         while (totalCount < Config_->MaxChunksPerRefresh &&
                RefreshScanner_->HasUnscannedChunk(deadline))
@@ -1925,7 +1924,7 @@ void TChunkReplicator::OnPropertiesUpdate()
         request.updates_size());
 
     if (request.updates_size() > 0) {
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto asyncResult = chunkManager
             ->CreateUpdateChunkPropertiesMutation(request)
             ->CommitAndLog(Logger);

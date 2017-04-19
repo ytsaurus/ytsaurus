@@ -222,6 +222,8 @@ public:
     TNullable<NYPath::TRichYPath> CoreTablePath;
     NTableClient::TBlobTableWriterConfigPtr CoreTableWriterConfig;
 
+    bool EnableJobSplitting;
+
     TOperationWithUserJobSpec();
 
     virtual void OnLoaded() override;
@@ -543,6 +545,8 @@ public:
     TLogDigestConfigPtr PartitionReduceJobProxyMemoryDigest;
     // For reduce_combiner jobs.
     TLogDigestConfigPtr ReduceCombinerJobProxyMemoryDigest;
+
+    bool ForceReduceCombiners;
 
     TMapReduceOperationSpec();
 

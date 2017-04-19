@@ -2,6 +2,7 @@
 #include "private.h"
 #include "config.h"
 #include "helpers.h"
+#include "operation_controller.h"
 #include "scheduler.h"
 #include "serialize.h"
 

@@ -3,6 +3,8 @@
 #include "public.h"
 #include "connection.h"
 
+#include <yt/server/job_agent/public.h>
+
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/ytlib/cypress_client/public.h>
@@ -104,6 +106,7 @@ struct TMasterReadOptions
     EMasterChannelKind ReadFrom = EMasterChannelKind::Follower;
     TDuration ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(15);
     TDuration ExpireAfterFailedUpdateTime = TDuration::Seconds(15);
+    int CacheStickyGroupSize = 1;
 };
 
 struct TPrerequisiteRevisionConfig
@@ -220,18 +223,28 @@ struct TTransactionStartOptions
     , public TPrerequisiteOptions
 {
     TNullable<TDuration> Timeout;
+
     //! If not null then the transaction must use this externally provided id.
-    //! Only applicable to tablet trasactions.
+    //! Only applicable to tablet transactions.
     NTransactionClient::TTransactionId Id;
+
     NTransactionClient::TTransactionId ParentId;
+
     bool AutoAbort = true;
     bool Sticky = false;
+
     TNullable<TDuration> PingPeriod;
     bool Ping = true;
     bool PingAncestors = true;
+
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
+
     NTransactionClient::EAtomicity Atomicity = NTransactionClient::EAtomicity::Full;
     NTransactionClient::EDurability Durability = NTransactionClient::EDurability::Sync;
+
+    //! If not null then the transaction must use this externally provided start timestamp.
+    //! Only applicable to tablet transactions.
+    NTransactionClient::TTimestamp StartTimestamp = NTransactionClient::NullTimestamp;
 };
 
 struct TTransactionAttachOptions
@@ -251,8 +264,12 @@ struct TTransactionCommitOptions
     //! If none, then a random participant is chosen as a coordinator.
     NElection::TCellId CoordinatorCellId;
 
-    //! If |true| then two-phase-commit procotol is executed regardless of the number of participants.
+    //! If |true| then two-phase-commit protocol is executed regardless of the number of participants.
     bool Force2PC = false;
+
+    //! If |true| then all participants will use the commit timestamp provided by the coordinator.
+    //! If |false| then the participants will use individual commit timestamps based on their cell tag.
+    bool InheritCommitTimestamp = false;
 };
 
 struct TTransactionCommitResult
@@ -523,6 +540,37 @@ struct TGetJobStderrOptions
     : public TTimeoutOptions
 { };
 
+DEFINE_ENUM(EJobSortField,
+    ((None)       (0))
+    ((JobType)    (1))
+    ((JobState)   (2))
+    ((StartTime)  (3))
+    ((FinishTime) (4))
+    ((Address)    (5))
+);
+
+DEFINE_ENUM(EJobSortDirection,
+    ((Ascending)  (0))
+    ((Descending) (1))
+);
+
+struct TListJobsOptions
+    : public TTimeoutOptions
+{
+    TNullable<NJobAgent::EJobType> JobType;
+    TNullable<NJobAgent::EJobState> JobState;
+
+    EJobSortField SortField = EJobSortField::StartTime;
+    EJobSortDirection SortOrder = EJobSortDirection::Ascending;
+
+    i64 Limit = 1000;
+    i64 Offset = 0;
+
+    bool IncludeCypress = false;
+    bool IncludeRuntime = false;
+    bool IncludeArchive = true;
+};
+
 struct TStraceJobOptions
     : public TTimeoutOptions
 { };
@@ -565,6 +613,21 @@ struct TClusterMeta
     std::shared_ptr<NNodeTrackerClient::NProto::TNodeDirectory> NodeDirectory;
     std::shared_ptr<NHiveClient::NProto::TClusterDirectory> ClusterDirectory;
     std::shared_ptr<NChunkClient::NProto::TMediumDirectory> MediumDirectory;
+};
+
+struct TJob
+{
+    NJobAgent::TJobId JobId;
+    NJobAgent::EJobType JobType;
+    NJobAgent::EJobState JobState;
+    TInstant StartTime;
+    TNullable<TInstant> FinishTime;
+    Stroka Address;
+    NYson::TYsonString Error;
+    NYson::TYsonString Statistics;
+    TNullable<ui64> StderrSize;
+    TNullable<double> Progress;
+    TNullable<Stroka> CoreInfos;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -824,6 +887,10 @@ struct IClient
         const NJobTrackerClient::TOperationId& operationId,
         const NJobTrackerClient::TJobId& jobId,
         const TGetJobStderrOptions& options = TGetJobStderrOptions()) = 0;
+
+    virtual TFuture<std::vector<TJob>> ListJobs(
+        const NJobTrackerClient::TOperationId& operationId,
+        const TListJobsOptions& options = TListJobsOptions()) = 0;
 
     virtual TFuture<NYson::TYsonString> StraceJob(
         const NJobTrackerClient::TJobId& jobId,

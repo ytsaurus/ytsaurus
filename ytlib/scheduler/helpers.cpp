@@ -146,18 +146,19 @@ int GetJobSpecVersion()
 
 bool IsSchedulingReason(EAbortReason reason)
 {
-    return reason > EAbortReason::SchedulingBeginMarker && reason < EAbortReason::SchedulingEndMarker;
+    return reason > EAbortReason::SchedulingFirst && reason < EAbortReason::SchedulingLast;
 }
 
 bool IsNonSchedulingReason(EAbortReason reason)
 {
-    return reason < EAbortReason::SchedulingBeginMarker;
+    return reason < EAbortReason::SchedulingFirst;
 }
 
-bool IsMarker(EAbortReason reason)
+bool IsSentinelReason(EAbortReason reason)
 {
-    return reason == EAbortReason::SchedulingBeginMarker ||
-        reason == EAbortReason::SchedulingEndMarker;
+    return
+        reason == EAbortReason::SchedulingFirst ||
+        reason == EAbortReason::SchedulingLast;
 }
 
 ////////////////////////////////////////////////////////////////////

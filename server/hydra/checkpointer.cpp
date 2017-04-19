@@ -25,9 +25,11 @@ class TCheckpointer::TSession
 public:
     TSession(
         TCheckpointer* owner,
-        bool buildSnapshot)
+        bool buildSnapshot,
+        bool setReadOnly)
         : Owner_(owner)
         , BuildSnapshot_(buildSnapshot)
+        , SetReadOnly_(setReadOnly)
         , Logger(Owner_->Logger)
     { }
 
@@ -64,6 +66,7 @@ private:
     // NB: TSession cannot outlive its owner.
     TCheckpointer* const Owner_;
     const bool BuildSnapshot_;
+    const bool SetReadOnly_;
     const NLogging::TLogger Logger;
 
     bool LocalRotationSuccessFlag_ = false;
@@ -93,7 +96,8 @@ private:
 
     void RequestSnapshotCreation()
     {
-        LOG_INFO("Sending snapshot creation requests");
+        LOG_INFO("Sending snapshot creation requests (SetReadOnly: %v)",
+            SetReadOnly_);
 
         SnapshotChecksums_.resize(Owner_->CellManager_->GetTotalPeerCount());
 
@@ -107,7 +111,8 @@ private:
                 if (!channel)
                     continue;
 
-                LOG_DEBUG("Requesting follower to build a snapshot (PeerId: %v)", peerId);
+                LOG_DEBUG("Requesting follower to build a snapshot (PeerId: %v)",
+                    peerId);
 
                 THydraServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(Owner_->Config_->SnapshotBuildTimeout);
@@ -115,6 +120,7 @@ private:
                 auto req = proxy.BuildSnapshot();
                 ToProto(req->mutable_epoch_id(), Owner_->EpochContext_->EpochId);
                 req->set_revision(Version_.ToRevision());
+                req->set_set_read_only(SetReadOnly_);
 
                 asyncResults.push_back(req->Invoke().Apply(
                     BIND(&TSession::OnRemoteSnapshotBuilt, MakeStrong(this), peerId)
@@ -136,11 +142,13 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error building snapshot at follower (PeerId: %v)", id);
+            LOG_WARNING(rspOrError, "Error building snapshot at follower (PeerId: %v)",
+                id);
             return;
         }
 
-        LOG_INFO("Remote snapshot built by follower (PeerId: %v)", id);
+        LOG_INFO("Remote snapshot built by follower (PeerId: %v)",
+            id);
 
         const auto& rsp = rspOrError.Value();
         SnapshotChecksums_[id] = rsp->checksum();
@@ -332,17 +340,17 @@ TCheckpointer::TRotateChangelogResult TCheckpointer::RotateChangelog()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(CanRotateChangelogs());
 
-    auto session = New<TSession>(this, false);
+    auto session = New<TSession>(this, false, false);
     session->Run();
     return session->GetChangelogResult();
 }
 
-TCheckpointer::TBuildSnapshotResult TCheckpointer::BuildSnapshot()
+TCheckpointer::TBuildSnapshotResult TCheckpointer::BuildSnapshot(bool setReadOnly)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(CanBuildSnapshot());
 
-    auto session = New<TSession>(this, true);
+    auto session = New<TSession>(this, true, setReadOnly);
     session->Run();
     return std::make_tuple(session->GetChangelogResult(), session->GetSnapshotResult());
 }

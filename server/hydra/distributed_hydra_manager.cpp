@@ -288,27 +288,7 @@ public:
         return AutomatonEpochContext_ ? AutomatonEpochContext_->CancelableContext : nullptr;
     }
 
-    virtual bool GetReadOnly() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return ReadOnly_;
-    }
-
-    virtual void SetReadOnly(bool value) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        if (GetAutomatonState() != EPeerState::Leading) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::Unavailable,
-                "Not a leader");
-        }
-
-        ReadOnly_ = value;
-    }
-
-    virtual TFuture<int> BuildSnapshot() override
+    virtual TFuture<int> BuildSnapshot(bool setReadOnly) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -326,7 +306,9 @@ public:
                 "Cannot build a snapshot at the moment"));
         }
 
-        return BuildSnapshotAndWatch(epochContext).Apply(
+        SetReadOnly(setReadOnly);
+
+        return BuildSnapshotAndWatch(epochContext, setReadOnly).Apply(
             BIND([] (const TRemoteSnapshotParams& params) {
                 return params.SnapshotId;
             }));
@@ -670,10 +652,12 @@ private:
 
         auto epochId = FromProto<TEpochId>(request->epoch_id());
         auto version = TVersion::FromRevision(request->revision());
+        bool setReadOnly = request->set_read_only();
 
-        context->SetRequestInfo("EpochId: %v, Version: %v",
+        context->SetRequestInfo("EpochId: %v, Version: %v, SetReadOnly: %v",
             epochId,
-            version);
+            version,
+            setReadOnly);
 
         if (ControlState_ != EPeerState::Following) {
             THROW_ERROR_EXCEPTION(
@@ -702,6 +686,8 @@ private:
             return;
         }
 
+        SetReadOnly(setReadOnly);
+
         auto result = WaitFor(DecoratedAutomaton_->BuildSnapshot())
             .ValueOrThrow();
 
@@ -719,9 +705,9 @@ private:
         context->SetRequestInfo("SetReadOnly: %v",
             setReadOnly);
 
-        SetReadOnly(setReadOnly);
+        //SetReadOnly(setReadOnly);
 
-        int snapshotId = WaitFor(BuildSnapshot())
+        int snapshotId = WaitFor(BuildSnapshot(setReadOnly))
             .ValueOrThrow();
 
         context->SetResponseInfo("SnapshotId: %v",
@@ -1018,7 +1004,7 @@ private:
 
         auto checkpointer = epochContext->Checkpointer;
         if (checkpointer->CanBuildSnapshot()) {
-            BuildSnapshotAndWatch(epochContext);
+            BuildSnapshotAndWatch(epochContext, false);
         } else if (checkpointer->CanRotateChangelogs()) {
             LOG_WARNING("Cannot build a snapshot, just rotating changlogs");
             RotateChangelogAndWatch(epochContext);
@@ -1060,11 +1046,11 @@ private:
         WatchChangelogRotation(epochContext, changelogResult);
     }
 
-    TFuture<TRemoteSnapshotParams> BuildSnapshotAndWatch(TEpochContextPtr epochContext)
+    TFuture<TRemoteSnapshotParams> BuildSnapshotAndWatch(TEpochContextPtr epochContext, bool setReadOnly)
     {
         TFuture<void> changelogResult;
         TFuture<TRemoteSnapshotParams> snapshotResult;
-        std::tie(changelogResult, snapshotResult) = epochContext->Checkpointer->BuildSnapshot();
+        std::tie(changelogResult, snapshotResult) = epochContext->Checkpointer->BuildSnapshot(setReadOnly);
         WatchChangelogRotation(epochContext, changelogResult);
         return snapshotResult;
     }
@@ -1617,6 +1603,28 @@ private:
 
         // Fire-and-forget.
         CommitMutation(TMutationRequest());
+    }
+
+
+    bool GetReadOnly() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return ReadOnly_;
+    }
+
+    void SetReadOnly(bool value)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!value) {
+            return;
+        }
+
+        bool expected = false;
+        if (ReadOnly_.compare_exchange_strong(expected, true)) {
+            LOG_INFO("Read-only mode activated");
+        }
     }
 
 

@@ -8,6 +8,14 @@ namespace NApi {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TForeignTransactionStartOptions
+    : public TTransactionStartOptions
+{
+    //! If |true| then the foreign transaction will use the start timestamp or its originator.
+    //! If |false| then the foreign transaction will generate its own start timestamp.
+    bool InheritStartTimestamp = false;
+
+};
 struct INativeTransaction
     : public INativeClientBase
     , public ITransaction
@@ -18,7 +26,7 @@ struct INativeTransaction
 
     virtual TFuture<ITransactionPtr> StartForeignTransaction(
         const IClientPtr& client,
-        const TTransactionStartOptions& options = TTransactionStartOptions()) = 0;
+        const TForeignTransactionStartOptions& options = TForeignTransactionStartOptions()) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INativeTransaction)

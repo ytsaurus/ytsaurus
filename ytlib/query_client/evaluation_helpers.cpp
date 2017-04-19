@@ -306,6 +306,7 @@ TJoinParameters GetJoinEvaluator(
         selfColumns,
         foreignColumns,
         canUseSourceRanges && commonKeyPrefix > 0,
+        joinClause.CommonKeyPrefix,
         getForeignQuery,
         batchSize};
 }

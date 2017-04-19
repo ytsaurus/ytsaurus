@@ -12,7 +12,6 @@ namespace NTransactionClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 ITimestampProviderPtr CreateRemoteTimestampProvider(
-    NObjectClient::TCellTag cellTag,
     TRemoteTimestampProviderConfigPtr config,
     NRpc::IChannelFactoryPtr channelFactory);
     
