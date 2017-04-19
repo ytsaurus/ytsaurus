@@ -2704,7 +2704,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         assert "short_jobs_duration" in get("//sys/operations/{0}/@alerts".format(op.id))
 
         op = map(
-            command="sleep 4; cat",
+            command="sleep 5; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={
