@@ -52,6 +52,9 @@ def main():
         module_locations = ["./modules", "./tmpfs/modules"]
         sys.path = __python_eggs + module_locations + sys.path
 
+        # Should be imported as early as possible to check python interpreter version.
+        import yt.wrapper.version_check
+
         client_version = modules_info["platform_version"]
         server_version = get_platform_version()
 
