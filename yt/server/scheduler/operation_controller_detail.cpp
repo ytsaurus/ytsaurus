@@ -1033,6 +1033,9 @@ TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
     i64 currentTableRowIndex = 0;
     for (int index = 0; index < chunkSpecs->size(); ++index) {
         auto inputChunk = New<TInputChunk>(std::move(*chunkSpecs->Mutable(index)));
+        // NB(max42): Having correct table row indices on intermediate data is important for
+        // some chunk pools. This affects the correctness of sort operation with sorted
+        // merge phase over several intermediate chunks.
         inputChunk->SetTableRowIndex(currentTableRowIndex);
         currentTableRowIndex += inputChunk->GetRowCount();
         auto chunkSlice = CreateInputChunkSlice(std::move(inputChunk));
