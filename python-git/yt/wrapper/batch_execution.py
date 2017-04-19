@@ -103,8 +103,3 @@ class BatchExecutor(object):
     def _clear_tasks(self):
         self._tasks = []
         self._responses = []
-
-def create_batch_client(raise_errors=False, max_batch_size=None, client=None):
-    """Creates client which supports batch executions."""
-    batch_executor = BatchExecutor(raise_errors, max_batch_size, client)
-    return batch_executor.get_client()

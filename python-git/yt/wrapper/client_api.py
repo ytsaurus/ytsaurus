@@ -6,7 +6,7 @@ from .run_operation_commands import run_erase, run_merge, run_sort, run_map_redu
 from .operation_commands import get_operation_state, abort_operation, complete_operation
 from .file_commands import read_file, write_file, smart_upload_file
 from .transaction import PingTransaction
-from .batch_execution import create_batch_client
+from .batch_helpers import create_batch_client, batch_apply
 from .lock_commands import lock
 from .table import TempTable
 from .transaction import Transaction

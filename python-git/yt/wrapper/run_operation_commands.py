@@ -36,6 +36,8 @@ Operation run under self-pinged transaction, if ``yt.wrapper.config["detached"]`
 
 from . import py_wrapper
 from .table_helpers import _prepare_source_tables, _are_default_empty_table, _prepare_table_writer, _remove_tables
+from .batch_helpers import create_batch_client, batch_apply
+from .batch_response import apply_function_to_result
 from .common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
                     compose, bool_to_string, get_started_by, MB, GB, \
                     forbidden_inside_job, get_disk_size, round_up_to, set_param, \
@@ -60,7 +62,7 @@ import yt.yson as yson
 from yt.yson.parser import YsonParser
 
 from yt.packages.six import text_type, binary_type, PY3
-from yt.packages.six.moves import map as imap
+from yt.packages.six.moves import map as imap, zip as izip
 
 import os
 import sys
@@ -122,13 +124,18 @@ def run_merge(source_table, destination_table, mode=None,
     source_table = _prepare_source_tables(source_table, replace_unexisting_by_empty=False, client=client)
     destination_table = unlist(_prepare_destination_tables(destination_table, client=client))
 
-    def is_sorted(table):
-        sort_attributes = get(TablePath(table, client=client) + "/@", attributes=["sorted", "sorted_by"], client=client)
-        if not parse_bool(sort_attributes["sorted"]):
-            return False
-        if "columns" in table.attributes and not is_prefix(sort_attributes["sorted_by"], table.attributes["columns"]):
-            return False
-        return True
+    def is_sorted(table, client):
+        def _is_sorted(sort_attributes):
+            if not parse_bool(sort_attributes["sorted"]):
+                return False
+            if "columns" in table.attributes and not is_prefix(sort_attributes["sorted_by"],
+                                                               table.attributes["columns"]):
+                return False
+            return True
+
+        table = TablePath(table, client=client)
+        sort_attributes = get(table + "/@", attributes=["sorted", "sorted_by"], client=client)
+        return apply_function_to_result(_is_sorted, sort_attributes)
 
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not source_table:
         _remove_tables([destination_table], client=client)
@@ -136,7 +143,7 @@ def run_merge(source_table, destination_table, mode=None,
 
     mode = get_value(mode, "auto")
     if mode == "auto":
-        mode = "sorted" if all(imap(is_sorted, source_table)) else "ordered"
+        mode = "sorted" if all(batch_apply(is_sorted, source_table, client=client)) else "ordered"
 
     table_writer = _prepare_table_writer(table_writer, client)
     spec = compose(
@@ -165,8 +172,9 @@ def run_sort(source_table, destination_table=None, sort_by=None,
 
     sort_by = _prepare_sort_by(sort_by, client)
     source_table = _prepare_source_tables(source_table, replace_unexisting_by_empty=False, client=client)
-    for table in source_table:
-        require(exists(table, client=client), lambda: YtError("Table %s should exist" % table))
+    exists_results = batch_apply(exists, source_table, client=client)
+    for table, exists_result in izip(source_table, exists_results):
+        require(exists_result, lambda: YtError("Table %s should exist" % table))
 
     if destination_table is None:
         if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not source_table:
@@ -661,8 +669,10 @@ def _prepare_destination_tables(tables, client=None):
             raise YtError("Destination tables are missing")
         return []
     tables = list(imap(lambda name: TablePath(name, client=client), flatten(tables)))
+    batch_client = create_batch_client(raise_errors=True, client=client)
     for table in tables:
-        create_table(table, ignore_existing=True, client=client)
+        batch_client.create_table(table, ignore_existing=True)
+    batch_client.commit_batch()
     return tables
 
 def _prepare_stderr_table(name, client=None):

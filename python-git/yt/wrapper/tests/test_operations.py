@@ -84,11 +84,13 @@ class TestOperations(object):
     def test_merge(self):
         tableX = TEST_DIR + "/tableX"
         tableY = TEST_DIR + "/tableY"
+        tableZ = TEST_DIR + "/tableZ"
         dir = TEST_DIR + "/dir"
         res_table = dir + "/other_table"
 
         yt.write_table(tableX, [{"x": 1}])
         yt.write_table(tableY, [{"y": 2}])
+        yt.write_table(tableZ, [{"x": 0}, {"x": 2}])
 
         with pytest.raises(yt.YtError):
             yt.run_merge([tableX, tableY], res_table)
@@ -107,6 +109,11 @@ class TestOperations(object):
         yt.run_merge(tableX, res_table)
         assert parse_bool(yt.get_attribute(res_table, "sorted"))
         check([{"x": 1}], yt.read_table(res_table))
+
+        # Test mode="auto"
+        yt.run_sort(tableZ, sort_by="x")
+        yt.run_merge([tableX, tableZ], res_table)
+        check([{"x": 0}, {"x": 1}, {"x": 2}], yt.read_table(res_table))
 
         # XXX(asaitgalin): Uncomment when st/YT-5770 is done.
         # yt.run_merge(yt.TablePath(tableX, columns=["y"]), res_table)
