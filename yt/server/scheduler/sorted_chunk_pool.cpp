@@ -1411,22 +1411,24 @@ private:
                 continue;
             }
 
-            // Unversioned data slices should be additionally sliced using chunkSliceFetcher,
-            // while versioned slices are taken as is.
-            if (stripe->DataSlices.front()->Type == EDataSourceType::UnversionedTable) {
-                auto inputChunk = stripe->DataSlices.front()->GetSingleUnversionedChunkOrThrow();
-                if (chunkSliceFetcher) {
-                    chunkSliceFetcher->AddChunk(inputChunk);
-                } else {
-                    auto chunkSlice = CreateInputChunkSlice(inputChunk);
-                    InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_);
-                    unversionedChunkSlices.emplace_back(std::move(chunkSlice));
-                }
+            for (const auto& dataSlice : stripe->DataSlices) {
+                // Unversioned data slices should be additionally sliced using chunkSliceFetcher,
+                // while versioned slices are taken as is.
+                if (dataSlice->Type == EDataSourceType::UnversionedTable) {
+                    auto inputChunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+                    if (chunkSliceFetcher) {
+                        chunkSliceFetcher->AddChunk(inputChunk);
+                    } else {
+                        auto chunkSlice = CreateInputChunkSlice(inputChunk);
+                        InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_);
+                        unversionedChunkSlices.emplace_back(std::move(chunkSlice));
+                    }
 
-                unversionedInputChunkToInputCookie[inputChunk] = inputCookie;
-                unversionedInputChunkToInputStreamIndex[inputChunk] = stripe->GetInputStreamIndex();
-            } else {
-                builder->AddPrimaryDataSlice(stripe->DataSlices.front(), inputCookie);
+                    unversionedInputChunkToInputCookie[inputChunk] = inputCookie;
+                    unversionedInputChunkToInputStreamIndex[inputChunk] = stripe->GetInputStreamIndex();
+                } else {
+                    builder->AddPrimaryDataSlice(dataSlice, inputCookie);
+                }
             }
         }
 
