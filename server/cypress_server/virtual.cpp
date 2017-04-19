@@ -396,14 +396,14 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(TFetchItemsSessionPt
             continue;
         }
         aliveKeys.push_back(key);
-        if (session->AttributeKeys) {
+        if (session->AttributeKeys && !session->AttributeKeys->empty()) {
             TAsyncYsonWriter writer(EYsonType::MapFragment);
             auto proxy = objectManager->GetProxy(object, nullptr);
             proxy->WriteAttributesFragment(&writer, session->AttributeKeys, false);
             asyncAttributes.emplace_back(writer.Finish());
         } else {
-            static const auto EmptyFragment = MakeFuture(TYsonString(Stroka(), EYsonType::MapFragment));
-            asyncAttributes.push_back(EmptyFragment);
+            static const auto EmptyYson = MakeFuture(TYsonString());
+            asyncAttributes.push_back(EmptyYson);
         }
     }
 
@@ -494,9 +494,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
             protoItem->set_key(ToString(key));
             TAsyncYsonWriter writer(EYsonType::MapFragment);
             auto proxy = objectManager->GetProxy(object, nullptr);
-            if (attributeKeys && !attributeKeys->empty() || !proxy->ShouldHideAttributes()) {
-                proxy->WriteAttributesFragment(&writer, attributeKeys, false);
-            }
+            proxy->WriteAttributesFragment(&writer, attributeKeys, false);
             asyncValues.push_back(writer.Finish());
         }
     }

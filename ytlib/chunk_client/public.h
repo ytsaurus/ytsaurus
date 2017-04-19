@@ -124,8 +124,8 @@ DEFINE_ENUM(EJournalReplicaType,
 const int AllMediaIndex = MaxMediumCount; // passed to various APIs to indicate that any medium is OK
 const int InvalidMediumIndex = -1;
 
-//! Valid indexes are in range |[0, MediumIndexBound)|.
-const int MediumIndexBound = MaxMediumCount + 1;
+//! Valid indexes (including sentinels) are in range |[0, MediumIndexBound)|.
+const int MediumIndexBound = AllMediaIndex + 1;
 
 DEFINE_ENUM(EErrorCode,
     ((AllTargetNodesFailed)     (700))

@@ -97,6 +97,8 @@ private:
             .SetPresent(chunk->IsConfirmed()));
         descriptors->push_back(TAttributeDescriptor("chunk_type")
             .SetPresent(chunk->IsConfirmed()));
+        descriptors->push_back(TAttributeDescriptor("table_chunk_format")
+            .SetPresent(chunk->IsConfirmed() && EChunkType(chunk->ChunkMeta().type()) == EChunkType::Table));
         descriptors->push_back(TAttributeDescriptor("meta_size")
             .SetPresent(chunk->IsConfirmed() && miscExt.has_meta_size()));
         descriptors->push_back(TAttributeDescriptor("compressed_data_size")
@@ -139,6 +141,8 @@ private:
         descriptors->push_back(TAttributeDescriptor("eden")
             .SetPresent(chunk->IsConfirmed()));
         descriptors->push_back("scan_flags");
+        descriptors->push_back(TAttributeDescriptor("creation_time")
+            .SetPresent(miscExt.has_creation_time()));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
@@ -318,6 +322,13 @@ private:
                 return true;
             }
 
+            if (key == "table_chunk_format" && EChunkType(chunk->ChunkMeta().type()) == EChunkType::Table) {
+                auto format = ETableChunkFormat(chunk->ChunkMeta().version());
+                BuildYsonFluently(consumer)
+                    .Value(format);
+                return true;
+            }
+
             if (key == "meta_size" && miscExt.has_meta_size()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.meta_size());
@@ -399,6 +410,12 @@ private:
             if (key == "eden") {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.eden());
+                return true;
+            }
+
+            if (key == "creation_time" && miscExt.has_creation_time()) {
+                BuildYsonFluently(consumer)
+                    .Value(TInstant(miscExt.creation_time()));
                 return true;
             }
         }

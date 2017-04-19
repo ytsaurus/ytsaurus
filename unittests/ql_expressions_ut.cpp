@@ -997,6 +997,17 @@ TEST_F(TExpressionTest, ConstantDivisorsFolding)
         << "expr1: " <<  ::testing::PrintToString(expr1) << std::endl
         << "expr2: " <<  ::testing::PrintToString(expr2) << std::endl;
 
+    EXPECT_THROW_THAT(
+        [&] { PrepareExpression("k / 1000.0 / 55.9606", schema); },
+        HasSubstr("Failed to cast 55.960600 to int64: inaccurate conversion"));
+
+    auto expr3 = PrepareExpression("k / 1000.0 / 55.0", schema);
+    auto expr4 = PrepareExpression("k / 55000", schema);
+
+    EXPECT_TRUE(Equal(expr3, expr4))
+        << "expr3: " <<  ::testing::PrintToString(expr3) << std::endl
+        << "expr4: " <<  ::testing::PrintToString(expr4) << std::endl;
+
 }
 
 TEST_F(TExpressionTest, FunctionNullArgument)

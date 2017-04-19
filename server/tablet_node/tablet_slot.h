@@ -21,6 +21,8 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <yt/core/profiling/public.h>
+
 #include <yt/core/ytree/public.h>
 
 namespace NYT {
@@ -73,6 +75,8 @@ public:
     TFuture<void> Finalize();
 
     const NYTree::IYPathServicePtr& GetOrchidService();
+
+    const NProfiling::TTagIdList& GetTagIdList();
 
 private:
     class TImpl;

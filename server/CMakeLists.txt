@@ -121,6 +121,8 @@ target_link_libraries(ytserver-core-forwarder
   deps-arcadia-library-lfalloc
 )
 
+set_target_properties(ytserver-core-forwarder PROPERTIES LINK_FLAGS "-static-libstdc++")
+
 ###
 
 if(YT_BUILD_ENABLE_GDB_INDEX AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")

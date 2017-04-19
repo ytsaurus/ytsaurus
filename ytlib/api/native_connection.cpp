@@ -116,7 +116,6 @@ public:
             timestampProviderConfig->RpcTimeout = Config_->PrimaryMaster->RpcTimeout;
         }
         TimestampProvider_ = CreateRemoteTimestampProvider(
-            PrimaryMasterCellTag_,
             timestampProviderConfig,
             LightChannelFactory_);
 
@@ -394,6 +393,10 @@ private:
             kind);
 
         auto isRetryableError = BIND([options = Options_] (const TError& error) {
+            if (error.FindMatching(NChunkClient::EErrorCode::OptimisticLockFailure)) {
+                return true;
+            }
+
             if (options.RetryRequestQueueSizeLimitExceeded &&
                 error.GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)
             {

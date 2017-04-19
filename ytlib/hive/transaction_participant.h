@@ -16,7 +16,7 @@ struct ITransactionParticipant
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const = 0;
     virtual bool IsValid() const = 0;
 
-    virtual TFuture<void> PrepareTransaction(const TTransactionId& transactionId) = 0;
+    virtual TFuture<void> PrepareTransaction(const TTransactionId& transactionId, TTimestamp prepareTimestamp) = 0;
     virtual TFuture<void> CommitTransaction(const TTransactionId& transactionId, TTimestamp commitTimestamp) = 0;
     virtual TFuture<void> AbortTransaction(const TTransactionId& transactionId) = 0;
 };

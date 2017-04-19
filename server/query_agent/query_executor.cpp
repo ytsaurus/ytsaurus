@@ -347,7 +347,7 @@ private:
 
                 return std::make_pair(pipe->GetReader(), asyncStatistics);
             },
-            [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+            [&] (TConstFrontQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto result = Evaluator_->Run(
                     topQuery,

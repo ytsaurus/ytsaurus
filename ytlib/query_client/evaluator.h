@@ -16,7 +16,7 @@ public:
     ~TEvaluator();
 
     TQueryStatistics RunWithExecutor(
-        TConstQueryPtr fragment,
+        TConstBaseQueryPtr fragment,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
         TExecuteQueryCallback executeCallback,
@@ -25,7 +25,7 @@ public:
         bool enableCodeCache);
 
     TQueryStatistics Run(
-        TConstQueryPtr fragment,
+        TConstBaseQueryPtr fragment,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
         TConstFunctionProfilerMapPtr functionProfilers,

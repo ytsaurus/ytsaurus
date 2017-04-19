@@ -57,8 +57,13 @@ void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
     std::vector<TKey> blockLastKeys;
     blockLastKeys.reserve(BlockMeta_.blocks_size());
     for (const auto& block : BlockMeta_.blocks()) {
-        YCHECK(block.has_last_key());
-        auto key = FromProto<TKey>(block.last_key(), tempBuffer);
+        TKey key;
+        if (ChunkSchema_.GetKeyColumnCount() > 0) {
+            YCHECK(block.has_last_key());
+            key = FromProto<TKey>(block.last_key(), tempBuffer);
+        } else {
+            key = tempBuffer->AllocateUnversioned(0);
+        }
         auto wideKey = WidenKeyPrefix(key, prefixLength, keyColumns.size(), tempBuffer);
         blockLastKeys.push_back(wideKey);
     }

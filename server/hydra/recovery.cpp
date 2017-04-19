@@ -246,11 +246,11 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
     LOG_INFO("Waiting for quorum record count to become sufficiently high");
 
     while (true) {
-        auto asyncResult = ComputeQuorumRecordCount(Config_, CellManager_, changelogId);
+        auto asyncResult = ComputeChangelogQuorumInfo(Config_, CellManager_, changelogId);
         auto result = WaitFor(asyncResult)
             .ValueOrThrow();
 
-        if (result >= targetRecordId) {
+        if (result.RecordCountLo >= targetRecordId) {
             LOG_INFO("Quorum record count check succeeded");
             break;
         }

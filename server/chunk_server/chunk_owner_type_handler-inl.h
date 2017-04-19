@@ -196,6 +196,10 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 {
     TBase::DoMerge(originatingNode, branchedNode);
 
+    // Merge builtin attributes.
+    originatingNode->MergeCompressionCodec(originatingNode, branchedNode);
+    originatingNode->MergeErasureCodec(originatingNode, branchedNode);
+
     bool isExternal = originatingNode->IsExternal();
 
     const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
@@ -357,6 +361,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     clonedNode->Properties() = sourceNode->Properties();
     clonedNode->SnapshotStatistics() = sourceNode->SnapshotStatistics();
     clonedNode->DeltaStatistics() = sourceNode->DeltaStatistics();
+    clonedNode->SetCompressionCodec(sourceNode->GetCompressionCodec());
+    clonedNode->SetErasureCodec(sourceNode->GetErasureCodec());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

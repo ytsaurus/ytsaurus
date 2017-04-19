@@ -1,5 +1,4 @@
 #include "framework.h"
-#include "helpers.h"
 
 #include <yt/server/chunk_server/chunk.h>
 #include <yt/server/chunk_server/chunk_list.h>
@@ -14,6 +13,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/core/actions/invoker_util.h>
 
@@ -177,6 +177,11 @@ std::unique_ptr<TChunkList> CreateChunkList(EChunkListKind kind = EChunkListKind
     chunkList->SetKind(kind);
     chunkList->RefObject();
     return chunkList;
+}
+
+TUnversionedOwningRow BuildKey(const Stroka& yson)
+{
+    return NTableClient::YsonToKey(yson);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

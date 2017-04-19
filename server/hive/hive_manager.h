@@ -49,7 +49,8 @@ public:
     TMailbox* CreateMailbox(const TCellId& cellId);
     TMailbox* GetOrCreateMailbox(const TCellId& cellId);
     TMailbox* GetMailboxOrThrow(const TCellId& cellId);
-    void RemoveMailbox(const TCellId& cellId);
+
+    void RemoveMailbox(TMailbox* mailbox);
 
     //! Posts a message for delivery (either reliable or not).
     void PostMessage(

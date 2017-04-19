@@ -73,12 +73,20 @@ DEFINE_ENUM(EAbortReason,
     (NodeOffline)
     (WaitingTimeout)
     (Unknown)
-    (SchedulingBeginMarker)
+    (SchedulingFirst)
     (SchedulingTimeout)
     (SchedulingResourceOvercommit)
     (SchedulingOperationSuspended)
+    (SchedulingJobSpecThrottling)
     (SchedulingOther)
-    (SchedulingEndMarker)
+    (SchedulingLast)
+);
+
+DEFINE_ENUM(EInterruptReason,
+    (None)
+    (Preemption)
+    (UserRequest)
+    (JobSplit)
 );
 
 DEFINE_ENUM(EJobFinalState,

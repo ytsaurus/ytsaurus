@@ -146,6 +146,17 @@ struct TExecNodeDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! An immutable ref-counted list of TExecNodeDescriptor-s.
+struct TExecNodeDescriptorList
+    : public TIntrinsicRefCounted
+{
+    std::vector<TExecNodeDescriptor> Descriptors;
+};
+
+DEFINE_REFCOUNTED_TYPE(TExecNodeDescriptorList)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! A reduced verison of TExecNodeDescriptor, which is associated with jobs.
 struct TJobNodeDescriptor
 {

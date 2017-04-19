@@ -108,6 +108,7 @@ struct TJoinParameters
     std::vector<size_t> SelfColumns;
     std::vector<size_t> ForeignColumns;
     bool IsSortMergeJoin;
+    size_t CommonKeyPrefixDebug;
 
     std::function<std::pair<TQueryPtr, TDataRanges>(std::vector<TRow>, TRowBufferPtr)>
         GetForeignQuery;
@@ -115,17 +116,25 @@ struct TJoinParameters
     size_t BatchSize;
 };
 
+struct TChainedRow
+{
+    TRow Row;
+    TRow Key;
+    int NextRowIndex;
+};
+
 struct TJoinClosure
 {
     TRowBufferPtr Buffer;
     TJoinLookup Lookup;
-    std::vector<std::pair<TRow, int>> ChainedRows;
+    std::vector<TChainedRow> ChainedRows;
 
     TComparerFunction* PrefixEqComparer;
     int KeySize;
 
     TRow LastKey;
     std::vector<std::pair<TRow, int>> KeysToRows;
+    size_t CommonKeyPrefixDebug;
 
     size_t BatchSize;
     std::function<void()> ProcessJoinBatch;

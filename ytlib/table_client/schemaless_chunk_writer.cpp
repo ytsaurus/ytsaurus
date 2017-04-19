@@ -198,7 +198,12 @@ public:
 
     virtual NChunkClient::NProto::TChunkMeta GetNodeMeta() const override
     {
-        return GetMasterMeta();
+        return EncodingChunkWriter_->Meta();
+    }
+
+    virtual TChunkId GetChunkId() const override
+    {
+        return EncodingChunkWriter_->GetChunkId();
     }
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
@@ -1586,7 +1591,7 @@ private:
             Options_->ChunksVital = attributes.Get<bool>("vital");
             Options_->ValidateSorted = TableUploadOptions_.TableSchema.IsSorted();
             Options_->ValidateUniqueKeys = TableUploadOptions_.TableSchema.GetUniqueKeys();
-            Options_->OptimizeFor = attributes.Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
+            Options_->OptimizeFor = attributes.Get<EOptimizeFor>("optimize_for");
             Options_->EvaluateComputedColumns = TableUploadOptions_.TableSchema.HasComputedColumns();
 
             auto writerConfig = attributes.FindYson("chunk_writer");

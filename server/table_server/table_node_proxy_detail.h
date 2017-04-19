@@ -41,6 +41,7 @@ protected:
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
 
     void AlterTable(const TAlterTableOptions& options);
 
@@ -54,7 +55,7 @@ protected:
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
     virtual void ValidateBeginUpload() override;
-    virtual void ValidateStorageSettingsUpdate() override;
+    virtual void ValidateStorageParametersUpdate() override;
 
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Mount);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Unmount);

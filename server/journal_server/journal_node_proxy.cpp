@@ -129,9 +129,9 @@ private:
         }
     }
 
-    virtual void ValidateStorageSettingsUpdate() override
+    virtual void ValidateStorageParametersUpdate() override
     {
-        TBase::ValidateStorageSettingsUpdate();
+        TBase::ValidateStorageParametersUpdate();
         THROW_ERROR_EXCEPTION("Changing storage settings for journal nodes is forbidden");
     }
 
