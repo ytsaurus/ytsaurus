@@ -1,7 +1,8 @@
 from .helpers import TEST_DIR
 
 from yt.wrapper.common import parse_bool
-from yt.wrapper.batch_execution import create_batch_client, YtBatchRequestFailedError
+from yt.wrapper.batch_helpers import create_batch_client
+from yt.wrapper.batch_execution import YtBatchRequestFailedError
 
 import yt.wrapper as yt
 
