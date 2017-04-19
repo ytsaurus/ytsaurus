@@ -2,6 +2,12 @@
 #include "ql_helpers.h"
 #include "udf/invalid_ir.h"
 
+#ifdef YT_IN_ARCADIA
+#include <library/resource/resource.h>
+#else
+#include "udf/test_udfs.h"
+#endif
+
 #include <yt/ytlib/query_client/callbacks.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/config.h>
@@ -648,7 +654,7 @@ protected:
 
         ActionQueue_ = New<TActionQueue>("Test");
 
-        auto bcImplementations = TSharedRef::FromString(NResource::Find("/llvm_bc/test_udfs");
+        auto bcImplementations = UDF_BC(test_udfs);
 
         MergeFrom(TypeInferers_.Get(), *BuiltinTypeInferrersMap);
         MergeFrom(FunctionProfilers_.Get(), *BuiltinFunctionCG);
