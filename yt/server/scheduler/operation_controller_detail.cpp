@@ -1074,10 +1074,15 @@ TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
     google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs)
 {
     auto stripe = New<TChunkStripe>();
-    for (auto& chunkSpec : *chunkSpecs) {
-        auto inputChunk = New<TInputChunk>(std::move(chunkSpec));
+
+    for (int index = 0; index < chunkSpecs->size(); ++index) {
+        auto inputChunk = New<TInputChunk>(std::move(*chunkSpecs->Mutable(index)));
         auto chunkSlice = CreateInputChunkSlice(std::move(inputChunk));
         auto dataSlice = CreateUnversionedInputDataSlice(std::move(chunkSlice));
+        // NB(max42): This heavily relies on the property of intermediate data being deterministic
+        // (i.e. it may be reproduced with exactly the same content divided into chunks with exactly
+        // the same boundary keys when the job output is lost).
+        dataSlice->Tag = index;
         stripe->DataSlices.emplace_back(std::move(dataSlice));
     }
     return stripe;
