@@ -320,8 +320,6 @@ struct TGroupClause
 {
     TNamedItemList GroupItems;
     TAggregateItemList AggregateItems;
-    bool IsMerge;
-    bool IsFinal;
     ETotalsMode TotalsMode;
 
     void AddGroupItem(const TNamedItem& namedItem)
@@ -334,7 +332,7 @@ struct TGroupClause
         AddGroupItem(TNamedItem(expression, name));
     }
 
-    TTableSchema GetTableSchema() const
+    TTableSchema GetTableSchema(bool isFinal) const
     {
         TSchemaColumns result;
         for (const auto& item : GroupItems) {
@@ -342,7 +340,7 @@ struct TGroupClause
         }
 
         for (const auto& item : AggregateItems) {
-            result.emplace_back(item.Name, IsFinal ? item.Expression->Type : item.StateType);
+            result.emplace_back(item.Name, isFinal ? item.Expression->Type : item.StateType);
         }
 
         return TTableSchema(result);
@@ -389,10 +387,13 @@ struct TProjectClause
 
 DEFINE_REFCOUNTED_TYPE(TProjectClause)
 
-struct TQuery
+// Front Query is not Coordinatable
+// IsMerge is always true for front Query and false for Bottom Query
+
+struct TBaseQuery
     : public TIntrinsicRefCounted
 {
-    TQuery(
+    TBaseQuery(
         i64 inputRowLimit,
         i64 outputRowLimit,
         const TGuid& id = TGuid::Create())
@@ -401,18 +402,15 @@ struct TQuery
         , Id(id)
     { }
 
-    TQuery(const TQuery& other)
+    TBaseQuery(const TBaseQuery& other)
         : InputRowLimit(other.InputRowLimit)
         , OutputRowLimit(other.OutputRowLimit)
         , Id(TGuid::Create())
-        , OriginalSchema(other.OriginalSchema)
-        , SchemaMapping(other.SchemaMapping)
-        , JoinClauses(other.JoinClauses)
-        , WhereClause(other.WhereClause)
+        , IsFinal(other.IsFinal)
         , GroupClause(other.GroupClause)
         , HavingClause(other.HavingClause)
-        , ProjectClause(other.ProjectClause)
         , OrderClause(other.OrderClause)
+        , ProjectClause(other.ProjectClause)
         , Limit(other.Limit)
         , UseDisjointGroupBy(other.UseDisjointGroupBy)
         , InferRanges(other.InferRanges)
@@ -422,20 +420,18 @@ struct TQuery
     i64 OutputRowLimit;
     TGuid Id;
 
-    TTableSchema OriginalSchema;
-    std::vector<TColumnDescriptor> SchemaMapping;
+    // Merge and Final
+    bool IsFinal = true;
 
-    std::vector<TConstJoinClausePtr> JoinClauses;
-    TConstExpressionPtr WhereClause;
     TConstGroupClausePtr GroupClause;
     TConstExpressionPtr HavingClause;
-    TConstProjectClausePtr ProjectClause;
     TConstOrderClausePtr OrderClause;
+
+    TConstProjectClausePtr ProjectClause;
 
     // TODO: Update protocol and fix it
     // If Limit == std::numeric_limits<i64>::max() - 1, then do ordered read with prefetch
     i64 Limit = std::numeric_limits<i64>::max();
-
     bool UseDisjointGroupBy = false;
     bool InferRanges = true;
 
@@ -448,6 +444,37 @@ struct TQuery
             return false;
         }
     }
+
+    virtual TTableSchema GetReadSchema() const = 0;
+    virtual TTableSchema GetTableSchema() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(TBaseQuery)
+
+struct TQuery
+    : public TBaseQuery
+{
+    TQuery(
+        i64 inputRowLimit,
+        i64 outputRowLimit,
+        const TGuid& id = TGuid::Create())
+        : TBaseQuery(inputRowLimit, outputRowLimit, id)
+    { }
+
+    TQuery(const TQuery& other)
+        : TBaseQuery(other)
+        , OriginalSchema(other.OriginalSchema)
+        , SchemaMapping(other.SchemaMapping)
+        , JoinClauses(other.JoinClauses)
+        , WhereClause(other.WhereClause)
+    { }
+
+    TTableSchema OriginalSchema;
+    std::vector<TColumnDescriptor> SchemaMapping;
+
+    // Bottom
+    std::vector<TConstJoinClausePtr> JoinClauses;
+    TConstExpressionPtr WhereClause;
 
     TKeyColumns GetKeyColumns() const
     {
@@ -470,7 +497,7 @@ struct TQuery
         return orderedSchemaMapping;
     }
 
-    TTableSchema GetReadSchema() const
+    virtual TTableSchema GetReadSchema() const override
     {
         TSchemaColumns result;
         for (const auto& item : GetOrderedSchemaMapping()) {
@@ -492,14 +519,14 @@ struct TQuery
         return TTableSchema(result);
     }
 
-    TTableSchema GetTableSchema() const
+    virtual TTableSchema GetTableSchema() const override
     {
         if (ProjectClause) {
             return ProjectClause->GetTableSchema();
         }
 
         if (GroupClause) {
-            return GroupClause->GetTableSchema();
+            return GroupClause->GetTableSchema(IsFinal);
         }
 
         TTableSchema result = GetRenamedSchema();
@@ -510,9 +537,53 @@ struct TQuery
 
         return TTableSchema(result);
     }
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
+
+struct TFrontQuery
+    : public TBaseQuery
+{
+    TFrontQuery(
+        i64 inputRowLimit,
+        i64 outputRowLimit,
+        const TGuid& id = TGuid::Create())
+        : TBaseQuery(inputRowLimit, outputRowLimit, id)
+    { }
+
+    TFrontQuery(const TFrontQuery& other)
+        : TBaseQuery(other)
+    { }
+
+    TTableSchema Schema;
+
+    TTableSchema GetReadSchema() const
+    {
+        return Schema;
+    }
+
+    TTableSchema GetRenamedSchema() const
+    {
+        return Schema;
+    }
+
+    TTableSchema GetTableSchema() const
+    {
+        if (ProjectClause) {
+            return ProjectClause->GetTableSchema();
+        }
+
+        if (GroupClause) {
+            return GroupClause->GetTableSchema(IsFinal);
+        }
+
+        return Schema;
+    }
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TFrontQuery)
 
 void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original);
 void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized);
@@ -524,7 +595,7 @@ void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original);
 void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized);
 
 Stroka InferName(TConstExpressionPtr expr, bool omitValues = false);
-Stroka InferName(TConstQueryPtr query, bool omitValues = false);
+Stroka InferName(TConstBaseQueryPtr query, bool omitValues = false);
 
 bool Compare(
     TConstExpressionPtr lhs,

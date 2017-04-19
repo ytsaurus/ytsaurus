@@ -125,7 +125,7 @@ private:
             response->Attachments(),
             CodecId_,
             Schema_,
-            response->schemaful_response(),
+            false,
             Logger);
         return FromProto(response->query_statistics());
     }
@@ -484,7 +484,7 @@ private:
 
                 return Delegate(std::move(subquery), externalCGInfo, options, std::move(dataSources), address);
             },
-            [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+            [&] (TConstFrontQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
                 return evaluator->Run(
@@ -620,7 +620,6 @@ private:
                 ToProto(req->mutable_options(), options);
                 ToProto(req->mutable_data_sources(), dataSources);
                 req->set_response_codec(static_cast<int>(config->QueryResponseCodec));
-                req->set_schemaful_response(true);
             }
 
             auto queryFingerprint = InferName(query, true);

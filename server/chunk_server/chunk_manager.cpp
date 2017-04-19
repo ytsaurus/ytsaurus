@@ -754,9 +754,7 @@ public:
         auto replicaIndex = chunkWithIndexes.GetReplicaIndex();
         auto mediumIndex = chunkWithIndexes.GetMediumIndex();
 
-        if (ChunkReplicator_) {
-            ChunkReplicator_->TouchChunk(chunkWithIndexes);
-        }
+        TouchChunk(chunk);
 
         TNodePtrWithIndexesList result;
         auto replicas = chunk->GetReplicas();
@@ -769,6 +767,13 @@ public:
         }
 
         return result;
+    }
+
+    void TouchChunk(TChunk* chunk)
+    {
+        if (chunk->IsErasure() && ChunkReplicator_) {
+            ChunkReplicator_->TouchChunk(chunk);
+        }
     }
 
 
@@ -2663,6 +2668,11 @@ void TChunkManager::UnstageChunkList(TChunkList* chunkList, bool recursive)
 TNodePtrWithIndexesList TChunkManager::LocateChunk(TChunkPtrWithIndexes chunkWithIndexes)
 {
     return Impl_->LocateChunk(chunkWithIndexes);
+}
+
+void TChunkManager::TouchChunk(TChunk* chunk)
+{
+    Impl_->TouchChunk(chunk);
 }
 
 void TChunkManager::AttachToChunkList(

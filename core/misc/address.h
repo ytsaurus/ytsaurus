@@ -71,6 +71,7 @@ public:
     TNetworkAddress();
     TNetworkAddress(const TNetworkAddress& other, int port);
     explicit TNetworkAddress(const sockaddr& other, socklen_t length = 0);
+    TNetworkAddress(int family, const char* addr, size_t size);
 
     sockaddr* GetSockAddr();
     const sockaddr* GetSockAddr() const;

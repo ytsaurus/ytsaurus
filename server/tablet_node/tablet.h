@@ -264,6 +264,12 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(NConcurrency::TAsyncSemaphorePtr, StoresUpdateCommitSemaphore);
 
+    //! Counts rows in write logs; see #TTransaction::ImmediateLockedWriteLog,
+    //! #TTransaction::ImmediateLocklessWriteLog, and #TTransaction::DelayedLocklessWriteLog.
+    DEFINE_BYVAL_RW_PROPERTY(int, WriteLogsRowCount);
+    //! Counts prelocked rows; see #TTransaction::PrelockdRows.
+    DEFINE_BYVAL_RW_PROPERTY(int, PrelockedRowCount);
+
 public:
     TTablet(
         const TTabletId& tabletId,
@@ -353,7 +359,7 @@ public:
 
     void StartEpoch(TTabletSlotPtr slot);
     void StopEpoch();
-    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default);
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
 
     TTabletSnapshotPtr BuildSnapshot(TTabletSlotPtr slot) const;
 

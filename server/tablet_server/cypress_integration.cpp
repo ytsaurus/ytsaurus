@@ -67,7 +67,7 @@ public:
             "/@" + path);
     }
 
-    virtual void WriteAttributesFragment(
+    virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
         bool stable) override
@@ -262,7 +262,7 @@ INodeTypeHandlerPtr CreateTabletActionMapTypeHandler(TBootstrap* bootstrap)
 
     return CreateVirtualTypeHandler(
         bootstrap,
-        EObjectType::TabletMap,
+        EObjectType::TabletActionMap,
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualTabletActionMap>(bootstrap, owningNode);
         }),

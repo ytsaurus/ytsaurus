@@ -255,26 +255,19 @@ public:
         RowCounter_.Increment(Jobs_.back().GetRowCount());
     }
 
-    void Completed(IChunkPoolOutput::TCookie cookie)
+    void Completed(IChunkPoolOutput::TCookie cookie, EInterruptReason reason)
     {
-        JobCounter_.Completed(1);
+        JobCounter_.Completed(1, reason);
         DataSizeCounter_.Completed(Jobs_[cookie].GetDataSize());
         RowCounter_.Completed(Jobs_[cookie].GetRowCount());
-        Jobs_[cookie].SetState(EManagedJobState::Completed);
-    }
-
-    void Interrupted(IChunkPoolOutput::TCookie cookie)
-    {
-        JobCounter_.Completed(1);
-        DataSizeCounter_.Completed(Jobs_[cookie].GetDataSize());
-        RowCounter_.Completed(Jobs_[cookie].GetRowCount());
-        JobCounter_.Increment(1);
-        DataSizeCounter_.Increment(Jobs_[cookie].GetDataSize());
-        RowCounter_.Increment(Jobs_[cookie].GetRowCount());
-
-        JobCounter_.Interrupted(1);
-
-        Jobs_[cookie].SetState(EManagedJobState::Pending);
+        if (reason == EInterruptReason::None) {
+            Jobs_[cookie].SetState(EManagedJobState::Completed);
+        } else {
+            JobCounter_.Increment(1);
+            DataSizeCounter_.Increment(Jobs_[cookie].GetDataSize());
+            RowCounter_.Increment(Jobs_[cookie].GetRowCount());
+            Jobs_[cookie].SetState(EManagedJobState::Pending);
+        }
     }
 
     IChunkPoolOutput::TCookie ExtractCookie()
@@ -688,7 +681,7 @@ public:
 
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
-        if (jobSummary.Interrupted) {
+        if (jobSummary.InterruptReason != EInterruptReason::None) {
             yhash_set<i64> partiallyReadSliceTags;
             for (const auto& dataSlice : jobSummary.UnreadInputDataSlices) {
                 auto tag = dataSlice->Tag;
@@ -715,10 +708,8 @@ public:
                     }
                 }
             }
-            JobManager_->Interrupted(cookie);
-        } else {
-            JobManager_->Completed(cookie);
         }
+        JobManager_->Completed(cookie, jobSummary.InterruptReason);
     }
 
     virtual void Failed(IChunkPoolOutput::TCookie cookie) override
@@ -748,7 +739,7 @@ public:
 
     virtual i64 GetCompletedDataSize() const override
     {
-        return JobManager_->DataSizeCounter().GetCompleted();
+        return JobManager_->DataSizeCounter().GetCompletedTotal();
     }
 
     virtual i64 GetPendingDataSize() const override
@@ -1132,18 +1123,24 @@ private:
                 0LL /* RowIndex */
             };
         } else {
+            int leftRowIndex = dataSlice->LowerLimit().RowIndex.Get(0);
             leftEndpoint = {
                 EEndpointType::Left,
                 dataSlice,
                 GetStrictKey(dataSlice->LowerLimit().Key, PrimaryPrefixLength_ + 1, RowBuffer_, EValueType::Max),
-                dataSlice->LowerLimit().RowIndex.Get(0)
+                leftRowIndex
             };
+
+            int rightRowIndex = dataSlice->UpperLimit().RowIndex.Get(
+                    dataSlice->Type == EDataSourceType::UnversionedTable
+                    ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
+                    : 0);
 
             rightEndpoint = {
                 EEndpointType::Right,
                 dataSlice,
                 GetStrictKeySuccessor(dataSlice->UpperLimit().Key, PrimaryPrefixLength_, RowBuffer_, EValueType::Max),
-                dataSlice->UpperLimit().RowIndex.Get(std::numeric_limits<i64>::max())
+                rightRowIndex
             };
         }
 
@@ -1176,10 +1173,6 @@ private:
                     }
                 }
 
-                if (lhs.RowIndex != rhs.RowIndex) {
-                    return lhs.RowIndex < rhs.RowIndex;
-                }
-
                 if (lhs.DataSlice->Type == EDataSourceType::UnversionedTable &&
                     rhs.DataSlice->Type == EDataSourceType::UnversionedTable)
                 {
@@ -1187,7 +1180,7 @@ private:
                     const auto& lhsChunk = lhs.DataSlice->GetSingleUnversionedChunkOrThrow();
                     const auto& rhsChunk = rhs.DataSlice->GetSingleUnversionedChunkOrThrow();
 
-                    auto cmpResult = lhsChunk->GetTableRowIndex() - rhsChunk->GetTableRowIndex();
+                    auto cmpResult = (lhsChunk->GetTableRowIndex() + lhs.RowIndex) - (rhsChunk->GetTableRowIndex() + rhs.RowIndex);
                     if (cmpResult != 0) {
                         return cmpResult < 0;
                     }
@@ -1379,7 +1372,7 @@ private:
                         EEndpointType::ForeignRight,
                         dataSlice,
                         dataSlice->UpperLimit().Key,
-                        dataSlice->UpperLimit().RowIndex.Get(std::numeric_limits<i64>::max())
+                        dataSlice->UpperLimit().RowIndex.Get(0)
                     };
                     Endpoints_.emplace_back(leftEndpoint);
                     Endpoints_.emplace_back(rightEndpoint);

@@ -342,9 +342,9 @@ void TBootstrap::DoRun()
 
     auto localAddress = GetDefaultAddress(localAddresses);
 
-    JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
+    JobProxyConfigTemplate = New<NJobProxy::TJobProxyConfig>();
 
-    JobProxyConfig->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
+    JobProxyConfigTemplate->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
 
     auto patchMasterConnectionConfig = [&] (TMasterConnectionConfigPtr config) {
         config->Addresses = {localAddress};
@@ -354,32 +354,30 @@ void TBootstrap::DoRun()
         config->RetryTimeout = Null;
         config->RetryAttempts = 1;
     };
-    patchMasterConnectionConfig(JobProxyConfig->ClusterConnection->PrimaryMaster);
-    for (const auto& config : JobProxyConfig->ClusterConnection->SecondaryMasters) {
+
+    patchMasterConnectionConfig(JobProxyConfigTemplate->ClusterConnection->PrimaryMaster);
+    for (const auto& config : JobProxyConfigTemplate->ClusterConnection->SecondaryMasters) {
         patchMasterConnectionConfig(config);
     }
-    JobProxyConfig->ClusterConnection->MediumDirectorySynchronizer->ReadFrom = EMasterChannelKind::Cache;
+    JobProxyConfigTemplate->ClusterConnection->MediumDirectorySynchronizer->ReadFrom = EMasterChannelKind::Cache;
 
-    JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
-    JobProxyConfig->SupervisorConnection->Address = localAddress;
+    JobProxyConfigTemplate->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
+    JobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
 
     // TODO(babenko): consider making this priority configurable
-    JobProxyConfig->SupervisorConnection->Priority = 6;
+    JobProxyConfigTemplate->SupervisorConnection->Priority = 6;
 
-    JobProxyConfig->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
+    JobProxyConfigTemplate->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
 
-    JobProxyConfig->AddressResolver = Config->AddressResolver;
-    JobProxyConfig->HeartbeatPeriod = Config->ExecAgent->JobProxyHeartbeatPeriod;
+    JobProxyConfigTemplate->AddressResolver = Config->AddressResolver;
+    JobProxyConfigTemplate->HeartbeatPeriod = Config->ExecAgent->JobProxyHeartbeatPeriod;
 
-    JobProxyConfig->JobEnvironment = Config->ExecAgent->SlotManager->JobEnvironment;
+    JobProxyConfigTemplate->JobEnvironment = Config->ExecAgent->SlotManager->JobEnvironment;
 
-    JobProxyConfig->Rack = GetMasterConnector()->GetLocalDescriptor().GetRack();
-    JobProxyConfig->Addresses = GetMasterConnector()->GetLocalDescriptor().Addresses();
+    JobProxyConfigTemplate->Logging = Config->ExecAgent->JobProxyLogging;
+    JobProxyConfigTemplate->Tracing = Config->ExecAgent->JobProxyTracing;
 
-    JobProxyConfig->Logging = Config->ExecAgent->JobProxyLogging;
-    JobProxyConfig->Tracing = Config->ExecAgent->JobProxyTracing;
-
-    JobProxyConfig->CoreForwarderTimeout = Config->ExecAgent->CoreForwarderTimeout;
+    JobProxyConfigTemplate->CoreForwarderTimeout = Config->ExecAgent->CoreForwarderTimeout;
 
     ExecSlotManager = New<NExecAgent::TSlotManager>(Config->ExecAgent->SlotManager, this);
 
@@ -614,11 +612,6 @@ const NExecAgent::TSlotManagerPtr& TBootstrap::GetExecSlotManager() const
     return ExecSlotManager;
 }
 
-const TJobProxyConfigPtr& TBootstrap::GetJobProxyConfig() const
-{
-    return JobProxyConfig;
-}
-
 const TChunkStorePtr& TBootstrap::GetChunkStore() const
 {
     return ChunkStore;
@@ -785,6 +778,16 @@ TNetworkPreferenceList TBootstrap::GetLocalNetworks()
     return Config->Addresses.empty()
         ? DefaultNetworkPreferences
         : GetIths<0>(Config->Addresses);
+}
+
+TJobProxyConfigPtr TBootstrap::BuildJobProxyConfig() const
+{
+    auto proxyConfig = CloneYsonSerializable(JobProxyConfigTemplate);
+    auto localDescriptor = GetMasterConnector()->GetLocalDescriptor();
+    proxyConfig->DataCenter = localDescriptor.GetDataCenter();
+    proxyConfig->Rack = localDescriptor.GetRack();
+    proxyConfig->Addresses = localDescriptor.Addresses();
+    return proxyConfig;
 }
 
 void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)

@@ -126,6 +126,16 @@ public:
         Persist(context, MergeTaskGroup);
 
         Persist(context, PartitionTask);
+
+        // COMPAT(psushin).
+        auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+        if (context.IsLoad() &&
+            GetSortedMergeJobType() == EJobType::SortedMerge &&
+            !partitionJobSpecExt->has_wire_partition_keys())
+        {
+            // To properly load from old snapshots.
+            InitTemplatePartitionKeys(partitionJobSpecExt);
+        }
     }
 
 private:
@@ -1404,7 +1414,11 @@ protected:
     virtual void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
-            if (IsRowCountPreserved() && !InputHasVersionedTables()) {
+            auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
+
+            if (IsRowCountPreserved() && !(SimpleSort && isNontrivialInput)) {
+                // We don't check row count for simple sort if nontrivial read limits are specified,
+                // since input row count can be estimated inaccurate.
                 i64 totalInputRowCount = 0;
                 for (auto partition : Partitions) {
                     totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();
@@ -1432,7 +1446,7 @@ protected:
         LOG_DEBUG("Partition completed (Partition: %v)", partition->Index);
     }
 
-    bool IsSortedMergeNeeded(TPartitionPtr partition) const
+    virtual bool IsSortedMergeNeeded(TPartitionPtr partition) const
     {
         if (partition->CachedSortedMergeNeeded) {
             return true;
@@ -1514,7 +1528,7 @@ protected:
             if (!SimpleSort) {
                 if (!PartitionTask->IsCompleted())
                     return;
-                if (SortDataSizeCounter.GetCompleted() < SortDataSizeCounter.GetTotal() * Spec->MergeStartThreshold)
+                if (SortDataSizeCounter.GetCompletedTotal() < SortDataSizeCounter.GetTotal() * Spec->MergeStartThreshold)
                     return;
             }
 
@@ -2471,7 +2485,7 @@ private:
             // Jobs
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
-            JobCounter.GetCompleted(),
+            JobCounter.GetCompletedTotal(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),
@@ -3069,6 +3083,11 @@ private:
         Y_UNREACHABLE();
     }
 
+    virtual bool IsSortedMergeNeeded(TPartitionPtr partition) const override
+    {
+        return Spec->ForceReduceCombiners || TSortControllerBase::IsSortedMergeNeeded(partition);
+    }
+
     virtual TUserJobSpecPtr GetPartitionSortUserJobSpec(
         TPartitionPtr partition) const override
     {
@@ -3141,7 +3160,7 @@ private:
             // Jobs
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
-            JobCounter.GetCompleted(),
+            JobCounter.GetCompletedTotal(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),

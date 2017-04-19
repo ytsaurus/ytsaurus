@@ -5,12 +5,23 @@
 
 #include "config.h"
 
+#include <yt/core/concurrency/delayed_executor.h>
+
+#include <yt/core/profiling/timing.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue>
-bool TExpiringCache<TKey, TValue>::TEntry::Expired(const TInstant& now) const
+TExpiringCache<TKey, TValue>::TEntry::TEntry(NProfiling::TCpuInstant accessDeadline)
+    : AccessDeadline(accessDeadline)
+    , UpdateDeadline(std::numeric_limits<NProfiling::TCpuInstant>::max())
+    , Promise(NewPromise<TValue>())
+{ }
+
+template <class TKey, class TValue>
+bool TExpiringCache<TKey, TValue>::TEntry::IsExpired(NProfiling::TCpuInstant now) const
 {
     return now > AccessDeadline || now > UpdateDeadline;
 }
@@ -23,7 +34,7 @@ TExpiringCache<TKey, TValue>::TExpiringCache(TExpiringCacheConfigPtr config)
 template <class TKey, class TValue>
 TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
 {
-    auto now = TInstant::Now();
+    auto now = NProfiling::GetCpuInstant();
 
     // Fast path.
     {
@@ -31,8 +42,8 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
         auto it = Map_.find(key);
         if (it != Map_.end()) {
             const auto& entry = it->second;
-            if (!entry->Expired(now)) {
-                entry->AccessDeadline = now + Config_->ExpireAfterAccessTime;
+            if (!entry->IsExpired(now)) {
+                entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
                 return entry->Promise;
             }
         }
@@ -45,19 +56,18 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
 
         if (it != Map_.end()) {
             auto& entry = it->second;
-            if (entry->Promise.IsSet() && entry->Expired(now)) {
+            if (entry->Promise.IsSet() && entry->IsExpired(now)) {
                 NConcurrency::TDelayedExecutor::CancelAndClear(entry->ProbationCookie);
                 Map_.erase(it);
             } else {
-                entry->AccessDeadline = now + Config_->ExpireAfterAccessTime;
+                entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
                 return entry->Promise;
             }
         }
 
-        auto entry = New<TEntry>();
-        entry->UpdateDeadline = TInstant::Max();
-        entry->AccessDeadline = now + Config_->ExpireAfterAccessTime;
-        auto promise = entry->Promise = NewPromise<TValue>();
+        auto accessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
+        auto entry = New<TEntry>(accessDeadline);
+        auto promise = entry->Promise;
         // NB: we don't want to hold a strong reference to entry after releasing the guard, so we make a weak reference here.
         auto weakEntry = MakeWeak(entry);
         YCHECK(Map_.insert(std::make_pair(key, std::move(entry))).second);
@@ -70,7 +80,7 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
 template <class TKey, class TValue>
 TFuture<typename TExpiringCache<TKey, TValue>::TCombinedValue> TExpiringCache<TKey, TValue>::Get(const std::vector<TKey>& keys)
 {
-    auto now = TInstant::Now();
+    auto now = NProfiling::GetCpuInstant();
 
     std::vector<TFuture<TValue>> results(keys.size());
     std::vector<size_t> fetchIndexes;
@@ -83,9 +93,9 @@ TFuture<typename TExpiringCache<TKey, TValue>::TCombinedValue> TExpiringCache<TK
             auto it = Map_.find(keys[index]);
             if (it != Map_.end()) {
                 const auto& entry = it->second;
-                if (!entry->Expired(now)) {
+                if (!entry->IsExpired(now)) {
                     results[index] = entry->Promise;
-                    entry->AccessDeadline = now + Config_->ExpireAfterAccessTime;
+                    entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
                     continue;
                 }
             }
@@ -105,20 +115,18 @@ TFuture<typename TExpiringCache<TKey, TValue>::TCombinedValue> TExpiringCache<TK
             auto it = Map_.find(keys[index]);
             if (it != Map_.end()) {
                 auto& entry = it->second;
-                if (entry->Promise.IsSet() && entry->Expired(now)) {
+                if (entry->Promise.IsSet() && entry->IsExpired(now)) {
                     NConcurrency::TDelayedExecutor::CancelAndClear(entry->ProbationCookie);
                     Map_.erase(it);
                 } else {
                     results[index] = entry->Promise;
-                    entry->AccessDeadline = now + Config_->ExpireAfterAccessTime;
+                    entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
                     continue;
                 }
             }
 
-            auto entry = New<TEntry>();
-            entry->UpdateDeadline = TInstant::Max();
-            entry->AccessDeadline = now + Config_->ExpireAfterAccessTime;
-            entry->Promise = NewPromise<TValue>();
+            auto accessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
+            auto entry = New<TEntry>(accessDeadline);
 
             invokeIndexes.push_back(index);
             invokeEntries.push_back(entry);
@@ -164,8 +172,9 @@ void TExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEntry, 
     auto it = Map_.find(key);
     Y_ASSERT(it != Map_.end() && it->second == entry);
 
+    auto now = NProfiling::GetCpuInstant();
     auto expirationTime = valueOrError.IsOK() ? Config_->ExpireAfterSuccessfulUpdateTime : Config_->ExpireAfterFailedUpdateTime;
-    entry->UpdateDeadline = TInstant::Now() + expirationTime;
+    entry->UpdateDeadline = now + NProfiling::DurationToCpuDuration(expirationTime);
     if (entry->Promise.IsSet()) {
         entry->Promise = MakePromise(valueOrError);
     } else {
@@ -173,12 +182,12 @@ void TExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEntry, 
     }
     YCHECK(entry->Promise.IsSet());
 
-    if (TInstant::Now() > entry->AccessDeadline) {
+    if (now > entry->AccessDeadline) {
         Map_.erase(key);
         return;
     }
 
-    if (TInstant::Now() > entry->AccessDeadline) {
+    if (now > entry->AccessDeadline) {
         Map_.erase(key);
         return;
     }

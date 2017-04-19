@@ -89,7 +89,7 @@ public:
         return ShouldHideAttributes_;
     }
 
-    virtual void WriteAttributesFragment(
+    virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
         bool stable) override

@@ -36,6 +36,7 @@ using NChunkClient::EChunkType;
 using NChunkClient::TBlockId;
 using NChunkClient::TypicalReplicaCount;
 using NChunkClient::MaxMediumCount;
+using NChunkClient::MediumIndexBound;
 using NChunkClient::DefaultStoreMediumIndex;
 using NChunkClient::MaxMediumPriority;
 

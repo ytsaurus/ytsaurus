@@ -45,7 +45,6 @@ struct TStorageTraits<T, Ts...>
             TStorageTraits<Ts...>::MoveConstruct(tag - 1, storage, other);
         }
     }
-
 };
 
 template <>

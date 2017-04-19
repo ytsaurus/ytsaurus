@@ -59,7 +59,7 @@ IVersionedMultiChunkWriterPtr TChunkWriterPool::AllocateWriter()
                 NullChunkListId,
                 GetUnlimitedThrottler(),
                 blockCache);
-            auto writer = CreateVersionedMultiChunkInMemoryWriter(
+            auto writer = CreateInMemoryVersionedMultiChunkWriter(
                 InMemoryManager_,
                 TabletSnapshot_,
                 std::move(underlyingWriter));

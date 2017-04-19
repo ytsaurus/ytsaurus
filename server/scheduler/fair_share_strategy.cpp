@@ -4,6 +4,7 @@
 #include "config.h"
 #include "job_resources.h"
 #include "scheduler_strategy.h"
+#include "scheduling_context.h"
 
 #include <yt/core/concurrency/async_rw_lock.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -79,11 +80,7 @@ public:
 
         auto asyncGuard = TAsyncLockReaderGuard::Acquire(&ScheduleJobsLock);
 
-        TRootElementSnapshotPtr rootElementSnapshot;
-        {
-            TReaderGuard guard(RootElementSnapshotLock);
-            rootElementSnapshot = RootElementSnapshot;
-        }
+        auto rootElementSnapshot = GetRootSnapshot();
 
         auto jobScheduler =
             BIND(
@@ -231,11 +228,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TRootElementSnapshotPtr rootElementSnapshot;
-        {
-            TReaderGuard guard(RootElementSnapshotLock);
-            rootElementSnapshot = RootElementSnapshot;
-        }
+        TRootElementSnapshotPtr rootElementSnapshot = GetRootSnapshot();
 
         for (const auto& job : updatedJobs) {
             auto* operationElement = rootElementSnapshot->FindOperationElement(job.OperationId);
@@ -249,6 +242,20 @@ public:
             if (operationElement) {
                 operationElement->OnJobFinished(job.JobId);
             }
+        }
+    }
+
+    virtual void ApplyJobMetricsDelta(
+        const TOperationId& operationId,
+        const TJobMetrics& jobMetricsDelta) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TRootElementSnapshotPtr rootElementSnapshot = GetRootSnapshot();
+
+        auto* operationElement = rootElementSnapshot->FindOperationElement(operationId);
+        if (operationElement) {
+            operationElement->ApplyJobMetricsDelta(jobMetricsDelta);
         }
     }
 
@@ -787,6 +794,7 @@ private:
 
         // Second-chance scheduling.
         // NB: Schedule at most one job.
+        TJobPtr jobStartedUsingPreemption;
         int preemptiveScheduleJobCount = 0;
         {
             LOG_TRACE("Scheduling new jobs with preemption");
@@ -806,6 +814,7 @@ private:
                     break;
                 }
                 if (schedulingContext->StartedJobs().size() > startedBeforePreemption) {
+                    jobStartedUsingPreemption = schedulingContext->StartedJobs().back();
                     break;
                 }
             }
@@ -832,29 +841,30 @@ private:
                 return lhs->GetStartTime() > rhs->GetStartTime();
             });
 
-        auto poolLimitsViolated = [&] (const TJobPtr& job) -> bool {
+        auto findPoolWithViolatedLimitsForJob = [&] (const TJobPtr& job) -> TCompositeSchedulerElement* {
             auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
             if (!operationElement) {
-                return false;
+                return nullptr;
             }
 
             auto* parent = operationElement->GetParent();
             while (parent) {
                 if (!Dominates(parent->ResourceLimits(), parent->GetResourceUsage())) {
-                    return true;
+                    return parent;
                 }
                 parent = parent->GetParent();
             }
-            return false;
+            return nullptr;
         };
 
-        auto anyPoolLimitsViolated = [&] () -> bool {
+        auto findPoolWithViolatedLimits = [&] () -> TCompositeSchedulerElement* {
             for (const auto& job : schedulingContext->StartedJobs()) {
-                if (poolLimitsViolated(job)) {
-                    return true;
+                auto violatedPool = findPoolWithViolatedLimitsForJob(job);
+                if (violatedPool) {
+                    return violatedPool;
                 }
             }
-            return false;
+            return nullptr;
         };
 
         bool nodeLimitsViolated = true;
@@ -874,15 +884,30 @@ private:
                 nodeLimitsViolated = !Dominates(schedulingContext->ResourceLimits(), schedulingContext->ResourceUsage());
             }
             if (!nodeLimitsViolated && poolsLimitsViolated) {
-                poolsLimitsViolated = anyPoolLimitsViolated();
+                poolsLimitsViolated = findPoolWithViolatedLimits() == nullptr;
             }
 
             if (!nodeLimitsViolated && !poolsLimitsViolated) {
                 break;
             }
 
-            if (nodeLimitsViolated || (poolsLimitsViolated && poolLimitsViolated(job))) {
+            if (nodeLimitsViolated) {
+                if (jobStartedUsingPreemption) {
+                    job->SetPreemptionReason(Format("Preempted to start job %v of operation %v",
+                        jobStartedUsingPreemption->GetId(),
+                        jobStartedUsingPreemption->GetOperationId()));
+                } else {
+                    job->SetPreemptionReason(Format("Node resource limits violated"));
+                }
                 PreemptJob(job, operationElement, context);
+            }
+            if (poolsLimitsViolated) {
+                auto violatedPool = findPoolWithViolatedLimitsForJob(job);
+                if (violatedPool) {
+                    job->SetPreemptionReason(Format("Preempted due to violation of limits on pool %v",
+                        violatedPool->GetId()));
+                    PreemptJob(job, operationElement, context);
+                }
             }
         }
 
@@ -1388,6 +1413,11 @@ private:
             "/pools/resource_demand",
             {tag});
 
+        element->GetJobMetrics().SendToProfiler(
+            Profiler,
+            "/pools/metrics",
+            {tag});
+
         Profiler.Enqueue(
             "/running_operation_count",
             element->RunningOperationCount(),
@@ -1398,6 +1428,11 @@ private:
             element->OperationCount(),
             EMetricType::Gauge,
             {tag});
+    }
+
+    TRootElementSnapshotPtr GetRootSnapshot() const {
+        TReaderGuard guard(RootElementSnapshotLock);
+        return RootElementSnapshot;
     }
 };
 

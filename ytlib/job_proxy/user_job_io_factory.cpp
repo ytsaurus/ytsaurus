@@ -1,6 +1,7 @@
 #include "user_job_io_factory.h"
 
 #include "job_spec_helper.h"
+#include "helpers.h"
 
 #include <yt/ytlib/api/public.h>
 
@@ -122,10 +123,8 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
     const auto& schedulerJobSpecExt = jobSpecHelper->GetSchedulerJobSpecExt();
     std::vector<NChunkClient::TDataSliceDescriptor> dataSliceDescriptors;
     for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
-        for (const auto& descriptor : inputSpec.data_slice_descriptors()) {
-            auto dataSliceDescriptor = FromProto<NChunkClient::TDataSliceDescriptor>(descriptor);
-            dataSliceDescriptors.push_back(std::move(dataSliceDescriptor));
-        }
+        auto descriptors = UnpackDataSliceDescriptors(inputSpec);
+        dataSliceDescriptors.insert(dataSliceDescriptors.end(), descriptors.begin(), descriptors.end());
     }
 
     auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(schedulerJobSpecExt.data_source_directory());
@@ -230,7 +229,7 @@ public:
 
         for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
-            auto dataSliceDescriptors = FromProto<std::vector<NChunkClient::TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
+            auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
             auto reader = CreateSchemalessSequentialMultiReader(
                 JobSpecHelper_->GetJobIOConfig()->TableReader,
@@ -253,7 +252,7 @@ public:
         keyColumns.resize(foreignKeyColumnCount);
 
         for (const auto& inputSpec : schedulerJobSpecExt.foreign_input_table_specs()) {
-            auto dataSliceDescriptors = FromProto<std::vector<NChunkClient::TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
+            auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
             auto reader = CreateSchemalessSequentialMultiReader(
                 JobSpecHelper_->GetJobIOConfig()->TableReader,
@@ -393,7 +392,7 @@ public:
         YCHECK(schedulerJobSpecExt.input_table_specs_size() == 1);
 
         const auto& inputSpec = schedulerJobSpecExt.input_table_specs(0);
-        auto dataSliceDescriptors = FromProto<std::vector<NChunkClient::TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
+        auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(schedulerJobSpecExt.data_source_directory());
 
         const auto& reduceJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);

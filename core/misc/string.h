@@ -102,6 +102,14 @@ inline void FormatValue(TStringBuilder* builder, const TStringBuilder& value, co
     builder->AppendString(value.GetBuffer());
 }
 
+template <class T>
+Stroka ToStringViaBuilder(const T& value, const TStringBuf& spec = STRINGBUF("v"))
+{
+    TStringBuilder builder;
+    FormatValue(&builder, value, spec);
+    return builder.Flush();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Formatters enable customizable way to turn an object into a string.

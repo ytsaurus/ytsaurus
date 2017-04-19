@@ -1,6 +1,7 @@
 #include "private.h"
 #include "config.h"
 #include "job.h"
+#include "job_metrics.h"
 #include "job_resources.h"
 #include "scheduler_strategy.h"
 #include "scheduling_tag.h"
@@ -97,7 +98,6 @@ protected:
     int TreeIndex_ = UnassignedTreeIndex;
 
     bool Cloned_ = false;
-
 };
 
 class TSchedulerElementSharedState
@@ -107,7 +107,9 @@ public:
     TSchedulerElementSharedState();
 
     TJobResources GetResourceUsage();
+    TJobMetrics GetJobMetrics();
     void IncreaseResourceUsage(const TJobResources& delta);
+    void ApplyJobMetricsDelta(const TJobMetrics& delta);
 
     double GetResourceUsageRatio(NNodeTrackerClient::EResourceType dominantResource, double dominantResourceLimit);
 
@@ -116,13 +118,14 @@ public:
 
 private:
     TJobResources ResourceUsage_;
+    TJobMetrics JobMetrics_;
     NConcurrency::TReaderWriterSpinLock ResourceUsageLock_;
+    NConcurrency::TReaderWriterSpinLock JobMetricsLock_;
 
     // NB: Avoid false sharing between ResourceUsageLock_ and others.
     char Padding[64];
 
     std::atomic<bool> Alive_ = {true};
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerElementSharedState)
@@ -187,18 +190,22 @@ public:
     virtual void CheckForStarvation(TInstant now) = 0;
 
     TJobResources GetResourceUsage() const;
+    TJobMetrics GetJobMetrics() const;
     double GetResourceUsageRatio() const;
 
     void IncreaseLocalResourceUsage(const TJobResources& delta);
+    void ApplyJobMetricsDeltaLocal(const TJobMetrics& delta);
     virtual void IncreaseResourceUsage(const TJobResources& delta) = 0;
+    virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) = 0;
 
     virtual void BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap) = 0;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) = 0;
 
-protected:
+private:
     TSchedulerElementSharedStatePtr SharedState_;
 
+protected:
     TSchedulerElement(
         ISchedulerStrategyHost* host,
         const TFairShareStrategyConfigPtr& strategyConfig);
@@ -217,8 +224,8 @@ protected:
         TDuration fairSharePreemptionTimeout,
         TInstant now);
 
+private:
     void UpdateAttributes();
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerElement)
@@ -239,7 +246,6 @@ public:
 protected:
     ESchedulingMode Mode_ = ESchedulingMode::Fifo;
     std::vector<EFifoSortParameter> FifoSortParameters_;
-
 };
 
 class TCompositeSchedulerElement
@@ -277,6 +283,7 @@ public:
     virtual bool ScheduleJob(TFairShareContext& context) override;
 
     virtual void IncreaseResourceUsage(const TJobResources& delta) override;
+    virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
 
     virtual bool IsRoot() const;
     virtual bool IsExplicit() const;
@@ -341,7 +348,6 @@ protected:
 
     const Stroka Id_;
     bool DefaultConfigured_ = true;
-
 };
 
 class TPool
@@ -404,7 +410,6 @@ private:
     void DoSetConfig(TPoolConfigPtr newConfig);
 
     TJobResources ComputeResourceLimits() const;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TPool)
@@ -653,6 +658,7 @@ public:
     bool HasStarvingParent() const;
 
     virtual void IncreaseResourceUsage(const TJobResources& delta) override;
+    virtual void ApplyJobMetricsDelta(const TJobMetrics& delta) override;
 
     void IncreaseJobResourceUsage(const TJobId& jobId, const TJobResources& resourcesDelta);
 
@@ -692,7 +698,6 @@ private:
     TJobResources ComputeResourceLimits() const;
     TJobResources ComputeMaxPossibleResourceUsage() const;
     int ComputePendingJobCount() const;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElement)
@@ -741,7 +746,6 @@ public:
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
     TRootElementPtr Clone();
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TRootElement)

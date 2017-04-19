@@ -24,12 +24,21 @@ using namespace NTableClient;
 using namespace NHiveServer;
 
 ////////////////////////////////////////////////////////////////////////////////
+TTransactionWriteRecord::TTransactionWriteRecord(
+    const TTabletId& tabletId,
+    TSharedRef data,
+    int rowCount)
+    : TabletId(tabletId)
+    , Data(std::move(data))
+    , RowCount(rowCount)
+{ }
 
 void TTransactionWriteRecord::Save(TSaveContext& context) const
 {
     using NYT::Save;
     Save(context, TabletId);
     Save(context, Data);
+    Save(context, RowCount);
 }
 
 void TTransactionWriteRecord::Load(TLoadContext& context)
@@ -37,6 +46,7 @@ void TTransactionWriteRecord::Load(TLoadContext& context)
     using NYT::Load;
     Load(context, TabletId);
     Load(context, Data);
+    Load(context, RowCount);
 }
 
 i64 TTransactionWriteRecord::GetByteSize() const

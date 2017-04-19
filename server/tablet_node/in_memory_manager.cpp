@@ -126,6 +126,7 @@ public:
         }
 
         auto data = it->second;
+        data->MemoryTrackerGuard.Release();
         ChunkIdToData_.erase(it);
 
         LOG_INFO("Intercepted chunk data evicted (ChunkId: %v, Mode: %v)",
@@ -326,7 +327,11 @@ private:
             if (data->Blocks.size() <= id.BlockIndex) {
                 data->Blocks.resize(id.BlockIndex + 1);
             }
-            data->Blocks[id.BlockIndex] = block;
+
+            if (!data->Blocks[id.BlockIndex]) {
+                data->Blocks[id.BlockIndex] = block;
+                data->MemoryTrackerGuard.UpdateSize(block.Size());
+            }
 
             YCHECK(!data->ChunkMeta);
         }
@@ -369,6 +374,11 @@ private:
         TWriterGuard guard(InterceptedDataSpinLock_);
 
         auto chunkData = New<TInMemoryChunkData>();
+        chunkData->MemoryTrackerGuard = NCellNode::TNodeMemoryTrackerGuard::Acquire(
+            Bootstrap_->GetMemoryUsageTracker(),
+            EMemoryCategory::TabletStatic,
+            0,
+            MemoryUsageGranularity);
         chunkData->InMemoryMode = mode;
 
         // Replace the old data, if any, by a new one.

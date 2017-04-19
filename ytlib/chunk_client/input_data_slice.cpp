@@ -95,6 +95,15 @@ bool TInputDataSlice::IsEmpty() const
     return LowerLimit_.Key >= UpperLimit_.Key;
 }
 
+std::pair<TInputDataSlicePtr, TInputDataSlicePtr> TInputDataSlice::SplitByRowIndex(i64 rowIndex) const
+{
+    YCHECK(IsTrivial());
+    auto slices = ChunkSlices[0]->SplitByRowIndex(rowIndex);
+
+    return std::make_pair(CreateUnversionedInputDataSlice(slices.first),
+        CreateUnversionedInputDataSlice(slices.second));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TInputDataSlicePtr& dataSlice)
@@ -307,6 +316,24 @@ bool CanMergeSlices(const TInputDataSlicePtr& slice1, const TInputDataSlicePtr& 
         return true;
     }
     return false;
+}
+
+i64 GetCumulativeRowCount(const std::vector<TInputDataSlicePtr>& dataSlices)
+{
+    i64 result = 0;
+    for (const auto& dataSlice : dataSlices) {
+        result += dataSlice->GetRowCount();
+    }
+    return result;
+}
+
+i64 GetCumulativeDataSize(const std::vector<TInputDataSlicePtr>& dataSlices)
+{
+    i64 result = 0;
+    for (const auto& dataSlice : dataSlices) {
+        result += dataSlice->GetDataSize();
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
