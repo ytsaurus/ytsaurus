@@ -671,7 +671,7 @@ def verify_equal(columns, expected_table, actual_table, result_table):
     yt.remove(actual_table)
     print "Everything OK"
 
-def verify_extract(schema, data_table, table, dump_table, result_table):
+def generate_selector(schema, table):
     #FXIME(savrus): remove when ypath supports Null
     def good_key(key):
         for k in key:
@@ -690,13 +690,34 @@ def verify_extract(schema, data_table, table, dump_table, result_table):
     columns = [c.name for c in schema.columns if c.type.str() != "any" and random.random() > 0.5]
     scols = ",".join(columns)
 
-    selector="{{{0}}}[({1}):({2})]".format(scols, skeys[0], skeys[1])
+    # FIXME(savrus) enable for 19.2
+    #selector="{{{0}}}[({1}):({2})]".format(scols, skeys[0], skeys[1])
+    selector="{{{0}}}".format(scols)
+    return selector, columns
+
+def verify_extract_merge(schema, data_table, table, dump_table, result_table):
+    selector, columns = generate_selector(schema, table)
     print "Run unordered merge with selector {0}".format(selector)
 
     dump_table_dynamic = dump_table + ".dynamic"
     dump_table_static = dump_table + ".static"
 
     yt.run_merge(table + selector, dump_table_dynamic, mode="unordered")
+    yt.run_merge(data_table + selector, dump_table_static, mode="unordered")
+    verify_equal(columns, dump_table_static, dump_table_dynamic, result_table)
+
+def verify_extract_map(schema, data_table, table, dump_table, result_table):
+    selector, columns = generate_selector(schema, table)
+    print "Run unordered map with selector {0}".format(selector)
+
+    dump_table_dynamic = dump_table + ".dynamic"
+    dump_table_static = dump_table + ".static"
+
+    def mapper(record):
+        yield record
+    op = yt.run_map(mapper, table + selector, dump_table_dynamic, ordered=False, sync=False)
+    wait_interruptable_op(op)
+
     yt.run_merge(data_table + selector, dump_table_static, mode="unordered")
     verify_equal(columns, dump_table_static, dump_table_dynamic, result_table)
 
@@ -718,7 +739,8 @@ def verify_mapreduce(schema, data_table, table, dump_table, result_table):
         verify_reduce(schema, data_table, table, dump_table, result_table, key_columns[:-1])
         verify_map_reduce(schema, data_table, table, dump_table, result_table, key_columns[:-1])
 
-    verify_extract(schema, data_table, table, dump_table, result_table)
+    verify_extract_merge(schema, data_table, table, dump_table, result_table)
+    verify_extract_map(schema, data_table, table, dump_table, result_table)
 
 def remove_existing(paths, force):
     for path in paths:

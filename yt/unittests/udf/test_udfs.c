@@ -1,12 +1,14 @@
-#include <yt_udf.h>
+#include "../../ytlib/query_client/udf/yt_udf.h"
 
 uint64_t seventyfive(TExpressionContext* context)
 {
+    (void)context;
     return 75;
 }
 
 uint64_t strtol_udf(TExpressionContext* context, const char* string, int length)
 {
+    (void)context;
     uint64_t result = 0;
     for (int i = 0; i < length; i++) {
         result *= 10;
@@ -18,6 +20,7 @@ uint64_t strtol_udf(TExpressionContext* context, const char* string, int length)
 
 int64_t exp_udf(TExpressionContext* context, int64_t n, int64_t m)
 {
+    (void)context;
     int64_t result = 1;
     for (int64_t i = 0; i < m; i++) {
         result *= n;
@@ -48,6 +51,7 @@ void tolower_udf(
 
 void is_null_udf(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* value)
 {
+    (void)context;
     int8_t isnull = value->Type == Null;
     result->Type = Boolean;
     result->Data.Boolean = isnull;
@@ -55,6 +59,7 @@ void is_null_udf(TExpressionContext* context, TUnversionedValue* result, TUnvers
 
 int64_t abs_udf(TExpressionContext* context, int64_t n)
 {
+    (void)context;
     return llabs(n);
 }
 
@@ -65,6 +70,7 @@ void sum_udf(
     TUnversionedValue* ns,
     int ns_len)
 {
+    (void)context;
     int64_t result = n1->Data.Int64;
     for (int i = 0; i < ns_len; i++) {
         result += ns[i].Data.Int64;
@@ -77,6 +83,7 @@ int64_t throw_if_negative_udf(
     TExpressionContext* context,
     int64_t argument)
 {
+    (void)context;
     if (argument < 0) {
         ThrowException("Argument was negative");
     }
@@ -105,6 +112,7 @@ void avg_udaf_update(
     TUnversionedValue* state,
     TUnversionedValue* newValue)
 {
+    (void)context;
     int64_t* intStatePtr = (int64_t*)state->Data.String;
     if (newValue->Type != Null) {
         intStatePtr[0] += 1;
@@ -122,6 +130,7 @@ void avg_udaf_merge(
     TUnversionedValue* dstState,
     TUnversionedValue* state)
 {
+    (void)context;
     int64_t* dstStatePtr = (int64_t*)dstState->Data.String;
     int64_t* intStatePtr = (int64_t*)state->Data.String;
 
@@ -138,6 +147,7 @@ void avg_udaf_finalize(
     TUnversionedValue* result,
     TUnversionedValue* state)
 {
+    (void)context;
     int64_t* intStatePtr = (int64_t*)state->Data.String;
     if (intStatePtr[0] == 0) {
         result->Type = Null;
