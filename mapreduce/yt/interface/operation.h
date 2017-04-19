@@ -281,6 +281,14 @@ struct TOperationOptions
     FLUENT_FIELD_DEFAULT(bool, MountSandboxInTmpfs, false);
     FLUENT_FIELD_OPTION(Stroka, FileStorage);
     FLUENT_FIELD_OPTION(TNode, SecureVault);
+
+    // Provides the transaction id, under which all
+    // Cypress file storage entries will be checked/created.
+    // By default, the global transaction is used.
+    // Set a specific transaction only if you specify non-default file storage
+    // path in 'FileStorage' option or in 'RemoteTempFilesDirectory'
+    // property of config.
+    FLUENT_FIELD(TTransactionId, FileStorageTransactionId);
 };
 
 struct IOperationClient

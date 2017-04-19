@@ -254,8 +254,8 @@ private:
     void CreateStorage() const
     {
         Stroka cypressFolder = TStringBuilder() << GetFileStorage() << "/hash";
-        if (!Exists(Auth_, TTransactionId(), cypressFolder)) {
-            Create(Auth_, TTransactionId(), cypressFolder, "map_node", true, true);
+        if (!Exists(Auth_, Options_.FileStorageTransactionId_, cypressFolder)) {
+            Create(Auth_, Options_.FileStorageTransactionId_, cypressFolder, "map_node", true, true);
         }
     }
 
@@ -274,10 +274,10 @@ private:
         int retryCount = 256;
         for (int attempt = 0; attempt < retryCount; ++attempt) {
             TNode linkAttrs;
-            if (Exists(Auth_, TTransactionId(), cypressPath + "&")) {
+            if (Exists(Auth_, Options_.FileStorageTransactionId_, cypressPath + "&")) {
                 try {
                     linkAttrs = NodeFromYsonString(
-                        Get(Auth_, TTransactionId(), cypressPath + "&/@"));
+                        Get(Auth_, Options_.FileStorageTransactionId_, cypressPath + "&/@"));
                 } catch (TErrorResponse& e) {
                     if (!e.IsResolveError()) {
                         throw;
@@ -293,20 +293,20 @@ private:
                     {
                         linkExists = true;
                     } else {
-                        Remove(Auth_, TTransactionId(), cypressPath + "&", true, true);
+                        Remove(Auth_, Options_.FileStorageTransactionId_, cypressPath + "&", true, true);
                     }
                 }
 
                 if (linkExists) {
-                    Set(Auth_, TTransactionId(), cypressPath + "/@touched", "\"true\"");
-                    Set(Auth_, TTransactionId(), cypressPath + "&/@touched", "\"true\"");
+                    Set(Auth_, Options_.FileStorageTransactionId_, cypressPath + "/@touched", "\"true\"");
+                    Set(Auth_, Options_.FileStorageTransactionId_, cypressPath + "&/@touched", "\"true\"");
                     return cypressPath;
                 }
 
                 Stroka uniquePath = TStringBuilder() << GetFileStorage() <<
                     "/" << twoDigits << "/cpp_" << CreateGuidAsString();
 
-                Create(Auth_, TTransactionId(), uniquePath, "file", true, true,
+                Create(Auth_, Options_.FileStorageTransactionId_, uniquePath, "file", true, true,
                     TNode()("hash", buf)("touched", true));
 
                 {
@@ -316,10 +316,10 @@ private:
                     auto streamMaker = [&source] () {
                         return CreateStream(source);
                     };
-                    RetryHeavyWriteRequest(Auth_, TTransactionId(), header, streamMaker);
+                    RetryHeavyWriteRequest(Auth_, Options_.FileStorageTransactionId_, header, streamMaker);
                 }
 
-                Link(Auth_, TTransactionId(), uniquePath, cypressPath, true, true,
+                Link(Auth_, Options_.FileStorageTransactionId_, uniquePath, cypressPath, true, true,
                     TNode()("touched", true));
 
             } catch (TErrorResponse& e) {
