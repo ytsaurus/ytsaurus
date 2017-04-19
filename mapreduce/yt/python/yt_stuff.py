@@ -7,6 +7,7 @@ import tempfile
 import time
 import uuid
 import signal
+import fcntl
 
 import yt_version
 
@@ -169,6 +170,7 @@ class YtStuff(object):
 
         self.mapreduce_yt_path = [yatest.common.binary_path('yt/packages/contrib/python/yt/bin/mapreduce-yt/mapreduce-yt')]
         self.yt_local_path = [yatest.common.binary_path('yt/packages/contrib/python/yt_local/bin/local/yt_local')]
+        self.yt_env_watcher_dir_path = yatest.common.binary_path('yt/packages/contrib/python/yt_local/bin/watcher')
 
         yt_server_arcadia_path = yatest.common.binary_path('yt/packages/yt/{}/yt/server/ytserver_program/ytserver'.format(version))
         yt_server_custom_path = yatest.common.get_param("yt_ytserver_path")
@@ -187,6 +189,7 @@ class YtStuff(object):
         self.env = {}
         self.env["PATH"] = ":".join([
                 self.yt_bins_path,
+                self.yt_env_watcher_dir_path,
                 self.yt_node_path,
                 self.yt_node_bin_path,
             ])
@@ -412,7 +415,12 @@ class YtStuff(object):
     def stop_local_yt(self):
         if self.is_running:
             self.suspend_local_yt()
+            with open(os.path.join(self.yt_work_dir, self.yt_id, "locked_file")) as lock_file:
+                fcntl.flock(lock_file, fcntl.LOCK_EX)
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
+
         self._save_logs(save_yt_all=self.config.save_all_logs or yatest.common.get_param("yt_save_all_data"))
+
         if not self.config.keep_yt_work_dir:
             shutil.rmtree(self.yt_work_dir)
 
