@@ -154,7 +154,7 @@ class TestTransferManager(object):
     def test_copy_attributes(self, node_type, copy_method, force_copy_with_operation):
         self.first_cluster_client.create(node_type, "//tm/test")
         self.first_cluster_client.set("//tm/test/@expiration_time", 2100000000000)
-        self.first_cluster_client.set("//tm/test/@compression_codec", "zlib9")
+        self.first_cluster_client.set("//tm/test/@compression_codec", "zlib_9")
         self.first_cluster_client.set("//tm/test/@test_attr", "attr_value")
         self.tm_client.add_task("clusterA", "//tm/test", "clusterB", "//tm/test", sync=True,
                                 params={"additional_attributes": ["expiration_time"],
@@ -172,10 +172,10 @@ class TestTransferManager(object):
         _write_node_content("//tm/test_object", node_type, self.first_cluster_client)
 
         self.tm_client.add_task("clusterA", "//tm/test_object", "clusterB", "//tm/test_object", sync=True,
-                                params={"destination_compression_codec": "zlib6",
+                                params={"destination_compression_codec": "zlib_6",
                                         "force_copy_with_operation": force_copy_with_operation,
                                         "copy_method": copy_method})
-        assert "zlib6" == self.second_cluster_client.get("//tm/test_object/@compression_codec")
+        assert "zlib_6" == self.second_cluster_client.get("//tm/test_object/@compression_codec")
         assert _read_node_content("//tm/test_object", node_type, self.first_cluster_client) == \
                _read_node_content("//tm/test_object", node_type, self.second_cluster_client)
 
@@ -183,13 +183,13 @@ class TestTransferManager(object):
                              [("file", "proxy", False), ("table", "proxy", False), ("table", "native", False),
                               ("file", "proxy", True), ("table", "proxy", True)])
     def test_source_codecs(self, node_type, copy_method, force_copy_with_operation):
-        self.first_cluster_client.create(node_type, "//tm/test_object", attributes={"compression_codec": "zlib6"})
+        self.first_cluster_client.create(node_type, "//tm/test_object", attributes={"compression_codec": "zlib_6"})
         _write_node_content("//tm/test_object", node_type, self.first_cluster_client)
 
         self.tm_client.add_task("clusterA", "//tm/test_object", "clusterB", "//tm/test_object", sync=True,
                                 params={"force_copy_with_operation": force_copy_with_operation,
                                         "copy_method": copy_method})
-        assert "zlib6" == self.second_cluster_client.get("//tm/test_object/@compression_codec")
+        assert "zlib_6" == self.second_cluster_client.get("//tm/test_object/@compression_codec")
 
         assert _read_node_content("//tm/test_object", node_type, self.first_cluster_client) == \
                _read_node_content("//tm/test_object", node_type, self.second_cluster_client)
@@ -207,11 +207,11 @@ class TestTransferManager(object):
     def test_copy_table_range_with_codec(self, force_copy_with_operation):
         self.first_cluster_client.write_table("//tm/test_table", [{"a": 1}, {"b": 2}, {"c": 3}])
         self.tm_client.add_task("clusterA", "//tm/test_table[#1:#2]", "clusterB", "//tm/test_table", sync=True,
-                                params={"copy_method": "proxy", "destination_compression_codec": "zlib9",
+                                params={"copy_method": "proxy", "destination_compression_codec": "zlib_9",
                                         "force_copy_with_operation": force_copy_with_operation})
 
         assert list(self.second_cluster_client.read_table("//tm/test_table")) == [{"b": 2}]
-        assert "zlib9" == self.second_cluster_client.get("//tm/test_table/@compression_codec")
+        assert "zlib_9" == self.second_cluster_client.get("//tm/test_table/@compression_codec")
 
     @pytest.mark.parametrize("force_copy_with_operation", [True, False])
     def test_schema_copy(self, force_copy_with_operation):
