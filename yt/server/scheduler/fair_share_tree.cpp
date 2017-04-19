@@ -1310,7 +1310,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             TJobProperties::SetAggressivelyPreemptable,
             TJobProperties::SetNonPreemptable);
 
-        auto nonPreemptableAndAggressivelyPreemptableResourceUsage_ = balanceLists(
+        auto nonpreemptableAndAggressivelyPreemptableResourceUsage_ = balanceLists(
             &AggressivelyPreemptableJobs_,
             &PreemptableJobs_,
             startNonPreemptableAndAggressivelyPreemptableResourceUsage_,
@@ -1318,7 +1318,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             TJobProperties::SetPreemptable,
             TJobProperties::SetAggressivelyPreemptable);
 
-        AggressivelyPreemptableResourceUsage_ = nonPreemptableAndAggressivelyPreemptableResourceUsage_ - NonpreemptableResourceUsage_;
+        AggressivelyPreemptableResourceUsage_ = nonpreemptableAndAggressivelyPreemptableResourceUsage_ - NonpreemptableResourceUsage_;
     }
 }
 
