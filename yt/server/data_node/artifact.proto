@@ -1,20 +1,15 @@
 package NYT.NDataNode.NProto;
 
 import "yt/ytlib/chunk_client/chunk_spec.proto";
-
-import "yt/ytlib/table_client/chunk_meta.proto";
+import "yt/ytlib/chunk_client/data_source.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TArtifactKey
 {
-    required int32 data_source_type = 1;
     optional bytes format = 3;
-
-    optional NYT.NTableClient.NProto.TTableSchemaExt table_schema = 4;
-    optional uint64 timestamp = 5;
-
     repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 6;
+    required NYT.NChunkClient.NProto.TDataSource data_source = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

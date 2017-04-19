@@ -680,6 +680,8 @@ private:
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
 
+    TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     TDynamicAttributes GetGlobalDynamicAttributes(const TSchedulerElementPtr& element) const
@@ -737,6 +739,30 @@ private:
             }
         };
 
+        bool enableSchedulingInfoLogging = false;
+        auto now = GetCpuInstant();
+        if (LastSchedulingInformationLoggedTime_ + DurationToCpuDuration(Config->HeartbeatTreeSchedulingInfoLogBackoff) < now) {
+            enableSchedulingInfoLogging = true;
+            LastSchedulingInformationLoggedTime_ = now;
+        }
+
+        auto logAndCleanSchedulingStatistics = [&] (const Stroka& stageName) {
+            if (!enableSchedulingInfoLogging) {
+                return;
+            }
+            LOG_DEBUG("%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, DeactivationReasons: %v, CanStartMoreJobs: %v)",
+                stageName,
+                context.ActiveTreeSize,
+                context.ActiveOperationCount,
+                context.DeactivationReasons,
+                schedulingContext->CanStartMoreJobs());
+            context.ActiveTreeSize = 0;
+            context.ActiveOperationCount = 0;
+            for (auto& item : context.DeactivationReasons) {
+                item = 0;
+            }
+        };
+
         // First-chance scheduling.
         int nonPreemptiveScheduleJobCount = 0;
         {
@@ -756,6 +782,10 @@ private:
                 NonPreemptiveProfilingCounters,
                 nonPreemptiveScheduleJobCount,
                 timer.GetElapsed() - context.TotalScheduleJobDuration);
+
+            if (nonPreemptiveScheduleJobCount > 0) {
+                logAndCleanSchedulingStatistics("Non preemtive");
+            }
         }
 
         // Compute discount to node usage.
@@ -822,6 +852,9 @@ private:
                 PreemptiveProfilingCounters,
                 preemptiveScheduleJobCount,
                 timer.GetElapsed() - context.TotalScheduleJobDuration);
+            if (preemptiveScheduleJobCount > 0) {
+                logAndCleanSchedulingStatistics("Preemtive");
+            }
         }
 
         int startedAfterPreemption = schedulingContext->StartedJobs().size();

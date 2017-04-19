@@ -67,7 +67,6 @@ void TInputDataSlice::Persist(NTableClient::TPersistenceContext& context)
     Persist(context, ChunkSlices);
     Persist(context, Type);
     Persist(context, Tag);
-    Persist(context, Disabled);
     Persist(context, InputStreamIndex);
 }
 
