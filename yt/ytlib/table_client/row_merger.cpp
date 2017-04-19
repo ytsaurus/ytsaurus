@@ -351,7 +351,6 @@ TVersionedRowMerger::TVersionedRowMerger(
     TTimestamp majorTimestamp,
     TColumnEvaluatorPtr columnEvaluator)
     : RowBuffer_(std::move(rowBuffer))
-    , ColumnCount_(columnCount)
     , KeyColumnCount_(keyColumnCount)
     , Config_(std::move(config))
     , CurrentTimestamp_(currentTimestamp)
