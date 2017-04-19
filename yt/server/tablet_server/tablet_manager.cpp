@@ -628,7 +628,7 @@ public:
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
 
-        if (!table->IsSorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
+        if (!table->IsPhysicallySorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
             THROW_ERROR_EXCEPTION("Cannot mount an ordered dynamic table in memory");
         }
 
@@ -804,7 +804,7 @@ public:
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
 
-        if (!table->IsSorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
+        if (!table->IsPhysicallySorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
             THROW_ERROR_EXCEPTION("Cannot mount an ordered dynamic table in memory");
         }
 
