@@ -2539,7 +2539,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "intermediate_data_skew_alert_min_interquartile_range": 50,
                 "intermediate_data_skew_alert_min_partition_size": 50,
                 "short_jobs_alert_min_job_count": 3,
-                "short_jobs_alert_min_job_duration": 2000
+                "short_jobs_alert_min_job_duration": 5000
             },
             "iops_threshold": 50,
             "map_reduce_operation_options": {
@@ -2640,7 +2640,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         op = map(
-            command="sleep 1; cat",
+            command="sleep 100; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={
@@ -2648,16 +2648,18 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             },
             dont_track=True)
 
-        running_jobs_path = "//sys/scheduler/orchid/scheduler/operations/" + op.id + "/progress/jobs/running"
+        operation_orchid_path = "//sys/scheduler/orchid/scheduler/operations/" + op.id
+        running_jobs_count_path = operation_orchid_path + "/progress/jobs/running"
 
         def running_jobs_exists():
-            return exists(running_jobs_path) and get(running_jobs_path) >= 1
+            return exists(running_jobs_count_path) and get(running_jobs_count_path) >= 1
 
         wait(running_jobs_exists)
 
-        set_banned_flag(True)
+        for job in ls(operation_orchid_path + "/running_jobs"):
+            abort_job(job)
 
-        time.sleep(0.2)
+        time.sleep(1.5)
 
         assert "long_aborted_jobs" in get("//sys/operations/{0}/@alerts".format(op.id))
 
@@ -2688,7 +2690,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
     def test_short_jobs_alert(self):
         create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(7)])
+        write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(4)])
         create("table", "//tmp/t_out")
 
         op = map(
@@ -2702,7 +2704,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         assert "short_jobs_duration" in get("//sys/operations/{0}/@alerts".format(op.id))
 
         op = map(
-            command="sleep 2; cat",
+            command="sleep 4; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={
