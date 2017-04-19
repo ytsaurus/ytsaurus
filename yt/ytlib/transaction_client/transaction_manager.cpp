@@ -111,7 +111,7 @@ public:
     explicit TImpl(TIntrusivePtr<TTransactionManager::TImpl> owner)
         : Owner_(owner)
         , Logger(NLogging::TLogger(TransactionClientLogger)
-            .AddTag("CellTag: %v", Owner_->TimestampProvider_->GetCellTag()))
+            .AddTag("CellId: %v", Owner_->PrimaryCellId_))
     { }
 
     ~TImpl()
