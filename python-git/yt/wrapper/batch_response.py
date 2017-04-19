@@ -28,6 +28,15 @@ class BatchResponse(object):
     def add_output_transformation_function(self, function, include_error):
         self._output_transformation_functions.append((function, include_error))
 
+    def is_ok(self):
+        if not self._executed:
+            raise YtError("Batch has not been executed yet")
+        return self._error is None
+
+    def set_result(self, result):
+        self._output = result.get("output")
+        self._error = result.get("error")
+        self._executed = True
 
 def apply_function_to_result(function, result, include_error=False):
     if not isinstance(result, BatchResponse):

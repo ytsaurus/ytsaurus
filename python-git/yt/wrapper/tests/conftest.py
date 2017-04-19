@@ -181,6 +181,9 @@ class YtTestEnvironment(object):
         self.config["write_retries"]["backoff"]["constant_time"] = 500
         self.config["write_retries"]["backoff"]["policy"] = "constant_time"
 
+        self.config["batch_requests_retries"]["backoff"]["constant_time"] = 500
+        self.config["batch_requests_retries"]["backoff"]["policy"] = "constant_time"
+
         self.config["enable_token"] = False
         self.config["is_local_mode"] = False
         self.config["pickling"]["enable_tmpfs_archive"] = ENABLE_JOB_CONTROL

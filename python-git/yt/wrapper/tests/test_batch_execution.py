@@ -59,7 +59,7 @@ class TestBatchExecution(object):
 
         assert batch_node.get_result() == {"attr": 1}
         assert mkdir_response.get_result() is None
-        assert mkdir_response.get_error() is not None
+        assert not mkdir_response.is_ok()
         assert exists_result.get_result()
 
         client.set_attribute(TEST_DIR + "/batch_node2", "attr", 1)
@@ -74,7 +74,7 @@ class TestBatchExecution(object):
         client.commit_batch()
 
         assert node.get_result().attributes == {"attr": 1}
-        assert copy_result.get_error() is not None
+        assert not copy_result.is_ok()
         assert yt.exists(table)
         assert yt.exists(other_table)
 
@@ -204,3 +204,18 @@ class TestBatchExecution(object):
             client.mkdir(TEST_DIR + "/raise_error")
             client.mkdir(TEST_DIR + "/raise_error/dir/dir")
             client.commit_batch()
+
+    def test_retries(self):
+        yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = True
+        try:
+            client = create_batch_client()
+            client.mkdir(TEST_DIR + "/batch_retries", recursive=True)
+            client.commit_batch()
+            assert yt.exists(TEST_DIR + "/batch_retries")
+
+            client = create_batch_client()
+            client.remove(TEST_DIR + "/batch_retries")
+            client.commit_batch()
+            assert not yt.exists(TEST_DIR + "/batch_retries")
+        finally:
+            yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False

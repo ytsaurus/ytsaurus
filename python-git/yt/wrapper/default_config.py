@@ -423,7 +423,8 @@ default_config = {
         # Additional tmpfs size (in bytes) to reserve for user data.
         "additional_tmpfs_size": 0
     },
-    "max_batch_size": 100
+    "max_batch_size": 100,
+    "batch_requests_retries": retries_config(count=6, enable=True, backoff={"policy": "rounded_up_to_request_timeout"})
 }
 
 # pydoc :: default_config :: end
