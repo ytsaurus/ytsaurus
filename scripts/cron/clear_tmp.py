@@ -51,6 +51,9 @@ def main():
     if args.max_node_count is None and args.account is not None:
         args.max_node_count = yt.get("//sys/accounts/{0}/@resource_limits/node_count".format(args.account)) / 2
 
+    if not yt.exists(args.directory):
+        return
+
     # collect aux objects
     dirs = []
     links = set()
