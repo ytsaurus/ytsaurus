@@ -18,9 +18,6 @@ struct TExternalFunctionSpec
 {
     // nullptr if empty
     NYTree::INodePtr Descriptor;
-    Stroka FilePath;
-    NObjectClient::TObjectId ObjectId;
-    NObjectClient::TCellTag CellTag;
 
     std::vector<NChunkClient::NProto::TChunkSpec> Chunks;
     NNodeTrackerClient::NProto::TNodeDirectory NodeDirectory;
@@ -36,6 +33,7 @@ struct TExternalFunctionImpl
 
     TType RepeatedArgType = EValueType::Min;
     int RepeatedArgIndex = -1;
+    bool UseFunctionContext = false;
 };
 
 struct TExternalCGInfo
