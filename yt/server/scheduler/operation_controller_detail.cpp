@@ -1030,8 +1030,11 @@ TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
 {
     auto stripe = New<TChunkStripe>();
 
+    i64 currentTableRowIndex = 0;
     for (int index = 0; index < chunkSpecs->size(); ++index) {
         auto inputChunk = New<TInputChunk>(std::move(*chunkSpecs->Mutable(index)));
+        inputChunk->SetTableRowIndex(currentTableRowIndex);
+        currentTableRowIndex += inputChunk->GetRowCount();
         auto chunkSlice = CreateInputChunkSlice(std::move(inputChunk));
         auto dataSlice = CreateUnversionedInputDataSlice(std::move(chunkSlice));
         // NB(max42): This heavily relies on the property of intermediate data being deterministic
