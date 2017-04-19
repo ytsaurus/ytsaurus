@@ -12,6 +12,7 @@ namespace {
 
 DEFINE_ENUM(EFoldingObjectType,
     (ScanOp)
+    (SplitterOp)
     (JoinOp)
     (FilterOp)
     (GroupOp)
@@ -226,7 +227,19 @@ public:
         , AggregateProfilers_(aggregateProfilers)
     { }
 
-    TCodegenSource Profile(TConstQueryPtr query);
+    void Profile(
+        TCodegenSource* codegenSource,
+        TConstBaseQueryPtr query,
+        size_t* slotCount,
+        size_t finalSlot,
+        size_t intermediateSlot,
+        size_t totalsSlot,
+        TTableSchema schema,
+        bool isMerge);
+
+    void Profile(TCodegenSource* codegenSource, TConstQueryPtr query, size_t* slotCount);
+
+    void Profile(TCodegenSource* codegenSource, TConstFrontQueryPtr query, size_t* slotCount);
 
 protected:
     TCodegenExpression Profile(const TNamedItem& namedExpression, const TTableSchema& schema);
@@ -234,15 +247,269 @@ protected:
     TConstAggregateProfilerMapPtr AggregateProfilers_;
 };
 
-TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
+void TQueryProfiler::Profile(
+    TCodegenSource* codegenSource,
+    TConstBaseQueryPtr query,
+    size_t* slotCount,
+    size_t finalSlot,
+    size_t intermediateSlot,
+    size_t totalsSlot,
+    TTableSchema schema,
+    bool isMerge)
+{
+    size_t dummySlot = (*slotCount)++;
+
+    bool isFinal = query->IsFinal;
+    bool isIntermediate = isMerge && !isFinal;
+
+    bool useDisjointGroupBy = query->UseDisjointGroupBy;
+    if (auto groupClause = query->GroupClause.Get()) {
+        Fold(static_cast<int>(EFoldingObjectType::GroupOp));
+
+        std::vector<TCodegenExpression> codegenGroupExprs;
+        std::vector<TCodegenExpression> codegenAggregateExprs;
+        std::vector<TCodegenAggregate> codegenAggregates;
+
+        std::vector<EValueType> keyTypes;
+
+        for (const auto& groupItem : groupClause->GroupItems) {
+            if (isMerge) {
+                auto referenceExpr = New<TReferenceExpression>(
+                    groupItem.Expression->Type,
+                    groupItem.Name);
+                codegenGroupExprs.push_back(Profile(TNamedItem(std::move(referenceExpr), groupItem.Name), schema));
+            } else {
+                codegenGroupExprs.push_back(Profile(groupItem, schema));
+            }
+
+            keyTypes.push_back(groupItem.Expression->Type);
+        }
+
+        for (const auto& aggregateItem : groupClause->AggregateItems) {
+            Fold(static_cast<int>(EFoldingObjectType::AggregateItem));
+            Fold(aggregateItem.AggregateFunction.c_str());
+            Fold(aggregateItem.Name.c_str());
+
+            const auto& aggregate = AggregateProfilers_->GetAggregate(aggregateItem.AggregateFunction);
+
+            if (!isMerge) {
+                codegenAggregateExprs.push_back(TExpressionProfiler::Profile(aggregateItem.Expression, schema));
+            }
+
+            codegenAggregates.push_back(aggregate->Profile(
+                aggregateItem.Expression->Type,
+                aggregateItem.StateType,
+                aggregateItem.ResultType,
+                aggregateItem.Name,
+                Id_));
+        }
+
+        size_t keySize = keyTypes.size();
+
+        auto initialize = MakeCodegenAggregateInitialize(
+            codegenAggregates,
+            keySize);
+
+        auto aggregate = MakeCodegenEvaluateAggregateArgs(
+            keySize,
+            codegenAggregateExprs);
+
+        auto update = MakeCodegenAggregateUpdate(
+            codegenAggregates,
+            keySize,
+            isMerge);
+
+        auto finalize = MakeCodegenAggregateFinalize(
+            codegenAggregates,
+            keySize);
+
+        intermediateSlot = MakeCodegenGroupOp(
+            codegenSource,
+            slotCount,
+            intermediateSlot,
+            initialize,
+            MakeCodegenEvaluateGroups(codegenGroupExprs),
+            aggregate,
+            update,
+            keyTypes,
+            isMerge,
+            keySize + codegenAggregates.size(),
+            groupClause->TotalsMode != ETotalsMode::None);
+
+        schema = groupClause->GetTableSchema(query->IsFinal);
+
+        if (useDisjointGroupBy && !isMerge || isFinal) {
+            intermediateSlot = MakeCodegenFinalizeOp(
+                codegenSource,
+                slotCount,
+                intermediateSlot,
+                finalize);
+
+            if (groupClause->TotalsMode == ETotalsMode::BeforeHaving && !isIntermediate) {
+                size_t totalsSlotNew;
+                std::tie(totalsSlotNew, intermediateSlot) = MakeCodegenSplitOp(
+                    codegenSource,
+                    slotCount,
+                    intermediateSlot);
+
+                totalsSlot = MakeCodegenMergeOp(
+                    codegenSource,
+                    slotCount,
+                    totalsSlot,
+                    totalsSlotNew);
+            }
+
+            if (query->HavingClause) {
+                Fold(static_cast<int>(EFoldingObjectType::HavingOp));
+                intermediateSlot = MakeCodegenFilterOp(
+                    codegenSource,
+                    slotCount,
+                    intermediateSlot,
+                    TExpressionProfiler::Profile(query->HavingClause, schema));
+            }
+
+            if (groupClause->TotalsMode == ETotalsMode::AfterHaving && !isIntermediate) {
+                size_t totalsSlotNew;
+                std::tie(totalsSlotNew, intermediateSlot) = MakeCodegenSplitOp(
+                    codegenSource,
+                    slotCount,
+                    intermediateSlot);
+
+                totalsSlot = MakeCodegenMergeOp(
+                    codegenSource,
+                    slotCount,
+                    totalsSlot,
+                    totalsSlotNew);
+            }
+
+            finalSlot = MakeCodegenMergeOp(
+                    codegenSource,
+                    slotCount,
+                    intermediateSlot,
+                    finalSlot);
+            intermediateSlot = dummySlot;
+        }
+
+        if (groupClause->TotalsMode != ETotalsMode::None) {
+            totalsSlot = MakeCodegenGroupOp(
+                codegenSource,
+                slotCount,
+                totalsSlot,
+                initialize,
+                MakeCodegenEvaluateGroups( // Codegen nulls here
+                    std::vector<TCodegenExpression>(),
+                    keyTypes),
+                aggregate,
+                update,
+                keyTypes,
+                true,
+                keySize + codegenAggregates.size(),
+                false);
+
+            if (isFinal) {
+                totalsSlot = MakeCodegenFinalizeOp(
+                    codegenSource,
+                    slotCount,
+                    totalsSlot,
+                    finalize);
+
+                if (groupClause->TotalsMode == ETotalsMode::BeforeHaving && query->HavingClause) {
+                    Fold(static_cast<int>(EFoldingObjectType::HavingOp));
+                    totalsSlot = MakeCodegenFilterOp(
+                        codegenSource,
+                        slotCount,
+                        totalsSlot,
+                        TExpressionProfiler::Profile(query->HavingClause, schema));
+                }
+            }
+        }
+    } else {
+        finalSlot = MakeCodegenMergeOp(
+            codegenSource,
+            slotCount,
+            intermediateSlot,
+            finalSlot);
+        intermediateSlot = dummySlot;
+    }
+
+    if (auto orderClause = query->OrderClause.Get()) {
+        Fold(static_cast<int>(EFoldingObjectType::OrderOp));
+
+        std::vector<TCodegenExpression> codegenOrderExprs;
+        std::vector<bool> isDesc;
+        std::vector<EValueType> orderColumnTypes;
+
+        for (const auto& item : orderClause->OrderItems) {
+            codegenOrderExprs.push_back(TExpressionProfiler::Profile(item.first, schema));
+            Fold(item.second);
+            isDesc.push_back(item.second);
+            orderColumnTypes.push_back(item.first->Type);
+        }
+
+        finalSlot = MakeCodegenOrderOp(
+            codegenSource,
+            slotCount,
+            finalSlot,
+            std::move(codegenOrderExprs),
+            std::move(orderColumnTypes),
+            GetTypesFromSchema(schema),
+            std::move(isDesc));
+    }
+
+    if (auto projectClause = query->ProjectClause.Get()) {
+        Fold(static_cast<int>(EFoldingObjectType::ProjectOp));
+
+        std::vector<TCodegenExpression> codegenProjectExprs;
+
+        for (const auto& item : projectClause->Projections) {
+            codegenProjectExprs.push_back(Profile(item, schema));
+        }
+
+        finalSlot = MakeCodegenProjectOp(codegenSource, slotCount, finalSlot, codegenProjectExprs);
+        totalsSlot = MakeCodegenProjectOp(codegenSource, slotCount, totalsSlot, codegenProjectExprs);
+
+        schema = projectClause->GetTableSchema();
+    }
+
+    if (!isFinal) {
+        finalSlot = MakeCodegenAddStreamOp(
+                codegenSource,
+                slotCount,
+                finalSlot,
+                GetTypesFromSchema(schema),
+                EStreamTag::Final);
+
+        totalsSlot = MakeCodegenAddStreamOp(
+                codegenSource,
+                slotCount,
+                totalsSlot,
+                GetTypesFromSchema(schema),
+                EStreamTag::Totals);
+
+        intermediateSlot = MakeCodegenAddStreamOp(
+                codegenSource,
+                slotCount,
+                intermediateSlot,
+                GetTypesFromSchema(schema),
+                EStreamTag::Intermediate);
+    }
+
+    size_t resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, finalSlot, totalsSlot);
+    resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, resultSlot, intermediateSlot);
+
+    MakeCodegenWriteOp(codegenSource, resultSlot);
+}
+
+void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query, size_t* slotCount)
 {
     Fold(static_cast<int>(EFoldingObjectType::ScanOp));
-    TCodegenSource codegenSource = &CodegenScanOp;
 
     auto schema = query->GetRenamedSchema();
-    auto whereClause = query->WhereClause;
-
     TSchemaProfiler::Profile(schema);
+
+    size_t currentSlot = MakeCodegenScanOp(codegenSource, slotCount);
+
+    auto whereClause = query->WhereClause;
 
     for (const auto& joinClause : query->JoinClauses) {
         Fold(static_cast<int>(EFoldingObjectType::JoinOp));
@@ -262,9 +529,11 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
         std::tie(selfFilter, whereClause) = SplitPredicateByColumnSubset(whereClause, schema);
 
         if (selfFilter) {
-            codegenSource = MakeCodegenFilterOp(
-                TExpressionProfiler::Profile(selfFilter, schema),
-                std::move(codegenSource));
+            currentSlot = MakeCodegenFilterOp(
+                codegenSource,
+                slotCount,
+                currentSlot,
+                TExpressionProfiler::Profile(selfFilter, schema));
         }
 
         size_t joinBatchSize = std::numeric_limits<size_t>::max();
@@ -293,11 +562,13 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
 
         Fold(joinClause->CommonKeyPrefix);
 
-        codegenSource = MakeCodegenJoinOp(
+        currentSlot = MakeCodegenJoinOp(
+            codegenSource,
+            slotCount,
+            currentSlot,
             index,
             selfKeys,
-            joinClause->CommonKeyPrefix,
-            std::move(codegenSource));
+            joinClause->CommonKeyPrefix);
 
         schema = joinClause->GetTableSchema(schema);
         TSchemaProfiler::Profile(schema);
@@ -305,151 +576,39 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
 
     if (whereClause) {
         Fold(static_cast<int>(EFoldingObjectType::FilterOp));
-        codegenSource = MakeCodegenFilterOp(
-            TExpressionProfiler::Profile(whereClause, schema),
-            std::move(codegenSource));
+        currentSlot = MakeCodegenFilterOp(
+            codegenSource,
+            slotCount,
+            currentSlot,
+            TExpressionProfiler::Profile(whereClause, schema));
     }
 
-    if (auto groupClause = query->GroupClause.Get()) {
-        Fold(static_cast<int>(EFoldingObjectType::GroupOp));
+    size_t dummySlot = (*slotCount)++;
+    Profile(codegenSource, query, slotCount, dummySlot, currentSlot, dummySlot, schema, false);
+}
 
-        std::vector<TCodegenExpression> codegenGroupExprs;
-        std::vector<TCodegenExpression> codegenAggregateExprs;
-        std::vector<TCodegenAggregate> codegenAggregates;
+void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstFrontQueryPtr query, size_t* slotCount)
+{
+    Fold(static_cast<int>(EFoldingObjectType::ScanOp));
 
-        std::vector<EValueType> keyTypes;
+    auto schema = query->GetRenamedSchema();
+    TSchemaProfiler::Profile(schema);
 
-        for (const auto& groupItem : groupClause->GroupItems) {
-            codegenGroupExprs.push_back(Profile(groupItem, schema));
-            keyTypes.push_back(groupItem.Expression->Type);
-        }
+    size_t currentSlot = MakeCodegenScanOp(codegenSource, slotCount);
 
-        for (const auto& aggregateItem : groupClause->AggregateItems) {
-            Fold(static_cast<int>(EFoldingObjectType::AggregateItem));
-            Fold(aggregateItem.AggregateFunction.c_str());
-            Fold(aggregateItem.Name.c_str());
+    size_t finalSlot;
+    size_t intermediateSlot;
+    size_t totalsSlot;
 
-            const auto& aggregate = AggregateProfilers_->GetAggregate(aggregateItem.AggregateFunction);
+    Fold(static_cast<int>(EFoldingObjectType::SplitterOp));
 
-            codegenAggregateExprs.push_back(TExpressionProfiler::Profile(aggregateItem.Expression, schema));
-            codegenAggregates.push_back(aggregate->Profile(
-                aggregateItem.Expression->Type,
-                aggregateItem.StateType,
-                aggregateItem.ResultType,
-                aggregateItem.Name,
-                Id_));
-        }
+    std::tie(finalSlot, intermediateSlot, totalsSlot) = MakeCodegenSplitterOp(
+        codegenSource,
+        slotCount,
+        currentSlot,
+        schema.Columns().size());
 
-        size_t keySize = keyTypes.size();
-
-        auto initialize = MakeCodegenAggregateInitialize(
-            codegenAggregates,
-            keySize);
-
-        auto aggregate = MakeCodegenEvaluateAggregateArgs(
-            keySize,
-            codegenAggregateExprs);
-
-        auto update = MakeCodegenAggregateUpdate(
-            codegenAggregates,
-            keySize,
-            groupClause->IsMerge);
-
-        auto finalize = MakeCodegenAggregateFinalize(
-            codegenAggregates,
-            keySize,
-            groupClause->IsFinal);
-
-        codegenSource = MakeCodegenGroupOp(
-            initialize,
-            MakeCodegenEvaluateGroups(codegenGroupExprs),
-            aggregate,
-            update,
-            finalize,
-            std::move(codegenSource),
-            keyTypes,
-            groupClause->IsMerge,
-            keySize + codegenAggregates.size(),
-            false,
-            groupClause->TotalsMode != ETotalsMode::None);
-
-        schema = groupClause->GetTableSchema();
-
-        if (groupClause->TotalsMode == ETotalsMode::BeforeHaving) {
-            codegenSource = MakeCodegenGroupOp(
-                initialize,
-                MakeCodegenEvaluateGroups( // Codegen nulls here
-                    std::vector<TCodegenExpression>(),
-                    keyTypes),
-                aggregate,
-                update,
-                finalize,
-                std::move(codegenSource),
-                keyTypes,
-                groupClause->IsMerge,
-                keySize + codegenAggregates.size(),
-                true,
-                false);
-        }
-
-        if (query->HavingClause) {
-            Fold(static_cast<int>(EFoldingObjectType::HavingOp));
-            codegenSource = MakeCodegenFilterOp(
-                TExpressionProfiler::Profile(query->HavingClause, schema),
-                std::move(codegenSource));
-        }
-
-        if (groupClause->TotalsMode == ETotalsMode::AfterHaving) {
-            codegenSource = MakeCodegenGroupOp(
-                initialize,
-                MakeCodegenEvaluateGroups( // Codegen nulls here
-                    std::vector<TCodegenExpression>(),
-                    keyTypes),
-                aggregate,
-                update,
-                finalize,
-                std::move(codegenSource),
-                keyTypes,
-                groupClause->IsMerge,
-                keySize + codegenAggregates.size(),
-                true,
-                false);
-        }
-    }
-
-    if (auto orderClause = query->OrderClause.Get()) {
-        Fold(static_cast<int>(EFoldingObjectType::OrderOp));
-
-        std::vector<TCodegenExpression> codegenOrderExprs;
-        std::vector<bool> isDesc;
-
-        for (const auto& item : orderClause->OrderItems) {
-            codegenOrderExprs.push_back(TExpressionProfiler::Profile(item.first, schema));
-            Fold(item.second);
-            isDesc.push_back(item.second);
-        }
-
-        codegenSource = MakeCodegenOrderOp(
-            codegenOrderExprs,
-            GetTypesFromSchema(schema),
-            std::move(codegenSource),
-            isDesc);
-    }
-
-    if (auto projectClause = query->ProjectClause.Get()) {
-        Fold(static_cast<int>(EFoldingObjectType::ProjectOp));
-
-        std::vector<TCodegenExpression> codegenProjectExprs;
-
-        for (const auto& item : projectClause->Projections) {
-            codegenProjectExprs.push_back(Profile(item, schema));
-        }
-
-        codegenSource = MakeCodegenProjectOp(std::move(codegenProjectExprs), std::move(codegenSource));
-        schema = projectClause->GetTableSchema();
-    }
-
-    return codegenSource;
+    Profile(codegenSource, query, slotCount, finalSlot, intermediateSlot, totalsSlot, schema, true);
 }
 
 TCodegenExpression TQueryProfiler::Profile(const TNamedItem& namedExpression, const TTableSchema& schema)
@@ -492,7 +651,7 @@ TCGExpressionCallbackGenerator Profile(
 }
 
 TCGQueryCallbackGenerator Profile(
-    TConstQueryPtr query,
+    TConstBaseQueryPtr query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     const TConstFunctionProfilerMapPtr& functionProfilers,
@@ -500,13 +659,23 @@ TCGQueryCallbackGenerator Profile(
 {
     TQueryProfiler profiler(id, variables, functionProfilers, aggregateProfilers);
 
-    auto codegenSource = profiler.Profile(query);
+    size_t slotCount = 0;
+    TCodegenSource codegenSource = &CodegenEmptyOp;
+
+    if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
+        profiler.Profile(&codegenSource, derivedQuery, &slotCount);
+    } else if (auto derivedQuery = dynamic_cast<const TFrontQuery*>(query.Get())) {
+        profiler.Profile(&codegenSource, derivedQuery, &slotCount);
+    } else {
+        Y_UNREACHABLE();
+    }
 
     return [
             MOVE(codegenSource),
+            slotCount,
             opaqueValuesCount = variables->GetOpaqueCount()
         ] () {
-            return CodegenEvaluate(std::move(codegenSource), opaqueValuesCount);
+            return CodegenEvaluate(&codegenSource, slotCount, opaqueValuesCount);
         };
 }
 

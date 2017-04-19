@@ -21,11 +21,13 @@ TCommit::TCommit(
     const TTransactionId& transationId,
     const TMutationId& mutationId,
     const std::vector<TCellId>& participantCellIds,
-    bool distributed)
+    bool distributed,
+    bool inheritCommitTimstamp)
     : TransactionId_(transationId)
     , MutationId_(mutationId)
     , ParticipantCellIds_(participantCellIds)
     , Distributed_(distributed)
+    , InheritCommitTimestamp_(inheritCommitTimstamp)
     , Persistent_(false)
     , TransientState_(ECommitState::Start)
     , PersistentState_(ECommitState::Start)
@@ -50,6 +52,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, MutationId_);
     Save(context, ParticipantCellIds_);
     Save(context, Distributed_);
+    Save(context, InheritCommitTimestamp_);
     Save(context, CommitTimestamps_);
     Save(context, PersistentState_);
 }
@@ -58,14 +61,12 @@ void TCommit::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    // COMPAT(babenko)
-    YCHECK(context.GetVersion() >= 3);
-
     Persistent_ = true;
     Load(context, TransactionId_);
     Load(context, MutationId_);
     Load(context, ParticipantCellIds_);
     Load(context, Distributed_);
+    Load(context, InheritCommitTimestamp_);
     Load(context, CommitTimestamps_);
     Load(context, PersistentState_);
 }

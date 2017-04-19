@@ -57,7 +57,7 @@ public:
     { }
 
     TQueryStatistics Run(
-        TConstQueryPtr query,
+        TConstBaseQueryPtr query,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
         const TExecuteQueryCallback& executeCallback,
@@ -109,8 +109,10 @@ public:
                 // Used in joins
                 executionContext.ExecuteCallback = executeCallback;
 
-                if (!query->JoinClauses.empty()) {
-                    YCHECK(executeCallback);
+                if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
+                    if(!derivedQuery->JoinClauses.empty()) {
+                        YCHECK(executeCallback);
+                    }
                 }
 
                 LOG_DEBUG("Evaluating query");
@@ -147,7 +149,7 @@ public:
 
 private:
     TCGQueryCallback Codegen(
-        TConstQueryPtr query,
+        TConstBaseQueryPtr query,
         TCGVariables& variables,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
@@ -218,7 +220,7 @@ TEvaluator::TEvaluator(TExecutorConfigPtr config)
 TEvaluator::~TEvaluator() = default;
 
 TQueryStatistics TEvaluator::RunWithExecutor(
-    TConstQueryPtr query,
+    TConstBaseQueryPtr query,
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer,
     TExecuteQueryCallback executeCallback,
@@ -237,7 +239,7 @@ TQueryStatistics TEvaluator::RunWithExecutor(
 }
 
 TQueryStatistics TEvaluator::Run(
-    TConstQueryPtr query,
+    TConstBaseQueryPtr query,
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer,
     TConstFunctionProfilerMapPtr functionProfilers,

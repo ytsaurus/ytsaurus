@@ -323,7 +323,7 @@ struct TValueFormatter<TEnumIndexedVector<T, E>>
             if (!firstItem) {
                 builder->AppendString(DefaultJoinToStringDelimiter);
             }
-            FormatValue(builder, FormatEnum(index), format);
+            FormatValue(builder, index, format);
             builder->AppendString(": ");
             FormatValue(builder, collection[index], format);
             firstItem = false;

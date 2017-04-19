@@ -1,6 +1,9 @@
 #pragma once
 
 #include "public.h"
+
+#include "private.h"
+
 #include "event_log.h"
 #include "job.h"
 #include "scheduling_context.h"
@@ -108,7 +111,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
+    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
 
     //! Called by a controller to notify the host that the operation has
     //! finished successfully.
@@ -161,6 +164,8 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual IJobHostPtr GetJobHost(const TJobId& jobId) const = 0;
+
+    virtual void SendJobMetricsToStrategy(const TOperationId& operationdId, const TJobMetrics& jobMetrics) = 0;
 };
 
 /*!
@@ -375,6 +380,12 @@ struct IOperationController
 
     //! Called to get a cached YSON string representing the current brief progress.
     virtual NYson::TYsonString GetBriefProgress() const = 0;
+
+    //! Returns |true| when controller can build job splitter info.
+    virtual bool HasJobSplitterInfo() const = 0;
+
+    //! Called to construct a YSON representing job splitter state.
+    virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

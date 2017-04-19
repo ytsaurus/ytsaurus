@@ -437,6 +437,11 @@ private:
                 transactionId,
                 EObjectType::TabletMap);
 
+            ScheduleCreateNode(
+                "//sys/tablet_actions",
+                transactionId,
+                EObjectType::TabletActionMap);
+
             FlushScheduled();
 
             // Level 3

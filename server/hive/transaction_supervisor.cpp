@@ -22,6 +22,8 @@
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/action.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/ytlib/api/connection.h>
 
 #include <yt/core/concurrency/scheduler.h>
@@ -136,6 +138,7 @@ public:
                 transactionId,
                 participantCellIds,
                 false,
+                false,
                 NullMutationId));
     }
 
@@ -175,10 +178,12 @@ private:
         TWrappedParticipant(
             const TCellId& cellId,
             TTransactionSupervisorConfigPtr config,
+            ITimestampProviderPtr coordinatorTimestampProvider,
             const std::vector<ITransactionParticipantProviderPtr>& providers,
             const NLogging::TLogger logger)
             : CellId_(cellId)
             , Config_(std::move(config))
+            , CoordinatorTimestampProvider_(std::move(coordinatorTimestampProvider))
             , Providers_(providers)
             , ProbationExecutor_(New<TPeriodicExecutor>(
                 NRpc::TDispatcher::Get()->GetLightInvoker(),
@@ -218,9 +223,17 @@ private:
         {
             return EnqueueRequest(
                 false,
-                [transactionId = commit->GetTransactionId()]
+                [
+                    transactionId = commit->GetTransactionId(),
+                    inheritCommitTimestamp = commit->GetInheritCommitTimestamp(),
+                    coordinatorTimestampProvider = CoordinatorTimestampProvider_
+                ]
                 (const ITransactionParticipantPtr& participant) {
-                    return participant->PrepareTransaction(transactionId);
+                    const auto& timestampProvider = inheritCommitTimestamp
+                        ? coordinatorTimestampProvider
+                        : participant->GetTimestampProvider();
+                    auto prepareTimestamp = timestampProvider->GetLatestTimestamp();
+                    return participant->PrepareTransaction(transactionId, prepareTimestamp);
                 });
         }
 
@@ -230,7 +243,7 @@ private:
                 true,
                 [transactionId = commit->GetTransactionId(), commitTimestamps = commit->CommitTimestamps()]
                 (const ITransactionParticipantPtr& participant) {
-                    auto cellTag = participant->GetTimestampProvider()->GetCellTag();
+                    auto cellTag = CellTagFromId(participant->GetCellId());
                     auto commitTimestamp = commitTimestamps.GetTimestamp(cellTag);
                     return participant->CommitTransaction(transactionId, commitTimestamp);
                 });
@@ -283,6 +296,7 @@ private:
     private:
         const TCellId CellId_;
         const TTransactionSupervisorConfigPtr Config_;
+        const ITimestampProviderPtr CoordinatorTimestampProvider_;
         const std::vector<ITransactionParticipantProviderPtr> Providers_;
         const TPeriodicExecutorPtr ProbationExecutor_;
         const NLogging::TLogger Logger;
@@ -450,11 +464,14 @@ private:
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
             auto force2PC = request->force_2pc();
+            auto inheritCommitTimestamp = request->inherit_commit_timestamp();
 
-            context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, Force2PC: %v",
+            context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, Force2PC: %v, "
+                "InheritCommitTimestamp: %v",
                 transactionId,
                 participantCellIds,
-                force2PC);
+                force2PC,
+                inheritCommitTimestamp);
 
             auto owner = GetOwnerOrThrow();
 
@@ -466,6 +483,7 @@ private:
                 transactionId,
                 participantCellIds,
                 force2PC,
+                inheritCommitTimestamp,
                 context->GetMutationId());
             context->ReplyFrom(asyncResponseMessage);
         }
@@ -535,14 +553,16 @@ private:
             ValidatePeer(EPeerKind::Leader);
 
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+            auto prepareTimestamp = request->prepare_timestamp();
 
-            context->SetRequestInfo("TransactionId: %v",
-                transactionId);
+            context->SetRequestInfo("TransactionId: %v, PrepareTimestamp: %v",
+                transactionId,
+                prepareTimestamp);
 
             auto owner = GetOwnerOrThrow();
             NHiveServer::NProto::TReqParticipantPrepareTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
-            hydraRequest.set_prepare_timestamp(owner->TimestampProvider_->GetLatestTimestamp());
+            hydraRequest.set_prepare_timestamp(prepareTimestamp);
 
             CreateMutation(owner->HydraManager_, hydraRequest)
                 ->CommitAndReply(context);
@@ -595,6 +615,7 @@ private:
         const TTransactionId& transactionId,
         const std::vector<TCellId>& participantCellIds,
         bool force2PC,
+        bool inheritCommitTimestamp,
         const TMutationId& mutationId)
     {
         YCHECK(!HasMutationContext());
@@ -609,7 +630,8 @@ private:
             transactionId,
             mutationId,
             participantCellIds,
-            force2PC || !participantCellIds.empty());
+            force2PC || !participantCellIds.empty(),
+            inheritCommitTimestamp);
 
         // Commit instance may die below.
         auto asyncResponseMessage = commit->GetAsyncResponseMessage();
@@ -650,13 +672,11 @@ private:
     {
         YCHECK(!commit->GetPersistent());
 
-        auto prepareTimestamp = TimestampProvider_->GetLatestTimestamp();
-
         NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseOne request;
         ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
         ToProto(request.mutable_mutation_id(), commit->GetMutationId());
         ToProto(request.mutable_participant_cell_ids(), commit->ParticipantCellIds());
-        request.set_coordinator_prepare_timestamp(prepareTimestamp);
+        request.set_inherit_commit_timestamp(commit->GetInheritCommitTimestamp());
         CreateMutation(HydraManager_, request)
             ->CommitAndLog(Logger);
     }
@@ -736,7 +756,7 @@ private:
 
         try {
             // Any exception thrown here is caught below.
-            auto commitTimestamp = commitTimestamps.GetTimestamp(TimestampProvider_->GetCellTag());
+            auto commitTimestamp = commitTimestamps.GetTimestamp(CellTagFromId(SelfCellId_));
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
             if (commit) {
@@ -755,6 +775,7 @@ private:
                 transactionId,
                 mutationId,
                 std::vector<TCellId>(),
+                false,
                 false);
             commit->CommitTimestamps() = commitTimestamps;
         }
@@ -768,14 +789,15 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
-        auto prepareTimestamp = request->coordinator_prepare_timestamp();
+        auto inheritCommitTimestamp = request->inherit_commit_timestamp();
 
         // Ensure commit existence (possibly moving it from transient to persistent).
         auto* commit = GetOrCreatePersistentCommit(
             transactionId,
             mutationId,
             participantCellIds,
-            true);
+            true,
+            inheritCommitTimestamp);
 
         if (commit && commit->GetPersistentState() != ECommitState::Start) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Requested to commit distributed transaction in wrong state; ignored (TransactionId: %v, State: %v)",
@@ -792,6 +814,7 @@ private:
         // Prepare at coordinator.
         try {
             // Any exception thrown here is caught below.
+            auto prepareTimestamp = TimestampProvider_->GetLatestTimestamp();
             TransactionManager_->PrepareTransactionCommit(transactionId, true, prepareTimestamp);
         } catch (const std::exception& ex) {
             LOG_DEBUG_UNLESS(IsRecovery(), ex, "Coordinator failure; will abort (TransactionId: %v, State: %v)",
@@ -840,7 +863,7 @@ private:
 
         if (commit->GetPersistentState() != ECommitState::Prepare) {
             LOG_ERROR_UNLESS(IsRecovery(),
-                "Requested to excute phase two commit for transaction in wrong state; ignored (TransactionId: %v, State: %v)",
+                "Requested to execute phase two commit for transaction in wrong state; ignored (TransactionId: %v, State: %v)",
                 transactionId,
                 commit->GetPersistentState());
             return;
@@ -854,7 +877,7 @@ private:
 
         try {
             // Any exception thrown here is caught below.
-            auto commitTimestamp = commitTimestamps.GetTimestamp(TimestampProvider_->GetCellTag());
+            auto commitTimestamp = commitTimestamps.GetTimestamp(CellTagFromId(SelfCellId_));
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
             LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: coordinator failure; ignored (TransactionId: %v, State: %v)",
@@ -1050,13 +1073,15 @@ private:
         const TTransactionId& transactionId,
         const TMutationId& mutationId,
         const std::vector<TCellId>& participantCellIds,
-        bool distributed)
+        bool distributed,
+        bool inheritCommitTimestamp)
     {
         auto commitHolder = std::make_unique<TCommit>(
             transactionId,
             mutationId,
             participantCellIds,
-            distributed);
+            distributed,
+            inheritCommitTimestamp);
         return TransientCommitMap_.Insert(transactionId, std::move(commitHolder));
     }
 
@@ -1064,7 +1089,8 @@ private:
         const TTransactionId& transactionId,
         const TMutationId& mutationId,
         const std::vector<TCellId>& participantCellIds,
-        bool distributed)
+        bool distributed,
+        bool inheritCommitTimstamp)
     {
         auto* commit = FindCommit(transactionId);
         std::unique_ptr<TCommit> commitHolder;
@@ -1076,7 +1102,8 @@ private:
                 transactionId,
                 mutationId,
                 participantCellIds,
-                distributed);
+                distributed,
+                inheritCommitTimstamp);
         }
         commitHolder->SetPersistent(true);
         return PersistentCommitMap_.Insert(transactionId, std::move(commitHolder));
@@ -1187,12 +1214,13 @@ private:
 
         auto generateAtCell = [&] (const TCellId& cellId) {
             try {
-                auto participant = GetParticipant(cellId);
-                auto timestampProvider = participant->GetTimestampProviderOrThrow();
-                auto cellTag = timestampProvider->GetCellTag();
+                auto cellTag = CellTagFromId(cellId);
                 if (!timestampProviderCellTags.insert(cellTag).second) {
                     return;
                 }
+
+                auto participant = GetParticipant(cellId);
+                auto timestampProvider = participant->GetTimestampProviderOrThrow();
 
                 LOG_DEBUG("Generating commit timestamp (TransactionId: %v, TimestampProviderCellTag: %v)",
                     transactionId,
@@ -1277,6 +1305,7 @@ private:
         auto wrappedParticipant = New<TWrappedParticipant>(
             cellId,
             Config_,
+            TimestampProvider_,
             ParticipantProviders_,
             Logger);
 

@@ -167,6 +167,10 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TPreloadedBlockCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkStoreBase
     : public virtual TStoreBase
     , public virtual IChunkStore
@@ -185,6 +189,8 @@ public:
     virtual void Initialize(const NTabletNode::NProto::TAddStoreDescriptor* descriptor);
 
     const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
+
+    TInstant GetCreationTime() const;
 
     // IStore implementation.
     virtual TTimestamp GetMinTimestamp() const override;
@@ -226,12 +232,19 @@ public:
 
     virtual NChunkClient::IChunkReaderPtr GetChunkReader() override;
 
+    virtual EInMemoryMode GetInMemoryMode() const override;
+    virtual void SetInMemoryMode(EInMemoryMode mode) override;
+
+    virtual void Preload(TInMemoryChunkDataPtr chunkData) override;
+
 protected:
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NDataNode::TChunkRegistryPtr ChunkRegistry_;
     const NDataNode::TChunkBlockManagerPtr ChunkBlockManager_;
     const NApi::INativeClientPtr Client_;
     const NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
+
+    EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
 
     EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;
     TInstant LastPreloadAttemptTimestamp_;
@@ -248,6 +261,10 @@ protected:
     NChunkClient::NProto::TMiscExt MiscExt_;
     NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
 
+    TPreloadedBlockCachePtr PreloadedBlockCache_;
+
+    NTableClient::TCacheBasedChunkStatePtr ChunkState_;
+
 
     NDataNode::IChunkPtr PrepareChunk();
     NChunkClient::IChunkReaderPtr PrepareChunkReader(NDataNode::IChunkPtr chunk);
@@ -256,9 +273,13 @@ protected:
     void OnChunkExpired();
     void OnChunkReaderExpired();
 
-    virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
+    NChunkClient::IBlockCachePtr GetBlockCache();
 
     virtual void PrecacheProperties();
+
+    bool ValidateBlockCachePreloaded();
+
+    virtual NTableClient::TKeyComparer GetKeyComparer() = 0;
 
 private:
     IDynamicStorePtr BackingStore_;
@@ -266,6 +287,7 @@ private:
     bool ChunkInitialized_ = false;
     NDataNode::IChunkPtr Chunk_;
 
+    friend TPreloadedBlockCache;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,7 +38,6 @@ TPartitionChunkReader::TPartitionChunkReader(
     TNameTablePtr nameTable,
     IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
-    const TChunkMeta& masterMeta,
     int partitionTag)
     : TChunkReaderBase(
         config,
@@ -46,7 +45,6 @@ TPartitionChunkReader::TPartitionChunkReader(
         blockCache)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
-    , ChunkMeta_(masterMeta)
     , PartitionTag_(partitionTag)
 {
     ReadyEvent_ = BIND(&TPartitionChunkReader::InitializeBlockSequence, MakeStrong(this))
@@ -56,8 +54,6 @@ TPartitionChunkReader::TPartitionChunkReader(
 
 TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 {
-    YCHECK(ChunkMeta_.version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
-
     std::vector<int> extensionTags = {
         TProtoExtensionTag<TMiscExt>::Value,
         TProtoExtensionTag<NProto::TBlockMetaExt>::Value,
@@ -67,6 +63,8 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 
     ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(Config_->WorkloadDescriptor, PartitionTag_, extensionTags))
         .ValueOrThrow();
+
+    YCHECK(ChunkMeta_.version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
 
     TNameTablePtr chunkNameTable;
     auto nameTableExt = GetProtoExtension<NProto::TNameTableExt>(ChunkMeta_.extensions());
@@ -183,7 +181,6 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         nameTable,
                         blockCache,
                         keyColumns,
-                        chunkSpec.chunk_meta(),
                         partitionTag);
                 };
 

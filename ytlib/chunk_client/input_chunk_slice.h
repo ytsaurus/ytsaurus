@@ -106,6 +106,7 @@ public:
 
     //! Tries to split chunk slice into parts of almost equal size, about #sliceDataSize.
     std::vector<TInputChunkSlicePtr> SliceEvenly(i64 sliceDataSize, i64 sliceRowCount) const;
+    std::pair<TInputChunkSlicePtr, TInputChunkSlicePtr>  SplitByRowIndex(i64 splitRow) const;
 
     i64 GetLocality(int replicaIndex) const;
 

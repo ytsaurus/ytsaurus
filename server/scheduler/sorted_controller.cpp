@@ -290,9 +290,6 @@ protected:
         return chunkStripe;
     }
 
-    virtual void ReinstallUnreadInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices) override
-    { }
-
     void ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
@@ -347,11 +344,11 @@ protected:
                 "UnavailableInputChunks: %v",
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
-            JobCounter.GetCompleted(),
+            JobCounter.GetCompletedTotal(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),
-            JobCounter.GetInterrupted(),
+            JobCounter.GetInterruptedTotal(),
             UnavailableInputChunkCount);
     }
 
@@ -390,12 +387,7 @@ protected:
         }
     }
 
-    virtual bool ShouldSlicePrimaryTableByKeys()
-    {
-        return true;
-    }
-
-    virtual bool IsJobInterruptible() const override
+    virtual bool ShouldSlicePrimaryTableByKeys() const
     {
         return true;
     }
@@ -487,7 +479,7 @@ public:
         RegisterJobProxyMemoryDigest(EJobType::SortedMerge, spec->JobProxyMemoryDigest);
     }
 
-    virtual bool ShouldSlicePrimaryTableByKeys() override
+    virtual bool ShouldSlicePrimaryTableByKeys() const override
     {
         return true;
     }
@@ -665,6 +657,7 @@ public:
         TOperation* operation)
         : TSortedControllerBase(config, spec, options, host, operation)
         , Spec_(spec)
+        , Options_(options)
     { }
 
     virtual bool IsRowCountPreserved() const override
@@ -790,6 +783,18 @@ public:
             .EndMap();
     }
 
+    virtual bool IsJobInterruptible() const override
+    {
+        return true;
+    }
+
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+    {
+        return IsJobInterruptible() && Config->EnableJobSplitting && Spec_->EnableJobSplitting
+            ? Options_->JobSplitter
+            : nullptr;
+    }
+
     virtual bool IsInputDataSizeHistogramSupported() const override
     {
         return true;
@@ -820,6 +825,7 @@ protected:
 
 private:
     TReduceOperationSpecBasePtr Spec_;
+    TReduceOperationOptionsPtr Options_;
 
     i64 StartRowIndex_ = 0;
 
@@ -843,7 +849,7 @@ public:
         RegisterUserJobMemoryDigest(EJobType::SortedReduce, spec->Reducer->MemoryReserveFactor);
     }
 
-    virtual bool ShouldSlicePrimaryTableByKeys() override
+    virtual bool ShouldSlicePrimaryTableByKeys() const override
     {
         return true;
     }
@@ -966,7 +972,7 @@ public:
         RegisterUserJobMemoryDigest(EJobType::JoinReduce, spec->Reducer->MemoryReserveFactor);
     }
 
-    virtual bool ShouldSlicePrimaryTableByKeys() override
+    virtual bool ShouldSlicePrimaryTableByKeys() const override
     {
         return false;
     }

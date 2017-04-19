@@ -39,7 +39,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, ParticipantCellIds);
     DEFINE_BYVAL_RO_PROPERTY(bool, Distributed);
-
+    DEFINE_BYVAL_RO_PROPERTY(bool, InheritCommitTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(bool, Persistent);
     DEFINE_BYREF_RW_PROPERTY(NHiveClient::TTimestampMap, CommitTimestamps);
     DEFINE_BYVAL_RW_PROPERTY(ECommitState, TransientState);
@@ -52,7 +52,8 @@ public:
         const TTransactionId& transactionId,
         const NRpc::TMutationId& mutationId,
         const std::vector<TCellId>& participantCellIds,
-        bool distributed);
+        bool distributed,
+        bool inheritCommitTimestamp);
 
     TFuture<TSharedRefArray> GetAsyncResponseMessage();
     void SetResponseMessage(TSharedRefArray message);

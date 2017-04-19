@@ -21,6 +21,17 @@ static const i64 BandPriorityFactor = (i64) 1 << 48;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TWorkloadDescriptor::TWorkloadDescriptor(
+    EWorkloadCategory category,
+    int band,
+    TInstant instant,
+    std::vector<Stroka> annotations)
+    : Category(category)
+    , Band(band)
+    , Instant(instant)
+    , Annotations(std::move(annotations))
+{ }
+
 TWorkloadDescriptor TWorkloadDescriptor::SetCurrentInstant() const
 {
     return TWorkloadDescriptor(Category, Band, TInstant::Now(), Annotations);
@@ -138,9 +149,7 @@ void FormatValue(
 
 Stroka ToString(const TWorkloadDescriptor& descriptor)
 {
-    TStringBuilder builder;
-    FormatValue(&builder, descriptor, TStringBuf());
-    return builder.Flush();
+    return ToStringViaBuilder(descriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -173,6 +173,8 @@ protected:
             .Optional();
         this->RegisterParameter("expire_after_failed_update_time", this->Options.ExpireAfterFailedUpdateTime)
             .Optional();
+        this->RegisterParameter("cache_sticky_group_size", this->Options.CacheStickyGroupSize)
+            .Optional();
     }
 };
 

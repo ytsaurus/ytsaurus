@@ -35,11 +35,6 @@ public:
     // IChunkStore implementation.
     virtual EStoreType GetType() const override;
 
-    virtual EInMemoryMode GetInMemoryMode() const override;
-    virtual void SetInMemoryMode(EInMemoryMode mode) override;
-
-    virtual void Preload(TInMemoryChunkDataPtr chunkData) override;
-
     // ISortedStore implementation.
     virtual TOwningKey GetMinKey() const override;
     virtual TOwningKey GetMaxKey() const override;
@@ -66,22 +61,13 @@ public:
         ui32 lockMask) override;
 
 private:
-    class TPreloadedBlockCache;
-    using TPreloadedBlockCachePtr = TIntrusivePtr<TPreloadedBlockCache>;
-
     // Cached for fast retrieval from ChunkMeta_.
     TOwningKey MinKey_;
     TOwningKey MaxKey_;
 
-    NTableClient::TCacheBasedChunkStatePtr ChunkState_;
+    const NTableClient::TKeyComparer KeyComparer_;
 
     NTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
-
-    TPreloadedBlockCachePtr PreloadedBlockCache_;
-
-    EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
-
-    const NTableClient::TKeyComparer KeyComparer_;
 
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         const TSharedRange<TKey>& keys,
@@ -99,11 +85,9 @@ private:
     NTableClient::TCachedVersionedChunkMetaPtr PrepareCachedVersionedChunkMeta(
         NChunkClient::IChunkReaderPtr chunkReader);
 
-    virtual NChunkClient::IBlockCachePtr GetBlockCache() override;
-
     virtual void PrecacheProperties() override;
 
-    bool ValidateBlockCachePreloaded();
+    virtual NTableClient::TKeyComparer GetKeyComparer() override;
 
     ISortedStorePtr GetSortedBackingStore();
 };

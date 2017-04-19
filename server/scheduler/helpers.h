@@ -87,12 +87,12 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     i64 inputSliceDataSize,
     i64 inputSliceRowCount);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 struct IJobHost
     : public TIntrinsicRefCounted
 {
-    virtual TFuture<void> SetInterruptHint(bool hint) = 0;
+    virtual TFuture<void> InterruptJob(EInterruptReason reason) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobHost)

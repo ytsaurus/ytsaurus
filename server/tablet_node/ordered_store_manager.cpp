@@ -1,9 +1,11 @@
-#include "ordered_store_manager.h"
-#include "tablet.h"
-#include "store.h"
-#include "transaction.h"
-#include "ordered_dynamic_store.h"
 #include "config.h"
+#include "in_memory_manager.h"
+#include "in_memory_chunk_writer.h"
+#include "ordered_dynamic_store.h"
+#include "ordered_store_manager.h"
+#include "store.h"
+#include "tablet.h"
+#include "transaction.h"
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
 
@@ -87,32 +89,20 @@ bool TOrderedStoreManager::ExecuteWrites(
     TWireProtocolReader* reader,
     TWriteContext* context)
 {
-    switch (context->Phase) {
-        case EWritePhase::Prelock:
-        case EWritePhase::Lock:
-            // Skip until EOS.
-            reader->SetCurrent(reader->GetEnd());
-            break;
-
-        case EWritePhase::Commit:
-            while (!reader->IsFinished()) {
-                auto command = reader->ReadCommand();
-                switch (command) {
-                    case EWireProtocolCommand::WriteRow: {
-                        auto row = reader->ReadUnversionedRow(false);
-                        WriteRow(row, context);
-                        break;
-                    }
-
-                    default:
-                        THROW_ERROR_EXCEPTION("Unsupported write command %v",
-                            command);
-                }
+    YCHECK(context->Phase == EWritePhase::Commit);
+    while (!reader->IsFinished()) {
+        auto command = reader->ReadCommand();
+        switch (command) {
+            case EWireProtocolCommand::WriteRow: {
+                auto row = reader->ReadUnversionedRow(false);
+                WriteRow(row, context);
+                break;
             }
-            break;
 
-        default:
-            Y_UNREACHABLE();
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported write command %v",
+                    command);
+        }
     }
     return true;
 }
@@ -207,25 +197,30 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
 
+        auto blockCache = InMemoryManager_->CreateInterceptingBlockCache(tabletSnapshot->Config->InMemoryMode);
+
         auto chunkWriter = CreateConfirmingWriter(
             tabletSnapshot->WriterConfig,
-            tabletSnapshot->WriterOptions,
+            writerOptions,
             Client_->GetNativeConnection()->GetPrimaryMasterCellTag(),
             transaction->GetId(),
             NullChunkListId,
             New<TNodeDirectory>(),
-            Client_);
+            Client_,
+            blockCache);
 
         TChunkTimestamps chunkTimestamps;
         chunkTimestamps.MinTimestamp = orderedDynamicStore->GetMinTimestamp();
         chunkTimestamps.MaxTimestamp = orderedDynamicStore->GetMaxTimestamp();
 
-        auto tableWriter = CreateSchemalessChunkWriter(
+        auto tableWriter = CreateInMemorySchemalessChunkWriter(
             tabletSnapshot->WriterConfig,
             tabletSnapshot->WriterOptions,
-            tabletSnapshot->PhysicalSchema,
+            InMemoryManager_,
+            tabletSnapshot,
             chunkWriter,
-            chunkTimestamps);
+            chunkTimestamps,
+            blockCache);
 
         WaitFor(tableWriter->Open())
             .ThrowOnError();

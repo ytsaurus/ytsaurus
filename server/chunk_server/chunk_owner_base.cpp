@@ -20,13 +20,14 @@ using namespace NCypressClient::NProto;
 
 TChunkOwnerBase::TChunkOwnerBase(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
-    , ChunkList_(nullptr)
-    , UpdateMode_(EUpdateMode::None)
-    , ChunkPropertiesUpdateNeeded_(false)
 {
     Properties_.SetVital(true);
     for (auto& mediumProperties : Properties_) {
         mediumProperties.Clear();
+    }
+    if (IsTrunk()) {
+        CompressionCodec_.Set(NCompression::ECodec::None);
+        ErasureCodec_.Set(NErasure::ECodec::None);
     }
 }
 
@@ -42,6 +43,8 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, ChunkPropertiesUpdateNeeded_);
     Save(context, SnapshotStatistics_);
     Save(context, DeltaStatistics_);
+    Save(context, CompressionCodec_);
+    Save(context, ErasureCodec_);
 }
 
 void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
@@ -63,6 +66,42 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkPropertiesUpdateNeeded_);
     Load(context, SnapshotStatistics_);
     Load(context, DeltaStatistics_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 515) {
+        Load(context, CompressionCodec_);
+        Load(context, ErasureCodec_);
+    } else {
+        if (Attributes_) {
+            auto& attributes = Attributes_->Attributes();
+            {
+                static const Stroka compressionCodecAttributeName("compression_codec");
+                auto it = attributes.find(compressionCodecAttributeName);
+                if (it != attributes.end()) {
+                    const auto& value = it->second;
+                    try {
+                        CompressionCodec_.Set(NYTree::ConvertTo<NCompression::ECodec>(value));
+                    } catch (...) {
+                    }
+                    attributes.erase(it);
+                }
+            }
+            {
+                static const Stroka erasureCodecAttributeName("erasure_codec");
+                auto it = attributes.find(erasureCodecAttributeName);
+                if (it != attributes.end()) {
+                    const auto& value = it->second;
+                    try {
+                        ErasureCodec_.Set(NYTree::ConvertTo<NErasure::ECodec>(value));
+                    } catch (...) {
+                    }
+                    attributes.erase(it);
+                }
+            }
+            if (Attributes_->Attributes().empty()) {
+                Attributes_.reset();
+            }
+        }
+    }
 }
 
 const TChunkList* TChunkOwnerBase::GetSnapshotChunkList() const

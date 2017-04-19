@@ -4,6 +4,8 @@
 
 #include <yt/server/cell_node/public.h>
 
+#include <yt/server/misc/memory_usage_tracker.h>
+
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
@@ -24,6 +26,7 @@ struct TInMemoryChunkData
     EInMemoryMode InMemoryMode = EInMemoryMode::None;
     NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
     NTableClient::IChunkLookupHashTablePtr LookupHashTable;
+    NCellNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInMemoryChunkData)

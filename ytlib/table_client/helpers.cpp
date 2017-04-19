@@ -35,6 +35,7 @@ using namespace NCypressClient;
 using namespace NChunkClient;
 
 using NYPath::TRichYPath;
+using NYT::FromProto;
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -643,5 +644,17 @@ TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer
 
 //////////////////////////////////////////////////////////////////////////////////
 
+std::pair<TOwningKey, TOwningKey> GetChunkBoundaryKeys(
+    const NChunkClient::NProto::TChunkMeta& chunkMeta,
+    int keyColumnCount)
+{
+    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
+    auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumnCount);
+    auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumnCount);
+    return std::make_pair(minKey, maxKey);
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
-} //// namespace NTableClient
+} // namespace NTableClient

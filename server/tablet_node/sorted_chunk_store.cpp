@@ -57,96 +57,6 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortedChunkStore::TPreloadedBlockCache
-    : public IBlockCache
-{
-public:
-    TPreloadedBlockCache(
-        TSortedChunkStorePtr owner,
-        const TChunkId& chunkId,
-        EBlockType type,
-        IBlockCachePtr underlyingCache)
-        : Owner_(owner)
-        , ChunkId_(chunkId)
-        , Type_(type)
-        , UnderlyingCache_(std::move(underlyingCache))
-    { }
-
-    DEFINE_BYVAL_RO_PROPERTY(IChunkLookupHashTablePtr, LookupHashTable);
-
-    ~TPreloadedBlockCache()
-    {
-        auto owner = Owner_.Lock();
-        if (!owner)
-            return;
-
-        owner->SetMemoryUsage(0);
-    }
-
-    virtual void Put(
-        const TBlockId& id,
-        EBlockType type,
-        const TSharedRef& data,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& source) override
-    {
-        UnderlyingCache_->Put(id, type, data, source);
-    }
-
-    virtual TSharedRef Find(
-        const TBlockId& id,
-        EBlockType type) override
-    {
-        Y_ASSERT(id.ChunkId == ChunkId_);
-
-        if (type == Type_ && IsPreloaded()) {
-            Y_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
-            return Blocks_[id.BlockIndex];
-        } else {
-            return UnderlyingCache_->Find(id, type);
-        }
-    }
-
-    virtual EBlockType GetSupportedBlockTypes() const override
-    {
-        return Type_;
-    }
-
-    void Preload(TInMemoryChunkDataPtr chunkData)
-    {
-        auto owner = Owner_.Lock();
-        if (!owner)
-            return;
-
-        Blocks_ = std::move(chunkData->Blocks);
-        LookupHashTable_ = chunkData->LookupHashTable;
-
-        i64 dataSize = GetByteSize(Blocks_);
-        if (LookupHashTable_) {
-            dataSize += LookupHashTable_->GetByteSize();
-        }
-
-        owner->SetMemoryUsage(dataSize);
-
-        Preloaded_ = true;
-    }
-
-    bool IsPreloaded() const
-    {
-        return Preloaded_.load();
-    }
-
-private:
-    const TWeakPtr<TSortedChunkStore> Owner_;
-    const TChunkId ChunkId_;
-    const EBlockType Type_;
-    const IBlockCachePtr UnderlyingCache_;
-
-    std::vector<TSharedRef> Blocks_;
-    std::atomic<bool> Preloaded_ = {false};
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TSortedChunkStore::TSortedChunkStore(
     TTabletManagerConfigPtr config,
     const TStoreId& id,
@@ -180,88 +90,6 @@ TSortedChunkStore::~TSortedChunkStore()
 TSortedChunkStorePtr TSortedChunkStore::AsSortedChunk()
 {
     return this;
-}
-
-EInMemoryMode TSortedChunkStore::GetInMemoryMode() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TReaderGuard guard(SpinLock_);
-    return InMemoryMode_;
-}
-
-void TSortedChunkStore::SetInMemoryMode(EInMemoryMode mode)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TWriterGuard guard(SpinLock_);
-
-    if (InMemoryMode_ == mode) {
-        return;
-    }
-
-    ChunkState_.Reset();
-    PreloadedBlockCache_.Reset();
-
-    if (PreloadFuture_) {
-        PreloadFuture_.Cancel();
-        PreloadFuture_.Reset();
-    }
-    if (PreloadBackoffFuture_) {
-        PreloadBackoffFuture_.Cancel();
-        PreloadBackoffFuture_.Reset();
-    }
-
-    if (mode == EInMemoryMode::None) {
-        PreloadState_ = EStorePreloadState::Disabled;
-    } else {
-        auto blockType =
-               mode == EInMemoryMode::Compressed      ? EBlockType::CompressedData :
-            /* mode == EInMemoryMode::Uncompressed */   EBlockType::UncompressedData;
-
-        PreloadedBlockCache_ = New<TPreloadedBlockCache>(
-            this,
-            StoreId_,
-            blockType,
-            BlockCache_);
-
-        switch (PreloadState_) {
-            case EStorePreloadState::Disabled:
-            case EStorePreloadState::Running:
-            case EStorePreloadState::Complete:
-                PreloadState_ = EStorePreloadState::None;
-                break;
-            case EStorePreloadState::None:
-            case EStorePreloadState::Scheduled:
-                break;
-            default:
-                Y_UNREACHABLE();
-        }
-    }
-
-    ChunkReader_.Reset();
-
-    InMemoryMode_ = mode;
-}
-
-void TSortedChunkStore::Preload(TInMemoryChunkDataPtr chunkData)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TWriterGuard guard(SpinLock_);
-
-    if (chunkData->InMemoryMode != InMemoryMode_) {
-        return;
-    }
-
-    PreloadedBlockCache_->Preload(chunkData);
-    CachedVersionedChunkMeta_ = chunkData->ChunkMeta;
-    ChunkState_ = New<TCacheBasedChunkState>(
-        PreloadedBlockCache_,
-        CachedVersionedChunkMeta_,
-        PreloadedBlockCache_->GetLookupHashTable(),
-        PerformanceCounters_,
-        KeyComparer_);
 }
 
 EStoreType TSortedChunkStore::GetType() const
@@ -482,12 +310,9 @@ TCachedVersionedChunkMetaPtr TSortedChunkStore::PrepareCachedVersionedChunkMeta(
     return cachedMeta;
 }
 
-IBlockCachePtr TSortedChunkStore::GetBlockCache()
+TKeyComparer TSortedChunkStore::GetKeyComparer()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TReaderGuard guard(SpinLock_);
-    return PreloadedBlockCache_ ? PreloadedBlockCache_ : BlockCache_;
+    return KeyComparer_;
 }
 
 void TSortedChunkStore::PrecacheProperties()
@@ -497,21 +322,6 @@ void TSortedChunkStore::PrecacheProperties()
     auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_->extensions());
     MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), KeyColumnCount_);
     MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), KeyColumnCount_);
-}
-
-bool TSortedChunkStore::ValidateBlockCachePreloaded()
-{
-    if (InMemoryMode_ == EInMemoryMode::None) {
-        return false;
-    }
-
-    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
-        THROW_ERROR_EXCEPTION("Chunk data is not preloaded yet")
-            << TErrorAttribute("tablet_id", TabletId_)
-            << TErrorAttribute("store_id", StoreId_);
-    }
-
-    return true;
 }
 
 ISortedStorePtr TSortedChunkStore::GetSortedBackingStore()

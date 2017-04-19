@@ -90,22 +90,22 @@ TStringBuf GetServiceHostName(const TStringBuf& address)
 
 TNetworkAddress::TNetworkAddress()
 {
-    memset(&Storage, 0, sizeof (Storage));
+    memset(&Storage, 0, sizeof(Storage));
     Storage.ss_family = AF_UNSPEC;
-    Length = sizeof (Storage);
+    Length = sizeof(Storage);
 }
 
 TNetworkAddress::TNetworkAddress(const TNetworkAddress& other, int port)
 {
-    memcpy(&Storage, &other.Storage, sizeof (Storage));
+    memcpy(&Storage, &other.Storage, sizeof(Storage));
     switch (Storage.ss_family) {
         case AF_INET:
             reinterpret_cast<sockaddr_in*>(&Storage)->sin_port = htons(port);
-            Length = sizeof (sockaddr_in);
+            Length = sizeof(sockaddr_in);
             break;
         case AF_INET6:
             reinterpret_cast<sockaddr_in6*>(&Storage)->sin6_port = htons(port);
-            Length = sizeof (sockaddr_in6);
+            Length = sizeof(sockaddr_in6);
             break;
         default:
             Y_UNREACHABLE();
@@ -116,6 +116,30 @@ TNetworkAddress::TNetworkAddress(const sockaddr& other, socklen_t length)
 {
     Length = length == 0 ? GetGenericLength(other) : length;
     memcpy(&Storage, &other, Length);
+}
+
+TNetworkAddress::TNetworkAddress(int family, const char* addr, size_t size)
+{
+    memset(&Storage, 0, sizeof(Storage));
+    Storage.ss_family = family;
+    switch (Storage.ss_family) {
+        case AF_INET: {
+            auto* typedSockAddr = reinterpret_cast<sockaddr_in*>(&Storage);
+            Y_ASSERT(size <= sizeof(sockaddr_in));
+            memcpy(&typedSockAddr->sin_addr, addr, size);
+            Length = sizeof(sockaddr_in);
+            break;
+        }
+        case AF_INET6: {
+            auto* typedSockAddr = reinterpret_cast<sockaddr_in6*>(&Storage);
+            Y_ASSERT(size <= sizeof(sockaddr_in6));
+            memcpy(&typedSockAddr->sin6_addr, addr, size);
+            Length = sizeof(sockaddr_in6);
+            break;
+        }
+        default:
+            Y_UNREACHABLE();
+    }
 }
 
 sockaddr* TNetworkAddress::GetSockAddr()

@@ -40,6 +40,17 @@ message TTracingExt
     optional uint64 parent_span_id = 3;
 }
 
+message TBalancingExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TBalancingExt balancing_ext = 111;
+    }
+
+    optional bool enable_stickness = 1 [default = false];
+    optional int32 sticky_group_size = 2 [default = 1];
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TResponseHeader
