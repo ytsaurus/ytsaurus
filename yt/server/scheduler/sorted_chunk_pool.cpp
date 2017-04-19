@@ -367,6 +367,20 @@ public:
         Jobs_[inputCookie].Invalidate();
     }
 
+    std::vector<TInputDataSlicePtr> ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie)
+    {
+        YCHECK(0 <= inputCookie && inputCookie < Jobs_.size());
+        YCHECK(Jobs_[inputCookie].IsInvalidated());
+        std::vector<TInputDataSlicePtr> foreignSlices;
+        for (const auto& stripe : Jobs_[inputCookie].StripeList()->Stripes) {
+            if (stripe->Foreign) {
+                std::move(stripe->DataSlices.begin(), stripe->DataSlices.end(), std::back_inserter(foreignSlices));
+                stripe->DataSlices.clear();
+            }
+        }
+        return foreignSlices;
+    }
+
     void Persist(const TPersistenceContext& context)
     {
         using NYT::Persist;
@@ -1212,7 +1226,8 @@ public:
                 cookie,
                 jobSummary.InterruptReason,
                 jobSummary.SplitJobCount);
-            SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
+            auto foreignSlices = JobManager_->ReleaseForeignSlices(cookie);
+            SplitJob(std::move(jobSummary.UnreadInputDataSlices), std::move(foreignSlices), jobSummary.SplitJobCount);
         }
         JobManager_->Completed(cookie, jobSummary.InterruptReason);
     }
@@ -1676,13 +1691,22 @@ private:
         JobManager_->AddJobs(std::move(jobStubs));
     }
 
-    void SplitJob(std::vector<TInputDataSlicePtr> unreadInputDataSlices, int splitJobCount)
+    void SplitJob(
+        std::vector<TInputDataSlicePtr> unreadInputDataSlices,
+        std::vector<TInputDataSlicePtr> foreignInputDataSlices,
+        int splitJobCount)
     {
         i64 totalDataSize = 0;
         for (const auto& dataSlice : unreadInputDataSlices) {
             totalDataSize += dataSlice->GetDataSize();
         }
-        i64 dataSizePerJob = DivCeil(totalDataSize, static_cast<i64>(splitJobCount));
+        i64 dataSizePerJob;
+        if (splitJobCount == 1) {
+            dataSizePerJob = std::numeric_limits<i64>::max();
+        } else {
+            dataSizePerJob = DivCeil(totalDataSize, static_cast<i64>(splitJobCount));
+        }
+
         // We create new job size constraints by incorporating the new desired data size per job
         // into the old job size constraints.
         auto jobSizeConstraints = CreateExplicitJobSizeConstraints(
@@ -1706,12 +1730,15 @@ private:
             Logger);
         for (const auto& dataSlice : unreadInputDataSlices) {
             int inputCookie = Registry_.InputCookie(*dataSlice->Tag);
-            if (InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary()) {
-                builder->AddPrimaryDataSlice(dataSlice, inputCookie);
-            } else {
-                builder->AddForeignDataSlice(dataSlice, inputCookie);
-            }
+            YCHECK(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary());
+            builder->AddPrimaryDataSlice(dataSlice, inputCookie);
         }
+        for (const auto& dataSlice : foreignInputDataSlices) {
+            int inputCookie = Registry_.InputCookie(*dataSlice->Tag);
+            YCHECK(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsForeign());
+            builder->AddForeignDataSlice(dataSlice, inputCookie);
+        }
+
         auto jobs = builder->Build();
         JobManager_->AddJobs(std::move(jobs));
     }

@@ -1950,7 +1950,6 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
     std::vector<TInputDataSlicePtr> unreadDataSlices = {
         CreateInputDataSlice(stripeList->Stripes[0]->DataSlices.front(), BuildRow({13})),
         CreateInputDataSlice(stripeList->Stripes[1]->DataSlices.front(), BuildRow({14})),
-        CreateInputDataSlice(stripeList->Stripes[3]->DataSlices.front(), BuildRow({13}))
     };
     TCompletedJobSummary jobSummary;
     jobSummary.InterruptReason = EInterruptReason::Preemption;
@@ -2061,10 +2060,6 @@ TEST_F(TSortedChunkPoolTest, TestJobSplitWithForeign)
         unreadSlices.end(),
         stripeLists[0]->Stripes[0]->DataSlices.begin(),
         stripeLists[0]->Stripes[0]->DataSlices.end());
-    unreadSlices.insert(
-        unreadSlices.end(),
-        stripeLists[0]->Stripes[1]->DataSlices.begin(),
-        stripeLists[0]->Stripes[1]->DataSlices.end());
     jobSummary.SplitJobCount = 10;
     jobSummary.UnreadInputDataSlices = std::move(unreadSlices);
     ChunkPool_->Completed(*OutputCookies_.begin(), jobSummary);
@@ -2129,10 +2124,6 @@ TEST_F(TSortedChunkPoolTest, TestJobSplitStripeSuspension)
         unreadSlices.end(),
         stripeLists[0]->Stripes[0]->DataSlices.begin(),
         stripeLists[0]->Stripes[0]->DataSlices.end());
-    unreadSlices.insert(
-        unreadSlices.end(),
-        stripeLists[0]->Stripes[1]->DataSlices.begin(),
-        stripeLists[0]->Stripes[1]->DataSlices.end());
     jobSummary.SplitJobCount = 10;
     jobSummary.UnreadInputDataSlices = std::move(unreadSlices);
     ChunkPool_->Completed(*OutputCookies_.begin(), jobSummary);
