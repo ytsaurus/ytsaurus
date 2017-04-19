@@ -334,7 +334,13 @@ TConnectionPtr TConnectionPool::Connect(
 void TConnectionPool::Release(TConnectionPtr connection)
 {
     auto socketTimeout = TConfig::Get()->SocketTimeout;
-    connection->DeadLine = TInstant::Now() + socketTimeout;
+    auto newDeadline = TInstant::Now() + socketTimeout;
+
+    {
+        auto guard = Guard(Lock_);
+        connection->DeadLine = newDeadline;
+    }
+
     connection->Socket->SetSocketTimeout(socketTimeout.Seconds());
     AtomicSet(connection->Busy, 0);
 
