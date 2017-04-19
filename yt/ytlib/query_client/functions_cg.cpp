@@ -427,7 +427,8 @@ llvm::FunctionType* TUnversionedValueCallingConvention::GetCalleeType(
 ICallingConventionPtr GetCallingConvention(
     ECallingConvention callingConvention,
     int repeatedArgIndex,
-    TType repeatedArgType)
+    TType repeatedArgType,
+    bool useFunctionContext)
 {
     switch (callingConvention) {
         case ECallingConvention::Simple:
@@ -436,9 +437,9 @@ ICallingConventionPtr GetCallingConvention(
             if (repeatedArgType.TryAs<EValueType>()
                 && repeatedArgType.As<EValueType>() == EValueType::Null)
             {
-                return New<TUnversionedValueCallingConvention>(-1);
+                return New<TUnversionedValueCallingConvention>(-1, useFunctionContext);
             } else {
-                return New<TUnversionedValueCallingConvention>(repeatedArgIndex);
+                return New<TUnversionedValueCallingConvention>(repeatedArgIndex, useFunctionContext);
             }
         default:
             Y_UNREACHABLE();

@@ -278,6 +278,19 @@ protected:
         return ChunkPool_->Add(New<TChunkStripe>(dataSlice));
     }
 
+    IChunkPoolInput::TCookie AddMultiChunkStripe(std::vector<TInputChunkPtr> chunks)
+    {
+        std::vector<TInputDataSlicePtr> dataSlices;
+        for (const auto& chunk : chunks) {
+            auto dataSlice = BuildDataSliceByChunk(chunk);
+            InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
+            dataSlices.emplace_back(std::move(dataSlice));
+        }
+        auto stripe = New<TChunkStripe>();
+        std::move(dataSlices.begin(), dataSlices.end(), std::back_inserter(stripe->DataSlices));
+        return ChunkPool_->Add(stripe);
+    }
+
     void SuspendChunk(IChunkPoolInput::TCookie cookie, const TInputChunkPtr& chunk)
     {
         YCHECK(ActiveChunks_.erase(chunk->ChunkId()));
@@ -2348,6 +2361,40 @@ TEST_F(TSortedChunkPoolTest, TestStripeListStatisticsAreSet)
     EXPECT_GT(stripeLists[0]->TotalChunkCount, 0);
     EXPECT_GT(stripeLists[0]->TotalRowCount, 0);
     EXPECT_GT(stripeLists[0]->TotalDataSize, 0);
+}
+
+TEST_F(TSortedChunkPoolTest, TestSeveralSlicesInInputStripe)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false} /* isForeign */,
+        {false, false} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    InitJobConstraints();
+
+    auto chunkAA = CreateChunk(BuildRow({1}), BuildRow({1}), 0);
+    auto chunkAB = CreateChunk(BuildRow({2}), BuildRow({2}), 0);
+    auto chunkBA = CreateChunk(BuildRow({3}), BuildRow({3}), 1);
+    auto chunkBB = CreateChunk(BuildRow({4}), BuildRow({4}), 1);
+
+    CreateChunkPool();
+
+    AddMultiChunkStripe({chunkAA, chunkAB});
+    AddMultiChunkStripe({chunkBA, chunkBB});
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_EQ(1, stripeLists.size());
+    EXPECT_EQ(2, stripeLists[0]->Stripes.size());
+    EXPECT_EQ(2, stripeLists[0]->Stripes[0]->DataSlices.size());
+    EXPECT_EQ(2, stripeLists[0]->Stripes[1]->DataSlices.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

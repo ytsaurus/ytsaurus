@@ -3817,6 +3817,9 @@ private:
         if (!table->IsSorted() && mountConfig->EnableLookupHashTable) {
             THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" cannot be \"true\" for ordered dynamic table");
         }
+        if (!table->IsPhysicallySorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
+            THROW_ERROR_EXCEPTION("Cannot mount an ordered dynamic table in memory");
+        }
     }
 
     void GetTableSettings(

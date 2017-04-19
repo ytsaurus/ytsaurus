@@ -873,6 +873,11 @@ public:
         return Spec_->CoreTableWriterConfig;
     }
 
+    virtual bool IsOutputLivePreviewSupported() const override
+    {
+        return true;
+    }
+
 protected:
     std::vector<Stroka> SortKeyColumns_;
 
