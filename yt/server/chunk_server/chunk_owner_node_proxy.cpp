@@ -1076,24 +1076,24 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YCHECK(node->GetTransaction() == Transaction);
 
-    auto& attributeSet = node->GetMutableAttributes()->Attributes();
+    TNullable<EOptimizeFor> optimizeFor;
     if (request->has_optimize_for()) {
-        attributeSet["optimize_for"] = ConvertToYsonString(EOptimizeFor(request->optimize_for()));
+        optimizeFor = EOptimizeFor(request->optimize_for());
     }
 
     if (request->has_compression_codec()) {
-        attributeSet["compression_codec"] = ConvertToYsonString(NCompression::ECodec(request->compression_codec()));
+        node->SetCompressionCodec(NCompression::ECodec(request->compression_codec()));
     }
 
     if (request->has_erasure_codec()) {
-        attributeSet["erasure_codec"] = ConvertToYsonString(NErasure::ECodec(request->erasure_codec()));
+        node->SetErasureCodec(NErasure::ECodec(request->erasure_codec()));
     }
 
     if (node->IsExternal()) {
         PostToMaster(context, node->GetExternalCellTag());
     }
 
-    node->EndUpload(statistics, schema, schemaMode);
+    node->EndUpload(statistics, schema, schemaMode, optimizeFor);
 
     node->SetChunkPropertiesUpdateNeeded(chunkPropertiesUpdateNeeded);
 
