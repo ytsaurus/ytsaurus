@@ -221,18 +221,27 @@ def is_dead_or_zombie(pid):
 
     return True
 
-def wait_for_removing_file_lock(locked_file_path, max_wait_time=10, sleep_quantum=0.1):
+def is_file_locked(lock_file_path):
+    if not os.path.exists(lock_file_path):
+        return False
+
+    lock_file_descriptor = open(lock_file_path, "w+")
+    try:
+        fcntl.lockf(lock_file_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.lockf(lock_file_descriptor, fcntl.LOCK_UN)
+        return False
+    except IOError as error:
+        if error.errno == errno.EAGAIN or error.errno == errno.EACCES:
+            return True
+        raise
+    finally:
+        lock_file_descriptor.close()
+
+def wait_for_removing_file_lock(lock_file_path, max_wait_time=10, sleep_quantum=0.1):
     current_wait_time = 0
     while current_wait_time < max_wait_time:
-        locked_file_descriptor = open(locked_file_path, "w+")
-        try:
-            fcntl.lockf(locked_file_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if not is_file_locked(lock_file_path):
             return
-        except IOError as error:
-            if error.errno != errno.EAGAIN and error.errno != errno.EACCES:
-                raise
-        finally:
-            locked_file_descriptor.close()
 
         time.sleep(sleep_quantum)
         current_wait_time += sleep_quantum
