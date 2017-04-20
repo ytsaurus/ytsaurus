@@ -70,7 +70,8 @@ public:
         RegisterParameter("argument_types", ArgumentTypes);
         RegisterParameter("result_type", ResultType);
         RegisterParameter("calling_convention", CallingConvention);
-        RegisterParameter("use_function_context", UseFunctionContext);
+        RegisterParameter("use_function_context", UseFunctionContext)
+            .Default(false);
         RegisterParameter("repeated_argument_type", RepeatedArgumentType)
             .Default();
     }
