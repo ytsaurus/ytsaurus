@@ -1863,6 +1863,59 @@ TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest2)
     EXPECT_EQ(stripeLists[0]->Stripes[1]->DataSlices[0]->GetSingleUnversionedChunkOrThrow()->ChunkId(), chunkBv2->ChunkId());
 }
 
+TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest3)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false} /* isForeign */,
+        {true, true} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    Options_.MinTeleportChunkSize = 0;
+    InitJobConstraints();
+
+    auto chunkAv1 = CreateChunk(BuildRow({5}), BuildRow({15}), 0);
+    auto chunkBv1 = CreateChunk(BuildRow({0}), BuildRow({20}), 1);
+    auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {KB / 4, KB / 2, KB / 4});
+    auto chunkAv2 = CopyChunk(chunkAv1);
+    chunkAv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
+    chunkAv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
+    auto chunkBv2 = CopyChunk(chunkBv1);
+    chunkBv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
+    chunkBv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
+
+    CreateChunkPool();
+
+    int cookieA = AddChunk(chunkAv1);
+    int cookieB = AddChunk(chunkBv1);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    ChunkPool_->Completed(*OutputCookies_.begin(), TCompletedJobSummary());
+
+    SuspendChunk(cookieA, chunkAv1);
+
+    PersistAndRestore();
+
+    SuspendChunk(cookieB, chunkBv1);
+
+    PersistAndRestore();
+
+    ResumeChunk(cookieB, chunkBv2);
+    ResumeChunk(cookieA, chunkAv1);
+
+    PersistAndRestore();
+
+    EXPECT_EQ(InvalidationErrors_.size(), 1);
+
+    OutputCookies_.clear();
+    ExtractOutputCookiesWhilePossible();
+    EXPECT_TRUE(OutputCookies_.empty());
+    EXPECT_EQ(ChunkPool_->GetTeleportChunks().size(), 2);
+}
+
 
 TEST_F(TSortedChunkPoolTest, ManiacIsSliced)
 {
