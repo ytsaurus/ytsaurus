@@ -153,7 +153,8 @@ void TChunkOwnerBase::BeginUpload(EUpdateMode mode)
 void TChunkOwnerBase::EndUpload(
     const TDataStatistics* statistics,
     const NTableClient::TTableSchema& /*schema*/,
-    NTableClient::ETableSchemaMode /*schemaMode*/)
+    NTableClient::ETableSchemaMode /*schemaMode*/,
+    TNullable<NTableClient::EOptimizeFor> /*optimizeFor*/)
 {
     TNullable<TDataStatistics> updateStatistics;
 
