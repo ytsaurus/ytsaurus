@@ -863,6 +863,12 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    if (SnapshotParamsPromise_) {
+        LOG_INFO("Snapshot canceled");
+        SnapshotParamsPromise_.ToFuture().Cancel();
+        SnapshotParamsPromise_.Reset();
+    }
+
     auto loggedVersion = GetLoggedVersion();
 
     LOG_INFO("Snapshot scheduled (Version: %v)",
@@ -870,10 +876,6 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
 
     LastSnapshotTime_ = TInstant::Now();
     SnapshotVersion_ = loggedVersion;
-
-    if (SnapshotParamsPromise_) {
-        SnapshotParamsPromise_.ToFuture().Cancel();
-    }
     SnapshotParamsPromise_ = NewPromise<TRemoteSnapshotParams>();
 
     MaybeStartSnapshotBuilder();
