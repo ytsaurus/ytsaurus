@@ -1,7 +1,7 @@
 from .batch_client import BatchClient
 from .batch_response import BatchResponse
 from .common import chunk_iter_list, get_value
-from .config import get_config, get_option, has_option, get_client_state
+from .config import get_config, get_client_state
 from .errors import YtError
 from .etc_commands import execute_batch
 
