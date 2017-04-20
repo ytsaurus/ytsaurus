@@ -7,6 +7,8 @@ from mapreduce.yt.python.yt_stuff import yt_stuff
 
 from os import environ
 environ["YT_STUFF_MAX_START_RETRIES"] = "2"
+environ["YT_NEEDS_DIAG"] = "1"
+
 
 def test_start_stop():
     yt = YtStuff()
@@ -42,3 +44,4 @@ def test_scheme(yt_stuff):
         format=wrapper.YsonFormat(),
         raw=True
     )
+
