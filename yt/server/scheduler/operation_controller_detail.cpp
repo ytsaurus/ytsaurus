@@ -5594,7 +5594,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         ToProto(descriptor->mutable_chunk_specs(), file.ChunkSpecs);
 
         if (file.Type == EObjectType::Table && file.IsDynamic && file.Schema.IsSorted()) {
-            descriptor->set_type(static_cast<int>(EDataSourceType::VersionedTable));
             auto dataSource = MakeVersionedDataSource(
                 file.GetPath(),
                 file.Schema,
@@ -5605,10 +5604,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             auto dataSource = file.Type == EObjectType::File
                     ? MakeFileDataSource(file.GetPath())
                     : MakeUnversionedDataSource(file.GetPath(), file.Schema, file.Path.GetColumns());
-
-            descriptor->set_type(file.Type == EObjectType::File
-                ? static_cast<int>(EDataSourceType::File)
-                : static_cast<int>(EDataSourceType::UnversionedTable));
 
             ToProto(descriptor->mutable_data_source(), dataSource);
         }
