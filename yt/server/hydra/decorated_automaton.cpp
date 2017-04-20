@@ -612,21 +612,17 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(snapshotStore)
     , BatchCommitTimeCounter_("/batch_commit_time")
-    , Logger(HydraLogger)
+    , Logger(NLogging::TLogger(HydraLogger)
+        .AddTag("CellId: %v", CellManager_->GetCellId()))
 {
     YCHECK(Config_);
     YCHECK(CellManager_);
     YCHECK(Automaton_);
     YCHECK(ControlInvoker_);
     YCHECK(SnapshotStore_);
-
     VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
 
-    Logger.AddTag("CellId: %v", CellManager_->GetCellId());
-
-    BuildingSnapshot_.clear();
-    AutomatonVersion_ = TVersion();
     StopEpoch();
 }
 
