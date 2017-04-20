@@ -413,6 +413,8 @@ public:
     NTableClient::TKeyColumns ReduceBy;
     NTableClient::TKeyColumns SortBy;
 
+    std::vector<NTableClient::TOwningKey> PivotKeys;
+
     TReduceOperationSpec();
 };
 

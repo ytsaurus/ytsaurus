@@ -1347,6 +1347,42 @@ done
         op.track()
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
 
+    def test_pivot_keys(self):
+        create("table", "//tmp/t1", attributes={"schema": [
+            {"name": "key", "type": "string", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"}]})
+        create("table", "//tmp/t2")
+        for i in range(1, 13):
+            write_table("<append=%true>//tmp/t1", {"key": "%02d" % i, "value": i})
+        reduce(in_="//tmp/t1",
+               out="//tmp/t2",
+               command="cat",
+               reduce_by=["key"],
+               spec={"pivot_keys": [["05"], ["10"]]})
+        assert get("//tmp/t2/@chunk_count") == 3
+        chunk_ids = get("//tmp/t2/@chunk_ids")
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [3, 4, 5]
+
+    def test_pivot_keys_incorrect_options(self):
+        create("table", "//tmp/t1", attributes={"schema": [
+            {"name": "key", "type": "string", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"}]})
+        create("table", "//tmp/t2")
+        for i in range(1, 13):
+            write_table("<append=%true>//tmp/t1", {"key": "%02d" % i, "value": i})
+        with pytest.raises(YtError):
+            reduce(in_="//tmp/t1",
+                   out="//tmp/t2",
+                   command="cat",
+                   reduce_by=["key"],
+                   spec={"pivot_keys": [["10"], ["05"]]})
+        with pytest.raises(YtError):
+            reduce(in_="<teleport=%true>//tmp/t1",
+                   out="//tmp/t2",
+                   command="cat",
+                   reduce_by=["key"],
+                   spec={"pivot_keys": [["05"], ["10"]]})
+
 ##################################################################
 
 class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):
