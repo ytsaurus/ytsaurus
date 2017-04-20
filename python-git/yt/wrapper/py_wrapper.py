@@ -216,6 +216,7 @@ class Zip(object):
             self.zip.write(library, os.path.join("_shared", os.path.basename(library)))
             self.dynamic_libraries.add(library)
             self.size += get_disk_size(library)
+            self.hash = merge_md5(self.hash, calc_md5_from_file(library))
 
     def append(self, filepath, relpath):
         if relpath.endswith(".egg"):
