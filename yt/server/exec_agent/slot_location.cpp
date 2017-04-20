@@ -478,7 +478,7 @@ bool TSlotLocation::IsInsideTmpfs(const Stroka& path) const
 void TSlotLocation::ForceSubdirectories(const Stroka& filePath, const Stroka& sandboxPath) const
 {
     auto dirPath = NFS::GetDirectoryName(filePath);
-    if (!sandboxPath.is_prefix(dirPath)) {
+    if (!sandboxPath.StartsWith(dirPath)) {
         THROW_ERROR_EXCEPTION("Path of the file must be inside the sandbox directory")
             << TErrorAttribute("sandbox_path", sandboxPath)
             << TErrorAttribute("file_path", filePath);
