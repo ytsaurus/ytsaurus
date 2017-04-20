@@ -853,7 +853,7 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
         inputSpec->add_chunk_spec_count_per_data_slice(dataSlice->ChunkSlices.size());
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             auto newChunkSpec = inputSpec->add_chunk_specs();
-            ToProto(newChunkSpec, chunkSlice);
+            ToProto(newChunkSpec, chunkSlice, dataSlice->Type);
             if (dataSlice->Tag) {
                 newChunkSpec->set_data_slice_tag(*dataSlice->Tag);
             }
