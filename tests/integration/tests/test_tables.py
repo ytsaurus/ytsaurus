@@ -189,6 +189,30 @@ class TestTables(YTEnvSetup):
             [{"key": 4}, {"key": 5}])
         assert get("//tmp/table/@row_count") == 2
 
+    def test_write_with_optimize_for(self):
+        create("table", "//tmp/table")
+
+        write_table("<optimize_for=lookup>//tmp/table", [{"key": 0}])
+        assert get("//tmp/table/@optimize_for") == "lookup"
+
+        write_table("<optimize_for=scan>//tmp/table", [{"key": 0}])
+        assert get("//tmp/table/@optimize_for") == "scan"
+
+        with pytest.raises(YtError):
+            write_table("<append=true;optimize_for=scan>//tmp/table", [{"key": 0}])
+
+    def test_write_with_compression(self):
+        create("table", "//tmp/table")
+
+        write_table("<compression_codec=none>//tmp/table", [{"key": 0}])
+        assert get("//tmp/table/@compression_codec") == "none"
+
+        write_table("<compression_codec=lz4>//tmp/table", [{"key": 0}])
+        assert get("//tmp/table/@compression_codec") == "lz4"
+
+        with pytest.raises(YtError):
+            write_table("<append=true;compression_codec=lz4>//tmp/table", [{"key": 0}])
+
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_sorted_unique(self, optimize_for):
         create("table", "//tmp/table",

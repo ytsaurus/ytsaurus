@@ -1,3 +1,5 @@
+import pytest
+
 from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
@@ -84,6 +86,14 @@ class TestErasure(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a" : "b"}]
 
+    def test_erasure_attribute_in_output_table(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", {"a": "b"})
+
+        create("table", "//tmp/t2")
+        map(in_="//tmp/t1", out="<erasure_codec=lrc_12_2_2>//tmp/t2", command="cat")
+        assert get("//tmp/t2/@erasure_codec") == "lrc_12_2_2"
+
     def test_sort(self):
         v1 = {"key" : "aaa"}
         v2 = {"key" : "bb"}
@@ -117,7 +127,31 @@ class TestErasure(YTEnvSetup):
         for x in xrange(103, 119):
             part_id = "%s-%s-%s%x-%s" % (parts[0], parts[1], parts[2][:-2], x, parts[3])
             assert get("#" + part_id + "/@id") == chunk_id
-            
+
+    def test_write_table_with_erasure(self):
+        create("table", "//tmp/table")
+
+        write_table("<erasure_codec=none>//tmp/table", [{"key": 0}])
+        assert "none" == get("//tmp/table/@erasure_codec")
+
+        write_table("<erasure_codec=lrc_12_2_2>//tmp/table", [{"key": 0}])
+        assert "lrc_12_2_2" == get("//tmp/table/@erasure_codec")
+
+        with pytest.raises(YtError):
+            write_table("<append=true;erasure_codec=lrc_12_2_2>//tmp/table", [{"key": 0}])
+
+    def test_write_file_with_erasure(self):
+        create("file", "//tmp/f")
+
+        write_file("<erasure_codec=lrc_12_2_2>//tmp/f", "a")
+        assert get("//tmp/f/@erasure_codec") == "lrc_12_2_2"
+
+        write_file("<erasure_codec=none>//tmp/f", "a")
+        assert get("//tmp/f/@erasure_codec") == "none"
+
+        with pytest.raises(YtError):
+            write_file("<append=true;compression_codec=none>//tmp/f", "a")
+
 ##################################################################
 
 class TestErasureMulticell(TestErasure):

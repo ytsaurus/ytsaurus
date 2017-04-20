@@ -454,14 +454,14 @@ std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
     return CreateInputChunkSlice(inputChunk)->SliceEvenly(sliceDataSize, sliceRowCount);
 }
 
-void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlice)
+void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlice, EDataSourceType dataSourceType)
 {
     // The chunk spec in the slice has arrived from master, so it can't possibly contain any extensions
     // except misc and boundary keys (in sorted merge or reduce). Jobs request boundary keys
     // from the nodes when needed, so we remove it here, to optimize traffic from the scheduler and
     // proto serialization time.
 
-    ToProto(chunkSpec, inputSlice->GetInputChunk());
+    ToProto(chunkSpec, inputSlice->GetInputChunk(), dataSourceType);
 
     if (!IsTrivial(inputSlice->LowerLimit())) {
         ToProto(chunkSpec->mutable_lower_limit(), inputSlice->LowerLimit());

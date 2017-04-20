@@ -607,6 +607,7 @@ TEST_F(TSuspendableInvokerTest, PollSuspendFuture)
         EXPECT_EQ(flag, future.IsSet());
         Sleep(SleepQuantum);
     }
+    Sleep(SleepQuantum);
     EXPECT_EQ(flag, future.IsSet());
 }
 
