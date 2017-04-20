@@ -25,7 +25,7 @@ TArtifactKey::TArtifactKey(const TChunkId& chunkId)
 
 TArtifactKey::TArtifactKey(const NScheduler::NProto::TFileDescriptor& descriptor)
 {
-    mutable_data_source()->MergeFrom(data_source());
+    mutable_data_source()->MergeFrom(descriptor.data_source());
 
     if (descriptor.chunk_specs_size() > 0) {
         mutable_chunk_specs()->MergeFrom(descriptor.chunk_specs());
