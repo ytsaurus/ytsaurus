@@ -3814,11 +3814,11 @@ private:
         const TTableNode* table,
         const TTableMountConfigPtr& mountConfig)
     {
-        if (!table->IsSorted() && mountConfig->EnableLookupHashTable) {
-            THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" cannot be \"true\" for ordered dynamic table");
+        if (table->IsReplicated() && mountConfig->InMemoryMode != EInMemoryMode::None) {
+            THROW_ERROR_EXCEPTION("Cannot mount a replicated dynamic table in memory");
         }
-        if (!table->IsPhysicallySorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
-            THROW_ERROR_EXCEPTION("Cannot mount an ordered dynamic table in memory");
+        if (!table->IsPhysicallySorted() && mountConfig->EnableLookupHashTable) {
+            THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" can be \"true\" only for sorted dynamic table");
         }
     }
 
