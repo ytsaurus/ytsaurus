@@ -84,9 +84,9 @@ public:
 
     void ReshardTable(const TYPath&, i32, const TReshardTableOptions&) override;
 
-    void InsertRows(const TYPath&, const TNode::TList&) override;
+    void InsertRows(const TYPath&, const TNode::TList&, const TInsertRowsOptions&) override;
 
-    void DeleteRows(const TYPath&, const TNode::TList&) override;
+    void DeleteRows(const TYPath&, const TNode::TList&, const TDeleteRowsOptions&) override;
 
     TNode::TList LookupRows(const TYPath&, const TNode::TList&, const TLookupRowsOptions&) override;
 

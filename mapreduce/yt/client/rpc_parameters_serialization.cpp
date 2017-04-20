@@ -19,9 +19,8 @@ Stroka ToString(ELockMode mode)
         case LM_EXCLUSIVE: return "exclusive";
         case LM_SHARED: return "shared";
         case LM_SNAPSHOT: return "snapshot";
-        default:
-            ythrow yexception() << "Invalid lock mode " << static_cast<int>(mode);
     }
+    Y_UNREACHABLE();
 }
 
 Stroka ToString(ENodeType type)
@@ -37,9 +36,30 @@ Stroka ToString(ENodeType type)
         case NT_FILE: return "file";
         case NT_TABLE: return "table";
         case NT_DOCUMENT: return "document";
-        default:
-            ythrow yexception() << "Invalid node type " << static_cast<int>(type);
     }
+    Y_UNREACHABLE();
+}
+
+Stroka ToString(EAtomicity atomicity)
+{
+    switch (atomicity) {
+        case EAtomicity::None:
+            return "none";
+        case EAtomicity::Full:
+            return "full";
+    }
+    Y_UNREACHABLE();
+}
+
+Stroka ToString(EDurability atomicity)
+{
+    switch (atomicity) {
+        case EDurability::Sync:
+            return "sync";
+        case EDurability::Async:
+            return "async";
+    }
+    Y_UNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -227,6 +247,36 @@ TNode SerializeParamsForLock(
     }
     if (options.ChildKey_) {
         result["child_key"] = *options.ChildKey_;
+    }
+    return result;
+}
+
+TNode SerializeParametersForInsertRows(
+    const TYPath& path,
+    const TInsertRowsOptions& options)
+{
+    TNode result;
+    SetPathParam(&result, path);
+    if (options.Atomicity_) {
+        result["atomicity"] = ToString(*options.Atomicity_);
+    }
+    if (options.Durability_) {
+        result["durability"] = ToString(*options.Durability_);
+    }
+    return result;
+}
+
+TNode SerializeParametersForDeleteRows(
+    const TYPath& path,
+    const TDeleteRowsOptions& options)
+{
+    TNode result;
+    SetPathParam(&result, path);
+    if (options.Atomicity_) {
+        result["atomicity"] = ToString(*options.Atomicity_);
+    }
+    if (options.Durability_) {
+        result["durability"] = ToString(*options.Durability_);
     }
     return result;
 }

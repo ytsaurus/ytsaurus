@@ -88,12 +88,14 @@ public:
     // TODO: move to transaction
     virtual void InsertRows(
         const TYPath& path,
-        const TNode::TList& rows) = 0;
+        const TNode::TList& rows,
+        const TInsertRowsOptions& options = TInsertRowsOptions()) = 0;
 
     // TODO: move to transaction
     virtual void DeleteRows(
         const TYPath& path,
-        const TNode::TList& keys) = 0;
+        const TNode::TList& keys,
+        const TDeleteRowsOptions& options = TDeleteRowsOptions()) = 0;
 
     virtual TNode::TList LookupRows(
         const TYPath& path,
