@@ -1056,12 +1056,12 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YCHECK(node->GetTransaction() == Transaction);
 
-    // Avoid creating empty non-builtin attributes set
+    // Avoid creating empty non-builtin attributes set.
     if (request->has_optimize_for() ||
         request->has_compression_codec() ||
-        request->has_erasure_codec()) {
-
-        auto &attributeSet = node->GetMutableAttributes()->Attributes();
+        request->has_erasure_codec())
+    {
+        auto& attributeSet = node->GetMutableAttributes()->Attributes();
         if (request->has_optimize_for()) {
             attributeSet["optimize_for"] = ConvertToYsonString(EOptimizeFor(request->optimize_for()));
         }
