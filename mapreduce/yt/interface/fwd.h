@@ -72,6 +72,10 @@ namespace NYT {
 
     struct TConcatenateOptions;
 
+    struct TInsertRowsOptions;
+
+    struct TDeleteRowsOptions;
+
     class ICypressClient;
 
     ////////////////////////////////////////////////////////////////////////////////

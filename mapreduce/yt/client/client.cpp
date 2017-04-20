@@ -661,16 +661,28 @@ public:
 
     void InsertRows(
         const TYPath& path,
-        const TNode::TList& rows) override
+        const TNode::TList& rows,
+        const TInsertRowsOptions& options) override
     {
-        ModifyRows("insert_rows", path, rows);
+        THttpHeader header("PUT", "insert_rows");
+        header.SetDataStreamFormat(DSF_YSON_BINARY);
+        header.SetParameters(NDetail::SerializeParametersForInsertRows(path, options));
+
+        auto body = NodeListToYsonString(rows);
+        RetryRequest(Auth_, header, body, true);
     }
 
     void DeleteRows(
         const TYPath& path,
-        const TNode::TList& keys) override
+        const TNode::TList& keys,
+        const TDeleteRowsOptions& options) override
     {
-        ModifyRows("delete_rows", path, keys);
+        THttpHeader header("PUT", "delete_rows");
+        header.SetDataStreamFormat(DSF_YSON_BINARY);
+        header.SetParameters(NDetail::SerializeParametersForDeleteRows(path, options));
+
+        auto body = NodeListToYsonString(keys);
+        RetryRequest(Auth_, header, body, true);
     }
 
     TNode::TList LookupRows(
@@ -777,19 +789,6 @@ private:
         if (options.LastTabletIndex_) {
             header.AddParam("last_tablet_index", *options.LastTabletIndex_);
         }
-    }
-
-    void ModifyRows(
-        const Stroka& command,
-        const TYPath& path,
-        const TNode::TList& rows)
-    {
-        THttpHeader header("PUT", command);
-        header.AddPath(AddPathPrefix(path));
-        header.SetDataStreamFormat(DSF_YSON_BINARY);
-
-        auto body = NodeListToYsonString(rows);
-        RetryRequest(Auth_, header, body, true);
     }
 };
 

@@ -358,10 +358,10 @@ void TMockClient::ReshardTable(const TYPath&, const yvector<TKey>&, const TResha
 void TMockClient::ReshardTable(const TYPath&, i32, const TReshardTableOptions&) {
 }
 
-void TMockClient::InsertRows(const TYPath&, const TNode::TList&) {
+void TMockClient::InsertRows(const TYPath&, const TNode::TList&, const TInsertRowsOptions&) {
 }
 
-void TMockClient::DeleteRows(const TYPath&, const TNode::TList&) {
+void TMockClient::DeleteRows(const TYPath&, const TNode::TList&, const TDeleteRowsOptions&) {
 }
 
 TNode::TList TMockClient::LookupRows(const TYPath&, const TNode::TList&, const TLookupRowsOptions&) {

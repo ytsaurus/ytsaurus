@@ -217,4 +217,33 @@ struct TExecuteBatchOptions
     FLUENT_FIELD_OPTION(ui64, Concurrency);
 };
 
+enum class EDurability
+{
+    Sync,
+    Async,
+};
+
+enum class EAtomicity
+{
+    None,
+    Full,
+};
+
+template <typename TDerived>
+struct TTabletTransactionOptions
+{
+    using TSelf = TDerived;
+
+    FLUENT_FIELD_OPTION(EAtomicity, Atomicity);
+    FLUENT_FIELD_OPTION(EDurability, Durability);
+};
+
+struct TInsertRowsOptions
+    : public TTabletTransactionOptions<TInsertRowsOptions>
+{ };
+
+struct TDeleteRowsOptions
+    : public TTabletTransactionOptions<TDeleteRowsOptions>
+{ };
+
 } // namespace NYT

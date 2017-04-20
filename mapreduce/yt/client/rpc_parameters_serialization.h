@@ -65,6 +65,14 @@ TNode SerializeParamsForLock(
     ELockMode mode,
     const TLockOptions& options);
 
+TNode SerializeParametersForInsertRows(
+    const TYPath& path,
+    const TInsertRowsOptions& options);
+
+TNode SerializeParametersForDeleteRows(
+    const TYPath& path,
+    const TDeleteRowsOptions& options);
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
