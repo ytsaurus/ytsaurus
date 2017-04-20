@@ -315,13 +315,11 @@ TTableUploadOptions GetTableUploadOptions(
     const IAttributeDictionary& cypressTableAttributes,
     i64 rowCount)
 {
-    TTableSchema schema = cypressTableAttributes.Get<TTableSchema>("schema");
-    ETableSchemaMode schemaMode = cypressTableAttributes.Get<ETableSchemaMode>("schema_mode");
-    EOptimizeFor optimizeFor = cypressTableAttributes.Get<EOptimizeFor>("optimize_for");
-    NCompression::ECodec compressionCodec = cypressTableAttributes.Get<NCompression::ECodec>("compression_codec");
-    NErasure::ECodec erasureCodec = cypressTableAttributes.Get<NErasure::ECodec>(
-        "erasure_codec",
-        NErasure::ECodec::None);
+    auto schema = cypressTableAttributes.Get<TTableSchema>("schema");
+    auto schemaMode = cypressTableAttributes.Get<ETableSchemaMode>("schema_mode");
+    auto optimizeFor = cypressTableAttributes.Get<EOptimizeFor>("optimize_for");
+    auto compressionCodec = cypressTableAttributes.Get<NCompression::ECodec>("compression_codec");
+    auto erasureCodec = cypressTableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
 
     // Some ypath attributes are not compatible with attribute "schema".
     if (path.GetAppend() && path.GetSchema()) {

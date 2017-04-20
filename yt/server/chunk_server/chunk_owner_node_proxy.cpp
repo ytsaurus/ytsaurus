@@ -1056,17 +1056,23 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YCHECK(node->GetTransaction() == Transaction);
 
-    auto& attributeSet = node->GetMutableAttributes()->Attributes();
-    if (request->has_optimize_for()) {
-        attributeSet["optimize_for"] = ConvertToYsonString(EOptimizeFor(request->optimize_for()));
-    }
+    // Avoid creating empty non-builtin attributes set
+    if (request->has_optimize_for() ||
+        request->has_compression_codec() ||
+        request->has_erasure_codec()) {
 
-    if (request->has_compression_codec()) {
-        attributeSet["compression_codec"] = ConvertToYsonString(NCompression::ECodec(request->compression_codec()));
-    }
+        auto &attributeSet = node->GetMutableAttributes()->Attributes();
+        if (request->has_optimize_for()) {
+            attributeSet["optimize_for"] = ConvertToYsonString(EOptimizeFor(request->optimize_for()));
+        }
 
-    if (request->has_erasure_codec()) {
-        attributeSet["erasure_codec"] = ConvertToYsonString(NErasure::ECodec(request->erasure_codec()));
+        if (request->has_compression_codec()) {
+            attributeSet["compression_codec"] = ConvertToYsonString(NCompression::ECodec(request->compression_codec()));
+        }
+
+        if (request->has_erasure_codec()) {
+            attributeSet["erasure_codec"] = ConvertToYsonString(NErasure::ECodec(request->erasure_codec()));
+        }
     }
 
     if (node->IsExternal()) {
