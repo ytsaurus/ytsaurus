@@ -757,14 +757,15 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, table_for_err
                     pack_yt_wrapper=True, pack_yson_bindings=True, copy_spec_template=None, **kwargs):
     write_errors_script_template = """\
 import sys
+import os
 import yt.wrapper as yt
 
 def gen_rows():
     for line in sys.stdin:
         yield {{"error": line.strip()}}
 
-client = yt.YtClient(proxy="{0}", config={{"token_path": "{1}"}})
-table = yt.TablePath("{2}", append=True, client=client)
+client = yt.YtClient(proxy="{0}", token=os.environ.get("YT_SECURE_VAULT_TOKEN"))
+table = yt.TablePath("{1}", append=True, client=client)
 client.create("table", table, ignore_existing=True)
 client.write_table(table, gen_rows())
 """
