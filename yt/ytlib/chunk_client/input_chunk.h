@@ -4,6 +4,7 @@
 #include "read_limit.h"
 #include "chunk_replica.h"
 #include "chunk_spec.h"
+#include "data_source.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
@@ -103,14 +104,14 @@ public:
     //! Releases memory occupied by PartitionsExt
     void ReleasePartitionsExt();
 
-    friend void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk);
+    friend void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, EDataSourceType dataSourceType);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk);
+void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, EDataSourceType dataSourceType);
 Stroka ToString(const TInputChunkPtr& inputChunk);
 
 ////////////////////////////////////////////////////////////////////////////////
