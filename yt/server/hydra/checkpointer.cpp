@@ -38,7 +38,9 @@ public:
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
         Owner_->RotatingChangelogs_ = true;
-        Owner_->BuildingSnapshot_ = BuildSnapshot_;
+        if (BuildSnapshot_) {
+            Owner_->BuildingSnapshot_ = true;
+        }
 
         Version_ = Owner_->DecoratedAutomaton_->GetLoggedVersion();
         Owner_->EpochContext_->LeaderCommitter->Flush();
