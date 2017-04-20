@@ -422,7 +422,7 @@ class YtStuff(object):
         self._save_logs(save_yt_all=self.config.save_all_logs or yatest.common.get_param("yt_save_all_data"))
 
         if not self.config.keep_yt_work_dir:
-            shutil.rmtree(self.yt_work_dir)
+            shutil.rmtree(self.yt_work_dir, ignore_errors=True)
 
     @_timing
     def _save_logs(self, save_yt_all=None):
