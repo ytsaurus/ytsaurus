@@ -1098,6 +1098,10 @@ public:
         YCHECK(!Finished);
         TChunkPoolInputBase::Finish();
 
+        // NB: this method accounts all the stripes that were suspended before
+        // the chunk pool was finished. It should be called only once.
+        SetupSuspendedStripes();
+
         DoFinish();
     }
 
@@ -1650,7 +1654,7 @@ private:
     {
         for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
             const auto& stripe = Stripes_[inputCookie];
-            if (stripe.IsSuspended() && !stripe.GetTeleport()) {
+            if (stripe.IsSuspended()) {
                 JobManager_->Suspend(inputCookie);
             }
         }
@@ -1675,7 +1679,6 @@ private:
         // NB(max42): this method may be run several times (in particular, when
         // the resumed input is not consistent with the original input).
 
-        SetupSuspendedStripes();
         InitInputChunkMapping();
         FindTeleportChunks();
 

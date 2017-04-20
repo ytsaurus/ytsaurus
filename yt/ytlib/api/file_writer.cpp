@@ -170,8 +170,20 @@ private:
             writerOptions->ReplicationFactor = attributes->Get<int>("replication_factor");
             writerOptions->MediumName = attributes->Get<Stroka>("primary_medium");
             writerOptions->Account = attributes->Get<Stroka>("account");
-            writerOptions->CompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
-            writerOptions->ErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+
+            if (Options_.CompressionCodec) {
+                writerOptions->CompressionCodec = *Options_.CompressionCodec;
+            } else {
+                writerOptions->CompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
+            }
+
+            if (Options_.ErasureCodec) {
+                writerOptions->ErasureCodec = *Options_.ErasureCodec;
+            } else {
+                writerOptions->ErasureCodec = attributes->Get<NErasure::ECodec>(
+                    "erasure_codec",
+                    NErasure::ECodec::None);
+            }
 
             LOG_INFO("Extended file attributes received (Account: %v)",
                 writerOptions->Account);
@@ -307,6 +319,15 @@ private:
         {
             auto req = TFileYPathProxy::EndUpload(objectIdPath);
             *req->mutable_statistics() = Writer_->GetDataStatistics();
+
+            if (Options_.CompressionCodec) {
+                req->set_compression_codec(static_cast<int>(*Options_.CompressionCodec));
+            }
+
+            if (Options_.ErasureCodec) {
+                req->set_erasure_codec(static_cast<int>(*Options_.ErasureCodec));
+            }
+
             SetTransactionId(req, UploadTransaction_);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "end_upload");
