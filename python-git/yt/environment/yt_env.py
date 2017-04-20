@@ -397,7 +397,7 @@ class YTInstance(object):
             self._open_port_iterator.release_locks()
             self._open_port_iterator = None
 
-        wait_for_removing_file_lock(os.path.join(self.path, "locked_file"))
+        wait_for_removing_file_lock(os.path.join(self.path, "lock_file"))
 
     def get_proxy_address(self):
         if not self.has_proxy:
@@ -993,7 +993,7 @@ class YTInstance(object):
         watcher_path = self._get_watcher_path()
 
         self._run([watcher_path,
-                   "--locked-file-path", os.path.join(self.path, "locked_file"),
+                   "--lock-file-path", os.path.join(self.path, "lock_file"),
                    "--logrotate-config-path", config_path,
                    "--logrotate-state-file", logrotate_state_file,
                    "--logrotate-interval", str(self.watcher_config["logs_rotate_interval"]),
