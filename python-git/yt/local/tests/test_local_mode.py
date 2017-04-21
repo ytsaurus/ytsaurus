@@ -201,7 +201,7 @@ class TestLocalMode(object):
 
         path = os.environ.get("YT_LOCAL_ROOT_PATH")
         log_path = os.path.join(path, "test_watcher", "logs")
-        for file_index in xrange(1, 6):
+        for file_index in xrange(1, 5):
             assert os.path.exists(os.path.join(log_path, "http-application.log.{0}.gz".format(file_index)))
 
 
