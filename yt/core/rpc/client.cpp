@@ -174,7 +174,7 @@ void TClientRequest::TraceRequest(const NTracing::TTraceContext& traceContext)
     NTracing::TraceEvent(
         traceContext,
         ClientHostAnnotation,
-        GetLocalHostName());
+        TAddressResolver::Get()->GetLocalHostName());
 }
 
 const TSharedRef& TClientRequest::GetSerializedBody() const

@@ -72,7 +72,7 @@ IAdminPtr TRpcProxyConnection::CreateAdmin(const TAdminOptions& options)
 IClientPtr TRpcProxyConnection::CreateClient(const TClientOptions& options)
 {
     // TODO(sandello): Extract this to a new TAddressResolver method.
-    auto localHostname = GetLocalHostName();
+    auto localHostname = TAddressResolver::Get()->GetLocalHostName();
     auto localAddress = TAddressResolver::Get()->Resolve(localHostname).Get().ValueOrThrow();
 
     auto localAddressString = ToString(localAddress);

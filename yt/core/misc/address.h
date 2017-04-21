@@ -2,7 +2,6 @@
 
 #include "common.h"
 #include "error.h"
-#include "local_address.h"
 
 #include <yt/core/actions/future.h>
 
@@ -116,6 +115,13 @@ public:
      *  Caches successful resolutions.
      */
     TFuture<TNetworkAddress> Resolve(const Stroka& address);
+
+    //! Returns the FQDN of the local host.
+    /*!
+     *  If for some reason this FQDN could not be determined, |<unknown>| string is used.
+     *  \see IsLocalHostNameOK
+     */
+    Stroka GetLocalHostName();
 
     //! Return |true| if the local host FQDN can be properly determined.
     bool IsLocalHostNameOK();
