@@ -13,6 +13,7 @@ import yt.wrapper as yt
 
 import os
 import sys
+import stat
 import argparse
 import subprocess
 import shutil
@@ -86,7 +87,10 @@ def make_run_script(destination_dir):
     path = os.path.realpath(__file__)
     if path.endswith(".pyc"):
         path = path[:-1]
-    shutil.copy2(path, os.path.join(destination_dir, "run"))
+
+    destination_path = os.path.join(destination_dir, "run")
+    shutil.copy2(path, destination_path)
+    os.chmod(destination_path, os.stat(destination_path).st_mode | stat.S_IXUSR)
 
 if __name__ == "__main__":
     run_main(main)
