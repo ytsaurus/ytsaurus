@@ -36,6 +36,12 @@ udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs.c
     avg_udaf_finalize
 )
 
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs_fc.cpp
+  YT_SRCS_RESOLVED
+  SYMBOLS
+    udf_with_function_context
+)
+
 list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
 
 if(MSVC)

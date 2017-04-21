@@ -919,7 +919,7 @@ private:
             const auto& querySpec = schedulerJobSpecExt.input_query_spec();
             for (const auto& function : querySpec.external_functions()) {
                 TArtifactKey key;
-                key.set_data_source_type(static_cast<int>(EDataSourceType::File));
+                key.mutable_data_source()->set_type(static_cast<int>(EDataSourceType::File));
 
                 for (const auto& chunkSpec : function.chunk_specs()) {
                     *key.add_chunk_specs() = chunkSpec;

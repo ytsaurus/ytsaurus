@@ -57,7 +57,8 @@ public:
     virtual void EndUpload(
         const NChunkClient::NProto::TDataStatistics* statistics,
         const NTableClient::TTableSchema& schema,
-        NTableClient::ETableSchemaMode schemaMode) override;
+        NTableClient::ETableSchemaMode schemaMode,
+        TNullable<NTableClient::EOptimizeFor> optimizeFor) override;
 
     virtual bool IsSorted() const override;
 

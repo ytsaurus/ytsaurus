@@ -61,6 +61,7 @@ public:
     TNullable<TDescriptorType> RepeatedArgumentType;
     TDescriptorType ResultType;
     ECallingConvention CallingConvention;
+    bool UseFunctionContext;
 
     TCypressFunctionDescriptor()
     {
@@ -69,6 +70,8 @@ public:
         RegisterParameter("argument_types", ArgumentTypes);
         RegisterParameter("result_type", ResultType);
         RegisterParameter("calling_convention", CallingConvention);
+        RegisterParameter("use_function_context", UseFunctionContext)
+            .Default(false);
         RegisterParameter("repeated_argument_type", RepeatedArgumentType)
             .Default();
     }
@@ -172,7 +175,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     auto getRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_attributes");
     auto basicAttributesRspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
 
-    yhash<NObjectClient::TCellTag, std::vector<size_t>> infoByCellTags;
+    yhash<NObjectClient::TCellTag, std::vector<std::pair<NObjectClient::TObjectId, size_t>>> infoByCellTags;
 
     for (int index = 0; index < functionNames.size(); ++index) {
         const auto& functionName = functionNames[index];
@@ -199,23 +202,21 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 
         TExternalFunctionSpec cypressInfo;
         cypressInfo.Descriptor = item;
-        cypressInfo.FilePath = path;
-        cypressInfo.ObjectId = objectId;
-        cypressInfo.CellTag = cellTag;
 
         result.push_back(cypressInfo);
 
-        infoByCellTags[cellTag].push_back(index);
+        infoByCellTags[cellTag].emplace_back(objectId, index);
     }
 
     for (const auto& infoByCellTag : infoByCellTags) {
         const auto& cellTag = infoByCellTag.first;
+        const auto& functionSpecs = infoByCellTag.second;
 
         TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag));
         auto fetchBatchReq = proxy.ExecuteBatch();
 
-        for (auto resultIndex : infoByCellTag.second) {
-            auto fetchReq = TFileYPathProxy::Fetch(FromObjectId(result[resultIndex].ObjectId));
+        for (auto functionSpec : functionSpecs) {
+            auto fetchReq = TFileYPathProxy::Fetch(FromObjectId(functionSpec.first));
             fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
             ToProto(fetchReq->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
             fetchBatchReq->AddRequest(fetchReq);
@@ -224,8 +225,8 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
         auto fetchBatchRsp = WaitFor(fetchBatchReq->Invoke())
             .ValueOrThrow();
 
-        for (size_t rspIndex = 0; rspIndex < infoByCellTag.second.size(); ++rspIndex) {
-            auto resultIndex = infoByCellTag.second[rspIndex];
+        for (size_t rspIndex = 0; rspIndex < functionSpecs.size(); ++rspIndex) {
+            auto resultIndex = functionSpecs[rspIndex].second;
 
             auto fetchRsp = fetchBatchRsp->GetResponse<TFileYPathProxy::TRspFetch>(rspIndex)
                 .ValueOrThrow();
@@ -310,6 +311,7 @@ void AppendUdfDescriptors(
                 ? functionDescriptor->RepeatedArgumentType->Type
                 : EValueType::Null,
             functionBody.RepeatedArgIndex = int(functionDescriptor->GetArgumentsTypes().size());
+            functionBody.UseFunctionContext = functionDescriptor->UseFunctionContext;
 
             auto typer = functionDescriptor->RepeatedArgumentType
                 ? New<TFunctionTypeInferrer>(
@@ -614,6 +616,7 @@ void AppendFunctionImplementation(
             function.CallingConvention,
             function.RepeatedArgType,
             function.RepeatedArgIndex,
+            function.UseFunctionContext,
             GetImplFingerprint(function.ChunkSpecs)));
     }
 }
@@ -745,6 +748,7 @@ void ToProto(NProto::TExternalFunctionImpl* proto, const TExternalFunctionImpl& 
 
     proto->set_repeated_arg_type(ConvertToYsonString(descriptorType).GetData());
     proto->set_repeated_arg_index(object.RepeatedArgIndex);
+    proto->set_use_function_context(object.UseFunctionContext);
 }
 
 void FromProto(TExternalFunctionImpl* original, const NProto::TExternalFunctionImpl& serialized)
@@ -756,6 +760,7 @@ void FromProto(TExternalFunctionImpl* original, const NProto::TExternalFunctionI
     original->ChunkSpecs = FromProto<std::vector<NChunkClient::NProto::TChunkSpec>>(serialized.chunk_specs());
     original->RepeatedArgType = ConvertTo<TDescriptorType>(NYson::TYsonString(serialized.repeated_arg_type())).Type;
     original->RepeatedArgIndex = serialized.repeated_arg_index();
+    original->UseFunctionContext = serialized.use_function_context();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

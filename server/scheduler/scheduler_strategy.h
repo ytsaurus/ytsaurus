@@ -83,6 +83,9 @@ struct ISchedulerStrategy
     //! Called periodically to log scheduling tree state.
     virtual void OnFairShareLoggingAt(TInstant now) = 0;
 
+    //! Called periodically to log essential for simulator tree state.
+    virtual void OnFairShareEssentialLoggingAt(TInstant now) = 0;
+
     //! Resets memoized state.
     virtual void ResetState() = 0;
 

@@ -231,6 +231,24 @@ TJobSummary::TJobSummary(const TJobId& id)
     , ShouldLog(false)
 { }
 
+void TJobSummary::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    using NYT::Save;
+    using NYT::Load;
+
+    Persist<TBinaryProtoSerializer>(context, Result);
+    Persist(context, Id);
+    Persist(context, StatisticsSuffix);
+    Persist(context, FinishTime);
+    Persist(context, PrepareDuration);
+    Persist(context, DownloadDuration);
+    Persist(context, ExecDuration);
+    Persist(context, Statistics);
+    Persist(context, StatisticsYson);
+    Persist(context, ShouldLog);
+}
+
 void TJobSummary::ParseStatistics()
 {
     if (StatisticsYson) {
@@ -251,6 +269,21 @@ TCompletedJobSummary::TCompletedJobSummary(const TJobPtr& job, bool abandoned)
     InterruptReason = job->GetInterruptReason();
     YCHECK((InterruptReason == EInterruptReason::None && schedulerResultExt.unread_input_data_slice_descriptors_size() == 0) ||
         (InterruptReason != EInterruptReason::None && schedulerResultExt.unread_input_data_slice_descriptors_size() != 0));
+}
+
+void TCompletedJobSummary::Persist(const TPersistenceContext& context)
+{
+    TJobSummary::Persist(context);
+
+    using NYT::Persist;
+
+    Persist(context, Abandoned);
+    Persist(context, InterruptReason);
+    // TODO(max42): now we persist only those completed job summaries that correspond
+    // to non-interrupted jobs, because Persist(context, UnreadInputDataSlices) produces
+    // lots of ugly template resolution errors. I wasn't able to fix it :(
+    YCHECK(InterruptReason == EInterruptReason::None);
+    Persist(context, SplitJobCount);
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -262,6 +262,9 @@ void TTableUploadOptions::Persist(NPhoenix::TPersistenceContext& context)
     Persist(context, LockMode);
     Persist(context, TableSchema);
     Persist(context, SchemaMode);
+    Persist(context, OptimizeFor);
+    Persist(context, CompressionCodec);
+    Persist(context, ErasureCodec);
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -305,10 +308,15 @@ void ValidateAppendKeyColumns(const TKeyColumns& keyColumns, const TTableSchema&
 
 TTableUploadOptions GetTableUploadOptions(
     const TRichYPath& path,
-    const TTableSchema& schema,
-    ETableSchemaMode schemaMode,
+    const IAttributeDictionary& cypressTableAttributes,
     i64 rowCount)
 {
+    auto schema = cypressTableAttributes.Get<TTableSchema>("schema");
+    auto schemaMode = cypressTableAttributes.Get<ETableSchemaMode>("schema_mode");
+    auto optimizeFor = cypressTableAttributes.Get<EOptimizeFor>("optimize_for");
+    auto compressionCodec = cypressTableAttributes.Get<NCompression::ECodec>("compression_codec");
+    auto erasureCodec = cypressTableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+
     // Some ypath attributes are not compatible with attribute "schema".
     if (path.GetAppend() && path.GetSchema()) {
         THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"schema\" are not compatible")
@@ -386,6 +394,39 @@ TTableUploadOptions GetTableUploadOptions(
             << TErrorAttribute("path", path)
             << TErrorAttribute("schema_mode", schemaMode)
             << TErrorAttribute("schema", schema);
+    }
+
+    if (path.GetAppend() && path.GetOptimizeFor()) {
+        THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"optimize_for\" are not compatible")
+            << TErrorAttribute("path", path);
+    }
+
+    if (path.GetOptimizeFor()) {
+        result.OptimizeFor = *path.GetOptimizeFor();
+    } else {
+        result.OptimizeFor = optimizeFor;
+    }
+
+    if (path.GetAppend() && path.GetCompressionCodec()) {
+        THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"compression_codec\" are not compatible")
+            << TErrorAttribute("path", path);
+    }
+
+    if (path.GetCompressionCodec()) {
+        result.CompressionCodec = *path.GetCompressionCodec();
+    } else {
+        result.CompressionCodec = compressionCodec;
+    }
+
+    if (path.GetAppend() && path.GetErasureCodec()) {
+        THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"erasure_codec\" are not compatible")
+            << TErrorAttribute("path", path);
+    }
+
+    if (path.GetErasureCodec()) {
+        result.ErasureCodec = *path.GetErasureCodec();
+    } else {
+        result.ErasureCodec = erasureCodec;
     }
 
     return result;

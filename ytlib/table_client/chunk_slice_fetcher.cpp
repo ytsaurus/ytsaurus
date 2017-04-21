@@ -1,6 +1,9 @@
 #include "chunk_slice_fetcher.h"
-#include "row_buffer.h"
-#include "private.h"
+
+#include <yt/server/scheduler/operation_controller.h>
+
+#include "yt/ytlib/table_client/row_buffer.h"
+#include "yt/ytlib/table_client/private.h"
 
 #include <yt/ytlib/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/config.h>
@@ -31,6 +34,7 @@ using namespace NRpc;
 
 using NYT::FromProto;
 using NYT::ToProto;
+using NScheduler::IOperationControllerPtr;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -253,7 +257,6 @@ IChunkSliceFetcherPtr CreateChunkSliceFetcher(
         rowBuffer,
         logger);
 }
-
 
 ////////////////////////////////////////////////////////////////////
 
