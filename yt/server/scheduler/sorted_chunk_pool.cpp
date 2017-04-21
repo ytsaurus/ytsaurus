@@ -370,7 +370,6 @@ public:
     std::vector<TInputDataSlicePtr> ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie)
     {
         YCHECK(0 <= inputCookie && inputCookie < Jobs_.size());
-        YCHECK(Jobs_[inputCookie].IsInvalidated());
         std::vector<TInputDataSlicePtr> foreignSlices;
         for (const auto& stripe : Jobs_[inputCookie].StripeList()->Stripes) {
             if (stripe->Foreign) {
@@ -492,6 +491,7 @@ private:
         {
             YCHECK(!Invalidated_);
             Invalidated_ = true;
+            StripeList_->Stripes.clear();
             UpdateSelf();
         }
 
@@ -1225,12 +1225,12 @@ public:
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
         if (jobSummary.InterruptReason != EInterruptReason::None) {
-            JobManager_->Invalidate(cookie);
             LOG_DEBUG("Splitting job (OutputCookie: %v, InterruptReason: %v, SplitJobCount: %v)",
                 cookie,
                 jobSummary.InterruptReason,
                 jobSummary.SplitJobCount);
             auto foreignSlices = JobManager_->ReleaseForeignSlices(cookie);
+            JobManager_->Invalidate(cookie);
             SplitJob(std::move(jobSummary.UnreadInputDataSlices), std::move(foreignSlices), jobSummary.SplitJobCount);
         }
         JobManager_->Completed(cookie, jobSummary.InterruptReason);
