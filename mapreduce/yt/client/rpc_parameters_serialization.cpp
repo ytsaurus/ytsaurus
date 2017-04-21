@@ -142,9 +142,6 @@ TNode SerializeParamsForGet(
     if (options.MaxSize_) {
         result["max_size"] = *options.MaxSize_;
     }
-    if (options.IgnoreOpaque_) {
-        result["ignore_opaque"] = options.IgnoreOpaque_;
-    }
     return result;
 }
 

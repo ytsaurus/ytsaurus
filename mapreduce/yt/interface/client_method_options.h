@@ -32,7 +32,6 @@ struct TGetOptions
 
     FLUENT_FIELD_OPTION(TAttributeFilter, AttributeFilter);
     FLUENT_FIELD_OPTION(i64, MaxSize); // TODO: rename to limit
-    FLUENT_FIELD_DEFAULT(bool, IgnoreOpaque, false); // TODO: remove ???
 };
 
 // https://wiki.yandex-team.ru/yt/userdoc/api/#list
