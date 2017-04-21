@@ -456,6 +456,19 @@ public:
             .Do(BIND(&TFairShareStrategy::BuildElementYson, Unretained(this), element));
     }
 
+    void BuildEssentialOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& element = FindOperationElement(operationId);
+        if (!element) {
+            return;
+        }
+
+        BuildYsonMapFluently(consumer)
+            .Do(BIND(&TFairShareStrategy::BuildEssentialOperationElementYson, Unretained(this), element));
+    }
+
     virtual void BuildBriefOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -586,9 +599,27 @@ public:
 
         PROFILE_TIMING ("/fair_share_log_time") {
             // Log pools information.
-
             Host->LogEventFluently(ELogEventType::FairShareInfo, now)
                 .Do(BIND(&TFairShareStrategy::BuildFairShareInfo, Unretained(this)));
+
+            for (const auto& pair : OperationIdToElement) {
+                const auto& operationId = pair.first;
+                LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
+                    GetOperationLoggingProgress(operationId),
+                    operationId);
+            }
+        }
+    }
+
+    // NB: This function is public for testing purposes.
+    virtual void OnFairShareEssentialLoggingAt(TInstant now) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        PROFILE_TIMING ("/fair_share_log_time") {
+            // Log pools information.
+            Host->LogEventFluently(ELogEventType::FairShareInfo, now)
+                .Do(BIND(&TFairShareStrategy::BuildEssentialFairShareInfo, Unretained(this)));
 
             for (const auto& pair : OperationIdToElement) {
                 const auto& operationId = pair.first;
@@ -680,6 +711,8 @@ private:
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
 
+    TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     TDynamicAttributes GetGlobalDynamicAttributes(const TSchedulerElementPtr& element) const
@@ -737,6 +770,30 @@ private:
             }
         };
 
+        bool enableSchedulingInfoLogging = false;
+        auto now = GetCpuInstant();
+        if (LastSchedulingInformationLoggedTime_ + DurationToCpuDuration(Config->HeartbeatTreeSchedulingInfoLogBackoff) < now) {
+            enableSchedulingInfoLogging = true;
+            LastSchedulingInformationLoggedTime_ = now;
+        }
+
+        auto logAndCleanSchedulingStatistics = [&] (const Stroka& stageName) {
+            if (!enableSchedulingInfoLogging) {
+                return;
+            }
+            LOG_DEBUG("%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, DeactivationReasons: %v, CanStartMoreJobs: %v)",
+                stageName,
+                context.ActiveTreeSize,
+                context.ActiveOperationCount,
+                context.DeactivationReasons,
+                schedulingContext->CanStartMoreJobs());
+            context.ActiveTreeSize = 0;
+            context.ActiveOperationCount = 0;
+            for (auto& item : context.DeactivationReasons) {
+                item = 0;
+            }
+        };
+
         // First-chance scheduling.
         int nonPreemptiveScheduleJobCount = 0;
         {
@@ -756,6 +813,10 @@ private:
                 NonPreemptiveProfilingCounters,
                 nonPreemptiveScheduleJobCount,
                 timer.GetElapsed() - context.TotalScheduleJobDuration);
+
+            if (nonPreemptiveScheduleJobCount > 0) {
+                logAndCleanSchedulingStatistics("Non preemtive");
+            }
         }
 
         // Compute discount to node usage.
@@ -822,6 +883,9 @@ private:
                 PreemptiveProfilingCounters,
                 preemptiveScheduleJobCount,
                 timer.GetElapsed() - context.TotalScheduleJobDuration);
+            if (preemptiveScheduleJobCount > 0) {
+                logAndCleanSchedulingStatistics("Preemtive");
+            }
         }
 
         int startedAfterPreemption = schedulingContext->StartedJobs().size();
@@ -1244,6 +1308,19 @@ private:
             });
     }
 
+    void BuildEssentialPoolsInformation(IYsonConsumer* consumer)
+    {
+        BuildYsonMapFluently(consumer)
+            .Item("pools").DoMapFor(Pools, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
+                const auto& id = pair.first;
+                const auto& pool = pair.second;
+                fluent
+                    .Item(id).BeginMap()
+                        .Do(BIND(&TFairShareStrategy::BuildEssentialPoolElementYson, Unretained(this), pool))
+                    .EndMap();
+            });
+    }
+
     void BuildFairShareInfo(IYsonConsumer* consumer)
     {
         BuildYsonMapFluently(consumer)
@@ -1255,6 +1332,21 @@ private:
                     BuildYsonMapFluently(fluent)
                         .Item(ToString(operationId)).BeginMap()
                             .Do(BIND(&TFairShareStrategy::BuildOperationProgress, Unretained(this), operationId))
+                        .EndMap();
+                });
+    }
+
+    void BuildEssentialFairShareInfo(IYsonConsumer* consumer)
+    {
+        BuildYsonMapFluently(consumer)
+            .Do(BIND(&TFairShareStrategy::BuildEssentialPoolsInformation, Unretained(this)))
+            .Item("operations").DoMapFor(
+                OperationIdToElement,
+                [=] (TFluentMap fluent, const TOperationElementPtrByIdMap::value_type& pair) {
+                    const auto& operationId = pair.first;
+                    BuildYsonMapFluently(fluent)
+                        .Item(ToString(operationId)).BeginMap()
+                            .Do(BIND(&TFairShareStrategy::BuildEssentialOperationProgress, Unretained(this), operationId))
                         .EndMap();
                 });
     }
@@ -1291,6 +1383,31 @@ private:
             .Item("fair_share_ratio").Value(attributes.FairShareRatio)
             .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
             .Item("best_allocation_ratio").Value(attributes.BestAllocationRatio);
+    }
+
+    void BuildEssentialElementYson(const TSchedulerElementPtr& element, IYsonConsumer* consumer,
+                                   bool shouldPrintResourceUsage)
+    {
+        const auto& attributes = element->Attributes();
+        auto dynamicAttributes = GetGlobalDynamicAttributes(element);
+
+        BuildYsonMapFluently(consumer)
+            .Item("usage_ratio").Value(element->GetResourceUsageRatio())
+            .Item("demand_ratio").Value(attributes.DemandRatio)
+            .Item("fair_share_ratio").Value(attributes.FairShareRatio)
+            .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
+            .DoIf(shouldPrintResourceUsage, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("resource_usage").Value(element->GetResourceUsage());
+            });
+    }
+
+    void BuildEssentialPoolElementYson(const TSchedulerElementPtr& element, IYsonConsumer* consumer) {
+        BuildEssentialElementYson(element, consumer, false);
+    }
+
+    void BuildEssentialOperationElementYson(const TSchedulerElementPtr& element, IYsonConsumer* consumer) {
+        BuildEssentialElementYson(element, consumer, true);
     }
 
     TYPath GetPoolPath(const TCompositeSchedulerElementPtr& element)

@@ -89,6 +89,8 @@ DECLARE_REFCOUNTED_CLASS(TJobHost)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkStripeList)
 
+DECLARE_REFCOUNTED_STRUCT(IChunkSliceFetcherFactory)
+
 class TMasterConnector;
 
 using NJobTrackerClient::NProto::TJobResult;

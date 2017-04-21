@@ -50,11 +50,15 @@ void TTableNode::BeginUpload(EUpdateMode mode)
 void TTableNode::EndUpload(
     const TDataStatistics* statistics,
     const TTableSchema& schema,
-    ETableSchemaMode schemaMode)
+    ETableSchemaMode schemaMode,
+    TNullable<NTableClient::EOptimizeFor> optimizeFor)
 {
     SchemaMode_ = schemaMode;
     TableSchema_ = schema;
-    TChunkOwnerBase::EndUpload(statistics, schema, schemaMode);
+    if (optimizeFor) {
+        OptimizeFor_.Set(*optimizeFor);
+    }
+    TChunkOwnerBase::EndUpload(statistics, schema, schemaMode, optimizeFor);
 }
 
 bool TTableNode::IsSorted() const

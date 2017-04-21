@@ -57,7 +57,7 @@ protected:
     {
         ChunkSliceFetcher_ = New<StrictMock<TMockChunkSliceFetcher>>();
         Options_.MinTeleportChunkSize = Inf64;
-        Options_.MaxTotalSliceCount = Inf64;
+        Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
         DataSizePerJob_ = Inf64;
         MaxDataSlicesPerJob_ = Inf32;
         InputSliceDataSize_ = Inf64;
@@ -76,19 +76,65 @@ protected:
             Inf64 /* inputSliceRowCount */);
     }
 
-    IChunkSliceFetcherPtr PrepareMockChunkSliceFetcher()
+    struct TMockChunkSliceFetcherBuilder
     {
-        Expectation expectation = EXPECT_CALL(*ChunkSliceFetcher_, Fetch())
-            .After(AllChunksAreAdded_)
-            .WillOnce(Return(VoidFuture));
+        TMockChunkSliceFetcherBuilder(TSortedChunkPoolTest* owner)
+            : Owner(owner)
+        { }
 
-        EXPECT_CALL(*ChunkSliceFetcher_, GetChunkSlices())
-            .After(expectation)
-            .WillOnce(ReturnPointee(&DataSlices_));
+        TStrictMockChunkSliceFetcherPtr Build()
+        {
+            Expectation expectation = EXPECT_CALL(*ChunkSliceFetcher, Fetch())
+                .After(AllChunksAreAdded)
+                .WillOnce(Return(VoidFuture));
 
-        return ChunkSliceFetcher_;
+            EXPECT_CALL(*ChunkSliceFetcher, GetChunkSlices())
+                .After(expectation)
+                .WillOnce(ReturnPointee(&ChunkSlices));
+
+            return ChunkSliceFetcher;
+        }
+
+        void RegisterSliceableUnversionedChunk(const TInputChunkPtr& chunk, std::vector<TInputChunkSlicePtr> slices)
+        {
+            ChunkSlices.insert(ChunkSlices.end(), slices.begin(), slices.end());
+            AllChunksAreAdded += EXPECT_CALL(*ChunkSliceFetcher, AddChunk(chunk));
+        }
+
+        void RegisterTriviallySliceableUnversionedChunk(const TInputChunkPtr& chunk)
+        {
+            auto chunkSlices = Owner->SliceUnversionedChunk(chunk, {}, {chunk->GetCompressedDataSize()});
+            RegisterSliceableUnversionedChunk(chunk, std::move(chunkSlices));
+        }
+
+        ExpectationSet AllChunksAreAdded;
+        TStrictMockChunkSliceFetcherPtr ChunkSliceFetcher = New<StrictMock<TMockChunkSliceFetcher>>();
+        std::vector<TInputChunkSlicePtr> ChunkSlices;
+        TSortedChunkPoolTest* Owner;
+    };
+
+    std::vector<TMockChunkSliceFetcherBuilder> MockBuilders_;
+    std::vector<TStrictMockChunkSliceFetcherPtr> Fetchers_;
+
+    IChunkSliceFetcherFactoryPtr BuildMockChunkSliceFetcherFactory()
+    {
+        YCHECK(Fetchers_.empty());
+        for (auto& mockBuilder : MockBuilders_) {
+            Fetchers_.emplace_back(mockBuilder.Build());
+        }
+        return New<TMockChunkSliceFetcherFactory>(&Fetchers_);
     }
 
+    void PrepareNewMock()
+    {
+        MockBuilders_.emplace_back(this);
+    }
+
+    TMockChunkSliceFetcherBuilder& CurrentMock()
+    {
+        YCHECK(!MockBuilders_.empty());
+        return MockBuilders_.back();
+    }
 
     // In this test we will only deal with integral rows as
     // all the logic inside sorted chunk pool does not depend on
@@ -165,18 +211,6 @@ protected:
         UnversionedTableRowCounts_.resize(InputTables_.size(), 0);
     }
 
-    void RegisterSliceableUnversionedChunk(const TInputChunkPtr& chunk, std::vector<TInputChunkSlicePtr> slices)
-    {
-        DataSlices_.insert(DataSlices_.end(), slices.begin(), slices.end());
-        AllChunksAreAdded_ += EXPECT_CALL(*ChunkSliceFetcher_, AddChunk(chunk));
-    }
-
-    void RegisterTriviallySliceableUnversionedChunk(const TInputChunkPtr& chunk)
-    {
-        auto chunkSlices = SliceUnversionedChunk(chunk, {}, {chunk->GetCompressedDataSize()});
-        RegisterSliceableUnversionedChunk(chunk, std::move(chunkSlices));
-    }
-
     std::vector<TInputChunkSlicePtr> SliceUnversionedChunk(
         TInputChunkPtr chunk,
         std::vector<TKey> internalPoints,
@@ -220,12 +254,13 @@ protected:
         return slices;
     }
 
-    void CreateChunkPool(bool useChunkSliceFetcher = true, bool useGenericInputStreamDirectory = false)
+    void CreateChunkPool(bool useGenericInputStreamDirectory = false)
     {
         ChunkPool_ = CreateSortedChunkPool(
             Options_,
-            useChunkSliceFetcher ? PrepareMockChunkSliceFetcher() : nullptr,
+            !MockBuilders_.empty() ? BuildMockChunkSliceFetcherFactory() : nullptr,
             useGenericInputStreamDirectory ? IntermediateInputStreamDirectory : TInputStreamDirectory(InputTables_));
+        ChunkPool_->SubscribePoolOutputInvalidated(BIND(&TSortedChunkPoolTest::StoreInvalidationError, this));
     }
 
     TInputDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
@@ -241,6 +276,19 @@ protected:
         ActiveChunks_.insert(chunk->ChunkId());
         InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
         return ChunkPool_->Add(New<TChunkStripe>(dataSlice));
+    }
+
+    IChunkPoolInput::TCookie AddMultiChunkStripe(std::vector<TInputChunkPtr> chunks)
+    {
+        std::vector<TInputDataSlicePtr> dataSlices;
+        for (const auto& chunk : chunks) {
+            auto dataSlice = BuildDataSliceByChunk(chunk);
+            InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
+            dataSlices.emplace_back(std::move(dataSlice));
+        }
+        auto stripe = New<TChunkStripe>();
+        std::move(dataSlices.begin(), dataSlices.end(), std::back_inserter(stripe->DataSlices));
+        return ChunkPool_->Add(stripe);
     }
 
     void SuspendChunk(IChunkPoolInput::TCookie cookie, const TInputChunkPtr& chunk)
@@ -287,6 +335,7 @@ protected:
         loadContext.SetRowBuffer(RowBuffer_);
         loadContext.SetInput(&input);
         Load(loadContext, ChunkPool_);
+        ChunkPool_->SubscribePoolOutputInvalidated(BIND(&TSortedChunkPoolTest::StoreInvalidationError, this));
     }
 
     std::vector<TChunkStripeListPtr> GetAllStripeLists()
@@ -433,7 +482,7 @@ protected:
         }
     }
 
-    //! Check that jobs do not overlap by keys. Applicable only when Options_.EnableKeyGuarantee is true.
+    //! Check that jobs do not overlap by keys. Applicable only when Options_.SortedJobOptions.EnableKeyGuarantee is true.
     void CheckKeyGuarantee(const std::vector<TChunkStripeListPtr>& stripeLists)
     {
         TKey lastUpperKey;
@@ -480,7 +529,7 @@ protected:
         CheckTeleportChunks(teleportChunks);
         CheckStripeListsContainOnlyActiveChunks();
         CheckForeignStripesAreMarkedAsForeign();
-        if (Options_.EnableKeyGuarantee) {
+        if (Options_.SortedJobOptions.EnableKeyGuarantee) {
             CheckKeyGuarantee(stripeLists);
         }
     }
@@ -514,6 +563,11 @@ protected:
         }
     }
 
+    void StoreInvalidationError(const TError& error)
+    {
+        InvalidationErrors_.emplace_back(error);
+    }
+
     std::unique_ptr<IChunkPool> ChunkPool_;
 
     //! Set containing all unversioned primary input chunks that have ever been created.
@@ -524,10 +578,6 @@ protected:
     TIntrusivePtr<StrictMock<TMockChunkSliceFetcher>> ChunkSliceFetcher_;
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
-
-    ExpectationSet AllChunksAreAdded_;
-
-    std::vector<TInputChunkSlicePtr> DataSlices_;
 
     std::vector<TInputStreamDescriptor> InputTables_;
 
@@ -546,27 +596,30 @@ protected:
     std::vector<IChunkPoolOutput::TCookie> ExtractedCookies_;
 
     std::mt19937 Gen_;
+
+    std::vector<TError> InvalidationErrors_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TSortedChunkPoolTest, SortedMergeTeleports1)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false, false, false, false} /* isForeign */,
         {true, true, true, true} /* isTeleportable */,
         {false, false, false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
+    PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({0, 10}), BuildRow({1, 11}), 0);
     auto chunkB = CreateChunk(BuildRow({1, 12}), BuildRow({2, 10}), 1);
     auto chunkC = CreateChunk(BuildRow({1, 10}), BuildRow({1, 13}), 2);
     auto chunkD = CreateChunk(BuildRow({1, 12}), BuildRow({2, 10}), 3, 1 * KB, BuildRow({1, 13}), BuildRow({1, 17}));
-    RegisterTriviallySliceableUnversionedChunk(chunkD);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkD);
 
     CreateChunkPool();
 
@@ -589,22 +642,23 @@ TEST_F(TSortedChunkPoolTest, SortedMergeTeleports1)
 
 TEST_F(TSortedChunkPoolTest, SortedMergeTeleports2)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false, false, false, false} /* isForeign */,
         {false, true, true, true} /* isTeleportable */,
         {false, false, false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
+    PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({0, 10}), BuildRow({1, 11}), 0);
     auto chunkB = CreateChunk(BuildRow({1, 12}), BuildRow({2, 10}), 1);
     auto chunkC = CreateChunk(BuildRow({1, 10}), BuildRow({1, 13}), 2);
     auto chunkD = CreateChunk(BuildRow({1, 12}), BuildRow({2, 10}), 3, 1 * KB, BuildRow({1, 13}), BuildRow({1, 17}));
-    RegisterTriviallySliceableUnversionedChunk(chunkA);
-    RegisterTriviallySliceableUnversionedChunk(chunkD);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkD);
 
     CreateChunkPool();
 
@@ -628,13 +682,13 @@ TEST_F(TSortedChunkPoolTest, SortedMergeTeleports2)
 
 TEST_F(TSortedChunkPoolTest, SortedMergeTeleports3)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false, false, false} /* isForeign */,
         {true, true, true} /* isTeleportable */,
         {false, false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
 
@@ -662,22 +716,23 @@ TEST_F(TSortedChunkPoolTest, SortedMergeTeleports3)
 
 TEST_F(TSortedChunkPoolTest, SortedMergeTeleports4)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false, false, false} /* isForeign */,
         {true, true, true} /* isTeleportable */,
         {false, false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 2;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 2;
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
+    PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({0, 10}), BuildRow({1, 11}), 0);
     auto chunkB = CreateChunk(BuildRow({1, 12}), BuildRow({2, 10}), 1);
     auto chunkC = CreateChunk(BuildRow({1, 10}), BuildRow({1, 13}), 2);
-    RegisterTriviallySliceableUnversionedChunk(chunkA);
-    RegisterTriviallySliceableUnversionedChunk(chunkB);
-    RegisterTriviallySliceableUnversionedChunk(chunkC);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC);
 
     CreateChunkPool();
 
@@ -701,15 +756,16 @@ TEST_F(TSortedChunkPoolTest, SortedMergeTeleports4)
 // Double-think before reading it :)
 TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false, false} /* isForeign */,
         {true, true} /* isTeleportable */,
         {false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 3;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 3;
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
+    PrepareNewMock();
 
     // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     // Simple cases no read limits, keys of length exactly PrimaryPrefixLength.
@@ -732,48 +788,48 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
     // __[===]
     auto chunkA3 = CreateChunk(BuildRow({3, 1, 0}), BuildRow({3, 1, 2}), 0);
     auto chunkB3 = CreateChunk(BuildRow({3, 1, 1}), BuildRow({3, 1, 4}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA3);
-    RegisterTriviallySliceableUnversionedChunk(chunkB3);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA3);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB3);
 
     // No (one contained in another).
     // [====]__
     // _[==]___
     auto chunkA4 = CreateChunk(BuildRow({4, 1, 0}), BuildRow({4, 1, 3}), 0);
     auto chunkB4 = CreateChunk(BuildRow({4, 1, 1}), BuildRow({4, 1, 2}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA4);
-    RegisterTriviallySliceableUnversionedChunk(chunkB4);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA4);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB4);
 
     // No (single_key one contained in another).
     // [====]__
     // __[]____
     auto chunkA5 = CreateChunk(BuildRow({5, 1, 0}), BuildRow({5, 1, 3}), 0);
     auto chunkB5 = CreateChunk(BuildRow({5, 1, 1}), BuildRow({5, 1, 1}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA5);
-    RegisterTriviallySliceableUnversionedChunk(chunkB5);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA5);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB5);
 
     // No (they coincide).
     // [===]__
     // [===]__
     auto chunkA6 = CreateChunk(BuildRow({6, 1, 0}), BuildRow({6, 1, 3}), 0);
     auto chunkB6 = CreateChunk(BuildRow({6, 1, 0}), BuildRow({6, 1, 3}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA6);
-    RegisterTriviallySliceableUnversionedChunk(chunkB6);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA6);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB6);
 
     // No (one covers another).
     // [===]__
     // [====]_
     auto chunkA7 = CreateChunk(BuildRow({7, 1, 0}), BuildRow({7, 1, 3}), 0);
     auto chunkB7 = CreateChunk(BuildRow({7, 1, 0}), BuildRow({7, 1, 4}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA7);
-    RegisterTriviallySliceableUnversionedChunk(chunkB7);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA7);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB7);
 
     // No (one covers another).
     // _[===]__
     // [====]__
     auto chunkA8 = CreateChunk(BuildRow({8, 1, 0}), BuildRow({8, 1, 4}), 0);
     auto chunkB8 = CreateChunk(BuildRow({8, 1, 1}), BuildRow({8, 1, 4}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA8);
-    RegisterTriviallySliceableUnversionedChunk(chunkB8);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA8);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB8);
 
     // Yes (single-key is located exactly at the max boundary key of another).
     // [===]__
@@ -803,65 +859,65 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
     // ___===[==]
     auto chunkA12 = CreateChunk(BuildRow({12, 1, 0}), BuildRow({12, 1, 4}), 0);
     auto chunkB12 = CreateChunk(BuildRow({12, 1, 2}), BuildRow({12, 1, 8}), 1, 1 * KB, BuildRow({12, 1, 5}));
-    RegisterTriviallySliceableUnversionedChunk(chunkB12);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB12);
 
     // Yes/No (non-trivial lower limit coinciding with max key).
     // _[==]_____
     // ___=[====]
     auto chunkA13 = CreateChunk(BuildRow({13, 1, 0}), BuildRow({13, 1, 4}), 0);
     auto chunkB13 = CreateChunk(BuildRow({13, 1, 2}), BuildRow({13, 1, 8}), 1, 1 * KB, BuildRow({13, 1, 4}));
-    RegisterTriviallySliceableUnversionedChunk(chunkB13);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB13);
 
     // No/No (they partially intersect with each other).
     // _[===]____
     // ___=[===]_
     auto chunkA14 = CreateChunk(BuildRow({14, 1, 0}), BuildRow({14, 1, 4}), 0);
     auto chunkB14 = CreateChunk(BuildRow({14, 1, 2}), BuildRow({14, 1, 8}), 1, 1 * KB, BuildRow({14, 1, 3}));
-    RegisterTriviallySliceableUnversionedChunk(chunkA14);
-    RegisterTriviallySliceableUnversionedChunk(chunkB14);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA14);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB14);
 
     // Yes/No (second one is de-facto single-key coinciding with the max-key of the first one).
     // _[===]____
     // ___=[]____
     auto chunkA15 = CreateChunk(BuildRow({15, 1, 0}), BuildRow({15, 1, 4}), 0);
     auto chunkB15 = CreateChunk(BuildRow({15, 1, 2}), BuildRow({15, 1, 4}), 1, 1 * KB, BuildRow({15, 1, 4}));
-    RegisterTriviallySliceableUnversionedChunk(chunkB15);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB15);
 
     // Yes/No (non-trivial upper limit).
     // ______[===]_
     // _[==)===____
     auto chunkA16 = CreateChunk(BuildRow({16, 1, 4}), BuildRow({16, 1, 8}), 0);
     auto chunkB16 = CreateChunk(BuildRow({16, 1, 0}), BuildRow({16, 1, 6}), 1, 1 * KB, TKey(), BuildRow({16, 1, 3}));
-    RegisterTriviallySliceableUnversionedChunk(chunkB16);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB16);
 
     // Yes/No (non-trivial upper limit).
     // ____[===]_
     // _[==)===__
     auto chunkA17 = CreateChunk(BuildRow({17, 1, 4}), BuildRow({17, 1, 8}), 0);
     auto chunkB17 = CreateChunk(BuildRow({17, 1, 0}), BuildRow({17, 1, 6}), 1, 1 * KB, TKey(), BuildRow({17, 1, 4}));
-    RegisterTriviallySliceableUnversionedChunk(chunkB17);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB17);
 
     // No/No (non-trivial upper limit).
     // ____[===]_
     // _[====)=__
     auto chunkA18 = CreateChunk(BuildRow({18, 1, 4}), BuildRow({18, 1, 8}), 0);
     auto chunkB18 = CreateChunk(BuildRow({18, 1, 0}), BuildRow({18, 1, 6}), 1, 1 * KB, TKey(), BuildRow({18, 1, 5}));
-    RegisterTriviallySliceableUnversionedChunk(chunkA18);
-    RegisterTriviallySliceableUnversionedChunk(chunkB18);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA18);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB18);
 
     // Yes/No (first one is single-key touching the second one with non-trivial lower limit).
     // __[]_______
     // ===[==)____
     auto chunkA19 = CreateChunk(BuildRow({19, 1, 4}), BuildRow({19, 1, 4}), 0);
     auto chunkB19 = CreateChunk(BuildRow({19, 1, 0}), BuildRow({19, 1, 6}), 1, 1 * KB, BuildRow({19, 1, 4}));
-    RegisterTriviallySliceableUnversionedChunk(chunkB19);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB19);
 
     // Yes/No (first one is single-key touching the second one with non-trivial upper limit).
     // _____[]___
     // ___[==)===_
     auto chunkA20 = CreateChunk(BuildRow({20, 1, 4}), BuildRow({20, 1, 4}), 0);
     auto chunkB20 = CreateChunk(BuildRow({20, 1, 0}), BuildRow({20, 1, 6}), 1, 1 * KB, TKey(), BuildRow({20, 1, 4}));
-    RegisterTriviallySliceableUnversionedChunk(chunkB20);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB20);
 
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     // Cases with and without read limits, keys longer than PrimaryPrefixLength.
@@ -889,8 +945,8 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
 
     auto chunkA23 = CreateChunk(BuildRow({23, 1, 1, 42}), BuildRow({23, 1, 3, 42}), 0);
     auto chunkB23 = CreateChunk(BuildRow({23, 1, 2, 42}), BuildRow({23, 1, 4, 46}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA23);
-    RegisterTriviallySliceableUnversionedChunk(chunkB23);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA23);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB23);
 
     // Yes (after shortening one of the chunks will be single-key touching the max-key).
     //    0   |   1   |   2   |   3   |   4   |   5   |   6
@@ -923,7 +979,7 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
 
     auto chunkA27 = CreateChunk(BuildRow({27, 1, 1, 42}), BuildRow({27, 1, 3, 42}), 0);
     auto chunkB27 = CreateChunk(BuildRow({27, 1, 1, 42}), BuildRow({27, 1, 2, 42}), 1, 1 * KB, TKey(), BuildRow({27, 1, 1, 46}));
-    RegisterTriviallySliceableUnversionedChunk(chunkB27);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB27);
 
     // No/No (after shortening chunks will be intersecting).
     //    0   |   1   |   2   |   3   |   4   |   5   |   6
@@ -932,8 +988,8 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
 
     auto chunkA28 = CreateChunk(BuildRow({28, 1, 1, 42}), BuildRow({28, 1, 3, 42}), 0);
     auto chunkB28 = CreateChunk(BuildRow({28, 1, 1, 42}), BuildRow({28, 1, 3, 42}), 1, 1 * KB, TKey(), BuildRow({28, 1, 2, 46}));
-    RegisterTriviallySliceableUnversionedChunk(chunkA28);
-    RegisterTriviallySliceableUnversionedChunk(chunkB28);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA28);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB28);
 
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     // Cases with and without read limits, read limits shorter than PrimaryPrefixLength.
@@ -947,8 +1003,8 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
 
     auto chunkA29 = CreateChunk(BuildRow({29, 0, 1}), BuildRow({29, 1, 1}), 0, 1 * KB, BuildRow({29, 1}));
     auto chunkB29 = CreateChunk(BuildRow({29, 0, 1}), BuildRow({29, 1, 0}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA29);
-    RegisterTriviallySliceableUnversionedChunk(chunkB29);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA29);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB29);
 
     // No/Yes (after shortening one chunks will be intersecting).
     //                0              ||              1              ||              2               <- 1-st component is shown here
@@ -958,7 +1014,7 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
 
     auto chunkA30 = CreateChunk(BuildRow({30, 1, 0}), BuildRow({30, 2, 1}), 0, 1 * KB, TKey(), BuildRow({30, 2}));
     auto chunkB30 = CreateChunk(BuildRow({30, 2, 0}), BuildRow({30, 2, 0}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA30);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA30);
 
     CreateChunkPool();
 
@@ -999,22 +1055,23 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
 
 TEST_F(TSortedChunkPoolTest, SortedMergeSimple)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false, false, false} /* isForeign */,
         {true, true, true} /* isTeleportable */,
         {false, false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     InitJobConstraints();
+    PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
     auto chunkB = CreateChunk(BuildRow({2}), BuildRow({15}), 1);
     auto chunkC = CreateChunk(BuildRow({1}), BuildRow({3}), 2);
     auto chunkBSlices = SliceUnversionedChunk(chunkB, {BuildRow({3}), BuildRow({6})}, {KB / 4, KB / 2, KB / 4});
-    RegisterTriviallySliceableUnversionedChunk(chunkA);
-    RegisterSliceableUnversionedChunk(chunkB, chunkBSlices);
-    RegisterTriviallySliceableUnversionedChunk(chunkC);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
+    CurrentMock().RegisterSliceableUnversionedChunk(chunkB, chunkBSlices);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC);
 
     CreateChunkPool();
 
@@ -1036,20 +1093,20 @@ TEST_F(TSortedChunkPoolTest, SortedMergeSimple)
 
 TEST_F(TSortedChunkPoolTest, SortedMergeWithPersistBeforeFinish)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false, false, false} /* isForeign */,
         {true, true, true} /* isTeleportable */,
         {false, false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     InitJobConstraints();
 
     auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
     auto chunkB = CreateChunk(BuildRow({2}), BuildRow({15}), 1);
     auto chunkC = CreateChunk(BuildRow({1}), BuildRow({3}), 2);
 
-    CreateChunkPool(false /* useChunkSliceFetcher */);
+    CreateChunkPool();
 
     AddChunk(chunkA);
     AddChunk(chunkB);
@@ -1070,24 +1127,25 @@ TEST_F(TSortedChunkPoolTest, SortedMergeWithPersistBeforeFinish)
 
 TEST_F(TSortedChunkPoolTest, SortedMergeSimpleWithGenericInputStreamDirectory)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false, false, false} /* isForeign */,
         {true, true, true} /* isTeleportable */,
         {false, false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     InitJobConstraints();
+    PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
     auto chunkB = CreateChunk(BuildRow({2}), BuildRow({15}), 1);
     auto chunkC = CreateChunk(BuildRow({1}), BuildRow({3}), 2);
     auto chunkBSlices = SliceUnversionedChunk(chunkB, {BuildRow({3}), BuildRow({6})}, {KB / 4, KB / 2, KB / 4});
-    RegisterTriviallySliceableUnversionedChunk(chunkA);
-    RegisterSliceableUnversionedChunk(chunkB, chunkBSlices);
-    RegisterTriviallySliceableUnversionedChunk(chunkC);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
+    CurrentMock().RegisterSliceableUnversionedChunk(chunkB, chunkBSlices);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC);
 
-    CreateChunkPool(true /* useSliceChunkFetcher */, true /* useGenericInputStreamDirectory */);
+    CreateChunkPool(true /* useGenericInputStreamDirectory */);
 
     AddChunk(chunkA);
     AddChunk(chunkB);
@@ -1107,22 +1165,23 @@ TEST_F(TSortedChunkPoolTest, SortedMergeSimpleWithGenericInputStreamDirectory)
 
 TEST_F(TSortedChunkPoolTest, SlicingManiacs)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false, false} /* isForeign */,
         {true, true} /* isTeleportable */,
         {false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     MaxDataSlicesPerJob_ = 3;
     InitJobConstraints();
+    PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({1}), BuildRow({5}), 0);
-    RegisterTriviallySliceableUnversionedChunk(chunkA);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
     std::vector<TInputChunkPtr> maniacChunksB;
     for (int i = 0; i < 100; i++) {
         maniacChunksB.emplace_back(CreateChunk(BuildRow({3}), BuildRow({3}), 1));
-        RegisterTriviallySliceableUnversionedChunk(maniacChunksB.back());
+        CurrentMock().RegisterTriviallySliceableUnversionedChunk(maniacChunksB.back());
     }
 
     CreateChunkPool();
@@ -1153,21 +1212,22 @@ TEST_F(TSortedChunkPoolTest, SlicingManiacs)
 
 TEST_F(TSortedChunkPoolTest, SortedReduceSimple)
 {
-    Options_.EnableKeyGuarantee = true;
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
         {false, false} /* isForeign */,
         {true, true} /* isTeleportable */,
         {false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     Options_.MinTeleportChunkSize = 0;
     MaxDataSlicesPerJob_ = 1;
     InitJobConstraints();
+    PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({0, 1}), BuildRow({2, 2}), 0);
     auto chunkB = CreateChunk(BuildRow({2, 6}), BuildRow({5, 8}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA);
-    RegisterTriviallySliceableUnversionedChunk(chunkB);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
 
     CreateChunkPool();
 
@@ -1192,20 +1252,21 @@ TEST_F(TSortedChunkPoolTest, SortedReduceSimple)
 
 TEST_F(TSortedChunkPoolTest, SortedReduceManiacs)
 {
-    Options_.EnableKeyGuarantee = true;
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
         {false, false} /* isForeign */,
         {true, true} /* isTeleportable */,
         {false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
+    PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({0, 1}), BuildRow({2, 9}), 0);
     auto chunkB = CreateChunk(BuildRow({2, 6}), BuildRow({2, 8}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA);
-    RegisterTriviallySliceableUnversionedChunk(chunkB);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
 
     CreateChunkPool();
 
@@ -1225,15 +1286,16 @@ TEST_F(TSortedChunkPoolTest, SortedReduceManiacs)
 
 TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
 {
-    Options_.EnableKeyGuarantee = true;
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
         {false, false} /* isForeign */,
         {true, true} /* isTeleportable */,
         {false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 3;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 3;
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
+    PrepareNewMock();
 
     // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     // Simple cases no read limits, keys of length exactly PrimaryPrefixLength.
@@ -1250,80 +1312,80 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
     // ___[==]
     auto chunkA2 = CreateChunk(BuildRow({2, 1, 0}), BuildRow({2, 1, 2}), 0);
     auto chunkB2 = CreateChunk(BuildRow({2, 1, 2}), BuildRow({2, 1, 4}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA2);
-    RegisterTriviallySliceableUnversionedChunk(chunkB2);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA2);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB2);
 
     // No (they partially intersect).
     // [===]__
     // __[===]
     auto chunkA3 = CreateChunk(BuildRow({3, 1, 0}), BuildRow({3, 1, 2}), 0);
     auto chunkB3 = CreateChunk(BuildRow({3, 1, 1}), BuildRow({3, 1, 4}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA3);
-    RegisterTriviallySliceableUnversionedChunk(chunkB3);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA3);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB3);
 
     // No (one contained in another).
     // [====]__
     // _[==]___
     auto chunkA4 = CreateChunk(BuildRow({4, 1, 0}), BuildRow({4, 1, 3}), 0);
     auto chunkB4 = CreateChunk(BuildRow({4, 1, 1}), BuildRow({4, 1, 2}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA4);
-    RegisterTriviallySliceableUnversionedChunk(chunkB4);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA4);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB4);
 
     // No (single_key one contained in another).
     // [====]__
     // __[]____
     auto chunkA5 = CreateChunk(BuildRow({5, 1, 0}), BuildRow({5, 1, 3}), 0);
     auto chunkB5 = CreateChunk(BuildRow({5, 1, 1}), BuildRow({5, 1, 1}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA5);
-    RegisterTriviallySliceableUnversionedChunk(chunkB5);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA5);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB5);
 
     // No (they coincide).
     // [===]__
     // [===]__
     auto chunkA6 = CreateChunk(BuildRow({6, 1, 0}), BuildRow({6, 1, 3}), 0);
     auto chunkB6 = CreateChunk(BuildRow({6, 1, 0}), BuildRow({6, 1, 3}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA6);
-    RegisterTriviallySliceableUnversionedChunk(chunkB6);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA6);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB6);
 
     // No (one covers another).
     // [===]__
     // [====]_
     auto chunkA7 = CreateChunk(BuildRow({7, 1, 0}), BuildRow({7, 1, 3}), 0);
     auto chunkB7 = CreateChunk(BuildRow({7, 1, 0}), BuildRow({7, 1, 4}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA7);
-    RegisterTriviallySliceableUnversionedChunk(chunkB7);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA7);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB7);
 
     // No (one covers another).
     // _[===]__
     // [====]__
     auto chunkA8 = CreateChunk(BuildRow({8, 1, 0}), BuildRow({8, 1, 4}), 0);
     auto chunkB8 = CreateChunk(BuildRow({8, 1, 1}), BuildRow({8, 1, 4}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA8);
-    RegisterTriviallySliceableUnversionedChunk(chunkB8);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA8);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB8);
 
     // No (single-key is located exactly at the max boundary key of another).
     // [===]__
     // ___[]__
     auto chunkA9 = CreateChunk(BuildRow({9, 1, 0}), BuildRow({9, 1, 4}), 0);
     auto chunkB9 = CreateChunk(BuildRow({9, 1, 4}), BuildRow({9, 1, 4}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA9);
-    RegisterTriviallySliceableUnversionedChunk(chunkB9);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA9);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB9);
 
     // No (single-key is located exactly at the min boundary key of another).
     // [===]__
     // []_____
     auto chunkA10 = CreateChunk(BuildRow({10, 1, 0}), BuildRow({10, 1, 4}), 0);
     auto chunkB10 = CreateChunk(BuildRow({10, 1, 0}), BuildRow({10, 1, 0}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA10);
-    RegisterTriviallySliceableUnversionedChunk(chunkB10);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA10);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB10);
 
     // No (single-key chunks coincide).
     // _[]___
     // _[]___
     auto chunkA11 = CreateChunk(BuildRow({11, 1, 4}), BuildRow({11, 1, 4}), 0);
     auto chunkB11 = CreateChunk(BuildRow({11, 1, 4}), BuildRow({11, 1, 4}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA11);
-    RegisterTriviallySliceableUnversionedChunk(chunkB11);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA11);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB11);
 
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     // Cases with read limits, keys of length exactly PrimaryPrefixLength.
@@ -1335,68 +1397,68 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
     // ___===[==]
     auto chunkA12 = CreateChunk(BuildRow({12, 1, 0}), BuildRow({12, 1, 4}), 0);
     auto chunkB12 = CreateChunk(BuildRow({12, 1, 2}), BuildRow({12, 1, 8}), 1, 1 * KB, BuildRow({12, 1, 5}));
-    RegisterTriviallySliceableUnversionedChunk(chunkB12);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB12);
 
     // No/No (non-trivial lower limit coinciding with max key).
     // _[==]_____
     // ___=[====]
     auto chunkA13 = CreateChunk(BuildRow({13, 1, 0}), BuildRow({13, 1, 4}), 0);
     auto chunkB13 = CreateChunk(BuildRow({13, 1, 2}), BuildRow({13, 1, 8}), 1, 1 * KB, BuildRow({13, 1, 4}));
-    RegisterTriviallySliceableUnversionedChunk(chunkA13);
-    RegisterTriviallySliceableUnversionedChunk(chunkB13);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA13);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB13);
 
     // No/No (they partially intersect with each other).
     // _[===]____
     // ___=[===]_
     auto chunkA14 = CreateChunk(BuildRow({14, 1, 0}), BuildRow({14, 1, 4}), 0);
     auto chunkB14 = CreateChunk(BuildRow({14, 1, 2}), BuildRow({14, 1, 8}), 1, 1 * KB, BuildRow({14, 1, 3}));
-    RegisterTriviallySliceableUnversionedChunk(chunkA14);
-    RegisterTriviallySliceableUnversionedChunk(chunkB14);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA14);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB14);
 
     // No/No (second one is de-facto single-key coinciding with the max-key of the first one).
     // _[===]____
     // ___=[]____
     auto chunkA15 = CreateChunk(BuildRow({15, 1, 0}), BuildRow({15, 1, 4}), 0);
     auto chunkB15 = CreateChunk(BuildRow({15, 1, 2}), BuildRow({15, 1, 4}), 1, 1 * KB, BuildRow({15, 1, 4}));
-    RegisterTriviallySliceableUnversionedChunk(chunkA15);
-    RegisterTriviallySliceableUnversionedChunk(chunkB15);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA15);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB15);
 
     // Yes/No (non-trivial upper limit).
     // ______[===]_
     // _[==)===____
     auto chunkA16 = CreateChunk(BuildRow({16, 1, 4}), BuildRow({16, 1, 8}), 0);
     auto chunkB16 = CreateChunk(BuildRow({16, 1, 0}), BuildRow({16, 1, 6}), 1, 1 * KB, TKey(), BuildRow({16, 1, 3}));
-    RegisterTriviallySliceableUnversionedChunk(chunkB16);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB16);
 
     // Yes/No (non-trivial upper limit).
     // ____[===]_
     // _[==)===__
     auto chunkA17 = CreateChunk(BuildRow({17, 1, 4}), BuildRow({17, 1, 8}), 0);
     auto chunkB17 = CreateChunk(BuildRow({17, 1, 0}), BuildRow({17, 1, 6}), 1, 1 * KB, TKey(), BuildRow({17, 1, 4}));
-    RegisterTriviallySliceableUnversionedChunk(chunkB17);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB17);
 
     // No/No (non-trivial upper limit).
     // ____[===]_
     // _[====)=__
     auto chunkA18 = CreateChunk(BuildRow({18, 1, 4}), BuildRow({18, 1, 8}), 0);
     auto chunkB18 = CreateChunk(BuildRow({18, 1, 0}), BuildRow({18, 1, 6}), 1, 1 * KB, TKey(), BuildRow({18, 1, 5}));
-    RegisterTriviallySliceableUnversionedChunk(chunkA18);
-    RegisterTriviallySliceableUnversionedChunk(chunkB18);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA18);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB18);
 
     // No/No (first one is single-key touching the second one with non-trivial lower limit).
     // __[]_______
     // ===[==)____
     auto chunkA19 = CreateChunk(BuildRow({19, 1, 4}), BuildRow({19, 1, 4}), 0);
     auto chunkB19 = CreateChunk(BuildRow({19, 1, 0}), BuildRow({19, 1, 6}), 1, 1 * KB, BuildRow({19, 1, 4}));
-    RegisterTriviallySliceableUnversionedChunk(chunkA19);
-    RegisterTriviallySliceableUnversionedChunk(chunkB19);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA19);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB19);
 
     // Yes/No (first one is single-key touching the second one with non-trivial upper limit).
     // _____[]___
     // ___[==)===_
     auto chunkA20 = CreateChunk(BuildRow({20, 1, 4}), BuildRow({20, 1, 4}), 0);
     auto chunkB20 = CreateChunk(BuildRow({20, 1, 0}), BuildRow({20, 1, 6}), 1, 1 * KB, TKey(), BuildRow({20, 1, 4}));
-    RegisterTriviallySliceableUnversionedChunk(chunkB20);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB20);
 
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     // Cases with and without read limits, keys longer than PrimaryPrefixLength.
@@ -1416,8 +1478,8 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
 
     auto chunkA22 = CreateChunk(BuildRow({22, 1, 1, 40}), BuildRow({22, 1, 2, 44}), 0);
     auto chunkB22 = CreateChunk(BuildRow({22, 1, 2, 42}), BuildRow({22, 1, 3, 46}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA22);
-    RegisterTriviallySliceableUnversionedChunk(chunkB22);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA22);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB22);
 
     // No (after shortening chunks will be intersecting).
     //    0   |   1   |   2   |   3   |   4   |   5   |   6
@@ -1426,8 +1488,8 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
 
     auto chunkA23 = CreateChunk(BuildRow({23, 1, 1, 42}), BuildRow({23, 1, 3, 42}), 0);
     auto chunkB23 = CreateChunk(BuildRow({23, 1, 2, 42}), BuildRow({23, 1, 4, 46}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA23);
-    RegisterTriviallySliceableUnversionedChunk(chunkB23);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA23);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB23);
 
     // No (after shortening one of the chunks will be single-key touching the max-key).
     //    0   |   1   |   2   |   3   |   4   |   5   |   6
@@ -1436,8 +1498,8 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
 
     auto chunkA24 = CreateChunk(BuildRow({24, 1, 1, 42}), BuildRow({24, 1, 3, 42}), 0);
     auto chunkB24 = CreateChunk(BuildRow({24, 1, 3, 42}), BuildRow({24, 1, 4, 42}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA24);
-    RegisterTriviallySliceableUnversionedChunk(chunkB24);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA24);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB24);
 
     // No (after shortening one of the chunks will be single-key touching the min-key).
     //    0   |   1   |   2   |   3   |   4   |   5   |   6
@@ -1446,8 +1508,8 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
 
     auto chunkA25 = CreateChunk(BuildRow({25, 1, 1, 42}), BuildRow({25, 1, 3, 42}), 0);
     auto chunkB25 = CreateChunk(BuildRow({25, 1, 1, 42}), BuildRow({25, 1, 1, 42}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA25);
-    RegisterTriviallySliceableUnversionedChunk(chunkB25);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA25);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB25);
 
     // No (after shortening both chunks will be coinciding and single-key).
     //    0   |   1   |   2   |   3   |   4   |   5   |   6
@@ -1456,8 +1518,8 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
 
     auto chunkA26 = CreateChunk(BuildRow({26, 1, 2, 42}), BuildRow({26, 1, 2, 42}), 0);
     auto chunkB26 = CreateChunk(BuildRow({26, 1, 2, 42}), BuildRow({26, 1, 2, 42}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA26);
-    RegisterTriviallySliceableUnversionedChunk(chunkB26);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA26);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB26);
 
     // No/No (after shortening one of the chunks will be single-key touching the min-key with non-trivial read limits).
     //    0   |   1   |   2   |   3   |   4   |   5   |   6
@@ -1466,8 +1528,8 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
 
     auto chunkA27 = CreateChunk(BuildRow({27, 1, 1, 42}), BuildRow({27, 1, 3, 42}), 0);
     auto chunkB27 = CreateChunk(BuildRow({27, 1, 1, 42}), BuildRow({27, 1, 2, 42}), 1, 1 * KB, TKey(), BuildRow({27, 1, 1, 46}));
-    RegisterTriviallySliceableUnversionedChunk(chunkA27);
-    RegisterTriviallySliceableUnversionedChunk(chunkB27);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA27);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB27);
 
     // No/No (after shortening chunks will be intersecting).
     //    0   |   1   |   2   |   3   |   4   |   5   |   6
@@ -1476,8 +1538,8 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
 
     auto chunkA28 = CreateChunk(BuildRow({28, 1, 1, 42}), BuildRow({28, 1, 3, 42}), 0);
     auto chunkB28 = CreateChunk(BuildRow({28, 1, 1, 42}), BuildRow({28, 1, 3, 42}), 1, 1 * KB, TKey(), BuildRow({28, 1, 2, 46}));
-    RegisterTriviallySliceableUnversionedChunk(chunkA28);
-    RegisterTriviallySliceableUnversionedChunk(chunkB28);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA28);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB28);
 
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     // Cases with and without read limits, read limits shorter than PrimaryPrefixLength.
@@ -1491,8 +1553,8 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
 
     auto chunkA29 = CreateChunk(BuildRow({29, 0, 1}), BuildRow({29, 1, 1}), 0, 1 * KB, BuildRow({29, 1}));
     auto chunkB29 = CreateChunk(BuildRow({29, 0, 1}), BuildRow({29, 1, 0}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA29);
-    RegisterTriviallySliceableUnversionedChunk(chunkB29);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA29);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB29);
 
     // No/No (after shortening one chunks will be intersecting).
     //                0              ||              1              ||              2               <- 1-st component is shown here
@@ -1502,7 +1564,7 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
 
     auto chunkA30 = CreateChunk(BuildRow({30, 1, 0}), BuildRow({30, 2, 1}), 0, 1 * KB, TKey(), BuildRow({30, 2}));
     auto chunkB30 = CreateChunk(BuildRow({30, 2, 0}), BuildRow({30, 2, 0}), 1);
-    RegisterTriviallySliceableUnversionedChunk(chunkA30);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA30);
 
     CreateChunkPool();
 
@@ -1531,22 +1593,23 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
 
 TEST_F(TSortedChunkPoolTest, SortedReduceWithJoin)
 {
-    Options_.EnableKeyGuarantee = true;
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
         {true, true, false, false} /* isForeign */,
         {false, false, false, false} /* isTeleportable */,
         {false, false, false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 2;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 2;
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
+    PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({1, 21}), BuildRow({4, 24}), 0);
     auto chunkB = CreateChunk(BuildRow({2, 62}), BuildRow({4, 64}), 1);
     auto chunkC = CreateChunk(BuildRow({1, 101, 11}), BuildRow({4, 402, 18}), 2);
     auto chunkD = CreateChunk(BuildRow({1, 102, 42}), BuildRow({4, 402, 48}), 3);
-    RegisterTriviallySliceableUnversionedChunk(chunkC);
-    RegisterTriviallySliceableUnversionedChunk(chunkD);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkD);
 
     CreateChunkPool();
 
@@ -1568,22 +1631,23 @@ TEST_F(TSortedChunkPoolTest, SortedReduceWithJoin)
 
 TEST_F(TSortedChunkPoolTest, JoinReduce)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {true, true, false, false} /* isForeign */,
         {false, false, false, false} /* isTeleportable */,
         {false, false, false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 2;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 2;
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
+    PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({1, 21}), BuildRow({4, 24}), 0);
     auto chunkB = CreateChunk(BuildRow({2, 62}), BuildRow({4, 64}), 1);
     auto chunkC = CreateChunk(BuildRow({1, 101, 11}), BuildRow({4, 402, 18}), 2);
     auto chunkD = CreateChunk(BuildRow({1, 102, 42}), BuildRow({4, 402, 48}), 3);
-    RegisterTriviallySliceableUnversionedChunk(chunkC);
-    RegisterTriviallySliceableUnversionedChunk(chunkD);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkD);
 
     CreateChunkPool();
 
@@ -1605,21 +1669,22 @@ TEST_F(TSortedChunkPoolTest, JoinReduce)
 
 TEST_F(TSortedChunkPoolTest, ResumeSuspendMappingTest)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false, false} /* isForeign */,
         {false, false} /* isTeleportable */,
         {false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     MaxDataSlicesPerJob_ = 1;
     InitJobConstraints();
+    PrepareNewMock();
 
     auto chunkAv1 = CreateChunk(BuildRow({5}), BuildRow({15}), 0);
     auto chunkBv1 = CreateChunk(BuildRow({0}), BuildRow({20}), 1, 1 * KB, BuildRow({10}));
     auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {KB / 4, KB / 2, KB / 4});
-    RegisterSliceableUnversionedChunk(chunkAv1, chunkAv1Slices);
-    RegisterTriviallySliceableUnversionedChunk(chunkBv1);
+    CurrentMock().RegisterSliceableUnversionedChunk(chunkAv1, chunkAv1Slices);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkBv1);
 
     CreateChunkPool();
 
@@ -1640,24 +1705,236 @@ TEST_F(TSortedChunkPoolTest, ResumeSuspendMappingTest)
     SuspendChunk(cookieB, chunkBv1);
     auto chunkBv2 = CopyChunk(chunkBv1);
     ResumeChunk(cookieB, chunkBv2);
+
+    EXPECT_TRUE(InvalidationErrors_.empty());
+}
+
+TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest1)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false} /* isForeign */,
+        {true, true} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    Options_.MinTeleportChunkSize = 0;
+    InitJobConstraints();
+
+    auto chunkAv1 = CreateChunk(BuildRow({5}), BuildRow({15}), 0);
+    auto chunkBv1 = CreateChunk(BuildRow({0}), BuildRow({20}), 1);
+    auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {KB / 4, KB / 2, KB / 4});
+    auto chunkAv2 = CopyChunk(chunkAv1);
+    chunkAv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
+    chunkAv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
+    auto chunkBv2 = CopyChunk(chunkBv1);
+    chunkBv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
+    chunkBv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
+
+    PrepareNewMock();
+    CurrentMock().RegisterSliceableUnversionedChunk(chunkAv1, chunkAv1Slices);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkBv1);
+    PrepareNewMock();
+    PrepareNewMock();
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkAv2);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkBv2);
+
+    CreateChunkPool();
+
+    int cookieA = AddChunk(chunkAv1);
+    int cookieB = AddChunk(chunkBv1);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    CheckStripeListsContainOnlyActiveChunks();
+
+    ExtractOutputCookiesWhilePossible();
+    ChunkPool_->Completed(*OutputCookies_.begin(), TCompletedJobSummary());
+
+    SuspendChunk(cookieB, chunkBv1);
+    ResumeChunk(cookieB, chunkBv2);
+
+    EXPECT_EQ(InvalidationErrors_.size(), 1);
+
+    OutputCookies_.clear();
+    ExtractOutputCookiesWhilePossible();
+    EXPECT_TRUE(OutputCookies_.empty());
+    EXPECT_EQ(ChunkPool_->GetTeleportChunks(), (std::vector<TInputChunkPtr>{chunkAv1, chunkBv2}));
+
+    SuspendChunk(cookieA, chunkAv1);
+    ResumeChunk(cookieA, chunkAv2);
+
+    EXPECT_EQ(InvalidationErrors_.size(), 2);
+    OutputCookies_.clear();
+    ExtractOutputCookiesWhilePossible();
+    EXPECT_EQ(OutputCookies_.size(), 1);
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_EQ(stripeLists.size(), 1);
+    EXPECT_EQ(stripeLists[0]->Stripes.size(), 2);
+    EXPECT_EQ(stripeLists[0]->Stripes[0]->DataSlices.size(), 1);
+    EXPECT_EQ(stripeLists[0]->Stripes[0]->DataSlices[0]->GetSingleUnversionedChunkOrThrow(), chunkAv2);
+    EXPECT_EQ(stripeLists[0]->Stripes[1]->DataSlices.size(), 1);
+    EXPECT_EQ(stripeLists[0]->Stripes[1]->DataSlices[0]->GetSingleUnversionedChunkOrThrow(), chunkBv2);
+}
+
+TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest2)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false} /* isForeign */,
+        {true, true} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    Options_.MinTeleportChunkSize = 0;
+    InitJobConstraints();
+
+    auto chunkAv1 = CreateChunk(BuildRow({5}), BuildRow({15}), 0);
+    auto chunkBv1 = CreateChunk(BuildRow({0}), BuildRow({20}), 1);
+    auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {KB / 4, KB / 2, KB / 4});
+    auto chunkAv2 = CopyChunk(chunkAv1);
+    chunkAv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
+    chunkAv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
+    auto chunkBv2 = CopyChunk(chunkBv1);
+    chunkBv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
+    chunkBv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
+
+    CreateChunkPool();
+
+    int cookieA = AddChunk(chunkAv1);
+    int cookieB = AddChunk(chunkBv1);
+
+    PersistAndRestore();
+
+    ChunkPool_->Finish();
+
+    PersistAndRestore();
+
+    ExtractOutputCookiesWhilePossible();
+    CheckStripeListsContainOnlyActiveChunks();
+
+    PersistAndRestore();
+
+    ExtractOutputCookiesWhilePossible();
+    ChunkPool_->Completed(*OutputCookies_.begin(), TCompletedJobSummary());
+
+    PersistAndRestore();
+
+    SuspendChunk(cookieB, chunkBv1);
+
+    PersistAndRestore();
+
+    ResumeChunk(cookieB, chunkBv2);
+
+    PersistAndRestore();
+
+    EXPECT_EQ(InvalidationErrors_.size(), 1);
+
+    OutputCookies_.clear();
+    ExtractOutputCookiesWhilePossible();
+    EXPECT_TRUE(OutputCookies_.empty());
+    EXPECT_EQ(ChunkPool_->GetTeleportChunks().size(), 2);
+
+    PersistAndRestore();
+
+    SuspendChunk(cookieA, chunkAv1);
+
+    PersistAndRestore();
+
+    ResumeChunk(cookieA, chunkAv2);
+
+    PersistAndRestore();
+
+    EXPECT_EQ(InvalidationErrors_.size(), 2);
+    OutputCookies_.clear();
+    ExtractOutputCookiesWhilePossible();
+    EXPECT_EQ(OutputCookies_.size(), 1);
+    auto stripeLists = GetAllStripeLists();
+
+    PersistAndRestore();
+
+    EXPECT_EQ(stripeLists.size(), 1);
+    EXPECT_EQ(stripeLists[0]->Stripes.size(), 2);
+    EXPECT_EQ(stripeLists[0]->Stripes[0]->DataSlices.size(), 1);
+    EXPECT_EQ(stripeLists[0]->Stripes[0]->DataSlices[0]->GetSingleUnversionedChunkOrThrow()->ChunkId(), chunkAv2->ChunkId());
+    EXPECT_EQ(stripeLists[0]->Stripes[1]->DataSlices.size(), 1);
+    EXPECT_EQ(stripeLists[0]->Stripes[1]->DataSlices[0]->GetSingleUnversionedChunkOrThrow()->ChunkId(), chunkBv2->ChunkId());
+}
+
+TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest3)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false} /* isForeign */,
+        {true, true} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    Options_.MinTeleportChunkSize = 0;
+    InitJobConstraints();
+
+    auto chunkAv1 = CreateChunk(BuildRow({5}), BuildRow({15}), 0);
+    auto chunkBv1 = CreateChunk(BuildRow({0}), BuildRow({20}), 1);
+    auto chunkAv1Slices = SliceUnversionedChunk(chunkAv1, {BuildRow({8}), BuildRow({12})}, {KB / 4, KB / 2, KB / 4});
+    auto chunkAv2 = CopyChunk(chunkAv1);
+    chunkAv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
+    chunkAv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
+    auto chunkBv2 = CopyChunk(chunkBv1);
+    chunkBv2->BoundaryKeys()->MinKey = TOwningKey(BuildRow({25}));
+    chunkBv2->BoundaryKeys()->MaxKey = TOwningKey(BuildRow({30}));
+
+    CreateChunkPool();
+
+    int cookieA = AddChunk(chunkAv1);
+    int cookieB = AddChunk(chunkBv1);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    SuspendChunk(cookieA, chunkAv1);
+
+    PersistAndRestore();
+
+    SuspendChunk(cookieB, chunkBv1);
+
+    PersistAndRestore();
+
+    ResumeChunk(cookieB, chunkBv2);
+    ResumeChunk(cookieA, chunkAv1);
+
+    auto invalidatedStripe = ChunkPool_->GetStripeList(*OutputCookies_.begin());
+    EXPECT_EQ(invalidatedStripe->Stripes.size(), 0);
+
+    PersistAndRestore();
+
+    EXPECT_EQ(InvalidationErrors_.size(), 1);
+
+    OutputCookies_.clear();
+    ExtractOutputCookiesWhilePossible();
+    EXPECT_TRUE(OutputCookies_.empty());
+    EXPECT_EQ(ChunkPool_->GetTeleportChunks().size(), 2);
 }
 
 TEST_F(TSortedChunkPoolTest, ManiacIsSliced)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false} /* isForeign */,
         {false} /* isTeleportable */,
         {false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     MaxDataSlicesPerJob_ = 1;
     InputSliceDataSize_ = 10;
     InitJobConstraints();
+    PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({1, 2}), BuildRow({1, 42}), 0);
     chunkA->SetRowCount(10000);
-    RegisterTriviallySliceableUnversionedChunk(chunkA);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
 
     CreateChunkPool();
 
@@ -1669,27 +1946,28 @@ TEST_F(TSortedChunkPoolTest, ManiacIsSliced)
 
 TEST_F(TSortedChunkPoolTest, MaxTotalSliceCount)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false, false, false} /* isForeign */,
         {false, false, false} /* isTeleportable */,
         {false, false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 1;
-    Options_.MaxTotalSliceCount = 6;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.MaxTotalSliceCount = 6;
     DataSizePerJob_ = 1;
     InitJobConstraints();
+    PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({1}), BuildRow({3}), 0);
     auto chunkB = CreateChunk(BuildRow({1}), BuildRow({3}), 1);
     auto chunkC1 = CreateChunk(BuildRow({1}), BuildRow({1}), 2);
     auto chunkC2 = CreateChunk(BuildRow({2}), BuildRow({2}), 2);
     auto chunkC3 = CreateChunk(BuildRow({3}), BuildRow({3}), 2);
-    RegisterTriviallySliceableUnversionedChunk(chunkA);
-    RegisterTriviallySliceableUnversionedChunk(chunkB);
-    RegisterTriviallySliceableUnversionedChunk(chunkC1);
-    RegisterTriviallySliceableUnversionedChunk(chunkC2);
-    RegisterTriviallySliceableUnversionedChunk(chunkC3);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC1);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC2);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC3);
 
     CreateChunkPool();
 
@@ -1704,22 +1982,23 @@ TEST_F(TSortedChunkPoolTest, MaxTotalSliceCount)
 
 TEST_F(TSortedChunkPoolTest, TestJobInterruption)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false, false, false, true} /* isForeign */,
         {false, false, false, false} /* isTeleportable */,
         {false, false, false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     InitJobConstraints();
+    PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({1}), BuildRow({20}), 0);
     auto chunkB = CreateChunk(BuildRow({2}), BuildRow({42}), 1);
     auto chunkC = CreateChunk(BuildRow({10}), BuildRow({12}), 2);
     auto chunkD = CreateChunk(BuildRow({1}), BuildRow({42}), 3);
-    RegisterTriviallySliceableUnversionedChunk(chunkA);
-    RegisterTriviallySliceableUnversionedChunk(chunkB);
-    RegisterTriviallySliceableUnversionedChunk(chunkC);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC);
 
     CreateChunkPool();
 
@@ -1737,7 +2016,7 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
     const auto& stripeList = stripeLists[0];
     std::vector<TInputDataSlicePtr> unreadDataSlices = {
         CreateInputDataSlice(stripeList->Stripes[0]->DataSlices.front(), BuildRow({13})),
-        CreateInputDataSlice(stripeList->Stripes[1]->DataSlices.front(), BuildRow({14}))
+        CreateInputDataSlice(stripeList->Stripes[1]->DataSlices.front(), BuildRow({14})),
     };
     TCompletedJobSummary jobSummary;
     jobSummary.InterruptReason = EInterruptReason::Preemption;
@@ -1747,25 +2026,200 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
     ExtractOutputCookiesWhilePossible();
     ASSERT_EQ(ExtractedCookies_.size(), 2);
     auto newStripeList = ChunkPool_->GetStripeList(ExtractedCookies_.back());
+    ASSERT_EQ(newStripeList->Stripes.size(), 3);
     ASSERT_EQ(newStripeList->Stripes[0]->DataSlices.size(), 1);
     ASSERT_EQ(newStripeList->Stripes[0]->DataSlices.front()->LowerLimit().Key, BuildRow({13}));
     ASSERT_EQ(newStripeList->Stripes[1]->DataSlices.size(), 1);
     ASSERT_EQ(newStripeList->Stripes[1]->DataSlices.front()->LowerLimit().Key, BuildRow({14}));
-    ASSERT_TRUE(newStripeList->Stripes[2]->DataSlices.empty());
-    ASSERT_EQ(newStripeList->Stripes[3]->DataSlices.size(), 1);
+    ASSERT_EQ(newStripeList->Stripes[2]->DataSlices.size(), 1);
 }
 
-TEST_F(TSortedChunkPoolTest, TestCorrectOrderInsideStripe)
+TEST_F(TSortedChunkPoolTest, TestJobSplitSimple)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false} /* isForeign */,
         {false} /* isTeleportable */,
         {false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     DataSizePerJob_ = Inf64;
     InitJobConstraints();
+    PrepareNewMock();
+
+    const int chunkCount = 100;
+    for (int index = 0; index < chunkCount; ++index) {
+        auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
+        CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunk);
+    }
+
+    CreateChunkPool();
+
+    for (const auto& chunk : CreatedUnversionedPrimaryChunks_) {
+        AddChunk(chunk);
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    auto stripeLists = GetAllStripeLists();
+    TCompletedJobSummary jobSummary;
+    jobSummary.InterruptReason = EInterruptReason::JobSplit;
+    jobSummary.UnreadInputDataSlices = std::vector<TInputDataSlicePtr>(
+        stripeLists[0]->Stripes[0]->DataSlices.begin(),
+        stripeLists[0]->Stripes[0]->DataSlices.end());
+    jobSummary.SplitJobCount = 10;
+    ChunkPool_->Completed(*OutputCookies_.begin(), jobSummary);
+
+    OutputCookies_.clear();
+
+    ExtractOutputCookiesWhilePossible();
+    stripeLists = GetAllStripeLists();
+    ASSERT_LE(8, stripeLists.size());
+    ASSERT_LE(stripeLists.size(), 12);
+}
+
+TEST_F(TSortedChunkPoolTest, TestJobSplitWithForeign)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, true} /* isForeign */,
+        {false, false} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.ForeignPrefixLength = 1;
+    DataSizePerJob_ = Inf64;
+    InitJobConstraints();
+    PrepareNewMock();
+
+    std::vector<TInputChunkPtr> allChunks;
+    const int chunkCount = 100;
+    for (int index = 0; index < chunkCount; ++index) {
+        auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
+        CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunk);
+        allChunks.emplace_back(std::move(chunk));
+    }
+
+    const int foreignChunkCount = 5;
+
+    for (int index = 0; index < foreignChunkCount; ++index) {
+        auto chunk = CreateChunk(BuildRow({index * 40}), BuildRow({index * 40 + 39}), 1);
+        allChunks.emplace_back(std::move(chunk));
+    }
+
+    CreateChunkPool();
+
+    for (const auto& chunk : allChunks) {
+        AddChunk(std::move(chunk));
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    auto stripeLists = GetAllStripeLists();
+    TCompletedJobSummary jobSummary;
+    jobSummary.InterruptReason = EInterruptReason::JobSplit;
+    std::vector<TInputDataSlicePtr> unreadSlices;
+    unreadSlices.insert(
+        unreadSlices.end(),
+        stripeLists[0]->Stripes[0]->DataSlices.begin(),
+        stripeLists[0]->Stripes[0]->DataSlices.end());
+    jobSummary.SplitJobCount = 10;
+    jobSummary.UnreadInputDataSlices = std::move(unreadSlices);
+    ChunkPool_->Completed(*OutputCookies_.begin(), jobSummary);
+
+    OutputCookies_.clear();
+
+    ExtractOutputCookiesWhilePossible();
+    stripeLists = GetAllStripeLists();
+    ASSERT_LE(8, stripeLists.size());
+    ASSERT_LE(stripeLists.size(), 12);
+
+    for (const auto& stripeList : stripeLists) {
+        ASSERT_EQ(stripeList->Stripes.size(), 2);
+        ASSERT_LE(stripeList->Stripes[1]->DataSlices.size(), 2);
+    }
+}
+
+TEST_F(TSortedChunkPoolTest, TestJobSplitStripeSuspension)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, true} /* isForeign */,
+        {false, false} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.ForeignPrefixLength = 1;
+    DataSizePerJob_ = Inf64;
+    InitJobConstraints();
+    PrepareNewMock();
+
+    std::vector<TInputChunkPtr> allChunks;
+    const int chunkCount = 100;
+    for (int index = 0; index < chunkCount; ++index) {
+        auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
+        CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunk);
+        allChunks.emplace_back(std::move(chunk));
+    }
+
+    const int foreignChunkCount = 5;
+
+    for (int index = 0; index < foreignChunkCount; ++index) {
+        auto chunk = CreateChunk(BuildRow({index * 40}), BuildRow({index * 40 + 39}), 1);
+        allChunks.emplace_back(std::move(chunk));
+    }
+
+    CreateChunkPool();
+
+    for (const auto& chunk : allChunks) {
+        AddChunk(std::move(chunk));
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    auto stripeLists = GetAllStripeLists();
+    TCompletedJobSummary jobSummary;
+    jobSummary.InterruptReason = EInterruptReason::JobSplit;
+    std::vector<TInputDataSlicePtr> unreadSlices;
+    unreadSlices.insert(
+        unreadSlices.end(),
+        stripeLists[0]->Stripes[0]->DataSlices.begin(),
+        stripeLists[0]->Stripes[0]->DataSlices.end());
+    jobSummary.SplitJobCount = 10;
+    jobSummary.UnreadInputDataSlices = std::move(unreadSlices);
+    ChunkPool_->Completed(*OutputCookies_.begin(), jobSummary);
+
+    OutputCookies_.clear();
+
+    int pendingJobCount = ChunkPool_->GetPendingJobCount();
+    ASSERT_LE(8, pendingJobCount);
+    ASSERT_LE(pendingJobCount, 12);
+    ChunkPool_->Suspend(0);
+    ASSERT_EQ(ChunkPool_->GetPendingJobCount(), pendingJobCount - 1);
+    for (int cookie = chunkCount; cookie < chunkCount + foreignChunkCount; ++cookie) {
+        ChunkPool_->Suspend(cookie);
+    }
+    ASSERT_EQ(0, ChunkPool_->GetPendingJobCount());
+}
+
+TEST_F(TSortedChunkPoolTest, TestCorrectOrderInsideStripe)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false} /* isForeign */,
+        {false} /* isTeleportable */,
+        {false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    DataSizePerJob_ = Inf64;
+    InitJobConstraints();
+    PrepareNewMock();
 
     auto chunk = CreateChunk(BuildRow({10}), BuildRow({20}), 0);
     std::vector<TInputChunkSlicePtr> slices;
@@ -1776,7 +2230,7 @@ TEST_F(TSortedChunkPoolTest, TestCorrectOrderInsideStripe)
     }
     shuffle(slices.begin(), slices.end(), Gen_);
 
-    RegisterSliceableUnversionedChunk(chunk, slices);
+    CurrentMock().RegisterSliceableUnversionedChunk(chunk, slices);
 
     CreateChunkPool();
 
@@ -1797,22 +2251,23 @@ TEST_F(TSortedChunkPoolTest, TestCorrectOrderInsideStripe)
 
 TEST_F(TSortedChunkPoolTest, TestTrickyCase)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false},
         {false},
         {false}
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     DataSizePerJob_ = 10 * KB;
     InitJobConstraints();
+    PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({100}), BuildRow({100}), 0, 12 * KB);
     auto chunkB = CreateChunk(BuildRow({100}), BuildRow({200}), 0, 3 * KB);
     auto chunkASlices = SliceUnversionedChunk(chunkA, {BuildRow({100})}, {9 * KB, 3 * KB}, {500, 500});
     chunkASlices[1]->LowerLimit().Key = BuildRow({100});
-    RegisterSliceableUnversionedChunk(chunkA, chunkASlices);
-    RegisterTriviallySliceableUnversionedChunk(chunkB);
+    CurrentMock().RegisterSliceableUnversionedChunk(chunkA, chunkASlices);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
 
     CreateChunkPool();
 
@@ -1845,24 +2300,25 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase)
 
 TEST_F(TSortedChunkPoolTest, TestTrickyCase2)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false},
         {false},
         {false}
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     DataSizePerJob_ = 10 * KB;
     InitJobConstraints();
+    PrepareNewMock();
 
     auto chunkA = CreateChunk(BuildRow({100}), BuildRow({100}), 0, 12 * KB);
     auto chunkB = CreateChunk(BuildRow({100}), BuildRow({100}), 0, KB / 10);
     auto chunkC = CreateChunk(BuildRow({100}), BuildRow({200}), 0, 3 * KB);
     auto chunkASlices = SliceUnversionedChunk(chunkA, {BuildRow({100})}, {9 * KB, 3 * KB}, {500, 500});
     chunkASlices[1]->LowerLimit().Key = BuildRow({100});
-    RegisterSliceableUnversionedChunk(chunkA, chunkASlices);
-    RegisterTriviallySliceableUnversionedChunk(chunkB);
-    RegisterTriviallySliceableUnversionedChunk(chunkC);
+    CurrentMock().RegisterSliceableUnversionedChunk(chunkA, chunkASlices);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC);
 
     CreateChunkPool();
 
@@ -1895,20 +2351,20 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase2)
 
 TEST_F(TSortedChunkPoolTest, TestNoChunkSliceFetcher)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false, false, false} /* isForeign */,
         {true, true, true} /* isTeleportable */,
         {false, false, false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     InitJobConstraints();
 
     auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
     auto chunkB = CreateChunk(BuildRow({2}), BuildRow({15}), 1);
     auto chunkC = CreateChunk(BuildRow({1}), BuildRow({3}), 2);
 
-    CreateChunkPool(false /* useChunkSliceFetcher */);
+    CreateChunkPool();
 
     AddChunk(chunkA);
     AddChunk(chunkB);
@@ -1924,6 +2380,75 @@ TEST_F(TSortedChunkPoolTest, TestNoChunkSliceFetcher)
     EXPECT_EQ(1, stripeLists.size());
 
     CheckEverything(stripeLists, teleportChunks);
+}
+
+TEST_F(TSortedChunkPoolTest, TestStripeListStatisticsAreSet)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false, false} /* isForeign */,
+        {true, true, true} /* isTeleportable */,
+        {false, false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
+    auto chunkB = CreateChunk(BuildRow({2}), BuildRow({15}), 1);
+    auto chunkC = CreateChunk(BuildRow({1}), BuildRow({3}), 2);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_EQ(1, stripeLists.size());
+
+    EXPECT_GT(stripeLists[0]->TotalChunkCount, 0);
+    EXPECT_GT(stripeLists[0]->TotalRowCount, 0);
+    EXPECT_GT(stripeLists[0]->TotalDataSize, 0);
+}
+
+TEST_F(TSortedChunkPoolTest, TestSeveralSlicesInInputStripe)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false} /* isForeign */,
+        {false, false} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    InitJobConstraints();
+
+    auto chunkAA = CreateChunk(BuildRow({1}), BuildRow({1}), 0);
+    auto chunkAB = CreateChunk(BuildRow({2}), BuildRow({2}), 0);
+    auto chunkBA = CreateChunk(BuildRow({3}), BuildRow({3}), 1);
+    auto chunkBB = CreateChunk(BuildRow({4}), BuildRow({4}), 1);
+
+    CreateChunkPool();
+
+    AddMultiChunkStripe({chunkAA, chunkAB});
+    AddMultiChunkStripe({chunkBA, chunkBB});
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_EQ(1, stripeLists.size());
+    EXPECT_EQ(2, stripeLists[0]->Stripes.size());
+    EXPECT_EQ(2, stripeLists[0]->Stripes[0]->DataSlices.size());
+    EXPECT_EQ(2, stripeLists[0]->Stripes[1]->DataSlices.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1946,21 +2471,22 @@ static constexpr int NumberOfRepeats = 15;
 
 TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 {
-    Options_.EnableKeyGuarantee = false;
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
         {false} /* isForeign */,
         {false} /* isTeleportable */,
         {false} /* isVersioned */
     );
-    Options_.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
     DataSizePerJob_ = 1 * KB;
     InitJobConstraints();
+    PrepareNewMock();
 
     const int chunkCount = 50;
 
     for (int index = 0; index < chunkCount; ++index) {
         auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
-        RegisterTriviallySliceableUnversionedChunk(chunk);
+        CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunk);
     }
 
     CreateChunkPool();
