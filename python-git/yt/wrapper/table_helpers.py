@@ -1,10 +1,10 @@
-from .batch_helpers import create_batch_client, batch_apply
+from .batch_helpers import batch_apply
 from .common import flatten, update, get_value, chunk_iter_stream, require
 from .config import get_config
 from .errors import YtError
 from .format import create_format, YsonFormat
 from .ypath import TablePath
-from .cypress_commands import exists, get_attribute, get_type
+from .cypress_commands import exists, get_attribute, get_type, remove
 from .transaction_commands import abort_transaction
 
 import yt.logger as logger
@@ -87,7 +87,7 @@ def _prepare_source_tables(tables, replace_unexisting_by_empty=True, client=None
         exists_results = batch_apply(exists, result, client=client)
 
         for table, exists_result in izip(result, exists_results):
-            if exists_result.get_result():
+            if exists_result:
                 filtered_result.append(table)
             else:
                 logger.warning("Warning: input table '%s' does not exist", table)
@@ -124,9 +124,12 @@ def _remove_tables(tables, client=None):
             exists_tables.append(table)
 
     type_results = batch_apply(get_type, tables, client=client)
+
+    tables_to_remove = []
     for table, table_type in izip(exists_tables, type_results):
         if table_type == "table" and not table.append and table != DEFAULT_EMPTY_TABLE:
             if get_config(client)["yamr_mode"]["abort_transactions_with_remove"]:
                 _remove_locks(table, client=client)
-            batch_client.remove(table)
-    batch_client.commit_batch()
+            tables_to_remove.append(table)
+
+    batch_apply(remove, tables_to_remove, client=client)
