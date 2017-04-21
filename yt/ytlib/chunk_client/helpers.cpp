@@ -176,7 +176,7 @@ TChunkReplicaList AllocateWriteTargets(
         req->set_replication_factor_override(*replicationFactorOverride);
     }
     if (preferLocalHost) {
-        req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
+        req->set_preferred_host_name(GetLocalHostName());
     }
     ToProto(req->mutable_forbidden_addresses(), forbiddenAddresses);
     ToProto(req->mutable_chunk_id(), chunkId);
