@@ -983,8 +983,9 @@ class YTInstance(object):
                         log_path = _config_safe_get(config, service, log_config_path)
                         config_file.write("{0}\n{{\n{1}\n}}\n\n".format(log_path, "\n".join(logrotate_options)))
 
-            proxy_log_path = _config_safe_get(self.configs["proxy"], "proxy", "logging/filename")
-            config_file.write("{0}\n{{\n{1}\n}}\n\n".format(proxy_log_path, "\n".join(logrotate_options)))
+            if self.has_proxy:
+                proxy_log_path = _config_safe_get(self.configs["proxy"], "proxy", "logging/filename")
+                config_file.write("{0}\n{{\n{1}\n}}\n\n".format(proxy_log_path, "\n".join(logrotate_options)))
 
         logs_rotator_data_path = os.path.join(self.runtime_data_path, "logs_rotator")
         makedirp(logs_rotator_data_path)
