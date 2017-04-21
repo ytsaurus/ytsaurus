@@ -1,7 +1,7 @@
 # Stubs for pyspark.ml.pipeline (Python 3.5)
 #
 
-from typing import Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 from pyspark.ml.base import Estimator, Model, Transformer
 from pyspark.ml.param import Param
 from pyspark.ml.util import JavaMLWriter, JavaMLReader, MLReadable, MLWritable

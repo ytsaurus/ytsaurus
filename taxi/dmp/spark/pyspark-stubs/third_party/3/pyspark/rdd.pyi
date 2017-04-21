@@ -2,7 +2,7 @@
 #
 
 from typing import overload
-from typing import Any, Callable, Dict, Generic, Hashable, Iterable, Iterator, Optional, Tuple, Union, TypeVar
+from typing import Any, Callable, Dict, Generic, Hashable, Iterable, Iterator, List, Optional, Tuple, Union, TypeVar
 import pyspark.context
 from pyspark.serializers import Serializer
 from pyspark.storagelevel import StorageLevel
