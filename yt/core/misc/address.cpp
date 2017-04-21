@@ -7,8 +7,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/misc/local_address.h>
 #include <yt/core/misc/singleton.h>
-
 #include <yt/core/misc/finally.h>
 
 #include <yt/core/profiling/profiler.h>
@@ -41,7 +41,6 @@ static const NLogging::TLogger Logger("Network");
 static const NProfiling::TProfiler Profiler("/network");
 
 static const auto WarningDuration = TDuration::MilliSeconds(100);
-static const char* FailedLocalHostName = "<unknown>";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -331,7 +330,6 @@ public:
 
     TFuture<TNetworkAddress> Resolve(const Stroka& hostName);
 
-    Stroka GetLocalHostName();
     bool IsLocalHostNameOK();
 
     bool IsLocalAddress(const TNetworkAddress& address);
@@ -359,15 +357,9 @@ private:
     const TActionQueuePtr Queue_ = New<TActionQueue>("AddressResolver");
     NConcurrency::TPeriodicExecutorPtr LocalHostChecker_;
 
-    bool GetLocalHostNameFailed_ = false;
-    TSpinLock CachedLocalHostNameLock_;
-    Stroka CachedLocalHostName_;
-
-
     TNetworkAddress DoResolve(const Stroka& hostName);
-    Stroka DoGetLocalHostName();
 
-    void CheckLocalHostResolution();
+    bool CheckLocalHostResolution();
 
     const std::vector<TNetworkAddress>& GetLocalAddresses();
 };
@@ -518,65 +510,18 @@ TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName)
     }
 }
 
-Stroka TAddressResolver::TImpl::GetLocalHostName()
-{
-    static PER_THREAD int ReenteranceLock = 0;
-
-    if (GetLocalHostNameFailed_ || ReenteranceLock > 0) {
-        return FailedLocalHostName;
-    }
-
-    {
-        TGuard<TSpinLock> guard(CachedLocalHostNameLock_);
-        if (!CachedLocalHostName_.empty()) {
-            return CachedLocalHostName_;
-        }
-    }
-
-    Stroka result;
-    try {
-        ++ReenteranceLock;
-        result = DoGetLocalHostName();
-        --ReenteranceLock;
-    } catch (const std::exception& ex) {
-        GetLocalHostNameFailed_ = true;
-        --ReenteranceLock;
-        LOG_ERROR(ex, "Unable to determine localhost FQDN");
-        return FailedLocalHostName;
-    }
-
-    {
-        TGuard<TSpinLock> guard(CachedLocalHostNameLock_);
-        if (CachedLocalHostName_.empty()) {
-            CachedLocalHostName_ = result;
-        }
-        // Sometimes the local DNS resolver crashes when the program is still running.
-        // This can prevent our services from working properly (e.g. all spawned jobs will fail).
-        // To avoid this, we run periodic checks to see if localhost can still be resolved.
-        if (!LocalHostChecker_) {
-            LocalHostChecker_ = New<TPeriodicExecutor>(
-                Queue_->GetInvoker(),
-                BIND(&TAddressResolver::TImpl::CheckLocalHostResolution, MakeWeak(this)),
-                TDuration::Minutes(1),
-                EPeriodicExecutorMode::Automatic,
-                TDuration::Minutes(1));
-        }
-    }
-
-    return result;
-}
-
 bool TAddressResolver::TImpl::IsLocalHostNameOK()
 {
-    // Force localhost resolution.
-    GetLocalHostName();
-    return !GetLocalHostNameFailed_;
+    // Force check & resolution.
+    return UpdateLocalHostName([] (const char*, const char*) {});
 }
 
 bool TAddressResolver::TImpl::IsLocalAddress(const TNetworkAddress& address)
 {
     const auto& localAddresses = GetLocalAddresses();
-    return std::find(localAddresses.begin(), localAddresses.end(), address) != localAddresses.end();
+    auto&& it = std::find(localAddresses.begin(), localAddresses.end(), address);
+    auto jt = localAddresses.end();
+    return it != jt;
 }
 
 const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
@@ -591,9 +536,7 @@ const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
              << TError::FromSystem();
     }
 
-    auto guard = Finally([&] () {
-        freeifaddrs(ifAddresses);
-    });
+    auto holder = std::unique_ptr<ifaddrs, decltype(&freeifaddrs)>(ifAddresses, &freeifaddrs);
 
     std::vector<TNetworkAddress> localAddresses;
     for (const auto* currentAddress = ifAddresses;
@@ -623,67 +566,11 @@ const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
     return CachedLocalAddresses_;
 }
 
-Stroka TAddressResolver::TImpl::DoGetLocalHostName()
+bool TAddressResolver::TImpl::CheckLocalHostResolution()
 {
-    char hostName[1024];
-    memset(hostName, 0, sizeof (hostName));
-
-    if (gethostname(hostName, sizeof (hostName) - 1) == -1) {
-        THROW_ERROR_EXCEPTION("gethostname failed")
-            << TError::FromSystem();
-    }
-
-    LOG_INFO("Localhost reported by gethostname: %v", hostName);
-
-    addrinfo hints;
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;    // Allow both IPv4 and IPv6 addresses.
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags |= AI_CANONNAME;
-
-    addrinfo* addrInfo = nullptr;
-
-    int gaiResult = getaddrinfo(
-        hostName,
-        nullptr,
-        &hints,
-        &addrInfo);
-
-    if (gaiResult != 0) {
-        GetLocalHostNameFailed_ = true;
-        auto gaiError = TError(Stroka(gai_strerror(gaiResult)))
-            << TErrorAttribute("errno", gaiResult);
-        THROW_ERROR_EXCEPTION("getaddrinfo failed")
-            << gaiError;
-    }
-
-    char* canonname = nullptr;
-    if (addrInfo) {
-        canonname = addrInfo->ai_canonname;
-    }
-
-    for (auto* currentInfo = addrInfo; currentInfo; currentInfo = currentInfo->ai_next) {
-        if ((currentInfo->ai_family == AF_INET && Config_->EnableIPv4) ||
-            (currentInfo->ai_family == AF_INET6 && Config_->EnableIPv6))
-        {
-            Stroka fqdn(canonname);
-            LOG_INFO("Localhost FQDN reported by getaddrinfo: %v", fqdn);
-            return fqdn;
-        }
-    }
-
-    freeaddrinfo(addrInfo);
-
-    THROW_ERROR_EXCEPTION("No matching addrinfo entry found");
-}
-
-void TAddressResolver::TImpl::CheckLocalHostResolution()
-{
-    try {
-        DoGetLocalHostName();
-    } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Localhost has failed to resolve");
-    }
+    return UpdateLocalHostName([] (const char* message, const char* description) {
+        LOG_FATAL("Localhost failed to resolve: %v: %v", message, description);
+    });
 }
 
 void TAddressResolver::TImpl::PurgeCache()
@@ -700,9 +587,8 @@ void TAddressResolver::TImpl::Configure(TAddressResolverConfigPtr config)
     Config_ = std::move(config);
 
     if (Config_->LocalHostFqdn) {
-        TGuard<TSpinLock> guard(CachedLocalHostNameLock_);
-        CachedLocalHostName_ = *Config_->LocalHostFqdn;
-        LOG_INFO("Localhost FQDN configured: %v", CachedLocalHostName_);
+        ::NYT::SetLocalHostName(*Config_->LocalHostFqdn);
+        LOG_INFO("Localhost FQDN configured: %v", ::NYT::GetLocalHostName());
     }
 }
 
@@ -733,11 +619,6 @@ void TAddressResolver::Shutdown()
 TFuture<TNetworkAddress> TAddressResolver::Resolve(const Stroka& address)
 {
     return Impl_->Resolve(address);
-}
-
-Stroka TAddressResolver::GetLocalHostName()
-{
-    return Impl_->GetLocalHostName();
 }
 
 bool TAddressResolver::IsLocalHostNameOK()
