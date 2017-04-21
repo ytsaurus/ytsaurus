@@ -585,7 +585,7 @@ void TServiceBase::HandleRequest(
     TRACE_ANNOTATION(
         traceContext,
         "server_host",
-        GetLocalHostName());
+        TAddressResolver::Get()->GetLocalHostName());
 
     TRACE_ANNOTATION(
         traceContext,

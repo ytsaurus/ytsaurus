@@ -156,9 +156,9 @@ public:
                 Bootstrap_));
         }
 
-        ServiceAddress_ = BuildServiceAddress(
-            GetLocalHostName(),
-            Bootstrap_->GetConfig()->RpcPort);
+        auto localHostName = TAddressResolver::Get()->GetLocalHostName();
+        int port = Bootstrap_->GetConfig()->RpcPort;
+        ServiceAddress_ = BuildServiceAddress(localHostName, port);
 
         for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
             JobStateToTag_[state] = TProfileManager::Get()->RegisterTag("state", FormatEnum(state));

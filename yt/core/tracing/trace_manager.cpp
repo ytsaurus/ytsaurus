@@ -255,7 +255,7 @@ private:
     NProto::TEndpoint GetLocalEndpoint()
     {
         auto* addressResolver = TAddressResolver::Get();
-        auto addressOrError = addressResolver->Resolve(GetLocalHostName()).Get();
+        auto addressOrError = addressResolver->Resolve(addressResolver->GetLocalHostName()).Get();
         if (!addressOrError.IsOK()) {
             LOG_FATAL(addressOrError, "Error determining local endpoint address");
         }
