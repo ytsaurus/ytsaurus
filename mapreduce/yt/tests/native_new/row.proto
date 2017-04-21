@@ -1,0 +1,14 @@
+import "mapreduce/yt/interface/protos/extension.proto";
+
+package NYT.NTesting;
+
+message TUrlRow {
+    optional string Host = 1     [(NYT.column_name) = "Host"];
+    optional string Path = 2     [(NYT.column_name) = "Path"];
+    optional sint32 HttpCode = 3 [(NYT.column_name) = "HttpCode"];
+}
+
+message THostRow {
+    optional string Host = 1          [(NYT.column_name) = "Host"];
+    optional sint32 HttpCodeTotal = 2 [(NYT.column_name) = "HttpCodeTotal"];
+}

@@ -516,6 +516,48 @@ void DumpOperationStderrs(
     stream << Endl;
 }
 
+using TDescriptorList = yvector<const ::google::protobuf::Descriptor*>;
+
+bool IsCompatible(const TDescriptorList& lhs, const TDescriptorList& rhs)
+{
+    if (lhs.empty() || rhs.empty()) {
+        return true;
+    } else {
+        return lhs == rhs;
+    }
+}
+
+void MergeDescriptors(TDescriptorList* dest, const TDescriptorList& other)
+{
+    Y_ASSERT(IsCompatible(*dest, other));
+
+    if (dest->empty()) {
+        *dest = other;
+    }
+
+}
+
+void VerifyCompatibilityAndMerge(
+    TMultiFormatDesc* destSpec,
+    const TMultiFormatDesc& mergedSpec,
+    TStringBuf destDescription,
+    TStringBuf mergedDescription)
+{
+    TMultiFormatDesc& result = *destSpec;
+    if (result.Format == TMultiFormatDesc::F_PROTO || mergedSpec.Format == TMultiFormatDesc::F_PROTO) {
+        if (result.Format != TMultiFormatDesc::F_PROTO && result.Format != TMultiFormatDesc::F_NONE ||
+            mergedSpec.Format != TMultiFormatDesc::F_PROTO && mergedSpec.Format != TMultiFormatDesc::F_NONE ||
+            !IsCompatible(result.ProtoDescriptors, mergedSpec.ProtoDescriptors))
+        {
+            ythrow TApiUsageError() << "incompatible format specifications: "
+                << destDescription << " and " << mergedDescription;
+        }
+
+        result.Format = TMultiFormatDesc::F_PROTO;
+        MergeDescriptors(&result.ProtoDescriptors, mergedSpec.ProtoDescriptors);
+    }
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -624,6 +666,7 @@ void AbortOperation(
 
 namespace {
 
+// TODO: we have inputDesc and outputDesc in TJobPreparer
 void BuildUserJobFluently(
     const TJobPreparer& preparer,
     TMaybe<TNode> format,
@@ -678,6 +721,9 @@ void BuildUserJobFluently(
             .EndAttributes()
             .Value("yson");
         } else {
+            if (inputDesc.ProtoDescriptors.empty()) {
+                ythrow TApiUsageError() << "messages for input_format are unknown (empty ProtoDescriptors)";
+            }
             auto config = MakeProtoFormatConfig(inputDesc.ProtoDescriptors);
             fluent.Item("input_format").Value(config);
         }
@@ -707,6 +753,9 @@ void BuildUserJobFluently(
             .EndAttributes()
             .Value("yson");
         } else {
+            if (outputDesc.ProtoDescriptors.empty()) {
+                ythrow yexception() << "messages for output_format are unknown (empty ProtoDescriptors)";
+            }
             auto config = MakeProtoFormatConfig(outputDesc.ProtoDescriptors);
             fluent.Item("output_format").Value(config);
         }
@@ -1042,10 +1091,10 @@ TOperationId ExecuteMapReduce(
     IJob* mapper,
     IJob* reduceCombiner,
     IJob* reducer,
-    const TMultiFormatDesc& outputMapperDesc,
-    const TMultiFormatDesc& inputReduceCombinerDesc,
-    const TMultiFormatDesc& outputReduceCombinerDesc,
-    const TMultiFormatDesc& inputReducerDesc,
+    const TMultiFormatDesc& mapperClassOutputDesc,
+    const TMultiFormatDesc& reduceCombinerClassInputDesc,
+    const TMultiFormatDesc& reduceCombinerClassOutputDesc,
+    const TMultiFormatDesc& reducerClassInputDesc,
     const TOperationOptions& options)
 {
     auto inputs = CanonizePaths(auth, spec.Inputs_);
@@ -1069,7 +1118,7 @@ TOperationId ExecuteMapReduce(
 
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR && format && !mapper) {
         auto& attrs = format.Get()->Attributes();
-        auto& keyColumns = attrs["key_column_names"].AsList();
+       auto& keyColumns = attrs["key_column_names"].AsList();
 
         sortBy.Parts_.clear();
         reduceBy.Parts_.clear();
@@ -1087,6 +1136,31 @@ TOperationId ExecuteMapReduce(
         }
     }
 
+    const TMultiFormatDesc& mapInputDesc = spec.InputDesc_;
+    TMultiFormatDesc mapOutputDesc = mapperClassOutputDesc;
+    VerifyCompatibilityAndMerge(&mapOutputDesc, spec.MapOutputHintDesc_,
+        "spec from mapper CLASS output", "spec from HINT for map output");
+
+    TMultiFormatDesc reduceCombinerInputDesc = reduceCombinerClassInputDesc;
+    VerifyCompatibilityAndMerge(&reduceCombinerInputDesc, spec.ReduceCombinerInputHintDesc_,
+        "spec from reduce combiner CLASS input", "spec from HINT for reduce combiner input");
+    if (!mapper) {
+        VerifyCompatibilityAndMerge(&reduceCombinerInputDesc, spec.InputDesc_,
+            "spec from reduce combiner CLASS input", "spec from input TABLES");
+    }
+    TMultiFormatDesc reduceCombinerOutputDesc = reduceCombinerClassOutputDesc;
+    VerifyCompatibilityAndMerge(&reduceCombinerOutputDesc, spec.ReduceCombinerOutputHintDesc_,
+        "spec derived from reduce combiner CLASS output", "spec from HINT for reduce combiner output");
+
+    TMultiFormatDesc reduceInputDesc = reducerClassInputDesc;
+    VerifyCompatibilityAndMerge(&reduceInputDesc, spec.ReduceInputHintDesc_,
+        "spec from reducer CLASS input", "spec from HINT for reduce input");
+    if (!mapper && !reduceCombiner) {
+        VerifyCompatibilityAndMerge(&reduceInputDesc, spec.InputDesc_,
+            "spec from reducer CLASS input", "spec from input TABLES");
+    }
+    const TMultiFormatDesc& reduceOutputDesc = spec.OutputDesc_;
+
     TJobPreparer reduce(
         auth,
         transactionId,
@@ -1094,8 +1168,8 @@ TOperationId ExecuteMapReduce(
         spec.ReducerSpec_,
         reducer,
         outputs.size(),
-        inputReducerDesc,
-        spec.OutputDesc_,
+        reduceInputDesc,
+        reduceOutputDesc,
         options);
 
     Stroka title;
@@ -1110,16 +1184,16 @@ TOperationId ExecuteMapReduce(
                 spec.MapperSpec_,
                 mapper,
                 1,
-                spec.InputDesc_,
-                outputMapperDesc,
+                mapInputDesc,
+                mapOutputDesc,
                 options);
 
             fluent.Item("mapper").DoMap(std::bind(
                 BuildUserJobFluently,
                 std::cref(map),
                 format,
-                spec.InputDesc_,
-                outputMapperDesc,
+                mapInputDesc,
+                mapOutputDesc,
                 std::placeholders::_1));
 
             title = "mapper:" + map.GetClassName() + " ";
@@ -1132,25 +1206,25 @@ TOperationId ExecuteMapReduce(
                 spec.ReduceCombinerSpec_,
                 reduceCombiner,
                 1,
-                inputReduceCombinerDesc,
-                outputReduceCombinerDesc,
+                reduceCombinerInputDesc,
+                reduceCombinerOutputDesc,
                 options);
 
             fluent.Item("reduce_combiner").DoMap(std::bind(
                 BuildUserJobFluently,
                 std::cref(combine),
                 mapper ? TMaybe<TNode>() : format,
-                inputReduceCombinerDesc,
-                outputReduceCombinerDesc,
+                reduceCombinerInputDesc,
+                reduceCombinerOutputDesc,
                 std::placeholders::_1));
-            title = "combiner:" + combine.GetClassName() + " ";
+            title += "combiner:" + combine.GetClassName() + " ";
         })
         .Item("reducer").DoMap(std::bind(
             BuildUserJobFluently,
             std::cref(reduce),
             (mapper || reduceCombiner) ? TMaybe<TNode>() : format,
-            inputReducerDesc,
-            spec.OutputDesc_,
+            reduceInputDesc,
+            reduceOutputDesc,
             std::placeholders::_1))
         .Item("sort_by").Value(sortBy)
         .Item("reduce_by").Value(reduceBy)
