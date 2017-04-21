@@ -4944,17 +4944,25 @@ void TOperationControllerBase::RegisterOutput(
     int key,
     const TCompletedJobSummary& jobSummary)
 {
+    RegisterOutput(joblet->ChunkListIds, key, jobSummary);
+}
+
+void TOperationControllerBase::RegisterOutput(
+    const std::vector<TChunkListId>& chunkListIds,
+    int key,
+    const TCompletedJobSummary& jobSummary)
+{
     const auto& result = jobSummary.Result;
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
     for (int tableIndex = 0; tableIndex < OutputTables.size(); ++tableIndex) {
         auto& table = OutputTables[tableIndex];
-        RegisterOutput(joblet->ChunkListIds[tableIndex], key, tableIndex, table);
+        RegisterOutput(chunkListIds[tableIndex], key, tableIndex, table);
 
         if (table.TableUploadOptions.TableSchema.IsSorted() && ShouldVerifySortedOutput() && !jobSummary.Abandoned) {
             YCHECK(tableIndex < schedulerResultExt.output_boundary_keys_size());
             const auto& boundaryKeys = schedulerResultExt.output_boundary_keys(tableIndex);
-            RegisterBoundaryKeys(boundaryKeys, joblet->ChunkListIds[tableIndex], &table);
+            RegisterBoundaryKeys(boundaryKeys, chunkListIds[tableIndex], &table);
         }
     }
 }

@@ -1074,7 +1074,7 @@ protected:
 
         struct TJobOutput
         {
-            TJobletPtr Joblet;
+            std::vector<NChunkClient::TChunkListId> ChunkListIds;
             int PartitionIndex;
             TCompletedJobSummary JobSummary;
 
@@ -1082,7 +1082,7 @@ protected:
             {
                 using NYT::Persist;
 
-                Persist(context, Joblet);
+                Persist(context, ChunkListIds);
                 Persist(context, PartitionIndex);
                 Persist(context, JobSummary);
             }
@@ -1099,8 +1099,8 @@ protected:
             LOG_WARNING(error, "Aborting all jobs in task because of pool output invalidation (Task: %v)", GetId());
             for (const auto& joblet : ActiveJoblets_) {
                 Controller->Host->GetJobHost(joblet->JobId)->AbortJob(
-                        TError("Job is aborted due to chunk pool output invalidation")
-                            << error);
+                    TError("Job is aborted due to chunk pool output invalidation")
+                        << error);
                 InvalidatedJoblets_.insert(joblet);
             }
             JobOutputs_.clear();
@@ -1109,8 +1109,7 @@ protected:
         void RegisterAllOutputs()
         {
             for (auto& jobOutput : JobOutputs_) {
-                YCHECK(!InvalidatedJoblets_.has(jobOutput.Joblet));
-                RegisterOutput(std::move(jobOutput.Joblet), jobOutput.PartitionIndex, jobOutput.JobSummary);
+                Controller->RegisterOutput(jobOutput.ChunkListIds, jobOutput.PartitionIndex, jobOutput.JobSummary);
             }
         }
 
@@ -1166,7 +1165,7 @@ protected:
             Controller->SortedMergeJobCounter.Completed(1);
             YCHECK(ActiveJoblets_.erase(joblet) == 1);
             if (!InvalidatedJoblets_.has(joblet)) {
-                JobOutputs_.emplace_back(TJobOutput{std::move(joblet), Partition->Index, jobSummary});
+                JobOutputs_.emplace_back(TJobOutput{joblet->ChunkListIds, Partition->Index, jobSummary});
             }
         }
 
@@ -1825,8 +1824,16 @@ protected:
 
     virtual void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary) override
     {
-        TotalOutputRowCount += GetTotalOutputDataStatistics(jobSummary.Statistics).row_count();
         TOperationControllerBase::RegisterOutput(std::move(joblet), key, jobSummary);
+    }
+
+    virtual void RegisterOutput(
+        const std::vector<TChunkListId>& chunkListIds,
+        int key,
+        const TCompletedJobSummary& jobSummary) override
+    {
+        TotalOutputRowCount += GetTotalOutputDataStatistics(jobSummary.Statistics).row_count();
+        TOperationControllerBase::RegisterOutput(chunkListIds, key, jobSummary);
     }
 
     void InitJobIOConfigs()
