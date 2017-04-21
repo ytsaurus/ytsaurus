@@ -78,12 +78,13 @@ private:
     void Disable(const TError& error);
     void ValidateEnabled() const;
 
-    static void ValidateFileName(const Stroka& fileName);
     static void ValidateNotExists(const Stroka& path);
 
     bool IsInsideTmpfs(const Stroka& path) const;
 
     void EnsureNotInUse(const Stroka& path) const;
+
+    void ForceSubdirectories(const Stroka& filePath, const Stroka& sandboxPath) const;
 
     Stroka GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const;
     Stroka GetConfigPath(int slotIndex) const;

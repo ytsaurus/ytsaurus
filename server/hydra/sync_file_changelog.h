@@ -30,7 +30,7 @@ public:
     ~TSyncFileChangelog();
 
     //! Returns the configuration passed in ctor.
-    TFileChangelogConfigPtr GetConfig();
+    const TFileChangelogConfigPtr& GetConfig();
 
     //! Returns the data file name of the changelog.
     const Stroka& GetFileName() const;

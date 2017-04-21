@@ -108,9 +108,11 @@ protected:
             , Controller_(controller)
             , ChunkPool_(CreateSortedChunkPool(
                 controller->GetSortedChunkPoolOptions(),
-                controller->ChunkSliceFetcher_,
+                controller->CreateChunkSliceFetcherFactory(),
                 controller->GetInputStreamDirectory()))
-        { }
+        {
+            SetupCallbacks();
+        }
 
         virtual Stroka GetId() const override
         {
@@ -149,6 +151,10 @@ protected:
             using NYT::Persist;
             Persist(context, Controller_);
             Persist(context, ChunkPool_);
+
+            if (context.IsLoad()) {
+                SetupCallbacks();
+            }
         }
 
     protected:
@@ -209,6 +215,13 @@ protected:
         {
             TTask::OnJobAborted(joblet, jobSummary);
         }
+
+        void SetupCallbacks()
+        {
+            ChunkPool_->SubscribePoolOutputInvalidated(BIND([&] (const TError& error) {
+                YCHECK(false && "Error during resuming stripe in sorted task");
+            }));
+        }
     };
 
     typedef TIntrusivePtr<TSortedTask> TSortedTaskPtr;
@@ -220,8 +233,6 @@ protected:
     //! The (adjusted) key columns that define the sort order inside sorted chunk pool.
     std::vector<Stroka> PrimaryKeyColumns_;
     std::vector<Stroka> ForeignKeyColumns_;
-
-    IChunkSliceFetcherPtr ChunkSliceFetcher_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
@@ -252,19 +263,6 @@ protected:
         SortedTaskGroup_->MinNeededResources.SetCpu(GetCpuLimit());
 
         RegisterTaskGroup(SortedTaskGroup_);
-    }
-
-    TSortedChunkPoolOptions GetSortedChunkPoolOptions()
-    {
-        TSortedChunkPoolOptions options;
-        options.EnableKeyGuarantee = IsKeyGuaranteeEnabled();
-        options.PrimaryPrefixLength = PrimaryKeyColumns_.size();
-        options.ForeignPrefixLength = ForeignKeyColumns_.size();
-        options.MaxTotalSliceCount = Config->MaxTotalSliceCount;
-        options.MinTeleportChunkSize = MinTeleportChunkSize();
-        options.JobSizeConstraints = JobSizeConstraints_;
-        options.OperationId = OperationId;
-        return options;
     }
 
     void CalculateSizes()
@@ -413,29 +411,6 @@ protected:
 
         CalculateSizes();
 
-        TScrapeChunksCallback scraperCallback;
-        if (Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-            scraperCallback = CreateScrapeChunksSessionCallback(
-                Config->ChunkScraper,
-                GetCancelableInvoker(),
-                Host->GetChunkLocationThrottlerManager(),
-                AuthenticatedInputMasterClient,
-                InputNodeDirectory,
-                Logger);
-        }
-
-        ChunkSliceFetcher_ = CreateChunkSliceFetcher(
-            Config->Fetcher,
-            InputSliceDataSize_,
-            PrimaryKeyColumns_,
-            ShouldSlicePrimaryTableByKeys(),
-            InputNodeDirectory,
-            GetCancelableInvoker(),
-            scraperCallback,
-            Host->GetMasterClient(),
-            RowBuffer,
-            Logger);
-
         InitTeleportableInputTables();
 
         SortedTask_ = New<TSortedTask>(this);
@@ -458,9 +433,87 @@ protected:
     {
         return true;
     }
+
+private:
+    class TChunkSliceFetcherFactory
+        : public IChunkSliceFetcherFactory
+    {
+    public:
+        //! Used only for persistence.
+        TChunkSliceFetcherFactory() = default;
+
+        TChunkSliceFetcherFactory(TSortedControllerBase* controller)
+            : Controller_(controller)
+        { }
+
+        virtual IChunkSliceFetcherPtr CreateChunkSliceFetcher() override
+        {
+            return Controller_->CreateChunkSliceFetcher();
+        }
+
+        virtual void Persist(const TPersistenceContext& context) override
+        {
+            using NYT::Persist;
+
+            Persist(context, Controller_);
+        }
+
+    private:
+        DECLARE_DYNAMIC_PHOENIX_TYPE(TChunkSliceFetcherFactory, 0x23cad49e);
+
+        TSortedControllerBase* Controller_;
+    };
+
+    IChunkSliceFetcherFactoryPtr CreateChunkSliceFetcherFactory()
+    {
+        return New<TChunkSliceFetcherFactory>(this /* controller */);
+    };
+
+    IChunkSliceFetcherPtr CreateChunkSliceFetcher() const
+    {
+        TScrapeChunksCallback scraperCallback;
+        if (Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
+            scraperCallback = CreateScrapeChunksSessionCallback(
+                Config->ChunkScraper,
+                GetCancelableInvoker(),
+                Host->GetChunkLocationThrottlerManager(),
+                AuthenticatedInputMasterClient,
+                InputNodeDirectory,
+                Logger);
+        }
+
+        return NTableClient::CreateChunkSliceFetcher(
+            Config->Fetcher,
+            InputSliceDataSize_,
+            PrimaryKeyColumns_,
+            ShouldSlicePrimaryTableByKeys(),
+            InputNodeDirectory,
+            GetCancelableInvoker(),
+            scraperCallback,
+            Host->GetMasterClient(),
+            RowBuffer,
+            Logger);
+    }
+
+    TSortedChunkPoolOptions GetSortedChunkPoolOptions()
+    {
+        TSortedChunkPoolOptions chunkPoolOptions;
+        TSortedJobOptions jobOptions;
+        jobOptions.EnableKeyGuarantee = IsKeyGuaranteeEnabled();
+        jobOptions.PrimaryPrefixLength = PrimaryKeyColumns_.size();
+        jobOptions.ForeignPrefixLength = ForeignKeyColumns_.size();
+        jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+        jobOptions.EnablePeriodicYielder = true;
+        chunkPoolOptions.SortedJobOptions = jobOptions;
+        chunkPoolOptions.MinTeleportChunkSize = MinTeleportChunkSize();
+        chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
+        chunkPoolOptions.OperationId = OperationId;
+        return chunkPoolOptions;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedControllerBase::TSortedTask);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedControllerBase::TChunkSliceFetcherFactory);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -818,6 +871,11 @@ public:
     virtual TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
     {
         return Spec_->CoreTableWriterConfig;
+    }
+
+    virtual bool IsOutputLivePreviewSupported() const override
+    {
+        return true;
     }
 
 protected:

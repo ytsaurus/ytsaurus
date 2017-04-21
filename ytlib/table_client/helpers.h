@@ -13,6 +13,10 @@
 #include <yt/core/yson/lexer.h>
 #include <yt/core/yson/public.h>
 
+#include <yt/core/compression/public.h>
+
+#include <yt/core/erasure/public.h>
+
 #include <yt/core/misc/phoenix.h>
 
 namespace NYT {
@@ -89,14 +93,16 @@ struct TTableUploadOptions
     NCypressClient::ELockMode LockMode;
     TTableSchema TableSchema;
     ETableSchemaMode SchemaMode;
+    EOptimizeFor OptimizeFor;
+    NCompression::ECodec CompressionCodec;
+    NErasure::ECodec ErasureCodec;
 
     void Persist(NPhoenix::TPersistenceContext& context);
 };
 
 TTableUploadOptions GetTableUploadOptions(
     const NYPath::TRichYPath& path,
-    const TTableSchema& schema,
-    ETableSchemaMode schemaMode,
+    const NYTree::IAttributeDictionary& cypressTableAttributes,
     i64 rowCount);
 
 //////////////////////////////////////////////////////////////////////////////////

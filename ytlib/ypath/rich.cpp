@@ -545,6 +545,21 @@ TNullable<NTransactionClient::TTimestamp> TRichYPath::GetTimestamp() const
     return FindAttribute<NTransactionClient::TTimestamp>(*this, "timestamp");
 }
 
+TNullable<NTableClient::EOptimizeFor> TRichYPath::GetOptimizeFor() const
+{
+    return FindAttribute<NTableClient::EOptimizeFor>(*this, "optimize_for");
+}
+
+TNullable<NCompression::ECodec> TRichYPath::GetCompressionCodec() const
+{
+    return FindAttribute<NCompression::ECodec>(*this, "compression_codec");
+}
+
+TNullable<NErasure::ECodec> TRichYPath::GetErasureCodec() const
+{
+    return FindAttribute<NErasure::ECodec>(*this, "erasure_codec");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TRichYPath& path)

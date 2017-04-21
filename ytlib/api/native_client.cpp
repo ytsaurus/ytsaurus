@@ -961,7 +961,7 @@ private:
     }
 
 
-    static void SetMutationId(IClientRequestPtr request, const TMutatingOptions& options)
+    static void SetMutationId(const IClientRequestPtr& request, const TMutatingOptions& options)
     {
         NRpc::SetMutationId(request, options.GetOrGenerateMutationId(), options.Retry);
     }

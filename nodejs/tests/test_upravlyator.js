@@ -84,6 +84,11 @@ var FIXTURE_GROUPS = {
         upravlyator_name: "speyside",
         upravlyator_help: "delightful whiskey with a fruity taste",
     },
+    "managed4": {
+        name: "managed4",
+        upravlyator_managed: "true",
+        upravlyator_responsibles: ["pupkin", "vasia"],
+    },
 };
 
 function mockGetUser(mock, name)
@@ -152,6 +157,7 @@ function mockListGroups(mock)
                 "upravlyator_managed",
                 "upravlyator_name",
                 "upravlyator_help",
+                "upravlyator_responsibles",
             ],
         }))
         .returns(result);
@@ -200,6 +206,13 @@ describe("ApplicationUpravlyator", function() {
                     managed1: { name: "managed1" },
                     managed2: { name: "islay" },
                     managed3: { name: "speyside", help: "delightful whiskey with a fruity taste" },
+                    managed4: {
+                        name: "managed4",
+                        responsibilities: [
+                            { username: "pupkin", notify: false },
+                            { username: "vasia", notify: false },
+                        ]
+                    },
                 });
             }, done).end();
         });

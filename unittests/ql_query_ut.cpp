@@ -721,18 +721,22 @@ protected:
         builder.RegisterFunction(
             "abs_udf_arity",
             "abs_udf",
+            std::unordered_map<TTypeArgument, TUnionType>(),
             std::vector<TType>{EValueType::Int64, EValueType::Int64},
+            EValueType::Null,
             EValueType::Int64,
             bcImplementations,
-            ECallingConvention::Simple);
+            GetCallingConvention(ECallingConvention::Simple));
 
         builder.RegisterFunction(
             "abs_udf_double",
             "abs_udf",
+            std::unordered_map<TTypeArgument, TUnionType>(),
             std::vector<TType>{EValueType::Double},
+            EValueType::Null,
             EValueType::Int64,
             bcImplementations,
-            ECallingConvention::Simple);
+            GetCallingConvention(ECallingConvention::Simple));
 
         builder.RegisterFunction(
             "throw_if_negative_udf",

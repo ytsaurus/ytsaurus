@@ -2286,7 +2286,9 @@ private:
     std::vector<TUnversionedRow> SchemafulRows_;
 
     std::atomic<bool> Interrupting_ = {false};
-    std::atomic<bool> HasMore_ = {false};
+
+    // We must assume that there is more data if we read nothing to the moment.
+    std::atomic<bool> HasMore_ = {true};
     TOwningKey LastKey_;
 
     i64 RowIndex_ = 0;

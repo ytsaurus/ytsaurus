@@ -135,27 +135,50 @@ private:
     };
 
     // Variables below contain per-iteration state for slot scan.
-    TSpinLock SpinLock_;
+    TSpinLock ScanSpinLock_;
     bool ScanForPartitioning_;
     bool ScanForCompactions_;
     std::vector<TTask> PartitioningCandidates_;
     std::vector<TTask> CompactionCandidates_;
 
+    // Variables below are actually scheduled tasks.
+    TSpinLock TaskSpinLock_;
+    std::vector<TTask> PartitioningTasks_;
+    size_t PartitioningTaskIndex_ = 0; // First unscheduled task.
+    std::vector<TTask> CompactionTasks_;
+    size_t CompactionTaskIndex_ = 0; // First unscheduled task.
+
+    static constexpr size_t ScorePartSize = 21;
+    static constexpr size_t ScorePartMask = static_cast<size_t>(1 << ScorePartSize) - 1;
+
     static ui64 PackTaskScore(size_t x, size_t y, size_t z)
     {
-        static constexpr size_t partSize = 21;
-        static constexpr size_t partMask = static_cast<size_t>(1 << partSize) - 1;
+        x &= ScorePartMask;
+        y &= ScorePartMask; y = ScorePartMask + 1 - y; // Negative, for reversed order.
+        z &= ScorePartMask;
         size_t result = 0;
-        result |= (x & partMask) << (partSize * 2);
-        result |= ((partMask + 1) - (y & partMask)) << (partSize * 1); // negative
-        result |= (z & partMask) << (partSize * 0);
+        result |= x;
+        result <<= ScorePartSize;
+        result |= y;
+        result <<= ScorePartSize;
+        result |= z;
         return result;
     }
+
+    static std::tuple<size_t, size_t, size_t> UnpackTaskScore(ui64 score)
+    {
+        size_t z = score & ScorePartMask;
+        score >>= ScorePartSize;
+        size_t y = score & ScorePartMask; y = ScorePartMask + 1 - y; // Negative, for reversed order.
+        score >>= ScorePartSize;
+        size_t x = score & ScorePartMask;
+        return std::make_tuple(x, y, z);
+    };
 
     void OnBeginSlotScan()
     {
         // NB: Strictly speaking, redundant.
-        auto guard = Guard(SpinLock_);
+        auto guard = Guard(ScanSpinLock_);
 
         // Save some scheduling resources by skipping unnecessary work.
         ScanForPartitioning_ = PartitioningSemaphore_->IsReady();
@@ -187,68 +210,16 @@ private:
     void OnEndSlotScan()
     {
         // NB: Strictly speaking, redundant.
-        auto guard = Guard(SpinLock_);
+        auto guard = Guard(ScanSpinLock_);
 
         if (ScanForPartitioning_) {
-            Profiler.Update(FeasiblePartitioningsCounter_, PartitioningCandidates_.size());
-
-            size_t limit = std::min(size_t(PartitioningSemaphore_->GetTotal()), PartitioningCandidates_.size());
-            std::partial_sort(
-                PartitioningCandidates_.begin(),
-                PartitioningCandidates_.begin() + limit,
-                PartitioningCandidates_.end(),
-                [&] (const TTask& lhs, const TTask& rhs) -> bool {
-                    return lhs.Score < rhs.Score;
-                });
-
-            size_t count = 0;
-            for (; count < limit; ++count) {
-                auto&& task = PartitioningCandidates_[count];
-                auto semaphoreGuard = TAsyncSemaphoreGuard::TryAcquire(PartitioningSemaphore_);
-                if (!semaphoreGuard) {
-                    break;
-                }
-                task.Invoker->Invoke(BIND(
-                    &TStoreCompactor::PartitionEden,
-                    MakeStrong(this),
-                    Passed(std::move(semaphoreGuard)),
-                    std::move(task)));
-            }
-
-            Profiler.Increment(ScheduledPartitioningsCounter_, count);
-
-            PartitioningCandidates_.clear();
+            PickMorePartitionings(guard);
+            ScheduleMorePartitionings();
         }
 
         if (ScanForCompactions_) {
-            Profiler.Update(FeasibleCompactionsCounter_, CompactionCandidates_.size());
-
-            size_t limit = std::min(size_t(CompactionSemaphore_->GetTotal()), CompactionCandidates_.size());
-            std::partial_sort(
-                CompactionCandidates_.begin(),
-                CompactionCandidates_.begin() + limit,
-                CompactionCandidates_.end(),
-                [&] (const TTask& lhs, const TTask& rhs) -> bool {
-                    return lhs.Score < rhs.Score;
-                });
-
-            size_t count = 0;
-            for (; count < limit; ++count) {
-                auto&& task = CompactionCandidates_[count];
-                auto semaphoreGuard = TAsyncSemaphoreGuard::TryAcquire(CompactionSemaphore_);
-                if (!semaphoreGuard) {
-                    break;
-                }
-                task.Invoker->Invoke(BIND(
-                    &TStoreCompactor::CompactPartition,
-                    MakeStrong(this),
-                    Passed(std::move(semaphoreGuard)),
-                    std::move(task)));
-            }
-
-            Profiler.Increment(ScheduledCompactionsCounter_, count);
-
-            CompactionCandidates_.clear();
+            PickMoreCompactions(guard);
+            ScheduleMoreCompactions();
         }
     }
 
@@ -307,7 +278,7 @@ private:
         candidate.Score = PackTaskScore(score, candidate.Stores.size(), RandomNumber<size_t>());
 
         {
-            auto guard = Guard(SpinLock_);
+            auto guard = Guard(ScanSpinLock_);
             PartitioningCandidates_.push_back(std::move(candidate));
         }
 
@@ -347,7 +318,7 @@ private:
         candidate.Score = PackTaskScore(score, candidate.Stores.size(), RandomNumber<size_t>());
 
         {
-            auto guard = Guard(SpinLock_);
+            auto guard = Guard(ScanSpinLock_);
             CompactionCandidates_.push_back(std::move(candidate));
         }
 
@@ -543,11 +514,116 @@ private:
         return result;
     }
 
+    void PickMoreTasks(
+        std::vector<TTask>* candidates,
+        std::vector<TTask>* tasks,
+        size_t* index,
+        NProfiling::TSimpleCounter& counter)
+    {
+        if (candidates->empty()) {
+            return;
+        }
+
+        Profiler.Update(counter, candidates->size());
+
+        size_t limit = 100;
+        limit = std::min(limit, candidates->size());
+
+        std::partial_sort(
+            candidates->begin(),
+            candidates->begin() + limit,
+            candidates->end(),
+            [] (const TTask& lhs, const TTask& rhs) -> bool {
+                return lhs.Score < rhs.Score;
+            });
+
+        candidates->resize(limit);
+        {
+            auto guard = Guard(TaskSpinLock_);
+            tasks->swap(*candidates);
+            *index = 0;
+        }
+        candidates->clear();
+    }
+
+    void PickMorePartitionings(TGuard<TSpinLock>&)
+    {
+        PickMoreTasks(
+            &PartitioningCandidates_,
+            &PartitioningTasks_,
+            &PartitioningTaskIndex_,
+            FeasiblePartitioningsCounter_);
+    }
+
+    void PickMoreCompactions(TGuard<TSpinLock>&)
+    {
+        PickMoreTasks(
+            &CompactionCandidates_,
+            &CompactionTasks_,
+            &CompactionTaskIndex_,
+            FeasibleCompactionsCounter_);
+    }
+
+    void ScheduleMoreTasks(
+        std::vector<TTask>* tasks,
+        size_t* index,
+        const TAsyncSemaphorePtr& semaphore,
+        NProfiling::TSimpleCounter& counter,
+        void (TStoreCompactor::*action)(TAsyncSemaphoreGuard, const TTask&))
+    {
+        auto guard = Guard(TaskSpinLock_);
+
+        size_t scheduled = 0;
+
+        while (true) {
+            if (*index >= tasks->size()) {
+                break;
+            }
+
+            auto semaphoreGuard = TAsyncSemaphoreGuard::TryAcquire(semaphore);
+            if (!semaphoreGuard) {
+                break;
+            }
+
+            auto&& task = tasks->at(*index);
+            ++(*index);
+
+            task.Invoker->Invoke(BIND(action, MakeStrong(this), Passed(std::move(semaphoreGuard)), std::move(task)));
+
+            ++scheduled;
+        }
+
+        if (scheduled > 0) {
+            Profiler.Increment(counter, scheduled);
+        }
+    }
+
+    void ScheduleMorePartitionings()
+    {
+        ScheduleMoreTasks(
+            &PartitioningTasks_,
+            &PartitioningTaskIndex_,
+            PartitioningSemaphore_,
+            ScheduledPartitioningsCounter_,
+            &TStoreCompactor::PartitionEden);
+    }
+
+    void ScheduleMoreCompactions()
+    {
+        ScheduleMoreTasks(
+            &CompactionTasks_,
+            &CompactionTaskIndex_,
+            CompactionSemaphore_,
+            ScheduledCompactionsCounter_,
+            &TStoreCompactor::CompactPartition);
+    }
 
     void PartitionEden(TAsyncSemaphoreGuard guard, const TTask& task)
     {
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v", task.Tablet);
+
+        auto scoreParts = UnpackTaskScore(task.Score);
 
         const auto& slot = task.Slot;
         const auto& tabletManager = slot->GetTabletManager();
@@ -580,8 +656,8 @@ private:
         std::vector<TSortedChunkStorePtr> stores;
         stores.reserve(task.Stores.size());
         for (const auto& storeId : task.Stores) {
-            auto store = tablet->FindStore(storeId)->AsSorted();
-            if (!store || !eden->Stores().has(store)) {
+            auto store = tablet->FindStore(storeId);
+            if (!store || !eden->Stores().has(store->AsSorted())) {
                 LOG_DEBUG("Eden store is missing, aborting partitioning (StoreId: %v)", storeId);
                 return;
             }
@@ -615,7 +691,10 @@ private:
 
             eden->SetCompactionTime(TInstant::Now());
 
-            LOG_INFO("Eden partitioning started (PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v)",
+            LOG_INFO("Eden partitioning started (Score: {%v, %v, %v}, PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v)",
+                std::get<0>(scoreParts),
+                std::get<1>(scoreParts),
+                std::get<2>(scoreParts),
                 pivotKeys.size(),
                 dataSize,
                 stores.size(),
@@ -673,6 +752,7 @@ private:
 
             // We can release semaphore, because we are no longer actively using resources.
             guard.Release();
+            ScheduleMorePartitionings();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
@@ -871,6 +951,8 @@ private:
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v", task.Tablet);
 
+        auto scoreParts = UnpackTaskScore(task.Score);
+
         const auto& slot = task.Slot;
         const auto& tabletManager = slot->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(task.Tablet);
@@ -904,8 +986,8 @@ private:
         std::vector<TSortedChunkStorePtr> stores;
         stores.reserve(task.Stores.size());
         for (const auto& storeId : task.Stores) {
-            auto store = tablet->FindStore(storeId)->AsSorted();
-            if (!store || !partition->Stores().has(store)) {
+            auto store = tablet->FindStore(storeId);
+            if (!store || !partition->Stores().has(store->AsSorted())) {
                 LOG_DEBUG("Partition store is missing, aborting compaction (StoreId: %v)", storeId);
                 return;
             }
@@ -941,7 +1023,10 @@ private:
 
             partition->SetCompactionTime(TInstant::Now());
 
-            LOG_INFO("Partition compaction started (DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v, MajorTimestamp: %v, RetainedTimestamp: %v)",
+            LOG_INFO("Partition compaction started (Score: {%v, %v, %v}, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v, MajorTimestamp: %v, RetainedTimestamp: %v)",
+                std::get<0>(scoreParts),
+                std::get<1>(scoreParts),
+                std::get<2>(scoreParts),
                 dataSize,
                 stores.size(),
                 currentTimestamp,
@@ -999,6 +1084,7 @@ private:
 
             // We can release semaphore, because we are no longer actively using resources.
             guard.Release();
+            ScheduleMoreCompactions();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
@@ -1032,7 +1118,6 @@ private:
             transaction->AddAction(Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellId(), actionData);
             transaction->AddAction(slot->GetCellId(), actionData);
 
-            const auto& tabletManager = slot->GetTabletManager();
             WaitFor(tabletManager->CommitTabletStoresUpdateTransaction(tablet, transaction))
                 .ThrowOnError();
 

@@ -10,27 +10,49 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
-struct TSortedChunkPoolOptions
+struct TSortedJobOptions
 {
     bool EnableKeyGuarantee;
-    int PrimaryPrefixLength = 0;
-    int ForeignPrefixLength = 0;
-    i64 MinTeleportChunkSize = 0;
-    i64 MaxTotalSliceCount = 0;
-    bool SupportLocality = false;
+    int PrimaryPrefixLength;
+    int ForeignPrefixLength;
     bool EnablePeriodicYielder = true;
-    IJobSizeConstraintsPtr JobSizeConstraints;
 
+    //! An upper bound for a total number of slices that is allowed. If this value
+    //! is exceeded, an exception is thrown.
+    i64 MaxTotalSliceCount;
+
+    void Persist(const TPersistenceContext& context);
+};
+
+struct TSortedChunkPoolOptions
+{
+    TSortedJobOptions SortedJobOptions;
+    i64 MinTeleportChunkSize = 0;
+    bool SupportLocality = false;
+    IJobSizeConstraintsPtr JobSizeConstraints;
     TOperationId OperationId;
 
     void Persist(const TPersistenceContext& context);
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct IChunkSliceFetcherFactory
+    : public IPersistent
+    , public virtual TRefCounted
+{
+    virtual NTableClient::IChunkSliceFetcherPtr CreateChunkSliceFetcher() = 0;
+
+    virtual void Persist(const TPersistenceContext& context) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcherFactory);
+
 ////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IChunkPool> CreateSortedChunkPool(
     const TSortedChunkPoolOptions& options,
-    NYT::NTableClient::IChunkSliceFetcherPtr chunkSliceFetcher,
+    IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
     TInputStreamDirectory dataSourceDirectory);
 
 ////////////////////////////////////////////////////////////////////
