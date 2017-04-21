@@ -884,7 +884,7 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
         inputSpec->add_chunk_spec_count_per_data_slice(dataSlice->ChunkSlices.size());
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             auto newChunkSpec = inputSpec->add_chunk_specs();
-            ToProto(newChunkSpec, chunkSlice);
+            ToProto(newChunkSpec, chunkSlice, dataSlice->Type);
             if (dataSlice->Tag) {
                 newChunkSpec->set_data_slice_tag(*dataSlice->Tag);
             }
@@ -1074,10 +1074,21 @@ TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
     google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs)
 {
     auto stripe = New<TChunkStripe>();
-    for (auto& chunkSpec : *chunkSpecs) {
-        auto inputChunk = New<TInputChunk>(std::move(chunkSpec));
+
+    i64 currentTableRowIndex = 0;
+    for (int index = 0; index < chunkSpecs->size(); ++index) {
+        auto inputChunk = New<TInputChunk>(std::move(*chunkSpecs->Mutable(index)));
+        // NB(max42): Having correct table row indices on intermediate data is important for
+        // some chunk pools. This affects the correctness of sort operation with sorted
+        // merge phase over several intermediate chunks.
+        inputChunk->SetTableRowIndex(currentTableRowIndex);
+        currentTableRowIndex += inputChunk->GetRowCount();
         auto chunkSlice = CreateInputChunkSlice(std::move(inputChunk));
         auto dataSlice = CreateUnversionedInputDataSlice(std::move(chunkSlice));
+        // NB(max42): This heavily relies on the property of intermediate data being deterministic
+        // (i.e. it may be reproduced with exactly the same content divided into chunks with exactly
+        // the same boundary keys when the job output is lost).
+        dataSlice->Tag = index;
         stripe->DataSlices.emplace_back(std::move(dataSlice));
     }
     return stripe;
@@ -2017,6 +2028,10 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
             req->set_chunk_properties_update_needed(table->ChunkPropertiesUpdateNeeded);
             ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema);
             req->set_schema_mode(static_cast<int>(table->TableUploadOptions.SchemaMode));
+            req->set_optimize_for(static_cast<int>(table->TableUploadOptions.OptimizeFor));
+            req->set_compression_codec(static_cast<int>(table->TableUploadOptions.CompressionCodec));
+            req->set_erasure_codec(static_cast<int>(table->TableUploadOptions.ErasureCodec));
+
             SetTransactionId(req, table->UploadTransactionId);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "end_upload");
@@ -3907,7 +3922,10 @@ void TOperationControllerBase::GetOutputTablesSchema()
                 auto req = TTableYPathProxy::Get(objectIdPath + "/@");
                 std::vector<Stroka> attributeKeys{
                     "schema_mode",
-                    "schema"
+                    "schema",
+                    "optimize_for",
+                    "compression_codec",
+                    "erasure_codec"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 if (table->OutputType == EOutputTableType::Output) {
@@ -3934,8 +3952,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
 
             table->TableUploadOptions = GetTableUploadOptions(
                 path,
-                attributes->Get<TTableSchema>("schema"),
-                attributes->Get<ETableSchemaMode>("schema_mode"),
+                *attributes,
                 0); // Here we assume zero row count, we will do additional check later.
 
             //TODO(savrus) I would like to see commit ts here. But as for now, start ts suffices.
@@ -4038,10 +4055,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 std::vector<Stroka> attributeKeys{
                     "account",
                     "chunk_writer",
-                    "compression_codec",
                     "effective_acl",
-                    "erasure_codec",
-                    "optimize_for",
                     "primary_medium",
                     "replication_factor",
                     "row_count",
@@ -4082,13 +4096,13 @@ void TOperationControllerBase::BeginUploadOutputTables()
                     table->Options->ValidateSorted = false;
                 }
 
-                table->Options->CompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
-                table->Options->ErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec");
+                table->Options->CompressionCodec = table->TableUploadOptions.CompressionCodec;
+                table->Options->ErasureCodec = table->TableUploadOptions.ErasureCodec;
                 table->Options->ReplicationFactor = attributes->Get<int>("replication_factor");
                 table->Options->MediumName = attributes->Get<Stroka>("primary_medium");
                 table->Options->Account = attributes->Get<Stroka>("account");
                 table->Options->ChunksVital = attributes->Get<bool>("vital");
-                table->Options->OptimizeFor = attributes->Get<EOptimizeFor>("optimize_for");
+                table->Options->OptimizeFor = table->TableUploadOptions.OptimizeFor;
                 table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
 
                 // Workaround for YT-5827.
@@ -4379,8 +4393,8 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     path);
             }
 
-            if (NFS::GetFileName(fileName) != fileName) {
-                THROW_ERROR_EXCEPTION("User file name for %v cannot include nested directories", path)
+            if (!NFS::GetRealPath(NFS::CombinePaths("sandbox", fileName)).StartsWith(NFS::GetRealPath("sandbox"))) {
+                THROW_ERROR_EXCEPTION("User file name cannot reference outside of sandbox directory")
                     << TErrorAttribute("file_name", fileName);
             }
 
@@ -5589,7 +5603,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         ToProto(descriptor->mutable_chunk_specs(), file.ChunkSpecs);
 
         if (file.Type == EObjectType::Table && file.IsDynamic && file.Schema.IsSorted()) {
-            descriptor->set_type(static_cast<int>(EDataSourceType::VersionedTable));
             auto dataSource = MakeVersionedDataSource(
                 file.GetPath(),
                 file.Schema,
@@ -5600,10 +5613,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             auto dataSource = file.Type == EObjectType::File
                     ? MakeFileDataSource(file.GetPath())
                     : MakeUnversionedDataSource(file.GetPath(), file.Schema, file.Path.GetColumns());
-
-            descriptor->set_type(file.Type == EObjectType::File
-                ? static_cast<int>(EDataSourceType::File)
-                : static_cast<int>(EDataSourceType::UnversionedTable));
 
             ToProto(descriptor->mutable_data_source(), dataSource);
         }

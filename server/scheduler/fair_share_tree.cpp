@@ -617,6 +617,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool
     attributes.Active = true;
 
     if (!IsAlive()) {
+        ++context.DeactivationReasons[EDeactivationReason::IsNotAlive];
         attributes.Active = false;
         return;
     }
@@ -625,6 +626,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool
         SchedulingTagFilterIndex_ != EmptySchedulingTagFilterIndex &&
         !context.CanSchedule[SchedulingTagFilterIndex_])
     {
+        ++context.DeactivationReasons[EDeactivationReason::UnmatchedSchedulingTag];
         attributes.Active = false;
         return;
     }
@@ -641,6 +643,10 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool
     }
 
     TSchedulerElement::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
+
+    if (attributes.Active) {
+        ++context.ActiveTreeSize;
+    }
 }
 
 bool TCompositeSchedulerElement::ScheduleJob(TFairShareContext& context)
@@ -1340,7 +1346,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             TJobProperties::SetAggressivelyPreemptable,
             TJobProperties::SetNonPreemptable);
 
-        auto nonPreemptableAndAggressivelyPreemptableResourceUsage_ = balanceLists(
+        auto nonpreemptableAndAggressivelyPreemptableResourceUsage_ = balanceLists(
             &AggressivelyPreemptableJobs_,
             &PreemptableJobs_,
             startNonPreemptableAndAggressivelyPreemptableResourceUsage_,
@@ -1348,7 +1354,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             TJobProperties::SetPreemptable,
             TJobProperties::SetAggressivelyPreemptable);
 
-        AggressivelyPreemptableResourceUsage_ = nonPreemptableAndAggressivelyPreemptableResourceUsage_ - NonpreemptableResourceUsage_;
+        AggressivelyPreemptableResourceUsage_ = nonpreemptableAndAggressivelyPreemptableResourceUsage_ - NonpreemptableResourceUsage_;
     }
 }
 
@@ -1492,6 +1498,10 @@ void TOperationElementSharedState::IncreaseJobResourceUsage(
     if (!properties.Preemptable) {
         NonpreemptableResourceUsage_ += resourcesDelta;
     }
+    if (properties.AggressivelyPreemptable) {
+        YCHECK(properties.Preemptable);
+        AggressivelyPreemptableResourceUsage_ += resourcesDelta;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -1603,6 +1613,7 @@ void TOperationElement::PrescheduleJob(TFairShareContext& context, bool starving
     attributes.Active = true;
 
     if (!IsAlive()) {
+        ++context.DeactivationReasons[EDeactivationReason::IsNotAlive];
         attributes.Active = false;
         return;
     }
@@ -1611,19 +1622,25 @@ void TOperationElement::PrescheduleJob(TFairShareContext& context, bool starving
         SchedulingTagFilterIndex_ != EmptySchedulingTagFilterIndex &&
         !context.CanSchedule[SchedulingTagFilterIndex_])
     {
+        ++context.DeactivationReasons[EDeactivationReason::UnmatchedSchedulingTag];
         attributes.Active = false;
         return;
     }
 
     if (starvingOnly && !Starving_) {
+        ++context.DeactivationReasons[EDeactivationReason::IsNotStarving];
         attributes.Active = false;
         return;
     }
 
     if (IsBlocked(context.SchedulingContext->GetNow())) {
+        ++context.DeactivationReasons[EDeactivationReason::IsBlocked];
         attributes.Active = false;
         return;
     }
+
+    ++context.ActiveTreeSize;
+    ++context.ActiveOperationCount;
 
     TSchedulerElement::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
 }
@@ -1636,18 +1653,22 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
         auto* parent = GetParent();
         while (parent) {
             parent->UpdateDynamicAttributes(context.DynamicAttributesList);
+            if (!context.DynamicAttributesList[parent->GetTreeIndex()].Active) {
+                ++context.DeactivationReasons[EDeactivationReason::NoBestLeafDescendant];
+            }
             parent = parent->GetParent();
         }
     };
 
-    auto disableOperationElement = [&] () {
+    auto disableOperationElement = [&] (EDeactivationReason reason) {
+        ++context.DeactivationReasons[reason];
         context.DynamicAttributes(this).Active = false;
         updateAncestorsAttributes();
     };
 
     auto now = context.SchedulingContext->GetNow();
     if (IsBlocked(now)) {
-        disableOperationElement();
+        disableOperationElement(EDeactivationReason::IsBlocked);
         return false;
     }
 
@@ -1656,7 +1677,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
         StrategyConfig_->MaxConcurrentControllerScheduleJobCalls,
         NProfiling::DurationToCpuDuration(StrategyConfig_->ControllerScheduleJobFailBackoffTime)))
     {
-        disableOperationElement();
+        disableOperationElement(EDeactivationReason::TryStartScheduleJobFailed);
         return false;
     }
 
@@ -1671,7 +1692,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
     }
 
     if (!scheduleJobResult->JobStartRequest) {
-        disableOperationElement();
+        disableOperationElement(EDeactivationReason::ScheduleJobFailed);
 
         bool enableBackoff = scheduleJobResult->IsBackoffNeeded();
         if (enableBackoff) {
@@ -1839,12 +1860,24 @@ void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& r
 {
     auto delta = SharedState_->AddJob(jobId, resourceUsage);
     IncreaseResourceUsage(delta);
+
+    SharedState_->UpdatePreemptableJobsList(
+        Attributes_.FairShareRatio,
+        TotalResourceLimits_,
+        StrategyConfig_->PreemptionSatisfactionThreshold,
+        StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
 }
 
 void TOperationElement::OnJobFinished(const TJobId& jobId)
 {
     auto resourceUsage = SharedState_->RemoveJob(jobId);
     IncreaseResourceUsage(-resourceUsage);
+
+    SharedState_->UpdatePreemptableJobsList(
+        Attributes_.FairShareRatio,
+        TotalResourceLimits_,
+        StrategyConfig_->PreemptionSatisfactionThreshold,
+        StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
 }
 
 void TOperationElement::BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap)

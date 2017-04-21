@@ -13,6 +13,18 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EDeactivationReason,
+    (IsNotAlive)
+    (UnmatchedSchedulingTag)
+    (IsNotStarving)
+    (IsBlocked)
+    (TryStartScheduleJobFailed)
+    (ScheduleJobFailed)
+    (NoBestLeafDescendant)
+);
+
+////////////////////////////////////////////////////////////////////
+
 struct TSchedulableAttributes
 {
     NNodeTrackerClient::EResourceType DominantResource = NNodeTrackerClient::EResourceType::Cpu;
@@ -60,6 +72,10 @@ struct TFairShareContext
     TDuration ExecScheduleJobDuration;
     TEnumIndexedVector<int, EScheduleJobFailReason> FailedScheduleJob;
     bool HasAggressivelyStarvingNodes = false;
+
+    int ActiveOperationCount = 0;
+    int ActiveTreeSize = 0;
+    TEnumIndexedVector<int, EDeactivationReason> DeactivationReasons;
 };
 
 ////////////////////////////////////////////////////////////////////

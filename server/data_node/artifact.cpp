@@ -17,7 +17,7 @@ using namespace NTableClient;
 
 TArtifactKey::TArtifactKey(const TChunkId& chunkId)
 {
-    set_data_source_type(static_cast<int>(EDataSourceType::File));
+    mutable_data_source()->set_type(static_cast<int>(EDataSourceType::File));
     NChunkClient::NProto::TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), chunkId);
     *add_chunk_specs() = chunkSpec;
@@ -25,39 +25,41 @@ TArtifactKey::TArtifactKey(const TChunkId& chunkId)
 
 TArtifactKey::TArtifactKey(const NScheduler::NProto::TFileDescriptor& descriptor)
 {
-    set_data_source_type(descriptor.data_source().type());
+    mutable_data_source()->MergeFrom(descriptor.data_source());
 
     if (descriptor.chunk_specs_size() > 0) {
         mutable_chunk_specs()->MergeFrom(descriptor.chunk_specs());
-    } else {
-        // COMPAT(psushin).
-        for (const auto& dataSliceDescriptor : descriptor.data_slice_descriptors()) {
-            for (const auto& chunkSpec : dataSliceDescriptor.chunks()) {
-                *add_chunk_specs() = chunkSpec;
-            }
-        }
     }
 
     if (descriptor.has_format()) {
         set_format(descriptor.format());
-    }
-
-    if (descriptor.data_source().has_table_schema()) {
-        *mutable_table_schema() = descriptor.data_source().table_schema();
-    }
-
-    if (descriptor.data_source().has_timestamp()) {
-        set_timestamp(descriptor.data_source().timestamp());
     }
 }
 
 TArtifactKey::operator size_t() const
 {
     size_t result = 0;
-    HashCombine(result, data_source_type());
+    HashCombine(result, data_source().type());
 
     if (has_format()) {
         HashCombine(result, format());
+    }
+
+    if (data_source().has_column_filter()) {
+        for (const auto& column : data_source().columns()) {
+            HashCombine(result, column);
+        }
+    }
+
+    if (data_source().has_timestamp()) {
+        HashCombine(result, data_source().timestamp());
+    }
+
+    if (data_source().has_table_schema()) {
+        for (const auto& column : data_source().table_schema().columns()) {
+            HashCombine(result, column.name());
+            HashCombine(result, column.type());
+        }
     }
 
     auto hashReadLimit = [&] (const NChunkClient::NProto::TReadLimit& limit) {
@@ -89,7 +91,7 @@ TArtifactKey::operator size_t() const
 
 bool TArtifactKey::operator == (const TArtifactKey& other) const
 {
-    if (data_source_type() != other.data_source_type())
+    if (data_source().type() != other.data_source().type())
         return false;
 
     if (has_format() != other.has_format())
@@ -98,17 +100,34 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
     if (has_format() && format() != other.format())
         return false;
 
-    if (has_table_schema() != other.has_table_schema())
+    if (data_source().has_table_schema() != other.data_source().has_table_schema())
         return false;
 
-    if (has_table_schema() && has_table_schema() != other.has_table_schema())
+    if (data_source().has_table_schema()) {
+        auto lhsSchema = FromProto<TTableSchema>(data_source().table_schema());
+        auto rhsSchema = FromProto<TTableSchema>(other.data_source().table_schema());
+
+        if (lhsSchema != rhsSchema) {
+            return false;
+        }
+    }
+
+    if (data_source().has_timestamp() != other.data_source().has_timestamp())
         return false;
 
-    if (has_timestamp() != other.has_timestamp())
+    if (data_source().has_timestamp() && data_source().timestamp() != other.data_source().timestamp())
         return false;
 
-    if (has_timestamp() && timestamp() != other.timestamp())
+    if (data_source().has_column_filter() != other.data_source().has_column_filter())
         return false;
+
+    if (data_source().has_column_filter()) {
+        auto lhsColumns = FromProto<std::vector<Stroka>>(data_source().columns());
+        auto rhsColumns = FromProto<std::vector<Stroka>>(other.data_source().columns());
+        if (lhsColumns != rhsColumns) {
+            return false;
+        }
+    }
 
     if (chunk_specs_size() != other.chunk_specs_size())
         return false;

@@ -49,26 +49,10 @@ public:
         , FlushedRecordCount_(Changelog_->GetRecordCount())
     { }
 
-    TSyncFileChangelogPtr GetChangelog()
+    const TSyncFileChangelogPtr& GetChangelog()
     {
         return Changelog_;
     }
-
-
-    void Lock()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        ++UseCount_;
-    }
-
-    void Unlock()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        --UseCount_;
-    }
-
 
     TFuture<void> AsyncAppend(TSharedRef data)
     {
@@ -105,8 +89,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        const auto& config = Changelog_->GetConfig();
+
         // Unguarded access seems OK.
-        auto config = Changelog_->GetConfig();
         if (ByteSize_ >= config->FlushBufferSize) {
             return true;
         }
@@ -135,31 +120,6 @@ public:
 
         SyncFlush();
     }
-
-    TPromise<void> TrySweep()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        TPromise<void> promise;
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-
-            if (!AppendQueue_.empty() || !FlushQueue_.empty()) {
-                return TPromise<void>();
-            }
-
-            if (UseCount_.load() > 0) {
-                return TPromise<void>();
-            }
-
-            promise = FlushPromise_;
-            FlushPromise_.Reset();
-            FlushForced_ = false;
-        }
-
-        return promise;
-    }
-    
 
     std::vector<TSharedRef> Read(int firstRecordId, int maxRecords, i64 maxBytes)
     {
@@ -222,8 +182,6 @@ public:
 private:
     const TSyncFileChangelogPtr Changelog_;
     const TProfiler Profiler;
-
-    std::atomic<int> UseCount_ = {0};
 
     TSpinLock SpinLock_;
 
@@ -335,76 +293,67 @@ public:
         return ActionQueue_->GetInvoker();
     }
 
-    TFuture<void> Append(
-        TSyncFileChangelogPtr changelog,
-        const TSharedRef& record)
+    TFileChangelogQueuePtr CreateQueue(TSyncFileChangelogPtr syncChangelog)
     {
-        auto queue = GetAndLockQueue(changelog);
-        auto guard = Finally([&] () {
-            queue->Unlock();
-        });
+        return New<TFileChangelogQueue>(std::move(syncChangelog), Profiler);
+    }
 
+    void RegisterQueue(TFileChangelogQueuePtr queue)
+    {
+        GetInvoker()->Invoke(BIND(&TImpl::DoRegisterQueue, MakeStrong(this), std::move(queue)));
+    }
+
+    void UnregisterQueue(TFileChangelogQueuePtr queue)
+    {
+        GetInvoker()->Invoke(BIND(&TImpl::DoUnregisterQueue, MakeStrong(this), std::move(queue)));
+    }
+
+    TFuture<void> Append(TFileChangelogQueuePtr queue, const TSharedRef& record)
+    {
         auto result = queue->AsyncAppend(record);
-
         Wakeup();
-
         Profiler.Increment(RecordCounter_);
         Profiler.Increment(ByteCounter_, record.Size());
-
         return result;
     }
 
     TFuture<std::vector<TSharedRef>> Read(
-        TSyncFileChangelogPtr changelog,
+        TFileChangelogQueuePtr queue,
         int firstRecordId,
         int maxRecords,
         i64 maxBytes)
     {
         return BIND(&TImpl::DoRead, MakeStrong(this))
             .AsyncVia(GetInvoker())
-            .Run(changelog, firstRecordId, maxRecords, maxBytes);
+            .Run(std::move(queue), firstRecordId, maxRecords, maxBytes);
     }
 
-    TFuture<void> Flush(TSyncFileChangelogPtr changelog)
+    TFuture<void> Flush(TFileChangelogQueuePtr queue)
     {
-        auto queue = FindAndLockQueue(changelog);
-        if (!queue) {
-            return VoidFuture;
-        }
-
-        auto guard = Finally([&] () {
-            queue->Unlock();
-        });
-
         auto result = queue->AsyncFlush();
-
         Wakeup();
-
         return result;
     }
 
-    TFuture<void> Truncate(TSyncFileChangelogPtr changelog, int recordCount)
+    TFuture<void> Truncate(TFileChangelogQueuePtr queue, int recordCount)
     {
         return BIND(&TImpl::DoTruncate, MakeStrong(this))
             .AsyncVia(GetInvoker())
-            .Run(changelog, recordCount);
+            .Run(std::move(queue), recordCount);
     }
 
-    TFuture<void> Close(TSyncFileChangelogPtr changelog)
+    TFuture<void> Close(TFileChangelogQueuePtr queue)
     {
         return BIND(&TImpl::DoClose, MakeStrong(this))
             .AsyncVia(GetInvoker())
-            .Run(changelog);
+            .Run(std::move(queue));
     }
 
     TFuture<void> FlushAll()
     {
-        auto queues = ListQueues();
-        std::vector<TFuture<void>> flushResults;
-        for (const auto& queue : queues) {
-            flushResults.push_back(queue->AsyncFlush());
-        }
-        return Combine(flushResults);
+        return BIND(&TImpl::DoFlushAll, MakeStrong(this))
+            .AsyncVia(GetInvoker())
+            .Run();
     }
 
 private:
@@ -418,107 +367,11 @@ private:
 
     std::atomic<bool> ProcessQueuesCallbackPending_ = {false};
 
-    TSpinLock SpinLock_;
-    yhash_map<TSyncFileChangelogPtr, TFileChangelogQueuePtr> QueueMap_;
+    yhash_set<TFileChangelogQueuePtr> Queues_;
 
     TSimpleCounter RecordCounter_;
     TSimpleCounter ByteCounter_;
 
-
-    std::vector<TFileChangelogQueuePtr> ListQueues()
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        return GetValues(QueueMap_);
-    }
-
-    bool HasUnflushedRecords(TSyncFileChangelogPtr changelog)
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        auto it = QueueMap_.find(changelog);
-        if (it == QueueMap_.end()) {
-            return false;
-        }
-        const auto& queue = it->second;
-        return queue->HasUnflushedRecords();
-    }
-
-    TFileChangelogQueuePtr FindAndLockQueue(TSyncFileChangelogPtr changelog)
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        auto it = QueueMap_.find(changelog);
-        if (it == QueueMap_.end()) {
-            return nullptr;
-        }
-
-        auto queue = it->second;
-        queue->Lock();
-        return queue;
-    }
-
-    TFileChangelogQueuePtr GetAndLockQueue(TSyncFileChangelogPtr changelog)
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        TFileChangelogQueuePtr queue;
-
-        auto it = QueueMap_.find(changelog);
-        if (it != QueueMap_.end()) {
-            queue = it->second;
-        } else {
-            queue = New<TFileChangelogQueue>(changelog, Profiler);
-            YCHECK(QueueMap_.insert(std::make_pair(changelog, queue)).second);
-            LOG_DEBUG("Changelog queue created (Path: %v)",
-                changelog->GetFileName());
-        }
-
-        queue->Lock();
-        return queue;
-    }
-
-
-    void RunPendingFlushes()
-    {
-        // Take a snapshot.
-        std::vector<TFileChangelogQueuePtr> queues;
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            for (const auto& pair : QueueMap_) {
-                const auto& queue = pair.second;
-                if (queue->HasPendingFlushes()) {
-                    queues.push_back(queue);
-                }
-            }
-        }
-
-        // Run pending flushes for the queues in the snapshot.
-        for (const auto& queue : queues) {
-            queue->RunPendingFlushes();
-        }
-    }
-
-    void SweepQueues()
-    {
-        std::vector<TPromise<void>> promises;
-
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            auto it = QueueMap_.begin();
-            while (it != QueueMap_.end()) {
-                auto jt = it++;
-                auto queue = jt->second;
-                auto promise = queue->TrySweep();
-                if (promise) {
-                    promises.push_back(promise);
-                    QueueMap_.erase(jt);
-                    LOG_DEBUG("Changelog queue removed (Path: %v)",
-                        queue->GetChangelog()->GetFileName());
-                }
-            }
-        }
-
-        for (auto& promise : promises) {
-            promise.Set(TError());
-        }
-    }
 
     void Wakeup()
     {
@@ -535,62 +388,77 @@ private:
     void ProcessQueues()
     {
         ProcessQueuesCallbackPending_ = false;
-        RunPendingFlushes();
-        SweepQueues();
+
+        for (const auto& queue : Queues_) {
+            if (queue->HasPendingFlushes()) {
+                queue->RunPendingFlushes();
+            }
+        }
     }
 
 
+    void DoRegisterQueue(const TFileChangelogQueuePtr& queue)
+    {
+        YCHECK(Queues_.insert(queue).second);
+        ProfileQueues();
+        LOG_DEBUG("Changelog queue registered (Path: %v)",
+            queue->GetChangelog()->GetFileName());
+    }
+
+    void DoUnregisterQueue(const TFileChangelogQueuePtr& queue)
+    {
+        YCHECK(!queue->HasUnflushedRecords());
+        YCHECK(Queues_.erase(queue) == 1);
+        ShrinkHashTable(&Queues_);
+        ProfileQueues();
+        LOG_DEBUG("Changelog queue unregistered (Path: %v)",
+            queue->GetChangelog()->GetFileName());
+    }
+
+    void ProfileQueues()
+    {
+        Profiler.Enqueue("/queue_count", Queues_.size(), EMetricType::Gauge);
+    }
+
     std::vector<TSharedRef> DoRead(
-        TSyncFileChangelogPtr changelog,
+        const TFileChangelogQueuePtr& queue,
         int firstRecordId,
         int maxRecords,
         i64 maxBytes)
     {
-        if (maxRecords == 0) {
-            return std::vector<TSharedRef>();
-        }
-
-        std::vector<TSharedRef> records;
-        auto queue = FindAndLockQueue(changelog);
-        if (queue) {
-            auto guard = Finally([&] () {
-                queue->Unlock();
-            });
-            records = queue->Read(firstRecordId, maxRecords, maxBytes);
-        } else {
-            if (!changelog->IsOpen()) {
-                // NB: Reading from a changelog and closing it is inherently racy.
-                // It is safe to report no records at this point since the client will be retrying its
-                // requests anyway.
-                return std::vector<TSharedRef>();
-            }
-            PROFILE_TIMING ("/changelog_read_io_time") {
-                records = changelog->Read(firstRecordId, maxRecords, maxBytes);
-            }
-        }
-
+        auto records = queue->Read(firstRecordId, maxRecords, maxBytes);
         Profiler.Enqueue("/changelog_read_record_count", records.size(), EMetricType::Gauge);
         Profiler.Enqueue("/changelog_read_size", GetByteSize(records), EMetricType::Gauge);
-
         return records;
     }
 
     void DoTruncate(
-        TSyncFileChangelogPtr changelog,
+        const TFileChangelogQueuePtr& queue,
         int recordCount)
     {
-        YCHECK(!HasUnflushedRecords(changelog));
+        YCHECK(!queue->HasUnflushedRecords());
         PROFILE_TIMING("/changelog_truncate_io_time") {
+            const auto& changelog = queue->GetChangelog();
             changelog->Truncate(recordCount);
         }
     }
 
-    void DoClose(TSyncFileChangelogPtr changelog)
+    void DoClose(const TFileChangelogQueuePtr& queue)
     {
-        YCHECK(!HasUnflushedRecords(changelog));
+        YCHECK(!queue->HasUnflushedRecords());
         PROFILE_TIMING("/changelog_close_io_time") {
+            const auto& changelog = queue->GetChangelog();
             changelog->Close();
         }
+    }
+
+    TFuture<void> DoFlushAll()
+    {
+        std::vector<TFuture<void>> flushResults;
+        for (const auto& queue : Queues_) {
+            flushResults.push_back(queue->AsyncFlush());
+        }
+        return Combine(flushResults);
     }
 };
 
@@ -605,15 +473,18 @@ public:
         TFileChangelogConfigPtr config,
         TSyncFileChangelogPtr changelog)
         : DispatcherImpl_(std::move(impl))
-        , Config_(config)
-        , SyncChangelog_(changelog)
+        , Config_(std::move(config))
+        , Queue_(DispatcherImpl_->CreateQueue(changelog))
         , RecordCount_(changelog->GetRecordCount())
         , DataSize_(changelog->GetDataSize())
-    { }
+    {
+        DispatcherImpl_->RegisterQueue(Queue_);
+    }
 
     ~TFileChangelog()
     {
         Close();
+        DispatcherImpl_->UnregisterQueue(Queue_);
     }
 
     virtual int GetRecordCount() const override
@@ -628,7 +499,7 @@ public:
 
     virtual const TChangelogMeta& GetMeta() const override
     {
-        return SyncChangelog_->GetMeta();
+        return Queue_->GetChangelog()->GetMeta();
     }
 
     virtual TFuture<void> Append(const TSharedRef& data) override
@@ -636,12 +507,12 @@ public:
         YCHECK(!Closed_ && !Truncated_);
         RecordCount_ += 1;
         DataSize_ += data.Size();
-        return DispatcherImpl_->Append(SyncChangelog_, data);
+        return DispatcherImpl_->Append(Queue_, data);
     }
 
     virtual TFuture<void> Flush() override
     {
-        return DispatcherImpl_->Flush(SyncChangelog_);
+        return DispatcherImpl_->Flush(Queue_);
     }
 
     virtual TFuture<std::vector<TSharedRef>> Read(
@@ -653,7 +524,7 @@ public:
         YCHECK(maxRecords >= 0);
         YCHECK(maxBytes >= 0);
         return DispatcherImpl_->Read(
-            SyncChangelog_,
+            Queue_,
             firstRecordId,
             maxRecords,
             maxBytes);
@@ -667,7 +538,7 @@ public:
         // NB: Ignoring the result seems fine since TSyncFileChangelog
         // will propagate any possible error as the result of all further calls.
         Flush();
-        return DispatcherImpl_->Truncate(SyncChangelog_, recordCount);
+        return DispatcherImpl_->Truncate(Queue_, recordCount);
     }
 
     virtual TFuture<void> Close() override
@@ -675,13 +546,14 @@ public:
         Closed_ = true;
         // NB: See #Truncate above.
         Flush();
-        return DispatcherImpl_->Close(SyncChangelog_);
+        return DispatcherImpl_->Close(Queue_);
     }
 
 private:
     const TFileChangelogDispatcher::TImplPtr DispatcherImpl_;
     const TFileChangelogConfigPtr Config_;
-    const TSyncFileChangelogPtr SyncChangelog_;
+
+    const TFileChangelogQueuePtr Queue_;
 
     bool Closed_ = false;
     bool Truncated_ = false;

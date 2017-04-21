@@ -190,6 +190,9 @@ struct IChunkPoolOutput
     virtual void Failed(TCookie cookie) = 0;
     virtual void Aborted(TCookie cookie, EAbortReason reason) = 0;
     virtual void Lost(TCookie cookie) = 0;
+
+    //! Raised when all the output cookies from this pool no longer correspond to valid jobs.
+    DECLARE_INTERFACE_SIGNAL(void(const TError& error), PoolOutputInvalidated);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,6 +223,9 @@ public:
 
     virtual const std::vector<NChunkClient::TInputChunkPtr>& GetTeleportChunks() const override;
 
+public:
+    DEFINE_SIGNAL(void(const TError& error), PoolOutputInvalidated)
+
 protected:
     TProgressCounter DataSizeCounter;
     TProgressCounter RowCounter;
@@ -247,8 +253,13 @@ public:
     void Resume(TChunkStripePtr stripe);
 
     //! Resume chunk and return a hashmap that defines the correspondence between
-    //! the old and new chunks.
+    //! the old and new chunks. If building such mapping is impossible (for example,
+    //! the new stripe contains more data slices, or the new data slices have different
+    //! read limits or boundary keys), exception is thrown.
     yhash_map<NChunkClient::TInputChunkPtr, NChunkClient::TInputChunkPtr> ResumeAndBuildChunkMapping(TChunkStripePtr stripe);
+
+    //! Replaces the original stripe with the current stripe.
+    void ReplaceOriginalStripe();
 
     void Persist(const TPersistenceContext& context);
 

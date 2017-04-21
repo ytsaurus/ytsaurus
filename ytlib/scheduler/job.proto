@@ -21,7 +21,6 @@ message TFileDescriptor
 
     // Deprecated.
     repeated NYT.NChunkClient.NProto.TDataSliceDescriptor data_slice_descriptors = 4;
-    required int32 type = 5;
     optional bool executable = 6;
     optional bytes format = 7;
     required NChunkClient.NProto.TDataSource data_source = 8;

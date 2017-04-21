@@ -90,6 +90,9 @@ public:
     //! To investigate CPU load of node shard threads.
     bool EnableSchedulingTags;
 
+    //! Backoff for printing tree scheduling info in heartbeat.
+    TDuration HeartbeatTreeSchedulingInfoLogBackoff;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -181,6 +184,9 @@ public:
 
         RegisterParameter("enable_scheduling_tags", EnableSchedulingTags)
             .Default(true);
+
+        RegisterParameter("heartbeat_tree_scheduling_info_log_period", HeartbeatTreeSchedulingInfoLogBackoff)
+            .Default(TDuration::MilliSeconds(100));
 
         RegisterValidator([&] () {
             if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {

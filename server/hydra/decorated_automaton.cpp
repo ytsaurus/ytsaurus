@@ -612,21 +612,17 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(snapshotStore)
     , BatchCommitTimeCounter_("/batch_commit_time")
-    , Logger(HydraLogger)
+    , Logger(NLogging::TLogger(HydraLogger)
+        .AddTag("CellId: %v", CellManager_->GetCellId()))
 {
     YCHECK(Config_);
     YCHECK(CellManager_);
     YCHECK(Automaton_);
     YCHECK(ControlInvoker_);
     YCHECK(SnapshotStore_);
-
     VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
 
-    Logger.AddTag("CellId: %v", CellManager_->GetCellId());
-
-    BuildingSnapshot_.clear();
-    AutomatonVersion_ = TVersion();
     StopEpoch();
 }
 
@@ -867,6 +863,12 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    if (SnapshotParamsPromise_) {
+        LOG_INFO("Snapshot canceled");
+        SnapshotParamsPromise_.ToFuture().Cancel();
+        SnapshotParamsPromise_.Reset();
+    }
+
     auto loggedVersion = GetLoggedVersion();
 
     LOG_INFO("Snapshot scheduled (Version: %v)",
@@ -874,10 +876,6 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
 
     LastSnapshotTime_ = TInstant::Now();
     SnapshotVersion_ = loggedVersion;
-
-    if (SnapshotParamsPromise_) {
-        SnapshotParamsPromise_.ToFuture().Cancel();
-    }
     SnapshotParamsPromise_ = NewPromise<TRemoteSnapshotParams>();
 
     MaybeStartSnapshotBuilder();

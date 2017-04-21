@@ -7,6 +7,12 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/ytlib/table_client/public.h>
+
+#include <yt/server/scheduler/public.h>
+
+#include <yt/core/misc/phoenix.h>
+
 namespace NYT {
 namespace NTableClient {
 
@@ -25,7 +31,7 @@ DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcher);
 IChunkSliceFetcherPtr CreateChunkSliceFetcher(
     NChunkClient::TFetcherConfigPtr config,
     i64 chunkSliceSize,
-    const TKeyColumns& keyColumns,
+    const NTableClient::TKeyColumns& keyColumns,
     bool sliceByKeys,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
