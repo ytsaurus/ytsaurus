@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "config.h"
 #include "error.h"
 #include "local_address.h"
 
@@ -40,13 +41,15 @@ TStringBuf GetServiceHostName(const TStringBuf& address);
 
 //! Configuration for TAddressResolver singleton.
 class TAddressResolverConfig
-    : public NYTree::TYsonSerializable
+    : public TExpiringCacheConfig
 {
 public:
     bool EnableIPv4;
     bool EnableIPv6;
     TNullable<Stroka> LocalHostFqdn;
-    TDuration AddressExpirationTime;
+    int Retries;
+    TDuration ResolveTimeout;
+    TDuration WarningTimeout;
 
     TAddressResolverConfig()
     {
@@ -56,8 +59,12 @@ public:
             .Default(true);
         RegisterParameter("localhost_fqdn", LocalHostFqdn)
             .Default();
-        RegisterParameter("address_expiration_time", AddressExpirationTime)
-            .Default(TDuration::Minutes(1));
+        RegisterParameter("retries", Retries)
+            .Default(25);
+        RegisterParameter("resolve_timeout", ResolveTimeout)
+            .Default(TDuration::MilliSeconds(200));
+        RegisterParameter("warning_timeout", WarningTimeout)
+            .Default(TDuration::MilliSeconds(500));
     }
 };
 
