@@ -62,7 +62,7 @@ void WriteLocalHostName(const char* data, size_t length) noexcept
     memcpy(ptr, data, length);
     *(ptr + length) = 0;
 
-    LocalHostNamePtr.store(ptr, std::memory_order_acq_rel);
+    LocalHostNamePtr.store(ptr, std::memory_order_seq_cst);
 }
 
 Stroka GetLocalHostName()
