@@ -54,6 +54,40 @@ struct TOperationIOSpec
     TDerived& SetOutput(size_t tableIndex, const TRichYPath& path);
 };
 
+template <class TDerived>
+struct TIntermediateTablesHintSpec
+{
+    // When using protobuf format it is important to know exact types of proto messages
+    // that are used in input/output.
+    //
+    // Sometimes such messages cannot be derived from job class
+    // i.e. when job class uses TTableReader<::google::protobuf::Message>
+    // or TTableWriter<::google::protobuf::Message>
+    //
+    // When using such jobs user can provide exact message type using functions below.
+    //
+    // NOTE: only input/output that relate to intermediate tables can be hinted.
+    // Input to map and output of reduce is derived from AddInput/AddOutput.
+    template <class T>
+    TDerived& HintMapOutput();
+
+    template <class T>
+    TDerived& HintReduceCombinerInput();
+    template <class T>
+    TDerived& HintReduceCombinerOutput();
+
+    template <class T>
+    TDerived& HintReduceInput();
+
+
+    TMultiFormatDesc MapOutputHintDesc_;
+
+    TMultiFormatDesc ReduceCombinerInputHintDesc_;
+    TMultiFormatDesc ReduceCombinerOutputHintDesc_;
+
+    TMultiFormatDesc ReduceInputHintDesc_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TUserJobSpec
@@ -89,6 +123,7 @@ struct TReduceOperationSpec
 
 struct TMapReduceOperationSpec
     : public TOperationIOSpec<TMapReduceOperationSpec>
+    , public TIntermediateTablesHintSpec<TMapReduceOperationSpec>
 {
     using TSelf = TMapReduceOperationSpec;
 

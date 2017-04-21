@@ -178,7 +178,6 @@ TDerived& TOperationIOSpec<TDerived>::SetInput(size_t tableIndex, const TRichYPa
     return *static_cast<TDerived*>(this);
 }
 
-
 template <class TDerived>
 template <class T>
 TDerived& TOperationIOSpec<TDerived>::AddOutput(const TRichYPath& path)
@@ -195,6 +194,38 @@ TDerived& TOperationIOSpec<TDerived>::SetOutput(size_t tableIndex, const TRichYP
     TOperationIOSpecBase::TFormatAdder<T>::Add(OutputDesc_);
     Outputs_.resize(std::max(Outputs_.size(), tableIndex + 1));
     Outputs_[tableIndex] = path;
+    return *static_cast<TDerived*>(this);
+}
+
+template <class TDerived>
+template <class TRow>
+TDerived& TIntermediateTablesHintSpec<TDerived>::HintMapOutput()
+{
+    TOperationIOSpecBase::TFormatAdder<TRow>::Add(MapOutputHintDesc_);
+    return *static_cast<TDerived*>(this);
+}
+
+template <class TDerived>
+template <class TRow>
+TDerived& TIntermediateTablesHintSpec<TDerived>::HintReduceCombinerInput()
+{
+    TOperationIOSpecBase::TFormatAdder<TRow>::Add(ReduceCombinerInputHintDesc_);
+    return *static_cast<TDerived*>(this);
+}
+
+template <class TDerived>
+template <class TRow>
+TDerived& TIntermediateTablesHintSpec<TDerived>::HintReduceCombinerOutput()
+{
+    TOperationIOSpecBase::TFormatAdder<TRow>::Add(ReduceCombinerOutputHintDesc_);
+    return *static_cast<TDerived*>(this);
+}
+
+template <class TDerived>
+template <class TRow>
+TDerived& TIntermediateTablesHintSpec<TDerived>::HintReduceInput()
+{
+    TOperationIOSpecBase::TFormatAdder<TRow>::Add(ReduceInputHintDesc_);
     return *static_cast<TDerived*>(this);
 }
 
