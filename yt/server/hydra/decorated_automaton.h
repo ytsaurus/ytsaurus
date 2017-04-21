@@ -230,7 +230,7 @@ private:
     //! AutomatonVersion_ <= SnapshotVersion_
     TVersion SnapshotVersion_;
     TPromise<TRemoteSnapshotParams> SnapshotParamsPromise_;
-    std::atomic_flag BuildingSnapshot_ = {ATOMIC_FLAG_INIT};
+    std::atomic_flag BuildingSnapshot_ = ATOMIC_FLAG_INIT;
     TInstant LastSnapshotTime_;
 
     struct TPendingMutation
