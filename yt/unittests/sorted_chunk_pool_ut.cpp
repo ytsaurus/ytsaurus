@@ -1893,7 +1893,6 @@ TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest3)
     ChunkPool_->Finish();
 
     ExtractOutputCookiesWhilePossible();
-    ChunkPool_->Completed(*OutputCookies_.begin(), TCompletedJobSummary());
 
     SuspendChunk(cookieA, chunkAv1);
 
@@ -1906,6 +1905,9 @@ TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest3)
     ResumeChunk(cookieB, chunkBv2);
     ResumeChunk(cookieA, chunkAv1);
 
+    auto invalidatedStripe = ChunkPool_->GetStripeList(*OutputCookies_.begin());
+    EXPECT_EQ(invalidatedStripe->Stripes.size(), 0);
+
     PersistAndRestore();
 
     EXPECT_EQ(InvalidationErrors_.size(), 1);
@@ -1915,7 +1917,6 @@ TEST_F(TSortedChunkPoolTest, ResumeSuspendInvalidationTest3)
     EXPECT_TRUE(OutputCookies_.empty());
     EXPECT_EQ(ChunkPool_->GetTeleportChunks().size(), 2);
 }
-
 
 TEST_F(TSortedChunkPoolTest, ManiacIsSliced)
 {
