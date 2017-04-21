@@ -96,8 +96,25 @@ struct TUserJobSpec
 
     FLUENT_VECTOR_FIELD(TLocalFilePath, LocalFile);
     FLUENT_VECTOR_FIELD(TRichYPath, File);
+
+    //
+    // MemoryLimit specifies how much memory each job can use.
+    // Expected tmpfs size should NOT be included.
+    //
+    // ExtraTmpfsSize is meaningful if MountSandboxInTmpfs is set.
+    // By default tmpfs size is set to the sum of sizes of all files that
+    // are loaded into tmpfs before job started.
+    // If job wants to save some data into tmpfs it can ask for extra tmpfs space using
+    // ExtraTmpfsSize option.
+    //
+    // Final memory memory_limit and tmpfs_size that are passed to YT are calculated
+    // as follows:
+    //
+    // tmpfs_size = size_of_binary + size_of_required_files + ExtraTmpfsSize
+    // memory_limit = MemoryLimit + tmpfs_size
     FLUENT_FIELD_OPTION(i64, MemoryLimit);
     FLUENT_FIELD_OPTION(i64, ExtraTmpfsSize);
+
     FLUENT_FIELD_OPTION(Stroka, JobBinary);
 };
 
@@ -313,6 +330,10 @@ struct TOperationOptions
     FLUENT_FIELD_DEFAULT(bool, UseTableFormats, false);
     FLUENT_FIELD(Stroka, JobCommandPrefix);
     FLUENT_FIELD(Stroka, JobCommandSuffix);
+
+    //
+    // If MountSandboxInTmpfs is set all files required by job will be put into tmpfs.
+    // The same can be done with TConfig::MountSandboxInTmpfs option.
     FLUENT_FIELD_DEFAULT(bool, MountSandboxInTmpfs, false);
     FLUENT_FIELD_OPTION(Stroka, FileStorage);
     FLUENT_FIELD_OPTION(TNode, SecureVault);
