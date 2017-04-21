@@ -188,7 +188,7 @@ class TestLocalMode(object):
             "logs_rotate_interval": 1,
             "logs_rotate_max_part_count": 5
         }
-        with local_yt(id="test_watcher", watcher_config=watcher_config) as environment:
+        with local_yt(id="test_watcher", watcher_config=watcher_config, enable_debug_logging=True) as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = YtClient(proxy="localhost:{0}".format(proxy_port))
 
@@ -201,6 +201,8 @@ class TestLocalMode(object):
 
         path = os.environ.get("YT_LOCAL_ROOT_PATH")
         log_path = os.path.join(path, "test_watcher", "logs")
+        for file_index in xrange(1, 5):
+            assert os.path.exists(os.path.join(log_path, "http-proxy.debug.log.{0}.gz".format(file_index)))
         for file_index in xrange(1, 5):
             assert os.path.exists(os.path.join(log_path, "http-application.log.{0}.gz".format(file_index)))
 
