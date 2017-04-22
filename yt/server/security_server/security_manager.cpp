@@ -145,7 +145,6 @@ private:
     {
         return &account->Acd();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,9 +192,7 @@ private:
     }
 
     virtual IObjectProxyPtr DoGetProxy(TUser* user, TTransaction* transaction) override;
-
     virtual void DoZombifyObject(TUser* user) override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -243,9 +240,7 @@ private:
     }
 
     virtual IObjectProxyPtr DoGetProxy(TGroup* group, TTransaction* transaction) override;
-
     virtual void DoZombifyObject(TGroup* group) override;
-
 };
 
 /////////////////////////////////////////////////////////////////////////// /////
@@ -382,8 +377,9 @@ public:
         YCHECK(account);
 
         auto* oldAccount = node->GetAccount();
-        if (oldAccount == account)
+        if (oldAccount == account) {
             return;
+        }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
@@ -404,8 +400,9 @@ public:
     void ResetAccount(TCypressNodeBase* node)
     {
         auto* account = node->GetAccount();
-        if (!account)
+        if (!account) {
             return;
+        }
 
         UpdateAccountResourceUsage(node, account, -1);
 
@@ -439,8 +436,9 @@ public:
     void UpdateAccountNodeUsage(TCypressNodeBase* node)
     {
         auto* account = node->GetAccount();
-        if (!account)
+        if (!account) {
             return;
+        }
 
         UpdateAccountResourceUsage(node, account, -1);
 
@@ -451,10 +449,13 @@ public:
 
     void SetNodeResourceAccounting(TCypressNodeBase* node, bool enable)
     {
-        if (node->GetAccountingEnabled() != enable) {
-            node->SetAccountingEnabled(enable);
-            UpdateAccountNodeUsage(node);
+        if (node->GetAccountingEnabled() == enable) {
+            return;
         }
+
+        node->SetAccountingEnabled(enable);
+
+        UpdateAccountNodeUsage(node);
     }
 
     void UpdateAccountStagingUsage(
@@ -462,8 +463,9 @@ public:
         TAccount* account,
         const TClusterResources& delta)
     {
-        if (!transaction->GetAccountingEnabled())
+        if (!transaction->GetAccountingEnabled()) {
             return;
+        }
 
         account->ClusterStatistics().ResourceUsage += delta;
         account->LocalStatistics().ResourceUsage += delta;
