@@ -998,6 +998,11 @@ protected:
 
     virtual void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary);
 
+    virtual void RegisterOutput(
+        const std::vector<NChunkClient::TChunkListId>& chunkListIds,
+        int key,
+        const TCompletedJobSummary& jobSummary);
+
     void RegisterOutput(
         NChunkClient::TInputChunkPtr chunkSpec,
         int key,

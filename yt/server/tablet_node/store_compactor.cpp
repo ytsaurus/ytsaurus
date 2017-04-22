@@ -47,6 +47,8 @@
 
 #include <yt/core/ytree/helpers.h>
 
+#include <yt/core/misc/finally.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -625,6 +627,10 @@ private:
 
         auto scoreParts = UnpackTaskScore(task.Score);
 
+        auto doneGuard = Finally([&] {
+            ScheduleMorePartitionings();
+        });
+
         const auto& slot = task.Slot;
         const auto& tabletManager = slot->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(task.Tablet);
@@ -663,6 +669,12 @@ private:
             }
             auto typedStore = store->AsSortedChunk();
             YCHECK(typedStore);
+            if (typedStore->GetCompactionState() != EStoreCompactionState::None) {
+                LOG_DEBUG("Eden store is in improper state, aborting partitioning (StoreId: %v, CompactionState: %v)",
+                    storeId,
+                    typedStore->GetCompactionState());
+                return;
+            }
             stores.push_back(std::move(typedStore));
         }
 
@@ -752,7 +764,7 @@ private:
 
             // We can release semaphore, because we are no longer actively using resources.
             guard.Release();
-            ScheduleMorePartitionings();
+            doneGuard.Release();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
@@ -953,6 +965,10 @@ private:
 
         auto scoreParts = UnpackTaskScore(task.Score);
 
+        auto doneGuard = Finally([&] {
+            ScheduleMoreCompactions();
+        });
+
         const auto& slot = task.Slot;
         const auto& tabletManager = slot->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(task.Tablet);
@@ -993,6 +1009,12 @@ private:
             }
             auto typedStore = store->AsSortedChunk();
             YCHECK(typedStore);
+            if (typedStore->GetCompactionState() != EStoreCompactionState::None) {
+                LOG_DEBUG("Partition store is in improper state, aborting compaction (StoreId: %v, CompactionState: %v)",
+                    storeId,
+                    typedStore->GetCompactionState());
+                return;
+            }
             stores.push_back(std::move(typedStore));
         }
 
@@ -1084,7 +1106,7 @@ private:
 
             // We can release semaphore, because we are no longer actively using resources.
             guard.Release();
-            ScheduleMoreCompactions();
+            doneGuard.Release();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
