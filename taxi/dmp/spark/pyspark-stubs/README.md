@@ -61,7 +61,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.ml.wrapper                                 | ✔                 | ✘                |                  |
 | pyspark.mllib                                      | ✔                 | ✘                |                  |
 | pyspark.mllib.classification                       | ✘                 | ✔                |                  |
-| pyspark.mllib.clustering                           | ✔                 | ✘                |                  |
+| pyspark.mllib.clustering                           | ✘                 | ✔                |                  |
 | pyspark.mllib.common                               | ✔                 | ✘                |                  |
 | pyspark.mllib.evaluation                           | ✘                 | ✔                |                  |
 | pyspark.mllib.feature                              | ✘                 | ✔                |                  |
