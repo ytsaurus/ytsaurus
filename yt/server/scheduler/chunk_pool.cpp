@@ -338,6 +338,14 @@ yhash_map<TInputChunkPtr, TInputChunkPtr> TSuspendableStripe::ResumeAndBuildChun
                         << TErrorAttribute("new_boundary_keys", *newChunk->BoundaryKeys());
                     break;
                 }
+                if (originalChunk->GetRowCount() != newChunk->GetRowCount()) {
+                    THROW_ERROR_EXCEPTION("Corresponding chunks in original and new stripes have different row counts")
+                        << TErrorAttribute("data_slice_tag", *originalSlice->Tag)
+                        << TErrorAttribute("original_chunk_id", originalChunk->ChunkId())
+                        << TErrorAttribute("original_row_count", originalChunk->GetRowCount())
+                        << TErrorAttribute("new_chunk_id", newChunk->ChunkId())
+                        << TErrorAttribute("new_row_count", newChunk->GetRowCount());
+                }
             }
             addToMapping(originalSlice, newSlice);
             tagToDataSlice.erase(it);
