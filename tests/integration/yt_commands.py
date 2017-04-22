@@ -885,13 +885,9 @@ def create_table_replica(table_path, cluster_name, replica_path, **kwargs):
 def remove_table_replica(replica_id):
     remove("#{0}".format(replica_id))
 
-def enable_table_replica(replica_id, **kwargs):
+def alter_table_replica(replica_id, **kwargs):
     kwargs["replica_id"] = replica_id
-    execute_command("enable_table_replica", kwargs)
-
-def disable_table_replica(replica_id, **kwargs):
-    kwargs["replica_id"] = replica_id
-    execute_command("disable_table_replica", kwargs)
+    execute_command("alter_table_replica", kwargs)
 
 def create_data_center(name, **kwargs):
     kwargs["type"] = "data_center"

@@ -88,8 +88,7 @@ public:
     void MakeTableDynamic(NTableServer::TTableNode* table);
     void MakeTableStatic(NTableServer::TTableNode* table);
 
-    void EnableTableReplica(TTableReplica* replica);
-    void DisableTableReplica(TTableReplica* replica);
+    void SetTableReplicaEnabled(TTableReplica* replica, bool enabled);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
     TTabletCellBundle* FindTabletCellBundleByName(const Stroka& name);
