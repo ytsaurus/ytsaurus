@@ -190,6 +190,7 @@ protected:
         int tableIndex = chunk->GetTableIndex();
         chunkCopy->SetTableIndex(tableIndex);
         chunkCopy->SetTableRowIndex(chunk->GetTableRowIndex());
+        chunkCopy->SetRowCount(chunk->GetRowCount());
         if (chunk->LowerLimit()) {
             chunkCopy->LowerLimit() = std::make_unique<TReadLimit>(*chunk->LowerLimit());
         }
