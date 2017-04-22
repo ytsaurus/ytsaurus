@@ -432,8 +432,14 @@ class YTEnvSetup(object):
             except:
                 pass
 
+    def sync_enable_table_replica(self, replica_id, driver=None):
+        yt_commands.alter_table_replica(replica_id, enabled=True, driver=driver)
+
+        print "Waiting for replica to become enabled..."
+        wait(lambda: yt_commands.get("#{0}/@state".format(replica_id), driver=driver) == "enabled")
+
     def sync_disable_table_replica(self, replica_id, driver=None):
-        yt_commands.disable_table_replica(replica_id, driver=driver)
+        yt_commands.alter_table_replica(replica_id, enabled=False, driver=driver)
 
         print "Waiting for replica to become disabled..."
         wait(lambda: yt_commands.get("#{0}/@state".format(replica_id), driver=driver) == "disabled")

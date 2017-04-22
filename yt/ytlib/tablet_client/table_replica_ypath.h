@@ -14,8 +14,7 @@ struct TTableReplicaYPathProxy
 {
     DEFINE_YPATH_PROXY(RPC_PROXY_DESC(TableReplica));
 
-    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Enable);
-    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Disable);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Alter);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

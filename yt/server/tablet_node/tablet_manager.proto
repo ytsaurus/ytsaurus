@@ -146,16 +146,11 @@ message TReqRemoveTableReplica
     required NYT.NProto.TGuid replica_id = 2;
 }
 
-message TReqEnableTableReplica
+message TReqSetTableReplicaEnabled
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid replica_id = 2;
-}
-
-message TReqDisableTableReplica
-{
-    required NYT.NProto.TGuid tablet_id = 1;
-    required NYT.NProto.TGuid replica_id = 2;
+    required bool enabled = 3;
 }
 
 message TReqReplicateRows

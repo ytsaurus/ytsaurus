@@ -465,25 +465,50 @@ public:
         }
     }
 
-    void EnableTableReplica(TTableReplica* replica)
+    void SetTableReplicaEnabled(TTableReplica* replica, bool enabled)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto state = replica->GetState();
-        if (state == ETableReplicaState::Enabled) {
-            return;
+        if (enabled) {
+            if (state == ETableReplicaState::Enabled) {
+                return;
+            }
+            if (state != ETableReplicaState::Disabled) {
+                replica->ThrowInvalidState();
+            }
+        } else {
+            if (state == ETableReplicaState::Disabled || state == ETableReplicaState::Disabling) {
+                return;
+            }
+            if (state != ETableReplicaState::Enabled) {
+                replica->ThrowInvalidState();
+            }
         }
 
-        if (state != ETableReplicaState::Disabled) {
-            replica->ThrowInvalidState();
-        }
         auto* table = replica->GetTable();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica enabled (TableId: %v, ReplicaId: %v)",
-            table->GetId(),
-            replica->GetId());
+        if (enabled) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Table replica enabled (TableId: %v, ReplicaId: %v)",
+                table->GetId(),
+                replica->GetId());
 
-        replica->SetState(ETableReplicaState::Enabled);
+            replica->SetState(ETableReplicaState::Enabled);
+        } else {
+            for (auto* tablet : table->Tablets()) {
+                if (tablet->GetState() == ETabletState::Unmounting) {
+                    THROW_ERROR_EXCEPTION("Cannot disable replica since tablet %v is in %Qlv state",
+                        tablet->GetId(),
+                        tablet->GetState());
+                }
+            }
+
+            LOG_DEBUG_UNLESS(IsRecovery(), "Disabling table replica (TableId: %v, ReplicaId: %v)",
+                table->GetId(),
+                replica->GetId());
+
+            replica->SetState(ETableReplicaState::Disabling);
+        }
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         for (auto* tablet : table->Tablets()) {
@@ -492,62 +517,20 @@ public:
             }
 
             auto* replicaInfo = tablet->GetReplicaInfo(replica);
-            replicaInfo->SetState(ETableReplicaState::Enabled);
+
+            if (enabled) {
+                replicaInfo->SetState(ETableReplicaState::Enabled);
+            } else {
+                replicaInfo->SetState(ETableReplicaState::Disabling);
+                YCHECK(replica->DisablingTablets().insert(tablet).second);
+            }
 
             auto* cell = tablet->GetCell();
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-            TReqEnableTableReplica req;
+            TReqSetTableReplicaEnabled req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_replica_id(), replica->GetId());
-            hiveManager->PostMessage(mailbox, req);
-        }
-    }
-
-    void DisableTableReplica(TTableReplica* replica)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto state = replica->GetState();
-        if (state == ETableReplicaState::Disabled || state == ETableReplicaState::Disabling) {
-            return;
-        }
-
-        if (state != ETableReplicaState::Enabled) {
-            replica->ThrowInvalidState();
-        }
-
-        auto* table = replica->GetTable();
-
-        for (auto* tablet : table->Tablets()) {
-            if (tablet->GetState() == ETabletState::Unmounting) {
-                THROW_ERROR_EXCEPTION("Cannot disable replica since tablet %v is in %Qlv state",
-                    tablet->GetId(),
-                    tablet->GetState());
-            }
-        }
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Disabling table replica (TableId: %v, ReplicaId: %v)",
-            table->GetId(),
-            replica->GetId());
-
-        replica->SetState(ETableReplicaState::Disabling);
-
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-        for (auto* tablet : table->Tablets()) {
-            if (!tablet->IsActive()) {
-                continue;
-            }
-
-            auto* replicaInfo = tablet->GetReplicaInfo(replica);
-            replicaInfo->SetState(ETableReplicaState::Disabling);
-
-            YCHECK(replica->DisablingTablets().insert(tablet).second);
-
-            auto* cell = tablet->GetCell();
-            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-            TReqDisableTableReplica req;
-            ToProto(req.mutable_tablet_id(), tablet->GetId());
-            ToProto(req.mutable_replica_id(), replica->GetId());
+            req.set_enabled(enabled);
             hiveManager->PostMessage(mailbox, req);
         }
 
@@ -1422,9 +1405,10 @@ public:
                     continue;
                 }
 
-                TReqEnableTableReplica req;
+                TReqSetTableReplicaEnabled req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 ToProto(req.mutable_replica_id(), replica->GetId());
+                req.set_enabled(true);
                 hiveManager->PostMessage(mailbox, req);
 
                 replicaInfo.SetState(ETableReplicaState::Enabled);
@@ -3048,6 +3032,10 @@ private:
 
     void CheckForReplicaDisabled(TTableReplica* replica)
     {
+        if (replica->GetState() != ETableReplicaState::Disabling) {
+            return;
+        }
+
         if (!replica->DisablingTablets().empty()) {
             return;
         }
@@ -4298,14 +4286,9 @@ void TTabletManager::DestroyTableReplica(TTableReplica* replica)
     Impl_->DestroyTableReplica(replica);
 }
 
-void TTabletManager::EnableTableReplica(TTableReplica* replica)
+void TTabletManager::SetTableReplicaEnabled(TTableReplica* replica, bool enabled)
 {
-    Impl_->EnableTableReplica(replica);
-}
-
-void TTabletManager::DisableTableReplica(TTableReplica* replica)
-{
-    Impl_->DisableTableReplica(replica);
+    Impl_->SetTableReplicaEnabled(replica, enabled);
 }
 
 TTabletAction* TTabletManager::CreateTabletAction(
