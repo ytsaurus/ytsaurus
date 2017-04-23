@@ -470,6 +470,8 @@ public:
         account->ClusterStatistics().ResourceUsage += delta;
         account->LocalStatistics().ResourceUsage += delta;
 
+        CheckSanity(account);
+
         auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
         *transactionUsage += delta;
     }
@@ -1145,6 +1147,8 @@ private:
             account->LocalStatistics().CommittedResourceUsage += resourceUsage;
         }
 
+        CheckSanity(account);
+
         auto* transactionUsage = FindTransactionAccountUsage(node);
         if (transactionUsage) {
             *transactionUsage += resourceUsage;
@@ -1370,9 +1374,9 @@ private:
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
         // COMPAT(babenko)
-        RecomputeNodeResourceUsage_ = context.GetVersion() < 507;
-        ValidateAccountResourceUsage_ = context.GetVersion() >= 507;
-        RecomputeAccountResourceUsage_ = context.GetVersion() < 507;
+        RecomputeNodeResourceUsage_ = context.GetVersion() < 508;
+        ValidateAccountResourceUsage_ = context.GetVersion() >= 508;
+        RecomputeAccountResourceUsage_ = context.GetVersion() < 508;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1471,12 +1475,12 @@ private:
                 auto expectedUsage = stat.NodeUsage + stat.StagingUsage;
                 auto expectedCommittedUsage = stat.NodeCommittedUsage;
                 if (account->LocalStatistics().ResourceUsage != expectedUsage) {
-                    LOG_ERROR("Unexpected error: %v account usage mismatch",
+                    LOG_ERROR("XXX %v account usage mismatch",
                         account->GetName());
                     log = true;
                 }
                 if (account->LocalStatistics().CommittedResourceUsage != expectedCommittedUsage) {
-                    LOG_ERROR("Unexpected error: %v account committed usage mismatch",
+                    LOG_ERROR("XXX %v account committed usage mismatch",
                         account->GetName());
                     log = true;
                 }
@@ -2020,6 +2024,18 @@ private:
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Subject name cannot be empty");
+        }
+    }
+
+
+    // XXX(babenko)
+    static void CheckSanity(TAccount* account)
+    {
+        // XXX(babenko)
+        if (account->LocalStatistics().ResourceUsage.DiskSpace[NChunkClient::DefaultStoreMediumIndex] <
+            account->LocalStatistics().CommittedResourceUsage.DiskSpace[NChunkClient::DefaultStoreMediumIndex])
+        {
+            LOG_ERROR("Unexpected error: usage < committed usage for %v", account->GetName());
         }
     }
 };
