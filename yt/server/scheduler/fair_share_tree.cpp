@@ -1460,11 +1460,11 @@ void TOperationElementSharedState::IncreaseJobResourceUsage(
 {
     properties.ResourceUsage += resourcesDelta;
     if (!properties.Preemptable) {
-        NonpreemptableResourceUsage_ += resourcesDelta;
-    }
-    if (properties.AggressivelyPreemptable) {
-        YCHECK(properties.Preemptable);
-        AggressivelyPreemptableResourceUsage_ += resourcesDelta;
+        if (properties.AggressivelyPreemptable) {
+            AggressivelyPreemptableResourceUsage_ += resourcesDelta;
+        } else {
+            NonpreemptableResourceUsage_ += resourcesDelta;
+        }
     }
 }
 
