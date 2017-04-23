@@ -1390,10 +1390,11 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         }
 
         auto mediumIndex = medium->GetIndex();
-        auto& statistics = allMediaStatistics.PerMediumStatistics[mediumIndex];
 
+        RemoveChunkFromQueuesOnRefresh(chunk, mediumIndex);
+
+        auto& statistics = allMediaStatistics.PerMediumStatistics[mediumIndex];
         if (statistics.Status == EChunkStatus::None) {
-            // This medium is irrelevant for this chunk. Continue.
             continue;
         }
 
@@ -1419,8 +1420,6 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         }
 
         if (!chunk->IsJobScheduled()) {
-            RemoveChunkFromQueuesOnRefresh(chunk, mediumIndex);
-
             if (Any(statistics.Status & EChunkStatus::Overreplicated) &&
                 None(allMediaStatistics.Status & ECrossMediumChunkStatus::MediumWiseLost))
             {
