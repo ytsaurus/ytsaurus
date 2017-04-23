@@ -1376,6 +1376,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
     }
 
     ResetChunkStatus(chunk);
+    RemoveChunkFromQueuesOnRefresh(chunk);
 
     auto allMediaStatistics = ComputeChunkStatistics(chunk);
 
@@ -1390,8 +1391,6 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         }
 
         auto mediumIndex = medium->GetIndex();
-
-        RemoveChunkFromQueuesOnRefresh(chunk, mediumIndex);
 
         auto& statistics = allMediaStatistics.PerMediumStatistics[mediumIndex];
         if (statistics.Status == EChunkStatus::None) {
@@ -1543,21 +1542,28 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
     }
 }
 
-void TChunkReplicator::RemoveChunkFromQueuesOnRefresh(TChunk* chunk, int mediumIndex)
+void TChunkReplicator::RemoveChunkFromQueuesOnRefresh(TChunk* chunk)
 {
-    // Remove chunk from replication and removal queues.
     for (auto replica : chunk->StoredReplicas()) {
         auto* node = replica.GetPtr();
 
+        // Remove from replication queue.        
         TChunkPtrWithIndexes chunkWithIndexes(chunk, replica.GetReplicaIndex(), replica.GetMediumIndex());
-        node->RemoveFromChunkReplicationQueues(chunkWithIndexes, mediumIndex);
+        node->RemoveFromChunkReplicationQueues(chunkWithIndexes, AllMediaIndex);
 
+        // Remove from removal queue.
         TChunkIdWithIndexes chunkIdWithIndexes(chunk->GetId(), replica.GetReplicaIndex(), replica.GetMediumIndex());
         node->RemoveFromChunkRemovalQueue(chunkIdWithIndexes);
     }
 
-    // Remove chunk from repair queue.
-    if (chunk->IsErasure()) {
+    for (const auto& pair : Bootstrap_->GetChunkManager()->Media()) {
+        auto* medium = pair.second;
+        if (medium->GetCache()) {
+            continue;
+        }
+
+        // Remove from repair queue.
+        auto mediumIndex = medium->GetIndex();
         TChunkPtrWithIndexes chunkWithIndexes(chunk, GenericChunkReplicaIndex, mediumIndex);
         RemoveFromChunkRepairQueue(chunkWithIndexes);
     }
@@ -2053,7 +2059,7 @@ void TChunkReplicator::UnregisterJob(const TJobPtr& job, EJobUnregisterFlags fla
 
 void TChunkReplicator::AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes)
 {
-    YCHECK(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
+    Y_ASSERT(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
     auto* chunk = chunkWithIndexes.GetPtr();
     int mediumIndex = chunkWithIndexes.GetMediumIndex();
     YCHECK(!chunk->GetRepairQueueIterator(mediumIndex));
@@ -2063,7 +2069,7 @@ void TChunkReplicator::AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndex
 
 void TChunkReplicator::RemoveFromChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes)
 {
-    YCHECK(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
+    Y_ASSERT(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
     auto* chunk = chunkWithIndexes.GetPtr();
     int mediumIndex = chunkWithIndexes.GetMediumIndex();
     auto it = chunk->GetRepairQueueIterator(mediumIndex);
