@@ -77,7 +77,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.mllib.stat.distribution                    | ✔                 | ✘                |                  |
 | pyspark.mllib.stat.test                            | ✔                 | ✘                |                  |
 | <s>pyspark.mllib.tests</s>                         | ✘                 | ✘                | Tests            |
-| pyspark.mllib.tree                                 | ✔                 | ✘                |                  |
+| pyspark.mllib.tree                                 | ✘                 | ✔                |                  |
 | pyspark.mllib.util                                 | ✔                 | ✘                |                  |
 | pyspark.profiler                                   | ✔                 | ✘                |                  |
 | pyspark.rdd                                        | ✘                 | ✔                |                  |
