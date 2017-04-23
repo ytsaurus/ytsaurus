@@ -2312,7 +2312,7 @@ private:
             TableReplicaMap_.LoadKeys(context);
         }
         // COMPAT(savrus)
-        if (context.GetVersion() >= 508) {
+        if (context.GetVersion() >= 600) {
             TabletActionMap_.LoadKeys(context);
         }
     }
@@ -2329,14 +2329,14 @@ private:
             TableReplicaMap_.LoadValues(context);
         }
         // COMPAT(savrus)
-        if (context.GetVersion() >= 508) {
+        if (context.GetVersion() >= 600) {
             TabletActionMap_.LoadValues(context);
         }
 
         // COMPAT(babenko)
         InitializeCellBundles_ = (context.GetVersion() < 400);
         // COMPAT(savrus)
-        UpdateChunkListsKind_ = (context.GetVersion() < 511);
+        UpdateChunkListsKind_ = (context.GetVersion() < 600);
     }
 
 
