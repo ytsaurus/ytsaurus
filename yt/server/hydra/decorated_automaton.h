@@ -221,9 +221,9 @@ private:
 
     // AutomatonVersion_ <= CommittedVersion_ <= LoggedVersion_
     // LoggedVersion_ is only maintained when the peer is active, e.g. not during recovery.
-    std::atomic<TVersion> LoggedVersion_;
-    std::atomic<TVersion> AutomatonVersion_;
-    std::atomic<TVersion> CommittedVersion_;
+    std::atomic<TVersion> LoggedVersion_ = {};
+    std::atomic<TVersion> AutomatonVersion_ = {};
+    std::atomic<TVersion> CommittedVersion_ = {};
 
     bool RotatingChangelog_ = false;
 
