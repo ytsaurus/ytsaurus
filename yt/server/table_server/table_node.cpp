@@ -131,11 +131,11 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
         Load(context, UnflushedTimestamp_);
     }
     // COMPAT(babenko)
-    if (context.GetVersion() >= 509) {
+    if (context.GetVersion() >= 600) {
         Load(context, ReplicationMode_);
     }
     // COMPAT(babenko)
-    if (context.GetVersion() >= 513) {
+    if (context.GetVersion() >= 600) {
         Load(context, OptimizeFor_);
     } else {
         if (Attributes_) {
