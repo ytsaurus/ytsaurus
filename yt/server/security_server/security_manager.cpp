@@ -1427,7 +1427,7 @@ private:
         }
 
         // COMPAT(babenko)
-        if (ValidateAccountResourceUsage_) {
+        if (ValidateAccountResourceUsage_ || RecomputeAccountResourceUsage_) {
             struct TStat
             {
                 TClusterResources NodeUsage;
@@ -1474,32 +1474,34 @@ private:
                 bool log = false;
                 auto expectedUsage = stat.NodeUsage + stat.StagingUsage;
                 auto expectedCommittedUsage = stat.NodeCommittedUsage;
-                if (account->LocalStatistics().ResourceUsage != expectedUsage) {
-                    LOG_ERROR("XXX %v account usage mismatch",
-                        account->GetName());
-                    log = true;
-                }
-                if (account->LocalStatistics().CommittedResourceUsage != expectedCommittedUsage) {
-                    LOG_ERROR("XXX %v account committed usage mismatch",
-                        account->GetName());
-                    log = true;
-                }
-                if (log) {
-                    LOG_ERROR("XXX %v account usage %v",
-                        account->GetName(),
-                        account->LocalStatistics().ResourceUsage);
-                    LOG_ERROR("XXX %v account committed usage %v",
-                        account->GetName(),
-                        account->LocalStatistics().CommittedResourceUsage);
-                    LOG_ERROR("XXX %v node usage %v",
-                        account->GetName(),
-                        stat.NodeUsage);
-                    LOG_ERROR("XXX %v node committed usage %v",
-                        account->GetName(),
-                        stat.NodeCommittedUsage);
-                    LOG_ERROR("XXX %v staging usage %v",
-                        account->GetName(),
-                        stat.StagingUsage);
+                if (ValidateAccountResourceUsage_) {
+                    if (account->LocalStatistics().ResourceUsage != expectedUsage) {
+                        LOG_ERROR("XXX %v account usage mismatch",
+                            account->GetName());
+                        log = true;
+                    }
+                    if (account->LocalStatistics().CommittedResourceUsage != expectedCommittedUsage) {
+                        LOG_ERROR("XXX %v account committed usage mismatch",
+                            account->GetName());
+                        log = true;
+                    }
+                    if (log) {
+                        LOG_ERROR("XXX %v account usage %v",
+                            account->GetName(),
+                            account->LocalStatistics().ResourceUsage);
+                        LOG_ERROR("XXX %v account committed usage %v",
+                            account->GetName(),
+                            account->LocalStatistics().CommittedResourceUsage);
+                        LOG_ERROR("XXX %v node usage %v",
+                            account->GetName(),
+                            stat.NodeUsage);
+                        LOG_ERROR("XXX %v node committed usage %v",
+                            account->GetName(),
+                            stat.NodeCommittedUsage);
+                        LOG_ERROR("XXX %v staging usage %v",
+                            account->GetName(),
+                            stat.StagingUsage);
+                    }
                 }
                 if (RecomputeAccountResourceUsage_) {
                     account->LocalStatistics().ResourceUsage = expectedUsage;
