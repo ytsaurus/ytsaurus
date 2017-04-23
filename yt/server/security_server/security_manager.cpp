@@ -1374,7 +1374,6 @@ private:
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
         // COMPAT(babenko)
-        RecomputeNodeResourceUsage_ = context.GetVersion() < 508;
         ValidateAccountResourceUsage_ = context.GetVersion() >= 508;
         RecomputeAccountResourceUsage_ = context.GetVersion() < 508;
     }
