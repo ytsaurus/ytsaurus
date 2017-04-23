@@ -205,7 +205,7 @@ private:
     void RefreshChunk(TChunk* chunk);
 
     void ResetChunkStatus(TChunk* chunk);
-    void RemoveChunkFromQueuesOnRefresh(TChunk* chunk, int mediumIndex);
+    void RemoveChunkFromQueuesOnRefresh(TChunk* chunk);
     void RemoveChunkFromQueuesOnDestroy(TChunk* chunk);
     void CancelChunkJobs(TChunk* chunk);
 
