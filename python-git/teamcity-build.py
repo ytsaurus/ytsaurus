@@ -311,6 +311,8 @@ def run_python_pypy_tests(options):
 def build_packages(options):
     if not options.package:
         return
+    if options.codename != "precise":
+        return
 
     packages = ["yandex-yt-python", "yandex-yt-python-tools",
                 "yandex-yt-transfer-manager", "yandex-yt-transfer-manager-client",
