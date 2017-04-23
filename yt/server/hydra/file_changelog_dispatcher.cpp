@@ -376,6 +376,11 @@ private:
     void Wakeup()
     {
         if (ProcessQueuesCallbackPending_.load(std::memory_order_relaxed)) {
+            // No need for pushing another ProcessQueuesCallback_
+            // since ProcessQueues will be scanning all registered queues anyway.
+            // However this only applies to _registered_ queues and our registration callback
+            // could still be on its way. Hence we always invoke ProcessQueue in DoRegisterQueue
+            // to make sure we didn't miss anything.
             return;
         }
 
@@ -385,14 +390,19 @@ private:
         }
     }
 
+    void ProcessQueue(const TFileChangelogQueuePtr& queue)
+    {
+        if (queue->HasPendingFlushes()) {
+            queue->RunPendingFlushes();
+        }
+    }
+
     void ProcessQueues()
     {
         ProcessQueuesCallbackPending_ = false;
 
         for (const auto& queue : Queues_) {
-            if (queue->HasPendingFlushes()) {
-                queue->RunPendingFlushes();
-            }
+            ProcessQueue(queue);
         }
     }
 
@@ -403,6 +413,9 @@ private:
         ProfileQueues();
         LOG_DEBUG("Changelog queue registered (Path: %v)",
             queue->GetChangelog()->GetFileName());
+
+        // See Wakeup.
+        ProcessQueue(queue);
     }
 
     void DoUnregisterQueue(const TFileChangelogQueuePtr& queue)
