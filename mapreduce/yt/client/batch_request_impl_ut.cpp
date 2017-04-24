@@ -89,8 +89,10 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestImpl) {
 
         UNIT_ASSERT_VALUES_EQUAL(batchRequest.BatchSize(), 3);
 
-        TDuration retryInterval;
         TTestRetryPolicy testRetryPolicy;
+        const TInstant now = TInstant::Seconds(100500);
+
+        TBatchRequestImpl retryBatch;
         batchRequest.ParseResponse(
             TNode()
                 .Add(TNode()("output", 5))
@@ -100,14 +102,19 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestImpl) {
                         TTestRetryPolicy::GenerateRetriableError(TDuration::Seconds(5)))),
                 "<no-request-id>",
                 testRetryPolicy,
-                &retryInterval);
+                &retryBatch,
+                now);
 
-        UNIT_ASSERT_VALUES_EQUAL(batchRequest.BatchSize(), 2);
+        UNIT_ASSERT_VALUES_EQUAL(batchRequest.BatchSize(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(retryBatch.BatchSize(), 2);
 
+        TNode retryParameterList;
+        TInstant nextTry;
+        retryBatch.FillParameterList(3, &retryParameterList, &nextTry);
         UNIT_ASSERT_VALUES_EQUAL(
-            GetAllPathsFromRequestList(batchRequest.GetParameterList()),
+            GetAllPathsFromRequestList(retryParameterList),
             yvector<Stroka>({"//getError-3", "//getError-5"}));
 
-        UNIT_ASSERT_VALUES_EQUAL(retryInterval, TDuration::Seconds(5));
+        UNIT_ASSERT_VALUES_EQUAL(nextTry, now + TDuration::Seconds(5));
     }
 }

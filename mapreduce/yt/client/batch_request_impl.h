@@ -5,6 +5,7 @@
 #include <library/threading/future/future.h>
 
 #include <util/generic/ptr.h>
+#include <util/generic/deque.h>
 
 #include <exception>
 
@@ -20,7 +21,14 @@ class TBatchRequestImpl
     : public TThrRefBase
 {
 public:
-    struct IResponseItemParser;
+    struct IResponseItemParser
+        : public TThrRefBase
+    {
+        ~IResponseItemParser() = default;
+
+        virtual void SetResponse(TMaybe<TNode> node) = 0;
+        virtual void SetException(std::exception_ptr e) = 0;
+    };
 
 public:
     TBatchRequestImpl();
@@ -28,12 +36,21 @@ public:
 
     void MarkExecuted();
 
-    const TNode& GetParameterList() const;
+    void FillParameterList(size_t maxSize, TNode* result, TInstant* nextTry) const;
 
     size_t BatchSize() const;
 
-    void ParseResponse(const TResponseInfo& requestResult, const IRetryPolicy& retryPolicy, TDuration* maxRetryInterval);
-    void ParseResponse(TNode response, const Stroka& requestId, const IRetryPolicy& retryPolicy, TDuration* maxRetryInterval);
+    void ParseResponse(
+        const TResponseInfo& requestResult,
+        const IRetryPolicy& retryPolicy,
+        TBatchRequestImpl* retryBatch,
+        TInstant now = TInstant::Now());
+    void ParseResponse(
+        TNode response,
+        const Stroka& requestId,
+        const IRetryPolicy& retryPolicy,
+        TBatchRequestImpl* retryBatch,
+        TInstant now = TInstant::Now());
     void SetErrorResult(std::exception_ptr e) const;
 
     NThreading::TFuture<TNodeId> Create(
@@ -81,15 +98,27 @@ public:
         ELockMode mode, const TLockOptions& options);
 
 private:
+    struct TBatchItem {
+        TNode Parameters;
+        ::TIntrusivePtr<IResponseItemParser> ResponseParser;
+        TInstant NextTry;
+
+        TBatchItem(TNode parameters, ::TIntrusivePtr<IResponseItemParser> responseParser);
+
+        TBatchItem(const TBatchItem& batchItem, TInstant nextTry);
+    };
+
+private:
     template <typename TResponseParser>
     typename TResponseParser::TFutureResult AddRequest(
         const Stroka& command,
         TNode parameters,
         TMaybe<TNode> input);
 
+    void AddRequest(TBatchItem batchItem);
+
 private:
-    yvector<::TIntrusivePtr<IResponseItemParser>> ResponseParserList_;
-    TNode RequestList_ = TNode::CreateList();
+    ydeque<TBatchItem> BatchItemList_;
     bool Executed_ = false;
 };
 
