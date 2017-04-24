@@ -45,7 +45,6 @@ inline void LogMessage(ILogger::ELevel level, const TSourceLocation& sourceLocat
 #define LOG_DEBUG(...) { NYT::LogMessage(NYT::ILogger::DEBUG, __LOCATION__, __VA_ARGS__); }
 #define LOG_INFO(...)  { NYT::LogMessage(NYT::ILogger::INFO, __LOCATION__, __VA_ARGS__); }
 #define LOG_ERROR(...) { NYT::LogMessage(NYT::ILogger::ERROR, __LOCATION__, __VA_ARGS__); }
-#define LOG_FATAL(...) { NYT::LogMessage(NYT::ILogger::FATAL, __LOCATION__, __VA_ARGS__); exit(1); }
 
 ////////////////////////////////////////////////////////////////////////////////
 

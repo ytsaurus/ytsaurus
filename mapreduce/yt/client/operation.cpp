@@ -54,9 +54,8 @@ Stroka ToString(EMergeMode mode)
         case MM_UNORDERED: return "unordered";
         case MM_ORDERED: return "ordered";
         case MM_SORTED: return "sorted";
-        default:
-            LOG_FATAL("Invalid merge mode %i", mode);
     }
+    Y_UNREACHABLE();
 }
 
 bool IsLocalMode(const TAuth& auth)
@@ -593,7 +592,7 @@ EOperationStatus CheckOperation(
     auto statePath = opPath + "/@state";
 
     if (!Exists(auth, transactionId, opPath)) {
-        LOG_FATAL("Operation %s does not exist", ~opIdStr);
+        ythrow yexception() << "Operation " << opIdStr << " does not exist";
     }
 
     Stroka state = NodeFromYsonString(

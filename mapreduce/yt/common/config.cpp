@@ -41,8 +41,8 @@ int TConfig::GetInt(const char* var, int defaultValue)
     }
     try {
         result = FromString<int>(val);
-    } catch (yexception&) {
-        LOG_FATAL("Cannot parse %s=%s as integer", var, ~val);
+    } catch (const yexception& e) {
+        Y_FAIL("Cannot parse %s=%s as integer: %s", var, ~val, e.what());
     }
     return result;
 }
@@ -54,7 +54,7 @@ TDuration TConfig::GetDuration(const char* var, TDuration defaultValue)
 
 Stroka TConfig::GetEncoding(const char* var)
 {
-    Stroka encoding = GetEnv(var, "identity");
+    const Stroka encoding = GetEnv(var, "identity");
 
     const char* supportedEncodings[] = {
         "identity",
@@ -68,9 +68,7 @@ Stroka TConfig::GetEncoding(const char* var)
             return encoding;
     }
 
-    LOG_FATAL("%s: encoding '%s' is not supported", var, ~encoding);
-
-    return ""; // never gets here
+    Y_FAIL("%s: encoding '%s' is not supported", var, ~encoding);
 }
 
 void TConfig::ValidateToken(const Stroka& token)
@@ -78,7 +76,7 @@ void TConfig::ValidateToken(const Stroka& token)
     for (size_t i = 0; i < token.size(); ++i) {
         ui8 ch = token[i];
         if (ch < 0x21 || ch > 0x7e) {
-            LOG_FATAL("Incorrect token character '%c' at position %" PRISZT, ch, i);
+            Y_FAIL("Incorrect token character '%c' at position %" PRISZT, ch, i);
         }
     }
 }
@@ -97,11 +95,11 @@ TNode TConfig::LoadJsonSpec(const Stroka& strSpec)
     TYson2JsonCallbacksAdapter callbacks(&builder);
 
     if (!NJson::ReadJson(&input, &callbacks)) {
-        LOG_FATAL("Cannot parse json spec");
+        Y_FAIL("Cannot parse json spec");
     }
 
     if (!spec.IsMap()) {
-        LOG_FATAL("Json spec is not a map");
+        Y_FAIL("Json spec is not a map");
     }
     return spec;
 }
@@ -226,14 +224,14 @@ TProcessState::TProcessState()
 {
     try {
         HostName = ::HostName();
-    } catch (yexception&) {
-        LOG_FATAL("Cannot get host name");
+    } catch (const yexception& e) {
+        Y_FAIL("Cannot get host name: %s", e.what());
     }
 
     try {
         UserName = ::GetUsername();
-    } catch (yexception&) {
-        LOG_FATAL("Cannot get user name");
+    } catch (const yexception& e) {
+        Y_FAIL("Cannot get user name: %s", e.what());
     }
 
     Pid = static_cast<int>(getpid());
