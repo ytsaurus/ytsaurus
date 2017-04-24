@@ -156,6 +156,7 @@ b"""
         };
 
         max_unpreemptable_running_job_count = 0;
+        min_needed_resources_update_period = 100;
     };
 }
 """)
