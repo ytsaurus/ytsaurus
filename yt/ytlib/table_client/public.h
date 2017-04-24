@@ -248,7 +248,7 @@ class TSamplingRowMerger;
 
 DECLARE_REFCOUNTED_STRUCT(IChunkLookupHashTable)
 
-DECLARE_REFCOUNTED_STRUCT(TCacheBasedChunkState)
+DECLARE_REFCOUNTED_STRUCT(TChunkState)
 
 struct TBoundaryKeys;
 

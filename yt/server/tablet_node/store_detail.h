@@ -261,7 +261,7 @@ protected:
 
     TPreloadedBlockCachePtr PreloadedBlockCache_;
 
-    NTableClient::TCacheBasedChunkStatePtr ChunkState_;
+    NTableClient::TChunkStatePtr ChunkState_;
 
 
     NDataNode::IChunkPtr PrepareChunk();

@@ -41,23 +41,19 @@ std::vector<TColumnIdMapping> BuildSchemalessHorizontalSchemaIdMapping(
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
-    NChunkClient::IBlockCachePtr blockCache,
-    TCachedVersionedChunkMetaPtr chunkMeta,
+    const TChunkStatePtr& chunkState,
     TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp,
     bool produceAllVersions);
 
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
-    NChunkClient::IBlockCachePtr blockCache,
-    TCachedVersionedChunkMetaPtr chunkMeta,
+    const TChunkStatePtr& chunkState,
     TOwningKey lowerLimit,
     TOwningKey upperLimit,
     const TColumnFilter& columnFilter,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp,
     bool produceAllVersions);
 
@@ -69,12 +65,9 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
-    NChunkClient::IBlockCachePtr blockCache,
-    TCachedVersionedChunkMetaPtr chunkMeta,
+    const TChunkStatePtr& chunkState,
     const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
-    TKeyComparer keyComparer,
     TTimestamp timestamp,
     bool produceAllVersions);
 
