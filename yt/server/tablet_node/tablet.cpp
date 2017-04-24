@@ -958,7 +958,11 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
                 switch (preloadState) {
                     case EStorePreloadState::Scheduled:
                     case EStorePreloadState::Running:
-                        ++snapshot->PreloadPendingStoreCount;
+                        if (chunkStore->IsPreloadAllowed()) {
+                            ++snapshot->PreloadPendingStoreCount;
+                        } else {
+                            ++snapshot->PreloadFailedStoreCount;
+                        }
                         break;
                     case EStorePreloadState::Complete:
                         ++snapshot->PreloadCompletedStoreCount;
