@@ -1131,8 +1131,8 @@ public:
                     << TErrorAttribute("input_cookie", cookie);
                 LOG_WARNING(error, "Rebuilding all jobs because of error during resumption");
                 InvalidateCurrentJobs();
-                PoolOutputInvalidated_.Fire(error);
                 DoFinish();
+                PoolOutputInvalidated_.Fire(error);
                 return;
             }
             for (const auto& pair : newChunkMapping) {
