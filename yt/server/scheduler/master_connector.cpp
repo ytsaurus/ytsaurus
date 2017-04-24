@@ -1,16 +1,13 @@
 #include "master_connector.h"
 
 #include "config.h"
-#include "controllers_master_connector.h"
 #include "private.h"
 #include "helpers.h"
-#include "operation_controller.h"
 #include "scheduler.h"
 #include "scheduler_strategy.h"
-#include "serialize.h"
-#include "snapshot_builder.h"
-#include "snapshot_downloader.h"
-#include "update_executor.h"
+
+#include <yt/server/controller_agent/controllers_master_connector.h>
+#include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 #include <yt/server/cell_scheduler/config.h>
@@ -31,6 +28,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
+#include <yt/ytlib/scheduler/update_executor.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 

@@ -1,7 +1,8 @@
 #include "job_splitter.h"
 #include "private.h"
 #include "chunk_pool.h"
-#include "config.h"
+
+#include <yt/server/scheduler/config.h>
 
 #include <yt/core/misc/numeric_helpers.h>
 

@@ -6,6 +6,11 @@
 
 #include <yt/ytlib/cypress_client/public.h>
 
+#include <yt/ytlib/chunk_client/public.h>
+
+#include <yt/core/misc/ref.h>
+
+
 namespace NYT {
 namespace NScheduler {
 

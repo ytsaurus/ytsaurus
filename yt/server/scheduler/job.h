@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "job_resources.h"
 
 #include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
@@ -10,6 +9,8 @@
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/node_tracker_client/node.pb.h>
+
+#include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/actions/callback.h>
 
@@ -21,8 +22,6 @@
 
 namespace NYT {
 namespace NScheduler {
-
-using namespace NPhoenix;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +40,7 @@ struct TBriefJobStatistics
     TNullable<i64> InputPipeIdleTime = Null;
     TNullable<i64> JobProxyCpuUsage = Null;
 
-    void Persist(const TPersistenceContext& context);
+    void Persist(const NPhoenix::TPersistenceContext& context);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBriefJobStatistics)
@@ -148,7 +147,7 @@ struct TJobSummary
     // TODO(ignat): rename, it is not only about logging.
     bool ShouldLog;
 
-    void Persist(const TPersistenceContext& context);
+    void Persist(const NPhoenix::TPersistenceContext& context);
 };
 
 using TFailedJobSummary = TJobSummary;
@@ -160,7 +159,7 @@ struct TCompletedJobSummary
     //! Only for testing purpose.
     TCompletedJobSummary() = default;
 
-    void Persist(const TPersistenceContext& context);
+    void Persist(const NPhoenix::TPersistenceContext& context);
 
     bool Abandoned = false;
 
@@ -240,21 +239,6 @@ struct TScheduleJobResult
 };
 
 DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)
-
-struct TScheduleJobStatistics
-    : public TIntrinsicRefCounted
-    , public NPhoenix::IPersistent
-{
-    void RecordJobResult(const TScheduleJobResultPtr& scheduleJobResult);
-
-    TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
-    TDuration Duration;
-    i64 Count = 0;
-
-    void Persist(const TPersistenceContext& context);
-};
-
-DEFINE_REFCOUNTED_TYPE(TScheduleJobStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 

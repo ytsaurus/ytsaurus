@@ -1,7 +1,8 @@
 #include "framework.h"
 
 #include <yt/server/scheduler/config.h>
-#include <yt/server/scheduler/job_size_adjuster.h>
+
+#include <yt/server/controller_agent/job_size_adjuster.h>
 
 namespace NYT {
 namespace NScheduler {

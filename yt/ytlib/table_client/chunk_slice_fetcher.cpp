@@ -1,7 +1,5 @@
 #include "chunk_slice_fetcher.h"
 
-#include <yt/server/scheduler/operation_controller.h>
-
 #include "yt/ytlib/table_client/row_buffer.h"
 #include "yt/ytlib/table_client/private.h"
 
@@ -34,7 +32,6 @@ using namespace NRpc;
 
 using NYT::FromProto;
 using NYT::ToProto;
-using NScheduler::IOperationControllerPtr;
 
 ////////////////////////////////////////////////////////////////////
 

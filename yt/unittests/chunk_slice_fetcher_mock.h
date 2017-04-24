@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/scheduler/sorted_chunk_pool.h>
+#include <yt/server/controller_agent/sorted_chunk_pool.h>
 
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
 

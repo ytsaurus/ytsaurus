@@ -6,6 +6,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/misc/ref.h>
+
 namespace NYT {
 namespace NScheduler {
 

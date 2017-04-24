@@ -158,6 +158,8 @@ DECLARE_REFCOUNTED_CLASS(TOperationRuntimeParams)
 
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig)
 
+class TJobResources;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESchedulingDelayType,

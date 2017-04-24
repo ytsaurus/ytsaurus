@@ -1,11 +1,10 @@
 #include "controllers_master_connector.h"
-#include "config.h"
-#include "scheduler.h"
 #include "operation_controller.h"
 #include "snapshot_downloader.h"
 #include "snapshot_builder.h"
 #include "serialize.h"
-#include "update_executor.h"
+
+#include <yt/server/scheduler/config.h>
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 #include <yt/server/cell_scheduler/config.h>
@@ -29,6 +28,8 @@
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
 
 #include <yt/ytlib/security_client/public.h>
+
+#include <yt/ytlib/scheduler/update_executor.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 

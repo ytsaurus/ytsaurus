@@ -1,6 +1,5 @@
 #include "public.h"
 #include "scheduler.h"
-#include "job_resources.h"
 #include "scheduling_tag.h"
 
 #include <yt/ytlib/api/client.h>
@@ -10,6 +9,8 @@
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/public.h>
 

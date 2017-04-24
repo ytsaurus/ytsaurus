@@ -1,7 +1,8 @@
 #include "intermediate_chunk_scraper.h"
 
 #include "private.h"
-#include "config.h"
+
+#include <yt/server/scheduler/config.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
 

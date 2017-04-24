@@ -13,6 +13,8 @@
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/ytlib/hive/cluster_directory.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
