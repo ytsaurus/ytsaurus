@@ -1,5 +1,4 @@
 #include "sorted_chunk_pool.h"
-#include "sorted_chunk_pool.h"
 
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/ytlib/table_client/row_buffer.h>
