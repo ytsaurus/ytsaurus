@@ -1,10 +1,11 @@
 #include "snapshot_builder.h"
 #include "private.h"
-#include "config.h"
 #include "helpers.h"
 #include "operation_controller.h"
-#include "scheduler.h"
 #include "serialize.h"
+
+#include <yt/server/scheduler/config.h>
+#include <yt/server/scheduler/scheduler.h>
 
 #include <yt/ytlib/api/file_writer.h>
 #include <yt/ytlib/api/transaction.h>

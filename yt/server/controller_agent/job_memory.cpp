@@ -1,5 +1,6 @@
 #include "job_memory.h"
-#include "config.h"
+
+#include <yt/server/scheduler/config.h>
 
 namespace NYT {
 namespace NScheduler {

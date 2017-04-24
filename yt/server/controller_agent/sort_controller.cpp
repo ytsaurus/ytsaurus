@@ -8,6 +8,8 @@
 #include "operation_controller_detail.h"
 #include "sorted_chunk_pool.h"
 
+#include <yt/server/scheduler/helpers.h>
+
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>
 

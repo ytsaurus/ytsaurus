@@ -21,7 +21,6 @@ using namespace NNodeTrackerClient;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NProto;
 
 using NTableClient::NProto::TPartitionsExt;
 using NChunkClient::NProto::TMiscExt;

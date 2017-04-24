@@ -4,9 +4,9 @@
 
 #include "private.h"
 
-#include "event_log.h"
-#include "job.h"
-#include "scheduling_context.h"
+#include <yt/server/scheduler/scheduling_context.h>
+#include <yt/server/scheduler/job.h>
+#include <yt/server/scheduler/job_metrics.h>
 
 #include <yt/ytlib/api/public.h>
 
@@ -66,6 +66,11 @@ struct TOperationControllerInitializeResult
 struct IOperationHost
 {
     virtual ~IOperationHost() = default;
+
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual const TSchedulerConfigPtr& GetConfig() const = 0;
 
     /*!
      *  \note Thread affinity: any
@@ -422,10 +427,9 @@ DEFINE_REFCOUNTED_TYPE(IOperationController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IOperationControllerPtr CreateControllerWrapper(
-    const TOperationId& id,
-    const IOperationControllerPtr& controller,
-    const IInvokerPtr& dtorInvoker);
+IOperationControllerPtr CreateControllerForOperation(
+    IOperationHost* host,
+    TOperation* operation);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "job_metrics.h"
+#include <yt/server/scheduler/job_metrics.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
 

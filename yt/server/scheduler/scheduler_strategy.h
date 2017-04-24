@@ -2,9 +2,10 @@
 
 #include "public.h"
 #include "event_log.h"
-#include "job_resources.h"
 
 #include <yt/ytlib/node_tracker_client/node.pb.h>
+
+#include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/actions/signal.h>
 

@@ -1,7 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "job.h"
+
+#include <yt/server/scheduler/job.h>
 
 namespace NYT {
 namespace NScheduler {

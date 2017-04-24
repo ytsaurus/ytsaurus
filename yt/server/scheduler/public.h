@@ -27,14 +27,10 @@ DECLARE_REFCOUNTED_CLASS(TJob)
 
 DECLARE_REFCOUNTED_STRUCT(TScheduleJobResult)
 
-DECLARE_REFCOUNTED_STRUCT(TScheduleJobStatistics)
-
 struct TJobStartRequest;
 
 using TJobList = std::list<TJobPtr>;
 using TJobSpecBuilder = TCallback<void(NJobTrackerClient::NProto::TJobSpec* jobSpec)>;
-
-class TJobResources;
 
 struct TUpdatedJob;
 struct TCompletedJob;
@@ -47,9 +43,7 @@ DECLARE_REFCOUNTED_CLASS(TExecNode)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyConfig)
 DECLARE_REFCOUNTED_CLASS(TEventLogConfig)
 DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraperConfig)
-DECLARE_REFCOUNTED_CLASS(TJobSizeAdjusterConfig)
 DECLARE_REFCOUNTED_CLASS(TJobSplitterConfig)
-DECLARE_REFCOUNTED_STRUCT(IJobSizeConstraints)
 
 DECLARE_REFCOUNTED_CLASS(TOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TSimpleOperationOptions)
@@ -86,10 +80,6 @@ DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraper)
 
 DECLARE_REFCOUNTED_STRUCT(IJobHost)
 DECLARE_REFCOUNTED_CLASS(TJobHost)
-
-DECLARE_REFCOUNTED_STRUCT(TChunkStripeList)
-
-DECLARE_REFCOUNTED_STRUCT(IChunkSliceFetcherFactory)
 
 class TMasterConnector;
 

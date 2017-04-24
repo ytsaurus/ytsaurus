@@ -1,6 +1,7 @@
 #include "chunk_list_pool.h"
 #include "private.h"
-#include "config.h"
+
+#include <yt/server/scheduler/config.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 

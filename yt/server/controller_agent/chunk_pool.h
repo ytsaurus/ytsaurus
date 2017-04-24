@@ -1,11 +1,12 @@
 #pragma once
 
 #include "helpers.h"
-#include "private.h"
 #include "progress_counter.h"
 #include "serialize.h"
 
 #include <yt/server/chunk_server/public.h>
+
+#include <yt/server/scheduler/job.h>
 
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 #include <yt/ytlib/chunk_client/public.h>

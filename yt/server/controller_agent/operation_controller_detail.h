@@ -4,15 +4,15 @@
 
 #include "chunk_list_pool.h"
 #include "chunk_pool.h"
-#include "config.h"
-#include "event_log.h"
 #include "job_memory.h"
-#include "job_resources.h"
 #include "job_splitter.h"
 #include "operation_controller.h"
 #include "serialize.h"
 #include "helpers.h"
 #include "controllers_master_connector.h"
+
+#include <yt/server/scheduler/config.h>
+#include <yt/server/scheduler/event_log.h>
 
 #include <yt/server/chunk_server/public.h>
 
@@ -38,6 +38,8 @@
 
 #include <yt/ytlib/query_client/public.h>
 #include <yt/ytlib/query_client/range_inferrer.h>
+
+#include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/actions/cancelable_context.h>
 

@@ -1,6 +1,6 @@
 #include "snapshot_downloader.h"
-#include "config.h"
-#include "scheduler.h"
+
+#include <yt/server/scheduler/config.h>
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 

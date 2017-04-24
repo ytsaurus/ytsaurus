@@ -2,7 +2,8 @@
 #include "exec_node.h"
 #include "helpers.h"
 #include "job.h"
-#include "operation_controller.h"
+
+#include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/config.h>

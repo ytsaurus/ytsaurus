@@ -7,7 +7,7 @@
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/phoenix.h>
 
-#include <yt/server/scheduler/sorted_chunk_pool.h>
+#include <yt/server/controller_agent/sorted_chunk_pool.h>
 
 #include <yt/ytlib/table_client/row_buffer.h>
 

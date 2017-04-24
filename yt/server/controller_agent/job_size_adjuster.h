@@ -3,6 +3,8 @@
 #include "private.h"
 #include "serialize.h"
 
+#include <yt/server/scheduler/job.h>
+
 namespace NYT {
 namespace NScheduler {
 

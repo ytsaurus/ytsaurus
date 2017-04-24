@@ -5,12 +5,21 @@
 #include "helpers.h"
 #include "intermediate_chunk_scraper.h"
 #include "job_helpers.h"
-#include "job_metrics.h"
 #include "job_metrics_updater.h"
-#include "master_connector.h"
 #include "controllers_master_connector.h"
 
+#include "map_controller.h"
+#include "merge_controller.h"
+#include "sorted_controller.h"
+#include "remote_copy_controller.h"
+#include "sort_controller.h"
+
+#include <yt/server/scheduler/helpers.h>
+#include <yt/server/scheduler/master_connector.h>
+
 #include <yt/server/misc/job_table_schema.h>
+
+#include <yt/server/scheduler/job_metrics.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
@@ -6822,12 +6831,58 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
-IOperationControllerPtr CreateControllerWrapper(
-    const TOperationId& id,
-    const IOperationControllerPtr& controller,
-    const IInvokerPtr& dtorInvoker)
+IOperationControllerPtr CreateControllerForOperation(
+    IOperationHost* host,
+    TOperation* operation)
 {
-    return New<TOperationControllerWrapper>(id, controller, dtorInvoker);
+    auto config = host->GetConfig();
+
+    IOperationControllerPtr controller;
+    switch (operation->GetType()) {
+        case EOperationType::Map:
+            controller = CreateMapController(config, host, operation);
+            break;
+        case EOperationType::Merge:
+            controller = CreateMergeController(config, host, operation);
+            break;
+        case EOperationType::Erase:
+            controller = CreateEraseController(config, host, operation);
+            break;
+        case EOperationType::Sort:
+            controller = CreateSortController(config, host, operation);
+            break;
+        case EOperationType::Reduce: {
+            auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
+            if (legacySpec->UseLegacyController) {
+                controller = CreateLegacyReduceController(config, host, operation);
+            } else {
+                controller = CreateSortedReduceController(config, host, operation);
+            }
+            break;
+        }
+        case EOperationType::JoinReduce: {
+            auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
+            if (legacySpec->UseLegacyController) {
+                controller = CreateLegacyJoinReduceController(config, host, operation);
+            } else {
+                controller = CreateJoinReduceController(config, host, operation);
+            }
+            break;
+        }
+        case EOperationType::MapReduce:
+            controller = CreateMapReduceController(config, host, operation);
+            break;
+        case EOperationType::RemoteCopy:
+            controller = CreateRemoteCopyController(config, host, operation);
+            break;
+        default:
+            Y_UNREACHABLE();
+    }
+
+    return New<TOperationControllerWrapper>(
+        operation->GetId(),
+        controller,
+        controller->GetInvoker());
 }
 
 ////////////////////////////////////////////////////////////////////

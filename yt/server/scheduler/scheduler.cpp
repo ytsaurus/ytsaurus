@@ -4,19 +4,14 @@
 #include "fair_share_strategy.h"
 #include "helpers.h"
 #include "job_prober_service.h"
-#include "job_resources.h"
-#include "map_controller.h"
 #include "master_connector.h"
-#include "merge_controller.h"
-#include "sorted_controller.h"
 #include "node_shard.h"
-#include "operation_controller.h"
-#include "remote_copy_controller.h"
 #include "scheduler_strategy.h"
 #include "scheduling_tag.h"
-#include "snapshot_downloader.h"
-#include "sort_controller.h"
-#include "controllers_master_connector.h"
+
+#include <yt/server/controller_agent/helpers.h>
+#include <yt/server/controller_agent/operation_controller.h>
+#include <yt/server/controller_agent/controllers_master_connector.h>
 
 #include <yt/server/exec_agent/public.h>
 
@@ -30,6 +25,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
+#include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 #include <yt/ytlib/node_tracker_client/node_directory.h>
@@ -865,6 +861,11 @@ public:
 
 
     // IOperationHost implementation
+    virtual const TSchedulerConfigPtr& GetConfig() const override
+    {
+        return Config_;
+    }
+
     virtual const NApi::INativeClientPtr& GetMasterClient() const override
     {
         return Bootstrap_->GetMasterClient();
@@ -1616,7 +1617,7 @@ private:
 
         bool registered = false;
         try {
-            auto controller = CreateController(operation.Get());
+            auto controller = CreateControllerForOperation(this, operation.Get());
             operation->SetController(controller);
 
             Strategy_->ValidateOperationCanBeRegistered(operation);
@@ -1742,7 +1743,7 @@ private:
         // and unregister the operation from Master Connector.
 
         try {
-            auto controller = CreateController(operation.Get());
+            auto controller = CreateControllerForOperation(this, operation.Get());
             operation->SetController(controller);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Operation has failed to revive (OperationId: %v)",
@@ -1927,56 +1928,6 @@ private:
     void InitStrategy()
     {
         Strategy_ = CreateFairShareStrategy(Config_, this);
-    }
-
-    IOperationControllerPtr CreateController(TOperation* operation)
-    {
-        IOperationControllerPtr controller;
-        switch (operation->GetType()) {
-            case EOperationType::Map:
-                controller = CreateMapController(Config_, this, operation);
-                break;
-            case EOperationType::Merge:
-                controller = CreateMergeController(Config_, this, operation);
-                break;
-            case EOperationType::Erase:
-                controller = CreateEraseController(Config_, this, operation);
-                break;
-            case EOperationType::Sort:
-                controller = CreateSortController(Config_, this, operation);
-                break;
-            case EOperationType::Reduce: {
-                auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-                if (legacySpec->UseLegacyController) {
-                    controller = CreateLegacyReduceController(Config_, this, operation);
-                } else {
-                    controller = CreateSortedReduceController(Config_, this, operation);
-                }
-                break;
-            }
-            case EOperationType::JoinReduce: {
-                auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(operation->GetSpec());
-                if (legacySpec->UseLegacyController) {
-                    controller = CreateLegacyJoinReduceController(Config_, this, operation);
-                } else {
-                    controller = CreateJoinReduceController(Config_, this, operation);
-                }
-                break;
-            }
-            case EOperationType::MapReduce:
-                controller = CreateMapReduceController(Config_, this, operation);
-                break;
-            case EOperationType::RemoteCopy:
-                controller = CreateRemoteCopyController(Config_, this, operation);
-                break;
-            default:
-                Y_UNREACHABLE();
-        }
-
-        return CreateControllerWrapper(
-            operation->GetId(),
-            controller,
-            ControllerThreadPool_->GetInvoker());
     }
 
     INodePtr GetSpecTemplate(EOperationType type, IMapNodePtr spec)

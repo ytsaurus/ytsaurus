@@ -1,13 +1,12 @@
 #include "node_shard.h"
-
+#include "config.h"
 #include "helpers.h"
-#include "operation_controller.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 
-#include <yt/server/exec_agent/public.h>
+#include <yt/server/controller_agent/operation_controller.h>
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/exec_agent/public.h>
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 

@@ -3,9 +3,12 @@
 #include "exec_node.h"
 #include "helpers.h"
 #include "operation.h"
-#include "operation_controller.h"
 
 #include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/ytlib/scheduler/job.pb.h>
+
+#include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/protobuf_helpers.h>
@@ -22,6 +25,7 @@ using namespace NJobTrackerClient;
 using namespace NChunkClient::NProto;
 using namespace NProto;
 using namespace NProfiling;
+using namespace NPhoenix;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -251,25 +255,6 @@ bool TScheduleJobResult::IsScheduleStopNeeded() const
         Failed[EScheduleJobFailReason::NotEnoughChunkLists] > 0 ||
         Failed[EScheduleJobFailReason::JobSpecThrottling] > 0;
 }
-
-void TScheduleJobStatistics::RecordJobResult(const TScheduleJobResultPtr& scheduleJobResult)
-{
-    for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-        Failed[reason] += scheduleJobResult->Failed[reason];
-    }
-    Duration += scheduleJobResult->Duration;
-    ++Count;
-}
-
-void TScheduleJobStatistics::Persist(const TPersistenceContext& context)
-{
-    using NYT::Persist;
-    Persist(context, Failed);
-    Persist(context, Duration);
-    Persist(context, Count);
-}
-
-DECLARE_DYNAMIC_PHOENIX_TYPE(TScheduleJobStatistics, 0x1ba9c7e0);
 
 ////////////////////////////////////////////////////////////////////
 
