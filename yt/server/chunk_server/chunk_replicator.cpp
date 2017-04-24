@@ -1097,6 +1097,12 @@ bool TChunkReplicator::CreateRepairJob(
         return true;
     }
 
+    if (!node->HasMedium(mediumIndex)) {
+        // Don't repair chunk on a node with no relevant medium. In particular,
+        // this avoids repairing non-cloud tables in the cloud.
+        return false;
+    }
+
     auto codecId = chunk->GetErasureCodec();
     auto* codec = NErasure::GetCodec(codecId);
     auto totalPartCount = codec->GetTotalPartCount();
