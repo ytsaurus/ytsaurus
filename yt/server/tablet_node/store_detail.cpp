@@ -28,7 +28,7 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
+#include <yt/ytlib/table_client/chunk_state.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -825,9 +825,13 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
         return;
     }
 
+    TChunkSpec chunkSpec;
+    ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
+
     PreloadedBlockCache_->Preload(chunkData);
-    ChunkState_ = New<TCacheBasedChunkState>(
+    ChunkState_ = New<TChunkState>(
         PreloadedBlockCache_,
+        chunkSpec,
         chunkData->ChunkMeta,
         PreloadedBlockCache_->GetLookupHashTable(),
         PerformanceCounters_,

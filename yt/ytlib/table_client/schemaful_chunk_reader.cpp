@@ -1,9 +1,10 @@
-#include "schemaful_chunk_reader.h"
-#include "private.h"
 #include "chunk_meta_extensions.h"
+#include "chunk_state.h"
 #include "config.h"
 #include "name_table.h"
+#include "private.h"
 #include "schema.h"
+#include "schemaful_chunk_reader.h"
 #include "schemaful_reader.h"
 #include "schemaful_reader_adapter.h"
 #include "schemaless_chunk_reader.h"
@@ -63,13 +64,20 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
         case ETableChunkFormat::SchemalessHorizontal:
         case ETableChunkFormat::UnversionedColumnar: {
             auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
-                return CreateSchemalessChunkReader(
+                auto chunkState = New<TChunkState>(
+                    std::move(blockCache),
                     chunkSpec,
+                    nullptr,
+                    nullptr,
+                    nullptr,
+                    nullptr);
+
+                return CreateSchemalessChunkReader(
+                    std::move(chunkState),
                     std::move(config),
                     New<TChunkReaderOptions>(),
                     std::move(chunkReader),
                     std::move(nameTable),
-                    std::move(blockCache),
                     keyColumns,
                     columnFilter,
                     readRange);
@@ -105,13 +113,20 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
         case ETableChunkFormat::UnversionedColumnar:
         case ETableChunkFormat::SchemalessHorizontal: {
             auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
-                return CreateSchemalessChunkReader(
+                auto chunkState = New<TChunkState>(
+                    std::move(blockCache),
                     chunkSpec,
+                    nullptr,
+                    nullptr,
+                    nullptr,
+                    nullptr);
+
+                return CreateSchemalessChunkReader(
+                    std::move(chunkState),
                     std::move(config),
                     New<TChunkReaderOptions>(),
                     std::move(chunkReader),
                     std::move(nameTable),
-                    std::move(blockCache),
                     keyColumns,
                     columnFilter,
                     keys);

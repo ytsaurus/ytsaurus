@@ -1,5 +1,6 @@
 #include "cached_versioned_chunk_meta.h"
 #include "chunk_reader_base.h"
+#include "chunk_state.h"
 #include "columnar_chunk_reader_base.h"
 #include "config.h"
 #include "helpers.h"
@@ -74,14 +75,15 @@ class TSchemalessChunkReaderBase
 {
 public:
     TSchemalessChunkReaderBase(
-        const TChunkSpec& chunkSpec,
+        const TChunkStatePtr& chunkState,
         TChunkReaderConfigPtr config,
         TChunkReaderOptionsPtr options,
         const TChunkId& chunkId,
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter,
         const TKeyColumns& keyColumns)
-        : ChunkSpec_(chunkSpec)
+        : ChunkState_(chunkState)
+        , ChunkSpec_(ChunkState_->ChunkSpec)
         , Config_(config)
         , Options_(options)
         , NameTable_(nameTable)
@@ -122,6 +124,7 @@ public:
     }
 
 protected:
+    const TChunkStatePtr ChunkState_;
     const TChunkSpec ChunkSpec_;
 
     TChunkReaderConfigPtr Config_;
@@ -245,12 +248,11 @@ class THorizontalSchemalessChunkReaderBase
 {
 public:
     THorizontalSchemalessChunkReaderBase(
-        const TChunkSpec& chunkSpec,
+        const TChunkStatePtr& chunkState,
         TChunkReaderConfigPtr config,
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
         TNullable<int> partitionTag);
@@ -290,21 +292,20 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
-    const TChunkSpec& chunkSpec,
+    const TChunkStatePtr& chunkState,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     TNullable<int> partitionTag)
     : TChunkReaderBase(
         config,
         underlyingReader,
-        blockCache)
+        chunkState->BlockCache)
     , TSchemalessChunkReaderBase(
-        chunkSpec,
+        chunkState,
         config,
         options,
         underlyingReader->GetChunkId(),
@@ -409,12 +410,11 @@ class THorizontalSchemalessRangeChunkReader
 {
 public:
     THorizontalSchemalessRangeChunkReader(
-        const TChunkSpec& chunkSpec,
+        const TChunkStatePtr& chunkState,
         TChunkReaderConfigPtr config,
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
         const TReadRange& readRange,
@@ -443,23 +443,21 @@ DEFINE_REFCOUNTED_TYPE(THorizontalSchemalessRangeChunkReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
-    const TChunkSpec& chunkSpec,
+    const TChunkStatePtr& chunkState,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
     TNullable<int> partitionTag)
     : THorizontalSchemalessChunkReaderBase(
-        chunkSpec,
+        chunkState,
         std::move(config),
         std::move(options),
         std::move(underlyingReader),
         std::move(nameTable),
-        std::move(blockCache),
         keyColumns,
         columnFilter,
         std::move(partitionTag))
@@ -682,12 +680,11 @@ class THorizontalSchemalessLookupChunkReader
 {
 public:
     THorizontalSchemalessLookupChunkReader(
-        const TChunkSpec& chunkSpec,
+        const TChunkStatePtr& chunkState,
         TChunkReaderConfigPtr config,
         TChunkReaderOptionsPtr options,
         NChunkClient::IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        NChunkClient::IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
         const TSharedRange<TKey>& keys,
@@ -715,24 +712,22 @@ DEFINE_REFCOUNTED_TYPE(THorizontalSchemalessLookupChunkReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
-    const TChunkSpec& chunkSpec,
+    const TChunkStatePtr& chunkState,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    NChunkClient::IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TNullable<int> partitionTag)
     : THorizontalSchemalessChunkReaderBase(
-        chunkSpec,
+        chunkState,
         std::move(config),
         std::move(options),
         std::move(underlyingReader),
         std::move(nameTable),
-        std::move(blockCache),
         keyColumns,
         columnFilter,
         std::move(partitionTag))
@@ -892,17 +887,16 @@ class TColumnarSchemalessRangeChunkReader
 {
 public:
     TColumnarSchemalessRangeChunkReader(
-        const TChunkSpec& chunkSpec,
+        const TChunkStatePtr& chunkState,
         TChunkReaderConfigPtr config,
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
         const TReadRange& readRange)
         : TSchemalessChunkReaderBase(
-            chunkSpec,
+            chunkState,
             config,
             options,
             underlyingReader->GetChunkId(),
@@ -912,7 +906,7 @@ public:
         , TColumnarRangeChunkReaderBase(
             config,
             underlyingReader,
-            blockCache)
+            chunkState->BlockCache)
     {
         LOG_DEBUG("Reading range %v", readRange);
 
@@ -1083,8 +1077,7 @@ private:
         TNameTablePtr chunkNameTable;
 
         if (Options_->DynamicTable) {
-            auto chunkMeta = ChunkSpec_.chunk_meta();
-            ChunkMeta_ = New<TColumnarChunkMeta>(std::move(chunkMeta));
+            ChunkMeta_ = ChunkState_->ChunkMeta;
             chunkNameTable = TNameTable::FromSchema(ChunkMeta_->ChunkSchema());
         } else {
             // Download chunk meta.
@@ -1340,18 +1333,17 @@ class TColumnarSchemalessLookupChunkReader
 {
 public:
     TColumnarSchemalessLookupChunkReader(
-        const TChunkSpec& chunkSpec,
+        const TChunkStatePtr& chunkState,
         TChunkReaderConfigPtr config,
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
         const TSharedRange<TKey>& keys,
         TChunkReaderPerformanceCountersPtr performanceCounters)
         : TSchemalessChunkReaderBase(
-            chunkSpec,
+            chunkState,
             config,
             options,
             underlyingReader->GetChunkId(),
@@ -1361,7 +1353,7 @@ public:
         , TColumnarLookupChunkReaderBase(
             config,
             underlyingReader,
-            blockCache)
+            chunkState->BlockCache)
         , PerformanceCounters_(std::move(performanceCounters))
     {
         Keys_ = keys;
@@ -1488,8 +1480,7 @@ private:
         TNameTablePtr chunkNameTable;
 
         if (Options_->DynamicTable) {
-            auto chunkMeta = ChunkSpec_.chunk_meta();
-            ChunkMeta_ = New<TColumnarChunkMeta>(std::move(chunkMeta));
+            ChunkMeta_ = ChunkState_->ChunkMeta;
             chunkNameTable = TNameTable::FromSchema(ChunkMeta_->ChunkSchema());
         } else {
             // Download chunk meta.
@@ -1622,17 +1613,18 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    const NChunkClient::NProto::TChunkSpec& chunkSpec,
+    const TChunkStatePtr& chunkState,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    NChunkClient::IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
     TNullable<int> partitionTag)
 {
+    const auto& chunkSpec = chunkState->ChunkSpec;
+
     ETableChunkFormat formatVersion = ETableChunkFormat::SchemalessHorizontal;
     if (chunkSpec.has_chunk_meta()) {
         auto type = EChunkType(chunkSpec.chunk_meta().type());
@@ -1643,12 +1635,11 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     switch (formatVersion) {
         case ETableChunkFormat::SchemalessHorizontal:
             return New<THorizontalSchemalessRangeChunkReader>(
-                chunkSpec,
+                chunkState,
                 config,
                 options,
                 underlyingReader,
                 nameTable,
-                blockCache,
                 keyColumns,
                 columnFilter,
                 readRange,
@@ -1656,12 +1647,11 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
 
         case ETableChunkFormat::UnversionedColumnar:
             return New<TColumnarSchemalessRangeChunkReader>(
-                chunkSpec,
+                chunkState,
                 config,
                 options,
                 underlyingReader,
                 nameTable,
-                blockCache,
                 keyColumns,
                 columnFilter,
                 readRange);
@@ -1674,18 +1664,19 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    const NChunkClient::NProto::TChunkSpec& chunkSpec,
+    const TChunkStatePtr& chunkState,
     TChunkReaderConfigPtr config,
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    NChunkClient::IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TNullable<int> partitionTag)
 {
+    const auto& chunkSpec = chunkState->ChunkSpec;
+
     ETableChunkFormat formatVersion = ETableChunkFormat::SchemalessHorizontal;
     if (chunkSpec.has_chunk_meta()) {
         auto type = EChunkType(chunkSpec.chunk_meta().type());
@@ -1696,12 +1687,11 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     switch (formatVersion) {
         case ETableChunkFormat::SchemalessHorizontal:
             return New<THorizontalSchemalessLookupChunkReader>(
-                chunkSpec,
+                chunkState,
                 std::move(config),
                 std::move(options),
                 std::move(underlyingReader),
                 std::move(nameTable),
-                std::move(blockCache),
                 keyColumns,
                 columnFilter,
                 keys,
@@ -1710,12 +1700,11 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
 
         case ETableChunkFormat::UnversionedColumnar:
             return New<TColumnarSchemalessLookupChunkReader>(
-                chunkSpec,
+                chunkState,
                 std::move(config),
                 std::move(options),
                 std::move(underlyingReader),
                 std::move(nameTable),
-                std::move(blockCache),
                 keyColumns,
                 columnFilter,
                 keys,
@@ -1782,13 +1771,20 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit()
                     };
 
-                    return CreateSchemalessChunkReader(
+                    auto chunkState = New<TChunkState>(
+                        blockCache,
                         chunkSpec,
+                        nullptr,
+                        nullptr,
+                        nullptr,
+                        nullptr);
+
+                    return CreateSchemalessChunkReader(
+                        std::move(chunkState),
                         PatchConfig(config, memoryEstimate),
                         options,
                         remoteReader,
                         nameTable,
-                        blockCache,
                         keyColumns,
                         columnFilter.All ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                         range,
@@ -2524,16 +2520,21 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             versionedReadSchema);
         auto chunkMeta = WaitFor(asyncChunkMeta)
             .ValueOrThrow();
+        auto chunkState = New<TChunkState>(
+            blockCache,
+            chunkSpec,
+            std::move(chunkMeta),
+            nullptr,
+            performanceCounters,
+            nullptr);
 
         return CreateVersionedChunkReader(
             config,
             std::move(chunkReader),
-            blockCache,
-            std::move(chunkMeta),
+            std::move(chunkState),
             lowerLimit.GetKey(),
             upperLimit.GetKey(),
             TColumnFilter(),
-            performanceCounters,
             timestamp,
             false);
     };

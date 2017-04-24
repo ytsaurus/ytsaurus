@@ -20,7 +20,7 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/table_client/cache_based_versioned_chunk_reader.h>
+#include <yt/ytlib/table_client/chunk_lookup_hash_table.h>
 
 #include <yt/core/compression/codec.h>
 

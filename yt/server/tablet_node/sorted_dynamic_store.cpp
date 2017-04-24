@@ -13,6 +13,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/ytlib/table_client/chunk_state.h>
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/ytlib/table_client/versioned_chunk_writer.h>
@@ -1843,17 +1844,24 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
         auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(chunkReader, TWorkloadDescriptor(), Schema_);
         auto cachedMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();
+        TChunkSpec chunkSpec;
+        ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
+        auto chunkState = New<TChunkState>(
+            GetNullBlockCache(),
+            chunkSpec,
+            std::move(cachedMeta),
+            nullptr,
+            New<TChunkReaderPerformanceCounters>(),
+            nullptr);
 
         auto tableReaderConfig = New<TTabletChunkReaderConfig>();
         auto tableReader = CreateVersionedChunkReader(
             tableReaderConfig,
             chunkReader,
-            GetNullBlockCache(),
-            cachedMeta,
+            chunkState,
             MinKey(),
             MaxKey(),
             TColumnFilter(),
-            New<TChunkReaderPerformanceCounters>(),
             AllCommittedTimestamp,
             true);
         WaitFor(tableReader->Open())
