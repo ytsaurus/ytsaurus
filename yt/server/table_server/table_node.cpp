@@ -135,7 +135,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
         Load(context, ReplicationMode_);
     }
     // COMPAT(babenko)
-    if (context.GetVersion() >= 600) {
+    if (context.GetVersion() >= 601) {
         Load(context, OptimizeFor_);
     } else {
         if (Attributes_) {
