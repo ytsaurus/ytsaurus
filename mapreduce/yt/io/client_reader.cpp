@@ -121,8 +121,9 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
                     ranges.push_back(TReadRange());
                 } else {
                     if (rangeIndex.GetOrElse(0) >= ranges.size()) {
-                        LOG_FATAL("Range index %" PRIu32 " is out of range, input ranges count is %" PRISZT,
-                            rangeIndex.GetOrElse(0), ranges.size());
+                        ythrow yexception()
+                            << "range index " << rangeIndex.GetOrElse(0)
+                            << " is out of range, input range count is " << ranges.size();
                     }
                     ranges.erase(ranges.begin(), ranges.begin() + rangeIndex.GetOrElse(0));
                 }
