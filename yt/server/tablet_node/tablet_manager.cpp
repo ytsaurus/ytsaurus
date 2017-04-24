@@ -2310,18 +2310,24 @@ private:
             store->GetId(),
             backingStore->GetId());
 
-        auto callback = BIND([=, this_ = MakeStrong(this)] () {
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
-            store->SetBackingStore(nullptr);
-            LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());
-        });
         TDelayedExecutor::Submit(
             // NB: Submit the callback via the regular automaton invoker, not the epoch one since
             // we need the store to be released even if the epoch ends.
-            callback.Via(Slot_->GetAutomatonInvoker()),
+            BIND(&TTabletManager::TImpl::ReleaseBackingStore, MakeWeak(this), MakeWeak(store))
+                .Via(Slot_->GetAutomatonInvoker()),
             tablet->GetConfig()->BackingStoreRetentionTime);
     }
 
+    void ReleaseBackingStore(TWeakPtr<IChunkStore> storeWeak)
+    {
+        auto store = storeWeak.Lock();
+        if (!store) {
+            return;
+        }
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        store->SetBackingStore(nullptr);
+        LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());
+    }
 
     void BuildTabletOrchidYson(TTablet* tablet, IYsonConsumer* consumer)
     {
