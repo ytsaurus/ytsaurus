@@ -1081,7 +1081,8 @@ protected:
         {
             i64 outputRowCount = 0;
             for (auto& jobOutput : JobOutputs_) {
-                outputRowCount += GetTotalOutputDataStatistics(jobOutput.JobSummary.Statistics).row_count();
+                YCHECK(jobOutput.JobSummary.Statistics);
+                outputRowCount += GetTotalOutputDataStatistics(*jobOutput.JobSummary.Statistics).row_count();
             }
             return outputRowCount;
         }
