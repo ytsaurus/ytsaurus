@@ -145,7 +145,6 @@ private:
     {
         return &account->Acd();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,9 +192,7 @@ private:
     }
 
     virtual IObjectProxyPtr DoGetProxy(TUser* user, TTransaction* transaction) override;
-
     virtual void DoZombifyObject(TUser* user) override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -243,9 +240,7 @@ private:
     }
 
     virtual IObjectProxyPtr DoGetProxy(TGroup* group, TTransaction* transaction) override;
-
     virtual void DoZombifyObject(TGroup* group) override;
-
 };
 
 /////////////////////////////////////////////////////////////////////////// /////
@@ -382,8 +377,9 @@ public:
         YCHECK(account);
 
         auto* oldAccount = node->GetAccount();
-        if (oldAccount == account)
+        if (oldAccount == account) {
             return;
+        }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
@@ -404,8 +400,9 @@ public:
     void ResetAccount(TCypressNodeBase* node)
     {
         auto* account = node->GetAccount();
-        if (!account)
+        if (!account) {
             return;
+        }
 
         UpdateAccountResourceUsage(node, account, -1);
 
@@ -439,8 +436,9 @@ public:
     void UpdateAccountNodeUsage(TCypressNodeBase* node)
     {
         auto* account = node->GetAccount();
-        if (!account)
+        if (!account) {
             return;
+        }
 
         UpdateAccountResourceUsage(node, account, -1);
 
@@ -451,10 +449,13 @@ public:
 
     void SetNodeResourceAccounting(TCypressNodeBase* node, bool enable)
     {
-        if (node->GetAccountingEnabled() != enable) {
-            node->SetAccountingEnabled(enable);
-            UpdateAccountNodeUsage(node);
+        if (node->GetAccountingEnabled() == enable) {
+            return;
         }
+
+        node->SetAccountingEnabled(enable);
+
+        UpdateAccountNodeUsage(node);
     }
 
     void UpdateAccountStagingUsage(
@@ -462,11 +463,14 @@ public:
         TAccount* account,
         const TClusterResources& delta)
     {
-        if (!transaction->GetAccountingEnabled())
+        if (!transaction->GetAccountingEnabled()) {
             return;
+        }
 
         account->ClusterStatistics().ResourceUsage += delta;
         account->LocalStatistics().ResourceUsage += delta;
+
+        CheckSanity(account);
 
         auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
         *transactionUsage += delta;
@@ -1143,6 +1147,8 @@ private:
             account->LocalStatistics().CommittedResourceUsage += resourceUsage;
         }
 
+        CheckSanity(account);
+
         auto* transactionUsage = FindTransactionAccountUsage(node);
         if (transactionUsage) {
             *transactionUsage += resourceUsage;
@@ -1368,7 +1374,6 @@ private:
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
         // COMPAT(babenko)
-        RecomputeNodeResourceUsage_ = context.GetVersion() < 601;
         ValidateAccountResourceUsage_ = context.GetVersion() >= 601;
         RecomputeAccountResourceUsage_ = context.GetVersion() < 601;
     }
@@ -1421,7 +1426,7 @@ private:
         }
 
         // COMPAT(babenko)
-        if (ValidateAccountResourceUsage_) {
+        if (ValidateAccountResourceUsage_ || RecomputeAccountResourceUsage_) {
             struct TStat
             {
                 TClusterResources NodeUsage;
@@ -1468,32 +1473,34 @@ private:
                 bool log = false;
                 auto expectedUsage = stat.NodeUsage + stat.StagingUsage;
                 auto expectedCommittedUsage = stat.NodeCommittedUsage;
-                if (account->LocalStatistics().ResourceUsage != expectedUsage) {
-                    LOG_ERROR("Unexpected error: %v account usage mismatch",
-                        account->GetName());
-                    log = true;
-                }
-                if (account->LocalStatistics().CommittedResourceUsage != expectedCommittedUsage) {
-                    LOG_ERROR("Unexpected error: %v account committed usage mismatch",
-                        account->GetName());
-                    log = true;
-                }
-                if (log) {
-                    LOG_ERROR("XXX %v account usage %v",
-                        account->GetName(),
-                        account->LocalStatistics().ResourceUsage);
-                    LOG_ERROR("XXX %v account committed usage %v",
-                        account->GetName(),
-                        account->LocalStatistics().CommittedResourceUsage);
-                    LOG_ERROR("XXX %v node usage %v",
-                        account->GetName(),
-                        stat.NodeUsage);
-                    LOG_ERROR("XXX %v node committed usage %v",
-                        account->GetName(),
-                        stat.NodeCommittedUsage);
-                    LOG_ERROR("XXX %v staging usage %v",
-                        account->GetName(),
-                        stat.StagingUsage);
+                if (ValidateAccountResourceUsage_) {
+                    if (account->LocalStatistics().ResourceUsage != expectedUsage) {
+                        LOG_ERROR("XXX %v account usage mismatch",
+                            account->GetName());
+                        log = true;
+                    }
+                    if (account->LocalStatistics().CommittedResourceUsage != expectedCommittedUsage) {
+                        LOG_ERROR("XXX %v account committed usage mismatch",
+                            account->GetName());
+                        log = true;
+                    }
+                    if (log) {
+                        LOG_ERROR("XXX %v account usage %v",
+                            account->GetName(),
+                            account->LocalStatistics().ResourceUsage);
+                        LOG_ERROR("XXX %v account committed usage %v",
+                            account->GetName(),
+                            account->LocalStatistics().CommittedResourceUsage);
+                        LOG_ERROR("XXX %v node usage %v",
+                            account->GetName(),
+                            stat.NodeUsage);
+                        LOG_ERROR("XXX %v node committed usage %v",
+                            account->GetName(),
+                            stat.NodeCommittedUsage);
+                        LOG_ERROR("XXX %v staging usage %v",
+                            account->GetName(),
+                            stat.StagingUsage);
+                    }
                 }
                 if (RecomputeAccountResourceUsage_) {
                     account->LocalStatistics().ResourceUsage = expectedUsage;
@@ -2018,6 +2025,18 @@ private:
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Subject name cannot be empty");
+        }
+    }
+
+
+    // XXX(babenko)
+    static void CheckSanity(TAccount* account)
+    {
+        // XXX(babenko)
+        if (account->LocalStatistics().ResourceUsage.DiskSpace[NChunkClient::DefaultStoreMediumIndex] <
+            account->LocalStatistics().CommittedResourceUsage.DiskSpace[NChunkClient::DefaultStoreMediumIndex])
+        {
+            LOG_ERROR("Unexpected error: usage < committed usage for %v", account->GetName());
         }
     }
 };

@@ -3616,10 +3616,10 @@ void TOperationControllerBase::CreateLivePreviewTables()
                             .Item().Value("read")
                         .EndList()
                     .EndMap()
-                    .DoFor(Spec->IntermediateDataAcl->AsList()->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
+                    .DoFor(Spec->IntermediateDataAcl->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
                         fluent.Item().Value(node);
                     })
-                    .DoFor(Config->AdditionalIntermediateDataAcl->AsList()->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
+                    .DoFor(Config->AdditionalIntermediateDataAcl->GetChildren(), [] (TFluentList fluent, const INodePtr& node) {
                         fluent.Item().Value(node);
                     })
                 .EndList(),

@@ -1059,6 +1059,8 @@ protected:
             Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, ActiveJoblets_);
             Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, InvalidatedJoblets_);
             Persist(context, JobOutputs_);
+            Persist(context, Finished_);
+            Persist(context, FrozenTotalJobCount_);
 
             if (context.IsLoad()) {
                 SetupCallbacks();
@@ -1075,6 +1077,25 @@ protected:
             return Controller->GetSortedMergeJobType();
         }
 
+        i64 GetOutputRowCount()
+        {
+            i64 outputRowCount = 0;
+            for (auto& jobOutput : JobOutputs_) {
+                outputRowCount += GetTotalOutputDataStatistics(jobOutput.JobSummary.Statistics).row_count();
+            }
+            return outputRowCount;
+        }
+
+        virtual int GetPendingJobCount() const override
+        {
+            return Finished_ ? 0 : TPartitionBoundTask::GetPendingJobCount();
+        }
+
+        virtual int GetTotalJobCount() const override
+        {
+            return Finished_ ? FrozenTotalJobCount_ : TPartitionBoundTask::GetTotalJobCount();
+        }
+
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeTask, 0x4ab19c75);
 
@@ -1082,6 +1103,13 @@ protected:
 
         yhash_set<TJobletPtr> ActiveJoblets_;
         yhash_set<TJobletPtr> InvalidatedJoblets_;
+        bool Finished_ = false;
+        //! This is a dirty hack to make GetTotalJobCount() work correctly
+        //! in case when chunk pool was invalidated after the task has been completed.
+        //! We want to "freeze" the total job count and the pending job count at the values
+        //! by that moment. For pending job count it should be equal to 0, while for total
+        //! job count we have to remember the exact value.
+        int FrozenTotalJobCount_ = 0;
 
         struct TJobOutput
         {
@@ -1107,6 +1135,10 @@ protected:
 
         void AbortAllActiveJoblets(const TError& error)
         {
+            if (Finished_) {
+                LOG_WARNING(error, "Pool output has been invalidated, but the task has already finished (Task: %v)", GetId());
+                return;
+            }
             LOG_WARNING(error, "Aborting all jobs in task because of pool output invalidation (Task: %v)", GetId());
             for (const auto& joblet : ActiveJoblets_) {
                 Controller->Host->GetJobHost(joblet->JobId)->AbortJob(
@@ -1188,9 +1220,12 @@ protected:
 
         virtual void OnTaskCompleted() override
         {
+            YCHECK(!Finished_);
             TMergeTask::OnTaskCompleted();
 
             RegisterAllOutputs();
+            FrozenTotalJobCount_ = TPartitionBoundTask::GetTotalJobCount();
+            Finished_ = true;
         }
     };
 
@@ -1253,7 +1288,7 @@ protected:
 
         virtual bool IsActive() const override
         {
-             return Controller->MergeStartThresholdReached && Partition->Maniac;
+            return Controller->MergeStartThresholdReached && Partition->Maniac;
         }
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
@@ -1487,7 +1522,18 @@ protected:
                 // since input row count can be estimated inaccurate.
                 i64 totalInputRowCount = 0;
                 for (auto partition : Partitions) {
-                    totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();
+                    i64 inputRowCount = partition->ChunkPoolOutput->GetTotalRowCount();
+                    totalInputRowCount += inputRowCount;
+                    if (IsSortedMergeNeeded(partition)) {
+                        i64 outputRowCount = partition->SortedMergeTask->GetOutputRowCount();
+                        if (inputRowCount != outputRowCount) {
+                            LOG_DEBUG("Input/output row count mismatch in sorted merge task "
+                                "(Task: %v, InputRowCount: %v, OutputRowCount: %v)",
+                                partition->SortedMergeTask->GetId(),
+                                inputRowCount,
+                                outputRowCount);
+                        }
+                    }
                 }
                 LOG_ERROR_IF(totalInputRowCount != TotalOutputRowCount,
                     "Input/output row count mismatch in sort operation (TotalInputRowCount: %v, TotalOutputRowCount: %v)",
