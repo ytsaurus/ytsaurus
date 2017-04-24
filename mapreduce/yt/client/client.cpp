@@ -747,27 +747,32 @@ public:
     void ExecuteBatch(const TBatchRequest& request, const TExecuteBatchOptions& options) override
     {
         request.Impl_->MarkExecuted();
-
         NDetail::TAttemptLimitedRetryPolicy retryPolicy(TConfig::Get()->RetryCount);
+
+        const auto concurrency = options.Concurrency_.GetOrElse(50);
+        const auto batchPartMaxSize = options.BatchPartMaxSize_.GetOrElse(concurrency * 5);
 
         try {
             while (request.Impl_->BatchSize()) {
-                TDuration retryInterval;
-                THttpHeader header("POST", "execute_batch");
-                auto parameters = TNode()("requests", request.Impl_->GetParameterList());
-                if (options.Concurrency_) {
-                    parameters["concurrency"] = *options.Concurrency_;
+                NDetail::TBatchRequestImpl retryBatch;
+                retryBatch.MarkExecuted();
+
+                while (request.Impl_->BatchSize()) {
+                    auto parameters = TNode::CreateMap();
+                    TInstant nextTry;
+                    request.Impl_->FillParameterList(batchPartMaxSize, &parameters["requests"], &nextTry);
+                    if (nextTry) {
+                        SleepUntil(nextTry);
+                    }
+                    parameters["concurrency"] = concurrency;
+                    auto body = NodeToYsonString(parameters);
+                    THttpHeader header("POST", "execute_batch");
+                    header.AddMutationId();
+                    auto result = RetryRequest(Auth_, header, body, retryPolicy);
+                    request.Impl_->ParseResponse(std::move(result), retryPolicy, &retryBatch);
                 }
-                header.SetParameters(parameters);
-                header.AddMutationId();
-                auto result = RetryRequest(Auth_, header, TStringBuf(), retryPolicy);
-                request.Impl_->ParseResponse(std::move(result), retryPolicy, &retryInterval);
-                if (request.Impl_->BatchSize()) {
-                    Y_VERIFY(retryInterval > TDuration::Zero(), "C++ API internal bug");
-                    Sleep(retryInterval);
-                    LOG_INFO("%ld subrequests of batch have retriable errors, will retry",
-                        request.Impl_->BatchSize());
-                }
+
+                *request.Impl_ = std::move(retryBatch);
             }
         } catch (const yexception& e) {
             request.Impl_->SetErrorResult(std::current_exception());

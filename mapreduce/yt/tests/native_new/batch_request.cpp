@@ -511,6 +511,57 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_EXCEPTION(batchRequest.Get("//testing/foo"), yexception);
         UNIT_ASSERT_EXCEPTION(client->ExecuteBatch(batchRequest), yexception);
     }
+
+    SIMPLE_UNIT_TEST(TestBatchPartMaxSize) {
+        auto client = CreateTestClient();
+        {
+            TBatchRequest batchRequest;
+            for (size_t i = 0; i < 100; ++i) {
+                TStringBuilder path;
+                path << "//testing/foo" << i;
+                batchRequest.Set(path, i);
+            }
+            client->ExecuteBatch(batchRequest);
+        }
+
+        yvector<NThreading::TFuture<TNode>> results;
+        TBatchRequest batchRequest;
+        for (size_t i = 0; i < 100; ++i) {
+            TStringBuilder path;
+            path << "//testing/foo" << i;
+            results.push_back(batchRequest.Get(path));
+        }
+        client->ExecuteBatch(batchRequest, TExecuteBatchOptions().Concurrency(5).BatchPartMaxSize(7));
+
+        for (size_t i = 0; i < 100; ++i) {
+            UNIT_ASSERT_VALUES_EQUAL(results[i].GetValue(), TNode(i));
+        }
+    }
+
+    SIMPLE_UNIT_TEST(TestBigRequest) {
+        auto client = CreateTestClient();
+        TBatchRequest batchRequest;
+        const Stroka aaa(32 * 1024, 'a');
+        const Stroka bbb(32 * 1024, 'b');
+        const Stroka ccc(32 * 1024, 'c');
+        const Stroka ddd(32 * 1024, 'd');
+        auto resA = batchRequest.Set("//testing/aaa", aaa);
+        auto resB = batchRequest.Set("//testing/bbb", bbb);
+        auto resC = batchRequest.Set("//testing/ccc", ccc);
+        auto resD = batchRequest.Set("//testing/ddd", ddd);
+        client->ExecuteBatch(batchRequest);
+
+        // Check no exceptions.
+        resA.GetValue();
+        resB.GetValue();
+        resC.GetValue();
+        resD.GetValue();
+
+        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/aaa"), TNode(aaa));
+        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/bbb"), TNode(bbb));
+        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/ccc"), TNode(ccc));
+        UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/ddd"), TNode(ddd));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////

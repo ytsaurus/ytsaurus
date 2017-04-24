@@ -214,6 +214,11 @@ struct TExecuteBatchOptions
     // How may requests will be executed in parallel on the cluster.
     // This parameter could be used to avoid RequestLimitExceeded errors.
     FLUENT_FIELD_OPTION(ui64, Concurrency);
+
+    // Huge batches are executed using multiple requests.
+    // BatchPartMaxSize is maximum size of single request that goes to server
+    // If not specified it is set to `Concurrency * 5'
+    FLUENT_FIELD_OPTION(ui64, BatchPartMaxSize);
 };
 
 enum class EDurability

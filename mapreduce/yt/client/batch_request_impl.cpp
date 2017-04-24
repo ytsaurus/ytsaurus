@@ -58,17 +58,6 @@ static void EnsureType(const TMaybe<TNode>& node, TNode::EType type)
 
 ////////////////////////////////////////////////////////////////////
 
-struct TBatchRequestImpl::IResponseItemParser
-    : public TThrRefBase
-{
-    ~IResponseItemParser() = default;
-
-    virtual void SetResponse(TMaybe<TNode> node) = 0;
-    virtual void SetException(std::exception_ptr e) = 0;
-};
-
-////////////////////////////////////////////////////////////////////
-
 template <typename TReturnType>
 class TResponseParserBase
     : public TBatchRequestImpl::IResponseItemParser
@@ -163,6 +152,20 @@ public:
 
 ////////////////////////////////////////////////////////////////////
 
+TBatchRequestImpl::TBatchItem::TBatchItem(TNode parameters, ::TIntrusivePtr<IResponseItemParser> responseParser)
+    : Parameters(std::move(parameters))
+    , ResponseParser(std::move(responseParser))
+    , NextTry()
+{ }
+
+TBatchRequestImpl::TBatchItem::TBatchItem(const TBatchItem& batchItem, TInstant nextTry)
+    : Parameters(batchItem.Parameters)
+    , ResponseParser(batchItem.ResponseParser)
+    , NextTry(nextTry)
+{ }
+
+////////////////////////////////////////////////////////////////////
+
 TBatchRequestImpl::TBatchRequestImpl() = default;
 
 TBatchRequestImpl::~TBatchRequestImpl() = default;
@@ -190,10 +193,17 @@ typename TResponseParser::TFutureResult TBatchRequestImpl::AddRequest(
     if (input) {
         request["input"] = std::move(*input);
     }
-    RequestList_.Add(std::move(request));
     auto parser = MakeIntrusive<TResponseParser>();
-    ResponseParserList_.push_back(parser);
+    BatchItemList_.emplace_back(std::move(request), parser);
     return parser->GetFuture();
+}
+
+void TBatchRequestImpl::AddRequest(TBatchItem batchItem)
+{
+    if (Executed_) {
+        ythrow yexception() << "Cannot add request: batch request is already executed";
+    }
+    BatchItemList_.push_back(batchItem);
 }
 
 TFuture<TNodeId> TBatchRequestImpl::Create(
@@ -308,77 +318,89 @@ TFuture<TLockId> TBatchRequestImpl::Lock(
         Nothing());
 }
 
-const TNode& TBatchRequestImpl::GetParameterList() const
+void TBatchRequestImpl::FillParameterList(size_t maxSize, TNode* result, TInstant* nextTry) const
 {
-    return RequestList_;
+    Y_VERIFY(result);
+    Y_VERIFY(nextTry);
+
+    *nextTry = TInstant();
+    maxSize = Min(maxSize, BatchItemList_.size());
+    *result = TNode::CreateList();
+    for (size_t i = 0; i < maxSize; ++i) {
+        result->Add(BatchItemList_[i].Parameters);
+        if (BatchItemList_[i].NextTry > *nextTry) {
+            *nextTry = BatchItemList_[i].NextTry;
+        }
+    }
 }
 
-void TBatchRequestImpl::ParseResponse(const TResponseInfo& requestResult, const IRetryPolicy& retryPolicy, TDuration* maxRetryInterval)
+void TBatchRequestImpl::ParseResponse(
+    const TResponseInfo& requestResult,
+    const IRetryPolicy& retryPolicy,
+    TBatchRequestImpl* retryBatch,
+    TInstant now)
 {
     TNode node = NodeFromYsonString(requestResult.Response);
-    return ParseResponse(node, requestResult.RequestId, retryPolicy, maxRetryInterval);
+    return ParseResponse(node, requestResult.RequestId, retryPolicy, retryBatch, now);
 }
 
-void TBatchRequestImpl::ParseResponse(TNode node, const Stroka& requestId, const IRetryPolicy& retryPolicy, TDuration* maxRetryInterval)
+void TBatchRequestImpl::ParseResponse(
+    TNode node,
+    const Stroka& requestId,
+    const IRetryPolicy& retryPolicy,
+    TBatchRequestImpl* retryBatch,
+    TInstant now)
 {
-    Y_VERIFY(maxRetryInterval);
-    *maxRetryInterval = TDuration::Zero();
-
+    Y_VERIFY(retryBatch);
 
     EnsureType(node, TNode::LIST);
-    auto& list = node.AsList();
-    const auto size = list.size();
-    if (size != ResponseParserList_.size()) {
-        ythrow yexception() << "Size of server response doesn't match size of batch request; "
-            " size of request: " << ResponseParserList_.size() <<
+    auto& responseList = node.AsList();
+    const auto size = responseList.size();
+    if (size > BatchItemList_.size()) {
+        ythrow yexception() << "Size of server response exceeds size of batch request; "
+            " size of batch: " << BatchItemList_.size() <<
             " size of server response: " << size << '.';
     }
 
-    TNode retryRequestList = TNode::CreateList();
-    yvector<::TIntrusivePtr<IResponseItemParser>> retryResponseParserList;
     for (size_t i = 0; i != size; ++i) {
         try {
-            EnsureType(list[i], TNode::MAP);
-            auto& responseNode = list[i].AsMap();
+            EnsureType(responseList[i], TNode::MAP);
+            auto& responseNode = responseList[i].AsMap();
             const auto outputIt = responseNode.find("output");
             if (outputIt != responseNode.end()) {
-                ResponseParserList_[i]->SetResponse(std::move(outputIt->second));
+                BatchItemList_[i].ResponseParser->SetResponse(std::move(outputIt->second));
             } else {
                 const auto errorIt = responseNode.find("error");
                 if (errorIt == responseNode.end()) {
-                    ResponseParserList_[i]->SetResponse(Nothing());
+                    BatchItemList_[i].ResponseParser->SetResponse(Nothing());
                 } else {
                     TErrorResponse error(400, requestId);
                     error.SetError(TError(errorIt->second));
                     if (auto curInterval = retryPolicy.GetRetryInterval(error)) {
-                        retryRequestList.AsList().emplace_back(std::move(RequestList_[i]));
-                        retryResponseParserList.emplace_back(ResponseParserList_[i]);
-                        *maxRetryInterval = Max(*curInterval, *maxRetryInterval);
+                        retryBatch->AddRequest(TBatchItem(BatchItemList_[i], now + *curInterval));
                     } else {
-                        ResponseParserList_[i]->SetException(std::make_exception_ptr(error));
+                        BatchItemList_[i].ResponseParser->SetException(std::make_exception_ptr(error));
                     }
                 }
             }
         } catch (const yexception& e) {
             // We don't expect other exceptions, so we don't catch (...)
-            ResponseParserList_[i]->SetException(std::current_exception());
+            BatchItemList_[i].ResponseParser->SetException(std::current_exception());
         }
     }
-    RequestList_ = std::move(retryRequestList);
-    ResponseParserList_ = std::move(retryResponseParserList);
+    BatchItemList_.erase(BatchItemList_.begin(), BatchItemList_.begin() + size);
 }
 
 void TBatchRequestImpl::SetErrorResult(std::exception_ptr e) const
 {
-    for (const auto& parser : ResponseParserList_) {
-        parser->SetException(e);
+    for (const auto& batchItem : BatchItemList_) {
+        batchItem.ResponseParser->SetException(e);
     }
 }
 
 size_t TBatchRequestImpl::BatchSize() const
 {
-    Y_VERIFY(ResponseParserList_.size() == RequestList_.AsList().size(), "Internal C++ YT wrapper bug");
-    return ResponseParserList_.size();
+    return BatchItemList_.size();
 }
 
 ////////////////////////////////////////////////////////////////////
