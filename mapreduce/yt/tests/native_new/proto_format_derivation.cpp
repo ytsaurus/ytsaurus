@@ -147,7 +147,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
                 new TUnspecifiedInputReducer,
                 TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
             UNIT_FAIL("operation was expected to fail");
-        } catch (const yexception&) {
+        } catch (const TApiUsageError&) {
         }
     }
 
@@ -182,7 +182,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
                 TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
 
             UNIT_FAIL("operation was expected to fail");
-        } catch (const yexception&) {
+        } catch (const TApiUsageError&) {
         }
     }
 
@@ -218,7 +218,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
                 TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
 
             UNIT_FAIL("operation was expected to fail");
-        } catch (const yexception&) {
+        } catch (const TApiUsageError&) {
         }
     }
 
@@ -253,7 +253,7 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
                 TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
 
             UNIT_FAIL("operation was expected to fail");
-        } catch (const yexception&) {
+        } catch (const TApiUsageError&) {
         }
     }
 

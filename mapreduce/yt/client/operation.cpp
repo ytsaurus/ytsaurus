@@ -753,7 +753,7 @@ void BuildUserJobFluently(
             .Value("yson");
         } else {
             if (outputDesc.ProtoDescriptors.empty()) {
-                ythrow yexception() << "messages for output_format are unknown (empty ProtoDescriptors)";
+                ythrow TApiUsageError() << "messages for output_format are unknown (empty ProtoDescriptors)";
             }
             auto config = MakeProtoFormatConfig(outputDesc.ProtoDescriptors);
             fluent.Item("output_format").Value(config);

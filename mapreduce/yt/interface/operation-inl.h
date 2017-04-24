@@ -5,6 +5,8 @@
 #endif
 #undef OPERATION_INL_H_
 
+#include "errors.h"
+
 #include <util/generic/bt_exception.h>
 #include <util/generic/singleton.h>
 #include <util/generic/type_name.h>
@@ -201,6 +203,9 @@ template <class TDerived>
 template <class TRow>
 TDerived& TIntermediateTablesHintSpec<TDerived>::HintMapOutput()
 {
+    if (!MapOutputHintDesc_.ProtoDescriptors.empty()) {
+        ythrow TApiUsageError() << "HintMapOutput cannot be called multiple times";
+    }
     TOperationIOSpecBase::TFormatAdder<TRow>::Add(MapOutputHintDesc_);
     return *static_cast<TDerived*>(this);
 }
@@ -209,6 +214,9 @@ template <class TDerived>
 template <class TRow>
 TDerived& TIntermediateTablesHintSpec<TDerived>::HintReduceCombinerInput()
 {
+    if (!ReduceCombinerInputHintDesc_.ProtoDescriptors.empty()) {
+        ythrow TApiUsageError() << "HintReduceCombinerInput cannot be called multiple times";
+    }
     TOperationIOSpecBase::TFormatAdder<TRow>::Add(ReduceCombinerInputHintDesc_);
     return *static_cast<TDerived*>(this);
 }
@@ -217,6 +225,9 @@ template <class TDerived>
 template <class TRow>
 TDerived& TIntermediateTablesHintSpec<TDerived>::HintReduceCombinerOutput()
 {
+    if (!ReduceCombinerOutputHintDesc_.ProtoDescriptors.empty()) {
+        ythrow TApiUsageError() << "HintReduceCombinerOutput cannot be called multiple times";
+    }
     TOperationIOSpecBase::TFormatAdder<TRow>::Add(ReduceCombinerOutputHintDesc_);
     return *static_cast<TDerived*>(this);
 }
@@ -225,6 +236,9 @@ template <class TDerived>
 template <class TRow>
 TDerived& TIntermediateTablesHintSpec<TDerived>::HintReduceInput()
 {
+    if (!ReduceInputHintDesc_.ProtoDescriptors.empty()) {
+        ythrow TApiUsageError() << "HintReduceInput cannot be called multiple times";
+    }
     TOperationIOSpecBase::TFormatAdder<TRow>::Add(ReduceInputHintDesc_);
     return *static_cast<TDerived*>(this);
 }
@@ -463,8 +477,8 @@ void CheckFormats(const char *jobName, const char* direction, const TMultiFormat
     if (desc.Format != TMultiFormatDesc::F_NONE &&
         TFormatDescTraits<TRow>::Format != desc.Format)
     {
-        ythrow yexception() <<
-            Sprintf("cannot match %s type and %s descriptor", jobName, direction);
+        ythrow TApiUsageError()
+            << "cannot match " << jobName << " type and " << direction << " descriptor";
     }
 }
 
