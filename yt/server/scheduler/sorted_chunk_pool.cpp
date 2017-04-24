@@ -1,4 +1,5 @@
 #include "sorted_chunk_pool.h"
+#include "sorted_chunk_pool.h"
 
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/ytlib/table_client/row_buffer.h>
@@ -333,13 +334,13 @@ public:
 
     void Suspend(IChunkPoolInput::TCookie inputCookie)
     {
+        YCHECK(SuspendedInputCookies_.insert(inputCookie).second);
+
         if (InputCookieToAffectedOutputCookies_.size() <= inputCookie) {
-            // This may happen if the input cookie is large enough but it didn't actually produce
-            // any slice that made it to the final data (e.g. it was foreign and useless for the given primary input).
+            // This may happen if jobs that use this input were not added yet
+            // (note that suspend may happen in Finish() before DoFinish()).
             return;
         }
-
-        YCHECK(SuspendedInputCookies_.insert(inputCookie).second);
 
         for (auto outputCookie : InputCookieToAffectedOutputCookies_[inputCookie]) {
             Jobs_[outputCookie].ChangeSuspendedStripeCountBy(+1);
