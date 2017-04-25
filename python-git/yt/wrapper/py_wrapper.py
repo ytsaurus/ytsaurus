@@ -476,7 +476,7 @@ def build_main_file_arguments(function, create_temp_file, file_argument_builder)
         else:
             main_module = sys.modules["__main__"]
             function_source_filename = main_module.__file__
-            if main_module.__package__ is not None:
+            if main_module.__package__ is not None and main_module.__package__:
                 module_import_path = "{0}.{1}".format(main_module.__package__, main_module.__name__)
             if function_source_filename.endswith("pyc"):
                 main_module_type = "PY_COMPILED"
