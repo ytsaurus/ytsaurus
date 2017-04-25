@@ -24,6 +24,9 @@ public:
     //! Capacity of internal buffer used to amortize and de-contend touch operations.
     int TouchBufferCapacity;
 
+    //! Number of shards.
+    int ShardCount;
+
     explicit TSlruCacheConfig(i64 capacity = 0)
     {
         RegisterParameter("capacity", Capacity)
@@ -34,6 +37,9 @@ public:
             .InRange(0.0, 1.0);
         RegisterParameter("touch_buffer_capacity", TouchBufferCapacity)
             .Default(65536)
+            .GreaterThan(0);
+        RegisterParameter("shard_count", ShardCount)
+            .Default(1)
             .GreaterThan(0);
     }
 };
