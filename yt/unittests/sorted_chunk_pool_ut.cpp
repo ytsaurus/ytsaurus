@@ -2452,6 +2452,45 @@ TEST_F(TSortedChunkPoolTest, TestSeveralSlicesInInputStripe)
     EXPECT_EQ(2, stripeLists[0]->Stripes[1]->DataSlices.size());
 }
 
+TEST_F(TSortedChunkPoolTest, SuspendFinishResumeTest)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false} /* isForeign */,
+        {false} /* isTeleportable */,
+        {false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(BuildRow({1}), BuildRow({1}), 0);
+    auto chunkB = CreateChunk(BuildRow({2}), BuildRow({2}), 0);
+    auto chunkC = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    SuspendChunk(0, chunkA);
+    SuspendChunk(2, chunkC);
+
+    ChunkPool_->Finish();
+
+    ResumeChunk(0, chunkA);
+    ResumeChunk(2, chunkC);
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_EQ(1, stripeLists.size());
+    EXPECT_EQ(1, stripeLists[0]->Stripes.size());
+    EXPECT_EQ(3, stripeLists[0]->Stripes[0]->DataSlices.size());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedChunkPoolTestRandomized

@@ -3095,7 +3095,10 @@ private:
                 auto* oldTabletChunkList = chunkLists[index]->AsChunkList();
                 auto* newTabletChunkList = chunkManager->CreateChunkList(oldTabletChunkList->GetKind());
                 newTabletChunkList->SetPivotKey(oldTabletChunkList->GetPivotKey());
-                chunkManager->AttachToChunkList(newTabletChunkList, oldTabletChunkList->Children());
+                chunkManager->AttachToChunkList(
+                    newTabletChunkList,
+                    oldTabletChunkList->Children().data() + oldTabletChunkList->GetTrimmedChildCount(),
+                    oldTabletChunkList->Children().data() + oldTabletChunkList->Children().size());
                 chunkManager->AttachToChunkList(newRootChunkList, newTabletChunkList);
             }
 
@@ -3119,7 +3122,10 @@ private:
                 if (objectManager->GetObjectRefCounter(oldTabletChunkList) > 1) {
                     auto* newTabletChunkList = chunkManager->CreateChunkList(oldTabletChunkList->GetKind());
                     newTabletChunkList->SetPivotKey(oldTabletChunkList->GetPivotKey());
-                    chunkManager->AttachToChunkList(newTabletChunkList, oldTabletChunkList->Children());
+                    chunkManager->AttachToChunkList(
+                        newTabletChunkList,
+                        oldTabletChunkList->Children().data() + oldTabletChunkList->GetTrimmedChildCount(),
+                        oldTabletChunkList->Children().data() + oldTabletChunkList->Children().size());
                     chunkLists[index] = newTabletChunkList;
 
                     // TODO(savrus): make a helper to replace a tablet chunk list.

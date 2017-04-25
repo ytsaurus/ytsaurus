@@ -610,6 +610,38 @@ class TestAcls(YTEnvSetup):
     def test_check_permission_for_virtual_maps(self):
         assert check_permission("guest", "read", "//sys/chunks")["action"] == "allow"
 
+    def test_owner_user(self):
+        create("map_node", "//tmp/x")
+        create_user("u1")
+        create_user("u2")
+        create("table", "//tmp/x/1", authenticated_user="u1")
+        create("table", "//tmp/x/2", authenticated_user="u2")
+        assert get("//tmp/x/1/@owner") == "u1"
+        assert get("//tmp/x/2/@owner") == "u2"
+        set("//tmp/x/@inherit_acl", False)
+        set("//tmp/x/@acl", [make_ace("allow", "owner", "remove")])
+        assert check_permission("u2", "remove", "//tmp/x/1")["action"] == "deny"
+        assert check_permission("u1", "remove", "//tmp/x/2")["action"] == "deny"
+        assert check_permission("u1", "remove", "//tmp/x/1")["action"] == "allow"
+        assert check_permission("u2", "remove", "//tmp/x/2")["action"] == "allow"
+
+    def test_owner_group(self):
+        create("map_node", "//tmp/x")
+        create_user("u1")
+        create_user("u2")
+        create_group("g")
+        add_member("u1", "g")
+        create("table", "//tmp/x/1")
+        set("//tmp/x/1/@owner", "g")
+        assert get("//tmp/x/1/@owner") == "g"
+        set("//tmp/x/@inherit_acl", False)
+        set("//tmp/x/@acl", [make_ace("allow", "owner", "remove")])
+        assert check_permission("u1", "remove", "//tmp/x/1")["action"] == "allow"
+        assert check_permission("u2", "remove", "//tmp/x/1")["action"] == "deny"
+
+    def test_no_owner_auth(self):
+        with pytest.raises(YtError): get("//tmp", authenticated_user="owner")
+
 ##################################################################
 
 class TestAclsMulticell(TestAcls):

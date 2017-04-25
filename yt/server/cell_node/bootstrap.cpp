@@ -470,10 +470,12 @@ void TBootstrap::DoRun()
 
     MasterCacheService = CreateMasterCacheService(
         Config->MasterCacheService,
-        CreatePeerChannel(
-            Config->ClusterConnection->PrimaryMaster,
-            MasterConnection->GetLightChannelFactory(),
-            EPeerKind::Follower),
+        CreateDefaultTimeoutChannel(
+            CreatePeerChannel(
+                Config->ClusterConnection->PrimaryMaster,
+                MasterConnection->GetLightChannelFactory(),
+                EPeerKind::Follower),
+            Config->ClusterConnection->PrimaryMaster->RpcTimeout),
         GetCellId());
 
     CellDirectorySynchronizer->Start();
