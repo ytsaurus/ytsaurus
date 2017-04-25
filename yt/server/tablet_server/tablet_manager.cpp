@@ -2307,7 +2307,10 @@ private:
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* tabletChunkList = chunkLists[index]->AsChunkList();
                 auto* newTabletChunkList = chunkManager->CreateChunkList(!table->IsPhysicallySorted());
-                chunkManager->AttachToChunkList(newTabletChunkList, tabletChunkList->Children());
+                chunkManager->AttachToChunkList(
+                    newTabletChunkList,
+                    tabletChunkList->Children().data() + tabletChunkList->GetTrimmedChildCount(),
+                    tabletChunkList->Children().data() + tabletChunkList->Children().size());
                 chunkManager->AttachToChunkList(newRootChunkList, newTabletChunkList);
             }
 
@@ -2330,7 +2333,10 @@ private:
                 auto* tabletChunkList = chunkLists[index]->AsChunkList();
                 if (objectManager->GetObjectRefCounter(tabletChunkList) > 1) {
                     auto* newTabletChunkList = chunkManager->CreateChunkList(!table->IsPhysicallySorted());
-                    chunkManager->AttachToChunkList(newTabletChunkList, tabletChunkList->Children());
+                    chunkManager->AttachToChunkList(
+                        newTabletChunkList,
+                        tabletChunkList->Children().data() + tabletChunkList->GetTrimmedChildCount(),
+                        tabletChunkList->Children().data() + tabletChunkList->Children().size());
                     chunkLists[index] = newTabletChunkList;
 
                     // TODO(savrus): make a helper to replace a tablet chunk list.
