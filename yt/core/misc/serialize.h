@@ -679,7 +679,6 @@ struct TVariantSerializer
     static void Load(C& context, TVariant<Ts...>& variant)
     {
         int tag = NYT::Load<int>(context);
-        YCHECK(tag >= 0 && tag < sizeof...(Ts));
         TVariantSerializerTraits<Ts...>::Load(context, variant.Tag(), variant);
     }
 };
