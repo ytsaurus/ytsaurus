@@ -283,6 +283,7 @@ public:
         JobUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffd);
         SchedulerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffc);
         ReplicatorUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffb);
+        OwnerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffa);
 
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
@@ -562,6 +563,11 @@ public:
         return GetBuiltin(GuestUser_);
     }
 
+    TUser* GetOwnerUser()
+    {
+        return GetBuiltin(OwnerUser_);
+    }
+
 
     TGroup* CreateGroup(const Stroka& name, const TObjectId& hintId)
     {
@@ -826,6 +832,7 @@ public:
         // Slow lane: check ACLs through the object hierarchy.
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* currentObject = object;
+        TSubject* owner = nullptr;
         int depth = 0;
         while (currentObject) {
             const auto& handler = objectManager->GetHandler(currentObject);
@@ -833,6 +840,10 @@ public:
 
             // Check the current ACL, if any.
             if (acd) {
+                if (!owner && currentObject == object) {
+                    owner = acd->GetOwner();
+                }
+
                 for (const auto& ace : acd->Acl().Entries) {
                     if (!CheckInheritanceMode(ace.InheritanceMode, depth)) {
                         continue;
@@ -840,7 +851,10 @@ public:
   
                     if (CheckPermissionMatch(ace.Permissions, permission)) {
                         for (auto* subject : ace.Subjects) {
-                            if (CheckSubjectMatch(subject, user)) {
+                            auto* adjustedSubject = subject == GetOwnerUser() && owner
+                                ? owner
+                                : subject;
+                            if (CheckSubjectMatch(adjustedSubject, user)) {
                                 result.Action = ace.Action;
                                 result.Object = currentObject;
                                 result.Subject = subject;
@@ -1012,6 +1026,13 @@ public:
                 "User %Qv is banned",
                 user->GetName());
         }
+
+        if (user == GetOwnerUser()) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AuthenticationError,
+                "Cannot authenticate as %Qv",
+                user->GetName());
+        }
     }
 
     void ChargeUserRead(
@@ -1104,6 +1125,9 @@ private:
 
     TUserId ReplicatorUserId_;
     TUser* ReplicatorUser_ = nullptr;
+
+    TUserId OwnerUserId_;
+    TUser* OwnerUser_ = nullptr;
 
     NHydra::TEntityMap<TGroup> GroupMap_;
     yhash_map<Stroka, TGroup*> GroupNameMap_;
@@ -1535,6 +1559,7 @@ private:
         JobUser_ = nullptr;
         SchedulerUser_ = nullptr;
         ReplicatorUser_ = nullptr;
+        OwnerUser_ = nullptr;
         EveryoneGroup_ = nullptr;
         UsersGroup_ = nullptr;
         SuperusersGroup_ = nullptr;
@@ -1636,6 +1661,9 @@ private:
             ReplicatorUser_->SetRequestRateLimit(1000000);
             ReplicatorUser_->SetRequestQueueSizeLimit(1000000);
         }
+
+        // owner
+        EnsureBuiltinUserInitialized(OwnerUser_, OwnerUserId_, OwnerUserName);
 
         // Accounts
 
@@ -2228,6 +2256,11 @@ TUser* TSecurityManager::GetRootUser()
 TUser* TSecurityManager::GetGuestUser()
 {
     return Impl_->GetGuestUser();
+}
+
+TUser* TSecurityManager::GetOwnerUser()
+{
+    return Impl_->GetOwnerUser();
 }
 
 TGroup* TSecurityManager::FindGroupByName(const Stroka& name)
