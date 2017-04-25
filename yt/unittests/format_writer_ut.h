@@ -14,12 +14,15 @@ void TestNameTableExpansion(ISchemalessFormatWriterPtr writer, TNameTablePtr nam
     // We write five rows, on each iteration we double number of 
     // columns in the NameTable. 
     for (int iteration = 0; iteration < 5; ++iteration) {
-        TUnversionedRowBuilder row;
+        TUnversionedOwningRowBuilder row;
         for (int index = 0; index < (1 << iteration); ++index) {
-            int columnId = nameTable->GetIdOrRegisterName("Column" + ToString(index));
-            row.AddValue(MakeUnversionedStringValue("Value" + ToString(index), columnId));
+            auto key = "Column" + ToString(index);
+            auto value = "Value" + ToString(index);
+            int columnId = nameTable->GetIdOrRegisterName(key);
+            row.AddValue(MakeUnversionedStringValue(value, columnId));
         }
-        EXPECT_EQ(true, writer->Write({ row.GetRow() }));
+        auto completeRow = row.FinishRow();
+        EXPECT_EQ(true, writer->Write({completeRow.Get()}));
     }
     writer->Close()
         .Get()
