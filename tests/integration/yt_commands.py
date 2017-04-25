@@ -615,7 +615,10 @@ class Operation(object):
 
     def track(self):
         def build_progress():
-            progress = get("//sys/operations/{0}/@brief_progress/jobs".format(self.id), verbose=False)
+            try:
+                progress = get("//sys/operations/{0}/@brief_progress/jobs".format(self.id), verbose=False)
+            except YtError:
+                return ""
 
             result = {}
             for job_type in progress:
