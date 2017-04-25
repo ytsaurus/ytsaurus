@@ -484,6 +484,26 @@ class TestOrderedDynamicTables(YTEnvSetup):
         actual = select_rows("a, b, c from [//tmp/t]")
         assert_items_equal(actual, rows)
 
+    def test_reshard_trimmed_shared_yt_6948(self):
+        self.sync_create_cells(1)
+        self._create_simple_table("//tmp/t", tablet_count=5)
+        self.sync_mount_table("//tmp/t")
+        for i in xrange(5):
+            insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
+        self.sync_unmount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        for i in xrange(5):
+            insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
+        self.sync_unmount_table("//tmp/t")
+        assert get("//tmp/t/@chunk_count") == 10
+        self.sync_mount_table("//tmp/t")
+        for i in xrange(5):
+            trim_rows("//tmp/t", i, 1)
+        wait(lambda: get("//tmp/t/@chunk_count") == 5)
+        self.sync_unmount_table("//tmp/t")
+        copy("//tmp/t", "//tmp/t2")
+        reshard_table("//tmp/t", 1)
+
     ## XXX(savrus) enable in 19.2
     #def test_read_table(self):
     #    self.sync_create_cells(1)
