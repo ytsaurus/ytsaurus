@@ -29,7 +29,7 @@
 #include <yt/core/ytree/helpers.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NYson;
 using namespace NYTree;
@@ -45,6 +45,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NTableClient;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -532,7 +533,7 @@ IOperationControllerPtr CreateRemoteCopyController(
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
 
 

@@ -15,7 +15,7 @@
 #include <yt/core/rpc/helpers.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NCypressClient;
 using namespace NObjectClient;
@@ -227,5 +227,5 @@ void TChunkListPool::OnChunkListsReleased(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

@@ -12,7 +12,7 @@
 
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,11 +33,11 @@ struct TOperationSnapshot
 
 ////////////////////////////////////////////////////////////////////
 
-class TControllersMasterConnector
+class TMasterConnector
     : public TRefCounted
 {
 public:
-    TControllersMasterConnector(
+    TMasterConnector(
         IInvokerPtr invoker,
         TSchedulerConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap);
@@ -76,10 +76,10 @@ private:
     const TIntrusivePtr<TImpl> Impl_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TControllersMasterConnector)
+DEFINE_REFCOUNTED_TYPE(TMasterConnector)
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
 

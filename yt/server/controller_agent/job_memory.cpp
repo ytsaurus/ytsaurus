@@ -3,9 +3,10 @@
 #include <yt/server/scheduler/config.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NChunkClient;
+using namespace NScheduler;
 
 using NChunkClient::ChunkReaderMemorySize;
 
@@ -82,6 +83,6 @@ i64 GetSortInputIOMemorySize(const TChunkStripeStatistics& stat)
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
 

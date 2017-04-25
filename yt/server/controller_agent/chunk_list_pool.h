@@ -11,7 +11,7 @@
 #include <yt/core/logging/log.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,5 +70,5 @@ DEFINE_REFCOUNTED_TYPE(TChunkListPool)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

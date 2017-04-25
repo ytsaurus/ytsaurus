@@ -15,12 +15,13 @@
 #include <yt/core/misc/numeric_helpers.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NNodeTrackerClient;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NScheduler;
 
 using NTableClient::NProto::TPartitionsExt;
 using NChunkClient::NProto::TMiscExt;
@@ -1915,5 +1916,5 @@ TInputStreamDirectory IntermediateInputStreamDirectory({}, IntermediateInputStre
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

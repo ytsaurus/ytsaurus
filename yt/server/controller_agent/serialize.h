@@ -7,7 +7,7 @@
 #include <yt/ytlib/table_client/serialize.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,5 +23,5 @@ bool ValidateSnapshotVersion(int version);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

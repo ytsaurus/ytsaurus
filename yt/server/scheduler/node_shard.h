@@ -2,6 +2,8 @@
 #include "scheduler.h"
 #include "scheduling_tag.h"
 
+#include <yt/server/controller_agent/operation_controller.h>
+
 #include <yt/ytlib/api/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
@@ -99,7 +101,7 @@ public:
 
     void OnMasterDisconnected();
 
-    void RegisterOperation(const TOperationId& operationId, const IOperationControllerPtr& operationController);
+    void RegisterOperation(const TOperationId& operationId, const NControllerAgent::IOperationControllerPtr& operationController);
     void UnregisterOperation(const TOperationId& operationId);
 
     yhash_set<TOperationId> ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context);
@@ -189,12 +191,12 @@ private:
 
     struct TOperationState
     {
-        TOperationState(const IOperationControllerPtr& controller)
+        TOperationState(const NControllerAgent::IOperationControllerPtr& controller)
             : Controller(controller)
         { }
 
         yhash_map<TJobId, TJobPtr> Jobs;
-        IOperationControllerPtr Controller;
+        NControllerAgent::IOperationControllerPtr Controller;
         bool Terminated = false;
         bool JobsAborted = false;
     };

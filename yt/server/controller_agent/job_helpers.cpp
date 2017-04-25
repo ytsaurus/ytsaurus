@@ -6,13 +6,60 @@
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NChunkClient;
 using namespace NPhoenix;
+using namespace NScheduler;
+
+////////////////////////////////////////////////////////////////////
+
+void TBriefJobStatistics::Persist(const NPhoenix::TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Timestamp);
+    Persist(context, ProcessedInputRowCount);
+    Persist(context, ProcessedInputUncompressedDataSize);
+    Persist(context, ProcessedInputCompressedDataSize);
+    Persist(context, ProcessedOutputRowCount);
+    Persist(context, ProcessedOutputUncompressedDataSize);
+    Persist(context, ProcessedOutputCompressedDataSize);
+    Persist(context, InputPipeIdleTime);
+    Persist(context, JobProxyCpuUsage);
+}
+
+////////////////////////////////////////////////////////////////////
+
+void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, IYsonConsumer* consumer)
+{
+    if (!briefJobStatistics) {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+            .EndMap();
+        return;
+    }
+
+    BuildYsonFluently(consumer)
+        .BeginAttributes()
+            .Item("timestamp").Value(briefJobStatistics->Timestamp)
+        .EndAttributes()
+        .BeginMap()
+            .Item("processed_input_row_count").Value(briefJobStatistics->ProcessedInputRowCount)
+            .Item("processed_input_uncompressed_data_size").Value(briefJobStatistics->ProcessedInputUncompressedDataSize)
+            .Item("processed_input_compressed_data_size").Value(briefJobStatistics->ProcessedInputCompressedDataSize)
+            .Item("processed_output_uncompressed_data_size").Value(briefJobStatistics->ProcessedOutputUncompressedDataSize)
+            .Item("processed_output_compressed_data_size").Value(briefJobStatistics->ProcessedOutputCompressedDataSize)
+            .DoIf(static_cast<bool>(briefJobStatistics->InputPipeIdleTime), [&] (TFluentMap fluent) {
+                fluent.Item("input_pipe_idle_time").Value(*(briefJobStatistics->InputPipeIdleTime));
+            })
+            .DoIf(static_cast<bool>(briefJobStatistics->JobProxyCpuUsage), [&] (TFluentMap fluent) {
+                fluent.Item("job_proxy_cpu_usage").Value(*(briefJobStatistics->JobProxyCpuUsage));
+            })
+        .EndMap();
+}
 
 ////////////////////////////////////////////////////////////////////
 
@@ -209,5 +256,5 @@ DECLARE_DYNAMIC_PHOENIX_TYPE(TScheduleJobStatistics, 0x1ba9c7e0);
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

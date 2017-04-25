@@ -9,7 +9,7 @@
 #include <yt/core/misc/ref.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,5 +37,5 @@ DEFINE_REFCOUNTED_TYPE(TSnapshotDownloader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

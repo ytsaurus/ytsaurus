@@ -9,7 +9,7 @@
 #include "operation_controller.h"
 #include "serialize.h"
 #include "helpers.h"
-#include "controllers_master_connector.h"
+#include "master_connector.h"
 
 #include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/event_log.h>
@@ -60,7 +60,7 @@
 #include <yt/core/yson/string.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////
 
@@ -100,7 +100,7 @@ DEFINE_ENUM(ETransactionType,
 
 class TOperationControllerBase
     : public IOperationController
-    , public TEventLogHostBase
+    , public NScheduler::TEventLogHostBase
     , public IPersistent
     , public NPhoenix::TFactoryTag<NPhoenix::TNullFactory>
 {
@@ -141,10 +141,10 @@ private: \
     IMPLEMENT_SAFE_VOID_METHOD(Revive, (), (), INVOKER_AFFINITY(CancelableInvoker))
 
     IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (const TJobId& jobId, TInstant startTime), (jobId, startTime), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<TRunningJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<NScheduler::TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<NScheduler::TFailedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<NScheduler::TAbortedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<NScheduler::TRunningJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
 
     IMPLEMENT_SAFE_VOID_METHOD(SaveSnapshot, (TOutputStream* output), (output), THREAD_AFFINITY_ANY())
 
@@ -154,12 +154,12 @@ private: \
     IMPLEMENT_SAFE_VOID_METHOD(Complete, (), (), THREAD_AFFINITY(ControlThread))
 
     IMPLEMENT_SAFE_METHOD(
-        TScheduleJobResultPtr,
+        NScheduler::TScheduleJobResultPtr,
         ScheduleJob,
-        (ISchedulingContextPtr context, const TJobResources& jobLimits),
+        (NScheduler::ISchedulingContextPtr context, const TJobResources& jobLimits),
         (context, jobLimits),
         INVOKER_AFFINITY(CancelableInvoker),
-        New<TScheduleJobResult>())
+        New<NScheduler::TScheduleJobResult>())
 
     //! Callback called by TChunkScraper when get information on some chunk.
     IMPLEMENT_SAFE_VOID_METHOD(
@@ -255,7 +255,7 @@ protected:
 
     TSchedulerConfigPtr Config;
     IOperationHost* Host;
-    TControllersMasterConnectorPtr MasterConnector;
+    TMasterConnectorPtr MasterConnector;
 
     const TOperationId OperationId;
 
@@ -424,7 +424,7 @@ protected:
         TJobId JobId;
         EJobType JobType;
 
-        TJobNodeDescriptor NodeDescriptor;
+        NScheduler::TJobNodeDescriptor NodeDescriptor;
 
         TInstant StartTime;
         TInstant FinishTime;
@@ -464,7 +464,7 @@ protected:
         i64 StartRowIndex;
         bool Restarted = false;
 
-        TExtendedJobResources EstimatedResourceUsage;
+        NScheduler::TExtendedJobResources EstimatedResourceUsage;
         double JobProxyMemoryReserveFactor = -1;
         double UserJobMemoryReserveFactor = -1;
         TJobResources ResourceLimits;
@@ -496,14 +496,14 @@ protected:
 
         TFinishedJobInfo(
             const TJobletPtr& joblet,
-            TJobSummary summary,
+            NScheduler::TJobSummary summary,
             NYson::TYsonString inputPaths)
             : TJobInfo(TJobInfoBase(*joblet))
             , Summary(std::move(summary))
             , InputPaths(std::move(inputPaths))
         { }
 
-        TJobSummary Summary;
+        NScheduler::TJobSummary Summary;
         NYson::TYsonString InputPaths;
 
         virtual void Persist(const TPersistenceContext& context) override;
@@ -525,7 +525,7 @@ protected:
             i64 dataSize,
             IChunkPoolInput* destinationPool,
             IChunkPoolInput::TCookie inputCookie,
-            const TJobNodeDescriptor& nodeDescriptor)
+            const NScheduler::TJobNodeDescriptor& nodeDescriptor)
             : Lost(false)
             , JobId(jobId)
             , SourceTask(std::move(sourceTask))
@@ -547,7 +547,7 @@ protected:
         IChunkPoolInput* DestinationPool;
         IChunkPoolInput::TCookie InputCookie;
 
-        TJobNodeDescriptor NodeDescriptor;
+        NScheduler::TJobNodeDescriptor NodeDescriptor;
 
         void Persist(const TPersistenceContext& context);
 
@@ -593,7 +593,7 @@ protected:
 
         TJobResources GetMinNeededResources() const;
 
-        virtual TExtendedJobResources GetNeededResources(TJobletPtr joblet) const = 0;
+        virtual NScheduler::TExtendedJobResources GetNeededResources(TJobletPtr joblet) const = 0;
 
         void ResetCachedMinNeededResources();
 
@@ -604,13 +604,13 @@ protected:
         void CheckCompleted();
 
         void ScheduleJob(
-            ISchedulingContext* context,
+            NScheduler::ISchedulingContext* context,
             const TJobResources& jobLimits,
-            TScheduleJobResult* scheduleJobResult);
+            NScheduler::TScheduleJobResult* scheduleJobResult);
 
-        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary);
-        virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
-        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
+        virtual void OnJobCompleted(TJobletPtr joblet, const NScheduler::TCompletedJobSummary& jobSummary);
+        virtual void OnJobFailed(TJobletPtr joblet, const NScheduler::TFailedJobSummary& jobSummary);
+        virtual void OnJobAborted(TJobletPtr joblet, const NScheduler::TAbortedJobSummary& jobSummary);
         virtual void OnJobLost(TCompletedJobPtr completedJob);
 
         // First checks against a given node, then against all nodes if needed.
@@ -640,7 +640,7 @@ protected:
 
         virtual void Persist(const TPersistenceContext& context) override;
 
-        virtual TUserJobSpecPtr GetUserJobSpec() const;
+        virtual NScheduler::TUserJobSpecPtr GetUserJobSpec() const;
 
         virtual EJobType GetJobType() const = 0;
 
@@ -653,7 +653,7 @@ protected:
         TNullable<i64> MaximumUsedTmfpsSize;
 
         TJobResources CachedTotalNeededResources;
-        mutable TNullable<TExtendedJobResources> CachedMinNeededResources;
+        mutable TNullable<NScheduler::TExtendedJobResources> CachedMinNeededResources;
 
         NProfiling::TCpuInstant DemandSanityCheckDeadline;
         bool CompletedFired;
@@ -662,7 +662,7 @@ protected:
         yhash_map<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
 
     private:
-        TJobResources ApplyMemoryReserve(const TExtendedJobResources& jobResources) const;
+        TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 
         void UpdateMaximumUsedTmpfsSize(const NJobTrackerClient::TStatistics& statistics);
 
@@ -671,10 +671,10 @@ protected:
 
     protected:
         virtual bool CanScheduleJob(
-            ISchedulingContext* context,
+            NScheduler::ISchedulingContext* context,
             const TJobResources& jobLimits);
 
-        virtual TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
+        virtual NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
 
         virtual void OnTaskCompleted();
 
@@ -728,9 +728,9 @@ protected:
         void RegisterOutput(
             TJobletPtr joblet,
             int key,
-            const TCompletedJobSummary& jobSummary);
+            const NScheduler::TCompletedJobSummary& jobSummary);
 
-        void AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const;
+        void AddFootprintAndUserJobResources(NScheduler::TExtendedJobResources& jobResources) const;
     };
 
     //! All tasks declared by calling #RegisterTask, mostly for debugging purposes.
@@ -813,19 +813,19 @@ protected:
     void AnalyzeOperationProgess() const;
 
     void DoScheduleJob(
-        ISchedulingContext* context,
+        NScheduler::ISchedulingContext* context,
         const TJobResources& jobLimits,
-        TScheduleJobResult* scheduleJobResult);
+        NScheduler::TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleLocalJob(
-        ISchedulingContext* context,
+        NScheduler::ISchedulingContext* context,
         const TJobResources& jobLimits,
-        TScheduleJobResult* scheduleJobResult);
+        NScheduler::TScheduleJobResult* scheduleJobResult);
 
     void DoScheduleNonLocalJob(
-        ISchedulingContext* context,
+        NScheduler::ISchedulingContext* context,
         const TJobResources& jobLimits,
-        TScheduleJobResult* scheduleJobResult);
+        NScheduler::TScheduleJobResult* scheduleJobResult);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -872,7 +872,7 @@ protected:
         const Stroka& queryString,
         const TNullable<NQueryClient::TTableSchema>& schema);
     void WriteInputQueryToJobSpec(
-        NProto::TSchedulerJobSpecExt* schedulerJobSpecExt);
+        NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpecExt);
     virtual void PrepareInputQuery();
 
     void PickIntermediateDataCell();
@@ -944,8 +944,8 @@ protected:
     bool OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
 
     virtual bool IsJobInterruptible() const;
-    int EstimateSplitJobCount(const TCompletedJobSummary& jobSummary);
-    std::vector<NChunkClient::TInputDataSlicePtr> ExtractInputDataSlices(const TCompletedJobSummary& jobSummary) const;
+    int EstimateSplitJobCount(const NScheduler::TCompletedJobSummary& jobSummary);
+    std::vector<NChunkClient::TInputDataSlicePtr> ExtractInputDataSlices(const NScheduler::TCompletedJobSummary& jobSummary) const;
     virtual void ReinstallUnreadInputDataSlices(const std::vector<NChunkClient::TInputDataSlicePtr>& inputDataSlices);
 
     struct TStripeDescriptor
@@ -1049,16 +1049,16 @@ protected:
 
 
     void RegisterBoundaryKeys(
-        const NProto::TOutputResult& boundaryKeys,
+        const NScheduler::NProto::TOutputResult& boundaryKeys,
         const NChunkClient::TChunkTreeId& chunkTreeId,
         TOutputTable* outputTable);
 
-    virtual void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary);
+    virtual void RegisterOutput(TJobletPtr joblet, int key, const NScheduler::TCompletedJobSummary& jobSummary);
 
     virtual void RegisterOutput(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
         int key,
-        const TCompletedJobSummary& jobSummary);
+        const NScheduler::TCompletedJobSummary& jobSummary);
 
     void RegisterOutput(
         NChunkClient::TInputChunkPtr chunkSpec,
@@ -1077,8 +1077,8 @@ protected:
         TChunkStripePtr stripe,
         bool attachToLivePreview);
 
-    void RegisterStderr(TJobletPtr joblet, const TJobSummary& jobSummary);
-    void RegisterCores(TJobletPtr joblet, const TJobSummary& jobSummary);
+    void RegisterStderr(TJobletPtr joblet, const NScheduler::TJobSummary& jobSummary);
+    void RegisterCores(TJobletPtr joblet, const NScheduler::TJobSummary& jobSummary);
 
     bool HasEnoughChunkLists(bool intermediate, bool isWritingStderrTable, bool isWritingCoreTable);
     NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag);
@@ -1117,7 +1117,7 @@ protected:
 
     void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,
-        TUserJobSpecPtr config,
+        NScheduler::TUserJobSpecPtr config,
         const std::vector<TUserFile>& files,
         const Stroka& fileAccount);
 
@@ -1137,21 +1137,21 @@ protected:
     NChunkClient::TDataSourceDirectoryPtr CreateIntermediateDataSource() const;
 
     // Amount of memory reserved for output table writers in job proxy.
-    i64 GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const;
+    i64 GetFinalOutputIOMemorySize(NScheduler::TJobIOConfigPtr ioConfig) const;
 
     i64 GetFinalIOMemorySize(
-        TJobIOConfigPtr ioConfig,
+        NScheduler::TJobIOConfigPtr ioConfig,
         const TChunkStripeStatisticsVector& stripeStatistics) const;
 
-    void InitIntermediateOutputConfig(TJobIOConfigPtr config);
-    void InitFinalOutputConfig(TJobIOConfigPtr config);
+    void InitIntermediateOutputConfig(NScheduler::TJobIOConfigPtr config);
+    void InitFinalOutputConfig(NScheduler::TJobIOConfigPtr config);
 
-    static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(TJobIOConfigPtr ioConfig);
+    static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(NScheduler::TJobIOConfigPtr ioConfig);
     static NTableClient::TTableReaderOptionsPtr CreateIntermediateTableReaderOptions();
 
-    void ValidateUserFileCount(TUserJobSpecPtr spec, const Stroka& operation);
+    void ValidateUserFileCount(NScheduler::TUserJobSpecPtr spec, const Stroka& operation);
 
-    const std::vector<TExecNodeDescriptor>& GetExecNodeDescriptors();
+    const std::vector<NScheduler::TExecNodeDescriptor>& GetExecNodeDescriptors();
 
     virtual void RegisterUserJobMemoryDigest(EJobType jobType, double memoryReserveFactor);
     IDigest* GetUserJobMemoryDigest(EJobType jobType);
@@ -1161,7 +1161,7 @@ protected:
     IDigest* GetJobProxyMemoryDigest(EJobType jobType);
     const IDigest* GetJobProxyMemoryDigest(EJobType jobType) const;
 
-    i64 ComputeUserJobMemoryReserve(EJobType jobType, TUserJobSpecPtr jobSpec) const;
+    i64 ComputeUserJobMemoryReserve(EJobType jobType, NScheduler::TUserJobSpecPtr jobSpec) const;
 
     void InferSchemaFromInput(const NTableClient::TKeyColumns& keyColumns = NTableClient::TKeyColumns());
     void InferSchemaFromInputOrdered();
@@ -1171,7 +1171,7 @@ protected:
 
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const;
 
-    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const;
+    virtual NScheduler::TJobSplitterConfigPtr GetJobSplitterConfig() const;
 
 private:
     typedef TOperationControllerBase TThis;
@@ -1236,7 +1236,7 @@ private:
     //! Exec node count do not consider scheduling tag.
     //! But descriptors do.
     int ExecNodeCount_ = 0;
-    TExecNodeDescriptorListPtr ExecNodesDescriptors_ = New<TExecNodeDescriptorList>();
+    TExecNodeDescriptorListPtr ExecNodesDescriptors_ = New<NScheduler::TExecNodeDescriptorList>();
 
     NProfiling::TCpuInstant GetExecNodesInformationDeadline_ = 0;
     NProfiling::TCpuInstant AvaialableNodesLastSeenTime_ = 0;
@@ -1282,7 +1282,7 @@ private:
 
     bool ShouldSkipSanityCheck();
 
-    void UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
+    void UpdateJobStatistics(const TJobletPtr& joblet, const NScheduler::TJobSummary& jobSummary);
 
     std::unique_ptr<IJobSplitter> JobSplitter_;
 
@@ -1294,12 +1294,12 @@ private:
     //! Sets finish time and other timing statistics.
     void FinalizeJoblet(
         const TJobletPtr& joblet,
-        TJobSummary* jobSummary);
+        NScheduler::TJobSummary* jobSummary);
 
-    TFluentLogEvent LogFinishedJobFluently(
-        ELogEventType eventType,
+    NScheduler::TFluentLogEvent LogFinishedJobFluently(
+        NScheduler::ELogEventType eventType,
         const TJobletPtr& joblet,
-        const TJobSummary& jobSummary);
+        const NScheduler::TJobSummary& jobSummary);
 
     virtual NYson::IYsonConsumer* GetEventLogConsumer() override;
 
@@ -1319,7 +1319,7 @@ private:
 
     NYson::TYsonString BuildInputPathYson(const TJobletPtr& joblet) const;
 
-    void ProcessFinishedJobResult(std::unique_ptr<TJobSummary> summary, bool suggestCreateJobNodeByStatus);
+    void ProcessFinishedJobResult(std::unique_ptr<NScheduler::TJobSummary> summary, bool suggestCreateJobNodeByStatus);
 
     void BuildJobAttributes(
         const TJobInfoPtr& job,
@@ -1342,5 +1342,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

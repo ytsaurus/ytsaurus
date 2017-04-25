@@ -11,10 +11,11 @@
 #include <yt/core/concurrency/async_stream.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +26,7 @@ TSnapshotDownloader::TSnapshotDownloader(
     : Config_(config)
     , Bootstrap_(bootstrap)
     , OperationId_(operationId)
-    , Logger(NLogging::TLogger(SchedulerLogger)
+    , Logger(NLogging::TLogger(MasterConnectorLogger)
         .AddTag("OperationId: %v", operationId))
 {
     YCHECK(bootstrap);
@@ -66,5 +67,5 @@ TSharedRef TSnapshotDownloader::Run()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

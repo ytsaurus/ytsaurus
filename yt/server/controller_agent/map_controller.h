@@ -3,21 +3,21 @@
 #include "public.h"
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateMapController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
-    TOperation* operation);
+    NScheduler::TOperation* operation);
 
 IOperationControllerPtr CreateUnorderedMergeController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
-    TOperation* operation);
+    NScheduler::TOperation* operation);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

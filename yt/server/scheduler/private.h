@@ -25,11 +25,7 @@ DECLARE_REFCOUNTED_CLASS(TRootElement)
 struct TFairShareContext;
 
 class TJobMetrics;
-class TJobMetricsUpdater;
-struct TOperationControllerInitializeResult;
 class TProgressCounter;
-
-DECLARE_REFCOUNTED_CLASS(TControllersMasterConnector)
 
 using TOperationElementByIdMap = yhash_map<TOperationId, TOperationElement*>;
 

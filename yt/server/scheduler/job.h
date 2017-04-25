@@ -25,30 +25,6 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TBriefJobStatistics
-    : public TIntrinsicRefCounted
-{
-    TInstant Timestamp = TInstant::Zero();
-
-    i64 ProcessedInputRowCount = 0;
-    i64 ProcessedInputUncompressedDataSize = 0;
-    i64 ProcessedInputCompressedDataSize = 0;
-    i64 ProcessedOutputRowCount = 0;
-    i64 ProcessedOutputUncompressedDataSize = 0;
-    i64 ProcessedOutputCompressedDataSize = 0;
-    // Time is given in milliseconds.
-    TNullable<i64> InputPipeIdleTime = Null;
-    TNullable<i64> JobProxyCpuUsage = Null;
-
-    void Persist(const NPhoenix::TPersistenceContext& context);
-};
-
-DEFINE_REFCOUNTED_TYPE(TBriefJobStatistics)
-
-void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, NYson::IYsonConsumer* consumer);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TJob
     : public TIntrinsicRefCounted
 {

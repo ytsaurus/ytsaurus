@@ -22,7 +22,7 @@
 #include <yt/core/misc/numeric_helpers.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NYTree;
 using namespace NYPath;
@@ -36,6 +36,7 @@ using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NTableClient;
+using namespace NScheduler;
 
 using NChunkClient::TReadRange;
 using NChunkClient::TReadLimit;
@@ -1119,5 +1120,5 @@ IOperationControllerPtr CreateJoinReduceController(
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

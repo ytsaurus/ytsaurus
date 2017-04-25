@@ -56,7 +56,7 @@ void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsum
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
         .Item("events").Value(operation->GetEvents())
-        .DoIf(static_cast<bool>(controller), BIND(&IOperationController::BuildOperationAttributes, controller));
+        .DoIf(static_cast<bool>(controller), BIND(&NControllerAgent::IOperationController::BuildOperationAttributes, controller));
 }
 
 void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer)

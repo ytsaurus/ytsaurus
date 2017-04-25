@@ -14,7 +14,7 @@
 #include <yt/core/misc/small_vector.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,7 +187,7 @@ struct IChunkPoolOutput
 
     virtual const std::vector<NChunkClient::TInputChunkPtr>& GetTeleportChunks() const = 0;
 
-    virtual void Completed(TCookie cookie, const TCompletedJobSummary& jobSummary) = 0;
+    virtual void Completed(TCookie cookie, const NScheduler::TCompletedJobSummary& jobSummary) = 0;
     virtual void Failed(TCookie cookie) = 0;
     virtual void Aborted(TCookie cookie, EAbortReason reason) = 0;
     virtual void Lost(TCookie cookie) = 0;
@@ -282,7 +282,7 @@ std::unique_ptr<IChunkPool> CreateAtomicChunkPool();
 
 std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
     IJobSizeConstraintsPtr jobSizeConstraints,
-    TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig);
+    NScheduler::TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -351,6 +351,6 @@ extern TInputStreamDirectory IntermediateInputStreamDirectory;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
 

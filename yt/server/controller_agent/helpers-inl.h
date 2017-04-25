@@ -4,7 +4,7 @@
 #endif
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////
 
@@ -22,5 +22,5 @@ TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::IMapNodePtr specNode)
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

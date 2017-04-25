@@ -11,7 +11,7 @@
 
 #include <yt/server/controller_agent/helpers.h>
 #include <yt/server/controller_agent/operation_controller.h>
-#include <yt/server/controller_agent/controllers_master_connector.h>
+#include <yt/server/controller_agent/master_connector.h>
 
 #include <yt/server/exec_agent/public.h>
 
@@ -87,6 +87,9 @@ using namespace NJobTrackerClient::NProto;
 using namespace NSecurityClient;
 using namespace NShell;
 
+using NControllerAgent::TControllerTransactionsPtr;
+using NControllerAgent::IOperationController;
+
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
 using NNodeTrackerClient::TNodeDirectory;
@@ -100,7 +103,7 @@ static const auto& Profiler = SchedulerProfiler;
 
 class TScheduler::TImpl
     : public TRefCounted
-    , public IOperationHost
+    , public NControllerAgent::IOperationHost
     , public ISchedulerStrategyHost
     , public INodeShardHost
     , public TEventLogHostBase
@@ -411,7 +414,7 @@ public:
             LOG_WARNING(alert, "Setting scheduler alert (AlertType: %lv)", alertType);
         }
 
-        GetMasterConnector()->SetSchedulerAlert(alertType, alert);
+        MasterConnector_->SetSchedulerAlert(alertType, alert);
     }
 
     virtual const TCoreDumperPtr& GetCoreDumper() const override
@@ -775,9 +778,9 @@ public:
     }
 
     // ISchedulerStrategyHost implementation
-    virtual TMasterConnector* GetMasterConnector() override
+    virtual NControllerAgent::TMasterConnector* GetMasterConnector() override
     {
-        return MasterConnector_.get();
+        return MasterConnector_->GetControllerAgentMasterConnector().Get();
     }
 
     virtual TJobResources GetTotalResourceLimits() override
@@ -978,7 +981,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&TControllersMasterConnector::AttachJobContext, MasterConnector_->GetControllersMasterConnector())
+        return BIND(&NControllerAgent::TMasterConnector::AttachJobContext, MasterConnector_->GetControllerAgentMasterConnector())
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run(path, chunkId, operationId, jobId);
     }
@@ -1829,10 +1832,10 @@ private:
 
         Strategy_->RegisterOperation(operation);
 
-        GetMasterConnector()->AddOperationWatcherRequester(
+        MasterConnector_->AddOperationWatcherRequester(
             operation,
             BIND(&TImpl::RequestOperationRuntimeParams, Unretained(this), operation));
-        GetMasterConnector()->AddOperationWatcherHandler(
+        MasterConnector_->AddOperationWatcherHandler(
             operation,
             BIND(&TImpl::HandleOperationRuntimeParams, Unretained(this), operation));
 
@@ -1936,7 +1939,7 @@ private:
             case EOperationType::Map:
                 return Config_->MapOperationOptions->SpecTemplate;
             case EOperationType::Merge: {
-                auto mergeSpec = ParseOperationSpec<TMergeOperationSpec>(spec);
+                auto mergeSpec = NControllerAgent::ParseOperationSpec<TMergeOperationSpec>(spec);
                 switch (mergeSpec->Mode) {
                     case EMergeMode::Unordered:
                         return Config_->UnorderedMergeOperationOptions->SpecTemplate;

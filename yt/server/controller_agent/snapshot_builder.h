@@ -16,14 +16,14 @@
 #include <util/system/file.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSnapshotJob
     : public TIntrinsicRefCounted
 {
-    TOperationPtr Operation;
+    NScheduler::TOperationPtr Operation;
     NPipes::TAsyncReaderPtr Reader;
     std::unique_ptr<TFile> OutputFile;
     bool Suspended = false;
@@ -39,14 +39,14 @@ class TSnapshotBuilder
 public:
     TSnapshotBuilder(
         TSchedulerConfigPtr config,
-        TSchedulerPtr scheduler,
+        NScheduler::TSchedulerPtr scheduler,
         NApi::IClientPtr client);
 
     TFuture<void> Run();
 
 private:
     const TSchedulerConfigPtr Config_;
-    const TSchedulerPtr Scheduler_;
+    const NScheduler::TSchedulerPtr Scheduler_;
     const NApi::IClientPtr Client_;
 
     std::vector<TSnapshotJobPtr> Jobs_;
@@ -67,5 +67,5 @@ DEFINE_REFCOUNTED_TYPE(TSnapshotBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

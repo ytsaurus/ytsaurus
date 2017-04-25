@@ -6,7 +6,7 @@
 #include "intermediate_chunk_scraper.h"
 #include "job_helpers.h"
 #include "job_metrics_updater.h"
-#include "controllers_master_connector.h"
+#include "master_connector.h"
 
 #include "map_controller.h"
 #include "merge_controller.h"
@@ -74,7 +74,7 @@
 #include <functional>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NCypressClient;
 using namespace NTransactionClient;
@@ -97,6 +97,7 @@ using namespace NRpc;
 using namespace NTableClient;
 using namespace NQueryClient;
 using namespace NProfiling;
+using namespace NScheduler;
 
 using NNodeTrackerClient::TNodeId;
 using NProfiling::CpuInstantToInstant;
@@ -1180,7 +1181,7 @@ TOperationControllerBase::TOperationControllerBase(
     TOperation* operation)
     : Config(config)
     , Host(host)
-    , MasterConnector(Host->GetMasterConnector()->GetControllersMasterConnector())
+    , MasterConnector(Host->GetMasterConnector())
     , OperationId(operation->GetId())
     , OperationType(operation->GetType())
     , StartTime(operation->GetStartTime())
@@ -4872,7 +4873,7 @@ void TOperationControllerBase::ParseInputQuery(
 }
 
 void TOperationControllerBase::WriteInputQueryToJobSpec(
-    NProto::TSchedulerJobSpecExt* schedulerJobSpecExt)
+    NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpecExt)
 {
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
     ToProto(querySpec->mutable_query(), InputQuery->Query);
@@ -6267,7 +6268,7 @@ void TOperationControllerBase::GetExecNodesInformation()
     }
 
     ExecNodeCount_ = Host->GetExecNodeCount();
-    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(TSchedulingTagFilter(Spec->SchedulingTagFilter));
+    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(NScheduler::TSchedulingTagFilter(Spec->SchedulingTagFilter));
     GetExecNodesInformationDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ControllerUpdateExecNodesInformationDelay);
 }
 
@@ -6887,5 +6888,5 @@ IOperationControllerPtr CreateControllerForOperation(
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

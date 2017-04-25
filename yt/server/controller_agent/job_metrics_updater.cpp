@@ -4,7 +4,9 @@
 
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
+
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -46,5 +48,5 @@ void TJobMetricsUpdater::Flush()
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

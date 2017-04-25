@@ -2,6 +2,9 @@
 
 #include "private.h"
 
+#include <yt/server/controller_agent/public.h>
+#include <yt/server/controller_agent/master_connector.h>
+
 #include <yt/server/cell_scheduler/public.h>
 
 #include <yt/server/chunk_server/public.h>
@@ -20,7 +23,7 @@ namespace NScheduler {
 struct TOperationReport
 {
     TOperationPtr Operation;
-    TControllerTransactionsPtr ControllerTransactions;
+    NControllerAgent::TControllerTransactionsPtr ControllerTransactions;
     bool UserTransactionAborted = false;
 };
 
@@ -46,11 +49,11 @@ public:
 
     IInvokerPtr GetCancelableControlInvoker() const;
 
-    TControllersMasterConnectorPtr GetControllersMasterConnector() const;
+    NControllerAgent::TMasterConnectorPtr GetControllerAgentMasterConnector() const;
 
     bool IsConnected() const;
 
-    TFuture<void> CreateOperationNode(TOperationPtr operation, const TOperationControllerInitializeResult& initializeResult);
+    TFuture<void> CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult);
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation);
     TFuture<void> FlushOperationNode(TOperationPtr operation);
 

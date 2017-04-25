@@ -6,7 +6,7 @@
 #include <yt/ytlib/job_tracker_client/public.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////
 
@@ -57,5 +57,5 @@ std::unique_ptr<IChunkPool> CreateSortedChunkPool(
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
