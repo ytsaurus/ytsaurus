@@ -679,7 +679,7 @@ struct TVariantSerializer
     static void Load(C& context, TVariant<Ts...>& variant)
     {
         int tag = NYT::Load<int>(context);
-        TVariantSerializerTraits<Ts...>::Load(context, variant.Tag(), variant);
+        TVariantSerializerTraits<Ts...>::Load(context, tag, variant);
     }
 };
 
