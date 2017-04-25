@@ -5,7 +5,7 @@
 #include <yt/core/yson/public.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,5 +64,5 @@ extern const TProgressCounter NullProgressCounter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

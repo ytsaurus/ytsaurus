@@ -7,7 +7,7 @@
 #include <yt/core/profiling/profiler.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////
 
@@ -22,7 +22,9 @@ DECLARE_REFCOUNTED_STRUCT(TChunkStripe)
 
 DECLARE_REFCOUNTED_CLASS(TChunkListPool)
 
-DECLARE_REFCOUNTED_CLASS(TControllersMasterConnector)
+DECLARE_REFCOUNTED_CLASS(TMasterConnector)
+
+class TJobMetricsUpdater;
 
 struct IChunkPoolInput;
 struct IChunkPoolOutput;
@@ -39,10 +41,10 @@ extern const TDuration PrepareYieldPeriod;
 ////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger OperationLogger;
-extern const NLogging::TLogger ControllersMasterConnectorLogger;
+extern const NLogging::TLogger MasterConnectorLogger;
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
 

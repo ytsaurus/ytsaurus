@@ -8,13 +8,14 @@
 #include <yt/core/misc/numeric_helpers.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NLogging;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -1775,5 +1776,5 @@ std::unique_ptr<IChunkPool> CreateSortedChunkPool(
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

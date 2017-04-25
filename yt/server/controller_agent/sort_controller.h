@@ -3,7 +3,7 @@
 #include "public.h"
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,5 +19,5 @@ IOperationControllerPtr CreateMapReduceController(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

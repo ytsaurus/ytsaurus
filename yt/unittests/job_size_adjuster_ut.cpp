@@ -5,7 +5,7 @@
 #include <yt/server/controller_agent/job_size_adjuster.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 namespace {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -13,7 +13,7 @@ namespace {
 TEST(TJobSizeAdjusterTest, Simple)
 {
     i64 dataSizePerJob = 128LL * 1024 * 1024;
-    auto config = New<TJobSizeAdjusterConfig>();
+    auto config = New<NScheduler::TJobSizeAdjusterConfig>();
     config->MinJobTime = TDuration::Seconds(20);
     config->ExecToPrepareTimeRatio = 10.0;
     auto jobSizeAdjuster = CreateJobSizeAdjuster(
@@ -34,6 +34,6 @@ TEST(TJobSizeAdjusterTest, Simple)
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
 

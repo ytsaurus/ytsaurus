@@ -1,4 +1,4 @@
-#include "controllers_master_connector.h"
+#include "master_connector.h"
 #include "operation_controller.h"
 #include "snapshot_downloader.h"
 #include "snapshot_builder.h"
@@ -34,7 +34,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NApi;
 using namespace NRpc;
@@ -49,14 +49,15 @@ using namespace NTableClient;
 using namespace NFileClient;
 using namespace NSecurityClient;
 using namespace NTransactionClient;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ControllersMasterConnectorLogger;
+static const auto& Logger = MasterConnectorLogger;
 
 ////////////////////////////////////////////////////////////////////
 
-class TControllersMasterConnector::TImpl
+class TMasterConnector::TImpl
     : public TRefCounted
 {
 public:
@@ -698,7 +699,7 @@ private:
 
     TOperationSnapshot DoDownloadSnapshot(const TOperationId& operationId)
     {
-        auto snapshotPath = GetSnapshotPath(operationId);
+        auto snapshotPath = NScheduler::GetSnapshotPath(operationId);
 
         auto batchReq = StartObjectBatchRequest();
         auto req = TYPathProxy::Get(snapshotPath + "/@version");
@@ -744,7 +745,7 @@ private:
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
         auto batchReq = StartObjectBatchRequest();
-        auto req = TYPathProxy::Remove(GetSnapshotPath(operationId));
+        auto req = TYPathProxy::Remove(NScheduler::GetSnapshotPath(operationId));
         req->set_force(true);
         batchReq->AddRequest(req, "remove_snapshot");
 
@@ -963,41 +964,41 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
-TControllersMasterConnector::TControllersMasterConnector(
+TMasterConnector::TMasterConnector(
     IInvokerPtr invoker,
     TSchedulerConfigPtr config,
     NCellScheduler::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(invoker, config, bootstrap))
 { }
 
-const IInvokerPtr& TControllersMasterConnector::GetInvoker() const
+const IInvokerPtr& TMasterConnector::GetInvoker() const
 {
     return Impl_->GetInvoker();
 }
 
-void TControllersMasterConnector::RegisterOperation(
+void TMasterConnector::RegisterOperation(
     const TOperationId& operationId,
     const IOperationControllerPtr& controller)
 {
     Impl_->RegisterOperation(operationId, controller);
 }
 
-void TControllersMasterConnector::UnregisterOperation(const TOperationId& operationId)
+void TMasterConnector::UnregisterOperation(const TOperationId& operationId)
 {
     Impl_->UnregisterOperation(operationId);
 }
 
-void TControllersMasterConnector::CreateJobNode(TCreateJobNodeRequest createJobNodeRequest)
+void TMasterConnector::CreateJobNode(TCreateJobNodeRequest createJobNodeRequest)
 {
     return Impl_->CreateJobNode(std::move(createJobNodeRequest));
 }
 
-TFuture<void> TControllersMasterConnector::FlushOperationNode(const TOperationId& operationId)
+TFuture<void> TMasterConnector::FlushOperationNode(const TOperationId& operationId)
 {
     return Impl_->FlushOperationNode(operationId);
 }
 
-TFuture<void> TControllersMasterConnector::AttachToLivePreview(
+TFuture<void> TMasterConnector::AttachToLivePreview(
     const TOperationId& operationId,
     const TTransactionId& transactionId,
     const TNodeId& tableId,
@@ -1006,17 +1007,17 @@ TFuture<void> TControllersMasterConnector::AttachToLivePreview(
     return Impl_->AttachToLivePreview(operationId, transactionId, tableId, childIds);
 }
 
-TFuture<TOperationSnapshot> TControllersMasterConnector::DownloadSnapshot(const TOperationId& operationId)
+TFuture<TOperationSnapshot> TMasterConnector::DownloadSnapshot(const TOperationId& operationId)
 {
     return Impl_->DownloadSnapshot(operationId);
 }
 
-TFuture<void> TControllersMasterConnector::RemoveSnapshot(const TOperationId& operationId)
+TFuture<void> TMasterConnector::RemoveSnapshot(const TOperationId& operationId)
 {
     return Impl_->RemoveSnapshot(operationId);
 }
 
-void TControllersMasterConnector::AttachJobContext(
+void TMasterConnector::AttachJobContext(
     const TYPath& path,
     const TChunkId& chunkId,
     const TOperationId& operationId,
@@ -1025,14 +1026,14 @@ void TControllersMasterConnector::AttachJobContext(
     return Impl_->AttachJobContext(path, chunkId, operationId, jobId);
 }
 
-void TControllersMasterConnector::UpdateConfig(const TSchedulerConfigPtr& config)
+void TMasterConnector::UpdateConfig(const TSchedulerConfigPtr& config)
 {
     Impl_->UpdateConfig(config);
 }
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
 
 

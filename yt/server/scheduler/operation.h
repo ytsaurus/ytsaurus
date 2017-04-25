@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/controller_agent/public.h>
+
 #include <yt/ytlib/hydra/public.h>
 
 #include <yt/ytlib/scheduler/scheduler_service.pb.h>
@@ -81,7 +83,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TAlertsArray, Alerts);
 
     //! Controller that owns the operation.
-    DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
+    DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::IOperationControllerPtr, Controller);
 
     //! Operation result, becomes set when the operation finishes.
     DEFINE_BYREF_RW_PROPERTY(NProto::TOperationResult, Result);

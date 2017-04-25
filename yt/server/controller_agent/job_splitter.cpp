@@ -7,11 +7,12 @@
 #include <yt/core/misc/numeric_helpers.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -304,6 +305,6 @@ std::unique_ptr<IJobSplitter> CreateJobSplitter(const TJobSplitterConfigPtr& con
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
 

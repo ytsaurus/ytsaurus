@@ -4,7 +4,9 @@
 #include <yt/server/scheduler/config.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
+
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -146,6 +148,6 @@ std::unique_ptr<IJobSizeAdjuster> CreateJobSizeAdjuster(
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
 

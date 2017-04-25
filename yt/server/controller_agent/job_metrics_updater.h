@@ -7,7 +7,7 @@
 #include <util/datetime/base.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 struct IOperationHost;
 
@@ -23,7 +23,7 @@ public:
         const NJobTrackerClient::TOperationId& operationId,
         TDuration batchInterval);
 
-    void Update(TInstant metricsTs, const TJobMetrics& jobMetrics);
+    void Update(TInstant metricsTs, const NScheduler::TJobMetrics& jobMetrics);
     void Flush();
 
 private:
@@ -31,14 +31,14 @@ private:
     const NJobTrackerClient::TOperationId OperationId_;
     const TDuration BatchInterval_;
 
-    TJobMetrics SentJobMetrics_;
+    NScheduler::TJobMetrics SentJobMetrics_;
     TInstant LastSeenTimestamp_;
     // Metrics that are not sent yet
-    TNullable<TJobMetrics> LocalJobMetrics_;
+    TNullable<NScheduler::TJobMetrics> LocalJobMetrics_;
     TInstant NextFlush_;
 };
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

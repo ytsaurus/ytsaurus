@@ -7,10 +7,11 @@
 
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -269,6 +270,6 @@ void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
 

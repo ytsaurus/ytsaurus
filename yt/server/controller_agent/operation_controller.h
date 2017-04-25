@@ -38,7 +38,7 @@
 #include <yt/server/table_server/public.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,7 +124,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
+    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter) const = 0;
 
     //! Called by a controller to notify the host that the operation has
     //! finished successfully.
@@ -195,9 +195,9 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual IJobHostPtr GetJobHost(const TJobId& jobId) const = 0;
+    virtual NScheduler::IJobHostPtr GetJobHost(const TJobId& jobId) const = 0;
 
-    virtual void SendJobMetricsToStrategy(const TOperationId& operationdId, const TJobMetrics& jobMetrics) = 0;
+    virtual void SendJobMetricsToStrategy(const TOperationId& operationdId, const NScheduler::TJobMetrics& jobMetrics) = 0;
 };
 
 /*!
@@ -339,32 +339,32 @@ struct IOperationController
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called during heartbeat processing to notify the controller that a job has completed.
-    virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) = 0;
+    virtual void OnJobCompleted(std::unique_ptr<NScheduler::TCompletedJobSummary> jobSummary) = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called during heartbeat processing to notify the controller that a job has failed.
-    virtual void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) = 0;
+    virtual void OnJobFailed(std::unique_ptr<NScheduler::TFailedJobSummary> jobSummary) = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called during preemption to notify the controller that a job has been aborted.
-    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) = 0;
+    virtual void OnJobAborted(std::unique_ptr<NScheduler::TAbortedJobSummary> jobSummary) = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called during heartbeat processing to notify the controller that a job is still running.
-    virtual void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) = 0;
+    virtual void OnJobRunning(std::unique_ptr<NScheduler::TRunningJobSummary> jobSummary) = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual TScheduleJobResultPtr ScheduleJob(
-        ISchedulingContextPtr context,
+    virtual NScheduler::TScheduleJobResultPtr ScheduleJob(
+        NScheduler::ISchedulingContextPtr context,
         const TJobResources& jobLimits) = 0;
 
     /*!
@@ -429,9 +429,9 @@ DEFINE_REFCOUNTED_TYPE(IOperationController)
 
 IOperationControllerPtr CreateControllerForOperation(
     IOperationHost* host,
-    TOperation* operation);
+    NScheduler::TOperation* operation);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

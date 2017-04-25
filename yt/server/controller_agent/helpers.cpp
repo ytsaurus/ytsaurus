@@ -7,9 +7,10 @@
 #include <yt/core/misc/numeric_helpers.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NObjectClient;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -559,6 +560,6 @@ Stroka TLockedUserObject::GetPath() const
 ////////////////////////////////////////////////////////////////////
 
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
 

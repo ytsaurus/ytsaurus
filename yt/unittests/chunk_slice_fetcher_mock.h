@@ -28,7 +28,7 @@ typedef TIntrusivePtr<::testing::StrictMock<TMockChunkSliceFetcher>> TStrictMock
 
 } // namespace NTableClient
 
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,5 +55,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

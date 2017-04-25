@@ -7,7 +7,7 @@
 #include <yt/core/concurrency/delayed_executor.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NChunkClient;
 using namespace NApi;
@@ -94,5 +94,5 @@ void TIntermediateChunkScraper::ResetChunkScraper()
 
 ///////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

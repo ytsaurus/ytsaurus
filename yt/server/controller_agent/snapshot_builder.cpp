@@ -25,13 +25,14 @@
 #include <thread>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NYTree;
 using namespace NObjectClient;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NPipes;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -333,5 +334,5 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

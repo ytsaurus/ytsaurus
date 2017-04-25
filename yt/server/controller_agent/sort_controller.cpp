@@ -30,7 +30,7 @@
 #include <cmath>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NYTree;
 using namespace NYson;
@@ -47,6 +47,7 @@ using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NChunkClient;
+using namespace NScheduler;
 
 using NTableClient::TKey;
 using NNodeTrackerClient::TNodeId;
@@ -3340,6 +3341,6 @@ IOperationControllerPtr CreateMapReduceController(
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
 

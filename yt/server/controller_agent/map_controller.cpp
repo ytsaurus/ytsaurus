@@ -20,7 +20,7 @@
 #include <yt/core/misc/numeric_helpers.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 using namespace NYTree;
 using namespace NYson;
@@ -33,6 +33,7 @@ using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NTableClient;
 using namespace NConcurrency;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -782,6 +783,6 @@ IOperationControllerPtr CreateUnorderedMergeController(
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
 

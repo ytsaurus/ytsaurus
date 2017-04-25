@@ -436,7 +436,7 @@ DEFINE_REFCOUNTED_TYPE(TPool)
 class TOperationElementFixedState
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(IOperationControllerPtr, Controller);
+    DEFINE_BYVAL_RO_PROPERTY(NControllerAgent::IOperationControllerPtr, Controller);
 
 protected:
     explicit TOperationElementFixedState(TOperationPtr operation);

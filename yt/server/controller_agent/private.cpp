@@ -1,12 +1,12 @@
 #include "private.h"
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////
 
 const NLogging::TLogger OperationLogger("Operation");
-const NLogging::TLogger ControllersMasterConnectorLogger("ControllersMasterConnector");
+const NLogging::TLogger MasterConnectorLogger("MasterConnector");
 
 const TDuration PrepareYieldPeriod = TDuration::MilliSeconds(100);
 
@@ -17,5 +17,5 @@ const double JobSizeBoostFactor = 2.0;
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

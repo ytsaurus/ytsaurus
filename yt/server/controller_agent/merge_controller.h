@@ -3,7 +3,7 @@
 #include "public.h"
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,5 +34,5 @@ IOperationControllerPtr CreateLegacyJoinReduceController(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

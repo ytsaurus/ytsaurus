@@ -7,7 +7,7 @@
 #include <yt/core/misc/phoenix.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,26 +46,26 @@ DEFINE_REFCOUNTED_TYPE(IJobSizeConstraints)
 ////////////////////////////////////////////////////////////////////
 
 IJobSizeConstraintsPtr CreateSimpleJobSizeConstraints(
-    const TSimpleOperationSpecBasePtr& spec,
-    const TSimpleOperationOptionsPtr& options,
+    const NScheduler::TSimpleOperationSpecBasePtr& spec,
+    const NScheduler::TSimpleOperationOptionsPtr& options,
     i64 inputDataSize,
     i64 inputRowCount = std::numeric_limits<i64>::max());
 
 IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
-    const TSortOperationSpecBasePtr& spec,
-    const TSortOperationOptionsBasePtr& options,
+    const NScheduler::TSortOperationSpecBasePtr& spec,
+    const NScheduler::TSortOperationOptionsBasePtr& options,
     i64 inputDataSize);
 
 IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
-    const TSortOperationSpecBasePtr& spec,
-    const TSortOperationOptionsBasePtr& options,
+    const NScheduler::TSortOperationSpecBasePtr& spec,
+    const NScheduler::TSortOperationOptionsBasePtr& options,
     i64 inputDataSize,
     i64 inputRowCount,
     double compressionRatio);
 
 IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
-    const TSortOperationSpecBasePtr& spec,
-    const TSortOperationOptionsBasePtr& options);
+    const NScheduler::TSortOperationSpecBasePtr& spec,
+    const NScheduler::TSortOperationOptionsBasePtr& options);
 
 IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     bool canAdjustDataSizePerJob,
@@ -98,7 +98,7 @@ struct TLockedUserObject
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
 
 ////////////////////////////////////////////////////////////////////

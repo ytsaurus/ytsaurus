@@ -1,7 +1,7 @@
 #include "serialize.h"
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////
 
@@ -17,6 +17,6 @@ bool ValidateSnapshotVersion(int version)
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT
 

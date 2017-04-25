@@ -33,6 +33,9 @@ using namespace NShell;
 using namespace NYTree;
 using namespace NYson;
 
+using NControllerAgent::IOperationController;
+using NControllerAgent::IOperationControllerPtr;
+
 using NNodeTrackerClient::NodeIdFromObjectId;
 
 using NNodeTrackerClient::TNodeId;

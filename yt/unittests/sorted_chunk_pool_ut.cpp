@@ -30,13 +30,14 @@ void PrintTo(const TInputChunk& /* chunk */, std::ostream* /* os */)
 } // namespace NYT
 
 namespace NYT {
-namespace NScheduler {
+namespace NControllerAgent {
 namespace {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
+using NScheduler::TCompletedJobSummary;
 
 using namespace ::testing;
 
@@ -2671,5 +2672,5 @@ INSTANTIATE_TEST_CASE_P(VariousOperationsWithPoolInstantiation,
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NScheduler
+} // namespace NControllerAgent
 } // namespace NYT

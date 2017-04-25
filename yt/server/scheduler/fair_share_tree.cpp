@@ -1934,7 +1934,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
 {
     auto jobLimits = GetHierarchicalResourceLimits(context);
 
-    auto scheduleJobResultFuture = BIND(&IOperationController::ScheduleJob, Controller_)
+    auto scheduleJobResultFuture = BIND(&NControllerAgent::IOperationController::ScheduleJob, Controller_)
         .AsyncVia(Controller_->GetCancelableInvoker())
         .Run(context.SchedulingContext, jobLimits);
 
@@ -1985,7 +1985,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
                 OperationId_);
 
             Controller_->GetCancelableInvoker()->Invoke(BIND(
-                &IOperationController::OnJobAborted,
+                &NControllerAgent::IOperationController::OnJobAborted,
                 Controller_,
                 Passed(std::make_unique<TAbortedJobSummary>(
                     jobId,
