@@ -201,8 +201,8 @@ public:
         path.Append(options.Append_);
         header.SetParameters(BuildYsonStringFluently().BeginMap()
             .Item("source_paths").DoListFor(sourcePaths,
-                [] (TFluentList fluent, const TYPath& path) {
-                    fluent.Item().Value(AddPathPrefix(path));
+                [] (TFluentList fluent, const TYPath& thePath) {
+                    fluent.Item().Value(AddPathPrefix(thePath));
                 })
             .Item("destination_path").Value(path)
         .EndMap());

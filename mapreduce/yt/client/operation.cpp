@@ -690,17 +690,17 @@ void BuildUserJobFluently(
 
     fluent
     .Item("file_paths").List(preparer.GetFiles())
-    .DoIf(inputDesc.Format == TMultiFormatDesc::F_YSON, [] (TFluentMap fluent)
+    .DoIf(inputDesc.Format == TMultiFormatDesc::F_YSON, [] (TFluentMap fluentMap)
     {
-        fluent
+        fluentMap
         .Item("input_format").BeginAttributes()
             .Item("format").Value("binary")
         .EndAttributes()
         .Value("yson");
     })
-    .DoIf(inputDesc.Format == TMultiFormatDesc::F_YAMR, [&] (TFluentMap fluent) {
+    .DoIf(inputDesc.Format == TMultiFormatDesc::F_YAMR, [&] (TFluentMap fluentMap) {
         if (!format) {
-            fluent
+            fluentMap
             .Item("input_format").BeginAttributes()
                 .Item("lenval").Value(true)
                 .Item("has_subkey").Value(true)
@@ -708,13 +708,13 @@ void BuildUserJobFluently(
             .EndAttributes()
             .Value("yamr");
         } else {
-            fluent.Item("input_format").Value(format.GetRef());
+            fluentMap.Item("input_format").Value(format.GetRef());
         }
     })
-    .DoIf(inputDesc.Format == TMultiFormatDesc::F_PROTO, [&] (TFluentMap fluent)
+    .DoIf(inputDesc.Format == TMultiFormatDesc::F_PROTO, [&] (TFluentMap fluentMap)
     {
         if (TConfig::Get()->UseClientProtobuf) {
-            fluent
+            fluentMap
             .Item("input_format").BeginAttributes()
                 .Item("format").Value("binary")
             .EndAttributes()
@@ -724,29 +724,29 @@ void BuildUserJobFluently(
                 ythrow TApiUsageError() << "messages for input_format are unknown (empty ProtoDescriptors)";
             }
             auto config = MakeProtoFormatConfig(inputDesc.ProtoDescriptors);
-            fluent.Item("input_format").Value(config);
+            fluentMap.Item("input_format").Value(config);
         }
     })
-    .DoIf(outputDesc.Format == TMultiFormatDesc::F_YSON, [] (TFluentMap fluent)
+    .DoIf(outputDesc.Format == TMultiFormatDesc::F_YSON, [] (TFluentMap fluentMap)
     {
-        fluent
+        fluentMap
         .Item("output_format").BeginAttributes()
             .Item("format").Value("binary")
         .EndAttributes()
         .Value("yson");
     })
-    .DoIf(outputDesc.Format == TMultiFormatDesc::F_YAMR, [] (TFluentMap fluent) {
-        fluent
+    .DoIf(outputDesc.Format == TMultiFormatDesc::F_YAMR, [] (TFluentMap fluentMap) {
+        fluentMap
         .Item("output_format").BeginAttributes()
             .Item("lenval").Value(true)
             .Item("has_subkey").Value(true)
         .EndAttributes()
         .Value("yamr");
     })
-    .DoIf(outputDesc.Format == TMultiFormatDesc::F_PROTO, [&] (TFluentMap fluent)
+    .DoIf(outputDesc.Format == TMultiFormatDesc::F_PROTO, [&] (TFluentMap fluentMap)
     {
         if (TConfig::Get()->UseClientProtobuf) {
-            fluent
+            fluentMap
             .Item("output_format").BeginAttributes()
                 .Item("format").Value("binary")
             .EndAttributes()
@@ -756,18 +756,18 @@ void BuildUserJobFluently(
                 ythrow TApiUsageError() << "messages for output_format are unknown (empty ProtoDescriptors)";
             }
             auto config = MakeProtoFormatConfig(outputDesc.ProtoDescriptors);
-            fluent.Item("output_format").Value(config);
+            fluentMap.Item("output_format").Value(config);
         }
     })
     .Item("command").Value(preparer.GetCommand())
     .Item("class_name").Value(preparer.GetClassName())
-    .DoIf(memoryLimit.Defined(), [&] (TFluentMap fluent) {
-        fluent.Item("memory_limit").Value(*memoryLimit);
+    .DoIf(memoryLimit.Defined(), [&] (TFluentMap fluentMap) {
+        fluentMap.Item("memory_limit").Value(*memoryLimit);
     })
-    .DoIf(preparer.ShouldMountSandbox(), [&] (TFluentMap fluent) {
-        fluent.Item("tmpfs_path").Value(".");
-        fluent.Item("tmpfs_size").Value(tmpfsSize);
-        fluent.Item("copy_files").Value(true);
+    .DoIf(preparer.ShouldMountSandbox(), [&] (TFluentMap fluentMap) {
+        fluentMap.Item("tmpfs_path").Value(".");
+        fluentMap.Item("tmpfs_size").Value(tmpfsSize);
+        fluentMap.Item("copy_files").Value(true);
     });
 }
 
@@ -785,14 +785,14 @@ void BuildCommonOperationPart(const TOperationOptions& options, TFluentMap fluen
             .Item("command").List(properties->CommandLine)
             .Item("wrapper_version").Value(properties->ClientVersion)
         .EndMap()
-        .DoIf(!pool.Empty(), [&] (TFluentMap fluent) {
-            fluent.Item("pool").Value(pool);
+        .DoIf(!pool.Empty(), [&] (TFluentMap fluentMap) {
+            fluentMap.Item("pool").Value(pool);
         })
-        .DoIf(options.SecureVault_.Defined(), [&] (TFluentMap fluent) {
+        .DoIf(options.SecureVault_.Defined(), [&] (TFluentMap fluentMap) {
             if (!options.SecureVault_->IsMap()) {
                 ythrow yexception() << "SecureVault must be a map node";
             }
-            fluent.Item("secure_vault").Value(*options.SecureVault_);
+            fluentMap.Item("secure_vault").Value(*options.SecureVault_);
         });
 }
 
