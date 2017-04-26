@@ -5,6 +5,7 @@ from yt_commands import *
 from yt.yson import YsonEntity, YsonList
 
 from time import sleep
+from flaky import flaky
 
 from yt.environment.helpers import assert_items_equal
 
@@ -526,6 +527,7 @@ class TestDynamicTableStateTransitions(TestDynamicTablesBase):
 
     @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("first_command", ["mount", "unmount", "freeze", "unfreeze"])
+    @flaky(max_runs=5)
     def test_state_transition_conflict_mounted(self, first_command, second_command):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -535,8 +537,10 @@ class TestDynamicTableStateTransitions(TestDynamicTablesBase):
         self.sync_create_cells(1)
         self._do_test_transition("mounted", first_command, second_command, banned_peers)
 
+
     @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("first_command", ["frozen_mount", "unmount", "freeze", "unfreeze"])
+    @flaky(max_runs=5)
     def test_state_transition_conflict_frozen(self, first_command, second_command):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -548,6 +552,7 @@ class TestDynamicTableStateTransitions(TestDynamicTablesBase):
 
     @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("first_command", ["mount", "frozen_mount", "unmount"])
+    @flaky(max_runs=5)
     def test_state_transition_conflict_unmounted(self, first_command, second_command):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
