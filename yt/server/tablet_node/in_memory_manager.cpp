@@ -461,6 +461,12 @@ void PreloadInMemoryStore(
     auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
     auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
 
+    auto erasureCodec = NErasure::ECodec(miscExt.erasure_codec());
+    if (erasureCodec != NErasure::ECodec::None) {
+        THROW_ERROR_EXCEPTION("Could not preload erasure coded store %v",
+            store->GetId());
+    }
+
     auto codecId = NCompression::ECodec(miscExt.compression_codec());
     auto* codec = NCompression::GetCodec(codecId);
 
