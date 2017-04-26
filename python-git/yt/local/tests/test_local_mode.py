@@ -304,6 +304,10 @@ class TestLocalMode(object):
             assert client.get_attribute("//subdir", "other_attr") == 42
             assert client.get_attribute("/", "root_attr") == "ok"
 
+            assert list(client.read_table("//sorted_table")) == [{"x": "0", "y": "2"}, {"x": "1", "y": "1"},
+                                                                 {"x": "3", "y": "3"}]
+            assert client.get_attribute("//sorted_table", "sorted_by") == ["x"]
+
     def test_preserve_state(self):
         with local_yt() as environment:
             client = environment.create_client()
