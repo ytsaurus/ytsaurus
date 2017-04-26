@@ -7,13 +7,16 @@ from yt.environment.helpers import OpenPortIterator
 
 import yt.subprocess_wrapper as subprocess
 import yt.json as json
+import yt.wrapper as yt
 
 from yt.packages.six import PY3
+from yt.packages.requests.exceptions import ConnectionError
 
 import yt.packages.requests as requests
 
 import os
 import pytest
+import tarfile
 import time
 import uuid
 
@@ -24,6 +27,17 @@ TEST_RUN_PATH = os.path.join(TESTS_SANDBOX, "test_transfer_manager", "run_" + uu
 
 MAX_WAIT_TIME = 60
 SLEEP_QUANTUM = 0.1
+
+def get_yt_client():
+    # If we have teamcity yt token use it otherwise use default token.
+    token = os.environ.get("TEAMCITY_YT_TOKEN", None)
+    yt_client = yt.YtClient(proxy="locke", token=token)
+    try:
+        yt_client.exists("/")
+        return yt_client
+    except ConnectionError:
+        # If we have network errors we don't return client and tests will be skipped.
+        return None
 
 def _read_node_content(path, node_type, client):
     if node_type == "file":
@@ -36,22 +50,30 @@ def _write_node_content(path, node_type, client):
     else:
         client.write_table(path, [{"a": 1}, {"b": 2}, {"c": 3}])
 
-def _start_transfer_manager(config):
+def _start_transfer_manager(yt_client, config):
     config_path = os.path.join(TEST_RUN_PATH, TM_CONFIG_PATH)
     json.dump(config, open(config_path, "w"))
 
     tests_path = os.path.split(__file__)[0]
     tm_server_path = os.path.split(tests_path)[0]
-    tm_path = os.path.split(tm_server_path)[0]
-    yt_path = os.path.split(tm_path)[0]
-    python_path = os.path.split(yt_path)[0]
 
-    requirements_path = os.path.join(python_path, "yandex-yt-transfer-manager", "requirements.txt")
     tm_binary_path = os.path.join(tm_server_path, "bin", "transfer-manager-server")
     script_binary_path = os.path.join(tests_path, "prepare_and_start_tm.sh")
     venv_path = os.path.join(TESTS_SANDBOX, "tmvenv")
 
-    return subprocess.Popen([script_binary_path, requirements_path, tm_binary_path, config_path, venv_path],
+    if not os.path.exists(venv_path):
+        os.mkdir(venv_path)
+        content = yt_client.read_file("//home/files/test_data/transfer_manager/tmvenv.tar")
+
+        archive_path = os.path.join(venv_path, "tmvenv.tar")
+        with open(archive_path, "wb") as file:
+            file.write(content.read())
+
+        tar = tarfile.open(archive_path)
+        tar.extractall(venv_path)
+        tar.close()
+
+    return subprocess.Popen([script_binary_path, tm_binary_path, config_path, venv_path],
                             preexec_fn=os.setsid)
 
 def _abort_operations_and_transactions(client):
@@ -65,6 +87,10 @@ def _abort_operations_and_transactions(client):
 @pytest.mark.skipif(PY3, reason="Transfer manager is available only for Python 2")
 class TestTransferManager(object):
     def setup_class(self):
+        yt_client = get_yt_client()
+        if yt_client is None:
+            pytest.skip("Cluster locke is unavailable")
+
         port_locks_path = os.path.join(TESTS_SANDBOX, "ports")
         os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = port_locks_path
 
@@ -90,7 +116,7 @@ class TestTransferManager(object):
         tm_config["yt_backend_options"]["proxy"] = first_cluster_url
         tm_config["logging"]["filename"] = os.path.join(TEST_RUN_PATH, "transfer_manager.log")
 
-        self._tm_process = _start_transfer_manager(tm_config)
+        self._tm_process = _start_transfer_manager(yt_client, tm_config)
 
         current_wait_time = 0
         while current_wait_time < MAX_WAIT_TIME:
@@ -296,4 +322,3 @@ class TestTransferManager(object):
         self.tm_client.add_task("clusterA", "//tm/test_table", "clusterB", "//tm/test_table",
                                 sync=True, params={"copy_method": "proxy", "skip_if_destination_exists": True})
         assert list(self.second_cluster_client.read_table("//tm/test_table")) == [{"b": 2}]
-
