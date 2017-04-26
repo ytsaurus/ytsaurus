@@ -94,6 +94,10 @@ def _create_node_from_local_file(local_filename, dest_filename, client):
             client.write_table(dest_filename, table_file, format=meta["format"], raw=True)
 
         attributes = meta.get("attributes", {})
+        if "sorted_by" in attributes:
+            client.run_sort(dest_filename, sort_by=attributes["sorted_by"])
+            attributes.pop("sorted_by")
+
         for key in attributes:
             client.set_attribute(dest_filename, key, attributes[key])
 
