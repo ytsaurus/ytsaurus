@@ -2298,7 +2298,6 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase)
     CheckEverything(stripeLists, teleportChunks);
 }
 
-
 TEST_F(TSortedChunkPoolTest, TestTrickyCase2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
@@ -2345,6 +2344,39 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase2)
     chunkSequence.erase(std::unique(chunkSequence.begin(), chunkSequence.end()), chunkSequence.end());
     ASSERT_EQ(chunkSequence.size(), 3);
 
+    auto teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    CheckEverything(stripeLists, teleportChunks);
+}
+
+TEST_F(TSortedChunkPoolTest, TestTrickyCase3)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {true, false, false},
+        {false, false, false},
+        {false, false, false}
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 2;
+    Options_.SortedJobOptions.ForeignPrefixLength = 1;
+    DataSizePerJob_ = 10 * KB;
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(BuildRow({2}), BuildRow({2}), 0, KB / 10);
+    auto chunkB = CreateChunk(BuildRow({1, 0}), BuildRow({5, 0}), 1, 100 * KB);
+    auto chunkC = CreateChunk(BuildRow({2, 1}), BuildRow({2, 2}), 2, 3 * KB);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    auto stripeLists = GetAllStripeLists();
     auto teleportChunks = ChunkPool_->GetTeleportChunks();
 
     CheckEverything(stripeLists, teleportChunks);
