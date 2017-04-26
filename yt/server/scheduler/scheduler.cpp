@@ -2283,6 +2283,23 @@ private:
         FinishOperation(operation);
     }
 
+    void CompleteCompletingOperation(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
+
+        LOG_INFO("Completing operation (OperationId: %v)",
+             operation->GetId());
+
+        SetOperationFinalState(operation, EOperationState::Completed, TError());
+
+        auto flushResult = WaitFor(MasterConnector_->FlushOperationNode(operation));
+        YCHECK(flushResult.IsOK());
+
+        LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
+    }
+
     void AbortAbortingOperation(TOperationPtr operation, TControllerTransactionsPtr controllerTransactions)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2306,7 +2323,8 @@ private:
 
         SetOperationFinalState(operation, EOperationState::Aborted, TError());
 
-        WaitFor(MasterConnector_->FlushOperationNode(operation));
+        auto flushResult = WaitFor(MasterConnector_->FlushOperationNode(operation));
+        YCHECK(flushResult.IsOK());
 
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
@@ -2317,14 +2335,21 @@ private:
 
         for (const auto& operationReport : operationReports) {
             const auto& operation = operationReport.Operation;
+
+            if (operationReport.IsCommitted) {
+                CompleteCompletingOperation(operation);
+                continue;
+            }
+
             if (operation->GetState() == EOperationState::Aborting) {
                 AbortAbortingOperation(operation, operationReport.ControllerTransactions);
+                continue;
+            }
+
+            if (operationReport.UserTransactionAborted) {
+                OnUserTransactionAborted(operation);
             } else {
-                if (operationReport.UserTransactionAborted) {
-                    OnUserTransactionAborted(operation);
-                } else {
-                    ReviveOperation(operation, operationReport.ControllerTransactions);
-                }
+                ReviveOperation(operation, operationReport.ControllerTransactions);
             }
         }
     }
