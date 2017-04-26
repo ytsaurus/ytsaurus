@@ -2236,17 +2236,21 @@ private:
                 .EndMap()
                 .Item("suspicious_jobs").BeginMap()
                     .Do([=] (IYsonConsumer* consumer) {
-                        for (const auto& it : IdToOperation_) {
-                            const auto& operation = it.second;
+                        std::vector<TFuture<TYsonString>> asyncResults;
+                        for (const auto& pair : IdToOperation_) {
+                            const auto& operation = pair.second;
                             auto controller = operation->GetController();
                             if (controller) {
-                                auto ysonString = WaitFor(
-                                    BIND(&IOperationController::BuildSuspiciousJobsYson, controller)
-                                        .AsyncVia(controller->GetInvoker())
-                                        .Run())
-                                    .ValueOrThrow();
-                                consumer->OnRaw(ysonString);
+                                asyncResults.push_back(BIND(&IOperationController::BuildSuspiciousJobsYson, controller)
+                                    .AsyncVia(controller->GetInvoker())
+                                    .Run());
                             }
+                        }
+                        auto results = WaitFor(Combine(asyncResults))
+                            .ValueOrThrow();
+
+                        for (const auto& ysonString : results) {
+                            consumer->OnRaw(ysonString);
                         }
                     })
                 .EndMap()
