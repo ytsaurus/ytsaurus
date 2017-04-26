@@ -632,6 +632,12 @@ public:
             THROW_ERROR_EXCEPTION("Cannot mount an ordered dynamic table in memory");
         }
 
+        if (mountConfig->InMemoryMode != EInMemoryMode::None &&
+            writerOptions->ErasureCodec != NErasure::ECodec::None)
+        {
+            THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
+        }
+
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
         auto serializedWriterConfig = ConvertToYsonString(writerConfig);
@@ -806,6 +812,12 @@ public:
 
         if (!table->IsPhysicallySorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
             THROW_ERROR_EXCEPTION("Cannot mount an ordered dynamic table in memory");
+        }
+
+        if (mountConfig->InMemoryMode != EInMemoryMode::None &&
+            writerOptions->ErasureCodec != NErasure::ECodec::None)
+        {
+            THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
         }
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
