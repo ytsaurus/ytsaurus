@@ -2516,13 +2516,6 @@ void TOperationControllerBase::SafeAbort()
 {
     LOG_INFO("Aborting operation controller");
 
-    auto abortTransaction = [&] (ITransactionPtr transaction) {
-        if (transaction) {
-            // Fire-and-forget.
-            transaction->Abort();
-        }
-    };
-
     AreTransactionsActive = false;
 
     // Skip commiting anything if operation controller already tried to commit results.
@@ -2546,10 +2539,21 @@ void TOperationControllerBase::SafeAbort()
         }
     }
 
+    std::vector<TFuture<void>> abortTransactionFutures;
+
+    auto abortTransaction = [&] (ITransactionPtr transaction) {
+        if (transaction) {
+            abortTransactionFutures.push_back(transaction->Abort());
+        }
+    };
+
     abortTransaction(InputTransaction);
     abortTransaction(OutputTransaction);
     abortTransaction(SyncSchedulerTransaction);
     abortTransaction(AsyncSchedulerTransaction);
+
+    WaitFor(Combine(abortTransactionFutures))
+        .ThrowOnError();
 
     State = EControllerState::Finished;
 
