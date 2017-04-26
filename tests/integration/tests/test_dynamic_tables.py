@@ -513,17 +513,15 @@ class TestDynamicTableStateTransitions(TestDynamicTablesBase):
         with pytest.raises(YtError):
             self._get_callback(command)("//tmp/t")
 
-    def _do_test_transition(self, initial, first_command, second_command):
+    def _do_test_transition(self, initial, first_command, second_command, banned_peers=[]):
         self._get_callback(first_command)("//tmp/t")
-        self.Env.kill_nodes()
         expected = self._get_expected_state(initial, first_command, second_command)
         if expected == "error":
             with pytest.raises(YtError):
                 self._get_callback(second_command)("//tmp/t")
-            self.Env.start_nodes()
         else:
             self._get_callback(second_command)("//tmp/t")
-            self.Env.start_nodes()
+            self._unban_peers(banned_peers)
             self._wait_for_tablets("//tmp/t", expected)
 
     @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
@@ -533,7 +531,9 @@ class TestDynamicTableStateTransitions(TestDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
         cell = get("//tmp/t/@tablets/0/cell_id")
-        self._do_test_transition("mounted", first_command, second_command)
+        banned_peers = self._ban_all_peers(cell)
+        self.sync_create_cells(1)
+        self._do_test_transition("mounted", first_command, second_command, banned_peers)
 
     @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("first_command", ["frozen_mount", "unmount", "freeze", "unfreeze"])
@@ -542,7 +542,9 @@ class TestDynamicTableStateTransitions(TestDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         self.sync_mount_table("//tmp/t", freeze=True)
         cell = get("//tmp/t/@tablets/0/cell_id")
-        self._do_test_transition("frozen", first_command, second_command)
+        banned_peers = self._ban_all_peers(cell)
+        self.sync_create_cells(1)
+        self._do_test_transition("frozen", first_command, second_command, banned_peers)
 
     @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("first_command", ["mount", "frozen_mount", "unmount"])
