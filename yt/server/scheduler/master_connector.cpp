@@ -90,6 +90,11 @@ public:
         return Connected;
     }
 
+    void Disconnect()
+    {
+        DoDisconnect();
+    }
+
     IInvokerPtr GetCancelableControlInvoker() const
     {
         return CancelableControlInvoker;
@@ -761,7 +766,7 @@ private:
     }
 
 
-    void Disconnect()
+    void DoDisconnect()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -2051,6 +2056,11 @@ void TMasterConnector::Start()
 bool TMasterConnector::IsConnected() const
 {
     return Impl->IsConnected();
+}
+
+void TMasterConnector::Disconnect()
+{
+    return Impl->Disconnect();
 }
 
 IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const

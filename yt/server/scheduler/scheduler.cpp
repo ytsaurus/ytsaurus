@@ -2259,7 +2259,12 @@ private:
         {
             auto controller = operation->GetController();
             if (controller) {
-                controller->Abort();
+                try {
+                    controller->Abort();
+                } catch (const std::exception& ex) {
+                    LOG_ERROR(ex, "Failed to abort controller");
+                    MasterConnector_->Disconnect();
+                }
             }
         }
 
