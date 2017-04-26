@@ -1,5 +1,4 @@
 #include "framework.h"
-#include "probe.h"
 
 #include <yt/core/actions/future.h>
 
@@ -12,27 +11,37 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TMPSCQueueTest, SimpleSingleThreaded)
+struct TIntNode
 {
-    TMPSCQueue<int> queue;
+    int Value;
+    TMpscQueueHook Hook;
 
-    queue.Push(1);
-    queue.Push(2);
-    queue.Push(3);
+    TIntNode(int value)
+        : Value(value)
+    { }
+};
+
+TEST(TMpscQueueTest, SimpleSingleThreaded)
+{
+    TMpscQueue<TIntNode, &TIntNode::Hook> queue;
+
+    queue.Push(std::make_unique<TIntNode>(1));
+    queue.Push(std::make_unique<TIntNode>(2));
+    queue.Push(std::make_unique<TIntNode>(3));
 
     auto n1 = queue.Pop();
-    EXPECT_EQ(1, *n1);
+    EXPECT_EQ(1, n1->Value);
     auto n2 = queue.Pop();
-    EXPECT_EQ(2, *n2);
+    EXPECT_EQ(2, n2->Value);
     auto n3 = queue.Pop();
-    EXPECT_EQ(3, *n3);
+    EXPECT_EQ(3, n3->Value);
 
     EXPECT_FALSE(static_cast<bool>(queue.Pop()));
 };
 
-TEST(TMPSCQueueTest, SimpleMultiThreaded)
+TEST(TMpscQueueTest, SimpleMultiThreaded)
 {
-    TMPSCQueue<int> queue;
+    TMpscQueue<TIntNode, &TIntNode::Hook> queue;
 
     constexpr int N = 10000;
     constexpr int T = 4;
@@ -42,7 +51,7 @@ TEST(TMPSCQueueTest, SimpleMultiThreaded)
     auto producer = [&] () {
         barrier.ToFuture().Get();
         for (int i = 0; i < N; ++i) {
-            queue.Push(i);
+            queue.Push(std::make_unique<TIntNode>(i));
         }
     };
 
@@ -53,7 +62,7 @@ TEST(TMPSCQueueTest, SimpleMultiThreaded)
         for (int i = 0; i < N * T; ++i) {
             while (true) {
                 if (auto item = queue.Pop()) {
-                    counts[*item]++;
+                    counts[item->Value]++;
                     break;
                 }
             }
@@ -79,20 +88,6 @@ TEST(TMPSCQueueTest, SimpleMultiThreaded)
 
     SUCCEED();
 };
-
-TEST(TMPSCQueueTest, NoCopies)
-{
-    TProbeState state;
-
-    TMPSCQueue<TProbe> queue;
-
-    auto p = TProbe(&state);
-    queue.Push(std::move(p));
-    auto q = *queue.Pop(); // Look, ma, no copiez!
-
-    EXPECT_EQ(2, state.MoveAssignments + state.MoveConstructors);
-    EXPECT_EQ(0, state.CopyAssignments + state.CopyConstructors);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
