@@ -36,6 +36,7 @@ struct TOperationReport
     TOperationPtr Operation;
     TControllerTransactionsPtr ControllerTransactions;
     bool UserTransactionAborted = false;
+    bool IsCommitted = false;
 };
 
 //! Information retrieved during scheduler-master handshake.
