@@ -670,15 +670,17 @@ public:
         // us to stop, to add all foreign slices up to the current moment and to check
         // if we already have to end the job due to the large data size or slice count.
         TEndpoint leftEndpoint = {
+            // NB: this is a dirty hack, we do not want for any primary slice to get between
+            // key and key, <max>.
             EEndpointType::ForeignLeft,
             dataSlice,
-            dataSlice->LowerLimit().Key,
+            WidenKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength + 1, RowBuffer_, EValueType::Min),
             dataSlice->LowerLimit().RowIndex.Get(0)
         };
         TEndpoint rightEndpoint = {
             EEndpointType::ForeignRight,
             dataSlice,
-            dataSlice->UpperLimit().Key,
+            WidenKey(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength + 1, RowBuffer_, EValueType::Min),
             dataSlice->UpperLimit().RowIndex.Get(0)
         };
 
