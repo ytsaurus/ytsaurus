@@ -505,15 +505,6 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         actual = read_table("//tmp/t")
         assert actual == rows
 
-        # Re-enable in-memory mode
-        set("//tmp/t/@in_memory_mode", mode)
-        remount_table("//tmp/t")
-
-        sleep(3.0)
-
-        _check_preload_state("complete")
-        assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
-
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
     def test_in_memory(self, mode, optimize_for):
@@ -567,6 +558,15 @@ class TestOrderedDynamicTables(TestDynamicTablesBase):
         sleep(3.0)
 
         _check_preload_state("disabled")
+        assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
+        
+        # Re-enable in-memory mode
+        set("//tmp/t/@in_memory_mode", mode)
+        remount_table("//tmp/t")
+
+        sleep(3.0)
+
+        _check_preload_state("complete")
         assert select_rows("a, b, c from [//tmp/t]") == rows1 + rows2
 
     def test_reshard_trimmed_shared_yt_6948(self):
