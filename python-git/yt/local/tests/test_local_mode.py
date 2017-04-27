@@ -65,7 +65,7 @@ def _wait_instance_to_become_ready(process, instance_id):
 def local_yt(*args, **kwargs):
     environment = None
     try:
-        environment = start(*args, **kwargs)
+        environment = start(*args, enable_debug_logging=True, **kwargs)
         yield environment
     finally:
         if environment is not None:
@@ -85,6 +85,8 @@ class YtLocalBinary(object):
                 command.extend(["--" + key])
             else:
                 command.extend(["--" + key, str(value)])
+
+            command.extend(["--enable-debug-logging"])
 
         env = {
             "YT_LOCAL_ROOT_PATH": self.root_path,
@@ -131,7 +133,7 @@ class TestLocalMode(object):
         scheduler_count = 4
 
         with local_yt(id="test_logging", master_count=master_count, node_count=node_count,
-                      scheduler_count=scheduler_count, enable_debug_logging=True, start_proxy=True):
+                      scheduler_count=scheduler_count, start_proxy=True):
             pass
 
         for index in xrange(master_count):
@@ -162,7 +164,7 @@ class TestLocalMode(object):
         scheduler_count = 4
         with local_yt(id="test_configs", master_count=master_count,
                       node_count=node_count, scheduler_count=scheduler_count,
-                      enable_debug_logging=True, start_proxy=True):
+                      start_proxy=True):
             pass
 
         assert os.path.exists(config_path)
@@ -188,7 +190,7 @@ class TestLocalMode(object):
             "logs_rotate_interval": 1,
             "logs_rotate_max_part_count": 5
         }
-        with local_yt(id="test_watcher", watcher_config=watcher_config, enable_debug_logging=True) as environment:
+        with local_yt(id="test_watcher", watcher_config=watcher_config) as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = YtClient(proxy="localhost:{0}".format(proxy_port))
 
@@ -225,8 +227,7 @@ class TestLocalMode(object):
         with pytest.raises(yt.YtError):
             start(master_count=0)
 
-        with local_yt(master_count=3, node_count=0, scheduler_count=0,
-                      enable_debug_logging=True) as environment:
+        with local_yt(master_count=3, node_count=0, scheduler_count=0) as environment:
             assert len(_read_pids_file(environment.id)) == 5 # + proxy
             assert len(environment.configs["master"]) == 3
 
