@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/server/controller_agent/public.h>
+
 #include <yt/server/job_proxy/config.h>
 
 #include <yt/ytlib/api/config.h>

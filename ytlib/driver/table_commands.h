@@ -283,5 +283,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAlterTableReplicaCommand
+    : public TTypedCommand<NApi::TAlterTableReplicaOptions>
+{
+public:
+    TAlterTableReplicaCommand();
+
+private:
+    NTabletClient::TTableReplicaId ReplicaId;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

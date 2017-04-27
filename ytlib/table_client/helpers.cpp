@@ -313,7 +313,7 @@ TTableUploadOptions GetTableUploadOptions(
 {
     auto schema = cypressTableAttributes.Get<TTableSchema>("schema");
     auto schemaMode = cypressTableAttributes.Get<ETableSchemaMode>("schema_mode");
-    auto optimizeFor = cypressTableAttributes.Get<EOptimizeFor>("optimize_for");
+    auto optimizeFor = cypressTableAttributes.Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
     auto compressionCodec = cypressTableAttributes.Get<NCompression::ECodec>("compression_codec");
     auto erasureCodec = cypressTableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
 

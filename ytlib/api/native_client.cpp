@@ -655,6 +655,10 @@ public:
         const TTableReplicaId& replicaId,
         const TDisableTableReplicaOptions& options),
         (replicaId, options))
+    IMPLEMENT_METHOD(void, AlterTableReplica, (
+        const TTableReplicaId& replicaId,
+        const TAlterTableReplicaOptions& options),
+        (replicaId, options))
 
 
     IMPLEMENT_METHOD(TYsonString, GetNode, (
@@ -1748,7 +1752,8 @@ private:
         const TTableReplicaId& replicaId,
         const TEnableTableReplicaOptions& options)
     {
-        auto req = TTableReplicaYPathProxy::Enable(FromObjectId(replicaId));
+        auto req = TTableReplicaYPathProxy::Alter(FromObjectId(replicaId));
+        req->set_enabled(true);
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
@@ -1758,7 +1763,21 @@ private:
         const TTableReplicaId& replicaId,
         const TDisableTableReplicaOptions& options)
     {
-        auto req = TTableReplicaYPathProxy::Disable(FromObjectId(replicaId));
+        auto req = TTableReplicaYPathProxy::Alter(FromObjectId(replicaId));
+        req->set_enabled(false);
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+        WaitFor(proxy->Execute(req))
+            .ThrowOnError();
+    }
+
+    void DoAlterTableReplica(
+        const TTableReplicaId& replicaId,
+        const TAlterTableReplicaOptions& options)
+    {
+        auto req = TTableReplicaYPathProxy::Alter(FromObjectId(replicaId));
+        if (options.Enabled) {
+            req->set_enabled(*options.Enabled);
+        }
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
@@ -2936,8 +2955,8 @@ private:
             for (const auto& item : items->GetChildren()) {
                 const auto& attributes = item.second->Attributes();
 
-                auto jobType = ParseEnum<NJobAgent::EJobType>(attributes.Get<Stroka>("job_type"));
-                auto jobState = ParseEnum<NJobAgent::EJobState>(attributes.Get<Stroka>("state"));
+                auto jobType = ParseEnum<NJobTrackerClient::EJobType>(attributes.Get<Stroka>("job_type"));
+                auto jobState = ParseEnum<NJobTrackerClient::EJobState>(attributes.Get<Stroka>("state"));
 
                 if (options.JobType && jobType != *options.JobType) {
                     continue;
@@ -2992,8 +3011,8 @@ private:
             for (const auto& item : items->GetChildren()) {
                 auto values = item.second->AsMap();
 
-                auto jobType = ParseEnum<NJobAgent::EJobType>(values->GetChild("job_type")->AsString()->GetValue());
-                auto jobState = ParseEnum<NJobAgent::EJobState>(values->GetChild("state")->AsString()->GetValue());
+                auto jobType = ParseEnum<NJobTrackerClient::EJobType>(values->GetChild("job_type")->AsString()->GetValue());
+                auto jobState = ParseEnum<NJobTrackerClient::EJobState>(values->GetChild("state")->AsString()->GetValue());
 
                 if (options.JobType && jobType != *options.JobType) {
                     continue;

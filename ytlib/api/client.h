@@ -3,7 +3,7 @@
 #include "public.h"
 #include "connection.h"
 
-#include <yt/server/job_agent/public.h>
+#include <yt/ytlib/job_tracker_client/public.h>
 
 #include <yt/ytlib/chunk_client/config.h>
 
@@ -188,6 +188,12 @@ struct TEnableTableReplicaOptions
 struct TDisableTableReplicaOptions
     : public TTimeoutOptions
 { };
+
+struct TAlterTableReplicaOptions
+    : public TTimeoutOptions
+{
+    TNullable<bool> Enabled;
+};
 
 struct TAddMemberOptions
     : public TTimeoutOptions
@@ -559,8 +565,8 @@ DEFINE_ENUM(EJobSortDirection,
 struct TListJobsOptions
     : public TTimeoutOptions
 {
-    TNullable<NJobAgent::EJobType> JobType;
-    TNullable<NJobAgent::EJobState> JobState;
+    TNullable<NJobTrackerClient::EJobType> JobType;
+    TNullable<NJobTrackerClient::EJobState> JobState;
 
     EJobSortField SortField = EJobSortField::StartTime;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
@@ -619,9 +625,9 @@ struct TClusterMeta
 
 struct TJob
 {
-    NJobAgent::TJobId JobId;
-    NJobAgent::EJobType JobType;
-    NJobAgent::EJobState JobState;
+    NJobTrackerClient::TJobId JobId;
+    NJobTrackerClient::EJobType JobType;
+    NJobTrackerClient::EJobState JobState;
     TInstant StartTime;
     TNullable<TInstant> FinishTime;
     Stroka Address;
@@ -834,6 +840,10 @@ struct IClient
     virtual TFuture<void> DisableTableReplica(
         const NTabletClient::TTableReplicaId& replicaId,
         const TDisableTableReplicaOptions& options = TDisableTableReplicaOptions()) = 0;
+
+    virtual TFuture<void> AlterTableReplica(
+        const NTabletClient::TTableReplicaId& replicaId,
+        const TAlterTableReplicaOptions& options = TAlterTableReplicaOptions()) = 0;
 
     // Security
     virtual TFuture<void> AddMember(

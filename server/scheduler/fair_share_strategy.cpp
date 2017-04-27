@@ -2,9 +2,10 @@
 #include "fair_share_tree.h"
 #include "public.h"
 #include "config.h"
-#include "job_resources.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
+
+#include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/async_rw_lock.h>
 #include <yt/core/concurrency/periodic_executor.h>

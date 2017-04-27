@@ -116,6 +116,13 @@ public:
         Y_UNIMPLEMENTED();
     }
 
+    virtual TFuture<void> AlterTableReplica(
+        const NTabletClient::TTableReplicaId& replicaId,
+        const NApi::TAlterTableReplicaOptions& options) override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
     // Security
     virtual TFuture<void> AddMember(
         const Stroka& group,

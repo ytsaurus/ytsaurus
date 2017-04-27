@@ -1,13 +1,13 @@
 #include "master_connector.h"
 
 #include "config.h"
+#include "private.h"
 #include "helpers.h"
-#include "operation_controller.h"
 #include "scheduler.h"
 #include "scheduler_strategy.h"
-#include "serialize.h"
-#include "snapshot_builder.h"
-#include "snapshot_downloader.h"
+
+#include <yt/server/controller_agent/master_connector.h>
+#include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 #include <yt/server/cell_scheduler/config.h>
@@ -28,6 +28,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
+#include <yt/ytlib/scheduler/update_executor.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
@@ -77,6 +78,10 @@ public:
             Config->ClusterDirectorySynchronizer,
             Bootstrap->GetMasterClient()->GetConnection(),
             ClusterDirectory))
+        , OperationNodesUpdateExecutor_(
+            BIND(&TImpl::UpdateOperationNode, MakeStrong(this)),
+            BIND(&TImpl::IsOperationInFinishedState, MakeStrong(this)),
+            Logger)
     { }
 
     void Start()
@@ -96,7 +101,12 @@ public:
         return CancelableControlInvoker;
     }
 
-    TFuture<void> CreateOperationNode(TOperationPtr operation, const TOperationControllerInitializeResult& initializeResult)
+    NControllerAgent::TMasterConnectorPtr GetControllerAgentMasterConnector() const
+    {
+        return ControllerAgentMasterConnector;
+    }
+
+    TFuture<void> CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
@@ -213,72 +223,15 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto id = operation->GetId();
-        LOG_INFO("Flushing operation node (OperationId: %v)",
-            id);
-
-        auto* list = FindUpdateList(id);
-        if (!list) {
-            LOG_INFO("Operation node is not registered, omitting flush (OperationId: %v)",
-                id);
-            return VoidFuture;
-        }
-
-        return UpdateOperationNode(list).Apply(
-            BIND(&TImpl::OnOperationNodeFlushed, MakeStrong(this), operation)
-                .Via(CancelableControlInvoker));
+        return OperationNodesUpdateExecutor_.ExecuteUpdate(operation->GetId());
     }
 
-
-    void CreateJobNode(const TCreateJobNodeRequest& createJobNodeRequest)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        LOG_DEBUG("Creating job node (OperationId: %v, JobId: %v, StderrChunkId: %v, FailContextChunkId: %v)",
-            createJobNodeRequest.OperationId,
-            createJobNodeRequest.JobId,
-            createJobNodeRequest.StderrChunkId,
-            createJobNodeRequest.FailContextChunkId);
-
-        auto* list = GetUpdateList(createJobNodeRequest.OperationId);
-        list->JobRequests.push_back(createJobNodeRequest);
-    }
 
     void SetSchedulerAlert(EAlertType alertType, const TError& alert)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         Alerts[alertType] = alert;
-    }
-
-    TFuture<void> AttachToLivePreview(
-        const TOperationId& operationId,
-        const TTransactionId& transactionId,
-        const TNodeId& tableId,
-        const std::vector<TChunkTreeId>& childIds)
-    {
-        return BIND(&TImpl::DoAttachToLivePreview, MakeStrong(this))
-            .AsyncVia(CancelableControlInvoker)
-            .Run(operationId, transactionId, tableId, childIds);
-    }
-
-    TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId)
-    {
-        if (!Config->EnableSnapshotLoading) {
-            return MakeFuture<TOperationSnapshot>(TError("Snapshot loading is disabled in configuration"));
-        }
-
-        return BIND(&TImpl::DoDownloadSnapshot, MakeStrong(this), operationId)
-            .AsyncVia(CancelableControlInvoker)
-            .Run();
-    }
-
-    TFuture<void> RemoveSnapshot(const TOperationId& operationId)
-    {
-        return BIND(&TImpl::DoRemoveSnapshot, MakeStrong(this), operationId)
-            .AsyncVia(CancelableControlInvoker)
-            .Run();
     }
 
     void AddGlobalWatcherRequester(TWatcherRequester requester)
@@ -303,40 +256,20 @@ public:
         list->WatcherHandlers.push_back(handler);
     }
 
-    void AttachJobContext(
-        const TYPath& path,
-        const TChunkId& chunkId,
-        const TOperationId& operationId,
-        const TJobId& jobId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(chunkId);
-
-        try {
-            TJobFile file{
-                jobId,
-                path,
-                chunkId,
-                "input_context"
-            };
-            SaveJobFiles(operationId, { file });
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v", jobId, path)
-                << ex;
-        }
-    }
-
     void UpdateConfig(const TSchedulerConfigPtr& config)
     {
         Config = config;
         OnConfigUpdated();
+
+        // NB: this method could be called in disconnected state during registration pipeline.
+        // In such situation ControllersMasterConnector is not initialized.
+        if (ControllerAgentMasterConnector) {
+            ControllerAgentMasterConnector->UpdateConfig(config);
+        }
     }
 
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DEFINE_SIGNAL(void(), MasterDisconnected);
-
-    DEFINE_SIGNAL(void(TOperationPtr operation), UserTransactionAborted);
-    DEFINE_SIGNAL(void(TOperationPtr operation), SchedulerTransactionAborted);
 
 private:
     TSchedulerConfigPtr Config;
@@ -351,10 +284,7 @@ private:
 
     ITransactionPtr LockTransaction;
 
-    TPeriodicExecutorPtr TransactionRefreshExecutor;
-    TPeriodicExecutorPtr OperationNodesUpdateExecutor;
     TPeriodicExecutorPtr WatchersExecutor;
-    TPeriodicExecutorPtr SnapshotExecutor;
     TPeriodicExecutorPtr AlertsExecutor;
     TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer;
 
@@ -363,26 +293,18 @@ private:
 
     TEnumIndexedVector<TError, EAlertType> Alerts;
 
-    struct TLivePreviewRequest
-    {
-        TChunkListId TableId;
-        TChunkTreeId ChildId;
-    };
+    NControllerAgent::TMasterConnectorPtr ControllerAgentMasterConnector;
 
-    struct TUpdateList
+    struct TOperationNodeUpdate
     {
-        explicit TUpdateList(TOperationPtr operation)
+        explicit TOperationNodeUpdate(const TOperationPtr& operation)
             : Operation(operation)
         { }
 
         TOperationPtr Operation;
-        TTransactionId TransactionId;
-        std::vector<TCreateJobNodeRequest> JobRequests;
-        std::vector<TLivePreviewRequest> LivePreviewRequests;
-        TFuture<void> LastUpdateFuture = VoidFuture;
     };
 
-    yhash_map<TOperationId, TUpdateList> UpdateLists;
+    TUpdateExecutor<TOperationId, TOperationNodeUpdate> OperationNodesUpdateExecutor_;
 
     struct TWatcherList
     {
@@ -451,12 +373,20 @@ private:
 
         const auto& result = resultOrError.Value();
         for (auto operationReport : result.OperationReports) {
-            CreateUpdateList(operationReport.Operation);
+            const auto& operation = operationReport.Operation;
+            OperationNodesUpdateExecutor_.AddUpdate(
+                operation->GetId(),
+                TOperationNodeUpdate(operation));
         }
 
         LockTransaction->SubscribeAborted(
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
                 .Via(CancelableControlInvoker));
+
+        ControllerAgentMasterConnector = New<NControllerAgent::TMasterConnector>(
+            CancelableControlInvoker,
+            Config,
+            Bootstrap);
 
         StartPeriodicActivities();
 
@@ -725,7 +655,6 @@ private:
                 handler.Run(watcherResponses);
             }
         }
-
     };
 
 
@@ -744,15 +673,6 @@ private:
         return batchReq;
     }
 
-    TChunkServiceProxy::TReqExecuteBatchPtr StartChunkBatchRequest(TCellTag cellTag = PrimaryMasterCellTag)
-    {
-        TChunkServiceProxy proxy(Bootstrap
-            ->GetMasterClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
-        return proxy.ExecuteBatch();
-    }
-
-
     void Disconnect()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -764,9 +684,13 @@ private:
 
         Connected = false;
 
+        ControllerAgentMasterConnector.Reset();
+
         LockTransaction.Reset();
 
-        ClearUpdateLists();
+        OperationNodesUpdateExecutor_.Clear();
+        OperationNodesUpdateExecutor_.StopPeriodicUpdates();
+
         ClearWatcherLists();
 
         StopPeriodicActivities();
@@ -817,7 +741,7 @@ private:
             attributes.Get<TTransactionId>("user_transaction_id"),
             false);
 
-        result.ControllerTransactions = New<TControllerTransactions>();
+        result.ControllerTransactions = New<NControllerAgent::TControllerTransactions>();
         result.ControllerTransactions->Sync = attachTransaction(
             attributes.Get<TTransactionId>("sync_scheduler_transaction_id"),
             true,
@@ -857,7 +781,7 @@ private:
             operationId,
             attributes.Get<EOperationType>("operation_type"),
             attributes.Get<TMutationId>("mutation_id"),
-            userTransaction,
+            userTransactionId,
             spec,
             attributes.Get<Stroka>("authenticated_user"),
             operationSpec->Owners,
@@ -877,19 +801,9 @@ private:
 
     void StartPeriodicActivities()
     {
-        TransactionRefreshExecutor = New<TPeriodicExecutor>(
+        OperationNodesUpdateExecutor_.StartPeriodicUpdates(
             CancelableControlInvoker,
-            BIND(&TImpl::RefreshTransactions, MakeWeak(this)),
-            Config->TransactionsRefreshPeriod,
-            EPeriodicExecutorMode::Automatic);
-        TransactionRefreshExecutor->Start();
-
-        OperationNodesUpdateExecutor = New<TPeriodicExecutor>(
-            CancelableControlInvoker,
-            BIND(&TImpl::UpdateOperationNodes, MakeWeak(this)),
-            Config->OperationsUpdatePeriod,
-            EPeriodicExecutorMode::Automatic);
-        OperationNodesUpdateExecutor->Start();
+            Config->OperationsUpdatePeriod);
 
         WatchersExecutor = New<TPeriodicExecutor>(
             CancelableControlInvoker,
@@ -899,13 +813,6 @@ private:
         WatchersExecutor->Start();
 
         ClusterDirectorySynchronizer->Start();
-
-        SnapshotExecutor = New<TPeriodicExecutor>(
-            CancelableControlInvoker,
-            BIND(&TImpl::BuildSnapshot, MakeWeak(this)),
-            Config->SnapshotPeriod,
-            EPeriodicExecutorMode::Automatic);
-        SnapshotExecutor->Start();
 
         AlertsExecutor = New<TPeriodicExecutor>(
             CancelableControlInvoker,
@@ -917,199 +824,18 @@ private:
 
     void StopPeriodicActivities()
     {
-        if (TransactionRefreshExecutor) {
-            TransactionRefreshExecutor->Stop();
-            TransactionRefreshExecutor.Reset();
-        }
-
-        if (OperationNodesUpdateExecutor) {
-            OperationNodesUpdateExecutor->Stop();
-            OperationNodesUpdateExecutor.Reset();
-        }
-
         if (WatchersExecutor) {
             WatchersExecutor->Stop();
             WatchersExecutor.Reset();
-        }
-
-        ClusterDirectorySynchronizer->Stop();
-
-        if (SnapshotExecutor) {
-            SnapshotExecutor->Stop();
-            SnapshotExecutor.Reset();
         }
 
         if (AlertsExecutor) {
             AlertsExecutor->Stop();
             AlertsExecutor.Reset();
         }
+
+        ClusterDirectorySynchronizer->Stop();
     }
-
-
-    void RefreshTransactions()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        // Collect all transactions that are used by currently running operations.
-        yhash_set<TTransactionId> watchSet;
-        auto watchTransaction = [&] (ITransactionPtr transaction) {
-            if (transaction) {
-                watchSet.insert(transaction->GetId());
-            }
-        };
-
-        auto operations = Bootstrap->GetScheduler()->GetOperations();
-        for (auto operation : operations) {
-            auto controller = operation->GetController();
-            if (controller) {
-                for (const auto& transaction : controller->GetTransactions()) {
-                    watchTransaction(transaction);
-                }
-            }
-            watchTransaction(operation->GetUserTransaction());
-        }
-
-        yhash_map<TCellTag, TObjectServiceProxy::TReqExecuteBatchPtr> batchReqs;
-
-        for (const auto& id : watchSet) {
-            auto cellTag = CellTagFromId(id);
-            if (batchReqs.find(cellTag) == batchReqs.end()) {
-                auto connection = FindConnection(cellTag);
-                if (!connection) {
-                    continue;
-                }
-                auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-                auto authenticatedChannel = CreateAuthenticatedChannel(channel, SchedulerUserName);
-                TObjectServiceProxy proxy(authenticatedChannel);
-                batchReqs[cellTag] = proxy.ExecuteBatch();
-            }
-
-            auto checkReq = TObjectYPathProxy::GetBasicAttributes(FromObjectId(id));
-            batchReqs[cellTag]->AddRequest(checkReq, "check_tx_" + ToString(id));
-        }
-
-        LOG_INFO("Refreshing transactions");
-
-        yhash_map<TCellTag, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchRsps;
-
-        for (const auto& pair : batchReqs) {
-            auto cellTag = pair.first;
-            const auto& batchReq = pair.second;
-            auto batchRspOrError = WaitFor(batchReq->Invoke(), CancelableControlInvoker);
-            if (batchRspOrError.IsOK()) {
-                batchRsps[cellTag] = batchRspOrError.Value();
-            } else {
-                LOG_ERROR(batchRspOrError, "Error refreshing transactions (CellTag: %v)",
-                    cellTag);
-            }
-        }
-
-        yhash_set<TTransactionId> deadTransactionIds;
-
-        for (const auto& id : watchSet) {
-            auto cellTag = CellTagFromId(id);
-            auto it = batchRsps.find(cellTag);
-            if (it != batchRsps.end()) {
-                const auto& batchRsp = it->second;
-                auto rspOrError = batchRsp->GetResponse("check_tx_" + ToString(id));
-                if (!rspOrError.IsOK()) {
-                    deadTransactionIds.insert(id);
-                }
-            }
-        }
-
-        LOG_INFO("Transactions refreshed");
-
-        auto isTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
-            if (!transaction) {
-                return true;
-            }
-
-            if (deadTransactionIds.find(transaction->GetId()) == deadTransactionIds.end()) {
-                return true;
-            }
-
-            return false;
-        };
-
-        auto isUserTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
-            if (isTransactionAlive(operation, transaction)) {
-                return true;
-            }
-
-            LOG_INFO("Expired user transaction found (OperationId: %v, TransactionId: %v)",
-                operation->GetId(),
-                transaction->GetId());
-            return false;
-        };
-
-        auto isSchedulerTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
-            if (isTransactionAlive(operation, transaction)) {
-                return true;
-            }
-
-            LOG_INFO("Expired scheduler transaction found (OperationId: %v, TransactionId: %v)",
-                operation->GetId(),
-                transaction->GetId());
-            return false;
-        };
-
-        // Check every operation's transactions and raise appropriate notifications.
-        for (auto operation : operations) {
-            if (!isUserTransactionAlive(operation, operation->GetUserTransaction())) {
-                UserTransactionAborted_.Fire(operation);
-                continue;
-            }
-
-            auto controller = operation->GetController();
-            if (controller) {
-                for (const auto& transaction : controller->GetTransactions()) {
-                    if (!isSchedulerTransactionAlive(operation, transaction)) {
-                        SchedulerTransactionAborted_.Fire(operation);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    TUpdateList* CreateUpdateList(TOperationPtr operation)
-    {
-        LOG_DEBUG("Operation update list registered (OperationId: %v)",
-            operation->GetId());
-        auto pair = UpdateLists.insert(std::make_pair(
-            operation->GetId(),
-            TUpdateList(operation)));
-        YCHECK(pair.second);
-        return &pair.first->second;
-    }
-
-    TUpdateList* FindUpdateList(const TOperationId& operationId)
-    {
-        auto it = UpdateLists.find(operationId);
-        return it == UpdateLists.end() ? nullptr : &it->second;
-    }
-
-    TUpdateList* GetUpdateList(const TOperationId& operationId)
-    {
-        auto* result = FindUpdateList(operationId);
-        YCHECK(result);
-        return result;
-    }
-
-    void RemoveUpdateList(TOperationPtr operation)
-    {
-        LOG_DEBUG("Operation update list unregistered (OperationId: %v)",
-            operation->GetId());
-        YCHECK(UpdateLists.erase(operation->GetId()));
-    }
-
-    void ClearUpdateLists()
-    {
-        UpdateLists.clear();
-    }
-
 
     TWatcherList* GetOrCreateWatcherList(TOperationPtr operation)
     {
@@ -1133,56 +859,11 @@ private:
         WatcherLists.clear();
     }
 
-    void UpdateOperationNodes()
+    bool IsOperationInFinishedState(const TOperationNodeUpdate* update) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        LOG_INFO("Updating nodes for %v operations",
-            UpdateLists.size());
-
-        // Issue updates for active operations.
-        std::vector<TOperationPtr> finishedOperations;
-        std::vector<TFuture<void>> asyncResults;
-        for (auto& pair : UpdateLists) {
-            auto& list = pair.second;
-            auto operation = list.Operation;
-            if (operation->IsFinishedState()) {
-                finishedOperations.push_back(operation);
-            } else {
-                LOG_DEBUG("Updating operation node (OperationId: %v)",
-                    operation->GetId());
-
-                asyncResults.push_back(UpdateOperationNode(&list).Apply(
-                    BIND(&TImpl::OnOperationNodeUpdated, MakeStrong(this), operation)
-                        .AsyncVia(CancelableControlInvoker)));
-            }
-        }
-
-        // Cleanup finished operations.
-        for (auto operation : finishedOperations) {
-            RemoveUpdateList(operation);
-        }
-
-        auto result = WaitFor(Combine(asyncResults));
-        if (!result.IsOK()) {
-            LOG_ERROR(result, "Error updating operation nodes");
-            Disconnect();
-            return;
-        }
-
-        LOG_INFO("Operation nodes updated");
+        const auto& operation = update->Operation;
+        return operation->IsFinishedState();
     }
-
-    void OnOperationNodeUpdated(TOperationPtr operation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        LOG_DEBUG("Operation node updated (OperationId: %v)",
-            operation->GetId());
-    }
-
 
     void UpdateOperationNodeAttributes(TOperationPtr operation)
     {
@@ -1203,30 +884,6 @@ private:
             auto req = TYPathProxy::Set(operationPath + "/@events");
             req->set_value(ConvertToYsonString(operation->GetEvents()).GetData());
             batchReq->AddRequest(req, "update_op_node");
-        }
-
-        if (operation->HasControllerProgress())
-        {
-            auto controller = operation->GetController();
-
-            // Set progress.
-            {
-                auto progress = controller->GetProgress();
-                YCHECK(progress);
-
-                auto req = TYPathProxy::Set(operationPath + "/@progress");
-                req->set_value(progress.GetData());
-                batchReq->AddRequest(req, "update_op_node");
-            }
-            // Set brief progress.
-            {
-                auto progress = controller->GetBriefProgress();
-                YCHECK(progress);
-
-                auto req = TYPathProxy::Set(operationPath + "/@brief_progress");
-                req->set_value(progress.GetData());
-                batchReq->AddRequest(req, "update_op_node");
-            }
         }
 
         // Set result.
@@ -1274,504 +931,9 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
     }
 
-    TOperationSnapshot DoDownloadSnapshot(const TOperationId& operationId)
-    {
-        auto snapshotPath = GetSnapshotPath(operationId);
-
-        auto batchReq = StartObjectBatchRequest();
-        auto req = TYPathProxy::Get(snapshotPath + "/@version");
-        batchReq->AddRequest(req, "get_version");
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        const auto& batchRsp = batchRspOrError.ValueOrThrow();
-
-        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_version");
-        // Check for missing snapshots.
-        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            THROW_ERROR_EXCEPTION("Snapshot does not exist");
-        }
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting snapshot version");
-
-        const auto& rsp = rspOrError.Value();
-        int version = ConvertTo<int>(TYsonString(rsp->value()));
-
-        LOG_INFO("Snapshot found (OperationId: %v, Version: %v)",
-            operationId,
-            version);
-
-        if (!ValidateSnapshotVersion(version)) {
-            THROW_ERROR_EXCEPTION("Snapshot version validation failed");
-        }
-
-        TOperationSnapshot snapshot;
-        snapshot.Version = version;
-        try {
-            auto downloader = New<TSnapshotDownloader>(
-                Config,
-                Bootstrap,
-                operationId);
-            snapshot.Data = downloader->Run();
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error downloading snapshot") << ex;
-        }
-        return snapshot;
-    }
-
-    void DoRemoveSnapshot(const TOperationId& operationId)
-    {
-        auto batchReq = StartObjectBatchRequest();
-        auto req = TYPathProxy::Remove(GetSnapshotPath(operationId));
-        req->set_force(true);
-        GenerateMutationId(req);
-        batchReq->AddRequest(req, "remove_snapshot");
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-    }
-
-    void CreateJobNodes(
-        TOperationPtr operation,
-        const std::vector<TCreateJobNodeRequest>& jobRequests)
-    {
-        auto batchReq = StartObjectBatchRequest();
-
-        for (const auto& request : jobRequests) {
-            const auto& jobId = request.JobId;
-            auto jobPath = GetJobPath(operation->GetId(), jobId);
-            TYsonString inputPaths;
-            if (request.InputPathsFuture) {
-                auto inputPathsOrError = WaitFor(request.InputPathsFuture);
-                if (!inputPathsOrError.IsOK()) {
-                    LOG_WARNING(
-                        inputPathsOrError,
-                        "Error obtaining input paths for failed job (JobId: %v)",
-                        jobId);
-                } else {
-                    inputPaths = inputPathsOrError.Value();
-                }
-            }
-
-            auto attributes = ConvertToAttributes(request.Attributes);
-            if (inputPaths) {
-                attributes->SetYson("input_paths", inputPaths);
-            }
-
-            auto req = TCypressYPathProxy::Create(jobPath);
-            req->set_type(static_cast<int>(EObjectType::MapNode));
-            ToProto(req->mutable_node_attributes(), *attributes);
-            GenerateMutationId(req);
-            batchReq->AddRequest(req, "create");
-        }
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        auto error = GetCumulativeError(batchRspOrError);
-        if (!error.IsOK()) {
-            if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
-                LOG_ERROR(error, "Account limit exceeded while creating job nodes");
-            } else {
-                THROW_ERROR_EXCEPTION("Failed to create job nodes") << error;
-            }
-        }
-    }
-
-    struct TJobFile
-    {
-        TJobId JobId;
-        TYPath Path;
-        TChunkId ChunkId;
-        Stroka DescriptionType;
-    };
-
-    void SaveJobFiles(const TOperationId& operationId, const std::vector<TJobFile>& files)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto client = Bootstrap->GetMasterClient();
-        auto connection = client->GetNativeConnection();
-
-        ITransactionPtr transaction;
-        {
-            NApi::TTransactionStartOptions options;
-            options.PrerequisiteTransactionIds = {LockTransaction->GetId()};
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("title", Format("Saving job files of operation %v", operationId));
-            options.Attributes = std::move(attributes);
-
-            transaction = WaitFor(client->StartTransaction(ETransactionType::Master, options))
-                .ValueOrThrow();
-        }
-
-        const auto& transactionId = transaction->GetId();
-
-        yhash_map<TCellTag, std::vector<TJobFile>> cellTagToFiles;
-        for (const auto& file : files) {
-            cellTagToFiles[CellTagFromId(file.ChunkId)].push_back(file);
-        }
-
-        for (const auto& pair : cellTagToFiles) {
-            auto cellTag = pair.first;
-            const auto& perCellFiles = pair.second;
-
-            struct TJobFileInfo
-            {
-                TTransactionId UploadTransactionId;
-                TNodeId NodeId;
-                TChunkListId ChunkListId;
-                NChunkClient::NProto::TDataStatistics Statistics;
-            };
-
-            std::vector<TJobFileInfo> infos;
-
-            {
-                auto batchReq = StartObjectBatchRequest();
-
-                for (const auto& file : perCellFiles) {
-                    {
-                        auto req = TCypressYPathProxy::Create(file.Path);
-                        req->set_recursive(true);
-                        req->set_type(static_cast<int>(EObjectType::File));
-
-                        auto attributes = CreateEphemeralAttributes();
-                        if (cellTag == connection->GetPrimaryMasterCellTag()) {
-                            attributes->Set("external", false);
-                        } else {
-                            attributes->Set("external_cell_tag", cellTag);
-                        }
-                        attributes->Set("vital", false);
-                        attributes->Set("replication_factor", 1);
-                        attributes->Set(
-                            "description", BuildYsonStringFluently()
-                                .BeginMap()
-                                    .Item("type").Value(file.DescriptionType)
-                                    .Item("job_id").Value(file.JobId)
-                                .EndMap());
-                        ToProto(req->mutable_node_attributes(), *attributes);
-
-                        SetTransactionId(req, transactionId);
-                        GenerateMutationId(req);
-                        batchReq->AddRequest(req, "create");
-                    }
-                    {
-                        auto req = TFileYPathProxy::BeginUpload(file.Path);
-                        req->set_update_mode(static_cast<int>(EUpdateMode::Overwrite));
-                        req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
-                        req->set_upload_transaction_title(Format("Saving files of job %v of operation %v",
-                            file.JobId,
-                            operationId));
-                        GenerateMutationId(req);
-                        SetTransactionId(req, transactionId);
-                        batchReq->AddRequest(req, "begin_upload");
-                    }
-                }
-
-                auto batchRspOrError = WaitFor(batchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-                const auto& batchRsp = batchRspOrError.Value();
-
-                auto createRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create");
-                auto beginUploadRsps = batchRsp->GetResponses<TFileYPathProxy::TRspBeginUpload>("begin_upload");
-                for (int index = 0; index < perCellFiles.size(); ++index) {
-                    infos.push_back(TJobFileInfo());
-                    auto& info = infos.back();
-
-                    {
-                        const auto& rsp = createRsps[index].Value();
-                        info.NodeId = FromProto<TNodeId>(rsp->node_id());
-                    }
-                    {
-                        const auto& rsp = beginUploadRsps[index].Value();
-                        info.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
-                    }
-                }
-            }
-
-            {
-                auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower, cellTag);
-
-                for (const auto& info : infos) {
-                    auto req = TFileYPathProxy::GetUploadParams(FromObjectId(info.NodeId));
-                    SetTransactionId(req, info.UploadTransactionId);
-                    batchReq->AddRequest(req, "get_upload_params");
-                }
-
-                auto batchRspOrError = WaitFor(batchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-                const auto& batchRsp = batchRspOrError.Value();
-
-                auto getUploadParamsRsps = batchRsp->GetResponses<TFileYPathProxy::TRspGetUploadParams>("get_upload_params");
-                for (int index = 0; index < getUploadParamsRsps.size(); ++index) {
-                    const auto& rsp = getUploadParamsRsps[index].Value();
-                    auto& info = infos[index];
-                    info.ChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
-                }
-            }
-
-            {
-                auto batchReq = StartChunkBatchRequest(cellTag);
-                GenerateMutationId(batchReq);
-                batchReq->set_suppress_upstream_sync(true);
-
-                for (int index = 0; index < perCellFiles.size(); ++index) {
-                    const auto& file = perCellFiles[index];
-                    const auto& info = infos[index];
-                    auto* req = batchReq->add_attach_chunk_trees_subrequests();
-                    ToProto(req->mutable_parent_id(), info.ChunkListId);
-                    ToProto(req->add_child_ids(), file.ChunkId);
-                    req->set_request_statistics(true);
-                }
-
-                auto batchRspOrError = WaitFor(batchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-                const auto& batchRsp = batchRspOrError.Value();
-
-                for (int index = 0; index < perCellFiles.size(); ++index) {
-                    auto& info = infos[index];
-                    const auto& rsp = batchRsp->attach_chunk_trees_subresponses(index);
-                    info.Statistics = rsp.statistics();
-                }
-            }
-
-            {
-                auto batchReq = StartObjectBatchRequest();
-
-                for (int index = 0; index < perCellFiles.size(); ++index) {
-                    const auto& info = infos[index];
-                    auto req = TFileYPathProxy::EndUpload(FromObjectId(info.NodeId));
-                    *req->mutable_statistics() = info.Statistics;
-                    SetTransactionId(req, info.UploadTransactionId);
-                    GenerateMutationId(req);
-                    batchReq->AddRequest(req);
-                }
-
-                auto batchRspOrError = WaitFor(batchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-            }
-        }
-
-        WaitFor(transaction->Commit())
-            .ThrowOnError();
-    }
-
-    void AttachLivePreviewChunks(
-        TOperationPtr operation,
-        const TTransactionId& transactionId,
-        const std::vector<TLivePreviewRequest>& livePreviewRequests)
-    {
-        struct TTableInfo
-        {
-            TNodeId TableId;
-            TCellTag CellTag;
-            std::vector<TChunkId> ChildIds;
-            TTransactionId UploadTransactionId;
-            TChunkListId UploadChunkListId;
-            NChunkClient::NProto::TDataStatistics Statistics;
-        };
-
-        yhash_map<TNodeId, TTableInfo> tableIdToInfo;
-        for (const auto& request : livePreviewRequests) {
-            auto& tableInfo = tableIdToInfo[request.TableId];
-            tableInfo.TableId = request.TableId;
-            tableInfo.ChildIds.push_back(request.ChildId);
-        }
-
-        if (tableIdToInfo.empty()) {
-            return;
-        }
-
-        for (const auto& pair : tableIdToInfo) {
-            const auto& tableInfo = pair.second;
-            LOG_DEBUG("Appending live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
-                operation->GetId(),
-                tableInfo.TableId,
-                tableInfo.ChildIds.size());
-        }
-
-        // BeginUpload
-        {
-            auto batchReq = StartObjectBatchRequest();
-
-            for (const auto& pair : tableIdToInfo) {
-                const auto& tableId = pair.first;
-                {
-                    auto req = TTableYPathProxy::BeginUpload(FromObjectId(tableId));
-                    req->set_update_mode(static_cast<int>(EUpdateMode::Append));
-                    req->set_lock_mode(static_cast<int>(ELockMode::Shared));
-                    req->set_upload_transaction_title(Format("Attaching live preview chunks of operation %v",
-                        operation->GetId()));
-                    SetTransactionId(req, transactionId);
-                    GenerateMutationId(req);
-                    batchReq->AddRequest(req, "begin_upload");
-                }
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-            const auto& batchRsp = batchRspOrError.Value();
-
-            auto rsps = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspBeginUpload>("begin_upload");
-            int rspIndex = 0;
-            for (auto& pair : tableIdToInfo) {
-                auto& tableInfo = pair.second;
-                const auto& rsp = rsps[rspIndex++].Value();
-                tableInfo.CellTag = rsp->cell_tag();
-                tableInfo.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
-            }
-        }
-
-        yhash_map<TCellTag, std::vector<TTableInfo*>> cellTagToInfos;
-        for (auto& pair : tableIdToInfo) {
-            auto& tableInfo  = pair.second;
-            cellTagToInfos[tableInfo.CellTag].push_back(&tableInfo);
-        }
-
-        // GetUploadParams
-        for (auto& pair : cellTagToInfos) {
-            auto cellTag = pair.first;
-            auto& tableInfos = pair.second;
-
-            auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower, cellTag);
-            for (const auto* tableInfo : tableInfos) {
-                auto req = TTableYPathProxy::GetUploadParams(FromObjectId(tableInfo->TableId));
-                SetTransactionId(req, tableInfo->UploadTransactionId);
-                batchReq->AddRequest(req, "get_upload_params");
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-            const auto& batchRsp = batchRspOrError.Value();
-
-            auto rsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetUploadParams>("get_upload_params");
-            int rspIndex = 0;
-            for (auto* tableInfo : tableInfos) {
-                const auto& rsp = rsps[rspIndex++].Value();
-                tableInfo->UploadChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
-            }
-        }
-
-        // Attach
-        for (auto& pair : cellTagToInfos) {
-            auto cellTag = pair.first;
-            auto& tableInfos = pair.second;
-
-            auto batchReq = StartChunkBatchRequest(cellTag);
-            GenerateMutationId(batchReq);
-            batchReq->set_suppress_upstream_sync(true);
-
-            std::vector<int> tableIndexToRspIndex;
-            for (const auto* tableInfo : tableInfos) {
-                size_t beginIndex = 0;
-                const auto& childIds = tableInfo->ChildIds;
-                while (beginIndex < childIds.size()) {
-                    auto lastIndex = std::min(beginIndex + Config->MaxChildrenPerAttachRequest, childIds.size());
-                    bool isFinal = (lastIndex == childIds.size());
-                    if (isFinal) {
-                        tableIndexToRspIndex.push_back(batchReq->attach_chunk_trees_subrequests_size());
-                    }
-                    auto* req = batchReq->add_attach_chunk_trees_subrequests();
-                    ToProto(req->mutable_parent_id(), tableInfo->UploadChunkListId);
-                    for (auto index = beginIndex; index < lastIndex; ++index) {
-                        ToProto(req->add_child_ids(), childIds[index]);
-                    }
-                    req->set_request_statistics(isFinal);
-                    beginIndex = lastIndex;
-                }
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-            const auto& batchRsp = batchRspOrError.Value();
-
-            const auto& rsps = batchRsp->attach_chunk_trees_subresponses();
-            for (int tableIndex = 0; tableIndex < tableInfos.size(); ++tableIndex) {
-                auto* tableInfo = tableInfos[tableIndex];
-                const auto& rsp = rsps.Get(tableIndexToRspIndex[tableIndex]);
-                tableInfo->Statistics = rsp.statistics();
-            }
-        }
-
-        // EndUpload
-        {
-            auto batchReq = StartObjectBatchRequest();
-
-            for (const auto& pair : tableIdToInfo) {
-                const auto& tableId = pair.first;
-                const auto& tableInfo = pair.second;
-                {
-                    auto req = TTableYPathProxy::EndUpload(FromObjectId(tableId));
-                    *req->mutable_statistics() = tableInfo.Statistics;
-                    SetTransactionId(req, tableInfo.UploadTransactionId);
-                    GenerateMutationId(req);
-                    batchReq->AddRequest(req, "end_upload");
-                }
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-        }
-    }
-
-    void DoUpdateOperationNode(
-        TOperationPtr operation,
-        const TTransactionId& transactionId,
-        const std::vector<TCreateJobNodeRequest>& jobRequests,
-        const std::vector<TLivePreviewRequest>& livePreviewRequests)
+    void DoUpdateOperationNode(TOperationPtr operation)
     {
         try {
-            CreateJobNodes(operation, jobRequests);
-        } catch (const std::exception& ex) {
-            auto error = TError("Error creating job nodes for operation %v",
-                operation->GetId())
-                << ex;
-            if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
-                LOG_DEBUG(error);
-                return;
-            } else {
-                THROW_ERROR error;
-            }
-        }
-
-        try {
-            std::vector<TJobFile> files;
-            for (const auto& request : jobRequests) {
-                if (request.StderrChunkId) {
-                    files.push_back({
-                        request.JobId,
-                        GetStderrPath(operation->GetId(), request.JobId),
-                        request.StderrChunkId,
-                        "stderr"
-                    });
-                }
-                if (request.FailContextChunkId) {
-                    files.push_back({
-                        request.JobId,
-                        GetFailContextPath(operation->GetId(), request.JobId),
-                        request.FailContextChunkId,
-                        "fail_context"
-                    });
-                }
-            }
-            SaveJobFiles(operation->GetId(), files);
-        } catch (const std::exception& ex) {
-            // NB: Don' treat this as a critical error.
-            // Some of these chunks could go missing for a number of reasons.
-            LOG_WARNING(ex, "Error saving job files (OperationId: %v)",
-                operation->GetId());
-        }
-
-        try {
-            AttachLivePreviewChunks(operation, transactionId, livePreviewRequests);
-        } catch (const std::exception& ex) {
-            // NB: Don' treat this as a critical error.
-            // Some of these chunks could go missing for a number of reasons.
-            LOG_WARNING(ex, "Error attaching live preview chunks (OperationId: %v)",
-                operation->GetId());
-        }
-
-        try {
-            // NB: Update operation attributes after updating all job nodes.
-            // Tests assume, that all job files are present, when operation
-            // is in one of the terminal states.
             UpdateOperationNodeAttributes(operation);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating operation node %v",
@@ -1780,22 +942,12 @@ private:
         }
     }
 
-    TFuture<void> UpdateOperationNode(TUpdateList* list)
+    TCallback<TFuture<void>()> UpdateOperationNode(const TOperationId&, TOperationNodeUpdate* update)
     {
-        auto operation = list->Operation;
-
-        auto lastUpdateFuture = list->LastUpdateFuture.Apply(
-            BIND(
-                &TImpl::DoUpdateOperationNode,
-                MakeStrong(this),
-                operation,
-                list->TransactionId,
-                std::move(list->JobRequests),
-                std::move(list->LivePreviewRequests))
-            .AsyncVia(CancelableControlInvoker));
-
-        list->LastUpdateFuture = lastUpdateFuture;
-        return lastUpdateFuture;
+        return BIND(&TImpl::DoUpdateOperationNode,
+            MakeStrong(this),
+            update->Operation)
+            .AsyncVia(CancelableControlInvoker);
     }
 
     void OnOperationNodeCreated(
@@ -1809,7 +961,7 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error creating operation node %v",
             operationId);
 
-        CreateUpdateList(operation);
+        OperationNodesUpdateExecutor_.AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
 
         LOG_INFO("Operation node created (OperationId: %v)",
             operationId);
@@ -1969,61 +1121,6 @@ private:
         }
     }
 
-    void BuildSnapshot()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (!Config->EnableSnapshotBuilding)
-            return;
-
-        auto builder = New<TSnapshotBuilder>(
-            Config,
-            Bootstrap->GetScheduler(),
-            Bootstrap->GetMasterClient());
-
-        // NB: Result is logged in the builder.
-        auto error = WaitFor(builder->Run());
-        if (error.IsOK()) {
-            LOG_INFO("Snapshot builder finished");
-        } else {
-            LOG_ERROR(error, "Error building snapshots");
-        }
-    }
-
-    void DoAttachToLivePreview(
-        const TOperationId& operationId,
-        const TTransactionId& transactionId,
-        const TNodeId& tableId,
-        const std::vector<TChunkTreeId>& childIds)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        auto* list = FindUpdateList(operationId);
-        if (!list) {
-            LOG_DEBUG("Operation node is not registered, omitting live preview attach (OperationId: %v)",
-                operationId);
-            return;
-        }
-
-        if (!list->TransactionId) {
-            list->TransactionId = transactionId;
-        } else {
-            // NB: Controller must attach all live preview chunks under the same transaction.
-            YCHECK(list->TransactionId == transactionId);
-        }
-
-        LOG_TRACE("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
-            operationId,
-            tableId,
-            childIds.size());
-
-        for (const auto& childId : childIds) {
-            list->LivePreviewRequests.push_back(TLivePreviewRequest{tableId, childId});
-        }
-    }
-
-
     INativeConnectionPtr FindConnection(TCellTag cellTag)
     {
         auto localConnection = Bootstrap->GetMasterClient()->GetNativeConnection();
@@ -2066,7 +1163,12 @@ IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const
     return Impl->GetCancelableControlInvoker();
 }
 
-TFuture<void> TMasterConnector::CreateOperationNode(TOperationPtr operation, const TOperationControllerInitializeResult& initializeResult)
+NControllerAgent::TMasterConnectorPtr TMasterConnector::GetControllerAgentMasterConnector() const
+{
+    return Impl->GetControllerAgentMasterConnector();
+}
+
+TFuture<void> TMasterConnector::CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult)
 {
     return Impl->CreateOperationNode(operation, initializeResult);
 }
@@ -2081,47 +1183,14 @@ TFuture<void> TMasterConnector::FlushOperationNode(TOperationPtr operation)
     return Impl->FlushOperationNode(operation);
 }
 
-TFuture<TOperationSnapshot> TMasterConnector::DownloadSnapshot(const TOperationId& operationId)
-{
-    return Impl->DownloadSnapshot(operationId);
-}
-
-TFuture<void> TMasterConnector::RemoveSnapshot(const TOperationId& operationId)
-{
-    return Impl->RemoveSnapshot(operationId);
-}
-
-void TMasterConnector::CreateJobNode(const TCreateJobNodeRequest& createJobNodeRequest)
-{
-    return Impl->CreateJobNode(createJobNodeRequest);
-}
-
 void TMasterConnector::SetSchedulerAlert(EAlertType alertType, const TError& alert)
 {
     Impl->SetSchedulerAlert(alertType, alert);
 }
 
-void TMasterConnector::AttachJobContext(
-    const TYPath& path,
-    const TChunkId& chunkId,
-    const TOperationId& operationId,
-    const TJobId& jobId)
-{
-    return Impl->AttachJobContext(path, chunkId, operationId, jobId);
-}
-
 void TMasterConnector::UpdateConfig(const TSchedulerConfigPtr& config)
 {
     Impl->UpdateConfig(config);
-}
-
-TFuture<void> TMasterConnector::AttachToLivePreview(
-    const TOperationId& operationId,
-    const TTransactionId& transactionId,
-    const TNodeId& tableId,
-    const std::vector<TChunkTreeId>& childIds)
-{
-    return Impl->AttachToLivePreview(operationId, transactionId, tableId, childIds);
 }
 
 void TMasterConnector::AddGlobalWatcherRequester(TWatcherRequester requester)
@@ -2146,8 +1215,6 @@ void TMasterConnector::AddOperationWatcherHandler(TOperationPtr operation, TWatc
 
 DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterConnected, *Impl);
 DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl);
-DELEGATE_SIGNAL(TMasterConnector, void(TOperationPtr operation), UserTransactionAborted, *Impl)
-DELEGATE_SIGNAL(TMasterConnector, void(TOperationPtr operation), SchedulerTransactionAborted, *Impl)
 
 ////////////////////////////////////////////////////////////////////
 

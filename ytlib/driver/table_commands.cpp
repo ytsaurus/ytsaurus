@@ -689,5 +689,23 @@ void TDisableTableReplicaCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAlterTableReplicaCommand::TAlterTableReplicaCommand()
+{
+    RegisterParameter("replica_id", ReplicaId);
+    RegisterParameter("enabled", Options.Enabled);
+}
+
+void TAlterTableReplicaCommand::DoExecute(ICommandContextPtr context)
+{
+    auto client = context->GetClient();
+    auto asyncResult = client->AlterTableReplica(
+        ReplicaId,
+        Options);
+    WaitFor(asyncResult)
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

@@ -17,6 +17,8 @@ namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = RpcProxyClientLogger;
+
 using namespace NApi;
 using namespace NBus;
 using namespace NRpc;

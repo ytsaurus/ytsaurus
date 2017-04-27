@@ -44,7 +44,7 @@ void TTabletCellBundle::Load(TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 400) {
         // COMPAT(savrus)
-        if (context.GetVersion() >= 507) {
+        if (context.GetVersion() >= 600) {
             Load(context, NodeTagFilter_);
         } else {
             if (auto filter = Load<TNullable<Stroka>>(context)) {
