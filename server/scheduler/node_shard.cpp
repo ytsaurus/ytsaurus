@@ -1,13 +1,12 @@
 #include "node_shard.h"
-
+#include "config.h"
 #include "helpers.h"
-#include "operation_controller.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 
-#include <yt/server/exec_agent/public.h>
+#include <yt/server/controller_agent/operation_controller.h>
 
-#include <yt/server/scheduler/config.h>
+#include <yt/server/exec_agent/public.h>
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 
@@ -33,6 +32,9 @@ using namespace NScheduler::NProto;
 using namespace NShell;
 using namespace NYTree;
 using namespace NYson;
+
+using NControllerAgent::IOperationController;
+using NControllerAgent::IOperationControllerPtr;
 
 using NNodeTrackerClient::NodeIdFromObjectId;
 
@@ -426,14 +428,6 @@ TYsonString TNodeShard::StraceJob(const TJobId& jobId, const Stroka& user)
     return TYsonString(rsp->trace());
 }
 
-TYsonString TNodeShard::GetJobStatistics(const TJobId& jobId)
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    auto job = GetJobOrThrow(jobId);
-    return job->StatisticsYson();
-}
-
 void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, const Stroka& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
@@ -657,62 +651,12 @@ void TNodeShard::BuildNodesYson(IYsonConsumer* consumer)
     }
 }
 
-void TNodeShard::BuildOperationJobsYson(const TOperationId& operationId, IYsonConsumer* consumer)
+TOperationId TNodeShard::GetOperationIdByJobId(const TJobId& jobId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    auto* operationState = FindOperationState(operationId);
-    if (!operationState) {
-        return;
-    }
-
-    for (const auto& job : operationState->Jobs) {
-        BuildYsonMapFluently(consumer)
-            .Item(ToString(job.first)).BeginMap()
-                .Do(BIND(BuildJobAttributes, job.second))
-            .EndMap();
-    }
-}
-
-void TNodeShard::BuildJobYson(const TJobId& jobId, IYsonConsumer* consumer)
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    auto job = GetJobOrThrow(jobId);
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Do(BIND(BuildJobAttributes, job))
-        .EndMap();
-}
-
-void TNodeShard::BuildSuspiciousJobsYson(IYsonConsumer* consumer)
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    for (const auto& operationState : OperationStates_) {
-        for (const auto& jobPair : operationState.second.Jobs) {
-            const auto& job = jobPair.second;
-            if (job->GetSuspicious()) {
-                BuildSuspiciousJobYson(job, consumer);
-            }
-        }
-    }
-}
-
-void TNodeShard::UpdateState(const TNodeShardPatch& patch)
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    for (const auto& pair : patch.OperationPatches) {
-        const auto& operationId = pair.first;
-        const auto& operationPatch = pair.second;
-        auto* operationState = FindOperationState(operationId);
-        if (!operationState) {
-            continue;
-        }
-        operationState->CanCreateJobNodeForAbortedOrFailedJobs = operationPatch.CanCreateJobNodeForAbortedOrFailedJobs;
-        operationState->CanCreateJobNodeForJobsWithStderr = operationPatch.CanCreateJobNodeForJobsWithStderr;
-    }
+    auto job = FindJob(jobId);
+    return job ? job->GetOperationId() : TOperationId();
 }
 
 TJobResources TNodeShard::GetTotalResourceLimits()
@@ -1086,15 +1030,6 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     }
 
     bool shouldLogJob = (state != job->GetState()) || forceJobsLogging;
-    bool updateRunningJob = false;
-    auto now = GetCpuInstant();
-    if ((state == EJobState::Running && jobStatus->has_statistics()) || state == EJobState::Waiting) {
-        auto lastRunningJobUpdateTime = job->GetLastRunningJobUpdateTime();
-        if (!lastRunningJobUpdateTime || now > lastRunningJobUpdateTime.Get() + DurationToCpuDuration(Config_->RunningJobsUpdatePeriod)) {
-            updateRunningJob = true;
-            job->SetLastRunningJobUpdateTime(now);
-        }
-    }
     switch (state) {
         case EJobState::Completed: {
             LOG_DEBUG("Job completed, removal scheduled");
@@ -1135,32 +1070,18 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
             } else {
                 LOG_DEBUG_IF(shouldLogJob, "Job is %lv", state);
                 SetJobState(job, state);
-                switch (state) {
-                    case EJobState::Running:
-                        job->SetProgress(jobStatus->progress());
-                        if (updateRunningJob) {
-                            OnJobRunning(job, jobStatus);
-                        }
-                        if (job->GetInterruptReason() != EInterruptReason::None) {
-                            ToProto(response->add_jobs_to_interrupt(), jobId);
-                        }
-                        if (job->GetInterruptDeadline() != 0 && now > job->GetInterruptDeadline()) {
-                            LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v, JobId: %v, OperationId: %v)",
-                                CpuInstantToInstant(job->GetInterruptDeadline()),
-                                jobId,
-                                job->GetOperationId());
-                            ToProto(response->add_jobs_to_abort(), jobId);
-                        }
-                        break;
-
-                    case EJobState::Waiting:
-                        if (updateRunningJob) {
-                            OnJobWaiting(job);
-                        }
-                        break;
-
-                    default:
-                        Y_UNREACHABLE();
+                if (state == EJobState::Running) {
+                    OnJobRunning(job, jobStatus);
+                    if (job->GetInterruptReason() != EInterruptReason::None) {
+                        ToProto(response->add_jobs_to_interrupt(), jobId);
+                    }
+                    if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
+                        LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v, JobId: %v, OperationId: %v)",
+                            CpuInstantToInstant(job->GetInterruptDeadline()),
+                            jobId,
+                            job->GetOperationId());
+                        ToProto(response->add_jobs_to_abort(), jobId);
+                    }
                 }
             }
             break;
@@ -1388,40 +1309,30 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
 
 void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
 {
-    YCHECK(job->GetState() == EJobState::Running);
+    if (!status->has_statistics()) {
+        return;
+    }
+
+    auto now = GetCpuInstant();
+    auto lastRunningJobUpdateTime = job->GetLastRunningJobUpdateTime();
+    if (!lastRunningJobUpdateTime || now > lastRunningJobUpdateTime.Get() + DurationToCpuDuration(Config_->RunningJobsUpdatePeriod)) {
+        job->SetLastRunningJobUpdateTime(now);
+    } else {
+        return;
+    }
 
     auto delta = status->resource_usage() - job->ResourceUsage();
     UpdatedJobs_.emplace_back(job->GetOperationId(), job->GetId(), delta);
     job->ResourceUsage() = status->resource_usage();
-    if (job->GetState() == EJobState::Running ||
-        job->GetState() == EJobState::Waiting)
-    {
-        if (status->has_statistics()) {
-            auto asyncResult = BIND(&TJob::BuildBriefStatistics, job, TYsonString(status->statistics()))
-                .AsyncVia(Host_->GetStatisticsAnalyzerInvoker())
-                .Run();
 
-            // Resulting future is dropped intentionally.
-            asyncResult.Apply(BIND(
-                &TJob::AnalyzeBriefStatistics,
-                job,
-                Config_->SuspiciousInactivityTimeout,
-                Config_->SuspiciousCpuUsageThreshold,
-                Config_->SuspiciousInputPipeIdleTimeFraction)
-                .Via(GetInvoker()));
-
-        }
-        job->SetStatus(status);
-
-        auto* operationState = FindOperationState(job->GetOperationId());
-        if (operationState) {
-            const auto& controller = operationState->Controller;
-            BIND(&IOperationController::OnJobRunning,
-                controller,
-                Passed(std::make_unique<TJobSummary>(job)))
-                .Via(controller->GetCancelableInvoker())
-                .Run();
-        }
+    auto* operationState = FindOperationState(job->GetOperationId());
+    if (operationState) {
+        const auto& controller = operationState->Controller;
+        BIND(&IOperationController::OnJobRunning,
+            controller,
+            Passed(std::make_unique<TRunningJobSummary>(job, status)))
+            .Via(controller->GetCancelableInvoker())
+            .Run();
     }
 }
 
@@ -1446,11 +1357,8 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
         }
 
         SetJobState(job, EJobState::Completed);
-        job->SetStatus(status);
 
         OnJobFinished(job);
-
-        ProcessFinishedJobResult(job);
 
         auto* operationState = FindOperationState(job->GetOperationId());
         if (operationState) {
@@ -1458,7 +1366,7 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
             controller->GetCancelableInvoker()->Invoke(BIND(
                 &IOperationController::OnJobCompleted,
                 controller,
-                Passed(std::make_unique<TCompletedJobSummary>(job, abandoned))));
+                Passed(std::make_unique<TCompletedJobSummary>(job, status, abandoned))));
         }
     }
 
@@ -1472,11 +1380,8 @@ void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
         job->GetState() == EJobState::None)
     {
         SetJobState(job, EJobState::Failed);
-        job->SetStatus(status);
 
         OnJobFinished(job);
-
-        ProcessFinishedJobResult(job);
 
         auto* operationState = FindOperationState(job->GetOperationId());
         if (operationState) {
@@ -1484,7 +1389,7 @@ void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
             controller->GetCancelableInvoker()->Invoke(BIND(
                 &IOperationController::OnJobFailed,
                 controller,
-                Passed(std::make_unique<TFailedJobSummary>(job))));
+                Passed(std::make_unique<TFailedJobSummary>(job, status))));
         }
     }
 
@@ -1501,16 +1406,12 @@ void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool opera
         job->GetState() == EJobState::Waiting ||
         job->GetState() == EJobState::None)
     {
-        job->SetStatus(status);
-        // We should set status before to correctly consider AbortReason.
+        if (status) {
+            job->SetAbortReason(GetAbortReason(status->result()));
+        }
         SetJobState(job, EJobState::Aborted);
 
         OnJobFinished(job);
-
-        // Check if job was aborted due to signal.
-        if (GetAbortReason(job->Status().result()) == EAbortReason::UserRequest) {
-            ProcessFinishedJobResult(job);
-        }
 
         auto* operationState = FindOperationState(job->GetOperationId());
         if (operationState && !operationTerminated) {
@@ -1518,7 +1419,7 @@ void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool opera
             controller->GetCancelableInvoker()->Invoke(BIND(
                 &IOperationController::OnJobAborted,
                 controller,
-                Passed(std::make_unique<TAbortedJobSummary>(job))));
+                Passed(std::make_unique<TAbortedJobSummary>(job, status))));
         }
     }
 
@@ -1558,64 +1459,13 @@ void TNodeShard::SubmitUpdatedAndCompletedJobsToStrategy()
     }
 }
 
-void TNodeShard::ProcessFinishedJobResult(const TJobPtr& job)
-{
-    auto jobFailedOrAborted = job->GetState() == EJobState::Failed || job->GetState() == EJobState::Aborted;
-    const auto& schedulerResultExt = job->Status().result().GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-
-    auto stderrChunkId = FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id());
-    auto failContextChunkId = FromProto<TChunkId>(schedulerResultExt.fail_context_chunk_id());
-
-    TYsonString attributes;
-    {
-        TStringStream outputStream;
-        TYsonWriter writer(&outputStream, EYsonFormat::Binary, EYsonType::MapFragment);
-        BuildJobAttributes(job, &writer);
-        attributes = TYsonString(outputStream.Str(), EYsonType::MapFragment);
-    }
-
-    auto* operationState = FindOperationState(job->GetOperationId());
-    TFuture<TYsonString> inputPathsFuture;
-    if (operationState) {
-        // Keep it sync with TScheduler::ShouldCreateJobNode
-        if ((jobFailedOrAborted && operationState->CanCreateJobNodeForAbortedOrFailedJobs) ||
-            (stderrChunkId && operationState->CanCreateJobNodeForJobsWithStderr))
-        {
-            const auto& controller = operationState->Controller;
-            inputPathsFuture = BIND(&IOperationController::BuildInputPathYson, controller)
-                .AsyncVia(controller->GetCancelableInvoker())
-                .Run(job->GetId());
-        } else {
-            inputPathsFuture = MakeFuture(TYsonString());
-        }
-    } else {
-        inputPathsFuture = MakeFuture<TYsonString>(
-            TError("No controller for operation %v", job->GetOperationId()));
-    }
-
-    auto asyncResult = Host_->UpdateOperationWithFinishedJob(
-        job->GetOperationId(),
-        job->GetId(),
-        jobFailedOrAborted,
-        attributes,
-        stderrChunkId,
-        failContextChunkId,
-        inputPathsFuture);
-
-    asyncResult.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
-        if (!error.IsOK()) {
-            LOG_ERROR(error, "Failed to process finished job result");
-        }
-    }));
-}
-
 void TNodeShard::IncreaseProfilingCounter(const TJobPtr& job, i64 value)
 {
     TWriterGuard guard(JobCounterLock_);
 
     TJobCounter* counter = &JobCounter_;
     if (job->GetState() == EJobState::Aborted) {
-        counter = &AbortedJobCounter_[GetAbortReason(job->Status().result())];
+        counter = &AbortedJobCounter_[job->GetAbortReason()];
     } else if (job->GetState() == EJobState::Completed) {
         counter = &CompletedJobCounter_[job->GetInterruptReason()];
     }
@@ -1799,18 +1649,6 @@ void TNodeShard::BuildNodeYson(TExecNodePtr node, IYsonConsumer* consumer)
             .Do([=] (TFluentMap fluent) {
                 BuildExecNodeAttributes(node, fluent);
             })
-        .EndMap();
-}
-
-void TNodeShard::BuildSuspiciousJobYson(const TJobPtr& job, IYsonConsumer* consumer)
-{
-    BuildYsonMapFluently(consumer)
-        .Item(ToString(job->GetId())).BeginMap()
-            .Item("operation_id").Value(ToString(job->GetOperationId()))
-            .Item("type").Value(FormatEnum(job->GetType()))
-            .Item("brief_statistics").Value(job->GetBriefStatistics())
-            .Item("node").Value(job->GetNode()->GetDefaultAddress())
-            .Item("last_activity_time").Value(job->GetLastActivityTime())
         .EndMap();
 }
 

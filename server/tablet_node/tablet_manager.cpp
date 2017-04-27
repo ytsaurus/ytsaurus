@@ -172,8 +172,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraUpdatePartitionSampleKeys, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraAddTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemoveTableReplica, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraEnableTableReplica, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraDisableTableReplica, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSetTableReplicaEnabled, Unretained(this)));
     }
 
     void Initialize()
@@ -1698,7 +1697,8 @@ private:
         RemoveTableReplica(tablet, replicaId);
     }
 
-    void HydraEnableTableReplica(TReqEnableTableReplica* request)
+
+    void HydraSetTableReplicaEnabled(TReqSetTableReplicaEnabled* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -1712,24 +1712,12 @@ private:
             return;
         }
 
-        EnableTableReplica(tablet, replicaInfo);
-    }
-
-    void HydraDisableTableReplica(TReqDisableTableReplica* request)
-    {
-        auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto* tablet = FindTablet(tabletId);
-        if (!tablet) {
-            return;
+        bool enabled = request->enabled();
+        if (enabled) {
+            EnableTableReplica(tablet, replicaInfo);
+        } else {
+            DisableTableReplica(tablet, replicaInfo);
         }
-
-        auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
-        auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
-        if (!replicaInfo) {
-            return;
-        }
-
-        DisableTableReplica(tablet, replicaInfo);
     }
 
     void HydraPrepareReplicateRows(TTransaction* transaction, TReqReplicateRows* request, bool persistent)

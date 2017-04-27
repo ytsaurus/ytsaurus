@@ -78,6 +78,8 @@
 
 #include <yt/ytlib/orchid/orchid_service.h>
 
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+
 #include <yt/ytlib/query_client/column_evaluator.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
@@ -195,6 +197,13 @@ void TBootstrap::DoRun()
     }
 
     MasterConnection = CreateNativeConnection(Config->ClusterConnection);
+
+    if (Config->TabletNode->ResourceLimits->Slots > 0) {
+        // Requesting latest timestamp enables periodic background time synchronization.
+        // For tablet nodes, it is crucial because of non-atomic transactions that require
+        // in-sync time for clients.
+        MasterConnection->GetTimestampProvider()->GetLatestTimestamp();
+    }
 
     MasterClient = MasterConnection->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
 
@@ -461,10 +470,12 @@ void TBootstrap::DoRun()
 
     MasterCacheService = CreateMasterCacheService(
         Config->MasterCacheService,
-        CreatePeerChannel(
-            Config->ClusterConnection->PrimaryMaster,
-            MasterConnection->GetLightChannelFactory(),
-            EPeerKind::Follower),
+        CreateDefaultTimeoutChannel(
+            CreatePeerChannel(
+                Config->ClusterConnection->PrimaryMaster,
+                MasterConnection->GetLightChannelFactory(),
+                EPeerKind::Follower),
+            Config->ClusterConnection->PrimaryMaster->RpcTimeout),
         GetCellId());
 
     CellDirectorySynchronizer->Start();

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "job_resources.h"
 #include "scheduling_tag.h"
 
 #include <yt/server/node_tracker_server/node.h>
@@ -9,6 +8,7 @@
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/scheduler/scheduler_service.pb.h>
+#include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/lease_manager.h>
 #include <yt/core/misc/property.h>

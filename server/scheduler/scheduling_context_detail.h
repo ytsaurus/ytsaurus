@@ -2,7 +2,8 @@
 
 #include "scheduling_context.h"
 #include "exec_node.h"
-#include "job_resources.h"
+
+#include <yt/ytlib/scheduler/job_resources.h>
 
 namespace NYT {
 namespace NScheduler {

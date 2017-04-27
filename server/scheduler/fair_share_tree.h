@@ -2,9 +2,10 @@
 #include "config.h"
 #include "job.h"
 #include "job_metrics.h"
-#include "job_resources.h"
 #include "scheduler_strategy.h"
 #include "scheduling_tag.h"
+
+#include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
@@ -435,7 +436,7 @@ DEFINE_REFCOUNTED_TYPE(TPool)
 class TOperationElementFixedState
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(IOperationControllerPtr, Controller);
+    DEFINE_BYVAL_RO_PROPERTY(NControllerAgent::IOperationControllerPtr, Controller);
 
 protected:
     explicit TOperationElementFixedState(TOperationPtr operation);

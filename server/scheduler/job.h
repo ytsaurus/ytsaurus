@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "job_resources.h"
 
 #include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
@@ -10,6 +9,8 @@
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/node_tracker_client/node.pb.h>
+
+#include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/actions/callback.h>
 
@@ -21,30 +22,6 @@
 
 namespace NYT {
 namespace NScheduler {
-
-using namespace NPhoenix;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TBriefJobStatistics
-    : public TIntrinsicRefCounted
-{
-    TInstant Timestamp = TInstant::Zero();
-
-    i64 ProcessedInputRowCount = 0;
-    i64 ProcessedInputUncompressedDataSize = 0;
-    i64 ProcessedInputCompressedDataSize = 0;
-    i64 ProcessedOutputRowCount = 0;
-    i64 ProcessedOutputUncompressedDataSize = 0;
-    i64 ProcessedOutputCompressedDataSize = 0;
-    // Time is given in milliseconds.
-    TNullable<i64> InputPipeIdleTime = Null;
-    TNullable<i64> JobProxyCpuUsage = Null;
-};
-
-DEFINE_REFCOUNTED_TYPE(TBriefJobStatistics)
-
-void Serialize(const TBriefJobStatistics& briefJobStatistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,20 +41,11 @@ class TJob
     //! The time when the job was started.
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
-    //! True if this is a reincarnation of a lost job.
-    DEFINE_BYVAL_RO_PROPERTY(bool, Restarted);
-
     //! True if job can be interrupted.
     DEFINE_BYVAL_RO_PROPERTY(bool, Interruptible);
 
     //! The time when the job was finished.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
-
-    //! Job status returned by node.
-    DEFINE_BYREF_RO_PROPERTY(TJobStatus, Status);
-
-    //! Yson containing statistics produced by the job.
-    DEFINE_BYREF_RO_PROPERTY(NYson::TYsonString, StatisticsYson);
 
     //! True if job was unregistered during heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasPendingUnregistration);
@@ -85,8 +53,8 @@ class TJob
     //! Current state of the job.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
 
-    //! Some rough approximation that is updated with every heartbeat.
-    DEFINE_BYVAL_RW_PROPERTY(double, Progress);
+    //! Abort reason saved if job was aborted.
+    DEFINE_BYVAL_RW_PROPERTY(EAbortReason, AbortReason);
 
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
@@ -109,18 +77,6 @@ class TJob
     //! Deadline for job to be interrupted.
     DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, InterruptDeadline, 0);
 
-    //! Contains several important values extracted from job statistics.
-    DEFINE_BYVAL_RO_PROPERTY(TBriefJobStatisticsPtr, BriefStatistics);
-
-    //! Means that job probably hung up.
-    DEFINE_BYVAL_RO_PROPERTY(bool, Suspicious);
-
-    //! Last time when brief statistics changed in comparison to their previous values.
-    DEFINE_BYVAL_RO_PROPERTY(TInstant, LastActivityTime);
-
-    //! Account for node in Cypress.
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Account);
-
     //! Last time when statistics and resource usage from running job was updated.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, LastRunningJobUpdateTime);
 
@@ -132,26 +88,12 @@ public:
         TExecNodePtr node,
         TInstant startTime,
         const TJobResources& resourceLimits,
-        bool restarted,
         bool interruptible,
-        TJobSpecBuilder specBuilder,
-        const Stroka& account);
+        TJobSpecBuilder specBuilder);
 
     //! The difference between |FinishTime| and |StartTime|.
     TDuration GetDuration() const;
-
-    void AnalyzeBriefStatistics(
-        TDuration suspiciousInactivityTimeout,
-        i64 suspiciousCpuUsageThreshold,
-        double suspiciousInputPipeIdleTimeFraction,
-        const TBriefJobStatisticsPtr& briefStatistics);
-
-    TBriefJobStatisticsPtr BuildBriefStatistics(const NYson::TYsonString& statisticsYson) const;
-
-    void SetStatus(TJobStatus* status);
-
-    const Stroka& GetStatisticsSuffix() const;
-
+    
     void InterruptJob(EInterruptReason reason, NProfiling::TCpuInstant interruptDeadline);
 };
 
@@ -161,28 +103,27 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 
 struct TJobSummary
 {
-    explicit TJobSummary(const TJobPtr& job);
-    explicit TJobSummary(const TJobId& id);
-    //! Only for testing purpose.
-    TJobSummary() = default;
-
-    void Persist(const TPersistenceContext& context);
-
-    void ParseStatistics();
+    TJobSummary();
+    TJobSummary(const TJobPtr& job, TJobStatus* status);
+    TJobSummary(const TJobId& id, EJobState state);
 
     TJobResult Result;
     TJobId Id;
-    Stroka StatisticsSuffix;
+    EJobState State;
+
     TNullable<TInstant> FinishTime;
     TNullable<TDuration> PrepareDuration;
     TNullable<TDuration> DownloadDuration;
     TNullable<TDuration> ExecDuration;
 
     // NB: The Statistics field will be set inside the controller in ParseStatistics().
-    NJobTrackerClient::TStatistics Statistics;
+    TNullable<NJobTrackerClient::TStatistics> Statistics;
     NYson::TYsonString StatisticsYson;
 
+    // TODO(ignat): rename, it is not only about logging.
     bool ShouldLog;
+
+    void Persist(const NPhoenix::TPersistenceContext& context);
 };
 
 using TFailedJobSummary = TJobSummary;
@@ -190,11 +131,11 @@ using TFailedJobSummary = TJobSummary;
 struct TCompletedJobSummary
     : public TJobSummary
 {
-    explicit TCompletedJobSummary(const TJobPtr& job, bool abandoned = false);
+    TCompletedJobSummary(const TJobPtr& job, TJobStatus* status, bool abandoned = false);
     //! Only for testing purpose.
     TCompletedJobSummary() = default;
 
-    void Persist(const TPersistenceContext& context);
+    void Persist(const NPhoenix::TPersistenceContext& context);
 
     bool Abandoned = false;
 
@@ -206,11 +147,19 @@ struct TCompletedJobSummary
 struct TAbortedJobSummary
     : public TJobSummary
 {
-    explicit TAbortedJobSummary(const TJobPtr& job);
+    TAbortedJobSummary(const TJobPtr& job, TJobStatus* status);
     TAbortedJobSummary(const TJobId& id, EAbortReason abortReason);
     TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason);
 
     const EAbortReason AbortReason;
+};
+
+struct TRunningJobSummary
+    : public TJobSummary
+{
+    TRunningJobSummary(const TJobPtr& job, TJobStatus* status);
+
+    const double Progress;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -225,18 +174,14 @@ struct TJobStartRequest
         TJobId id,
         EJobType type,
         const TJobResources& resourceLimits,
-        bool restarted,
         bool interruptible,
-        TJobSpecBuilder specBuilder,
-        const Stroka& account);
-
+        TJobSpecBuilder specBuilder);
+    
     const TJobId Id;
     const EJobType Type;
     const TJobResources ResourceLimits;
-    const bool Restarted;
     const bool Interruptible;
     const TJobSpecBuilder SpecBuilder;
-    const Stroka Account;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -270,21 +215,6 @@ struct TScheduleJobResult
 };
 
 DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)
-
-struct TScheduleJobStatistics
-    : public TIntrinsicRefCounted
-    , public NPhoenix::IPersistent
-{
-    void RecordJobResult(const TScheduleJobResultPtr& scheduleJobResult);
-
-    TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
-    TDuration Duration;
-    i64 Count = 0;
-
-    void Persist(const TPersistenceContext& context);
-};
-
-DEFINE_REFCOUNTED_TYPE(TScheduleJobStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 

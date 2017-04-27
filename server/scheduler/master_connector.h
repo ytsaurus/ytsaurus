@@ -2,13 +2,14 @@
 
 #include "private.h"
 
+#include <yt/server/controller_agent/public.h>
+#include <yt/server/controller_agent/master_connector.h>
+
 #include <yt/server/cell_scheduler/public.h>
 
 #include <yt/server/chunk_server/public.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-
-#include <yt/ytlib/cypress_client/public.h>
 
 #include <yt/core/actions/signal.h>
 
@@ -19,22 +20,10 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCreateJobNodeRequest
-{
-    TOperationId OperationId;
-    TJobId JobId;
-    NYson::TYsonString Attributes;
-    NChunkClient::TChunkId StderrChunkId;
-    NChunkClient::TChunkId FailContextChunkId;
-    TFuture<NYson::TYsonString> InputPathsFuture;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TOperationReport
 {
     TOperationPtr Operation;
-    TControllerTransactionsPtr ControllerTransactions;
+    NControllerAgent::TControllerTransactionsPtr ControllerTransactions;
     bool UserTransactionAborted = false;
 };
 
@@ -42,12 +31,6 @@ struct TOperationReport
 struct TMasterHandshakeResult
 {
     std::vector<TOperationReport> OperationReports;
-};
-
-struct TOperationSnapshot
-{
-    int Version = -1;
-    TSharedRef Data;
 };
 
 typedef TCallback<void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr)> TWatcherRequester;
@@ -66,30 +49,15 @@ public:
 
     IInvokerPtr GetCancelableControlInvoker() const;
 
+    NControllerAgent::TMasterConnectorPtr GetControllerAgentMasterConnector() const;
+
     bool IsConnected() const;
 
-    TFuture<void> CreateOperationNode(TOperationPtr operation, const TOperationControllerInitializeResult& initializeResult);
+    TFuture<void> CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult);
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation);
     TFuture<void> FlushOperationNode(TOperationPtr operation);
 
-    TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId);
-    TFuture<void> RemoveSnapshot(const TOperationId& operationId);
-
-    void CreateJobNode(const TCreateJobNodeRequest& createJobNodeRequest);
-
     void SetSchedulerAlert(EAlertType alertType, const TError& alert);
-
-    void AttachJobContext(
-        const NYPath::TYPath& path,
-        const NChunkClient::TChunkId& chunkId,
-        const TOperationId& operationId,
-        const TJobId& jobId);
-
-    TFuture<void> AttachToLivePreview(
-        const TOperationId& operationId,
-        const NObjectClient::TTransactionId& transactionId,
-        const NCypressClient::TNodeId& tableId,
-        const std::vector<NChunkClient::TChunkTreeId>& childIds);
 
     void AddGlobalWatcherRequester(TWatcherRequester requester);
     void AddGlobalWatcherHandler(TWatcherHandler handler);
@@ -101,9 +69,6 @@ public:
 
     DECLARE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DECLARE_SIGNAL(void(), MasterDisconnected);
-
-    DECLARE_SIGNAL(void(TOperationPtr operation), UserTransactionAborted);
-    DECLARE_SIGNAL(void(TOperationPtr operation), SchedulerTransactionAborted);
 
 private:
     class TImpl;

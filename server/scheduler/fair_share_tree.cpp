@@ -1,7 +1,8 @@
 #include "fair_share_tree.h"
 
-#include "operation_controller.h"
 #include "scheduling_context.h"
+
+#include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/profile_manager.h>
@@ -1496,11 +1497,11 @@ void TOperationElementSharedState::IncreaseJobResourceUsage(
 {
     properties.ResourceUsage += resourcesDelta;
     if (!properties.Preemptable) {
-        NonpreemptableResourceUsage_ += resourcesDelta;
-    }
-    if (properties.AggressivelyPreemptable) {
-        YCHECK(properties.Preemptable);
-        AggressivelyPreemptableResourceUsage_ += resourcesDelta;
+        if (properties.AggressivelyPreemptable) {
+            AggressivelyPreemptableResourceUsage_ += resourcesDelta;
+        } else {
+            NonpreemptableResourceUsage_ += resourcesDelta;
+        }
     }
 }
 
@@ -1933,7 +1934,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
 {
     auto jobLimits = GetHierarchicalResourceLimits(context);
 
-    auto scheduleJobResultFuture = BIND(&IOperationController::ScheduleJob, Controller_)
+    auto scheduleJobResultFuture = BIND(&NControllerAgent::IOperationController::ScheduleJob, Controller_)
         .AsyncVia(Controller_->GetCancelableInvoker())
         .Run(context.SchedulingContext, jobLimits);
 
@@ -1984,7 +1985,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
                 OperationId_);
 
             Controller_->GetCancelableInvoker()->Invoke(BIND(
-                &IOperationController::OnJobAborted,
+                &NControllerAgent::IOperationController::OnJobAborted,
                 Controller_,
                 Passed(std::make_unique<TAbortedJobSummary>(
                     jobId,

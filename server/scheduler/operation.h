@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/controller_agent/public.h>
+
 #include <yt/ytlib/hydra/public.h>
 
 #include <yt/ytlib/scheduler/scheduler_service.pb.h>
@@ -59,7 +61,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Prepared);
 
     //! User-supplied transaction where the operation resides.
-    DEFINE_BYVAL_RO_PROPERTY(NApi::ITransactionPtr, UserTransaction);
+    DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
 
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 
@@ -80,17 +82,8 @@ public:
     //! List of operation alerts.
     DEFINE_BYREF_RW_PROPERTY(TAlertsArray, Alerts);
 
-    //! Number of stderrs generated so far.
-    DEFINE_BYVAL_RW_PROPERTY(int, StderrCount);
-
-    //! Number of job nodes in Cypress.
-    DEFINE_BYVAL_RW_PROPERTY(int, JobNodeCount);
-
-    //! Maximum number of stderrs to capture.
-    DEFINE_BYVAL_RW_PROPERTY(int, MaxStderrCount);
-
     //! Controller that owns the operation.
-    DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
+    DEFINE_BYVAL_RW_PROPERTY(NControllerAgent::IOperationControllerPtr, Controller);
 
     //! Operation result, becomes set when the operation finishes.
     DEFINE_BYREF_RW_PROPERTY(NProto::TOperationResult, Result);
@@ -148,7 +141,7 @@ public:
         const TOperationId& operationId,
         EOperationType type,
         const NRpc::TMutationId& mutationId,
-        NApi::ITransactionPtr userTransaction,
+        NTransactionClient::TTransactionId userTransactionId,
         NYTree::IMapNodePtr spec,
         const Stroka& authenticatedUser,
         const std::vector<Stroka>& owners,

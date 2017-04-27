@@ -26,7 +26,7 @@ protected:
     explicit TSyncCacheValueBase(const TKey& key);
 
 private:
-    TKey Key_;
+    const TKey Key_;
 
 };
 
@@ -44,9 +44,9 @@ public:
 
     TValuePtr Find(const TKey& key);
 
-    bool TryInsert(TValuePtr value, TValuePtr* existingValue = nullptr);
+    bool TryInsert(const TValuePtr& value, TValuePtr* existingValue = nullptr);
     bool TryRemove(const TKey& key);
-    bool TryRemove(TValuePtr value);
+    bool TryRemove(const TValuePtr& value);
     void Clear();
 
 protected:
@@ -65,24 +65,28 @@ private:
     struct TItem
         : public TIntrusiveListItem<TItem>
     {
-        explicit TItem(TValuePtr value)
-            : Value(std::move(value))
-        { }
+        explicit TItem(TValuePtr value);
 
         TValuePtr Value;
         bool Younger;
     };
 
-    NConcurrency::TReaderWriterSpinLock SpinLock_;
+    struct TShard
+    {
+        NConcurrency::TReaderWriterSpinLock SpinLock;
 
-    TIntrusiveListWithAutoDelete<TItem, TDelete> YoungerLruList_;
-    TIntrusiveListWithAutoDelete<TItem, TDelete> OlderLruList_;
+        TIntrusiveListWithAutoDelete<TItem, TDelete> YoungerLruList;
+        TIntrusiveListWithAutoDelete<TItem, TDelete> OlderLruList;
 
-    yhash_map<TKey, TItem*, THash> ItemMap_;
-    volatile int ItemMapSize_ = 0; // used by GetSize
+        yhash_map<TKey, TItem*, THash> ItemMap;
 
-    std::vector<TItem*> TouchBuffer_;
-    std::atomic<int> TouchBufferPosition_ = {0};
+        std::vector<TItem*> TouchBuffer;
+        std::atomic<int> TouchBufferPosition = {0};
+    };
+
+    std::unique_ptr<TShard[]> Shards_;
+
+    std::atomic<int> Size_ = {0};
 
     NProfiling::TProfiler Profiler;
     NProfiling::TSimpleCounter HitWeightCounter_;
@@ -91,15 +95,16 @@ private:
     NProfiling::TSimpleCounter YoungerWeightCounter_;
     NProfiling::TSimpleCounter OlderWeightCounter_;
 
+    TShard* GetShardByKey(const TKey& key) const;
 
-    bool Touch(TItem* item);
-    void DrainTouchBuffer();
+    bool Touch(TShard* shard, TItem* item);
+    void DrainTouchBuffer(TShard* shard);
 
-    void Trim(NConcurrency::TWriterGuard& guard);
+    void Trim(TShard* shard, NConcurrency::TWriterGuard& guard);
 
-    void PushToYounger(TItem* item);
-    void MoveToYounger(TItem* item);
-    void MoveToOlder(TItem* item);
+    void PushToYounger(TShard* shard, TItem* item);
+    void MoveToYounger(TShard* shard, TItem* item);
+    void MoveToOlder(TShard* shard, TItem* item);
     void Pop(TItem* item);
 
 };

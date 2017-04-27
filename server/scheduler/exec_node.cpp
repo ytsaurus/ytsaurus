@@ -1,7 +1,8 @@
 #include "exec_node.h"
-#include "job_resources.h"
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/ytlib/scheduler/job_resources.h>
 
 namespace NYT {
 namespace NScheduler {
