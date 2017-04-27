@@ -589,6 +589,8 @@ void TOperationControllerBase::TTask::ScheduleJob(
 
         schedulerJobSpecExt->set_enable_sort_verification(controller->Spec->EnableSortVerification);
 
+        schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(controller->Spec->SuspendOperationIfAccountLimitExceeded);
+
         // Adjust sizes if approximation flag is set.
         if (joblet->InputStripeList->IsApproximate) {
             schedulerJobSpecExt->set_input_uncompressed_data_size(static_cast<i64>(
@@ -2397,6 +2399,10 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ abortReason == EAbortReason::UserRequest);
 
     RemoveJoblet(jobId);
+
+    if (abortReason == EAbortReason::AccountLimitExceeded) {
+        Host->OnOperationSuspended(OperationId, TError("Account limit exceeded"));
+    }
 }
 
 void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)

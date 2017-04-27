@@ -50,11 +50,11 @@ def resolve_test_paths(name):
     path_to_environment = os.path.join(path_to_sandbox, "run")
     return path_to_sandbox, path_to_environment
 
-def wait(predicate):
-    for _ in xrange(100):
+def wait(predicate, iter=100, sleep_backoff=0.3):
+    for _ in xrange(iter):
         if predicate():
             return
-        sleep(0.3)
+        sleep(sleep_backoff)
     pytest.fail("wait failed")
 
 def _pytest_finalize_func(environment, process_call_args):

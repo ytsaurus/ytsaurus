@@ -147,6 +147,9 @@ public:
     //! If candidate exec nodes are not found for more than timeout time then operation will be failed.
     TDuration AvailableNodesMissingTimeout;
 
+    //! Suspend operation in case of jobs failed due to account limit exceeded.
+    bool SuspendOperationIfAccountLimitExceeded;
+
     TOperationSpecBase();
 };
 

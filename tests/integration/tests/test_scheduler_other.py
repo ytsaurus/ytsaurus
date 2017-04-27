@@ -182,6 +182,40 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         with pytest.raises(YtError):
             op2.track()
 
+    def test_operation_suspend_with_account_limit_exceeded(self):
+        create_account("limited")
+        set("//sys/accounts/limited/@resource_limits/chunk_count", 1)
+
+        self._create_table("//tmp/in")
+        self._create_table("//tmp/out")
+        set("//tmp/out/@account", "limited")
+        write_table("//tmp/in", [{"foo": i} for i in xrange(3)])
+
+        # Operation specific time limit.
+        op = map(dont_track=True,
+            command="sleep $YT_JOB_INDEX; cat",
+            in_=["//tmp/in"],
+            out="//tmp/out",
+            spec={
+                "data_size_per_job": 1,
+                "suspend_operation_if_account_limit_exceeded": True
+            })
+
+        wait(lambda: get("//sys/operations/{0}/@suspended".format(op.id)), iter=20)
+
+        assert get("//sys/operations/{0}/@state".format(op.id)) == "running"
+
+        alerts = get("//sys/operations/{0}/@alerts".format(op.id))
+        assert list(alerts) == ["operation_suspended"]
+
+        set("//sys/accounts/limited/@resource_limits/chunk_count", 10)
+        op.resume()
+        op.track()
+
+        assert get("//sys/operations/{0}/@state".format(op.id)) == "completed"
+        assert not get("//sys/operations/{0}/@suspended".format(op.id))
+        assert not get("//sys/operations/{0}/@alerts".format(op.id))
+
     def test_fifo_default(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out1")
@@ -2212,7 +2246,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
                 time.sleep(0.1)
             else:
                 break
-            
+
         if not running_jobs1 or not running_jobs2:
             assert False, "Failed to have running jobs in both operations"
 
