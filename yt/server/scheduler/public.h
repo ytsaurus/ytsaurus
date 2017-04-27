@@ -97,6 +97,7 @@ DEFINE_ENUM(EOperationAlertType,
     (LongAbortedJobs)
     (ExcessiveDiskUsage)
     (ShortJobsDuration)
+    (OperationSuspended)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

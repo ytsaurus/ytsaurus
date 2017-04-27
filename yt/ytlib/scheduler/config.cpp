@@ -133,6 +133,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("available_nodes_missing_timeout", AvailableNodesMissingTimeout)
         .Default(TDuration::Hours(1));
 
+    RegisterParameter("suspend_operation_if_account_limit_exceeded", SuspendOperationIfAccountLimitExceeded)
+        .Default(false);
+
     RegisterValidator([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)

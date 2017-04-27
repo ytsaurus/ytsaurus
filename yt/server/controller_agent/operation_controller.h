@@ -97,7 +97,7 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual IInvokerPtr GetControlInvoker() const = 0;
-    
+
     //! Returns invoker for statistics analyzer.
     /*!
      *  \note Thread affinity: any
@@ -142,6 +142,14 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual void OnOperationFailed(
+        const TOperationId& operationId,
+        const TError& error) = 0;
+
+    //! Called by a controller to notify the host that the operation should be suspended.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual void OnOperationSuspended(
         const TOperationId& operationId,
         const TError& error) = 0;
 
@@ -418,7 +426,7 @@ struct IOperationController
     //! Called to get a YSON string representing current job(s) state.
     virtual NYson::TYsonString BuildJobYson(const TJobId& jobId, bool outputStatistics) const = 0;
     virtual NYson::TYsonString BuildJobsYson() const = 0;
-    
+
     //! Called to get a YSON string representing suspicious jobs of operation.
     virtual NYson::TYsonString BuildSuspiciousJobsYson() const = 0;
 };

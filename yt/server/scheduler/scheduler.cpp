@@ -163,18 +163,18 @@ public:
         for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
             JobStateToTag_[state] = TProfileManager::Get()->RegisterTag("state", FormatEnum(state));
         }
-        
+
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
             JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("type", FormatEnum(type));
         }
-        
+
         for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
             if (IsSentinelReason(reason)) {
                 continue;
             }
             JobAbortReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("abort_reason", FormatEnum(reason));
         }
-        
+
         for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
             JobInterruptReasonToTag_[reason] = TProfileManager::Get()->RegisterTag("interrupt_reason", FormatEnum(reason));
         }
@@ -621,14 +621,7 @@ public:
                 operation->GetState()));
         }
 
-        operation->SetSuspended(true);
-
-        if (abortRunningJobs) {
-            AbortOperationJobs(operation, TError("Suspend operation by user request"), /* terminated */ false);
-        }
-
-        LOG_INFO("Operation suspended (OperationId: %v)",
-            operation->GetId());
+        DoSuspendOperation(operation->GetId(), TError("Suspend operation by user request"), abortRunningJobs, /* setAlert */ false);
 
         return MasterConnector_->FlushOperationNode(operation);
     }
@@ -658,6 +651,11 @@ public:
             .ThrowOnError();
 
         operation->SetSuspended(false);
+
+        SetOperationAlert(
+            operation->GetId(),
+            EOperationAlertType::OperationSuspended,
+            TError());
 
         LOG_INFO("Operation resumed (OperationId: %v)",
             operation->GetId());
@@ -920,6 +918,14 @@ public:
 
         MasterConnector_->GetCancelableControlInvoker()->Invoke(
             BIND(&TImpl::DoFailOperation, MakeStrong(this), operationId, error));
+    }
+
+    virtual void OnOperationSuspended(const TOperationId& operationId, const TError& error) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(
+            BIND(&TImpl::DoSuspendOperation, MakeStrong(this), operationId, error, /* abortRunningJobs */ true, /* setAlert */ true));
     }
 
     virtual void OnOperationAborted(const TOperationId& operationId, const TError& error) override
@@ -2103,6 +2109,37 @@ private:
         }
 
         DoAbortOperation(operation, error);
+    }
+
+    void DoSuspendOperation(const TOperationId operationId, const TError& error, bool abortRunningJobs, bool setAlert)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+
+        // NB: finishing state is ok, do not skip operation fail in this case.
+        if (!operation || operation->IsFinishedState()) {
+            // Operation is already terminated.
+            return;
+        }
+
+        auto codicilGuard = operation->MakeCodicilGuard();
+
+        operation->SetSuspended(true);
+
+        if (abortRunningJobs) {
+            AbortOperationJobs(operation, error, /* terminated */ false);
+        }
+
+        if (setAlert) {
+            SetOperationAlert(
+                operation->GetId(),
+                EOperationAlertType::OperationSuspended,
+                error);
+        }
+
+        LOG_INFO(error, "Operation suspended (OperationId: %v)",
+            operation->GetId());
     }
 
     void TerminateOperation(

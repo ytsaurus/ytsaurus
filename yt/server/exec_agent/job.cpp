@@ -92,6 +92,9 @@ public:
 
         JobSpec_.Swap(&jobSpec);
 
+        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        AbortJobIfAccountLimitExceeded_ = schedulerJobSpecExt.abort_job_if_account_limit_exceeded();
+
         Logger.AddTag("JobId: %v, OperationId: %v, JobType: %v",
             Id_,
             OperationId_,
@@ -449,6 +452,8 @@ private:
 
     TJobSpec JobSpec_;
 
+    bool AbortJobIfAccountLimitExceeded_;
+
     // Used to terminate artifacts downloading in case of cancelation.
     TFuture<void> ArtifactsFuture_ = VoidFuture;
 
@@ -757,7 +762,7 @@ private:
         if (error.IsOK()) {
             SetJobState(EJobState::Completed);
         } else if (IsFatalError(error)) {
-            error.Attributes().Set("fatal", IsFatalError(error));
+            error.Attributes().Set("fatal", true);
             ToProto(JobResult_->mutable_error(), error);
             SetJobState(EJobState::Failed);
         } else {
@@ -1035,6 +1040,13 @@ private:
         }
 
         auto resultError = FromProto<TError>(jobResult.error());
+
+        if (AbortJobIfAccountLimitExceeded_ &&
+            resultError.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded))
+        {
+            return EAbortReason::AccountLimitExceeded;
+        }
+
         if (resultError.FindMatching(NExecAgent::EErrorCode::ResourceOverdraft)) {
             return EAbortReason::ResourceOverdraft;
         }
@@ -1062,7 +1074,8 @@ private:
             return EAbortReason::Other;
         }
 
-        if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode)) {
+        if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode))
+        {
             auto exitCode = NExecAgent::EJobProxyExitCode(processError->Attributes().Get<int>("exit_code"));
             if (exitCode == EJobProxyExitCode::HeartbeatFailed ||
                 exitCode == EJobProxyExitCode::ResultReportFailed ||
@@ -1084,13 +1097,16 @@ private:
         return Null;
     }
 
-    static bool IsFatalError(const TError& error)
+    bool IsFatalError(const TError& error)
     {
         return
             error.FindMatching(NTableClient::EErrorCode::SortOrderViolation) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
-            error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||
+            (
+                error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) &&
+                !AbortJobIfAccountLimitExceeded_
+            ) ||
             error.FindMatching(NSecurityClient::EErrorCode::NoSuchAccount) ||
             error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork) ||
             error.FindMatching(NTableClient::EErrorCode::InvalidDoubleValue) ||
