@@ -241,119 +241,6 @@ void ThrowTypeMismatchError(
             << TErrorAttribute("rhs_type", rhsType);
 }
 
-EValueType InferBinaryExprType(
-    EBinaryOp opCode,
-    EValueType lhsType,
-    EValueType rhsType,
-    const TStringBuf& source,
-    const TStringBuf& lhsSource,
-    const TStringBuf& rhsSource)
-{
-    switch (opCode) {
-        case EBinaryOp::Plus:
-        case EBinaryOp::Minus:
-        case EBinaryOp::Multiply:
-        case EBinaryOp::Divide: {
-            if (lhsType == EValueType::Null || rhsType == EValueType::Null) {
-                return EValueType::Null;
-            }
-
-            if (lhsType != rhsType) {
-                ThrowTypeMismatchError(lhsType, rhsType, source, lhsSource, rhsSource);
-            }
-
-            EValueType operandType = lhsType;
-            if (!IsArithmeticType(operandType)) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %Qv requires either integral or floating-point operands",
-                    source)
-                    << TErrorAttribute("lhs_source", lhsSource)
-                    << TErrorAttribute("rhs_source", rhsSource)
-                    << TErrorAttribute("operand_type", operandType);
-            }
-            return operandType;
-        }
-
-        case EBinaryOp::Modulo:
-        case EBinaryOp::LeftShift:
-        case EBinaryOp::RightShift:
-        case EBinaryOp::BitOr:
-        case EBinaryOp::BitAnd: {
-            if (lhsType == EValueType::Null || rhsType == EValueType::Null) {
-                return EValueType::Null;
-            }
-
-            if (lhsType != rhsType) {
-                ThrowTypeMismatchError(lhsType, rhsType, source, lhsSource, rhsSource);
-            }
-
-            EValueType operandType = lhsType;
-            if (!IsIntegralType(operandType)) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %Qv requires integral operands",
-                    source)
-                    << TErrorAttribute("lhs_source", lhsSource)
-                    << TErrorAttribute("rhs_source", rhsSource)
-                    << TErrorAttribute("operand_type", operandType);
-            }
-            return operandType;
-        }
-
-        case EBinaryOp::And:
-        case EBinaryOp::Or: {
-            EValueType operandType = lhsType;
-
-            if (operandType == EValueType::Null) {
-                operandType = rhsType;
-            }
-
-            if (lhsType != EValueType::Null && rhsType != EValueType::Null && lhsType != rhsType) {
-                ThrowTypeMismatchError(lhsType, rhsType, source, lhsSource, rhsSource);
-            }
-
-            if (operandType != EValueType::Boolean && operandType != EValueType::Null) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %Qv requires boolean operands",
-                    source)
-                    << TErrorAttribute("lhs_source", lhsSource)
-                    << TErrorAttribute("rhs_source", rhsSource)
-                    << TErrorAttribute("operand_type", operandType);
-            }
-            return EValueType::Boolean;
-        }
-
-        case EBinaryOp::Equal:
-        case EBinaryOp::NotEqual:
-        case EBinaryOp::Less:
-        case EBinaryOp::Greater:
-        case EBinaryOp::LessOrEqual:
-        case EBinaryOp::GreaterOrEqual: {
-            EValueType operandType = lhsType;
-
-            if (operandType == EValueType::Null) {
-                operandType = rhsType;
-            }
-
-            if (lhsType != EValueType::Null && rhsType != EValueType::Null && lhsType != rhsType) {
-                ThrowTypeMismatchError(lhsType, rhsType, source, lhsSource, rhsSource);
-            }
-
-            if (operandType != EValueType::Null && !IsComparableType(operandType)) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %Qv requires either integral, floating-point or string operands",
-                    source)
-                    << TErrorAttribute("lhs_source", lhsSource)
-                    << TErrorAttribute("rhs_source", rhsSource)
-                    << TErrorAttribute("lhs_type", operandType);
-            }
-            return EValueType::Boolean;
-        }
-
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& original)
@@ -450,39 +337,18 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             auto result = New<TLiteralExpression>(type);
             const auto& ext = serialized.GetExtension(NProto::TLiteralExpression::literal_expression);
 
-            switch (type) {
-                case EValueType::Int64: {
-                    result->Value = MakeUnversionedInt64Value(ext.int64_value());
-                    break;
-                }
-
-                case EValueType::Uint64: {
-                    result->Value = MakeUnversionedUint64Value(ext.uint64_value());
-                    break;
-                }
-
-                case EValueType::Double: {
-                    result->Value = MakeUnversionedDoubleValue(ext.double_value());
-                    break;
-                }
-
-                case EValueType::String: {
-                    result->Value = MakeUnversionedStringValue(ext.string_value());
-                    break;
-                }
-
-                case EValueType::Boolean: {
-                    result->Value = MakeUnversionedBooleanValue(ext.boolean_value());
-                    break;
-                }
-
-                case EValueType::Null: {
-                    result->Value = MakeUnversionedSentinelValue(EValueType::Null);
-                    break;
-                }
-
-                default:
-                    Y_UNREACHABLE();
+            if (ext.has_int64_value()) {
+                result->Value = MakeUnversionedInt64Value(ext.int64_value());
+            } else if (ext.has_uint64_value()) {
+                result->Value = MakeUnversionedUint64Value(ext.uint64_value());
+            } else if (ext.has_double_value()) {
+                result->Value = MakeUnversionedDoubleValue(ext.double_value());
+            } else if (ext.has_string_value()) {
+                result->Value = MakeUnversionedStringValue(ext.string_value());
+            } else if (ext.has_boolean_value()) {
+                result->Value = MakeUnversionedBooleanValue(ext.boolean_value());
+            } else {
+                result->Value = MakeUnversionedSentinelValue(EValueType::Null);
             }
 
             *original = result;
