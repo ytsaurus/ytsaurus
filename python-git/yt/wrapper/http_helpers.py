@@ -50,15 +50,23 @@ def lazy_import_requests():
         import yt.packages.requests
         requests = yt.packages.requests
 
-def _get_session(client=None):
+def _setup_new_session(client):
     lazy_import_requests()
+    session = requests.Session()
+    configure_ip(session,
+                 get_config(client)["proxy"]["force_ipv4"],
+                 get_config(client)["proxy"]["force_ipv6"])
+    return session
+
+def _get_session(client=None):
     if get_option("_requests_session", client) is None:
-        set_option("_requests_session", requests.Session(), client)
+        session = _setup_new_session(client)
+        set_option("_requests_session", session, client)
     return get_option("_requests_session", client)
 
 def _cleanup_http_session(client=None):
-    lazy_import_requests()
-    set_option("_requests_session", requests.Session(), client)
+    session = _setup_new_session(client)
+    set_option("_requests_session", session, client)
 
 def configure_ip(session, force_ipv4=False, force_ipv6=False):
     lazy_import_requests()
@@ -171,10 +179,6 @@ class RequestRetrier(Retrier):
             self.request_url = self.url
         else:
             self.request_url = "'undiscovered'"
-
-        configure_ip(_get_session(client),
-                     get_config(client)["proxy"]["force_ipv4"],
-                     get_config(client)["proxy"]["force_ipv6"])
 
         retry_config = {
             "enable": get_config(client)["proxy"]["request_retry_enable"],
