@@ -3857,10 +3857,10 @@ private:
         (*writerOptions)->ReplicationFactor = chunkProperties[primaryMediumIndex].GetReplicationFactor();
         (*writerOptions)->MediumName = primaryMedium->GetName();
         (*writerOptions)->Account = table->GetAccount()->GetName();
-        (*writerOptions)->CompressionCodec = tableAttributes.Get<NCompression::ECodec>("compression_codec");
-        (*writerOptions)->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec");
+        (*writerOptions)->CompressionCodec = table->GetCompressionCodec();
+        (*writerOptions)->ErasureCodec = table->GetErasureCodec();
         (*writerOptions)->ChunksVital = chunkProperties.GetVital();
-        (*writerOptions)->OptimizeFor = tableAttributes.Get<EOptimizeFor>("optimize_for");
+        (*writerOptions)->OptimizeFor = table->GetOptimizeFor();
     }
 
     static void ParseTabletRange(
