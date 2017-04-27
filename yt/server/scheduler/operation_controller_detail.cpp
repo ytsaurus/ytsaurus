@@ -1481,8 +1481,10 @@ void TOperationControllerBase::SafeMaterialize()
     LOG_INFO("Materialization finished");
 }
 
-void TOperationControllerBase::SafeSaveSnapshot(TOutputStream* output)
+void TOperationControllerBase::SaveSnapshot(TOutputStream* output)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TSaveContext context;
     context.SetVersion(GetCurrentSnapshotVersion());
     context.SetOutput(output);

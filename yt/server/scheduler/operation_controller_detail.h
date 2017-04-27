@@ -147,8 +147,6 @@ private: \
     IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<TJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
 
-    IMPLEMENT_SAFE_VOID_METHOD(SaveSnapshot, (TOutputStream* output), (output), THREAD_AFFINITY_ANY())
-
     IMPLEMENT_SAFE_VOID_METHOD(Commit, (), (), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(Abort, (), (), THREAD_AFFINITY(ControlThread))
     IMPLEMENT_SAFE_VOID_METHOD(Forget, (), (), THREAD_AFFINITY(ControlThread))
@@ -212,6 +210,10 @@ public:
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const override;
+
+    // NB(max42, babenko): this method should not be safe. Writing a core dump or trying to fail
+    // operation from a forked process is a bad idea.
+    virtual void SaveSnapshot(TOutputStream* output) override;
 
     virtual NYson::TYsonString GetProgress() const override;
     virtual NYson::TYsonString GetBriefProgress() const override;
