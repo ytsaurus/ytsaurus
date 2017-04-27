@@ -39,7 +39,7 @@ public:
             .Default(65536)
             .GreaterThan(0);
         RegisterParameter("shard_count", ShardCount)
-            .Default(1)
+            .Default(16)
             .GreaterThan(0);
     }
 };
