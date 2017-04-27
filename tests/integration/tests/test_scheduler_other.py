@@ -1,4 +1,5 @@
 import pytest
+from flaky import flaky
 
 from yt_env_setup import YTEnvSetup, unix_only, require_ytserver_root_privileges, wait
 from yt.environment.helpers import assert_almost_equal
@@ -2639,6 +2640,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "excessive_disk_usage" in get("//sys/operations/{0}/@alerts".format(op.id))
 
+    @flaky(max_runs=3)
     def test_long_aborted_jobs_alert(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(5)])
@@ -2693,6 +2695,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "intermediate_data_skew" in get("//sys/operations/{0}/@alerts".format(op.id))
 
+    @flaky(max_runs=3)
     def test_short_jobs_alert(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(4)])
