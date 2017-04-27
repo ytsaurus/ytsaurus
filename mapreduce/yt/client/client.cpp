@@ -697,7 +697,7 @@ public:
 
         header.SetParameters(BuildYsonStringFluently().BeginMap()
             .DoIf(options.Timeout_.Defined(), [&] (TFluentMap fluent) {
-                fluent.Item("timeout").Value(options.Timeout_->MilliSeconds());
+                fluent.Item("timeout").Value(static_cast<i64>(options.Timeout_->MilliSeconds()));
             })
             .Item("keep_missing_rows").Value(options.KeepMissingRows_)
             .DoIf(options.Columns_.Defined(), [&] (TFluentMap fluent) {
@@ -720,7 +720,7 @@ public:
         header.SetParameters(BuildYsonStringFluently().BeginMap()
             .Item("query").Value(query)
             .DoIf(options.Timeout_.Defined(), [&] (TFluentMap fluent) {
-                fluent.Item("timeout").Value(options.Timeout_->MilliSeconds());
+                fluent.Item("timeout").Value(static_cast<i64>(options.Timeout_->MilliSeconds()));
             })
             .DoIf(options.InputRowLimit_.Defined(), [&] (TFluentMap fluent) {
                 fluent.Item("input_row_limit").Value(*options.InputRowLimit_);

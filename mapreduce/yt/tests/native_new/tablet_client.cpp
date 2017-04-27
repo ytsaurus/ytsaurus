@@ -5,6 +5,8 @@
 
 #include <library/unittest/registar.h>
 
+#include <util/generic/algorithm.h>
+
 using namespace NYT;
 using namespace NYT::NTesting;
 
@@ -208,6 +210,40 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
         {
             auto result = client->LookupRows(tablePath, {TNode()("key", 42), TNode()("key", 1)});
             UNIT_ASSERT_VALUES_EQUAL(result, TNode::TList({rows[0]}));
+        }
+
+        client->UnmountTable(tablePath);
+        WaitForTableState(client, tablePath, "unmounted");
+    }
+
+    SIMPLE_UNIT_TEST(TestTimeoutType)
+    {
+        TTabletFixture fixture;
+        auto client = fixture.Client();
+        const Stroka tablePath = "//testing/test-timeout-type";
+        CreateTestTable(client, tablePath);
+        client->MountTable(tablePath);
+        WaitForTableState(client, tablePath, "mounted");
+
+        TNode::TList rows = {
+            TNode()("key", 1)("value", "one"),
+            TNode()("key", 42)("value", "forty two"),
+        };
+        client->InsertRows(tablePath, rows);
+
+        {
+            auto result = client->LookupRows(tablePath,
+                {TNode()("key", 42), TNode()("key", 1)},
+                NYT::TLookupRowsOptions().Timeout(TDuration::Seconds(1)));
+            UNIT_ASSERT_VALUES_EQUAL(result, TNode::TList({rows[1], rows[0]}));
+        }
+
+        {
+            auto result = client->SelectRows("* from [//testing/test-timeout-type]", NYT::TSelectRowsOptions().Timeout(TDuration::Seconds(1)));
+            //Sort(result.begin(), result.end(), [] (const TNode& lhs, const TNode& rhs) {
+                    //return lhs["key"].AsInt64() < rhs["key"].AsInt64();
+                //});
+            UNIT_ASSERT_VALUES_EQUAL(result, rows);
         }
 
         client->UnmountTable(tablePath);
