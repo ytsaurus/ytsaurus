@@ -412,28 +412,20 @@ class YTInstance(object):
             self.kill_cgroups_impl()
 
     def kill_cgroups_impl(self):
-        def _put_freezer_state(cgroup_path, state):
-            with open(os.path.join(cgroup_path, "freezer.state"), "w") as handle:
-                handle.write(state)
-                handle.write("\n")
-
-        def _get_freezer_state(cgroup_path):
-            with open(os.path.join(cgroup_path, "freezer.state"), "r") as handle:
-                return handle.read().strip()
-
-        freezer_cgroups = []
+        tasks = []
         for cgroup_path in self._all_cgroups:
             if "cgroup/freezer" in cgroup_path:
-                _put_freezer_state(cgroup_path, "FROZEN")
-                freezer_cgroups.append(cgroup_path)
+                with open(os.path.join(cgroup_path, "tasks")) as f:
+                    for line in f:
+                        pid = int(line)
+                        # Stopping process activity. This prevents
+                        # forking of new processes, for example.
+                        os.kill(pid, signal.SIGSTOP)
+                        tasks.append(pid)
 
-        while not all(_get_freezer_state(cgroup_path) == "FROZEN" for cgroup_path in freezer_cgroups):
-            time.sleep(0.1)
-
-        for cgroup_path in freezer_cgroups:
-            with open(os.path.join(cgroup_path, "tasks"), "r") as handle:
-                for line in handle:
-                    os.kill(int(line), signal.SIGKILL)
+        for pid in tasks:
+            if not is_dead_or_zombie(pid):
+                os.kill(pid, signal.SIGKILL)
 
         for cgroup_path in self._all_cgroups:
             for dirpath, dirnames, _ in os.walk(cgroup_path, topdown=False):
