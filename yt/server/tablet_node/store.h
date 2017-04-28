@@ -115,9 +115,6 @@ struct IChunkStore
     virtual TFuture<void> GetPreloadFuture() const = 0;
     virtual void SetPreloadFuture(TFuture<void> future) = 0;
 
-    virtual TFuture<void> GetPreloadBackoffFuture() const = 0;
-    virtual void SetPreloadBackoffFuture(TFuture<void> future) = 0;
-
     virtual NChunkClient::IChunkReaderPtr GetChunkReader() = 0;
 
     virtual EInMemoryMode GetInMemoryMode() const = 0;

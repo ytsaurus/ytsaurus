@@ -207,10 +207,6 @@ void TSortedChunkStore::SetInMemoryMode(EInMemoryMode mode)
         PreloadFuture_.Cancel();
         PreloadFuture_.Reset();
     }
-    if (PreloadBackoffFuture_) {
-        PreloadBackoffFuture_.Cancel();
-        PreloadBackoffFuture_.Reset();
-    }
 
     if (mode == EInMemoryMode::None) {
         PreloadState_ = EStorePreloadState::Disabled;

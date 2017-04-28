@@ -335,8 +335,12 @@ void TStoreManagerBase::BackoffStorePreload(IChunkStorePtr store)
     store->SetPreloadState(EStorePreloadState::None);
     store->UpdatePreloadAttempt();
     store->SetPreloadFuture(TFuture<void>());
-    store->SetPreloadBackoffFuture(TFuture<void>());
     ScheduleStorePreload(store);
+}
+
+ui64 TStoreManagerBase::GetInMemoryConfigRevision() const
+{
+    return InMemoryConfigRevision_;
 }
 
 void TStoreManagerBase::Mount(const std::vector<TAddStoreDescriptor>& storeDescriptors)
@@ -509,6 +513,7 @@ void TStoreManagerBase::CheckForUnlockedStore(IDynamicStore* store)
 
 void TStoreManagerBase::UpdateInMemoryMode()
 {
+    ++InMemoryConfigRevision_;
     auto mode = Tablet_->GetConfig()->InMemoryMode;
 
     for (const auto& storeId : Tablet_->PreloadStoreIds()) {

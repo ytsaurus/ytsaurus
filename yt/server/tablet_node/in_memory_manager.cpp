@@ -242,13 +242,15 @@ private:
         auto invoker = tablet->GetEpochAutomatonInvoker();
 
         try {
+            auto revision = storeManager->GetInMemoryConfigRevision();
             auto finalizer = Finally(
                 [&] () {
                     LOG_WARNING("Backing off tablet store preload");
-                    store->SetPreloadBackoffFuture(
-                        BIND(&IStoreManager::BackoffStorePreload, storeManager, store)
-                            .AsyncVia(invoker)
-                            .Run());
+                    invoker->Invoke(BIND([revision, storeManager, store] {
+                        if (storeManager->GetInMemoryConfigRevision() == revision) {
+                            storeManager->BackoffStorePreload(store);
+                        }
+                    }));
                 });
             if (IsMemoryLimitExceeded()) {
                 LOG_INFO("Store preload is disabled due to memory pressure");
