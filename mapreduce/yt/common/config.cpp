@@ -186,9 +186,9 @@ TConfig::TConfig()
     LoadSpec();
     LoadTimings();
 
-    RetryCount = GetInt("YT_RETRY_COUNT", 10);
-    ReadRetryCount = GetInt("YT_READ_RETRY_COUNT", 30);
-    StartOperationRetryCount = GetInt("YT_START_OPERATION_RETRY_COUNT", 30);
+    RetryCount = Max(GetInt("YT_RETRY_COUNT", 10), 1);
+    ReadRetryCount = Max(GetInt("YT_READ_RETRY_COUNT", 30), 1);
+    StartOperationRetryCount = Max(GetInt("YT_START_OPERATION_RETRY_COUNT", 30), 1);
 
     RemoteTempFilesDirectory = GetEnv("YT_FILE_STORAGE",
         "//tmp/yt_wrapper/file_storage");
