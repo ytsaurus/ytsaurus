@@ -170,11 +170,13 @@ TBatchRequestImpl::TBatchRequestImpl() = default;
 
 TBatchRequestImpl::~TBatchRequestImpl() = default;
 
+bool TBatchRequestImpl::IsExecuted() const
+{
+    return Executed_;
+}
+
 void TBatchRequestImpl::MarkExecuted()
 {
-    if (Executed_) {
-        ythrow yexception() << "Cannot execute batch request since it is alredy executed";
-    }
     Executed_ = true;
 }
 

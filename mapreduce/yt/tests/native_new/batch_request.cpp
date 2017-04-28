@@ -14,7 +14,8 @@ using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////
 
-class TYtPrefixGuard {
+class TYtPrefixGuard
+{
 public:
     TYtPrefixGuard(const Stroka& ytPrefix)
     {
@@ -31,6 +32,32 @@ public:
 
 private:
     Stroka OldYtPrefix;
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TLowerRequestLimit
+{
+public:
+    TLowerRequestLimit(IClientPtr client, int value)
+        : Client_(client)
+        , RequestRateLimit_(Client_->Get("//sys/users/root/@request_rate_limit"))
+        , RequestQueueSizeLimit_(Client_->Get("//sys/users/root/@request_queue_size_limit"))
+    {
+        Client_->Set("//sys/users/root/@request_rate_limit", value);
+        Client_->Set("//sys/users/root/@request_queue_size_limit", value);
+    }
+
+    ~TLowerRequestLimit()
+    {
+        Client_->Set("//sys/users/root/@request_rate_limit", RequestRateLimit_);
+        Client_->Set("//sys/users/root/@request_queue_size_limit", RequestQueueSizeLimit_);
+    }
+
+private:
+    IClientPtr Client_;
+    const TNode RequestRateLimit_;
+    const TNode RequestQueueSizeLimit_;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -561,6 +588,25 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/bbb"), TNode(bbb));
         UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/ccc"), TNode(ccc));
         UNIT_ASSERT_VALUES_EQUAL(client->Get("//testing/ddd"), TNode(ddd));
+    }
+
+    SIMPLE_UNIT_TEST(TestBigLoad) {
+        auto client = CreateTestClient();
+        TLowerRequestLimit lrl(client, 100);
+        TConfig::Get()->RetryInterval = TDuration();
+        TConfig::Get()->RateLimitExceededRetryInterval = TDuration();
+
+        client->Set("//testing/node", 5);
+        TBatchRequest batchRequest;
+        yvector<NThreading::TFuture<TNode>> results;
+        for (size_t i = 0; i != 500; ++i) {
+            results.push_back(batchRequest.Get("//testing/node"));
+        }
+        client->ExecuteBatch(batchRequest, TExecuteBatchOptions().Concurrency(500));
+
+        for (const auto& r : results) {
+            r.GetValue();
+        }
     }
 }
 

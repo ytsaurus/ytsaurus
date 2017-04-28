@@ -34,6 +34,7 @@ public:
     TBatchRequestImpl();
     ~TBatchRequestImpl();
 
+    bool IsExecuted() const;
     void MarkExecuted();
 
     void FillParameterList(size_t maxSize, TNode* result, TInstant* nextTry) const;
