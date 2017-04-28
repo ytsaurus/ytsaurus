@@ -93,6 +93,9 @@ public:
     //! Backoff for printing tree scheduling info in heartbeat.
     TDuration HeartbeatTreeSchedulingInfoLogBackoff;
 
+    //! Maximum number of ephemeral pools that can be created by user.
+    int MaxEphemeralPoolsPerUser;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -187,6 +190,10 @@ public:
 
         RegisterParameter("heartbeat_tree_scheduling_info_log_period", HeartbeatTreeSchedulingInfoLogBackoff)
             .Default(TDuration::MilliSeconds(100));
+
+        RegisterParameter("max_ephemeral_pools_per_user", MaxEphemeralPoolsPerUser)
+            .GreaterThanOrEqual(1)
+            .Default(5);
 
         RegisterValidator([&] () {
             if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {

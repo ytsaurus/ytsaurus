@@ -357,7 +357,7 @@ protected:
 
     const Stroka Id_;
     bool DefaultConfigured_ = true;
-
+    TNullable<Stroka> UserName_;
 };
 
 class TPool
@@ -374,6 +374,9 @@ public:
         TCompositeSchedulerElement* clonedParent);
 
     bool IsDefaultConfigured() const;
+
+    void SetUserName(const TNullable<Stroka>& userName);
+    const TNullable<Stroka>& GetUserName() const;
 
     TPoolConfigPtr GetConfig();
     void SetConfig(TPoolConfigPtr config);
