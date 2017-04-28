@@ -9,6 +9,7 @@
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/fluent.h>
+#include <mapreduce/yt/common/finally_guard.h>
 
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/http/requests.h>
@@ -746,37 +747,44 @@ public:
 
     void ExecuteBatch(const TBatchRequest& request, const TExecuteBatchOptions& options) override
     {
-        request.Impl_->MarkExecuted();
+        if (request.Impl_->IsExecuted()) {
+            ythrow yexception() << "Cannot execute batch request since it is alredy executed";
+        }
+        NDetail::TFinallyGuard g([&] {
+            request.Impl_->MarkExecuted();
+        });
+
         NDetail::TAttemptLimitedRetryPolicy retryPolicy(TConfig::Get()->RetryCount);
 
         const auto concurrency = options.Concurrency_.GetOrElse(50);
         const auto batchPartMaxSize = options.BatchPartMaxSize_.GetOrElse(concurrency * 5);
 
-        try {
+        while (request.Impl_->BatchSize()) {
+            NDetail::TBatchRequestImpl retryBatch;
+
             while (request.Impl_->BatchSize()) {
-                NDetail::TBatchRequestImpl retryBatch;
-                retryBatch.MarkExecuted();
-
-                while (request.Impl_->BatchSize()) {
-                    auto parameters = TNode::CreateMap();
-                    TInstant nextTry;
-                    request.Impl_->FillParameterList(batchPartMaxSize, &parameters["requests"], &nextTry);
-                    if (nextTry) {
-                        SleepUntil(nextTry);
-                    }
-                    parameters["concurrency"] = concurrency;
-                    auto body = NodeToYsonString(parameters);
-                    THttpHeader header("POST", "execute_batch");
-                    header.AddMutationId();
-                    auto result = RetryRequest(Auth_, header, body, retryPolicy);
-                    request.Impl_->ParseResponse(std::move(result), retryPolicy, &retryBatch);
+                auto parameters = TNode::CreateMap();
+                TInstant nextTry;
+                request.Impl_->FillParameterList(batchPartMaxSize, &parameters["requests"], &nextTry);
+                if (nextTry) {
+                    SleepUntil(nextTry);
                 }
-
-                *request.Impl_ = std::move(retryBatch);
+                parameters["concurrency"] = concurrency;
+                auto body = NodeToYsonString(parameters);
+                THttpHeader header("POST", "execute_batch");
+                header.AddMutationId();
+                NDetail::TResponseInfo result;
+                try {
+                    result = RetryRequest(Auth_, header, body, retryPolicy);
+                } catch (const yexception& e) {
+                    request.Impl_->SetErrorResult(std::current_exception());
+                    retryBatch.SetErrorResult(std::current_exception());
+                    throw;
+                }
+                request.Impl_->ParseResponse(std::move(result), retryPolicy, &retryBatch);
             }
-        } catch (const yexception& e) {
-            request.Impl_->SetErrorResult(std::current_exception());
-            throw;
+
+            *request.Impl_ = std::move(retryBatch);
         }
     }
 
