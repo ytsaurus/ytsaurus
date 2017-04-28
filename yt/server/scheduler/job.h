@@ -144,15 +144,11 @@ public:
         TDuration suspiciousInactivityTimeout,
         i64 suspiciousCpuUsageThreshold,
         double suspiciousInputPipeIdleTimeFraction,
-        const TBriefJobStatisticsPtr& briefStatistics);
-
-    TBriefJobStatisticsPtr BuildBriefStatistics(const NYson::TYsonString& statisticsYson) const;
+        const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError);
 
     void SetStatus(TJobStatus* status);
 
     const Stroka& GetStatisticsSuffix() const;
-
-    void InterruptJob(EInterruptReason reason, NProfiling::TCpuInstant interruptDeadline);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)

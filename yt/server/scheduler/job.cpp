@@ -132,32 +132,19 @@ TDuration TJob::GetDuration() const
     return *FinishTime_ - StartTime_;
 }
 
-TBriefJobStatisticsPtr TJob::BuildBriefStatistics(const TYsonString& statisticsYson) const
-{
-    auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(statisticsYson);
-
-    auto briefStatistics = New<TBriefJobStatistics>();
-    briefStatistics->ProcessedInputRowCount = GetNumericValue(statistics, "/data/input/row_count");
-    briefStatistics->ProcessedInputUncompressedDataSize = GetNumericValue(statistics, "/data/input/uncompressed_data_size");
-    briefStatistics->ProcessedInputCompressedDataSize = GetNumericValue(statistics, "/data/input/compressed_data_size");
-    briefStatistics->InputPipeIdleTime = FindNumericValue(statistics, "/user_job/pipes/input/idle_time");
-    briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, "/job_proxy/cpu/user");
-    briefStatistics->Timestamp = statistics.GetTimestamp().Get(TInstant::Now());
-
-    auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
-    briefStatistics->ProcessedOutputUncompressedDataSize = outputDataStatistics.uncompressed_data_size();
-    briefStatistics->ProcessedOutputCompressedDataSize = outputDataStatistics.compressed_data_size();
-    briefStatistics->ProcessedOutputRowCount = outputDataStatistics.row_count();
-
-    return briefStatistics;
-}
-
 void TJob::AnalyzeBriefStatistics(
     TDuration suspiciousInactivityTimeout,
     i64 suspiciousCpuUsageThreshold,
     double suspiciousInputPipeIdleTimeFraction,
-    const TBriefJobStatisticsPtr& briefStatistics)
+    const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError)
 {
+    if (!briefStatisticsOrError.IsOK()) {
+        LOG_WARNING(briefStatisticsOrError, "Not analyzing brief statistics of job due to an error (JobId: %v)");
+        return;
+    }
+
+    const auto& briefStatistics = briefStatisticsOrError.Value();
+
     bool wasActive = false;
 
     if (!BriefStatistics_ || CheckJobActivity(

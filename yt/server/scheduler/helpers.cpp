@@ -40,6 +40,12 @@ using namespace NChunkClient;
 
 static const auto& Logger = SchedulerLogger;
 
+static const Stroka InputRowCountPath = "/data/input/row_count";
+static const Stroka InputUncompressedDataSizePath = "/data/input/uncompressed_data_size";
+static const Stroka InputCompressedDataSizePath = "/data/input/compressed_data_size";
+static const Stroka InputPipeIdleTimePath = "/user_job/pipes/input/idle_time";
+static const Stroka JobProxyCpuUsagePath = "/job_proxy/cpu/user";
+
 ////////////////////////////////////////////////////////////////////
 
 class TSimpleJobSizeConstraints
@@ -784,6 +790,30 @@ TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId)
 Stroka TLockedUserObject::GetPath() const
 {
     return FromObjectId(ObjectId);
+}
+
+////////////////////////////////////////////////////////////////////
+
+TBriefJobStatisticsPtr BuildBriefStatistics(const TYsonString& statisticsYson)
+{
+    auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(statisticsYson);
+
+    auto briefStatistics = New<TBriefJobStatistics>();
+    briefStatistics->ProcessedInputRowCount = GetNumericValue(statistics, InputRowCountPath);
+    briefStatistics->ProcessedInputUncompressedDataSize = GetNumericValue(statistics, InputUncompressedDataSizePath);
+    briefStatistics->ProcessedInputCompressedDataSize = GetNumericValue(statistics, InputCompressedDataSizePath);
+    briefStatistics->InputPipeIdleTime = FindNumericValue(statistics, InputPipeIdleTimePath);
+    briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, JobProxyCpuUsagePath);
+    briefStatistics->Timestamp = statistics.GetTimestamp().Get(TInstant::Now());
+
+    // TODO(max42): GetTotalOutputDataStatistics is implemented very inefficiently (it creates yhash_map containing
+    // output data statistics per output table and then aggregates them). Rewrite it without any new allocations.
+    auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
+    briefStatistics->ProcessedOutputUncompressedDataSize = outputDataStatistics.uncompressed_data_size();
+    briefStatistics->ProcessedOutputCompressedDataSize = outputDataStatistics.compressed_data_size();
+    briefStatistics->ProcessedOutputRowCount = outputDataStatistics.row_count();
+
+    return briefStatistics;
 }
 
 ////////////////////////////////////////////////////////////////////
