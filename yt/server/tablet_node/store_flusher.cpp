@@ -198,7 +198,7 @@ private:
                 i64 memoryUsage = store->GetMemoryUsage();
                 if (storeManager->IsRotationScheduled()) {
                     PassiveMemoryUsage_ += memoryUsage;
-                } else if (store->GetUncompressedDataSize() >= Config_->StoreFlusher->MinForcedFlushDataSize) {
+                } else if (store->GetCompressedDataSize() >= Config_->StoreFlusher->MinForcedFlushDataSize) {
                     ForcedRotationCandidates_.push_back({
                         memoryUsage,
                         tablet->GetId(),
