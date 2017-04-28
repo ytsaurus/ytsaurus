@@ -219,7 +219,7 @@ test_copy_file_attributes() {
 
     set_attribute "test_key" "test_value"
     set_attribute "erasure_codec" "lrc_12_2_2"
-    set_attribute "compression_codec" "zlib9"
+    set_attribute "compression_codec" "zlib_9"
     set_attribute "expiration_time" "2100000000000"
 
     id=$(run_task '{"source_table": "//tmp/tm/test_file", "source_cluster": "freud", "destination_table": "//tmp/tm/test_file", "destination_cluster": "banach", "pool": "ignat", "additional_attributes": ["expiration_time"]}')
@@ -246,25 +246,25 @@ test_destination_file_codecs() {
 
     echo "Test Content" | yt2 write-file //tmp/tm/test_file --proxy freud
 
-    id=$(run_task '{"source_table": "//tmp/tm/test_file", "source_cluster": "freud", "destination_table": "//tmp/tm/test_file", "destination_cluster": "banach", "destination_compression_codec": "zlib6"}')
+    id=$(run_task '{"source_table": "//tmp/tm/test_file", "source_cluster": "freud", "destination_table": "//tmp/tm/test_file", "destination_cluster": "banach", "destination_compression_codec": "zlib_6"}')
     wait_task $id
 
     check "Test Content" "$(yt2 read-file //tmp/tm/test_file --proxy banach)"
-    check '"zlib6"' "$(yt2 get //tmp/tm/test_file/@compression_codec --proxy banach)"
+    check '"zlib_6"' "$(yt2 get //tmp/tm/test_file/@compression_codec --proxy banach)"
 }
 
 test_source_file_codecs() {
     echo "Test source file codecs"
 
     yt2 remove //tmp/tm/test_file --proxy freud --force
-    yt2 create file //tmp/tm/test_file --proxy freud --attributes '{compression_codec=zlib6}'
+    yt2 create file //tmp/tm/test_file --proxy freud --attributes '{compression_codec=zlib_6}'
     echo "test" | yt2 write-file //tmp/tm/test_file --proxy freud
 
     id=$(run_task '{"source_table": "//tmp/tm/test_file", "source_cluster": "freud", "destination_table": "//tmp/tm/test_file", "destination_cluster": "banach"}')
     wait_task $id
 
     check "test" "$(yt2 read-file //tmp/tm/test_file --proxy banach)"
-    check '"zlib6"' "$(yt2 get //tmp/tm/test_file/@compression_codec --proxy banach)"
+    check '"zlib_6"' "$(yt2 get //tmp/tm/test_file/@compression_codec --proxy banach)"
 }
 
 test_abort_restart_task() {
@@ -312,7 +312,7 @@ test_copy_table_range_with_codec() {
 
     echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/tm/test_table --format yamr --proxy freud
 
-    id=$(run_task '{"source_table": "//tmp/tm/test_table[#1:#2]", "source_cluster": "freud", "destination_table": "//tmp/tm/test_table_from_freud", "destination_cluster": "banach", "pool" : "ignat", "copy_method": "proxy", "destination_compression_codec": "zlib9"}')
+    id=$(run_task '{"source_table": "//tmp/tm/test_table[#1:#2]", "source_cluster": "freud", "destination_table": "//tmp/tm/test_table_from_freud", "destination_cluster": "banach", "pool" : "ignat", "copy_method": "proxy", "destination_compression_codec": "zlib_9"}')
     wait_task $id
 
     check \
@@ -320,7 +320,7 @@ test_copy_table_range_with_codec() {
         "$(yt2 read //tmp/tm/test_table_from_freud --proxy banach --format yamr)"
 
     # Remote copy do not support ranges.
-    #id=$(run_task '{"source_table": "//tmp/tm/test_table[#1:#2]", "source_cluster": "hume", "destination_table": "//tmp/tm/test_table_from_hume", "destination_cluster": "banach", "pool" : "ignat", "destination_compression_codec": "zlib9"}')
+    #id=$(run_task '{"source_table": "//tmp/tm/test_table[#1:#2]", "source_cluster": "hume", "destination_table": "//tmp/tm/test_table_from_hume", "destination_cluster": "banach", "pool" : "ignat", "destination_compression_codec": "zlib_9"}')
     #wait_task $id
 
     #check \
@@ -339,7 +339,7 @@ test_copy_table_attributes() {
 
     set_attribute "test_key" "test_value"
     set_attribute "erasure_codec" "lrc_12_2_2"
-    set_attribute "compression_codec" "zlib9"
+    set_attribute "compression_codec" "zlib_9"
     set_attribute "expiration_time" "2100000000000"
 
     id=$(run_task '{"source_table": "//tmp/tm/test_table", "source_cluster": "freud", "destination_table": "//tmp/tm/test_table_from_freud", "destination_cluster": "banach", "pool": "ignat", "additional_attributes": ["expiration_time"]}')
@@ -494,25 +494,25 @@ test_destination_codecs() {
 
     echo 'a=b' | yt2 write //tmp/tm/test_table --proxy freud --format dsv
 
-    id=$(run_task '{"source_table": "//tmp/tm/test_table", "source_cluster": "freud", "destination_table": "//tmp/tm/test_table", "destination_cluster": "banach", "destination_compression_codec": "zlib6"}')
+    id=$(run_task '{"source_table": "//tmp/tm/test_table", "source_cluster": "freud", "destination_table": "//tmp/tm/test_table", "destination_cluster": "banach", "destination_compression_codec": "zlib_6"}')
     wait_task $id
 
     check "a=b" "$(yt2 read //tmp/tm/test_table --proxy banach --format dsv)"
-    check '"zlib6"' "$(yt2 get //tmp/tm/test_table/@compression_codec --proxy banach)"
+    check '"zlib_6"' "$(yt2 get //tmp/tm/test_table/@compression_codec --proxy banach)"
 }
 
 test_source_codecs() {
     echo "Test source codecs"
 
     yt2 remove //tmp/tm/test_table --proxy freud --force
-    yt2 create table //tmp/tm/test_table --proxy freud --attributes '{compression_codec=zlib6}'
+    yt2 create table //tmp/tm/test_table --proxy freud --attributes '{compression_codec=zlib_6}'
     echo 'a=b' | yt2 write //tmp/tm/test_table --proxy freud --format dsv
 
     id=$(run_task '{"source_table": "//tmp/tm/test_table", "source_cluster": "freud", "destination_table": "//tmp/tm/test_table", "destination_cluster": "banach"}')
     wait_task $id
 
     check "a=b" "$(yt2 read //tmp/tm/test_table --proxy banach --format dsv)"
-    check '"zlib6"' "$(yt2 get //tmp/tm/test_table/@compression_codec --proxy banach)"
+    check '"zlib_6"' "$(yt2 get //tmp/tm/test_table/@compression_codec --proxy banach)"
 }
 
 test_intermediate_format() {
@@ -581,10 +581,10 @@ test_copy_with_annotated_json() {
 test_kiwi_copy() {
     echo "Test kiwi copy"
 
-    id=$(run_task '{"source_table": "//home/ignat/tm_kiwi_test_table", "source_cluster": "freud", "destination_cluster": "kiwi_apteryx", "kiwi_user": "flux", "copy_spec": {"pool": "ignat", "max_failed_job_count": 1, "scheduling_tag": "fol"}}')
+    id=$(run_task '{"source_table": "//home/asaitgalin/tm_kiwi_test_table", "source_cluster": "banach", "destination_cluster": "kiwi_apteryx", "kiwi_user": "flux", "copy_spec": {"pool": "ignat", "max_failed_job_count": 1, "scheduling_tag": "fol"}}')
     wait_task $id
 
-    id=$(run_task '{"source_table": "//home/ignat/tm_kiwi_test_table", "source_cluster": "freud", "destination_cluster": "kiwi_apteryx", "kiwi_user": "flux", "table_for_errors": "//tmp/tm/table_for_errors", "copy_spec": {"pool": "ignat", "max_failed_job_count": 1, "scheduling_tag": "fol"}}')
+    id=$(run_task '{"source_table": "//home/asaitgalin/tm_kiwi_test_table", "source_cluster": "banach", "destination_cluster": "kiwi_apteryx", "kiwi_user": "flux", "table_for_errors": "//tmp/tm/table_for_errors", "copy_spec": {"pool": "ignat", "max_failed_job_count": 1, "scheduling_tag": "fol"}}')
     wait_task $id
 }
 

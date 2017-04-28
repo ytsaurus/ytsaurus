@@ -65,7 +65,7 @@ def _wait_instance_to_become_ready(process, instance_id):
 def local_yt(*args, **kwargs):
     environment = None
     try:
-        environment = start(*args, **kwargs)
+        environment = start(*args, enable_debug_logging=True, **kwargs)
         yield environment
     finally:
         if environment is not None:
@@ -85,6 +85,8 @@ class YtLocalBinary(object):
                 command.extend(["--" + key])
             else:
                 command.extend(["--" + key, str(value)])
+
+            command.extend(["--enable-debug-logging"])
 
         env = {
             "YT_LOCAL_ROOT_PATH": self.root_path,
@@ -131,7 +133,7 @@ class TestLocalMode(object):
         scheduler_count = 4
 
         with local_yt(id="test_logging", master_count=master_count, node_count=node_count,
-                      scheduler_count=scheduler_count, enable_debug_logging=True, start_proxy=True):
+                      scheduler_count=scheduler_count, start_proxy=True):
             pass
 
         for index in xrange(master_count):
@@ -162,7 +164,7 @@ class TestLocalMode(object):
         scheduler_count = 4
         with local_yt(id="test_configs", master_count=master_count,
                       node_count=node_count, scheduler_count=scheduler_count,
-                      enable_debug_logging=True, start_proxy=True):
+                      start_proxy=True):
             pass
 
         assert os.path.exists(config_path)
@@ -184,7 +186,7 @@ class TestLocalMode(object):
 
     def test_watcher(self):
         watcher_config = {
-            "logs_rotate_size": "500k",
+            "logs_rotate_size": "1k",
             "logs_rotate_interval": 1,
             "logs_rotate_max_part_count": 5
         }
@@ -201,7 +203,9 @@ class TestLocalMode(object):
 
         path = os.environ.get("YT_LOCAL_ROOT_PATH")
         log_path = os.path.join(path, "test_watcher", "logs")
-        for file_index in xrange(1, 6):
+        for file_index in xrange(1, 5):
+            assert os.path.exists(os.path.join(log_path, "http-proxy.debug.log.{0}.gz".format(file_index)))
+        for file_index in xrange(1, 5):
             assert os.path.exists(os.path.join(log_path, "http-application.log.{0}.gz".format(file_index)))
 
 
@@ -223,8 +227,7 @@ class TestLocalMode(object):
         with pytest.raises(yt.YtError):
             start(master_count=0)
 
-        with local_yt(master_count=3, node_count=0, scheduler_count=0,
-                      enable_debug_logging=True) as environment:
+        with local_yt(master_count=3, node_count=0, scheduler_count=0) as environment:
             assert len(_read_pids_file(environment.id)) == 5 # + proxy
             assert len(environment.configs["master"]) == 3
 
@@ -301,6 +304,10 @@ class TestLocalMode(object):
             assert client.get_attribute("//table", "myattr") == 4
             assert client.get_attribute("//subdir", "other_attr") == 42
             assert client.get_attribute("/", "root_attr") == "ok"
+
+            assert list(client.read_table("//sorted_table")) == [{"x": "0", "y": "2"}, {"x": "1", "y": "1"},
+                                                                 {"x": "3", "y": "3"}]
+            assert client.get_attribute("//sorted_table", "sorted_by") == ["x"]
 
     def test_preserve_state(self):
         with local_yt() as environment:

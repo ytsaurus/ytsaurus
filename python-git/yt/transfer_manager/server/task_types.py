@@ -15,9 +15,9 @@ class Task(object):
                  kwworm_options=None, pool=None, meta=None, destination_compression_codec=None,
                  destination_erasure_codec=None, destination_force_sort=None, copy_spec=None, postprocess_spec=None,
                  job_timeout=None, intermediate_format=None, lease_timeout=None, queue_name=None,
-                 force_copy_with_operation=None, additional_attributes=None, table_for_errors=None,
+                 force_copy_with_operation=None, external=None, additional_attributes=None, table_for_errors=None,
                  schema_inference_mode=None, temp_files_dir=None, hive_json_format_attributes=None,
-                 data_proxy_role=None, logger=None):
+                 data_proxy_role=None, logger=None, pack_yt_wrapper=None, pack_yson_bindings=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.source_cluster_token = get_value(source_cluster_token, token)
@@ -48,12 +48,15 @@ class Task(object):
         self.postprocess_spec = postprocess_spec
         self.intermediate_format = intermediate_format
         self.force_copy_with_operation = force_copy_with_operation
+        self.external = external
         self.additional_attributes = additional_attributes
         self.table_for_errors = table_for_errors
         self.schema_inference_mode = schema_inference_mode
         self.temp_files_dir = temp_files_dir
         self.hive_json_format_attributes = hive_json_format_attributes
         self.data_proxy_role = data_proxy_role
+        self.pack_yt_wrapper = pack_yt_wrapper
+        self.pack_yson_bindings = pack_yson_bindings
 
         self.destination_compression_codec = destination_compression_codec
         self.destination_erasure_codec = destination_erasure_codec

@@ -1,5 +1,5 @@
 from .config import get_option, get_config, get_total_request_timeout, get_command_param
-from .common import chunk_iter_blobs, YtError, update, remove_nones_from_dict, \
+from .common import group_blobs_by_size, YtError, update, remove_nones_from_dict, \
                     get_value
 from .retries import Retrier, IteratorRetrier
 from .errors import YtResponseError, YtMasterCommunicationError
@@ -7,12 +7,13 @@ from .ypath import YPathSupportingAppend
 from .transaction import Transaction
 from .transaction_commands import _make_transactional_request
 from .http_helpers import get_retriable_errors
-from .response_stream import ResponseStreamWithDel
+from .response_stream import ResponseStreamWithReadRow
 from .lock_commands import lock
 from .format import YtFormatReadError
 
 import yt.logger as logger
 
+import time
 
 class FakeTransaction(object):
     def __enter__(self):
@@ -106,7 +107,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
             runner = WriteRequestRetrier(transaction_timeout=transaction_timeout,
                                          write_action=write_action,
                                          client=client)
-            for chunk in chunk_iter_blobs(stream, chunk_size):
+            for chunk in group_blobs_by_size(stream, chunk_size):
                 assert isinstance(chunk, list)
                 logger.debug("Processing {0} chunk (length: {1}, transaction: {2})"
                     .format(command_name, len(chunk), get_command_param("transaction_id", client)))
@@ -151,15 +152,25 @@ class ReadIterator(IteratorRetrier):
         self.start_response = None
         self.last_response = None
         self.iterator = None
+        self.change_proxy_period = get_config(client)["read_retries"]["change_proxy_period"]
 
     def read_iterator(self):
         if self.start_response is None:
             self.start_response = self.get_response()
             self.process_response_action(self.start_response)
-        for elem in self.retriable_state.iterate(self.get_response()):
-            if not self.transaction.is_pinger_alive():
-                raise YtError("Transaction pinger failed, read interrupted")
-            yield elem
+        while True:
+            start_read_time = time.time()
+            for elem in self.retriable_state.iterate(self.get_response()):
+                if not self.transaction.is_pinger_alive():
+                    raise YtError("Transaction pinger failed, read interrupted")
+                yield elem
+
+                if self.change_proxy_period:
+                    if time.time() - start_read_time > self.change_proxy_period / 1000.0:
+                        self.response = None
+                        break
+            else:
+                break
 
     def get_response(self):
         if self.response is None:
@@ -227,7 +238,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
                 with Transaction(transaction_id=tx.transaction_id, attributes={"title": title}, client=client):
                     lock(path, mode="snapshot", client=client)
             iterator = ReadIterator(command_name, tx, process_response_action, retriable_state_class, client)
-            return ResponseStreamWithDel(
+            return ResponseStreamWithReadRow(
                 get_response=lambda: iterator.last_response,
                 iter_content=iterator,
                 close=lambda: iterator.close(),

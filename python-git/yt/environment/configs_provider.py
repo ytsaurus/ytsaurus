@@ -1,4 +1,5 @@
 from . import default_configs
+from .helpers import canonize_uuid, WEB_INTERFACE_RESOURCES_PATH
 
 from yt.wrapper.common import MB, GB
 from yt.wrapper.mappings import VerifiedDict
@@ -8,6 +9,7 @@ from yt.yson import to_yson_type
 from yt.packages.six import iteritems, add_metaclass
 from yt.packages.six.moves import xrange
 
+import random
 import socket
 import abc
 import os
@@ -205,9 +207,13 @@ def get_at(config, path, default_value=None):
         config = config[part]
     return config
 
-def _set_bind_retry_options(config):
-    set_at(config, "bus_server/bind_retry_count", 10)
-    set_at(config, "bus_server/bind_retry_backoff", 3000)
+def _set_bind_retry_options(config, key=None):
+    if key is None:
+        key = ""
+    else:
+        key = key + "/"
+    set_at(config, "{0}bind_retry_count".format(key), 10)
+    set_at(config, "{0}bind_retry_backoff".format(key), 3000)
 
 def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, fqdn, ports_generator, proxy_logs_dir):
     proxy_config = default_configs.get_proxy_config()
@@ -271,7 +277,9 @@ class ConfigsProvider_18(ConfigsProvider):
 
         cell_tags = [str(provision["master"]["primary_cell_tag"] + index)
                      for index in xrange(provision["master"]["secondary_cell_count"] + 1)]
-        cell_ids = ["ffffffff-ffffffff-%x0259-ffffffff" % int(tag) for tag in cell_tags]
+        random_part = random.randint(0, 2 ** 32 - 1)
+        cell_ids = [canonize_uuid("%x-ffffffff-%x0259-ffffffff" % (random_part, int(tag)))
+                    for tag in cell_tags]
 
         nonvoting_master_count = provision["master"]["cell_nonvoting_master_count"]
 
@@ -343,7 +351,7 @@ class ConfigsProvider_18(ConfigsProvider):
                     }
                 })
 
-                _set_bind_retry_options(config)
+                _set_bind_retry_options(config, key="bus_server")
 
                 cell_configs.append(config)
 
@@ -413,7 +421,11 @@ class ConfigsProvider_18(ConfigsProvider):
 
             config["logging"] = init_logging(config.get("logging"), scheduler_logs_dir,
                                              "scheduler-" + str(index), provision["enable_debug_logging"])
-            _set_bind_retry_options(config)
+            _set_bind_retry_options(config, key="bus_server")
+
+            # TODO(ignat): temporary solution to check that correctness of connected scheduler.
+            # correct solution is to publish cell_id in some separate place in orchid.
+            set_at(config, "scheduler/environment/primary_master_cell_id", config["cluster_connection"]["primary_master"]["cell_id"])
 
             configs.append(config)
 
@@ -496,7 +508,7 @@ class ConfigsProvider_18(ConfigsProvider):
                    deepcopy(provision["node"]["jobs_resource_limits"]), merge=True)
             set_at(config, "resource_limits", _get_node_resource_limits_config(provision), merge=True)
 
-            _set_bind_retry_options(config)
+            _set_bind_retry_options(config, key="bus_server")
 
             configs.append(config)
 
@@ -551,9 +563,16 @@ class ConfigsProvider_18(ConfigsProvider):
         masters = "primaryMaster: {0}".format(address_blocks[0])
         if provision["master"]["secondary_cell_count"]:
             masters += ", secondaryMasters: [ '{0}' ]".format("', '".join(address_blocks[1:]))
-        return default_configs.get_ui_config()\
-            .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
-            .replace("%%masters%%", masters)
+
+        template_conf_path = os.path.join(WEB_INTERFACE_RESOURCES_PATH, "configs/localmode.js.tmpl")
+        if os.path.exists(template_conf_path):
+            return open(template_conf_path).read()\
+                .replace("%%proxy%%", "'{0}'".format(proxy_address))
+        else:
+            return default_configs.get_ui_config()\
+                .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
+                .replace("%%masters%%", masters)
+
 
 class ConfigsProvider_18_3_18_4(ConfigsProvider_18):
     def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir):

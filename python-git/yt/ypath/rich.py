@@ -87,7 +87,7 @@ class RichYPath(object):
 
     def parse_key_part(self, tokenizer, row_builder):
         tokenizer.get_current_token().expect_type((TOKEN_STRING, TOKEN_INT64, TOKEN_UINT64,
-                                                   TOKEN_DOUBLE, TOKEN_BOOLEAN))
+                                                   TOKEN_DOUBLE, TOKEN_BOOLEAN, TOKEN_HASH))
         row_builder.append(tokenizer.get_current_token().get_value())
         tokenizer.parse_next()
 

@@ -3,8 +3,6 @@ from .helpers import ENABLE_JOB_CONTROL, TEST_DIR, TESTS_SANDBOX
 from yt.wrapper.job_shell import JobShell
 from yt.wrapper.http_helpers import get_api_commands
 
-from yt.packages.six import b
-
 import yt.wrapper as yt
 
 import os
@@ -68,22 +66,22 @@ class TestJobCommands(object):
         return tmpdir
 
     def _poll_until_prompt(self, shell):
-        output = ""
-        while len(output) < 4 or output[-4:] != ":~$ ":
+        output = b""
+        while len(output) < 4 or output[-4:] != b":~$ ":
             rsp = shell.make_request("poll")
-            if not rsp or "output" not in rsp:
+            if not rsp or b"output" not in rsp:
                 raise yt.YtError("Poll failed: " + output)
-            output += rsp["output"]
+            output += rsp[b"output"]
         return output
 
     def _poll_until_shell_exited(self, shell):
-        output = ""
+        output = b""
         try:
             while True:
                 rsp = shell.make_request("poll")
-                if not rsp or "output" not in rsp:
+                if not rsp or b"output" not in rsp:
                     raise yt.YtError("Poll failed: " + output)
-                output += rsp["output"]
+                output += rsp[b"output"]
         except yt.YtResponseError as e:
             if e.is_shell_exited():
                 return output
@@ -117,14 +115,14 @@ class TestJobCommands(object):
         shell.make_request("spawn", term="screen-256color", height=50, width=132)
         self._poll_until_prompt(shell)
 
-        command = "echo $TERM; tput lines; tput cols; id -u; id -g\r"
-        shell.make_request("update", keys=b(command), input_offset=0)
+        command = b"echo $TERM; tput lines; tput cols; id -u; id -g\r"
+        shell.make_request("update", keys=command, input_offset=0)
         output = self._poll_until_prompt(shell)
 
-        expected = "{0}\nscreen-256color\r\n50\r\n132\r\n".format(command)
+        expected = command + b"\nscreen-256color\r\n50\r\n132\r\n"
         assert output.startswith(expected) == True
 
-        ids = re.match("(\\d+)\r\n(\\d+)\r\n", output[len(expected):])
+        ids = re.match(b"(\\d+)\r\n(\\d+)\r\n", output[len(expected):])
         assert ids and int(ids.group(1)) == int(ids.group(2))
         if ENABLE_JOB_CONTROL:
             assert int(ids.group(1)) != os.getuid()
@@ -164,7 +162,7 @@ class TestJobCommands(object):
         shell.make_request("spawn", command="echo $TERM; tput lines; tput cols; env | grep -c YT_OPERATION_ID")
         output = self._poll_until_shell_exited(shell)
 
-        expected = "xterm\r\n24\r\n80\r\n1\r\n"
+        expected = b"xterm\r\n24\r\n80\r\n1\r\n"
         assert output == expected
 
         shell.make_request("terminate")

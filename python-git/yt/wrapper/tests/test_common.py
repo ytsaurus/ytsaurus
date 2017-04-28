@@ -2,7 +2,7 @@
 
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.common import update, unlist, parse_bool, dict_depth, bool_to_string, \
-                              is_prefix, prefix, first_not_none, chunk_iter_blobs, \
+                              is_prefix, prefix, first_not_none, group_blobs_by_size, \
                               datetime_to_string, date_string_to_timestamp
 
 from yt.packages.six.moves import xrange, cPickle as pickle
@@ -70,13 +70,13 @@ def test_first_not_none():
     with pytest.raises(StopIteration):
         first_not_none([])
 
-def test_chunk_iter_blobs():
+def test_group_blobs_by_size():
     # Is it right behaviour?
     lines = ["ab", "abc", "def", "ghijklmn", "op"]
-    assert list(chunk_iter_blobs(lines, 100)) == [lines]
-    assert list(chunk_iter_blobs(lines, 3)) == \
+    assert list(group_blobs_by_size(lines, 100)) == [lines]
+    assert list(group_blobs_by_size(lines, 3)) == \
            [["ab", "abc"], ["def"], ["ghijklmn"], ["op"]]
-    assert list(chunk_iter_blobs(["abcdef"], 2)) == [["abcdef"], []]
+    assert list(group_blobs_by_size(["abcdef"], 2)) == [["abcdef"], []]
 
 def test_time_functions():
     now = datetime.now()

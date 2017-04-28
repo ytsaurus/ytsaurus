@@ -36,6 +36,8 @@ Operation run under self-pinged transaction, if ``yt.wrapper.config["detached"]`
 
 from . import py_wrapper
 from .table_helpers import _prepare_source_tables, _are_default_empty_table, _prepare_table_writer, _remove_tables
+from .batch_helpers import create_batch_client, batch_apply
+from .batch_response import apply_function_to_result
 from .common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
                     compose, bool_to_string, get_started_by, MB, GB, \
                     forbidden_inside_job, get_disk_size, round_up_to, set_param, \
@@ -53,17 +55,25 @@ from .table_commands import create_temp_table, create_table, is_empty, is_sorted
 from .transaction import Transaction, null_transaction_id
 from .ypath import TablePath
 
+from yt.common import to_native_str
+
 import yt.logger as logger
 import yt.yson as yson
+from yt.yson.parser import YsonParser
 
-from yt.packages.six import text_type, binary_type
-from yt.packages.six.moves import map as imap
+from yt.packages.six import text_type, binary_type, PY3
+from yt.packages.six.moves import map as imap, zip as izip
 
 import os
 import sys
 import time
 import types
 from copy import deepcopy
+
+try:
+    from cStringIO import StringIO as BytesIO
+except ImportError:  # Python 3
+    from io import BytesIO
 
 @forbidden_inside_job
 def run_erase(table, spec=None, sync=True, client=None):
@@ -114,13 +124,18 @@ def run_merge(source_table, destination_table, mode=None,
     source_table = _prepare_source_tables(source_table, replace_unexisting_by_empty=False, client=client)
     destination_table = unlist(_prepare_destination_tables(destination_table, client=client))
 
-    def is_sorted(table):
-        sort_attributes = get(TablePath(table, client=client) + "/@", attributes=["sorted", "sorted_by"], client=client)
-        if not parse_bool(sort_attributes["sorted"]):
-            return False
-        if "columns" in table.attributes and not is_prefix(sort_attributes["sorted_by"], table.attributes["columns"]):
-            return False
-        return True
+    def is_sorted(table, client):
+        def _is_sorted(sort_attributes):
+            if not parse_bool(sort_attributes["sorted"]):
+                return False
+            if "columns" in table.attributes and not is_prefix(sort_attributes["sorted_by"],
+                                                               table.attributes["columns"]):
+                return False
+            return True
+
+        table = TablePath(table, client=client)
+        sort_attributes = get(table + "/@", attributes=["sorted", "sorted_by"], client=client)
+        return apply_function_to_result(_is_sorted, sort_attributes)
 
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not source_table:
         _remove_tables([destination_table], client=client)
@@ -128,7 +143,7 @@ def run_merge(source_table, destination_table, mode=None,
 
     mode = get_value(mode, "auto")
     if mode == "auto":
-        mode = "sorted" if all(imap(is_sorted, source_table)) else "ordered"
+        mode = "sorted" if all(batch_apply(is_sorted, source_table, client=client)) else "ordered"
 
     table_writer = _prepare_table_writer(table_writer, client)
     spec = compose(
@@ -157,8 +172,9 @@ def run_sort(source_table, destination_table=None, sort_by=None,
 
     sort_by = _prepare_sort_by(sort_by, client)
     source_table = _prepare_source_tables(source_table, replace_unexisting_by_empty=False, client=client)
-    for table in source_table:
-        require(exists(table, client=client), lambda: YtError("Table %s should exist" % table))
+    exists_results = batch_apply(exists, source_table, client=client)
+    for table, exists_result in izip(source_table, exists_results):
+        require(exists_result, lambda: YtError("Table %s should exist" % table))
 
     if destination_table is None:
         if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not source_table:
@@ -632,7 +648,7 @@ def _prepare_binary(binary, operation_type, input_format, output_format,
         start_time = time.time()
         if isinstance(input_format, YamrFormat) and group_by is not None and set(group_by) != set(["key"]):
             raise YtError("Yamr format does not support reduce by %r", group_by)
-        binary, files, tmpfs_size, environment, local_files_to_remove = \
+        wrap_result = \
             py_wrapper.wrap(function=binary,
                             operation_type=operation_type,
                             input_format=input_format,
@@ -642,9 +658,9 @@ def _prepare_binary(binary, operation_type, input_format, output_format,
                             client=client)
 
         logger.debug("Collecting python modules and uploading to cypress takes %.2lf seconds", time.time() - start_time)
-        return binary, files, tmpfs_size, environment, local_files_to_remove
+        return wrap_result
     else:
-        return binary, [], 0, {}, []
+        return py_wrapper.WrapResult(cmd=binary, files=[], tmpfs_size=0, environment={}, local_files_to_remove=[], title=None)
 
 
 def _prepare_destination_tables(tables, client=None):
@@ -653,8 +669,10 @@ def _prepare_destination_tables(tables, client=None):
             raise YtError("Destination tables are missing")
         return []
     tables = list(imap(lambda name: TablePath(name, client=client), flatten(tables)))
+    batch_client = create_batch_client(raise_errors=True, client=client)
     for table in tables:
-        create_table(table, ignore_existing=True, client=client)
+        batch_client.create_table(table, ignore_existing=True)
+    batch_client.commit_batch()
     return tables
 
 def _prepare_stderr_table(name, client=None):
@@ -691,15 +709,19 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
             paths.insert(0, ld_library_path)
         ld_library_path = os.pathsep.join(paths)
 
-    binary, additional_files, tmpfs_size, environment, additional_local_files_to_remove = \
-        _prepare_binary(binary, op_type, input_format, output_format,
-                        group_by, file_uploader, client=client)
+    prepare_result = _prepare_binary(binary, op_type, input_format, output_format,
+                                     group_by, file_uploader, client=client)
+
+    tmpfs_size = prepare_result.tmpfs_size
+    environment = prepare_result.environment
+    binary = prepare_result.cmd
+    title = prepare_result.title
 
     if ld_library_path is not None:
         environment["LD_LIBRARY_PATH"] = ld_library_path
 
     if local_files_to_remove is not None:
-        local_files_to_remove += additional_local_files_to_remove
+        local_files_to_remove += prepare_result.local_files_to_remove
 
     spec = update(
         {
@@ -708,7 +730,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
                 "output_format": output_format.to_yson_type(),
                 "command": binary,
                 "file_paths":
-                    flatten(files + additional_files + list(imap(lambda path: TablePath(path, client=client), file_paths))),
+                    flatten(files + prepare_result.files + list(imap(lambda path: TablePath(path, client=client), file_paths))),
                 "use_yamr_descriptors": bool_to_string(get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"]),
                 "check_input_fully_consumed": bool_to_string(get_config(client)["yamr_mode"]["check_input_fully_consumed"])
             }
@@ -744,6 +766,8 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
 
     if environment:
         spec = update({op_type: {"environment": environment}}, spec)
+    if title:
+        spec = update({op_type: {"title": title}}, spec)
 
     # NB: Configured by common rule now.
     memory_limit = get_value(memory_limit, get_config(client)["memory_limit"])
@@ -763,8 +787,8 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
 
 def _configure_spec(spec, client):
     started_by = get_started_by()
-    spec = update({"started_by": started_by}, spec)
     spec = update(deepcopy(get_config(client)["spec_defaults"]), spec)
+    spec = update({"started_by": started_by}, spec)
     if get_config(client)["pool"] is not None:
         spec = update(spec, {"pool": get_config(client)["pool"]})
     if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
@@ -948,14 +972,31 @@ class FileUploader(object):
                 if isinstance(file, (text_type, binary_type)):
                     file_params = {"filename": file}
                 else:
-                    file_params = file
-                filename = file_params["filename"]
+                    file_params = deepcopy(file)
+
+                # Hacky way to split string into file path and file path attributes.
+                filename = file_params.pop("filename")
+                if PY3:
+                    filename_bytes = filename.encode("utf-8")
+                else:
+                    filename_bytes = filename
+
+                stream = BytesIO(filename_bytes)
+                parser = YsonParser(
+                    stream,
+                    encoding="utf-8" if PY3 else None,
+                    always_create_attributes=True)
+
+                attributes = {}
+                if parser._has_attributes():
+                    attributes = parser._parse_attributes()
+                    filename = to_native_str(stream.read())
 
                 self.disk_size += get_disk_size(filename)
 
-                path = upload_file_to_cache(client=self.client, **file_params)
+                path = upload_file_to_cache(filename=filename, client=self.client, **file_params)
                 file_paths.append(yson.to_yson_type(path, attributes={
                     "executable": is_executable(filename, client=self.client),
-                    "file_name": os.path.basename(filename),
+                    "file_name": attributes.get("file_name", os.path.basename(filename)),
                 }))
         return file_paths

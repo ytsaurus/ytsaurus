@@ -1,0 +1,7 @@
+{
+    "type" = "table";
+    "attributes" = {
+        "sorted_by" = ["x"];
+    };
+    "format" = "dsv";
+}

@@ -6,7 +6,8 @@ from yt.common import copy_docstring_from
 
 import yt.wrapper.yson as yson
 from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, update, get_value, MB, \
-                              DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources
+                              DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources, \
+                              chunk_iter_rows
 from yt.wrapper.cli_helpers import write_silently, run_main
 from yt.wrapper.default_config import get_default_config
 import yt.wrapper.completers as completers
@@ -335,7 +336,12 @@ def add_find_parser(add_parser):
 
 @copy_docstring_from(yt.read_table)
 def read_table(**args):
-    write_silently(chunk_iter_stream(yt.read_table(**args), 16 * MB))
+    stream = yt.read_table(**args)
+    if yt.config["read_retries"]["enable"]:
+        iterator = chunk_iter_rows(stream, 16 * MB)
+    else:
+        iterator = chunk_iter_stream(stream, 16 * MB)
+    write_silently(iterator)
 
 def add_read_table_parser(add_parser):
     for name, func in [("read", read_table), ("read-table", read_table)]:
@@ -427,7 +433,6 @@ def add_get_parser(add_parser):
                               "if actual directory size exceeds that value only subset "
                               "of entries will be listed (it's not specified which subset); "
                               "default value is enough to list any nonsystem directory."))
-    parser.add_argument("--ignore-opaque", action="store_true")
     add_structured_format_argument(parser, default=output_format)
     parser.add_argument("--attribute", action="append", dest="attributes", help="desired node attributes in the response")
     parser.add_argument("--read-from",
@@ -919,6 +924,8 @@ def main():
     config_parser.add_argument("--config", action=ParseStructuredArgument, help="specify configuration")
     config_parser.add_argument("--tx", help="perform command in the context of the given "
                                             "transaction, by default 0-0-0-0")
+    config_parser.add_argument("--cell-id", help="perform command in master specified by this id; "
+                                                 "supported only for native driver and testing purposes ")
     config_parser.add_argument("--ping-ancestor-txs", action="store_true",
                                help="turn on pinging ancestor transactions")
     config_parser.add_argument("--trace", action="store_true")
@@ -947,20 +954,9 @@ def main():
         parser = fix_parser(subparsers.add_parser(command_name, *args, description=help,
                                                   help=pythonic_help, **kwargs))
         parser.set_defaults(func=function)
+
+        add_structured_argument(parser, "--params", "specify additional params")
         return parser
-
-    def add_run_operation_parser(command_name, function=None, help=None, *args, **kwargs):
-        def action(*args, **kwargs):
-            print_statistics = kwargs.get("print_statistics", False)
-            if "print_statistics" in kwargs:
-                del kwargs["print_statistics"]
-
-            operation = function(*args, **kwargs)
-
-            if print_statistics:
-                print(dump_data(operation.attributes()["progress"]), file=sys.stderr)
-
-        return add_parser(command_name, action, help=help, pythonic_help=extract_help(help, function), *args, **kwargs)
 
     add_exists_parser(add_parser)
     add_list_parser(add_parser)
@@ -1056,6 +1052,8 @@ def main():
     if config_args.tx is not None:
         yt.config.COMMAND_PARAMS["transaction_id"] = config_args.tx
         yt.config.COMMAND_PARAMS["ping_ancestor_transactions"]  = config_args.ping_ancestor_txs
+    if config_args.cell_id is not None:
+        yt.config.COMMAND_PARAMS["cell_id"] = config_args.cell_id
     if config_args.proxy is not None:
         yt.config["backend"] = "http"
         yt.config["proxy"]["url"] = config_args.proxy
@@ -1069,7 +1067,13 @@ def main():
     args = parser.parse_args(unparsed)
 
     func_args = dict(vars(args))
-    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config"):
+
+    if func_args["params"] is not None:
+        params = func_args["params"]
+        for key in params:
+            yt.config.COMMAND_PARAMS[key] = params[key]
+
+    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config", "cell_id", "params"):
         func_args.pop(key)
     args.func(**func_args)
 

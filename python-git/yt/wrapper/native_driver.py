@@ -56,6 +56,32 @@ def get_driver_instance(client):
         driver = get_option("_driver", client=client)
     return driver
 
+def create_driver_for_cell(driver, cell_id):
+    config = driver.get_config()
+    if config["primary_master"]["cell_id"] == cell_id:
+        return driver
+
+    new_primary_master_config = None
+    for secondary_master in config["secondary_masters"]:
+        if secondary_master["cell_id"] == cell_id:
+            new_primary_master_config = secondary_master
+            break
+
+    if new_primary_master_config is None:
+        raise YtError("Cell id {0} is not found in driver config".format(cell_id))
+
+    config["primary_master"] = new_primary_master_config
+    #config["master_cache"] = {"addresses": []}
+    if "master_cache" in config:
+        del config["master_cache"]
+    #config["timestamp_provider"] = {"addresses": []}
+    if "timestamp_provider" in config:
+        del config["timestamp_provider"]
+
+    del config["secondary_masters"]
+
+    return driver_bindings.Driver(config)
+
 def convert_to_stream(data):
     if data is None:
         return data
@@ -74,6 +100,10 @@ def make_request(command_name, params,
                  decode_content=True,
                  client=None):
     driver = get_driver_instance(client)
+
+    cell_id = params.get("cell_id")
+    if cell_id is not None:
+        driver = create_driver_for_cell(driver, cell_id)
 
     require(command_name in driver.get_command_descriptors(),
             lambda: YtError("Command {0} is not supported".format(command_name)))

@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from .configs_provider import init_logging, get_default_provision, create_configs_provider
 from .default_configs import get_watcher_config
-from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator, wait_for_removing_file_lock
+from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator, wait_for_removing_file_lock, WEB_INTERFACE_RESOURCES_PATH
 from .porto_helpers import PortoSubprocess, porto_avaliable
 
 from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which, to_native_str
@@ -12,7 +12,7 @@ from yt.wrapper.errors import YtResponseError
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
-from yt.packages.six import itervalues
+from yt.packages.six import itervalues, iteritems
 from yt.packages.six.moves import xrange, map as imap, filter as ifilter
 import yt.packages.requests as requests
 
@@ -86,13 +86,13 @@ def _get_proxy_version(node_binary_path, proxy_binary_path):
 
     return version
 
-def _config_safe_get(config, config_path, key):
+def _config_safe_get(config, service_name, key):
     d = config
     parts = key.split("/")
     for k in parts:
         d = d.get(k)
         if d is None:
-            raise YtError('Failed to get required key "{0}" from config file {1}.'.format(key, config_path))
+            raise YtError('Failed to get required key "{0}" from {1} config'.format(key, service_name))
     return d
 
 def _configure_logger():
@@ -173,7 +173,6 @@ class YTInstance(object):
 
         self.configs = defaultdict(list)
         self.config_paths = defaultdict(list)
-        self.log_paths = defaultdict(list)
 
         self._load_existing_environment = False
         if os.path.exists(self.path):
@@ -225,7 +224,6 @@ class YTInstance(object):
         if watcher_config is None:
             watcher_config = get_watcher_config()
         self.watcher_config = watcher_config
-        self.log_paths["watcher"] = os.path.join(self.logs_path, "watcher.log")
 
         self._prepare_environment(jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count,
                                   node_memory_limit_addition, port_range_start, proxy_port, modify_configs_func)
@@ -399,13 +397,12 @@ class YTInstance(object):
             self._open_port_iterator.release_locks()
             self._open_port_iterator = None
 
-        wait_for_removing_file_lock(os.path.join(self.path, "locked_file"))
+        wait_for_removing_file_lock(os.path.join(self.path, "lock_file"))
 
     def get_proxy_address(self):
         if not self.has_proxy:
             raise YtError("Proxy is not started")
-        return "{0}:{1}".format(self._hostname, _config_safe_get(self.configs["proxy"],
-                                                                 self.config_paths["proxy"], "port"))
+        return "{0}:{1}".format(self._hostname, _config_safe_get(self.configs["proxy"], "proxy", "port"))
 
     def kill_cgroups(self):
         if self._use_porto_for_servers or not _has_cgroups():
@@ -628,8 +625,6 @@ class YTInstance(object):
 
                 self.configs[master_name].append(config)
                 self.config_paths[master_name].append(config_path)
-                self.log_paths[master_name].append(
-                    _config_safe_get(config, config_path, "logging/writers/info/file_name"))
 
     def start_master_cell(self, cell_index=0):
         master_name = self._get_master_name("master", cell_index)
@@ -701,7 +696,6 @@ class YTInstance(object):
 
             self.configs["node"].append(config)
             self.config_paths["node"].append(config_path)
-            self.log_paths["node"].append(_config_safe_get(config, config_path, "logging/writers/info/file_name"))
 
     def start_nodes(self):
         self._run_yt_component("node")
@@ -729,7 +723,6 @@ class YTInstance(object):
 
             self.configs["scheduler"].append(config)
             self.config_paths["scheduler"].append(config_path)
-            self.log_paths["scheduler"].append(_config_safe_get(config, config_path, "logging/writers/info/file_name"))
 
     def start_schedulers(self):
         self._remove_scheduler_lock()
@@ -752,6 +745,12 @@ class YTInstance(object):
 
                 if active_scheduler_orchid_path is None:
                     return False, "No active scheduler found"
+
+                # TODO(ignat): /config/environment/primary_master_cell_id is temporary solution.
+                master_cell_id = client.get("//sys/@cell_id")
+                scheduler_cell_id = client.get(active_scheduler_orchid_path + "/config/environment/primary_master_cell_id")
+                if master_cell_id != scheduler_cell_id:
+                    return False, "Incorrect scheduler connected, its cell_id {0} does not match master cell {1}".format(scheduler_cell_id, master_cell_id)
 
                 nodes = list(itervalues(client.get(active_scheduler_orchid_path + "/nodes")))
                 return len(nodes) == self.node_count and all(node["state"] == "online" for node in nodes)
@@ -844,7 +843,6 @@ class YTInstance(object):
 
         self.configs["console_driver"].append(config)
         self.config_paths["console_driver"].append(config_path)
-        self.log_paths["console_driver"].append(config["logging"]["writers"]["info"]["file_name"])
 
     def _prepare_proxy(self, proxy_config, ui_config, proxy_dir):
         config_path = os.path.join(self.configs_path, "proxy.json")
@@ -858,18 +856,16 @@ class YTInstance(object):
 
         self.configs["proxy"] = config
         self.config_paths["proxy"] = config_path
-        self.log_paths["proxy"] = _config_safe_get(config, config_path, "logging/filename")
 
         # UI configuration
-        web_interface_resources_path = os.environ.get("YT_LOCAL_THOR_PATH", "/usr/share/yt-thor")
-        if not os.path.exists(web_interface_resources_path):
+        if not os.path.exists(WEB_INTERFACE_RESOURCES_PATH):
             logger.warning("Failed to configure UI, web interface resources are not installed. "
                            "Try to install yandex-yt-web-interface or set YT_LOCAL_THOR_PATH.")
             return
 
         ui_config_path = os.path.join(proxy_dir, "ui", "config.js")
         if not self._load_existing_environment:
-            shutil.copytree(web_interface_resources_path, os.path.join(proxy_dir, "ui"))
+            shutil.copytree(WEB_INTERFACE_RESOURCES_PATH, os.path.join(proxy_dir, "ui"))
             write_config(ui_config, ui_config_path, format=None)
         else:
             if not os.path.isfile(ui_config_path):
@@ -894,8 +890,7 @@ class YTInstance(object):
 
         self._run([nodejs_binary_path,
                    proxy_binary_path,
-                   "-c", self.config_paths["proxy"],
-                   "-l", self.log_paths["proxy"]],
+                   "-c", self.config_paths["proxy"]],
                    "proxy")
 
     def start_proxy(self, use_proxy_from_package):
@@ -907,8 +902,7 @@ class YTInstance(object):
                 raise YtError("Failed to start proxy from source tree. "
                               "Make sure you added directory with run_proxy.sh to PATH")
             self._run(["run_proxy.sh",
-                       "-c", self.config_paths["proxy"],
-                       "-l", self.log_paths["proxy"]],
+                       "-c", self.config_paths["proxy"]],
                        "proxy")
 
         def proxy_ready():
@@ -974,11 +968,24 @@ class YTInstance(object):
             "compress",
             "create"
         ]
+
         config_path = os.path.join(self.configs_path, "logs_rotator")
         with open(config_path, "w") as config_file:
-            for log_paths in itervalues(self.log_paths):
-                for log_path in flatten(log_paths):
-                    config_file.write("{0}\n{{\n{1}\n}}\n\n".format(log_path, "\n".join(logrotate_options)))
+            if self._enable_debug_logging:
+                for service, configs in iteritems(self.configs):
+                    if service.startswith("driver"):
+                        continue
+
+                    for config in flatten(configs):
+                        log_config_path = "logging/writers/debug/file_name"
+                        if service == "proxy":
+                            log_config_path = "proxy/" + log_config_path
+                        log_path = _config_safe_get(config, service, log_config_path)
+                        config_file.write("{0}\n{{\n{1}\n}}\n\n".format(log_path, "\n".join(logrotate_options)))
+
+            if self.has_proxy:
+                proxy_log_path = _config_safe_get(self.configs["proxy"], "proxy", "logging/filename")
+                config_file.write("{0}\n{{\n{1}\n}}\n\n".format(proxy_log_path, "\n".join(logrotate_options)))
 
         logs_rotator_data_path = os.path.join(self.runtime_data_path, "logs_rotator")
         makedirp(logs_rotator_data_path)
@@ -987,9 +994,9 @@ class YTInstance(object):
         watcher_path = self._get_watcher_path()
 
         self._run([watcher_path,
-                   "--locked-file-path", os.path.join(self.path, "locked_file"),
+                   "--lock-file-path", os.path.join(self.path, "lock_file"),
                    "--logrotate-config-path", config_path,
                    "--logrotate-state-file", logrotate_state_file,
                    "--logrotate-interval", str(self.watcher_config["logs_rotate_interval"]),
-                   "--log-path", self.log_paths["watcher"]],
+                   "--log-path", os.path.join(self.logs_path, "watcher.log")],
                    "watcher")

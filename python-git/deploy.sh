@@ -58,17 +58,26 @@ init_vars() {
 }
 
 PACKAGE=$1
+if [ "$CODENAME" = "lucid" ]; then
+    PACKAGE_PATH="${PACKAGE}_lucid"
+else
+    PACKAGE_PATH="$PACKAGE"
+fi
 
 init_vars
 
 # Copy package files to the python root
 # NB: Symbolic links doesn't work correctly with `sdist upload`
-cp -r $PACKAGE/debian $PACKAGE/setup.py .
-if [ -f "$PACKAGE/MANIFEST.in" ]; then
-    cp $PACKAGE/MANIFEST.in .
+cp -r $PACKAGE_PATH/debian $PACKAGE_PATH/setup.py .
+# NB: On Lucid packages have special lucid version of debian
+# directory but changelog from original package should be used to avoid duplication.
+cp $PACKAGE/debian/changelog debian
+
+if [ -f "$PACKAGE_PATH/MANIFEST.in" ]; then
+    cp $PACKAGE_PATH/MANIFEST.in .
 fi
-if [ -f "$PACKAGE/requirements.txt" ]; then
-    cp $PACKAGE/requirements.txt .
+if [ -f "$PACKAGE_PATH/requirements.txt" ]; then
+    cp $PACKAGE_PATH/requirements.txt .
 fi
 
 # Initial cleanup
@@ -112,6 +121,11 @@ fi
 
 # Build and upload debian package if necessary
 if [ -n "$REPOS_TO_UPLOAD" ] || [ -n "$FORCE_BUILD" ]; then
+    # Lucid has old packaging (w/o pybuild)
+    if [ "$CODENAME" = "lucid" ]; then
+        DEB=1 python setup.py sdist --dist-dir=../
+    fi
+
     # NB: Never strip binaries and so-libraries.
     DEB_STRIP_EXCLUDE=".*" DEB=1 dpkg-buildpackage -i -I -rfakeroot
 
@@ -139,8 +153,8 @@ if [ -z "$SKIP_WHEEL" ]; then
 fi
 
 # Some postprocess steps
-if [ -f "$PACKAGE/postprocess.sh" ]; then
-    $PACKAGE/postprocess.sh
+if [ -f "$PACKAGE_PATH/postprocess.sh" ]; then
+    $PACKAGE_PATH/postprocess.sh
 fi
 
 

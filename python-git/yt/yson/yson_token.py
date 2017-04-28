@@ -78,9 +78,17 @@ def token_type_to_string(token):
         TOKEN_LEFT_PARENTHESIS: "Left-parenthesis",
         TOKEN_RIGHT_PARENTHESIS: "Right-parenthesis",
         TOKEN_COLON: "Colon",
-        TOKEN_COMMA: "Comma"
+        TOKEN_COMMA: "Comma",
+        TOKEN_STRING: "String",
+        TOKEN_INT64: "Int64",
+        TOKEN_UINT64: "Uint64",
+        TOKEN_DOUBLE: "Double",
+        TOKEN_BOOLEAN: "Boolean",
+        TOKEN_SPECIAL: "Special",
     }
-    return names.get(token)
+    if token is None:
+        return "Unknown"
+    return names[token]
 
 class YsonToken(object):
     def __init__(self, value="", type=TOKEN_END_OF_STREAM):
@@ -102,6 +110,9 @@ class YsonToken(object):
     def expect_type(self, type_or_types):
         token_type = self.get_type()
         expected_types = flatten(type_or_types)
+        if token_type is None:
+            raise YsonError("Unexpected '{0}' while parsing node".format(self.get_value()))
+
         if token_type not in expected_types:
             if token_type == TOKEN_END_OF_STREAM:
                 raise YsonError("Unexpected end of stream; expected types are {0}".format(expected_types))

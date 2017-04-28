@@ -2,7 +2,7 @@ from .cluster_configuration import modify_cluster_configuration, NODE_MEMORY_LIM
 
 from yt.environment import YTInstance
 from yt.environment.init_cluster import initialize_world
-from yt.environment.helpers import wait_for_removing_file_lock
+from yt.environment.helpers import wait_for_removing_file_lock, is_file_locked
 from yt.wrapper.common import generate_uuid, GB
 from yt.common import YtError, require, get_value, is_process_alive
 
@@ -14,7 +14,6 @@ from yt.packages.six.moves import map as imap, filter as ifilter
 import yt.wrapper as yt
 
 import os
-import sys
 import signal
 import errno
 import logging
@@ -22,7 +21,6 @@ import shutil
 import socket
 import time
 import codecs
-import fcntl
 from functools import partial
 
 logger = logging.getLogger("Yt.local")
@@ -96,6 +94,10 @@ def _create_node_from_local_file(local_filename, dest_filename, client):
             client.write_table(dest_filename, table_file, format=meta["format"], raw=True)
 
         attributes = meta.get("attributes", {})
+        if "sorted_by" in attributes:
+            client.run_sort(dest_filename, sort_by=attributes["sorted_by"])
+            attributes.pop("sorted_by")
+
         for key in attributes:
             client.set_attribute(dest_filename, key, attributes[key])
 
@@ -281,16 +283,9 @@ def _is_stopped(id, path=None):
     if not os.path.isdir(sandbox_path):
         return True
 
-    locked_file_path = os.path.join(sandbox_path, "locked_file")
-    locked_file_descriptor = open(locked_file_path, "w+")
-    try:
-        fcntl.lockf(locked_file_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except IOError as error:
-        if error.errno == errno.EAGAIN or error.errno == errno.EACCES:
-            return False
-        raise
-    finally:
-        locked_file_descriptor.close()
+    lock_file_path = os.path.join(sandbox_path, "lock_file")
+    if is_file_locked(lock_file_path):
+        return False
 
     return True
 
@@ -309,7 +304,7 @@ def stop(id, remove_working_dir=False, path=None):
         _safe_kill(pid)
     os.remove(pids_file_path)
 
-    wait_for_removing_file_lock(os.path.join(get_root_path(path), id, "locked_file"))
+    wait_for_removing_file_lock(os.path.join(get_root_path(path), id, "lock_file"))
 
     if remove_working_dir:
         delete(id, force=True, path=path)

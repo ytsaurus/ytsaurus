@@ -31,6 +31,19 @@ def write_silently(strings, force_use_text_stdout=False):
         except IOError:
             sys.exit(1)
         raise
+    finally:
+        # To avoid strange trash in stderr in case of broken pipe.
+        # For more details look at http://bugs.python.org/issue11380
+        try:
+            sys.stdout.flush()
+        finally:
+            try:
+                sys.stdout.close()
+            finally:
+                try:
+                    sys.stderr.flush()
+                finally:
+                    sys.stderr.close()
 
 def die(message=None, return_code=1):
     if message is not None:

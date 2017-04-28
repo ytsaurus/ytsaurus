@@ -21,7 +21,10 @@ class YsonParser(object):
         self._always_create_attributes = always_create_attributes
 
     def _has_attributes(self):
-        self._tokenizer.parse_next()
+        try:
+            self._tokenizer.parse_next()
+        except YsonError:
+            return False
         return self._tokenizer.get_current_type() == TOKEN_LEFT_ANGLE
 
     def _parse_attributes(self):

@@ -1,4 +1,5 @@
 from yt.wrapper.common import round_up_to, bool_to_string, MB, GB, update, get_disk_size
+from yt.wrapper.local_mode import enable_local_files_usage_in_job
 from yt.wrapper.ypath import ypath_join
 from yt.tools.conversion_tools import transform
 from yt.common import get_value, set_pdeathsig
@@ -15,6 +16,7 @@ import yt.wrapper as yt
 import os
 import time
 import shutil
+import sys
 import tempfile
 import tarfile
 from copy import deepcopy
@@ -62,6 +64,18 @@ class Kiwi(object):
         command = "./kwworm " + " ".join(imap(self._option_to_str, self._join_options(self.kwworm_options, kwworm_options)))
         return command.format(kiwi_url=self.url, kiwi_user=kiwi_user)
 
+def _force_parent_dir(path, client):
+    try:
+        type = client.get(path + "/@type")
+        if type in ["link", "map_node"]:
+            return
+        raise yt.YtError("Parent directory {0} exists and has non-directory type {1}".format(path, type))
+    except yt.YtResponseError as err:
+        if not err.is_resolve_error():
+            raise
+
+    client.create("map_node", path, recursive=True, ignore_existing=True)
+
 def _check_output(command, silent=False, **kwargs):
     logger.info("Executing command '{}'".format(command))
     result = subprocess.check_output(command, preexec_fn=set_pdeathsig, **kwargs)
@@ -103,31 +117,6 @@ def _pack_string(name, script, output_dir):
     with open(filename, "w") as fout:
         fout.write(script)
     return filename
-
-def _pack_token(token, output_dir):
-    if token is None:
-        raise yt.YtError("Token is required to perform copy")
-
-    filename = os.path.join(output_dir, "yt_token")
-    with open(filename, "wb") as fout:
-        fout.write(token)
-
-    return filename
-
-def _secure_upload_token(token, destination_client, token_storage_path, tmp_dir):
-    user = destination_client.get_user_name()
-    yt_token_file = destination_client.find_free_subpath(yt.ypath_join(token_storage_path, user))
-    destination_client.create("file", yt_token_file, attributes={
-        "acl": [{
-            "action": "allow",
-            "subjects": [user, "admins"],
-            "permissions": ["read", "write", "remove"]
-        }],
-        "inherit_acl": False
-    })
-    with open(_pack_token(token, tmp_dir), "rb") as f:
-        destination_client.write_file(yt_token_file, f)
-    return yson.to_yson_type(yt_token_file, attributes={"file_name": "yt_token"})
 
 def _split(item_count, split_size, total_size):
     if item_count == 0:
@@ -174,16 +163,28 @@ def _slice_yt_file_evenly(client, file, split_size=None):
     return [{"offset": offset, "limit": limit}
             for offset, limit in _split_file(split_size, data_size)]
 
-def _set_mapper_settings_for_read_from_yt(spec):
+def _set_mapper_settings_for_read_from_yt(source_client=None, destination_client=None, spec=None):
     if "mapper" not in spec:
         spec["mapper"] = {}
     # NB: yt2 read usually consumpt less than 600 Mb, but sometimes can use more than 1Gb of memory.
+    if "cpu_limit" not in spec["mapper"]:
+        spec["mapper"]["cpu_limit"] = 0.5
     spec["mapper"]["memory_limit"] = 4 * GB
     spec["mapper"]["memory_reserve_factor"] = 0.25
     if "tmpfs_size" in spec["mapper"]:
         spec["mapper"]["memory_limit"] += spec["mapper"]["tmpfs_size"]
 
-def _set_tmpfs_settings(client, spec, files, yt_files=None, reserved_size=0):
+    if enable_local_files_usage_in_job(destination_client):
+        if "environment" not in spec["mapper"]:
+            spec["mapper"]["environment"] = {}
+
+        spec["mapper"]["environment"]["PYTHONPATH"] = ":".join(sys.path)
+
+    if source_client is not None:
+        spec.setdefault("secure_vault", {})
+        spec["secure_vault"]["TOKEN"] = source_client.config["token"]
+
+def _set_tmpfs_settings(spec, files, client, yt_files=None, reserved_size=0):
     yt_files = get_value(yt_files, [])
 
     if "mapper" not in spec:
@@ -241,12 +242,12 @@ class ReadCommandBuilder(object):
     def build(self):
         return self.get_command(), self.get_package_files()
 
-def _prepare_read_builder(script_name, tmp_dir, data_proxy_role, pack=False, token_file=None):
+def _prepare_read_builder(script_name, tmp_dir, data_proxy_role, pack_yt_wrapper, pack_yson_bindings):
     builder = ReadCommandBuilder(script_name)
-    if pack:
-        builder \
-            .add_file_argument("--package-file", _pack_module("yt", tmp_dir)) \
-            .add_file_argument("--package-file", _pack_module("yt_yson_bindings", tmp_dir))
+    if pack_yt_wrapper:
+        builder.add_file_argument("--package-file", _pack_module("yt", tmp_dir))
+    if pack_yson_bindings:
+        builder.add_file_argument("--package-file", _pack_module("yt_yson_bindings", tmp_dir))
 
     proxy_discovery_url = "hosts"
     if data_proxy_role:
@@ -264,19 +265,17 @@ def _prepare_read_builder(script_name, tmp_dir, data_proxy_role, pack=False, tok
         "default_api_version_for_http": None
     }
 
-    if token_file is not None:
-        builder.add_string_argument("--token-file", token_file)
-
     config_file = _pack_string("config.json", json.dumps(config, indent=2), tmp_dir)
     builder.add_file_argument("--config-file", config_file)
     return builder
 
-def _prepare_read_table_from_yt_command(yt_client, src, format, tmp_dir, data_proxy_role, pack=False, input_type="json",
-                                        token_file=None):
+def _prepare_read_table_from_yt_command(yt_client, src, format, tmp_dir, data_proxy_role, pack_yt_wrapper,
+                                        pack_yson_bindings, input_type="json"):
     if len(yt.TablePath(src, client=yt_client).attributes.get("ranges", [])) > 1:
         raise yt.YtError("Reading slices from table with multiple ranges is not supported")
     assert yt_client.COMMAND_PARAMS["transaction_id"] is not None
-    builder = _prepare_read_builder("python read_from_yt.py", tmp_dir, data_proxy_role, pack, token_file)
+    builder = _prepare_read_builder("python read_from_yt.py", tmp_dir, data_proxy_role, pack_yt_wrapper,
+                                    pack_yson_bindings)
     command, files = builder \
         .add_string_argument("--proxy", yt_client.config["proxy"]["url"]) \
         .add_string_argument("--format", shellquote(format)) \
@@ -288,10 +287,11 @@ def _prepare_read_table_from_yt_command(yt_client, src, format, tmp_dir, data_pr
     return command, files
 
 def _prepare_read_file_from_yt_command(destination_client, source_client, src, temp_files_dir, tmp_dir, data_proxy_role,
-                                       pack=False, token_file=None, erasure_codec=None, compression_codec=None):
+                                       pack_yt_wrapper, pack_yson_bindings, erasure_codec=None, compression_codec=None):
     assert source_client.COMMAND_PARAMS["transaction_id"] is not None
     assert destination_client.COMMAND_PARAMS["transaction_id"] is not None
-    builder = _prepare_read_builder("python read_file_from_yt.py", tmp_dir, data_proxy_role, pack, token_file)
+    builder = _prepare_read_builder("python read_file_from_yt.py", tmp_dir, data_proxy_role, pack_yt_wrapper,
+                                    pack_yson_bindings)
     command, files = builder \
         .add_string_argument("--source-proxy", source_client.config["proxy"]["url"]) \
         .add_string_argument("--destination-proxy", destination_client.config["proxy"]["url"]) \
@@ -345,8 +345,8 @@ def set_codec(yt_client, dst, codec, codec_type, dst_type="table"):
 
 def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
                   copy_spec_template=None, postprocess_spec_template=None,
-                  compression_codec=None, erasure_codec=None, additional_attributes=None,
-                  schema_inference_mode=None):
+                  compression_codec=None, erasure_codec=None, external=None,
+                  additional_attributes=None, schema_inference_mode=None):
     copy_spec_template = get_value(copy_spec_template, {})
     if schema_inference_mode is not None:
         copy_spec_template["schema_inference_mode"] = schema_inference_mode
@@ -369,7 +369,7 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
             raise yt.YtError("Failed to merge source table {0}, no write permission. "
                              "If you can not get a write permission use 'proxy' copy method".format(str(src)))
 
-    destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
+    _force_parent_dir(os.path.dirname(dst), client=destination_client)
 
     cluster_connection = None
     try:
@@ -383,6 +383,9 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
         if cluster_connection is not None:
             kwargs["cluster_connection"] = cluster_connection
 
+        if external is not None:
+            destination_client.create("table", dst, attributes={"external": external})
+
         destination_client.run_remote_copy(
             src,
             dst,
@@ -391,9 +394,14 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
             spec=copy_spec_template,
             **kwargs)
 
-        for name, codec in [("compression_codec", compression_codec), ("erasure_codec", erasure_codec)]:
-            if codec is None:
-                destination_client.set(dst + "/@" + name, source_client.get(str(src) + "/@" + name))
+        for attr_name, value in [("compression_codec", compression_codec), ("erasure_codec", erasure_codec), ("optimize_for", None)]:
+            if value is None:
+                try:
+                    destination_client.set(dst + "/@" + attr_name, source_client.get(str(src) + "/@" + attr_name))
+                except yt.YtError as err:
+                    # Attribute 'optimize_for' may be missing on old tables.
+                    if not err.is_resolve_error():
+                        raise
 
         if erasure_codec is not None or compression_codec is not None:
             transform(str(dst), compression_codec=compression_codec, erasure_codec=erasure_codec,
@@ -401,11 +409,12 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
 
     copy_additional_attributes(source_client, destination_client, src, dst, additional_attributes)
 
-def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, data_proxy_role, token_storage_path,
+def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, data_proxy_role,
                                 copy_spec_template=None, postprocess_spec_template=None, default_tmp_dir=None,
-                                compression_codec=None, erasure_codec=None, intermediate_format=None,
-                                small_table_size_threshold=None, force_copy_with_operation=False,
-                                additional_attributes=None, schema_inference_mode=None):
+                                compression_codec=None, erasure_codec=None, external=None,
+                                intermediate_format=None, small_table_size_threshold=None, force_copy_with_operation=False,
+                                additional_attributes=None, schema_inference_mode=None, pack_yt_wrapper=True,
+                                pack_yson_bindings=True):
     schema_inference_mode = get_value(schema_inference_mode, "auto")
     tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
 
@@ -413,8 +422,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, dat
 
     attributes = {"title": "copy_yt_to_yt_through_proxy"}
 
-    destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
-    destination_client.create("map_node", token_storage_path, recursive=True, ignore_existing=True)
+    _force_parent_dir(os.path.dirname(dst), client=destination_client)
 
     destination_client.config["table_writer"] = {
         "max_row_weight": 128 * MB,
@@ -436,6 +444,16 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, dat
             if erasure_codec is None:
                 erasure_codec = source_client.get(str(src) + "/@erasure_codec")
             set_codec(destination_client, dst, compression_codec, "compression")
+
+            try:
+                destination_client.set(str(dst) + "/@optimize_for", source_client.get(str(src) + "/@optimize_for"))
+            except yt.YtError as err:
+                # Attribute 'optimize_for' may be missing on old tables.
+                if not err.is_resolve_error():
+                    raise
+
+            if external is not None:
+                destination_client.set(str(dst) + "/@external", external)
 
             sorted_by = None
             if source_client.exists(src + "/@sorted_by"):
@@ -463,41 +481,37 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, dat
                 finally:
                     stream.close()
             else:
-                yt_token_file = _secure_upload_token(source_client.config["token"], destination_client,
-                                                     token_storage_path, tmp_dir)
-                try:
-                    command, files = _prepare_read_table_from_yt_command(
-                        source_client,
-                        src.to_yson_string(),
-                        str(intermediate_format),
-                        tmp_dir,
-                        data_proxy_role,
-                        pack=True,
-                        token_file=yt_token_file.attributes["file_name"])
+                command, files = _prepare_read_table_from_yt_command(
+                    source_client,
+                    src.to_yson_string(),
+                    str(intermediate_format),
+                    tmp_dir,
+                    data_proxy_role,
+                    pack_yt_wrapper=pack_yt_wrapper,
+                    pack_yson_bindings=pack_yson_bindings)
 
-                    ranges = _slice_yt_table_evenly(source_client, src)
+                ranges = _slice_yt_table_evenly(source_client, src)
 
-                    temp_table = destination_client.create_temp_table(prefix=os.path.basename(str(src)))
-                    destination_client.write_table(temp_table, ranges, format=yt.JsonFormat(), raw=False)
+                temp_table = destination_client.create_temp_table(prefix=os.path.basename(str(src)))
+                destination_client.write_table(temp_table, ranges, format=yt.JsonFormat(), raw=False)
 
-                    spec = deepcopy(get_value(copy_spec_template, {}))
-                    spec["data_size_per_job"] = 1
+                spec = deepcopy(get_value(copy_spec_template, {}))
+                spec["data_size_per_job"] = 1
 
-                    _set_tmpfs_settings(destination_client, spec, files, [yt_token_file])
-                    _set_mapper_settings_for_read_from_yt(spec)
+                _set_tmpfs_settings(spec=spec, files=files, client=destination_client)
+                _set_mapper_settings_for_read_from_yt(source_client=source_client,
+                                                      destination_client=destination_client,
+                                                      spec=spec)
 
-                    destination_client.run_map(
-                        command,
-                        temp_table,
-                        dst_table,
-                        files=files,
-                        yt_files=[yt_token_file],
-                        spec=spec,
-                        ordered=True,
-                        input_format=yt.JsonFormat(),
-                        output_format=intermediate_format)
-                finally:
-                    destination_client.remove(str(yt_token_file), force=True)
+                destination_client.run_map(
+                    command,
+                    temp_table,
+                    dst_table,
+                    files=files,
+                    spec=spec,
+                    ordered=True,
+                    input_format=yt.JsonFormat(),
+                    output_format=intermediate_format)
 
             row_count = source_client.get(src + "/@row_count")
             result_row_count = destination_client.row_count(dst)
@@ -520,17 +534,17 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, dat
     finally:
         shutil.rmtree(tmp_dir)
 
-def copy_file_yt_to_yt(source_client, destination_client, src, dst, data_proxy_role, token_storage_path,
+def copy_file_yt_to_yt(source_client, destination_client, src, dst, data_proxy_role,
                        copy_spec_template=None, default_tmp_dir=None, compression_codec=None,
                        erasure_codec=None, intermediate_format=None, small_file_size_threshold=None,
-                       force_copy_with_operation=False, additional_attributes=None, temp_files_dir=None):
+                       force_copy_with_operation=False, additional_attributes=None, temp_files_dir=None,
+                       pack_yt_wrapper=True, pack_yson_bindings=True):
     tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
     intermediate_format = yt.create_format(get_value(intermediate_format, "json"))
 
     attributes = {"title": "copy_file_yt_to_yt"}
 
-    destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
-    destination_client.create("map_node", token_storage_path, recursive=True, ignore_existing=True)
+    _force_parent_dir(os.path.dirname(dst), client=destination_client)
 
     try:
         with source_client.Transaction(attributes=attributes), destination_client.Transaction(attributes=attributes):
@@ -567,8 +581,6 @@ def copy_file_yt_to_yt(source_client, destination_client, src, dst, data_proxy_r
                 finally:
                     stream.close()
             else:
-                yt_token_file = _secure_upload_token(source_client.config["token"], destination_client,
-                                                     token_storage_path, tmp_dir)
                 temp_table_input = None
                 temp_table_output = None
                 try:
@@ -583,8 +595,8 @@ def copy_file_yt_to_yt(source_client, destination_client, src, dst, data_proxy_r
                             temp_files_dir,
                             tmp_dir,
                             data_proxy_role,
-                            pack=True,
-                            token_file=yt_token_file.attributes["file_name"],
+                            pack_yt_wrapper=pack_yt_wrapper,
+                            pack_yson_bindings=pack_yson_bindings,
                             erasure_codec=erasure_codec,
                             compression_codec=compression_codec)
 
@@ -594,15 +606,16 @@ def copy_file_yt_to_yt(source_client, destination_client, src, dst, data_proxy_r
 
                         spec = deepcopy(get_value(copy_spec_template, {}))
                         spec["data_size_per_job"] = 1
-                        _set_tmpfs_settings(destination_client, spec, files, [yt_token_file])
-                        _set_mapper_settings_for_read_from_yt(spec)
+                        _set_tmpfs_settings(spec=spec, files=files, client=destination_client)
+                        _set_mapper_settings_for_read_from_yt(source_client=source_client,
+                                                              destination_client=destination_client,
+                                                              spec=spec)
 
                         destination_client.run_map(
                             command,
                             temp_table_input,
                             temp_table_output,
                             files=files,
-                            yt_files=[yt_token_file],
                             spec=spec,
                             ordered=True,
                             input_format=yt.JsonFormat(),
@@ -612,7 +625,6 @@ def copy_file_yt_to_yt(source_client, destination_client, src, dst, data_proxy_r
 
 
                 finally:
-                    destination_client.remove(str(yt_token_file), force=True)
                     destination_client.remove(temp_files_dir, force=True, recursive=True)
                     if temp_table_input is not None:
                         destination_client.remove(temp_table_input, force=True)
@@ -685,7 +697,7 @@ while True:
             "pool": "transfer_kiwi",
             "max_failed_job_count": 1000,
             "mapper": {
-                "cpu_limit": 0,
+                "cpu_limit": 0.5,
                 # After investigation of several copy jobs we have found the following:
                 # 1) kwworm memory consumption is in range (200-500MB)
                 # 2) yt2 read consumption is in range (200-600MB)
@@ -693,7 +705,7 @@ while True:
                 # 4) Other processes uses less than 100 MB.
                 "memory_limit": 4 * GB,
                 "memory_reserve_factor": 0.35
-            },
+            }
         },
         spec)
 
@@ -724,7 +736,7 @@ while True:
     files.append(kiwi_client.kwworm_binary)
 
     # NOTE: reserved_size is for "output" file
-    _set_tmpfs_settings(kiwi_transmittor, spec, files, yt_files, reserved_size=GB)
+    _set_tmpfs_settings(spec=spec, files=files, client=kiwi_transmittor, yt_files=yt_files, reserved_size=GB)
     spec["mapper"]["memory_limit"] += spec["mapper"]["tmpfs_size"]
 
     try:
@@ -741,17 +753,19 @@ while True:
     finally:
         shutil.rmtree(tmp_dir)
 
-def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, token_storage_path, table_for_errors, **kwargs):
+def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, table_for_errors,
+                    pack_yt_wrapper=True, pack_yson_bindings=True, copy_spec_template=None, **kwargs):
     write_errors_script_template = """\
 import sys
+import os
 import yt.wrapper as yt
 
 def gen_rows():
     for line in sys.stdin:
         yield {{"error": line.strip()}}
 
-client = yt.YtClient(proxy="{0}", config={{"token_path": "{1}"}})
-table = yt.TablePath("{2}", append=True, client=client)
+client = yt.YtClient(proxy="{0}", token=os.environ.get("YT_SECURE_VAULT_TOKEN"))
+table = yt.TablePath("{1}", append=True, client=client)
 client.create("table", table, ignore_existing=True)
 client.write_table(table, gen_rows())
 """
@@ -760,42 +774,39 @@ client.write_table(table, gen_rows())
     data_proxy_role = kwargs.pop("data_proxy_role", None)
 
     tmp_dir = tempfile.mkdtemp(dir=kwargs.get("default_tmp_dir"))
-    kiwi_transmittor.create("map_node", token_storage_path, ignore_existing=True, recursive=True)
     try:
         with yt_client.Transaction(attributes={"title": "copy_yt_to_kiwi"}):
             yt_client.lock(src, mode="snapshot")
+            command, files = _prepare_read_table_from_yt_command(
+                yt_client,
+                src,
+                "<lenval=true>yamr",
+                tmp_dir,
+                data_proxy_role,
+                pack_yt_wrapper=pack_yt_wrapper,
+                pack_yson_bindings=pack_yson_bindings)
 
-            yt_token_file = _secure_upload_token(yt_client.config["token"], kiwi_transmittor,
-                                                 token_storage_path, tmp_dir)
-            try:
-                command, files = _prepare_read_table_from_yt_command(
-                    yt_client,
-                    src,
-                    "<lenval=true>yamr",
-                    tmp_dir,
-                    data_proxy_role,
-                    pack=True,
-                    token_file=yt_token_file.attributes["file_name"])
+            write_errors_script = None
+            if table_for_errors is not None:
+                write_errors_script = write_errors_script_template.format(
+                    yt_client.config["proxy"]["url"],
+                    table_for_errors)
 
-                write_errors_script = None
-                if table_for_errors is not None:
-                    write_errors_script = write_errors_script_template.format(
-                        yt_client.config["proxy"]["url"],
-                        yt_token_file.attributes["file_name"],
-                        table_for_errors)
+            spec = deepcopy(get_value(copy_spec_template, {}))
+            spec.setdefault("secure_vault", {})
+            spec["secure_vault"]["TOKEN"] = yt_client.config["token"]
 
-                _copy_to_kiwi(
-                    kiwi_client,
-                    kiwi_transmittor,
-                    src,
-                    read_command=command,
-                    ranges=ranges,
-                    files=files,
-                    yt_files=[yt_token_file],
-                    write_errors_script=write_errors_script,
-                    **kwargs)
-            finally:
-                kiwi_transmittor.remove(str(yt_token_file), force=True)
+            _copy_to_kiwi(
+                kiwi_client,
+                kiwi_transmittor,
+                src,
+                read_command=command,
+                ranges=ranges,
+                files=files,
+                write_errors_script=write_errors_script,
+                copy_spec_template=spec,
+                **kwargs)
+
     finally:
         shutil.rmtree(tmp_dir)
 
@@ -809,7 +820,7 @@ def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, cop
     read_config, files = hive_client.get_table_config_and_files(*source)
     read_command = hive_client.get_read_command(read_config)
 
-    yt_client.create("map_node", os.path.dirname(destination_table), recursive=True, ignore_existing=True)
+    _force_parent_dir(os.path.dirname(destination_table), client=yt_client)
 
     json_format_attributes = get_value(json_format_attributes, {})
 
@@ -822,8 +833,9 @@ def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, cop
         spec = deepcopy(get_value(copy_spec_template, {}))
         spec["data_size_per_job"] = 1
 
-        _set_tmpfs_settings(yt_client, spec, [hive_client.hive_importer_library], reserved_size=6 * GB)
-        _set_mapper_settings_for_read_from_yt(spec)
+        _set_tmpfs_settings(spec=spec, files=[hive_client.hive_importer_library],
+                            client=yt_client, reserved_size=6 * GB)
+        _set_mapper_settings_for_read_from_yt(destination_client=yt_client, spec=spec)
 
         output_format_attributes = update({"encode_utf8": "false"}, json_format_attributes)
         yt_client.run_map(
