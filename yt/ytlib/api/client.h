@@ -833,14 +833,6 @@ struct IClient
         i64 trimmedRowCount,
         const TTrimTableOptions& options = TTrimTableOptions()) = 0;
 
-    virtual TFuture<void> EnableTableReplica(
-        const NTabletClient::TTableReplicaId& replicaId,
-        const TEnableTableReplicaOptions& options = TEnableTableReplicaOptions()) = 0;
-
-    virtual TFuture<void> DisableTableReplica(
-        const NTabletClient::TTableReplicaId& replicaId,
-        const TDisableTableReplicaOptions& options = TDisableTableReplicaOptions()) = 0;
-
     virtual TFuture<void> AlterTableReplica(
         const NTabletClient::TTableReplicaId& replicaId,
         const TAlterTableReplicaOptions& options = TAlterTableReplicaOptions()) = 0;

@@ -647,14 +647,6 @@ public:
         i64 trimmedRowCount,
         const TTrimTableOptions& options),
         (path, tabletIndex, trimmedRowCount, options))
-    IMPLEMENT_METHOD(void, EnableTableReplica, (
-        const TTableReplicaId& replicaId,
-        const TEnableTableReplicaOptions& options),
-        (replicaId, options))
-    IMPLEMENT_METHOD(void, DisableTableReplica, (
-        const TTableReplicaId& replicaId,
-        const TDisableTableReplicaOptions& options),
-        (replicaId, options))
     IMPLEMENT_METHOD(void, AlterTableReplica, (
         const TTableReplicaId& replicaId,
         const TAlterTableReplicaOptions& options),
@@ -1746,28 +1738,6 @@ private:
 
         WaitFor(req->Invoke())
             .ValueOrThrow();
-    }
-
-    void DoEnableTableReplica(
-        const TTableReplicaId& replicaId,
-        const TEnableTableReplicaOptions& options)
-    {
-        auto req = TTableReplicaYPathProxy::Alter(FromObjectId(replicaId));
-        req->set_enabled(true);
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
-            .ThrowOnError();
-    }
-
-    void DoDisableTableReplica(
-        const TTableReplicaId& replicaId,
-        const TDisableTableReplicaOptions& options)
-    {
-        auto req = TTableReplicaYPathProxy::Alter(FromObjectId(replicaId));
-        req->set_enabled(false);
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
-            .ThrowOnError();
     }
 
     void DoAlterTableReplica(
