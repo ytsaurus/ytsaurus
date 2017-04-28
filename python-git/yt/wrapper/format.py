@@ -252,8 +252,7 @@ class Format(object):
                         range_index = attributes[range_index_attribute_name]
                     continue
 
-                if table_index is not None:
-                    row[table_index_column_name] = table_index
+                row[table_index_column_name] = table_index
                 if range_index is not None:
                     row[range_index_column_name] = range_index
                 if row_index is not None:
@@ -538,7 +537,7 @@ class YsonFormat(Format):
 
         for row in rows:
             new_table_index = row.get(self._coerced_table_index_column, 0)
-            if new_table_index != table_index:
+            if new_table_index is not None and new_table_index != table_index:
                 attributes = {table_index_column: new_table_index}
                 yield yson.to_yson_type(None, attributes=attributes)
                 table_index = new_table_index
@@ -786,7 +785,16 @@ class JsonFormat(Format):
         return JsonFormat._wrap_json_module(module)
 
     def __init__(self, process_table_index=None, control_attributes_mode="generator",
-                 table_index_column="@table_index", attributes=None, raw=None, enable_ujson=True):
+                 table_index_column="@table_index", attributes=None, raw=None, enable_ujson=False):
+        """
+        :param bool process_table_index: DEPRECATED! process input and output table switchers in `dump_rows`\
+         and `load_rows`. See `wiki <https://wiki.yandex-team.ru/yt/userdoc/tableswitch#yson>`_.
+        :param str control_attributes_mode: mode of processing rows with control attributes, must be one of \
+        ["row_fields", "iterator", "generator", "none"]. In "row_fields" mode attributes are put in the regular rows with \
+        as "@row_index", "@range_index" and "@table_index". Also "@table_index" key is parsed from output rows. \
+        In "iterator" mode attributes rows object is iterator and control attributes are available as fields of the iterator. \
+        In "none" (or deprecated "generator") mode rows are unmodified.
+        """
         attributes = get_value(attributes, {})
         super(JsonFormat, self).__init__("json", attributes, raw, self._ENCODING)
         self.process_table_index = process_table_index
@@ -853,7 +861,7 @@ class JsonFormat(Format):
             new_table_index = row[self.table_index_column] \
                 if self.table_index_column in row \
                 else 0
-            if new_table_index != table_index:
+            if new_table_index is not None and new_table_index != table_index:
                 table_index = new_table_index
                 yield {"$value": None, "$attributes": {"table_index": table_index}}
             if self.table_index_column in row:

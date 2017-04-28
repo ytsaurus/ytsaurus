@@ -642,11 +642,23 @@ class Application(object):
         if source_client._type == "yt" and destination_client._type == "yt":
             if task.copy_method is None:
                 task.copy_method = "proxy" if get_cluster_version(source_client) != get_cluster_version(destination_client) else "native"
+
+            is_destination_cluster_marx = task.destination_cluster == "marx"
             if task.intermediate_format is None and task.copy_method == "proxy":
-                if task.destination_cluster == "marx":
+                if is_destination_cluster_marx:
                     task.intermediate_format = "<annotate_with_types=%true>json"
                 else:
                     task.intermediate_format = "yson"
+
+            if task.pack_yt_wrapper is None:
+                task.pack_yt_wrapper = self._config.get("pack_yt_wrapper", True)
+            if task.pack_yson_bindings is None:
+                task.pack_yson_bindings = self._config.get("pack_yson_bindings", not is_destination_cluster_marx)
+
+            # TODO(asaitgalin): Remove this when marx is updated to version which supports fractional cpu.
+            if is_destination_cluster_marx:
+                copy_spec = get_value(task.copy_spec, {})
+                task.copy_spec = update({"mapper": {"cpu_limit": 0}}, copy_spec)
 
     def _can_run(self, task):
         direction_running_task_count = len(self._running_tasks_per_direction[task.get_direction_id()])
@@ -1359,9 +1371,6 @@ class Application(object):
 
         sensors.append(make_solomon_sensor("pending_count", len(self._pending_tasks)))
         sensors.append(make_solomon_sensor("running_count", len(self._task_processes)))
-
-        objects_size = pympler_muppy.get_size(pympler_muppy.get_objects()) // 1024
-        sensors.append(make_solomon_sensor("objects_memory_kb", objects_size))
 
         with open("/proc/{0}/statm".format(self._pid)) as f:
             memory_info = f.readline().strip()

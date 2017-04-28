@@ -3,7 +3,7 @@ from __future__ import print_function
 from . import config
 from .config import get_config
 from .pickling import Pickler
-from .common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value, which, get_disk_size
+from .common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value, which, get_disk_size, is_arcadia_python
 from .py_runner_helpers import process_rows
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
 from ._py_runner import get_platform_version, main as run_py_runner
@@ -41,6 +41,16 @@ TMPFS_SIZE_ADDEND = 1024 * 1024
 OPERATION_REQUIRED_MODULES = ["yt.wrapper.py_runner_helpers"]
 
 SINGLE_INDEPENDENT_BINARY_CASE = None
+
+class WrapResult(object):
+    __slots__ = ["cmd", "files", "tmpfs_size", "environment", "local_files_to_remove", "title"]
+    def __init__(self, cmd, files=None, tmpfs_size=0, environment=None, local_files_to_remove=None, title=None):
+        self.cmd = cmd
+        self.files = files
+        self.tmpfs_size = tmpfs_size
+        self.environment = environment
+        self.local_files_to_remove = local_files_to_remove
+        self.title = title
 
 # Md5 tools.
 def init_md5():
@@ -82,16 +92,6 @@ def is_running_interactively():
     else:
         # Old IPython (0.12 at least) has no sys.ps1 defined
         return "__IPYTHON__" in globals()
-
-def is_arcadia_python():
-    try:
-        import __res
-        assert __res
-        return True
-    except ImportError:
-        pass
-
-    return hasattr(sys, "extra_modules")
 
 class TempfilesManager(object):
     def __init__(self, remove_temp_files, directory):
@@ -216,6 +216,7 @@ class Zip(object):
             self.zip.write(library, os.path.join("_shared", os.path.basename(library)))
             self.dynamic_libraries.add(library)
             self.size += get_disk_size(library)
+            self.hash = merge_md5(self.hash, calc_md5_from_file(library))
 
     def append(self, filepath, relpath):
         if relpath.endswith(".egg"):
@@ -232,6 +233,11 @@ class Zip(object):
         if type is None:
             self.md5 = hex_md5(self.hash)
 
+def load_function(func):
+    if isinstance(func, str):
+        func = eval(func)
+    return func
+
 def create_modules_archive_default(tempfiles_manager, custom_python_used, client):
     for module_name in OPERATION_REQUIRED_MODULES:
         import_module(module_name)
@@ -239,7 +245,7 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
     logging_level = logging.getLevelName(get_config(client)["pickling"]["find_module_file_error_logging_level"])
 
     files_to_compress = {}
-    module_filter = get_config(client)["pickling"]["module_filter"]
+    module_filter = load_function(get_config(client)["pickling"]["module_filter"])
     extra_modules = getattr(sys, "extra_modules", set())
     for name, module in list(iteritems(sys.modules)):
         if module_filter is not None and not module_filter(module):
@@ -470,7 +476,7 @@ def build_main_file_arguments(function, create_temp_file, file_argument_builder)
         else:
             main_module = sys.modules["__main__"]
             function_source_filename = main_module.__file__
-            if main_module.__package__ is not None:
+            if main_module.__package__ is not None and main_module.__package__:
                 module_import_path = "{0}.{1}".format(main_module.__package__, main_module.__name__)
             if function_source_filename.endswith("pyc"):
                 main_module_type = "PY_COMPILED"
@@ -511,6 +517,11 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
     environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = \
        str(int(get_config(client)["allow_http_requests_to_yt_from_job"]))
 
+    if get_config(client)["pickling"]["use_function_name_as_title"]:
+        title = get_function_name(function)
+    else:
+        title = None
+
     caller_arguments = build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_argument_builder, environment, client)
     function_and_config_arguments = build_function_and_config_arguments(
         function, operation_type, input_format, output_format, group_by,
@@ -529,17 +540,16 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
         main_file_arguments = build_main_file_arguments(function, create_temp_file, file_argument_builder)
 
     cmd = " ".join(caller_arguments + function_and_config_arguments + modules_arguments + main_file_arguments)
-    return cmd, uploaded_files, tmpfs_size, environment
+    return WrapResult(cmd=cmd, files=uploaded_files, tmpfs_size=tmpfs_size, environment=environment, title=title, local_files_to_remove=None)
 
 def wrap(client, **kwargs):
     local_mode = is_local_mode(client)
     remove_temp_files = get_config(client)["clear_local_temp_files"] and not local_mode
 
     with TempfilesManager(remove_temp_files, get_config(client)["local_temp_directory"]) as tempfiles_manager:
-        cmd, uploaded_files, tmpfs_size, environment = do_wrap(tempfiles_manager=tempfiles_manager, client=client, local_mode=local_mode, **kwargs)
-        local_files_to_remove = tempfiles_manager._tempfiles_pool if enable_local_files_usage_in_job(client) else []
-        return cmd, uploaded_files, tmpfs_size, environment, local_files_to_remove
-
+        result = do_wrap(tempfiles_manager=tempfiles_manager, client=client, local_mode=local_mode, **kwargs)
+        result.local_files_to_remove = tempfiles_manager._tempfiles_pool if enable_local_files_usage_in_job(client) else []
+        return result
 
 def enable_python_job_processing_for_standalone_binary():
     """Enables alternative method to run python functions as jobs in YT operations.

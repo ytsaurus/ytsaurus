@@ -31,6 +31,8 @@ TEST_PATHS = ["//tmp/table[#1:#2]",
               "//home/123/@",
               "//home/table[ab:ab]",
               "//home/table[#1:#1]",
+              "//home/table[:(#, 10)]",
+              "//home/table[(a, #):(#, b)]",
               "//some/table{}",
               "//some/table{a}",
               "//some/table{a,b}",
@@ -58,7 +60,8 @@ TEST_PATHS = ["//tmp/table[#1:#2]",
               '//some/table{ab,ac}["abc,[]askjjh,,,,asdj  ade"]',
               '//some/table{"abc,[]askjjh,,,,asdj  ade"}',
               '<append=true;custom=123;test="test>">//some/table'
-              '{"abc,[]askjjh,,,,asdj  ade"}']
+              '{"abc,[]askjjh,,,,asdj  ade"}',
+              '1.1.1']
 
 FAILED_TEST_PATHS = ["<ds>><test",
                      "{}{}",

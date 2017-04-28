@@ -4,10 +4,17 @@ from .helpers import TEST_DIR, PYTHONPATH, get_test_dir_path, get_test_file_path
                      set_config_option, build_python_egg, TESTS_SANDBOX, run_python_script_with_check, \
                      ENABLE_JOB_CONTROL, dumps_yt_config
 
+# Necessary for tests.
+try:
+    import yt.wrapper.tests.test_module
+    has_test_module = True
+except ImportError:
+    has_test_module = False
+
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
 from yt.common import which, makedirp
 from yt.wrapper.common import parse_bool
-from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
+from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs
 from yt.wrapper.table import TablePath
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
@@ -26,6 +33,7 @@ import tempfile
 import random
 import logging
 import pytest
+import signal
 
 class AggregateMapper(object):
     def __init__(self):
@@ -56,7 +64,6 @@ class CreateModulesArchive(object):
     def __call__(self, tempfiles_manager=None, custom_python_used=False):
         return create_modules_archive_default(tempfiles_manager, custom_python_used, None)
 
-
 @pytest.mark.usefixtures("yt_env")
 class TestOperations(object):
     def setup(self):
@@ -77,11 +84,13 @@ class TestOperations(object):
     def test_merge(self):
         tableX = TEST_DIR + "/tableX"
         tableY = TEST_DIR + "/tableY"
+        tableZ = TEST_DIR + "/tableZ"
         dir = TEST_DIR + "/dir"
         res_table = dir + "/other_table"
 
         yt.write_table(tableX, [{"x": 1}])
         yt.write_table(tableY, [{"y": 2}])
+        yt.write_table(tableZ, [{"x": 0}, {"x": 2}])
 
         with pytest.raises(yt.YtError):
             yt.run_merge([tableX, tableY], res_table)
@@ -100,6 +109,11 @@ class TestOperations(object):
         yt.run_merge(tableX, res_table)
         assert parse_bool(yt.get_attribute(res_table, "sorted"))
         check([{"x": 1}], yt.read_table(res_table))
+
+        # Test mode="auto"
+        yt.run_sort(tableZ, sort_by="x")
+        yt.run_merge([tableX, tableZ], res_table)
+        check([{"x": 0}, {"x": 1}, {"x": 2}], yt.read_table(res_table))
 
         # XXX(asaitgalin): Uncomment when st/YT-5770 is done.
         # yt.run_merge(yt.TablePath(tableX, columns=["y"]), res_table)
@@ -853,10 +867,11 @@ print(op.id)
         finally:
             yt.config["pickling"]["create_modules_archive_function"] = None
 
+    @add_failed_operation_stderrs_to_error_message
     def test_pickling(self):
         def foo(rec):
-            import test_module
-            assert test_module.TEST == 1
+            import my_test_module
+            assert my_test_module.TEST == 1
             yield rec
 
         with tempfile.NamedTemporaryFile(mode="w",
@@ -866,7 +881,7 @@ print(op.id)
                                          delete=False) as f:
             f.write("TEST = 1")
 
-        with set_config_option("pickling/additional_files_to_archive", [(f.name, "test_module.py")]):
+        with set_config_option("pickling/additional_files_to_archive", [(f.name, "my_test_module.py")]):
             table = TEST_DIR + "/table"
             yt.write_table(table, [{"x": 1}])
             yt.run_map(foo, table, table)
@@ -1245,3 +1260,78 @@ if __name__ == "__main__":
                                cwd=get_test_dir_path(), env=self.env)
         check(yt.read_table("//tmp/output_table"), [{"value": 0, "constant": 10}])
 
+    def test_download_job_stderr_messages(self):
+        def mapper(row):
+            sys.stderr.write("Job with stderr")
+            yield row
+
+        temp_table_input = yt.create_temp_table()
+        temp_table_output = yt.create_temp_table()
+        yt.write_table(temp_table_input, [{"x": i} for i in range(10)], format=yt.JsonFormat(), raw=False)
+        operation = yt.run_map(mapper, temp_table_input, temp_table_output,
+                               spec={"data_size_per_job": 1}, input_format=yt.JsonFormat())
+
+        stderrs_list = get_stderrs(operation.id, False)
+        assert len(stderrs_list) == 10
+
+        binary = get_test_file_path("stderr_download.py")
+        process = subprocess.Popen(["python", binary, operation.id], env=self.env, stderr=subprocess.PIPE)
+
+        time.sleep(0.5)
+        os.kill(process.pid, signal.SIGINT)
+        process.wait(2)
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_module_filter(self):
+        assert has_test_module
+
+        def mapper_test_module(row):
+            import yt.wrapper.tests.test_module
+            assert yt.wrapper.tests.test_module
+
+            yield row
+
+        def mapper_no_test_module(row):
+            try:
+                import yt.wrapper.tests.test_module
+                assert yt.wrapper.tests.test_module
+                print("NOT OK", file=sys.stderr)
+                raise Exception()
+            except ImportError:
+                print("OK", file=sys.stderr)
+
+            yield row
+
+        table = TEST_DIR + "/table"
+
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        filter = lambda module: hasattr(module, "__file__") and not "test_module" in module.__file__
+        filter_string = 'lambda module: hasattr(module, "__file__") and not "test_module" in module.__file__'
+
+        yt.run_map(mapper_test_module, table, table)
+        check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+
+        with set_config_option("pickling/module_filter", filter):
+            yt.run_map(mapper_no_test_module, table, table)
+        check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+
+        with set_config_option("pickling/module_filter", filter_string):
+            yt.run_map(mapper_no_test_module, table, table)
+        check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_sandbox_file_name_specification(self, yt_env):
+        def mapper(row):
+            with open("cool_name.dat") as f:
+                yield {"k": f.read().strip()}
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}])
+
+        dir_ = yt_env.env.path
+        with tempfile.NamedTemporaryFile("w", dir=dir_, prefix="mapper", delete=False) as f:
+            f.write("etwas")
+
+        yt.run_map(mapper, table, table, files=['<file_name="cool_name.dat">' + f.name])
+        check(yt.read_table(table), [{"k": "etwas"}])

@@ -1,8 +1,11 @@
 from yt.packages.six import PY3, integer_types, binary_type, text_type
 
 class YsonType(object):
-    def __init__(self, *kargs, **kwargs):
-        self.attributes = {}
+    def __getattr__(self, attribute):
+        if attribute == "attributes":
+            self.__dict__[attribute] = {}
+            return self.__dict__[attribute]
+        raise AttributeError("Attribute '%s' not found" % attribute)
 
     def __eq__(self, other):
         if hasattr(other, "attributes"):
@@ -123,10 +126,6 @@ class YsonBoolean(int, YsonType):
         return self.__repr__()
 
 class YsonList(list, YsonType):
-    def __init__(self, *kargs, **kwargs):
-        YsonType.__init__(self, *kargs, **kwargs)
-        list.__init__(self, *kargs, **kwargs)
-
     def __eq__(self, other):
         if not isinstance(other, list):
             return False
@@ -145,10 +144,6 @@ class YsonList(list, YsonType):
         return self.to_str(list, str)
 
 class YsonMap(dict, YsonType):
-    def __init__(self, *kargs, **kwargs):
-        YsonType.__init__(self, *kargs, **kwargs)
-        dict.__init__(self, *kargs, **kwargs)
-
     def __eq__(self, other):
         if not isinstance(other, dict):
             return False
@@ -167,6 +162,9 @@ class YsonMap(dict, YsonType):
         return self.to_str(dict, str)
 
 class YsonEntity(YsonType):
+    def __init__(self, value=None):
+        assert value is None
+
     def __eq__(self, other):
         if other is None and not self.attributes:
             return True

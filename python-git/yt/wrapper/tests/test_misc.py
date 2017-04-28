@@ -29,6 +29,7 @@ import time
 import pytest
 import shutil
 import collections
+from copy import deepcopy
 
 def test_docs_exist():
     functions = inspect.getmembers(
@@ -248,8 +249,8 @@ class TestRetries(object):
                 list(yt.read_table(table + '[#0,#2]', format=yt.JsonFormat(process_table_index=False),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
 
-            assert [{"x": 1, "@row_index": 0, "@range_index": 0},
-                    {"x": 3, "@row_index": 2, "@range_index": 1}] == \
+            assert [{"x": 1, "@row_index": 0, "@range_index": 0, "@table_index": None},
+                    {"x": 3, "@row_index": 2, "@range_index": 1, "@table_index": None}] == \
                 list(yt.read_table(table + '[#0,#2]', format=yt.JsonFormat(process_table_index=True),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
 
@@ -376,6 +377,7 @@ class TestRetries(object):
         yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = True
         override_options = {
             "write_retries/enable": True,
+            "write_retries/count": 10,
             "read_retries/enable": True,
             "proxy/heavy_request_timeout": 1000
         }
@@ -593,13 +595,16 @@ class TestResponseStream(object):
 
 @pytest.mark.usefixtures("yt_env")
 class TestExecuteBatch(object):
-    def test_simple(self):
-        yt.mkdir("//tmp/test_dir")
-        rsp = yt.execute_batch(requests=[
-            {"command": "list", "parameters": {"path": "//tmp"}},
-            {"command": "list", "parameters": {"path": "//tmp/test_dir"}},
-            {"command": "list", "parameters": {"path": "//tmp/missing"}},
-        ])
+    @pytest.mark.parametrize("concurrency", [None, 1])
+    def test_simple(self, concurrency):
+        yt.create("map_node", "//tmp/test_dir", ignore_existing=True)
+        rsp = yt.execute_batch(
+            requests=[
+                {"command": "list", "parameters": {"path": "//tmp"}},
+                {"command": "list", "parameters": {"path": "//tmp/test_dir"}},
+                {"command": "list", "parameters": {"path": "//tmp/missing"}},
+            ],
+            concurrency=concurrency)
 
         assert "test_dir" in rsp[0]["output"]
 
@@ -608,4 +613,20 @@ class TestExecuteBatch(object):
         err = yt.YtResponseError(rsp[2]["error"])
         assert err.is_resolve_error()
 
+@pytest.mark.usefixtures("yt_env_multicell")
+class TestCellId(object):
+    def test_simple(self, yt_env_multicell):
+        yt.mkdir("//tmp/test_dir")
+        yt.write_table("//tmp/test_dir/table", [{"a": "b"}])
+        chunk_id = yt.get("//tmp/test_dir/table/@chunk_ids/0")
+
+        config = deepcopy(yt.config.config)
+        config["backend"] = "native"
+        client = yt.YtClient(config=config)
+        assert client.get("#{0}/@owning_nodes".format(chunk_id)) == ["//tmp/test_dir/table"]
+
+        for secondary_master in config["driver_config"]["secondary_masters"]:
+            cell_id = secondary_master["cell_id"]
+            client.COMMAND_PARAMS["cell_id"] = cell_id
+            assert client.get("//sys/@cell_id") == cell_id
 

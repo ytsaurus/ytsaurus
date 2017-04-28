@@ -6,6 +6,7 @@ from .cypress_commands import exists, remove, get_attribute, copy, \
 from .driver import make_request
 from .errors import YtIncorrectResponse, YtError, YtRetriableError
 from .format import create_format, YsonFormat
+from .batch_response import apply_function_to_result
 from .heavy_commands import make_write_request, make_read_request
 from .table_helpers import _prepare_source_tables, _are_default_empty_table, _prepare_table_writer, \
                            _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_format
@@ -500,7 +501,9 @@ def is_empty(table, client=None):
     :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
     :rtype: bool
     """
-    return row_count(TablePath(table, client=client), client=client) == 0
+    return apply_function_to_result(
+        lambda res: res == 0,
+        row_count(TablePath(table, client=client), client=client))
 
 def get_sorted_by(table, default=None, client=None):
     """Returns "sorted_by" table attribute or `default` if attribute doesn't exist.
@@ -524,7 +527,8 @@ def is_sorted(table, client=None):
     if get_config(client)["yamr_mode"]["use_yamr_sort_reduce_columns"]:
         return get_sorted_by(table, [], client=client) == ["key", "subkey"]
     else:
-        return parse_bool(
+        return apply_function_to_result(
+            parse_bool,
             get_attribute(TablePath(table, client=client),
                           "sorted",
                           default="false",

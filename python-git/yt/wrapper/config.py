@@ -134,7 +134,7 @@ class Config(types.ModuleType, client_state.ClientState):
             if isinstance(None, var_type):
                 var_type = str
             if var_type == dict:
-                var_type = lambda obj: self.yson_module.json_to_yson(self.json_module.loads(obj))
+                var_type = lambda obj: self.yson_module.json_to_yson(self.json_module.loads(obj)) if obj else {}
             return var_type
 
         def apply_type(type, key, value):
@@ -281,6 +281,12 @@ class Config(types.ModuleType, client_state.ClientState):
         else:
             return self.config
 
+    def has_option(self, option, client):
+        if client is not None:
+            return option in client.__dict__
+        else:
+            return option in self.__dict__
+
     def get_option(self, option, client):
         if client is not None:
             return client.__dict__[option]
@@ -301,6 +307,10 @@ class Config(types.ModuleType, client_state.ClientState):
         command_params = self.get_option("COMMAND_PARAMS", client)
         command_params[param_name] = value
         self.set_option("COMMAND_PARAMS", command_params, client)
+
+    def get_client_state(self, client):
+        object = client if client is not None else self
+        return super(type(object), object)
 
     def _reload(self, ignore_env):
         self._init()

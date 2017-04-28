@@ -28,7 +28,7 @@ from yt.wrapper.cypress_commands import remove_with_empty_dirs
 
 from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, GB, \
                               chunk_iter_stream, date_string_to_timestamp, update, parse_bool, \
-                              get_binary_std_stream
+                              get_binary_std_stream, chunk_iter_rows
 import yt.wrapper.config as config
 import yt.yson as yson
 import yt.json as json
@@ -712,13 +712,16 @@ Examples:
         write_silently(imap(add_eoln, list_entities(type="file", prefix=args.prefix, exact=args.exact,
             jsonoutput=args.jsonoutput, user=args.user, follow_links=args.followlinks)), force_use_text_stdout=True)
     if args.read is not None:
-        write_silently(
-            chunk_iter_stream(
-                yt.read_table(
+        stream = yt.read_table(
                     yt.TablePath(args.read, lower_key=args.lowerkey, upper_key=args.upperkey),
                     format=inputformat,
-                    raw=True),
-                16 * MB))
+                    raw=True)
+        if yt.config["read_retries"]["enable"]:
+            iterator = chunk_iter_rows(stream, 16 * MB)
+        else:
+            iterator = chunk_iter_stream(stream, 16 * MB)
+        write_silently(iterator)
+
     if args.createtable is not None:
         yt.create_table(args.createtable)
     if args.write is not None:

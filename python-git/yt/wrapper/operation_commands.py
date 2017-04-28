@@ -12,12 +12,14 @@ import yt.logger as logger
 from yt.common import format_error, date_string_to_datetime, to_native_str
 
 from yt.packages.decorator import decorator
-from yt.packages.six import iteritems, iterkeys
-from yt.packages.six.moves import builtins, filter as ifilter
+from yt.packages.six import iteritems, iterkeys, itervalues
+from yt.packages.six.moves import builtins, filter as ifilter, map as imap
 
 import logging
 from datetime import datetime
 from time import sleep
+from multiprocessing.pool import ThreadPool
+from multiprocessing import TimeoutError
 
 try:
     from cStringIO import StringIO
@@ -127,14 +129,22 @@ def get_operation_state(operation, client=None):
         config["proxy"]["request_retry_count"] = retry_count
 
 def get_operation_progress(operation, client=None):
+    def calculate_total(counter):
+        if isinstance(counter, dict):
+            return sum(imap(calculate_total, itervalues(counter)))
+        return counter
+
     try:
         attributes = get_operation_attributes(operation, client=client)
         progress = attributes.get("progress", {}).get("jobs", {})
-        # Fix aborted progress counter
-        if progress and "aborted" in progress and \
-            isinstance(progress["aborted"], dict) and \
-            "total" in progress["aborted"]:
-            progress["aborted"] = progress["aborted"]["total"]
+        for key in progress:
+            # Show total for hierarchical count.
+            if key in progress and isinstance(progress[key], dict):
+                if "total" in progress[key]:
+                    progress[key] = progress[key]["total"]
+                else:
+                    progress[key] = calculate_total(progress[key])
+
     except YtResponseError as err:
         if err.is_resolve_error():
             progress = {}
@@ -143,9 +153,12 @@ def get_operation_progress(operation, client=None):
     return progress
 
 def order_progress(progress):
+    filter_out = ["completed_details"]
     keys = ["running", "completed", "pending", "failed", "aborted", "lost", "total"]
     result = []
     for key in keys:
+        if key in filter_out:
+            continue
         if key in progress:
             result.append((key, progress[key]))
     for key, value in iteritems(progress):
@@ -243,16 +256,10 @@ def get_operation_state_monitor(operation, time_watcher, action=lambda: None, cl
 
 
 def get_stderrs(operation, only_failed_jobs, client=None):
-    jobs_path = ypath_join(OPERATIONS_PATH, operation, "jobs")
-    if not exists(jobs_path, client=client):
-        return []
-    jobs = list(jobs_path, attributes=["error", "address"], absolute=True, client=client)
-    if only_failed_jobs:
-        jobs = builtins.list(ifilter(lambda obj: "error" in obj.attributes, jobs))
+    # TODO(ostyakov): Remove local import
+    from .client import YtClient
 
-    result = []
-
-    for path in jobs:
+    def get_stderr_from_job(path, yt_client):
         job_with_stderr = {}
         job_with_stderr["host"] = path.attributes["address"]
 
@@ -260,21 +267,46 @@ def get_stderrs(operation, only_failed_jobs, client=None):
             job_with_stderr["error"] = path.attributes["error"]
 
         stderr_path = ypath_join(path, "stderr")
-        has_stderr = exists(stderr_path, client=client)
-        ignore_errors = get_config(client)["operation_tracker"]["ignore_stderr_if_download_failed"]
+        has_stderr = exists(stderr_path, client=yt_client)
+        ignore_errors = get_config(yt_client)["operation_tracker"]["ignore_stderr_if_download_failed"]
         if has_stderr:
             try:
-                job_with_stderr["stderr"] = to_native_str(read_file(stderr_path, client=client).read())
+                job_with_stderr["stderr"] = to_native_str(read_file(stderr_path, client=yt_client).read())
             except tuple(builtins.list(get_retriable_errors()) + [YtResponseError]):
-                if ignore_errors:
-                    continue
-                else:
+                if not ignore_errors:
                     raise
+        return job_with_stderr
 
+    result = []
+
+    def download_job_stderr(path):
+        yt_client = YtClient(config=get_config(client))
+
+        job_with_stderr = get_stderr_from_job(path, yt_client)
         if job_with_stderr:
             result.append(job_with_stderr)
 
-    return result
+    jobs_path = ypath_join(OPERATIONS_PATH, operation, "jobs")
+    if not exists(jobs_path, client=client):
+        return []
+    jobs = list(jobs_path, attributes=["error", "address"], absolute=True, client=client)
+    if only_failed_jobs:
+        jobs = builtins.list(ifilter(lambda obj: "error" in obj.attributes, jobs))
+
+    thread_count = get_config(client)["operation_tracker"]["stderr_download_thread_count"]
+    if thread_count > 1:
+        pool = ThreadPool(thread_count)
+        timeout = get_config(client)["operation_tracker"]["stderr_download_timeout"] / 1000.0
+        try:
+            pool.map_async(download_job_stderr, jobs).get(timeout)
+        except TimeoutError:
+            logger.info("Timed out while downloading jobs stderr messages")
+        finally:
+            pool.terminate()
+            pool.join()
+        return result
+    else:
+        return [get_stderr_from_job(path, client) for path in jobs]
 
 def format_operation_stderrs(jobs_with_stderr):
     """Formats operation jobs with stderr to string."""

@@ -6,14 +6,15 @@ from yt.packages.decorator import decorator
 from yt.packages.six import iteritems, itervalues, PY3
 from yt.packages.six.moves import xrange, map as imap, filter as ifilter
 
-import os
-import sys
-import socket
-import getpass
 import argparse
+import collections
+import copy
+import getpass
+import os
 import platform
 import random
-import copy
+import socket
+import sys
 
 from collections import Mapping
 from itertools import chain
@@ -88,12 +89,24 @@ def first_not_none(iter):
 def merge_dicts(*dicts):
     return dict(chain(*[iteritems(d) for d in dicts]))
 
-def chunk_iter_blobs(lines, chunk_size):
+def group_blobs_by_size(lines, chunk_size):
     """ Unite lines into large chunks """
     size = 0
     chunk = []
     for line in lines:
         size += len(line)
+        chunk.append(line)
+        if size >= chunk_size:
+            yield chunk
+            size = 0
+            chunk = []
+    yield chunk
+
+def chunk_iter_list(lines, chunk_size):
+    size = 0
+    chunk = []
+    for line in lines:
+        size += 1
         chunk.append(line)
         if size >= chunk_size:
             yield chunk
@@ -107,6 +120,10 @@ def chunk_iter_stream(stream, chunk_size):
         if not chunk:
             break
         yield chunk
+
+def chunk_iter_rows(stream, chunk_size):
+    for blob in group_blobs_by_size(stream.read_rows(), chunk_size):
+        yield b"".join(blob)
 
 def chunk_iter_string(string, chunk_size):
     index = 0
@@ -234,3 +251,21 @@ def remove_nones_from_dict(obj):
             result[key] = remove_nones_from_dict(value)
     return result
 
+def is_arcadia_python():
+    try:
+        import __res
+        assert __res
+        return True
+    except ImportError:
+        pass
+
+    return hasattr(sys, "extra_modules")
+
+
+HashPair = collections.namedtuple("HashPair", ["lo", "hi"])
+
+def uuid_hash_pair(uuid):
+    i3, i2, i1, i0 = (int(s, 16) for s in uuid.split("-"))
+    return HashPair(
+        yson.YsonUint64(i2 + (i3 << 32)),
+        yson.YsonUint64(i0 + (i1 << 32)))

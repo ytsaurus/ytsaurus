@@ -88,6 +88,9 @@ class YsonLexer(object):
         elif ch == b"%":
             return YsonToken(value=self._parse_boolean(), type=TOKEN_BOOLEAN)
 
+        elif ch == b"#":
+            return YsonToken(value=self._parse_entity(), type=TOKEN_HASH)
+
         elif ch == b"+" or ch == b"-" or ch.isdigit():
             value = self._parse_numeric()
             token_type = None
@@ -104,7 +107,7 @@ class YsonLexer(object):
 
         state = self._get_start_state(ch)
         self._read_char()
-        return YsonToken(type=state)
+        return YsonToken(value=ch, type=state)
 
     def get_position_info(self):
         return self._line_index, self._position, self._offset

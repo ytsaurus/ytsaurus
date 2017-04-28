@@ -145,6 +145,10 @@ def make_request(command_name,
                  allow_retries=None,
                  decode_content=True):
     """Makes request to yt proxy. Command name is the name of command in YT API."""
+
+    if "cell_id" in params:
+        raise YtError('Option "cell_id" is not supported for HTTP backend')
+
     commands = get_api_commands(client)
     api_path = "api/" + get_api_version(client)
 

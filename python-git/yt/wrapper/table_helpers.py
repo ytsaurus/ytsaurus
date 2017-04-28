@@ -1,12 +1,14 @@
+from .batch_helpers import batch_apply
 from .common import flatten, update, get_value, chunk_iter_stream, require
 from .config import get_config
 from .errors import YtError
 from .format import create_format, YsonFormat
 from .ypath import TablePath
-from .cypress_commands import exists, remove, get_attribute, get_type
+from .cypress_commands import exists, get_attribute, get_type, remove
 from .transaction_commands import abort_transaction
 
 import yt.logger as logger
+from yt.packages.six.moves import zip as izip
 from yt.packages.six import text_type, binary_type, PY3
 
 import types
@@ -82,8 +84,10 @@ def _prepare_source_tables(tables, replace_unexisting_by_empty=True, client=None
         raise YtError("You must specify non-empty list of source tables")
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"]:
         filtered_result = []
-        for table in result:
-            if exists(table, client=client):
+        exists_results = batch_apply(exists, result, client=client)
+
+        for table, exists_result in izip(result, exists_results):
+            if exists_result:
                 filtered_result.append(table)
             else:
                 logger.warning("Warning: input table '%s' does not exist", table)
@@ -112,8 +116,20 @@ def _remove_locks(table, client=None):
 
 
 def _remove_tables(tables, client=None):
-    for table in tables:
-        if exists(table) and get_type(table) == "table" and not table.append and table != DEFAULT_EMPTY_TABLE:
+    exists_results = batch_apply(exists, tables, client=client)
+
+    exists_tables = []
+    for table, exists_result in izip(tables, exists_results):
+        if exists_result:
+            exists_tables.append(table)
+
+    type_results = batch_apply(get_type, tables, client=client)
+
+    tables_to_remove = []
+    for table, table_type in izip(exists_tables, type_results):
+        if table_type == "table" and not table.append and table != DEFAULT_EMPTY_TABLE:
             if get_config(client)["yamr_mode"]["abort_transactions_with_remove"]:
                 _remove_locks(table, client=client)
-            remove(table, client=client)
+            tables_to_remove.append(table)
+
+    batch_apply(remove, tables_to_remove, client=client)

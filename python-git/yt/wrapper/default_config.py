@@ -127,11 +127,20 @@ default_config = {
 
     # This option allows to disable token.
     "enable_token": True,
+    # This option allows to cache token value in client state.
+    "cache_token": True,
     # If token specified than token_path ignored,
     # otherwise token extracted from file specified by token_path.
     "token": None,
     # $HOME/.yt/token by default
     "token_path": None,
+    # This option enables receiving token from oauth.yandex-team.ru
+    # using currect session ssh secret. By default option is enabled
+    # for arcadia build and disabled otherwise.
+    "allow_receive_token_by_current_ssh_session": None,
+    # Tokens for receiving token by current ssh session.
+    "oauth_client_id": "23b4f83306e3469abdee07054d307e7c",
+    "oauth_client_secret": "87dcc81340254b12a4cecdfe34c6d387",
 
     # Force using this version of api.
     "api_version": None,
@@ -226,7 +235,9 @@ default_config = {
             "library_filter": None
         },
         # Ignore client yt_yson_bindings if platform on the cluster differs from client platform.
-        "ignore_yson_bindings_for_incompatible_platforms": True
+        "ignore_yson_bindings_for_incompatible_platforms": True,
+        # Enable using function name as operation title.
+        "use_function_name_as_title": True,
     },
 
     # Enables special behavior if client works with local mode cluster.
@@ -308,7 +319,11 @@ default_config = {
         # Abort operation when SIGINT is received while waiting for the operation to finish.
         "abort_on_sigint": True,
         # Log job statistics on operation complete.
-        "log_job_statistics": False
+        "log_job_statistics": False,
+        # Number of threads for downloading jobs stderr messages.
+        "stderr_download_thread_count": 10,
+        # Timeout for downloading jobs stderr messages.
+        "stderr_download_timeout": 60 * 1000
     },
 
     # Size of block to read from response stream.
@@ -356,12 +371,15 @@ default_config = {
             "allow_multiple_ranges": False,
             "create_transaction_and_take_snapshot_lock": True,
             "retry_count": None,
+            "change_proxy_period": None
         }),
 
     # Retries for write commands. It split data stream into chunks and writes it separately under transactions.
     "write_retries": retries_config(count=6, enable=True, backoff={"policy": "rounded_up_to_request_timeout"})\
         .update_template_dict({
             "chunk_size": 512 * common.MB,
+            # Parent transaction wrapping whole write process.
+            # If "transaction_id" is not specified it will be automatically created.
             "transaction_id": None,
         }),
 
@@ -404,7 +422,9 @@ default_config = {
         "enable": False,
         # Additional tmpfs size (in bytes) to reserve for user data.
         "additional_tmpfs_size": 0
-    }
+    },
+    "max_batch_size": 100,
+    "batch_requests_retries": retries_config(count=6, enable=True, backoff={"policy": "rounded_up_to_request_timeout"})
 }
 
 # pydoc :: default_config :: end

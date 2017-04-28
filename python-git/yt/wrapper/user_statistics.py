@@ -13,7 +13,7 @@ def write_statistics(dict):
         # File descriptor 5 is reserved for user statistics
         os.write(5, yson.dumps([dict], yson_type="list_fragment"))
     except OSError:
-        sys.stderr.write("Failed to write user statistics")
+        sys.stderr.write("Failed to write user statistics\n")
 
 def _get_field(path, name):
     data = open(path, "rb").read()

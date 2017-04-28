@@ -177,18 +177,19 @@ class TestClient(object):
     def test_get_user_name(self):
         if yt.config["backend"] != "native":
             # With disabled authentication in proxy it always return root
-            assert http.get_user_name("") == "root"
+            assert yt.get_user_name("") == "root"
 
-        #assert http.get_user_name("") == None
-        #assert http.get_user_name("12345") == None
+        #assert get_user_name("") == None
+        #assert get_user_name("12345") == None
 
         #token = "".join(["a"] * 16)
         #yt.set("//sys/tokens/" + token, "user")
-        #assert http.get_user_name(token) == "user"
+        #assert get_user_name(token) == "user"
 
     def test_get_token(self):
         client = Yt(token="a" * 32)
         client.config["enable_token"] = True
+        client.config["cache_token"] = False
 
         assert http.get_token(client=client) == "a" * 32
 

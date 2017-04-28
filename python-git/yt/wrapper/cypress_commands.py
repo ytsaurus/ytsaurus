@@ -6,6 +6,7 @@ from .transaction_commands import _make_transactional_request, \
                                   _make_formatted_transactional_request
 from .ypath import YPath, escape_ypath_literal
 from .format import create_format
+from .batch_response import apply_function_to_result, BatchResponse
 
 import yt.logger as logger
 
@@ -28,7 +29,7 @@ class _KwargSentinelClass(object):
         return cls.__instance
 _KWARG_SENTINEL = _KwargSentinelClass()
 
-def get(path, max_size=None, attributes=None, format=None, ignore_opaque=False, read_from=None, client=None):
+def get(path, max_size=None, attributes=None, format=None, read_from=None, client=None):
     """Gets Cypress node content (attribute tree).
 
     :param path: path to tree, it must exist!
@@ -36,7 +37,6 @@ def get(path, max_size=None, attributes=None, format=None, ignore_opaque=False, 
     :param list attributes: desired node attributes in the response.
     :param format: output format (by default python dict automatically parsed from YSON).
     :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
-    :param bool ignore_opaque: ignore opaque.
     :return: node tree content in `format`
 
     Be careful: attributes have specific representation in JSON format.
@@ -48,7 +48,6 @@ def get(path, max_size=None, attributes=None, format=None, ignore_opaque=False, 
 
     params = {
         "path": YPath(path, client=client),
-        "ignore_opaque": bool_to_string(ignore_opaque),
         "max_size": max_size}
     set_param(params, "attributes", attributes)
     set_param(params, "read_from", read_from)
@@ -198,6 +197,17 @@ def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=
 
     .. seealso:: `list on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#list>`_
     """
+
+    def _process_result(request_result):
+        if format is None and not request_result.attributes.get("incomplete", False) and sort:
+            request_result.sort()
+        if absolute and format is None:
+            attributes = request_result.attributes
+            request_result = yson.YsonList(imap(join, request_result))
+            request_result.attributes = attributes
+
+        return request_result
+
     if format is not None and absolute:
         raise YtError("Option 'absolute' is supported only for non-specified format")
 
@@ -217,13 +227,7 @@ def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=
         params=params,
         format=format,
         client=client)
-    if format is None and not result.attributes.get("incomplete", False) and sort:
-        result.sort()
-    if absolute and format is None:
-        attributes = result.attributes
-        result = yson.YsonList(imap(join, result))
-        result.attributes = attributes
-    return result
+    return apply_function_to_result(_process_result, result)
 
 def exists(path, read_from=None, client=None):
     """Checks if Cypress node exists.
@@ -235,7 +239,8 @@ def exists(path, read_from=None, client=None):
     """
     params = {"path": YPath(path, client=client)}
     set_param(params, "read_from", read_from)
-    return parse_bool(
+    return apply_function_to_result(
+        parse_bool,
         _make_formatted_transactional_request(
             "exists",
             params,
@@ -252,7 +257,7 @@ def remove(path, recursive=False, force=False, client=None):
 
     .. seealso:: `remove on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#remove>`_
     """
-    _make_transactional_request(
+    return _make_transactional_request(
         "remove",
         {
             "path": YPath(path, client=client),
