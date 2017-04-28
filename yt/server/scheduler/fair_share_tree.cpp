@@ -1029,6 +1029,16 @@ bool TPool::IsDefaultConfigured() const
     return DefaultConfigured_;
 }
 
+void TPool::SetUserName(const TNullable<Stroka>& userName)
+{
+    UserName_ = userName;
+}
+
+const TNullable<Stroka>& TPool::GetUserName() const
+{
+    return UserName_;
+}
+
 TPoolConfigPtr TPool::GetConfig()
 {
     return Config_;
