@@ -1395,12 +1395,11 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
         job->GetState() == EJobState::Waiting)
     {
         if (status->has_statistics()) {
-            auto asyncResult = BIND(&TJob::BuildBriefStatistics, job, TYsonString(status->statistics()))
+            auto asyncResult = BIND(BuildBriefStatistics, TYsonString(status->statistics()))
                 .AsyncVia(Host_->GetStatisticsAnalyzerInvoker())
                 .Run();
 
-            // Resulting future is dropped intentionally.
-            asyncResult.Apply(BIND(
+            asyncResult.Subscribe(BIND(
                 &TJob::AnalyzeBriefStatistics,
                 job,
                 Config_->SuspiciousInactivityTimeout,
