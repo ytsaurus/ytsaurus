@@ -191,7 +191,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         set("//tmp/out/@account", "limited")
         write_table("//tmp/in", [{"foo": i} for i in xrange(3)])
 
-        # Operation specific time limit.
         op = map(dont_track=True,
             command="sleep $YT_JOB_INDEX; cat",
             in_=["//tmp/in"],
