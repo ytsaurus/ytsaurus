@@ -124,7 +124,7 @@ private:
         auto* tablet = partition->GetTablet();
         const auto& config = tablet->GetConfig();
         int partitionCount = tablet->PartitionList().size();
-        i64 actualDataSize = partition->GetUncompressedDataSize();
+        i64 actualDataSize = partition->GetCompressedDataSize();
         int estimatedStoresDelta = partition->Stores().size();
 
         if (estimatedStoresDelta + *estimatedMaxOverlappingStoreCount <= config->MaxOverlappingStoreCount &&
@@ -144,13 +144,13 @@ private:
         auto* tablet = partition->GetTablet();
         const auto& config = tablet->GetConfig();
         int partitionCount = tablet->PartitionList().size();
-        i64 actualDataSize = partition->GetUncompressedDataSize();
+        i64 actualDataSize = partition->GetCompressedDataSize();
 
         // Maximum data size the partition might have if all chunk stores from Eden go here.
         i64 maxPotentialDataSize = actualDataSize;
         for (const auto& store : tablet->GetEden()->Stores()) {
             if (store->GetType() == EStoreType::SortedChunk) {
-                maxPotentialDataSize += store->GetUncompressedDataSize();
+                maxPotentialDataSize += store->GetCompressedDataSize();
             }
         }
 
@@ -325,12 +325,15 @@ private:
 
         const auto& hydraManager = slot->GetHydraManager();
 
-        LOG_INFO("Sampling partition (DesiredSampleCount: %v)",
-            config->SamplesPerPartition);
-
         try {
             auto rowBuffer = New<TRowBuffer>();
-            auto samples = GetPartitionSamples(rowBuffer, partition, config->SamplesPerPartition);
+            auto uncompressedDataSize = partition->GetUncompressedDataSize();
+            auto compressedDataSize = partition->GetCompressedDataSize();
+            auto scaledSamples = int(
+                config->SamplesPerPartition * Max(compressedDataSize, uncompressedDataSize) / compressedDataSize);
+            LOG_INFO("Sampling partition (DesiredSampleCount: %v)", scaledSamples);
+
+            auto samples = GetPartitionSamples(rowBuffer, partition, scaledSamples);
             samples.erase(
                 std::unique(samples.begin(), samples.end()),
                 samples.end());
