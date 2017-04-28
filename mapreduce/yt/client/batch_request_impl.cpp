@@ -2,11 +2,13 @@
 #include "rpc_parameters_serialization.h"
 
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/interface/node.h>
 #include <mapreduce/yt/http/error.h>
 #include <mapreduce/yt/http/retry_request.h>
 
 #include <util/generic/guid.h>
+#include <util/string/builder.h>
 
 #include <exception>
 
@@ -18,6 +20,13 @@ using NThreading::TPromise;
 using NThreading::NewPromise;
 
 ////////////////////////////////////////////////////////////////////
+
+
+static Stroka RequestInfo(const TNode& request)
+{
+    return TStringBuilder()
+        << request["command"].AsString() << ' ' << NodeToYsonString(request["parameters"]);
+}
 
 static void EnsureNothing(const TMaybe<TNode>& node)
 {
@@ -329,6 +338,7 @@ void TBatchRequestImpl::FillParameterList(size_t maxSize, TNode* result, TInstan
     maxSize = Min(maxSize, BatchItemList_.size());
     *result = TNode::CreateList();
     for (size_t i = 0; i < maxSize; ++i) {
+        LOG_DEBUG("ExecuteBatch preparing: %s", ~RequestInfo(BatchItemList_[i].Parameters));
         result->Add(BatchItemList_[i].Parameters);
         if (BatchItemList_[i].NextTry > *nextTry) {
             *nextTry = BatchItemList_[i].NextTry;
@@ -379,8 +389,16 @@ void TBatchRequestImpl::ParseResponse(
                     TErrorResponse error(400, requestId);
                     error.SetError(TError(errorIt->second));
                     if (auto curInterval = retryPolicy.GetRetryInterval(error)) {
+                        LOG_INFO(
+                            "Batch subrequest (%s) failed, will retry, error: %s",
+                            ~RequestInfo(BatchItemList_[i].Parameters),
+                            error.what());
                         retryBatch->AddRequest(TBatchItem(BatchItemList_[i], now + *curInterval));
                     } else {
+                        LOG_ERROR(
+                            "Batch subrequest (%s) failed, error: %s",
+                            ~RequestInfo(BatchItemList_[i].Parameters),
+                            error.what());
                         BatchItemList_[i].ResponseParser->SetException(std::make_exception_ptr(error));
                     }
                 }
