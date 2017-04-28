@@ -332,7 +332,7 @@ private:
                 if (underlying->IsValid()) {
                     promise.SetFrom(func(underlying));
                 } else if (succeedOnInvalid) {
-                    LOG_DEBUG("Transaction participant is no longer, assuming sucessful response");
+                    LOG_DEBUG("Transaction participant is no longer valid; assuming success");
                     promise.Set(TError());
                 } else {
                     promise.Set(TError("Participant cell %v is no longer valid", CellId_));
