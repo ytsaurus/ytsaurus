@@ -1682,7 +1682,7 @@ void TNodeShard::DoUnregisterJob(const TJobPtr& job)
 
 void TNodeShard::PreemptJob(const TJobPtr& job, TCpuInstant interruptDeadline)
 {
-    LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v, Interruptible: %v, Reason: %Qv)",
+    LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v, Interruptible: %v, Reason: %v)",
         job->GetId(),
         job->GetOperationId(),
         job->GetInterruptible(),
