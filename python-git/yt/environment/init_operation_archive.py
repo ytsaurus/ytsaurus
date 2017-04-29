@@ -48,7 +48,7 @@ class TableInfo(object):
         unmount_table_new(client, path)
         attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
 
-        logging.info("Alter table %s with attributes %s", path, attributes)
+        logging.info("Altering table %s with attributes %s", path, attributes)
         client.alter_table(path, schema=attributes['schema'])
 
         if self.get_pivot_keys:
