@@ -348,6 +348,9 @@ class ConfigsProvider_18(ConfigsProvider):
                     },
                     "multicell_manager": {
                         "cell_statistics_gossip_period": 80
+                    },
+                    "cell_directory_synchronizer": {
+                        "sync_period": 500
                     }
                 })
 
