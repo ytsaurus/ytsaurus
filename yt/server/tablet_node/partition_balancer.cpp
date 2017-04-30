@@ -326,13 +326,17 @@ private:
         const auto& hydraManager = slot->GetHydraManager();
 
         try {
-            auto rowBuffer = New<TRowBuffer>();
-            auto uncompressedDataSize = partition->GetUncompressedDataSize();
             auto compressedDataSize = partition->GetCompressedDataSize();
-            auto scaledSamples = int(
-                config->SamplesPerPartition * Max(compressedDataSize, uncompressedDataSize) / compressedDataSize);
+            if (compressedDataSize == 0) {
+                THROW_ERROR_EXCEPTION("Empty partition");
+            }
+
+            auto uncompressedDataSize = partition->GetUncompressedDataSize();
+            auto scaledSamples = static_cast<int>(
+                config->SamplesPerPartition * std::max(compressedDataSize, uncompressedDataSize) / compressedDataSize);
             LOG_INFO("Sampling partition (DesiredSampleCount: %v)", scaledSamples);
 
+            auto rowBuffer = New<TRowBuffer>();
             auto samples = GetPartitionSamples(rowBuffer, partition, scaledSamples);
             samples.erase(
                 std::unique(samples.begin(), samples.end()),
