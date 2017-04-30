@@ -77,8 +77,8 @@ class TJob
     //! Deadline for job to be interrupted.
     DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, InterruptDeadline, 0);
 
-    //! Last time when statistics and resource usage from running job was updated.
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, LastRunningJobUpdateTime);
+    //! Deadline for running job.
+    DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, RunningJobUpdateDeadline, 0);
 
 public:
     TJob(
