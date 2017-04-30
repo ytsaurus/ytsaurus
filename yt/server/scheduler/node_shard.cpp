@@ -1314,9 +1314,8 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     }
 
     auto now = GetCpuInstant();
-    auto lastRunningJobUpdateTime = job->GetLastRunningJobUpdateTime();
-    if (!lastRunningJobUpdateTime || now > lastRunningJobUpdateTime.Get() + DurationToCpuDuration(Config_->RunningJobsUpdatePeriod)) {
-        job->SetLastRunningJobUpdateTime(now);
+    if (now > job->GetRunningJobUpdateDeadline()) {
+        job->SetRunningJobUpdateDeadline(now + DurationToCpuDuration(Config_->RunningJobsUpdatePeriod));
     } else {
         return;
     }
