@@ -1036,26 +1036,35 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    const auto& request = context->Request();
     auto automatonVersion = GetAutomatonVersion();
 
-    if (request.Type.empty()) {
+    // Refs are fine here (but see below).
+    const auto& request = context->Request();
+    const auto& mutationType = request.Type;
+    const auto& handler = request.Handler;
+
+    // Cannot access #request after the handler has been invoked since the latter
+    // could submit more mutations and cause #PendingMutations_ to be reallocated.
+    // So we'd better make the needed copies right away.
+    // Cf. YT-6908.
+    auto mutationId = request.MutationId;
+
+    if (mutationType.empty()) {
         LOG_DEBUG_UNLESS(IsRecovery(), "Skipping heartbeat mutation (Version: %v)",
             automatonVersion);
     } else {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v)",
-            automatonVersion,
-            request.Type,
-            request.MutationId);
+        auto* descriptor = GetTypeDescriptor(mutationType);
 
         TMutationContextGuard contextGuard(context);
-
-        auto* descriptor = GetTypeDescriptor(request.Type);
-
         NProfiling::TScopedTimer timer;
 
-        if (request.Handler) {
-            request.Handler.Run(context);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v)",
+            automatonVersion,
+            mutationType,
+            mutationId);
+
+        if (handler) {
+            handler.Run(context);
         } else {
             Automaton_->ApplyMutation(context);
         }
@@ -1064,13 +1073,13 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
             descriptor->CumulativeTimeCounter,
             NProfiling::DurationToValue(timer.GetElapsed()));
 
-        if (Options_.ResponseKeeper && request.MutationId) {
+        if (Options_.ResponseKeeper && mutationId) {
             if (State_ == EPeerState::Leading) {
-                YCHECK(request.MutationId == PendingMutationIds_.front());
+                YCHECK(mutationId == PendingMutationIds_.front());
                 PendingMutationIds_.pop();
             }
             const auto& response = context->Response();
-            Options_.ResponseKeeper->EndRequest(request.MutationId, response.Data);
+            Options_.ResponseKeeper->EndRequest(mutationId, response.Data);
         }
     }
 
