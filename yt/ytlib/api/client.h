@@ -193,6 +193,7 @@ struct TAlterTableReplicaOptions
     : public TTimeoutOptions
 {
     TNullable<bool> Enabled;
+    TNullable<NTabletClient::ETableReplicaMode> Mode;
 };
 
 struct TAddMemberOptions

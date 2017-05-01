@@ -39,6 +39,11 @@ DEFINE_ENUM(ETabletState,
     ((Mixed)         (101))
 );
 
+DEFINE_ENUM(ETableReplicaMode,
+    ((Sync)     (0))
+    ((Async)    (1))
+);
+
 DEFINE_ENUM(EErrorCode,
     ((TransactionLockConflict)  (1700))
     ((NoSuchTablet)             (1701))
@@ -102,6 +107,7 @@ using TTabletActionId = NObjectClient::TObjectId;
 
 DECLARE_REFCOUNTED_STRUCT(TTableMountInfo)
 DECLARE_REFCOUNTED_STRUCT(TTabletInfo)
+DECLARE_REFCOUNTED_STRUCT(TTableReplicaInfo)
 DECLARE_REFCOUNTED_STRUCT(ITableMountCache)
 
 DECLARE_REFCOUNTED_CLASS(TTabletCellOptions)

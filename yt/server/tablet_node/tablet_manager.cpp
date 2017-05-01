@@ -173,6 +173,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraAddTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemoveTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTableReplicaEnabled, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSetTableReplicaMode, Unretained(this)));
     }
 
     void Initialize()
@@ -1719,6 +1720,30 @@ private:
         }
     }
 
+    void HydraSetTableReplicaMode(TReqSetTableReplicaMode* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
+        auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
+        if (!replicaInfo) {
+            return;
+        }
+
+        auto mode = ETableReplicaMode(request->mode());
+
+        LOG_INFO_UNLESS(IsRecovery(), "Table replica mode updated (TabletId: %v, ReplicaId: %v, Mode: %v)",
+            tablet->GetId(),
+            replicaInfo->GetId(),
+            mode);
+
+        replicaInfo->SetMode(mode);
+    }
+
     void HydraPrepareReplicateRows(TTransaction* transaction, TReqReplicateRows* request, bool persistent)
     {
         YCHECK(persistent);
@@ -2711,6 +2736,7 @@ private:
         replicaInfo.SetReplicaPath(descriptor.replica_path());
         replicaInfo.SetStartReplicationTimestamp(descriptor.start_replication_timestamp());
         replicaInfo.SetState(ETableReplicaState::Disabled);
+        replicaInfo.SetMode(ETableReplicaMode(descriptor.mode()));
         replicaInfo.MergeFromStatistics(descriptor.statistics());
 
         if (IsLeader()) {
@@ -2720,11 +2746,12 @@ private:
         UpdateTabletSnapshot(tablet);
 
         LOG_INFO_UNLESS(IsRecovery(), "Table replica added (TabletId: %v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v, "
-            "StartReplicationTimestamp: %v, CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %x)",
+            "Mode: %v, StartReplicationTimestamp: %v, CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %x)",
             tablet->GetId(),
             replicaId,
             replicaInfo.GetClusterName(),
             replicaInfo.GetReplicaPath(),
+            replicaInfo.GetMode(),
             replicaInfo.GetStartReplicationTimestamp(),
             replicaInfo.GetCurrentReplicationRowIndex(),
             replicaInfo.GetCurrentReplicationTimestamp());
@@ -2759,7 +2786,7 @@ private:
 
     void EnableTableReplica(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
-        LOG_INFO_UNLESS(IsRecovery(), "Table replica state enabled (TabletId: %v, ReplicaId: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Table replica enabled (TabletId: %v, ReplicaId: %v)",
             tablet->GetId(),
             replicaInfo->GetId());
 

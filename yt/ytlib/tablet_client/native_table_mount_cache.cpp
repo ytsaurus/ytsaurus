@@ -131,6 +131,11 @@ bool TTableMountInfo::IsOrdered() const
     return !IsSorted();
 }
 
+bool TTableMountInfo::IsReplicated() const
+{
+    return TypeFromId(TableId) == EObjectType::ReplicatedTable;
+}
+
 TTabletInfoPtr TTableMountInfo::GetTabletForRow(const TRange<TUnversionedValue>& row) const
 {
     int keyColumnCount = Schemas[ETableSchemaKind::Primary].GetKeyColumnCount();
@@ -202,7 +207,7 @@ void TTableMountInfo::ValidateOrdered() const
 
 void TTableMountInfo::ValidateNotReplicated() const
 {
-    if (ReplicationMode == ETableReplicationMode::Source) {
+    if (IsReplicated()) {
         THROW_ERROR_EXCEPTION("Table %v is replicated", Path);
     }
 }
@@ -335,6 +340,14 @@ private:
                             descriptor.CellId,
                             descriptor.ConfigVersion);
                     }
+                }
+
+                for (const auto& protoReplicaInfo : rsp->replicas()) {
+                    auto replicaInfo = New<TTableReplicaInfo>();
+                    replicaInfo->ClusterName = protoReplicaInfo.cluster_name();
+                    replicaInfo->ReplicaPath = protoReplicaInfo.replica_path();
+                    replicaInfo->Mode = ETableReplicaMode(protoReplicaInfo.mode());
+                    tableInfo->Replicas.push_back(replicaInfo);
                 }
 
                 if (tableInfo->IsSorted()) {

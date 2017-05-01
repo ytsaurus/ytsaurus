@@ -1748,6 +1748,9 @@ private:
         if (options.Enabled) {
             req->set_enabled(*options.Enabled);
         }
+        if (options.Mode) {
+            req->set_mode(static_cast<int>(*options.Mode));
+        }
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
@@ -4027,7 +4030,7 @@ private:
             req->set_lockless(
                 owner->GetAtomicity() == EAtomicity::None ||
                 TableInfo_->IsOrdered() ||
-                TableInfo_->ReplicationMode == ETableReplicationMode::Source ||
+                TableInfo_->IsReplicated() ||
                 !VersionedSubmittedRows_.empty());
             req->Attachments().push_back(batch->RequestData);
 

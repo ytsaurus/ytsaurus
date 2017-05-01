@@ -29,7 +29,7 @@ namespace NTabletClient {
 struct TTabletInfo
     : public TRefCounted
 {
-    NObjectClient::TObjectId TabletId;
+    NTabletClient::TTabletId TabletId;
     i64 MountRevision = 0;
     NTabletClient::ETabletState State;
     NTableClient::TOwningKey PivotKey;
@@ -40,6 +40,19 @@ struct TTabletInfo
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletInfo)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTableReplicaInfo
+    : public TRefCounted
+{
+    NTabletClient::TTableReplicaId ReplicaId;
+    Stroka ClusterName;
+    Stroka ReplicaPath;
+    NTabletClient::ETableReplicaMode Mode;
+};
+
+DEFINE_REFCOUNTED_TYPE(TTableReplicaInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,6 +87,8 @@ struct TTableMountInfo
     std::vector<TTabletInfoPtr> Tablets;
     std::vector<TTabletInfoPtr> MountedTablets;
 
+    std::vector<TTableReplicaInfoPtr> Replicas;
+
     //! For sorted tables, these are -infinity and +infinity.
     //! For ordered tablets, these are |[0]| and |[tablet_count]| resp.
     NTableClient::TOwningKey LowerCapBound;
@@ -81,6 +96,7 @@ struct TTableMountInfo
 
     bool IsSorted() const;
     bool IsOrdered() const;
+    bool IsReplicated() const;
 
     TTabletInfoPtr GetTabletForRow(const TRange<NTableClient::TUnversionedValue>& row) const;
     TTabletInfoPtr GetTabletForRow(NTableClient::TUnversionedRow row) const;
