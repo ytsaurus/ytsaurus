@@ -222,7 +222,8 @@ size_t TPacketEncoder::GetPacketSize(
 bool TPacketEncoder::Start(
     EPacketType type,
     EPacketFlags flags,
-    bool enableChecksums,
+    bool generateChecksums,
+    int checksummedPartCount,
     const TPacketId& packetId,
     TSharedRefArray message)
 {
@@ -233,7 +234,7 @@ bool TPacketEncoder::Start(
     FixedHeader_.Flags = flags;
     FixedHeader_.PacketId = packetId;
     FixedHeader_.PartCount = Message_.Size();
-    FixedHeader_.Checksum = enableChecksums ? GetFixedChecksum() : NullChecksum;
+    FixedHeader_.Checksum = generateChecksums ? GetFixedChecksum() : NullChecksum;
 
     AllocateVariableHeader();
 
@@ -256,14 +257,14 @@ bool TPacketEncoder::Start(
                     return false;
                 }
                 PartSizes_[index] = part.Size();
-                PartChecksums_[index] = enableChecksums ? GetChecksum(part) : NullChecksum;
+                PartChecksums_[index] = generateChecksums && index < checksummedPartCount ? GetChecksum(part) : NullChecksum;
             } else {
                 PartSizes_[index] = NullPacketPartSize;
                 PartChecksums_[index] = NullChecksum;
             }
         }
 
-        PartChecksums_[Message_.Size()] = enableChecksums ? GetVariableChecksum() : NullChecksum;
+        PartChecksums_[Message_.Size()] = generateChecksums ? GetVariableChecksum() : NullChecksum;
     }
 
     BeginPhase(EPacketPhase::FixedHeader, &FixedHeader_, sizeof (TPacketHeader));

@@ -76,7 +76,7 @@ public:
     {
         EXPECT_EQ(NumPartsExpecting, message.Size());
         auto replyMessage = Serialize("42");
-        replyBus->Send(replyMessage, EDeliveryTrackingLevel::None);
+        replyBus->Send(replyMessage, NBus::TSendOptions(EDeliveryTrackingLevel::None));
     }
 private:
     int NumPartsExpecting;
@@ -124,7 +124,7 @@ void TestReplies(int numRequests, int numParts, EDeliveryTrackingLevel level = E
 
     std::vector<TFuture<void>> results;
     for (int i = 0; i < numRequests; ++i) {
-        auto result = bus->Send(message, level);
+        auto result = bus->Send(message, NBus::TSendOptions(level));
         if (result) {
             results.push_back(result);
         }
@@ -166,7 +166,8 @@ TEST(TBusTest, OK)
     auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp("localhost:2000"));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
-    auto result = bus->Send(message, EDeliveryTrackingLevel::Full).Get();
+    auto result = bus->Send(message, NBus::TSendOptions(EDeliveryTrackingLevel::Full))
+        .Get();
     EXPECT_TRUE(result.IsOK());
     server->Stop();
 }
@@ -176,7 +177,7 @@ TEST(TBusTest, Failed)
     auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp("localhost:2000"));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
-    auto result = bus->Send(message, EDeliveryTrackingLevel::Full).Get();
+    auto result = bus->Send(message, NBus::TSendOptions(EDeliveryTrackingLevel::Full)).Get();
     EXPECT_FALSE(result.IsOK());
 }
 
