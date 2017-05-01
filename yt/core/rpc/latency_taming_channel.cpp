@@ -61,15 +61,13 @@ public:
     TLatencyTamingSession(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck,
+        const TSendOptions& options,
         IChannelPtr primaryChannel,
         IChannelPtr backupChannel,
         TDuration delay)
         : Request_(std::move(request))
         , ResponseHandler_(std::move(responseHandler))
-        , Timeout_(timeout)
-        , RequestAck_(requestAck)
+        , Options_(options)
         , PrimaryChannel_(std::move(primaryChannel))
         , BackupChannel_(std::move(backupChannel))
         , Delay_(delay)
@@ -81,8 +79,7 @@ public:
         auto requestControl = PrimaryChannel_->Send(
             Request_,
             std::move(responseHandler),
-            Timeout_,
-            RequestAck_);
+            Options_);
 
         // NB: No locking is needed
         RequestControls_.push_back(requestControl);
@@ -157,8 +154,7 @@ public:
 private:
     const IClientRequestPtr Request_;
     const IClientResponseHandlerPtr ResponseHandler_;
-    const TNullable<TDuration> Timeout_;
-    const bool RequestAck_;
+    const TSendOptions Options_;
     const IChannelPtr PrimaryChannel_;
     const IChannelPtr BackupChannel_;
     const TDuration Delay_;
@@ -179,11 +175,11 @@ private:
 
     TNullable<TDuration> GetBackupTimeout()
     {
-        if (!Timeout_) {
+        if (!Options_.Timeout) {
             return Null;
         }
 
-        auto timeout = *Timeout_;
+        auto timeout = *Options_.Timeout;
         if (timeout < Delay_) {
             return TDuration();
         }
@@ -208,6 +204,9 @@ private:
             return;
         }
 
+        auto backupOptions = Options_;
+        backupOptions.Timeout = backupTimeout;
+
         LOG_DEBUG("Resending request to backup (RequestId: %v)",
             Request_->GetRequestId());
 
@@ -215,8 +214,7 @@ private:
         auto requestControl = BackupChannel_->Send(
             Request_,
             std::move(responseHandler),
-            backupTimeout,
-            RequestAck_);
+            backupOptions);
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -282,14 +280,12 @@ public:
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck) override
+        const TSendOptions& options) override
     {
         auto session = New<TLatencyTamingSession>(
             std::move(request),
             std::move(responseHandler),
-            timeout,
-            requestAck,
+            options,
             PrimaryChannel_,
             BackupChannel_,
             Delay_);
