@@ -244,6 +244,7 @@ public:
         TDuration transactionTimeout,
         TTransactionSignature signature,
         int rowCount,
+        bool lockless,
         TWireProtocolReader* reader,
         TFuture<void>* commitResult)
     {
@@ -267,8 +268,6 @@ public:
         if (atomicity == EAtomicity::None) {
             ValidateClientTimestamp(transactionId);
         }
-
-        bool lockless = storeManager->IsLockless();
 
         while (!reader->IsFinished()) {
             TTransaction* transaction = nullptr;
@@ -2950,6 +2949,7 @@ void TTabletManager::Write(
     TDuration transactionTimeout,
     TTransactionSignature signature,
     int rowCount,
+    bool lockless,
     TWireProtocolReader* reader,
     TFuture<void>* commitResult)
 {
@@ -2960,6 +2960,7 @@ void TTabletManager::Write(
         transactionTimeout,
         signature,
         rowCount,
+        lockless,
         reader,
         commitResult);
 }
