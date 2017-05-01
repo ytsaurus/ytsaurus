@@ -215,7 +215,7 @@ void TBootstrap::DoRun()
         NodeDirectory);
     NodeDirectorySynchronizer->Start();
 
-    CellDirectorySynchronizer = New<TCellDirectorySynchronizer>(
+    CellDirectorySynchronizer = New<NHiveClient::TCellDirectorySynchronizer>(
         Config->CellDirectorySynchronizer,
         MasterConnection->GetCellDirectory(),
         Config->ClusterConnection->PrimaryMaster->CellId);

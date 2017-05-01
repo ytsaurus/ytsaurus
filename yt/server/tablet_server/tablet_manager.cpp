@@ -3438,21 +3438,6 @@ private:
     }
 
     
-    virtual void OnRecoveryComplete() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TMasterAutomatonPart::OnRecoveryComplete();
-
-        for (const auto& pair : TabletCellMap_) {
-            auto* cell = pair.second;
-            if (!IsObjectAlive(cell)) {
-                continue;
-            }
-            UpdateCellDirectory(cell);
-        }
-    }
-
     virtual void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -3507,17 +3492,9 @@ private:
             }
         }
 
-        UpdateCellDirectory(cell);
-
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell reconfigured (CellId: %v, Version: %v)",
             cell->GetId(),
             cell->GetConfigVersion());
-    }
-
-    void UpdateCellDirectory(TTabletCell* cell)
-    {
-        const auto& cellDirectory = Bootstrap_->GetCellDirectory();
-        cellDirectory->ReconfigureCell(cell->GetDescriptor());
     }
 
 
