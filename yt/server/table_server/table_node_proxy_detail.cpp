@@ -727,7 +727,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     ValidateNotExternal();
     ValidateNoTransaction();
 
-    auto* trunkTable = GetThisImpl();
+    const auto* trunkTable = GetThisImpl();
 
     ToProto(response->mutable_table_id(), trunkTable->GetId());
     response->set_dynamic(trunkTable->IsDynamic());
@@ -750,6 +750,17 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
 
     for (const auto* cell : cells) {
         ToProto(response->add_tablet_cells(), cell->GetDescriptor());
+    }
+
+    if (trunkTable->IsReplicated()) {
+        const auto* replicatedTable = trunkTable->As<TReplicatedTableNode>();
+        for (const auto* replica : replicatedTable->Replicas()) {
+            auto* protoReplica = response->add_replicas();
+            ToProto(protoReplica->mutable_replica_id(), replica->GetId());
+            protoReplica->set_cluster_name(replica->GetClusterName());
+            protoReplica->set_replica_path(replica->GetReplicaPath());
+            protoReplica->set_mode(static_cast<int>(replica->GetMode()));
+        }
     }
 
     context->Reply();
@@ -817,6 +828,7 @@ bool TReplicatedTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonCons
                         .Item("cluster_name").Value(replica->GetClusterName())
                         .Item("replica_path").Value(replica->GetReplicaPath())
                         .Item("state").Value(replica->GetState())
+                        .Item("mode").Value(replica->GetMode())
                         .Item("replication_lag_time").Value(replica->ComputeReplicationLagTime())
                     .EndMap();
             });

@@ -538,6 +538,39 @@ public:
         CheckForReplicaDisabled(replica);
     }
 
+    void SetTableReplicaMode(TTableReplica* replica, ETableReplicaMode mode)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (replica->GetMode() == mode) {
+            return;
+        }
+
+        auto* table = replica->GetTable();
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica mode updated (TableId: %v, ReplicaId: %v, Mode: %v)",
+            table->GetId(),
+            replica->GetId(),
+            mode);
+
+        replica->SetMode(mode);
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        for (auto* tablet : table->Tablets()) {
+            if (!tablet->IsActive()) {
+                continue;
+            }
+
+            auto* cell = tablet->GetCell();
+            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+            TReqSetTableReplicaMode req;
+            ToProto(req.mutable_tablet_id(), tablet->GetId());
+            ToProto(req.mutable_replica_id(), replica->GetId());
+            req.set_mode(static_cast<int>(mode));
+            hiveManager->PostMessage(mailbox, req);
+        }
+    }
+
 
     TTabletAction* CreateTabletAction(
         const TObjectId& hintId,
@@ -4040,6 +4073,7 @@ private:
         descriptor->set_cluster_name(replica->GetClusterName());
         descriptor->set_replica_path(replica->GetReplicaPath());
         descriptor->set_start_replication_timestamp(replica->GetStartReplicationTimestamp());
+        descriptor->set_mode(static_cast<int>(replica->GetMode()));
         PopulateTableReplicaStatisticsFromInfo(descriptor->mutable_statistics(), info);
     }
 
@@ -4277,6 +4311,11 @@ void TTabletManager::DestroyTableReplica(TTableReplica* replica)
 void TTabletManager::SetTableReplicaEnabled(TTableReplica* replica, bool enabled)
 {
     Impl_->SetTableReplicaEnabled(replica, enabled);
+}
+
+void TTabletManager::SetTableReplicaMode(TTableReplica* replica, ETableReplicaMode mode)
+{
+    Impl_->SetTableReplicaMode(replica, mode);
 }
 
 TTabletAction* TTabletManager::CreateTabletAction(

@@ -696,7 +696,10 @@ void TDisableTableReplicaCommand::DoExecute(ICommandContextPtr context)
 TAlterTableReplicaCommand::TAlterTableReplicaCommand()
 {
     RegisterParameter("replica_id", ReplicaId);
-    RegisterParameter("enabled", Options.Enabled);
+    RegisterParameter("enabled", Options.Enabled)
+        .Optional();
+    RegisterParameter("mode", Options.Enabled)
+        .Optional();
 }
 
 void TAlterTableReplicaCommand::DoExecute(ICommandContextPtr context)

@@ -188,12 +188,13 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartReplicationTimestamp, NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTransactionId, PreparedReplicationTransactionId);
 
-    DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State);
+    DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
+    DEFINE_BYVAL_RW_PROPERTY(ETableReplicaMode, Mode, ETableReplicaMode::Async);
 
     DEFINE_BYVAL_RW_PROPERTY(TTableReplicatorPtr, Replicator);
 
 public:
-    TTableReplicaInfo();
+    TTableReplicaInfo() = default;
     explicit TTableReplicaInfo(const TTableReplicaId& id);
 
     void Save(TSaveContext& context) const;

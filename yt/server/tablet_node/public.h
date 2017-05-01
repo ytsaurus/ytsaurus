@@ -52,6 +52,7 @@ using NTabletClient::TTabletCellConfig;
 using NTabletClient::TTabletCellConfigPtr;
 using NTabletClient::TTabletCellOptions;
 using NTabletClient::TTabletCellOptionsPtr;
+using NTabletClient::ETableReplicaMode;
 
 using NTransactionClient::TTransactionId;
 using NTransactionClient::NullTransactionId;

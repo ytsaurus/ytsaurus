@@ -7,12 +7,12 @@ namespace NTabletNode {
 
 int GetCurrentSnapshotVersion()
 {
-    return 100003;
+    return 100004;
 }
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version == 100003;
+    return version == 100004;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

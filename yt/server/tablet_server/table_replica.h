@@ -27,7 +27,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, ReplicaPath);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, StartReplicationTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NTableServer::TReplicatedTableNode*, Table);
-    DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State);
+    DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
+    DEFINE_BYVAL_RW_PROPERTY(ETableReplicaMode, Mode, ETableReplicaMode::Async)
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTablet*>, DisablingTablets)
 
 public:
