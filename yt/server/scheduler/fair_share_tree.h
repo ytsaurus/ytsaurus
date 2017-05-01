@@ -479,19 +479,16 @@ public:
         int maxConcurrentScheduleJobCalls,
         NProfiling::TCpuDuration scheduleJobFailBackoffTime) const;
 
-    bool TryStartScheduleJob(
-        NProfiling::TCpuInstant now,
-        int maxConcurrentScheduleJobCalls,
-        NProfiling::TCpuDuration scheduleJobFailBackoffTime);
+    void IncreaseConcurrentScheduleJobCalls();
+    void DecreaseConcurrentScheduleJobCalls();
 
-    void FinishScheduleJob(
-        bool enableBackoff,
-        NProfiling::TCpuInstant now);
+    void SetLastScheduleJobFailTime(NProfiling::TCpuInstant now);
 
     TJobResources Finalize();
 
-    void SetMinNeededJobResources(std::vector<TJobResources> jobResources);
-    std::vector<TJobResources> GetMinNeededJobResources() const;
+    void SetMinNeededJobResources(std::vector<TJobResources> jobResourcesList);
+    std::vector<TJobResources> GetMinNeededJobResourcesList() const;
+    TJobResources GetMinNeededJobResources() const;
 
 private:
     template <typename T>
@@ -632,7 +629,8 @@ private:
     void IncreaseJobResourceUsage(TJobProperties& properties, const TJobResources& resourcesDelta);
 
     NConcurrency::TReaderWriterSpinLock CachedMinNeededJobResourcesLock_;
-    std::vector<TJobResources> CachedMinNeededJobResources_;
+    std::vector<TJobResources> CachedMinNeededJobResourcesList_;
+    TJobResources CachedMinNeededJobResources_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElementSharedState)
@@ -713,13 +711,25 @@ public:
 private:
     TOperationElementSharedStatePtr SharedState_;
 
-    bool HasJobsSatisfyingResourceLimits(const TJobResources& resourceLimits) const;
+    bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
 
     bool IsBlocked(NProfiling::TCpuInstant now) const;
 
     TJobResources GetHierarchicalResourceLimits(const TFairShareContext& context) const;
 
-    TScheduleJobResultPtr DoScheduleJob(TFairShareContext& context, const TJobResources& jobLimits);
+    bool TryStartScheduleJob(
+        NProfiling::TCpuInstant now,
+        int maxConcurrentScheduleJobCalls,
+        NProfiling::TCpuDuration scheduleJobFailBackoffTime,
+        const TJobResources& jobLimits,
+        const TJobResources& minNeededResources);
+
+    void FinishScheduleJob(
+        bool enableBackoff,
+        NProfiling::TCpuInstant now,
+        const TJobResources& minNeededResources);
+
+    TScheduleJobResultPtr DoScheduleJob(TFairShareContext& context, const TJobResources& jobLimits, const TJobResources& jobResourceDiscount);
 
     TJobResources ComputeResourceDemand() const;
     TJobResources ComputeResourceLimits() const;

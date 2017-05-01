@@ -34,6 +34,8 @@ struct ISchedulingContext
 
     virtual TJobPtr GetStartedJob(const TJobId& jobId) const = 0;
 
+    //! Returns |true| if node has enough resources to start job with given limits.
+    virtual bool CanStartJob(const TJobResources& jobResources) const = 0;
     //! Returns |true| if any more new jobs can be scheduled at this node.
     virtual bool CanStartMoreJobs() const = 0;
     //! Returns |true| if the node can handle jobs demanding a certain #tag.
@@ -52,6 +54,8 @@ struct ISchedulingContext
      *  \note Thread affinity: any
      */
     virtual TJobId GenerateJobId() = 0;
+
+    virtual TJobResources GetFreeResources() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulingContext)
