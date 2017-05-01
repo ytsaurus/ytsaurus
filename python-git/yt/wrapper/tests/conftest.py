@@ -141,6 +141,9 @@ class YtTestEnvironment(object):
                 if delta_proxy_config:
                     update(config, delta_proxy_config)
 
+        local_temp_directory = os.path.join(TESTS_SANDBOX, "tmp")
+        os.mkdir(local_temp_directory)
+
         self.env = YTInstance(dir,
                               master_count=1,
                               node_count=5,
@@ -189,6 +192,7 @@ class YtTestEnvironment(object):
         self.config["pickling"]["enable_tmpfs_archive"] = ENABLE_JOB_CONTROL
         self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__
         self.config["driver_config"] = self.env.configs["driver"]
+        self.config["local_temp_directory"] = local_temp_directory
         update(yt.config.config, self.config)
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
