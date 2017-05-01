@@ -497,16 +497,6 @@ void TChunkStoreBase::SetPreloadFuture(TFuture<void> future)
     PreloadFuture_ = std::move(future);
 }
 
-TFuture<void> TChunkStoreBase::GetPreloadBackoffFuture() const
-{
-    return PreloadBackoffFuture_;
-}
-
-void TChunkStoreBase::SetPreloadBackoffFuture(TFuture<void> future)
-{
-    PreloadBackoffFuture_ = std::move(future);
-}
-
 EStoreCompactionState TChunkStoreBase::GetCompactionState() const
 {
     return CompactionState_;
@@ -641,24 +631,24 @@ void TChunkStoreBase::PrecacheProperties()
     MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
 }
 
-TInstant TChunkStoreBase::GetLastPreloadAttemptTimestamp() const
+bool TChunkStoreBase::IsPreloadAllowed() const
 {
-    return LastPreloadAttemptTimestamp_;
+    return Now() > AllowedPreloadTimestamp_;
 }
 
-void TChunkStoreBase::UpdatePreloadAttemptTimestamp()
+void TChunkStoreBase::UpdatePreloadAttempt()
 {
-    LastPreloadAttemptTimestamp_ = Now();
+    AllowedPreloadTimestamp_ = Now() + Config_->ErrorBackoffTime;
 }
 
-TInstant TChunkStoreBase::GetLastCompactionAttemptTimestamp() const
+bool TChunkStoreBase::IsCompactionAllowed() const
 {
-    return LastCompactionAttemptTimestamp_;
+    return Now() > AllowedCompactionTimestamp_;
 }
 
-void TChunkStoreBase::UpdateCompactionAttemptTimestamp()
+void TChunkStoreBase::UpdateCompactionAttempt()
 {
-    LastCompactionAttemptTimestamp_ = Now();
+    AllowedCompactionTimestamp_ = Now() + Config_->ErrorBackoffTime;
 }
 
 TInstant TChunkStoreBase::GetCreationTime() const

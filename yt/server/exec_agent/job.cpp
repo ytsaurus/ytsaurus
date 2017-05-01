@@ -1086,6 +1086,9 @@ private:
             {
                 return EAbortReason::Other;
             }
+            if (exitCode == EJobProxyExitCode::ResourceOverdraft) {
+                return EAbortReason::ResourceOverdraft;
+            }
         }
 
         if (Signaled_) {

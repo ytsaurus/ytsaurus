@@ -825,6 +825,7 @@ protected:
 
     bool GetCommitting();
     void SetCommitting();
+    void SetCommitted();
 
     // Revival.
     void ReinstallLivePreview();

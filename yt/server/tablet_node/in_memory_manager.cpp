@@ -182,16 +182,6 @@ private:
 
     void ScanSlot(TTabletSlotPtr slot)
     {
-        if (IsMemoryLimitExceeded()) {
-            LOG_DEBUG("Store preload is disabled due to memory pressure (CellId: %v)",
-                slot->GetCellId());
-            return;
-        }
-
-        if (slot->GetAutomatonState() != EPeerState::Leading) {
-            return;
-        }
-
         const auto& tabletManager = slot->GetTabletManager();
         for (const auto& pair : tabletManager->Tablets()) {
             auto* tablet = pair.second;
@@ -244,25 +234,30 @@ private:
         IStoreManagerPtr storeManager)
     {
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v, StoreId: %v",
+        Logger.AddTag("TabletId: %v, StoreId: %v, CellId: %v",
             tablet->GetId(),
-            store->GetId());
+            store->GetId(),
+            slot->GetCellId());
 
         auto invoker = tablet->GetEpochAutomatonInvoker();
 
         try {
+            auto revision = storeManager->GetInMemoryConfigRevision();
             auto finalizer = Finally(
                 [&] () {
                     LOG_WARNING("Backing off tablet store preload");
-                    store->SetPreloadBackoffFuture(
-                        BIND(&IStoreManager::BackoffStorePreload, storeManager, store)
-                            .AsyncVia(invoker)
-                            .Run());
+                    invoker->Invoke(BIND([revision, storeManager, store] {
+                        if (storeManager->GetInMemoryConfigRevision() == revision) {
+                            storeManager->BackoffStorePreload(store);
+                        }
+                    }));
                 });
-            if (!IsMemoryLimitExceeded()) {
-                auto tabletSnapshot = Bootstrap_->GetTabletSlotManager()->FindTabletSnapshot(tablet->GetId());
-                PreloadInMemoryStore(tabletSnapshot, store, CompressionInvoker_);
+            if (IsMemoryLimitExceeded()) {
+                LOG_INFO("Store preload is disabled due to memory pressure");
+                return;
             }
+            auto tabletSnapshot = Bootstrap_->GetTabletSlotManager()->FindTabletSnapshot(tablet->GetId());
+            PreloadInMemoryStore(tabletSnapshot, store, CompressionInvoker_);
             finalizer.Release();
             storeManager->EndStorePreload(store);
         } catch (const std::exception& ex) {

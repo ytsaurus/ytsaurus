@@ -1,11 +1,8 @@
-#pragma once
 #ifndef SYNC_CACHE_INL_H_
 #error "Direct inclusion of this file is not allowed, include sync_cache.h"
 #endif
 
 #include "config.h"
-
-#include <util/system/yield.h>
 
 namespace NYT {
 
@@ -25,59 +22,83 @@ TSyncCacheValueBase<TKey, TValue, THash>::TSyncCacheValueBase(const TKey& key)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash>
+TSyncSlruCacheBase<TKey, TValue, THash>::TItem::TItem(TValuePtr value)
+    : Value(std::move(value))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TValue, class THash>
 TSyncSlruCacheBase<TKey, TValue, THash>::TSyncSlruCacheBase(
     TSlruCacheConfigPtr config,
     const NProfiling::TProfiler& profiler)
     : Config_(std::move(config))
-    , TouchBuffer_(Config_->TouchBufferCapacity)
     , Profiler(profiler)
     , HitWeightCounter_("/hit")
     , MissedWeightCounter_("/missed")
     , DroppedWeightCounter_("/dropped")
     , YoungerWeightCounter_("/younger")
     , OlderWeightCounter_("/older")
-{ }
+{
+    Shards_.reset(new TShard[Config_->ShardCount]);
+    for (int index = 0; index < Config_->ShardCount; ++index) {
+        Shards_[index].TouchBuffer.resize(Config_->TouchBufferCapacity);
+    }
+}
 
 template <class TKey, class TValue, class THash>
 void TSyncSlruCacheBase<TKey, TValue, THash>::Clear()
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    for (auto& shard : Shards_) {
+        NConcurrency::TWriterGuard guard(shard.SpinLock);
 
-    TouchBufferPosition_ = 0;
+        shard.TouchBufferPosition = 0;
 
-    ItemMap_.clear();
-    ItemMapSize_ = 0;
+        shard.ItemMap.clear();
 
-    TIntrusiveListWithAutoDelete<TItem, TDelete> youngerLruList;
-    YoungerLruList_.Swap(youngerLruList);
-    Profiler.Update(YoungerWeightCounter_, 0);
+        TIntrusiveListWithAutoDelete<TItem, TDelete> youngerLruList;
+        shard.YoungerLruList_.Swap(youngerLruList);
 
-    TIntrusiveListWithAutoDelete<TItem, TDelete> olderLruList;
-    OlderLruList_.Swap(olderLruList);
-    Profiler.Update(OlderWeightCounter_, 0);
+        TIntrusiveListWithAutoDelete<TItem, TDelete> olderLruList;
+        shard.OlderLruList.Swap(olderLruList);
 
-    Profiler.Update(HitWeightCounter_, 0);
-    Profiler.Update(MissedWeightCounter_, 0);
-    Profiler.Update(DroppedWeightCounter_, 0);
+        guard.Release();
 
-    guard.Release();
+        int totalItemCount = 0;
+        i64 totalYoungerWeight = 0;
+        i64 totalOlderWeight = 0;
+        for (const auto& item : youngerLruList) {
+            totalYoungerWeight += GetWeight(item.Value);
+            ++totalItemCount;
+        }
+        for (const auto& item : olderLruList) {
+            totalOlderWeight += GetWeight(item.Value);
+            ++totalItemCount;
+        }
 
-    // NB: Lists must die outside the critical section.
+        Profiler.Increment(YoungerWeightCounter_, -totalYoungerWeight);
+        Profiler.Increment(OlderWeightCounter_, -totalOlderWeight);
+        Size_ -= totalItemCount;
+
+        // NB: Lists must die outside the critical section.
+    }
 }
 
 template <class TKey, class TValue, class THash>
 typename TSyncSlruCacheBase<TKey, TValue, THash>::TValuePtr
 TSyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 {
-    NConcurrency::TReaderGuard readerGuard(SpinLock_);
+    auto* shard = GetShardByKey(key);
 
-    auto itemIt = ItemMap_.find(key);
-    if (itemIt == ItemMap_.end()) {
+    NConcurrency::TReaderGuard readerGuard(shard->SpinLock);
+
+    auto itemIt = shard->ItemMap.find(key);
+    if (itemIt == shard->ItemMap.end()) {
         return nullptr;
     }
 
     auto* item = itemIt->second;
-    bool needToDrain = Touch(item);
+    bool needToDrain = Touch(shard, item);
     auto value = item->Value;
 
     auto weight = GetWeight(item->Value);
@@ -86,8 +107,8 @@ TSyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
     readerGuard.Release();
 
     if (needToDrain) {
-        NConcurrency::TWriterGuard writerGuard(SpinLock_);
-        DrainTouchBuffer();
+        NConcurrency::TWriterGuard writerGuard(shard->SpinLock);
+        DrainTouchBuffer(shard);
     }
 
     return value;
@@ -97,28 +118,30 @@ template <class TKey, class TValue, class THash>
 std::vector<typename TSyncSlruCacheBase<TKey, TValue, THash>::TValuePtr>
 TSyncSlruCacheBase<TKey, TValue, THash>::GetAll()
 {
-    NConcurrency::TReaderGuard guard(SpinLock_);
-
     std::vector<TValuePtr> result;
-    result.reserve(ItemMap_.size());
-    for (const auto& pair : ItemMap_) {
-        result.push_back(pair.second->Value);
+    result.reseve(GetSize());
+    for (const auto& shard : Shards_) {
+        NConcurrency::TReaderGuard guard(shard->SpinLock);
+        for (const auto& pair : shard->ItemMap) {
+            result.push_back(pair.second->Value);
+        }
     }
     return result;
 }
 
 template <class TKey, class TValue, class THash>
-bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(TValuePtr value, TValuePtr* existingValue)
+bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(const TValuePtr& value, TValuePtr* existingValue)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
-
-    DrainTouchBuffer();
-
     const auto& key = value->GetKey();
     auto weight = GetWeight(value);
+    auto* shard = GetShardByKey(key);
 
-    auto itemIt = ItemMap_.find(key);
-    if (itemIt != ItemMap_.end()) {
+    NConcurrency::TWriterGuard guard(shard->SpinLock);
+
+    DrainTouchBuffer(shard);
+
+    auto itemIt = shard->ItemMap.find(key);
+    if (itemIt != shard->ItemMap.end()) {
         Profiler.Increment(DroppedWeightCounter_, weight);
         if (existingValue) {
             *existingValue = itemIt->second->Value;
@@ -127,15 +150,15 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(TValuePtr value, TValueP
     }
 
     auto* item = new TItem(value);
-    YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
-    ++ItemMapSize_;
+    YCHECK(shard->ItemMap.insert(std::make_pair(key, item)).second);
+    ++Size_;
 
     Profiler.Increment(MissedWeightCounter_, weight);
 
-    PushToYounger(item);
+    PushToYounger(shard, item);
 
     // NB: Releases the lock.
-    Trim(guard);
+    Trim(shard, guard);
 
     OnAdded(value);
 
@@ -143,28 +166,28 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(TValuePtr value, TValueP
 }
 
 template <class TKey, class TValue, class THash>
-void TSyncSlruCacheBase<TKey, TValue, THash>::Trim(NConcurrency::TWriterGuard& guard)
+void TSyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency::TWriterGuard& guard)
 {
     // Move from older to younger.
-    while (!OlderLruList_.Empty() &&
+    while (!shard->OlderLruList.Empty() &&
            OlderWeightCounter_.Current > Config_->Capacity * (1 - Config_->YoungerSizeFraction))
     {
-        auto* item = &*(--OlderLruList_.End());
-        MoveToYounger(item);
+        auto* item = &*(--shard->OlderLruList.End());
+        MoveToYounger(shard, item);
     }
 
     // Evict from younger.
     std::vector<TValuePtr> evictedValues;
-    while (!YoungerLruList_.Empty() &&
+    while (!shard->YoungerLruList.Empty() &&
            YoungerWeightCounter_.Current + OlderWeightCounter_.Current > Config_->Capacity)
     {
-        auto* item = &*(--YoungerLruList_.End());
+        auto* item = &*(--shard->YoungerLruList.End());
         auto value = item->Value;
 
         Pop(item);
 
-        YCHECK(ItemMap_.erase(value->GetKey()) == 1);
-        --ItemMapSize_;
+        YCHECK(shard->ItemMap.erase(value->GetKey()) == 1);
+        --Size_;
 
         evictedValues.emplace_back(std::move(item->Value));
 
@@ -181,20 +204,22 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Trim(NConcurrency::TWriterGuard& g
 template <class TKey, class TValue, class THash>
 bool TSyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto* shard = GetShardByKey(key);
 
-    DrainTouchBuffer();
+    NConcurrency::TWriterGuard guard(shard->SpinLock);
 
-    auto it = ItemMap_.find(key);
-    if (it == ItemMap_.end()) {
+    DrainTouchBuffer(shard);
+
+    auto it = shard->ItemMap.find(key);
+    if (it == shard->ItemMap.end()) {
         return false;
     }
 
     auto* item = it->second;
     auto value = item->Value;
 
-    ItemMap_.erase(it);
-    --ItemMapSize_;
+    shard->ItemMap.erase(it);
+    --Size_;
 
     Pop(item);
 
@@ -208,14 +233,17 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
-bool TSyncSlruCacheBase<TKey, TValue, THash>::TryRemove(TValuePtr value)
+bool TSyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TValuePtr& value)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    const auto& key = value->GetKey();
+    auto* shard = GetShardByKey(key);
 
-    DrainTouchBuffer();
+    NConcurrency::TWriterGuard guard(shard->SpinLock);
 
-    auto itemIt = ItemMap_.find(value->GetKey());
-    if (itemIt == ItemMap_.end()) {
+    DrainTouchBuffer(shard);
+
+    auto itemIt = shard->ItemMap.find(key);
+    if (itemIt == shard->ItemMap.end()) {
         return false;
     }
 
@@ -224,8 +252,8 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryRemove(TValuePtr value)
         return false;
     }
 
-    ItemMap_.erase(itemIt);
-    --ItemMapSize_;
+    shard->ItemMap.erase(itemIt);
+    --Size_;
 
     Pop(item);
 
@@ -239,10 +267,16 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryRemove(TValuePtr value)
 }
 
 template <class TKey, class TValue, class THash>
-bool TSyncSlruCacheBase<TKey, TValue, THash>::Touch(TItem* item)
+auto TSyncSlruCacheBase<TKey, TValue, THash>::GetShardByKey(const TKey& key) const -> TShard*
 {
-    int capacity = TouchBuffer_.size();
-    int index = TouchBufferPosition_++;
+    return &Shards_[THash()(key) % Config_->ShardCount];
+}
+
+template <class TKey, class TValue, class THash>
+bool TSyncSlruCacheBase<TKey, TValue, THash>::Touch(TShard* shard, TItem* item)
+{
+    int capacity = shard->TouchBuffer.size();
+    int index = shard->TouchBufferPosition++;
     if (index >= capacity) {
         // Drop touch request due to buffer overflow.
         // NB: We still return false since the other thread is already responsible for
@@ -250,20 +284,20 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::Touch(TItem* item)
         return false;
     }
 
-    TouchBuffer_[index] = item;
+    shard->TouchBuffer[index] = item;
     return index == capacity - 1;
 }
 
 template <class TKey, class TValue, class THash>
-void TSyncSlruCacheBase<TKey, TValue, THash>::DrainTouchBuffer()
+void TSyncSlruCacheBase<TKey, TValue, THash>::DrainTouchBuffer(TShard* shard)
 {
     int count = std::min(
-        TouchBufferPosition_.load(),
-        static_cast<int>(TouchBuffer_.size()));
+        shard->TouchBufferPosition.load(),
+        static_cast<int>(shard->TouchBuffer.size()));
     for (int index = 0; index < count; ++index) {
-        MoveToOlder(TouchBuffer_[index]);
+        MoveToOlder(shard, shard->TouchBuffer[index]);
     }
-    TouchBufferPosition_ = 0;
+    shard->TouchBufferPosition = 0;
 }
 
 template <class TKey, class TValue, class THash>
@@ -283,25 +317,25 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::OnRemoved(const TValuePtr& /*value
 template <class TKey, class TValue, class THash>
 int TSyncSlruCacheBase<TKey, TValue, THash>::GetSize() const
 {
-    return ItemMapSize_;
+    return Size_.load(std::memory_order_relaxed);
 }
 
 template <class TKey, class TValue, class THash>
-void TSyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TItem* item)
+void TSyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TShard* shard, TItem* item)
 {
     Y_ASSERT(item->Empty());
-    YoungerLruList_.PushFront(item);
+    shard->YoungerLruList.PushFront(item);
     auto weight = GetWeight(item->Value);
     Profiler.Increment(YoungerWeightCounter_, +weight);
     item->Younger = true;
 }
 
 template <class TKey, class TValue, class THash>
-void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TItem* item)
+void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TShard* shard, TItem* item)
 {
     Y_ASSERT(!item->Empty());
     item->Unlink();
-    YoungerLruList_.PushFront(item);
+    shard->YoungerLruList.PushFront(item);
     if (!item->Younger) {
         auto weight = GetWeight(item->Value);
         Profiler.Increment(OlderWeightCounter_, -weight);
@@ -311,11 +345,11 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TItem* item)
 }
 
 template <class TKey, class TValue, class THash>
-void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TItem* item)
+void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TShard* shard, TItem* item)
 {
     Y_ASSERT(!item->Empty());
     item->Unlink();
-    OlderLruList_.PushFront(item);
+    shard->OlderLruList.PushFront(item);
     if (item->Younger) {
         auto weight = GetWeight(item->Value);
         Profiler.Increment(YoungerWeightCounter_, -weight);
@@ -327,8 +361,9 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TItem* item)
 template <class TKey, class TValue, class THash>
 void TSyncSlruCacheBase<TKey, TValue, THash>::Pop(TItem* item)
 {
-    if (item->Empty())
+    if (item->Empty()) {
         return;
+    }
     auto weight = GetWeight(item->Value);
     if (item->Younger) {
         Profiler.Increment(YoungerWeightCounter_, -weight);
