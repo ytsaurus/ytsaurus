@@ -1522,8 +1522,6 @@ void TOperationControllerBase::SafeMaterialize()
 
         CreateLivePreviewTables();
 
-        LockLivePreviewTables();
-
         CollectTotals();
 
         CustomPrepare();
@@ -1619,7 +1617,7 @@ void TOperationControllerBase::SafeRevive()
 
     InitChunkListPool();
 
-    LockLivePreviewTables();
+    CreateLivePreviewTables();
 
     AbortAllJoblets();
 
@@ -3931,6 +3929,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         }
         ToProto(req->mutable_node_attributes(), *attributes);
         GenerateMutationId(req);
+        SetTransactionId(req, AsyncSchedulerTransaction->GetId());
 
         batchReq->AddRequest(req, key);
     };
@@ -4030,48 +4029,6 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
         LOG_INFO("Live preview for intermediate table created");
     }
-}
-
-void TOperationControllerBase::LockLivePreviewTables()
-{
-    auto channel = Host->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-    TObjectServiceProxy proxy(channel);
-
-    auto batchReq = proxy.ExecuteBatch();
-
-    auto addRequest = [&] (const TLivePreviewTableBase& table, const Stroka& key) {
-        auto req = TCypressYPathProxy::Lock(FromObjectId(table.LivePreviewTableId));
-        req->set_mode(static_cast<int>(ELockMode::Exclusive));
-        SetTransactionId(req, AsyncSchedulerTransaction->GetId());
-        GenerateMutationId(req);
-        batchReq->AddRequest(req, key);
-    };
-
-    if (IsOutputLivePreviewSupported()) {
-        LOG_INFO("Locking live preview for output tables");
-        for (const auto& table : OutputTables) {
-            addRequest(table, "lock_output");
-        }
-    }
-
-    if (StderrTable) {
-        LOG_INFO("Locking live preview for stderr table");
-        addRequest(*StderrTable, "lock_output");
-    }
-
-    if (IsIntermediateLivePreviewSupported()) {
-        LOG_INFO("Locking live preview for intermediate table");
-        addRequest(IntermediateTable, "lock_intermediate");
-    }
-
-    if (batchReq->GetSize() == 0) {
-        return;
-    }
-
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking live preview tables");
-
-    LOG_INFO("Live preview tables locked");
 }
 
 void TOperationControllerBase::FetchInputTables()
