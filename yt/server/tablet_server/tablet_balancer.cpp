@@ -57,7 +57,7 @@ public:
             BIND(&TImpl::Balance, MakeWeak(this)),
             Config_->BalancePeriod))
         , EnabledCheckExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(),
             BIND(&TImpl::OnCheckEnabled, MakeWeak(this)),
             Config_->EnabledCheckPeriod))
         , Profiler("/tablet_server/tablet_balancer")
@@ -71,17 +71,23 @@ public:
     {
         BalanceExecutor_->Start();
         EnabledCheckExecutor_->Start();
+        Started_ = true;
     }
 
     void Stop()
     {
         EnabledCheckExecutor_->Stop();
         BalanceExecutor_->Stop();
+        Started_ = false;
     }
 
     void OnTabletHeartbeat(TTablet* tablet)
     {
         if (!Enabled_) {
+            return;
+        }
+
+        if (!Started_) {
             return;
         }
 
@@ -138,6 +144,7 @@ private:
     const NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
 
     bool Enabled_ = false;
+    bool Started_ = false;
     std::deque<TTabletId> TabletIdQueue_;
     yhash_set<TTabletId> QueuedTabletIds_;
 
@@ -424,6 +431,15 @@ private:
 
     void OnCheckEnabled()
     {
+        if (!Bootstrap_->IsPrimaryMaster()) {
+            return;
+        }
+
+        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+        if (!hydraFacade->GetHydraManager()->IsActiveLeader()) {
+            return;
+        }
+
         const auto& worldInitializer = Bootstrap_->GetWorldInitializer();
         if (!worldInitializer->IsInitialized()) {
             return;
@@ -432,11 +448,7 @@ private:
         auto wasEnabled = Enabled_;
 
         try {
-            if (Bootstrap_->IsPrimaryMaster()) {
-                Enabled_ = OnCheckEnabledPrimary();
-            } else {
-                Enabled_ = false;
-            }
+            Enabled_ = IsEnabled();
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error updating tablet balancer state, disabling until the next attempt");
             Enabled_ = false;
@@ -447,7 +459,14 @@ private:
         }
     }
 
-    bool OnCheckEnabledPrimary()
+    bool IsEnabled()
+    {
+        return
+            IsEnabledByFlag() &&
+            IsEnabledWorkHours();
+    }
+
+    bool IsEnabledByFlag()
     {
         bool enabled = true;
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -459,11 +478,10 @@ private:
             }
             enabled = false;
         }
-        return enabled ? OnCheckEnabledWorkHours() : false;
-
+        return enabled;
     }
 
-    bool OnCheckEnabledWorkHours()
+    bool IsEnabledWorkHours()
     {
         bool enabled = true;
         const auto& cypressManager = Bootstrap_->GetCypressManager();
