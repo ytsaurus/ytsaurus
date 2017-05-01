@@ -127,6 +127,7 @@ public:
         : TMasterAutomatonPart(bootstrap)
         , Config_(config)
         , TabletTracker_(New<TTabletTracker>(Config_, Bootstrap_))
+        , TabletBalancer_(New<TTabletBalancer>(Config_->TabletBalancer, Bootstrap_))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
@@ -2269,7 +2270,7 @@ private:
     const TTabletManagerConfigPtr Config_;
 
     const TTabletTrackerPtr TabletTracker_;
-    TTabletBalancerPtr TabletBalancer_;
+    const TTabletBalancerPtr TabletBalancer_;
 
     TEntityMap<TTabletCellBundle> TabletCellBundleMap_;
     TEntityMap<TTabletCell> TabletCellMap_;
@@ -2747,9 +2748,7 @@ private:
                 PopulateTableReplicaInfoFromStatistics(replicaInfo, protoReplicaInfo.statistics());
             }
 
-            if (TabletBalancer_) {
-                TabletBalancer_->OnTabletHeartbeat(tablet);
-            }
+            TabletBalancer_->OnTabletHeartbeat(tablet);
         }
     }
 
@@ -3446,8 +3445,6 @@ private:
 
         if (Bootstrap_->IsPrimaryMaster()) {
             TabletTracker_->Start();
-
-            TabletBalancer_ = New<TTabletBalancer>(Config_->TabletBalancer, Bootstrap_);
             TabletBalancer_->Start();
         }
 
@@ -3465,11 +3462,7 @@ private:
         TMasterAutomatonPart::OnStopLeading();
 
         TabletTracker_->Stop();
-
-        if (TabletBalancer_) {
-            TabletBalancer_->Stop();
-            TabletBalancer_.Reset();
-        }
+        TabletBalancer_->Stop();
 
         if (CleanupExecutor_) {
             CleanupExecutor_->Stop();
