@@ -119,7 +119,7 @@ public:
     TMasterHydraManagerConfigPtr HydraManager;
 
     NHiveClient::TCellDirectoryConfigPtr CellDirectory;
-    NHiveClient::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
+    NHiveServer::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
     NHiveServer::THiveManagerConfigPtr HiveManager;
 
     NNodeTrackerServer::TNodeTrackerConfigPtr NodeTracker;

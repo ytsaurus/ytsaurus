@@ -114,9 +114,6 @@ public:
     //! Returns the list of all registered cells, their versions, and configurations.
     std::vector<TCellInfo> GetRegisteredCells();
 
-    //! Populates the directory with the entries of the remote one via Hive RPC interface.
-    TFuture<void> Synchronize(NRpc::IChannelPtr channel);
-
     //! Returns |true| if the cell was unregistered by calling #UnregisterCell.
     bool IsCellUnregistered(const TCellId& cellId);
 

@@ -19,6 +19,7 @@
 #include <yt/server/hive/transaction_manager.h>
 #include <yt/server/hive/transaction_supervisor.h>
 #include <yt/server/hive/transaction_participant_provider.h>
+#include <yt/server/hive/cell_directory_synchronizer.h>
 
 #include <yt/server/hydra/changelog.h>
 #include <yt/server/hydra/file_snapshot_store.h>
@@ -64,7 +65,6 @@
 #include <yt/ytlib/election/cell_manager.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
-#include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 
@@ -466,13 +466,6 @@ void TBootstrap::DoInitialize()
 
     WorldInitializer_ = New<TWorldInitializer>(Config_, this);
 
-    if (SecondaryMaster_) {
-        CellDirectorySynchronizer_ = New<TCellDirectorySynchronizer>(
-            Config_->CellDirectorySynchronizer,
-            CellDirectory_,
-            PrimaryCellId_);
-    }
-
     HiveManager_ = New<THiveManager>(
         Config_->HiveManager,
         CellDirectory_,
@@ -534,9 +527,14 @@ void TBootstrap::DoInitialize()
     CypressManager_->Initialize();
     ChunkManager_->Initialize();
     TabletManager_->Initialize();
-    if (CellDirectorySynchronizer_) {
-        CellDirectorySynchronizer_->Start();
-    }
+
+    CellDirectorySynchronizer_ = New<NHiveServer::TCellDirectorySynchronizer>(
+        Config_->CellDirectorySynchronizer,
+        CellDirectory_,
+        TabletManager_,
+        HydraFacade_->GetHydraManager(),
+        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::HiveManager));
+    CellDirectorySynchronizer_->Start();
 
     MonitoringManager_ = New<TMonitoringManager>();
     MonitoringManager_->Register(
