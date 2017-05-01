@@ -865,7 +865,6 @@ protected:
     void LockUserFiles();
     void GetUserFilesAttributes();
     void CreateLivePreviewTables();
-    void LockLivePreviewTables();
     void CollectTotals();
     virtual void CustomPrepare();
     void AddAllTaskPendingHints();

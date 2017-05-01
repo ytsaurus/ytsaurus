@@ -1341,7 +1341,10 @@ done
                     reduce_by=["foo"])
 
         time.sleep(2)
-        assert exists("//sys/operations/{0}/output_0".format(op.id))
+
+        operation_path = "//sys/operations/{0}".format(op.id)
+        scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        assert exists(operation_path + "/output_0", tx=scheduler_transaction_id)
 
         op.track()
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
