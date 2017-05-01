@@ -109,14 +109,11 @@ struct IChunkStore
     virtual EStorePreloadState GetPreloadState() const = 0;
     virtual void SetPreloadState(EStorePreloadState state) = 0;
 
-    virtual TInstant GetLastPreloadAttemptTimestamp() const = 0;
-    virtual void UpdatePreloadAttemptTimestamp() = 0;
+    virtual bool IsPreloadAllowed() const = 0;
+    virtual void UpdatePreloadAttempt() = 0;
 
     virtual TFuture<void> GetPreloadFuture() const = 0;
     virtual void SetPreloadFuture(TFuture<void> future) = 0;
-
-    virtual TFuture<void> GetPreloadBackoffFuture() const = 0;
-    virtual void SetPreloadBackoffFuture(TFuture<void> future) = 0;
 
     virtual NChunkClient::IChunkReaderPtr GetChunkReader() = 0;
 
@@ -128,8 +125,8 @@ struct IChunkStore
     virtual EStoreCompactionState GetCompactionState() const = 0;
     virtual void SetCompactionState(EStoreCompactionState state) = 0;
 
-    virtual TInstant GetLastCompactionAttemptTimestamp() const = 0;
-    virtual void UpdateCompactionAttemptTimestamp() = 0;
+    virtual bool IsCompactionAllowed() const = 0;
+    virtual void UpdateCompactionAttempt() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStore)

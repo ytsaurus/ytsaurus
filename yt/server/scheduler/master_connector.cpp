@@ -90,6 +90,11 @@ public:
         return Connected;
     }
 
+    void Disconnect()
+    {
+        DoDisconnect();
+    }
+
     IInvokerPtr GetCancelableControlInvoker() const
     {
         return CancelableControlInvoker;
@@ -761,7 +766,7 @@ private:
     }
 
 
-    void Disconnect()
+    void DoDisconnect()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -842,6 +847,8 @@ private:
             attributes.Get<TTransactionId>("output_transaction_id"),
             true,
             "output transaction");
+
+        result.IsCommitted = attributes.Get<bool>("is_committed", false);
 
         // COMPAT(ermolovd). We use NullTransactionId as default value for the transition period.
         // Once all clusters are updated to version that creates debug_output transaction
@@ -2051,6 +2058,11 @@ void TMasterConnector::Start()
 bool TMasterConnector::IsConnected() const
 {
     return Impl->IsConnected();
+}
+
+void TMasterConnector::Disconnect()
+{
+    return Impl->Disconnect();
 }
 
 IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const
