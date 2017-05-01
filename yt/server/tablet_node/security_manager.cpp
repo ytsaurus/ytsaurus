@@ -273,15 +273,15 @@ public:
             return VoidFuture;
         }
 
-        if (tabletSnapshot->ReplicationMode == NTableClient::ETableReplicationMode::AsynchronousSink &&
-            permission == EPermission::Write &&
-            *maybeUser != NSecurityClient::ReplicatorUserName)
-        {
-            THROW_ERROR_EXCEPTION("Only %Qv is allowed to write into tables with %Qlv replication mode",
-                NSecurityClient::ReplicatorUserName,
-                tabletSnapshot->ReplicationMode);
-        }
-
+        //if (tabletSnapshot->ReplicationMode == NTableClient::ETableReplicationMode::AsynchronousSink &&
+        //    permission == EPermission::Write &&
+        //    *maybeUser != NSecurityClient::ReplicatorUserName)
+        //{
+        //    THROW_ERROR_EXCEPTION("Only %Qv is allowed to write into tables with %Qlv replication mode",
+        //        NSecurityClient::ReplicatorUserName,
+        //        tabletSnapshot->ReplicationMode);
+        //}
+        //
         TTablePermissionKey key{tabletSnapshot->TableId, *maybeUser, permission};
         return TablePermissionCache_->Get(key);
     }

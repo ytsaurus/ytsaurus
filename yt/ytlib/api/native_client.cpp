@@ -3804,6 +3804,11 @@ private:
 
         int Prepare()
         {
+            if (!VersionedSubmittedRows_.empty() && !UnversionedSubmittedRows_.empty()) {
+                THROW_ERROR_EXCEPTION("Cannot intermix versioned and unversioned writes to a single table "
+                    "within a transaction");
+            }
+
             if (TableInfo_->IsSorted()) {
                 PrepareSortedBatches();
             } else {
@@ -3856,6 +3861,8 @@ private:
         };
 
         std::vector<std::unique_ptr<TBatch>> Batches_;
+
+        bool Versioned_ = false;
 
         struct TVersionedSubmittedRow
         {
@@ -4017,13 +4024,19 @@ private:
             req->set_signature(cellSession->AllocateRequestSignature());
             req->set_request_codec(static_cast<int>(Config_->WriteRequestCodec));
             req->set_row_count(batch->RowCount);
+            req->set_lockless(
+                owner->GetAtomicity() == EAtomicity::None ||
+                TableInfo_->IsOrdered() ||
+                TableInfo_->ReplicationMode == ETableReplicationMode::Source ||
+                !VersionedSubmittedRows_.empty());
             req->Attachments().push_back(batch->RequestData);
 
-            LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x)",
+            LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x, Lockless: %v)",
                 InvokeBatchIndex_,
                 Batches_.size(),
                 batch->RowCount,
-                req->signature());
+                req->signature(),
+                req->lockless());
 
             req->Invoke().Subscribe(
                 BIND(&TTabletCommitSession::OnResponse, MakeStrong(this))
