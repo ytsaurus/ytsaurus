@@ -191,7 +191,10 @@ def get_started_by():
 
 def is_inside_job():
     """Returns `True` if the code is currently being run in the context of a YT job."""
-    return bool(int(os.environ.get("YT_WRAPPER_IS_INSIDE_JOB", "0")))
+    if "YT_WRAPPER_IS_INSIDE_JOB" in os.environ:
+        return bool(int(os.environ.get("YT_WRAPPER_IS_INSIDE_JOB", "0")))
+    else:
+        return "YT_JOB_ID" in os.environ
 
 
 @decorator
