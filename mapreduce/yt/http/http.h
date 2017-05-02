@@ -64,7 +64,7 @@ private:
     const Stroka Command;
     const bool IsApi;
 
-    yhash_map<Stroka, Stroka> Params;
+    yhash<Stroka, Stroka> Params;
 
     Stroka Token;
 
@@ -92,7 +92,7 @@ public:
     TAddressPtr Resolve(const Stroka& hostName);
 
 private:
-    yhash_map<Stroka, TAddressPtr> Cache_;
+    yhash<Stroka, TAddressPtr> Cache_;
     TRWMutex Lock_;
 };
 

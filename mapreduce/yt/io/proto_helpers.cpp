@@ -29,7 +29,7 @@ namespace {
 
 int SaveDependencies(
     FileDescriptorSet& set,
-    yhash_map<const FileDescriptor*, int>& saved,
+    yhash<const FileDescriptor*, int>& saved,
     const FileDescriptor* fileDescriptor)
 {
     auto* check = saved.FindPtr(fileDescriptor);
@@ -73,7 +73,7 @@ yvector<const Descriptor*> GetJobDescriptors(const Stroka& fileName)
 TNode MakeProtoFormatConfig(const yvector<const Descriptor*>& descriptors)
 {
     FileDescriptorSet set;
-    yhash_map<const FileDescriptor*, int> saved;
+    yhash<const FileDescriptor*, int> saved;
     yvector<int> fileIndices;
     yvector<int> messageIndices;
 

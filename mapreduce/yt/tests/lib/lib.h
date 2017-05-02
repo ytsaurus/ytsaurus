@@ -12,7 +12,7 @@ namespace NTest {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTestMap
-    : public yhash_map<Stroka, std::function<void(NUnitTest::TTestContext&)>>
+    : public yhash<Stroka, std::function<void(NUnitTest::TTestContext&)>>
 {
     static TTestMap* Get()
     {

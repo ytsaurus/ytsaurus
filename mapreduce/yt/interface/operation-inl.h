@@ -406,8 +406,8 @@ public:
     }
 
 private:
-    yhash_map<const std::type_info*, Stroka> JobNames;
-    yhash_map<Stroka, TJobFunction> JobFunctions;
+    yhash<const std::type_info*, Stroka> JobNames;
+    yhash<Stroka, TJobFunction> JobFunctions;
 
     void CheckNotRegistered(const std::type_info* typeInfoPtr, const char* name)
     {
