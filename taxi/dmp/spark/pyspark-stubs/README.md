@@ -108,7 +108,7 @@ Currently this project uses Spark 2.1.0 as a reference.
 | pyspark.streaming.context                          | ✘                 | ✔                |                  |
 | pyspark.streaming.dstream                          | ✘                 | ✔                |                  |
 | pyspark.streaming.flume                            | ✔                 | ✘                |                  |
-| pyspark.streaming.kafka                            | ✔                 | ✘                |                  |
+| pyspark.streaming.kafka                            | ✘                 | ✔                |                  |
 | pyspark.streaming.kinesis                          | ✔                 | ✘                |                  |
 | pyspark.streaming.listener                         | ✔                 | ✘                |                  |
 | <s>pyspark.streaming.tests</s>                     | ✘                 | ✘                | Tests            |
