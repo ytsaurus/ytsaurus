@@ -279,7 +279,7 @@ public:
             }
 
             // Track ids appearing in various branches of the tree.
-            yhash_map<Stroka, TYPath> poolIdToPath;
+            yhash<Stroka, TYPath> poolIdToPath;
 
             // NB: std::function is needed by parseConfig to capture itself.
             std::function<void(INodePtr, TCompositeSchedulerElementPtr)> parseConfig =
@@ -603,12 +603,12 @@ private:
     ISchedulerStrategyHost* const Host;
 
     INodePtr LastPoolsNodeUpdate;
-    typedef yhash_map<Stroka, TPoolPtr> TPoolMap;
+    typedef yhash<Stroka, TPoolPtr> TPoolMap;
     TPoolMap Pools;
 
-    yhash_map<Stroka, yhash_set<Stroka>> UserToEphemeralPools;
+    yhash<Stroka, yhash_set<Stroka>> UserToEphemeralPools;
 
-    typedef yhash_map<TOperationId, TOperationElementPtr> TOperationElementPtrByIdMap;
+    typedef yhash<TOperationId, TOperationElementPtr> TOperationElementPtrByIdMap;
     TOperationElementPtrByIdMap OperationIdToElement;
 
     std::list<TOperationPtr> OperationQueue;
@@ -620,7 +620,7 @@ private:
         int Index;
         int Count;
     };
-    yhash_map<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount;
+    yhash<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount;
 
     TRootElementPtr RootElement;
 

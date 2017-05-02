@@ -761,7 +761,7 @@ private:
     const TWorkloadDescriptor WorkloadDescriptor_;
     const TRepairProgressHandler OnProgress_;
 
-    yhash_map<int, IChunkWriterPtr> IndexToWriter_;
+    yhash<int, IChunkWriterPtr> IndexToWriter_;
 
     i64 RepairedDataSize_ = 0;
 

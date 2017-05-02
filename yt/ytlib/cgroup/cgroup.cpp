@@ -162,7 +162,7 @@ void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const
     YCHECK(!IsNull());
 #ifdef _linux_
     auto path = GetPath(name);
-    TFileOutput output(TFile(path, OpenMode::WrOnly));
+    TFileOutput output(TFile(path, EOpenModeFlag::WrOnly));
     output << value;
 #endif
 }
@@ -172,7 +172,7 @@ void TNonOwningCGroup::Append(const Stroka& name, const Stroka& value) const
     YCHECK(!IsNull());
 #ifdef _linux_
     auto path = GetPath(name);
-    TFileOutput output(TFile(path, OpenMode::ForAppend));
+    TFileOutput output(TFile(path, EOpenModeFlag::ForAppend));
     output << value;
 #endif
 }
@@ -599,7 +599,7 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
             item.Type = values[3 * lineNumber + 1];
             item.Value = FromString<ui64>(values[3 * lineNumber + 2]);
 
-            YCHECK(item.DeviceId.has_prefix("8:"));
+            YCHECK(item.DeviceId.StartsWith("8:"));
 
             {
                 auto guard = Guard(SpinLock_);
@@ -751,9 +751,9 @@ std::map<Stroka, Stroka> ParseProcessCGroups(const Stroka& str)
         yvector<Stroka> subsystems;
         Split(subsystemsSet.data(), ",", subsystems);
         for (const auto& subsystem : subsystems) {
-            if (!subsystem.has_prefix("name=")) {
+            if (!subsystem.StartsWith("name=")) {
                 int start = 0;
-                if (name.has_prefix("/")) {
+                if (name.StartsWith("/")) {
                     start = 1;
                 }
                 result[subsystem] = name.substr(start);

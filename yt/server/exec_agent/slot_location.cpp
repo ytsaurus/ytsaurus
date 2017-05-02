@@ -264,7 +264,7 @@ TFuture<Stroka> TSlotLocation::MakeSandboxTmpfs(
                 THROW_ERROR_EXCEPTION("Sandbox tmpfs is disabled since node doesn't have root permissions");
             }
 
-            if (!sandboxPath.is_prefix(tmpfsPath)) {
+            if (!tmpfsPath.StartsWith(sandboxPath)) {
                 THROW_ERROR_EXCEPTION("Path of the tmpfs mount point must be inside the sandbox directory")
                     << TErrorAttribute("sandbox_path", sandboxPath)
                     << TErrorAttribute("tmpfs_path", tmpfsPath);
@@ -372,7 +372,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
 
                 auto sandboxFullPath = NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), sandboxPath);
                 auto isInsideSandbox = [&] (const Stroka& path) {
-                    return path == sandboxFullPath || (sandboxFullPath + "/").is_prefix(path);
+                    return path == sandboxFullPath || path.StartsWith(sandboxFullPath + "/");
                 };
 
                 // Unmount all known tmpfs.
@@ -467,7 +467,7 @@ Stroka TSlotLocation::GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) co
 bool TSlotLocation::IsInsideTmpfs(const Stroka& path) const
 {
     for (const auto& tmpfsPath : TmpfsPaths_) {
-        if (tmpfsPath.is_prefix(path)) {
+        if (path.StartsWith(tmpfsPath)) {
             return true;
         }
     }

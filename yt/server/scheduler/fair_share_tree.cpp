@@ -384,7 +384,7 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
 {
     auto cloneChildren = [&] (
         const std::vector<TSchedulerElementPtr>& list,
-        yhash_map<TSchedulerElementPtr, int>* clonedMap,
+        yhash<TSchedulerElementPtr, int>* clonedMap,
         std::vector<TSchedulerElementPtr>* clonedList)
     {
         for (const auto& child : list) {

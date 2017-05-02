@@ -64,7 +64,7 @@ public:
 private:
     int NodeCount_ = 0;
     int ChunkCount_ = 0;
-    yhash_map<Stroka, i64> DiskSpacePerMedium_;
+    yhash<Stroka, i64> DiskSpacePerMedium_;
     i64 DiskSpace_; // Compatibility.
 
 };

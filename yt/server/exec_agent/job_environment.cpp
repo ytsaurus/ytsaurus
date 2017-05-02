@@ -108,7 +108,7 @@ protected:
     };
 
     const TJobEnvironmentConfigPtr BasicConfig_;
-    yhash_map<int, TJobProxyProcess> JobProxyProcesses_;
+    yhash<int, TJobProxyProcess> JobProxyProcesses_;
     const TBootstrap* const Bootstrap_;
     TActionQueuePtr ActionQueue_ = New<TActionQueue>("JobEnvironment");
 

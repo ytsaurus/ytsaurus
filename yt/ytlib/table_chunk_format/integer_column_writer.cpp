@@ -37,7 +37,7 @@ protected:
 
     ui64 MaxValue_;
     ui64 MinValue_;
-    yhash_map<ui64, int> DistinctValues_;
+    yhash<ui64, int> DistinctValues_;
 
     void Reset()
     {
