@@ -133,31 +133,56 @@ struct TFormatDescTraits<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
     static const TMultiFormatDesc::EFormat Format = TMultiFormatDesc::F_PROTO;
 };
 
+template<class T>
+void SetFormat(TMultiFormatDesc& desc)
+{
+    const auto newFmt = TFormatDescTraits<T>::Format;
+    if (desc.Format != TMultiFormatDesc::F_NONE && desc.Format != newFmt)
+    {
+        ythrow yexception() << "Invalid format"; // TODO: more info
+    }
+    desc.Format = newFmt;
+}
 
 template <class T, class TEnable>
 struct TOperationIOSpecBase::TFormatAdder
 {
     static void Add(TMultiFormatDesc& desc)
     {
-        if (desc.Format != TMultiFormatDesc::F_NONE &&
-            desc.Format != TFormatDescTraits<T>::Format) {
-            ythrow yexception() << "Invalid format"; // TODO: more info
-        }
-        desc.Format = TFormatDescTraits<T>::Format;
+        SetFormat<T>(desc);
+    }
+
+    static void Set(size_t /*idx*/, TMultiFormatDesc& desc)
+    {
+        SetFormat<T>(desc);
     }
 };
+
+//TODO: enable when all the clients will not use AddInput<Message>/AddOutput<Message>
+//see REVIEW: 270137
+//
+//template<>
+//struct TOperationIOSpecBase::TFormatAdder<Message>;
+
+template<class T>
+void Assign(yvector<T>& array, size_t idx, const T& value) {
+    array.resize(std::max(array.size(), idx + 1));
+    array[idx] = value;
+}
 
 template <class T>
 struct TOperationIOSpecBase::TFormatAdder<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
 {
     static void Add(TMultiFormatDesc& desc)
     {
-        if (desc.Format != TMultiFormatDesc::F_NONE &&
-            desc.Format != TMultiFormatDesc::F_PROTO) {
-            ythrow yexception() << "Invalid format"; // TODO: more info
-        }
-        desc.Format = TMultiFormatDesc::F_PROTO;
+        SetFormat<T>(desc);
         desc.ProtoDescriptors.push_back(T::descriptor());
+    }
+
+    static void Set(size_t idx, TMultiFormatDesc& desc)
+    {
+        SetFormat<T>(desc);
+        Assign(desc.ProtoDescriptors, idx, T::descriptor());
     }
 };
 
@@ -174,11 +199,11 @@ template <class TDerived>
 template <class T>
 TDerived& TOperationIOSpec<TDerived>::SetInput(size_t tableIndex, const TRichYPath& path)
 {
-    TOperationIOSpecBase::TFormatAdder<T>::Add(InputDesc_);
-    Inputs_.resize(std::max(Inputs_.size(), tableIndex + 1));
-    Inputs_[tableIndex] = path;
+    TOperationIOSpecBase::TFormatAdder<T>::Set(tableIndex, InputDesc_);
+    Assign(Inputs_, tableIndex, path);
     return *static_cast<TDerived*>(this);
 }
+
 
 template <class TDerived>
 template <class T>
@@ -193,9 +218,8 @@ template <class TDerived>
 template <class T>
 TDerived& TOperationIOSpec<TDerived>::SetOutput(size_t tableIndex, const TRichYPath& path)
 {
-    TOperationIOSpecBase::TFormatAdder<T>::Add(OutputDesc_);
-    Outputs_.resize(std::max(Outputs_.size(), tableIndex + 1));
-    Outputs_[tableIndex] = path;
+    TOperationIOSpecBase::TFormatAdder<T>::Set(tableIndex, OutputDesc_);
+    Assign(Outputs_, tableIndex, path);
     return *static_cast<TDerived*>(this);
 }
 
