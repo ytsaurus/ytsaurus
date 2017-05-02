@@ -82,7 +82,7 @@ TSchedulerElementFixedState::TSchedulerElementFixedState(
     , MaxPossibleResourceUsage_(ZeroJobResources())
     , Host_(host)
     , StrategyConfig_(strategyConfig)
-    , TotalResourceLimits_(host->GetTotalResourceLimits())
+    , TotalResourceLimits_(host->GetMainNodesResourceLimits())
 { }
 
 ////////////////////////////////////////////////////////////////////
@@ -144,7 +144,7 @@ void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList& dynamicAttributes
 {
     YCHECK(!Cloned_);
 
-    TotalResourceLimits_ = GetHost()->GetTotalResourceLimits();
+    TotalResourceLimits_ = GetHost()->GetMainNodesResourceLimits();
     UpdateAttributes();
     dynamicAttributesList[GetTreeIndex()].Active = true;
     UpdateDynamicAttributes(dynamicAttributesList);
@@ -590,6 +590,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool
     attributes.Active = true;
 
     if (!IsAlive()) {
+        ++context.DeactivationReasons[EDeactivationReason::IsNotAlive];
         attributes.Active = false;
         return;
     }
@@ -598,6 +599,7 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool
         SchedulingTagFilterIndex_ != EmptySchedulingTagFilterIndex &&
         !context.CanSchedule[SchedulingTagFilterIndex_])
     {
+        ++context.DeactivationReasons[EDeactivationReason::UnmatchedSchedulingTag];
         attributes.Active = false;
         return;
     }
@@ -614,6 +616,10 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext& context, bool
     }
 
     TSchedulerElement::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
+
+    if (attributes.Active) {
+        ++context.ActiveTreeSize;
+    }
 }
 
 bool TCompositeSchedulerElement::ScheduleJob(TFairShareContext& context)
@@ -1023,6 +1029,16 @@ bool TPool::IsDefaultConfigured() const
     return DefaultConfigured_;
 }
 
+void TPool::SetUserName(const TNullable<Stroka>& userName)
+{
+    UserName_ = userName;
+}
+
+const TNullable<Stroka>& TPool::GetUserName() const
+{
+    return UserName_;
+}
+
 TPoolConfigPtr TPool::GetConfig()
 {
     return Config_;
@@ -1304,7 +1320,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             TJobProperties::SetAggressivelyPreemptable,
             TJobProperties::SetNonPreemptable);
 
-        auto nonPreemptableAndAggressivelyPreemptableResourceUsage_ = balanceLists(
+        auto nonpreemptableAndAggressivelyPreemptableResourceUsage_ = balanceLists(
             &AggressivelyPreemptableJobs_,
             &PreemptableJobs_,
             startNonPreemptableAndAggressivelyPreemptableResourceUsage_,
@@ -1312,7 +1328,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             TJobProperties::SetPreemptable,
             TJobProperties::SetAggressivelyPreemptable);
 
-        AggressivelyPreemptableResourceUsage_ = nonPreemptableAndAggressivelyPreemptableResourceUsage_ - NonpreemptableResourceUsage_;
+        AggressivelyPreemptableResourceUsage_ = nonpreemptableAndAggressivelyPreemptableResourceUsage_ - NonpreemptableResourceUsage_;
     }
 }
 
@@ -1414,19 +1430,20 @@ TJobResources TOperationElementSharedState::RemoveJob(const TJobId& jobId)
 }
 
 bool TOperationElementSharedState::IsBlocked(
-    TInstant now,
+    NProfiling::TCpuInstant now,
     int maxConcurrentScheduleJobCalls,
-    TDuration scheduleJobFailBackoffTime) const
+    NProfiling::TCpuDuration scheduleJobFailBackoffTime) const
 {
-    return ConcurrentScheduleJobCalls_ >= maxConcurrentScheduleJobCalls ||
+    return
+        ConcurrentScheduleJobCalls_ >= maxConcurrentScheduleJobCalls ||
         LastScheduleJobFailTime_ + scheduleJobFailBackoffTime > now;
 }
 
 
 bool TOperationElementSharedState::TryStartScheduleJob(
-    TInstant now,
+    NProfiling::TCpuInstant now,
     int maxConcurrentScheduleJobCalls,
-    TDuration scheduleJobFailBackoffTime)
+    NProfiling::TCpuDuration scheduleJobFailBackoffTime)
 {
     if (IsBlocked(now, maxConcurrentScheduleJobCalls, scheduleJobFailBackoffTime)) {
         return false;
@@ -1436,7 +1453,9 @@ bool TOperationElementSharedState::TryStartScheduleJob(
     return true;
 }
 
-void TOperationElementSharedState::FinishScheduleJob(bool enableBackoff, TInstant now)
+void TOperationElementSharedState::FinishScheduleJob(
+    bool enableBackoff,
+    NProfiling::TCpuInstant now)
 {
     --ConcurrentScheduleJobCalls_;
 
@@ -1451,7 +1470,11 @@ void TOperationElementSharedState::IncreaseJobResourceUsage(
 {
     properties.ResourceUsage += resourcesDelta;
     if (!properties.Preemptable) {
-        NonpreemptableResourceUsage_ += resourcesDelta;
+        if (properties.AggressivelyPreemptable) {
+            AggressivelyPreemptableResourceUsage_ += resourcesDelta;
+        } else {
+            NonpreemptableResourceUsage_ += resourcesDelta;
+        }
     }
 }
 
@@ -1562,6 +1585,7 @@ void TOperationElement::PrescheduleJob(TFairShareContext& context, bool starving
     attributes.Active = true;
 
     if (!IsAlive()) {
+        ++context.DeactivationReasons[EDeactivationReason::IsNotAlive];
         attributes.Active = false;
         return;
     }
@@ -1570,19 +1594,25 @@ void TOperationElement::PrescheduleJob(TFairShareContext& context, bool starving
         SchedulingTagFilterIndex_ != EmptySchedulingTagFilterIndex &&
         !context.CanSchedule[SchedulingTagFilterIndex_])
     {
+        ++context.DeactivationReasons[EDeactivationReason::UnmatchedSchedulingTag];
         attributes.Active = false;
         return;
     }
 
     if (starvingOnly && !Starving_) {
+        ++context.DeactivationReasons[EDeactivationReason::IsNotStarving];
         attributes.Active = false;
         return;
     }
 
     if (IsBlocked(context.SchedulingContext->GetNow())) {
+        ++context.DeactivationReasons[EDeactivationReason::IsBlocked];
         attributes.Active = false;
         return;
     }
+
+    ++context.ActiveTreeSize;
+    ++context.ActiveOperationCount;
 
     TSchedulerElement::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
 }
@@ -1595,27 +1625,31 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
         auto* parent = GetParent();
         while (parent) {
             parent->UpdateDynamicAttributes(context.DynamicAttributesList);
+            if (!context.DynamicAttributesList[parent->GetTreeIndex()].Active) {
+                ++context.DeactivationReasons[EDeactivationReason::NoBestLeafDescendant];
+            }
             parent = parent->GetParent();
         }
     };
 
-    auto disableOperationElement = [&] () {
+    auto disableOperationElement = [&] (EDeactivationReason reason) {
+        ++context.DeactivationReasons[reason];
         context.DynamicAttributes(this).Active = false;
         updateAncestorsAttributes();
     };
 
     auto now = context.SchedulingContext->GetNow();
     if (IsBlocked(now)) {
-        disableOperationElement();
+        disableOperationElement(EDeactivationReason::IsBlocked);
         return false;
     }
 
     if (!SharedState_->TryStartScheduleJob(
         now,
         StrategyConfig_->MaxConcurrentControllerScheduleJobCalls,
-        StrategyConfig_->ControllerScheduleJobFailBackoffTime))
+        NProfiling::DurationToCpuDuration(StrategyConfig_->ControllerScheduleJobFailBackoffTime)))
     {
-        disableOperationElement();
+        disableOperationElement(EDeactivationReason::TryStartScheduleJobFailed);
         return false;
     }
 
@@ -1630,16 +1664,13 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
     }
 
     if (!scheduleJobResult->JobStartRequest) {
-        disableOperationElement();
+        disableOperationElement(EDeactivationReason::ScheduleJobFailed);
 
-        bool enableBackoff = false;
-        if (scheduleJobResult->Failed[EScheduleJobFailReason::NotEnoughResources] == 0 &&
-            scheduleJobResult->Failed[EScheduleJobFailReason::NoLocalJobs] == 0)
-        {
+        bool enableBackoff = scheduleJobResult->IsBackoffNeeded();
+        if (enableBackoff) {
             LOG_DEBUG("Failed to schedule job, backing off (OperationId: %v, Reasons: %v)",
                 OperationId_,
                 scheduleJobResult->Failed);
-            enableBackoff = true;
         }
 
         SharedState_->FinishScheduleJob(/*enableBackoff*/ enableBackoff, now);
@@ -1795,12 +1826,24 @@ void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& r
 {
     auto delta = SharedState_->AddJob(jobId, resourceUsage);
     IncreaseResourceUsage(delta);
+
+    SharedState_->UpdatePreemptableJobsList(
+        Attributes_.FairShareRatio,
+        TotalResourceLimits_,
+        StrategyConfig_->PreemptionSatisfactionThreshold,
+        StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
 }
 
 void TOperationElement::OnJobFinished(const TJobId& jobId)
 {
     auto resourceUsage = SharedState_->RemoveJob(jobId);
     IncreaseResourceUsage(-resourceUsage);
+
+    SharedState_->UpdatePreemptableJobsList(
+        Attributes_.FairShareRatio,
+        TotalResourceLimits_,
+        StrategyConfig_->PreemptionSatisfactionThreshold,
+        StrategyConfig_->AggressivePreemptionSatisfactionThreshold);
 }
 
 void TOperationElement::BuildOperationToElementMapping(TOperationElementByIdMap* operationElementByIdMap)
@@ -1813,14 +1856,15 @@ TSchedulerElementPtr TOperationElement::Clone(TCompositeSchedulerElement* cloned
     return New<TOperationElement>(*this, clonedParent);
 }
 
-bool TOperationElement::IsBlocked(TInstant now) const
+bool TOperationElement::IsBlocked(NProfiling::TCpuInstant now) const
 {
-    return !Schedulable_ ||
+    return
+        !Schedulable_ ||
         GetPendingJobCount() == 0 ||
         SharedState_->IsBlocked(
             now,
             StrategyConfig_->MaxConcurrentControllerScheduleJobCalls,
-            StrategyConfig_->ControllerScheduleJobFailBackoffTime);
+            NProfiling::DurationToCpuDuration(StrategyConfig_->ControllerScheduleJobFailBackoffTime));
 }
 
 TJobResources TOperationElement::GetHierarchicalResourceLimits(const TFairShareContext& context) const
@@ -1867,7 +1911,7 @@ TScheduleJobResultPtr TOperationElement::DoScheduleJob(TFairShareContext& contex
     if (!scheduleJobResultWithTimeoutOrError.IsOK()) {
         auto scheduleJobResult = New<TScheduleJobResult>();
         if (scheduleJobResultWithTimeoutOrError.GetCode() == NYT::EErrorCode::Timeout) {
-            LOG_WARNING("Controller of operation %v is scheduling for too long, aborting ScheduleJob",
+            LOG_WARNING("Controller is scheduling for too long, aborting (OperationId: %v)",
                 OperationId_);
             ++scheduleJobResult->Failed[EScheduleJobFailReason::Timeout];
             // If ScheduleJob was not canceled we need to abort created job.
@@ -2047,7 +2091,7 @@ int TRootElement::GetMaxOperationCount() const
 
 bool TRootElement::AreImmediateOperationsFobidden() const
 {
-    return true;
+    return StrategyConfig_->ForbidImmediateOperationsInRoot;
 }
 
 TSchedulerElementPtr TRootElement::Clone(TCompositeSchedulerElement* /*clonedParent*/)

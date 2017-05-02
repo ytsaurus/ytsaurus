@@ -207,10 +207,6 @@ void TSortedChunkStore::SetInMemoryMode(EInMemoryMode mode)
         PreloadFuture_.Cancel();
         PreloadFuture_.Reset();
     }
-    if (PreloadBackoffFuture_) {
-        PreloadBackoffFuture_.Cancel();
-        PreloadBackoffFuture_.Reset();
-    }
 
     if (mode == EInMemoryMode::None) {
         PreloadState_ = EStorePreloadState::Disabled;
@@ -284,6 +280,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     TOwningKey lowerKey,
     TOwningKey upperKey,
     TTimestamp timestamp,
+    bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const TWorkloadDescriptor& workloadDescriptor)
 {
@@ -298,6 +295,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         lowerKey,
         upperKey,
         timestamp,
+        produceAllVersions,
         columnFilter,
         tabletSnapshot->TableSchema);
     if (reader) {
@@ -312,6 +310,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             std::move(lowerKey),
             std::move(upperKey),
             timestamp,
+            produceAllVersions,
             columnFilter,
             workloadDescriptor);
     }
@@ -332,13 +331,15 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         std::move(upperKey),
         columnFilter,
         PerformanceCounters_,
-        timestamp);
+        timestamp,
+        produceAllVersions);
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     TOwningKey lowerKey,
     TOwningKey upperKey,
     TTimestamp timestamp,
+    bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const TTableSchema& schema)
 {
@@ -358,13 +359,15 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
         std::move(lowerKey),
         std::move(upperKey),
         columnFilter,
-        timestamp);
+        timestamp,
+        produceAllVersions);
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
+    bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const TWorkloadDescriptor& workloadDescriptor)
 {
@@ -374,6 +377,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     auto reader = CreateCacheBasedReader(
         keys,
         timestamp,
+        produceAllVersions,
         columnFilter,
         tabletSnapshot->TableSchema);
     if (reader) {
@@ -387,6 +391,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             std::move(tabletSnapshot),
             keys,
             timestamp,
+            produceAllVersions,
             columnFilter,
             workloadDescriptor);
     }
@@ -406,12 +411,14 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         columnFilter,
         PerformanceCounters_,
         KeyComparer_,
-        timestamp);
+        timestamp,
+        produceAllVersions);
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
+    bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const TTableSchema& schema)
 {
@@ -430,7 +437,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
         ChunkState_,
         keys,
         columnFilter,
-        timestamp);
+        timestamp,
+        produceAllVersions);
 }
 
 void TSortedChunkStore::CheckRowLocks(

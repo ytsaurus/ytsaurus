@@ -2,6 +2,8 @@
 #include "helpers.h"
 #include "private.h"
 
+#include <yt/core/misc/expiring_cache.h>
+
 #include <util/string/split.h>
 
 namespace NYT {
@@ -16,26 +18,28 @@ static const auto& Logger = BlackboxLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTokenAuthenticator
+class TBlackboxTokenAuthenticator
     : public ITokenAuthenticator
 {
 public:
-    TTokenAuthenticator(TTokenAuthenticatorConfigPtr config, IBlackboxServicePtr blackbox)
+    TBlackboxTokenAuthenticator(TTokenAuthenticatorConfigPtr config, IBlackboxServicePtr blackbox)
         : Config_(std::move(config))
         , Blackbox_(std::move(blackbox))
     { }
 
     virtual TFuture<TAuthenticationResult> Authenticate(
-        const Stroka& token,
-        const Stroka& userIP) override
+        const TTokenCredentials& credentials) override
     {
+        const auto& token = credentials.Token;
+        const auto& userIp = credentials.UserIp;
         auto tokenMD5 = ComputeMD5(token);
         LOG_DEBUG(
-            "Authenticating user via token (TokenMD5: %v)",
-            tokenMD5);
-        return Blackbox_->Call("oauth", {{"oauth_token", token}, {"userip", userIP}})
+            "Authenticating user via token (TokenMD5: %v, UserIP: %v)",
+            tokenMD5,
+            userIp);
+        return Blackbox_->Call("oauth", {{"oauth_token", token}, {"userip", userIp}})
             .Apply(BIND(
-                &TTokenAuthenticator::OnCallResult,
+                &TBlackboxTokenAuthenticator::OnCallResult,
                 MakeStrong(this),
                 std::move(tokenMD5)));
     }
@@ -65,7 +69,7 @@ private:
             return TError("Blackbox returned invalid response");
         }
 
-        if (statusId.Value() != EBlackboxStatusId::Valid) {
+        if (EBlackboxStatusId(statusId.Value()) != EBlackboxStatusId::Valid) {
             auto error = GetByYPath<Stroka>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
             return TError("Blackbox rejected token")
@@ -74,13 +78,15 @@ private:
 
         auto login = GetByYPath<Stroka>(data, "/login");
         auto oauthClientId = GetByYPath<Stroka>(data, "/oauth/client_id");
+        auto oauthClientName = GetByYPath<Stroka>(data, "/oauth/client_name");
         auto oauthScope = GetByYPath<Stroka>(data, "/oauth/scope");
 
         // Sanity checks.
-        if (!login.IsOK() || !oauthClientId.IsOK() || !oauthScope.IsOK()) {
+        if (!login.IsOK() || !oauthClientId.IsOK() || !oauthClientName.IsOK() || !oauthScope.IsOK()) {
             auto error = TError("Blackbox returned invalid response");
             if (!login.IsOK()) error.InnerErrors().push_back(login);
             if (!oauthClientId.IsOK()) error.InnerErrors().push_back(oauthClientId);
+            if (!oauthClientName.IsOK()) error.InnerErrors().push_back(oauthClientName);
             if (!oauthScope.IsOK()) error.InnerErrors().push_back(oauthScope);
             return error;
         }
@@ -103,21 +109,9 @@ private:
         }
 
         // Check that token was issued by a known application.
-        Stroka realm;
-        if (Config_->EnableClientIdsCheck) {
-            auto clientIdIt = Config_->ClientIds.find(oauthClientId.Value());
-            if (clientIdIt == Config_->ClientIds.end()) {
-                return TError("Token was issued by an unknown application")
-                    << TErrorAttribute("client_id", oauthClientId.Value());
-            }
-            realm = "blackbox:token:" + clientIdIt->second;
-        } else {
-            realm = "blackbox:token:" + oauthClientId.Value();
-        }
-
         TAuthenticationResult result;
         result.Login = login.Value();
-        result.Realm = realm;
+        result.Realm = "blackbox:token:" + oauthClientId.Value() + ":" + oauthClientName.Value();
         return result;
     }
 
@@ -125,11 +119,45 @@ private:
     const IBlackboxServicePtr Blackbox_;
 };
 
-ITokenAuthenticatorPtr CreateTokenAuthenticator(
+ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
     TTokenAuthenticatorConfigPtr config,
     IBlackboxServicePtr blackbox)
 {
-    return New<TTokenAuthenticator>(std::move(config), std::move(blackbox));
+    return New<TBlackboxTokenAuthenticator>(std::move(config), std::move(blackbox));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingTokenAuthenticator
+    : public ITokenAuthenticator
+    , private TExpiringCache<TTokenCredentials, TAuthenticationResult>
+{
+public:
+    TCachingTokenAuthenticator(TExpiringCacheConfigPtr config, ITokenAuthenticatorPtr tokenAuthenticator)
+        : TExpiringCache(std::move(config))
+        , TokenAuthenticator_(std::move(tokenAuthenticator))
+    {
+    }
+
+    virtual TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& credentials) override
+    {
+        return Get(credentials);
+    }
+
+private:
+    virtual TFuture<TAuthenticationResult> DoGet(const TTokenCredentials& credentials) override
+    {
+        return TokenAuthenticator_->Authenticate(credentials);
+    }
+
+    const ITokenAuthenticatorPtr TokenAuthenticator_;
+};
+
+ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
+    TExpiringCacheConfigPtr config,
+    ITokenAuthenticatorPtr authenticator)
+{
+    return New<TCachingTokenAuthenticator>(std::move(config), std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

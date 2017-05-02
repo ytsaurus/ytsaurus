@@ -28,14 +28,15 @@ class TestSortedDynamicTablesBase(YTEnvSetup):
     }
 
     def _create_simple_table(self, path, atomicity=None, optimize_for=None, tablet_cell_bundle=None,
-                             tablet_count=None, pivot_keys=None):
-        attributes={
+                             tablet_count=None, pivot_keys=None, **extra_attributes):
+        attributes = {
             "dynamic": True,
             "schema": [
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "string"}
             ]
         }
+        attributes.update(extra_attributes)
         if atomicity is not None:
             attributes["atomicity"] = atomicity
         if optimize_for is not None:
@@ -279,6 +280,61 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         assert lookup_rows("//tmp/t", keys) == expected
 
+    def test_lookup_versioned(self):
+        self.sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        for prefix in ["a", "b"]:
+            rows = [{"key": i, "value": prefix + ":" + str(i)} for i in xrange(10)]
+            insert_rows("//tmp/t", rows)
+            generate_timestamp()
+
+        keys = [{"key": i} for i in xrange(10)]
+        actual = lookup_rows("//tmp/t", keys, versioned=True)
+
+        assert len(actual) == len(keys)
+
+        for i, key in enumerate(keys):
+            row = actual[i]
+            assert "write_timestamps" in row.attributes
+            assert len(row.attributes["write_timestamps"]) == 2
+            assert "delete_timestamps" in row.attributes
+            assert row["key"] == key["key"]
+            assert len(row["value"]) == 2
+            assert "%s" % row["value"][0] == "b:" + str(key["key"])
+            assert "%s" % row["value"][1] == "a:" + str(key["key"])
+
+    def test_lookup_versioned_YT_6800(self):
+        self.sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t",
+            min_data_versions=0, min_data_ttl=0,
+            max_data_versions=1000, max_data_ttl=1000000)
+        self.sync_mount_table("//tmp/t")
+
+        for prefix in ["a", "b", "c"]:
+            rows = [{"key": i, "value": prefix + ":" + str(i)} for i in xrange(10)]
+            insert_rows("//tmp/t", rows)
+            generate_timestamp()
+
+        keys = [{"key": i} for i in xrange(10)]
+        actual = lookup_rows("//tmp/t", keys, versioned=True)
+
+        assert len(actual) == len(keys)
+
+        for i, key in enumerate(keys):
+            row = actual[i]
+            assert "write_timestamps" in row.attributes
+            assert len(row.attributes["write_timestamps"]) == 3
+            assert "delete_timestamps" in row.attributes
+            assert row["key"] == key["key"]
+            assert len(row["value"]) == 3
+            assert "%s" % row["value"][0] == "c:" + str(key["key"])
+            assert "%s" % row["value"][1] == "b:" + str(key["key"])
+            assert "%s" % row["value"][2] == "a:" + str(key["key"])
+
     def test_read_invalid_limits(self):
         self.sync_create_cells(1)
 
@@ -292,110 +348,111 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):  read_table("//tmp/t[#5:]")
         with pytest.raises(YtError):  read_table("<ranges=[{lower_limit={chunk_index = 0};upper_limit={chunk_index = 1}}]>//tmp/t")
 
-    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_read_table(self, optimize_for):
-        self.sync_create_cells(1)
+    ## XXX(savrus) enable in 19.2
+    #def test_read_table(self, optimize_for):
+    #    self.sync_create_cells(1)
 
-        self._create_simple_table("//tmp/t", optimize_for=optimize_for)
-        self.sync_mount_table("//tmp/t")
+    #    self._create_simple_table("//tmp/t", optimize_for=optimize_for)
+    #    self.sync_mount_table("//tmp/t")
 
-        rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
-        insert_rows("//tmp/t", rows1)
-        self.sync_freeze_table("//tmp/t")
+    #    rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
+    #    insert_rows("//tmp/t", rows1)
+    #    self.sync_freeze_table("//tmp/t")
 
-        assert read_table("//tmp/t") == rows1
-        assert get("//tmp/t/@chunk_count") == 1
+    #    assert read_table("//tmp/t") == rows1
+    #    assert get("//tmp/t/@chunk_count") == 1
 
-        ts = generate_timestamp()
+    #    ts = generate_timestamp()
 
-        self.sync_unfreeze_table("//tmp/t")
-        rows2 = [{"key": i, "value": str(i+1)} for i in xrange(10)]
-        insert_rows("//tmp/t", rows2)
-        self.sync_freeze_table("//tmp/t")
+    #    self.sync_unfreeze_table("//tmp/t")
+    #    rows2 = [{"key": i, "value": str(i+1)} for i in xrange(10)]
+    #    insert_rows("//tmp/t", rows2)
+    #    self.sync_freeze_table("//tmp/t")
 
-        assert read_table("<timestamp=%s>//tmp/t" %(ts)) == rows1
-        assert get("//tmp/t/@chunk_count") == 2
+    #    assert read_table("<timestamp=%s>//tmp/t" %(ts)) == rows1
+    #    assert get("//tmp/t/@chunk_count") == 2
 
-    def test_read_snapshot_lock(self):
-        self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
+    ## XXX(savrus) enable in 19.2
+    #def test_read_snapshot_lock(self):
+    #    self.sync_create_cells(1)
+    #    self._create_simple_table("//tmp/t")
+    #    self.sync_mount_table("//tmp/t")
 
-        def get_chunk_tree(path):
-            root_chunk_list_id = get(path + "/@chunk_list_id")
-            root_chunk_list = get("#" + root_chunk_list_id + "/@")
-            tablet_chunk_lists = [get("#" + x + "/@") for x in root_chunk_list["child_ids"]]
-            assert all([root_chunk_list_id in chunk_list["parent_ids"] for chunk_list in tablet_chunk_lists])
-            assert get(path + "/@chunk_count") == sum([len(chunk_list["child_ids"]) for chunk_list in tablet_chunk_lists])
-            return root_chunk_list, tablet_chunk_lists
+    #    def get_chunk_tree(path):
+    #        root_chunk_list_id = get(path + "/@chunk_list_id")
+    #        root_chunk_list = get("#" + root_chunk_list_id + "/@")
+    #        tablet_chunk_lists = [get("#" + x + "/@") for x in root_chunk_list["child_ids"]]
+    #        assert all([root_chunk_list_id in chunk_list["parent_ids"] for chunk_list in tablet_chunk_lists])
+    #        assert get(path + "/@chunk_count") == sum([len(chunk_list["child_ids"]) for chunk_list in tablet_chunk_lists])
+    #        return root_chunk_list, tablet_chunk_lists
 
-        def verify_chunk_tree_refcount(path, root_ref_count, tablet_ref_counts):
-            root, tablets = get_chunk_tree(path)
-            assert root["ref_counter"] == root_ref_count
-            assert [tablet["ref_counter"] for tablet in tablets] == tablet_ref_counts
+    #    def verify_chunk_tree_refcount(path, root_ref_count, tablet_ref_counts):
+    #        root, tablets = get_chunk_tree(path)
+    #        assert root["ref_counter"] == root_ref_count
+    #        assert [tablet["ref_counter"] for tablet in tablets] == tablet_ref_counts
 
-        verify_chunk_tree_refcount("//tmp/t", 1, [1])
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1])
 
-        tx = start_transaction()
-        lock("//tmp/t", mode="snapshot", tx=tx)
-        verify_chunk_tree_refcount("//tmp/t", 2, [1])
+    #    tx = start_transaction()
+    #    lock("//tmp/t", mode="snapshot", tx=tx)
+    #    verify_chunk_tree_refcount("//tmp/t", 2, [1])
 
-        rows1 = [{"key": i, "value": str(i)} for i in xrange(0, 10, 2)]
-        insert_rows("//tmp/t", rows1)
-        self.sync_unmount_table("//tmp/t")
-        verify_chunk_tree_refcount("//tmp/t", 1, [1])
-        assert read_table("//tmp/t") == rows1
-        assert read_table("//tmp/t", tx=tx) == []
+    #    rows1 = [{"key": i, "value": str(i)} for i in xrange(0, 10, 2)]
+    #    insert_rows("//tmp/t", rows1)
+    #    self.sync_unmount_table("//tmp/t")
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1])
+    #    assert read_table("//tmp/t") == rows1
+    #    assert read_table("//tmp/t", tx=tx) == []
 
-        abort_transaction(tx)
-        verify_chunk_tree_refcount("//tmp/t", 1, [1])
+    #    abort_transaction(tx)
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1])
 
-        tx = start_transaction()
-        lock("//tmp/t", mode="snapshot", tx=tx)
-        verify_chunk_tree_refcount("//tmp/t", 2, [1])
+    #    tx = start_transaction()
+    #    lock("//tmp/t", mode="snapshot", tx=tx)
+    #    verify_chunk_tree_refcount("//tmp/t", 2, [1])
 
-        reshard_table("//tmp/t", [[], [5]])
-        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+    #    reshard_table("//tmp/t", [[], [5]])
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
 
-        abort_transaction(tx)
-        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+    #    abort_transaction(tx)
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
 
-        tx = start_transaction()
-        lock("//tmp/t", mode="snapshot", tx=tx)
-        verify_chunk_tree_refcount("//tmp/t", 2, [1, 1])
+    #    tx = start_transaction()
+    #    lock("//tmp/t", mode="snapshot", tx=tx)
+    #    verify_chunk_tree_refcount("//tmp/t", 2, [1, 1])
 
-        self.sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
+    #    self.sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
 
-        rows2 = [{"key": i, "value": str(i)} for i in xrange(1, 5, 2)]
-        insert_rows("//tmp/t", rows2)
-        self.sync_unmount_table("//tmp/t")
-        verify_chunk_tree_refcount("//tmp/t", 1, [1, 2])
-        assert_items_equal(read_table("//tmp/t"), rows1 + rows2)
-        assert read_table("//tmp/t", tx=tx) == rows1
+    #    rows2 = [{"key": i, "value": str(i)} for i in xrange(1, 5, 2)]
+    #    insert_rows("//tmp/t", rows2)
+    #    self.sync_unmount_table("//tmp/t")
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1, 2])
+    #    assert_items_equal(read_table("//tmp/t"), rows1 + rows2)
+    #    assert read_table("//tmp/t", tx=tx) == rows1
 
-        self.sync_mount_table("//tmp/t")
-        rows3 = [{"key": i, "value": str(i)} for i in xrange(5, 10, 2)]
-        insert_rows("//tmp/t", rows3)
-        self.sync_unmount_table("//tmp/t")
-        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
-        assert_items_equal(read_table("//tmp/t"), rows1 + rows2 + rows3)
-        assert read_table("//tmp/t", tx=tx) == rows1
+    #    self.sync_mount_table("//tmp/t")
+    #    rows3 = [{"key": i, "value": str(i)} for i in xrange(5, 10, 2)]
+    #    insert_rows("//tmp/t", rows3)
+    #    self.sync_unmount_table("//tmp/t")
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+    #    assert_items_equal(read_table("//tmp/t"), rows1 + rows2 + rows3)
+    #    assert read_table("//tmp/t", tx=tx) == rows1
 
-        abort_transaction(tx)
-        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+    #    abort_transaction(tx)
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
 
-        tx = start_transaction()
-        lock("//tmp/t", mode="snapshot", tx=tx)
-        verify_chunk_tree_refcount("//tmp/t", 2, [1, 1])
+    #    tx = start_transaction()
+    #    lock("//tmp/t", mode="snapshot", tx=tx)
+    #    verify_chunk_tree_refcount("//tmp/t", 2, [1, 1])
 
-        self.sync_mount_table("//tmp/t")
-        self.sync_compact_table("//tmp/t")
-        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
-        assert_items_equal(read_table("//tmp/t"), rows1 + rows2 + rows3)
-        assert_items_equal(read_table("//tmp/t", tx=tx), rows1 + rows2 + rows3)
+    #    self.sync_mount_table("//tmp/t")
+    #    self.sync_compact_table("//tmp/t")
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+    #    assert_items_equal(read_table("//tmp/t"), rows1 + rows2 + rows3)
+    #    assert_items_equal(read_table("//tmp/t", tx=tx), rows1 + rows2 + rows3)
 
-        abort_transaction(tx)
-        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+    #    abort_transaction(tx)
+    #    verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
 
     def test_write_table(self):
         self.sync_create_cells(1)
@@ -514,7 +571,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         def verify_after_flush(row):
             verify_row(row["key"], [row])
-            assert_items_equal(read_table("//tmp/t"), [row])
+            #XXX(savrus) enable in 19.2
+            #assert_items_equal(read_table("//tmp/t"), [row])
 
         test_row({"key": 1, "time": 1, "value": 10}, {"key": 1, "time": 1, "value": 10}, aggregate=True)
         test_row({"key": 1, "time": 2, "value": 10}, {"key": 1, "time": 2, "value": 20}, aggregate=True)
@@ -1754,12 +1812,118 @@ class TestSortedDynamicTablesResourceLimits(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
 
-        set("//sys/accounts/test_account/@resource_limits/" + resource, 1000)
+        set("//sys/accounts/test_account/@resource_limits/" + resource, 10000)
         insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
 
         set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
         self.sync_unmount_table("//tmp/t")
 
+
+##################################################################
+
+class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
+    NUM_NODES = 1
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "resource_limits": {
+                "tablet_static_memory": 20000
+            },
+            "tablet_manager": {
+                "error_backoff_time": 1000*5,
+            },
+        },
+    }
+
+    def _get_statistics(self, table):
+        return get(table + "/@tablets/0/statistics")
+
+    def _wait_preload(self, table):
+        def is_preloaded():
+            statistics = self._get_statistics(table)
+            return (
+                statistics["preload_completed_store_count"] > 0 and
+                statistics["preload_pending_store_count"] == 0 and
+                statistics["preload_failed_store_count"] == 0)
+
+        wait(is_preloaded)
+
+    def _wait_preload_failed(self, table):
+        def is_preload_failed():
+            statistics = self._get_statistics(table)
+            return (
+                statistics["preload_pending_store_count"] == 0 and
+                statistics["preload_failed_store_count"] > 0)
+
+        wait(is_preload_failed)
+
+    def test_in_memory_limit_exceeded(self):
+        LARGE = "//tmp/large"
+        SMALL = "//tmp/small"
+
+        def table_create(table):
+            self._create_simple_table(
+                table,
+                optimize_for="lookup",
+                in_memory_mode="uncompressed",
+                max_dynamic_store_row_count=10,
+                replication_factor=1,
+                read_quorum=1,
+                write_quorum=1,
+            )
+
+            self.sync_mount_table(table)
+
+        def check_lookup(table, keys, rows):
+            assert lookup_rows(table, keys) == rows
+
+        def generate_string(amount):
+            return "x" * amount
+
+        def table_insert_rows(length, table):
+            rows = [{"key": i, "value": generate_string(length)} for i in xrange(10)]
+            keys = [{"key": row["key"]} for row in rows]
+            insert_rows(table, rows)
+            return keys, rows
+
+        tablet_cell_attributes = {
+            "changelog_replication_factor": 1,
+            "changelog_read_quorum": 1,
+            "changelog_write_quorum": 1
+        }
+
+        set("//sys/tablet_cell_bundles/default/@options", tablet_cell_attributes)
+
+        self.sync_create_cells(1)
+
+        table_create(LARGE)
+        table_create(SMALL)
+
+        # create large table over memory limit
+        large_data = table_insert_rows(10000, LARGE)
+        self.sync_flush_table(LARGE)
+        self.sync_unmount_table(LARGE)
+
+        # create small table for final preload checking
+        small_data = table_insert_rows(1000, SMALL)
+        self.sync_flush_table(SMALL)
+        self.sync_unmount_table(SMALL)
+
+        # mount large table to trigger memory limit
+        self.sync_mount_table(LARGE)
+        self._wait_preload(LARGE)
+        check_lookup(LARGE, *large_data)
+
+        # mount small table, preload must fail
+        self.sync_mount_table(SMALL)
+        self._wait_preload_failed(SMALL)
+
+        # unmounting large table releases the memory to allow small table to be preloaded
+        self.sync_unmount_table(LARGE)
+        self._wait_preload(SMALL)
+        check_lookup(SMALL, *small_data)
+
+        # cleanup
+        self.sync_unmount_table(SMALL)
 
 ##################################################################
 

@@ -86,7 +86,7 @@ public:
     void SchedulePropertiesUpdate(TChunk* chunk);
     void SchedulePropertiesUpdate(TChunkList* chunkList);
 
-    void TouchChunk(TChunkPtrWithIndexes chunkWithIndexes);
+    void TouchChunk(TChunk* chunk);
 
     TJobPtr FindJob(const TJobId& id);
 
@@ -154,11 +154,12 @@ private:
 
     yhash_map<TJobId, TJobPtr> JobMap_;
 
-    //! A single queue for all chunks and media is maintained.
+    //! A queue of chunks to be repaired on each medium.
     //! Replica index is always GenericChunkReplicaIndex.
-    //! Medium index is designates the medium where the chunk is lacking some of its parts.
-    //! A single chunk may appear multiple times here (but at most once per medium).
-    TChunkRepairQueue ChunkRepairQueue_;
+    //! Medium index designates the medium where the chunk is missing some of
+    //! its parts. It's always equal to the index of its queue.
+    //! In each queue, a single chunk may only appear once.
+    std::array<TChunkRepairQueue, MaxMediumCount>  ChunkRepairQueues_ = {};
 
     const NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
 
@@ -205,7 +206,7 @@ private:
     void RefreshChunk(TChunk* chunk);
 
     void ResetChunkStatus(TChunk* chunk);
-    void RemoveChunkFromQueuesOnRefresh(TChunk* chunk, int mediumIndex);
+    void RemoveChunkFromQueuesOnRefresh(TChunk* chunk);
     void RemoveChunkFromQueuesOnDestroy(TChunk* chunk);
     void CancelChunkJobs(TChunk* chunk);
 

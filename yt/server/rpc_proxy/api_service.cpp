@@ -9,9 +9,11 @@
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
+#include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/rowset.h>
 
 #include <yt/ytlib/rpc_proxy/api_service_proxy.h>
+#include <yt/ytlib/rpc_proxy/helpers.h>
 
 #include <yt/ytlib/security_client/public.h>
 
@@ -37,6 +39,8 @@ using namespace NCompression;
 using namespace NBlackbox;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NObjectClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,8 +59,18 @@ public:
             RpcProxyLogger)
         , Bootstrap_(bootstrap)
     {
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNode));
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows));
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
     }
 
 private:
@@ -103,8 +117,7 @@ private:
                 .ValueOrThrow();
         } else if (credentials.has_token()) {
             auto asyncAuthenticationResult = Bootstrap_->GetTokenAuthenticator()->Authenticate(
-                credentials.token(),
-                credentials.userip());
+                TTokenCredentials{credentials.token(), credentials.userip()});
             authenticationResult = WaitFor(asyncAuthenticationResult)
                 .ValueOrThrow();
         } else {
@@ -135,6 +148,136 @@ private:
         }
     }
 
+    ITransactionPtr GetTransactionOrAbortContext(
+        const IServiceContextPtr& context,
+        const TTransactionId& transactionId,
+        const TTransactionAttachOptions& options)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context);
+        if (!client) {
+            return nullptr;
+        }
+
+        auto transaction = client->AttachTransaction(transactionId, options);
+
+        if (!transaction) {
+            context->Reply(TError("No such transaction %v", transactionId));
+            return nullptr;
+        }
+
+        context->SetRequestInfo("TransactionId: %v", transactionId);
+
+        return transaction;
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, StartTransaction)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context);
+        if (!client) {
+            return;
+        }
+
+        TTransactionStartOptions options;
+        if (request->has_timeout()) {
+            options.Timeout = FromProto<TDuration>(request->timeout());
+        }
+        if (request->has_id()) {
+            FromProto(&options.Id, request->id());
+        }
+        if (request->has_parent_id()) {
+            FromProto(&options.ParentId, request->parent_id());
+        }
+        options.AutoAbort = request->auto_abort();
+        options.Sticky = request->sticky();
+        options.Ping = request->ping();
+        options.PingAncestors = request->ping_ancestors();
+
+        client->StartTransaction(NTransactionClient::ETransactionType(request->type()), options)
+            .Subscribe(BIND([=] (const TErrorOr<ITransactionPtr>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    const auto& value = result.Value();
+                    ToProto(response->mutable_id(), value->GetId());
+                    response->set_start_timestamp(value->GetStartTimestamp());
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, PingTransaction)
+    {
+        auto transactionAttachOptions = TTransactionAttachOptions{};
+        transactionAttachOptions.Ping = true;
+        transactionAttachOptions.PingAncestors = true;
+        transactionAttachOptions.Sticky = request->sticky();
+        auto transaction = GetTransactionOrAbortContext(
+            context,
+            FromProto<TTransactionId>(request->transaction_id()),
+            transactionAttachOptions);
+        if (!transaction) {
+            return;
+        }
+
+        // TODO(sandello): Options!
+        transaction->Ping().Subscribe(BIND([=] (const TErrorOr<void>& result) {
+            if (!result.IsOK()) {
+                context->Reply(result);
+            } else {
+                context->Reply();
+            }
+        }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, CommitTransaction)
+    {
+        auto transactionAttachOptions = TTransactionAttachOptions{};
+        transactionAttachOptions.Ping = false;
+        transactionAttachOptions.PingAncestors = false;
+        transactionAttachOptions.Sticky = request->sticky();
+        auto transaction = GetTransactionOrAbortContext(
+            context,
+            FromProto<TTransactionId>(request->transaction_id()),
+            transactionAttachOptions);
+        if (!transaction) {
+            return;
+        }
+
+        // TODO(sandello): Options!
+        transaction->Commit().Subscribe(BIND([=] (const TErrorOr<TTransactionCommitResult>& result) {
+            if (!result.IsOK()) {
+                context->Reply(result);
+            } else {
+                // TODO(sandello): Fill me.
+                context->Reply();
+            }
+        }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, AbortTransaction)
+    {
+        auto transactionAttachOptions = TTransactionAttachOptions{};
+        transactionAttachOptions.Ping = false;
+        transactionAttachOptions.PingAncestors = false;
+        transactionAttachOptions.Sticky = request->sticky();
+        auto transaction = GetTransactionOrAbortContext(
+            context,
+            FromProto<TTransactionId>(request->transaction_id()),
+            transactionAttachOptions);
+        if (!transaction) {
+            return;
+        }
+
+        // TODO(sandello): Options!
+        transaction->Abort().Subscribe(BIND([=] (const TErrorOr<void>& result) {
+            if (!result.IsOK()) {
+                context->Reply(result);
+            } else {
+                context->Reply();
+            }
+        }));
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, GetNode)
     {
         auto client = GetAuthenticatedClientOrAbortContext(context);
@@ -146,15 +289,68 @@ private:
 
         // TODO(sandello): Inject options into req/rsp structure.
         auto options = TGetNodeOptions();
-        client->GetNode(request->path(), options).Subscribe(BIND([=] (const TErrorOr<NYson::TYsonString>& result) {
-            if (!result.IsOK()) {
-                context->Reply(result);
-            } else {
-                response->set_data(result.Value().GetData());
-                context->Reply();
-            }
-        }));
+        client->GetNode(request->path(), options)
+            .Subscribe(BIND([=] (const TErrorOr<NYson::TYsonString>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    response->set_data(result.Value().GetData());
+                    context->Reply();
+                }
+            }));
     }
+
+    template <class TContext, class TRequest, class TOptions>
+    static bool LookupRowsPrologue(
+        const TIntrusivePtr<TContext>& context,
+        TRequest* request,
+        const NProto::TRowsetDescriptor& rowsetDescriptor,
+        TNameTablePtr* nameTable,
+        TSharedRange<TUnversionedRow>* keys,
+        TOptions* options)
+    {
+        ValidateRowsetDescriptor(request->rowset_descriptor(), 1, NProto::ERowsetKind::UNVERSIONED);
+        if (request->Attachments().empty()) {
+            context->Reply(TError("Request is missing data"));
+            return false;
+        }
+
+        auto rowset = DeserializeRowset<TUnversionedRow>(
+            request->rowset_descriptor(),
+            MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
+        *nameTable = TNameTable::FromSchema(rowset->Schema());
+        *keys = MakeSharedRange(rowset->GetRows(), rowset);
+
+        options->Timeout = context->GetTimeout();
+        for (int i = 0; i < request->columns_size(); ++i) {
+            options->ColumnFilter.All = false;
+            options->ColumnFilter.Indexes.push_back((*nameTable)->GetIdOrRegisterName(request->columns(i)));
+        }
+        options->Timestamp = request->timestamp();
+        options->KeepMissingRows = request->keep_missing_rows();
+
+        context->SetRequestInfo("Path: %v, Rows: %v", request->path(), keys->Size());
+
+        return true;
+    }
+
+    template <class TContext, class TResponse, class TRow>
+    static void LookupRowsEpilogue(
+        const TIntrusivePtr<TContext>& context,
+        TResponse* response,
+        const TErrorOr<TIntrusivePtr<IRowset<TRow>>>& result)
+    {
+        if (!result.IsOK()) {
+            context->Reply(result);
+        } else {
+            const auto& value = result.Value();
+            response->Attachments() = SerializeRowset(
+                value->Schema(),
+                value->GetRows(),
+                response->mutable_rowset_descriptor());
+            context->Reply();
+        }
+    };
 
     DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, LookupRows)
     {
@@ -163,51 +359,110 @@ private:
             return;
         }
 
-        if (request->wire_format_version() != 1) {
-            context->Reply(TError("Unsupported wire format version"));
+        TNameTablePtr nameTable;
+        TSharedRange<TUnversionedRow> keys;
+        TLookupRowsOptions options;
+
+        if (!LookupRowsPrologue(context, request, request->rowset_descriptor(), &nameTable, &keys, &options)) {
             return;
         }
 
-        if (request->Attachments().empty()) {
-            context->Reply(TError("Request is missing data"));
-            return;
-        }
-
-        auto nameTable = New<TNameTable>();
-        for (const auto& desc : request->rowset_column_descriptor()) {
-            YCHECK(nameTable->RegisterName(desc.name()) == desc.id());
-        }
-
-        TWireProtocolReader reader(
-            MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()),
-            New<TRowBuffer>());
-        auto keys = reader.ReadUnversionedRowset(true);
-
-        context->SetRequestInfo("Path: %v, Rows: %v", request->path(), keys.Size());
-
-        client->LookupRows(request->path(), nameTable, keys).Subscribe(BIND([=] (const TErrorOr<IRowsetPtr>& result) {
-            if (!result.IsOK()) {
-                context->Reply(result);
-            } else {
-                const auto& rowset = result.Value();
-                const auto& schema = rowset->Schema();
-
-                int id = 0;
-                for (const auto& column : schema.Columns()) {
-                    auto* desc = response->add_rowset_column_descriptor();
-                    desc->set_id(id++);
-                    desc->set_type(static_cast<int>(column.Type));
-                    desc->set_name(column.Name);
-                }
-
-                TWireProtocolWriter writer;
-                writer.WriteUnversionedRowset(rowset->GetRows());
-                response->Attachments() = writer.Finish();
-                context->Reply();
-            }
-        }));
-
+        client->LookupRows(request->path(), std::move(nameTable), std::move(keys), options)
+            .Subscribe(BIND([=] (const TErrorOr<IUnversionedRowsetPtr>& result) {
+                LookupRowsEpilogue(context, response, result);
+            }));
     }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, VersionedLookupRows)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context);
+        if (!client) {
+            return;
+        }
+
+        TNameTablePtr nameTable;
+        TSharedRange<TUnversionedRow> keys;
+        TVersionedLookupRowsOptions options;
+
+        if (!LookupRowsPrologue(context, request, request->rowset_descriptor(), &nameTable, &keys, &options)) {
+            return;
+        }
+
+        client->VersionedLookupRows(request->path(), std::move(nameTable), std::move(keys), options)
+            .Subscribe(BIND([=] (const TErrorOr<IVersionedRowsetPtr>& result) {
+                LookupRowsEpilogue(context, response, result);
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, SelectRows)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context);
+        if (!client) {
+            return;
+        }
+
+        TSelectRowsOptions options; // TODO: Fill all options.
+        options.Timestamp = NTransactionClient::AsyncLastCommittedTimestamp;
+
+        client->SelectRows(request->query(), options)
+            .Subscribe(BIND([=] (const TErrorOr<TSelectRowsResult>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    const auto& value = result.Value();
+                    response->Attachments() = SerializeRowset(
+                        value.Rowset->Schema(),
+                        value.Rowset->GetRows(),
+                        response->mutable_rowset_descriptor());
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ModifyRows)
+    {
+        auto transactionAttachOptions = TTransactionAttachOptions{};
+        transactionAttachOptions.Ping = false;
+        transactionAttachOptions.PingAncestors = false;
+        transactionAttachOptions.Sticky = true; // XXX(sandello): Fix me!
+        auto transaction = GetTransactionOrAbortContext(
+            context,
+            FromProto<TTransactionId>(request->transaction_id()),
+            transactionAttachOptions);
+        if (!transaction) {
+            return;
+        }
+
+        auto rowset = DeserializeRowset<TUnversionedRow>(
+            request->rowset_descriptor(),
+            MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
+
+        const auto& rowsetRows = rowset->GetRows();
+        auto rowsetSize = rowset->GetRows().Size();
+
+        if (rowsetSize != request->row_modification_types_size()) {
+            THROW_ERROR_EXCEPTION("Row count mismatch");
+        }
+
+        std::vector<TRowModification> modifications;
+        modifications.reserve(rowsetSize);
+        for (size_t index = 0; index < rowsetSize; ++index) {
+            modifications.push_back({
+                ERowModificationType(request->row_modification_types(index)),
+                rowsetRows[index]
+            });
+        }
+
+        TModifyRowsOptions options;
+        transaction->ModifyRows(
+            request->path(),
+            TNameTable::FromSchema(rowset->Schema()),
+            MakeSharedRange(std::move(modifications), rowset),
+            options);
+
+        context->Reply();
+    }
+
 };
 
 IServicePtr CreateApiService(

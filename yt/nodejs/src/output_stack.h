@@ -38,8 +38,8 @@ private:
     IInvokerPtr Invoker_;
 };
 
-DECLARE_REFCOUNTED_TYPE(TNodeJSOutputStack);
-DEFINE_REFCOUNTED_TYPE(TNodeJSOutputStack);
+DECLARE_REFCOUNTED_TYPE(TNodeJSOutputStack)
+DEFINE_REFCOUNTED_TYPE(TNodeJSOutputStack)
 
 ////////////////////////////////////////////////////////////////////////////////
 

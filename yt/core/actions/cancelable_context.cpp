@@ -20,18 +20,21 @@ public:
         YCHECK(Context_);
     }
 
-    virtual void Invoke(const TClosure& callback) override
+    virtual void Invoke(TClosure callback) override
     {
         Y_ASSERT(callback);
 
-        if (Context_->Canceled_)
+        if (Context_->Canceled_) {
             return;
+        }
 
-        return UnderlyingInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] {
-            if (!Context_->Canceled_) {
-                TCurrentInvokerGuard guard(this_);
-                callback.Run();
+        return UnderlyingInvoker_->Invoke(BIND([=, this_ = MakeStrong(this), callback = std::move(callback)] {
+            if (Context_->Canceled_) {
+                return;
             }
+
+            TCurrentInvokerGuard guard(this_);
+            callback.Run();
         }));
     }
 

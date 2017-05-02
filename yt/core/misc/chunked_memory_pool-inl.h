@@ -45,6 +45,16 @@ inline T* TChunkedMemoryPool::AllocateUninitialized(int n, int align)
     return reinterpret_cast<T*>(AllocateAligned(sizeof(T) * n, align));
 }
 
+inline void TChunkedMemoryPool::Free(char* from, char* to)
+{
+    if (FreeZoneBegin_ == to) {
+        FreeZoneBegin_ = from;
+    }
+    if (FreeZoneEnd_ == from) {
+        FreeZoneEnd_ = to;
+    }
+}
+
 inline void TChunkedMemoryPool::Clear()
 {
     // Fast path.

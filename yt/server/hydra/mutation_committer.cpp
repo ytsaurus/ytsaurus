@@ -340,9 +340,15 @@ TFuture<TMutationResponse> TLeaderCommitter::Commit(const TMutationRequest& requ
         std::move(recordData),
         std::move(localFlushResult));
 
-    if (DecoratedAutomaton_->GetRecordCountSinceLastCheckpoint() >= Config_->MaxChangelogRecordCount ||
-        DecoratedAutomaton_->GetDataSizeSinceLastCheckpoint() >= Config_->MaxChangelogDataSize)
-    {
+    if (DecoratedAutomaton_->GetRecordCountSinceLastCheckpoint() >= Config_->MaxChangelogRecordCount) {
+        LOG_INFO("Requesting checkpoint due to record count limit (RecordCountSinceLastCheckpoint: %v, MaxChangelogRecordCount: %v)",
+            DecoratedAutomaton_->GetRecordCountSinceLastCheckpoint(),
+            Config_->MaxChangelogRecordCount);
+        CheckpointNeeded_.Fire();
+    } else if (DecoratedAutomaton_->GetDataSizeSinceLastCheckpoint() >= Config_->MaxChangelogDataSize)  {
+        LOG_INFO("Requesting checkpoint due to data size limit (DataSizeSinceLastCheckpoint: %v, MaxChangelogDataSize: %v)",
+            DecoratedAutomaton_->GetDataSizeSinceLastCheckpoint(),
+            Config_->MaxChangelogDataSize);
         CheckpointNeeded_.Fire();
     }
 
@@ -504,6 +510,9 @@ void TLeaderCommitter::OnAutoCheckpointCheck()
     if (TInstant::Now() > DecoratedAutomaton_->GetLastSnapshotTime() + Config_->SnapshotBuildPeriod &&
         DecoratedAutomaton_->GetLoggedVersion().RecordId > 0)
     {
+        LOG_INFO("Requesting periodic snapshot (LastSnapshotTime: %v, SnapshotBuildPeriod: %v)",
+            DecoratedAutomaton_->GetLastSnapshotTime(),
+            Config_->SnapshotBuildPeriod);
         CheckpointNeeded_.Fire();
     }
 }

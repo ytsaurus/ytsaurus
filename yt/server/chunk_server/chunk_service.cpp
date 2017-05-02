@@ -8,6 +8,7 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/master_hydra_service.h>
+#include <yt/server/cell_master/multicell_manager.h>
 
 #include <yt/server/node_tracker_server/node.h>
 #include <yt/server/node_tracker_server/node_directory_builder.h>
@@ -16,6 +17,8 @@
 #include <yt/server/transaction_server/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+
+#include <yt/ytlib/hive/cell_directory.h>
 
 #include <yt/core/erasure/codec.h>
 
@@ -50,6 +53,9 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator))
             .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(TouchChunks)
+            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator))
+            .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AllocateWriteTargets)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkReplicaAllocator)));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExportChunks)
@@ -75,26 +81,70 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
 
+        const auto& cellDirectory = Bootstrap_->GetCellDirectory();
+        auto leaderChannel = cellDirectory->GetChannel(Bootstrap_->GetCellId(), EPeerKind::Leader);
+        TChunkServiceProxy leaderProxy(std::move(leaderChannel));
+        auto leaderRequest = leaderProxy.TouchChunks();
+        leaderRequest->SetTimeout(context->GetTimeout());
+        leaderRequest->SetUser(context->GetUser());
+
+        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+        bool follower = hydraFacade->GetHydraManager()->IsFollower();
+
         for (const auto& protoChunkId : request->subrequests()) {
             auto chunkId = FromProto<TChunkId>(protoChunkId);
             auto chunkIdWithIndex = DecodeChunkId(chunkId);
 
             auto* subresponse = response->add_subresponses();
-            auto* chunk = chunkManager->FindChunk(chunkIdWithIndex.Id);
 
-            if (IsObjectAlive(chunk)) {
-                TChunkPtrWithIndexes chunkWithIndexes(
-                    chunk,
-                    chunkIdWithIndex.ReplicaIndex,
-                    AllMediaIndex);
-                auto replicas = chunkManager->LocateChunk(chunkWithIndexes);
-                ToProto(subresponse->mutable_replicas(), replicas);
-                subresponse->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
-                for (auto replica : replicas) {
-                    nodeDirectoryBuilder.Add(replica);
-                }
-            } else {
+            auto* chunk = chunkManager->FindChunk(chunkIdWithIndex.Id);
+            if (!IsObjectAlive(chunk)) {
                 subresponse->set_missing(true);
+                continue;
+            }
+
+            TChunkPtrWithIndexes chunkWithIndexes(
+                chunk,
+                chunkIdWithIndex.ReplicaIndex,
+                AllMediaIndex);
+            auto replicas = chunkManager->LocateChunk(chunkWithIndexes);
+
+            ToProto(subresponse->mutable_replicas(), replicas);
+            subresponse->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
+            for (auto replica : replicas) {
+                nodeDirectoryBuilder.Add(replica);
+            }
+
+            if (follower && chunk->IsErasure() && !chunk->IsAvailable()) {
+                ToProto(leaderRequest->add_subrequests(), chunkId);
+            }
+        }
+
+        if (leaderRequest->subrequests_size() > 0) {
+            LOG_DEBUG("Touching chunks at leader (Count: %v)",
+                leaderRequest->subrequests_size());
+            leaderRequest->Invoke();
+        }
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, TouchChunks)
+    {
+        context->SetRequestInfo("SubrequestCount: %v",
+            request->subrequests_size());
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        for (const auto& protoChunkId : request->subrequests()) {
+            auto chunkId = FromProto<TChunkId>(protoChunkId);
+            auto chunkIdWithIndex = DecodeChunkId(chunkId);
+            auto* chunk = chunkManager->FindChunk(chunkIdWithIndex.Id);
+            if (IsObjectAlive(chunk)) {
+                chunkManager->TouchChunk(chunk);
             }
         }
 
@@ -117,8 +167,6 @@ private:
         for (const auto& subrequest : request->subrequests()) {
             auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
             const auto& mediumName = subrequest.medium_name();
-            auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-            auto mediumIndex = medium->GetIndex();
             int desiredTargetCount = subrequest.desired_target_count();
             int minTargetCount = subrequest.min_target_count();
             auto replicationFactorOverride = subrequest.has_replication_factor_override()
@@ -129,46 +177,64 @@ private:
                 : Null;
             const auto& forbiddenAddresses = subrequest.forbidden_addresses();
 
-            auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
-
-            TNodeList forbiddenNodes;
-            for (const auto& address : forbiddenAddresses) {
-                auto* node = nodeTracker->FindNodeByAddress(address);
-                if (node) {
-                    forbiddenNodes.push_back(node);
-                }
-            }
-            std::sort(forbiddenNodes.begin(), forbiddenNodes.end());
-
-            auto targets = chunkManager->AllocateWriteTargets(
-                mediumIndex,
-                chunk,
-                desiredTargetCount,
-                minTargetCount,
-                replicationFactorOverride,
-                &forbiddenNodes,
-                preferredHostName);
-
             auto* subresponse = response->add_subresponses();
-            for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
-                auto* target = targets[index];
-                auto replica = TNodePtrWithIndexes(target, GenericChunkReplicaIndex, mediumIndex);
-                builder.Add(replica);
-                subresponse->add_replicas(ToProto<ui32>(replica));
-            }
+            try {
+                auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+                auto mediumIndex = medium->GetIndex();
 
-            LOG_DEBUG("Write targets allocated "
-                "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-                "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v, Medium: %v (%v))",
-                chunkId,
-                desiredTargetCount,
-                minTargetCount,
-                replicationFactorOverride,
-                preferredHostName,
-                forbiddenAddresses,
-                MakeFormattableRange(targets, TNodePtrAddressFormatter()),
-                mediumName,
-                mediumIndex);
+                auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
+
+                TNodeList forbiddenNodes;
+                for (const auto& address : forbiddenAddresses) {
+                    auto* node = nodeTracker->FindNodeByAddress(address);
+                    if (node) {
+                        forbiddenNodes.push_back(node);
+                    }
+                }
+                std::sort(forbiddenNodes.begin(), forbiddenNodes.end());
+
+                auto targets = chunkManager->AllocateWriteTargets(
+                    mediumIndex,
+                    chunk,
+                    desiredTargetCount,
+                    minTargetCount,
+                    replicationFactorOverride,
+                    &forbiddenNodes,
+                    preferredHostName);
+
+                for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
+                    auto* target = targets[index];
+                    auto replica = TNodePtrWithIndexes(target, GenericChunkReplicaIndex, mediumIndex);
+                    builder.Add(replica);
+                    subresponse->add_replicas(ToProto<ui32>(replica));
+                }
+
+                LOG_DEBUG("Write targets allocated "
+                    "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
+                    "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v, Medium: %v (%v))",
+                    chunkId,
+                    desiredTargetCount,
+                    minTargetCount,
+                    replicationFactorOverride,
+                    preferredHostName,
+                    forbiddenAddresses,
+                    MakeFormattableRange(targets, TNodePtrAddressFormatter()),
+                    mediumName,
+                    mediumIndex);
+            } catch (const std::exception& ex) {
+                auto error = TError(ex);
+                LOG_DEBUG(error, "Error allocating write targets "
+                    "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
+                    "PreferredHostName: %v, ForbiddenAddresses: %v, Medium: %v)",
+                    chunkId,
+                    desiredTargetCount,
+                    minTargetCount,
+                    replicationFactorOverride,
+                    preferredHostName,
+                    forbiddenAddresses,
+                    mediumName);
+                ToProto(subresponse->mutable_error(), error);
+            }
         }
 
         context->Reply();

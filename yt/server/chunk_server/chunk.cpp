@@ -68,8 +68,7 @@ TClusterResources TChunk::GetResourceUsage() const
 
     for (int index = 0; index < MaxMediumCount; ++index) {
         // NB: Use just the local RF as this only makes sense for staged chunks.
-        i64 diskSpace = ChunkInfo_.disk_space() * LocalProperties_[index].GetReplicationFactor();
-        result.DiskSpace[index] = diskSpace;
+        result.DiskSpace[index] = ChunkInfo_.disk_space() * LocalProperties_[index].GetReplicationFactor();
     }
 
     return result;

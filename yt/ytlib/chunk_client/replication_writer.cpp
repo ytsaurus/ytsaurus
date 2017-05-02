@@ -50,9 +50,9 @@ using NProto::TDataStatistics;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TReplicationWriter);
-DECLARE_REFCOUNTED_STRUCT(TNode);
-DECLARE_REFCOUNTED_CLASS(TGroup);
+DECLARE_REFCOUNTED_CLASS(TReplicationWriter)
+DECLARE_REFCOUNTED_STRUCT(TNode)
+DECLARE_REFCOUNTED_CLASS(TGroup)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +94,7 @@ Stroka ToString(const TNodePtr& node)
     return node->Descriptor.GetDefaultAddress();
 }
 
-DEFINE_REFCOUNTED_TYPE(TNode);
+DEFINE_REFCOUNTED_TYPE(TNode)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -142,7 +142,7 @@ private:
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TGroup);
+DEFINE_REFCOUNTED_TYPE(TGroup)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -264,7 +264,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 };
 
-DEFINE_REFCOUNTED_TYPE(TReplicationWriter);
+DEFINE_REFCOUNTED_TYPE(TReplicationWriter)
 
 ///////////////////////////////////////////////////////////////////////////////
 

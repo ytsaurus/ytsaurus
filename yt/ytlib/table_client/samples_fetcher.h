@@ -3,7 +3,7 @@
 #include "public.h"
 #include "unversioned_row.h"
 
-#include <yt/ytlib/chunk_client/fetcher_base.h>
+#include <yt/ytlib/chunk_client/fetcher.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>

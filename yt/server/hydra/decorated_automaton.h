@@ -69,7 +69,7 @@ class TSystemLockGuard
     : private TNonCopyable
 {
 public:
-    TSystemLockGuard();
+    TSystemLockGuard() = default;
     TSystemLockGuard(TSystemLockGuard&& other);
     ~TSystemLockGuard();
 
@@ -94,7 +94,7 @@ class TUserLockGuard
     : private TNonCopyable
 {
 public:
-    TUserLockGuard();
+    TUserLockGuard() = default;
     TUserLockGuard(TUserLockGuard&& other);
     ~TUserLockGuard();
 
@@ -221,16 +221,16 @@ private:
 
     // AutomatonVersion_ <= CommittedVersion_ <= LoggedVersion_
     // LoggedVersion_ is only maintained when the peer is active, e.g. not during recovery.
-    std::atomic<TVersion> LoggedVersion_;
-    std::atomic<TVersion> AutomatonVersion_;
-    std::atomic<TVersion> CommittedVersion_;
+    std::atomic<TVersion> LoggedVersion_ = {};
+    std::atomic<TVersion> AutomatonVersion_ = {};
+    std::atomic<TVersion> CommittedVersion_ = {};
 
     bool RotatingChangelog_ = false;
 
     //! AutomatonVersion_ <= SnapshotVersion_
     TVersion SnapshotVersion_;
     TPromise<TRemoteSnapshotParams> SnapshotParamsPromise_;
-    std::atomic_flag BuildingSnapshot_;
+    std::atomic_flag BuildingSnapshot_ = ATOMIC_FLAG_INIT;
     TInstant LastSnapshotTime_;
 
     struct TPendingMutation
@@ -251,7 +251,7 @@ private:
 
     yhash_map<Stroka, TMutationTypeDescriptor> TypeToDescriptor_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
 
     void RotateAutomatonVersionIfNeeded(TVersion mutationVersion);

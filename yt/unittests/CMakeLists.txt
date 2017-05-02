@@ -23,6 +23,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/checkpointable_stream_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/checksum_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_schema_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_slice_fetcher_mock.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_slice_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_balancer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_traversing_ut.cpp
@@ -98,6 +99,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/small_string_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/small_vector_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/statistics_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/sorted_chunk_pool_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sorted_store_manager_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ordered_store_manager_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaless_sorted_merging_reader_ut.cpp
@@ -137,6 +139,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ytree_fluent_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yverify_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/zigzag_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/mpsc_queue_ut.cpp
 )
 
 ################################################################################
@@ -219,6 +222,12 @@ udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs.c
     avg_udaf_update
     avg_udaf_merge
     avg_udaf_finalize
+)
+
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs_fc.cpp
+  YT_SRCS_RESOLVED
+  SYMBOLS
+    udf_with_function_context
 )
 
 list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})

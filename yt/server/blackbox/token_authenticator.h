@@ -13,15 +13,18 @@ struct ITokenAuthenticator
     : public virtual TRefCounted
 {
     virtual TFuture<TAuthenticationResult> Authenticate(
-        const Stroka& token,
-        const Stroka& userIP) = 0;
+        const TTokenCredentials& credentials) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ITokenAuthenticator);
+DEFINE_REFCOUNTED_TYPE(ITokenAuthenticator)
 
-ITokenAuthenticatorPtr CreateTokenAuthenticator(
+ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
     TTokenAuthenticatorConfigPtr config,
     IBlackboxServicePtr blackbox);
+
+ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
+    TExpiringCacheConfigPtr config,
+    ITokenAuthenticatorPtr authenticator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

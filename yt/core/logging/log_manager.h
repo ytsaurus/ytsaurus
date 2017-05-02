@@ -34,6 +34,9 @@ public:
 
     void Reopen();
 
+    void SetPerThreadBatchingPeriod(TDuration value);
+    TDuration GetPerThreadBatchingPeriod() const;
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

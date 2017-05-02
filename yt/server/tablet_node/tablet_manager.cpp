@@ -946,8 +946,19 @@ private:
         auto requestedState = ETabletState(request->state());
 
         switch (requestedState) {
-            case ETabletState::UnmountFlushing:
             case ETabletState::FreezeFlushing: {
+                auto state = tablet->GetState();
+                if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
+                    LOG_INFO_UNLESS(IsRecovery(), "Trying to switch state to %Qv while tablet in %Qlv state, ignored (TabletId: %v)",
+                        requestedState,
+                        state,
+                        tabletId);
+                    return;
+                }
+                // No break intentionaly
+            }
+
+            case ETabletState::UnmountFlushing: {
                 tablet->SetState(requestedState);
 
                 const auto& storeManager = tablet->GetStoreManager();
@@ -992,6 +1003,15 @@ private:
             }
 
             case ETabletState::Frozen: {
+                auto state = tablet->GetState();
+                if (state >= ETabletState::UnmountFirst && state <= ETabletState::UnmountLast) {
+                    LOG_INFO_UNLESS(IsRecovery(), "Trying to switch state to %Qv while tablet in %Qlv state, ignored (TabletId: %v)",
+                        requestedState,
+                        state,
+                        tabletId);
+                    return;
+                }
+
                 tablet->SetState(ETabletState::Frozen);
 
                 for (const auto& pair : tablet->StoreIdMap()) {
@@ -1417,7 +1437,7 @@ private:
         auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
 
         int partitionIndex = partition->GetIndex();
-        i64 partitionDataSize = partition->GetUncompressedDataSize();
+        i64 partitionDataSize = partition->GetCompressedDataSize();
 
         auto storeManager = tablet->GetStoreManager()->AsSorted();
         bool result = storeManager->SplitPartition(partition->GetIndex(), pivotKeys);
@@ -1475,7 +1495,7 @@ private:
         i64 partitionsDataSize = 0;
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
             const auto& partition = tablet->PartitionList()[index];
-            partitionsDataSize += partition->GetUncompressedDataSize();
+            partitionsDataSize += partition->GetCompressedDataSize();
         }
 
         auto storeManager = tablet->GetStoreManager()->AsSorted();
@@ -1979,6 +1999,15 @@ private:
                     writer);
                 break;
 
+            case EWireProtocolCommand::VersionedLookupRows:
+                VersionedLookupRows(
+                    std::move(tabletSnapshot),
+                    timestamp,
+                    workloadDescriptor,
+                    reader,
+                    writer);
+                break;
+
             default:
                 THROW_ERROR_EXCEPTION("Unknown read command %v",
                     command);
@@ -2281,18 +2310,24 @@ private:
             store->GetId(),
             backingStore->GetId());
 
-        auto callback = BIND([=, this_ = MakeStrong(this)] () {
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
-            store->SetBackingStore(nullptr);
-            LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());
-        });
         TDelayedExecutor::Submit(
             // NB: Submit the callback via the regular automaton invoker, not the epoch one since
             // we need the store to be released even if the epoch ends.
-            callback.Via(Slot_->GetAutomatonInvoker()),
+            BIND(&TTabletManager::TImpl::ReleaseBackingStore, MakeWeak(this), MakeWeak(store))
+                .Via(Slot_->GetAutomatonInvoker()),
             tablet->GetConfig()->BackingStoreRetentionTime);
     }
 
+    void ReleaseBackingStore(TWeakPtr<IChunkStore> storeWeak)
+    {
+        auto store = storeWeak.Lock();
+        if (!store) {
+            return;
+        }
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        store->SetBackingStore(nullptr);
+        LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());
+    }
 
     void BuildTabletOrchidYson(TTablet* tablet, IYsonConsumer* consumer)
     {
@@ -2346,6 +2381,7 @@ private:
                 .Item("sampling_request_time").Value(partition->GetSamplingRequestTime())
                 .Item("compaction_time").Value(partition->GetCompactionTime())
                 .Item("uncompressed_data_size").Value(partition->GetUncompressedDataSize())
+                .Item("compressed_data_size").Value(partition->GetCompressedDataSize())
                 .Item("unmerged_row_count").Value(partition->GetUnmergedRowCount())
                 .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {
                     fluent

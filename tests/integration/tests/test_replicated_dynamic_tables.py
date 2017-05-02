@@ -88,6 +88,20 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         insert_rows("//tmp/t", [{"key": 1, "value1": "test"}])
         delete_rows("//tmp/t", [{"key": 2}])
 
+    def test_replicated_in_memory_fail(self):
+        self._create_cells()
+        with pytest.raises(YtError):
+            self._create_replicated_table("//tmp/t", attributes={"in_memory_mode": "compressed"})
+        with pytest.raises(YtError):
+            self._create_replicated_table("//tmp/t", attributes={"in_memory_mode": "uncompressed"})
+
+    def test_replicated_in_memory_remount_fail(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        set("//tmp/t/@in_memory_mode", "compressed")
+        with pytest.raises(YtError):
+            remount_table("//tmp/t")
+
     def test_add_replica_fail1(self):
         with pytest.raises(YtError): create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
 
@@ -354,7 +368,19 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         reshard_table("//tmp/t", [[], [10], [20]])
         tablets = get("//tmp/t/@tablets")
+
+        # ensuring that we have correctly populated data here
+        tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 3
+        assert tablets[0]["index"] == 0
+        assert tablets[0]["pivot_key"] == []
+        assert tablets[1]["index"] == 1
+        assert tablets[1]["pivot_key"] == [10]
+        assert tablets[2]["index"] == 2
+        assert tablets[2]["pivot_key"] == [20]
+
+        self.sync_mount_table("//tmp/t")
+        self.sync_unmount_table("//tmp/t")
 
     def test_replica_ops_require_exclusive_lock(self):
         self._create_cells()

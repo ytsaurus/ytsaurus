@@ -917,21 +917,21 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "map_operation_options" : {
-                "max_chunk_stripes_per_job" : 1,
+                "max_data_slices_per_job" : 1,
             },
             "ordered_merge_operation_options" : {
-                "max_chunk_stripes_per_job" : 1,
+                "max_data_slices_per_job" : 1,
             },
             "sorted_merge_operation_options" : {
-                "max_chunk_stripes_per_job" : 1,
+                "max_data_slices_per_job" : 1,
             },
             "reduce_operation_options" : {
-                "max_chunk_stripes_per_job" : 1,
+                "max_data_slices_per_job" : 1,
             },
         }
     }
 
-    def test_max_chunk_stripes_per_job(self):
+    def test_max_data_slices_per_job(self):
         data = [{"foo": i} for i in xrange(5)]
         create("table", "//tmp/in1")
         create("table", "//tmp/in2")
@@ -998,9 +998,11 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
 
         operation_path = "//sys/operations/{0}".format(op.id)
         for iter in xrange(100):
-            completed_jobs = get(operation_path + "/@brief_progress/jobs/completed")
-            if completed_jobs == 2:
-                break
+            jobs_exist = exists(operation_path + "/@brief_progress/jobs")
+            if jobs_exist:
+                completed_jobs = get(operation_path + "/@brief_progress/jobs/completed")
+                if completed_jobs == 2:
+                    break
             time.sleep(0.1)
 
         operation_path = "//sys/operations/{0}".format(op.id)
@@ -1021,6 +1023,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         "scheduler": {
             "max_running_operation_count_per_pool" : 1,
             "static_orchid_cache_update_period": 100,
+            "default_parent_pool": "default_pool",
         }
     }
 
@@ -1304,6 +1307,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         create("map_node", "//sys/pools/p1", attributes={"forbid_immediate_operations": True})
         create("map_node", "//sys/pools/p1/p2")
+        create("map_node", "//sys/pools/default_pool", attributes={"forbid_immediate_operations": True})
 
         time.sleep(0.5)
 
@@ -1319,6 +1323,13 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             out="//tmp/t_out",
             user="u",
             spec={"pool": "p2"})
+
+        map(command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            user="u",
+            spec={"pool": "p3"})
+
 
 class TestSchedulingTags(YTEnvSetup):
     NUM_MASTERS = 3
@@ -1516,7 +1527,8 @@ class TestSchedulerPools(YTEnvSetup):
             "event_log" : {
                 "flush_period" : 300,
                 "retry_backoff_time": 300
-            }
+            },
+            "max_ephemeral_pools_per_user": 3,
         }
     }
 
@@ -1551,26 +1563,86 @@ class TestSchedulerPools(YTEnvSetup):
         op.track()
 
     def test_default_parent_pool(self):
-        self._prepare()
+        create("table", "//tmp/t_in")
+        set("//tmp/t_in/@replication_factor", 1)
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        for output in ["//tmp/t_out1", "//tmp/t_out2"]:
+            create("table", output)
+            set(output + "/@replication_factor", 1)
 
         create("map_node", "//sys/pools/default_pool")
         time.sleep(0.2)
 
-        op = map(
+        op1 = map(
             dont_track=True,
             waiting_jobs=True,
             command="cat",
             in_="//tmp/t_in",
-            out="//tmp/t_out")
+            out="//tmp/t_out1")
+
+        op2 = map(
+            dont_track=True,
+            waiting_jobs=True,
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out2",
+            spec={"pool": "my_pool"})
 
         pool = get("//sys/scheduler/orchid/scheduler/pools/root")
         assert pool["parent"] == "default_pool"
 
+        pool = get("//sys/scheduler/orchid/scheduler/pools/my_pool")
+        assert pool["parent"] == "default_pool"
+
+        assert __builtin__.set(["root", "my_pool"]) == \
+               __builtin__.set(get("//sys/scheduler/orchid/scheduler/user_to_ephemeral_pools/root"))
+
         remove("//sys/pools/default_pool")
         time.sleep(0.2)
 
-        op.resume_jobs()
-        op.track()
+        for op in [op1, op2]:
+            op.resume_jobs()
+            op.track()
+
+    def test_ephemeral_pools_limit(self):
+        create("table", "//tmp/t_in")
+        set("//tmp/t_in/@replication_factor", 1)
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        for i in xrange(1, 5):
+            output = "//tmp/t_out" + str(i)
+            create("table", output)
+            set(output + "/@replication_factor", 1)
+
+        create("map_node", "//sys/pools/default_pool")
+        time.sleep(0.2)
+
+        ops = []
+        for i in xrange(1, 4):
+            ops.append(map(
+                dont_track=True,
+                waiting_jobs=True,
+                command="cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out" + str(i),
+                spec={"pool": "pool" + str(i)}))
+
+        assert __builtin__.set(["pool" + str(i) for i in xrange(1, 4)]) == \
+               __builtin__.set(get("//sys/scheduler/orchid/scheduler/user_to_ephemeral_pools/root"))
+
+        with pytest.raises(YtError):
+            map(command="cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out4",
+                spec={"pool": "pool4"})
+
+        remove("//sys/pools/default_pool")
+        time.sleep(0.2)
+
+        for op in ops:
+            op.resume_jobs()
+            op.track()
 
     def test_event_log(self):
         self._prepare()
@@ -1755,7 +1827,8 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         spec={
             "pool": "fake_pool",
-            "locality_timeout": 0
+            "locality_timeout": 0,
+            "enable_job_splitting": False,
         }
         if interruptible:
             data_size_per_job = get("//tmp/t_in/@uncompressed_data_size")
@@ -2442,3 +2515,42 @@ class TestMaxTotalSliceCount(YTEnvSetup):
                 out="//tmp/t_out",
                 join_by=["key"],
                 command="cat > /dev/null")
+
+class TestMainNodesFilter(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "main_nodes_filter": [{"include": ["internal"]}],
+        }
+    }
+
+    def test_main_nodes_resources_limits(self):
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 2
+        set("//sys/nodes/{0}/@user_tags".format(nodes[0]), ["internal"])
+
+        time.sleep(2)
+
+        assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots", 2)
+        assert get("//sys/scheduler/orchid/scheduler/cell/main_nodes_resource_limits/user_slots", 1)
+
+        create("table", "//tmp/input", attributes={"replication_factor": 1})
+        create("table", "//tmp/output", attributes={"replication_factor": 1})
+        write_table("//tmp/input", [{"foo": i} for i in xrange(2)])
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            command="sleep 10",
+            in_="//tmp/input",
+            out="//tmp/output",
+            spec={"data_size_per_job": 1})
+
+        time.sleep(1)
+
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/running".format(op.id)) == 2
+        assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_ratio".format(op.id)), 1.0)
+        assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op.id)), 2.0)
+

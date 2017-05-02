@@ -25,7 +25,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto SleepQuantum = TDuration::MilliSeconds(50);
+static const auto SleepQuantum = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -607,6 +607,7 @@ TEST_F(TSuspendableInvokerTest, PollSuspendFuture)
         EXPECT_EQ(flag, future.IsSet());
         Sleep(SleepQuantum);
     }
+    Sleep(SleepQuantum);
     EXPECT_EQ(flag, future.IsSet());
 }
 

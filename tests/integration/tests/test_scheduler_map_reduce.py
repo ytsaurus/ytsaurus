@@ -20,7 +20,10 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
           "min_uncompressed_block_size" : 1
         },
         "map_reduce_operation_options" : {
-          "min_uncompressed_block_size" : 1
+          "min_uncompressed_block_size" : 1,
+          "spec_template" : {
+            "use_legacy_controller" : False,
+          }
         },
         "enable_partition_map_job_size_adjustment" : True
       }
@@ -157,6 +160,22 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                              "reducer": {"format": "dsv"},
                              "data_size_per_sort_job": 10},
                        tx=tx)
+        elif method == "force_reduce_combiners":
+            map_reduce(in_="//tmp/t_in",
+                       out="//tmp/t_out",
+                       sort_by="word",
+                       mapper_command="python mapper.py",
+                       mapper_file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
+                       reduce_combiner_command="python reducer.py",
+                       reduce_combiner_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
+                       reducer_command="cat",
+                       spec={"partition_count": 2,
+                             "map_job_count": 2,
+                             "mapper": {"format": "dsv"},
+                             "reduce_combiner": {"format": "dsv"},
+                             "reducer": {"format": "dsv"},
+                             "force_reduce_combiners": True},
+                       tx=tx)
 
         commit_transaction(tx)
 
@@ -188,6 +207,10 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
     @unix_only
     def test_map_reduce_reduce_combiner_dev_null(self):
         self.do_run_test("reduce_combiner_dev_null")
+
+    @unix_only
+    def test_map_reduce_force_reduce_combiners(self):
+        self.do_run_test("force_reduce_combiners")
 
     @unix_only
     def test_many_output_tables(self):
@@ -272,7 +295,7 @@ print "x={0}\ty={1}".format(x, y)
                      "reducer": {"format": "dsv"},
                      "resource_limits" : { "user_slots" : 1}})
 
-        assert len(read_table("//tmp/t_out")) == 1 
+        assert len(read_table("//tmp/t_out")) == 1
 
     def test_intermediate_live_preview(self):
         create_user("u")

@@ -54,6 +54,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_tree_statistics.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_tree_traverser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_scanner.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_server/chunk_visitor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/cypress_integration.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/medium.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_server/medium_proxy.cpp
@@ -284,10 +285,12 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_prober_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_resources.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_size_adjuster.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_splitter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_tracker_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/map_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/master_connector.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/merge_controller.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/sorted_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/node_shard.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/operation.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/operation_controller_detail.cpp
@@ -303,6 +306,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/snapshot_builder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/snapshot_downloader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/sort_controller.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/sorted_chunk_pool.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/security_server/account.cpp
   ${CMAKE_CURRENT_LIST_DIR}/security_server/account_proxy.cpp
@@ -439,6 +443,7 @@ SRCS(
 )
 
 PEERDIR(
+  contrib/libs/openssl
   contrib/libs/sparsehash
   library/streams/lz
   library/http/server
@@ -555,6 +560,8 @@ target_link_libraries(ytserver-core-forwarder
   deps-arcadia-library-getopt
   deps-arcadia-library-lfalloc
 )
+
+set_target_properties(ytserver-core-forwarder PROPERTIES LINK_FLAGS "-static-libstdc++")
 
 ###
 

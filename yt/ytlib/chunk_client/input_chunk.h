@@ -4,6 +4,7 @@
 #include "read_limit.h"
 #include "chunk_replica.h"
 #include "chunk_spec.h"
+#include "data_source.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
@@ -27,20 +28,22 @@ namespace NChunkClient {
 //! The content of TInputChunkBase is stored in a scheduler snapshot as a POD.
 class TInputChunkBase
 {
-    DEFINE_BYREF_RO_PROPERTY(TChunkId, ChunkId);
+public:
+    DEFINE_BYREF_RW_PROPERTY(TChunkId, ChunkId);
 
     typedef std::array<TChunkReplica, MaxInputChunkReplicaCount> TInputChunkReplicas;
     DEFINE_BYREF_RO_PROPERTY(TInputChunkReplicas, Replicas);
 
     DEFINE_BYVAL_RW_PROPERTY(int, TableIndex, -1);
     DEFINE_BYVAL_RO_PROPERTY(NErasure::ECodec, ErasureCodec, NErasure::ECodec::None);
-    DEFINE_BYVAL_RO_PROPERTY(i64, TableRowIndex);
+    DEFINE_BYVAL_RW_PROPERTY(i64, TableRowIndex);
     DEFINE_BYVAL_RO_PROPERTY(int, RangeIndex);
     DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableChunkFormat, TableChunkFormat);
 
-    DEFINE_BYVAL_RO_PROPERTY(i64, UncompressedDataSize);
-    DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
-    DEFINE_BYVAL_RO_PROPERTY(i64, CompressedDataSize); // for TSortControllerBase
+    DEFINE_BYVAL_RW_PROPERTY(i64, UncompressedDataSize);
+    DEFINE_BYVAL_RW_PROPERTY(i64, RowCount);
+    DEFINE_BYVAL_RW_PROPERTY(i64, CompressedDataSize); // for TSortControllerBase
+    DEFINE_BYVAL_RO_PROPERTY(i64, DataWeight);
     DEFINE_BYVAL_RO_PROPERTY(i64, MaxBlockSize); // for TChunkStripeStatistics
 
     DEFINE_BYVAL_RO_PROPERTY(bool, UniqueKeys, false); // for TChunkStripeStatistics
@@ -66,14 +69,15 @@ class TInputChunk
     : public TIntrinsicRefCounted
     , public TInputChunkBase
 {
-    // Here are read limits.
+public:
+    // Here are read limits. They are not read-only because of chunk pool unittests.
     typedef std::unique_ptr<TReadLimit> TReadLimitHolder;
-    DEFINE_BYREF_RO_PROPERTY(TReadLimitHolder, LowerLimit);
-    DEFINE_BYREF_RO_PROPERTY(TReadLimitHolder, UpperLimit);
+    DEFINE_BYREF_RW_PROPERTY(TReadLimitHolder, LowerLimit);
+    DEFINE_BYREF_RW_PROPERTY(TReadLimitHolder, UpperLimit);
 
-    // Here are boundary keys.
+    // Here are boundary keys. They are not read-only because of chunk pool unittests.
     typedef std::unique_ptr<NTableClient::TBoundaryKeys> TInputChunkBoundaryKeys;
-    DEFINE_BYREF_RO_PROPERTY(TInputChunkBoundaryKeys, BoundaryKeys);
+    DEFINE_BYREF_RW_PROPERTY(TInputChunkBoundaryKeys, BoundaryKeys);
 
     // These fields are not used directly by scheduler.
     typedef std::unique_ptr<NChunkClient::NProto::TChannel> TInputChunkChannel;
@@ -100,14 +104,14 @@ public:
     //! Releases memory occupied by PartitionsExt
     void ReleasePartitionsExt();
 
-    friend void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk);
+    friend void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, EDataSourceType dataSourceType);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk);
+void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, EDataSourceType dataSourceType);
 Stroka ToString(const TInputChunkPtr& inputChunk);
 
 ////////////////////////////////////////////////////////////////////////////////

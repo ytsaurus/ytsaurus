@@ -9,6 +9,16 @@ from time import sleep
 ##################################################################
 
 class TestSchedulerMergeCommands(YTEnvSetup):
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "sorted_merge_operation_options" : {
+                "spec_template" : {
+                    "use_legacy_controller" : False,
+                }
+            }
+        }
+    }
+
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -223,6 +233,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
+    # TODO(max42): eventually remove this test as it duplicates unittests TSortedChunkPoolTest/SortedMergeTeleport*.
     def test_sorted_passthrough(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -302,7 +313,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               spec={"data_size_per_job": 1})
 
         assert read_table("//tmp/t_out") == [{"a": 1}, {"a": 2}, {"a": 3}, {"a": 3}, {"a": 3}, {"a": 3}, {"a": 3}, {"a": 15}]
-        assert get("//tmp/t_out/@chunk_count") == 3
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
@@ -553,21 +563,46 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert_items_equal(read_table("//tmp/t_out"), [self.v1[1], {}, {}])
         assert get("//tmp/t_out/@chunk_count") == 1
 
-    @unix_only
-    def test_query_filtering(self):
-        create("table", "//tmp/t1")
+    @pytest.mark.parametrize("mode", ["ordered", "unordered"])
+    def test_query_filtering(self, mode):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
 
-        merge(mode="unordered",
+        merge(mode=mode,
             in_="//tmp/t1",
             out="//tmp/t2",
-            spec={
-                "force_transform": "true",
-                "input_query": "a where a > 0",
-                "input_schema": [{"name": "a", "type": "int64"}]})
+            spec={"input_query": "a where a > 0"})
 
         assert read_table("//tmp/t2") == [{"a": 1}]
+        assert get("//tmp/t2/@schema") == get("//tmp/t1/@schema")
+
+        remove("//tmp/t2")
+        create("table", "//tmp/t2")
+        merge(mode=mode,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"input_query": "a + 1 as b where a > 0"})
+
+        assert read_table("//tmp/t2") == [{"b": 2}]
+        schema = get("//tmp/t1/@schema")
+        schema[0]["name"] = "b"
+        assert get("//tmp/t2/@schema") == schema
+
+    def test_sorted_merge_query_filtering(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
+
+        with pytest.raises(YtError):
+            merge(mode="sorted",
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={"input_query": "a where a > 0"})
 
     @unix_only
     def test_merge_chunk_properties(self):
@@ -777,7 +812,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         def _create_dynamic_table(path):
             create("table", path,
                 attributes = {
-                    "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "string"}],
+                    "schema": [
+                        {"name": "key", "type": "int64", "sort_order": "ascending"},
+                        {"name": "value", "type": "string"}],
                     "dynamic": True,
                     "optimize_for": optimize_for
                 })
@@ -787,9 +824,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         create("table", "//tmp/t_out")
 
-        rows = [{"key": i, "value": str(i)} for i in range(10)]
+        rows1 = [{"key": i, "value": str(i)} for i in range(10)]
         self.sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows)
+        insert_rows("//tmp/t", rows1)
         self.sync_unmount_table("//tmp/t")
 
         merge(
@@ -798,11 +835,11 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             out="//tmp/t_out",
             merge_by="key")
 
-        assert_items_equal(read_table("//tmp/t_out"), rows)
+        assert_items_equal(read_table("//tmp/t_out"), rows1)
 
-        rows = [{"key": i, "value": str(i+1)} for i in range(10)]
+        rows2 = [{"key": i, "value": str(i+1)} for i in range(5, 15)]
         self.sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows)
+        insert_rows("//tmp/t", rows2)
         self.sync_unmount_table("//tmp/t")
 
         merge(
@@ -811,7 +848,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             out="//tmp/t_out",
             merge_by="key")
 
-        assert_items_equal(read_table("//tmp/t_out"), rows)
+        assert_items_equal(read_table("//tmp/t_out"), rows1[:5] + rows2)
 
     @pytest.mark.parametrize("mode", ["unordered", "ordered", "sorted"])
     def test_computed_columns(self, mode):

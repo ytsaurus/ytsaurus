@@ -83,8 +83,8 @@ void TResourceTracker::EnqueueCpuUsage()
     TDirsList dirsList;
     try {
         dirsList.Fill(procPath);
-    } catch (const TIoException&) {
-        // Ignore all IO exceptions.
+    } catch (const TSystemError&) {
+        // Ignore all exceptions.
         return;
     }
 

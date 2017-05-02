@@ -49,6 +49,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_node_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_slice_descriptor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_slice_descriptor.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_source.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_source.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_statistics.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_statistics.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/dispatcher.cpp
@@ -56,7 +58,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/encoding_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/erasure_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/erasure_writer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/fetcher_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/file_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/file_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/format.cpp
@@ -65,6 +67,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_chunk_slice.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/input_data_slice.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/job.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/key_set.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/memory_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/memory_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/multi_chunk_writer_base.cpp
@@ -129,6 +132,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaless_writer_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/utf8_decoder.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/versioned_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_parser_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_writer.cpp
@@ -243,8 +247,11 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/api_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/credentials_injecting_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_client.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_client_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_connection.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/rpc_proxy_transaction.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_proxy/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/config.cpp
@@ -288,7 +295,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta.proto
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta_extensions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_reader_base.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_slices_fetcher.cpp
+        table_client/chunk_slice_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_reader_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/columnar_chunk_meta.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/helpers.cpp
@@ -315,7 +322,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_chunk_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_partition_sort_reader.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_reader_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_row_reorderer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_sorted_merging_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_sorting_reader.cpp

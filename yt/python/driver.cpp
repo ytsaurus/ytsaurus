@@ -115,6 +115,7 @@ public:
             throw Py::RuntimeError(Stroka("Error loading driver configuration\n") + ex.what());
         }
 
+        Config_ = config;
         UnderlyingDriver_ = CreateDriver(config);
         YCHECK(ActiveDrivers.emplace(Id_, UnderlyingDriver_).second);
     }
@@ -140,6 +141,8 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Forces to build a snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Runs garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clears metadata caches");
+
+        PYCXX_ADD_KEYWORDS_METHOD(get_config, GetConfig, "Get config");
 
         behaviors().readyType();
     }
@@ -339,12 +342,20 @@ public:
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ClearMetadataCaches)
 
+    Py::Object GetConfig(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        ValidateArgumentsEmpty(args, kwargs);
+
+        return ConvertTo<Py::Object>(Config_);
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetConfig)
+
 private:
     const TGuid Id_;
     const NLogging::TLogger Logger;
 
+    TDriverConfigPtr Config_;
     IDriverPtr UnderlyingDriver_;
-
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -373,7 +384,7 @@ public:
             LOG_INFO("Module shutdown finished");
         }));
 
-        //InstallCrashSignalHandler(std::set<int>({SIGSEGV}));
+        InstallCrashSignalHandler(std::set<int>({SIGSEGV}));
 
         TDriver::InitType();
         TBufferedStreamWrap::InitType();

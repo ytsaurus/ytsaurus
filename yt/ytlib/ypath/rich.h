@@ -6,6 +6,10 @@
 
 #include <yt/core/ytree/attributes.h>
 
+#include <yt/core/compression/public.h>
+
+#include <yt/core/erasure/public.h>
+
 #include <yt/ytlib/table_client/schema.h>
 
 #include <yt/ytlib/chunk_client/read_limit.h>
@@ -54,6 +58,9 @@ public:
 
     // "foreign"
     bool GetForeign() const;
+    void SetForeign(bool value);
+
+    bool HasNontrivialRanges() const;
 
     // "channel"
     NChunkClient::TChannel GetChannel() const;
@@ -84,6 +91,15 @@ public:
 
     // "timestamp"
     TNullable<NTransactionClient::TTimestamp> GetTimestamp() const;
+
+    // "optimize_for"
+    TNullable<NTableClient::EOptimizeFor> GetOptimizeFor() const;
+
+    // "compression_codec"
+    TNullable<NCompression::ECodec> GetCompressionCodec() const;
+
+    // "erasure_codec"
+    TNullable<NErasure::ECodec> GetErasureCodec() const;
 
 private:
     TYPath Path_;

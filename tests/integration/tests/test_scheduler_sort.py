@@ -17,7 +17,10 @@ class TestSchedulerSortCommands(YTEnvSetup):
         "scheduler" : {
             "sort_operation_options" : {
                 "min_uncompressed_block_size" : 1,
-                "min_partition_size" : 1
+                "min_partition_size" : 1,
+                "spec_template" : {
+                    "use_legacy_controller" : False,
+                }
             }
         }
     }
@@ -41,6 +44,28 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5]
         assert get("//tmp/t_out/@sorted") ==  True
         assert get("//tmp/t_out/@sorted_by") ==  ["key"]
+
+    def test_simple_read_limits(self):
+        v1 = {"key" : "aaa", "value" : "2"}
+        v2 = {"key" : "bb", "value" : "5"}
+        v3 = {"key" : "bbxx", "value" : "1"}
+        v4 = {"key" : "zfoo", "value" : "4"}
+        v5 = {"key" : "zzz", "value" : "3"}
+
+        create("table", "//tmp/t_in")
+        write_table(
+            "<schema=[{name=key; type=string; sort_order=ascending}; {name=value;type=string}]>//tmp/t_in",
+            [v1, v2, v3, v4, v5])
+
+        create("table", "//tmp/t_out")
+
+        sort(in_="<lower_limit={key=[b]}; upper_limit={key=[z]}>//tmp/t_in",
+             out="//tmp/t_out",
+             sort_by="value")
+
+        assert read_table("//tmp/t_out") == [v3, v2]
+        assert get("//tmp/t_out/@sorted") ==  True
+        assert get("//tmp/t_out/@sorted_by") ==  ["value"]
 
     def test_key_weight_limit(self):
         v1 = {"key" : "aaa"}
@@ -198,6 +223,27 @@ class TestSchedulerSortCommands(YTEnvSetup):
                         {"desired_chunk_size" : 1, "block_size" : 1024}}})
 
         assert len(read_table("//tmp/t_out")) == 50
+
+    def test_several_merge_jobs_per_partition(self):
+        create("table", "//tmp/t_in")
+        rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in xrange(500)]
+        shuffled_rows = rows[::]
+        shuffle(shuffled_rows)
+        write_table("//tmp/t_in", shuffled_rows)
+
+        create("table", "//tmp/t_out")
+
+        sort(in_="//tmp/t_in",
+             out="//tmp/t_out",
+             sort_by="key",
+             spec={"partition_count": 2,
+                   "partition_job_count": 10,
+                   "data_size_per_sort_job": 1,
+                   "partition_job_io" : {"table_writer" :
+                        {"desired_chunk_size" : 1, "block_size" : 1024}}})
+
+        assert read_table("//tmp/t_out") == rows
+        assert get("//tmp/t_out/@chunk_count") >= 10
 
     def test_with_intermediate_account(self):
         v1 = {"key" : "aaa"}
@@ -620,6 +666,20 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert len(chunks) == 1
         assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
+
+    def test_query_filtering(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
+
+        with pytest.raises(YtError):
+            sort(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={"input_query": "a where a > 0"})
+
 
 ##################################################################
 

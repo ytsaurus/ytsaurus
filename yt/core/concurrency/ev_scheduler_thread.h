@@ -26,7 +26,7 @@ protected:
     public:
         explicit TInvoker(TEVSchedulerThread* owner);
 
-        virtual void Invoke(const TClosure& callback) override;
+        virtual void Invoke(TClosure callback) override;
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
         virtual TThreadId GetThreadId() const override;
@@ -52,7 +52,7 @@ protected:
     EBeginExecuteResult BeginExecuteCallbacks();
     void OnCallback(ev::async&, int);
 
-    void EnqueueCallback(const TClosure& callback);
+    void EnqueueCallback(TClosure callback);
 
 };
 
