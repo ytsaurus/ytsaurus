@@ -1,4 +1,4 @@
-#include <yt_udf.h>
+#include "yt_udf.h"
 
 void avg_init(
     TExpressionContext* context,
@@ -21,6 +21,7 @@ void avg_update(
     TUnversionedValue* state,
     TUnversionedValue* newValue)
 {
+    (void)context;
     int64_t* intStatePtr = (int64_t*)state->Data.String;
     if (newValue->Type != Null) {
         intStatePtr[0] += 1;
@@ -38,6 +39,7 @@ void avg_merge(
     TUnversionedValue* dstState,
     TUnversionedValue* state)
 {
+    (void)context;
     int64_t* dstStatePtr = (int64_t*)dstState->Data.String;
     int64_t* intStatePtr = (int64_t*)state->Data.String;
 
@@ -54,6 +56,7 @@ void avg_finalize(
     TUnversionedValue* result,
     TUnversionedValue* state)
 {
+    (void)context;
     int64_t* intStatePtr = (int64_t*)state->Data.String;
     if (intStatePtr[0] == 0) {
         result->Type = Null;
