@@ -172,7 +172,7 @@ private:
     NConcurrency::TReaderWriterSpinLock CachedExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
 
-    yhash_map<TSchedulingTagFilter, TJobResources> SchedulingTagFilterToResources_;
+    yhash<TSchedulingTagFilter, TJobResources> SchedulingTagFilterToResources_;
 
     // Exec node is the node that is online and has user slots.
     std::atomic<int> ExecNodeCount_ = {0};
@@ -195,15 +195,15 @@ private:
             : Controller(controller)
         { }
 
-        yhash_map<TJobId, TJobPtr> Jobs;
+        yhash<TJobId, TJobPtr> Jobs;
         NControllerAgent::IOperationControllerPtr Controller;
         bool Terminated = false;
         bool JobsAborted = false;
     };
 
-    yhash_map<TOperationId, TOperationState> OperationStates_;
+    yhash<TOperationId, TOperationState> OperationStates_;
 
-    typedef yhash_map<NNodeTrackerClient::TNodeId, TExecNodePtr> TExecNodeByIdMap;
+    typedef yhash<NNodeTrackerClient::TNodeId, TExecNodePtr> TExecNodeByIdMap;
     TExecNodeByIdMap IdToNode_;
 
     const NObjectClient::TCellTag PrimaryMasterCellTag_;

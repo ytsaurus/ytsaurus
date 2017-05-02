@@ -828,7 +828,7 @@ public:
     TRemoteCopyOperationOptionsPtr RemoteCopyOperationOptions;
 
     //! Default environment variables set for every job.
-    yhash_map<Stroka, Stroka> Environment;
+    yhash<Stroka, Stroka> Environment;
 
     //! Interval between consequent snapshots.
     TDuration SnapshotPeriod;
@@ -1121,7 +1121,7 @@ public:
             .DefaultNew();
 
         RegisterParameter("environment", Environment)
-            .Default(yhash_map<Stroka, Stroka>())
+            .Default(yhash<Stroka, Stroka>())
             .MergeBy(NYTree::EMergeStrategy::Combine);
 
         RegisterParameter("snapshot_timeout", SnapshotTimeout)

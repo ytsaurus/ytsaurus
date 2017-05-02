@@ -168,7 +168,7 @@ private:
     TEntityMap<TCommit> TransientCommitMap_;
     TEntityMap<TCommit> PersistentCommitMap_;
 
-    yhash_map<TTransactionId, TAbort> TransientAbortMap_;
+    yhash<TTransactionId, TAbort> TransientAbortMap_;
 
 
     class TWrappedParticipant
@@ -399,8 +399,8 @@ private:
     using TWrappedParticipantPtr = TIntrusivePtr<TWrappedParticipant>;
     using TWrappedParticipantWeakPtr = TWeakPtr<TWrappedParticipant>;
 
-    yhash_map<TCellId, TWrappedParticipantPtr> StrongParticipantMap_;
-    yhash_map<TCellId, TWrappedParticipantWeakPtr> WeakParticipantMap_;
+    yhash<TCellId, TWrappedParticipantPtr> StrongParticipantMap_;
+    yhash<TCellId, TWrappedParticipantWeakPtr> WeakParticipantMap_;
     TPeriodicExecutorPtr ParticipantCleanupExecutor_;
 
 

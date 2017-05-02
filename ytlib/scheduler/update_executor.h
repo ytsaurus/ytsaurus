@@ -45,7 +45,7 @@ private:
     };
 
     NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
-    yhash_map<TKey, TUpdateRecord> Updates_;
+    yhash<TKey, TUpdateRecord> Updates_;
 
     NLogging::TLogger Logger;
 

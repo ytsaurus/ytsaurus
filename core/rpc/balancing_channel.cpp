@@ -103,7 +103,7 @@ private:
     yhash_set<Stroka> ActiveAddresses_;
     yhash_set<Stroka> BannedAddresses_;
 
-    yhash_map<Stroka, IChannelPtr> AddressToViableChannel_;
+    yhash<Stroka, IChannelPtr> AddressToViableChannel_;
     std::map<std::pair<size_t, Stroka>, IChannelPtr> HashToViableChannel_;
 
     NLogging::TLogger Logger;
@@ -630,7 +630,7 @@ private:
     const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
 
     mutable TReaderWriterSpinLock SpinLock_;
-    yhash_map<Stroka, TBalancingChannelSubproviderPtr> SubproviderMap_;
+    yhash<Stroka, TBalancingChannelSubproviderPtr> SubproviderMap_;
 
 
     TBalancingChannelSubproviderPtr GetSubprovider(const Stroka& serviceName)

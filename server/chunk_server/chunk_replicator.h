@@ -152,7 +152,7 @@ private:
     const NConcurrency::TPeriodicExecutorPtr PropertiesUpdateExecutor_;
     const std::unique_ptr<TChunkScanner> PropertiesUpdateScanner_;
 
-    yhash_map<TJobId, TJobPtr> JobMap_;
+    yhash<TJobId, TJobPtr> JobMap_;
 
     //! A single queue for all chunks and media is maintained.
     //! Replica index is always GenericChunkReplicaIndex.

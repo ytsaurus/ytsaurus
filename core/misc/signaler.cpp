@@ -49,7 +49,7 @@ void SendSignal(const std::vector<int>& pids, const Stroka& signalName)
 
 TNullable<int> FindSignalIdBySignalName(const Stroka& signalName)
 {
-    static yhash_map<Stroka, int> SignalNameToNumber = {
+    static yhash<Stroka, int> SignalNameToNumber = {
         { "SIGHUP",  SIGHUP },
         { "SIGINT",  SIGINT },
         { "SIGALRM", SIGALRM },
