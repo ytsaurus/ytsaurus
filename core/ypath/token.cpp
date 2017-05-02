@@ -43,7 +43,7 @@ Stroka ToYPathLiteral(const TStringBuf& value)
     Stroka result;
     result.reserve(value.length() + 16);
     for (unsigned char ch : value) {
-        if (ch == '\\' || ch == '/' || ch == '@' || ch == '&' || ch == '[' || ch == '{') {
+        if (ch == '\\' || ch == '/' || ch == '@' || ch == '*' || ch == '&' || ch == '[' || ch == '{') {
             result.append('\\');
             result.append(ch);
         } else if (ch < 32 || ch > 127) {

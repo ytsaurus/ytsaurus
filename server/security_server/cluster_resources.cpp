@@ -219,6 +219,51 @@ TClusterResources operator -  (const TClusterResources& resources)
     return result;
 }
 
+bool operator == (const TClusterResources& lhs, const TClusterResources& rhs)
+{
+    if (!std::equal(lhs.DiskSpace, lhs.DiskSpace + MaxMediumCount, rhs.DiskSpace)) {
+        return false;
+    }
+    if (lhs.NodeCount != rhs.NodeCount) {
+        return false;
+    }
+    if (lhs.ChunkCount != rhs.ChunkCount) {
+        return false;
+    }
+    return true;
+}
+
+bool operator != (const TClusterResources& lhs, const TClusterResources& rhs)
+{
+    return !(lhs == rhs);
+}
+
+void FormatValue(TStringBuilder* builder, const TClusterResources& resources, const TStringBuf& /*format*/)
+{
+    builder->AppendString(STRINGBUF("{DiskSpace: ["));
+    bool firstDiskSpace = true;
+    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+        auto diskSpace = resources.DiskSpace[mediumIndex];
+        if (diskSpace != 0) {
+            if (!firstDiskSpace) {
+                builder->AppendString(STRINGBUF(", "));
+            }
+            builder->AppendFormat("%v@%v",
+                diskSpace,
+                mediumIndex);
+            firstDiskSpace = false;
+        }
+    }
+    builder->AppendFormat("], NodeCount: %v, ChunkCount: %v}",
+        resources.NodeCount,
+        resources.ChunkCount);
+}
+
+Stroka ToString(const TClusterResources& resources)
+{
+    return ToStringViaBuilder(resources);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NSecurityServer

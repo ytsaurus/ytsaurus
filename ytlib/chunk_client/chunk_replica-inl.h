@@ -20,7 +20,7 @@ Y_FORCE_INLINE TChunkReplica::TChunkReplica(int nodeId, int replicaIndex, int me
     : Value(nodeId | (replicaIndex << 24) | (mediumIndex << 29))
 {
     static_assert(
-        ChunkReplicaIndexBound * MediumIndexBound <= (0xff + 1),
+        ChunkReplicaIndexBound * MediumIndexBound <= 0x100,
         "Replica and medium indexes must fit into a single byte.");
 
     Y_ASSERT(nodeId >= 0 && nodeId <= NNodeTrackerClient::MaxNodeId);

@@ -179,6 +179,11 @@ void TReplicatedStoreManager::BackoffStorePreload(IChunkStorePtr store)
     Underlying_->BackoffStorePreload(std::move(store));
 }
 
+ui64 TReplicatedStoreManager::GetInMemoryConfigRevision() const
+{
+    return Underlying_->GetInMemoryConfigRevision();
+}
+
 bool TReplicatedStoreManager::IsStoreFlushable(IStorePtr store) const
 {
     return Underlying_->IsStoreFlushable(std::move(store));

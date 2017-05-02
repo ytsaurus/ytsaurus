@@ -61,9 +61,9 @@ struct TTablePermissionKey
     operator size_t() const
     {
         size_t result = 0;
-        result = HashCombine(result, TableId);
-        result = HashCombine(result, User);
-        result = HashCombine(result, Permission);
+        HashCombine(result, TableId);
+        HashCombine(result, User);
+        HashCombine(result, Permission);
         return result;
     }
 
@@ -149,8 +149,8 @@ struct TResourceLimitsKey
     operator size_t() const
     {
         size_t result = 0;
-        result = HashCombine(result, Account);
-        result = HashCombine(result, MediumName);
+        HashCombine(result, Account);
+        HashCombine(result, MediumName);
         return result;
     }
 

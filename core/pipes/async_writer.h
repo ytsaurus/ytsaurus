@@ -46,7 +46,7 @@ private:
     TNamedPipePtr NamedPipeHolder_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TAsyncWriter);
+DEFINE_REFCOUNTED_TYPE(TAsyncWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

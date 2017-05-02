@@ -1,3 +1,4 @@
+
 #include "data_node_service.h"
 #include "private.h"
 #include "chunk_block_manager.h"
@@ -19,6 +20,7 @@
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/data_node_service.pb.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/ytlib/chunk_client/key_set.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
 
 #include <yt/ytlib/misc/workload.h>
@@ -530,13 +532,20 @@ private:
             : MakeNullable(FromProto<std::vector<int>>(request->extension_tags()));
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
-        context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v",
+        context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v, EnableThrottling: %v",
             chunkId,
             extensionTags,
             partitionTag,
-            workloadDescriptor);
+            workloadDescriptor,
+            request->enable_throttling());
 
         ValidateConnected();
+
+        if (request->enable_throttling() && GetNetOutQueueSize() > Config_->NetOutThrottlingLimit) {
+            response->set_net_throttling(true);
+            context->Reply();
+            return;
+        }
 
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
@@ -564,16 +573,21 @@ private:
 
         context->SetRequestInfo(
             "KeyColumns: %v, ChunkCount: %v, "
-            "SliceDataSize: %v, SliceByKeys: %v, Workload: %v",
+            "SliceDataSize: %v, SliceByKeys: %v, KeysInAttachment: %v, Workload: %v",
             keyColumns,
             request->slice_requests_size(),
             request->slice_data_size(),
             request->slice_by_keys(),
+            request->keys_in_attachment(),
             workloadDescriptor);
 
         ValidateConnected();
 
         std::vector<TFuture<void>> asyncResults;
+        TKeySetWriterPtr keySetWriter = request->keys_in_attachment()
+            ? New<TKeySetWriter>()
+            : nullptr;
+
         for (const auto& sliceRequest : request->slice_requests()) {
             auto chunkId = FromProto<TChunkId>(sliceRequest.chunk_id());
             auto* slices = response->add_slices();
@@ -598,11 +612,19 @@ private:
                     slices,
                     request->slice_data_size(),
                     request->slice_by_keys(),
-                    keyColumns)
+                    keyColumns,
+                    keySetWriter)
                 .AsyncVia(WorkerThread_->GetInvoker())));
         }
 
-        context->ReplyFrom(Combine(asyncResults));
+        context->ReplyFrom(Combine(asyncResults).Apply(BIND([=] () {
+            if (keySetWriter) {
+                response->set_keys_in_attachment(true);
+                response->Attachments().emplace_back(keySetWriter->Finish());
+            } else {
+                response->set_keys_in_attachment(false);
+            }
+        }).AsyncVia(WorkerThread_->GetInvoker())));
     }
 
     void MakeChunkSlices(
@@ -611,6 +633,7 @@ private:
         i64 sliceDataSize,
         bool sliceByKeys,
         const TKeyColumns& keyColumns,
+        const TKeySetWriterPtr& keySetWriter,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         auto chunkId = FromProto<TChunkId>(sliceRequest.chunk_id());
@@ -655,8 +678,14 @@ private:
                 keyColumns.size(),
                 sliceByKeys);
 
-            for (const auto& slice : slices) {
-                ToProto(result->add_chunk_slices(), slice);
+            if (keySetWriter) {
+                for (const auto& slice : slices) {
+                    ToProto(keySetWriter, result->add_chunk_slices(), slice);
+                }
+            } else {
+                for (const auto& slice : slices) {
+                    ToProto(result->add_chunk_slices(), slice);
+                }
             }
         } catch (const std::exception& ex) {
             auto error = TError(ex);
@@ -671,10 +700,11 @@ private:
         auto keyColumns = FromProto<TKeyColumns>(request->key_columns());
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
-        context->SetRequestInfo("SamplingPolicy: %v, KeyColumns: %v, ChunkCount: %v, Workload: %v",
+        context->SetRequestInfo("SamplingPolicy: %v, KeyColumns: %v, ChunkCount: %v, KeysInAttachment: %v, Workload: %v",
             samplingPolicy,
             keyColumns,
             request->sample_requests_size(),
+            request->keys_in_attachment(),
             workloadDescriptor);
 
         ValidateConnected();
@@ -682,6 +712,10 @@ private:
         auto chunkStore = Bootstrap_->GetChunkStore();
 
         std::vector<TFuture<void>> asyncResults;
+        TKeySetWriterPtr keySetWriter = request->keys_in_attachment()
+            ? New<TKeySetWriter>()
+            : nullptr;
+
         for (const auto& sampleRequest : request->sample_requests()) {
             auto* sampleResponse = response->add_sample_responses();
             auto chunkId = FromProto<TChunkId>(sampleRequest.chunk_id());
@@ -706,11 +740,19 @@ private:
                     sampleResponse,
                     samplingPolicy,
                     keyColumns,
-                    request->max_sample_size())
+                    request->max_sample_size(),
+                    keySetWriter)
                 .AsyncVia(WorkerThread_->GetInvoker())));
         }
 
-        context->ReplyFrom(Combine(asyncResults));
+        context->ReplyFrom(Combine(asyncResults).Apply(BIND([=] () {
+            if (keySetWriter) {
+                response->set_keys_in_attachment(true);
+                response->Attachments().emplace_back(keySetWriter->Finish());
+            } else {
+                response->set_keys_in_attachment(false);
+            }
+        }).AsyncVia(WorkerThread_->GetInvoker())));
     }
 
     void ProcessSample(
@@ -719,6 +761,7 @@ private:
         ESamplingPolicy samplingPolicy,
         const TKeyColumns& keyColumns,
         i32 maxSampleSize,
+        const TKeySetWriterPtr& keySetWriter,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
@@ -737,11 +780,11 @@ private:
 
             switch (samplingPolicy) {
                 case ESamplingPolicy::Sorting:
-                    ProcessSortingSamples(sampleRequest, sampleResponse, keyColumns, maxSampleSize, meta);
+                    ProcessSortingSamples(sampleRequest, sampleResponse, keyColumns, maxSampleSize, keySetWriter, meta);
                     break;
 
                 case ESamplingPolicy::Partitioning:
-                    ProcessPartitioningSamples(sampleRequest, sampleResponse, keyColumns, meta);
+                    ProcessPartitioningSamples(sampleRequest, sampleResponse, keyColumns, keySetWriter, meta);
                     break;
 
                 default:
@@ -759,7 +802,8 @@ private:
         TRspGetTableSamples::TSample* protoSample,
         std::vector<TUnversionedValue> values,
         i32 maxSampleSize,
-        i64 weight)
+        i64 weight,
+        const TKeySetWriterPtr& keySetWriter)
     {
         size_t size = 0;
         bool incomplete = false;
@@ -778,7 +822,11 @@ private:
             }
         }
 
-        ToProto(protoSample->mutable_key(), values.data(), values.data() + values.size());
+        if (keySetWriter) {
+            protoSample->set_key_index(keySetWriter->WriteValueRange(MakeRange(values)));
+        } else {
+            ToProto(protoSample->mutable_key(), values.data(), values.data() + values.size());
+        }
         protoSample->set_incomplete(incomplete);
         protoSample->set_weight(weight);
     }
@@ -788,6 +836,7 @@ private:
         const TReqGetTableSamples::TSampleRequest* sampleRequest,
         TRspGetTableSamples::TChunkSamples* chunkSamples,
         const TKeyColumns& keyColumns,
+        const TKeySetWriterPtr& keySetWriter,
         const TChunkMeta& chunkMeta)
     {
         auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
@@ -848,7 +897,11 @@ private:
 
         for (const auto& sample : samples) {
             auto* protoSample = chunkSamples->add_samples();
-            ToProto(protoSample->mutable_key(), sample);
+            if (keySetWriter) {
+                protoSample->set_key_index(keySetWriter->WriteKey(sample));
+            } else {
+                ToProto(protoSample->mutable_key(), sample);
+            }
             protoSample->set_incomplete(false);
             protoSample->set_weight(1);
         }
@@ -859,6 +912,7 @@ private:
         TRspGetTableSamples::TChunkSamples* chunkSamples,
         const TKeyColumns& keyColumns,
         i32 maxSampleSize,
+        const TKeySetWriterPtr& keySetWriter,
         const TChunkMeta& chunkMeta)
     {
         TNameTablePtr nameTable;
@@ -920,7 +974,8 @@ private:
                 chunkSamples->add_samples(),
                 std::move(values),
                 maxSampleSize,
-                hasWeights ? samplesExt.weights(index) : samplesExt.entries(index).length());
+                hasWeights ? samplesExt.weights(index) : samplesExt.entries(index).length(),
+                keySetWriter);
         }
     }
 

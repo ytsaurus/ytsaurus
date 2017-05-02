@@ -38,11 +38,16 @@ void TMediumChunkProperties::Load(NCellMaster::TLoadContext& context)
     DataPartsOnly_ = Load<decltype(DataPartsOnly_)>(context);
 }
 
-Stroka ToString(const TMediumChunkProperties& properties)
+void FormatValue(TStringBuilder* builder, const TMediumChunkProperties& properties, const TStringBuf& /*spec*/)
 {
-    return Format("{ReplicationFactor: %v, DataPartsOnly: %v}",
+    builder->AppendFormat("{ReplicationFactor: %v, DataPartsOnly: %v}",
         properties.GetReplicationFactor(),
         properties.GetDataPartsOnly());
+}
+
+Stroka ToString(const TMediumChunkProperties& properties)
+{
+    return ToStringViaBuilder(properties);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,10 +93,9 @@ bool TChunkProperties::IsValid() const
     return false;
 }
 
-Stroka ToString(const TChunkProperties& properties)
+void FormatValue(TStringBuilder* builder, const TChunkProperties& properties, const TStringBuf& /*spec*/)
 {
-    TStringBuilder builder;
-    builder.AppendFormat("{Vital: %v, Media: {", properties.GetVital());
+    builder->AppendFormat("{Vital: %v, Media: {", properties.GetVital());
 
     // We want to accompany medium properties with their indexes.
     using TIndexPropertiesPair = std::pair<int, TMediumChunkProperties>;
@@ -105,14 +109,17 @@ Stroka ToString(const TChunkProperties& properties)
         ++mediumIndex;
     }
 
-    JoinToString(&builder, filteredProperties.begin(), filteredProperties.end(),
-        [&] (TStringBuilder* builderPtr, const TIndexPropertiesPair& pair) {
-            builderPtr->AppendFormat("%v: %v", pair.first, pair.second);
+    JoinToString(builder, filteredProperties.begin(), filteredProperties.end(),
+        [&] (TStringBuilder* aBuilder, const TIndexPropertiesPair& pair) {
+            aBuilder->AppendFormat("%v: %v", pair.first, pair.second);
         });
 
-    builder.AppendString("}}");
+    builder->AppendString("}}");
+}
 
-    return builder.Flush();
+Stroka ToString(const TChunkProperties& properties)
+{
+    return ToStringViaBuilder(properties);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

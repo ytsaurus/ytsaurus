@@ -14,6 +14,8 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NObjectServer;
 
+using ::ToString;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserProxy

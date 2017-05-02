@@ -69,7 +69,7 @@ public:
     // IBus implementation.
     virtual const Stroka& GetEndpointDescription() const override;
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
-    virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel level) override;
+    virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override;
     virtual void Terminate(const TError& error) override;
 
     DECLARE_SIGNAL(void(const TError&), Terminated);
@@ -81,16 +81,16 @@ private:
     {
         TQueuedMessage() = default;
 
-        TQueuedMessage(TSharedRefArray message, EDeliveryTrackingLevel level)
-            : Promise(level != EDeliveryTrackingLevel::None ? NewPromise<void>() : Null)
+        TQueuedMessage(TSharedRefArray message, const TSendOptions& options)
+            : Promise(options.TrackingLevel != EDeliveryTrackingLevel::None ? NewPromise<void>() : Null)
             , Message(std::move(message))
-            , Level(level)
+            , Options(options)
             , PacketId(TPacketId::Create())
         { }
 
         TPromise<void> Promise;
         TSharedRefArray Message;
-        EDeliveryTrackingLevel Level;
+        TSendOptions Options;
         TPacketId PacketId;
     };
 
@@ -99,11 +99,13 @@ private:
         TPacket(
             EPacketType type,
             EPacketFlags flags,
+            int checksummedPartCount,
             const TPacketId& packetId,
             TSharedRefArray message,
             size_t size)
             : Type(type)
             , Flags(flags)
+            , ChecksummedPartCount(checksummedPartCount)
             , PacketId(packetId)
             , Message(std::move(message))
             , Size(size)
@@ -111,6 +113,7 @@ private:
 
         EPacketType Type;
         EPacketFlags Flags;
+        int ChecksummedPartCount;
         TPacketId PacketId;
         TSharedRefArray Message;
         size_t Size;
@@ -118,8 +121,7 @@ private:
 
     struct TUnackedMessage
     {
-        TUnackedMessage()
-        { }
+        TUnackedMessage() = default;
 
         TUnackedMessage(const TPacketId& packetId, TPromise<void> promise)
             : PacketId(packetId)
@@ -150,7 +152,7 @@ private:
 
     TNullable<ETcpInterfaceType> InterfaceType_;
     TTcpDispatcherStatistics* Statistics_ = nullptr;
-    bool EnableChecksums_ = true;
+    bool GenerateChecksums_ = true;
     bool ConnectionCounterUpdated_ = false;
 
     // Only used by client sockets.
@@ -227,6 +229,7 @@ private:
     TPacket* EnqueuePacket(
         EPacketType type,
         EPacketFlags flags,
+        int checksummedPartCount,
         const TPacketId& packetId,
         TSharedRefArray message = TSharedRefArray());
     void OnSocketWrite();

@@ -78,6 +78,8 @@
 
 #include <yt/ytlib/orchid/orchid_service.h>
 
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+
 #include <yt/ytlib/query_client/column_evaluator.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
@@ -195,6 +197,13 @@ void TBootstrap::DoRun()
     }
 
     MasterConnection = CreateNativeConnection(Config->ClusterConnection);
+
+    if (Config->TabletNode->ResourceLimits->Slots > 0) {
+        // Requesting latest timestamp enables periodic background time synchronization.
+        // For tablet nodes, it is crucial because of non-atomic transactions that require
+        // in-sync time for clients.
+        MasterConnection->GetTimestampProvider()->GetLatestTimestamp();
+    }
 
     MasterClient = MasterConnection->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
 
@@ -342,9 +351,9 @@ void TBootstrap::DoRun()
 
     auto localAddress = GetDefaultAddress(localAddresses);
 
-    JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
+    JobProxyConfigTemplate = New<NJobProxy::TJobProxyConfig>();
 
-    JobProxyConfig->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
+    JobProxyConfigTemplate->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
 
     auto patchMasterConnectionConfig = [&] (TMasterConnectionConfigPtr config) {
         config->CellId = ToRedirectorCellId(config->CellId);
@@ -356,31 +365,28 @@ void TBootstrap::DoRun()
         config->RetryAttempts = 1;
     };
 
-    patchMasterConnectionConfig(JobProxyConfig->ClusterConnection->PrimaryMaster);
-    for (const auto& config : JobProxyConfig->ClusterConnection->SecondaryMasters) {
+    patchMasterConnectionConfig(JobProxyConfigTemplate->ClusterConnection->PrimaryMaster);
+    for (const auto& config : JobProxyConfigTemplate->ClusterConnection->SecondaryMasters) {
         patchMasterConnectionConfig(config);
     }
 
-    JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
-    JobProxyConfig->SupervisorConnection->Address = localAddress;
+    JobProxyConfigTemplate->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
+    JobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
 
     // TODO(babenko): consider making this priority configurable
-    JobProxyConfig->SupervisorConnection->Priority = 6;
+    JobProxyConfigTemplate->SupervisorConnection->Priority = 6;
 
-    JobProxyConfig->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
+    JobProxyConfigTemplate->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
 
-    JobProxyConfig->AddressResolver = Config->AddressResolver;
-    JobProxyConfig->HeartbeatPeriod = Config->ExecAgent->JobProxyHeartbeatPeriod;
+    JobProxyConfigTemplate->AddressResolver = Config->AddressResolver;
+    JobProxyConfigTemplate->HeartbeatPeriod = Config->ExecAgent->JobProxyHeartbeatPeriod;
 
-    JobProxyConfig->JobEnvironment = Config->ExecAgent->SlotManager->JobEnvironment;
+    JobProxyConfigTemplate->JobEnvironment = Config->ExecAgent->SlotManager->JobEnvironment;
 
-    JobProxyConfig->Rack = GetMasterConnector()->GetLocalDescriptor().GetRack();
-    JobProxyConfig->Addresses = GetMasterConnector()->GetLocalDescriptor().Addresses();
+    JobProxyConfigTemplate->Logging = Config->ExecAgent->JobProxyLogging;
+    JobProxyConfigTemplate->Tracing = Config->ExecAgent->JobProxyTracing;
 
-    JobProxyConfig->Logging = Config->ExecAgent->JobProxyLogging;
-    JobProxyConfig->Tracing = Config->ExecAgent->JobProxyTracing;
-
-    JobProxyConfig->CoreForwarderTimeout = Config->ExecAgent->CoreForwarderTimeout;
+    JobProxyConfigTemplate->CoreForwarderTimeout = Config->ExecAgent->CoreForwarderTimeout;
 
     ExecSlotManager = New<NExecAgent::TSlotManager>(Config->ExecAgent->SlotManager, this);
 
@@ -464,10 +470,12 @@ void TBootstrap::DoRun()
 
     MasterCacheService = CreateMasterCacheService(
         Config->MasterCacheService,
-        CreatePeerChannel(
-            Config->ClusterConnection->PrimaryMaster,
-            MasterConnection->GetLightChannelFactory(),
-            EPeerKind::Follower),
+        CreateDefaultTimeoutChannel(
+            CreatePeerChannel(
+                Config->ClusterConnection->PrimaryMaster,
+                MasterConnection->GetLightChannelFactory(),
+                EPeerKind::Follower),
+            Config->ClusterConnection->PrimaryMaster->RpcTimeout),
         GetCellId());
 
     CellDirectorySynchronizer->Start();
@@ -613,11 +621,6 @@ const TInMemoryManagerPtr& TBootstrap::GetInMemoryManager() const
 const NExecAgent::TSlotManagerPtr& TBootstrap::GetExecSlotManager() const
 {
     return ExecSlotManager;
-}
-
-const TJobProxyConfigPtr& TBootstrap::GetJobProxyConfig() const
-{
-    return JobProxyConfig;
 }
 
 const TChunkStorePtr& TBootstrap::GetChunkStore() const
@@ -786,6 +789,16 @@ TNetworkPreferenceList TBootstrap::GetLocalNetworks()
     return Config->Addresses.empty()
         ? DefaultNetworkPreferences
         : GetIths<0>(Config->Addresses);
+}
+
+TJobProxyConfigPtr TBootstrap::BuildJobProxyConfig() const
+{
+    auto proxyConfig = CloneYsonSerializable(JobProxyConfigTemplate);
+    auto localDescriptor = GetMasterConnector()->GetLocalDescriptor();
+    proxyConfig->DataCenter = localDescriptor.GetDataCenter();
+    proxyConfig->Rack = localDescriptor.GetRack();
+    proxyConfig->Addresses = localDescriptor.Addresses();
+    return proxyConfig;
 }
 
 void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)

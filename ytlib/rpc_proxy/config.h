@@ -17,12 +17,15 @@ public:
     {
         RegisterParameter("addresses", Addresses)
             .NonEmpty();
+        RegisterParameter("ping_period", PingPeriod)
+            .Default(TDuration::Seconds(3));
     }
 
     std::vector<Stroka> Addresses;
+    TDuration PingPeriod;
 };
 
-DEFINE_REFCOUNTED_TYPE(TRpcProxyConnectionConfig);
+DEFINE_REFCOUNTED_TYPE(TRpcProxyConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +39,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TRpcProxyClientConfig);
+DEFINE_REFCOUNTED_TYPE(TRpcProxyClientConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

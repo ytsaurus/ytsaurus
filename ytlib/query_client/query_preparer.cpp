@@ -620,12 +620,12 @@ TConstExpressionPtr FoldConstants(
                 TUnversionedValue lhs = lhsLiteralExpr->Value;
                 TUnversionedValue rhs = rhsLiteralExpr->Value;
 
-                YCHECK(targetType == rhs.Type);
+                YCHECK(targetType == lhs.Type);
                 YCHECK(IsArithmeticType(targetType));
 
                 if (lhs.Type != rhs.Type) {
-                    if (IsArithmeticType(lhs.Type)) {
-                        lhs = CastValueWithCheck(lhs, targetType);
+                    if (IsArithmeticType(rhs.Type)) {
+                        rhs = CastValueWithCheck(rhs, targetType);
                     } else {
                         ThrowTypeMismatchError(
                             lhs.Type,
@@ -1573,6 +1573,8 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         functions,
         astHead.second};
 
+    size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
+
     for (const auto& join : ast.Joins) {
         auto foreignDataSplit = WaitFor(callbacks->GetInitialSplit(join.Table.Path, timestamp))
             .ValueOrThrow();
@@ -1670,16 +1672,27 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         for (; keyPrefix < foreignKeyColumnsCount; ++keyPrefix) {
             if (keyForeignEquations[keyPrefix]) {
                 YCHECK(keySelfEquations[keyPrefix].first);
+
+                if (const auto* refExpr = keySelfEquations[keyPrefix].first->As<TReferenceExpression>()) {
+                    if (ColumnNameToKeyPartIndex(query->GetKeyColumns(), refExpr->ColumnName) != keyPrefix) {
+                        commonKeyPrefix = std::min(commonKeyPrefix, keyPrefix);
+                    }
+                } else {
+                    commonKeyPrefix = std::min(commonKeyPrefix, keyPrefix);
+                }
+
                 continue;
             }
 
-            if (!foreignTableSchema.Columns()[keyPrefix].Expression) {
+            const auto& foreignColumnExpression = foreignTableSchema.Columns()[keyPrefix].Expression;
+
+            if (!foreignColumnExpression) {
                 break;
             }
 
             yhash_set<Stroka> references;
             auto evaluatedColumnExpression = PrepareExpression(
-                foreignTableSchema.Columns()[keyPrefix].Expression.Get(),
+                foreignColumnExpression.Get(),
                 foreignTableSchema,
                 functions,
                 &references);
@@ -1708,6 +1721,34 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
                 foreignColumn->Name);
         }
 
+        commonKeyPrefix = std::min(commonKeyPrefix, keyPrefix);
+
+        for (size_t index = 0; index < keyPrefix; ++index) {
+            if (keySelfEquations[index].second) {
+                const auto& evaluatedColumnExpression = keySelfEquations[index].first;
+
+                if (const auto& selfColumnExpression = tableSchema.Columns()[index].Expression) {
+                    auto evaluatedSelfColumnExpression = PrepareExpression(
+                        selfColumnExpression.Get(),
+                        tableSchema,
+                        functions);
+
+                    if (!Compare(
+                        evaluatedColumnExpression,
+                        foreignTableSchema,
+                        evaluatedSelfColumnExpression,
+                        tableSchema,
+                        commonKeyPrefix))
+                    {
+                        commonKeyPrefix = std::min(commonKeyPrefix, index);
+                    }
+                } else {
+                    commonKeyPrefix = std::min(commonKeyPrefix, index);
+                }
+            }
+        }
+
+        // Check that there are no join equations from keyPrefix to foreignKeyColumnsCount
         for (size_t index = keyPrefix; index < keyForeignEquations.size() && canUseSourceRanges; ++index) {
             if (keyForeignEquations[index]) {
                 YCHECK(keySelfEquations[index].first);
@@ -1721,9 +1762,13 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
             keySelfEquations.resize(keyPrefix);
             joinClause->SelfEquations = std::move(keySelfEquations);
             joinClause->ForeignEquations = std::move(keyForeignEquations);
+            joinClause->CommonKeyPrefix = commonKeyPrefix;
+            LOG_DEBUG("Creating join via source ranges (CommonKeyPrefix: %v)", commonKeyPrefix);
         } else {
             joinClause->SelfEquations = std::move(selfEquations);
             joinClause->ForeignEquations = std::move(foreignEquations);
+            LOG_DEBUG("Creating join via IN clause");
+            commonKeyPrefix = 0;
         }
 
         schemaProxy = New<TJoinSchemaProxy>(

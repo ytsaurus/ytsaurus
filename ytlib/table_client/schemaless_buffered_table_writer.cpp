@@ -12,14 +12,11 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/logging/log.h>
-
 #include <yt/core/misc/chunked_memory_pool.h>
 #include <yt/core/misc/property.h>
 
-#include <yt/core/rpc/channel.h>
-
 #include <queue>
+#include <array>
 
 namespace NYT {
 namespace NTableClient {
@@ -38,44 +35,6 @@ using namespace NApi;
 
 struct TSchemalessBufferedTableWriterBufferTag
 { };
-
-namespace {
-
-class TBuffer
-{
-public:
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TUnversionedRow>, Rows);
-    DEFINE_BYVAL_RW_PROPERTY(int, Index);
-
-public:
-    void Write(const TRange<TUnversionedRow>& rows)
-    {
-        auto capturedRows = RowBuffer_->Capture(rows);
-        Rows_.insert(Rows_.end(), capturedRows.begin(), capturedRows.end());
-    }
-
-    void Clear()
-    {
-        Rows_.clear();
-        RowBuffer_->Clear();
-    }
-
-    i64 GetSize() const
-    {
-        return RowBuffer_->GetSize();
-    }
-
-    bool IsEmpty() const
-    {
-        return Rows_.empty();
-    }
-
-private:
-    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemalessBufferedTableWriterBufferTag());
-
-};
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,8 +57,10 @@ public:
             NChunkClient::TDispatcher::Get()->GetWriterInvoker(),
             BIND(&TSchemalessBufferedTableWriter::OnPeriodicFlush, Unretained(this)), Config_->FlushPeriod))
     {
-        EmptyBuffers_.push(Buffers_);
-        EmptyBuffers_.push(Buffers_ + 1);
+        for (auto& buffer : Buffers_) {
+            buffer = std::make_unique<TBuffer>(Config_->RowBufferChunkSize);
+            EmptyBuffers_.push(buffer.get());
+        }
 
         Logger.AddTag("Path: %v", Path_);
     }
@@ -151,7 +112,7 @@ public:
         return Schema_;
     }
 
-    virtual TNameTablePtr GetNameTable() const override
+    virtual const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }
@@ -167,8 +128,49 @@ private:
 
     const TTableSchema Schema_;
 
+    class TBuffer
+    {
+    public:
+        DEFINE_BYREF_RO_PROPERTY(std::vector<TUnversionedRow>, Rows);
+        DEFINE_BYVAL_RW_PROPERTY(int, Index);
+
+    public:
+        explicit TBuffer(i64 rowBufferChunkSize)
+            : RowBuffer_(New<TRowBuffer>(
+                TSchemalessBufferedTableWriterBufferTag(),
+                rowBufferChunkSize))
+        { }
+
+        void Write(const TRange<TUnversionedRow>& rows)
+        {
+            auto capturedRows = RowBuffer_->Capture(rows);
+            Rows_.insert(Rows_.end(), capturedRows.begin(), capturedRows.end());
+        }
+
+        void Clear()
+        {
+            Rows_.clear();
+            RowBuffer_->Purge();
+        }
+
+        i64 GetSize() const
+        {
+            return RowBuffer_->GetSize();
+        }
+
+        bool IsEmpty() const
+        {
+            return Rows_.empty();
+        }
+
+    private:
+        const TRowBufferPtr RowBuffer_;
+
+    };
+
+
     // Double buffering.
-    TBuffer Buffers_[2];
+    std::array<std::unique_ptr<TBuffer>, 2> Buffers_;
 
     // Guards the following section of members.
     TSpinLock SpinLock_;
@@ -235,6 +237,10 @@ private:
         }
 
         try {
+            LOG_DEBUG("Started flushing table chunk (BufferIndex: %v, BufferSize: %v)",
+                buffer->GetIndex(),
+                buffer->GetSize());
+
             TRichYPath richPath(Path_);
             richPath.SetAppend(true);
 
@@ -252,7 +258,7 @@ private:
             WaitFor(writer->Close())
                 .ThrowOnError();
 
-            LOG_DEBUG("Buffered table chunk flushed successfully (BufferIndex: %v)",
+            LOG_DEBUG("Finished flushing table chunk (BufferIndex: %v)",
                 buffer->GetIndex());
 
             buffer->Clear();
@@ -264,13 +270,12 @@ private:
                 --PendingFlushes_;
             }
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Buffered table chunk write failed, will retry later (BufferIndex: %v)",
+            LOG_WARNING(ex, "Failed to flush table chunk; will retry later (BufferIndex: %v)",
                 buffer->GetIndex());
 
             ScheduleDelayedRetry(buffer);
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

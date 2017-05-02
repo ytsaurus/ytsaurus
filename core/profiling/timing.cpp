@@ -135,6 +135,11 @@ TValue CpuDurationToValue(TCpuDuration duration)
         : -DurationToValue(CpuDurationToDuration(-duration));
 }
 
+double SecondsFromNow(TCpuInstant instant)
+{
+    return static_cast<double>(CpuDurationToValue(instant - GetCpuInstant())) / 1000000;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProfiling

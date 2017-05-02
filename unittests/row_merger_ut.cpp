@@ -500,12 +500,15 @@ public:
         TRetentionConfigPtr config,
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp,
-        TTableSchema schema = GetTypicalSchema())
+        TTableSchema schema = GetTypicalSchema(),
+        TColumnFilter columnFilter = TColumnFilter())
     {
         auto evaluator = ColumnEvaluatorCache_->Find(GetKeyedSchema(schema, 1));
         return std::make_unique<TVersionedRowMerger>(
             MergedRowBuffer_,
+            schema.GetColumnCount(),
             1,
+            columnFilter,
             config,
             currentTimestamp,
             majorTimestamp,
@@ -1125,6 +1128,78 @@ TEST_F(TVersionedRowMergerTest, ExpiredAggregate)
         merger->BuildMergedRow());
 }
 
+TEST_F(TVersionedRowMergerTest, NoKeyColumnFilter)
+{
+    auto config = GetRetentionConfig();
+    auto merger = GetTypicalMerger(
+        config,
+        1000,
+        0,
+        GetTypicalSchema(),
+        TColumnFilter({1, 2, 3}));
+
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100>1;<id=2;ts=100>2;<id=3;ts=100>3"));
+
+    EXPECT_EQ(
+        BuildVersionedRow("", "<id=1;ts=100>1;<id=2;ts=100>2;<id=3;ts=100>3"),
+        merger->BuildMergedRow());
+}
+
+TEST_F(TVersionedRowMergerTest, NoValueColumnFilter)
+{
+    auto config = GetRetentionConfig();
+    auto merger = GetTypicalMerger(
+        config,
+        1000,
+        0,
+        GetTypicalSchema(),
+        TColumnFilter({0}));
+
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100>1;<id=2;ts=100>2;<id=3;ts=100>3"));
+
+    // XXX(sandello): Row without deletes with empty column filter will be merged into a null row,
+    // because write timestamps set will be empty and hence we deduce that we have pruned all values.
+    // Not sure if this is intended behaviour for non-trivial column filter, but it is reasonable.
+    EXPECT_EQ(
+        TVersionedRow(),
+        merger->BuildMergedRow());
+}
+
+TEST_F(TVersionedRowMergerTest, OneValueColumnFilter)
+{
+    auto config = GetRetentionConfig();
+    auto merger = GetTypicalMerger(
+        config,
+        1000,
+        0,
+        GetTypicalSchema(),
+        TColumnFilter({1}));
+
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100>1;<id=2;ts=100>2;<id=3;ts=100>3"));
+
+    EXPECT_EQ(
+        BuildVersionedRow("", "<id=1;ts=100>1"),
+        merger->BuildMergedRow());
+}
+
+TEST_F(TVersionedRowMergerTest, YT_6800)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataTtl = TDuration::Zero();
+    config->MinDataVersions = 0;
+    config->MaxDataTtl = TimestampToDuration(10000000000000ULL);
+    config->MaxDataVersions = 1000;
+
+    auto merger = GetTypicalMerger(config, SyncLastCommittedTimestamp, MaxTimestamp);
+
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100000000000>1"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200000000000>2"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300000000000>3"));
+
+    EXPECT_EQ(
+        BuildVersionedRow("0", "<id=1;ts=100000000000>1;<id=1;ts=200000000000>2;<id=1;ts=300000000000>3"),
+        merger->BuildMergedRow());
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 

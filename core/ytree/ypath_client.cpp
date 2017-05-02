@@ -102,6 +102,11 @@ void TYPathRequest::SetRetry(bool value)
     Header_.set_retry(value);
 }
 
+size_t TYPathRequest::GetHash() const
+{
+    return 0;
+}
+
 const NRpc::NProto::TRequestHeader& TYPathRequest::Header() const
 {
     return Header_;
@@ -303,7 +308,7 @@ void ExecuteVerb(
             Y_UNREACHABLE();
         }
 
-        virtual void LogResponse(const TError& /*error*/) override
+        virtual void LogResponse() override
         { }
 
         virtual void DoReply() override

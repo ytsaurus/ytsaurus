@@ -4,6 +4,7 @@
 #include "message.h"
 
 #include <yt/core/misc/address.h>
+#include <yt/core/misc/checksum.h>
 
 #include <iterator>
 
@@ -26,10 +27,7 @@ TClientRequest::TClientRequest(
     const Stroka& method,
     bool oneWay,
     int protocolVersion)
-    : RequestAck_(true)
-    , Heavy_(false)
-    , Codec_(NCompression::ECodec::None)
-    , Channel_(std::move(channel))
+    : Channel_(std::move(channel))
 {
     Y_ASSERT(Channel_);
 
@@ -47,23 +45,22 @@ TSharedRefArray TClientRequest::Serialize()
     }
     FirstTimeSerialization_ = false;
 
-    if (!SerializedBody_) {
-        SerializedBody_ = SerializeBody();
-    }
-
     return CreateRequestMessage(
         Header_,
-        SerializedBody_,
+        GetSerializedBody(),
         Attachments_);
 }
 
 IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr responseHandler)
 {
+    TSendOptions options;
+    options.Timeout = Timeout_;
+    options.RequestAck = RequestAck_;
+    options.GenerateAttachmentChecksums = GenerateAttachmentChecksums_;
     return Channel_->Send(
         this,
         std::move(responseHandler),
-        Timeout_,
-        RequestAck_);
+        options);
 }
 
 NProto::TRequestHeader& TClientRequest::Header()
@@ -132,6 +129,19 @@ void TClientRequest::SetRetry(bool value)
     Header_.set_retry(value);
 }
 
+size_t TClientRequest::GetHash() const
+{
+    if (!Hash_) {
+        size_t hash = 0;
+        HashCombine(hash, GetChecksum(GetSerializedBody()));
+        for (const auto& attachment : Attachments_) {
+            HashCombine(hash, GetChecksum(attachment));
+        }
+        Hash_ = hash;
+    }
+    return *Hash_;
+}
+
 TClientContextPtr TClientRequest::CreateClientContext()
 {
     auto traceContext = NTracing::CreateChildTraceContext();
@@ -164,7 +174,15 @@ void TClientRequest::TraceRequest(const NTracing::TTraceContext& traceContext)
     NTracing::TraceEvent(
         traceContext,
         ClientHostAnnotation,
-        TAddressResolver::Get()->GetLocalHostName());
+        GetLocalHostName());
+}
+
+const TSharedRef& TClientRequest::GetSerializedBody() const
+{
+    if (!SerializedBody_) {
+        SerializedBody_ = SerializeBody();
+    }
+    return SerializedBody_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

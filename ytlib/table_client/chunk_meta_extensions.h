@@ -35,9 +35,14 @@ struct TBoundaryKeys
     void Persist(const TStreamPersistenceContext& context);
 
     size_t SpaceUsed() const;
+
+    bool operator ==(const TBoundaryKeys& other) const;
+    bool operator !=(const TBoundaryKeys& other) const;
 };
 
 Stroka ToString(const TBoundaryKeys& keys);
+
+void Serialize(const TBoundaryKeys& keys, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

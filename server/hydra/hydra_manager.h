@@ -127,24 +127,12 @@ struct IHydraManager
      */
     virtual TFuture<TMutationResponse> CommitMutation(const TMutationRequest& request) = 0;
 
-    //! Returns |true| if read-only mode is active.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual bool GetReadOnly() const = 0;
-
-    //! Toggles read-only mode.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual void SetReadOnly(bool value) = 0;
-
     //! Starts a distributed snapshot build operation.
     //! Once finished, returns the snapshot id.
     /*!
      *  \note Thread affinity: AutomatonThread
      */
-    virtual TFuture<int> BuildSnapshot() = 0;
+    virtual TFuture<int> BuildSnapshot(bool setReadOnly) = 0;
 
     //! Returns the callback for producing the monitoring info.
     /*!

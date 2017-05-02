@@ -16,6 +16,12 @@ TSchedulingTagFilter::TSchedulingTagFilter(const TDnfFormula& dnf)
     , Hash_(Dnf_.GetHash())
 { }
 
+void TSchedulingTagFilter::Reload(const TDnfFormula& dnf)
+{
+    Dnf_ = dnf;
+    Hash_ = Dnf_.GetHash();
+}
+
 bool TSchedulingTagFilter::CanSchedule(const yhash_set<Stroka>& nodeTags) const
 {
     return Dnf_.IsSatisfiedBy(nodeTags);

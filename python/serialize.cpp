@@ -590,7 +590,10 @@ public:
     explicit TStreamReader(TInputStream* stream)
         : Stream_(stream)
     {
-        RefreshBlock();
+        ReadNextBlob();
+        if (!Finished_) {
+            RefreshBlock();
+        }
     }
 
     const char* Begin() const
@@ -606,15 +609,17 @@ public:
     void RefreshBlock()
     {
         YCHECK(BeginPtr_ == EndPtr_);
-        auto blob = TSharedMutableRef::Allocate<TInputStreamBlobTag>(BlockSize_, false);
-        auto size = Stream_->Load(blob.Begin(), blob.Size());
-        if (size != BlockSize_) {
-            Finished_ = true;
-        }
+        YCHECK(!Finished_);
 
-        Blobs_.push_back(blob);
-        BeginPtr_ = blob.Begin();
-        EndPtr_ = blob.Begin() + size;
+        Blobs_.push_back(NextBlob_);
+        BeginPtr_ = NextBlob_.Begin();
+        EndPtr_ = NextBlob_.Begin() + NextBlobSize_;
+
+        if (NextBlobSize_ < BlockSize_) {
+            Finished_ = true;
+        } else {
+            ReadNextBlob();
+        }
     }
 
     void Advance(size_t bytes)
@@ -671,6 +676,9 @@ private:
 
     std::deque<TSharedMutableRef> Blobs_;
 
+    TSharedMutableRef NextBlob_;
+    i64 NextBlobSize_ = 0;
+
     char* BeginPtr_ = nullptr;
     char* EndPtr_ = nullptr;
 
@@ -679,6 +687,15 @@ private:
 
     bool Finished_ = false;
     static const size_t BlockSize_ = 1024 * 1024;
+
+    void ReadNextBlob()
+    {
+        NextBlob_ = TSharedMutableRef::Allocate<TInputStreamBlobTag>(BlockSize_, false);
+        NextBlobSize_ = Stream_->Load(NextBlob_.Begin(), NextBlob_.Size());
+        if (NextBlobSize_ == 0) {
+            Finished_ = true;
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -61,7 +61,7 @@ protected:
         TDataBlockWriter blockWriter;
         auto timestampWriter = CreateTimestampWriter(&blockWriter);
 
-        // Write 3 rows with given timestamp records, splitted into 2 segments.
+        // Write 3 rows with given timestamp records, split into 2 segments.
         timestampWriter->WriteTimestamps(MakeRange(CreateSegment1()));
         timestampWriter->FinishCurrentSegment();
 

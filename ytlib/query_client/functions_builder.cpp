@@ -50,25 +50,6 @@ void TFunctionRegistryBuilder::RegisterFunction(
 
 void TFunctionRegistryBuilder::RegisterFunction(
     const Stroka& functionName,
-    const Stroka& symbolName,
-    std::vector<TType> argumentTypes,
-    TType resultType,
-    TSharedRef implementationFile,
-    ECallingConvention callingConvention)
-{
-    RegisterFunction(
-        functionName,
-        symbolName,
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        argumentTypes,
-        EValueType::Null,
-        resultType,
-        implementationFile,
-        GetCallingConvention(callingConvention));
-}
-
-void TFunctionRegistryBuilder::RegisterFunction(
-    const Stroka& functionName,
     std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     std::vector<TType> argumentTypes,
     TType repeatedArgType,
@@ -83,27 +64,7 @@ void TFunctionRegistryBuilder::RegisterFunction(
         repeatedArgType,
         resultType,
         implementationFile,
-        GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType));
-}
-
-void TFunctionRegistryBuilder::RegisterFunction(
-    const Stroka& functionName,
-    const Stroka& symbolName,
-    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-    std::vector<TType> argumentTypes,
-    TType repeatedArgType,
-    TType resultType,
-    TSharedRef implementationFile)
-{
-    RegisterFunction(
-        functionName,
-        symbolName,
-        typeArgumentConstraints,
-        argumentTypes,
-        repeatedArgType,
-        resultType,
-        implementationFile,
-        GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType));
+        GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType, false));
 }
 
 void TFunctionRegistryBuilder::RegisterAggregate(
