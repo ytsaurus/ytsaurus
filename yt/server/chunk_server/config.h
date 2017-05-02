@@ -118,6 +118,12 @@ public:
     //! Controls the maximum number of unsuccessful attempts to schedule a seal job.
     int MaxMisscheduledSealJobsPerHeartbeat;
 
+    //! When balancing chunk repair queues for multiple media, how often do
+    //! their weights decay. (Weights are essentially repaired data sizes.)
+    TDuration RepairQueueBalancerWeightDecayInterval;
+
+    //! The number by which chunk repair queue weights are multiplied during decay.
+    double RepairQueueBalancerWeightDecayFactor;
 
     TChunkManagerConfig()
     {
@@ -213,6 +219,12 @@ public:
         RegisterInitializer([&] () {
             JobThrottler->Limit = 10000;
         });
+
+        RegisterParameter("repair_queue_balancer_weight_decay_interval", RepairQueueBalancerWeightDecayInterval)
+            .Default(TDuration::Seconds(60));
+
+        RegisterParameter("repair_queue_balancer_weight_decay_factor", RepairQueueBalancerWeightDecayFactor)
+            .Default(0.5);
     }
 };
 
