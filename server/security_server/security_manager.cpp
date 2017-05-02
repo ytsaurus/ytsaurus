@@ -1071,7 +1071,7 @@ private:
     TPeriodicExecutorPtr UserStatisticsGossipExecutor_;
 
     NHydra::TEntityMap<TAccount> AccountMap_;
-    yhash_map<Stroka, TAccount*> AccountNameMap_;
+    yhash<Stroka, TAccount*> AccountNameMap_;
 
     TAccountId SysAccountId_;
     TAccount* SysAccount_ = nullptr;
@@ -1083,8 +1083,8 @@ private:
     TAccount* IntermediateAccount_ = nullptr;
 
     NHydra::TEntityMap<TUser> UserMap_;
-    yhash_map<Stroka, TUser*> UserNameMap_;
-    yhash_map<Stroka, TTagId> UserNameToProfilingTagId_;
+    yhash<Stroka, TUser*> UserNameMap_;
+    yhash<Stroka, TTagId> UserNameToProfilingTagId_;
 
     TUserId RootUserId_;
     TUser* RootUser_ = nullptr;
@@ -1102,7 +1102,7 @@ private:
     TUser* ReplicatorUser_ = nullptr;
 
     NHydra::TEntityMap<TGroup> GroupMap_;
-    yhash_map<Stroka, TGroup*> GroupNameMap_;
+    yhash<Stroka, TGroup*> GroupNameMap_;
 
     TGroupId EveryoneGroupId_;
     TGroup* EveryoneGroup_ = nullptr;

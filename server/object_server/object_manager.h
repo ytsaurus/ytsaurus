@@ -239,7 +239,7 @@ private:
     std::set<EObjectType> RegisteredTypes_;
     TEnumIndexedVector<TTypeEntry, EObjectType, MinObjectType, MaxObjectType> TypeToEntry_;
 
-    yhash_map<Stroka, NProfiling::TTagId> MethodToTag_;
+    yhash<Stroka, NProfiling::TTagId> MethodToTag_;
 
     TRootServicePtr RootService_;
 

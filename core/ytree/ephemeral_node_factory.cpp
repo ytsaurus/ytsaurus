@@ -328,8 +328,8 @@ public:
     }
 
 private:
-    yhash_map<Stroka, INodePtr> KeyToChild;
-    yhash_map<INodePtr, Stroka> ChildToKey;
+    yhash<Stroka, INodePtr> KeyToChild;
+    yhash<INodePtr, Stroka> ChildToKey;
 
     virtual bool DoInvoke(const IServiceContextPtr& context) override
     {
@@ -458,7 +458,7 @@ public:
 
 private:
     std::vector<INodePtr> IndexToChild;
-    yhash_map<INodePtr, int> ChildToIndex;
+    yhash<INodePtr, int> ChildToIndex;
 
     virtual TResolveResult ResolveRecursive(
         const TYPath& path,

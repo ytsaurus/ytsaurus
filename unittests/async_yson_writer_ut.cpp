@@ -146,7 +146,7 @@ TEST(TAsyncYsonWriterTest, AsyncMap)
     writer.OnEndMap();
 
     EXPECT_EQ(
-        ConvertToYsonString(yhash_map<Stroka, int>{{"a", 1}, {"b", 2}, {"c", 3}}),
+        ConvertToYsonString(yhash<Stroka, int>{{"a", 1}, {"b", 2}, {"c", 3}}),
         writer.Finish().Get().ValueOrThrow());
 }
 

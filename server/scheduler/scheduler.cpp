@@ -983,7 +983,7 @@ private:
 
     TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
 
-    typedef yhash_map<TOperationId, TOperationPtr> TOperationIdMap;
+    typedef yhash<TOperationId, TOperationPtr> TOperationIdMap;
     TOperationIdMap IdToOperation_;
 
     typedef std::vector<TExecNodeDescriptor> TExecNodeDescriptors;
@@ -998,7 +998,7 @@ private:
         NProfiling::TCpuInstant LastUpdateTime;
         TExecNodeDescriptors ExecNodeDescriptors;
     };
-    mutable yhash_map<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
+    mutable yhash<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
 
     TProfiler TotalResourceLimitsProfiler_;
     TProfiler TotalResourceUsageProfiler_;

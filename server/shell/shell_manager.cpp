@@ -207,7 +207,7 @@ private:
     TNullable<Stroka> MessageOfTheDay_;
 
     std::vector<Stroka> Environment_;
-    yhash_map<TShellId, IShellPtr> IdToShell_;
+    yhash<TShellId, IShellPtr> IdToShell_;
     bool Terminated_ = false;
 
     const NLogging::TLogger Logger = ShellLogger;

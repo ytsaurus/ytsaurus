@@ -33,7 +33,7 @@ private:
 
     //! Protects the section immediately following it.
     TSpinLock SpinLock_;
-    yhash_map<NObjectClient::TCellTag, NConcurrency::IThroughputThrottlerPtr> ThrottlerMap_;
+    yhash<NObjectClient::TCellTag, NConcurrency::IThroughputThrottlerPtr> ThrottlerMap_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TThrottlerManager)

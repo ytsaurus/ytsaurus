@@ -20,7 +20,7 @@ void TAttributeSet::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     // COMPAT(babenko)
     if (context.GetVersion() < 501) {
-        yhash_map<Stroka, TNullable<NYson::TYsonString>> attributes;
+        yhash<Stroka, TNullable<NYson::TYsonString>> attributes;
         Load(context, attributes);
         Attributes_.clear();
         for (const auto& pair : attributes) {

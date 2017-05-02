@@ -80,8 +80,8 @@ private:
     const TJobControllerConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
 
-    yhash_map<EJobType, TJobFactory> Factories_;
-    yhash_map<TJobId, IJobPtr> Jobs_;
+    yhash<EJobType, TJobFactory> Factories_;
+    yhash<TJobId, IJobPtr> Jobs_;
 
     bool StartScheduled_ = false;
 

@@ -390,7 +390,7 @@ private:
         TFuture<void> LastUpdateFuture = VoidFuture;
     };
 
-    yhash_map<TOperationId, TUpdateList> UpdateLists;
+    yhash<TOperationId, TUpdateList> UpdateLists;
 
     struct TWatcherList
     {
@@ -403,7 +403,7 @@ private:
         std::vector<TWatcherHandler>   WatcherHandlers;
     };
 
-    yhash_map<TOperationId, TWatcherList> WatcherLists;
+    yhash<TOperationId, TWatcherList> WatcherLists;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -977,7 +977,7 @@ private:
             watchTransaction(operation->GetUserTransaction());
         }
 
-        yhash_map<TCellTag, TObjectServiceProxy::TReqExecuteBatchPtr> batchReqs;
+        yhash<TCellTag, TObjectServiceProxy::TReqExecuteBatchPtr> batchReqs;
 
         for (const auto& id : watchSet) {
             auto cellTag = CellTagFromId(id);
@@ -998,7 +998,7 @@ private:
 
         LOG_INFO("Refreshing transactions");
 
-        yhash_map<TCellTag, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchRsps;
+        yhash<TCellTag, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchRsps;
 
         for (const auto& pair : batchReqs) {
             auto cellTag = pair.first;
@@ -1391,7 +1391,7 @@ private:
 
         const auto& transactionId = transaction->GetId();
 
-        yhash_map<TCellTag, std::vector<TJobFile>> cellTagToFiles;
+        yhash<TCellTag, std::vector<TJobFile>> cellTagToFiles;
         for (const auto& file : files) {
             cellTagToFiles[CellTagFromId(file.ChunkId)].push_back(file);
         }
@@ -1552,7 +1552,7 @@ private:
             NChunkClient::NProto::TDataStatistics Statistics;
         };
 
-        yhash_map<TNodeId, TTableInfo> tableIdToInfo;
+        yhash<TNodeId, TTableInfo> tableIdToInfo;
         for (const auto& request : livePreviewRequests) {
             auto& tableInfo = tableIdToInfo[request.TableId];
             tableInfo.TableId = request.TableId;
@@ -1603,7 +1603,7 @@ private:
             }
         }
 
-        yhash_map<TCellTag, std::vector<TTableInfo*>> cellTagToInfos;
+        yhash<TCellTag, std::vector<TTableInfo*>> cellTagToInfos;
         for (auto& pair : tableIdToInfo) {
             auto& tableInfo  = pair.second;
             cellTagToInfos[tableInfo.CellTag].push_back(&tableInfo);

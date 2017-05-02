@@ -198,7 +198,7 @@ private:
     //! Peers returning NoSuchChunk error are banned forever.
     yhash_set<Stroka> BannedForeverPeers_;
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
-    yhash_map<Stroka, int> PeerBanCountMap_;
+    yhash<Stroka, int> PeerBanCountMap_;
 
     TFuture<TChunkReplicaList> AsyncGetSeeds()
     {
@@ -404,7 +404,7 @@ protected:
     TPeerQueue PeerQueue_;
 
     //! Catalogue of peers, seen on current pass.
-    yhash_map<Stroka, TPeer> Peers_;
+    yhash<Stroka, TPeer> Peers_;
 
 
     TSessionBase(
@@ -860,10 +860,10 @@ private:
     TPromise<std::vector<TSharedRef>> Promise_ = NewPromise<std::vector<TSharedRef>>();
 
     //! Blocks that are fetched so far.
-    yhash_map<int, TSharedRef> Blocks_;
+    yhash<int, TSharedRef> Blocks_;
 
     //! Maps peer addresses to block indexes.
-    yhash_map<Stroka, yhash_set<int>> PeerBlocksMap_;
+    yhash<Stroka, yhash_set<int>> PeerBlocksMap_;
 
     virtual bool IsCanceled() const override
     {

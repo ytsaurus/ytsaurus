@@ -419,7 +419,7 @@ private:
     std::atomic<bool> ProcessQueuesCallbackPending_ = {false};
 
     TSpinLock SpinLock_;
-    yhash_map<TSyncFileChangelogPtr, TFileChangelogQueuePtr> QueueMap_;
+    yhash<TSyncFileChangelogPtr, TFileChangelogQueuePtr> QueueMap_;
 
     TSimpleCounter RecordCounter_;
     TSimpleCounter ByteCounter_;
