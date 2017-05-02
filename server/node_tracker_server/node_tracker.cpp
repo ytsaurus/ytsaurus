@@ -765,11 +765,11 @@ private:
 
     TRackSet UsedRackIndexes_;
 
-    yhash_map<Stroka, TNode*> AddressToNodeMap_;
+    yhash<Stroka, TNode*> AddressToNodeMap_;
     yhash_multimap<Stroka, TNode*> HostNameToNodeMap_;
-    yhash_map<TTransaction*, TNode*> TransactionToNodeMap_;
-    yhash_map<Stroka, TRack*> NameToRackMap_;
-    yhash_map<Stroka, TDataCenter*> NameToDataCenterMap_;
+    yhash<TTransaction*, TNode*> TransactionToNodeMap_;
+    yhash<Stroka, TRack*> NameToRackMap_;
+    yhash<Stroka, TDataCenter*> NameToDataCenterMap_;
 
     TPeriodicExecutorPtr NodeStatesGossipExecutor_;
 

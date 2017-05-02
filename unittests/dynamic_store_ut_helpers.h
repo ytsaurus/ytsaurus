@@ -236,7 +236,7 @@ protected:
             return false;
         }
 
-        auto expectedRowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(
+        auto expectedRowParts = ConvertTo<yhash<Stroka, INodePtr>>(
             TYsonString(yson, EYsonType::MapFragment));
 
         for (int index = 0; index < row.GetCount(); ++index) {

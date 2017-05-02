@@ -169,7 +169,7 @@ public:
 
     TNullable<bool> EnableInputTableIndex;
 
-    yhash_map<Stroka, Stroka> Environment;
+    yhash<Stroka, Stroka> Environment;
 
     double CpuLimit;
     TNullable<TDuration> JobTimeLimit;

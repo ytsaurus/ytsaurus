@@ -510,7 +510,7 @@ protected:
         TLockFreeQueue<TServiceContextPtr> RequestQueue;
 
         NConcurrency::TReaderWriterSpinLock PerformanceCountersLock;
-        yhash_map<Stroka, TMethodPerformanceCountersPtr> UserToPerformanceCounters;
+        yhash<Stroka, TMethodPerformanceCountersPtr> UserToPerformanceCounters;
         TMethodPerformanceCountersPtr RootPerformanceCounters;
     };
 
@@ -580,11 +580,11 @@ private:
     NProfiling::TTagId ServiceTagId_;
 
     NConcurrency::TReaderWriterSpinLock MethodMapLock_;
-    yhash_map<Stroka, TRuntimeMethodInfoPtr> MethodMap_;
+    yhash<Stroka, TRuntimeMethodInfoPtr> MethodMap_;
 
     TSpinLock CancelableRequestLock_;
-    yhash_map<TRequestId, TServiceContext*> IdToContext_;
-    yhash_map<NBus::IBusPtr, yhash_set<TServiceContext*>> ReplyBusToContexts_;
+    yhash<TRequestId, TServiceContext*> IdToContext_;
+    yhash<NBus::IBusPtr, yhash_set<TServiceContext*>> ReplyBusToContexts_;
 
     std::atomic<bool> Stopped_ = {false};
     TPromise<void> StopResult_ = NewPromise<void>();

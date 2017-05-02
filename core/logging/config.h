@@ -86,7 +86,7 @@ public:
     TDuration ShutdownGraceTimeout;
 
     std::vector<TRuleConfigPtr> Rules;
-    yhash_map<Stroka, TWriterConfigPtr> WriterConfigs;
+    yhash<Stroka, TWriterConfigPtr> WriterConfigs;
 
     TLogConfig()
     {

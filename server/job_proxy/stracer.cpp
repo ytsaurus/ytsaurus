@@ -120,7 +120,7 @@ TStracerResultPtr Strace(const std::vector<int>& pids)
 
     auto pool = New<TThreadPool>(StraceConcurrencyFactor, "StracePool");
 
-    yhash_map<int, TFuture<TStracePtr>> traceFutures;
+    yhash<int, TFuture<TStracePtr>> traceFutures;
     for (const auto& pid : pids) {
         traceFutures[pid] =
             BIND([=] () {

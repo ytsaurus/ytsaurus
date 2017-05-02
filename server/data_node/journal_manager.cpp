@@ -198,7 +198,7 @@ private:
     yhash_set<TChunkId> CreateChunkIds_;
     yhash_set<TChunkId> RemoveChunkIds_;
     yhash_set<TChunkId> AppendChunkIds_;
-    yhash_map<TChunkId, TVersion> ChunkIdToFirstRelevantVersion_;
+    yhash<TChunkId, TVersion> ChunkIdToFirstRelevantVersion_;
 
     struct TSplitEntry
     {
@@ -218,7 +218,7 @@ private:
         bool AppendLogged = false;
     };
 
-    yhash_map<TChunkId, TSplitEntry> SplitMap_;
+    yhash<TChunkId, TSplitEntry> SplitMap_;
 
 
     TVersion GetFirstRelevantVersion(const TChunkId& chunkId)
@@ -618,7 +618,7 @@ private:
 
     //! Maps multiplexed changelog ids to cleanup results.
     //! Used to guarantee that multiplexed changelogs are being marked as clean in proper order.
-    yhash_map<int, TPromise<void>> MultiplexedChangelogIdToCleanResult_;
+    yhash<int, TPromise<void>> MultiplexedChangelogIdToCleanResult_;
 
     TPeriodicExecutorPtr MultiplexedCleanupExecutor_;
     TPeriodicExecutorPtr BarrierCleanupExecutor_;
