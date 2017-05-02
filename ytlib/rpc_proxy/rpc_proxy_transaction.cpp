@@ -9,8 +9,6 @@ namespace NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = RpcProxyClientLogger;
-
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -81,7 +79,7 @@ TFuture<TTransactionCommitResult> TRpcProxyTransaction::Commit(const TTransactio
 
             return req->Invoke().Apply(
                 BIND([] (const TErrorOr<TApiServiceProxy::TRspCommitTransactionPtr>& rspOrError) -> TTransactionCommitResult {
-                    const auto& rsp = rspOrError.ValueOrThrow();
+                    rspOrError.ValueOrThrow();
                     return TTransactionCommitResult{};
                 }));
         }));
