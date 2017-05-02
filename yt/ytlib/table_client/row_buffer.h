@@ -58,6 +58,7 @@ public:
     i64 GetCapacity() const;
 
     void Clear();
+    void Purge();
 
 private:
     TChunkedMemoryPool Pool_;

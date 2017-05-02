@@ -274,10 +274,11 @@ private:
     TCellTagList RegisteredMasterCellTags_;
     EPrimaryRegisterState RegisterState_;
 
+    yhash_map<TCellTag, TMailbox*> MasterMailboxCache_;
     TMailbox* PrimaryMasterMailbox_ = nullptr;
 
     TPeriodicExecutorPtr RegisterAtPrimaryMasterExecutor_;
-    TPeriodicExecutorPtr CellStatiticsGossipExecutor_;
+    TPeriodicExecutorPtr CellStatisticsGossipExecutor_;
 
     //! Caches master channels returned by FindMasterChannel and GetMasterChannelOrThrow.
     std::map<std::tuple<TCellTag, EPeerKind>, IChannelPtr> MasterChannelCache_;
@@ -367,11 +368,11 @@ private:
                 RegisterRetryPeriod);
             RegisterAtPrimaryMasterExecutor_->Start();
 
-            CellStatiticsGossipExecutor_ = New<TPeriodicExecutor>(
+            CellStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
                 BIND(&TImpl::OnCellStatisticsGossip, MakeWeak(this)),
                 Config_->CellStatisticsGossipPeriod);
-            CellStatiticsGossipExecutor_->Start();
+            CellStatisticsGossipExecutor_->Start();
         }
     }
 
@@ -384,25 +385,26 @@ private:
             RegisterAtPrimaryMasterExecutor_.Reset();
         }
 
-        if (CellStatiticsGossipExecutor_) {
-            CellStatiticsGossipExecutor_->Stop();
-            CellStatiticsGossipExecutor_.Reset();
+        if (CellStatisticsGossipExecutor_) {
+            CellStatisticsGossipExecutor_->Stop();
+            CellStatisticsGossipExecutor_.Reset();
         }
 
-        ClearMasterChannelCache();
+        ClearCaches();
     }
 
     virtual void OnStopFollowing() override
     {
         TMasterAutomatonPart::OnStopFollowing();
 
-        ClearMasterChannelCache();
+        ClearCaches();
     }
 
 
-    void ClearMasterChannelCache()
+    void ClearCaches()
     {
         MasterChannelCache_.clear();
+        MasterMailboxCache_.clear();
     }
 
 
@@ -572,6 +574,26 @@ private:
         return &it->second;
     }
 
+    TMailbox* FindMasterMailbox(TCellTag cellTag)
+    {
+        if (cellTag == PrimaryMasterCellTag) {
+            // This may be null.
+            return PrimaryMasterMailbox_;
+        }
+
+        YCHECK(cellTag >= MinValidCellTag && cellTag <= MaxValidCellTag);
+        auto it = MasterMailboxCache_.find(cellTag);
+        if (it != MasterMailboxCache_.end()) {
+            return it->second;
+        }
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        auto cellId = Bootstrap_->GetCellId(cellTag);
+        auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
+        YCHECK(MasterMailboxCache_.emplace(cellTag, mailbox).second);
+        return mailbox;
+    }
+
 
     void OnStartSecondaryMasterRegistration()
     {
@@ -654,24 +676,18 @@ private:
         bool reliable)
     {
         const auto& hiveManager = Bootstrap_->GetHiveManager();
+        TMailboxList mailboxes;
         for (auto cellTag : cellTags) {
-            if (cellTag >= MinValidCellTag && cellTag <= MaxValidCellTag) {
-                auto cellId = Bootstrap_->GetCellId(cellTag);
-                auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
-                hiveManager->PostMessage(mailbox, message, reliable);
-            } else if (cellTag == PrimaryMasterCellTag) {
-                if (!reliable && !PrimaryMasterMailbox_)
-                    return;
-
+            auto* mailbox = FindMasterMailbox(cellTag);
+            if (mailbox) {
+                mailboxes.push_back(mailbox);
+            } else {
                 // Failure here indicates an attempt to send a reliable message to the primary master
                 // before registering.
-                YCHECK(PrimaryMasterMailbox_);
-
-                hiveManager->PostMessage(PrimaryMasterMailbox_, message, reliable);
-            } else {
-                Y_UNREACHABLE();
+                YCHECK(!reliable);
             }
         }
+        hiveManager->PostMessage(mailboxes, message, reliable);
     }
 };
 

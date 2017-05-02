@@ -34,6 +34,7 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
         : miscExt.row_count();
 
     CompressedDataSize_ = miscExt.compressed_data_size();
+    DataWeight_ = miscExt.data_weight();
     MaxBlockSize_ = miscExt.has_max_block_size()
         ? miscExt.max_block_size()
         : DefaultMaxBlockSize;
@@ -92,9 +93,10 @@ void TInputChunkBase::CheckOffsets()
     static_assert(offsetof(TInputChunkBase, UncompressedDataSize_) == 104, "invalid offset");
     static_assert(offsetof(TInputChunkBase, RowCount_) == 112, "invalid offset");
     static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 120, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 128, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 136, "invalid offset");
-    static_assert(sizeof(TInputChunkBase) == 144, "invalid sizeof");
+    static_assert(offsetof(TInputChunkBase, DataWeight_) == 128, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 136, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 144, "invalid offset");
+    static_assert(sizeof(TInputChunkBase) == 152, "invalid sizeof");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,16 +176,28 @@ void TInputChunk::ReleasePartitionsExt()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! ToProto is used to pass chunk specs to job proxy as part of TUserJobSpecExt
-void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
+//! ToProto is used to pass chunk specs to job proxy as part of TTableInputSpec.
+void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, EDataSourceType dataSourceType)
 {
     ToProto(chunkSpec->mutable_chunk_id(), inputChunk->ChunkId_);
     const auto& replicas = inputChunk->GetReplicaList();
     ToProto(chunkSpec->mutable_replicas(), replicas);
-    chunkSpec->set_table_index(inputChunk->TableIndex_);
-    chunkSpec->set_erasure_codec(static_cast<int>(inputChunk->ErasureCodec_));
-    chunkSpec->set_table_row_index(inputChunk->TableRowIndex_);
-    chunkSpec->set_range_index(inputChunk->RangeIndex_);
+    if (inputChunk->TableIndex_ >= 0) {
+        chunkSpec->set_table_index(inputChunk->TableIndex_);
+    }
+
+    if (inputChunk->ErasureCodec_ != NErasure::ECodec::None) {
+        chunkSpec->set_erasure_codec(static_cast<int>(inputChunk->ErasureCodec_));
+    }
+
+    if (inputChunk->TableRowIndex_ > 0) {
+        chunkSpec->set_table_row_index(inputChunk->TableRowIndex_);
+    }
+
+    if (inputChunk->RangeIndex_ > 0) {
+        chunkSpec->set_range_index(inputChunk->RangeIndex_);
+    }
+
     if (inputChunk->LowerLimit_) {
         ToProto(chunkSpec->mutable_lower_limit(), *inputChunk->LowerLimit_);
     }
@@ -193,9 +207,14 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
     if (inputChunk->Channel_) {
         chunkSpec->mutable_channel()->CopyFrom(*inputChunk->Channel_);
     }
-    chunkSpec->mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
-    chunkSpec->mutable_chunk_meta()->set_version(static_cast<int>(inputChunk->TableChunkFormat_));
-    chunkSpec->mutable_chunk_meta()->mutable_extensions();
+
+    // This is the default intermediate table chunk format,
+    // so we omit chunk_meta altogether to minimize job spec size.
+    if (inputChunk->TableChunkFormat_ != ETableChunkFormat::SchemalessHorizontal || dataSourceType != EDataSourceType::UnversionedTable) {
+        chunkSpec->mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
+        chunkSpec->mutable_chunk_meta()->set_version(static_cast<int>(inputChunk->TableChunkFormat_));
+        chunkSpec->mutable_chunk_meta()->mutable_extensions();
+    }
 }
 
 Stroka ToString(const TInputChunkPtr& inputChunk)
@@ -210,7 +229,7 @@ Stroka ToString(const TInputChunkPtr& inputChunk)
     return Format(
         "{ChunkId: %v, Replicas: %v, TableIndex: %v, ErasureCodec: %v, TableRowIndex: %v, "
         "RangeIndex: %v, TableChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
-        "CompressedDataSize: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "
+        "CompressedDataSize: %v, DataWeight: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "
         "BoundaryKeys: {%v}, Channel: {%v}, PartitionsExt: {%v}}",
         inputChunk->ChunkId(),
         JoinToString(inputChunk->Replicas()),
@@ -222,6 +241,7 @@ Stroka ToString(const TInputChunkPtr& inputChunk)
         inputChunk->GetUncompressedDataSize(),
         inputChunk->GetRowCount(),
         inputChunk->GetCompressedDataSize(),
+        inputChunk->GetDataWeight(),
         inputChunk->GetMaxBlockSize(),
         inputChunk->LowerLimit() ? MakeNullable(*inputChunk->LowerLimit()) : Null,
         inputChunk->UpperLimit() ? MakeNullable(*inputChunk->UpperLimit()) : Null,

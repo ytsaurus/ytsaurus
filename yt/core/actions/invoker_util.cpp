@@ -22,7 +22,7 @@ class TSyncInvoker
     : public IInvoker
 {
 public:
-    virtual void Invoke(const TClosure& callback) override
+    virtual void Invoke(TClosure callback) override
     {
         callback.Run();
     }
@@ -51,7 +51,7 @@ class TNullInvoker
     : public IInvoker
 {
 public:
-    virtual void Invoke(const TClosure& /*callback*/) override
+    virtual void Invoke(TClosure /*callback*/) override
     { }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK

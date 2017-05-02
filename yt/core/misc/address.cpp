@@ -7,9 +7,10 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/misc/dns_resolver.h>
+#include <yt/core/misc/local_address.h>
 #include <yt/core/misc/singleton.h>
-
-#include <yt/core/misc/finally.h>
+#include <yt/core/misc/expiring_cache.h>
 
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/scoped_timer.h>
@@ -39,9 +40,6 @@ using namespace NConcurrency;
 
 static const NLogging::TLogger Logger("Network");
 static const NProfiling::TProfiler Profiler("/network");
-
-static const auto WarningDuration = TDuration::MilliSeconds(100);
-static const char* FailedLocalHostName = "<unknown>";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,22 +88,22 @@ TStringBuf GetServiceHostName(const TStringBuf& address)
 
 TNetworkAddress::TNetworkAddress()
 {
-    memset(&Storage, 0, sizeof (Storage));
+    memset(&Storage, 0, sizeof(Storage));
     Storage.ss_family = AF_UNSPEC;
-    Length = sizeof (Storage);
+    Length = sizeof(Storage);
 }
 
 TNetworkAddress::TNetworkAddress(const TNetworkAddress& other, int port)
 {
-    memcpy(&Storage, &other.Storage, sizeof (Storage));
+    memcpy(&Storage, &other.Storage, sizeof(Storage));
     switch (Storage.ss_family) {
         case AF_INET:
             reinterpret_cast<sockaddr_in*>(&Storage)->sin_port = htons(port);
-            Length = sizeof (sockaddr_in);
+            Length = sizeof(sockaddr_in);
             break;
         case AF_INET6:
             reinterpret_cast<sockaddr_in6*>(&Storage)->sin6_port = htons(port);
-            Length = sizeof (sockaddr_in6);
+            Length = sizeof(sockaddr_in6);
             break;
         default:
             Y_UNREACHABLE();
@@ -116,6 +114,30 @@ TNetworkAddress::TNetworkAddress(const sockaddr& other, socklen_t length)
 {
     Length = length == 0 ? GetGenericLength(other) : length;
     memcpy(&Storage, &other, Length);
+}
+
+TNetworkAddress::TNetworkAddress(int family, const char* addr, size_t size)
+{
+    memset(&Storage, 0, sizeof(Storage));
+    Storage.ss_family = family;
+    switch (Storage.ss_family) {
+        case AF_INET: {
+            auto* typedSockAddr = reinterpret_cast<sockaddr_in*>(&Storage);
+            Y_ASSERT(size <= sizeof(sockaddr_in));
+            memcpy(&typedSockAddr->sin_addr, addr, size);
+            Length = sizeof(sockaddr_in);
+            break;
+        }
+        case AF_INET6: {
+            auto* typedSockAddr = reinterpret_cast<sockaddr_in6*>(&Storage);
+            Y_ASSERT(size <= sizeof(sockaddr_in6));
+            memcpy(&typedSockAddr->sin6_addr, addr, size);
+            Length = sizeof(sockaddr_in6);
+            break;
+        }
+        default:
+            Y_UNREACHABLE();
+    }
 }
 
 sockaddr* TNetworkAddress::GetSockAddr()
@@ -300,14 +322,24 @@ bool operator != (const TNetworkAddress& lhs, const TNetworkAddress& rhs)
 
 //! Performs asynchronous host name resolution.
 class TAddressResolver::TImpl
-    : public TRefCounted
+    : public virtual TRefCounted
+    , private TExpiringCache<Stroka, TNetworkAddress>
 {
 public:
+    TImpl(TAddressResolverConfigPtr config)
+        : TExpiringCache(config)
+        , Config_(config)
+        , DnsResolver_(config->Retries, config->ResolveTimeout, config->WarningTimeout)
+    {
+        DnsResolver_.Start();
+
+        Configure(Config_);
+    }
+
     void Shutdown();
 
     TFuture<TNetworkAddress> Resolve(const Stroka& hostName);
 
-    Stroka GetLocalHostName();
     bool IsLocalHostNameOK();
 
     bool IsLocalAddress(const TNetworkAddress& address);
@@ -317,42 +349,24 @@ public:
     void Configure(TAddressResolverConfigPtr config);
 
 private:
-    TAddressResolverConfigPtr Config_ = New<TAddressResolverConfig>();
-
-    struct TCacheEntry
-    {
-        TNetworkAddress Address;
-        TInstant Deadline;
-        std::atomic<bool> Refreshing = {false};
-    };
-
-    TReaderWriterSpinLock CacheLock_;
-    yhash_map<Stroka, TCacheEntry> Cache_;
+    TAddressResolverConfigPtr Config_;
 
     std::atomic<bool> HasCachedLocalAddresses_ = {false};
     std::vector<TNetworkAddress> CachedLocalAddresses_;
+    TReaderWriterSpinLock CacheLock_;
 
     const TActionQueuePtr Queue_ = New<TActionQueue>("AddressResolver");
-    NConcurrency::TPeriodicExecutorPtr LocalHostChecker_;
 
-    bool GetLocalHostNameFailed_ = false;
-    TSpinLock CachedLocalHostNameLock_;
-    Stroka CachedLocalHostName_;
+    TDnsResolver DnsResolver_;
 
-
-    TNetworkAddress DoResolve(const Stroka& hostName);
-    Stroka DoGetLocalHostName();
-
-    void CheckLocalHostResolution();
+    virtual TFuture<TNetworkAddress> DoGet(const Stroka& hostName) override;
 
     const std::vector<TNetworkAddress>& GetLocalAddresses();
 };
 
 void TAddressResolver::TImpl::Shutdown()
 {
-    if (LocalHostChecker_) {
-        LocalHostChecker_->Stop().Get();
-    }
+    DnsResolver_.Stop();
 
     Queue_->Shutdown();
 }
@@ -367,192 +381,37 @@ TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const Stroka& hostName
         }
     }
 
-    auto runAsyncResolve = [&] () {
-        return BIND(&TAddressResolver::TImpl::DoResolve, MakeStrong(this), hostName)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
-    };
-
-    // Lookup cache.
-    {
-        TReaderGuard guard(CacheLock_);
-        auto it = Cache_.find(hostName);
-        if (it != Cache_.end()) {
-            auto& entry = it->second;
-
-            // Re-run resolve for expired entries.
-            bool expectedRefreshing = false;
-            if (entry.Deadline < TInstant::Now() &&
-                entry.Refreshing.compare_exchange_strong(expectedRefreshing, true))
-            {
-                runAsyncResolve();
-            }
-
-            auto address = entry.Address;
-
-            guard.Release();
-
-            LOG_DEBUG("Address cache hit: %v -> %v",
-                hostName,
-                address);
-
-            return MakeFuture(address);
-        }
-    }
-
     // Run async resolution.
-    return runAsyncResolve();
+    return Get(hostName);
 }
 
-TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName)
+TFuture<TNetworkAddress> TAddressResolver::TImpl::DoGet(const Stroka& hostname)
 {
-    try {
-        addrinfo hints;
-        memset(&hints, 0, sizeof(hints));
-
-        // Do not use AF_UNSPEC in all cases
-        // since resolving unnecessary address may take time.
-        hints.ai_family = AF_UNSPEC;
-        if (Config_->EnableIPv4 && !Config_->EnableIPv6) {
-            hints.ai_family = AF_INET;
-        }
-        if (Config_->EnableIPv6 && !Config_->EnableIPv4) {
-            hints.ai_family = AF_INET6;
-        }
-        hints.ai_socktype = SOCK_STREAM;
-
-        addrinfo* addrInfo = nullptr;
-
-        LOG_DEBUG("Started resolving host %v", hostName);
-
-        NProfiling::TScopedTimer timer;
-
-        int gaiResult;
-        PROFILE_TIMING("/dns_resolve_time") {
-            gaiResult = getaddrinfo(
-                hostName.c_str(),
-                nullptr,
-                &hints,
-                &addrInfo);
-        }
-
-        auto duration = timer.GetElapsed();
-
-        if (gaiResult != 0) {
-            auto gaiError = TError(Stroka(gai_strerror(gaiResult)))
-                << TErrorAttribute("errno", gaiResult);
-            THROW_ERROR_EXCEPTION("Failed to resolve host %v", hostName)
-                 << gaiError;
-        } else if (duration > WarningDuration) {
-            LOG_WARNING("DNS resolve took too long (Host: %v, Duration: %v)",
-                hostName,
-                duration);
-        }
-
-        TNullable<TNetworkAddress> result;
-
-        for (const auto* currentInfo = addrInfo; currentInfo; currentInfo = currentInfo->ai_next) {
-            if ((currentInfo->ai_family == AF_INET && Config_->EnableIPv4) ||
-                (currentInfo->ai_family == AF_INET6 && Config_->EnableIPv6))
-            {
-                result = TNetworkAddress(*currentInfo->ai_addr);
-                break;
-            }
-        }
-
-        freeaddrinfo(addrInfo);
-
-        if (result) {
-            // Put result into the cache.
-            {
-                TWriterGuard guard(CacheLock_);
-                auto& entry = Cache_[hostName];
-                entry.Address = *result;
-                entry.Deadline = TInstant::Now() + Config_->AddressExpirationTime;
-                entry.Refreshing = false;
-            }
-            LOG_DEBUG("Host resolved: %v -> %v",
-                hostName,
-                *result);
-            return *result;
-        }
-
-        THROW_ERROR_EXCEPTION("No IPv4 or IPv6 address can be found for %v", hostName);
-    } catch (const std::exception& ex) {
-        // Clear refresh flag.
-        {
-            TWriterGuard guard(CacheLock_);
-            auto it = Cache_.find(hostName);
-            if (it != Cache_.end()) {
-                auto& entry = Cache_[hostName];
-                entry.Deadline = TInstant::Now() + Config_->AddressExpirationTime;
-                entry.Refreshing = false;
-            }
-        }
-        LOG_WARNING(TError(ex));
-        throw;
-    }
-}
-
-Stroka TAddressResolver::TImpl::GetLocalHostName()
-{
-    static PER_THREAD int ReenteranceLock = 0;
-
-    if (GetLocalHostNameFailed_ || ReenteranceLock > 0) {
-        return FailedLocalHostName;
-    }
-
-    {
-        TGuard<TSpinLock> guard(CachedLocalHostNameLock_);
-        if (!CachedLocalHostName_.empty()) {
-            return CachedLocalHostName_;
-        }
-    }
-
-    Stroka result;
-    try {
-        ++ReenteranceLock;
-        result = DoGetLocalHostName();
-        --ReenteranceLock;
-    } catch (const std::exception& ex) {
-        GetLocalHostNameFailed_ = true;
-        --ReenteranceLock;
-        LOG_ERROR(ex, "Unable to determine localhost FQDN");
-        return FailedLocalHostName;
-    }
-
-    {
-        TGuard<TSpinLock> guard(CachedLocalHostNameLock_);
-        if (CachedLocalHostName_.empty()) {
-            CachedLocalHostName_ = result;
-        }
-        // Sometimes the local DNS resolver crashes when the program is still running.
-        // This can prevent our services from working properly (e.g. all spawned jobs will fail).
-        // To avoid this, we run periodic checks to see if localhost can still be resolved.
-        if (!LocalHostChecker_) {
-            LocalHostChecker_ = New<TPeriodicExecutor>(
-                Queue_->GetInvoker(),
-                BIND(&TAddressResolver::TImpl::CheckLocalHostResolution, MakeWeak(this)),
-                TDuration::Minutes(1),
-                EPeriodicExecutorMode::Automatic,
-                TDuration::Minutes(1));
-        }
-    }
-
-    return result;
+    return DnsResolver_
+        .ResolveName(hostname, Config_->EnableIPv4, Config_->EnableIPv6)
+        .Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TNetworkAddress>& result) {
+            // Empty callback just to forward future callbacks into proper thread.
+            return result.ValueOrThrow();
+        })
+        .AsyncVia(Queue_->GetInvoker()));
 }
 
 bool TAddressResolver::TImpl::IsLocalHostNameOK()
 {
-    // Force localhost resolution.
-    GetLocalHostName();
-    return !GetLocalHostNameFailed_;
+    // Force check & resolution.
+    if (Config_->LocalHostFqdn) {
+        return true;
+    } else {
+        return ::NYT::UpdateLocalHostName([] (const char*, const char*) {});
+    }
 }
 
 bool TAddressResolver::TImpl::IsLocalAddress(const TNetworkAddress& address)
 {
     const auto& localAddresses = GetLocalAddresses();
-    return std::find(localAddresses.begin(), localAddresses.end(), address) != localAddresses.end();
+    auto&& it = std::find(localAddresses.begin(), localAddresses.end(), address);
+    auto jt = localAddresses.end();
+    return it != jt;
 }
 
 const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
@@ -567,9 +426,7 @@ const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
              << TError::FromSystem();
     }
 
-    auto guard = Finally([&] () {
-        freeifaddrs(ifAddresses);
-    });
+    auto holder = std::unique_ptr<ifaddrs, decltype(&freeifaddrs)>(ifAddresses, &freeifaddrs);
 
     std::vector<TNetworkAddress> localAddresses;
     for (const auto* currentAddress = ifAddresses;
@@ -599,75 +456,9 @@ const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
     return CachedLocalAddresses_;
 }
 
-Stroka TAddressResolver::TImpl::DoGetLocalHostName()
-{
-    char hostName[1024];
-    memset(hostName, 0, sizeof (hostName));
-
-    if (gethostname(hostName, sizeof (hostName) - 1) == -1) {
-        THROW_ERROR_EXCEPTION("gethostname failed")
-            << TError::FromSystem();
-    }
-
-    LOG_INFO("Localhost reported by gethostname: %v", hostName);
-
-    addrinfo hints;
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;    // Allow both IPv4 and IPv6 addresses.
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags |= AI_CANONNAME;
-
-    addrinfo* addrInfo = nullptr;
-
-    int gaiResult = getaddrinfo(
-        hostName,
-        nullptr,
-        &hints,
-        &addrInfo);
-
-    if (gaiResult != 0) {
-        GetLocalHostNameFailed_ = true;
-        auto gaiError = TError(Stroka(gai_strerror(gaiResult)))
-            << TErrorAttribute("errno", gaiResult);
-        THROW_ERROR_EXCEPTION("getaddrinfo failed")
-            << gaiError;
-    }
-
-    char* canonname = nullptr;
-    if (addrInfo) {
-        canonname = addrInfo->ai_canonname;
-    }
-
-    for (auto* currentInfo = addrInfo; currentInfo; currentInfo = currentInfo->ai_next) {
-        if ((currentInfo->ai_family == AF_INET && Config_->EnableIPv4) ||
-            (currentInfo->ai_family == AF_INET6 && Config_->EnableIPv6))
-        {
-            Stroka fqdn(canonname);
-            LOG_INFO("Localhost FQDN reported by getaddrinfo: %v", fqdn);
-            return fqdn;
-        }
-    }
-
-    freeaddrinfo(addrInfo);
-
-    THROW_ERROR_EXCEPTION("No matching addrinfo entry found");
-}
-
-void TAddressResolver::TImpl::CheckLocalHostResolution()
-{
-    try {
-        DoGetLocalHostName();
-    } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Localhost has failed to resolve");
-    }
-}
-
 void TAddressResolver::TImpl::PurgeCache()
 {
-    {
-        TWriterGuard guard(CacheLock_);
-        Cache_.clear();
-    }
+    Clear();
     LOG_INFO("Address cache purged");
 }
 
@@ -676,16 +467,20 @@ void TAddressResolver::TImpl::Configure(TAddressResolverConfigPtr config)
     Config_ = std::move(config);
 
     if (Config_->LocalHostFqdn) {
-        TGuard<TSpinLock> guard(CachedLocalHostNameLock_);
-        CachedLocalHostName_ = *Config_->LocalHostFqdn;
-        LOG_INFO("Localhost FQDN configured: %v", CachedLocalHostName_);
+        ::NYT::SetLocalHostName(*Config_->LocalHostFqdn);
+    } else {
+        ::NYT::UpdateLocalHostName([&] (const char* message, const char* details) {
+            LOG_INFO("Localhost FQDN resolution failed: %v: %v", message, details);
+        });
     }
+
+    LOG_INFO("Localhost FQDN configured: %v", ::NYT::GetLocalHostName());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TAddressResolver::TAddressResolver()
-    : Impl_(New<TImpl>())
+    : Impl_(New<TImpl>(New<TAddressResolverConfig>()))
 { }
 
 TAddressResolver::~TAddressResolver()
@@ -709,11 +504,6 @@ void TAddressResolver::Shutdown()
 TFuture<TNetworkAddress> TAddressResolver::Resolve(const Stroka& address)
 {
     return Impl_->Resolve(address);
-}
-
-Stroka TAddressResolver::GetLocalHostName()
-{
-    return Impl_->GetLocalHostName();
 }
 
 bool TAddressResolver::IsLocalHostNameOK()

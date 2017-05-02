@@ -61,6 +61,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/profiling/profile_manager.h>
+
 #include <yt/core/rpc/response_keeper.h>
 #include <yt/core/rpc/server.h>
 
@@ -224,6 +226,8 @@ public:
             Format("TabletSnap:%v", SlotIndex_)))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
+
+        TagIdList_.push_back(NProfiling::TProfileManager::Get()->RegisterTag("slot", SlotIndex_));
 
         Logger.AddTag("Slot: %v", SlotIndex_);
         ResetEpochInvokers();
@@ -587,10 +591,14 @@ public:
         return FinalizeResult_;
     }
 
-
     const IYPathServicePtr& GetOrchidService()
     {
         return OrchidService_;
+    }
+
+    const NProfiling::TTagIdList& GetTagIdList()
+    {
+        return TagIdList_;
     }
 
 private:
@@ -642,6 +650,8 @@ private:
     NLogging::TLogger Logger = TabletNodeLogger;
 
     IYPathServicePtr OrchidService_;
+
+    NProfiling::TTagIdList TagIdList_;
 
 
     IYPathServicePtr CreateOrchidService()
@@ -934,6 +944,11 @@ TFuture<void> TTabletSlot::Finalize()
 const IYPathServicePtr& TTabletSlot::GetOrchidService()
 {
     return Impl_->GetOrchidService();
+}
+
+const NProfiling::TTagIdList& TTabletSlot::GetTagIdList()
+{
+    return Impl_->GetTagIdList();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

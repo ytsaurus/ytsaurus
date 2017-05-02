@@ -2,9 +2,12 @@
 #include "private.h"
 #include "job_detail.h"
 
-#include <yt/ytlib/object_client/helpers.h>
-
 #include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/data_source.h>
+
+#include <yt/ytlib/job_proxy/helpers.h>
+
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
@@ -55,22 +58,22 @@ public:
         }
 
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
-        auto readerOptions = New<NTableClient::TTableReaderOptions>();
         for (const auto& inputSpec : SchedulerJobSpecExt_.input_table_specs()) {
-            readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(inputSpec.table_reader_options()));
-            for (const auto& descriptor : inputSpec.data_slice_descriptors()) {
-                auto dataSliceDescriptor = FromProto<TDataSliceDescriptor>(descriptor);
-                dataSliceDescriptors.push_back(std::move(dataSliceDescriptor));
-            }
+            auto descriptors = UnpackDataSliceDescriptors(inputSpec);
+            dataSliceDescriptors.insert(dataSliceDescriptors.end(), descriptors.begin(), descriptors.end());
         }
 
         TotalRowCount_ = SchedulerJobSpecExt_.input_row_count();
 
+        auto readerOptions = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
+            SchedulerJobSpecExt_.table_reader_options()));
+        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(SchedulerJobSpecExt_.data_source_directory());
+
         NameTable_ = TNameTable::FromKeyColumns(keyColumns);
 
         auto readerFactory = UseParallelReader_
-            ? CreateSchemalessParallelMultiChunkReader
-            : CreateSchemalessSequentialMultiChunkReader;
+            ? CreateSchemalessParallelMultiReader
+            : CreateSchemalessSequentialMultiReader;
 
         ReaderFactory_ = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
             YCHECK(!Reader_);
@@ -81,6 +84,7 @@ public:
                 Host_->LocalDescriptor(),
                 Host_->GetBlockCache(),
                 Host_->GetInputNodeDirectory(),
+                dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
                 columnFilter,

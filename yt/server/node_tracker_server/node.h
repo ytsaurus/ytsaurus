@@ -221,6 +221,10 @@ public:
 
     int GetTotalTabletSlots() const;
 
+    // Returns true iff the node has at least one location belonging to the
+    // specified medium.
+    bool HasMedium(int mediumIndex) const;
+
     //! Returns null if there's no storage of specified medium on this node.
     TNullable<double> GetFillFactor(int mediumIndex) const;
     //! Returns null if there's no storage of specified medium on this node.

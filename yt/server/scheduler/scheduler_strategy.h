@@ -23,13 +23,14 @@ struct ISchedulerStrategyHost
     virtual ~ISchedulerStrategyHost() = default;
 
     virtual TJobResources GetTotalResourceLimits() = 0;
+    virtual TJobResources GetMainNodesResourceLimits() = 0;
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) = 0;
 
     virtual void ActivateOperation(const TOperationId& operationId) = 0;
 
     virtual int GetExecNodeCount() const = 0;
     virtual int GetTotalNodeCount() const = 0;
-    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
+    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
 
     virtual void ValidatePoolPermission(
         const NYPath::TYPath& path,
@@ -94,7 +95,24 @@ struct ISchedulerStrategy
      */
     virtual TFuture<void> ValidateOperationStart(const TOperationPtr& operation) = 0;
 
+    //! Validates that operation can be registered without errors.
+    /*!
+     *  Checks limits for the number of concurrent operations.
+     *
+     *  The implementation must be synchronous.
+     */
+    virtual void ValidateOperationCanBeRegistered(const TOperationPtr& operation) = 0;
+
+    //! Register operation in strategy.
+    /*!
+     *  The implementation must throw no exceptions.
+     */
     virtual void RegisterOperation(const TOperationPtr& operation) = 0;
+
+    //! Unregister operation in strategy.
+    /*!
+     *  The implementation must throw no exceptions.
+     */
     virtual void UnregisterOperation(const TOperationPtr& operation) = 0;
 
     virtual void ProcessUpdatedAndCompletedJobs(

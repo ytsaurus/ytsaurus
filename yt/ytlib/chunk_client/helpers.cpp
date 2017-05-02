@@ -157,7 +157,7 @@ TChunkReplicaList AllocateWriteTargets(
     LOG_DEBUG(
         "Allocating write targets "
         "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, Medium: %v, PreferLocalHost: %v, "
-        "ForbiddenAddresses: [%v])",
+        "ForbiddenAddresses: %v)",
         chunkId,
         desiredTargetCount,
         minTargetCount,
@@ -176,23 +176,32 @@ TChunkReplicaList AllocateWriteTargets(
         req->set_replication_factor_override(*replicationFactorOverride);
     }
     if (preferLocalHost) {
-        req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
+        req->set_preferred_host_name(GetLocalHostName());
     }
     ToProto(req->mutable_forbidden_addresses(), forbiddenAddresses);
     ToProto(req->mutable_chunk_id(), chunkId);
     req->set_medium_name(mediumName);
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        batchRspOrError,
-        NChunkClient::EErrorCode::MasterCommunicationFailed,
-        "Error allocating targets for chunk %v",
-        chunkId);
+
+    auto throwOnError = [&] (const TError& error) {
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            error,
+            NChunkClient::EErrorCode::MasterCommunicationFailed,
+            "Error allocating targets for chunk %v",
+            chunkId);
+    };
+
+    throwOnError(batchRspOrError);
     const auto& batchRsp = batchRspOrError.Value();
 
     nodeDirectory->MergeFrom(batchRsp->node_directory());
 
     auto& rsp = batchRsp->subresponses(0);
+    if (rsp.has_error()) {
+        throwOnError(FromProto<TError>(rsp.error()));
+    }
+
     auto replicas = FromProto<TChunkReplicaList>(rsp.replicas());
     if (replicas.empty()) {
         THROW_ERROR_EXCEPTION(
@@ -341,45 +350,6 @@ IChunkReaderPtr CreateRemoteReader(
             blockCache,
             throttler);
     }
-}
-
-IChunkReaderPtr CreateRemoteReader(
-    const TChunkId& chunkId,
-    TReplicationReaderConfigPtr config,
-    TRemoteReaderOptionsPtr options,
-    INativeClientPtr client,
-    const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
-    IBlockCachePtr blockCache,
-    NConcurrency::IThroughputThrottlerPtr throttler)
-{
-    auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower);
-    TChunkServiceProxy proxy(channel);
-
-    auto req = proxy.LocateChunks();
-    req->SetHeavy(true);
-    ToProto(req->add_subrequests(), chunkId);
-
-    auto rsp = WaitFor(req->Invoke())
-        .ValueOrThrow();
-
-    const auto& subresponse = rsp->subresponses(0);
-    TChunkSpec chunkSpec;
-    ToProto(chunkSpec.mutable_chunk_id(), chunkId);
-    chunkSpec.mutable_replicas()->MergeFrom(subresponse.replicas());
-    chunkSpec.set_erasure_codec(subresponse.erasure_codec());
-
-    auto nodeDirectory = New<TNodeDirectory>();
-    nodeDirectory->MergeFrom(rsp->node_directory());
-
-    return CreateRemoteReader(
-        chunkSpec,
-        config,
-        options,
-        client,
-        nodeDirectory,
-        localDescriptor,
-        blockCache,
-        throttler);
 }
 
 void LocateChunks(

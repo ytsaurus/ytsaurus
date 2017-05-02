@@ -67,7 +67,7 @@ template <>
 class TPositionInfo<true>
 {
 private:
-    int Offset;
+    i64 Offset;
     int Line;
     int Column;
 
@@ -103,7 +103,7 @@ template <>
 class TPositionInfo<false>
 {
 private:
-    int Offset;
+    i64 Offset;
 
 public:
     TPositionInfo()

@@ -1,5 +1,4 @@
 #pragma once
-#pragma once
 
 #ifndef CHUNK_REPLICA_INL_H_
 #error "Direct inclusion of this file is not allowed, include chunk_replica.h"
@@ -124,8 +123,9 @@ Y_FORCE_INLINE TPtrWithIndexes<T>::TPtrWithIndexes(T* ptr, int replicaIndex, int
         (static_cast<uintptr_t>(replicaIndex) << 56) |
         (static_cast<uintptr_t>(mediumIndex) << 52))
 {
-    static_assert(NChunkClient::ChunkReplicaIndexBound <= 0xff, "Chunk replica index must fit into a single byte.");
-    static_assert(NChunkClient::MediumIndexBound <= 0xf, "Medium index must fit into 4 bits.");
+    static_assert(
+        NChunkClient::ChunkReplicaIndexBound * NChunkClient::MediumIndexBound <= 0x100,
+        "Replica and medium indexes must fit into a single byte.");
 
     Y_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xfff0000000000000LL) == 0);
     Y_ASSERT(replicaIndex >= 0 && replicaIndex <= 0xff);

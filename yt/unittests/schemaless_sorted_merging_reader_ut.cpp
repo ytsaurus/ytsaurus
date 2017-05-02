@@ -114,7 +114,7 @@ public:
         return true;
     }
 
-    virtual TNameTablePtr GetNameTable() const
+    virtual const TNameTablePtr& GetNameTable() const
     {
         return NameTable_;
     }

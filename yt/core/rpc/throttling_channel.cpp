@@ -28,10 +28,10 @@ public:
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck) override
+        const TSendOptions& options) override
     {
         auto sendTime = TInstant::Now();
+        auto timeout = options.Timeout;
         auto requestControlThunk = New<TClientRequestControlThunk>();
         Throttler_->Throttle(1)
             .WithTimeout(timeout)
@@ -51,8 +51,7 @@ public:
                 auto requestControl = UnderlyingChannel_->Send(
                     std::move(request),
                     std::move(responseHandler),
-                    adjustedTimeout,
-                    requestAck);
+                    options);
                 requestControlThunk->SetUnderlying(std::move(requestControl));
             }));
         return requestControlThunk;

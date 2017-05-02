@@ -122,6 +122,7 @@ public:
     //! invokes #OnSetPassive.
     virtual void SetStoreState(EStoreState state);
 
+    virtual i64 GetCompressedDataSize() const override;
     virtual i64 GetUncompressedDataSize() const override;
 
     // IDynamicStore implementation.
@@ -186,10 +187,13 @@ public:
 
     const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
 
+    TInstant GetCreationTime() const;
+
     // IStore implementation.
     virtual TTimestamp GetMinTimestamp() const override;
     virtual TTimestamp GetMaxTimestamp() const override;
 
+    virtual i64 GetCompressedDataSize() const override;
     virtual i64 GetUncompressedDataSize() const override;
     virtual i64 GetRowCount() const override;
 
@@ -206,20 +210,17 @@ public:
     virtual EStorePreloadState GetPreloadState() const override;
     virtual void SetPreloadState(EStorePreloadState state) override;
 
-    virtual TInstant GetLastPreloadAttemptTimestamp() const override;
-    virtual void UpdatePreloadAttemptTimestamp() override;
+    virtual bool IsPreloadAllowed() const override;
+    virtual void UpdatePreloadAttempt() override;
 
     virtual TFuture<void> GetPreloadFuture() const override;
     virtual void SetPreloadFuture(TFuture<void> future) override;
 
-    virtual TFuture<void> GetPreloadBackoffFuture() const override;
-    virtual void SetPreloadBackoffFuture(TFuture<void> future) override;
-
     virtual EStoreCompactionState GetCompactionState() const override;
     virtual void SetCompactionState(EStoreCompactionState state) override;
 
-    virtual TInstant GetLastCompactionAttemptTimestamp() const override;
-    virtual void UpdateCompactionAttemptTimestamp() override;
+    virtual bool IsCompactionAllowed() const override;
+    virtual void UpdateCompactionAttempt() override;
 
     virtual bool IsChunk() const override;
     virtual IChunkStorePtr AsChunk() override;
@@ -234,11 +235,10 @@ protected:
     const NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
     EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;
-    TInstant LastPreloadAttemptTimestamp_;
+    TInstant AllowedPreloadTimestamp_;
     TFuture<void> PreloadFuture_;
-    TFuture<void> PreloadBackoffFuture_;
     EStoreCompactionState CompactionState_ = EStoreCompactionState::None;
-    TInstant LastCompactionAttemptTimestamp_;
+    TInstant AllowedCompactionTimestamp_;
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
 
@@ -247,7 +247,6 @@ protected:
     // Cached for fast retrieval from ChunkMeta_.
     NChunkClient::NProto::TMiscExt MiscExt_;
     NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
-
 
     NDataNode::IChunkPtr PrepareChunk();
     NChunkClient::IChunkReaderPtr PrepareChunkReader(NDataNode::IChunkPtr chunk);

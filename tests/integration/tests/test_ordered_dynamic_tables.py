@@ -237,8 +237,7 @@ class TestOrderedDynamicTables(YTEnvSetup):
         self.sync_mount_table("//tmp/t")
         
         trim_rows("//tmp/t", 0, -10)
-        sleep(0.1)
-        assert get("//tmp/t/@tablets/0/trimmed_row_count") == 0
+        wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 0)
 
     def test_trim_drops_chunks(self):
         self.sync_create_cells(1)
@@ -259,14 +258,12 @@ class TestOrderedDynamicTables(YTEnvSetup):
 
         for i in xrange(10):
             trim_rows("//tmp/t", 0, i * 100 + 10)
-            sleep(0.5)
-            assert get("//tmp/t/@tablets/0/trimmed_row_count") == i * 100 + 10
-            assert get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 100 * (10 - i)
-            assert get("#{0}/@child_ids".format(tablet_chunk_list_id)) == chunk_ids[i:]
+            wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == i * 100 + 10 and
+                         get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 100 * (10 - i) and
+                         get("#{0}/@child_ids".format(tablet_chunk_list_id)) == chunk_ids[i:])
 
         trim_rows("//tmp/t", 0, 1000)
-        sleep(0.5)
-        assert get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 0
+        wait(lambda: get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 0)
 
     def test_read_obeys_trim(self):
         self.sync_create_cells(1)
@@ -487,19 +484,40 @@ class TestOrderedDynamicTables(YTEnvSetup):
         actual = select_rows("a, b, c from [//tmp/t]")
         assert_items_equal(actual, rows)
 
-    def test_read_table(self):
+    def test_reshard_trimmed_shared_yt_6948(self):
         self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table("//tmp/t", tablet_count=5)
         self.sync_mount_table("//tmp/t")
-
-        rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(0, 100)]
-        insert_rows("//tmp/t", rows)
-
+        for i in xrange(5):
+            insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
+        for i in xrange(5):
+            insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
+        self.sync_unmount_table("//tmp/t")
+        assert get("//tmp/t/@chunk_count") == 10
+        self.sync_mount_table("//tmp/t")
+        for i in xrange(5):
+            trim_rows("//tmp/t", i, 1)
+        wait(lambda: get("//tmp/t/@chunk_count") == 5)
+        self.sync_unmount_table("//tmp/t")
+        copy("//tmp/t", "//tmp/t2")
+        reshard_table("//tmp/t", 1)
 
-        actual = read_table("//tmp/t")
-        assert actual == rows
+    ## XXX(savrus) enable in 19.2
+    #def test_read_table(self):
+    #    self.sync_create_cells(1)
+    #    self._create_simple_table("//tmp/t")
+    #    self.sync_mount_table("//tmp/t")
+
+    #    rows = [{"a": i, "b": i * 0.5, "c" : "payload" + str(i)} for i in xrange(0, 100)]
+    #    insert_rows("//tmp/t", rows)
+
+    #    self.sync_unmount_table("//tmp/t")
+    #    self.sync_mount_table("//tmp/t")
+
+    #    actual = read_table("//tmp/t")
+    #    assert actual == rows
 
 ##################################################################
 

@@ -7,12 +7,15 @@
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/ytlib/chunk_client/key_set.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
 #include <yt/core/concurrency/scheduler.h>
+
+#include <yt/core/compression/codec.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 
@@ -92,6 +95,8 @@ TFuture<void> TChunkSliceFetcher::DoFetchFromNode(TNodeId nodeId, const std::vec
     req->SetHeavy(true);
     req->set_slice_data_size(ChunkSliceSize_);
     req->set_slice_by_keys(SliceByKeys_);
+    req->set_keys_in_attachment(true);
+
     ToProto(req->mutable_key_columns(), KeyColumns_);
     // TODO(babenko): make configurable
     ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
@@ -167,6 +172,16 @@ void TChunkSliceFetcher::OnResponse(
     }
 
     const auto& rsp = rspOrError.Value();
+
+    // We keep reader in the scope as a holder for wire reader and uncompressed attachment.
+    TNullable<TKeySetReader> keysReader;
+    NYT::TRange<TKey> keys;
+    if (rsp->keys_in_attachment()) {
+        YCHECK(rsp->Attachments().size() == 1);
+        keysReader.Emplace(rsp->Attachments().front());
+        keys = keysReader->GetKeys();
+    }
+
     for (int i = 0; i < requestedChunkIndexes.size(); ++i) {
         int index = requestedChunkIndexes[i];
         const auto& chunk = Chunks_[index];
@@ -188,7 +203,7 @@ void TChunkSliceFetcher::OnResponse(
         for (const auto& protoChunkSlice : slices.chunk_slices()) {
             TotalKeySize_ += protoChunkSlice.lower_limit().key().size();
             TotalKeySize_ += protoChunkSlice.upper_limit().key().size();
-            auto slice = CreateInputChunkSlice(chunk, RowBuffer_, protoChunkSlice);
+            auto slice = New<TInputChunkSlice>(chunk, RowBuffer_, protoChunkSlice, keys);
             SlicesByChunkIndex_[index].push_back(slice);
             SliceCount_++;
         }

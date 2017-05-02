@@ -1,6 +1,8 @@
 #include "checkpointable_stream.h"
 #include "serialize.h"
 
+#include <yt/core/misc/error.h>
+
 namespace NYT {
 namespace {
 
@@ -72,7 +74,12 @@ private:
                     break;
                 }
                 size_t size = std::min(BlockLength_ - BlockOffset_, len - pos);
-                YCHECK(UnderlyingStream_->Load(buf + pos, size) == size);
+                auto loadedSize = UnderlyingStream_->Load(buf + pos, size);
+                if (loadedSize != size) {
+                    THROW_ERROR_EXCEPTION("Broken checkpointable stream: expected %v bytes, got %v",
+                        size,
+                        loadedSize);
+                }
                 pos += size;
                 BlockOffset_ += size;
                 if (BlockOffset_ == BlockLength_) {
@@ -87,11 +94,15 @@ private:
     {
         if (!HasBlock_) {
             TBlockHeader header;
-            size_t len = UnderlyingStream_->Load(&header, sizeof(header));
-            YCHECK(len == 0 || len == sizeof(TBlockHeader));
-
-            if (len == 0) {
+            auto loadedSize = UnderlyingStream_->Load(&header, sizeof(header));
+            if (loadedSize == 0) {
                 return false;
+            }
+
+            if (loadedSize != sizeof(TBlockHeader)) {
+                THROW_ERROR_EXCEPTION("Broken checkpointable stream: expected %v bytes, got %v",
+                    sizeof(TBlockHeader),
+                    loadedSize);
             }
 
             HasBlock_ = true;
@@ -271,7 +282,6 @@ private:
         BufferRemaining_ = BufferSize_;
         UnderlyingStream_->Flush();
     }
-
 };
 
 std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableOutputStream(

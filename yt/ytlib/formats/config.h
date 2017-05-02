@@ -24,7 +24,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TControlAttributesConfig);
+DEFINE_REFCOUNTED_TYPE(TControlAttributesConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,7 +156,7 @@ public:
     bool EnableTableIndex;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTableFormatConfigBase);
+DEFINE_REFCOUNTED_TYPE(TTableFormatConfigBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -168,7 +168,7 @@ public:
     bool Lenval;
 };
 
-DEFINE_REFCOUNTED_TYPE(TYamrFormatConfigBase);
+DEFINE_REFCOUNTED_TYPE(TYamrFormatConfigBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,7 +182,7 @@ public:
     TNullable<Stroka> LinePrefix;
 };
 
-DEFINE_REFCOUNTED_TYPE(TDsvFormatConfigBase);
+DEFINE_REFCOUNTED_TYPE(TDsvFormatConfigBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -414,7 +414,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TProtobufFormatConfig);
+DEFINE_REFCOUNTED_TYPE(TProtobufFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

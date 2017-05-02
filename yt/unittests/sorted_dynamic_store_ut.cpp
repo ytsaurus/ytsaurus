@@ -1103,6 +1103,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ArbitraryKeyLength)
         BuildKey("1"),
         BuildKey("1;<type=max>#"),
         AsyncLastCommittedTimestamp,
+        false,
         TColumnFilter(),
         TWorkloadDescriptor());
 

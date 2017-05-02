@@ -70,6 +70,9 @@ private:
     // Job proxy and possibly user job peak memory usage.
     i64 TotalMaxMemoryUsage_ = 0;
 
+    // Memory reserve approved by the node.
+    std::atomic<i64> ApprovedMemoryReserve_ = {0};
+
     std::atomic<i32> NetworkUsage_ = {0};
 
     double CpuLimit_ = 0;
@@ -117,7 +120,7 @@ private:
     std::unique_ptr<IUserJobIO> CreateUserJobIO();
     IJobPtr CreateBuiltinJob();
 
-    void UpdateResourceUsage();
+    void UpdateResourceUsage(i64 memoryReserve);
 
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() const override;
@@ -128,7 +131,7 @@ private:
     virtual const IJobSpecHelperPtr& GetJobSpecHelper() const override;
 
     virtual void SetUserJobMemoryUsage(i64 memoryUsage) override;
-    void OnResourcesUpdated(const TError& error);
+    void OnResourcesUpdated(i64 memoryUsage, const TError& error);
 
     virtual void ReleaseNetwork() override;
 

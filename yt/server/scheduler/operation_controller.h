@@ -32,6 +32,8 @@
 
 #include <yt/ytlib/object_client/public.h>
 
+#include <yt/server/table_server/public.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -101,7 +103,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
+    virtual TExecNodeDescriptorListPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
 
     //! Called by a controller to notify the host that the operation has
     //! finished successfully.
@@ -139,6 +141,12 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() const = 0;
+
+    //! Return IJobHost - access object to TJob
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual IJobHostPtr GetJobHost(const TJobId& jobId) const = 0;
 };
 
 /*!
@@ -294,6 +302,12 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
      */
+    //! Called during heartbeat processing to notify the controller that a job is still running.
+    virtual void OnJobRunning(std::unique_ptr<TJobSummary> jobSummary) = 0;
+
+    /*!
+     *  \note Invoker affinity: Cancellable controller invoker
+     */
     //! Called during heartbeat processing to request actions the node must perform.
     virtual TScheduleJobResultPtr ScheduleJob(
         ISchedulingContextPtr context,
@@ -354,6 +368,12 @@ struct IOperationController
 
     //! Called to get a cached YSON string representing the current brief progress.
     virtual NYson::TYsonString GetBriefProgress() const = 0;
+
+    //! Returns |true| when controller can build job splitter info.
+    virtual bool HasJobSplitterInfo() const = 0;
+
+    //! Called to construct a YSON representing job splitter state.
+    virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

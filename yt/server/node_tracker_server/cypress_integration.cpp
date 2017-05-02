@@ -84,7 +84,7 @@ public:
             "/@" + path);
     }
 
-    virtual void WriteAttributesFragment(
+    virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
         const TNullable<std::vector<Stroka>>& attributeKeys,
         bool stable) override
@@ -222,6 +222,9 @@ private:
                 .DoMapFor(chunkManager->Media(),
                     [&] (TFluentMap fluent, const std::pair<const TMediumId&, TMedium*>& pair) {
                         const auto* medium = pair.second;
+                        if (medium->GetCache()) {
+                            return;
+                        }
                         fluent
                             .Item(medium->GetName()).Value(statistics.SpacePerMedium[medium->GetIndex()].Available);
                     });

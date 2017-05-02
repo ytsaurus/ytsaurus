@@ -254,6 +254,7 @@ class TestStderrTable(YTEnvSetup):
                 "partition_count": 2,
                 "map_job_count": 2,
                 "data_size_per_sort_job": 10,
+                "data_size_per_reduce_job": 1000,
             }
         )
 
@@ -734,9 +735,9 @@ class TestCoreTable(YTEnvSetup):
 
         q.put("def")
         q.put(None)
-        
-        # One may think that we can check if core forwarder process finished with 
-        # non-zero return code because of a broken pipe, but we do not do it because 
+
+        # One may think that we can check if core forwarder process finished with
+        # non-zero return code because of a broken pipe, but we do not do it because
         # it really depends on system and may not be true.
         t.join()
 

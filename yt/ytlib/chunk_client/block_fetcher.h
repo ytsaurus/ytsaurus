@@ -11,6 +11,7 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/misc/lazy_ptr.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref.h>
 
@@ -26,10 +27,6 @@ namespace NChunkClient {
 class TBlockFetcher
     : public virtual TRefCounted
 {
-public:
-    DEFINE_BYVAL_RO_PROPERTY(i64, UncompressedDataSize);
-    DEFINE_BYVAL_RO_PROPERTY(i64, CompressedDataSize);
-
 public:
     struct TBlockInfo
     {
@@ -71,7 +68,16 @@ public:
     //! Returns true if all blocks are fetched and false otherwise.
     bool IsFetchingCompleted();
 
+    //! Returns total uncompressed size of read blocks.
+    i64 GetUncompressedDataSize() const;
+
+    //! Returns total compressed size of read blocks.
+    i64 GetCompressedDataSize() const;
+
 private:
+    std::atomic<i64> UncompressedDataSize_ = {0};
+    std::atomic<i64> CompressedDataSize_ = {0};
+
     void FetchNextGroup(NConcurrency::TAsyncSemaphoreGuard AsyncSemaphoreGuard);
 
     void RequestBlocks(
@@ -98,11 +104,17 @@ private:
 
     struct TWindowSlot
     {
-        TPromise<TSharedRef> Block = NewPromise<TSharedRef>();
+        TLazyUniquePtr<TPromise<TSharedRef>> BlockPromise;
         std::atomic<int> RemainingFetches = { 0 };
         std::unique_ptr<NConcurrency::TAsyncSemaphoreGuard> AsyncSemaphoreGuard;
         bool Cached = false;
         std::atomic_flag FetchStarted = ATOMIC_FLAG_INIT;
+
+        TWindowSlot()
+            : BlockPromise(BIND([] () {
+                return new TPromise<TSharedRef>(NewPromise<TSharedRef>());
+            }))
+        { }
     };
 
     yhash_map<int, int> BlockIndexToWindowIndex_;
@@ -114,12 +126,12 @@ private:
 
     int TotalRemainingFetches_ = 0;
     std::atomic<i64> TotalRemainingSize_ = { 0 };
-    int FirstUnfetchedWindowIndex_ = 0; 
+    int FirstUnfetchedWindowIndex_ = 0;
 
     NCompression::ICodec* const Codec_;
 
     bool IsFetchingCompleted_ = false;
-    
+
     NLogging::TLogger Logger;
 };
 
@@ -140,7 +152,7 @@ public:
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId);
 
-    TFuture<TSharedRef> FetchNextBlock(); 
+    TFuture<TSharedRef> FetchNextBlock();
 
     using TBlockFetcher::HasMoreBlocks;
     using TBlockFetcher::IsFetchingCompleted;

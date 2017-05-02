@@ -24,7 +24,9 @@ public:
 
     i64 GetTotal() const;
     i64 GetRunning() const;
-    i64 GetCompleted() const;
+    i64 GetCompletedTotal() const;
+    i64 GetCompleted(EInterruptReason reason) const;
+    i64 GetInterruptedTotal() const;
     i64 GetPending() const;
     i64 GetFailed() const;
     i64 GetAbortedTotal() const;
@@ -32,14 +34,12 @@ public:
     i64 GetAbortedNonScheduled() const;
     i64 GetAborted(EAbortReason reason) const;
     i64 GetLost() const;
-    i64 GetInterrupted() const;
 
     void Start(i64 count);
-    void Completed(i64 count);
+    void Completed(i64 count, EInterruptReason reason = EInterruptReason::None);
     void Failed(i64 count);
     void Aborted(i64 count, EAbortReason reason = EAbortReason::Other);
     void Lost(i64 count);
-    void Interrupted(i64 count);
 
     void Persist(const TStreamPersistenceContext& context);
 
@@ -47,11 +47,10 @@ private:
     bool TotalEnabled_;
     i64 Total_;
     i64 Running_;
-    i64 Completed_;
+    TEnumIndexedVector<i64, EInterruptReason> Completed_;
     i64 Pending_;
     i64 Failed_;
     i64 Lost_;
-    i64 Interrupted_;
     TEnumIndexedVector<i64, EAbortReason> Aborted_;
 
 };

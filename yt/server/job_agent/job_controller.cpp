@@ -62,7 +62,7 @@ public:
     std::vector<IJobPtr> GetJobs() const;
 
     TNodeResources GetResourceLimits() const;
-    TNodeResources GetResourceUsage(bool includeWaiting = true) const;
+    TNodeResources GetResourceUsage(bool includeWaiting = false) const;
     void SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits);
 
     void SetDisableSchedulerJobs(bool value);
@@ -70,9 +70,10 @@ public:
     void PrepareHeartbeatRequest(
         TCellTag cellTag,
         EObjectType jobObjectType,
-        TReqHeartbeat* request);
+        const TReqHeartbeatPtr& request);
 
-    void ProcessHeartbeatResponse(TRspHeartbeat* response);
+    void ProcessHeartbeatResponse(
+        const TRspHeartbeatPtr& response);
 
     NYTree::IYPathServicePtr GetOrchidService();
 
@@ -168,7 +169,7 @@ TJobController::TImpl::TImpl(
     YCHECK(bootstrap);
 
     for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
-        JobOriginToTag_[origin] = TProfileManager::Get()->RegisterTag("origin", Format("%lv", origin));
+        JobOriginToTag_[origin] = TProfileManager::Get()->RegisterTag("origin", FormatEnum(origin));
     }
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
@@ -273,7 +274,7 @@ void TJobController::TImpl::StartWaitingJobs()
     bool resourcesUpdated = false;
 
     {
-        auto usedResources = GetResourceUsage(false);
+        auto usedResources = GetResourceUsage();
         auto memoryToRelease = tracker->GetUsed(EMemoryCategory::Jobs) - usedResources.memory();
         if (memoryToRelease > 0) {
             tracker->Release(EMemoryCategory::Jobs, memoryToRelease);
@@ -287,7 +288,7 @@ void TJobController::TImpl::StartWaitingJobs()
             continue;
 
         auto jobResources = job->GetResourceUsage();
-        auto usedResources = GetResourceUsage(false);
+        auto usedResources = GetResourceUsage();
         if (!HasEnoughResources(jobResources, usedResources)) {
             LOG_DEBUG("Not enough resources to start waiting job (JobId: %v, JobResources: %v, UsedResources: %v)",
                 job->GetId(),
@@ -437,7 +438,7 @@ bool TJobController::TImpl::CheckResourceUsageDelta(const TNodeResources& delta)
 {
     // Nonincreasing resources cannot lead to overdraft.
     auto nodeLimits = GetResourceLimits();
-    auto newUsage = GetResourceUsage(false) + delta;
+    auto newUsage = GetResourceUsage() + delta;
 
     #define XX(name, Name) if (delta.name() > 0 && nodeLimits.name() < newUsage.name()) { return false; }
     ITERATE_NODE_RESOURCES(XX)
@@ -469,16 +470,16 @@ bool TJobController::TImpl::HasEnoughResources(
 void TJobController::TImpl::PrepareHeartbeatRequest(
     TCellTag cellTag,
     EObjectType jobObjectType,
-    TReqHeartbeat* request)
+    const TReqHeartbeatPtr& request)
 {
     auto masterConnector = Bootstrap_->GetMasterConnector();
     request->set_node_id(masterConnector->GetNodeId());
     ToProto(request->mutable_node_descriptor(), masterConnector->GetLocalDescriptor());
     *request->mutable_resource_limits() = GetResourceLimits();
-    *request->mutable_resource_usage() = GetResourceUsage();
+    *request->mutable_resource_usage() = GetResourceUsage(/* includeWaiting */ true);
 
     // A container for all scheduler jobs that are candidate to send statistics. This set contains
-    // only the runnning jobs since all completed/aborted/failed jobs always send their statistics.
+    // only the running jobs since all completed/aborted/failed jobs always send their statistics.
     std::vector<std::pair<IJobPtr, TJobStatus*>> runningJobs;
 
     i64 completedJobsStatisticsSize = 0;
@@ -544,7 +545,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
     }
 }
 
-void TJobController::TImpl::ProcessHeartbeatResponse(TRspHeartbeat* response)
+void TJobController::TImpl::ProcessHeartbeatResponse(const TRspHeartbeatPtr& response)
 {
     for (const auto& protoJobId : response->jobs_to_remove()) {
         auto jobId = FromProto<TJobId>(protoJobId);
@@ -579,11 +580,18 @@ void TJobController::TImpl::ProcessHeartbeatResponse(TRspHeartbeat* response)
         }
     }
 
+    int attachmentIndex = 0;
     for (auto& info : *response->mutable_jobs_to_start()) {
         auto jobId = FromProto<TJobId>(info.job_id());
         auto operationId = FromProto<TJobId>(info.operation_id());
         const auto& resourceLimits = info.resource_limits();
-        auto& spec = *info.mutable_spec();
+        TJobSpec spec;
+        if (info.has_spec()) {
+            spec.Swap(info.mutable_spec());
+        } else {
+            const auto& attachment = response->Attachments()[attachmentIndex++];
+            DeserializeFromProtoWithEnvelope(&spec, attachment);
+        }
         CreateJob(jobId, operationId, resourceLimits, std::move(spec));
     }
 }
@@ -615,16 +623,16 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
             .Item("resource_usage").Value(GetResourceUsage())
             .Item("active_job_count").DoMapFor(
                 TEnumTraits<EJobOrigin>::GetDomainValues(),
-                [&] (TFluentMap fluent, const EJobOrigin origin) {
-                    fluent.Item(Format("%lv", origin)).Value(jobs[origin].size());
+                [&] (TFluentMap fluent, EJobOrigin origin) {
+                    fluent.Item(FormatEnum(origin)).Value(jobs[origin].size());
                 })
             .Item("active_jobs").DoMapFor(
                 TEnumTraits<EJobOrigin>::GetDomainValues(),
-                [&] (TFluentMap fluent, const EJobOrigin origin) {
-                    fluent.Item(Format("%lv", origin)).DoMapFor(
+                [&] (TFluentMap fluent, EJobOrigin origin) {
+                    fluent.Item(FormatEnum(origin)).DoMapFor(
                         jobs[origin],
                         [&] (TFluentMap fluent, IJobPtr job) {
-                            fluent.Item(Format("%lv", job->GetId()))
+                            fluent.Item(ToString(job->GetId()))
                                 .BeginMap()
                                     .Item("job_state").Value(job->GetState())
                                     .Item("job_phase").Value(job->GetPhase())
@@ -646,7 +654,7 @@ void TJobController::TImpl::OnProfiling()
     for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
         Profiler.Enqueue("/active_job_count", jobs[origin].size(), EMetricType::Gauge, {JobOriginToTag_[origin]});
     }
-    ProfileResources(ResourceUsageProfiler_, GetResourceUsage(false /* includeWaiting */));
+    ProfileResources(ResourceUsageProfiler_, GetResourceUsage());
     ProfileResources(ResourceLimitsProfiler_, GetResourceLimits());
 }
 
@@ -657,8 +665,7 @@ TJobController::TJobController(
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         config,
-        bootstrap
-    ))
+        bootstrap))
 { }
 
 void TJobController::RegisterFactory(
@@ -706,12 +713,13 @@ void TJobController::SetDisableSchedulerJobs(bool value)
 void TJobController::PrepareHeartbeatRequest(
     TCellTag cellTag,
     EObjectType jobObjectType,
-    TReqHeartbeat* request)
+    const TReqHeartbeatPtr& request)
 {
     Impl_->PrepareHeartbeatRequest(cellTag, jobObjectType, request);
 }
 
-void TJobController::ProcessHeartbeatResponse(TRspHeartbeat* response)
+void TJobController::ProcessHeartbeatResponse(
+    const TRspHeartbeatPtr& response)
 {
     Impl_->ProcessHeartbeatResponse(response);
 }

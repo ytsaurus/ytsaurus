@@ -406,6 +406,12 @@ protected:
         //! to only mark cancelable those methods taking a considerable time to complete.
         bool Cancelable = false;
 
+        //! If |true| then Bus is expected to be gerating checksums for the whole response content,
+        //! including attachments (unless the connection is local or the checksums are explicitly disabled).
+        //! If |false| then Bus will only be generating such checksums for RPC header and response body
+        //! but not attachements.
+        bool GenerateAttachmentChecksums = true;
+
 
         TMethodDescriptor& SetInvoker(IInvokerPtr value)
         {

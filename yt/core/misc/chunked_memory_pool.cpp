@@ -21,6 +21,17 @@ TChunkedMemoryPool::TChunkedMemoryPool(
     SetupFreeZone();
 }
 
+void TChunkedMemoryPool::Purge()
+{
+    Chunks_.clear();
+    LargeBlocks_.clear();
+    Size_ = 0;
+    Capacity_ = 0;
+    CurrentChunkIndex_ = 0;
+    FirstChunkBegin_ = FirstChunkEnd_ = nullptr;
+    SetupFreeZone();
+}
+
 char* TChunkedMemoryPool::AllocateUnalignedSlow(i64 size)
 {
     auto* large = AllocateSlowCore(size);

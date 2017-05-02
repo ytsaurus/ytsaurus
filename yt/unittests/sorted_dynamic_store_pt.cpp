@@ -41,6 +41,7 @@ public:
                 std::move(key),
                 std::move(keySuccessor),
                 SyncLastCommittedTimestamp,
+                false,
                 TColumnFilter(),
                 TWorkloadDescriptor());
 

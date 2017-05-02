@@ -190,6 +190,10 @@ def get_job_stderr(operation_id, job_id, **kwargs):
     kwargs["job_id"] = job_id
     return execute_command("get_job_stderr", kwargs)
 
+def list_jobs(operation_id, **kwargs):
+    kwargs["operation_id"] = operation_id
+    return execute_command_with_output_format("list_jobs", kwargs)
+
 def strace_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
     result = execute_command('strace_job', kwargs)
@@ -1019,19 +1023,6 @@ def make_schema(columns, **attributes):
     for attr, value in attributes.items():
         schema.attributes[attr] = value
     return schema
-
-def make_ace(action, subjects, permissions, inheritance_mode="object_and_descendants"):
-    def _to_list(x):
-        if isinstance(x, str):
-            return [x]
-        else:
-            return x
-    return {
-        "action": action,
-        "subjects": _to_list(subjects),
-        "permissions": _to_list(permissions),
-        "inheritance_mode": inheritance_mode
-    }
 
 #########################################
 
