@@ -17,13 +17,8 @@ struct TWorkloadDescriptor
     explicit TWorkloadDescriptor(
         EWorkloadCategory category = EWorkloadCategory::Idle,
         int band = 0,
-        TInstant instant = TInstant::Now(),
-        std::vector<Stroka> annotations = std::vector<Stroka>())
-        : Category(category)
-        , Band(band)
-        , Instant(instant)
-        , Annotations(std::move(annotations))
-    { }
+        TInstant instant = TInstant::Zero(),
+        std::vector<Stroka> annotations = std::vector<Stroka>());
 
     //! The type of the workload defining its basic priority.
     EWorkloadCategory Category;
@@ -34,7 +29,7 @@ struct TWorkloadDescriptor
     int Band;
 
     //! The time instant when this workload has been initiated.
-    //! Certain categories rely on this value for FIFO ordering.
+    //! #EWorkloadCategory::UserBatch workloads rely on this value for FIFO ordering.
     TInstant Instant;
 
     //! Arbitrary client-supplied strings to be logged at server-side.

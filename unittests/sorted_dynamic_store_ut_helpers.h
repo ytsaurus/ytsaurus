@@ -36,6 +36,7 @@ protected:
             Tablet_->BuildSnapshot(nullptr),
             sharedLookupKeys,
             timestamp,
+            timestamp == AllCommittedTimestamp,
             TColumnFilter(),
             TWorkloadDescriptor());
 

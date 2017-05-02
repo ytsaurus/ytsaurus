@@ -7,13 +7,17 @@
 #include "private.h"
 #include "operation_controller_detail.h"
 
+#include <yt/ytlib/api/transaction.h>
+
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/ytlib/table_client/config.h>
 
-#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/query_client/query.h>
 
 #include <yt/core/concurrency/periodic_yielder.h>
+
+#include <yt/core/misc/numeric_helpers.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -59,7 +63,6 @@ public:
         using NYT::Persist;
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
-        Persist(context, TableReaderOptions);
         Persist(context, IsExplicitJobCount);
         Persist(context, UnorderedPool);
         Persist(context, UnorderedTask);
@@ -75,9 +78,6 @@ protected:
 
     //! The template for starting new jobs.
     TJobSpec JobSpecTemplate;
-
-    //! Table reader options for map jobs.
-    TTableReaderOptionsPtr TableReaderOptions;
 
     //! Flag set when job count was explicitly specified.
     bool IsExplicitJobCount;
@@ -156,11 +156,6 @@ protected:
             return false;
         }
 
-        virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
-        {
-            return Controller->TableReaderOptions;
-        }
-
         virtual EJobType GetJobType() const override
         {
             return Controller->GetJobType();
@@ -183,6 +178,59 @@ protected:
             TTask::OnJobCompleted(joblet, jobSummary);
 
             RegisterOutput(joblet, joblet->JobIndex, jobSummary);
+
+            if (jobSummary.InterruptReason != EInterruptReason::None) {
+                SplitByRowsAndReinstall(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
+            }
+        }
+
+        void SplitByRowsAndReinstall(
+            const std::vector<TInputDataSlicePtr>& dataSlices,
+            int jobCount)
+        {
+            i64 unreadRowCount = GetCumulativeRowCount(dataSlices);
+            i64 rowsPerJob = DivCeil<i64>(unreadRowCount, jobCount);
+            i64 rowsToAdd = rowsPerJob;
+            int sliceIndex = 0;
+            auto currentDataSlice = dataSlices[0];
+            std::vector<TInputDataSlicePtr> jobSlices;
+            while (true) {
+                i64 sliceRowCount = currentDataSlice->GetRowCount();
+                if (currentDataSlice->Type == EDataSourceType::UnversionedTable && sliceRowCount > rowsToAdd) {
+                    auto split = currentDataSlice->SplitByRowIndex(rowsToAdd);
+                    jobSlices.emplace_back(std::move(split.first));
+                    rowsToAdd = 0;
+                    currentDataSlice = std::move(split.second);
+                } else {
+                    jobSlices.emplace_back(std::move(currentDataSlice));
+                    rowsToAdd -= sliceRowCount;
+                    ++sliceIndex;
+                    if (sliceIndex == static_cast<int>(dataSlices.size())) {
+                        break;
+                    }
+                    currentDataSlice = dataSlices[sliceIndex];
+                }
+                if (rowsToAdd <= 0) {
+                    ReinstallInputDataSlices(jobSlices);
+                    jobSlices.clear();
+                    rowsToAdd = rowsPerJob;
+                }
+            }
+            if (!jobSlices.empty()) {
+                ReinstallInputDataSlices(jobSlices);
+            }
+        }
+
+        void ReinstallInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices)
+        {
+            std::vector<TChunkStripePtr> stripes;
+            auto chunkStripe = New<TChunkStripe>(false /*foreign*/, true /*solid*/);
+            for (const auto& slice : inputDataSlices) {
+                chunkStripe->DataSlices.push_back(slice);
+            }
+            stripes.emplace_back(std::move(chunkStripe));
+            AddInput(stripes);
+            FinishInput();
         }
 
         virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
@@ -222,7 +270,8 @@ protected:
 
     virtual bool IsCompleted() const override
     {
-        return UnorderedTask->IsCompleted();
+        // Unordered task may be null, if all chunks were teleported.
+        return !UnorderedTask || UnorderedTask->IsCompleted();
     }
 
     virtual void CustomPrepare() override
@@ -301,17 +350,6 @@ protected:
         InitJobSpecTemplate();
     }
 
-    virtual void ReinstallUnreadInputDataSlices(const std::vector<TInputDataSlicePtr>& inputDataSlices) override
-    {
-        std::vector<TChunkStripePtr> stripes;
-        for (const auto& slice : inputDataSlices) {
-            auto chunkStripe = New<TChunkStripe>(slice);
-            stripes.emplace_back(std::move(chunkStripe));
-        }
-        UnorderedTask->AddInput(stripes);
-        UnorderedTask->FinishInput();
-    }
-
     // Resource management.
     TExtendedJobResources GetUnorderedOperationResources(
         const TChunkStripeStatisticsVector& statistics) const
@@ -332,11 +370,11 @@ protected:
             "UnavailableInputChunks: %v",
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
-            JobCounter.GetCompleted(),
+            JobCounter.GetCompletedTotal(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
             JobCounter.GetAbortedTotal(),
-            JobCounter.GetInterrupted(),
+            JobCounter.GetInterruptedTotal(),
             UnavailableInputChunkCount);
     }
 
@@ -365,8 +403,6 @@ protected:
     {
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
         InitFinalOutputConfig(JobIOConfig);
-
-        TableReaderOptions = CreateTableReaderOptions(Spec->JobIO);
     }
 
     //! Returns |true| if the chunk can be included into the output as-is.
@@ -375,13 +411,24 @@ protected:
         return false;
     }
 
+    virtual void PrepareInputQuery() override
+    {
+        if (Spec->InputQuery) {
+            ParseInputQuery(*Spec->InputQuery, Spec->InputSchema);
+        }
+    }
+
     virtual void InitJobSpecTemplate()
     {
         JobSpecTemplate.set_type(static_cast<int>(GetJobType()));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).GetData());
+
+        ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         if (Spec->InputQuery) {
-            InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, *Spec->InputSchema);
+            WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -440,6 +487,7 @@ private:
 
 
     // Custom bits of preparation pipeline.
+
     virtual EJobType GetJobType() const override
     {
         return EJobType::Map;
@@ -449,6 +497,13 @@ private:
     {
         return Config->EnableMapJobSizeAdjustment
             ? Options->JobSizeAdjuster
+            : nullptr;
+    }
+
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+    {
+        return IsJobInterruptible() && Config->EnableJobSplitting && Spec->EnableJobSplitting
+            ? Options->JobSplitter
             : nullptr;
     }
 
@@ -624,13 +679,20 @@ private:
                 false)
             .IsOK();
 
-        if (Spec->ForceTransform || chunkSpec->Channel() || !isSchemaCompatible) {
+        if (Spec->ForceTransform || Spec->InputQuery || chunkSpec->Channel() || !isSchemaCompatible) {
             return false;
         }
 
         return Spec->CombineChunks
             ? chunkSpec->IsLargeCompleteChunk(Spec->JobIO->TableWriter->DesiredChunkSize)
             : chunkSpec->IsCompleteChunk();
+    }
+
+    virtual void PrepareInputQuery() override
+    {
+        if (Spec->InputQuery) {
+            ParseInputQuery(*Spec->InputQuery, Spec->InputSchema);
+        }
     }
 
     virtual void PrepareOutputTables() override
@@ -644,27 +706,37 @@ private:
             }
         };
 
+        auto inferFromInput = [&] () {
+            if (Spec->InputQuery) {
+                table.TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
+            } else {
+                InferSchemaFromInput();
+            }
+        };
+
         switch (Spec->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table.TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-                    InferSchemaFromInput();
+                    inferFromInput();
                 } else {
                     validateOutputNotSorted();
 
-                    for (const auto& inputTable : InputTables) {
-                        if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
-                            ValidateTableSchemaCompatibility(
-                                inputTable.Schema,
-                                table.TableUploadOptions.TableSchema,
-                                /* ignoreSortOrder */ true)
-                                .ThrowOnError();
+                    if (!Spec->InputQuery) {
+                        for (const auto& inputTable : InputTables) {
+                            if (inputTable.SchemaMode == ETableSchemaMode::Strong) {
+                                ValidateTableSchemaCompatibility(
+                                    inputTable.Schema,
+                                    table.TableUploadOptions.TableSchema,
+                                    /* ignoreSortOrder */ true)
+                                    .ThrowOnError();
+                            }
                         }
                     }
                 }
                 break;
 
             case ESchemaInferenceMode::FromInput:
-                InferSchemaFromInput();
+                inferFromInput();
                 break;
 
             case ESchemaInferenceMode::FromOutput:

@@ -26,6 +26,9 @@ using llvm::Value;
 
 using NCodegen::TCGModulePtr;
 
+class TCGContext;
+typedef std::function<void(TCGContext& builder, Value* row)> TCodegenConsumer;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCGIRBuilderPtr
@@ -96,13 +99,16 @@ class TCGOperatorContext
 {
 protected:
     Value* const ExecutionContext_;
+    std::vector<std::shared_ptr<TCodegenConsumer>>* Consumers_ = nullptr;
 
 public:
     TCGOperatorContext(
         const TCGBaseContext& base,
-        Value* executionContext)
+        Value* executionContext,
+        std::vector<std::shared_ptr<TCodegenConsumer>>* consumers)
         : TCGBaseContext(base)
         , ExecutionContext_(executionContext)
+        , Consumers_(consumers)
     { }
 
     TCGOperatorContext(
@@ -110,11 +116,20 @@ public:
         const TCGOperatorContext& other)
         : TCGBaseContext(base)
         , ExecutionContext_(other.ExecutionContext_)
+        , Consumers_(other.Consumers_)
     { }
 
     Value* GetExecutionContext() const
     {
         return Builder_->ViaClosure(ExecutionContext_, "executionContext");
+    }
+
+    TCodegenConsumer& operator[] (size_t index) const
+    {
+        if (!(*Consumers_)[index]) {
+            (*Consumers_)[index] = std::make_shared<TCodegenConsumer>();
+        }
+        return *(*Consumers_)[index];
     }
 
 };

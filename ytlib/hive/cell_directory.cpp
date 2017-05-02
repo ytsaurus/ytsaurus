@@ -48,10 +48,12 @@ TAddressMap ToAddressMap(const TCellPeerConfig& config, const TNetworkPreference
 {
     TAddressMap result;
     if (config.Address) {
-        result.reserve(networks.size());
+        result.reserve(networks.size() + 1);
         for (const auto& network : networks) {
             YCHECK(result.emplace(network, *config.Address).second);
         }
+        // Default network must always be present in address map.
+        result.emplace(DefaultNetworkName, *config.Address);
     }
     return result;
 }

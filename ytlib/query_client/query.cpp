@@ -158,6 +158,73 @@ Stroka InferName(TConstQueryPtr query, bool omitValues)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool Compare(
+    TConstExpressionPtr lhs,
+    const TTableSchema& lhsSchema,
+    TConstExpressionPtr rhs,
+    const TTableSchema& rhsSchema,
+    size_t maxIndex)
+{
+#define CHECK(condition) \
+    if (!(condition)) { \
+        return false; \
+    }
+
+    CHECK(lhs->Type == rhs->Type)
+    if (auto literalLhs = lhs->As<TLiteralExpression>()) {
+        auto literalRhs = rhs->As<TLiteralExpression>();
+        CHECK(literalRhs)
+        CHECK(literalLhs->Value == literalRhs->Value)
+    } else if (auto referenceLhs = lhs->As<TReferenceExpression>()) {
+        auto referenceRhs = rhs->As<TReferenceExpression>();
+        CHECK(referenceRhs)
+        auto lhsIndex = lhsSchema.GetColumnIndexOrThrow(referenceLhs->ColumnName);
+        auto rhsIndex = rhsSchema.GetColumnIndexOrThrow(referenceRhs->ColumnName);
+        CHECK(lhsIndex == rhsIndex)
+        CHECK(lhsIndex < maxIndex)
+    } else if (auto functionLhs = lhs->As<TFunctionExpression>()) {
+        auto functionRhs = rhs->As<TFunctionExpression>();
+        CHECK(functionRhs)
+        CHECK(functionLhs->FunctionName == functionRhs->FunctionName)
+        CHECK(functionLhs->Arguments.size() == functionRhs->Arguments.size())
+
+        for (size_t index = 0; index < functionLhs->Arguments.size(); ++index) {
+            CHECK(Compare(functionLhs->Arguments[index], lhsSchema, functionRhs->Arguments[index], rhsSchema, maxIndex))
+        }
+    } else if (auto unaryLhs = lhs->As<TUnaryOpExpression>()) {
+        auto unaryRhs = rhs->As<TUnaryOpExpression>();
+        CHECK(unaryRhs)
+        CHECK(unaryLhs->Opcode == unaryRhs->Opcode)
+        CHECK(Compare(unaryLhs->Operand, lhsSchema, unaryRhs->Operand, rhsSchema, maxIndex))
+    } else if (auto binaryLhs = lhs->As<TBinaryOpExpression>()) {
+        auto binaryRhs = rhs->As<TBinaryOpExpression>();
+        CHECK(binaryRhs)
+        CHECK(binaryLhs->Opcode == binaryRhs->Opcode)
+        CHECK(Compare(binaryLhs->Lhs, lhsSchema, binaryRhs->Lhs, rhsSchema, maxIndex))
+        CHECK(Compare(binaryLhs->Rhs, lhsSchema, binaryRhs->Rhs, rhsSchema, maxIndex))
+    } else if (auto inLhs = lhs->As<TInOpExpression>()) {
+        auto inRhs = rhs->As<TInOpExpression>();
+        CHECK(inRhs)
+        CHECK(inLhs->Arguments.size() == inRhs->Arguments.size())
+        for (size_t index = 0; index < inLhs->Arguments.size(); ++index) {
+            CHECK(Compare(inLhs->Arguments[index], lhsSchema, inRhs->Arguments[index], rhsSchema, maxIndex))
+        }
+
+        CHECK(inLhs->Values.Size() == inRhs->Values.Size())
+        for (size_t index = 0; index < inLhs->Values.Size(); ++index) {
+            CHECK(inLhs->Values[index] == inRhs->Values[index])
+        }
+    } else {
+        Y_UNREACHABLE();
+    }
+#undef CHECK
+
+    return true;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ThrowTypeMismatchError(
     EValueType lhsType,
     EValueType rhsType,
@@ -554,6 +621,7 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
     ToProto(proto->mutable_foreign_data_id(), original->ForeignDataId);
     proto->set_is_left(original->IsLeft);
     proto->set_can_use_source_ranges(original->CanUseSourceRanges);
+    proto->set_common_key_prefix(original->CommonKeyPrefix);
 }
 
 void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& serialized)
@@ -568,6 +636,8 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
     FromProto(&result->ForeignDataId, serialized.foreign_data_id());
     FromProto(&result->IsLeft, serialized.is_left());
     FromProto(&result->CanUseSourceRanges, serialized.can_use_source_ranges());
+    FromProto(&result->CommonKeyPrefix, serialized.common_key_prefix());
+
     *original = result;
 }
 

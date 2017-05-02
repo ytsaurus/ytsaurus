@@ -125,6 +125,14 @@ public:
             .Run(operation);
     }
 
+    virtual void ValidateOperationCanBeRegistered(const TOperationPtr& operation) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        ValidateOperationCountLimit(operation);
+        ValidateEphemeralPoolLimit(operation);
+    }
+
     void RegisterOperation(const TOperationPtr& operation) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -143,10 +151,14 @@ public:
 
         YCHECK(OperationIdToElement.insert(std::make_pair(operation->GetId(), operationElement)).second);
 
-        auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
+        const auto& userName = operation->GetAuthenticatedUser();
+
+        auto poolName = spec->Pool ? *spec->Pool : userName;
         auto pool = FindPool(poolName);
         if (!pool) {
             pool = New<TPool>(Host, poolName, Config);
+            pool->SetUserName(userName);
+            UserToEphemeralPools[userName].insert(poolName);
             RegisterPool(pool);
         }
         if (!pool->GetParent()) {
@@ -466,7 +478,8 @@ public:
         BuildYsonMapFluently(consumer)
             .Item("fair_share_info").BeginMap()
                 .Do(BIND(&TFairShareStrategy::BuildFairShareInfo, Unretained(this)))
-            .EndMap();
+            .EndMap()
+            .Item("user_to_ephemeral_pools").Value(UserToEphemeralPools);
     }
 
     virtual Stroka GetOperationLoggingProgress(const TOperationId& operationId) override
@@ -593,6 +606,8 @@ private:
     typedef yhash<Stroka, TPoolPtr> TPoolMap;
     TPoolMap Pools;
 
+    yhash<Stroka, yhash_set<Stroka>> UserToEphemeralPools;
+
     typedef yhash<TOperationId, TOperationElementPtr> TOperationElementPtrByIdMap;
     TOperationElementPtrByIdMap OperationIdToElement;
 
@@ -666,6 +681,8 @@ private:
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
 
+    TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     TDynamicAttributes GetGlobalDynamicAttributes(const TSchedulerElementPtr& element) const
@@ -723,10 +740,34 @@ private:
             }
         };
 
+        bool enableSchedulingInfoLogging = false;
+        auto now = GetCpuInstant();
+        if (LastSchedulingInformationLoggedTime_ + DurationToCpuDuration(Config->HeartbeatTreeSchedulingInfoLogBackoff) < now) {
+            enableSchedulingInfoLogging = true;
+            LastSchedulingInformationLoggedTime_ = now;
+        }
+
+        auto logAndCleanSchedulingStatistics = [&] (const Stroka& stageName) {
+            if (!enableSchedulingInfoLogging) {
+                return;
+            }
+            LOG_DEBUG("%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, DeactivationReasons: %v, CanStartMoreJobs: %v)",
+                stageName,
+                context.ActiveTreeSize,
+                context.ActiveOperationCount,
+                context.DeactivationReasons,
+                schedulingContext->CanStartMoreJobs());
+            context.ActiveTreeSize = 0;
+            context.ActiveOperationCount = 0;
+            for (auto& item : context.DeactivationReasons) {
+                item = 0;
+            }
+        };
+
         // First-chance scheduling.
         int nonPreemptiveScheduleJobCount = 0;
         {
-            LOG_DEBUG("Scheduling new jobs");
+            LOG_TRACE("Scheduling new jobs");
             PROFILE_AGGREGATED_TIMING(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
                 rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
             }
@@ -742,10 +783,14 @@ private:
                 NonPreemptiveProfilingCounters,
                 nonPreemptiveScheduleJobCount,
                 timer.GetElapsed() - context.TotalScheduleJobDuration);
+
+            if (nonPreemptiveScheduleJobCount > 0) {
+                logAndCleanSchedulingStatistics("Non preemtive");
+            }
         }
 
         // Compute discount to node usage.
-        LOG_DEBUG("Looking for preemptable jobs");
+        LOG_TRACE("Looking for preemptable jobs");
         yhash_set<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
         PROFILE_TIMING ("/analyze_preemptable_jobs_time") {
@@ -780,9 +825,10 @@ private:
 
         // Second-chance scheduling.
         // NB: Schedule at most one job.
+        TJobPtr jobStartedUsingPreemption;
         int preemptiveScheduleJobCount = 0;
         {
-            LOG_DEBUG("Scheduling new jobs with preemption");
+            LOG_TRACE("Scheduling new jobs with preemption");
             PROFILE_AGGREGATED_TIMING(PreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
                 rootElement->PrescheduleJob(context, /*starvingOnly*/ true, /*aggressiveStarvationEnabled*/ false);
             }
@@ -799,6 +845,7 @@ private:
                     break;
                 }
                 if (schedulingContext->StartedJobs().size() > startedBeforePreemption) {
+                    jobStartedUsingPreemption = schedulingContext->StartedJobs().back();
                     break;
                 }
             }
@@ -806,6 +853,9 @@ private:
                 PreemptiveProfilingCounters,
                 preemptiveScheduleJobCount,
                 timer.GetElapsed() - context.TotalScheduleJobDuration);
+            if (preemptiveScheduleJobCount > 0) {
+                logAndCleanSchedulingStatistics("Preemtive");
+            }
         }
 
         int startedAfterPreemption = schedulingContext->StartedJobs().size();
@@ -825,29 +875,30 @@ private:
                 return lhs->GetStartTime() > rhs->GetStartTime();
             });
 
-        auto poolLimitsViolated = [&] (const TJobPtr& job) -> bool {
+        auto findPoolWithViolatedLimitsForJob = [&] (const TJobPtr& job) -> TCompositeSchedulerElement* {
             auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
             if (!operationElement) {
-                return false;
+                return nullptr;
             }
 
             auto* parent = operationElement->GetParent();
             while (parent) {
                 if (!Dominates(parent->ResourceLimits(), parent->GetResourceUsage())) {
-                    return true;
+                    return parent;
                 }
                 parent = parent->GetParent();
             }
-            return false;
+            return nullptr;
         };
 
-        auto anyPoolLimitsViolated = [&] () -> bool {
+        auto findPoolWithViolatedLimits = [&] () -> TCompositeSchedulerElement* {
             for (const auto& job : schedulingContext->StartedJobs()) {
-                if (poolLimitsViolated(job)) {
-                    return true;
+                auto violatedPool = findPoolWithViolatedLimitsForJob(job);
+                if (violatedPool) {
+                    return violatedPool;
                 }
             }
-            return false;
+            return nullptr;
         };
 
         bool nodeLimitsViolated = true;
@@ -867,15 +918,30 @@ private:
                 nodeLimitsViolated = !Dominates(schedulingContext->ResourceLimits(), schedulingContext->ResourceUsage());
             }
             if (!nodeLimitsViolated && poolsLimitsViolated) {
-                poolsLimitsViolated = anyPoolLimitsViolated();
+                poolsLimitsViolated = findPoolWithViolatedLimits() == nullptr;
             }
 
             if (!nodeLimitsViolated && !poolsLimitsViolated) {
                 break;
             }
 
-            if (nodeLimitsViolated || (poolsLimitsViolated && poolLimitsViolated(job))) {
+            if (nodeLimitsViolated) {
+                if (jobStartedUsingPreemption) {
+                    job->SetPreemptionReason(Format("Preempted to start job %v of operation %v",
+                        jobStartedUsingPreemption->GetId(),
+                        jobStartedUsingPreemption->GetOperationId()));
+                } else {
+                    job->SetPreemptionReason(Format("Node resource limits violated"));
+                }
                 PreemptJob(job, operationElement, context);
+            }
+            if (poolsLimitsViolated) {
+                auto violatedPool = findPoolWithViolatedLimitsForJob(job);
+                if (violatedPool) {
+                    job->SetPreemptionReason(Format("Preempted due to violation of limits on pool %v",
+                        violatedPool->GetId()));
+                    PreemptJob(job, operationElement, context);
+                }
             }
         }
 
@@ -1034,6 +1100,11 @@ private:
     void UnregisterPool(const TPoolPtr& pool)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto userName = pool->GetUserName();
+        if (userName) {
+            YCHECK(UserToEphemeralPools[*userName].erase(pool->GetId()) == 1);
+        }
 
         UnregisterSchedulingTagFilter(pool->GetSchedulingTagFilterIndex());
 
@@ -1232,7 +1303,7 @@ private:
         const auto& attributes = element->Attributes();
         auto dynamicAttributes = GetGlobalDynamicAttributes(element);
 
-        auto guaranteedResources = Host->GetTotalResourceLimits() * attributes.GuaranteedResourcesRatio;
+        auto guaranteedResources = Host->GetMainNodesResourceLimits() * attributes.GuaranteedResourcesRatio;
 
         BuildYsonMapFluently(consumer)
             .Item("scheduling_status").Value(element->GetStatus())
@@ -1288,25 +1359,29 @@ private:
         return spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
     }
 
-    void DoValidateOperationStart(const TOperationPtr& operation)
+    TCompositeSchedulerElementPtr GetDefaultParent()
+    {
+        auto defaultPool = FindPool(Config->DefaultParentPool);
+        if (defaultPool) {
+            return defaultPool;
+        } else {
+            return RootElement;
+        }
+    }
+
+    TCompositeSchedulerElementPtr GetParentElement(const TOperationPtr& operation)
+    {
+        auto parentPool = FindPool(GetOperationPoolName(operation));
+        return parentPool ? parentPool : GetDefaultParent();
+    }
+
+    void ValidateOperationCountLimit(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto parentElement = FindPool(GetOperationPoolName(operation));
+        auto parentElement = GetParentElement(operation);
 
-        TCompositeSchedulerElementPtr ansectorElement;
-        if (parentElement) {
-            ansectorElement = parentElement;
-        } else {
-            auto defaultPool = FindPool(Config->DefaultParentPool);
-            if (defaultPool) {
-                ansectorElement = defaultPool;
-            } else {
-                ansectorElement = RootElement;
-            }
-        }
-
-        auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(ansectorElement);
+        auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(parentElement);
         if (poolWithViolatedLimit) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::TooManyOperations,
@@ -1314,14 +1389,48 @@ private:
                 poolWithViolatedLimit->GetMaxOperationCount(),
                 poolWithViolatedLimit->GetId());
         }
+    }
 
-        if (parentElement && parentElement->AreImmediateOperationsFobidden()) {
-            THROW_ERROR_EXCEPTION(
-                "Starting operations immediately in pool %Qv is forbidden",
-                parentElement->GetId());
+    void ValidateEphemeralPoolLimit(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto pool = FindPool(GetOperationPoolName(operation));
+        if (pool) {
+            return;
         }
 
-        auto poolPath = GetPoolPath(ansectorElement);
+        const auto& userName = operation->GetAuthenticatedUser();
+
+        auto it = UserToEphemeralPools.find(userName);
+        if (it == UserToEphemeralPools.end()) {
+            return;
+        }
+
+        if (it->second.size() + 1 > Config->MaxEphemeralPoolsPerUser) {
+            THROW_ERROR_EXCEPTION("Limit for number of ephemeral pools %v for user %v has been reached",
+                Config->MaxEphemeralPoolsPerUser,
+                userName);
+        }
+    }
+
+    void DoValidateOperationStart(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        ValidateOperationCountLimit(operation);
+        ValidateEphemeralPoolLimit(operation);
+
+        auto immediateParentPool = FindPool(GetOperationPoolName(operation));
+        // NB: Check is not performed if operation is started in default or unknown pool.
+        if (immediateParentPool && immediateParentPool->AreImmediateOperationsFobidden()) {
+            THROW_ERROR_EXCEPTION(
+                "Starting operations immediately in pool %Qv is forbidden",
+                immediateParentPool->GetId());
+        }
+
+        auto parentElement = GetParentElement(operation);
+        auto poolPath = GetPoolPath(parentElement);
         const auto& user = operation->GetAuthenticatedUser();
 
         Host->ValidatePoolPermission(poolPath, user, EPermission::Use);

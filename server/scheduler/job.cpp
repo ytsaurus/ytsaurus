@@ -21,6 +21,7 @@ using namespace NYPath;
 using namespace NJobTrackerClient;
 using namespace NChunkClient::NProto;
 using namespace NProto;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -61,9 +62,11 @@ bool CheckJobActivity(
     double inputPipeIdleTimeFraction)
 {
     bool wasActive = lhs->ProcessedInputRowCount < rhs->ProcessedInputRowCount;
-    wasActive |= lhs->ProcessedInputDataSize < rhs->ProcessedInputDataSize;
+    wasActive |= lhs->ProcessedInputUncompressedDataSize < rhs->ProcessedInputUncompressedDataSize;
+    wasActive |= lhs->ProcessedInputCompressedDataSize < rhs->ProcessedInputCompressedDataSize;
     wasActive |= lhs->ProcessedOutputRowCount < rhs->ProcessedOutputRowCount;
-    wasActive |= lhs->ProcessedOutputDataSize < rhs->ProcessedOutputDataSize;
+    wasActive |= lhs->ProcessedOutputUncompressedDataSize < rhs->ProcessedOutputUncompressedDataSize;
+    wasActive |= lhs->ProcessedOutputCompressedDataSize < rhs->ProcessedOutputCompressedDataSize;
     if (lhs->JobProxyCpuUsage && rhs->JobProxyCpuUsage) {
         wasActive |= *lhs->JobProxyCpuUsage + cpuUsageThreshold < *rhs->JobProxyCpuUsage;
     }
@@ -83,8 +86,10 @@ void Serialize(const TBriefJobStatistics& briefJobStatistics, IYsonConsumer* con
         .EndAttributes()
         .BeginMap()
             .Item("processed_input_row_count").Value(briefJobStatistics.ProcessedInputRowCount)
-            .Item("processed_input_data_size").Value(briefJobStatistics.ProcessedInputDataSize)
-            .Item("processed_output_data_size").Value(briefJobStatistics.ProcessedOutputDataSize)
+            .Item("processed_input_data_size").Value(briefJobStatistics.ProcessedInputUncompressedDataSize)
+            .Item("processed_input_compressed_data_size").Value(briefJobStatistics.ProcessedInputCompressedDataSize)
+            .Item("processed_output_data_size").Value(briefJobStatistics.ProcessedOutputUncompressedDataSize)
+            .Item("processed_output_compressed_data_size").Value(briefJobStatistics.ProcessedOutputCompressedDataSize)
             .DoIf(static_cast<bool>(briefJobStatistics.InputPipeIdleTime), [&] (TFluentMap fluent) {
                 fluent.Item("input_pipe_idle_time").Value(*briefJobStatistics.InputPipeIdleTime);
             })
@@ -127,30 +132,19 @@ TDuration TJob::GetDuration() const
     return *FinishTime_ - StartTime_;
 }
 
-TBriefJobStatisticsPtr TJob::BuildBriefStatistics(const TYsonString& statisticsYson) const
-{
-    auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(statisticsYson);
-
-    auto briefStatistics = New<TBriefJobStatistics>();
-    briefStatistics->ProcessedInputRowCount = GetNumericValue(statistics, "/data/input/row_count");
-    briefStatistics->ProcessedInputDataSize = GetNumericValue(statistics, "/data/input/uncompressed_data_size");
-    briefStatistics->InputPipeIdleTime = FindNumericValue(statistics, "/user_job/pipes/input/idle_time");
-    briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, "/job_proxy/cpu/user");
-    briefStatistics->Timestamp = statistics.GetTimestamp().Get(TInstant::Now());
-
-    auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
-    briefStatistics->ProcessedOutputDataSize = outputDataStatistics.uncompressed_data_size();
-    briefStatistics->ProcessedOutputRowCount = outputDataStatistics.row_count();
-
-    return briefStatistics;
-}
-
 void TJob::AnalyzeBriefStatistics(
     TDuration suspiciousInactivityTimeout,
     i64 suspiciousCpuUsageThreshold,
     double suspiciousInputPipeIdleTimeFraction,
-    const TBriefJobStatisticsPtr& briefStatistics)
+    const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError)
 {
+    if (!briefStatisticsOrError.IsOK()) {
+        LOG_WARNING(briefStatisticsOrError, "Not analyzing brief statistics of job due to an error (JobId: %v)");
+        return;
+    }
+
+    const auto& briefStatistics = briefStatisticsOrError.Value();
+
     bool wasActive = false;
 
     if (!BriefStatistics_ || CheckJobActivity(
@@ -200,7 +194,7 @@ TJobSummary::TJobSummary(const TJobPtr& job)
     : Result(job->Status().result())
     , Id(job->GetId())
     , StatisticsSuffix(job->GetStatisticsSuffix())
-    , FinishTime(*job->GetFinishTime())
+    , FinishTime(job->GetFinishTime())
     , ShouldLog(true)
 {
     const auto& status = job->Status();
@@ -224,6 +218,24 @@ TJobSummary::TJobSummary(const TJobId& id)
     , ShouldLog(false)
 { }
 
+void TJobSummary::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    using NYT::Save;
+    using NYT::Load;
+
+    Persist<TBinaryProtoSerializer>(context, Result);
+    Persist(context, Id);
+    Persist(context, StatisticsSuffix);
+    Persist(context, FinishTime);
+    Persist(context, PrepareDuration);
+    Persist(context, DownloadDuration);
+    Persist(context, ExecDuration);
+    Persist(context, Statistics);
+    Persist(context, StatisticsYson);
+    Persist(context, ShouldLog);
+}
+
 void TJobSummary::ParseStatistics()
 {
     if (StatisticsYson) {
@@ -241,7 +253,24 @@ TCompletedJobSummary::TCompletedJobSummary(const TJobPtr& job, bool abandoned)
     , Abandoned(abandoned)
 {
     const auto& schedulerResultExt = Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-    Interrupted = schedulerResultExt.unread_input_data_slice_descriptors_size() != 0;
+    InterruptReason = job->GetInterruptReason();
+    YCHECK((InterruptReason == EInterruptReason::None && schedulerResultExt.unread_input_data_slice_descriptors_size() == 0) ||
+        (InterruptReason != EInterruptReason::None && schedulerResultExt.unread_input_data_slice_descriptors_size() != 0));
+}
+
+void TCompletedJobSummary::Persist(const TPersistenceContext& context)
+{
+    TJobSummary::Persist(context);
+
+    using NYT::Persist;
+
+    Persist(context, Abandoned);
+    Persist(context, InterruptReason);
+    // TODO(max42): now we persist only those completed job summaries that correspond
+    // to non-interrupted jobs, because Persist(context, UnreadInputDataSlices) produces
+    // lots of ugly template resolution errors. I wasn't able to fix it :(
+    YCHECK(InterruptReason == EInterruptReason::None);
+    Persist(context, SplitJobCount);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -294,6 +323,21 @@ TJobStartRequest::TJobStartRequest(
 void TScheduleJobResult::RecordFail(EScheduleJobFailReason reason)
 {
     ++Failed[reason];
+}
+
+bool TScheduleJobResult::IsBackoffNeeded() const
+{
+    return
+        !JobStartRequest &&
+        Failed[EScheduleJobFailReason::NotEnoughResources] == 0 &&
+        Failed[EScheduleJobFailReason::NoLocalJobs] == 0;
+}
+
+bool TScheduleJobResult::IsScheduleStopNeeded() const
+{
+    return
+        Failed[EScheduleJobFailReason::NotEnoughChunkLists] > 0 ||
+        Failed[EScheduleJobFailReason::JobSpecThrottling] > 0;
 }
 
 void TScheduleJobStatistics::RecordJobResult(const TScheduleJobResultPtr& scheduleJobResult)

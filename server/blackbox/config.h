@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/core/misc/config.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -8,7 +10,7 @@ namespace NBlackbox {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDefaultBlackboxServiceConfig
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     TDefaultBlackboxServiceConfig()
@@ -36,45 +38,47 @@ public:
     TDuration BackoffTimeout;
 };
 
-DEFINE_REFCOUNTED_TYPE(TDefaultBlackboxServiceConfig);
+DEFINE_REFCOUNTED_TYPE(TDefaultBlackboxServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTokenAuthenticatorConfig
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     TTokenAuthenticatorConfig()
     {
         RegisterParameter("scope", Scope);
-        RegisterParameter("client_ids", ClientIds);
-
         RegisterParameter("enable_scope_check", EnableScopeCheck)
-            .Optional();
-        RegisterParameter("enable_client_ids_check", EnableClientIdsCheck)
             .Optional();
     }
 
     Stroka Scope;
-    yhash<Stroka, Stroka> ClientIds;
-
     bool EnableScopeCheck = true;
-    bool EnableClientIdsCheck = true;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTokenAuthenticatorConfig);
+DEFINE_REFCOUNTED_TYPE(TTokenAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingTokenAuthenticatorConfig
+    : public TTokenAuthenticatorConfig
+    , public TExpiringCacheConfig
+{};
+
+DEFINE_REFCOUNTED_TYPE(TCachingTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCookieAuthenticatorConfig
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     TCookieAuthenticatorConfig()
     { }
 };
 
-DEFINE_REFCOUNTED_TYPE(TCookieAuthenticatorConfig);
+DEFINE_REFCOUNTED_TYPE(TCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

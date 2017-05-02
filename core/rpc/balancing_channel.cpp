@@ -4,14 +4,13 @@
 #include "client.h"
 #include "config.h"
 #include "roaming_channel.h"
+#include "message.h"
 
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/rw_spinlock.h>
 
-#include <yt/core/logging/log.h>
-
-#include <yt/core/misc/string.h>
 #include <yt/core/misc/variant.h>
+#include <yt/core/misc/random.h>
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
@@ -61,24 +60,26 @@ public:
             ServiceName_);
     }
 
-    TFuture<IChannelPtr> GetChannel()
+    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& request)
     {
-        auto channel = PickViableChannel();
+        auto channel = PickViableChannel(request);
         return channel ? MakeFuture(std::move(channel)) : RunDiscoverySession();
     }
 
     TFuture<void> Terminate(const TError& error)
     {
-        std::vector<std::pair<Stroka, IChannelPtr>> viableChannels;
+        decltype(AddressToViableChannel_) addressToViableChannel;
+        decltype(HashToViableChannel_) hashToViableChannel;
         {
             TWriterGuard guard(SpinLock_);
             Terminated_ = true;
             TerminationError_ = error;
-            ViableChannels_.swap(viableChannels);
+            AddressToViableChannel_.swap(addressToViableChannel);
+            HashToViableChannel_.swap(hashToViableChannel);
         }
 
         std::vector<TFuture<void>> asyncResults;
-        for (const auto& pair : viableChannels) {
+        for (const auto& pair : addressToViableChannel) {
             asyncResults.push_back(pair.second->Terminate(error));
         }
 
@@ -98,9 +99,12 @@ private:
     TFuture<IChannelPtr> CurrentDiscoverySessionResult_;
     TDelayedExecutorCookie RediscoveryCookie_;
     TError TerminationError_;
+
     yhash_set<Stroka> ActiveAddresses_;
     yhash_set<Stroka> BannedAddresses_;
-    std::vector<std::pair<Stroka, IChannelPtr>> ViableChannels_;
+
+    yhash_map<Stroka, IChannelPtr> AddressToViableChannel_;
+    std::map<std::pair<size_t, Stroka>, IChannelPtr> HashToViableChannel_;
 
     NLogging::TLogger Logger;
 
@@ -282,14 +286,67 @@ private:
     };
 
 
-    IChannelPtr PickViableChannel()
+    IChannelPtr PickViableChannel(const IClientRequestPtr& request)
     {
+        const auto& balancingExt = request->Header().GetExtension(NProto::TBalancingExt::balancing_ext);
+        return balancingExt.enable_stickness()
+            ? PickStickyViableChannel(request, balancingExt.sticky_group_size())
+            : PickRandomViableChannel(request);
+    }
+
+    IChannelPtr PickStickyViableChannel(const IClientRequestPtr& request, int stickyGroupSize)
+    {
+        auto hash = request->GetHash();
+        auto randomIndex = RandomNumber<size_t>(stickyGroupSize);
+
         TReaderGuard guard(SpinLock_);
-        if (ViableChannels_.empty()) {
+
+        if (HashToViableChannel_.empty()) {
             return nullptr;
         }
-        int index = RandomNumber(ViableChannels_.size());
-        return ViableChannels_[index].second;
+
+        auto it = HashToViableChannel_.lower_bound(std::make_pair(hash, Stroka()));
+        for (int index = 0; index < randomIndex; ++index) {
+            if (it == HashToViableChannel_.end()) {
+                it = HashToViableChannel_.begin();
+            }
+            ++it;
+        }
+
+        if (it == HashToViableChannel_.end()) {
+            it = HashToViableChannel_.begin();
+        }
+
+        LOG_DEBUG("Sticky peer selected (RequestId: %v, RequestHash: %x, RandomIndex: %v/%v, Address: %v)",
+            request->GetRequestId(),
+            hash,
+            randomIndex,
+            stickyGroupSize,
+            it->first.second);
+
+        return it->second;
+    }
+
+    IChannelPtr PickRandomViableChannel(const IClientRequestPtr& request)
+    {
+        auto hash = RandomNumber<size_t>();
+
+        TReaderGuard guard(SpinLock_);
+
+        if (HashToViableChannel_.empty()) {
+            return nullptr;
+        }
+
+        auto it = HashToViableChannel_.lower_bound(std::make_pair(hash, Stroka()));
+        if (it == HashToViableChannel_.end()) {
+            it = HashToViableChannel_.begin();
+        }
+
+        LOG_DEBUG("Random peer selected (RequestId: %v, Address: %v)",
+            request->GetRequestId(),
+            it->first.second);
+
+        return it->second;
     }
 
 
@@ -427,6 +484,16 @@ private:
         LOG_DEBUG("Peer unbanned (Address: %v)", address);
     }
 
+    template <class F>
+    void GeneratePeerHashes(const Stroka& address, F f)
+    {
+        TRandomGenerator generator(address.hash());
+        for (int index = 0; index < Config_->HashesPerPeer; ++index) {
+            f(generator.Generate<size_t>());
+        }
+    }
+
+
     IChannelPtr AddViablePeer(const Stroka& address, const IChannelPtr& channel)
     {
         auto wrappedChannel = CreateFailureDetectingChannel(
@@ -437,16 +504,16 @@ private:
 
         {
             TWriterGuard guard(SpinLock_);
-            for (auto& pair : ViableChannels_) {
-                if (pair.first == address) {
-                    pair.second = wrappedChannel;
-                    updated = true;
-                    break;
-                }
+            auto it = AddressToViableChannel_.find(address);
+            if (it == AddressToViableChannel_.end()) {
+                YCHECK(AddressToViableChannel_.emplace(address, wrappedChannel).second);
+            } else {
+                it->second = wrappedChannel;
+                updated = true;
             }
-            if (!updated) {
-                ViableChannels_.emplace_back(address, wrappedChannel);
-            }
+            GeneratePeerHashes(address, [&] (size_t hash) {
+                HashToViableChannel_[std::make_pair(hash, address)] = wrappedChannel;
+            });
         }
 
         LOG_DEBUG("Peer is viable (Address: %v, Updated: %v)",
@@ -459,29 +526,27 @@ private:
     void InvalidatePeer(const Stroka& address)
     {
         TWriterGuard guard(SpinLock_);
-        for (auto& pair : ViableChannels_) {
-            if (pair.first == address) {
-                std::swap(pair, ViableChannels_.back());
-                ViableChannels_.pop_back();
-                break;
-            }
+        auto it = AddressToViableChannel_.find(address);
+        if (it != AddressToViableChannel_.end()) {
+            AddressToViableChannel_.erase(it);
+            GeneratePeerHashes(address, [&] (size_t hash) {
+                HashToViableChannel_.erase(std::make_pair(hash, address));
+            });
         }
     }
 
-    void OnChannelFailed(const Stroka& address, IChannelPtr channel)
+    void OnChannelFailed(const Stroka& address, const IChannelPtr& channel)
     {
         bool evicted = false;
 
         {
             TWriterGuard guard(SpinLock_);
-            for (int index = 0; index < ViableChannels_.size(); ++index) {
-                const auto& pair = ViableChannels_[index];
-                if (pair.first == address && pair.second == channel) {
-                    evicted = true;
-                    std::swap(ViableChannels_[index], ViableChannels_[ViableChannels_.size() - 1]);
-                    ViableChannels_.pop_back();
-                    break;
-                }
+            auto it = AddressToViableChannel_.find(address);
+            if (it != AddressToViableChannel_.end() && it->second == channel) {
+                AddressToViableChannel_.erase(it);
+                GeneratePeerHashes(address, [&] (size_t hash) {
+                    HashToViableChannel_.erase(std::make_pair(hash, address));
+                });
             }
         }
 
@@ -526,7 +591,7 @@ public:
         return *EndpointAttributes_;
     }
 
-    virtual TFuture<IChannelPtr> GetChannel(const Stroka& serviceName) override
+    virtual TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& request) override
     {
         if (Config_->Addresses.size() == 1) {
             // Disable discovery and balancing when just one address is given.
@@ -534,7 +599,7 @@ public:
             // Discover requests properly.
             return MakeFuture(ChannelFactory_->CreateChannel(Config_->Addresses[0]));
         } else {
-            return GetSubprovider(serviceName)->GetChannel();
+            return GetSubprovider(request->GetService())->GetChannel(request);
         }
     }
 

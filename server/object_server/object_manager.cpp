@@ -111,7 +111,7 @@ public:
         context->ReplyFrom(std::move(asyncResponseMessage));
     }
 
-    virtual void WriteAttributesFragment(
+    virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
         const TNullable<std::vector<Stroka>>& /*attributeKeys*/,
         bool /*stable*/) override
@@ -175,7 +175,7 @@ public:
             }));
     }
 
-    virtual void WriteAttributesFragment(
+    virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
         const TNullable<std::vector<Stroka>>& /*attributeKeys*/,
         bool /*stable*/) override
@@ -237,17 +237,20 @@ private:
                         objectIdString);
                 }
 
+                tokenizer.Advance();
+
+                bool foreign =
+                    CellTagFromId(objectId) != Bootstrap_->GetCellTag() &&
+                    Bootstrap_->IsPrimaryMaster();
+                
                 bool suppressRedirect = false;
-                if (tokenizer.Advance() == NYPath::ETokenType::Ampersand) {
+                if (foreign && tokenizer.GetType() == NYPath::ETokenType::Ampersand) {
                     suppressRedirect = true;
                     tokenizer.Advance();
                 }
 
                 IYPathServicePtr proxy;
-                if (!suppressRedirect &&
-                    CellTagFromId(objectId) != Bootstrap_->GetCellTag() &&
-                    Bootstrap_->IsPrimaryMaster())
-                {
+                if (foreign && !suppressRedirect) {
                     proxy = objectManager->CreateRemoteProxy(objectId);
                 } else {
                     auto* object = (context->GetMethod() == "Exists")
@@ -360,6 +363,7 @@ private:
 
         // Slow path.
         auto req = TObjectYPathProxy::GetBasicAttributes(path);
+        SetTransactionId(req, GetObjectId(transaction));
         auto rsp = SyncExecuteVerb(proxy, req);
         auto objectId = FromProto<TObjectId>(rsp->object_id());
 

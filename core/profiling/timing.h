@@ -39,6 +39,9 @@ TDuration ValueToDuration(TValue value);
 //! Converts a CPU duration into TValue suitable for profiling.
 TValue CpuDurationToValue(TCpuDuration duration);
 
+//! Returns a duration in seconds from now till specified processor tick.
+double SecondsFromNow(TCpuInstant instant);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProfiling

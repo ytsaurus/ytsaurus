@@ -173,7 +173,7 @@ size_t ReadValue(const char* input, TUnversionedValue* value)
             TStringBuf data(current, current + length);
             current += length;
 
-            *value = type == EValueType::String 
+            *value = type == EValueType::String
                 ? MakeUnversionedStringValue(data, id)
                 : MakeUnversionedAnyValue(data, id);
             break;
@@ -1174,21 +1174,21 @@ TKey GetKeyPrefix(TKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer)
         std::min(key.GetCount(), prefixLength));
 }
 
-TKey GetStrictKey(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer)
+TKey GetStrictKey(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
     if (key.GetCount() > keyColumnCount) {
         return GetKeyPrefix(key, keyColumnCount, rowBuffer);
     } else {
-        return WidenKey(key, keyColumnCount, rowBuffer);
+        return WidenKey(key, keyColumnCount, rowBuffer, sentinelType);
     }
 }
 
-TKey GetStrictKeySuccessor(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer)
+TKey GetStrictKeySuccessor(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
     if (key.GetCount() >= keyColumnCount) {
         return GetKeyPrefixSuccessor(key, keyColumnCount, rowBuffer);
     } else {
-        return WidenKeySuccessor(key, keyColumnCount, rowBuffer);
+        return WidenKeySuccessor(key, keyColumnCount, rowBuffer, sentinelType);
     }
 }
 
@@ -1662,17 +1662,17 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey WidenKey(const TOwningKey& key, ui32 keyColumnCount)
+TOwningKey WidenKey(const TOwningKey& key, ui32 keyColumnCount, EValueType sentinelType)
 {
-    return WidenKeyPrefix(key, key.GetCount(), keyColumnCount);
+    return WidenKeyPrefix(key, key.GetCount(), keyColumnCount, sentinelType);
 }
 
-TKey WidenKey(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer)
+TKey WidenKey(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
-    return WidenKeyPrefix(key, key.GetCount(), keyColumnCount, rowBuffer);
+    return WidenKeyPrefix(key, key.GetCount(), keyColumnCount, rowBuffer, sentinelType);
 }
 
-TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer)
+TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
     YCHECK(keyColumnCount >= key.GetCount());
 
@@ -1683,7 +1683,7 @@ TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr
     }
 
     for (ui32 index = key.GetCount(); index < keyColumnCount; ++index) {
-        wideKey[index] = MakeUnversionedSentinelValue(EValueType::Null);
+        wideKey[index] = MakeUnversionedSentinelValue(sentinelType);
     }
 
     wideKey[keyColumnCount] = MakeUnversionedSentinelValue(EValueType::Max);
@@ -1691,7 +1691,7 @@ TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr
     return wideKey;
 }
 
-TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColumnCount)
+TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColumnCount, EValueType sentinelType)
 {
     YCHECK(prefixLength <= key.GetCount() && prefixLength <= keyColumnCount);
 
@@ -1705,13 +1705,13 @@ TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColu
     }
 
     for (ui32 index = prefixLength; index < keyColumnCount; ++index) {
-        builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null));
+        builder.AddValue(MakeUnversionedSentinelValue(sentinelType));
     }
 
     return builder.FinishRow();
 }
 
-TKey WidenKeyPrefix(TKey key, ui32 prefixLength, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer)
+TKey WidenKeyPrefix(TKey key, ui32 prefixLength, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
     YCHECK(prefixLength <= key.GetCount() && prefixLength <= keyColumnCount);
 
@@ -1726,7 +1726,7 @@ TKey WidenKeyPrefix(TKey key, ui32 prefixLength, ui32 keyColumnCount, const TRow
     }
 
     for (ui32 index = prefixLength; index < keyColumnCount; ++index) {
-        wideKey[index] = MakeUnversionedSentinelValue(EValueType::Null);
+        wideKey[index] = MakeUnversionedSentinelValue(sentinelType);
     }
 
     return wideKey;

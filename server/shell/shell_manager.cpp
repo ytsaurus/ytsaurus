@@ -36,6 +36,7 @@ using namespace NConcurrency;
 // TMOUT is a inactivity timeout (in seconds) to exit the shell.
 static const char* Bashrc =
     "export PATH\n"
+    "mkdir -p \"$TMPDIR\"\n"
     "stty sane ignpar iutf8\n"
     "TMOUT=1800\n"
     "alias cp='cp -i'\n"
@@ -69,9 +70,6 @@ public:
         Environment_.emplace_back(Format("HOME=%v", WorkingDir_));
         Environment_.emplace_back(Format("G_HOME=%v", WorkingDir_));
         auto tmpDirPath = NFS::CombinePaths(WorkingDir_, "tmp");
-        try {
-            NFS::MakeDirRecursive(tmpDirPath, 0755);
-        } catch (...) { }
         Environment_.emplace_back(Format("TMPDIR=%v", tmpDirPath));
     }
 

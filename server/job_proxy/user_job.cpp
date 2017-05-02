@@ -471,7 +471,7 @@ private:
             NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Home]),
             UserId_,
             TNullable<Stroka>(static_cast<bool>(CGroupsConfig_), CGroupBase),
-            Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))),
+            Format("Job environment:\n%v\n", JoinToString(shellEnvironment, STRINGBUF("\n"))),
             std::move(shellEnvironment));
     }
 

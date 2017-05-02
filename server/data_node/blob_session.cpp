@@ -235,7 +235,7 @@ void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
 
     THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 
-    LOG_DEBUG("Started writing block %v (BlockSize: %v)",
+    LOG_DEBUG("Started writing block (BlockIndex: %v, BlockSize: %v)",
         blockIndex,
         block.Size());
 
@@ -257,7 +257,7 @@ void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
 
     auto writeTime = timer.GetElapsed();
 
-    LOG_DEBUG("Finished writing block %v", blockIndex);
+    LOG_DEBUG("Finished writing block (BlockIndex: %v)", blockIndex);
 
     auto& locationProfiler = Location_->GetProfiler();
     locationProfiler.Enqueue("/blob_block_write_size", block.Size(), EMetricType::Gauge);
@@ -286,8 +286,10 @@ TFuture<void> TBlobSession::DoFlushBlocks(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    // TODO(psushin): verify monotonicity of blockIndex
-    ValidateBlockIsInWindow(blockIndex);
+    if (!IsInWindow(blockIndex)) {
+        LOG_DEBUG("Blocks are already flushed (BlockIndex: %v)", blockIndex);
+        return VoidFuture;
+    }
 
     const auto& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {

@@ -295,6 +295,27 @@ TChannel& operator -= (TChannel& lhs, const TChannel& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool operator==(const TChannel& lhs, const TChannel& rhs)
+{
+    YCHECK(lhs.GetRanges().empty());
+    YCHECK(rhs.GetRanges().empty());
+
+    auto lhsColumns = lhs.GetColumns();
+    auto rhsColumns = rhs.GetColumns();
+
+    std::sort(lhsColumns.begin(), lhsColumns.end());
+    std::sort(rhsColumns.begin(), rhsColumns.end());
+
+    return lhsColumns == rhsColumns;
+}
+
+bool operator!=(const TChannel& lhs, const TChannel& rhs)
+{
+    return !(lhs == rhs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TRange* protoRange, const TColumnRange& range)
 {
     protoRange->set_begin(range.Begin());

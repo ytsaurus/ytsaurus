@@ -12,4 +12,9 @@ message TReqLookupRows
     optional TColumnFilter column_filter = 1;
 }
 
+message TReqVersionedLookupRows
+{
+    optional TColumnFilter column_filter = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

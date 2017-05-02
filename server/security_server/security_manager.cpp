@@ -145,7 +145,6 @@ private:
     {
         return &account->Acd();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,9 +192,7 @@ private:
     }
 
     virtual IObjectProxyPtr DoGetProxy(TUser* user, TTransaction* transaction) override;
-
     virtual void DoZombifyObject(TUser* user) override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -243,9 +240,7 @@ private:
     }
 
     virtual IObjectProxyPtr DoGetProxy(TGroup* group, TTransaction* transaction) override;
-
     virtual void DoZombifyObject(TGroup* group) override;
-
 };
 
 /////////////////////////////////////////////////////////////////////////// /////
@@ -288,6 +283,7 @@ public:
         JobUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffd);
         SchedulerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffc);
         ReplicatorUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffb);
+        OwnerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffa);
 
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
@@ -382,8 +378,9 @@ public:
         YCHECK(account);
 
         auto* oldAccount = node->GetAccount();
-        if (oldAccount == account)
+        if (oldAccount == account) {
             return;
+        }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
@@ -404,8 +401,9 @@ public:
     void ResetAccount(TCypressNodeBase* node)
     {
         auto* account = node->GetAccount();
-        if (!account)
+        if (!account) {
             return;
+        }
 
         UpdateAccountResourceUsage(node, account, -1);
 
@@ -439,8 +437,9 @@ public:
     void UpdateAccountNodeUsage(TCypressNodeBase* node)
     {
         auto* account = node->GetAccount();
-        if (!account)
+        if (!account) {
             return;
+        }
 
         UpdateAccountResourceUsage(node, account, -1);
 
@@ -451,10 +450,13 @@ public:
 
     void SetNodeResourceAccounting(TCypressNodeBase* node, bool enable)
     {
-        if (node->GetAccountingEnabled() != enable) {
-            node->SetAccountingEnabled(enable);
-            UpdateAccountNodeUsage(node);
+        if (node->GetAccountingEnabled() == enable) {
+            return;
         }
+
+        node->SetAccountingEnabled(enable);
+
+        UpdateAccountNodeUsage(node);
     }
 
     void UpdateAccountStagingUsage(
@@ -462,11 +464,14 @@ public:
         TAccount* account,
         const TClusterResources& delta)
     {
-        if (!transaction->GetAccountingEnabled())
+        if (!transaction->GetAccountingEnabled()) {
             return;
+        }
 
         account->ClusterStatistics().ResourceUsage += delta;
         account->LocalStatistics().ResourceUsage += delta;
+
+        CheckSanity(account);
 
         auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
         *transactionUsage += delta;
@@ -556,6 +561,11 @@ public:
     TUser* GetGuestUser()
     {
         return GetBuiltin(GuestUser_);
+    }
+
+    TUser* GetOwnerUser()
+    {
+        return GetBuiltin(OwnerUser_);
     }
 
 
@@ -822,6 +832,7 @@ public:
         // Slow lane: check ACLs through the object hierarchy.
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* currentObject = object;
+        TSubject* owner = nullptr;
         int depth = 0;
         while (currentObject) {
             const auto& handler = objectManager->GetHandler(currentObject);
@@ -829,6 +840,10 @@ public:
 
             // Check the current ACL, if any.
             if (acd) {
+                if (!owner && currentObject == object) {
+                    owner = acd->GetOwner();
+                }
+
                 for (const auto& ace : acd->Acl().Entries) {
                     if (!CheckInheritanceMode(ace.InheritanceMode, depth)) {
                         continue;
@@ -836,7 +851,10 @@ public:
   
                     if (CheckPermissionMatch(ace.Permissions, permission)) {
                         for (auto* subject : ace.Subjects) {
-                            if (CheckSubjectMatch(subject, user)) {
+                            auto* adjustedSubject = subject == GetOwnerUser() && owner
+                                ? owner
+                                : subject;
+                            if (CheckSubjectMatch(adjustedSubject, user)) {
                                 result.Action = ace.Action;
                                 result.Object = currentObject;
                                 result.Subject = subject;
@@ -1008,6 +1026,13 @@ public:
                 "User %Qv is banned",
                 user->GetName());
         }
+
+        if (user == GetOwnerUser()) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AuthenticationError,
+                "Cannot authenticate as %Qv",
+                user->GetName());
+        }
     }
 
     void ChargeUserRead(
@@ -1101,6 +1126,9 @@ private:
     TUserId ReplicatorUserId_;
     TUser* ReplicatorUser_ = nullptr;
 
+    TUserId OwnerUserId_;
+    TUser* OwnerUser_ = nullptr;
+
     NHydra::TEntityMap<TGroup> GroupMap_;
     yhash<Stroka, TGroup*> GroupNameMap_;
 
@@ -1117,6 +1145,8 @@ private:
 
     // COMPAT(babenko)
     bool RecomputeNodeResourceUsage_ = false;
+    bool ValidateAccountResourceUsage_ = false;
+    bool RecomputeAccountResourceUsage_ = false;
 
 
     void UpdateNodeCachedResourceUsage(TCypressNodeBase* node)
@@ -1140,6 +1170,8 @@ private:
             account->ClusterStatistics().CommittedResourceUsage += resourceUsage;
             account->LocalStatistics().CommittedResourceUsage += resourceUsage;
         }
+
+        CheckSanity(account);
 
         auto* transactionUsage = FindTransactionAccountUsage(node);
         if (transactionUsage) {
@@ -1366,7 +1398,8 @@ private:
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
         // COMPAT(babenko)
-        RecomputeNodeResourceUsage_ = context.GetVersion() < 504;
+        ValidateAccountResourceUsage_ = context.GetVersion() >= 508;
+        RecomputeAccountResourceUsage_ = context.GetVersion() < 508;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1415,6 +1448,96 @@ private:
                 UpdateAccountNodeUsage(node);
             }
         }
+
+        // COMPAT(babenko)
+        if (ValidateAccountResourceUsage_ || RecomputeAccountResourceUsage_) {
+            struct TStat
+            {
+                TClusterResources NodeUsage;
+                TClusterResources NodeCommittedUsage;
+                TClusterResources StagingUsage;
+            };
+
+            yhash_map<TAccount*, TStat> statMap;
+            for (const auto& pair : AccountMap_) {
+                statMap.emplace(pair.second, TStat());
+            }
+
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+            for (const auto& pair : cypressManager->Nodes()) {
+                const auto* node = pair.second;
+                const auto& usage = node->CachedResourceUsage();
+                auto* account = node->GetAccount();
+                auto& stat = statMap[account];
+                stat.NodeUsage += usage;
+                if (node->IsTrunk()) {
+                    stat.NodeCommittedUsage += usage;
+                }
+            }
+
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            for (const auto& pair : chunkManager->Chunks()) {
+                const auto* chunk = pair.second;
+                if (!chunk->IsStaged() || !chunk->IsConfirmed() || chunk->IsJournal()) {
+                    continue;
+                }
+                auto* transaction = chunk->GetStagingTransaction();
+                if (!transaction->GetAccountingEnabled()) {
+                    continue;
+                }
+                auto* account = chunk->GetStagingAccount();
+                auto& stat = statMap[account];
+                stat.StagingUsage += chunk->GetResourceUsage();
+            }
+
+            for (const auto& pair : statMap) {
+                auto* account = pair.first;
+                const auto& stat = pair.second;
+                bool log = false;
+                auto expectedUsage = stat.NodeUsage + stat.StagingUsage;
+                auto expectedCommittedUsage = stat.NodeCommittedUsage;
+                if (ValidateAccountResourceUsage_) {
+                    if (account->LocalStatistics().ResourceUsage != expectedUsage) {
+                        LOG_ERROR("XXX %v account usage mismatch",
+                            account->GetName());
+                        log = true;
+                    }
+                    if (account->LocalStatistics().CommittedResourceUsage != expectedCommittedUsage) {
+                        LOG_ERROR("XXX %v account committed usage mismatch",
+                            account->GetName());
+                        log = true;
+                    }
+                    if (log) {
+                        LOG_ERROR("XXX %v account usage %v",
+                            account->GetName(),
+                            account->LocalStatistics().ResourceUsage);
+                        LOG_ERROR("XXX %v account committed usage %v",
+                            account->GetName(),
+                            account->LocalStatistics().CommittedResourceUsage);
+                        LOG_ERROR("XXX %v node usage %v",
+                            account->GetName(),
+                            stat.NodeUsage);
+                        LOG_ERROR("XXX %v node committed usage %v",
+                            account->GetName(),
+                            stat.NodeCommittedUsage);
+                        LOG_ERROR("XXX %v staging usage %v",
+                            account->GetName(),
+                            stat.StagingUsage);
+                    }
+                }
+                if (RecomputeAccountResourceUsage_) {
+                    account->LocalStatistics().ResourceUsage = expectedUsage;
+                    account->LocalStatistics().CommittedResourceUsage = expectedCommittedUsage;
+                    if (Bootstrap_->IsPrimaryMaster()) {
+                        account->ClusterStatistics() = TAccountStatistics();
+                        for (const auto& pair : account->MulticellStatistics()) {
+                            account->ClusterStatistics() += pair.second;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     virtual void Clear() override
@@ -1436,6 +1559,7 @@ private:
         JobUser_ = nullptr;
         SchedulerUser_ = nullptr;
         ReplicatorUser_ = nullptr;
+        OwnerUser_ = nullptr;
         EveryoneGroup_ = nullptr;
         UsersGroup_ = nullptr;
         SuperusersGroup_ = nullptr;
@@ -1537,6 +1661,9 @@ private:
             ReplicatorUser_->SetRequestRateLimit(1000000);
             ReplicatorUser_->SetRequestQueueSizeLimit(1000000);
         }
+
+        // owner
+        EnsureBuiltinUserInitialized(OwnerUser_, OwnerUserId_, OwnerUserName);
 
         // Accounts
 
@@ -1928,6 +2055,18 @@ private:
             THROW_ERROR_EXCEPTION("Subject name cannot be empty");
         }
     }
+
+
+    // XXX(babenko)
+    static void CheckSanity(TAccount* account)
+    {
+        // XXX(babenko)
+        if (account->LocalStatistics().ResourceUsage.DiskSpace[NChunkClient::DefaultStoreMediumIndex] <
+            account->LocalStatistics().CommittedResourceUsage.DiskSpace[NChunkClient::DefaultStoreMediumIndex])
+        {
+            LOG_ERROR("Unexpected error: usage < committed usage for %v", account->GetName());
+        }
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, AccountMap_)
@@ -2117,6 +2256,11 @@ TUser* TSecurityManager::GetRootUser()
 TUser* TSecurityManager::GetGuestUser()
 {
     return Impl_->GetGuestUser();
+}
+
+TUser* TSecurityManager::GetOwnerUser()
+{
+    return Impl_->GetOwnerUser();
 }
 
 TGroup* TSecurityManager::FindGroupByName(const Stroka& name)

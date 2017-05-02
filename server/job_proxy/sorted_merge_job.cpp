@@ -1,9 +1,12 @@
 #include "sorted_merge_job.h"
 #include "job_detail.h"
 
-#include <yt/ytlib/object_client/helpers.h>
-
 #include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/data_source.h>
+
+#include <yt/ytlib/job_proxy/helpers.h>
+
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
@@ -45,19 +48,22 @@ public:
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
         std::vector<ISchemalessMultiChunkReaderPtr> readers;
 
+        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(SchedulerJobSpecExt_.data_source_directory());
+        auto readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(SchedulerJobSpecExt_.table_reader_options()));
+
         for (const auto& inputSpec : SchedulerJobSpecExt_.input_table_specs()) {
-            auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
-            auto readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(inputSpec.table_reader_options()));
+            auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
             TotalRowCount_ += GetCumulativeRowCount(dataSliceDescriptors);
 
-            auto reader = CreateSchemalessSequentialMultiChunkReader(
+            auto reader = CreateSchemalessSequentialMultiReader(
                 Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader,
                 readerOptions,
                 Host_->GetClient(),
                 Host_->LocalDescriptor(),
                 Host_->GetBlockCache(),
                 Host_->GetInputNodeDirectory(),
+                dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
                 TColumnFilter(),

@@ -49,7 +49,8 @@ public:
     TMailbox* CreateMailbox(const TCellId& cellId);
     TMailbox* GetOrCreateMailbox(const TCellId& cellId);
     TMailbox* GetMailboxOrThrow(const TCellId& cellId);
-    void RemoveMailbox(const TCellId& cellId);
+
+    void RemoveMailbox(TMailbox* mailbox);
 
     //! Posts a message for delivery (either reliable or not).
     void PostMessage(
@@ -57,7 +58,15 @@ public:
         const NHiveClient::NProto::TEncapsulatedMessage& message,
         bool reliable = true);
     void PostMessage(
+        const TMailboxList& mailboxes,
+        const NHiveClient::NProto::TEncapsulatedMessage& message,
+        bool reliable = true);
+    void PostMessage(
         TMailbox* mailbox,
+        const ::google::protobuf::MessageLite& message,
+        bool reliable = true);
+    void PostMessage(
+        const TMailboxList& mailboxes,
         const ::google::protobuf::MessageLite& message,
         bool reliable = true);
 
