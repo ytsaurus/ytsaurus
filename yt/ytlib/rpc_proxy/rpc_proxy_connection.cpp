@@ -76,7 +76,7 @@ IClientPtr TRpcProxyConnection::CreateClient(const TClientOptions& options)
     auto localAddress = TAddressResolver::Get()->Resolve(localHostname).Get().ValueOrThrow();
 
     auto localAddressString = ToString(localAddress);
-    YCHECK(localAddressString.has_prefix("tcp://"));
+    YCHECK(localAddressString.StartsWith("tcp://"));
     localAddressString = localAddressString.substr(6);
     {
         auto index = localAddressString.rfind(':');
@@ -84,7 +84,7 @@ IClientPtr TRpcProxyConnection::CreateClient(const TClientOptions& options)
             localAddressString = localAddressString.substr(0, index);
         }
     }
-    if (localAddressString.has_prefix("[") && localAddressString.has_suffix("]")) {
+    if (localAddressString.StartsWith("[") && localAddressString.EndsWith("]")) {
         localAddressString = localAddressString.substr(1, localAddressString.length() - 2);
     }
 
