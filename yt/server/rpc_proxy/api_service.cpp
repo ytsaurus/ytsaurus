@@ -402,6 +402,7 @@ private:
         }
 
         TSelectRowsOptions options; // TODO: Fill all options.
+        options.Timestamp = NTransactionClient::AsyncLastCommittedTimestamp;
 
         client->SelectRows(request->query(), options)
             .Subscribe(BIND([=] (const TErrorOr<TSelectRowsResult>& result) {
