@@ -60,7 +60,7 @@ Stroka ToString(EMergeMode mode)
 
 bool IsLocalMode(const TAuth& auth)
 {
-    static yhash_map<Stroka, bool> localModeMap;
+    static yhash<Stroka, bool> localModeMap;
     static TRWMutex mutex;
 
     {
@@ -117,7 +117,7 @@ public:
     }
 
 private:
-    yhash_map<TOperationId, TInstant> StartTimes_;
+    yhash<TOperationId, TInstant> StartTimes_;
     TMutex Lock_;
 };
 
