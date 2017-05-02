@@ -90,46 +90,51 @@ private:
             return;
         }
 
+        for (const auto& partition : tablet->PartitionList()) {
+            ScanPartitionToSample(slot, partition.get());
+        }
+
         if (tablet->GetConfig()->DisableCompactionAndPartitioning) {
             return;
         }
 
-        int currentMaxOverlappingStoreCount = tablet->GetEden()->Stores().size();
+        int currentMaxOverlappingStoreCount = 0;
         for (const auto& partition : tablet->PartitionList()) {
             currentMaxOverlappingStoreCount = std::max(
                 currentMaxOverlappingStoreCount,
                 int(partition->Stores().size()));
         }
+        currentMaxOverlappingStoreCount += tablet->GetEden()->Stores().size();
         int estimatedMaxOverlappingStoreCount = currentMaxOverlappingStoreCount;
 
         for (const auto& partition : tablet->PartitionList()) {
-            ScanPartitionToSplit(slot, partition.get(), estimatedMaxOverlappingStoreCount);
+            ScanPartitionToSplit(slot, partition.get(), &estimatedMaxOverlappingStoreCount);
         }
 
         int maxAllowedOverlappingStoreCount = tablet->GetConfig()->MaxOverlappingStoreCount -
             (estimatedMaxOverlappingStoreCount - currentMaxOverlappingStoreCount);
+
         for (const auto& partition : tablet->PartitionList()) {
             ScanPartitionToMerge(slot, partition.get(), maxAllowedOverlappingStoreCount);
-            ScanPartitionToSample(slot, partition.get());
         }
     }
 
-    void ScanPartitionToSplit(TTabletSlotPtr slot, TPartition* partition, int& estimatedMaxOverlappingStoreCount)
+    void ScanPartitionToSplit(TTabletSlotPtr slot, TPartition* partition, int* estimatedMaxOverlappingStoreCount)
     {
         auto* tablet = partition->GetTablet();
         const auto& config = tablet->GetConfig();
         int partitionCount = tablet->PartitionList().size();
-        i64 actualDataSize = partition->GetUncompressedDataSize();
+        i64 actualDataSize = partition->GetCompressedDataSize();
         int estimatedStoresDelta = partition->Stores().size();
 
-        if (estimatedStoresDelta + estimatedMaxOverlappingStoreCount <= config->MaxOverlappingStoreCount &&
+        if (estimatedStoresDelta + *estimatedMaxOverlappingStoreCount <= config->MaxOverlappingStoreCount &&
             actualDataSize > config->MaxPartitionDataSize) {
             int splitFactor = std::min(std::min(
                 actualDataSize / config->DesiredPartitionDataSize + 1,
                 actualDataSize / config->MinPartitioningDataSize),
                 static_cast<i64>(config->MaxPartitionCount - partitionCount));
             if (splitFactor > 1 && RunSplit(slot, partition, splitFactor)) {
-                estimatedMaxOverlappingStoreCount += estimatedStoresDelta;
+                *estimatedMaxOverlappingStoreCount += estimatedStoresDelta;
             }
         }
     }
@@ -139,13 +144,13 @@ private:
         auto* tablet = partition->GetTablet();
         const auto& config = tablet->GetConfig();
         int partitionCount = tablet->PartitionList().size();
-        i64 actualDataSize = partition->GetUncompressedDataSize();
+        i64 actualDataSize = partition->GetCompressedDataSize();
 
         // Maximum data size the partition might have if all chunk stores from Eden go here.
         i64 maxPotentialDataSize = actualDataSize;
         for (const auto& store : tablet->GetEden()->Stores()) {
             if (store->GetType() == EStoreType::SortedChunk) {
-                maxPotentialDataSize += store->GetUncompressedDataSize();
+                maxPotentialDataSize += store->GetCompressedDataSize();
             }
         }
 
@@ -320,12 +325,19 @@ private:
 
         const auto& hydraManager = slot->GetHydraManager();
 
-        LOG_INFO("Sampling partition (DesiredSampleCount: %v)",
-            config->SamplesPerPartition);
-
         try {
+            auto compressedDataSize = partition->GetCompressedDataSize();
+            if (compressedDataSize == 0) {
+                THROW_ERROR_EXCEPTION("Empty partition");
+            }
+
+            auto uncompressedDataSize = partition->GetUncompressedDataSize();
+            auto scaledSamples = static_cast<int>(
+                config->SamplesPerPartition * std::max(compressedDataSize, uncompressedDataSize) / compressedDataSize);
+            LOG_INFO("Sampling partition (DesiredSampleCount: %v)", scaledSamples);
+
             auto rowBuffer = New<TRowBuffer>();
-            auto samples = GetPartitionSamples(rowBuffer, partition, config->SamplesPerPartition);
+            auto samples = GetPartitionSamples(rowBuffer, partition, scaledSamples);
             samples.erase(
                 std::unique(samples.begin(), samples.end()),
                 samples.end());

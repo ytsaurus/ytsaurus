@@ -12,7 +12,7 @@ struct IInvoker
     : public virtual TRefCounted
 {
     //! Schedules invocation of a given callback.
-    virtual void Invoke(const TClosure& callback) = 0;
+    virtual void Invoke(TClosure callback) = 0;
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     //! Returns the thread id this invoker is bound to.
@@ -43,7 +43,7 @@ struct IPrioritizedInvoker
      *  enqueued via IInvoker::Invoke (holds for most but not all invoker types),
      *  callbacks enqueued via IPrioritizedInvoker::Invoke are subject to reordering.
      */
-    virtual void Invoke(const TClosure& callback, i64 priority) = 0;
+    virtual void Invoke(TClosure callback, i64 priority) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IPrioritizedInvoker)

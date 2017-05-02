@@ -77,7 +77,7 @@ private:
     DECLARE_NEW_FRIEND();
 };
 
-DEFINE_REFCOUNTED_TYPE(TColumnEvaluator);
+DEFINE_REFCOUNTED_TYPE(TColumnEvaluator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,7 +101,7 @@ private:
     const TIntrusivePtr<TImpl> Impl_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TColumnEvaluatorCache);
+DEFINE_REFCOUNTED_TYPE(TColumnEvaluatorCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

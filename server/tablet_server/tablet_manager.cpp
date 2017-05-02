@@ -295,7 +295,11 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        hiveManager->RemoveMailbox(cell->GetId());
+        const auto& cellId = cell->GetId();
+        auto* mailbox = hiveManager->FindMailbox(cellId);
+        if (mailbox) {
+            hiveManager->RemoveMailbox(mailbox);
+        }
 
         for (const auto& peer : cell->Peers()) {
             if (peer.Node) {
@@ -323,7 +327,7 @@ public:
         AbortPrerequisiteTransaction(cell);
         AbortCellSubtreeTransactions(cell);
 
-        auto cellNodeProxy = FindCellNode(cell->GetId());
+        auto cellNodeProxy = FindCellNode(cellId);
         if (cellNodeProxy) {
             try {
                 // NB: Subtree transactions were already aborted in AbortPrerequisiteTransaction.
@@ -624,8 +628,14 @@ public:
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
 
-        if (!table->IsSorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
+        if (!table->IsPhysicallySorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
             THROW_ERROR_EXCEPTION("Cannot mount an ordered dynamic table in memory");
+        }
+
+        if (mountConfig->InMemoryMode != EInMemoryMode::None &&
+            writerOptions->ErasureCodec != NErasure::ECodec::None)
+        {
+            THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
         }
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
@@ -800,8 +810,14 @@ public:
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
 
-        if (!table->IsSorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
+        if (!table->IsPhysicallySorted() && mountConfig->InMemoryMode != EInMemoryMode::None) {
             THROW_ERROR_EXCEPTION("Cannot mount an ordered dynamic table in memory");
+        }
+
+        if (mountConfig->InMemoryMode != EInMemoryMode::None &&
+            writerOptions->ErasureCodec != NErasure::ECodec::None)
+        {
+            THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
         }
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
@@ -1098,6 +1114,13 @@ public:
             }
             newTablet->SetRetainedTimestamp(retainedTimestamp);
             newTablets.push_back(newTablet);
+
+            if (table->IsReplicated()) {
+                const auto* replicatedTable = table->As<TReplicatedTableNode>();
+                for (auto* replica : replicatedTable->Replicas()) {
+                    YCHECK(newTablet->Replicas().emplace(replica, TTableReplicaInfo()).second);
+                }
+            }
         }
 
         // Drop old tablets.
@@ -2296,7 +2319,10 @@ private:
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* tabletChunkList = chunkLists[index]->AsChunkList();
                 auto* newTabletChunkList = chunkManager->CreateChunkList(!table->IsPhysicallySorted());
-                chunkManager->AttachToChunkList(newTabletChunkList, tabletChunkList->Children());
+                chunkManager->AttachToChunkList(
+                    newTabletChunkList,
+                    tabletChunkList->Children().data() + tabletChunkList->GetTrimmedChildCount(),
+                    tabletChunkList->Children().data() + tabletChunkList->Children().size());
                 chunkManager->AttachToChunkList(newRootChunkList, newTabletChunkList);
             }
 
@@ -2319,7 +2345,10 @@ private:
                 auto* tabletChunkList = chunkLists[index]->AsChunkList();
                 if (objectManager->GetObjectRefCounter(tabletChunkList) > 1) {
                     auto* newTabletChunkList = chunkManager->CreateChunkList(!table->IsPhysicallySorted());
-                    chunkManager->AttachToChunkList(newTabletChunkList, tabletChunkList->Children());
+                    chunkManager->AttachToChunkList(
+                        newTabletChunkList,
+                        tabletChunkList->Children().data() + tabletChunkList->GetTrimmedChildCount(),
+                        tabletChunkList->Children().data() + tabletChunkList->Children().size());
                     chunkLists[index] = newTabletChunkList;
 
                     // TODO(savrus): make a helper to replace a tablet chunk list.
@@ -2585,6 +2614,22 @@ private:
             trimmedRowCount);
     }
 
+    
+    virtual void OnRecoveryComplete() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnRecoveryComplete();
+
+        for (const auto& pair : TabletCellMap_) {
+            auto* cell = pair.second;
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
+            UpdateCellDirectory(cell);
+        }
+    }
+
     virtual void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -2595,13 +2640,6 @@ private:
             TabletTracker_->Start();
         }
 
-        for (const auto& pair : TabletCellMap_) {
-            auto* cell = pair.second;
-            if (!IsObjectAlive(cell)) {
-                continue;
-            }
-            UpdateCellDirectory(cell);
-        }
 
         CleanupExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
@@ -2965,7 +3003,7 @@ private:
         // Prepare tablet writer options.
         const auto& chunkProperties = table->Properties();
         auto primaryMediumIndex = table->GetPrimaryMediumIndex();
-        auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
         *writerOptions = New<TTableWriterOptions>();
         (*writerOptions)->ReplicationFactor = chunkProperties[primaryMediumIndex].GetReplicationFactor();

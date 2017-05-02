@@ -44,13 +44,10 @@ public:
     DEFINE_BYREF_RW_PROPERTY(yhash_set<Stroka>, Tags);
 
     //! Last time when logging of jobs on node took place.
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, LastJobsLogTime);
-
-    //! Last time when statistics and resource usage from running jobs was updated.
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, LastRunningJobsUpdateTime);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, LastJobsLogTime);
 
     //! Last time when missing jobs were checked on this node.
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, LastCheckMissingJobsTime);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, LastCheckMissingJobsTime);
 
     //! Last time when heartbeat from node was processed.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
@@ -143,6 +140,33 @@ struct TExecNodeDescriptor
     double IOWeight = 0.0;
     TJobResources ResourceLimits;
     yhash_set<Stroka> Tags;
+
+    void Persist(const TStreamPersistenceContext& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! An immutable ref-counted list of TExecNodeDescriptor-s.
+struct TExecNodeDescriptorList
+    : public TSimpleRefCounted
+{
+    std::vector<TExecNodeDescriptor> Descriptors;
+};
+
+DEFINE_REFCOUNTED_TYPE(TExecNodeDescriptorList)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A reduced verison of TExecNodeDescriptor, which is associated with jobs.
+struct TJobNodeDescriptor
+{
+    TJobNodeDescriptor() = default;
+    TJobNodeDescriptor(const TJobNodeDescriptor& other) = default;
+    TJobNodeDescriptor(const TExecNodeDescriptor& other);
+
+    NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
+    Stroka Address;
+    double IOWeight = 0.0;
 
     void Persist(const TStreamPersistenceContext& context);
 };

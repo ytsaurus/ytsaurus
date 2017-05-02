@@ -62,6 +62,7 @@ static_assert(sizeof(TMediumChunkProperties) == 1, "sizeof(TMediumChunkPropertie
 bool operator==(const TMediumChunkProperties& lhs, const TMediumChunkProperties& rhs);
 bool operator!=(const TMediumChunkProperties& lhs, const TMediumChunkProperties& rhs);
 
+void FormatValue(TStringBuilder* builder, const TMediumChunkProperties& properties, const TStringBuf& format);
 Stroka ToString(const TMediumChunkProperties& properties);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,6 +122,7 @@ private:
 bool operator==(const TChunkProperties& lhs, const TChunkProperties& rhs);
 bool operator!=(const TChunkProperties& lhs, const TChunkProperties& rhs);
 
+void FormatValue(TStringBuilder* builder, const TChunkProperties& properties, const TStringBuf& format);
 Stroka ToString(const TChunkProperties& properties);
 
 ////////////////////////////////////////////////////////////////////////////////

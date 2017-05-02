@@ -40,6 +40,12 @@ using namespace NChunkClient;
 
 static const auto& Logger = SchedulerLogger;
 
+static const Stroka InputRowCountPath = "/data/input/row_count";
+static const Stroka InputUncompressedDataSizePath = "/data/input/uncompressed_data_size";
+static const Stroka InputCompressedDataSizePath = "/data/input/compressed_data_size";
+static const Stroka InputPipeIdleTimePath = "/user_job/pipes/input/idle_time";
+static const Stroka JobProxyCpuUsagePath = "/job_proxy/cpu/user";
+
 ////////////////////////////////////////////////////////////////////
 
 class TSimpleJobSizeConstraints
@@ -105,9 +111,9 @@ public:
             : 1;
     }
 
-    virtual i64 GetMaxChunkStripesPerJob() const override
+    virtual i64 GetMaxDataSlicesPerJob() const override
     {
-        return Options_->MaxChunkStripesPerJob;
+        return Options_->MaxDataSlicesPerJob;
     }
 
     virtual i64 GetMaxDataSizePerJob() const override
@@ -186,7 +192,7 @@ public:
         , Options_(options)
         , InputDataSize_(inputDataSize)
     {
-        JobCount_ = DivCeil(InputDataSize_, Spec_->DataSizePerSortJob);
+        JobCount_ = DivCeil(InputDataSize_, Spec_->DataSizePerShuffleJob);
         YCHECK(JobCount_ >= 0);
         YCHECK(JobCount_ != 0 || InputDataSize_ == 0);
     }
@@ -213,9 +219,9 @@ public:
             : 1;
     }
 
-    virtual i64 GetMaxChunkStripesPerJob() const override
+    virtual i64 GetMaxDataSlicesPerJob() const override
     {
-        return Options_->MaxChunkStripesPerJob;
+        return Options_->MaxDataSlicesPerJob;
     }
 
     virtual i64 GetMaxDataSizePerJob() const override
@@ -341,9 +347,9 @@ public:
             : 1;
     }
 
-    virtual i64 GetMaxChunkStripesPerJob() const override
+    virtual i64 GetMaxDataSlicesPerJob() const override
     {
-        return Options_->MaxChunkStripesPerJob;
+        return Options_->MaxDataSlicesPerJob;
     }
 
     virtual i64 GetMaxDataSizePerJob() const override
@@ -406,6 +412,104 @@ DEFINE_REFCOUNTED_TYPE(TPartitionJobSizeConstraints)
 
 ////////////////////////////////////////////////////////////////////
 
+class TExplicitJobSizeConstraints
+    : public IJobSizeConstraints
+{
+public:
+    //! Used only for persistence.
+    TExplicitJobSizeConstraints()
+    { }
+
+    TExplicitJobSizeConstraints(
+        bool canAdjustDataSizePerJob,
+        bool isExplicitJobCount,
+        int jobCount,
+        i64 dataSizePerJob,
+        i64 maxDataSlicesPerJob,
+        i64 maxDataSizePerJob,
+        i64 inputSliceDataSize,
+        i64 inputSliceRowCount)
+        : CanAdjustDataSizePerJob_(canAdjustDataSizePerJob)
+        , IsExplicitJobCount_(isExplicitJobCount)
+        , JobCount_(jobCount)
+        , DataSizePerJob_(dataSizePerJob)
+        , MaxDataSlicesPerJob_(maxDataSlicesPerJob)
+        , MaxDataSizePerJob_(maxDataSizePerJob)
+        , InputSliceDataSize_(inputSliceDataSize)
+        , InputSliceRowCount_(inputSliceRowCount)
+    { }
+
+    virtual bool CanAdjustDataSizePerJob() const override
+    {
+        return CanAdjustDataSizePerJob_;
+    }
+
+    virtual bool IsExplicitJobCount() const override
+    {
+        return IsExplicitJobCount_;
+    }
+
+    virtual int GetJobCount() const override
+    {
+        return JobCount_;
+    }
+
+    virtual i64 GetDataSizePerJob() const override
+    {
+        return DataSizePerJob_;
+    }
+
+    virtual i64 GetMaxDataSlicesPerJob() const override
+    {
+        return MaxDataSlicesPerJob_;
+    }
+
+    virtual i64 GetMaxDataSizePerJob() const override
+    {
+        return MaxDataSizePerJob_;
+    }
+
+    virtual i64 GetInputSliceDataSize() const override
+    {
+        return InputSliceDataSize_;
+    }
+
+    virtual i64 GetInputSliceRowCount() const override
+    {
+        return InputSliceRowCount_;
+    }
+
+    virtual void Persist(const NPhoenix::TPersistenceContext& context) override
+    {
+        using NYT::Persist;
+        Persist(context, CanAdjustDataSizePerJob_);
+        Persist(context, IsExplicitJobCount_);
+        Persist(context, JobCount_);
+        Persist(context, DataSizePerJob_);
+        Persist(context, MaxDataSlicesPerJob_);
+        Persist(context, MaxDataSizePerJob_);
+        Persist(context, InputSliceDataSize_);
+        Persist(context, InputSliceRowCount_);
+    }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TExplicitJobSizeConstraints, 0xab6bc389);
+
+    bool CanAdjustDataSizePerJob_;
+    bool IsExplicitJobCount_;
+    int JobCount_;
+    i64 DataSizePerJob_;
+    i64 MaxDataSlicesPerJob_;
+    i64 MaxDataSizePerJob_;
+    i64 InputSliceDataSize_;
+    i64 InputSliceRowCount_;
+};
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TExplicitJobSizeConstraints);
+DEFINE_REFCOUNTED_TYPE(TExplicitJobSizeConstraints);
+
+////////////////////////////////////////////////////////////////////
+
 IJobSizeConstraintsPtr CreateSimpleJobSizeConstraints(
     const TSimpleOperationSpecBasePtr& spec,
     const TSimpleOperationOptionsPtr& options,
@@ -431,6 +535,42 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
     double compressionRatio)
 {
     return New<TPartitionJobSizeConstraints>(spec, options, inputDataSize, inputRowCount, compressionRatio);
+}
+
+IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
+    const TSortOperationSpecBasePtr& spec,
+    const TSortOperationOptionsBasePtr& options)
+{
+    return CreateExplicitJobSizeConstraints(
+        false /* canAdjustDataSizePerJob */,
+        false /* isExplicitJobCount */,
+        0 /* jobCount */,
+        spec->DataSizePerSortedJob.Get(spec->DataSizePerShuffleJob) /* dataSizePerJob */,
+        options->MaxDataSlicesPerJob /* maxDataSlicesPerJob */,
+        std::numeric_limits<i64>::max() /* maxDataSizePerJob */,
+        std::numeric_limits<i64>::max() /* inputSliceDataSize */,
+        std::numeric_limits<i64>::max() /* inputSliceRowCount */);
+}
+
+IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
+    bool canAdjustDataSizePerJob,
+    bool isExplicitJobCount,
+    int jobCount,
+    i64 dataSizePerJob,
+    i64 maxDataSlicesPerJob,
+    i64 maxDataSizePerJob,
+    i64 inputSliceDataSize,
+    i64 inputSliceRowCount)
+{
+    return New<TExplicitJobSizeConstraints>(
+        canAdjustDataSizePerJob,
+        isExplicitJobCount,
+        jobCount,
+        dataSizePerJob,
+        maxDataSlicesPerJob,
+        maxDataSizePerJob,
+        inputSliceDataSize,
+        inputSliceRowCount);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -643,6 +783,37 @@ Stroka MakeOperationCodicilString(const TOperationId& operationId)
 TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId)
 {
     return TCodicilGuard(MakeOperationCodicilString(operationId));
+}
+
+////////////////////////////////////////////////////////////////////
+
+Stroka TLockedUserObject::GetPath() const
+{
+    return FromObjectId(ObjectId);
+}
+
+////////////////////////////////////////////////////////////////////
+
+TBriefJobStatisticsPtr BuildBriefStatistics(const TYsonString& statisticsYson)
+{
+    auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(statisticsYson);
+
+    auto briefStatistics = New<TBriefJobStatistics>();
+    briefStatistics->ProcessedInputRowCount = GetNumericValue(statistics, InputRowCountPath);
+    briefStatistics->ProcessedInputUncompressedDataSize = GetNumericValue(statistics, InputUncompressedDataSizePath);
+    briefStatistics->ProcessedInputCompressedDataSize = GetNumericValue(statistics, InputCompressedDataSizePath);
+    briefStatistics->InputPipeIdleTime = FindNumericValue(statistics, InputPipeIdleTimePath);
+    briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, JobProxyCpuUsagePath);
+    briefStatistics->Timestamp = statistics.GetTimestamp().Get(TInstant::Now());
+
+    // TODO(max42): GetTotalOutputDataStatistics is implemented very inefficiently (it creates yhash_map containing
+    // output data statistics per output table and then aggregates them). Rewrite it without any new allocations.
+    auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
+    briefStatistics->ProcessedOutputUncompressedDataSize = outputDataStatistics.uncompressed_data_size();
+    briefStatistics->ProcessedOutputCompressedDataSize = outputDataStatistics.compressed_data_size();
+    briefStatistics->ProcessedOutputRowCount = outputDataStatistics.row_count();
+
+    return briefStatistics;
 }
 
 ////////////////////////////////////////////////////////////////////

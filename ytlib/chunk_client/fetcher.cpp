@@ -1,4 +1,4 @@
-#include "fetcher_base.h"
+#include "fetcher.h"
 #include "private.h"
 #include "chunk_replica.h"
 #include "input_chunk.h"

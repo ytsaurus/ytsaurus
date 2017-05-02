@@ -211,7 +211,7 @@ private:
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TLocation);
+DEFINE_REFCOUNTED_TYPE(TLocation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -289,7 +289,7 @@ private:
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TStoreLocation);
+DEFINE_REFCOUNTED_TYPE(TStoreLocation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -315,7 +315,7 @@ private:
     virtual std::vector<Stroka> GetChunkPartNames(const TChunkId& chunkId) const override;
 };
 
-DEFINE_REFCOUNTED_TYPE(TCacheLocation);
+DEFINE_REFCOUNTED_TYPE(TCacheLocation)
 
 ////////////////////////////////////////////////////////////////////////////////
 

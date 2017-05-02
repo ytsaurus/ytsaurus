@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include "private.h"
@@ -21,19 +22,21 @@ class TThrottlerManager
 public:
     TThrottlerManager(
         NConcurrency::TThroughputThrottlerConfigPtr config,
-        const NLogging::TLogger& logger = NLogging::TLogger(),
-        const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
+        const NLogging::TLogger& logger = NLogging::TLogger());
 
     NConcurrency::IThroughputThrottlerPtr GetThrottler(NObjectClient::TCellTag cellTag);
 
+    void Reconfigure(NConcurrency::TThroughputThrottlerConfigPtr config);
+
 private:
-    const NConcurrency::TThroughputThrottlerConfigPtr Config_;
+    NConcurrency::TThroughputThrottlerConfigPtr Config_;
+
     const NLogging::TLogger Logger_;
     const NProfiling::TProfiler Profiler_;
 
     //! Protects the section immediately following it.
     TSpinLock SpinLock_;
-    yhash<NObjectClient::TCellTag, NConcurrency::IThroughputThrottlerPtr> ThrottlerMap_;
+    yhash<NObjectClient::TCellTag, NConcurrency::IReconfigurableThroughputThrottlerPtr> ThrottlerMap_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TThrottlerManager)

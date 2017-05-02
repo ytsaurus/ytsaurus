@@ -223,7 +223,7 @@ public:
         Logger.AddTag("Path: %v", FileName_);
     }
 
-    TFileChangelogConfigPtr GetConfig() const
+    const TFileChangelogConfigPtr& GetConfig() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -939,7 +939,7 @@ TSyncFileChangelog::TSyncFileChangelog(
 
 TSyncFileChangelog::~TSyncFileChangelog() = default;
 
-TFileChangelogConfigPtr TSyncFileChangelog::GetConfig()
+const TFileChangelogConfigPtr& TSyncFileChangelog::GetConfig()
 {
     return Impl_->GetConfig();
 }

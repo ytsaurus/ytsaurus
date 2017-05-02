@@ -31,6 +31,8 @@ DEFINE_ENUM(EJobProxyExitCode,
     ((UncaughtException)      (25))
     ((GetJobSpecFailed)       (26))
     ((JobProxyPrepareFailed)  (27))
+    ((InvalidSpecVersion)     (28))
+    ((ResourceOverdraft)      (29))
 );
 
 DEFINE_ENUM(EErrorCode,

@@ -166,8 +166,12 @@ public:
         int firstBlockIndex,
         int blockCount) override
     {
-        // TODO(babenko): implement when first needed
-        Y_UNIMPLEMENTED();
+        std::vector<int> blockIndexes;
+        blockIndexes.reserve(blockCount);
+        for (int index = firstBlockIndex; index < firstBlockIndex + blockCount; ++index) {
+            blockIndexes.push_back(index);
+        }
+        return ReadBlocks(workloadDescriptor, blockIndexes);
     }
 
     virtual TFuture<TChunkMeta> GetMeta(

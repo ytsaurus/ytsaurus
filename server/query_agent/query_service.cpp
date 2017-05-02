@@ -170,7 +170,6 @@ private:
 
                 struct TLookupRowBufferTag { };
                 TWireProtocolReader reader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
-
                 TWireProtocolWriter writer;
 
                 const auto& tabletManager = tabletSnapshot->TabletManager;

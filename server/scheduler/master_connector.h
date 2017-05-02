@@ -36,12 +36,19 @@ struct TOperationReport
     TOperationPtr Operation;
     TControllerTransactionsPtr ControllerTransactions;
     bool UserTransactionAborted = false;
+    bool IsCommitted = false;
 };
 
 //! Information retrieved during scheduler-master handshake.
 struct TMasterHandshakeResult
 {
     std::vector<TOperationReport> OperationReports;
+};
+
+struct TOperationSnapshot
+{
+    int Version = -1;
+    TSharedRef Data;
 };
 
 typedef TCallback<void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr)> TWatcherRequester;
@@ -62,11 +69,13 @@ public:
 
     bool IsConnected() const;
 
+    void Disconnect();
+
     TFuture<void> CreateOperationNode(TOperationPtr operation);
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation);
     TFuture<void> FlushOperationNode(TOperationPtr operation);
 
-    TFuture<TSharedRef> DownloadSnapshot(const TOperationId& operationId);
+    TFuture<TOperationSnapshot> DownloadSnapshot(const TOperationId& operationId);
     TFuture<void> RemoveSnapshot(const TOperationId& operationId);
 
     void CreateJobNode(const TCreateJobNodeRequest& createJobNodeRequest);

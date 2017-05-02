@@ -20,6 +20,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/block_fetcher.h>
@@ -235,7 +236,7 @@ struct TArtifactMetaHeader
     ui64 Version = ExpectedVersion;
 
     static constexpr ui64 ExpectedSignature = 0x313030484d415459ull; // YTAMH001
-    static constexpr ui64 ExpectedVersion = 1;
+    static constexpr ui64 ExpectedVersion = 3;
 };
 
 constexpr ui64 TArtifactMetaHeader::ExpectedSignature;
@@ -365,11 +366,12 @@ public:
 
             auto downloader = &TImpl::DownloadChunk;
             if (!canPrepareSingleChunk) {
-                switch (EObjectType(key.type())) {
-                    case EObjectType::File:
+                switch (EDataSourceType(key.data_source_type())) {
+                    case EDataSourceType::File:
                         downloader = &TImpl::DownloadFile;
                         break;
-                    case EObjectType::Table:
+                    case EDataSourceType::UnversionedTable:
+                    case EDataSourceType::VersionedTable:
                         downloader = &TImpl::DownloadTable;
                         break;
                     default:
@@ -527,8 +529,8 @@ private:
     TChunkId GetOrCreateArtifactId(const TArtifactKey& key, bool canPrepareSingleChunk)
     {
         if (canPrepareSingleChunk) {
-            YCHECK(key.data_slice_descriptors_size() == 1 && key.data_slice_descriptors(0).chunks_size() == 1);
-            const auto& chunkSpec = key.data_slice_descriptors(0).chunks(0);
+            YCHECK(key.chunk_specs_size() == 1);
+            const auto& chunkSpec = key.chunk_specs(0);
             return FromProto<TChunkId>(chunkSpec.chunk_id());
         } else {
             return TChunkId(
@@ -541,17 +543,14 @@ private:
 
     bool CanPrepareSingleChunk(const TArtifactKey& key)
     {
-        if (EObjectType(key.type()) != EObjectType::File) {
+        if (EDataSourceType(key.data_source_type()) != EDataSourceType::File) {
             return false;
         }
-        if (key.data_slice_descriptors_size() != 1) {
-            return false;
-        }
-        if (key.data_slice_descriptors(0).chunks_size() != 1) {
+        if (key.chunk_specs_size() != 1) {
             return false;
         }
 
-        const auto& chunk = key.data_slice_descriptors(0).chunks(0);
+        const auto& chunk = key.chunk_specs(0);
         if (chunk.has_lower_limit() && !IsTrivial(chunk.lower_limit())) {
             return false;
         }
@@ -580,7 +579,7 @@ private:
         TNodeDirectoryPtr nodeDirectory,
         TInsertCookie cookie)
     {
-        const auto& chunkSpec = key.data_slice_descriptors(0).chunks(0);
+        const auto& chunkSpec = key.chunk_specs(0);
         auto seedReplicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
         auto Logger = DataNodeLogger;
@@ -686,12 +685,7 @@ private:
         TNodeDirectoryPtr nodeDirectory,
         TInsertCookie cookie)
     {
-        std::vector<TChunkSpec> chunkSpecs;
-
-        for (const auto& descriptor : key.data_slice_descriptors()) {
-            auto dataSliceDescriptor = FromProto<TDataSliceDescriptor>(descriptor);
-            chunkSpecs.push_back(dataSliceDescriptor.GetSingleFileChunk());
-        }
+        std::vector<TChunkSpec> chunkSpecs(key.chunk_specs().begin(), key.chunk_specs().end());
 
         auto options = New<TMultiChunkReaderOptions>();
         options->EnableP2P = true;
@@ -744,20 +738,50 @@ private:
         TNodeDirectoryPtr nodeDirectory,
         TInsertCookie cookie)
     {
+        static const Stroka CachedSourcePath = "<cached_data_source>";
+
         auto nameTable = New<TNameTable>();
 
         auto options = New<NTableClient::TTableReaderOptions>();
         options->EnableP2P = true;
 
-        auto dataSliceDescriptors = FromProto<std::vector<TDataSliceDescriptor>>(key.data_slice_descriptors());
+        std::vector<TDataSliceDescriptor> dataSliceDescriptors;
+        auto dataSourceDirectory = New<NChunkClient::TDataSourceDirectory>();
 
-        auto reader = CreateSchemalessSequentialMultiChunkReader(
+        TNullable<TTableSchema> schema = key.has_table_schema()
+            ? MakeNullable(FromProto<TTableSchema>(key.table_schema()))
+            : Null;
+
+        switch (EDataSourceType(key.data_source_type())) {
+            case EDataSourceType::UnversionedTable:
+                dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(CachedSourcePath, schema));
+
+                for (const auto& chunkSpec : key.chunk_specs()) {
+                    dataSliceDescriptors.push_back(TDataSliceDescriptor(chunkSpec));
+                }
+                break;
+
+            case EDataSourceType::VersionedTable:
+                YCHECK(schema);
+                dataSourceDirectory->DataSources().push_back(MakeVersionedDataSource(
+                    CachedSourcePath,
+                    *schema,
+                    key.timestamp()));
+                dataSliceDescriptors.push_back(TDataSliceDescriptor(FromProto<std::vector<TChunkSpec>>(key.chunk_specs())));
+                break;
+
+            default:
+                Y_UNREACHABLE();
+        }
+
+        auto reader = CreateSchemalessSequentialMultiReader(
             Config_->ArtifactCacheReader,
             options,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             nodeDirectory,
+            dataSourceDirectory,
             std::move(dataSliceDescriptors),
             nameTable,
             TColumnFilter(),
@@ -779,10 +803,10 @@ private:
                     New<TControlAttributesConfig>(),
                     0);
                 PipeReaderToWriter(
-                    reader, 
-                    writer, 
-                    TableArtifactBufferRowCount, 
-                    false, 
+                    reader,
+                    writer,
+                    TableArtifactBufferRowCount,
+                    false,
                     location->GetInThrottler());
             };
 

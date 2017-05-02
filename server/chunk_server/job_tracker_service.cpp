@@ -149,12 +149,12 @@ private:
             ToProto(jobInfo->mutable_job_id(), job->GetJobId());
             *jobInfo->mutable_resource_limits() = job->ResourceUsage();
 
-            auto* jobSpec = jobInfo->mutable_spec();
-            jobSpec->set_type(static_cast<int>(job->GetType()));
+            TJobSpec jobSpec;
+            jobSpec.set_type(static_cast<int>(job->GetType()));
 
             switch (job->GetType()) {
                 case EJobType::ReplicateChunk: {
-                    auto* jobSpecExt = jobSpec->MutableExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext);
+                    auto* jobSpecExt = jobSpec.MutableExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext);
                     ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkIdWithIndexes));
                     jobSpecExt->set_source_medium_index(chunkIdWithIndexes.MediumIndex);
 
@@ -167,7 +167,7 @@ private:
                 }
 
                 case EJobType::RemoveChunk: {
-                    auto* jobSpecExt = jobSpec->MutableExtension(TRemoveChunkJobSpecExt::remove_chunk_job_spec_ext);
+                    auto* jobSpecExt = jobSpec.MutableExtension(TRemoveChunkJobSpecExt::remove_chunk_job_spec_ext);
                     ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkIdWithIndexes));
                     jobSpecExt->set_medium_index(chunkIdWithIndexes.MediumIndex);
                     break;
@@ -176,7 +176,7 @@ private:
                 case EJobType::RepairChunk: {
                     auto* chunk = chunkManager->GetChunk(chunkIdWithIndexes.Id);
 
-                    auto* jobSpecExt = jobSpec->MutableExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext);
+                    auto* jobSpecExt = jobSpec.MutableExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext);
                     jobSpecExt->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
                     ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkIdWithIndexes));
 
@@ -196,7 +196,7 @@ private:
                 case EJobType::SealChunk: {
                     auto* chunk = chunkManager->GetChunk(chunkIdWithIndexes.Id);
 
-                    auto* jobSpecExt = jobSpec->MutableExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext);
+                    auto* jobSpecExt = jobSpec.MutableExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext);
                     ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkIdWithIndexes));
                     jobSpecExt->set_medium_index(chunkIdWithIndexes.MediumIndex);
                     jobSpecExt->set_row_count(chunk->GetSealedRowCount());
@@ -211,6 +211,9 @@ private:
                 default:
                     Y_UNREACHABLE();
             }
+
+            auto serializedJobSpec = SerializeToProtoWithEnvelope(jobSpec);
+            response->Attachments().push_back(serializedJobSpec);
         }
 
         for (const auto& job : jobsToAbort) {

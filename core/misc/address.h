@@ -1,7 +1,9 @@
 #pragma once
 
 #include "common.h"
+#include "config.h"
 #include "error.h"
+#include "local_address.h"
 
 #include <yt/core/actions/future.h>
 
@@ -39,13 +41,15 @@ TStringBuf GetServiceHostName(const TStringBuf& address);
 
 //! Configuration for TAddressResolver singleton.
 class TAddressResolverConfig
-    : public NYTree::TYsonSerializable
+    : public TExpiringCacheConfig
 {
 public:
     bool EnableIPv4;
     bool EnableIPv6;
     TNullable<Stroka> LocalHostFqdn;
-    TDuration AddressExpirationTime;
+    int Retries;
+    TDuration ResolveTimeout;
+    TDuration WarningTimeout;
 
     TAddressResolverConfig()
     {
@@ -55,8 +59,12 @@ public:
             .Default(true);
         RegisterParameter("localhost_fqdn", LocalHostFqdn)
             .Default();
-        RegisterParameter("address_expiration_time", AddressExpirationTime)
-            .Default(TDuration::Minutes(1));
+        RegisterParameter("retries", Retries)
+            .Default(25);
+        RegisterParameter("resolve_timeout", ResolveTimeout)
+            .Default(TDuration::MilliSeconds(200));
+        RegisterParameter("warning_timeout", WarningTimeout)
+            .Default(TDuration::MilliSeconds(500));
     }
 };
 
@@ -71,6 +79,7 @@ public:
     TNetworkAddress();
     TNetworkAddress(const TNetworkAddress& other, int port);
     explicit TNetworkAddress(const sockaddr& other, socklen_t length = 0);
+    TNetworkAddress(int family, const char* addr, size_t size);
 
     sockaddr* GetSockAddr();
     const sockaddr* GetSockAddr() const;
@@ -114,13 +123,6 @@ public:
      *  Caches successful resolutions.
      */
     TFuture<TNetworkAddress> Resolve(const Stroka& address);
-
-    //! Returns the FQDN of the local host.
-    /*!
-     *  If for some reason this FQDN could not be determined, |<unknown>| string is used.
-     *  \see IsLocalHostNameOK
-     */
-    Stroka GetLocalHostName();
 
     //! Return |true| if the local host FQDN can be properly determined.
     bool IsLocalHostNameOK();

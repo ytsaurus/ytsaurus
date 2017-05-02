@@ -58,7 +58,7 @@ struct ICallingConvention
 
 };
 
-DEFINE_REFCOUNTED_TYPE(ICallingConvention);
+DEFINE_REFCOUNTED_TYPE(ICallingConvention)
 
 class TUnversionedValueCallingConvention
     : public ICallingConvention
@@ -103,7 +103,8 @@ public:
 ICallingConventionPtr GetCallingConvention(
     ECallingConvention callingConvention,
     int repeatedArgIndex,
-    TType repeatedArgType);
+    TType repeatedArgType,
+    bool useFunctionContext);
 
 ICallingConventionPtr GetCallingConvention(ECallingConvention callingConvention);
 
@@ -133,12 +134,13 @@ public:
         ECallingConvention callingConvention,
         TType repeatedArgType,
         int repeatedArgIndex,
+        bool useFunctionContext,
         TSharedRef fingerprint)
         : TExternalFunctionCodegen(
             functionName,
             symbolName,
             implementationFile,
-            GetCallingConvention(callingConvention, repeatedArgIndex, repeatedArgType),
+            GetCallingConvention(callingConvention, repeatedArgIndex, repeatedArgType, useFunctionContext),
             fingerprint)
     { }
 

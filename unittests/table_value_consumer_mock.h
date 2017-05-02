@@ -30,7 +30,7 @@ public:
     MOCK_METHOD1(OnMyValue, void(const TUnversionedValue& value));
     MOCK_METHOD0(OnEndRow, void());
 
-    virtual TNameTablePtr GetNameTable() const override
+    virtual const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
     }

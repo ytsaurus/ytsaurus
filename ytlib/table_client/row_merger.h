@@ -95,7 +95,9 @@ public:
 
     TVersionedRowMerger(
         TRowBufferPtr rowBuffer,
+        int columnCount,
         int keyColumnCount,
+        const TColumnFilter& columnFilter,
         TRetentionConfigPtr config,
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp,
@@ -109,15 +111,17 @@ public:
     TTimestamp GetMajorTimestamp() const;
 
 private:
-    TRowBufferPtr RowBuffer_;
-    int KeyColumnCount_;
-    TRetentionConfigPtr Config_;
-    TTimestamp CurrentTimestamp_;
-    TTimestamp MajorTimestamp_;
-    NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
+    const TRowBufferPtr RowBuffer_;
+    const int ColumnCount_;
+    const int KeyColumnCount_;
+    const TRetentionConfigPtr Config_;
+    const TTimestamp CurrentTimestamp_;
+    const TTimestamp MajorTimestamp_;
+    const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
     bool Started_ = false;
 
+    SmallVector<int, TypicalColumnCount> ColumnIds_;
     SmallVector<TUnversionedValue, TypicalColumnCount> Keys_;
 
     std::vector<TVersionedValue> PartialValues_;

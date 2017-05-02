@@ -1,4 +1,3 @@
-
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/buffered_stream.cpp
   ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
@@ -100,6 +99,3 @@ foreach(PYTHON_KIND IN LISTS PYTHON_KINDS)
   )
 endforeach()
 
-################################################################################
-ENDIF()
-################################################################################

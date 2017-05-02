@@ -71,7 +71,7 @@ private:
         try {
             LOG_DEBUG("Started synchronizing cell directory");
 
-            auto channel = CellDirectory_->GetChannelOrThrow(PrimaryCellId_, NHydra::EPeerKind::Leader);
+            auto channel = CellDirectory_->GetChannelOrThrow(PrimaryCellId_, NHydra::EPeerKind::Follower);
             THiveServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Config_->SyncRpcTimeout);
 

@@ -269,6 +269,11 @@ void ParseKeyPart(
             break;
         }
 
+        case NYson::ETokenType::Hash: {
+            value = MakeUnversionedSentinelValue(EValueType::Null);
+            break;
+        }
+
         default:
             ThrowUnexpectedToken(tokenizer.CurrentToken());
             break;
@@ -464,6 +469,11 @@ bool TRichYPath::GetForeign() const
     return GetAttribute(*this, "foreign", false);
 }
 
+void TRichYPath::SetForeign(bool value)
+{
+    Attributes().Set("foreign", value);
+}
+
 TChannel TRichYPath::GetChannel() const
 {
     if (Attributes().Contains("channel")) {
@@ -504,6 +514,15 @@ void TRichYPath::SetRanges(const std::vector<NChunkClient::TReadRange>& value)
     // COMPAT(ignat)
     Attributes().Remove("lower_limit");
     Attributes().Remove("upper_limit");
+}
+
+bool TRichYPath::HasNontrivialRanges() const
+{
+    auto maybeLowerLimit = FindAttribute<TReadLimit>(*this, "lower_limit");
+    auto maybeUpperLimit = FindAttribute<TReadLimit>(*this, "upper_limit");
+    auto maybeRanges = FindAttribute<std::vector<TReadRange>>(*this, "ranges");
+
+    return maybeUpperLimit || maybeUpperLimit || maybeRanges;
 }
 
 TNullable<Stroka> TRichYPath::GetFileName() const
@@ -554,6 +573,21 @@ TNullable<i64> TRichYPath::GetRowCountLimit() const
 TNullable<NTransactionClient::TTimestamp> TRichYPath::GetTimestamp() const
 {
     return FindAttribute<NTransactionClient::TTimestamp>(*this, "timestamp");
+}
+
+TNullable<NTableClient::EOptimizeFor> TRichYPath::GetOptimizeFor() const
+{
+    return FindAttribute<NTableClient::EOptimizeFor>(*this, "optimize_for");
+}
+
+TNullable<NCompression::ECodec> TRichYPath::GetCompressionCodec() const
+{
+    return FindAttribute<NCompression::ECodec>(*this, "compression_codec");
+}
+
+TNullable<NErasure::ECodec> TRichYPath::GetErasureCodec() const
+{
+    return FindAttribute<NErasure::ECodec>(*this, "erasure_codec");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

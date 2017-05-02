@@ -15,19 +15,30 @@ public:
     TSchedulingContext(
         TSchedulerConfigPtr config,
         TExecNodePtr node,
+        NConcurrency::IThroughputThrottlerPtr jobSpecSliceThrottler,
         const std::vector<TJobPtr>& runningJobs,
         TCellTag cellTag)
         : TSchedulingContextBase(
-            config,
-            node,
+            std::move(config),
+            std::move(node),
             runningJobs,
             cellTag)
+        , JobSpecSliceThrottler_(std::move(jobSpecSliceThrottler))
     { }
 
-    virtual TInstant GetNow() const override
+    virtual NProfiling::TCpuInstant GetNow() const override
     {
-        return TInstant::Now();
+        return NProfiling::GetCpuInstant();
     }
+
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const override
+    {
+        return JobSpecSliceThrottler_;
+    }
+
+private:
+    const NConcurrency::IThroughputThrottlerPtr JobSpecSliceThrottler_;
+
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -35,10 +46,16 @@ public:
 ISchedulingContextPtr CreateSchedulingContext(
     TSchedulerConfigPtr config,
     TExecNodePtr node,
+    NConcurrency::IThroughputThrottlerPtr jobSpecSliceThrottler,
     const std::vector<TJobPtr>& runningJobs,
     TCellTag cellTag)
 {
-    return New<TSchedulingContext>(config, node, runningJobs, cellTag);
+    return New<TSchedulingContext>(
+        std::move(config),
+        std::move(node),
+        std::move(jobSpecSliceThrottler),
+        runningJobs,
+        cellTag);
 }
 
 ////////////////////////////////////////////////////////////////////
