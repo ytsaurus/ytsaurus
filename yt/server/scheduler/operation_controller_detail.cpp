@@ -4181,7 +4181,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     path);
             }
 
-            if (!NFS::GetRealPath("sandbox").is_prefix(NFS::GetRealPath(NFS::CombinePaths("sandbox", fileName)))) {
+            if (!NFS::GetRealPath(NFS::CombinePaths("sandbox", fileName)).StartsWith(NFS::GetRealPath("sandbox"))) {
                 THROW_ERROR_EXCEPTION("User file name cannot reference outside of sandbox directory")
                     << TErrorAttribute("file_name", fileName);
             }
