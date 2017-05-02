@@ -617,7 +617,7 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema, bool isTableDynamic
             THROW_ERROR_EXCEPTION("Column name cannot be empty");
         }
 
-        if (columnSchema.Name.has_prefix(SystemColumnNamePrefix)) {
+        if (columnSchema.Name.StartsWith(SystemColumnNamePrefix)) {
             THROW_ERROR_EXCEPTION("Column name cannot start with prefix %Qv",
                 SystemColumnNamePrefix);
         }
@@ -1102,7 +1102,7 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
         }
     }
 
-    yhash_map<Stroka, TColumnSchema> nameToColumnSchema;
+    yhash<Stroka, TColumnSchema> nameToColumnSchema;
     std::vector<Stroka> columnNames;
 
     for (const auto& schema : schemas) {

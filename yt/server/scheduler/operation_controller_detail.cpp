@@ -5351,7 +5351,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_output_format(ConvertToYsonString(outputFormat).GetData());
     }
 
-    auto fillEnvironment = [&] (yhash_map<Stroka, Stroka>& env) {
+    auto fillEnvironment = [&] (yhash<Stroka, Stroka>& env) {
         for (const auto& pair : env) {
             jobSpec->add_environment(Format("%v=%v", pair.first, pair.second));
         }

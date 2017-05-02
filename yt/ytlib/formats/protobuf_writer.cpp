@@ -81,7 +81,7 @@ private:
 
         for (int i = descriptor.Fields.size(); i < NameTable_->GetSize(); ++i) {
             auto name = Stroka(NameTable_->GetName(i));
-            if (name.has_prefix(SystemColumnNamePrefix)) {
+            if (name.StartsWith(SystemColumnNamePrefix)) {
                 descriptor.Fields.push_back(TDescriptor::TField());
                 continue;
             }
@@ -372,7 +372,7 @@ private:
             { }
         };
         std::vector<TField> Fields;
-        yhash_map<Stroka, const FieldDescriptor*> NameToField_;
+        yhash<Stroka, const FieldDescriptor*> NameToField_;
         const Descriptor* MessageDescriptor;
     };
     std::vector<TDescriptor> Descriptors_;

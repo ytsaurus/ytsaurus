@@ -294,7 +294,7 @@ private:
 
         TNonblockingQueue<TCommand> CommandQueue_;
 
-        yhash_map<Stroka, TInstant> BannedNodeToDeadline_;
+        yhash<Stroka, TInstant> BannedNodeToDeadline_;
 
 
         void EnqueueCommand(TCommand command)

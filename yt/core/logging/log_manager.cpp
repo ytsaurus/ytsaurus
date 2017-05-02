@@ -899,8 +899,8 @@ private:
     std::atomic<ui64> WrittenEvents_ = {0};
     std::atomic<ui64> FlushedEvents_ = {0};
 
-    yhash_map<Stroka, ILogWriterPtr> Writers_;
-    yhash_map<std::pair<Stroka, ELogLevel>, std::vector<ILogWriterPtr>> CachedWriters_;
+    yhash<Stroka, ILogWriterPtr> Writers_;
+    yhash<std::pair<Stroka, ELogLevel>, std::vector<ILogWriterPtr>> CachedWriters_;
     std::vector<ILogWriterPtr> SystemWriters_;
 
     volatile bool ReopenRequested_ = false;
@@ -914,7 +914,7 @@ private:
 
     std::unique_ptr<TNotificationHandle> NotificationHandle_;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches_;
-    yhash_map<int, TNotificationWatch*> NotificationWatchesIndex_;
+    yhash<int, TNotificationWatch*> NotificationWatchesIndex_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

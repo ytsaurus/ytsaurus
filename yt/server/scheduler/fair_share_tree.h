@@ -319,7 +319,7 @@ public:
 protected:
     const NProfiling::TTagId ProfilingTag_;
 
-    using TChildMap = yhash_map<TSchedulerElementPtr, int>;
+    using TChildMap = yhash<TSchedulerElementPtr, int>;
     using TChildList = std::vector<TSchedulerElementPtr>;
 
     TChildMap EnabledChildToIndex_;
@@ -612,7 +612,7 @@ private:
         }
     };
 
-    yhash_map<TJobId, TJobProperties> JobPropertiesMap_;
+    yhash<TJobId, TJobProperties> JobPropertiesMap_;
     NConcurrency::TReaderWriterSpinLock JobPropertiesMapLock_;
 
     std::atomic<int> ConcurrentScheduleJobCalls_ = {0};

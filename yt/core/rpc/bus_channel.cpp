@@ -476,11 +476,11 @@ private:
         TSpinLock SpinLock_;
         bool Terminated_ = false;
         TError TerminationError_;
-        typedef yhash_map<TRequestId, TClientRequestControlPtr> TActiveRequestMap;
+        typedef yhash<TRequestId, TClientRequestControlPtr> TActiveRequestMap;
         TActiveRequestMap ActiveRequestMap_;
 
         NConcurrency::TReaderWriterSpinLock CachedMethodMetadataLock_;
-        yhash_map<std::pair<Stroka, Stroka>, TMethodMetadata> CachedMethodMetadata_;
+        yhash<std::pair<Stroka, Stroka>, TMethodMetadata> CachedMethodMetadata_;
 
 
         void OnRequestSerialized(

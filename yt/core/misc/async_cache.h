@@ -134,9 +134,9 @@ private:
     TIntrusiveListWithAutoDelete<TItem, TDelete> YoungerLruList_;
     TIntrusiveListWithAutoDelete<TItem, TDelete> OlderLruList_;
 
-    yhash_map<TKey, TValue*, THash> ValueMap_;
+    yhash<TKey, TValue*, THash> ValueMap_;
 
-    yhash_map<TKey, TItem*, THash> ItemMap_;
+    yhash<TKey, TItem*, THash> ItemMap_;
     volatile int ItemMapSize_ = 0; // used by GetSize
 
     std::vector<TItem*> TouchBuffer_;

@@ -18,11 +18,11 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const yhash_map<Stroka, TCypressNodeBase*>& GetMapNodeChildMap(
+const yhash<Stroka, TCypressNodeBase*>& GetMapNodeChildMap(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     TTransaction* transaction,
-    yhash_map<Stroka, TCypressNodeBase*>* storage)
+    yhash<Stroka, TCypressNodeBase*>* storage)
 {
     Y_ASSERT(trunkNode->GetNodeType() == ENodeType::Map);
 
@@ -60,7 +60,7 @@ std::vector<TCypressNodeBase*> GetMapNodeChildList(
 {
     Y_ASSERT(trunkNode->GetNodeType() == ENodeType::Map);
 
-    yhash_map<Stroka, TCypressNodeBase*> keyToChildMapStorage;
+    yhash<Stroka, TCypressNodeBase*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
         trunkNode,
@@ -82,7 +82,7 @@ const std::vector<TCypressNodeBase*>& GetListNodeChildList(
 }
 
 std::vector<std::pair<Stroka, TCypressNodeBase*>> SortKeyToChild(
-    const yhash_map<Stroka, TCypressNodeBase*>& keyToChildMap)
+    const yhash<Stroka, TCypressNodeBase*>& keyToChildMap)
 {
     std::vector<std::pair<Stroka, TCypressNodeBase*>> keyToChildList;
     keyToChildList.reserve(keyToChildMap.size());
@@ -115,14 +115,14 @@ TCypressNodeBase* FindMapNodeChild(
     return nullptr;
 }
 
-yhash_map<Stroka, NYson::TYsonString> GetNodeAttributes(
+yhash<Stroka, NYson::TYsonString> GetNodeAttributes(
     const TCypressManagerPtr& cypressManager,
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
     auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
 
-    yhash_map<Stroka, TYsonString> result;
+    yhash<Stroka, TYsonString> result;
     for (const auto* node : originators) {
         const auto* userAttributes = node->GetAttributes();
         if (userAttributes) {

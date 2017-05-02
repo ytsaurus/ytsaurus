@@ -361,7 +361,7 @@ void LocateChunks(
 {
     const auto& Logger = logger;
 
-    yhash_map<NObjectClient::TCellTag, std::vector<NProto::TChunkSpec*>> chunkMap;
+    yhash<NObjectClient::TCellTag, std::vector<NProto::TChunkSpec*>> chunkMap;
 
     for (auto* chunkSpec : chunkSpecList) {
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
