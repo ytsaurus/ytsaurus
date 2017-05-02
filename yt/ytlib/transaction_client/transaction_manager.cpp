@@ -534,7 +534,7 @@ private:
 
         Register();
 
-        LOG_DEBUG("Starting transaction (StartTimestamp: %v, Type: %v)",
+        LOG_DEBUG("Starting transaction (StartTimestamp: %x, Type: %v)",
             StartTimestamp_,
             Type_);
 
@@ -585,7 +585,7 @@ private:
         const auto& rsp = rspOrError.Value();
         Id_ = FromProto<TTransactionId>(rsp->id());
 
-        LOG_DEBUG("Master transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
+        LOG_DEBUG("Master transaction started (TransactionId: %v, StartTimestamp: %x, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
             Id_,
             StartTimestamp_,
             AutoAbort_,
@@ -612,7 +612,7 @@ private:
 
         State_ = ETransactionState::Active;
 
-        LOG_DEBUG("Atomic tablet transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v)",
+        LOG_DEBUG("Atomic tablet transaction started (TransactionId: %v, StartTimestamp: %x, AutoAbort: %v)",
             Id_,
             StartTimestamp_,
             AutoAbort_);

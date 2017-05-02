@@ -78,7 +78,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
         takePartition((*it)->Stores);
     }
 
-    LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, "
+    LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %x, "
         "LowerBound: %v, UpperBound: %v, WorkloadDescriptor: %v, StoreIds: %v, StoreRanges: %v, BoundCount: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
@@ -305,7 +305,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
     takeStores(tabletSnapshot->GetEdenStores());
     takeStores(paritionSnapshot->Stores);
 
-    LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, WorkloadDescriptor: %v, "
+    LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %x, WorkloadDescriptor: %v, "
         "StoreIds: %v, StoreRanges: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
@@ -422,7 +422,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
 
     LOG_DEBUG(
         "Creating versioned tablet reader (TabletId: %v, CellId: %v, LowerBound: %v, UpperBound: %v, "
-        "CurrentTimestamp: %v, MajorTimestamp: %v, WorkloadDescriptor: %v, StoreIds: %v, StoreRanges: %v)",
+        "CurrentTimestamp: %x, MajorTimestamp: %x, WorkloadDescriptor: %v, StoreIds: %v, StoreRanges: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         lowerBound,
