@@ -59,7 +59,7 @@ private:
     const IChannelFactoryPtr UnderlyingFactory_;
 
     TReaderWriterSpinLock SpinLock_;
-    yhash_map<Stroka, IChannelPtr> ChannelMap_;
+    yhash<Stroka, IChannelPtr> ChannelMap_;
 
     class TCachedChannel
         : public IChannel

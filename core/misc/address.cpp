@@ -351,7 +351,7 @@ private:
     };
 
     TReaderWriterSpinLock CacheLock_;
-    yhash_map<Stroka, TCacheEntry> Cache_;
+    yhash<Stroka, TCacheEntry> Cache_;
 
     std::atomic<bool> HasCachedLocalAddresses_ = {false};
     std::vector<TNetworkAddress> CachedLocalAddresses_;

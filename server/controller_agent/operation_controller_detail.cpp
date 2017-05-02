@@ -2901,8 +2901,8 @@ void TOperationControllerBase::AnalyzeTmpfsUsage() const
         return;
     }
 
-    yhash_map<EJobType, i64> maximumUsedTmfpsSizePerJobType;
-    yhash_map<EJobType, TUserJobSpecPtr> userJobSpecPerJobType;
+    yhash<EJobType, i64> maximumUsedTmfpsSizePerJobType;
+    yhash<EJobType, TUserJobSpecPtr> userJobSpecPerJobType;
 
     for (const auto& task : Tasks) {
         const auto& userJobSpecPtr = task->GetUserJobSpec();
@@ -6010,7 +6010,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_output_format(ConvertToYsonString(outputFormat).GetData());
     }
 
-    auto fillEnvironment = [&] (yhash_map<Stroka, Stroka>& env) {
+    auto fillEnvironment = [&] (yhash<Stroka, Stroka>& env) {
         for (const auto& pair : env) {
             jobSpec->add_environment(Format("%v=%v", pair.first, pair.second));
         }

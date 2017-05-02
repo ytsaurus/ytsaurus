@@ -280,7 +280,7 @@ private:
     };
 
     TJobSplitterConfigPtr Config_;
-    yhash_map<TJobId, TRunningJob> RunningJobs_;
+    yhash<TJobId, TRunningJob> RunningJobs_;
     TStatistics Statistics_;
     i64 MaxRunningJobCount_ = 0;
     NLogging::TLogger Logger;

@@ -63,10 +63,10 @@ private:
     {
         //! Key is minus the number of spare slots.
         std::multimap<int, TNode*> Nodes;
-        yhash_map<TNode*, std::multimap<int, TNode*>::iterator> NodeToIterator;
+        yhash<TNode*, std::multimap<int, TNode*>::iterator> NodeToIterator;
     };
 
-    yhash_map<Stroka, TPerTagData> TagToData_;
+    yhash<Stroka, TPerTagData> TagToData_;
 
 
     void InsertNode(TPerTagData* data, TNode* node)

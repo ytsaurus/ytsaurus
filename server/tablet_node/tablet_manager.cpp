@@ -573,7 +573,7 @@ private:
     TRingQueue<TTablet*> PrelockedTablets_;
 
     yhash_set<IDynamicStorePtr> OrphanedStores_;
-    yhash_map<TTabletId, std::unique_ptr<TTablet>> OrphanedTablets_;
+    yhash<TTabletId, std::unique_ptr<TTablet>> OrphanedTablets_;
 
     TNodeMemoryTrackerGuard DynamicStoresMemoryTrackerGuard_;
     TNodeMemoryTrackerGuard StaticStoresMemoryTrackerGuard_;
@@ -1467,7 +1467,7 @@ private:
         // NB: Must handle store removals before store additions since
         // row index map forbids having multiple stores with the same starting row index.
         // But before proceeding to removals, we must take care of backing stores.
-        yhash_map<TStoreId, IDynamicStorePtr> idToBackingStore;
+        yhash<TStoreId, IDynamicStorePtr> idToBackingStore;
         auto registerBackingStore = [&] (const IStorePtr& store) {
             YCHECK(idToBackingStore.insert(std::make_pair(store->GetId(), store->AsDynamic())).second);
         };

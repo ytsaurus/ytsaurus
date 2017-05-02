@@ -53,8 +53,8 @@ private:
     };
 
     TSpinLock Lock_;
-    yhash_map<NObjectClient::TCellTag, TCluster> CellTagToCluster_;
-    yhash_map<Stroka, TCluster> NameToCluster_;
+    yhash<NObjectClient::TCellTag, TCluster> CellTagToCluster_;
+    yhash<Stroka, TCluster> NameToCluster_;
 
 
     TCluster CreateCluster(const Stroka& name, NYTree::INodePtr config) const;
