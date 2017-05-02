@@ -228,7 +228,7 @@ struct TQuery
     i64 Limit = 0;
 };
 
-typedef yhash_map<Stroka, TExpressionPtr> TAliasMap;
+typedef yhash<Stroka, TExpressionPtr> TAliasMap;
 
 typedef std::pair<TVariant<TQuery, TExpressionPtr>, TAliasMap> TAstHead;
 

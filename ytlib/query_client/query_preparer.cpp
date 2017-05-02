@@ -1088,7 +1088,7 @@ public:
     TSchemaProxy()
     { }
 
-    TSchemaProxy(const yhash_map<std::pair<Stroka, Stroka>, TBaseColumn>& lookup)
+    TSchemaProxy(const yhash<std::pair<Stroka, Stroka>, TBaseColumn>& lookup)
         : Lookup_(lookup)
     { }
 
@@ -1135,13 +1135,13 @@ public:
     virtual void Finish()
     { }
 
-    const yhash_map<std::pair<Stroka, Stroka>, TBaseColumn>& GetLookup() const
+    const yhash<std::pair<Stroka, Stroka>, TBaseColumn>& GetLookup() const
     {
         return Lookup_;
     }
 
 private:
-    yhash_map<std::pair<Stroka, Stroka>, TBaseColumn> Lookup_;
+    yhash<std::pair<Stroka, Stroka>, TBaseColumn> Lookup_;
 
 protected:
     virtual TNullable<TBaseColumn> ProvideColumn(const Stroka& name, const Stroka& tableName)
@@ -1213,7 +1213,7 @@ public:
 
 private:
     std::vector<TColumnDescriptor>* Mapping_;
-    yhash_map<Stroka, size_t> ColumnsCollisions_;
+    yhash<Stroka, size_t> ColumnsCollisions_;
     const TTableSchema SourceTableSchema_;
     Stroka TableName_;
 

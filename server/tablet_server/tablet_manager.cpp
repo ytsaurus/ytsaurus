@@ -1497,10 +1497,10 @@ private:
     TEntityMap<TTablet> TabletMap_;
     TEntityMap<TTableReplica> TableReplicaMap_;
 
-    yhash_map<Stroka, TTabletCellBundle*> NameToTabletCellBundleMap_;
+    yhash<Stroka, TTabletCellBundle*> NameToTabletCellBundleMap_;
 
     yhash_multimap<Stroka, TTabletCell*> AddressToCell_;
-    yhash_map<TTransaction*, TTabletCell*> TransactionToCellMap_;
+    yhash<TTransaction*, TTabletCell*> TransactionToCellMap_;
 
     bool InitializeCellBundles_ = false;
     TTabletCellBundleId DefaultTabletCellBundleId_;

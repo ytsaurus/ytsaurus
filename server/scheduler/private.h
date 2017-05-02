@@ -42,7 +42,7 @@ DECLARE_REFCOUNTED_CLASS(TRootElement)
 
 struct TFairShareContext;
 
-using TOperationElementByIdMap = yhash_map<TOperationId, TOperationElement*>;
+using TOperationElementByIdMap = yhash<TOperationId, TOperationElement*>;
 
 DEFINE_ENUM(ESchedulableStatus,
     (Normal)

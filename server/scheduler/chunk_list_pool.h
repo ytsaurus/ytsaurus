@@ -50,9 +50,9 @@ private:
         std::vector<NChunkClient::TChunkListId> Ids;
     };
 
-    yhash_map<NObjectClient::TCellTag, TCellData> CellMap_;
+    yhash<NObjectClient::TCellTag, TCellData> CellMap_;
 
-    yhash_map<NObjectClient::TCellTag, std::vector<NChunkClient::TChunkListId>> ChunksToRelease_;
+    yhash<NObjectClient::TCellTag, std::vector<NChunkClient::TChunkListId>> ChunksToRelease_;
     TInstant LastReleaseTime_;
 
     void AllocateMore(NObjectClient::TCellTag cellTag);

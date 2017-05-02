@@ -72,7 +72,7 @@ public:
     }
 
 public:
-    yhash_map<Stroka, Stroka> Map_;
+    yhash<Stroka, Stroka> Map_;
 
 };
 
