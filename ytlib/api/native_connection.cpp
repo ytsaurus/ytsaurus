@@ -371,6 +371,10 @@ private:
             kind);
 
         auto isRetryableError = BIND([options = Options_] (const TError& error) {
+            if (error.FindMatching(NChunkClient::EErrorCode::OptimisticLockFailure)) {
+                return true;
+            }
+
             if (options.RetryRequestQueueSizeLimitExceeded &&
                 error.GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)
             {

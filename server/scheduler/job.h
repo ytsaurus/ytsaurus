@@ -4,6 +4,7 @@
 #include "job_resources.h"
 
 #include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/job_tracker_client/job.pb.h>
 #include <yt/ytlib/job_tracker_client/statistics.h>
@@ -31,9 +32,11 @@ struct TBriefJobStatistics
     TInstant Timestamp = TInstant::Zero();
 
     i64 ProcessedInputRowCount = 0;
-    i64 ProcessedInputDataSize = 0;
+    i64 ProcessedInputUncompressedDataSize = 0;
+    i64 ProcessedInputCompressedDataSize = 0;
     i64 ProcessedOutputRowCount = 0;
-    i64 ProcessedOutputDataSize = 0;
+    i64 ProcessedOutputUncompressedDataSize = 0;
+    i64 ProcessedOutputCompressedDataSize = 0;
     // Time is given in milliseconds.
     TNullable<i64> InputPipeIdleTime = Null;
     TNullable<i64> JobProxyCpuUsage = Null;
@@ -97,8 +100,14 @@ class TJob
     //! Flag that marks job as preempted by scheduler.
     DEFINE_BYVAL_RW_PROPERTY(bool, Preempted);
 
+    //! String describing preemption reason.
+    DEFINE_BYVAL_RW_PROPERTY(Stroka, PreemptionReason);
+
+    //! The purpose of the job interruption.
+    DEFINE_BYVAL_RW_PROPERTY(EInterruptReason, InterruptReason, EInterruptReason::None);
+
     //! Deadline for job to be interrupted.
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, InterruptDeadline);
+    DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, InterruptDeadline, 0);
 
     //! Contains several important values extracted from job statistics.
     DEFINE_BYVAL_RO_PROPERTY(TBriefJobStatisticsPtr, BriefStatistics);
@@ -112,8 +121,8 @@ class TJob
     //! Account for node in cypress.
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Account);
 
-    //! Cookie for timeout on interrupted job.
-    DEFINE_BYREF_RW_PROPERTY(NConcurrency::TDelayedExecutorCookie, InterruptCookie);
+    //! Last time when statistics and resource usage from running job was updated.
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, LastRunningJobUpdateTime);
 
 public:
     TJob(
@@ -135,9 +144,7 @@ public:
         TDuration suspiciousInactivityTimeout,
         i64 suspiciousCpuUsageThreshold,
         double suspiciousInputPipeIdleTimeFraction,
-        const TBriefJobStatisticsPtr& briefStatistics);
-
-    TBriefJobStatisticsPtr BuildBriefStatistics(const NYson::TYsonString& statisticsYson) const;
+        const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError);
 
     void SetStatus(TJobStatus* status);
 
@@ -152,13 +159,17 @@ struct TJobSummary
 {
     explicit TJobSummary(const TJobPtr& job);
     explicit TJobSummary(const TJobId& id);
+    //! Only for testing purpose.
+    TJobSummary() = default;
+
+    void Persist(const TPersistenceContext& context);
 
     void ParseStatistics();
 
-    const TJobResult Result;
-    const TJobId Id;
-    const Stroka StatisticsSuffix;
-    const TInstant FinishTime;
+    TJobResult Result;
+    TJobId Id;
+    Stroka StatisticsSuffix;
+    TNullable<TInstant> FinishTime;
     TNullable<TDuration> PrepareDuration;
     TNullable<TDuration> DownloadDuration;
     TNullable<TDuration> ExecDuration;
@@ -176,9 +187,16 @@ struct TCompletedJobSummary
     : public TJobSummary
 {
     explicit TCompletedJobSummary(const TJobPtr& job, bool abandoned = false);
+    //! Only for testing purpose.
+    TCompletedJobSummary() = default;
 
-    const bool Abandoned = false;
-    bool Interrupted = false;
+    void Persist(const TPersistenceContext& context);
+
+    bool Abandoned = false;
+
+    std::vector<NChunkClient::TInputDataSlicePtr> UnreadInputDataSlices;
+    EInterruptReason InterruptReason = EInterruptReason::None;
+    int SplitJobCount = 1;
 };
 
 struct TAbortedJobSummary
@@ -220,24 +238,27 @@ struct TJobStartRequest
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EScheduleJobFailReason,
-    (Unknown)
-    (OperationNotRunning)
-    (NoPendingJobs)
-    (NotEnoughChunkLists)
-    (NotEnoughResources)
-    (Timeout)
-    (EmptyInput)
-    (NoLocalJobs)
-    (TaskDelayed)
-    (NoCandidateTasks)
-    (ResourceOvercommit)
-    (TaskRefusal)
+    ((Unknown)                    ( 0))
+    ((OperationNotRunning)        ( 1))
+    ((NoPendingJobs)              ( 2))
+    ((NotEnoughChunkLists)        ( 3))
+    ((NotEnoughResources)         ( 4))
+    ((Timeout)                    ( 5))
+    ((EmptyInput)                 ( 6))
+    ((NoLocalJobs)                ( 7))
+    ((TaskDelayed)                ( 8))
+    ((NoCandidateTasks)           ( 9))
+    ((ResourceOvercommit)         (10))
+    ((TaskRefusal)                (11))
+    ((JobSpecThrottling)          (12))
 );
 
 struct TScheduleJobResult
     : public TIntrinsicRefCounted
 {
     void RecordFail(EScheduleJobFailReason reason);
+    bool IsBackoffNeeded() const;
+    bool IsScheduleStopNeeded() const;
 
     TNullable<TJobStartRequest> JobStartRequest;
     TEnumIndexedVector<int, EScheduleJobFailReason> Failed;

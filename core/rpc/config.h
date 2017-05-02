@@ -155,6 +155,9 @@ public:
     //! rediscovery attempt.
     TDuration RediscoverSplay;
 
+    //! For sticky mode: number of consistent hash tokens to assign to each peer.
+    int HashesPerPeer;
+
     TBalancingChannelConfig()
     {
         RegisterParameter("addresses", Addresses);
@@ -165,6 +168,8 @@ public:
             .Default(TDuration::Minutes(5));
         RegisterParameter("rediscover_splay", RediscoverSplay)
             .Default(TDuration::Minutes(1));
+        RegisterParameter("hashes_per_peer", HashesPerPeer)
+            .Default(10);
     }
 };
 

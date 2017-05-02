@@ -82,6 +82,9 @@ private:
 
 };
 
+bool operator==(const TChannel& lhs, const TChannel& rhs);
+bool operator!=(const TChannel& lhs, const TChannel& rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TRange* protoRange, const TColumnRange& range);

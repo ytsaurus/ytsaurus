@@ -29,6 +29,8 @@
 
 #include <yt/core/rpc/response_keeper.h>
 
+#include <yt/core/logging/log_manager.h>
+
 #include <util/random/random.h>
 
 #include <util/system/file.h>
@@ -48,9 +50,6 @@ static const i64 SnapshotTransferBlockSize = (i64) 1024 * 1024;
 static const auto& Profiler = HydraProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TSystemLockGuard::TSystemLockGuard()
-{ }
 
 TSystemLockGuard::TSystemLockGuard(TSystemLockGuard&& other)
     : Automaton_(std::move(other.Automaton_))
@@ -92,9 +91,6 @@ TSystemLockGuard::TSystemLockGuard(TDecoratedAutomatonPtr automaton)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TUserLockGuard::TUserLockGuard()
-{ }
 
 TUserLockGuard::TUserLockGuard(TUserLockGuard&& other)
     : Automaton_(std::move(other.Automaton_))
@@ -147,11 +143,11 @@ public:
         , Owner_(decoratedAutomaton)
     { }
 
-    virtual void Invoke(const TClosure& callback) override
+    virtual void Invoke(TClosure callback) override
     {
         auto lockGuard = TSystemLockGuard::Acquire(Owner_);
 
-        auto doInvoke = [=, this_ = MakeStrong(this)] (TSystemLockGuard /*lockGuard*/) {
+        auto doInvoke = [=, this_ = MakeStrong(this), callback = std::move(callback)] (TSystemLockGuard /*lockGuard*/) {
             TCurrentInvokerGuard currentInvokerGuard(this_);
             callback.Run();
         };
@@ -177,13 +173,13 @@ public:
         , Owner_(decoratedAutomaton)
     { }
 
-    virtual void Invoke(const TClosure& callback) override
+    virtual void Invoke(TClosure callback) override
     {
         auto lockGuard = TUserLockGuard::TryAcquire(Owner_);
         if (!lockGuard)
             return;
 
-        auto doInvoke = [=, this_ = MakeStrong(this)] () {
+        auto doInvoke = [=, this_ = MakeStrong(this), callback = std::move(callback)] () {
             if (Owner_->GetState() != EPeerState::Leading &&
                 Owner_->GetState() != EPeerState::Following)
                 return;
@@ -616,21 +612,17 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(snapshotStore)
     , BatchCommitTimeCounter_("/batch_commit_time")
-    , Logger(HydraLogger)
+    , Logger(NLogging::TLogger(HydraLogger)
+        .AddTag("CellId: %v", CellManager_->GetCellId()))
 {
     YCHECK(Config_);
     YCHECK(CellManager_);
     YCHECK(Automaton_);
     YCHECK(ControlInvoker_);
     YCHECK(SnapshotStore_);
-
     VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
 
-    Logger.AddTag("CellId: %v", CellManager_->GetCellId());
-
-    BuildingSnapshot_.clear();
-    AutomatonVersion_ = TVersion();
     StopEpoch();
 }
 
@@ -871,6 +863,12 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    if (SnapshotParamsPromise_) {
+        LOG_INFO("Snapshot canceled");
+        SnapshotParamsPromise_.ToFuture().Cancel();
+        SnapshotParamsPromise_.Reset();
+    }
+
     auto loggedVersion = GetLoggedVersion();
 
     LOG_INFO("Snapshot scheduled (Version: %v)",
@@ -878,10 +876,6 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
 
     LastSnapshotTime_ = TInstant::Now();
     SnapshotVersion_ = loggedVersion;
-
-    if (SnapshotParamsPromise_) {
-        SnapshotParamsPromise_.ToFuture().Cancel();
-    }
     SnapshotParamsPromise_ = NewPromise<TRemoteSnapshotParams>();
 
     MaybeStartSnapshotBuilder();
@@ -968,6 +962,8 @@ bool TDecoratedAutomaton::HasReadyMutations() const
 
 void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
 {
+    TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
+
     NProfiling::TScopedTimer timer;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
         while (!PendingMutations_.empty()) {
@@ -1040,26 +1036,35 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    const auto& request = context->Request();
     auto automatonVersion = GetAutomatonVersion();
 
-    if (request.Type.empty()) {
+    // Refs are fine here (but see below).
+    const auto& request = context->Request();
+    const auto& mutationType = request.Type;
+    const auto& handler = request.Handler;
+
+    // Cannot access #request after the handler has been invoked since the latter
+    // could submit more mutations and cause #PendingMutations_ to be reallocated.
+    // So we'd better make the needed copies right away.
+    // Cf. YT-6908.
+    auto mutationId = request.MutationId;
+
+    if (mutationType.empty()) {
         LOG_DEBUG_UNLESS(IsRecovery(), "Skipping heartbeat mutation (Version: %v)",
             automatonVersion);
     } else {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v)",
-            automatonVersion,
-            request.Type,
-            request.MutationId);
+        auto* descriptor = GetTypeDescriptor(mutationType);
 
         TMutationContextGuard contextGuard(context);
-
-        auto* descriptor = GetTypeDescriptor(request.Type);
-
         NProfiling::TScopedTimer timer;
 
-        if (request.Handler) {
-            request.Handler.Run(context);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v)",
+            automatonVersion,
+            mutationType,
+            mutationId);
+
+        if (handler) {
+            handler.Run(context);
         } else {
             Automaton_->ApplyMutation(context);
         }
@@ -1068,13 +1073,13 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
             descriptor->CumulativeTimeCounter,
             NProfiling::DurationToValue(timer.GetElapsed()));
 
-        if (Options_.ResponseKeeper && request.MutationId) {
+        if (Options_.ResponseKeeper && mutationId) {
             if (State_ == EPeerState::Leading) {
-                YCHECK(request.MutationId == PendingMutationIds_.front());
+                YCHECK(mutationId == PendingMutationIds_.front());
                 PendingMutationIds_.pop();
             }
             const auto& response = context->Response();
-            Options_.ResponseKeeper->EndRequest(request.MutationId, response.Data);
+            Options_.ResponseKeeper->EndRequest(mutationId, response.Data);
         }
     }
 
@@ -1217,6 +1222,9 @@ void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 {
     YCHECK(!EpochContext_);
     EpochContext_ = epochContext;
+
+    // Enable batching for log messages.
+    NLogging::TLogManager::Get()->SetPerThreadBatchingPeriod(Config_->AutomatonThreadLogBatchingPeriod);
 }
 
 void TDecoratedAutomaton::StopEpoch()
@@ -1248,6 +1256,9 @@ void TDecoratedAutomaton::StopEpoch()
     }
     RecoveryRecordCount_ = 0;
     RecoveryDataSize_ = 0;
+
+    // Disable batching for log messages.
+    NLogging::TLogManager::Get()->SetPerThreadBatchingPeriod(TDuration::Zero());
 }
 
 void TDecoratedAutomaton::MaybeStartSnapshotBuilder()

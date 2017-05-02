@@ -130,7 +130,7 @@ public:
 private:
     struct TBatch
     {
-        IRowsetPtr Rowset;
+        IUnversionedRowsetPtr Rowset;
         int RowCount;
         i64 DataWeight;
         int TabletIndex;

@@ -13,32 +13,29 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EDataSliceDescriptorType,
-    ((File)                 (0))
-    ((UnversionedTable)     (1))
-    ((VersionedTable)       (2))
-);
-
 struct TDataSliceDescriptor
 {
-    EDataSliceDescriptorType Type;
     std::vector<NProto::TChunkSpec> ChunkSpecs;
-    NTableClient::TTableSchema Schema;
-    NTransactionClient::TTimestamp Timestamp = 0;
 
     TDataSliceDescriptor() = default;
-    TDataSliceDescriptor(
-        EDataSliceDescriptorType type,
-        std::vector<NProto::TChunkSpec> chunkSpecs,
-        const NTableClient::TTableSchema& = NTableClient::TTableSchema(),
-        NTransactionClient::TTimestamp timestamp = 0);
+    explicit TDataSliceDescriptor(std::vector<NProto::TChunkSpec> chunkSpecs);
+    TDataSliceDescriptor(const NProto::TChunkSpec& chunkSpec);
 
-    const NProto::TChunkSpec& GetSingleUnversionedChunk() const;
-    const NProto::TChunkSpec& GetSingleFileChunk() const;
+    int GetDataSourceIndex() const;
+
+    const NProto::TChunkSpec& GetSingleChunk() const;
+
+    TNullable<i64> GetTag() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(psushin)
+const TDataSliceDescriptor& GetIncompatibleDataSliceDescriptor();
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Deprecated.
 void ToProto(
     NProto::TDataSliceDescriptor* protoDataSliceDescriptor,
     const TDataSliceDescriptor& dataSliceDescriptor);
@@ -46,21 +43,22 @@ void FromProto(
     TDataSliceDescriptor* dataSliceDescriptor,
     const NProto::TDataSliceDescriptor& protoDataSliceDescriptor);
 
+void ToProto(
+    ::google::protobuf::RepeatedPtrField<NProto::TChunkSpec>* chunkSpecs,
+    ::google::protobuf::RepeatedField<int>* chunkSpecCountPerDataSlice,
+    const std::vector<TDataSliceDescriptor>& dataSlices);
+
+void FromProto(
+    std::vector<TDataSliceDescriptor>* dataSlices,
+    const ::google::protobuf::RepeatedPtrField<NProto::TChunkSpec>& chunkSpecs,
+    const ::google::protobuf::RepeatedField<int>& chunkSpecCountPerDataSlice);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 GetCumulativeRowCount(const std::vector<TDataSliceDescriptor>& dataSliceDescriptors);
 i64 GetDataSliceDescriptorReaderMemoryEstimate(
     const TDataSliceDescriptor& dataSliceDescriptor,
     TMultiChunkReaderConfigPtr config);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TDataSliceDescriptor MakeFileDataSliceDescriptor(NProto::TChunkSpec chunkSpec);
-TDataSliceDescriptor MakeUnversionedDataSliceDescriptor(NProto::TChunkSpec chunkSpec);
-TDataSliceDescriptor MakeVersionedDataSliceDescriptor(
-    std::vector<NProto::TChunkSpec> chunkSpecs,
-    const NTableClient::TTableSchema& schema,
-    NTransactionClient::TTimestamp timestam);
 
 ////////////////////////////////////////////////////////////////////////////////
 

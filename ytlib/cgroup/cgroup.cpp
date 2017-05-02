@@ -214,17 +214,25 @@ const Stroka& TNonOwningCGroup::GetFullPath() const
 
 std::vector<TNonOwningCGroup> TNonOwningCGroup::GetChildren() const
 {
-    std::vector<TNonOwningCGroup> result;
+    // We retry enumerating directories, since it may fail with weird diagnostics if
+    // number of subcgroups changes.
+    while (true) {
+        try {
+            std::vector<TNonOwningCGroup> result;
 
-    if (IsNull()) {
-        return result;
-    }
+            if (IsNull()) {
+                return result;
+            }
 
-    auto directories = NFS::EnumerateDirectories(FullPath_);
-    for (const auto& directory : directories) {
-        result.emplace_back(NFS::CombinePaths(FullPath_, directory));
+            auto directories = NFS::EnumerateDirectories(FullPath_);
+            for (const auto& directory : directories) {
+                result.emplace_back(NFS::CombinePaths(FullPath_, directory));
+            }
+            return result;
+        } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Failed to list subcgroups (Path: %v)", FullPath_);
+        }
     }
-    return result;
 }
 
 void TNonOwningCGroup::EnsureExistance() const
@@ -396,6 +404,11 @@ TCGroup::TCGroup(TCGroup&& other)
     other.Created_ = false;
 }
 
+TCGroup::TCGroup(TNonOwningCGroup&& other)
+    : TNonOwningCGroup(std::move(other))
+    , Created_(false)
+{ }
+
 TCGroup::~TCGroup()
 {
     if (Created_) {
@@ -433,11 +446,28 @@ bool TCGroup::IsCreated() const
 
 const Stroka TCpuAccounting::Name = "cpuacct";
 
+TCpuAccounting::TStatistics& operator-=(TCpuAccounting::TStatistics& lhs, const TCpuAccounting::TStatistics& rhs)
+{
+    lhs.UserTime = lhs.UserTime > rhs.UserTime
+        ? lhs.UserTime - rhs.UserTime
+        : TDuration::Zero();
+
+    lhs.SystemTime = lhs.SystemTime > rhs.SystemTime
+        ? lhs.SystemTime - rhs.SystemTime
+        : TDuration::Zero();
+
+    return lhs;
+}
+
 TCpuAccounting::TCpuAccounting(const Stroka& name)
     : TCGroup(Name, name)
 { }
 
-TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
+TCpuAccounting::TCpuAccounting(TNonOwningCGroup&& nonOwningCGroup)
+    : TCGroup(std::move(nonOwningCGroup))
+{ }
+
+TCpuAccounting::TStatistics TCpuAccounting::GetStatisticsRecursive() const
 {
     TCpuAccounting::TStatistics result;
 #ifdef _linux_
@@ -469,6 +499,18 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
     }
 #endif
     return result;
+}
+
+TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
+{
+    auto statistics = GetStatisticsRecursive();
+
+    for (auto& cgroup : GetChildren()) {
+        auto cpuCGroup = TCpuAccounting(std::move(cgroup));
+        statistics -= cpuCGroup.GetStatisticsRecursive();
+    }
+
+    return statistics;
 }
 
 void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsumer* consumer)

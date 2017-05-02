@@ -39,8 +39,7 @@ public:
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck) override
+        const TSendOptions& options) override
     {
         Y_ASSERT(request);
         Y_ASSERT(responseHandler);
@@ -50,8 +49,7 @@ public:
             UnderlyingChannel_,
             std::move(request),
             std::move(responseHandler),
-            timeout,
-            requestAck,
+            options,
             IsRetriableError_)
         ->Send();
     }
@@ -71,15 +69,13 @@ private:
             IChannelPtr underlyingChannel,
             IClientRequestPtr request,
             IClientResponseHandlerPtr responseHandler,
-            TNullable<TDuration> timeout,
-            bool requestAck,
+            const TSendOptions& options,
             TCallback<bool(const TError&)> isRetriableError)
             : Config_(std::move(config))
             , UnderlyingChannel_(std::move(underlyingChannel))
             , Request_(std::move(request))
             , ResponseHandler_(std::move(responseHandler))
-            , Timeout_(timeout)
-            , RequestAck_(requestAck)
+            , Options_(options)
             , IsRetriableError_(std::move(isRetriableError))
         {
             Y_ASSERT(Config_);
@@ -105,8 +101,7 @@ private:
         const IChannelPtr UnderlyingChannel_;
         const IClientRequestPtr Request_;
         const IClientResponseHandlerPtr ResponseHandler_;
-        const TNullable<TDuration> Timeout_;
-        const bool RequestAck_;
+        const TSendOptions Options_;
         const TCallback<bool(const TError&)> IsRetriableError_;
         const TClientRequestControlThunkPtr RequestControlThunk_ = New<TClientRequestControlThunk>();
 
@@ -152,7 +147,7 @@ private:
 
         TNullable<TDuration> ComputeAttemptTimeout(TInstant now)
         {
-            auto attemptDeadline = Timeout_ ? now + *Timeout_ : TInstant::Max();
+            auto attemptDeadline = Options_.Timeout ? now + *Options_.Timeout : TInstant::Max();
             auto actualDeadline = std::min(Deadline_, attemptDeadline);
             return actualDeadline == TInstant::Max()
                 ? TNullable<TDuration>(Null)
@@ -199,7 +194,7 @@ private:
                 Request_->GetUser(),
                 CurrentAttempt_,
                 Config_->RetryAttempts,
-                Timeout_,
+                Options_.Timeout,
                 Config_->RetryTimeout);
 
             auto now = TInstant::Now();
@@ -208,17 +203,15 @@ private:
                 return;
             }
 
-            auto timeout = ComputeAttemptTimeout(now);
+            auto adjustedOptions = Options_;
+            adjustedOptions.Timeout = ComputeAttemptTimeout(now);
             auto requestControl = UnderlyingChannel_->Send(
                 Request_,
                 this,
-                timeout,
-                RequestAck_);
+                adjustedOptions);
             RequestControlThunk_->SetUnderlying(std::move(requestControl));
         }
-
     };
-
 };
 
 IChannelPtr CreateRetryingChannel(

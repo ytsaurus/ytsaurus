@@ -122,8 +122,8 @@ DEFINE_ENUM(EJournalReplicaType,
 const int AllMediaIndex = MaxMediumCount; // passed to various APIs to indicate that any medium is OK
 const int InvalidMediumIndex = -1;
 
-//! Valid indexes are in range |[0, MediumIndexBound)|.
-const int MediumIndexBound = MaxMediumCount + 1;
+//! Valid indexes (including sentinels) are in range |[0, MediumIndexBound)|.
+const int MediumIndexBound = AllMediaIndex + 1;
 
 DEFINE_ENUM(EErrorCode,
     ((AllTargetNodesFailed)     (700))
@@ -200,6 +200,8 @@ DECLARE_REFCOUNTED_CLASS(TInputChunkSlice)
 
 DECLARE_REFCOUNTED_STRUCT(TInputDataSlice)
 
+DECLARE_REFCOUNTED_CLASS(TDataSourceDirectory)
+
 DECLARE_REFCOUNTED_CLASS(TChunkScraper)
 DECLARE_REFCOUNTED_CLASS(TScraperTask)
 DECLARE_REFCOUNTED_CLASS(TThrottlerManager)
@@ -216,6 +218,8 @@ DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 using TPlacementId = TGuid;
 
 struct TDataSliceDescriptor;
+
+DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
 
 ///////////////////////////////////////////////////////////////////////////////
 

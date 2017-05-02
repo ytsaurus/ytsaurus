@@ -122,9 +122,22 @@ DEFINE_REFCOUNTED_TYPE(TVersionedReaderAdapter)
 IVersionedReaderPtr CreateVersionedReaderAdapter(
     TSchemafulReaderFactory createReader,
     const TTableSchema& schema,
+    const TColumnFilter& columnFilter,
     TTimestamp timestamp)
 {
-    auto reader = createReader(schema);
+    TColumnFilter filter;
+
+    if (!columnFilter.All) {
+        filter = TColumnFilter(schema.GetKeyColumnCount());
+
+        for (int index : columnFilter.Indexes) {
+            if (index >= schema.GetKeyColumnCount()) {
+                filter.Indexes.push_back(index);
+            }
+        }
+    }
+
+    auto reader = createReader(schema, filter);
     return New<TVersionedReaderAdapter>(std::move(reader), schema, timestamp);
 }
 

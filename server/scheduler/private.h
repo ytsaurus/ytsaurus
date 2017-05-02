@@ -18,7 +18,6 @@ namespace NScheduler {
 DECLARE_REFCOUNTED_STRUCT(TSnapshotJob)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkStripe)
-DECLARE_REFCOUNTED_STRUCT(TChunkStripeList)
 
 DECLARE_REFCOUNTED_CLASS(TChunkListPool)
 
@@ -41,6 +40,8 @@ DECLARE_REFCOUNTED_CLASS(TPool)
 DECLARE_REFCOUNTED_CLASS(TRootElement)
 
 struct TFairShareContext;
+
+class TProgressCounter;
 
 using TOperationElementByIdMap = yhash<TOperationId, TOperationElement*>;
 

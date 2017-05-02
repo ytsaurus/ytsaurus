@@ -252,7 +252,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         auto chunkWriter = CreateConfirmingWriter(
             tabletSnapshot->WriterConfig,
-            tabletSnapshot->WriterOptions,
+            writerOptions,
             Client_->GetNativeConnection()->GetPrimaryMasterCellTag(),
             transaction->GetId(),
             NullChunkListId,

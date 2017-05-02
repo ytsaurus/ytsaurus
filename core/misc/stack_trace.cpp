@@ -5,14 +5,18 @@
 #include <util/system/defaults.h>
 
 #ifndef _win_
+
+
+#ifdef YT_IN_ARCADIA
 #define ENABLE_LIBUNWIND_STACKTRACE
-// #define ENABLE_GLIBC_STACKTRACE
+#else
+#define ENABLE_GLIBC_STACKTRACE
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 // libgcc-based implementation.
 ////////////////////////////////////////////////////////////////////////////////
-#if 0
-// #ifdef ENABLE_GCC_STACKTRACE
+#ifdef ENABLE_GCC_STACKTRACE
 
 extern "C" {
 // #include <stdlib.h>
@@ -91,8 +95,7 @@ int GetStackTrace__libgcc(void** result, int maxFrames, int skipFrames)
 ////////////////////////////////////////////////////////////////////////////////
 // glibc-based implementation.
 ////////////////////////////////////////////////////////////////////////////////
-#if 0
-// #ifdef ENABLE_GLIBC_STACKTRACE
+#ifdef ENABLE_GLIBC_STACKTRACE
 
 extern "C" {
 #include <execinfo.h>
@@ -128,7 +131,7 @@ int GetStackTrace__glibc(void** result, int maxFrames, int skipFrames)
 ////////////////////////////////////////////////////////////////////////////////
 // libunwind-based implementation.
 ////////////////////////////////////////////////////////////////////////////////
-// #if 0
+
 #ifdef ENABLE_LIBUNWIND_STACKTRACE
 
 extern "C" {
@@ -227,3 +230,4 @@ int GetStackTrace(void** result, int maxFrames, int skipFrames)
 } // namespace NYT
 
 #endif
+

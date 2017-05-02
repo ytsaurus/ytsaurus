@@ -4,8 +4,9 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/rw_spinlock.h>
+
+#include <yt/core/profiling/public.h>
 
 namespace NYT {
 
@@ -38,16 +39,22 @@ private:
         : public TRefCounted
     {
         //! When this entry must be evicted with respect to access timeout.
-        TInstant AccessDeadline;
+        NProfiling::TCpuInstant AccessDeadline;
+
         //! When this entry must be evicted with respect to update timeout.
-        TInstant UpdateDeadline;
+        NProfiling::TCpuInstant UpdateDeadline;
+
         //! Some latest known value (possibly not yet set).
         TPromise<TValue> Promise;
+
         //! Corresponds to a future probation request.
         NConcurrency::TDelayedExecutorCookie ProbationCookie;
 
+        //! Constructs a fresh entry.
+        explicit TEntry(NProfiling::TCpuInstant accessDeadline);
+
         //! Check that entry is expired with respect to either access or update.
-        bool Expired(const TInstant& now) const;
+        bool IsExpired(NProfiling::TCpuInstant instant) const;
     };
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;

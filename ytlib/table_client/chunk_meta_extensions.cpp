@@ -2,6 +2,8 @@
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT {
 namespace NTableClient {
 
@@ -9,6 +11,8 @@ using namespace NProto;
 
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::EChunkType;
+using NYTree::BuildYsonFluently;
+using NYson::IYsonConsumer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,11 +31,30 @@ void TBoundaryKeys::Persist(const TStreamPersistenceContext& context)
     Persist(context, MaxKey);
 }
 
+bool TBoundaryKeys::operator ==(const TBoundaryKeys& other) const
+{
+    return MinKey == other.MinKey && MaxKey == other.MaxKey;
+}
+
+bool TBoundaryKeys::operator !=(const TBoundaryKeys& other) const
+{
+    return MinKey != other.MinKey || MaxKey != other.MaxKey;
+}
+
 Stroka ToString(const TBoundaryKeys& keys)
 {
     return Format("MinKey: %v, MaxKey: %v",
         keys.MinKey,
         keys.MaxKey);
+}
+
+void Serialize(const TBoundaryKeys& keys, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("min_key").Value(keys.MinKey)
+            .Item("max_key").Value(keys.MaxKey)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -40,6 +40,8 @@ public:
     virtual bool GetRetry() const override;
     virtual void SetRetry(bool value) override;
 
+    virtual size_t GetHash() const override;
+
     virtual const NRpc::NProto::TRequestHeader& Header() const override;
     virtual NRpc::NProto::TRequestHeader& Header() override;
 
@@ -51,7 +53,7 @@ protected:
 
     virtual bool IsHeavy() const override;
 
-    virtual TSharedRef SerializeBody() = 0;
+    virtual TSharedRef SerializeBody() const = 0;
 
 };
 
@@ -84,7 +86,7 @@ public:
     { }
 
 protected:
-    virtual TSharedRef SerializeBody() override
+    virtual TSharedRef SerializeBody() const override
     {
         return SerializeToProtoWithEnvelope(*this);
     }

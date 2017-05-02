@@ -10,9 +10,9 @@ TInvokerWrapper::TInvokerWrapper(IInvokerPtr underlyingInvoker)
     YCHECK(UnderlyingInvoker_);
 }
 
-void TInvokerWrapper::Invoke(const TClosure& callback)
+void TInvokerWrapper::Invoke(TClosure callback)
 {
-    return UnderlyingInvoker_->Invoke(callback);
+    return UnderlyingInvoker_->Invoke(std::move(callback));
 }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK

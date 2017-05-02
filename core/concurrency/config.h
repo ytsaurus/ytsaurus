@@ -13,20 +13,22 @@ class TThroughputThrottlerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TThroughputThrottlerConfig()
+    explicit TThroughputThrottlerConfig(
+        TNullable<i64> limit = Null,
+        TDuration period = TDuration::MilliSeconds(1000))
     {
-        RegisterParameter("period", Period)
-            .Default(TDuration::MilliSeconds(1000));
         RegisterParameter("limit", Limit)
-            .Default()
+            .Default(limit)
             .GreaterThanOrEqual(0);
+        RegisterParameter("period", Period)
+            .Default(period);
     }
-
-    //! Period for which the bandwidth limit applies.
-    TDuration Period;
 
     //! Limit on average throughput (per sec). Null means unlimited.
     TNullable<i64> Limit;
+
+    //! Period for which the bandwidth limit applies.
+    TDuration Period;
 };
 
 DEFINE_REFCOUNTED_TYPE(TThroughputThrottlerConfig)

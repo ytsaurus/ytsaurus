@@ -7,6 +7,7 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/reader_factory.h>
 
@@ -37,7 +38,6 @@ TPartitionChunkReader::TPartitionChunkReader(
     TNameTablePtr nameTable,
     IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
-    const TChunkMeta& masterMeta,
     int partitionTag)
     : TChunkReaderBase(
         config,
@@ -45,7 +45,6 @@ TPartitionChunkReader::TPartitionChunkReader(
         blockCache)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
-    , ChunkMeta_(masterMeta)
     , PartitionTag_(partitionTag)
 {
     ReadyEvent_ = BIND(&TPartitionChunkReader::InitializeBlockSequence, MakeStrong(this))
@@ -55,8 +54,6 @@ TPartitionChunkReader::TPartitionChunkReader(
 
 TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 {
-    YCHECK(ChunkMeta_.version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
-
     std::vector<int> extensionTags = {
         TProtoExtensionTag<TMiscExt>::Value,
         TProtoExtensionTag<NProto::TBlockMetaExt>::Value,
@@ -67,14 +64,16 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
     ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(Config_->WorkloadDescriptor, PartitionTag_, extensionTags))
         .ValueOrThrow();
 
+    YCHECK(ChunkMeta_.version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
+
     TNameTablePtr chunkNameTable;
     auto nameTableExt = GetProtoExtension<NProto::TNameTableExt>(ChunkMeta_.extensions());
     try {
         FromProto(&chunkNameTable, nameTableExt);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::CorruptedNameTable, 
-            "Failed to deserialize name table for partition chunk reader") 
+            EErrorCode::CorruptedNameTable,
+            "Failed to deserialize name table for partition chunk reader")
             << TErrorAttribute("chunk_id", UnderlyingReader_->GetChunkId())
             << ex;
     }
@@ -153,6 +152,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     INativeClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
+    const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
@@ -160,9 +160,10 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
 {
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
-        switch (dataSliceDescriptor.Type) {
-            case EDataSliceDescriptorType::UnversionedTable: {
-                const auto& chunkSpec = dataSliceDescriptor.GetSingleUnversionedChunk();
+        const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
+        switch (dataSource.GetType()) {
+            case EDataSourceType::UnversionedTable: {
+                const auto& chunkSpec = dataSliceDescriptor.GetSingleChunk();
 
                 auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
                 auto createReader = [=] () {
@@ -188,7 +189,6 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         nameTable,
                         blockCache,
                         keyColumns,
-                        chunkSpec.chunk_meta(),
                         partitionTag);
                 };
 

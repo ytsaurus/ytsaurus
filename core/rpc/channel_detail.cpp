@@ -28,14 +28,12 @@ const NYTree::IAttributeDictionary& TChannelWrapper::GetEndpointAttributes() con
 IClientRequestControlPtr TChannelWrapper::Send(
     IClientRequestPtr request,
     IClientResponseHandlerPtr responseHandler,
-    TNullable<TDuration> timeout,
-    bool requestAck)
+    const TSendOptions& options)
 {
     return UnderlyingChannel_->Send(
         std::move(request),
         std::move(responseHandler),
-        timeout,
-        requestAck);
+        options);
 }
 
 TFuture<void> TChannelWrapper::Terminate(const TError& error)

@@ -35,11 +35,11 @@ public:
         uv_close((uv_handle_t*)&AsyncHandle_, nullptr);
     }
 
-    virtual void Invoke(const TClosure& callback) override
+    virtual void Invoke(TClosure callback) override
     {
         THREAD_AFFINITY_IS_ANY();
 
-        Queue_.Enqueue(callback);
+        Queue_.Enqueue(std::move(callback));
 
         YCHECK(uv_async_send(&AsyncHandle_) == 0);
     }

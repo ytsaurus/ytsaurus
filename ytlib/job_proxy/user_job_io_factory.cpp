@@ -1,12 +1,14 @@
 #include "user_job_io_factory.h"
 
 #include "job_spec_helper.h"
+#include "helpers.h"
 
 #include <yt/ytlib/api/public.h>
 
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/ytlib/job_tracker_client/job.pb.h>
 #include <yt/ytlib/job_tracker_client/public.h>
@@ -77,30 +79,33 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
     INativeClientPtr client,
     const TNodeDescriptor& nodeDescriptor,
     TTableReaderOptionsPtr options,
-    std::vector<NChunkClient::TDataSliceDescriptor> dataSliceDescriptors,
+    const TDataSourceDirectoryPtr& dataSourceDirectory,
+    std::vector<NChunkClient::  TDataSliceDescriptor> dataSliceDescriptors,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
     bool isParallel)
 {
     if (isParallel) {
-        return CreateSchemalessParallelMultiChunkReader(
+        return CreateSchemalessParallelMultiReader(
             jobSpecHelper->GetJobIOConfig()->TableReader,
             std::move(options),
             std::move(client),
             nodeDescriptor,
             GetNullBlockCache(),
             jobSpecHelper->GetInputNodeDirectory(),
+            dataSourceDirectory,
             std::move(dataSliceDescriptors),
             std::move(nameTable),
             columnFilter);
     } else {
-        return CreateSchemalessSequentialMultiChunkReader(
+        return CreateSchemalessSequentialMultiReader(
             jobSpecHelper->GetJobIOConfig()->TableReader,
             std::move(options),
             std::move(client),
             nodeDescriptor,
             GetNullBlockCache(),
             jobSpecHelper->GetInputNodeDirectory(),
+            dataSourceDirectory,
             std::move(dataSliceDescriptors),
             std::move(nameTable),
             columnFilter);
@@ -118,20 +123,21 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
     const auto& schedulerJobSpecExt = jobSpecHelper->GetSchedulerJobSpecExt();
     std::vector<NChunkClient::TDataSliceDescriptor> dataSliceDescriptors;
     for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
-        for (const auto& descriptor : inputSpec.data_slice_descriptors()) {
-            auto dataSliceDescriptor = FromProto<NChunkClient::TDataSliceDescriptor>(descriptor);
-            dataSliceDescriptors.push_back(std::move(dataSliceDescriptor));
-        }
+        auto descriptors = UnpackDataSliceDescriptors(inputSpec);
+        dataSliceDescriptors.insert(dataSliceDescriptors.end(), descriptors.begin(), descriptors.end());
     }
 
+    auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(schedulerJobSpecExt.data_source_directory());
+
     auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
-        schedulerJobSpecExt.input_table_specs(0).table_reader_options()));
+        schedulerJobSpecExt.table_reader_options()));
 
     return CreateTableReader(
         jobSpecHelper,
         std::move(client),
         std::move(nodeDescriptor),
         std::move(options),
+        dataSourceDirectory,
         std::move(dataSliceDescriptors),
         std::move(nameTable),
         columnFilter,
@@ -217,19 +223,22 @@ public:
         nameTable = TNameTable::FromKeyColumns(keyColumns);
         const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
         auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
-            schedulerJobSpecExt.input_table_specs(0).table_reader_options()));
+            schedulerJobSpecExt.table_reader_options()));
+
+        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(schedulerJobSpecExt.data_source_directory());
 
         for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
-            auto dataSliceDescriptors = FromProto<std::vector<NChunkClient::TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
+            auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
-            auto reader = CreateSchemalessSequentialMultiChunkReader(
+            auto reader = CreateSchemalessSequentialMultiReader(
                 JobSpecHelper_->GetJobIOConfig()->TableReader,
                 options,
                 client,
                 nodeDescriptor,
                 GetNullBlockCache(),
                 JobSpecHelper_->GetInputNodeDirectory(),
+                dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
                 columnFilter,
@@ -243,15 +252,16 @@ public:
         keyColumns.resize(foreignKeyColumnCount);
 
         for (const auto& inputSpec : schedulerJobSpecExt.foreign_input_table_specs()) {
-            auto dataSliceDescriptors = FromProto<std::vector<NChunkClient::TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
+            auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
-            auto reader = CreateSchemalessSequentialMultiChunkReader(
+            auto reader = CreateSchemalessSequentialMultiReader(
                 JobSpecHelper_->GetJobIOConfig()->TableReader,
                 options,
                 client,
                 nodeDescriptor,
                 GetNullBlockCache(),
                 JobSpecHelper_->GetInputNodeDirectory(),
+                dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
                 columnFilter,
@@ -382,7 +392,8 @@ public:
         YCHECK(schedulerJobSpecExt.input_table_specs_size() == 1);
 
         const auto& inputSpec = schedulerJobSpecExt.input_table_specs(0);
-        auto dataSliceDescriptors = FromProto<std::vector<NChunkClient::TDataSliceDescriptor>>(inputSpec.data_slice_descriptors());
+        auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
+        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(schedulerJobSpecExt.data_source_directory());
 
         const auto& reduceJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
@@ -398,6 +409,7 @@ public:
             keyColumns,
             nameTable,
             onNetworkReleased,
+            dataSourceDirectory,
             std::move(dataSliceDescriptors),
             schedulerJobSpecExt.input_row_count(),
             schedulerJobSpecExt.is_approximate(),

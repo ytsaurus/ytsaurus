@@ -422,21 +422,21 @@ TOwningKey GetKeyPrefixSuccessor(TKey key, ui32 prefixLength);
 TKey GetKeyPrefixSuccessor(TKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer);
 
 //! Returns key of a strict lenght (either trimmed key or widen key)
-TKey GetStrictKey(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer);
-TKey GetStrictKeySuccessor(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer);
+TKey GetStrictKey(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
+TKey GetStrictKeySuccessor(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
 
 //! If #key has more than #prefixLength values then trims it this limit.
 TOwningKey GetKeyPrefix(TKey key, ui32 prefixLength);
 TKey GetKeyPrefix(TKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer);
 
-//! Makes a new, wider key padded with null values.
-TOwningKey WidenKey(const TOwningKey& key, ui32 keyColumnCount);
-TKey WidenKey(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer);
-TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer);
+//! Makes a new, wider key padded with given sentinel values.
+TOwningKey WidenKey(const TOwningKey& key, ui32 keyColumnCount, EValueType sentinelType = EValueType::Null);
+TKey WidenKey(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
+TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
 
 //! Takes prefix of a key and makes it wider.
-TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColumnCount);
-TKey WidenKeyPrefix(TKey key, ui32 prefixLength, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer);
+TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColumnCount, EValueType sentinelType = EValueType::Null);
+TKey WidenKeyPrefix(TKey key, ui32 prefixLength, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
 
 //! Returns the key with no components.
 const TOwningKey EmptyKey();
@@ -783,5 +783,15 @@ struct hash<NYT::NTableClient::TUnversionedValue>
     inline size_t operator()(const NYT::NTableClient::TUnversionedValue& value) const
     {
         return GetHash(value);
+    }
+};
+
+//! A hasher for TUnversionedRow.
+template <>
+struct hash<NYT::NTableClient::TUnversionedRow>
+{
+    inline size_t operator()(const NYT::NTableClient::TUnversionedRow& row) const
+    {
+        return GetHash(row);
     }
 };

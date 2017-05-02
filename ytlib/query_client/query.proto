@@ -122,6 +122,8 @@ message TJoinClause
 
     required NYT.NProto.TGuid foreign_data_id = 9;
     required bool is_left = 10;
+
+    optional uint64 common_key_prefix = 11 [default = 0];
 }
 
 message TGroupClause

@@ -51,7 +51,7 @@ public:
     virtual void OnEndAttributes() override;
 
     using IYsonConsumer::OnRaw;
-    virtual void OnRaw(const TStringBuf& yson, EYsonType type = EYsonType::Node);
+    virtual void OnRaw(const TStringBuf& yson, EYsonType type = EYsonType::Node) override;
 
     virtual void Flush() override;
 

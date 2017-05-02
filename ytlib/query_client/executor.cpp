@@ -563,12 +563,18 @@ private:
         // Should be already sorted
         LOG_DEBUG("Sorting %v splits", allSplits.size());
 
-        std::sort(
+        YCHECK(std::is_sorted(
             allSplits.begin(),
             allSplits.end(),
             [] (const std::pair<TDataRanges, Stroka>& lhs, const std::pair<TDataRanges, Stroka>& rhs) {
-                return lhs.first.Ranges.Begin()->first < rhs.first.Ranges.Begin()->first;
-            });
+                const auto& lhsData = lhs.first;
+                const auto& rhsData = rhs.first;
+
+                const auto& lhsValue = lhsData.Ranges ? lhsData.Ranges.Begin()->first : *lhsData.Keys.Begin();
+                const auto& rhsValue = rhsData.Ranges ? rhsData.Ranges.Begin()->first : *rhsData.Keys.Begin();
+
+                return lhsValue < rhsValue;
+            }));
 
         return DoCoordinateAndExecute(
             query,

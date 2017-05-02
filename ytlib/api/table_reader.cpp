@@ -5,6 +5,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/multi_reader_base.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -78,7 +79,7 @@ public:
     virtual TFuture<void> GetReadyEvent() override;
 
     virtual i64 GetTableRowIndex() const override;
-    virtual TNameTablePtr GetNameTable() const override;
+    virtual const TNameTablePtr& GetNameTable() const override;
     virtual i64 GetTotalRowCount() const override;
 
     virtual TKeyColumns GetKeyColumns() const override;
@@ -201,6 +202,11 @@ void TSchemalessTableReader::DoOpen()
         dynamic = attributes->Get<bool>("dynamic");
         schema = attributes->Get<TTableSchema>("schema");
 
+        // XXX(savrus) Remove in 19.2
+        if (dynamic) {
+            THROW_ERROR_EXCEPTION("Read table for dynamic tables is not supported");
+        }
+
         if (timestamp && !(dynamic && schema.IsSorted())) {
             THROW_ERROR_EXCEPTION("Invalid attribute %Qv: table %Qv is not sorted dynamic",
                 "timestamp",
@@ -247,11 +253,14 @@ void TSchemalessTableReader::DoOpen()
     options->EnableRangeIndex = true;
     options->EnableRowIndex = true;
 
+    auto dataSourceDirectory = New<NChunkClient::TDataSourceDirectory>();
     if (dynamic && schema.IsSorted()) {
-        auto dataSliceDescriptor = MakeVersionedDataSliceDescriptor(
-            std::move(chunkSpecs),
+        dataSourceDirectory->DataSources().push_back(MakeVersionedDataSource(
+            path,
             schema,
-            timestamp.Get(AsyncLastCommittedTimestamp));
+            timestamp.Get(AsyncLastCommittedTimestamp)));
+
+        auto dataSliceDescriptor = TDataSliceDescriptor(std::move(chunkSpecs));
 
         UnderlyingReader_ = CreateSchemalessMergingMultiChunkReader(
             Config_,
@@ -261,18 +270,23 @@ void TSchemalessTableReader::DoOpen()
             TNodeDescriptor(),
             Client_->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
+            dataSourceDirectory,
             dataSliceDescriptor,
             New<TNameTable>(),
             TColumnFilter());
     } else {
+        dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
+            path,
+            schema));
+
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
         for (auto& chunkSpec : chunkSpecs) {
-            dataSliceDescriptors.push_back(MakeUnversionedDataSliceDescriptor(std::move(chunkSpec)));
+            dataSliceDescriptors.push_back(TDataSliceDescriptor(chunkSpec));
         }
 
         auto factory = Unordered_
-            ? CreateSchemalessParallelMultiChunkReader
-            : CreateSchemalessSequentialMultiChunkReader;
+            ? CreateSchemalessParallelMultiReader
+            : CreateSchemalessSequentialMultiReader;
         UnderlyingReader_ = factory(
             Config_,
             options,
@@ -281,6 +295,7 @@ void TSchemalessTableReader::DoOpen()
             TNodeDescriptor(),
             Client_->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
+            dataSourceDirectory,
             std::move(dataSliceDescriptors),
             New<TNameTable>(),
             TColumnFilter(),
@@ -301,6 +316,8 @@ void TSchemalessTableReader::DoOpen()
 
 bool TSchemalessTableReader::Read(std::vector<TUnversionedRow> *rows)
 {
+    rows->clear();
+
     if (IsAborted()) {
         return true;
     }
@@ -340,7 +357,7 @@ i64 TSchemalessTableReader::GetTotalRowCount() const
     return UnderlyingReader_->GetTotalRowCount();
 }
 
-TNameTablePtr TSchemalessTableReader::GetNameTable() const
+const TNameTablePtr& TSchemalessTableReader::GetNameTable() const
 {
     YCHECK(UnderlyingReader_);
     return UnderlyingReader_->GetNameTable();

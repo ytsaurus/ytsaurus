@@ -67,7 +67,6 @@ public:
     const NTabletNode::TSecurityManagerPtr& GetSecurityManager() const;
     const NTabletNode::TInMemoryManagerPtr& GetInMemoryManager() const;
     const NExecAgent::TSlotManagerPtr& GetExecSlotManager() const;
-    const NJobProxy::TJobProxyConfigPtr& GetJobProxyConfig() const;
     TNodeMemoryTracker* GetMemoryUsageTracker() const;
     const NDataNode::TChunkStorePtr& GetChunkStore() const;
     const NDataNode::TChunkCachePtr& GetChunkCache() const;
@@ -100,6 +99,8 @@ public:
     NNodeTrackerClient::TAddressMap GetLocalAddresses();
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks();
 
+    NJobProxy::TJobProxyConfigPtr BuildJobProxyConfig() const;
+
     void Run();
 
 private:
@@ -127,7 +128,7 @@ private:
     NJobAgent::TJobControllerPtr JobController;
     NJobAgent::TStatisticsReporterPtr StatisticsReporter;
     NExecAgent::TSlotManagerPtr ExecSlotManager;
-    NJobProxy::TJobProxyConfigPtr JobProxyConfig;
+    NJobProxy::TJobProxyConfigPtr JobProxyConfigTemplate;
     std::unique_ptr<TMemoryUsageTracker<NNodeTrackerClient::EMemoryCategory>> MemoryUsageTracker;
     NExecAgent::TSchedulerConnectorPtr SchedulerConnector;
     NDataNode::TChunkStorePtr ChunkStore;

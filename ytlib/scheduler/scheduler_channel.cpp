@@ -57,7 +57,7 @@ public:
         return *EndpointAttributes_;
     }
 
-    virtual TFuture<IChannelPtr> GetChannel(const Stroka& /*serviceName*/) override
+    virtual TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
     {
         {
             TGuard<TSpinLock> guard(SpinLock_);

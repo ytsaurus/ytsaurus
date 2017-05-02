@@ -18,13 +18,14 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TRow>
 class TRowset
-    : public IRowset
+    : public IRowset<TRow>
 {
 public:
     TRowset(
         const TTableSchema& schema,
-        TSharedRange<TUnversionedRow> rows)
+        TSharedRange<TRow> rows)
         : Schema_(schema)
         , Rows_(std::move(rows))
     { }
@@ -34,28 +35,34 @@ public:
         return Schema_;
     }
 
-    virtual TRange<TUnversionedRow> GetRows() const override
+    virtual TRange<TRow> GetRows() const override
     {
         return Rows_;
     }
 
 private:
     const TTableSchema Schema_;
-    const TSharedRange<TUnversionedRow> Rows_;
-
+    const TSharedRange<TRow> Rows_;
 };
 
-IRowsetPtr CreateRowset(
+IUnversionedRowsetPtr CreateRowset(
     const TTableSchema& schema,
     TSharedRange<TUnversionedRow> rows)
 {   
-    return New<TRowset>(schema, std::move(rows));
+    return New<TRowset<TUnversionedRow>>(schema, std::move(rows));
+}
+
+IVersionedRowsetPtr CreateRowset(
+    const TTableSchema& schema,
+    TSharedRange<TVersionedRow> rows)
+{
+    return New<TRowset<TVersionedRow>>(schema, std::move(rows));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulRowsetWriter
-    : public IRowset
+    : public IUnversionedRowset
     , public ISchemafulWriter
 {
 public:
@@ -73,14 +80,14 @@ public:
         return MakeRange(Rows_);
     }
 
-    TFuture<IRowsetPtr> GetResult() const
+    TFuture<IUnversionedRowsetPtr> GetResult() const
     {
         return Result_.ToFuture();
     }
 
     virtual TFuture<void> Close() override
     {
-        Result_.Set(IRowsetPtr(this));
+        Result_.Set(IUnversionedRowsetPtr(this));
         Result_.Reset();
         return VoidFuture;
     }
@@ -101,7 +108,7 @@ public:
 private:
     const TTableSchema Schema_;
 
-    TPromise<IRowsetPtr> Result_ = NewPromise<IRowsetPtr>();
+    TPromise<IUnversionedRowsetPtr> Result_ = NewPromise<IUnversionedRowsetPtr>();
 
     struct TSchemafulRowsetWriterBufferTag
     { };
@@ -111,7 +118,7 @@ private:
 
 };
 
-std::tuple<ISchemafulWriterPtr, TFuture<IRowsetPtr>> CreateSchemafulRowsetWriter(const TTableSchema& schema)
+std::tuple<ISchemafulWriterPtr, TFuture<IUnversionedRowsetPtr>> CreateSchemafulRowsetWriter(const TTableSchema& schema)
 {
     auto writer = New<TSchemafulRowsetWriter>(schema);
     return std::make_tuple(writer, writer->GetResult());
