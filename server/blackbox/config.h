@@ -56,7 +56,7 @@ public:
     }
 
     Stroka Scope;
-    yhash_map<Stroka, Stroka> ClientIds;
+    yhash<Stroka, Stroka> ClientIds;
 
     bool EnableScopeCheck = true;
     bool EnableClientIdsCheck = true;

@@ -565,7 +565,7 @@ private:
     const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
 
     mutable TReaderWriterSpinLock SpinLock_;
-    yhash_map<Stroka, TBalancingChannelSubproviderPtr> SubproviderMap_;
+    yhash<Stroka, TBalancingChannelSubproviderPtr> SubproviderMap_;
 
 
     TBalancingChannelSubproviderPtr GetSubprovider(const Stroka& serviceName)

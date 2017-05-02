@@ -133,7 +133,7 @@ public:
     //! Only used for ordered tablets.
     DEFINE_BYVAL_RW_PROPERTY(i64, TrimmedRowCount);
 
-    using TReplicaMap = yhash_map<TTableReplica*, TTableReplicaInfo>;
+    using TReplicaMap = yhash<TTableReplica*, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);

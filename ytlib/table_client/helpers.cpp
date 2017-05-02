@@ -404,7 +404,7 @@ TUnversionedOwningRow YsonToSchemafulRow(
 {
     auto nameTable = TNameTable::FromSchema(tableSchema);
 
-    auto rowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(
+    auto rowParts = ConvertTo<yhash<Stroka, INodePtr>>(
         TYsonString(yson, EYsonType::MapFragment));
 
     TUnversionedOwningRowBuilder rowBuilder;

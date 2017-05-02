@@ -245,7 +245,7 @@ private:
     IYPathServicePtr OrchidService_;
 
     TEntityMap<TMailbox> MailboxMap_;
-    yhash_map<TCellId, TMessageId> CellIdToNextTransientIncomingMessageId_;
+    yhash<TCellId, TMessageId> CellIdToNextTransientIncomingMessageId_;
     
 
     // RPC handlers.
@@ -282,7 +282,7 @@ private:
         ValidatePeer(EPeerKind::Leader);
 
         auto registeredCellList = CellDirectory_->GetRegisteredCells();
-        yhash_map<TCellId, TCellInfo> registeredCellMap;
+        yhash<TCellId, TCellInfo> registeredCellMap;
         for (const auto& cellInfo : registeredCellList) {
             YCHECK(registeredCellMap.insert(std::make_pair(cellInfo.CellId, cellInfo)).second);
         }

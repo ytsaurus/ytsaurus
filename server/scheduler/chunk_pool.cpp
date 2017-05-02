@@ -559,7 +559,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAtomicChunkPool, 0x76bac510);
 
     std::vector<TSuspendableStripe> Stripes;
-    yhash_map<TNodeId, i64> NodeIdToLocality;
+    yhash<TNodeId, i64> NodeIdToLocality;
     TChunkStripeListPtr ExtractedList;
     int SuspendedStripeCount = 0;
     bool HasPrimaryStripes = false;
@@ -1005,11 +1005,11 @@ private:
         }
     };
 
-    yhash_map<TNodeId, TLocalityEntry> NodeIdToEntry;
+    yhash<TNodeId, TLocalityEntry> NodeIdToEntry;
 
     TIdGenerator OutputCookieGenerator;
 
-    yhash_map<IChunkPoolOutput::TCookie, TExtractedStripeList> ExtractedLists;
+    yhash<IChunkPoolOutput::TCookie, TExtractedStripeList> ExtractedLists;
 
     yhash_set<IChunkPoolOutput::TCookie> LostCookies;
     yhash_set<IChunkPoolOutput::TCookie> ReplayCookies;

@@ -393,9 +393,9 @@ TDataStatistics GetTotalInputDataStatistics(const TStatistics& jobStatistics)
     return result;
 }
 
-yhash_map<int, TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics)
+yhash<int, TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics)
 {
-    yhash_map<int, TDataStatistics> result;
+    yhash<int, TDataStatistics> result;
     for (auto iterator = jobStatistics.Data().upper_bound(outputPrefix);
          iterator != jobStatistics.Data().end() && HasPrefix(iterator->first, outputPrefix);
          ++iterator)

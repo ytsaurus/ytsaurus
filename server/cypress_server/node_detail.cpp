@@ -340,7 +340,7 @@ void TMapNodeTypeHandler::DoClone(
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-    yhash_map<Stroka, TCypressNodeBase*> keyToChildMapStorage;
+    yhash<Stroka, TCypressNodeBase*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
         sourceNode->GetTrunkNode(),

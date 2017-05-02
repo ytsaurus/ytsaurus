@@ -264,8 +264,8 @@ public:
     }
 
 private:
-    yhash_map<Stroka, IYPathServicePtr> Services_;
-    yhash_map<Stroka, TYsonCallback> Attributes_;
+    yhash<Stroka, IYPathServicePtr> Services_;
+    yhash<Stroka, TYsonCallback> Attributes_;
 
 };
 

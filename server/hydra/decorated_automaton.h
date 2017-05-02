@@ -249,7 +249,7 @@ private:
 
     NProfiling::TAggregateCounter BatchCommitTimeCounter_;
 
-    yhash_map<Stroka, TMutationTypeDescriptor> TypeToDescriptor_;
+    yhash<Stroka, TMutationTypeDescriptor> TypeToDescriptor_;
 
     NLogging::TLogger Logger;
 

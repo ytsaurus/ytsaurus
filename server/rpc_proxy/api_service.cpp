@@ -64,7 +64,7 @@ private:
 
     TSpinLock SpinLock_;
     // TODO(sandello): Introduce expiration times for clients.
-    yhash_map<Stroka, INativeClientPtr> AuthenticatedClients_;
+    yhash<Stroka, INativeClientPtr> AuthenticatedClients_;
 
     INativeClientPtr GetAuthenticatedClientOrAbortContext(const IServiceContextPtr& context)
     {
