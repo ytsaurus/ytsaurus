@@ -321,7 +321,7 @@ private:
 
         YCHECK(actualRowIndex == rowIndex);
 
-        LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %v)",
+        LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %x)",
             rowIndex,
             timestamp);
 
@@ -345,7 +345,7 @@ private:
 
         auto startReplicationTimestamp = replicaSnapshot->StartReplicationTimestamp;
 
-        LOG_DEBUG("Started computing replication start row index (StartReplicationTimestamp: %v, RowIndexLo: %v, RowIndexHi: %v)",
+        LOG_DEBUG("Started computing replication start row index (StartReplicationTimestamp: %x, RowIndexLo: %v, RowIndexHi: %v)",
             startReplicationTimestamp,
             rowIndexLo,
             rowIndexHi);
@@ -370,7 +370,7 @@ private:
             ++startRowIndex;
         }
 
-        LOG_DEBUG("Finished computing replication start row index (StartRowIndex: %v, StartTimestamp: %v)",
+        LOG_DEBUG("Finished computing replication start row index (StartRowIndex: %v, StartTimestamp: %x)",
             startRowIndex,
             startTimestamp);
 
@@ -444,7 +444,7 @@ private:
 
                 if (timestamp <= replicaSnapshot->StartReplicationTimestamp) {
                     YCHECK(row == readerRows[0]);
-                    LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %v, LogRecordTimestamp: %v)",
+                    LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %x, LogRecordTimestamp: %x)",
                         replicaSnapshot->StartReplicationTimestamp,
                         timestamp);
                     return false;
@@ -478,7 +478,7 @@ private:
         *newReplicationTimestamp = prevTimestamp;
 
         LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
-            "NewReplicationRowIndex: %v, NewReplicationTimestamp: %v)",
+            "NewReplicationRowIndex: %v, NewReplicationTimestamp: %x)",
             currentRowIndex,
             rowCount,
             dataWeight,

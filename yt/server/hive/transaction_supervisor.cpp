@@ -555,7 +555,7 @@ private:
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             auto prepareTimestamp = request->prepare_timestamp();
 
-            context->SetRequestInfo("TransactionId: %v, PrepareTimestamp: %v",
+            context->SetRequestInfo("TransactionId: %v, PrepareTimestamp: %x",
                 transactionId,
                 prepareTimestamp);
 
@@ -575,7 +575,7 @@ private:
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             auto commitTimestamp = request->commit_timestamp();
 
-            context->SetRequestInfo("TransactionId: %v, CommitTimestamp: %v",
+            context->SetRequestInfo("TransactionId: %v, CommitTimestamp: %x",
                 transactionId,
                 commitTimestamp);
 

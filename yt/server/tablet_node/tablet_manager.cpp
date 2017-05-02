@@ -1195,7 +1195,7 @@ private:
                 YCHECK(writeRecord.RowCount == context.RowCount);
 
                 LOG_DEBUG("Non-atomic rows committed (TransactionId: %v, TabletId: %v, "
-                    "RowCount: %v, WriteRecordSize: %v, ActualTimestamp: %v)",
+                    "RowCount: %v, WriteRecordSize: %v, ActualTimestamp: %x)",
                     transactionId,
                     writeRecord.TabletId,
                     writeRecord.RowCount,
@@ -1520,7 +1520,7 @@ private:
                 SetBackingStore(tablet, store, backingStore);
             }
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, MaxTimestamp: %v, BackingStoreId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, MaxTimestamp: %x, BackingStoreId: %v)",
                 tabletId,
                 storeId,
                 store->GetMaxTimestamp(),
@@ -1533,7 +1533,7 @@ private:
         tablet->SetRetainedTimestamp(retainedTimestamp);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet stores update committed "
-            "(TabletId: %v, AddedStoreIds: %v, RemovedStoreIds: %v, RetainedTimestamp: %v)",
+            "(TabletId: %v, AddedStoreIds: %v, RemovedStoreIds: %v, RetainedTimestamp: %x)",
             tabletId,
             addedStoreIds,
             removedStoreIds,
@@ -1828,7 +1828,7 @@ private:
         AdvanceReplicatedTrimmedRowCount(transaction, tablet);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows committed (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
-            "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v, TrimmedRowCount: %v->%v)",
+            "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %x->%x, TrimmedRowCount: %v->%v)",
             tabletId,
             replicaId,
             transaction->GetId(),
@@ -1862,7 +1862,7 @@ private:
         replicaInfo->SetPreparedReplicationTransactionId(NullTransactionId);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows aborted (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
-            "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v)",
+            "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %x->%x)",
             tabletId,
             replicaId,
             transaction->GetId(),
@@ -1873,7 +1873,7 @@ private:
     }
 
 
-    static void ValidateReplicaWritable(TTablet* tablet, TTableReplicaInfo& replicaInfo)
+    static void ValidateReplicaWritable(TTablet* tablet, const TTableReplicaInfo& replicaInfo)
     {
         auto currentReplicationRowIndex = replicaInfo.GetCurrentReplicationRowIndex();
         auto totalRowCount = tablet->GetTotalRowCount();
@@ -1889,7 +1889,7 @@ private:
 
             case ETableReplicaMode::Async:
                 if (currentReplicationRowIndex > totalRowCount) {
-                    THROW_ERROR_EXCEPTION("Replica %v of tablet %v is not asynchronously writeable: some rows ",
+                    THROW_ERROR_EXCEPTION("Replica %v of tablet %v is not asynchronously writeable: some synchronous writes are still in progress",
                         replicaInfo.GetId(),
                         tablet->GetId());
                 }
@@ -2895,7 +2895,7 @@ private:
         UpdateTabletSnapshot(tablet);
 
         LOG_INFO_UNLESS(IsRecovery(), "Table replica added (TabletId: %v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v, "
-            "Mode: %v, StartReplicationTimestamp: %v, CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %x)",
+            "Mode: %v, StartReplicationTimestamp: %x, CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %x)",
             tablet->GetId(),
             replicaId,
             replicaInfo.GetClusterName(),
@@ -2949,7 +2949,7 @@ private:
     void DisableTableReplica(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
         LOG_INFO_UNLESS(IsRecovery(), "Table replica disabled (TabletId: %v, ReplicaId, "
-            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %v)",
+            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %x)",
             tablet->GetId(),
             replicaInfo->GetId(),
             replicaInfo->GetCurrentReplicationRowIndex(),
