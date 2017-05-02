@@ -513,7 +513,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
     # XXX(asaitgalin): Some flags are needed before operation (and config) is unpickled
     # so these flags are passed through environment variables.
     environment = {}
-    environment["YT_WRAPPER_IS_INSIDE_JOB"] = "1"
+    environment["YT_FORBID_REQUESTS_FROM_JOB"] = "1"
     environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = \
        str(int(get_config(client)["allow_http_requests_to_yt_from_job"]))
 
@@ -560,7 +560,7 @@ def enable_python_job_processing_for_standalone_binary():
     This function used as entry point if yt library built in python/program from arcadia.
     """
     global SINGLE_INDEPENDENT_BINARY_CASE
-    if os.environ.get("YT_WRAPPER_IS_INSIDE_JOB"):
+    if os.environ.get("YT_FORBID_REQUESTS_FROM_JOB"):
         if getattr(sys, "is_standalone_binary", False):
             process_rows(sys.argv[1], sys.argv[2], start_time=None)
         else:

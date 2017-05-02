@@ -174,11 +174,13 @@ def _set_mapper_settings_for_read_from_yt(source_client=None, destination_client
     if "tmpfs_size" in spec["mapper"]:
         spec["mapper"]["memory_limit"] += spec["mapper"]["tmpfs_size"]
 
-    if enable_local_files_usage_in_job(destination_client):
-        if "environment" not in spec["mapper"]:
-            spec["mapper"]["environment"] = {}
+    if "environment" not in spec["mapper"]:
+        spec["mapper"]["environment"] = {}
 
+    if enable_local_files_usage_in_job(destination_client):
         spec["mapper"]["environment"]["PYTHONPATH"] = ":".join(sys.path)
+
+    spec["mapper"]["environment"]["YT_FORBID_REQUESTS_FROM_JOB"] = "0"
 
     if source_client is not None:
         spec.setdefault("secure_vault", {})
