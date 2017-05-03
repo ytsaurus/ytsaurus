@@ -18,8 +18,9 @@ import time
 import uuid
 
 TM_CONFIG_PATH = "config.json"
-SANDBOX_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests.sandbox")
-TEST_RUN_PATH = os.path.join(SANDBOX_PATH, "run_" + uuid.uuid4().hex[:8])
+TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
+TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
+TEST_RUN_PATH = os.path.join(TESTS_SANDBOX, "test_transfer_manager", "run_" + uuid.uuid4().hex[:8])
 
 MAX_WAIT_TIME = 60
 SLEEP_QUANTUM = 0.1
@@ -48,7 +49,7 @@ def _start_transfer_manager(config):
     requirements_path = os.path.join(python_path, "yandex-yt-transfer-manager", "requirements.txt")
     tm_binary_path = os.path.join(tm_server_path, "bin", "transfer-manager-server")
     script_binary_path = os.path.join(tests_path, "prepare_and_start_tm.sh")
-    venv_path = os.path.join(SANDBOX_PATH, "tmvenv")
+    venv_path = os.path.join(TESTS_SANDBOX, "tmvenv")
 
     return subprocess.Popen([script_binary_path, requirements_path, tm_binary_path, config_path, venv_path],
                             preexec_fn=os.setsid)
@@ -64,6 +65,9 @@ def _abort_operations_and_transactions(client):
 @pytest.mark.skipif(PY3, reason="Transfer manager is available only for Python 2")
 class TestTransferManager(object):
     def setup_class(self):
+        port_locks_path = os.path.join(TESTS_SANDBOX, "ports")
+        os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = port_locks_path
+
         self._first_cluster_yt_instance = start(node_count=3, path=TEST_RUN_PATH, enable_debug_logging=True, id="first")
         self._second_cluster_yt_instance = start(node_count=3, path=TEST_RUN_PATH, enable_debug_logging=True, id="second")
 
@@ -79,7 +83,7 @@ class TestTransferManager(object):
         tm_config["clusters"]["clusterA"]["options"]["proxy"] = first_cluster_url
         tm_config["clusters"]["clusterB"]["options"]["proxy"] = second_cluster_url
 
-        port_iterator = OpenPortIterator()
+        port_iterator = OpenPortIterator(port_locks_path)
         tm_config["port"] = next(port_iterator)
         tm_config["logging"]["port"] = next(port_iterator)
         tm_config["task_executor"]["port"] = next(port_iterator)
