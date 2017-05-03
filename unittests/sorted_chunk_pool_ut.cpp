@@ -355,7 +355,7 @@ protected:
     //! *** For the versioned tables by the full key;
     void CheckDataIntegrity(const std::vector<TChunkStripeListPtr>& stripeLists, const std::vector<TInputChunkPtr>& teleportChunks)
     {
-        yhash_map<TInputChunkPtr, std::vector<TInputChunkSlicePtr>> chunkSlicesByInputChunk;
+        yhash<TInputChunkPtr, std::vector<TInputChunkSlicePtr>> chunkSlicesByInputChunk;
         yhash_set<TInputChunkPtr> teleportChunksSet(teleportChunks.begin(), teleportChunks.end());
 
         // Check that data slices from each stripe are all from the same table.
@@ -2649,15 +2649,15 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     };
 
     // All chunks from the IChunkPoolInput point of view.
-    yhash_map<TChunkId, IChunkPoolInput::TCookie> chunkIdToInputCookie;
+    yhash<TChunkId, IChunkPoolInput::TCookie> chunkIdToInputCookie;
     yhash_set<TChunkId> suspendedChunks;
     yhash_set<TChunkId> resumedChunks;
     // All chunks from the IChunkPoolOutput point of view.
-    yhash_map<TChunkId, IChunkPoolOutput::TCookie> chunkIdToOutputCookie;
+    yhash<TChunkId, IChunkPoolOutput::TCookie> chunkIdToOutputCookie;
     yhash_set<TChunkId> pendingChunks;
     yhash_set<TChunkId> startedChunks;
     yhash_set<TChunkId> completedChunks;
-    yhash_map<TChunkId, TInputChunkPtr> chunkIdToChunk;
+    yhash<TChunkId, TInputChunkPtr> chunkIdToChunk;
 
     for (const auto& chunk : CreatedUnversionedPrimaryChunks_) {
         const auto& chunkId = chunk->ChunkId();
