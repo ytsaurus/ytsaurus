@@ -9,8 +9,6 @@
 
 #include <yt/ytlib/table_client/public.h>
 
-#include <yt/server/scheduler/public.h>
-
 #include <yt/core/misc/phoenix.h>
 
 namespace NYT {
