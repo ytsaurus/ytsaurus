@@ -55,15 +55,26 @@ namespace std {
  *
  */
 
+/*
+ * Other GCC Versions
+ *
+ * GCC                  | 4.9.4
+ * __GLIBCXX__          | 20160726
+ * ---------------------+---------
+ * make_unique          |  ok
+ * aligned_union        |
+ * is_trivially_*_ctor  |                
+ */
+ 
 #if defined(__GLIBCXX__) && __GLIBCXX__ > 20140716 && !defined(__cpp_lib_make_unique)
 #undef YT_PLATFORM_HAS_MAKE_UNIQUE
 #endif
 
-#if defined(__GLIBCXX__) && __GLIBCXX__ < 20151204
+#if defined(__GLIBCXX__) && (__GLIBCXX__ < 20151204 || __GLIBCXX__ == 20160726)
 #undef YT_PLATFORM_HAS_ALIGNED_UNION
 #endif
 
-#if defined(__GLIBCXX__) && __GLIBCXX__ < 20151204
+#if defined(__GLIBCXX__) && (__GLIBCXX__ < 20151204 || __GLIBCXX__ == 20160726)
 #undef YT_PLATFORM_HAS_IS_TRIVIALLY_CONSTRUCTIBLE
 #endif
 
