@@ -3,13 +3,13 @@
 
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
-
 #include <yt/core/tools/registry.h>
 #include <yt/core/tools/tools.h>
 
 #include <yt/core/ytree/fluent.h>
 
 #include <util/string/split.h>
+#include <util/system/filemap.h>
 
 #include <util/system/yield.h>
 
@@ -160,7 +160,7 @@ void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const
     YCHECK(!IsNull());
 #ifdef _linux_
     auto path = GetPath(name);
-    TFileOutput output(TFile(path, EOpenModeFlag::WrOnly));
+    TFileOutput output(TFile(path, OpenMode::WrOnly));
     output << value;
 #endif
 }
@@ -170,7 +170,7 @@ void TNonOwningCGroup::Append(const Stroka& name, const Stroka& value) const
     YCHECK(!IsNull());
 #ifdef _linux_
     auto path = GetPath(name);
-    TFileOutput output(TFile(path, EOpenModeFlag::ForAppend));
+    TFileOutput output(TFile(path, OpenMode::ForAppend));
     output << value;
 #endif
 }
