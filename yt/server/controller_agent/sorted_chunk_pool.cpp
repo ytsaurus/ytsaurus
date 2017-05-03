@@ -28,6 +28,7 @@ void TSortedJobOptions::Persist(const TPersistenceContext& context)
     Persist(context, ForeignPrefixLength);
     Persist(context, MaxTotalSliceCount);
     Persist(context, EnablePeriodicYielder);
+    Persist(context, PivotKeys);
 }
 
 void TSortedChunkPoolOptions::Persist(const TPersistenceContext& context)
@@ -40,15 +41,6 @@ void TSortedChunkPoolOptions::Persist(const TPersistenceContext& context)
     Persist(context, SupportLocality);
     Persist(context, OperationId);
 }
-
-////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EEndpointType,
-    (Left)
-    (Right)
-    (ForeignLeft)
-    (ForeignRight)
-);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -206,6 +198,8 @@ private:
         return stripe;
     }
 };
+
+////////////////////////////////////////////////////////////////////
 
 // NB(max42): we can not call this enum EJobState since there is another Skywalker^W NYT::NScheduler::EJobState.
 DEFINE_ENUM(EManagedJobState,
@@ -637,6 +631,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EEndpointType,
+    (PivotKey)
+    (Left)
+    (Right)
+    (ForeignLeft)
+    (ForeignRight)
+);
+
 //! A class that incapsulates the whole logic of building sorted* jobs.
 //! This class defines a transient object (it is never persisted).
 class TSortedJobBuilder
@@ -671,15 +673,17 @@ public:
         // us to stop, to add all foreign slices up to the current moment and to check
         // if we already have to end the job due to the large data size or slice count.
         TEndpoint leftEndpoint = {
+            // NB: this is a dirty hack, we do not want for any primary slice to get between
+            // key and key, <max>.
             EEndpointType::ForeignLeft,
             dataSlice,
-            dataSlice->LowerLimit().Key,
+            WidenKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength + 1, RowBuffer_, EValueType::Min),
             dataSlice->LowerLimit().RowIndex.Get(0)
         };
         TEndpoint rightEndpoint = {
             EEndpointType::ForeignRight,
             dataSlice,
-            dataSlice->UpperLimit().Key,
+            WidenKey(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength + 1, RowBuffer_, EValueType::Min),
             dataSlice->UpperLimit().RowIndex.Get(0)
         };
 
@@ -762,6 +766,7 @@ public:
 
     std::vector<std::unique_ptr<TJobStub>> Build()
     {
+        AddPivotKeysEndpoints();
         SortEndpoints();
         BuildJobs();
         AttachForeignSlices();
@@ -772,6 +777,19 @@ public:
     }
 
 private:
+    void AddPivotKeysEndpoints()
+    {
+        for (const auto& pivotKey : Options_.PivotKeys) {
+            TEndpoint endpoint = {
+                EEndpointType::PivotKey,
+                nullptr,
+                pivotKey,
+                0
+            };
+            Endpoints_.emplace_back(endpoint);
+        }
+    }
+
     void SortEndpoints()
     {
         LOG_DEBUG("Sorting %v endpoints", static_cast<int>(Endpoints_.size()));
@@ -786,8 +804,8 @@ private:
                     }
                 }
 
-                if (lhs.DataSlice->Type == EDataSourceType::UnversionedTable &&
-                    rhs.DataSlice->Type == EDataSourceType::UnversionedTable)
+                if (lhs.DataSlice && lhs.DataSlice->Type == EDataSourceType::UnversionedTable &&
+                    rhs.DataSlice && rhs.DataSlice->Type == EDataSourceType::UnversionedTable)
                 {
                     // If keys are equal, we put slices in the same order they are in the original input stream.
                     const auto& lhsChunk = lhs.DataSlice->GetSingleUnversionedChunkOrThrow();
@@ -815,30 +833,28 @@ private:
         Jobs_.emplace_back(std::make_unique<TJobStub>());
 
         yhash_map<TInputDataSlicePtr, TKey> openedSlicesLowerLimits;
-        i64 openedSlicesTotalDataSize = 0;
 
         auto yielder = CreatePeriodicYielder();
 
         // An index of a closest teleport chunk to the right of current endpoint.
         int nextTeleportChunk = 0;
 
-        auto endJob = [&] (const TKey& lastKey) {
-            auto upperKey = GetKeyPrefixSuccessor(lastKey, Options_.PrimaryPrefixLength, RowBuffer_);
+        auto endJob = [&] (TKey lastKey, bool inclusive) {
+            TKey upperLimit = (inclusive) ? GetKeyPrefixSuccessor(lastKey, Options_.PrimaryPrefixLength, RowBuffer_) : lastKey;
             for (auto iterator = openedSlicesLowerLimits.begin(); iterator != openedSlicesLowerLimits.end(); ) {
                 // Save the iterator to the next element because we may possibly erase current iterator.
                 auto nextIterator = std::next(iterator);
                 const auto& dataSlice = iterator->first;
                 auto& lowerLimit = iterator->second;
-                auto exactDataSlice = CreateInputDataSlice(dataSlice, lowerLimit, upperKey);
+                auto exactDataSlice = CreateInputDataSlice(dataSlice, lowerLimit, upperLimit);
                 auto inputCookie = DataSliceToInputCookie_.at(dataSlice);
                 Registry_.RegisterDataSlice(exactDataSlice, inputCookie);
                 Jobs_.back()->AddDataSlice(
                     exactDataSlice,
                     inputCookie,
                     true /* isPrimary */);
-                lowerLimit = upperKey;
+                lowerLimit = upperLimit;
                 if (lowerLimit >= dataSlice->UpperLimit().Key) {
-                    openedSlicesTotalDataSize -= dataSlice->GetDataSize();
                     openedSlicesLowerLimits.erase(iterator);
                 }
                 iterator = nextIterator;
@@ -883,7 +899,6 @@ private:
 
             if (Endpoints_[index].Type == EEndpointType::Left) {
                 openedSlicesLowerLimits[Endpoints_[index].DataSlice] = TKey();
-                openedSlicesTotalDataSize += Endpoints_[index].DataSlice->GetDataSize();
             } else if (Endpoints_[index].Type == EEndpointType::Right) {
                 const auto& dataSlice = Endpoints_[index].DataSlice;
                 auto it = openedSlicesLowerLimits.find(dataSlice);
@@ -895,38 +910,48 @@ private:
                     Registry_.RegisterDataSlice(exactDataSlice, inputCookie);
                     Jobs_.back()->AddDataSlice(exactDataSlice, inputCookie, true /* isPrimary */);
                     openedSlicesLowerLimits.erase(it);
-                    openedSlicesTotalDataSize -= dataSlice->GetDataSize();
                 }
             } else if (Endpoints_[index].Type == EEndpointType::ForeignRight) {
                 Jobs_.back()->AddPreliminaryForeignDataSlice(Endpoints_[index].DataSlice);
             }
 
-            // If next teleport chunk is closer than next data slice then we are obligated to close the job here.
-            bool shouldEndHere = nextKeyIndex == index + 1 &&
-                nextKeyIsLeft &&
-                (nextTeleportChunk != TeleportChunks_.size() &&
-                CompareRows(TeleportChunks_[nextTeleportChunk]->BoundaryKeys()->MinKey, nextKey, Options_.PrimaryPrefixLength) <= 0);
+            // Is set to true if we decide to end here. The decision logic may be
+            // different depending on if we have user-provided pivot keys.
+            bool endHere = false;
 
-            // If key guarantee is enabled, we can not end here if next data slice may contain the same reduce key.
-            bool canEndHere = !Options_.EnableKeyGuarantee || index + 1 == nextKeyIndex;
+            if (Options_.PivotKeys.empty()) {
+                bool jobIsLargeEnough =
+                    Jobs_.back()->GetPreliminarySliceCount() + openedSlicesLowerLimits.size() > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
+                    Jobs_.back()->GetPreliminaryDataSize() >= JobSizeConstraints_->GetDataSizePerJob();
 
-            // The contrary would mean that teleport chunk was chosen incorrectly, because teleport chunks
-            // should not normally intersect the other data slices.
-            YCHECK(!(shouldEndHere && !canEndHere));
+                // If next teleport chunk is closer than next data slice then we are obligated to close the job here.
+                bool beforeTeleportChunk = nextKeyIndex == index + 1 &&
+                    nextKeyIsLeft &&
+                    (nextTeleportChunk != TeleportChunks_.size() &&
+                    CompareRows(TeleportChunks_[nextTeleportChunk]->BoundaryKeys()->MinKey, nextKey, Options_.PrimaryPrefixLength) <= 0);
 
-            bool jobIsLargeEnough =
-                Jobs_.back()->GetPreliminarySliceCount() + openedSlicesLowerLimits.size() > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
-                Jobs_.back()->GetPreliminaryDataSize() + openedSlicesTotalDataSize > JobSizeConstraints_->GetDataSizePerJob();
+                // If key guarantee is enabled, we can not end here if next data slice may contain the same reduce key.
+                bool canEndHere = !Options_.EnableKeyGuarantee || index + 1 == nextKeyIndex;
 
-            if (canEndHere && (shouldEndHere || jobIsLargeEnough)) {
-                endJob(key);
+                // The contrary would mean that teleport chunk was chosen incorrectly, because teleport chunks
+                // should not normally intersect the other data slices.
+                YCHECK(!(beforeTeleportChunk && !canEndHere));
+
+                endHere = canEndHere && (beforeTeleportChunk || jobIsLargeEnough);
+            } else {
+                // We may end jobs only at the pivot keys.
+                endHere = Endpoints_[index].Type == EEndpointType::PivotKey;
+            }
+
+            if (endHere) {
+                bool inclusive = Endpoints_[index].Type != EEndpointType::PivotKey;
+                endJob(key, inclusive);
             }
         }
-        endJob(MaxKey());
+        endJob(MaxKey(), true /* inclusive */);
         if (!Jobs_.empty() && Jobs_.back()->GetSliceCount() == 0) {
             Jobs_.pop_back();
         }
-        YCHECK(openedSlicesTotalDataSize == 0);
         LOG_DEBUG("Created %v jobs", Jobs_.size());
     }
 
@@ -1507,6 +1532,10 @@ private:
         //
         // To overcome this difficulty, we additionally subtract the number of single-key slices that define the same key as our chunk.
         auto yielder = CreatePeriodicYielder();
+
+        if (!SortedJobOptions_.PivotKeys.empty()) {
+            return;
+        }
 
         std::vector<TKey> lowerLimits, upperLimits;
         yhash_map<TKey, int> singleKeySliceNumber;

@@ -23,14 +23,12 @@ public:
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck) override
+        const TSendOptions& options) override
     {
         auto entry = New<TEntry>(
             request,
             responseHandler,
-            timeout,
-            requestAck);
+            options);
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -99,18 +97,15 @@ private:
         TEntry(
             IClientRequestPtr request,
             IClientResponseHandlerPtr handler,
-            TNullable<TDuration> timeout,
-            bool requestAck)
+            const TSendOptions& options)
             : Request(std::move(request))
             , Handler(std::move(handler))
-            , Timeout(timeout)
-            , RequestAck(requestAck)
+            , Options(options)
         { }
 
         IClientRequestPtr Request;
         IClientResponseHandlerPtr Handler;
-        const TNullable<TDuration> Timeout;
-        const bool RequestAck;
+        TSendOptions Options;
         TClientRequestControlThunkPtr RequestControlThunk = New<TClientRequestControlThunk>();
     };
 
@@ -134,8 +129,7 @@ private:
             auto requestControl = UnderlyingChannel_->Send(
                 entry->Request,
                 serializedHandler,
-                entry->Timeout,
-                entry->RequestAck);
+                entry->Options);
             entry->RequestControlThunk->SetUnderlying(std::move(requestControl));
             entry->Request.Reset();
             entry->Handler.Reset();

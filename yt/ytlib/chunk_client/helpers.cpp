@@ -257,7 +257,7 @@ TChunkReplicaList AllocateWriteTargets(
         req->set_replication_factor_override(*replicationFactorOverride);
     }
     if (preferLocalHost) {
-        req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
+        req->set_preferred_host_name(GetLocalHostName());
     }
     ToProto(req->mutable_forbidden_addresses(), forbiddenAddresses);
     ToProto(req->mutable_chunk_id(), chunkId);
@@ -442,7 +442,7 @@ void LocateChunks(
 {
     const auto& Logger = logger;
 
-    yhash_map<NObjectClient::TCellTag, std::vector<NProto::TChunkSpec*>> chunkMap;
+    yhash<NObjectClient::TCellTag, std::vector<NProto::TChunkSpec*>> chunkMap;
 
     for (auto* chunkSpec : chunkSpecList) {
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());

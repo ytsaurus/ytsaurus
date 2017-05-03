@@ -135,6 +135,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         ValidateOperationCountLimit(operation);
+        ValidateEphemeralPoolLimit(operation);
     }
 
     void RegisterOperation(const TOperationPtr& operation) override
@@ -155,10 +156,14 @@ public:
 
         YCHECK(OperationIdToElement.insert(std::make_pair(operation->GetId(), operationElement)).second);
 
-        auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
+        const auto& userName = operation->GetAuthenticatedUser();
+
+        auto poolName = spec->Pool ? *spec->Pool : userName;
         auto pool = FindPool(poolName);
         if (!pool) {
             pool = New<TPool>(Host, poolName, Config);
+            pool->SetUserName(userName);
+            UserToEphemeralPools[userName].insert(poolName);
             RegisterPool(pool);
         }
         if (!pool->GetParent()) {
@@ -289,7 +294,7 @@ public:
             }
 
             // Track ids appearing in various branches of the tree.
-            yhash_map<Stroka, TYPath> poolIdToPath;
+            yhash<Stroka, TYPath> poolIdToPath;
 
             // NB: std::function is needed by parseConfig to capture itself.
             std::function<void(INodePtr, TCompositeSchedulerElementPtr)> parseConfig =
@@ -501,7 +506,8 @@ public:
         BuildYsonMapFluently(consumer)
             .Item("fair_share_info").BeginMap()
                 .Do(BIND(&TFairShareStrategy::BuildFairShareInfo, Unretained(this)))
-            .EndMap();
+            .EndMap()
+            .Item("user_to_ephemeral_pools").Value(UserToEphemeralPools);
     }
 
     virtual Stroka GetOperationLoggingProgress(const TOperationId& operationId) override
@@ -643,10 +649,12 @@ private:
     ISchedulerStrategyHost* const Host;
 
     INodePtr LastPoolsNodeUpdate;
-    typedef yhash_map<Stroka, TPoolPtr> TPoolMap;
+    typedef yhash<Stroka, TPoolPtr> TPoolMap;
     TPoolMap Pools;
 
-    typedef yhash_map<TOperationId, TOperationElementPtr> TOperationElementPtrByIdMap;
+    yhash<Stroka, yhash_set<Stroka>> UserToEphemeralPools;
+
+    typedef yhash<TOperationId, TOperationElementPtr> TOperationElementPtrByIdMap;
     TOperationElementPtrByIdMap OperationIdToElement;
 
     std::list<TOperationPtr> OperationQueue;
@@ -658,7 +666,7 @@ private:
         int Index;
         int Count;
     };
-    yhash_map<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount;
+    yhash<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount;
 
     TRootElementPtr RootElement;
 
@@ -1151,6 +1159,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto userName = pool->GetUserName();
+        if (userName) {
+            YCHECK(UserToEphemeralPools[*userName].erase(pool->GetId()) == 1);
+        }
+
         UnregisterSchedulingTagFilter(pool->GetSchedulingTagFilterIndex());
 
         YCHECK(Pools.erase(pool->GetId()) == 1);
@@ -1489,11 +1502,35 @@ private:
         }
     }
 
+    void ValidateEphemeralPoolLimit(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto pool = FindPool(GetOperationPoolName(operation));
+        if (pool) {
+            return;
+        }
+
+        const auto& userName = operation->GetAuthenticatedUser();
+
+        auto it = UserToEphemeralPools.find(userName);
+        if (it == UserToEphemeralPools.end()) {
+            return;
+        }
+
+        if (it->second.size() + 1 > Config->MaxEphemeralPoolsPerUser) {
+            THROW_ERROR_EXCEPTION("Limit for number of ephemeral pools %v for user %v has been reached",
+                Config->MaxEphemeralPoolsPerUser,
+                userName);
+        }
+    }
+
     void DoValidateOperationStart(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         ValidateOperationCountLimit(operation);
+        ValidateEphemeralPoolLimit(operation);
 
         auto immediateParentPool = FindPool(GetOperationPoolName(operation));
         // NB: Check is not performed if operation is started in default or unknown pool.

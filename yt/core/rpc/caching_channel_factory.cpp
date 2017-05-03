@@ -59,7 +59,7 @@ private:
     const IChannelFactoryPtr UnderlyingFactory_;
 
     TReaderWriterSpinLock SpinLock_;
-    yhash_map<Stroka, IChannelPtr> ChannelMap_;
+    yhash<Stroka, IChannelPtr> ChannelMap_;
 
     class TCachedChannel
         : public IChannel
@@ -87,14 +87,12 @@ private:
         virtual IClientRequestControlPtr Send(
             IClientRequestPtr request,
             IClientResponseHandlerPtr responseHandler,
-            TNullable<TDuration> timeout,
-            bool requestAck) override
+            const TSendOptions& options) override
         {
             return UnderlyingChannel_->Send(
                 std::move(request),
                 std::move(responseHandler),
-                timeout,
-                requestAck);
+                options);
         }
 
         virtual TFuture<void> Terminate(const TError& error) override

@@ -434,6 +434,8 @@ TReduceOperationSpec::TReduceOperationSpec()
         .NonEmpty();
     RegisterParameter("sort_by", SortBy)
         .Default();
+    RegisterParameter("pivot_keys", PivotKeys)
+        .Default();
 
     RegisterValidator([&] () {
         if (!ReduceBy.empty()) {

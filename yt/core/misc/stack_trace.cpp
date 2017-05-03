@@ -230,3 +230,4 @@ int GetStackTrace(void** result, int maxFrames, int skipFrames)
 } // namespace NYT
 
 #endif
+

@@ -53,7 +53,7 @@ using namespace NTabletClient;
 ///////////////////////////////////////////////////////////////////////////////
 
 static const NLogging::TLogger Logger("PythonDriver");
-static yhash_map<TGuid, TWeakPtr<IDriver>> ActiveDrivers;
+static yhash<TGuid, TWeakPtr<IDriver>> ActiveDrivers;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -384,7 +384,7 @@ public:
             LOG_INFO("Module shutdown finished");
         }));
 
-        //InstallCrashSignalHandler(std::set<int>({SIGSEGV}));
+        InstallCrashSignalHandler(std::set<int>({SIGSEGV}));
 
         TDriver::InitType();
         TBufferedStreamWrap::InitType();
