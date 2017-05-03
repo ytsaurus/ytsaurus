@@ -372,7 +372,7 @@ private:
             { }
         };
         std::vector<TField> Fields;
-        yhash_map<Stroka, const FieldDescriptor*> NameToField_;
+        yhash<Stroka, const FieldDescriptor*> NameToField_;
         const Descriptor* MessageDescriptor;
     };
     std::vector<TDescriptor> Descriptors_;

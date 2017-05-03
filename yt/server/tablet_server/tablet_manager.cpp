@@ -1244,6 +1244,12 @@ public:
         // Do after all validations.
         TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
+        if (mountConfig->InMemoryMode != EInMemoryMode::None &&
+            writerOptions->ErasureCodec != NErasure::ECodec::None)
+        {
+            THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
+        }
+
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
         auto serializedWriterConfig = ConvertToYsonString(writerConfig);
@@ -1477,6 +1483,12 @@ public:
 
         // Do after all validations.
         TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
+
+        if (mountConfig->InMemoryMode != EInMemoryMode::None &&
+            writerOptions->ErasureCodec != NErasure::ECodec::None)
+        {
+            THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
+        }
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
@@ -2265,10 +2277,10 @@ private:
     TEntityMap<TTableReplica> TableReplicaMap_;
     TEntityMap<TTabletAction> TabletActionMap_;
 
-    yhash_map<Stroka, TTabletCellBundle*> NameToTabletCellBundleMap_;
+    yhash<Stroka, TTabletCellBundle*> NameToTabletCellBundleMap_;
 
     yhash_multimap<Stroka, TTabletCell*> AddressToCell_;
-    yhash_map<TTransaction*, TTabletCell*> TransactionToCellMap_;
+    yhash<TTransaction*, TTabletCell*> TransactionToCellMap_;
 
     bool InitializeCellBundles_ = false;
     TTabletCellBundleId DefaultTabletCellBundleId_;

@@ -575,8 +575,7 @@ bool TNode::HasMedium(int mediumIndex) const
     auto it = std::find_if(
         locations.begin(),
         locations.end(),
-        [=] (const auto& location)
-        {
+        [=] (const auto& location) {
             return location.medium_index() == mediumIndex;
         });
     return it != locations.end();

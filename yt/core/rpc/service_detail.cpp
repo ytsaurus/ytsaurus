@@ -355,7 +355,12 @@ private:
 
             auto responseMessage = GetResponseMessage();
 
-            ReplyBus_->Send(std::move(responseMessage), EDeliveryTrackingLevel::None);
+            NBus::TSendOptions busOptions;
+            busOptions.TrackingLevel = EDeliveryTrackingLevel::None;
+            busOptions.ChecksummedPartCount = RuntimeInfo_->Descriptor.GenerateAttachmentChecksums
+                ? NBus::TSendOptions::AllParts
+                : 2; // RPC header + response body
+            ReplyBus_->Send(std::move(responseMessage), busOptions);
 
             if (Profiler.GetEnabled()) {
                 auto now = GetCpuInstant();
@@ -519,7 +524,7 @@ void TServiceBase::HandleRequest(
 
         if (!oneWay) {
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
-            replyBus->Send(errorMessage, EDeliveryTrackingLevel::None);
+            replyBus->Send(errorMessage, NBus::TSendOptions(EDeliveryTrackingLevel::None));
         }
     };
 
@@ -585,7 +590,7 @@ void TServiceBase::HandleRequest(
     TRACE_ANNOTATION(
         traceContext,
         "server_host",
-        TAddressResolver::Get()->GetLocalHostName());
+        GetLocalHostName());
 
     TRACE_ANNOTATION(
         traceContext,

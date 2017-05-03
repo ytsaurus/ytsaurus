@@ -302,7 +302,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<Stroka, INode
         auto objectId = attributes.Get<TObjectId>("id");
         auto nodeId = NodeIdFromObjectId(objectId);
         auto newState = attributes.Get<ENodeState>("state");
-        auto ioWeights = attributes.Get<yhash_map<Stroka, double>>("io_weights", {});
+        auto ioWeights = attributes.Get<yhash<Stroka, double>>("io_weights", {});
 
         LOG_DEBUG("Handling node attributes (NodeId: %v, Address: %v, ObjectId: %v, NewState: %v)",
             nodeId,
@@ -1534,7 +1534,7 @@ void TNodeShard::DoUnregisterJob(const TJobPtr& job)
 
 void TNodeShard::PreemptJob(const TJobPtr& job, TCpuInstant interruptDeadline)
 {
-    LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v, Interruptible: %v, Reason: %Qv)",
+    LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v, Interruptible: %v, Reason: %v)",
         job->GetId(),
         job->GetOperationId(),
         job->GetInterruptible(),

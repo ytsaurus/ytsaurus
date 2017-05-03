@@ -17,7 +17,7 @@ public:
     virtual IChannelPtr CreateChannel(const Stroka& address) override;
 
 private:
-    yhash_map<Stroka, IChannelPtr> ChannelMap;
+    yhash<Stroka, IChannelPtr> ChannelMap;
 
 };
 

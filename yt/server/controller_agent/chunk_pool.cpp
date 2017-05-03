@@ -1075,11 +1075,11 @@ private:
         }
     };
 
-    yhash_map<TNodeId, TLocalityEntry> NodeIdToEntry;
+    yhash<TNodeId, TLocalityEntry> NodeIdToEntry;
 
     TIdGenerator OutputCookieGenerator;
 
-    yhash_map<IChunkPoolOutput::TCookie, TExtractedStripeListPtr> ExtractedLists;
+    yhash<IChunkPoolOutput::TCookie, TExtractedStripeListPtr> ExtractedLists;
 
     yhash_set<IChunkPoolOutput::TCookie> LostCookies;
     yhash_set<IChunkPoolOutput::TCookie> ReplayCookies;

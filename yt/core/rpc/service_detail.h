@@ -406,6 +406,12 @@ protected:
         //! to only mark cancelable those methods taking a considerable time to complete.
         bool Cancelable = false;
 
+        //! If |true| then Bus is expected to be gerating checksums for the whole response content,
+        //! including attachments (unless the connection is local or the checksums are explicitly disabled).
+        //! If |false| then Bus will only be generating such checksums for RPC header and response body
+        //! but not attachements.
+        bool GenerateAttachmentChecksums = true;
+
 
         TMethodDescriptor& SetInvoker(IInvokerPtr value)
         {
@@ -510,7 +516,7 @@ protected:
         TLockFreeQueue<TServiceContextPtr> RequestQueue;
 
         NConcurrency::TReaderWriterSpinLock PerformanceCountersLock;
-        yhash_map<Stroka, TMethodPerformanceCountersPtr> UserToPerformanceCounters;
+        yhash<Stroka, TMethodPerformanceCountersPtr> UserToPerformanceCounters;
         TMethodPerformanceCountersPtr RootPerformanceCounters;
     };
 
@@ -580,11 +586,11 @@ private:
     NProfiling::TTagId ServiceTagId_;
 
     NConcurrency::TReaderWriterSpinLock MethodMapLock_;
-    yhash_map<Stroka, TRuntimeMethodInfoPtr> MethodMap_;
+    yhash<Stroka, TRuntimeMethodInfoPtr> MethodMap_;
 
     TSpinLock CancelableRequestLock_;
-    yhash_map<TRequestId, TServiceContext*> IdToContext_;
-    yhash_map<NBus::IBusPtr, yhash_set<TServiceContext*>> ReplyBusToContexts_;
+    yhash<TRequestId, TServiceContext*> IdToContext_;
+    yhash<NBus::IBusPtr, yhash_set<TServiceContext*>> ReplyBusToContexts_;
 
     std::atomic<bool> Stopped_ = {false};
     TPromise<void> StopResult_ = NewPromise<void>();

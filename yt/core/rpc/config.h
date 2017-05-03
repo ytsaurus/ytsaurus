@@ -15,7 +15,7 @@ class TServerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    yhash_map<Stroka, NYTree::INodePtr> Services;
+    yhash<Stroka, NYTree::INodePtr> Services;
 
     TServerConfig()
     {
@@ -32,7 +32,7 @@ class TServiceConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    yhash_map<Stroka, TMethodConfigPtr> Methods;
+    yhash<Stroka, TMethodConfigPtr> Methods;
 
     TServiceConfig()
     {

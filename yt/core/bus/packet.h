@@ -151,7 +151,8 @@ public:
     bool Start(
         EPacketType type,
         EPacketFlags flags,
-        bool enableChecksums,
+        bool generateChecksums,
+        int checksummedPartCount,
         const TPacketId& packetId,
         TSharedRefArray message);
 

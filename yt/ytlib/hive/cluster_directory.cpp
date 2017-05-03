@@ -97,7 +97,7 @@ void TClusterDirectory::UpdateCluster(const Stroka& name, INodePtr config)
 
 void TClusterDirectory::UpdateDirectory(const NProto::TClusterDirectory& protoDirectory)
 {
-    yhash_map<Stroka, INodePtr> nameToConfig;
+    yhash<Stroka, INodePtr> nameToConfig;
     for (const auto& item : protoDirectory.items()) {
         YCHECK(nameToConfig.emplace(
             item.name(),

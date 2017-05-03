@@ -111,6 +111,15 @@ void TPartition::AsyncLoad(TLoadContext& context)
     Load(context, *SampleKeys_);
 }
 
+i64 TPartition::GetCompressedDataSize() const
+{
+    i64 result = 0;
+    for (const auto& store : Stores_) {
+        result += store->GetCompressedDataSize();
+    }
+    return result;
+}
+
 i64 TPartition::GetUncompressedDataSize() const
 {
     i64 result = 0;
