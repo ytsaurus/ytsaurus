@@ -1,7 +1,7 @@
 import yt_commands
 
 from yt.environment import YTInstance
-from yt.common import makedirp, update, YtError
+from yt.common import makedirp, update, YtError, format_error
 
 import pytest
 
@@ -460,11 +460,17 @@ class YTEnvSetup(object):
         if yt_commands.get("//sys/scheduler/instances/@count", driver=driver) == 0:
             return
 
+        operation_from_orchid = []
         try:
-            for operation_id in yt_commands.ls("//sys/scheduler/orchid/scheduler/operations", driver=driver):
+            operation_from_orchid = yt_commands.ls("//sys/scheduler/orchid/scheduler/operations", driver=driver)
+        except YtError as err:
+            print >>sys.stderr, format_error(err)
+
+        for operation_id in operation_from_orchid:
+            try:
                 yt_commands.abort_op(operation_id, driver=driver)
-        except YtError:
-            pass
+            except YtError as err:
+                print >>sys.stderr, format_error(err)
 
         for operation in yt_commands.ls("//sys/operations", driver=driver):
             yt_commands.remove("//sys/operations/" + operation, recursive=True, driver=driver)
