@@ -197,6 +197,13 @@ void TCompositeAutomatonPart::StopEpoch()
     EpochAutomatonInvoker_.Reset();
 }
 
+void TCompositeAutomatonPart::LogHandlerError(const TError& error)
+{
+    if (!IsRecovery()) {
+        Automaton_->LogHandlerError(error);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompositeAutomaton::TCompositeAutomaton(IInvokerPtr asyncSnapshotInvoker)
@@ -450,6 +457,11 @@ std::vector<TCompositeAutomatonPartPtr> TCompositeAutomaton::GetParts()
         }
     }
     return parts;
+}
+
+void TCompositeAutomaton::LogHandlerError(const TError& error)
+{
+    LOG_DEBUG(error, "Error executing mutation handler");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
