@@ -142,7 +142,7 @@ class YtTestEnvironment(object):
                     update(config, delta_proxy_config)
 
         local_temp_directory = os.path.join(TESTS_SANDBOX, "tmp")
-        if os.path.exists(local_temp_directory):
+        if not os.path.exists(local_temp_directory):
             os.mkdir(local_temp_directory)
 
         self.env = YTInstance(dir,
