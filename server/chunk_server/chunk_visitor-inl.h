@@ -28,7 +28,7 @@ private:
     const TKeyExtractor KeyExtractor_;
 
     using TKey = typename std::result_of<TKeyExtractor(const TChunk*)>::type;
-    using TStatiticsMap = yhash_map<TKey, TChunkTreeStatistics>;
+    using TStatiticsMap = yhash<TKey, TChunkTreeStatistics>;
     TStatiticsMap StatisticsMap_;
 
     virtual bool OnChunk(
