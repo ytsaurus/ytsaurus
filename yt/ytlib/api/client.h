@@ -511,6 +511,12 @@ struct TTableReaderOptions
     NTableClient::TTableReaderConfigPtr Config;
 };
 
+struct TTableWriterOptions
+    : public TTransactionalOptions
+{
+    NTableClient::TTableWriterConfigPtr Config;
+};
+
 struct TStartOperationOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
@@ -677,7 +683,13 @@ struct IClientBase
         const Stroka& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
-    // TODO(babenko): batch read and batch write
+    virtual TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
+        const NYPath::TRichYPath& path,
+        const TTableReaderOptions& options = TTableReaderOptions()) = 0;
+
+    virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
+        const NYPath::TRichYPath& path,
+        const TTableWriterOptions& options = TTableWriterOptions()) = 0;
 
     // Cypress
     virtual TFuture<NYson::TYsonString> GetNode(
@@ -757,11 +769,6 @@ struct IClientBase
         const NYPath::TYPath& path,
         const TJournalWriterOptions& options = TJournalWriterOptions()) = 0;
 
-
-    // Tables
-    virtual TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
-        const NYPath::TRichYPath& path,
-        const TTableReaderOptions& options = TTableReaderOptions()) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientBase)

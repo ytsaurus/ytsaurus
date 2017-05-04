@@ -9,15 +9,10 @@ namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
-    INativeClientPtr client,
+TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
+    const INativeClientPtr& client,
     const NYPath::TRichYPath& path,
-    const TTableReaderOptions& options);
-
-NConcurrency::IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
-    NTableClient::ISchemalessMultiChunkReaderPtr reader,
-    const TNullable<Stroka>& partIndexColumnName,
-    const TNullable<Stroka>& dataColumnName);
+    const TTableWriterOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

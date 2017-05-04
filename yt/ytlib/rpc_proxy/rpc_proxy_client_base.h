@@ -186,6 +186,13 @@ public:
     {
         Y_UNIMPLEMENTED();
     }
+
+    virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
+        const NYPath::TRichYPath& path,
+        const NApi::TTableWriterOptions& options) override
+    {
+        Y_UNIMPLEMENTED();
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TRpcProxyClientBase)

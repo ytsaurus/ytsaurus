@@ -11,6 +11,7 @@
 #include "journal_writer.h"
 #include "rowset.h"
 #include "table_reader.h"
+#include "table_writer.h"
 #include "tablet_helpers.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -56,7 +57,6 @@
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schema.h>
-#include <yt/ytlib/table_client/schemaful_writer.h>
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/schemaful_reader.h>
@@ -746,6 +746,13 @@ public:
         const TTableReaderOptions& options) override
     {
         return NApi::CreateTableReader(this, path, options);
+    }
+
+    virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
+        const NYPath::TRichYPath& path,
+        const NApi::TTableWriterOptions& options) override
+    {
+        return NApi::CreateTableWriter(this, path, options);
     }
 
     IMPLEMENT_METHOD(void, AddMember, (
@@ -3589,6 +3596,11 @@ public:
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<ISchemalessMultiChunkReaderPtr>, CreateTableReader, (
         const TRichYPath& path,
         const TTableReaderOptions& options),
+        (path, options))
+
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<ISchemalessWriterPtr>, CreateTableWriter, (
+        const TRichYPath& path,
+        const TTableWriterOptions& options),
         (path, options))
 
 #undef DELEGATE_TRANSACTIONAL_METHOD

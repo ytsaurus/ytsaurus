@@ -189,23 +189,16 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->TableWriter,
         TableWriter);
 
-
-    auto nameTable = New<TNameTable>();
-    nameTable->SetEnableColumnNameValidation();
-
-    auto options = New<TTableWriterOptions>();
-    options->EnableValidationOptions();
-
-    auto writer = CreateSchemalessTableWriter(
+    config = UpdateYsonSerializable(
         config,
-        options,
-        Path,
-        nameTable,
-        context->GetClient(),
-        transaction);
+        GetOptions());
 
-    WaitFor(writer->Open())
-        .ThrowOnError();
+    Options.Config = config;
+
+    auto writer = WaitFor(context->GetClient()->CreateTableWriter(
+        Path,
+        Options))
+        .ValueOrThrow();
 
     TWritingValueConsumer valueConsumer(
         writer,

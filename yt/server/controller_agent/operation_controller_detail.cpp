@@ -996,7 +996,7 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
 
-    auto options = New<TTableWriterOptions>();
+    auto options = New<NTableClient::TTableWriterOptions>();
     options->Account = Controller->Spec->IntermediateDataAccount;
     options->ChunksVital = false;
     options->ChunksMovable = false;

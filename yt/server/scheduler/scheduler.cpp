@@ -221,7 +221,7 @@ public:
         ProfilingExecutor_->Start();
 
         auto nameTable = New<TNameTable>();
-        auto options = New<TTableWriterOptions>();
+        auto options = New<NTableClient::TTableWriterOptions>();
         options->EnableValidationOptions();
 
         EventLogWriter_ = CreateSchemalessBufferedTableWriter(

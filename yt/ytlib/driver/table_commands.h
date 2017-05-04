@@ -52,7 +52,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TWriteTableCommand
-    : public TTypedCommand<NApi::TTransactionalOptions>
+    : public TTypedCommand<NApi::TTableWriterOptions>
 {
 public:
     TWriteTableCommand();
