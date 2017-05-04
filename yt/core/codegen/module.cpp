@@ -46,11 +46,8 @@ class TCGMemoryManager
     : public llvm::SectionMemoryManager
 {
 public:
-    TCGMemoryManager(TRoutineRegistry* RoutineRegistry)
-        : RoutineRegistry(RoutineRegistry)
-    { }
-
-    ~TCGMemoryManager()
+    explicit TCGMemoryManager(TRoutineRegistry* routineRegistry)
+        : RoutineRegistry_(routineRegistry)
     { }
 
     virtual uint64_t getSymbolAddress(const std::string& name) override
@@ -60,11 +57,13 @@ public:
             return address;
         }
 
-        return RoutineRegistry->GetAddress(name.c_str());
+        return RoutineRegistry_->GetAddress(name.c_str());
     }
 
+private:
     // RoutineRegistry is supposed to be a static object.
-    TRoutineRegistry* RoutineRegistry;
+    TRoutineRegistry* const RoutineRegistry_;
+
 };
 
 class TCGModule::TImpl
@@ -191,6 +190,8 @@ private:
         using namespace llvm;
         using namespace llvm::legacy;
 
+        LOG_DEBUG("Started compiling module");
+
         if (DumpIR()) {
             llvm::errs() << "\n******** Before Optimization ***********************************\n";
             Module_->dump();
@@ -246,8 +247,10 @@ private:
         }
 
         LOG_DEBUG("Finalizing module");
+
         Engine_->finalizeObject();
 
+        LOG_DEBUG("Finished compiling module");
         // TODO(sandello): Clean module here.
     }
 
