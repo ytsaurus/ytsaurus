@@ -3160,6 +3160,21 @@ void TOperationControllerBase::AnalyzeJobsDuration() const
     Host->SetOperationAlert(OperationId, EOperationAlertType::ShortJobsDuration, error);
 }
 
+void TOperationControllerBase::AnalyzeScheduleJobStatistics() const
+{
+    auto jobSpecThrottlerActivationCount = ScheduleJobStatistics_->Failed[EScheduleJobFailReason::JobSpecThrottling];
+    auto activationCountThreshold = Config->OperationAlertsConfig->JobSpecThrottlingAlertActivationCountThreshold;
+
+    TError error;
+    if (jobSpecThrottlerActivationCount > activationCountThreshold) {
+        error = TError(
+            "Excessive job spec throttling is detected. Usage ratio of operation can be "
+            "significatly less than fair share ratio")
+                << TErrorAttribute("job_spec_throttler_activation_count", jobSpecThrottlerActivationCount);
+    }
+    Host->SetOperationAlert(OperationId, EOperationAlertType::ExcessiveJobSpecThrottling, error);
+}
+
 void TOperationControllerBase::AnalyzeOperationProgess() const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
@@ -3171,6 +3186,7 @@ void TOperationControllerBase::AnalyzeOperationProgess() const
     AnalyzeAbortedJobs();
     AnalyzeJobsIOUsage();
     AnalyzeJobsDuration();
+    AnalyzeScheduleJobStatistics();
 }
 
 void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()

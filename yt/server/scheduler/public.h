@@ -98,6 +98,7 @@ DEFINE_ENUM(EOperationAlertType,
     (ExcessiveDiskUsage)
     (ShortJobsDuration)
     (OperationSuspended)
+    (ExcessiveJobSpecThrottling)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
