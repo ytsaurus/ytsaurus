@@ -60,18 +60,20 @@ public:
     TSimpleJobSizeConstraints(
         const TSimpleOperationSpecBasePtr& spec,
         const TSimpleOperationOptionsPtr& options,
-        i64 inputDataSize,
-        i64 inputRowCount)
+        i64 primaryInputDataSize,
+        i64 inputRowCount,
+        i64 foreignInputDataSize)
         : Spec_(spec)
         , Options_(options)
-        , InputDataSize_(inputDataSize)
+        , InputDataSize_(primaryInputDataSize + foreignInputDataSize)
+        , PrimaryInputDataSize_(primaryInputDataSize)
         , InputRowCount_(inputRowCount)
     {
         if (Spec_->JobCount) {
             JobCount_ = *Spec_->JobCount;
         } else {
             i64 dataSizePerJob = Spec_->DataSizePerJob.Get(Options_->DataSizePerJob);
-            JobCount_ = DivCeil(InputDataSize_, dataSizePerJob);
+            JobCount_ = DivCeil(PrimaryInputDataSize_, dataSizePerJob);
         }
 
         i64 maxJobCount = Options_->MaxJobCount;
@@ -108,6 +110,13 @@ public:
     {
         return JobCount_ > 0
             ? DivCeil(InputDataSize_, JobCount_)
+            : 1;
+    }
+
+    virtual i64 GetPrimaryDataSizePerJob() const override
+    {
+        return JobCount_ > 0
+            ? DivCeil(PrimaryInputDataSize_, JobCount_)
             : 1;
     }
 
@@ -155,6 +164,7 @@ public:
         Persist(context, Spec_);
         Persist(context, Options_);
         Persist(context, InputDataSize_);
+        Persist(context, PrimaryInputDataSize_);
         Persist(context, InputRowCount_);
         Persist(context, JobCount_);
     }
@@ -166,6 +176,7 @@ private:
     TSimpleOperationOptionsPtr Options_;
 
     i64 InputDataSize_;
+    i64 PrimaryInputDataSize_;
     i64 InputRowCount_;
 
     i64 JobCount_;
@@ -217,6 +228,11 @@ public:
         return JobCount_ > 0
             ? DivCeil(InputDataSize_, JobCount_)
             : 1;
+    }
+
+    virtual i64 GetPrimaryDataSizePerJob() const override
+    {
+        Y_UNREACHABLE();
     }
 
     virtual i64 GetMaxDataSlicesPerJob() const override
@@ -347,6 +363,11 @@ public:
             : 1;
     }
 
+    virtual i64 GetPrimaryDataSizePerJob() const override
+    {
+        Y_UNREACHABLE();
+    }
+
     virtual i64 GetMaxDataSlicesPerJob() const override
     {
         return Options_->MaxDataSlicesPerJob;
@@ -425,6 +446,7 @@ public:
         bool isExplicitJobCount,
         int jobCount,
         i64 dataSizePerJob,
+        i64 primaryDataSizePerJob,
         i64 maxDataSlicesPerJob,
         i64 maxDataSizePerJob,
         i64 inputSliceDataSize,
@@ -433,6 +455,7 @@ public:
         , IsExplicitJobCount_(isExplicitJobCount)
         , JobCount_(jobCount)
         , DataSizePerJob_(dataSizePerJob)
+        , PrimaryDataSizePerJob_(primaryDataSizePerJob)
         , MaxDataSlicesPerJob_(maxDataSlicesPerJob)
         , MaxDataSizePerJob_(maxDataSizePerJob)
         , InputSliceDataSize_(inputSliceDataSize)
@@ -457,6 +480,11 @@ public:
     virtual i64 GetDataSizePerJob() const override
     {
         return DataSizePerJob_;
+    }
+
+    virtual i64 GetPrimaryDataSizePerJob() const override
+    {
+        return PrimaryDataSizePerJob_;
     }
 
     virtual i64 GetMaxDataSlicesPerJob() const override
@@ -486,6 +514,7 @@ public:
         Persist(context, IsExplicitJobCount_);
         Persist(context, JobCount_);
         Persist(context, DataSizePerJob_);
+        Persist(context, PrimaryDataSizePerJob_);
         Persist(context, MaxDataSlicesPerJob_);
         Persist(context, MaxDataSizePerJob_);
         Persist(context, InputSliceDataSize_);
@@ -499,6 +528,7 @@ private:
     bool IsExplicitJobCount_;
     int JobCount_;
     i64 DataSizePerJob_;
+    i64 PrimaryDataSizePerJob_;
     i64 MaxDataSlicesPerJob_;
     i64 MaxDataSizePerJob_;
     i64 InputSliceDataSize_;
@@ -513,10 +543,11 @@ DEFINE_REFCOUNTED_TYPE(TExplicitJobSizeConstraints);
 IJobSizeConstraintsPtr CreateSimpleJobSizeConstraints(
     const TSimpleOperationSpecBasePtr& spec,
     const TSimpleOperationOptionsPtr& options,
-    i64 inputDataSize,
-    i64 inputRowCount)
+    i64 primaryInputDataSize,
+    i64 inputRowCount,
+    i64 foreignInputDataSize)
 {
-    return New<TSimpleJobSizeConstraints>(spec, options, inputDataSize, inputRowCount);
+    return New<TSimpleJobSizeConstraints>(spec, options, primaryInputDataSize, inputRowCount, foreignInputDataSize);
 }
 
 IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
@@ -546,6 +577,7 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
         false /* isExplicitJobCount */,
         0 /* jobCount */,
         spec->DataSizePerSortedJob.Get(spec->DataSizePerShuffleJob) /* dataSizePerJob */,
+        spec->DataSizePerSortedJob.Get(spec->DataSizePerShuffleJob) /* dataSizePerJob */,
         options->MaxDataSlicesPerJob /* maxDataSlicesPerJob */,
         std::numeric_limits<i64>::max() /* maxDataSizePerJob */,
         std::numeric_limits<i64>::max() /* inputSliceDataSize */,
@@ -557,6 +589,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     bool isExplicitJobCount,
     int jobCount,
     i64 dataSizePerJob,
+    i64 primaryDataSizePerJob,
     i64 maxDataSlicesPerJob,
     i64 maxDataSizePerJob,
     i64 inputSliceDataSize,
@@ -567,6 +600,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
         isExplicitJobCount,
         jobCount,
         dataSizePerJob,
+        primaryDataSizePerJob,
         maxDataSlicesPerJob,
         maxDataSizePerJob,
         inputSliceDataSize,
