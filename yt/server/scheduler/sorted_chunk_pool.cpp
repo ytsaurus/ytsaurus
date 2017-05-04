@@ -921,7 +921,8 @@ private:
             if (Options_.PivotKeys.empty()) {
                 bool jobIsLargeEnough =
                     Jobs_.back()->GetPreliminarySliceCount() + openedSlicesLowerLimits.size() > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
-                    Jobs_.back()->GetPreliminaryDataSize() >= JobSizeConstraints_->GetDataSizePerJob();
+                    Jobs_.back()->GetPreliminaryDataSize() >= JobSizeConstraints_->GetDataSizePerJob() ||
+                    Jobs_.back()->GetPrimaryDataSize() >= JobSizeConstraints_->GetPrimaryDataSizePerJob();
 
                 // If next teleport chunk is closer than next data slice then we are obligated to close the job here.
                 bool beforeTeleportChunk = nextKeyIndex == index + 1 &&
@@ -1730,15 +1731,18 @@ private:
         std::vector<TInputDataSlicePtr> foreignInputDataSlices,
         int splitJobCount)
     {
-        i64 totalDataSize = 0;
+        i64 dataSize = 0;
         for (const auto& dataSlice : unreadInputDataSlices) {
-            totalDataSize += dataSlice->GetDataSize();
+            dataSize += dataSlice->GetDataSize();
+        }
+        for (const auto& dataSlice : foreignInputDataSlices) {
+            dataSize += dataSlice->GetDataSize();
         }
         i64 dataSizePerJob;
         if (splitJobCount == 1) {
             dataSizePerJob = std::numeric_limits<i64>::max();
         } else {
-            dataSizePerJob = DivCeil(totalDataSize, static_cast<i64>(splitJobCount));
+            dataSizePerJob = DivCeil(dataSize, static_cast<i64>(splitJobCount));
         }
 
         // We create new job size constraints by incorporating the new desired data size per job
@@ -1748,6 +1752,7 @@ private:
             false /* isExplicitJobCount */,
             splitJobCount /* jobCount */,
             dataSizePerJob,
+            std::numeric_limits<i64>::max(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
             JobSizeConstraints_->GetMaxDataSizePerJob(),
             JobSizeConstraints_->GetInputSliceDataSize(),

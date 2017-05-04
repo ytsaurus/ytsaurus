@@ -70,6 +70,7 @@ protected:
             false /* isExplicitJobCount */,
             0 /* jobCount */,
             DataSizePerJob_,
+            PrimaryDataSizePerJob_,
             MaxDataSlicesPerJob_,
             0 /* maxDataSizePerJob_ */,
             InputSliceDataSize_,
@@ -589,6 +590,7 @@ protected:
     TSortedChunkPoolOptions Options_;
 
     i64 DataSizePerJob_;
+    i64 PrimaryDataSizePerJob_ = std::numeric_limits<i64>::max();
 
     i32 MaxDataSlicesPerJob_;
 
@@ -2594,6 +2596,44 @@ TEST_F(TSortedChunkPoolTest, SuspendFinishResumeTest)
     EXPECT_EQ(1, stripeLists.size());
     EXPECT_EQ(1, stripeLists[0]->Stripes.size());
     EXPECT_EQ(3, stripeLists[0]->Stripes[0]->DataSlices.size());
+}
+
+TEST_F(TSortedChunkPoolTest, SliceByPrimaryDataSize)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {true, false} /* isForeign */,
+        {false, false} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    DataSizePerJob_ = 10 * KB;
+    PrimaryDataSizePerJob_ = 1 * KB;
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    InitJobConstraints();
+
+    std::vector<TInputChunkPtr> chunks;
+    for (int index = 0; index < 100; ++index) {
+        chunks.push_back(CreateChunk(BuildRow({10 * index}), BuildRow({10 * index + 9}), 0, 1 * KB));
+    }
+    for (int index = 0; index < 10; ++index) {
+        chunks.push_back(CreateChunk(BuildRow({10 * 42 + index}), BuildRow({10 * 42 + index}), 1, 1 * KB));
+    }
+
+    CreateChunkPool();
+
+    for (const auto& chunk : chunks) {
+        AddChunk(chunk);
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_LE(5, stripeLists.size());
+    EXPECT_GE(20, stripeLists.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
