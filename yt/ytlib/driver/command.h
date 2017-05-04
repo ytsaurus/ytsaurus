@@ -3,7 +3,7 @@
 #include "private.h"
 #include "driver.h"
 
-#include <yt/ytlib/api/native_client.h>
+#include <yt/ytlib/api/client.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -33,9 +33,9 @@ struct ICommand
 struct ICommandContext
     : public virtual TRefCounted
 {
-    virtual TDriverConfigPtr GetConfig() = 0;
-    virtual NApi::INativeClientPtr GetClient() = 0;
-    virtual IDriverPtr GetDriver() = 0;
+    virtual const TDriverConfigPtr& GetConfig() = 0;
+    virtual const NApi::IClientPtr& GetClient() = 0;
+    virtual const IDriverPtr& GetDriver() = 0;
 
     virtual const TDriverRequest& Request() = 0;
 
