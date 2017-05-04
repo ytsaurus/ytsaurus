@@ -163,24 +163,27 @@ public:
         std::unique_ptr<IUserJobIO> userJobIO,
         IResourceControllerPtr resourceController)
         : TJob(host)
+        , Logger(Host_->GetLogger())
         , JobIO_(std::move(userJobIO))
         , UserJobSpec_(userJobSpec)
         , Config_(Host_->GetConfig())
         , JobIOConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig())
         , ResourceController_(resourceController)
         , JobErrorPromise_(NewPromise<void>())
+        , JobEnvironmentType_(ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->Type)
         , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
         , Process_(ResourceController_
-            ? ResourceController_->CreateControlledProcess(ExecProgramName)
+            ? ResourceController_->CreateControlledProcess(
+                ExecProgramName,
+                CreateCoreDumpHandlerPath(
+                    host->GetConfig()->BusServer->UnixDomainName))
             : New<TSimpleProcess>(ExecProgramName, false))
-        , JobEnvironmentType_(ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->Type)
         , JobSatelliteConnection_(
             jobId,
             host->GetConfig()->BusServer,
             JobEnvironmentType_)
-        , Logger(Host_->GetLogger())
     {
         Synchronizer_ = New<TUserJobSynchronizer>();
         Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, Synchronizer_, AuxQueue_->GetInvoker()));
@@ -369,6 +372,8 @@ public:
     }
 
 private:
+    const NLogging::TLogger Logger;
+
     const std::unique_ptr<IUserJobIO> JobIO_;
     TUserJobReadControllerPtr UserJobReadController_;
 
@@ -380,15 +385,14 @@ private:
 
     mutable TPromise<void> JobErrorPromise_;
 
+    EJobEnvironmentType JobEnvironmentType_;
+
     const TThreadPoolPtr PipeIOPool_;
     const TActionQueuePtr AuxQueue_;
     const IInvokerPtr ReadStderrInvoker_;
     const TProcessBasePtr Process_;
-    EJobEnvironmentType JobEnvironmentType_;
 
     TJobSatelliteConnection JobSatelliteConnection_;
-
-    const NLogging::TLogger Logger;
 
     TString InputPipePath_;
 
@@ -1287,6 +1291,26 @@ private:
         } else {
             LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe");
         }
+    }
+
+    TNullable<TString> CreateCoreDumpHandlerPath(
+        const TNullable<TString>& socketPath) const
+    {
+        if (JobEnvironmentType_ == EJobEnvironmentType::Porto &&
+            UserJobSpec_.has_core_table_spec() &&
+            socketPath)
+        {
+            // We do not want to rely on passing PATH environment to core handler container.
+            auto binaryPathOrError = ResolveBinaryPath("ytserver-core-forwarder");
+            if (binaryPathOrError.IsOK()) {
+                return binaryPathOrError.Value() + " \"${CORE_PID}\" 0 \"${CORE_TASK_NAME}\""
+                    " 1 /dev/null /dev/null " + socketPath.Get();
+            } else {
+                LOG_ERROR(binaryPathOrError,
+                    "Failed to resolve path for ytserver-core-forwarder");
+            }
+        }
+        return {};
     }
 };
 
