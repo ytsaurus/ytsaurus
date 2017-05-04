@@ -5,6 +5,7 @@ from yt_env_setup import YTEnvSetup, unix_only, require_ytserver_root_privileges
 from yt.environment.helpers import assert_almost_equal
 from yt_commands import *
 
+import string
 import time
 import __builtin__
 
@@ -3037,6 +3038,53 @@ class TestNewPoolMetrics(YTEnvSetup):
 
         jobs_11 = ls("//sys/operations/{0}/jobs".format(op11.id))
         assert len(jobs_11) >= 2
+
+class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operation_progress_analysis_period": 100,
+            "operations_update_period": 100,
+            "heavy_job_spec_slice_count_threshold": 1,
+            "job_spec_slice_throttler": {
+                "limit": 3,
+                "period": 1000
+            },
+            "operation_alerts": {
+                "job_spec_throttling_alert_activation_count_threshold": 1
+            }
+        }
+    }
+
+    def test_job_spec_throttler_operation_alert(self):
+        create("table", "//tmp/t_in")
+        for letter in string.ascii_lowercase:
+            write_table("<append=%true>//tmp/t_in", [{"x": letter}])
+
+        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_out2")
+
+        op1 = map(
+            command="sleep 100; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            dont_track=True)
+
+        op2 = map(
+            command="sleep 1; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out2",
+            dont_track=True)
+
+        time.sleep(1.5)
+
+        assert "excessive_job_spec_throttling" in get("//sys/operations/{0}/@alerts".format(op2.id))
+
+        op1.abort()
+        op2.abort()
 
 class TestMinNeededResources(YTEnvSetup):
     NUM_MASTERS = 1

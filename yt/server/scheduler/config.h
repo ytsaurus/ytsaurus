@@ -627,6 +627,10 @@ public:
     // Minimum interquartile range to consider data to be skewed.
     i64 IntermediateDataSkewAlertMinInterquartileRange;
 
+    // Job spec throttling alert is triggered if throttler activation
+    // count is above this threshold.
+    i64 JobSpecThrottlingAlertActivationCountThreshold;
+
     TOperationAlertsConfig()
     {
         RegisterParameter("tmpfs_alert_max_unused_space_ratio", TmpfsAlertMaxUnusedSpaceRatio)
@@ -657,6 +661,10 @@ public:
 
         RegisterParameter("intermediate_data_skew_alert_min_interquartile_range", IntermediateDataSkewAlertMinInterquartileRange)
             .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
+
+        RegisterParameter("job_spec_throttling_alert_activation_count_threshold", JobSpecThrottlingAlertActivationCountThreshold)
+            .Default(1000)
             .GreaterThan(0);
     }
 };

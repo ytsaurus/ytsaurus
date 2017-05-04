@@ -820,6 +820,7 @@ protected:
     void AnalyzeJobsIOUsage() const;
     void AnalyzeJobsDuration() const;
     void AnalyzeOperationProgess() const;
+    void AnalyzeScheduleJobStatistics() const;
 
     void CheckMinNeededResourcesSanity();
     void UpdateCachedMaxAvailableExecNodeResources();
