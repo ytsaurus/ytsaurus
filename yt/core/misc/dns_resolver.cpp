@@ -128,7 +128,11 @@ TDnsResolver::TImpl::TImpl(
     YCHECK(EventFd >= 0);
     const int notificationFd = EventFd;
 #else
+#ifdef _darwin_
+    YCHECK(HandleEintr(pipe, PipeFds) == 0);
+#else
     YCHECK(HandleEintr(pipe2, PipeFds, O_CLOEXEC) == 0);
+#endif
     const int notificationFd = PipeFds[0];
 #endif
 
