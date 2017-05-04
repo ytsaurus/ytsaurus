@@ -182,7 +182,7 @@ public:
         , Evaluator_(std::move(evaluator))
     { }
 
-    const TColumnEvaluatorPtr& GetColumnEvaluator()x
+    const TColumnEvaluatorPtr& GetColumnEvaluator()
     {
         return Evaluator_;
     }
