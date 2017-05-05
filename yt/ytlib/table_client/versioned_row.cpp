@@ -224,6 +224,15 @@ Stroka ToString(const TVersionedOwningRow& row)
     return ToString(row.Get());
 }
 
+TOwningKey RowToKey(TVersionedRow row)
+{
+    TUnversionedOwningRowBuilder builder;
+    for (int index = 0; index < row.GetKeyCount(); ++index) {
+        builder.AddValue(row.BeginKeys()[index]);
+    }
+    return builder.FinishRow();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TVersionedRowBuilder::TVersionedRowBuilder(TRowBufferPtr buffer, bool compaction)
