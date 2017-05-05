@@ -257,6 +257,8 @@ Stroka ToString(TVersionedRow row);
 Stroka ToString(TMutableVersionedRow row);
 Stroka ToString(const TVersionedOwningRow& row);
 
+TOwningKey RowToKey(TVersionedRow row);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A variant of TVersionedRow that enables mutating access to its content.
