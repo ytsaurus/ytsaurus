@@ -111,7 +111,7 @@ using TConnectionPtr = TAtomicSharedPtr<TConnection>;
 class TConnectionPool
 {
 public:
-    using TConnectionMap = yhash_multimap<Stroka, TConnectionPtr>;
+    using TConnectionMap = yhash_mm<Stroka, TConnectionPtr>;
 
     static TConnectionPool* Get();
 
