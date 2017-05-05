@@ -766,7 +766,7 @@ private:
     TRackSet UsedRackIndexes_;
 
     yhash<Stroka, TNode*> AddressToNodeMap_;
-    yhash_multimap<Stroka, TNode*> HostNameToNodeMap_;
+    yhash_mm<Stroka, TNode*> HostNameToNodeMap_;
     yhash<TTransaction*, TNode*> TransactionToNodeMap_;
     yhash<Stroka, TRack*> NameToRackMap_;
     yhash<Stroka, TDataCenter*> NameToDataCenterMap_;
