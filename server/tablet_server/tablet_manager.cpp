@@ -1522,7 +1522,7 @@ private:
 
     yhash<Stroka, TTabletCellBundle*> NameToTabletCellBundleMap_;
 
-    yhash_multimap<Stroka, TTabletCell*> AddressToCell_;
+    yhash_mm<Stroka, TTabletCell*> AddressToCell_;
     yhash<TTransaction*, TTabletCell*> TransactionToCellMap_;
 
     bool InitializeCellBundles_ = false;
