@@ -212,8 +212,12 @@ protected:
         YCHECK(
             !beginPrevKey && !endPrevKey ||
             CompareRows(beginPrevKey, endPrevKey, row.BeginKeys(), row.EndKeys()) < 0);
-        YCHECK(row.GetWriteTimestampCount() <= std::numeric_limits<ui16>::max());
-        YCHECK(row.GetDeleteTimestampCount() <= std::numeric_limits<ui16>::max());
+        if (row.GetWriteTimestampCount() > std::numeric_limits<ui16>::max()) {
+            THROW_ERROR_EXCEPTION("Too many write timestamps in row");
+        }
+        if (row.GetDeleteTimestampCount() > std::numeric_limits<ui16>::max()) {
+            THROW_ERROR_EXCEPTION("Too many delete timestamps in row");
+        }
     }
 };
 
