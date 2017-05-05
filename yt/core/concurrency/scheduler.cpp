@@ -20,27 +20,31 @@ IScheduler* TryGetCurrentScheduler()
     return CurrentScheduler;
 }
 
-void SetCurrentScheduler(IScheduler* scheduler)
+TCurrentSchedulerGuard::TCurrentSchedulerGuard(IScheduler* scheduler)
+    : SavedScheduler_(CurrentScheduler)
 {
-    YCHECK(!CurrentScheduler);
     CurrentScheduler = scheduler;
 }
 
-////////////////////////////////////////////////////////////////////////////////
+TCurrentSchedulerGuard::~TCurrentSchedulerGuard()
+{
+    CurrentScheduler = SavedScheduler_;
+}
 
-PER_THREAD TFiberId CurrentFiberId = InvalidFiberId;
+////////////////////////////////////////////////////////////////////////////////
 
 TFiberId GetCurrentFiberId()
 {
-    return CurrentFiberId;
+    auto* scheduler = TryGetCurrentScheduler();
+    if (!scheduler) {
+        return InvalidFiberId;
+    }
+    auto* fiber = scheduler->GetCurrentFiber();
+    if (!fiber) {
+        return InvalidFiberId;
+    }
+    return fiber->GetId();
 }
-
-void SetCurrentFiberId(TFiberId id)
-{
-    CurrentFiberId = id;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 void Yield()
 {
