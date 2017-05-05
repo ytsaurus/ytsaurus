@@ -128,8 +128,6 @@ public:
     TExpiringCacheConfigPtr FunctionRegistryCache;
     TSlruCacheConfigPtr FunctionImplCache;
 
-    NChunkClient::TMediumDirectorySynchronizerConfigPtr MediumDirectorySynchronizer;
-
     int LightPoolSize;
     int HeavyPoolSize;
 
