@@ -132,7 +132,7 @@ void TStoreBase::SetMemoryUsage(i64 value)
 
 TOwningKey TStoreBase::RowToKey(TUnversionedRow row)
 {
-    return NTabletNode::RowToKey(Schema_, row);
+    return NTableClient::RowToKey(Schema_, row);
 }
 
 TOwningKey TStoreBase::RowToKey(TSortedDynamicRow row)

@@ -1301,6 +1301,17 @@ Stroka ToString(const TUnversionedOwningRow& row)
     return ToString(row.Get());
 }
 
+TOwningKey RowToKey(
+    const TTableSchema& schema,
+    TUnversionedRow row)
+{
+    TUnversionedOwningRowBuilder builder;
+    for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
+        builder.AddValue(row[index]);
+    }
+    return builder.FinishRow();
+}
+
 namespace {
 
 template <class TRow>
