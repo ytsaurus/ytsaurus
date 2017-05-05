@@ -8,8 +8,6 @@
 #include "private.h"
 
 #include <yt/ytlib/chunk_client/client_block_cache.h>
-#include <yt/ytlib/chunk_client/medium_directory.h>
-#include <yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
 
@@ -145,12 +143,6 @@ public:
 
         QueryEvaluator_ = New<TEvaluator>(Config_->QueryEvaluator);
         ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(Config_->ColumnEvaluatorCache);
-
-        MediumDirectory_ = New<TMediumDirectory>();
-        MediumDirectorySynchronizer_ = New<TMediumDirectorySynchronizer>(
-            Config_->MediumDirectorySynchronizer,
-            MediumDirectory_,
-            this);
     }
 
     // IConnection implementation.
@@ -271,17 +263,6 @@ public:
     }
 
 
-    virtual TMediumDirectoryPtr GetMediumDirectory() override
-    {
-        return MediumDirectory_;
-    }
-
-    virtual TFuture<void> SynchronizeMediumDirectory() override
-    {
-        return MediumDirectorySynchronizer_->Sync();
-    }
-
-
     virtual INativeClientPtr CreateNativeClient(const TClientOptions& options) override
     {
         return NApi::CreateNativeClient(this, options);
@@ -347,7 +328,6 @@ public:
 
     virtual void Terminate() override
     {
-        MediumDirectorySynchronizer_->Stop();
         LightPool_.Reset();
         HeavyPool_.Reset();
     }
@@ -371,8 +351,6 @@ private:
     TCellDirectoryPtr CellDirectory_;
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
-    TMediumDirectoryPtr MediumDirectory_;
-    TMediumDirectorySynchronizerPtr MediumDirectorySynchronizer_;
     TThreadPoolPtr LightPool_;
     TThreadPoolPtr HeavyPool_;
 

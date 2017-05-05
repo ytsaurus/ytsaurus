@@ -368,7 +368,6 @@ void TBootstrap::DoRun()
     for (const auto& config : JobProxyConfigTemplate->ClusterConnection->SecondaryMasters) {
         patchMasterConnectionConfig(config);
     }
-    JobProxyConfigTemplate->ClusterConnection->MediumDirectorySynchronizer->ReadFrom = EMasterChannelKind::Cache;
 
     JobProxyConfigTemplate->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
     JobProxyConfigTemplate->SupervisorConnection->Address = localAddress;

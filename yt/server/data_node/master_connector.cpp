@@ -260,56 +260,44 @@ void TMasterConnector::RegisterAtMaster()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TTransactionStartOptions options;
-    options.PingPeriod = Config_->LeaseTransactionPingPeriod;
-    options.Timeout = Config_->LeaseTransactionTimeout;
-
-    auto attributes = CreateEphemeralAttributes();
-    attributes->Set("title", Format("Lease for node %v", GetDefaultAddress(LocalAddresses_)));
-    options.Attributes = std::move(attributes);
-
-    auto asyncTransaction = Bootstrap_->GetMasterClient()->StartTransaction(ETransactionType::Master, options);
-    auto transactionOrError = WaitFor(asyncTransaction);
-
-    if (!transactionOrError.IsOK()) {
-        LOG_ERROR(transactionOrError, "Error starting lease transaction at primary master");
-        ResetAndScheduleRegisterAtMaster();
-        return;
-    }
-
-    LeaseTransaction_ = transactionOrError.Value();
-    LeaseTransaction_->SubscribeAborted(
-        BIND(&TMasterConnector::OnLeaseTransactionAborted, MakeWeak(this))
-            .Via(HeartbeatInvoker_));
-
-    auto masterChannel = GetMasterChannel(PrimaryMasterCellTag);
-    TNodeTrackerServiceProxy proxy(masterChannel);
-
-    auto req = proxy.RegisterNode();
-    req->SetTimeout(Config_->RegisterTimeout);
-    ComputeTotalStatistics(req->mutable_statistics());
-    ToProto(req->mutable_addresses(), LocalAddresses_);
-    ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());
-    ToProto(req->mutable_tags(), NodeTags_);
-
-    LOG_INFO("Node register request sent to primary master (%v)",
-        *req->mutable_statistics());
-
-    auto rspOrError = WaitFor(req->Invoke());
-
-    if (!rspOrError.IsOK()) {
-        LOG_WARNING(rspOrError, "Error registering node at primary master");
-        ResetAndScheduleRegisterAtMaster();
-        return;
-    }
-
-    const auto& rsp = rspOrError.Value();
-    NodeId_ = rsp->node_id();
-
     try {
-        InitMediumDescriptors();
+        InitMedia();
+
+        TTransactionStartOptions options;
+        options.PingPeriod = Config_->LeaseTransactionPingPeriod;
+        options.Timeout = Config_->LeaseTransactionTimeout;
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("title", Format("Lease for node %v", GetDefaultAddress(LocalAddresses_)));
+        options.Attributes = std::move(attributes);
+
+        auto asyncTransaction = Bootstrap_->GetMasterClient()->StartTransaction(ETransactionType::Master, options);
+        LeaseTransaction_ = WaitFor(asyncTransaction)
+            .ValueOrThrow();
+
+        LeaseTransaction_->SubscribeAborted(
+            BIND(&TMasterConnector::OnLeaseTransactionAborted, MakeWeak(this))
+                .Via(HeartbeatInvoker_));
+
+        auto masterChannel = GetMasterChannel(PrimaryMasterCellTag);
+        TNodeTrackerServiceProxy proxy(masterChannel);
+
+        auto req = proxy.RegisterNode();
+        req->SetTimeout(Config_->RegisterTimeout);
+        ComputeTotalStatistics(req->mutable_statistics());
+        ToProto(req->mutable_addresses(), LocalAddresses_);
+        ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());
+        ToProto(req->mutable_tags(), NodeTags_);
+
+        LOG_INFO("Node register request sent to primary master (%v)",
+            *req->mutable_statistics());
+
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+
+        NodeId_ = rsp->node_id();
     } catch (const std::exception& ex) {
-        LOG_WARNING(TError(ex));
+        LOG_WARNING(ex, "Error registering at primary master");
         ResetAndScheduleRegisterAtMaster();
         return;
     }
@@ -318,12 +306,6 @@ void TMasterConnector::RegisterAtMaster()
         auto* delta = GetChunksDelta(cellTag);
         delta->State = EState::Registered;
     }
-
-    MediumUpdateExecutor_ = New<TPeriodicExecutor>(
-        HeartbeatInvoker_,
-        BIND(&TMasterConnector::OnMediumDescriptorsUpdate, MakeWeak(this)),
-        Bootstrap_->GetMasterClient()->GetNativeConnection()->GetConfig()->MediumDirectorySynchronizer->SyncPeriod);
-    MediumUpdateExecutor_->Start();
 
     MasterConnected_.Fire();
 
@@ -336,36 +318,25 @@ void TMasterConnector::RegisterAtMaster()
     ScheduleJobHeartbeat(true);
 }
 
-void TMasterConnector::InitMediumDescriptors()
+void TMasterConnector::InitMedia()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO("Initializing medium descriptors");
+    LOG_INFO("Requesting medium directory");
 
     const auto& client = Bootstrap_->GetMasterClient();
-    const auto& connection = client->GetNativeConnection();
-    WaitFor(connection->SynchronizeMediumDirectory())
-        .ThrowOnError();
+    TGetClusterMetaOptions options;
+    options.ReadFrom = EMasterChannelKind::Follower;
+    options.PopulateMediumDirectory = true;
+    auto result = WaitFor(client->GetClusterMeta(options))
+        .ValueOrThrow();
 
-    DoUpdateMediumDescriptors();
+    LOG_INFO("Medium directory received");
+
+    auto mediumDirectory = New<NChunkClient::TMediumDirectory>();
+    mediumDirectory->LoadFrom(*result.MediumDirectory);
 
     LOG_INFO("Medium descriptors initialized");
-}
-
-void TMasterConnector::OnMediumDescriptorsUpdate()
-{
-    try {
-        DoUpdateMediumDescriptors();
-    } catch (const std::exception& ex) {
-        LOG_WARNING(ex, "Error updating medium descriptors");
-    }
-}
-
-void TMasterConnector::DoUpdateMediumDescriptors()
-{
-    const auto& client = Bootstrap_->GetMasterClient();
-    const auto& connection = client->GetNativeConnection();
-    const auto& mediumDirectory = connection->GetMediumDirectory();
 
     auto updateLocation = [&] (const TLocationPtr& location) {
         const auto& oldDescriptor = location->GetMediumDescriptor();
@@ -950,11 +921,6 @@ void TMasterConnector::Reset()
         delta->ReportedRemoved.clear();
         delta->AddedSinceLastSuccess.clear();
         delta->RemovedSinceLastSuccess.clear();
-    }
-
-    if (MediumUpdateExecutor_) {
-        MediumUpdateExecutor_->Stop();
-        MediumUpdateExecutor_.Reset();
     }
 
     MasterDisconnected_.Fire();

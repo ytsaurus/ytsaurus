@@ -162,8 +162,6 @@ private:
     TSpinLock LocalDescriptorLock_;
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
-    NConcurrency::TPeriodicExecutorPtr MediumUpdateExecutor_;
-
 
     //! Returns the list of all active alerts, including those induced
     //! by |PopulateAlerts| subscribers.
@@ -189,9 +187,9 @@ private:
     //! Sends out a registration request to master.
     void RegisterAtMaster();
 
-    void InitMediumDescriptors();
-    void OnMediumDescriptorsUpdate();
-    void DoUpdateMediumDescriptors();
+    //! Requests media information from master and initializes
+    //! the locations appropriately.
+    void InitMedia();
 
     //! Handles lease transaction abort.
     void OnLeaseTransactionAborted();
