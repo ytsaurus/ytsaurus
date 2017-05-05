@@ -335,15 +335,21 @@ void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoke
 
     fiber->GetCanceler(); // Initialize canceler; who knows what might happen to this fiber?
 
-    auto resume = BIND(&ResumeFiber, fiber);
-    auto unwind = BIND(&UnwindFiber, fiber);
+    auto resumer = BIND(&ResumeFiber, fiber);
+    auto unwinder = BIND(&UnwindFiber, fiber);
 
     if (future) {
-        future.Subscribe(BIND([=] (const TError&) mutable {
-            GuardedInvoke(std::move(invoker), std::move(resume), std::move(unwind));
+        future.Subscribe(BIND([
+            invoker = std::move(invoker),
+            fiber = std::move(fiber),
+            resumer = std::move(resumer),
+            unwinder = std::move(unwinder)
+        ] (const TError&) mutable {
+            LOG_DEBUG("Waking up fiber %x", fiber->GetId());
+            GuardedInvoke(std::move(invoker), std::move(resumer), std::move(unwinder));
         }));
     } else {
-        GuardedInvoke(std::move(invoker), std::move(resume), std::move(unwind));
+        GuardedInvoke(std::move(invoker), std::move(resumer), std::move(unwinder));
     }
 }
 
