@@ -146,7 +146,7 @@ void TSchedulerThread::ThreadMain()
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
 
-    SetCurrentScheduler(this);
+    TCurrentSchedulerGuard guard(this);
     TThread::CurrentThreadSetName(ThreadName.c_str());
 
     // Hold this strongly.
@@ -184,8 +184,8 @@ void TSchedulerThread::ThreadMainStep()
     }
 
     Y_ASSERT(!RunQueue.empty());
+
     CurrentFiber = std::move(RunQueue.front());
-    SetCurrentFiberId(CurrentFiber->GetId());
     RunQueue.pop_front();
 
     YCHECK(CurrentFiber->GetState() == EFiberState::Suspended);
@@ -195,8 +195,6 @@ void TSchedulerThread::ThreadMainStep()
         &SchedulerContext,
         CurrentFiber->GetContext(),
         /* as per TFiber::Trampoline */ CurrentFiber.Get());
-
-    SetCurrentFiberId(InvalidFiberId);
 
     // Notify context switch subscribers.
     OnContextSwitch();
