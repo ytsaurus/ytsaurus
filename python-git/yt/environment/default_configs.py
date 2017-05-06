@@ -99,7 +99,7 @@ b"""
 }
 """)
 
-
+# TODO(babenko): drop cluster_directory_synchronizer in the root
 def get_scheduler_config():
     return yson.loads(
 b"""
@@ -110,6 +110,10 @@ b"""
         timestamp_provider = {
             soft_backoff_time = 100;
             hard_backoff_time = 100;
+        };
+
+        cluster_directory_synchronizer = {
+            sync_period = 500;
         };
     };
 
@@ -161,6 +165,7 @@ b"""
 }
 """)
 
+# TODO(babenko): drop cluster_directory_synchronizer in the root
 def get_node_config(enable_debug_logging=True):
     config = yson.loads(
 b"""
@@ -193,6 +198,10 @@ b"""
             retry_backoff_time = 100;
         };
 
+        cluster_directory_synchronizer = {
+            sync_period = 500;
+        };
+                
         enable_udf = %true;
     };
 
