@@ -132,6 +132,7 @@ private:
         NTableServer::TReplicatedTableNode* table,
         const Stroka& clusterName,
         const NYPath::TYPath& replicaPath,
+        ETableReplicaMode mode,
         NTransactionClient::TTimestamp startReplicationTimestamp);
     void DestroyTableReplica(TTableReplica* replica);
 

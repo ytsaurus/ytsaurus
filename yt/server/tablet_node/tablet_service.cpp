@@ -80,6 +80,7 @@ private:
         auto rowCount = request->row_count();
         auto requestCodecId = NCompression::ECodec(request->request_codec());
         auto lockless = request->lockless();
+        auto syncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids());
 
         ValidateTabletTransactionId(transactionId);
 
@@ -88,7 +89,7 @@ private:
 
         context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %v, "
             "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x, RowCount: %v, "
-            "RequestCodec: %v, Lockless: %v",
+            "RequestCodec: %v, Lockless: %v, SyncReplicaIds: %v",
             tabletId,
             transactionId,
             transactionStartTimestamp,
@@ -98,7 +99,8 @@ private:
             signature,
             rowCount,
             requestCodecId,
-            lockless);
+            lockless,
+            syncReplicaIds);
 
         // NB: Must serve the whole request within a single epoch.
         TCurrentInvokerGuard invokerGuard(Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
@@ -141,6 +143,7 @@ private:
                 signature,
                 rowCount,
                 lockless,
+                syncReplicaIds,
                 &reader,
                 &commitResult);
         }

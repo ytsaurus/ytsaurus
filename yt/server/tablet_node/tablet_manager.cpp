@@ -70,6 +70,7 @@
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
+#include <yt/ytlib/tablet_client/table_mount_cache.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -246,6 +247,7 @@ public:
         TTransactionSignature signature,
         int rowCount,
         bool lockless,
+        const TSyncReplicaIdList& syncReplicaIds,
         TWireProtocolReader* reader,
         TFuture<void>* commitResult)
     {
@@ -313,7 +315,7 @@ public:
             if (readerBefore != readerAfter) {
                 auto recordData = reader->Slice(readerBefore, readerAfter);
                 auto compressedRecordData = ChangelogCodec_->Compress(recordData);
-                TTransactionWriteRecord writeRecord(tabletId, recordData, context.RowCount);
+                TTransactionWriteRecord writeRecord(tabletId, recordData, context.RowCount, syncReplicaIds);
 
                 PrelockedTablets_.push(tablet);
                 LockTablet(tablet);
@@ -329,6 +331,7 @@ public:
                 hydraRequest.set_signature(adjustedSignature);
                 hydraRequest.set_lockless(lockless);
                 hydraRequest.set_row_count(writeRecord.RowCount);
+                ToProto(hydraRequest.mutable_sync_replica_ids(), syncReplicaIds);
                 *commitResult = CreateMutation(Slot_->GetHydraManager(), hydraRequest)
                     ->SetHandler(BIND(
                         &TImpl::HydraLeaderExecuteWrite,
@@ -681,7 +684,7 @@ private:
                     context.Transaction = transaction;
                     YCHECK(storeManager->ExecuteWrites(&reader, &context));
 
-                    tablet->SetWriteLogsRowCount(tablet->GetWriteLogsRowCount() + 1);
+                    tablet->SetWriteLogsRowCount(tablet->GetWriteLogsRowCount() + record.RowCount);
                 }
             };
             applyWrites(transaction->ImmediateLockedWriteLog());
@@ -696,7 +699,7 @@ private:
 
                     LockTablet(tablet);
                     transaction->LockedTablets().push_back(tablet);
-                    tablet->SetWriteLogsRowCount(tablet->GetWriteLogsRowCount() + 1);
+                    tablet->SetWriteLogsRowCount(tablet->GetWriteLogsRowCount() + record.RowCount);
                 }
             };
             lockTablets(transaction->ImmediateLocklessWriteLog());
@@ -708,7 +711,7 @@ private:
                 GetTransactionWriteLogMemoryUsage(transaction->DelayedLocklessWriteLog()));
 
             if (transaction->GetState() == ETransactionState::PersistentCommitPrepared) {
-                OnTransactionPrepared(transaction);
+                OnTransactionPrepared(transaction, true);
             }
         }
     }
@@ -1218,6 +1221,7 @@ private:
         auto signature = request->signature();
         auto lockless = request->lockless();
         auto rowCount = request->row_count();
+        auto syncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids());
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -1236,7 +1240,7 @@ private:
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
         auto recordData = codec->Decompress(compressedRecordData);
-        TTransactionWriteRecord writeRecord(tabletId, recordData, rowCount);
+        TTransactionWriteRecord writeRecord(tabletId, recordData, rowCount, syncReplicaIds);
         TWireProtocolReader reader(recordData);
 
         const auto& storeManager = tablet->GetStoreManager();
@@ -1768,19 +1772,24 @@ private:
                 replicaInfo->GetPreparedReplicationTransactionId());
         }
 
+        auto newCurrentReplicationRowIndex = request->new_replication_row_index();
+        auto newReplicationTimestamp = request->new_replication_timestamp();
+
+        YCHECK(newCurrentReplicationRowIndex <= tablet->GetTotalRowCount());
         YCHECK(replicaInfo->GetPreparedReplicationRowIndex() == -1);
-        replicaInfo->SetPreparedReplicationRowIndex(request->new_replication_row_index());
+
+        replicaInfo->SetPreparedReplicationRowIndex(newCurrentReplicationRowIndex);
         replicaInfo->SetPreparedReplicationTransactionId(transaction->GetId());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows prepared (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
-            "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %v->%v)",
+            "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %x->%x)",
             tabletId,
             replicaId,
             transaction->GetId(),
             replicaInfo->GetCurrentReplicationRowIndex(),
-            request->new_replication_row_index(),
+            newCurrentReplicationRowIndex,
             replicaInfo->GetCurrentReplicationTimestamp(),
-            request->new_replication_timestamp());
+            newReplicationTimestamp);
 
     }
 
@@ -1864,7 +1873,63 @@ private:
     }
 
 
-    void OnTransactionPrepared(TTransaction* transaction)
+    static void ValidateReplicaWritable(TTablet* tablet, TTableReplicaInfo& replicaInfo)
+    {
+        auto currentReplicationRowIndex = replicaInfo.GetCurrentReplicationRowIndex();
+        auto totalRowCount = tablet->GetTotalRowCount();
+        switch (replicaInfo.GetMode()) {
+            case ETableReplicaMode::Sync:
+                if (currentReplicationRowIndex < totalRowCount) {
+                    THROW_ERROR_EXCEPTION("Replica %v of tablet %v is not synchronously writeable: some rows are not replicated yet",
+                        replicaInfo.GetId(),
+                        tablet->GetId());
+                }
+                YCHECK(!replicaInfo.GetPreparedReplicationTransactionId());
+                break;
+
+            case ETableReplicaMode::Async:
+                if (currentReplicationRowIndex > totalRowCount) {
+                    THROW_ERROR_EXCEPTION("Replica %v of tablet %v is not asynchronously writeable: some rows ",
+                        replicaInfo.GetId(),
+                        tablet->GetId());
+                }
+                break;
+
+            default:
+                Y_UNREACHABLE();
+        }
+    }
+
+    static void ValidateSyncReplicaSet(TTablet* tablet, const TSyncReplicaIdList& syncReplicaIds)
+    {
+        for (const auto& replicaId : syncReplicaIds) {
+            const auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
+            if (!replicaInfo) {
+                THROW_ERROR_EXCEPTION("Sync replica %v is not known for tablet %v",
+                    replicaId,
+                    tablet->GetId());
+            }
+            if (replicaInfo->GetMode() != ETableReplicaMode::Sync) {
+                THROW_ERROR_EXCEPTION("Replica %v of tablet %v is not in sync mode",
+                    replicaId,
+                    tablet->GetId());
+            }
+        }
+
+        for (const auto& pair : tablet->Replicas()) {
+            const auto& replicaId = pair.first;
+            const auto& replicaInfo = pair.second;
+            if (replicaInfo.GetMode() == ETableReplicaMode::Sync) {
+                if (std::find(syncReplicaIds.begin(), syncReplicaIds.end(), replicaId) == syncReplicaIds.end()) {
+                    THROW_ERROR_EXCEPTION("Sync replica %v of tablet %v is not being written by client",
+                        replicaId,
+                        tablet->GetId());
+                }
+            }
+        }
+    }
+
+    void OnTransactionPrepared(TTransaction* transaction, bool persistent)
     {
         auto prepareRow = [&] (const TSortedDynamicRowRef& rowRef) {
             // NB: Don't call ValidateAndDiscardRowRef, row refs are just scanned.
@@ -1892,6 +1957,43 @@ private:
             transaction->GetId(),
             lockedRowCount,
             prelockedRowCount);
+
+        int replicatedRowCount = 0;
+        yhash_map<TTableReplicaInfo*, int> replicaToRowCount;
+        for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
+            auto* tablet = GetTabletOrThrow(writeRecord.TabletId);
+            if (!tablet->IsReplicated()) {
+                continue;
+            }
+
+            if (!persistent) {
+                THROW_ERROR_EXCEPTION("Writing into replicated table requires 2PC");
+            }
+
+            ValidateSyncReplicaSet(tablet, writeRecord.SyncReplicaIds);
+            for (auto& pair : tablet->Replicas()) {
+                auto& replicaInfo = pair.second;
+                ValidateReplicaWritable(tablet, replicaInfo);
+                if (replicaInfo.GetMode() == ETableReplicaMode::Sync) {
+                    replicaToRowCount[&replicaInfo] += writeRecord.RowCount;
+                }
+            }
+
+            replicatedRowCount += writeRecord.RowCount;
+        }
+
+        YCHECK(!transaction->GetReplicatedRowsPrepared());
+        for (const auto& pair : replicaToRowCount) {
+            auto* replica = pair.first;
+            auto rowCount = pair.second;
+            replica->SetCurrentReplicationRowIndex(replica->GetCurrentReplicationRowIndex() + rowCount);
+        }
+        transaction->SetReplicatedRowsPrepared(true);
+
+        LOG_DEBUG_UNLESS(IsRecovery() || replicatedRowCount == 0,
+            "Replicated rows prepared (TransactionId: %v, RowCount: %v)",
+            transaction->GetId(),
+            replicatedRowCount);
     }
 
     void OnTransactionCommitted(TTransaction* transaction) noexcept
@@ -1937,6 +2039,32 @@ private:
             transaction->GetId(),
             lockedRowCount,
             locklessRowCount);
+
+        if (transaction->GetReplicatedRowsPrepared()) {
+            int replicatedRowCount = 0;
+            for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
+                auto* tablet = FindTablet(writeRecord.TabletId);
+                if (!tablet || !tablet->IsReplicated()) {
+                    continue;
+                }
+
+                for (const auto& replicaId : writeRecord.SyncReplicaIds) {
+                    auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
+                    if (!replicaInfo) {
+                        continue;
+                    }
+
+                    replicaInfo->SetCurrentReplicationTimestamp(std::max(replicaInfo->GetCurrentReplicationTimestamp(), transaction->GetCommitTimestamp()));
+                }
+
+                replicatedRowCount += writeRecord.RowCount;
+            }
+
+            LOG_DEBUG_UNLESS(IsRecovery() || replicatedRowCount == 0,
+                "Replicated rows committed (TransactionId: %v, RowCount: %v)",
+                transaction->GetId(),
+                replicatedRowCount);
+        }
 
         if (transaction->DelayedLocklessWriteLog().Empty()) {
             UnlockLockedTablets(transaction);
@@ -2011,6 +2139,27 @@ private:
             "Locked tablets unlocked (TransactionId: %v, TabletCount: %v)",
             transaction->GetId(),
             lockedTabletCount);
+
+        if (transaction->GetReplicatedRowsPrepared()) {
+            int replicatedRowCount = 0;
+            for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
+                auto* tablet = FindTablet(writeRecord.TabletId);
+                if (!tablet || !tablet->IsReplicated()) {
+                    continue;
+                }
+
+                for (const auto& replicaId : writeRecord.SyncReplicaIds) {
+                    auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
+                    replicaInfo->SetCurrentReplicationRowIndex(replicaInfo->GetCurrentReplicationRowIndex() - writeRecord.RowCount);
+                    replicatedRowCount += writeRecord.RowCount;
+                }
+            }
+
+            LOG_DEBUG_UNLESS(IsRecovery() || replicatedRowCount == 0,
+                "Replicated rows aborted (TransactionId: %v, RowCount: %v)",
+                transaction->GetId(),
+                replicatedRowCount);
+        }
 
         ClearTransactionWriteLog(&transaction->ImmediateLockedWriteLog());
         ClearTransactionWriteLog(&transaction->ImmediateLocklessWriteLog());
@@ -2977,6 +3126,7 @@ void TTabletManager::Write(
     TTransactionSignature signature,
     int rowCount,
     bool lockless,
+    const TSyncReplicaIdList& syncReplicaIds,
     TWireProtocolReader* reader,
     TFuture<void>* commitResult)
 {
@@ -2988,6 +3138,7 @@ void TTabletManager::Write(
         signature,
         rowCount,
         lockless,
+        syncReplicaIds,
         reader,
         commitResult);
 }

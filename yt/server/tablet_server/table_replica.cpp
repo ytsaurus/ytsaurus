@@ -59,6 +59,9 @@ void TTableReplica::ThrowInvalidState()
 
 TDuration TTableReplica::ComputeReplicationLagTime() const
 {
+    if (Mode_ == ETableReplicaMode::Sync) {
+        return TDuration::Zero();
+    }
     auto result = TDuration::Zero();
     for (auto* tablet : Table_->Tablets()) {
         const auto* replicaInfo = tablet->GetReplicaInfo(this);

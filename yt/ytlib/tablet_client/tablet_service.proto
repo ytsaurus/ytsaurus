@@ -17,6 +17,7 @@ message TReqWrite
     required int32 request_codec = 8; // ECodec
     required int32 row_count = 9;
     required bool lockless = 10;
+    repeated NYT.NProto.TGuid sync_replica_ids = 11;
     // Attachement contains wire-encoded data.
 }
 

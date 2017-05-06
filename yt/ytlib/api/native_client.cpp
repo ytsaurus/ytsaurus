@@ -401,7 +401,7 @@ private:
         const TRichYPath& path,
         TTimestamp timestamp)
     {
-        auto tableMountCache = Connection_->GetTableMountCache();
+        const auto& tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path.GetPath()))
             .ValueOrThrow();
 
@@ -930,7 +930,7 @@ private:
                 if (retry) {
                     LOG_DEBUG(error, "Got error, will clear table mount cache and retry");
                     auto tabletId = error.Attributes().Get<TTabletId>("tablet_id");
-                    auto tableMountCache = Connection_->GetTableMountCache();
+                    const auto& tableMountCache = Connection_->GetTableMountCache();
                     auto tabletInfo = tableMountCache->FindTablet(tabletId);
                     if (tabletInfo) {
                         tableMountCache->InvalidateTablet(tabletInfo);
@@ -947,13 +947,6 @@ private:
 
             THROW_ERROR error;
         }
-    }
-
-    TTableMountInfoPtr SyncGetTableInfo(const TYPath& path)
-    {
-        const auto& tableMountCache = Connection_->GetTableMountCache();
-        return WaitFor(tableMountCache->GetTableInfo(path))
-            .ValueOrThrow();
     }
 
 
@@ -1353,7 +1346,10 @@ private:
         const TEncoderWithMapping& encoderWithMapping,
         const TDecoderWithMapping& decoderWithMapping)
     {
-        auto tableInfo = SyncGetTableInfo(path);
+        const auto& tableMountCache = Connection_->GetTableMountCache();
+        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
+            .ValueOrThrow();
+
         tableInfo->ValidateDynamic();
         tableInfo->ValidateSorted();
         tableInfo->ValidateNotReplicated();
@@ -1711,7 +1707,7 @@ private:
         i64 trimmedRowCount,
         const TTrimTableOptions& options)
     {
-        auto tableMountCache = Connection_->GetTableMountCache();
+        const auto& tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
             .ValueOrThrow();
 
@@ -3639,7 +3635,8 @@ private:
 
         void Run()
         {
-            auto tableInfo = Transaction_->Client_->SyncGetTableInfo(Path_);
+            auto tableSession = Transaction_->GetOrCreateTableSession(Path_);
+            const auto& tableInfo = tableSession->GetInfo();
 
             const auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
             const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Primary);
@@ -3671,12 +3668,16 @@ private:
                             THROW_ERROR_EXCEPTION("Cannot perform versioned writes into a non-sorted table %v",
                                 tableInfo->Path);
                         }
+                        if (tableInfo->IsReplicated()) {
+                            THROW_ERROR_EXCEPTION("Cannot perform versioned writes into a replicated table %v",
+                                tableInfo->Path);
+                        }
                         ValidateClientDataRow(TVersionedRow(modification.Row), versionedWriteSchema, versionedWriteIdMapping, NameTable_);
                         break;
 
                     case ERowModificationType::Delete:
                         if (!tableInfo->IsSorted()) {
-                            THROW_ERROR_EXCEPTION("Cannot deletes in a non-sorted table %v",
+                            THROW_ERROR_EXCEPTION("Cannot perform deletes in a non-sorted table %v",
                                 tableInfo->Path);
                         }
                         ValidateClientKey(TUnversionedRow(modification.Row), deleteSchema, deleteIdMapping, NameTable_);
@@ -3706,7 +3707,7 @@ private:
                                 TabletIndexColumnId_,
                                 TUnversionedRow(modification.Row));
                         }
-                        auto* session = Transaction_->GetTabletSession(tabletInfo, tableInfo);
+                        auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo);
                         auto command = GetCommand(modification.Type);
                         session->SubmitRow(command, capturedRow);
                         break;
@@ -3718,7 +3719,7 @@ private:
                             primarySchema,
                             primaryIdMapping);
                         auto tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow);
-                        auto* session = Transaction_->GetTabletSession(tabletInfo, tableInfo);
+                        auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo);
                         auto command = GetCommand(modification.Type);
                         session->SubmitRow(command, capturedRow);
                         break;
@@ -3759,6 +3760,29 @@ private:
     };
 
     std::vector<std::unique_ptr<TModificationRequest>> Requests_;
+
+    class TTableCommitSession
+        : public TIntrinsicRefCounted
+    {
+    public:
+        explicit TTableCommitSession(TTableMountInfoPtr tableInfo)
+            : TableInfo_(std::move(tableInfo))
+        { }
+
+        const TTableMountInfoPtr& GetInfo() const
+        {
+            return TableInfo_;
+        }
+
+    private:
+        const TTableMountInfoPtr TableInfo_;
+
+    };
+
+    using TTableCommitSessionPtr = TIntrusivePtr<TTableCommitSession>;
+
+    //! Maintains per-table commit info.
+    yhash_map<TYPath, TTableCommitSessionPtr> TablePathToSession_;
 
     class TTabletCommitSession
         : public TIntrinsicRefCounted
@@ -4032,6 +4056,11 @@ private:
                 TableInfo_->IsOrdered() ||
                 TableInfo_->IsReplicated() ||
                 !VersionedSubmittedRows_.empty());
+            for (const auto& replicaInfo : TableInfo_->Replicas) {
+                if (replicaInfo->Mode == ETableReplicaMode::Sync) {
+                    ToProto(req->add_sync_replica_ids(), replicaInfo->ReplicaId);
+                }
+            }
             req->Attachments().push_back(batch->RequestData);
 
             LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x, Lockless: %v)",
@@ -4216,24 +4245,39 @@ private:
         return it->second;
     }
 
+    TTableCommitSessionPtr GetOrCreateTableSession(const TYPath& path)
+    {
+        auto it = TablePathToSession_.find(path);
+        if (it == TablePathToSession_.end()) {
+            const auto& tableMountCache = Client_->Connection_->GetTableMountCache();
+            auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
+                .ValueOrThrow();
 
-    TTabletCommitSession* GetTabletSession(const TTabletInfoPtr& tabletInfo, const TTableMountInfoPtr& tableInfo)
+            it = TablePathToSession_.emplace(
+                path,
+                New<TTableCommitSession>(tableInfo)
+            ).first;
+        }
+        return it->second;
+    }
+
+    TTabletCommitSessionPtr GetOrCreateTabletSession(const TTabletInfoPtr& tabletInfo, const TTableMountInfoPtr& tableInfo)
     {
         const auto& tabletId = tabletInfo->TabletId;
         auto it = TabletIdToSession_.find(tabletId);
         if (it == TabletIdToSession_.end()) {
             auto evaluatorCache = Client_->GetNativeConnection()->GetColumnEvaluatorCache();
             auto evaluator = evaluatorCache->Find(tableInfo->Schemas[ETableSchemaKind::Primary]);
-            it = TabletIdToSession_.insert(std::make_pair(
+            it = TabletIdToSession_.emplace(
                 tabletId,
                 New<TTabletCommitSession>(
                     this,
                     tabletInfo,
                     tableInfo,
                     evaluator)
-                )).first;
+                ).first;
         }
-        return it->second.Get();
+        return it->second;
     }
 
     TFuture<void> SendRequests()
@@ -4274,6 +4318,17 @@ private:
         return Combine(asyncResults);
     }
 
+    TTransactionCommitOptions AdjustCommitOptions(TTransactionCommitOptions options)
+    {
+        for (const auto& pair : TablePathToSession_) {
+            const auto& session = pair.second;
+            if (session->GetInfo()->IsReplicated()) {
+                options.Force2PC = true;
+            }
+        }
+        return options;
+    }
+
     TTransactionCommitResult DoCommit(const TTransactionCommitOptions& options)
     {
         try {
@@ -4305,7 +4360,7 @@ private:
             throw;
         }
 
-        auto commitResult = WaitFor(Transaction_->Commit(options))
+        auto commitResult = WaitFor(Transaction_->Commit(AdjustCommitOptions(options)))
             .ValueOrThrow();
 
         return commitResult;

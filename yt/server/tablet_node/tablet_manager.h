@@ -55,6 +55,7 @@ public:
         TTransactionSignature signature,
         int rowCount,
         bool lockless,
+        const TSyncReplicaIdList& syncReplicaIds,
         NTabletClient::TWireProtocolReader* reader,
         TFuture<void>* commitResult);
 

@@ -95,7 +95,7 @@ class TTransactionManager::TImpl
 {
 public:
     DEFINE_SIGNAL(void(TTransaction*), TransactionStarted);
-    DEFINE_SIGNAL(void(TTransaction*), TransactionPrepared);
+    DEFINE_SIGNAL(void(TTransaction*, bool), TransactionPrepared);
     DEFINE_SIGNAL(void(TTransaction*), TransactionCommitted);
     DEFINE_SIGNAL(void(TTransaction*), TransactionSerialized);
     DEFINE_SIGNAL(void(TTransaction*), TransactionAborted);
@@ -347,12 +347,11 @@ public:
             YCHECK(transaction->GetPrepareTimestamp() == NullTimestamp);
             transaction->SetPrepareTimestamp(prepareTimestamp);
             RegisterPrepareTimestamp(transaction);
-
             transaction->SetState(persistent
                 ? ETransactionState::PersistentCommitPrepared
                 : ETransactionState::TransientCommitPrepared);
 
-            TransactionPrepared_.Fire(transaction);
+            TransactionPrepared_.Fire(transaction, persistent);
             RunPrepareTransactionActions(transaction, persistent);
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, "
@@ -1025,7 +1024,7 @@ TTimestamp TTransactionManager::GetMinCommitTimestamp()
 }
 
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);
-DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionPrepared, *Impl_);
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*, bool), TransactionPrepared, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionSerialized, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl_);

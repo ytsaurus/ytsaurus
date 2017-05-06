@@ -52,8 +52,8 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidMountRevision)     (1704))
 );
 
-static const int TypicalPeerCount = 5;
-static const int MaxPeerCount = 10;
+constexpr int TypicalPeerCount = 5;
+constexpr int MaxPeerCount = 10;
 
 ///////////////////////////////////////////////////////////////////////////////
 
