@@ -126,6 +126,8 @@ TExternalCGInfo::TExternalCGInfo()
     : NodeDirectory(New<NNodeTrackerClient::TNodeDirectory>())
 { }
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 Stroka GetUdfDescriptorPath(const TYPath& registryPath, const Stroka& functionName)
@@ -260,12 +262,11 @@ void AppendUdfDescriptors(
 {
     YCHECK(names.size() == external.size());
 
-    LOG_DEBUG("Appending UDF %v descriptors", external.size());
+    LOG_DEBUG("Appending UDF descriptors (Count: %v)", external.size());
 
     for (size_t index = 0; index < external.size(); ++index) {
         const auto& item = external[index];
         const auto& descriptor = item.Descriptor;
-
         const auto& name = names[index];
 
         LOG_DEBUG("Appending UDF descriptor (Name: %v, Descriptor: %v)",
@@ -285,8 +286,7 @@ void AppendUdfDescriptors(
             AggregateDescriptorAttribute);
 
         if (bool(functionDescriptor) == bool(aggregateDescriptor)) {
-            THROW_ERROR_EXCEPTION(
-                "Item must have either function descriptor or aggregate descriptor");
+            THROW_ERROR_EXCEPTION("Item must have either function descriptor or aggregate descriptor");
         }
 
         const auto& chunks = item.Chunks;
@@ -302,7 +302,7 @@ void AppendUdfDescriptors(
             }));
 
         if (functionDescriptor) {
-            LOG_DEBUG("Appending function UDF descriptor %v", name);
+            LOG_DEBUG("Appending function UDF descriptor %Qv", name);
 
             functionBody.IsAggregate = false;
             functionBody.SymbolName = functionDescriptor->Name;
@@ -329,7 +329,7 @@ void AppendUdfDescriptors(
         }
 
         if (aggregateDescriptor) {
-            LOG_DEBUG("Appending aggregate UDF descriptor %v", name);
+            LOG_DEBUG("Appending aggregate UDF descriptor %Qv", name);
 
             functionBody.IsAggregate = true;
             functionBody.SymbolName = aggregateDescriptor->Name;
@@ -373,21 +373,6 @@ public:
         , Invoker_(invoker)
     { }
 
-    virtual TFuture<TExternalFunctionSpec> DoGet(const Stroka& key)
-    {
-        return DoGetMany({key})
-            .Apply(BIND([] (const std::vector<TExternalFunctionSpec>& result) {
-                return result[0];
-            }));
-    }
-
-    virtual TFuture<std::vector<TExternalFunctionSpec>> DoGetMany(const std::vector<Stroka>& keys)
-    {
-        return BIND(LookupAllUdfDescriptors, keys, RegistryPath_, Client_.Lock())
-            .AsyncVia(Invoker_)
-            .Run();
-    }
-
     virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(const std::vector<Stroka>& names) override
     {
         return Get(names);
@@ -398,6 +383,20 @@ private:
     const TWeakPtr<INativeClient> Client_;
     const IInvokerPtr Invoker_;
 
+    virtual TFuture<TExternalFunctionSpec> DoGet(const Stroka& key) override
+    {
+        return DoGetMany({key})
+            .Apply(BIND([] (const std::vector<TExternalFunctionSpec>& result) {
+                return result[0];
+            }));
+    }
+
+    virtual TFuture<std::vector<TExternalFunctionSpec>> DoGetMany(const std::vector<Stroka>& keys) override
+    {
+        return BIND(LookupAllUdfDescriptors, keys, RegistryPath_, Client_.Lock())
+            .AsyncVia(Invoker_)
+            .Run();
+    }
 };
 
 } // namespace
