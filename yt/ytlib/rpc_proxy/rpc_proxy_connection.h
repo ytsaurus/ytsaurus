@@ -27,11 +27,10 @@ public:
 
     virtual NObjectClient::TCellTag GetCellTag() override;
 
-    virtual NTabletClient::ITableMountCachePtr GetTableMountCache() override;
-    virtual NTransactionClient::ITimestampProviderPtr GetTimestampProvider() override;
-
-    virtual IInvokerPtr GetLightInvoker() override;
-    virtual IInvokerPtr GetHeavyInvoker() override;
+    virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
+    virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
+    virtual const IInvokerPtr& GetLightInvoker() override;
+    virtual const IInvokerPtr& GetHeavyInvoker() override;
 
     virtual NApi::IAdminPtr CreateAdmin(const NApi::TAdminOptions& options) override;
     virtual NApi::IClientPtr CreateClient(const NApi::TClientOptions& options) override;
@@ -47,7 +46,7 @@ private:
     const TRpcProxyConnectionConfigPtr Config_;
     const NConcurrency::TActionQueuePtr ActionQueue_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
     TSpinLock SpinLock_;
     yhash_set<TWeakPtr<TRpcProxyTransaction>> Transactions_;

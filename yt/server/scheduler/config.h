@@ -708,8 +708,6 @@ public:
 
     TDuration AlertsUpdatePeriod;
 
-    NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
-
     TDuration NodeShardsUpdatePeriod;
 
     TDuration ResourceDemandSanityCheckPeriod;
@@ -989,8 +987,6 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("alerts_update_period", AlertsUpdatePeriod)
             .Default(TDuration::Seconds(1));
-        RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
-            .DefaultNew();
         RegisterParameter("node_shards_update_period", NodeShardsUpdatePeriod)
             .Default(TDuration::Seconds(10));
 

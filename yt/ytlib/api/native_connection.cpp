@@ -10,6 +10,8 @@
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/cluster_directory.h>
+#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/ytlib/hydra/peer_channel.h>
 
@@ -152,22 +154,22 @@ public:
         return CellTagFromId(Config_->PrimaryMaster->CellId);
     }
 
-    virtual ITableMountCachePtr GetTableMountCache() override
+    virtual const ITableMountCachePtr& GetTableMountCache() override
     {
         return TableMountCache_;
     }
 
-    virtual ITimestampProviderPtr GetTimestampProvider() override
+    virtual const ITimestampProviderPtr& GetTimestampProvider() override
     {
         return TimestampProvider_;
     }
 
-    virtual IInvokerPtr GetLightInvoker() override
+    virtual const IInvokerPtr& GetLightInvoker() override
     {
         return LightPool_->GetInvoker();
     }
 
-    virtual IInvokerPtr GetHeavyInvoker() override
+    virtual const IInvokerPtr& GetHeavyInvoker() override
     {
         return HeavyPool_->GetInvoker();
     }
@@ -189,7 +191,7 @@ public:
 
     // INativeConnection implementation.
 
-    virtual TNativeConnectionConfigPtr GetConfig() override
+    virtual const TNativeConnectionConfigPtr& GetConfig() override
     {
         return Config_;
     }
@@ -227,39 +229,52 @@ public:
         return it->second;
     }
 
-    virtual IChannelPtr GetSchedulerChannel() override
+    virtual const IChannelPtr& GetSchedulerChannel() override
     {
         return SchedulerChannel_;
     }
 
-    virtual IChannelFactoryPtr GetLightChannelFactory() override
+    virtual const IChannelFactoryPtr& GetLightChannelFactory() override
     {
         return LightChannelFactory_;
     }
 
-    virtual IChannelFactoryPtr GetHeavyChannelFactory() override
+    virtual const IChannelFactoryPtr& GetHeavyChannelFactory() override
     {
         return HeavyChannelFactory_;
     }
 
-    virtual IBlockCachePtr GetBlockCache() override
+    virtual const IBlockCachePtr& GetBlockCache() override
     {
         return BlockCache_;
     }
 
-    virtual TCellDirectoryPtr GetCellDirectory() override
+    virtual const TCellDirectoryPtr& GetCellDirectory() override
     {
         return CellDirectory_;
     }
 
-    virtual TEvaluatorPtr GetQueryEvaluator() override
+    virtual const TEvaluatorPtr& GetQueryEvaluator() override
     {
         return QueryEvaluator_;
     }
 
-    virtual TColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
+    virtual const TColumnEvaluatorCachePtr& GetColumnEvaluatorCache() override
     {
         return ColumnEvaluatorCache_;
+    }
+
+
+    virtual const TClusterDirectoryPtr& GetClusterDirectory() override
+    {
+        EnsureClusterDirectory();
+        return ClusterDirectory_;
+    }
+
+    virtual TFuture<void> SyncClusterDirectory() override
+    {
+        EnsureClusterDirectory();
+        return ClusterDirectorySynchronizer_->Sync();
     }
 
 
@@ -351,6 +366,11 @@ private:
     TCellDirectoryPtr CellDirectory_;
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+
+    TSpinLock ClusterDirectoryLock_;
+    TClusterDirectoryPtr ClusterDirectory_;
+    TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
+
     TThreadPoolPtr LightPool_;
     TThreadPoolPtr HeavyPool_;
 
@@ -362,6 +382,20 @@ private:
 
     TReaderWriterSpinLock StickyTransactionLock_;
     yhash<TTransactionId, TStickyTransactionEntry> IdToStickyTransactionEntry_;
+
+
+    void EnsureClusterDirectory()
+    {
+        // ClusterDirectory_ and ClusterDirectorySynchronizer_ are lazy-created.
+        auto guard = Guard(ClusterDirectoryLock_);
+        if (!ClusterDirectory_) {
+            ClusterDirectory_ = New<TClusterDirectory>();
+            ClusterDirectorySynchronizer_ = New<TClusterDirectorySynchronizer>(
+                Config_->ClusterDirectorySynchronizer,
+                this,
+                ClusterDirectory_);
+        }
+    }
 
     IChannelPtr CreatePeerChannel(TMasterConnectionConfigPtr config, EPeerKind kind)
     {

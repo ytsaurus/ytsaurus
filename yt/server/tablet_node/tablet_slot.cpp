@@ -543,7 +543,7 @@ public:
                 connection->GetTimestampProvider(),
                 std::vector<ITransactionParticipantProviderPtr>{
                     CreateTransactionParticipantProvider(connection),
-                    CreateTransactionParticipantProvider(Bootstrap_->GetClusterDirectory())
+                    CreateTransactionParticipantProvider(connection->GetClusterDirectory())
                 });
 
             TabletService_ = CreateTabletService(

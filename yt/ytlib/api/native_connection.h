@@ -14,7 +14,7 @@ namespace NApi {
 struct INativeConnection
     : public IConnection
 {
-    virtual TNativeConnectionConfigPtr GetConfig() = 0;
+    virtual const TNativeConnectionConfigPtr& GetConfig() = 0;
 
     virtual const NNodeTrackerClient::TNetworkPreferenceList& GetNetworks() const = 0;
 
@@ -22,19 +22,21 @@ struct INativeConnection
     virtual NObjectClient::TCellTag GetPrimaryMasterCellTag() const = 0;
     virtual const NObjectClient::TCellTagList& GetSecondaryMasterCellTags() const = 0;
 
-    virtual NQueryClient::TEvaluatorPtr GetQueryEvaluator() = 0;
-    virtual NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
-    virtual NHiveClient::TCellDirectoryPtr GetCellDirectory() = 0;
-    virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
+    virtual const NQueryClient::TEvaluatorPtr& GetQueryEvaluator() = 0;
+    virtual const NQueryClient::TColumnEvaluatorCachePtr& GetColumnEvaluatorCache() = 0;
+    virtual const NHiveClient::TCellDirectoryPtr& GetCellDirectory() = 0;
+    virtual const NChunkClient::IBlockCachePtr& GetBlockCache() = 0;
+
+    virtual const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() = 0;
+    virtual TFuture<void> SyncClusterDirectory() = 0;
 
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) = 0;
-    virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
+    virtual const NRpc::IChannelPtr& GetSchedulerChannel() = 0;
     // TODO(sandello): Consider joining these two in favor of a partitioned channel.
-
-    virtual NRpc::IChannelFactoryPtr GetLightChannelFactory() = 0;
-    virtual NRpc::IChannelFactoryPtr GetHeavyChannelFactory() = 0;
+    virtual const NRpc::IChannelFactoryPtr& GetLightChannelFactory() = 0;
+    virtual const NRpc::IChannelFactoryPtr& GetHeavyChannelFactory() = 0;
 
     virtual INativeClientPtr CreateNativeClient(const TClientOptions& options = TClientOptions()) = 0;
 

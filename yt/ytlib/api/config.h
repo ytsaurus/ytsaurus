@@ -128,6 +128,8 @@ public:
     TExpiringCacheConfigPtr FunctionRegistryCache;
     TSlruCacheConfigPtr FunctionImplCache;
 
+    NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
+
     int LightPoolSize;
     int HeavyPoolSize;
 

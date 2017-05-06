@@ -875,11 +875,6 @@ public:
         return Bootstrap_->GetMasterClient();
     }
 
-    virtual const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() override
-    {
-        return Bootstrap_->GetClusterDirectory();
-    }
-
     virtual const TNodeDirectoryPtr& GetNodeDirectory() override
     {
         return Bootstrap_->GetNodeDirectory();
@@ -2294,6 +2289,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        const auto& clusterDirectory = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetClusterDirectory();
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("connected").Value(MasterConnector_->IsConnected())
@@ -2334,7 +2333,7 @@ private:
                         }
                     })
                 .EndMap()
-                .Item("clusters").DoMapFor(GetClusterDirectory()->GetClusterNames(), [=] (TFluentMap fluent, const Stroka& clusterName) {
+                .Item("clusters").DoMapFor(clusterDirectory->GetClusterNames(), [=] (TFluentMap fluent, const Stroka& clusterName) {
                     BuildClusterYson(clusterName, fluent);
                 })
                 .Item("config").Value(Config_)
@@ -2344,9 +2343,17 @@ private:
 
     void BuildClusterYson(const Stroka& clusterName, IYsonConsumer* consumer)
     {
+        const auto& clusterDirectory = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetClusterDirectory();
+        auto connection = clusterDirectory->FindConnection(clusterName);
+        if (!connection) {
+            return;
+        }
         BuildYsonMapFluently(consumer)
             .Item(clusterName)
-            .Value(GetClusterDirectory()->FindConnection(clusterName)->GetConfig());
+            .Value(connection->GetConfig());
     }
 
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer) const
