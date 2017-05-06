@@ -397,6 +397,16 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        for (const auto* replica : table->Replicas()) {
+            if (replica->GetClusterName() == clusterName &&
+                replica->GetReplicaPath() == replicaPath)
+            {
+                THROW_ERROR_EXCEPTION("Replica table %v at cluster %Qv already exists",
+                    replicaPath,
+                    clusterName);
+            }
+        }
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TableReplica, NullObjectId);
         auto replicaHolder = std::make_unique<TTableReplica>(id);
