@@ -392,6 +392,7 @@ public:
         TReplicatedTableNode* table,
         const Stroka& clusterName,
         const TYPath& replicaPath,
+        ETableReplicaMode mode,
         TTimestamp startReplicationTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -402,6 +403,7 @@ public:
         replicaHolder->SetTable(table);
         replicaHolder->SetClusterName(clusterName);
         replicaHolder->SetReplicaPath(replicaPath);
+        replicaHolder->SetMode(mode);
         replicaHolder->SetStartReplicationTimestamp(startReplicationTimestamp);
         replicaHolder->SetState(ETableReplicaState::Disabled);
 
@@ -410,9 +412,10 @@ public:
 
         YCHECK(table->Replicas().insert(replica).second);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v, StartReplicationTimestamp: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %v)",
             table->GetId(),
             replica->GetId(),
+            mode,
             startReplicationTimestamp);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
@@ -4294,12 +4297,14 @@ TTableReplica* TTabletManager::CreateTableReplica(
     TReplicatedTableNode* table,
     const Stroka& clusterName,
     const TYPath& replicaPath,
+    ETableReplicaMode mode,
     TTimestamp startReplicationTimestamp)
 {
     return Impl_->CreateTableReplica(
         table,
         clusterName,
         replicaPath,
+        mode,
         startReplicationTimestamp);
 }
 
