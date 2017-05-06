@@ -156,6 +156,11 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         create("table", "//tmp/t")
         with pytest.raises(YtError): create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
 
+    def test_add_replica_fail3(self):
+        self._create_replicated_table("//tmp/t")
+        create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+        with pytest.raises(YtError): create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+
     def test_add_remove_replica(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
