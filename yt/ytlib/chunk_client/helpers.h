@@ -3,6 +3,7 @@
 #include "public.h"
 #include "chunk_owner_ypath_proxy.h"
 #include "chunk_service_proxy.h"
+#include "session_id.h"
 
 #include <yt/ytlib/api/public.h>
 
@@ -28,7 +29,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NChunkClient::TChunkId CreateChunk(
+TSessionId CreateChunk(
     NApi::INativeClientPtr client,
     NObjectClient::TCellTag cellTag,
     TMultiChunkWriterOptionsPtr options,
@@ -71,11 +72,10 @@ void FetchChunkSpecs(
 //! Throws if the server returns no replicas.
 TChunkReplicaList AllocateWriteTargets(
     NApi::INativeClientPtr client,
-    const TChunkId& chunkId,
+    const TSessionId& sessionId,
     int desiredTargetCount,
     int minTargetCount,
     TNullable<int> replicationFactorOverride,
-    const Stroka& mediumName,
     bool preferLocalHost,
     const std::vector<Stroka>& forbiddenAddresses,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,

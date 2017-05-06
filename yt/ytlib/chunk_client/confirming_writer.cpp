@@ -9,6 +9,7 @@
 #include "replication_writer.h"
 #include "chunk_service_proxy.h"
 #include "helpers.h"
+#include "session_id.h"
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -29,7 +30,6 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NApi;
-using namespace NChunkClient::NProto;
 using namespace NRpc;
 using namespace NObjectClient;
 using namespace NErasure;
@@ -63,10 +63,10 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override;
 
-    virtual TFuture<void> Close(const TChunkMeta& chunkMeta) override;
+    virtual TFuture<void> Close(const NProto::TChunkMeta& chunkMeta) override;
 
-    virtual const TChunkInfo& GetChunkInfo() const override;
-    virtual const TDataStatistics& GetDataStatistics() const override;
+    virtual const NProto::TChunkInfo& GetChunkInfo() const override;
+    virtual const NProto::TDataStatistics& GetDataStatistics() const override;
     
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
 
@@ -87,18 +87,18 @@ private:
 
     IChunkWriterPtr UnderlyingWriter_;
 
-    std::atomic<bool> Initialized_ = { false };
-    std::atomic<bool> Closed_ = { false };
-    TChunkId ChunkId_ = NullChunkId;
+    std::atomic<bool> Initialized_ = {false};
+    std::atomic<bool> Closed_ = {false};
+    TSessionId SessionId_;
     TFuture<void> OpenFuture_;
 
-    TChunkMeta ChunkMeta_;
-    TDataStatistics DataStatistics_;
+    NProto::TChunkMeta ChunkMeta_;
+    NProto::TDataStatistics DataStatistics_;
 
     NLogging::TLogger Logger;
 
     void OpenSession();
-    TChunkId CreateChunk() const;
+    TSessionId CreateChunk() const;
     IChunkWriterPtr CreateUnderlyingWriter() const;
     void DoClose();
 };
@@ -175,7 +175,7 @@ TFuture<void> TConfirmingWriter::GetReadyEvent()
     }
 }
 
-TFuture<void> TConfirmingWriter::Close(const TChunkMeta& chunkMeta)
+TFuture<void> TConfirmingWriter::Close(const NProto::TChunkMeta& chunkMeta)
 {
     YCHECK(Initialized_);
     YCHECK(OpenFuture_.IsSet());
@@ -189,13 +189,13 @@ TFuture<void> TConfirmingWriter::Close(const TChunkMeta& chunkMeta)
     .Run();
 }
 
-const TChunkInfo& TConfirmingWriter::GetChunkInfo() const
+const NProto::TChunkInfo& TConfirmingWriter::GetChunkInfo() const
 {
     YCHECK(Closed_);
     return UnderlyingWriter_->GetChunkInfo();
 }
 
-const TDataStatistics& TConfirmingWriter::GetDataStatistics() const
+const NProto::TDataStatistics& TConfirmingWriter::GetDataStatistics() const
 {
     YCHECK(Closed_);
     return DataStatistics_;
@@ -209,7 +209,7 @@ TChunkReplicaList TConfirmingWriter::GetWrittenChunkReplicas() const
 
 TChunkId TConfirmingWriter::GetChunkId() const
 {
-    return ChunkId_;
+    return SessionId_.ChunkId;
 }
 
 NErasure::ECodec TConfirmingWriter::GetErasureCodecId() const
@@ -223,9 +223,9 @@ void TConfirmingWriter::OpenSession()
         Initialized_ = true;
     });
 
-    ChunkId_ = CreateChunk();
+    SessionId_ = CreateChunk();
 
-    Logger.AddTag("ChunkId: %v", ChunkId_);
+    Logger.AddTag("ChunkId: %v", SessionId_);
     LOG_DEBUG("Chunk created");
 
     UnderlyingWriter_ = CreateUnderlyingWriter();
@@ -235,7 +235,7 @@ void TConfirmingWriter::OpenSession()
     LOG_DEBUG("Chunk writer opened");
 }
 
-TChunkId TConfirmingWriter::CreateChunk() const
+TSessionId TConfirmingWriter::CreateChunk() const
 {
     return NChunkClient::CreateChunk(
         Client_,
@@ -252,7 +252,7 @@ IChunkWriterPtr TConfirmingWriter::CreateUnderlyingWriter() const
         return CreateReplicationWriter(
             Config_,
             Options_,
-            ChunkId_,
+            SessionId_,
             TChunkReplicaList(),
             NodeDirectory_,
             Client_,
@@ -268,7 +268,7 @@ IChunkWriterPtr TConfirmingWriter::CreateUnderlyingWriter() const
     auto writers = CreateErasurePartWriters(
         Config_,
         options,
-        ChunkId_,
+        SessionId_,
         erasureCodec,
         NodeDirectory_,
         Client_,
@@ -276,7 +276,7 @@ IChunkWriterPtr TConfirmingWriter::CreateUnderlyingWriter() const
         BlockCache_);
     return CreateErasureWriter(
         Config_,
-        ChunkId_,
+        SessionId_,
         Options_->ErasureCodec,
         erasureCodec,
         writers);
@@ -289,7 +289,7 @@ void TConfirmingWriter::DoClose()
     THROW_ERROR_EXCEPTION_IF_FAILED(
         error,
         "Failed to close chunk %v",
-        ChunkId_);
+        SessionId_.ChunkId);
 
     LOG_DEBUG("Chunk closed");
 
@@ -297,7 +297,7 @@ void TConfirmingWriter::DoClose()
     YCHECK(!replicas.empty());
 
     static const yhash_set<int> masterMetaTags{
-        TProtoExtensionTag<TMiscExt>::Value,
+        TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
         TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value
     };
 
@@ -308,7 +308,7 @@ void TConfirmingWriter::DoClose()
         masterMetaTags);
 
     // Sanity check.
-    YCHECK(FindProtoExtension<TMiscExt>(masterChunkMeta.extensions()));
+    YCHECK(FindProtoExtension<NChunkClient::NProto::TMiscExt>(masterChunkMeta.extensions()));
 
     auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
     TChunkServiceProxy proxy(channel);
@@ -318,7 +318,7 @@ void TConfirmingWriter::DoClose()
     batchReq->set_suppress_upstream_sync(true);
 
     auto* req = batchReq->add_confirm_chunk_subrequests();
-    ToProto(req->mutable_chunk_id(), ChunkId_);
+    ToProto(req->mutable_chunk_id(), SessionId_.ChunkId);
     *req->mutable_chunk_info() = UnderlyingWriter_->GetChunkInfo();
     *req->mutable_chunk_meta() = masterChunkMeta;
     req->set_request_statistics(true);
@@ -329,7 +329,7 @@ void TConfirmingWriter::DoClose()
         GetCumulativeError(batchRspOrError),
         EErrorCode::MasterCommunicationFailed,
         "Failed to confirm chunk %v",
-        ChunkId_);
+        SessionId_.ChunkId);
 
     const auto& batchRsp = batchRspOrError.Value();
     const auto& rsp = batchRsp->confirm_chunk_subresponses(0);

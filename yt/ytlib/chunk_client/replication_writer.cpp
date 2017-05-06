@@ -123,6 +123,9 @@ public:
     int GetEndBlockIndex() const;
 
 private:
+    const TWeakPtr<TReplicationWriter> Writer_;
+    const NLogging::TLogger Logger;
+
     bool Flushing_ = false;
     std::vector<bool> SentTo_;
 
@@ -130,9 +133,6 @@ private:
     int FirstBlockIndex_;
 
     i64 Size_ = 0;
-
-    TWeakPtr<TReplicationWriter> Writer_;
-    NLogging::TLogger Logger;
 
     void PutGroup(TReplicationWriterPtr writer);
 
@@ -153,7 +153,7 @@ public:
     TReplicationWriter(
         TReplicationWriterConfigPtr config,
         TRemoteWriterOptionsPtr options,
-        const TChunkId& chunkId,
+        const TSessionId& sessionId,
         const TChunkReplicaList& initialTargets,
         TNodeDirectoryPtr nodeDirectory,
         INativeClientPtr client,
@@ -182,14 +182,15 @@ private:
 
     const TReplicationWriterConfigPtr Config_;
     const TRemoteWriterOptionsPtr Options_;
-    const TChunkId ChunkId_;
+    const TSessionId SessionId_;
     const TChunkReplicaList InitialTargets_;
     const INativeClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
 
-    TNetworkPreferenceList Networks_;
+    const NLogging::TLogger Logger;
+    const TNetworkPreferenceList Networks_;
 
     TAsyncStreamState State_;
 
@@ -228,8 +229,6 @@ private:
     int AllocateWriteTargetsRetryIndex_ = 0;
 
     std::vector<Stroka> BannedNodes_;
-
-    NLogging::TLogger Logger = ChunkClientLogger;
 
 
     void DoOpen();
@@ -271,10 +270,10 @@ DEFINE_REFCOUNTED_TYPE(TReplicationWriter)
 TGroup::TGroup(
     TReplicationWriter* writer,
     int startBlockIndex)
-    : SentTo_(writer->Nodes_.size(), false)
-    , FirstBlockIndex_(startBlockIndex)
-    , Writer_(writer)
+    : Writer_(writer)
     , Logger(writer->Logger)
+    , SentTo_(writer->Nodes_.size(), false)
+    , FirstBlockIndex_(startBlockIndex)
 { }
 
 void TGroup::AddBlock(const TSharedRef& block)
@@ -328,8 +327,7 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
     TDataNodeServiceProxy proxy(node->HeavyChannel);
     auto req = proxy.PutBlocks();
     req->SetTimeout(writer->Config_->NodeRpcTimeout);
-    TSessionId sessionId(writer->ChunkId_, node->ChunkReplica.GetMediumIndex());
-    ToProto(req->mutable_session_id(), sessionId);
+    ToProto(req->mutable_session_id(), writer->SessionId_);
     req->set_first_block_index(FirstBlockIndex_);
     req->set_populate_cache(writer->Config_->PopulateCache);
     req->Attachments().insert(req->Attachments().begin(), Blocks_.begin(), Blocks_.end());
@@ -385,8 +383,7 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
         auto req = proxy.SendBlocks();
         // Set double timeout for SendBlocks since executing it implies another (src->dst) RPC call.
         req->SetTimeout(writer->Config_->NodeRpcTimeout * 2);
-        TSessionId sessionId(writer->ChunkId_, dstNode->ChunkReplica.GetMediumIndex());
-        ToProto(req->mutable_session_id(), sessionId);
+        ToProto(req->mutable_session_id(), writer->SessionId_);
         req->set_first_block_index(FirstBlockIndex_);
         req->set_block_count(Blocks_.size());
         ToProto(req->mutable_target_descriptor(), dstNode->Descriptor);
@@ -475,7 +472,7 @@ void TGroup::Process()
 TReplicationWriter::TReplicationWriter(
     TReplicationWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
-    const TChunkId& chunkId,
+    const TSessionId& sessionId,
     const TChunkReplicaList& initialTargets,
     TNodeDirectoryPtr nodeDirectory,
     INativeClientPtr client,
@@ -483,19 +480,20 @@ TReplicationWriter::TReplicationWriter(
     IBlockCachePtr blockCache)
     : Config_(config)
     , Options_(options)
-    , ChunkId_(chunkId)
+    , SessionId_(sessionId)
     , InitialTargets_(initialTargets)
     , Client_(client)
     , NodeDirectory_(nodeDirectory)
     , Throttler_(throttler)
     , BlockCache_(blockCache)
+    , Logger(NLogging::TLogger(ChunkClientLogger)
+        .AddTag("ChunkId: %v", SessionId_))
     , Networks_(client->GetNativeConnection()->GetNetworks())
     , WindowSlots_(New<TAsyncSemaphore>(config->SendWindowSize))
     , UploadReplicationFactor_(Config_->UploadReplicationFactor)
     , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
     , AllocateWriteTargetsTimestamp_(TInstant::Zero())
 {
-    Logger.AddTag("ChunkId: %v, ChunkWriter: %v", ChunkId_, this);
 }
 
 TReplicationWriter::~TReplicationWriter()
@@ -548,11 +546,10 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
 
     return AllocateWriteTargets(
         Client_,
-        ChunkId_,
+        SessionId_,
         UploadReplicationFactor_ - activeTargets,
         std::max(MinUploadReplicationFactor_ - activeTargets, 1),
         UploadReplicationFactor_,
-        Options_->MediumName,
         Config_->PreferLocalHost,
         forbiddenAddresses,
         NodeDirectory_,
@@ -594,8 +591,7 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     TDataNodeServiceProxy proxy(lightChannel);
     auto req = proxy.StartChunk();
     req->SetTimeout(Config_->NodeRpcTimeout);
-    TSessionId sessionId(ChunkId_, target.GetMediumIndex());
-    ToProto(req->mutable_session_id(), sessionId);
+    ToProto(req->mutable_session_id(), SessionId_);
     ToProto(req->mutable_workload_descriptor(), Config_->WorkloadDescriptor);
     req->set_sync_on_close(Config_->SyncOnClose);
     ToProto(req->mutable_placement_id(), Options_->PlacementId);
@@ -650,8 +646,8 @@ void TReplicationWriter::DoOpen()
         IsOpen_ = true;
     } catch (const std::exception& ex) {
         CancelWriter(true);
-        THROW_ERROR_EXCEPTION("Not enough target nodes to write blob chunk")
-            << TErrorAttribute("chunk_id", ChunkId_)
+        THROW_ERROR_EXCEPTION("Not enough target nodes to write blob chunk %v",
+            SessionId_)
             << TErrorAttribute("upload_replication_factor", UploadReplicationFactor_)
             << ex;
     }
@@ -751,8 +747,7 @@ void TReplicationWriter::FlushBlocks(TNodePtr node, int blockIndex)
     TDataNodeServiceProxy proxy(node->LightChannel);
     auto req = proxy.FlushBlocks();
     req->SetTimeout(Config_->NodeRpcTimeout);
-    TSessionId sessionId(ChunkId_, node->ChunkReplica.GetMediumIndex());
-    ToProto(req->mutable_session_id(), sessionId);
+    ToProto(req->mutable_session_id(), SessionId_);
     req->set_block_index(blockIndex);
 
     auto rspOrError = WaitFor(req->Invoke());
@@ -870,8 +865,7 @@ void TReplicationWriter::FinishChunk(TNodePtr node)
     TDataNodeServiceProxy proxy(node->LightChannel);
     auto req = proxy.FinishChunk();
     req->SetTimeout(Config_->NodeRpcTimeout);
-    TSessionId sessionId(ChunkId_, node->ChunkReplica.GetMediumIndex());
-    ToProto(req->mutable_session_id(), sessionId);
+    ToProto(req->mutable_session_id(), SessionId_);
     *req->mutable_chunk_meta() = ChunkMeta_;
     req->set_block_count(BlockCount_);
 
@@ -905,8 +899,7 @@ void TReplicationWriter::SendPing(const TWeakPtr<TNode>& node_)
     TDataNodeServiceProxy proxy(node->LightChannel);
     auto req = proxy.PingSession();
     req->SetTimeout(Config_->NodeRpcTimeout);
-    TSessionId sessionId(ChunkId_, node->ChunkReplica.GetMediumIndex());
-    ToProto(req->mutable_session_id(), sessionId);
+    ToProto(req->mutable_session_id(), SessionId_);
     req->Invoke();
 }
 
@@ -930,8 +923,7 @@ void TReplicationWriter::CancelNode(TNodePtr node, bool abort)
     if (abort) {
         TDataNodeServiceProxy proxy(node->LightChannel);
         auto req = proxy.CancelChunk();
-        TSessionId sessionId(ChunkId_, node->ChunkReplica.GetMediumIndex());
-        ToProto(req->mutable_session_id(), sessionId);
+        ToProto(req->mutable_session_id(), SessionId_);
         req->Invoke();
     }
 }
@@ -996,7 +988,7 @@ void TReplicationWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
     for (const auto& block : blocks) {
         EnsureCurrentGroup();
 
-        auto blockId = TBlockId(ChunkId_, currentBlockIndex);
+        auto blockId = TBlockId(SessionId_.ChunkId, currentBlockIndex);
         BlockCache_->Put(blockId, EBlockType::CompressedData, block, Null);
 
         CurrentGroup_->AddBlock(block);
@@ -1091,7 +1083,7 @@ TChunkId TReplicationWriter::GetChunkId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return ChunkId_;
+    return SessionId_.ChunkId;
 }
 
 NErasure::ECodec TReplicationWriter::GetErasureCodecId() const
@@ -1106,7 +1098,7 @@ NErasure::ECodec TReplicationWriter::GetErasureCodecId() const
 IChunkWriterPtr CreateReplicationWriter(
     TReplicationWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
-    const TChunkId& chunkId,
+    const TSessionId& sessionId,
     const TChunkReplicaList& targets,
     TNodeDirectoryPtr nodeDirectory,
     INativeClientPtr client,
@@ -1116,7 +1108,7 @@ IChunkWriterPtr CreateReplicationWriter(
     return New<TReplicationWriter>(
         config,
         options,
-        chunkId,
+        sessionId,
         targets,
         nodeDirectory,
         client,

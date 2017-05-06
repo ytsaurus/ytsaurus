@@ -498,13 +498,13 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
             }
         } while (std::find(candidates.begin(), candidates.end(), currentIndex) == candidates.end());
         result = Locations_[currentIndex];
-        LOG_DEBUG("Next round-robin location is chosen for chunk (PlacementId: %v, SessionId: %v, LocationId: %v)",
+        LOG_DEBUG("Next round-robin location is chosen for chunk (PlacementId: %v, ChunkId: %v, LocationId: %v)",
             options.PlacementId,
             sessionId,
             result->GetId());
     } else {
         result = Locations_[candidates[RandomNumber(candidates.size())]];
-        LOG_DEBUG("Random location is chosen for chunk (SessionId: %v, LocationId: %v)",
+        LOG_DEBUG("Random location is chosen for chunk (ChunkId: %v, LocationId: %v)",
             sessionId,
             result->GetId());
     }

@@ -19,7 +19,7 @@ namespace NChunkClient {
 IChunkWriterPtr CreateReplicationWriter(
     TReplicationWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
-    const TChunkId& chunkId,
+    const TSessionId& sessionId,
     const TChunkReplicaList& targets,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NApi::INativeClientPtr client,
