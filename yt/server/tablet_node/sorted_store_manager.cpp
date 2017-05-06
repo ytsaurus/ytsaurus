@@ -105,7 +105,7 @@ bool TSortedStoreManager::ExecuteWrites(
         //        }
         //        break;
         //
-        //    case EWireProtocolCommand::WriteVersionedRow:
+        //    case EWireProtocolCommand::VersionedWriteRow:
         //        if (Tablet_->GetReplicationMode() != ETableReplicationMode::AsynchronousSink) {
         //            THROW_ERROR_EXCEPTION("Versioned writes in %Qlv replication mode are not allowed",
         //                Tablet_->GetReplicationMode());
@@ -130,7 +130,7 @@ bool TSortedStoreManager::ExecuteWrites(
                 break;
             }
 
-            case EWireProtocolCommand::WriteVersionedRow: {
+            case EWireProtocolCommand::VersionedWriteRow: {
                 auto row = reader->ReadVersionedRow(Tablet_->PhysicalSchemaData(), false);
                 rowRef = ModifyRow(row, context);
                 break;
