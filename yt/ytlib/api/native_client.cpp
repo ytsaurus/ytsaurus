@@ -3760,7 +3760,7 @@ private:
                     return EWireProtocolCommand::WriteRow;
 
                 case ERowModificationType::VersionedWrite:
-                    return EWireProtocolCommand::WriteVersionedRow;
+                    return EWireProtocolCommand::VersionedWriteRow;
 
                 case ERowModificationType::Delete:
                     return EWireProtocolCommand::DeleteRow;
