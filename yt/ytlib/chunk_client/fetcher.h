@@ -24,7 +24,7 @@ TScrapeChunksCallback CreateScrapeChunksSessionCallback(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
-    NApi::INativeClientPtr client, // TODO(sandello): This is redundant; IConnection is sufficient.
+    NApi::INativeClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NLogging::TLogger& logger);
 
@@ -50,7 +50,7 @@ public:
         IInvokerPtr invoker,
         NTableClient::TRowBufferPtr rowBuffer,
         TScrapeChunksCallback scraperCallback,
-        NApi::INativeClientPtr client, // TODO(sandello): This is redundant; IConnection is sufficient.
+        NApi::INativeClientPtr client,
         const NLogging::TLogger& logger);
 
     virtual void AddChunk(TInputChunkPtr chunk) override;
