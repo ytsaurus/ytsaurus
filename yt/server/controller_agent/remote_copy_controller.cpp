@@ -274,6 +274,8 @@ private:
             AuthenticatedInputMasterClient = connection->CreateNativeClient(options);
         } else {
             AuthenticatedInputMasterClient = Host
+                ->GetMasterClient()
+                ->GetNativeConnection()
                 ->GetClusterDirectory()
                 ->GetConnectionOrThrow(*Spec_->ClusterName)
                 ->CreateNativeClient(options);
@@ -501,7 +503,10 @@ private:
 
         ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
-        const auto& clusterDirectory = Host->GetClusterDirectory();
+        const auto& clusterDirectory = Host
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetClusterDirectory();
         TNativeConnectionConfigPtr connectionConfig;
         if (Spec_->ClusterConnection) {
             connectionConfig = *Spec_->ClusterConnection;

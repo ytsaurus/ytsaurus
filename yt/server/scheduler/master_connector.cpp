@@ -23,7 +23,6 @@
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
-#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -73,11 +72,6 @@ public:
         NCellScheduler::TBootstrap* bootstrap)
         : Config(config)
         , Bootstrap(bootstrap)
-        , ClusterDirectory(Bootstrap->GetClusterDirectory())
-        , ClusterDirectorySynchronizer(New<TClusterDirectorySynchronizer>(
-            Config->ClusterDirectorySynchronizer,
-            Bootstrap->GetMasterClient()->GetConnection(),
-            ClusterDirectory))
         , OperationNodesUpdateExecutor_(
             BIND(&TImpl::UpdateOperationNode, MakeStrong(this)),
             BIND(&TImpl::IsOperationInFinishedState, MakeStrong(this)),
@@ -280,8 +274,6 @@ private:
     TSchedulerConfigPtr Config;
     NCellScheduler::TBootstrap* const Bootstrap;
 
-    NHiveClient::TClusterDirectoryPtr ClusterDirectory;
-
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableControlInvoker;
 
@@ -291,7 +283,6 @@ private:
 
     TPeriodicExecutorPtr WatchersExecutor;
     TPeriodicExecutorPtr AlertsExecutor;
-    TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer;
 
     std::vector<TWatcherRequester> GlobalWatcherRequesters;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers;
@@ -427,7 +418,7 @@ private:
             TakeLock();
             AssumeControl();
             UpdateGlobalWatchers();
-            UpdateClusterDirectory();
+            SyncClusterDirectory();
             ListOperations();
             RequestOperationAttributes();
             RequestCommittedFlag();
@@ -523,9 +514,9 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
         }
 
-        void UpdateClusterDirectory()
+        void SyncClusterDirectory()
         {
-            WaitFor(Owner->ClusterDirectorySynchronizer->Sync())
+            WaitFor(Owner->Bootstrap->GetMasterClient()->GetNativeConnection()->SyncClusterDirectory())
                 .ThrowOnError();
         }
 
@@ -885,8 +876,6 @@ private:
             EPeriodicExecutorMode::Automatic);
         WatchersExecutor->Start();
 
-        ClusterDirectorySynchronizer->Start();
-
         AlertsExecutor = New<TPeriodicExecutor>(
             CancelableControlInvoker,
             BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
@@ -906,8 +895,6 @@ private:
             AlertsExecutor->Stop();
             AlertsExecutor.Reset();
         }
-
-        ClusterDirectorySynchronizer->Stop();
     }
 
     TWatcherList* GetOrCreateWatcherList(TOperationPtr operation)
@@ -1199,7 +1186,7 @@ private:
         auto localConnection = Bootstrap->GetMasterClient()->GetNativeConnection();
         return cellTag == localConnection->GetCellTag()
             ? localConnection
-            : ClusterDirectory->FindConnection(cellTag);
+            : localConnection->GetClusterDirectory()->FindConnection(cellTag);
     }
 
     INativeConnectionPtr GetConnectionOrThrow(TCellTag cellTag)
@@ -1207,7 +1194,7 @@ private:
         auto localConnection = Bootstrap->GetMasterClient()->GetNativeConnection();
         return cellTag == localConnection->GetCellTag()
             ? localConnection
-            : ClusterDirectory->GetConnectionOrThrow(cellTag);
+            : localConnection->GetClusterDirectory()->GetConnectionOrThrow(cellTag);
     }
 };
 

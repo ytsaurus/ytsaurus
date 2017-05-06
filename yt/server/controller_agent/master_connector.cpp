@@ -275,7 +275,7 @@ private:
         auto localConnection = Bootstrap_->GetMasterClient()->GetNativeConnection();
         return cellTag == localConnection->GetCellTag()
             ? localConnection
-            : Bootstrap_->GetClusterDirectory()->FindConnection(cellTag);
+            : localConnection->GetClusterDirectory()->FindConnection(cellTag);
     }
 
     void RefreshTransactions()

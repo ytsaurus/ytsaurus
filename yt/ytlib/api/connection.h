@@ -55,11 +55,10 @@ struct IConnection
 {
     virtual NObjectClient::TCellTag GetCellTag() = 0;
 
-    virtual NTabletClient::ITableMountCachePtr GetTableMountCache() = 0;
-    virtual NTransactionClient::ITimestampProviderPtr GetTimestampProvider() = 0;
-
-    virtual IInvokerPtr GetLightInvoker() = 0;
-    virtual IInvokerPtr GetHeavyInvoker() = 0;
+    virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
+    virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() = 0;
+    virtual const IInvokerPtr& GetLightInvoker() = 0;
+    virtual const IInvokerPtr& GetHeavyInvoker() = 0;
 
     virtual IAdminPtr CreateAdmin(const TAdminOptions& options = TAdminOptions()) = 0;
     virtual IClientPtr CreateClient(const TClientOptions& options = TClientOptions()) = 0;

@@ -2491,7 +2491,6 @@ private:
             Config_,
             tablet,
             replicaInfo,
-            Bootstrap_->GetClusterDirectory(),
             Bootstrap_->GetMasterClient()->GetNativeConnection(),
             Slot_,
             Bootstrap_->GetTabletSlotManager(),

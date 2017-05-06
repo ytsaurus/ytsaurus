@@ -111,9 +111,13 @@ TNativeConnectionConfig::TNativeConnectionConfig()
     RegisterParameter("function_impl_cache", FunctionImplCache)
         .DefaultNew();
 
+    RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
+        .DefaultNew();
+
     RegisterParameter("light_pool_size", LightPoolSize)
         .Describe("Number of threads handling light requests")
         .Default(1);
+
     RegisterParameter("heavy_pool_size", HeavyPoolSize)
         .Describe("Number of threads handling heavy requests")
         .Default(4);
