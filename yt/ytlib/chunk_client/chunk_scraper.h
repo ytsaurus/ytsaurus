@@ -48,7 +48,7 @@ private:
     const TChunkScraperConfigPtr Config_;
     const IInvokerPtr Invoker_;
     const TThrottlerManagerPtr ThrottlerManager_;
-    const NApi::INativeClientPtr MasterClient_;
+    const NApi::INativeClientPtr Client_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const TChunkLocatedHandler OnChunkLocated_;
     const NLogging::TLogger Logger;
