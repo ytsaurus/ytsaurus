@@ -3,6 +3,7 @@ package NYT.NChunkClient.NProto;
 import "yt/core/misc/guid.proto";
 import "yt/core/misc/error.proto";
 import "yt/ytlib/node_tracker_client/node_directory.proto";
+import "yt/ytlib/chunk_client/session_id.proto";
 import "yt/ytlib/chunk_client/chunk_info.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/data_statistics.proto";
@@ -45,10 +46,7 @@ message TReqAllocateWriteTargets
 {
     message TSubrequest
     {
-        required NYT.NProto.TGuid chunk_id = 1;
-
-        // Desired medium to which writing will be performed.
-        required int32 medium_index = 7;
+        required NProto.TSessionId session_id = 1;
 
         // Node addresses (with port number!) that are not allowed to be allocated for this chunk.
         // This does not prevent further balancing to move chunk there.
@@ -177,8 +175,8 @@ message TReqExecuteBatch
         // If given, the new chunk is immediately attached to this chunk list.
         optional NYT.NProto.TGuid chunk_list_id = 10;
 
-        // Medium to be used to store chunk replicas on. Interpreted as primary medium.
-        required int32 medium_index = 11;
+        // Primary medium.
+        required string medium_name = 11;
 
         // Validate that there is enough disk space available.
         optional bool validate_resource_usage_increase = 12 [default = true];
@@ -238,7 +236,7 @@ message TRspExecuteBatch
     message TCreateChunkSubresponse
     {
         optional NYT.NProto.TError error = 1;
-        optional NYT.NProto.TGuid chunk_id = 2;
+        optional NYT.NChunkClient.NProto.TSessionId session_id = 2;
     }
 
     repeated TCreateChunkSubresponse create_chunk_subresponses = 1;

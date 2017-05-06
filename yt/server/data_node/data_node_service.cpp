@@ -138,7 +138,7 @@ private:
         options.EnableMultiplexing = request->enable_multiplexing();
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
 
-        context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, "
+        context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, "
             "PlacementId: %v",
             sessionId,
             options.WorkloadDescriptor,
@@ -161,7 +161,7 @@ private:
         auto sessionId = FromProto<TSessionId>(request->session_id());
         auto blockCount = request->has_block_count() ? MakeNullable(request->block_count()) : Null;
 
-        context->SetRequestInfo("SessionId: %v, BlockCount: %v",
+        context->SetRequestInfo("ChunkId: %v, BlockCount: %v",
             sessionId,
             blockCount);
 
@@ -191,7 +191,7 @@ private:
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v",
+        context->SetRequestInfo("ChunkId: %v",
             sessionId);
 
         auto sessionManager = Bootstrap_->GetSessionManager();
@@ -209,7 +209,8 @@ private:
 
         auto sessionId = FromProto<TSessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v", sessionId);
+        context->SetRequestInfo("ChunkId: %v",
+            sessionId);
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(sessionId);
