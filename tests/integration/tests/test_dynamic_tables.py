@@ -2,7 +2,6 @@ import pytest
 
 from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
-from yt.yson import YsonEntity, YsonList
 
 from time import sleep
 from flaky import flaky

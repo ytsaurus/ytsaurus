@@ -3,9 +3,9 @@ import __builtin__
 
 from test_dynamic_tables import TestDynamicTablesBase
 
-from yt_env_setup import YTEnvSetup, wait
+from yt_env_setup import wait
 from yt_commands import *
-from yt.yson import YsonEntity, YsonList, loads
+from yt.yson import YsonEntity, loads
 
 from time import sleep
 
