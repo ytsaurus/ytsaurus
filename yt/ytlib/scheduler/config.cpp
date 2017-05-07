@@ -816,6 +816,8 @@ TOperationRuntimeParams::TOperationRuntimeParams()
     RegisterParameter("weight", Weight)
         .Default(1.0)
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
+    RegisterParameter("resource_limits", ResourceLimits)
+        .DefaultNew();
 }
 
 TSchedulerConnectionConfig::TSchedulerConnectionConfig()

@@ -596,6 +596,8 @@ public:
     TResourceLimitsConfig();
 };
 
+DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
+
 class TSchedulableConfig
     : public TSupportsSchedulingTagsConfig
 {
@@ -623,8 +625,6 @@ public:
 
     TSchedulableConfig();
 };
-
-DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 
 class TPoolConfig
     : public TSchedulableConfig
@@ -668,6 +668,8 @@ class TOperationRuntimeParams
 {
 public:
     double Weight;
+
+    TResourceLimitsConfigPtr ResourceLimits;
 
     TOperationRuntimeParams();
 };
