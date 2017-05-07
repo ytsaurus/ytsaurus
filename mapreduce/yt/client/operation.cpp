@@ -517,46 +517,50 @@ void DumpOperationStderrs(
 
 using TDescriptorList = yvector<const ::google::protobuf::Descriptor*>;
 
+TMultiFormatDesc IdentityDesc(const TMultiFormatDesc& multi)
+{
+    const std::set<const ::google::protobuf::Descriptor*> uniqueDescrs(multi.ProtoDescriptors.begin(), multi.ProtoDescriptors.end());
+    if (uniqueDescrs.size() > 1)
+    {
+        TApiUsageError err;
+        err << __LOCATION__ << ": Different input proto descriptors";
+        for (const auto& desc : multi.ProtoDescriptors) {
+            err << " " << desc->full_name();
+        }
+        throw err;
+    }
+    TMultiFormatDesc result;
+    result.Format = multi.Format;
+    result.ProtoDescriptors.assign(uniqueDescrs.begin(), uniqueDescrs.end());
+    return result;
+}
+
+//TODO: simplify to lhs == rhs after YT-6967 resolving
 bool IsCompatible(const TDescriptorList& lhs, const TDescriptorList& rhs)
 {
-    if (lhs.empty() || rhs.empty()) {
-        return true;
-    } else {
-        return lhs == rhs;
-    }
+    return lhs.empty() || rhs.empty() || lhs == rhs;
 }
 
-void MergeDescriptors(TDescriptorList* dest, const TDescriptorList& other)
+const TMultiFormatDesc& MergeIntermediateDesc(const TMultiFormatDesc& lh, const TMultiFormatDesc& rh, const char* lhDescr, const char* rhDescr)
 {
-    Y_ASSERT(IsCompatible(*dest, other));
-
-    if (dest->empty()) {
-        *dest = other;
-    }
-
-}
-
-void VerifyCompatibilityAndMerge(
-    TMultiFormatDesc* destSpec,
-    const TMultiFormatDesc& mergedSpec,
-    TStringBuf destDescription,
-    TStringBuf mergedDescription)
-{
-    TMultiFormatDesc& result = *destSpec;
-    if (result.Format == TMultiFormatDesc::F_PROTO || mergedSpec.Format == TMultiFormatDesc::F_PROTO) {
-        if (result.Format != TMultiFormatDesc::F_PROTO && result.Format != TMultiFormatDesc::F_NONE ||
-            mergedSpec.Format != TMultiFormatDesc::F_PROTO && mergedSpec.Format != TMultiFormatDesc::F_NONE ||
-            !IsCompatible(result.ProtoDescriptors, mergedSpec.ProtoDescriptors))
-        {
-            ythrow TApiUsageError() << "incompatible format specifications: "
-                << destDescription << " and " << mergedDescription;
+    if (rh.Format == TMultiFormatDesc::F_NONE) {
+        return lh;
+    } else if (lh.Format == TMultiFormatDesc::F_NONE) {
+        return rh;
+    } else if (lh.Format == rh.Format && IsCompatible(lh.ProtoDescriptors, rh.ProtoDescriptors)) {
+        const auto& result = rh.ProtoDescriptors.empty() ? lh : rh;
+        if (result.ProtoDescriptors.size() > 1) {
+            ythrow TApiUsageError() << "too many proto descriptors for intermediate table";
         }
-
-        result.Format = TMultiFormatDesc::F_PROTO;
-        MergeDescriptors(&result.ProtoDescriptors, mergedSpec.ProtoDescriptors);
+        return result;
+    } else {
+        ythrow TApiUsageError() << "incompatible format specifications: "
+            << lhDescr << " {format=" << ui32(lh.Format) << " descrs=" << lh.ProtoDescriptors.size() << "}"
+               " and "
+            << rhDescr << " {format=" << ui32(rh.Format) << " descrs=" << rh.ProtoDescriptors.size() << "}"
+        ;
     }
 }
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1135,30 +1139,36 @@ TOperationId ExecuteMapReduce(
         }
     }
 
-    const TMultiFormatDesc& mapInputDesc = spec.InputDesc_;
-    TMultiFormatDesc mapOutputDesc = mapperClassOutputDesc;
-    VerifyCompatibilityAndMerge(&mapOutputDesc, spec.MapOutputHintDesc_,
-        "spec from mapper CLASS output", "spec from HINT for map output");
+    const auto& reduceOutputDesc = spec.OutputDesc_;
 
-    TMultiFormatDesc reduceCombinerInputDesc = reduceCombinerClassInputDesc;
-    VerifyCompatibilityAndMerge(&reduceCombinerInputDesc, spec.ReduceCombinerInputHintDesc_,
-        "spec from reduce combiner CLASS input", "spec from HINT for reduce combiner input");
-    if (!mapper) {
-        VerifyCompatibilityAndMerge(&reduceCombinerInputDesc, spec.InputDesc_,
-            "spec from reduce combiner CLASS input", "spec from input TABLES");
-    }
-    TMultiFormatDesc reduceCombinerOutputDesc = reduceCombinerClassOutputDesc;
-    VerifyCompatibilityAndMerge(&reduceCombinerOutputDesc, spec.ReduceCombinerOutputHintDesc_,
+    auto reduceInputDesc = MergeIntermediateDesc(reducerClassInputDesc, spec.ReduceInputHintDesc_,
+        "spec from reducer CLASS input", "spec from HINT for reduce input");
+
+    auto reduceCombinerOutputDesc = MergeIntermediateDesc(reduceCombinerClassOutputDesc, spec.ReduceCombinerOutputHintDesc_,
         "spec derived from reduce combiner CLASS output", "spec from HINT for reduce combiner output");
 
-    TMultiFormatDesc reduceInputDesc = reducerClassInputDesc;
-    VerifyCompatibilityAndMerge(&reduceInputDesc, spec.ReduceInputHintDesc_,
-        "spec from reducer CLASS input", "spec from HINT for reduce input");
-    if (!mapper && !reduceCombiner) {
-        VerifyCompatibilityAndMerge(&reduceInputDesc, spec.InputDesc_,
-            "spec from reducer CLASS input", "spec from input TABLES");
+    auto reduceCombinerInputDesc = MergeIntermediateDesc(reduceCombinerClassInputDesc, spec.ReduceCombinerInputHintDesc_,
+        "spec from reduce combiner CLASS input", "spec from HINT for reduce combiner input");
+
+    auto mapOutputDesc = MergeIntermediateDesc(mapperClassOutputDesc, spec.MapOutputHintDesc_,
+        "spec from mapper CLASS output", "spec from HINT for map output");
+
+    const auto& mapInputDesc = spec.InputDesc_;
+
+    const bool hasMapper = mapper != nullptr;
+    const bool hasCombiner = reduceCombiner != nullptr;
+
+    if (!hasMapper) {
+        //request identity desc only for no mapper cases
+        const auto& identityMapInputDesc = IdentityDesc(mapInputDesc);
+        if (hasCombiner) {
+            reduceCombinerInputDesc = MergeIntermediateDesc(reduceCombinerInputDesc, identityMapInputDesc,
+                "spec derived from reduce combiner CLASS input", "identity spec from mapper CLASS input");
+        } else {
+            reduceInputDesc = MergeIntermediateDesc(reduceInputDesc, identityMapInputDesc,
+                "spec derived from reduce CLASS input", "identity spec from mapper CLASS input" );
+        }
     }
-    const TMultiFormatDesc& reduceOutputDesc = spec.OutputDesc_;
 
     TJobPreparer reduce(
         auth,
@@ -1175,7 +1185,7 @@ TOperationId ExecuteMapReduce(
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
-        .DoIf(mapper, [&] (TFluentMap fluent) {
+        .DoIf(hasMapper, [&] (TFluentMap fluent) {
             TJobPreparer map(
                 auth,
                 transactionId,
@@ -1197,7 +1207,7 @@ TOperationId ExecuteMapReduce(
 
             title = "mapper:" + map.GetClassName() + " ";
         })
-        .DoIf(reduceCombiner, [&] (TFluentMap fluent) {
+        .DoIf(hasCombiner, [&] (TFluentMap fluent) {
             TJobPreparer combine(
                 auth,
                 transactionId,
