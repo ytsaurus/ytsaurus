@@ -112,6 +112,10 @@ b"""
             hard_backoff_time = 100;
         };
 
+        cell_directory_synchronizer = {
+            sync_period = 500;
+        };
+
         cluster_directory_synchronizer = {
             sync_period = 500;
         };
@@ -196,6 +200,10 @@ b"""
 
         scheduler = {
             retry_backoff_time = 100;
+        };
+
+        cell_directory_synchronizer = {
+            sync_period = 500;
         };
 
         cluster_directory_synchronizer = {
