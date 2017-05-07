@@ -6,13 +6,13 @@ from .errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectRespon
                     YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRequestTimedOut, \
                     YtRetriableError, YtNoSuchTransaction, hide_token
 from .command import parse_commands
-from .batch_response import apply_function_to_result
 
 import yt.logger as logger
 import yt.yson as yson
 import yt.json as json
 
 from yt.packages.six import reraise, add_metaclass, PY3
+from yt.packages.six.moves import map as imap
 
 import os
 import sys
@@ -222,7 +222,11 @@ class RequestRetrier(Retrier):
 
         try:
             session = _get_session(client=self.client)
-            response = create_response(session.request(self.method, url, timeout=self.timeout / 1000.0, **self.kwargs),
+            if isinstance(self.timeout, tuple):
+                timeout = tuple(imap(lambda elem: elem / 1000.0, self.timeout))
+            else:
+                timeout = self.timeout / 1000.0
+            response = create_response(session.request(self.method, url, timeout=timeout, **self.kwargs),
                                        request_info, self.client)
 
         except requests.ConnectionError as error:
@@ -258,6 +262,7 @@ class RequestRetrier(Retrier):
         message = error.message if hasattr(error, "message") else str(error)
         logger.warning("HTTP %s request %s has failed with error %s, message: '%s', headers: %s",
                        self.method, self.request_url, str(type(error)), message, str(hide_token(dict(self.headers))))
+        self.is_connection_timeout_error = isinstance(error, requests.exceptions.ConnectTimeout)
         if isinstance(error, YtError):
             logger.info("Full error message:\n%s", str(error))
         if self.proxy_provider is not None:
@@ -267,6 +272,13 @@ class RequestRetrier(Retrier):
                 self.retry_action(error, self.kwargs)
         else:
             raise
+
+    def backoff_action(self, attempt, backoff):
+        skip_backoff = get_config(self.client)["proxy"]["skip_backoff_if_connect_timed_out"] and self.is_connection_timeout_error
+        if not skip_backoff:
+            logger.warning("Sleep for %.2lf seconds before next retry", backoff)
+            time.sleep(backoff)
+        logger.warning("New retry (%d) ...", attempt + 1)
 
 def make_request_with_retries(method, url=None, **kwargs):
     """Performs HTTP request to YT proxy with retries.
