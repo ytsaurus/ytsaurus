@@ -436,7 +436,13 @@ class YTInstance(object):
         for cgroup_path in self._all_cgroups:
             for dirpath, dirnames, _ in os.walk(cgroup_path, topdown=False):
                 for dirname in dirnames:
-                    os.rmdir(os.path.join(dirpath, dirname))
+                    for iter in xrange(5):
+                        try:
+                            os.rmdir(os.path.join(dirpath, dirname))
+                            break
+                        except OSError:
+                            logger.exception("Failed to remove cgroup dir")
+                            time.sleep(0.5)
             os.rmdir(cgroup_path)
 
         self._all_cgroups = []
