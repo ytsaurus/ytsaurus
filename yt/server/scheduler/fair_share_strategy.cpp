@@ -513,10 +513,10 @@ public:
         auto dynamicAttributes = GetGlobalDynamicAttributes(element);
 
         return Format(
-            "Scheduling = {Status: %v, DominantResource: %v, Demand: %.4lf, "
-            "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lg, AdjustedMinShare: %.4lf, "
-            "GuaranteedResourcesRatio: %.4lf, "
-            "MaxPossibleUsage: %.4lf,  BestAllocation: %.4lf, "
+            "Scheduling = {Status: %v, DominantResource: %v, Demand: %.6lf, "
+            "Usage: %.6lf, FairShare: %.6lf, Satisfaction: %.4lg, AdjustedMinShare: %.6lf, "
+            "GuaranteedResourcesRatio: %.6lf, "
+            "MaxPossibleUsage: %.6lf,  BestAllocation: %.6lf, "
             "Starving: %v, Weight: %v, "
             "PreemptableRunningJobs: %v, "
             "AggressivelyPreemptableRunningJobs: %v}",
