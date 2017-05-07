@@ -19,13 +19,21 @@ public:
         : Client_(CreateTestClient())
         , UseClientProtobufOld_(TConfig::Get()->UseClientProtobuf)
     {
+        // Fill some data.
         {
-            // Fill some data.
-            auto writer = Client_->CreateTableWriter<TNode>("//testing/urls");
+            auto writer = Client_->CreateTableWriter<TNode>("//testing/urls1");
             writer->AddRow(TNode()("Host", "http://www.example.com")("Path", "/")("HttpCode", 302));
             writer->AddRow(TNode()("Host", "http://www.example.com")("Path", "/index.php")("HttpCode", 200));
+            writer->Finish();
+        }
+        {
+            auto writer = Client_->CreateTableWriter<TNode>("//testing/urls2");
             writer->AddRow(TNode()("Host", "http://www.example.com")("Path", "/index.htm")("HttpCode", 404));
             writer->AddRow(TNode()("Host", "http://www.other-example.com")("Path", "/")("HttpCode", 200));
+            writer->Finish();
+        }
+        {
+            auto writer = Client_->CreateTableWriter<TNode>("//testing/empty");
             writer->Finish();
         }
 
@@ -114,6 +122,8 @@ public:
     }
 };
 
+using TUnspecifiedInputMapper = TMapper<Message, TUrlRow>;
+REGISTER_MAPPER(TUnspecifiedInputMapper);
 using TUnspecifiedOutputMapper = TMapper<TUrlRow, Message>;
 REGISTER_MAPPER(TUnspecifiedOutputMapper);
 using TEverythingSpecifiedMapper = TMapper<TUrlRow, TUrlRow>;
@@ -133,6 +143,42 @@ REGISTER_REDUCER(TEverythingSpecifiedReducer);
 
 
 SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
+    SIMPLE_UNIT_TEST(DifferentTypesMapperInput)
+    {
+        TProtoFormatDerivationFixture fixture;
+
+        fixture.GetClient()->MapReduce(
+            TMapReduceOperationSpec()
+            .ReduceBy("Host")
+            .AddInput<TUrlRow>("//testing/urls1")
+            .AddInput<TUrlRow>("//testing/urls2")
+            //the only way to add different types' table is to make it empty
+            .AddInput<THostRow>("//testing/empty")
+            .AddOutput<THostRow>("//testing/host"),
+            new TUnspecifiedInputMapper,
+            new TEverythingSpecifiedReducer,
+            TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
+    }
+
+    SIMPLE_UNIT_TEST(DifferentTypesNoMapperInput)
+    {
+        TProtoFormatDerivationFixture fixture;
+
+        try {
+            fixture.GetClient()->MapReduce(
+                TMapReduceOperationSpec()
+                    .ReduceBy("Host")
+                    .AddInput<TUrlRow>("//testing/urls1")
+                    .AddInput<THostRow>("//testing/urls2")
+                    .AddOutput<THostRow>("//testing/host"),
+                nullptr,
+                new TEverythingSpecifiedReducer,
+                TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
+            UNIT_FAIL("operation was expected to fail");
+        } catch (const TApiUsageError&) {
+        }
+    }
+
     SIMPLE_UNIT_TEST(UnspecifiedMapperOutput)
     {
         TProtoFormatDerivationFixture fixture;
@@ -141,7 +187,8 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             fixture.GetClient()->MapReduce(
                 TMapReduceOperationSpec()
                     .ReduceBy("Host")
-                    .AddInput<TUrlRow>("//testing/urls")
+                    .AddInput<TUrlRow>("//testing/urls1")
+                    .AddInput<TUrlRow>("//testing/urls2")
                     .AddOutput<THostRow>("//testing/host"),
                 new TUnspecifiedOutputMapper,
                 new TUnspecifiedInputReducer,
@@ -159,7 +206,8 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             TMapReduceOperationSpec()
             .ReduceBy("Host")
             .HintMapOutput<TUrlRow>()
-            .AddInput<TUrlRow>("//testing/urls")
+            .AddInput<TUrlRow>("//testing/urls1")
+            .AddInput<TUrlRow>("//testing/urls2")
             .AddOutput<THostRow>("//testing/host"),
             new TUnspecifiedOutputMapper,
             new TEverythingSpecifiedReducer,
@@ -174,7 +222,8 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             fixture.GetClient()->MapReduce(
                 TMapReduceOperationSpec()
                 .ReduceBy("Host")
-                .AddInput<TUrlRow>("//testing/urls")
+                .AddInput<TUrlRow>("//testing/urls1")
+                .AddInput<TUrlRow>("//testing/urls2")
                 .AddOutput<THostRow>("//testing/host"),
                 new TEverythingSpecifiedMapper,
                 new TUnspecifiedInputReduceCombiner,
@@ -193,7 +242,8 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
         fixture.GetClient()->MapReduce(
             TMapReduceOperationSpec()
             .ReduceBy("Host")
-            .AddInput<TUrlRow>("//testing/urls")
+            .AddInput<TUrlRow>("//testing/urls1")
+            .AddInput<TUrlRow>("//testing/urls2")
             .AddOutput<THostRow>("//testing/host")
             .HintReduceCombinerInput<TUrlRow>(),
             new TEverythingSpecifiedMapper,
@@ -210,7 +260,8 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             fixture.GetClient()->MapReduce(
                 TMapReduceOperationSpec()
                 .ReduceBy("Host")
-                .AddInput<TUrlRow>("//testing/urls")
+                .AddInput<TUrlRow>("//testing/urls1")
+                .AddInput<TUrlRow>("//testing/urls2")
                 .AddOutput<THostRow>("//testing/host"),
                 new TEverythingSpecifiedMapper,
                 new TUnspecifiedOutputReduceCombiner,
@@ -229,7 +280,8 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
         fixture.GetClient()->MapReduce(
             TMapReduceOperationSpec()
             .ReduceBy("Host")
-            .AddInput<TUrlRow>("//testing/urls")
+            .AddInput<TUrlRow>("//testing/urls1")
+            .AddInput<TUrlRow>("//testing/urls2")
             .AddOutput<THostRow>("//testing/host")
             .HintReduceCombinerOutput<TUrlRow>(),
             new TEverythingSpecifiedMapper,
@@ -246,7 +298,8 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             fixture.GetClient()->MapReduce(
                 TMapReduceOperationSpec()
                     .ReduceBy("Host")
-                    .AddInput<TNode>("//testing/urls")
+                    .AddInput<TNode>("//testing/urls1")
+                    .AddInput<TNode>("//testing/urls2")
                     .AddOutput<THostRow>("//testing/host"),
                 nullptr,
                 new TUnspecifiedInputReducer,
@@ -264,7 +317,8 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
         fixture.GetClient()->MapReduce(
             TMapReduceOperationSpec()
                 .ReduceBy("Host")
-                .AddInput<TUrlRow>("//testing/urls")
+                .AddInput<TUrlRow>("//testing/urls1")
+                .AddInput<TUrlRow>("//testing/urls2")
                 .AddOutput<THostRow>("//testing/host"),
             nullptr,
             new TUnspecifiedInputReducer,
@@ -278,7 +332,8 @@ SIMPLE_UNIT_TEST_SUITE(ProtoFormatDerivation) {
         fixture.GetClient()->MapReduce(
             TMapReduceOperationSpec()
             .ReduceBy("Host")
-            .AddInput<TUrlRow>("//testing/urls")
+            .AddInput<TUrlRow>("//testing/urls1")
+            .AddInput<TUrlRow>("//testing/urls2")
             .AddOutput<THostRow>("//testing/host"),
             new TEverythingSpecifiedMapper,
             new TEverythingSpecifiedReduceCombiner,
