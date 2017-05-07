@@ -139,7 +139,7 @@ private:
         auto requestCodecId = NCompression::ECodec(request->request_codec());
         auto responseCodecId = NCompression::ECodec(request->response_codec());
 
-        context->SetRequestInfo("TabletId: %v, Timestamp: %x, RequestCodec: %v, ResponseCodec: %v",
+        context->SetRequestInfo("TabletId: %v, Timestamp: %llxx, RequestCodec: %v, ResponseCodec: %v",
             tabletId,
             timestamp,
             requestCodecId,

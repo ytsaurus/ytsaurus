@@ -58,7 +58,7 @@ void FormatValue(TStringBuilder* builder, const TTimestampMap& map, const TStrin
         if (!first) {
             builder->AppendString(STRINGBUF(", "));
         }
-        builder->AppendFormat("%v => %v", pair.first, pair.second);
+        builder->AppendFormat("%v => %llx", pair.first, pair.second);
         first = false;
     }
     builder->AppendChar('}');

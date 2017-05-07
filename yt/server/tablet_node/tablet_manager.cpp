@@ -1195,7 +1195,7 @@ private:
                 YCHECK(writeRecord.RowCount == context.RowCount);
 
                 LOG_DEBUG("Non-atomic rows committed (TransactionId: %v, TabletId: %v, "
-                    "RowCount: %v, WriteRecordSize: %v, ActualTimestamp: %x)",
+                    "RowCount: %v, WriteRecordSize: %v, ActualTimestamp: %llx)",
                     transactionId,
                     writeRecord.TabletId,
                     writeRecord.RowCount,
@@ -1520,7 +1520,7 @@ private:
                 SetBackingStore(tablet, store, backingStore);
             }
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, MaxTimestamp: %x, BackingStoreId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, MaxTimestamp: %llx, BackingStoreId: %v)",
                 tabletId,
                 storeId,
                 store->GetMaxTimestamp(),
@@ -1533,7 +1533,7 @@ private:
         tablet->SetRetainedTimestamp(retainedTimestamp);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet stores update committed "
-            "(TabletId: %v, AddedStoreIds: %v, RemovedStoreIds: %v, RetainedTimestamp: %x)",
+            "(TabletId: %v, AddedStoreIds: %v, RemovedStoreIds: %v, RetainedTimestamp: %llx)",
             tabletId,
             addedStoreIds,
             removedStoreIds,
@@ -1782,7 +1782,7 @@ private:
         replicaInfo->SetPreparedReplicationTransactionId(transaction->GetId());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Async replicated rows prepared (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
-            "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %x->%x)",
+            "CurrentReplicationRowIndex: %v -> %v, CurrentReplicationTimestamp: %llx -> %llx)",
             tabletId,
             replicaId,
             transaction->GetId(),
@@ -1828,7 +1828,7 @@ private:
         AdvanceReplicatedTrimmedRowCount(transaction, tablet);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Async replicated rows committed (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
-            "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %x->%x, TrimmedRowCount: %v->%v)",
+            "CurrentReplicationRowIndex: %v -> %v, CurrentReplicationTimestamp: %llx -> %llx, TrimmedRowCount: %v -> %v)",
             tabletId,
             replicaId,
             transaction->GetId(),
@@ -1862,7 +1862,7 @@ private:
         replicaInfo->SetPreparedReplicationTransactionId(NullTransactionId);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Async replicated rows aborted (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
-            "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %x->%x)",
+            "CurrentReplicationRowIndex: %v -> %v, CurrentReplicationTimestamp: %llx -> %llx)",
             tabletId,
             replicaId,
             transaction->GetId(),
@@ -1987,7 +1987,7 @@ private:
             auto newCurrentReplicationRowIndex = oldCurrentReplicationRowIndex + rowCount;
             replicaInfo->SetCurrentReplicationRowIndex(newCurrentReplicationRowIndex);
             LOG_DEBUG_UNLESS(IsRecovery(),
-                "Sync replicated rows prepared (TransactionId: %v, ReplicaId: %v, CurrentReplicationIndex: %v->%v)",
+                "Sync replicated rows prepared (TransactionId: %v, ReplicaId: %v, CurrentReplicationIndex: %v -> %v)",
                 transaction->GetId(),
                 replicaInfo->GetId(),
                 oldCurrentReplicationRowIndex,
@@ -2063,7 +2063,7 @@ private:
                 auto newCurrentReplicationTimestamp = std::max(oldCurrentReplicationTimestamp, transaction->GetCommitTimestamp());
                 replicaInfo->SetCurrentReplicationTimestamp(newCurrentReplicationTimestamp);
                 LOG_DEBUG_UNLESS(IsRecovery(),
-                    "Sync replicated rows committed (TransactionId: %v, ReplicaId: %v, CurrentReplicationTimestamp: %x->%x)",
+                    "Sync replicated rows committed (TransactionId: %v, ReplicaId: %v, CurrentReplicationTimestamp: %llx -> %llx)",
                     transaction->GetId(),
                     replicaInfo->GetId(),
                     oldCurrentReplicationTimestamp,
@@ -2166,7 +2166,7 @@ private:
                 auto newCurrentReplicationRowIndex = oldCurrentReplicationRowIndex - rowCount;
                 replicaInfo->SetCurrentReplicationRowIndex(newCurrentReplicationRowIndex);
                 LOG_DEBUG_UNLESS(IsRecovery(),
-                    "Sync replicated rows aborted (TransactionId: %v, ReplicaId: %v, CurrentReplicationIndex: %v->%v)",
+                    "Sync replicated rows aborted (TransactionId: %v, ReplicaId: %v, CurrentReplicationIndex: %v -> %v)",
                     transaction->GetId(),
                     replicaInfo->GetId(),
                     oldCurrentReplicationRowIndex,
@@ -2907,7 +2907,7 @@ private:
         UpdateTabletSnapshot(tablet);
 
         LOG_INFO_UNLESS(IsRecovery(), "Table replica added (TabletId: %v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v, "
-            "Mode: %v, StartReplicationTimestamp: %x, CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %x)",
+            "Mode: %v, StartReplicationTimestamp: %llx, CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %llx)",
             tablet->GetId(),
             replicaId,
             replicaInfo.GetClusterName(),
@@ -2961,7 +2961,7 @@ private:
     void DisableTableReplica(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
         LOG_INFO_UNLESS(IsRecovery(), "Table replica disabled (TabletId: %v, ReplicaId, "
-            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %x)",
+            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %llx)",
             tablet->GetId(),
             replicaInfo->GetId(),
             replicaInfo->GetCurrentReplicationRowIndex(),
@@ -3014,7 +3014,7 @@ private:
             hiveManager->PostMessage(masterMailbox, masterRequest);
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows trimmed (TabletId: %v, TrimmedRowCount: %v->%v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows trimmed (TabletId: %v, TrimmedRowCount: %v -> %v)",
             tablet->GetId(),
             prevTrimmedRowCount,
             trimmedRowCount);

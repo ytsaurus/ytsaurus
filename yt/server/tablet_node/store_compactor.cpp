@@ -704,7 +704,7 @@ private:
 
             eden->SetCompactionTime(TInstant::Now());
 
-            LOG_INFO("Eden partitioning started (Score: {%v, %v, %v}, PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %x)",
+            LOG_INFO("Eden partitioning started (Score: {%v, %v, %v}, PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %llx)",
                 std::get<0>(scoreParts),
                 std::get<1>(scoreParts),
                 std::get<2>(scoreParts),
@@ -1046,7 +1046,7 @@ private:
 
             partition->SetCompactionTime(TInstant::Now());
 
-            LOG_INFO("Partition compaction started (Score: {%v, %v, %v}, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v, MajorTimestamp: %x, RetainedTimestamp: %x)",
+            LOG_INFO("Partition compaction started (Score: {%v, %v, %v}, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v, MajorTimestamp: %llx, RetainedTimestamp: %llx)",
                 std::get<0>(scoreParts),
                 std::get<1>(scoreParts),
                 std::get<2>(scoreParts),
