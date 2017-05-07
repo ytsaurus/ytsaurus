@@ -1813,7 +1813,7 @@ private:
                 YCHECK(parentTransaction->Locks().insert(lock).second);
                 // NB: Node could be locked more than once.
                 parentTransaction->LockedNodes().insert(trunkNode);
-                LOG_DEBUG_UNLESS(IsRecovery(), "Lock promoted (LockId: %v, TransactionId: %v->%v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), "Lock promoted (LockId: %v, TransactionId: %v -> %v)",
                     lock->GetId(),
                     transaction->GetId(),
                     parentTransaction->GetId());
