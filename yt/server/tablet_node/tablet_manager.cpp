@@ -1781,7 +1781,7 @@ private:
         replicaInfo->SetPreparedReplicationRowIndex(newCurrentReplicationRowIndex);
         replicaInfo->SetPreparedReplicationTransactionId(transaction->GetId());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows prepared (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery(), "Async replicated rows prepared (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %x->%x)",
             tabletId,
             replicaId,
@@ -1827,7 +1827,7 @@ private:
 
         AdvanceReplicatedTrimmedRowCount(transaction, tablet);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows committed (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery(), "Async replicated rows committed (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %x->%x, TrimmedRowCount: %v->%v)",
             tabletId,
             replicaId,
@@ -1861,7 +1861,7 @@ private:
         replicaInfo->SetPreparedReplicationRowIndex(-1);
         replicaInfo->SetPreparedReplicationTransactionId(NullTransactionId);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Replicated rows aborted (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery(), "Async replicated rows aborted (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
             "CurrentReplicationRowIndex: %v->%v, CurrentReplicationTimestamp: %x->%x)",
             tabletId,
             replicaId,
@@ -1958,7 +1958,6 @@ private:
             lockedRowCount,
             prelockedRowCount);
 
-        int replicatedRowCount = 0;
         yhash_map<TTableReplicaInfo*, int> replicaToRowCount;
         for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
             auto* tablet = GetTabletOrThrow(writeRecord.TabletId);
@@ -1978,22 +1977,23 @@ private:
                     replicaToRowCount[&replicaInfo] += writeRecord.RowCount;
                 }
             }
-
-            replicatedRowCount += writeRecord.RowCount;
         }
 
         YCHECK(!transaction->GetReplicatedRowsPrepared());
         for (const auto& pair : replicaToRowCount) {
-            auto* replica = pair.first;
+            auto* replicaInfo = pair.first;
             auto rowCount = pair.second;
-            replica->SetCurrentReplicationRowIndex(replica->GetCurrentReplicationRowIndex() + rowCount);
+            auto oldCurrentReplicationRowIndex = replicaInfo->GetCurrentReplicationRowIndex();
+            auto newCurrentReplicationRowIndex = oldCurrentReplicationRowIndex + rowCount;
+            replicaInfo->SetCurrentReplicationRowIndex(newCurrentReplicationRowIndex);
+            LOG_DEBUG_UNLESS(IsRecovery(),
+                "Sync replicated rows prepared (TransactionId: %v, ReplicaId: %v, CurrentReplicationIndex: %v->%v)",
+                transaction->GetId(),
+                replicaInfo->GetId(),
+                oldCurrentReplicationRowIndex,
+                newCurrentReplicationRowIndex);
         }
         transaction->SetReplicatedRowsPrepared(true);
-
-        LOG_DEBUG_UNLESS(IsRecovery() || replicatedRowCount == 0,
-            "Replicated rows prepared (TransactionId: %v, RowCount: %v)",
-            transaction->GetId(),
-            replicatedRowCount);
     }
 
     void OnTransactionCommitted(TTransaction* transaction) noexcept
@@ -2041,7 +2041,7 @@ private:
             locklessRowCount);
 
         if (transaction->GetReplicatedRowsPrepared()) {
-            int replicatedRowCount = 0;
+            yhash_set<TTableReplicaInfo*> replicas;
             for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
                 auto* tablet = FindTablet(writeRecord.TabletId);
                 if (!tablet || !tablet->IsReplicated()) {
@@ -2054,16 +2054,21 @@ private:
                         continue;
                     }
 
-                    replicaInfo->SetCurrentReplicationTimestamp(std::max(replicaInfo->GetCurrentReplicationTimestamp(), transaction->GetCommitTimestamp()));
+                    replicas.insert(replicaInfo);
                 }
-
-                replicatedRowCount += writeRecord.RowCount;
             }
 
-            LOG_DEBUG_UNLESS(IsRecovery() || replicatedRowCount == 0,
-                "Replicated rows committed (TransactionId: %v, RowCount: %v)",
-                transaction->GetId(),
-                replicatedRowCount);
+            for (auto* replicaInfo : replicas) {
+                auto oldCurrentReplicationTimestamp = replicaInfo->GetCurrentReplicationTimestamp();
+                auto newCurrentReplicationTimestamp = std::max(oldCurrentReplicationTimestamp, transaction->GetCommitTimestamp());
+                replicaInfo->SetCurrentReplicationTimestamp(newCurrentReplicationTimestamp);
+                LOG_DEBUG_UNLESS(IsRecovery(),
+                    "Sync replicated rows committed (TransactionId: %v, ReplicaId: %v, CurrentReplicationTimestamp: %x->%x)",
+                    transaction->GetId(),
+                    replicaInfo->GetId(),
+                    oldCurrentReplicationTimestamp,
+                    newCurrentReplicationTimestamp);
+            }
         }
 
         if (transaction->DelayedLocklessWriteLog().Empty()) {
@@ -2141,7 +2146,7 @@ private:
             lockedTabletCount);
 
         if (transaction->GetReplicatedRowsPrepared()) {
-            int replicatedRowCount = 0;
+            yhash_map<TTableReplicaInfo*, int> replicaToRowCount;
             for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
                 auto* tablet = FindTablet(writeRecord.TabletId);
                 if (!tablet || !tablet->IsReplicated()) {
@@ -2150,15 +2155,23 @@ private:
 
                 for (const auto& replicaId : writeRecord.SyncReplicaIds) {
                     auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
-                    replicaInfo->SetCurrentReplicationRowIndex(replicaInfo->GetCurrentReplicationRowIndex() - writeRecord.RowCount);
-                    replicatedRowCount += writeRecord.RowCount;
+                    replicaToRowCount[replicaInfo] += writeRecord.RowCount;
                 }
             }
 
-            LOG_DEBUG_UNLESS(IsRecovery() || replicatedRowCount == 0,
-                "Replicated rows aborted (TransactionId: %v, RowCount: %v)",
-                transaction->GetId(),
-                replicatedRowCount);
+            for (const auto& pair : replicaToRowCount) {
+                auto* replicaInfo = pair.first;
+                auto rowCount = pair.second;
+                auto oldCurrentReplicationRowIndex = replicaInfo->GetCurrentReplicationRowIndex();
+                auto newCurrentReplicationRowIndex = oldCurrentReplicationRowIndex - rowCount;
+                replicaInfo->SetCurrentReplicationRowIndex(newCurrentReplicationRowIndex);
+                LOG_DEBUG_UNLESS(IsRecovery(),
+                    "Sync replicated rows aborted (TransactionId: %v, ReplicaId: %v, CurrentReplicationIndex: %v->%v)",
+                    transaction->GetId(),
+                    replicaInfo->GetId(),
+                    oldCurrentReplicationRowIndex,
+                    newCurrentReplicationRowIndex);
+            }
         }
 
         ClearTransactionWriteLog(&transaction->ImmediateLockedWriteLog());

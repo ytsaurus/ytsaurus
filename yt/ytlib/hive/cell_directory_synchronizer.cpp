@@ -28,33 +28,24 @@ public:
     TImpl(
         TCellDirectorySynchronizerConfigPtr config,
         TCellDirectoryPtr cellDirectory,
-        const TCellId& primaryCellId)
+        const TCellId& primaryCellId,
+        const NLogging::TLogger& logger)
         : Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
         , PrimaryCellId_(primaryCellId)
-        , Logger(NLogging::TLogger(HiveClientLogger)
-            .AddTag("PrimaryCellId: %v", PrimaryCellId_))
+        , Logger(logger)
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
             BIND(&TImpl::OnSync, MakeWeak(this)),
             Config_->SyncPeriod))
-    { }
-
-    void Start()
     {
         SyncExecutor_->Start();
     }
 
-    void Stop()
-    {
-        SyncExecutor_->Stop();
-    }
-
     TFuture<void> Sync()
     {
-        return BIND(&TImpl::DoSync, MakeStrong(this))
-            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
-            .Run();
+        auto guard = Guard(SyncPromiseLock_);
+        return SyncPromise_.ToFuture();
     }
 
 private:
@@ -64,6 +55,9 @@ private:
 
     const NLogging::TLogger Logger;
     const TPeriodicExecutorPtr SyncExecutor_;
+
+    TSpinLock SyncPromiseLock_;
+    TPromise<void> SyncPromise_ = NewPromise<void>();
 
 
     void DoSync()
@@ -100,11 +94,19 @@ private:
 
     void OnSync()
     {
+        TError error;
         try {
             DoSync();
         } catch (const std::exception& ex) {
-            LOG_DEBUG(TError(ex));
+            error = TError(ex);
+            LOG_DEBUG(error);
         }
+
+        auto guard = Guard(SyncPromiseLock_);
+        auto syncPromise = NewPromise<void>();
+        std::swap(syncPromise, SyncPromise_);
+        guard.Release();
+        syncPromise.Set(error);
     }
 };
 
@@ -113,24 +115,16 @@ private:
 TCellDirectorySynchronizer::TCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
     TCellDirectoryPtr cellDirectory,
-    const TCellId& primaryCellId)
+    const TCellId& primaryCellId,
+    const NLogging::TLogger& logger)
     : Impl_(New<TImpl>(
         std::move(config),
         std::move(cellDirectory),
-        primaryCellId))
+        primaryCellId,
+        logger))
 { }
 
 TCellDirectorySynchronizer::~TCellDirectorySynchronizer() = default;
-
-void TCellDirectorySynchronizer::Start()
-{
-    Impl_->Start();
-}
-
-void TCellDirectorySynchronizer::Stop()
-{
-    Impl_->Stop();
-}
 
 TFuture<void> TCellDirectorySynchronizer::Sync()
 {

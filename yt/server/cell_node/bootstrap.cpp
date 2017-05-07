@@ -213,11 +213,6 @@ void TBootstrap::DoRun()
         NodeDirectory);
     NodeDirectorySynchronizer->Start();
 
-    CellDirectorySynchronizer = New<NHiveClient::TCellDirectorySynchronizer>(
-        Config->CellDirectorySynchronizer,
-        MasterConnection->GetCellDirectory(),
-        Config->ClusterConnection->PrimaryMaster->CellId);
-
     QueryThreadPool = New<TThreadPool>(
         Config->QueryAgent->ThreadPoolSize,
         "Query");
@@ -466,8 +461,6 @@ void TBootstrap::DoRun()
                 EPeerKind::Follower),
             Config->ClusterConnection->PrimaryMaster->RpcTimeout),
         GetCellId());
-
-    CellDirectorySynchronizer->Start();
 
     OrchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
 

@@ -7,7 +7,6 @@
 #include <yt/ytlib/admin/admin_service_proxy.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
-#include <yt/ytlib/hive/cell_directory_synchronizer.h>
 
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
 
@@ -104,17 +103,11 @@ private:
 
     int DoBuildSnapshot(const TBuildSnapshotOptions& options)
     {
-        const auto& cellDirectory = Connection_->GetCellDirectory();
-
-        auto cellDirectorySynchronizer = New<TCellDirectorySynchronizer>(
-            New<TCellDirectorySynchronizerConfig>(),
-            cellDirectory,
-            Connection_->GetPrimaryMasterCellId());
-
-        WaitFor(cellDirectorySynchronizer->Sync())
+        WaitFor(Connection_->SyncCellDirectory())
             .ThrowOnError();
 
         auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
+        const auto& cellDirectory = Connection_->GetCellDirectory();
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
 
         THydraServiceProxy proxy(channel);
@@ -131,7 +124,8 @@ private:
 
     void DoGCCollect(const TGCCollectOptions& options)
     {
-        std::vector<TFuture<void>> asyncResults;
+        WaitFor(Connection_->SyncCellDirectory())
+            .ThrowOnError();
 
         auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
         const auto& cellDirectory = Connection_->GetCellDirectory();
@@ -156,7 +150,7 @@ private:
         auto asyncResult = req->Invoke().As<void>();
         // NB: this will always throw an error since the service can
         // never reply to the request because it makes _exit immediately.
-        // This is an intended behavior.
+        // This is the intended behavior.
         WaitFor(asyncResult)
             .ThrowOnError();
     }

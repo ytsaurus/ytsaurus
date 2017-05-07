@@ -17,6 +17,8 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <yt/core/logging/public.h>
+
 namespace NYT {
 namespace NHiveClient {
 
@@ -82,7 +84,8 @@ public:
     TCellDirectory(
         TCellDirectoryConfigPtr config,
         NRpc::IChannelFactoryPtr channelFactory,
-        const NNodeTrackerClient::TNetworkPreferenceList& networks);
+        const NNodeTrackerClient::TNetworkPreferenceList& networks,
+        const NLogging::TLogger& logger);
     ~TCellDirectory();
 
     //! Returns a peer channel of a given kind for a given cell id (|nullptr| if none is known).

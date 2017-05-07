@@ -1216,7 +1216,6 @@ private:
                 InvokePromise_.Set(rspOrError);
             }
         }
-
     };
 
     using TTabletCellLookupSessionPtr = TIntrusivePtr<TTabletCellLookupSession>;
@@ -3189,7 +3188,9 @@ public:
         , Transaction_(std::move(transaction))
         , CommitInvoker_(CreateSerializedInvoker(Client_->GetConnection()->GetHeavyInvoker()))
         , Logger(NLogging::TLogger(Client_->Logger)
-            .AddTag("TransactionId: %v", GetId()))
+            .AddTag("TransactionId: %v, ConnectionCellTag: %v",
+                GetId(),
+                Client_->Connection_->GetCellTag()))
     { }
 
 
@@ -3288,6 +3289,7 @@ public:
             return result;
         }
 
+        LOG_DEBUG("Flushing transaction");
         State_ = ETransactionState::Flush;
         return BIND(&TNativeTransaction::DoFlush, MakeStrong(this))
             .AsyncVia(CommitInvoker_)
@@ -3309,8 +3311,7 @@ public:
         auto session = GetOrCreateCellCommitSession(cellId);
         session->RegisterAction(data);
 
-        LOG_DEBUG("Transaction action added (TransactionId: %v, CellId: %v, ActionType: %v)",
-            GetId(),
+        LOG_DEBUG("Transaction action added (CellId: %v, ActionType: %v)",
             cellId,
             data.Type);
     }
@@ -3626,6 +3627,16 @@ private:
     std::vector<ITransactionPtr> ForeignTransactions_;
 
 
+    class TTableCommitSession;
+    using TTableCommitSessionPtr = TIntrusivePtr<TTableCommitSession>;
+
+    class TTabletCommitSession;
+    using TTabletCommitSessionPtr = TIntrusivePtr<TTabletCommitSession>;
+
+    class TCellCommitSession;
+    using TCellCommitSessionPtr = TIntrusivePtr<TCellCommitSession>;
+
+
     class TModificationRequest
     {
     public:
@@ -3645,10 +3656,22 @@ private:
             , Options_(options)
         { }
 
-        void Run()
+        void PrepareTableSessions()
         {
-            auto tableSession = Transaction_->GetOrCreateTableSession(Path_);
-            const auto& tableInfo = tableSession->GetInfo();
+            TableSession_ = Transaction_->GetOrCreateTableSession(Path_);
+        }
+
+        void SubmitRows()
+        {
+            for (const auto& replicaData : Transaction_->SyncReplicas_) {
+                replicaData.Transaction->ModifyRows(
+                    replicaData.ReplicaInfo->ReplicaPath,
+                    NameTable_,
+                    Modifications_,
+                    Options_);
+            }
+
+            const auto& tableInfo = TableSession_->GetInfo();
 
             const auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
             const auto& primaryIdMapping = Transaction_->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Primary);
@@ -3752,6 +3775,7 @@ private:
         const TSharedRange<TRowModification> Modifications_;
         const TModifyRowsOptions Options_;
 
+        TTableCommitSessionPtr TableSession_;
 
         static EWireProtocolCommand GetCommand(ERowModificationType modificationType)
         {
@@ -3777,8 +3801,11 @@ private:
         : public TIntrinsicRefCounted
     {
     public:
-        explicit TTableCommitSession(TTableMountInfoPtr tableInfo)
-            : TableInfo_(std::move(tableInfo))
+        TTableCommitSession(
+            TNativeTransaction* transaction,
+            TTableMountInfoPtr tableInfo)
+            : Transaction_(transaction)
+            , TableInfo_(std::move(tableInfo))
         { }
 
         const TTableMountInfoPtr& GetInfo() const
@@ -3786,12 +3813,22 @@ private:
             return TableInfo_;
         }
 
+        void RegisterSyncReplicas(bool* clusterDirectorySynced)
+        {
+            for (const auto& replicaInfo : TableInfo_->Replicas) {
+                if (replicaInfo->Mode != ETableReplicaMode::Sync) {
+                    continue;
+                }
+
+                Transaction_->RegisterSyncReplica(TableInfo_, replicaInfo, clusterDirectorySynced);
+            }
+        }
+
     private:
+        TNativeTransaction* const Transaction_;
         const TTableMountInfoPtr TableInfo_;
 
     };
-
-    using TTableCommitSessionPtr = TIntrusivePtr<TTableCommitSession>;
 
     //! Maintains per-table commit info.
     yhash_map<TYPath, TTableCommitSessionPtr> TablePathToSession_;
@@ -3801,18 +3838,18 @@ private:
     {
     public:
         TTabletCommitSession(
-            TNativeTransactionPtr owner,
+            TNativeTransactionPtr transaction,
             TTabletInfoPtr tabletInfo,
             TTableMountInfoPtr tableInfo,
             TColumnEvaluatorPtr columnEvauator)
-            : Owner_(owner)
+            : Transaction_(transaction)
             , TableInfo_(std::move(tableInfo))
             , TabletInfo_(std::move(tabletInfo))
-            , Config_(owner->Client_->Connection_->GetConfig())
+            , Config_(transaction->Client_->Connection_->GetConfig())
             , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].Columns().size())
             , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].GetKeyColumnCount())
             , ColumnEvaluator_(std::move(columnEvauator))
-            , Logger(NLogging::TLogger(owner->Logger)
+            , Logger(NLogging::TLogger(transaction->Logger)
                 .AddTag("TabletId: %v", TabletInfo_->TabletId))
         { }
 
@@ -3877,7 +3914,7 @@ private:
         }
 
     private:
-        const TWeakPtr<TNativeTransaction> Owner_;
+        const TWeakPtr<TNativeTransaction> Transaction_;
         const TTableMountInfoPtr TableInfo_;
         const TTabletInfoPtr TabletInfo_;
         const TNativeConnectionConfigPtr Config_;
@@ -3900,8 +3937,6 @@ private:
         };
 
         std::vector<std::unique_ptr<TBatch>> Batches_;
-
-        bool Versioned_ = false;
 
         struct TVersionedSubmittedRow
         {
@@ -4040,31 +4075,31 @@ private:
 
             const auto& batch = Batches_[InvokeBatchIndex_];
 
-            auto owner = Owner_.Lock();
-            if (!owner) {
+            auto transaction = Transaction_.Lock();
+            if (!transaction) {
                 return;
             }
 
-            auto cellSession = owner->GetCommitSession(GetCellId());
+            auto cellSession = transaction->GetCommitSession(GetCellId());
 
             TTabletServiceProxy proxy(InvokeChannel_);
             proxy.SetDefaultTimeout(Config_->WriteTimeout);
             proxy.SetDefaultRequestAck(false);
 
             auto req = proxy.Write();
-            ToProto(req->mutable_transaction_id(), owner->GetId());
-            if (owner->GetAtomicity() == EAtomicity::Full) {
-                req->set_transaction_start_timestamp(owner->GetStartTimestamp());
-                req->set_transaction_timeout(ToProto(owner->GetTimeout()));
+            ToProto(req->mutable_transaction_id(), transaction->GetId());
+            if (transaction->GetAtomicity() == EAtomicity::Full) {
+                req->set_transaction_start_timestamp(transaction->GetStartTimestamp());
+                req->set_transaction_timeout(ToProto(transaction->GetTimeout()));
             }
             ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
             req->set_mount_revision(TabletInfo_->MountRevision);
-            req->set_durability(static_cast<int>(owner->GetDurability()));
+            req->set_durability(static_cast<int>(transaction->GetDurability()));
             req->set_signature(cellSession->AllocateRequestSignature());
             req->set_request_codec(static_cast<int>(Config_->WriteRequestCodec));
             req->set_row_count(batch->RowCount);
             req->set_lockless(
-                owner->GetAtomicity() == EAtomicity::None ||
+                transaction->GetAtomicity() == EAtomicity::None ||
                 TableInfo_->IsOrdered() ||
                 TableInfo_->IsReplicated() ||
                 !VersionedSubmittedRows_.empty());
@@ -4084,7 +4119,7 @@ private:
 
             req->Invoke().Subscribe(
                 BIND(&TTabletCommitSession::OnResponse, MakeStrong(this))
-                    .Via(owner->CommitInvoker_));
+                    .Via(transaction->CommitInvoker_));
         }
 
         void OnResponse(const TTabletServiceProxy::TErrorOrRspWritePtr& rspOrError)
@@ -4095,7 +4130,7 @@ private:
                 return;
             }
 
-            auto owner = Owner_.Lock();
+            auto owner = Transaction_.Lock();
             if (!owner) {
                 return;
             }
@@ -4110,8 +4145,6 @@ private:
         }
     };
 
-    using TTabletCommitSessionPtr = TIntrusivePtr<TTabletCommitSession>;
-
     //! Maintains per-tablet commit info.
     yhash<TTabletId, TTabletCommitSessionPtr> TabletIdToSession_;
 
@@ -4119,10 +4152,10 @@ private:
         : public TIntrinsicRefCounted
     {
     public:
-        TCellCommitSession(TNativeTransactionPtr owner, const TCellId& cellId)
-            : Owner_(std::move(owner))
+        TCellCommitSession(TNativeTransactionPtr transaction, const TCellId& cellId)
+            : Transaction_(transaction)
             , CellId_(cellId)
-            , Logger(NLogging::TLogger(owner->Logger)
+            , Logger(NLogging::TLogger(transaction->Logger)
                 .AddTag("CellId: %v", CellId_))
         { }
 
@@ -4156,9 +4189,9 @@ private:
                 return VoidFuture;
             }
 
-            auto owner = Owner_.Lock();
-            if (!owner) {
-                return VoidFuture;
+            auto transaction = Transaction_.Lock();
+            if (!transaction) {
+                return MakeFuture(TError("Transaction is no longer available"));
             }
 
             LOG_DEBUG("Sending transaction actions (ActionCount: %v)",
@@ -4167,10 +4200,10 @@ private:
             TFuture<void> asyncResult;
             switch (TypeFromId(CellId_)) {
                 case EObjectType::TabletCell:
-                    asyncResult = SendTabletActions(owner, channel);
+                    asyncResult = SendTabletActions(transaction, channel);
                     break;
                 case EObjectType::ClusterCell:
-                    asyncResult = SendMasterActions(owner, channel);
+                    asyncResult = SendMasterActions(transaction, channel);
                     break;
                 default:
                     Y_UNREACHABLE();
@@ -4178,11 +4211,11 @@ private:
 
             return asyncResult.Apply(
                 BIND(&TCellCommitSession::OnResponse, MakeStrong(this))
-                    .AsyncVia(owner->CommitInvoker_));
+                    .AsyncVia(transaction->CommitInvoker_));
         }
 
     private:
-        const TWeakPtr<TNativeTransaction> Owner_;
+        const TWeakPtr<TNativeTransaction> Transaction_;
         const TCellId CellId_;
 
         std::vector<TTransactionActionData> Actions_;
@@ -4220,24 +4253,33 @@ private:
                 THROW_ERROR result;
             }
 
-            auto owner = Owner_.Lock();
-            if (!owner) {
-                return;
+            auto transaction = Transaction_.Lock();
+            if (!transaction) {
+                THROW_ERROR_EXCEPTION("Transaction is no longer available");
             }
 
             if (TypeFromId(CellId_) == EObjectType::TabletCell) {
-                owner->Transaction_->ConfirmParticipant(CellId_);
+                transaction->Transaction_->ConfirmParticipant(CellId_);
             }
 
             LOG_DEBUG("Transaction actions sent successfully");
         }
     };
 
-    using TCellCommitSessionPtr = TIntrusivePtr<TCellCommitSession>;
-
-
     //! Maintains per-cell commit info.
     yhash<TCellId, TCellCommitSessionPtr> CellIdToSession_;
+
+    //! Maps replica cluster name to sync replica transaction.
+    yhash_map<Stroka, ITransactionPtr> ClusterNameToSyncReplicaTransaction_;
+
+    struct TSyncReplica
+    {
+        TTableReplicaInfoPtr ReplicaInfo;
+        ITransactionPtr Transaction;
+    };
+
+    //! Describes sync replicas and their transactions.
+    std::vector<TSyncReplica> SyncReplicas_;
 
     //! Caches mappings from name table ids to schema ids.
     yhash<std::pair<TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
@@ -4257,6 +4299,59 @@ private:
         return it->second;
     }
 
+    ITransactionPtr GetSyncReplicaTransaction(
+        const TTableReplicaInfoPtr& replicaInfo,
+        bool* clusterDirectorySynched)
+    {
+        auto it = ClusterNameToSyncReplicaTransaction_.find(replicaInfo->ClusterName);
+        if (it != ClusterNameToSyncReplicaTransaction_.end()) {
+            return it->second;
+        }
+
+        const auto& clusterDirectory = Client_->Connection_->GetClusterDirectory();
+        auto connection = clusterDirectory->FindConnection(replicaInfo->ClusterName);
+        if (!connection) {
+            if (!*clusterDirectorySynched) {
+                LOG_DEBUG("Replica cluster is not known; synchronizing cluster directory");
+                WaitFor(Client_->Connection_->SyncClusterDirectory())
+                    .ThrowOnError();
+                *clusterDirectorySynched = true;
+            }
+            connection = clusterDirectory->GetConnectionOrThrow(replicaInfo->ClusterName);
+        }
+
+        auto client = connection->CreateClient(Client_->Options_);
+
+        TForeignTransactionStartOptions options;
+        options.InheritStartTimestamp = true;
+        auto transaction = WaitFor(StartForeignTransaction(client, options))
+            .ValueOrThrow();
+
+        YCHECK(ClusterNameToSyncReplicaTransaction_.emplace(replicaInfo->ClusterName, transaction).second);
+
+        LOG_DEBUG("Sync replica transaction started (ClusterName: %v)",
+            replicaInfo->ClusterName);
+
+        return transaction;
+    }
+
+    void RegisterSyncReplica(
+        const TTableMountInfoPtr& tableInfo,
+        const TTableReplicaInfoPtr& replicaInfo,
+        bool* clusterDirectorySynced)
+    {
+        LOG_DEBUG("Sync table replica registered (TablePath: %v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v)",
+            tableInfo->Path,
+            replicaInfo->ReplicaId,
+            replicaInfo->ClusterName,
+            replicaInfo->ReplicaPath);
+
+        auto syncReplicaTransaction = GetSyncReplicaTransaction(
+            replicaInfo,
+            clusterDirectorySynced);
+        SyncReplicas_.push_back(TSyncReplica{replicaInfo, std::move(syncReplicaTransaction)});
+    }
+
     TTableCommitSessionPtr GetOrCreateTableSession(const TYPath& path)
     {
         auto it = TablePathToSession_.find(path);
@@ -4267,7 +4362,7 @@ private:
 
             it = TablePathToSession_.emplace(
                 path,
-                New<TTableCommitSession>(tableInfo)
+                New<TTableCommitSession>(this, std::move(tableInfo))
             ).first;
         }
         return it->second;
@@ -4295,7 +4390,17 @@ private:
     TFuture<void> SendRequests()
     {
         for (const auto& request : Requests_) {
-            request->Run();
+            request->PrepareTableSessions();
+        }
+
+        bool clusterDirectorySynched = false;
+        for (const auto& pair : TablePathToSession_) {
+            const auto& tableSession = pair.second;
+            tableSession->RegisterSyncReplicas(&clusterDirectorySynched);
+        }
+
+        for (const auto& request : Requests_) {
+            request->SubmitRows();
         }
 
         for (const auto& pair : TabletIdToSession_) {
@@ -4338,6 +4443,11 @@ private:
                 options.Force2PC = true;
             }
         }
+
+        if (!SyncReplicas_.empty()) {
+            options.CoordinatorCellTag = Client_->Connection_->GetPrimaryMasterCellTag();
+        }
+
         return options;
     }
 
@@ -4349,7 +4459,7 @@ private:
             };
 
             std::vector<TFuture<TTransactionFlushResult>> asyncFlushResults;
-            for (const auto& transaction: GetForeignTransactions()) {
+            for (const auto& transaction : GetForeignTransactions()) {
                 asyncFlushResults.push_back(transaction->Flush());
             }
 

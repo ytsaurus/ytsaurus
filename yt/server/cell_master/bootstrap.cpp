@@ -418,7 +418,8 @@ void TBootstrap::DoInitialize()
     CellDirectory_ = New<TCellDirectory>(
         Config_->CellDirectory,
         lightChannelFactory,
-        networks);
+        networks,
+        Logger);
 
     YCHECK(CellDirectory_->ReconfigureCell(Config_->PrimaryMaster));
     for (const auto& cellConfig : Config_->SecondaryMasters) {
