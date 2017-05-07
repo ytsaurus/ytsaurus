@@ -10,6 +10,7 @@
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/cell_directory_synchronizer.h>
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
@@ -56,10 +57,6 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ApiLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TNativeConnection
     : public INativeConnection
 {
@@ -69,6 +66,10 @@ public:
         const TNativeConnectionOptions& options)
         : Config_(config)
         , Options_(options)
+        , Logger(NLogging::TLogger(ApiLogger)
+            .AddTag("PrimaryCellTag: %v, ConnectionId: %",
+                CellTagFromId(Config_->PrimaryMaster->CellId),
+                TGuid::Create()))
     { }
 
     void Initialize()
@@ -128,7 +129,8 @@ public:
         CellDirectory_ = New<TCellDirectory>(
             Config_->CellDirectory,
             LightChannelFactory_,
-            GetNetworks());
+            GetNetworks(),
+            Logger);
         CellDirectory_->ReconfigureCell(Config_->PrimaryMaster);
         for (const auto& cellConfig : Config_->SecondaryMasters) {
             CellDirectory_->ReconfigureCell(cellConfig);
@@ -141,7 +143,8 @@ public:
         TableMountCache_ = CreateNativeTableMountCache(
             Config_->TableMountCache,
             GetMasterChannelOrThrow(EMasterChannelKind::Cache),
-            CellDirectory_);
+            CellDirectory_,
+            Logger);
 
         QueryEvaluator_ = New<TEvaluator>(Config_->QueryEvaluator);
         ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(Config_->ColumnEvaluatorCache);
@@ -249,11 +252,6 @@ public:
         return BlockCache_;
     }
 
-    virtual const TCellDirectoryPtr& GetCellDirectory() override
-    {
-        return CellDirectory_;
-    }
-
     virtual const TEvaluatorPtr& GetQueryEvaluator() override
     {
         return QueryEvaluator_;
@@ -265,16 +263,25 @@ public:
     }
 
 
+    virtual const TCellDirectoryPtr& GetCellDirectory() override
+    {
+        return CellDirectory_;
+    }
+
+    virtual TFuture<void> SyncCellDirectory() override
+    {
+        return GetCellDirectorySynchronizer()->Sync();
+    }
+
+
     virtual const TClusterDirectoryPtr& GetClusterDirectory() override
     {
-        EnsureClusterDirectory();
         return ClusterDirectory_;
     }
 
     virtual TFuture<void> SyncClusterDirectory() override
     {
-        EnsureClusterDirectory();
-        return ClusterDirectorySynchronizer_->Sync();
+        return GetClusterDirectorySynchronizer()->Sync();
     }
 
 
@@ -289,6 +296,7 @@ public:
     {
         return NApi::CreateNativeTransactionParticipant(
             CellDirectory_,
+            GetCellDirectorySynchronizer(),
             TimestampProvider_,
             cellId,
             options);
@@ -351,6 +359,8 @@ private:
     const TNativeConnectionConfigPtr Config_;
     const TNativeConnectionOptions Options_;
 
+    const NLogging::TLogger Logger;
+
     const NRpc::IChannelFactoryPtr LightChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
     const NRpc::IChannelFactoryPtr HeavyChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
 
@@ -363,12 +373,15 @@ private:
     IBlockCachePtr BlockCache_;
     ITableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
-    TCellDirectoryPtr CellDirectory_;
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
-    TSpinLock ClusterDirectoryLock_;
-    TClusterDirectoryPtr ClusterDirectory_;
+    TCellDirectoryPtr CellDirectory_;
+    TSpinLock CellDirectorySynchronizerLock_;
+    TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
+
+    const TClusterDirectoryPtr ClusterDirectory_ = New<TClusterDirectory>();
+    TSpinLock ClusterDirectorySynchronizerLock_;
     TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
 
     TThreadPoolPtr LightPool_;
@@ -384,18 +397,31 @@ private:
     yhash<TTransactionId, TStickyTransactionEntry> IdToStickyTransactionEntry_;
 
 
-    void EnsureClusterDirectory()
+    const TCellDirectorySynchronizerPtr& GetCellDirectorySynchronizer()
     {
-        // ClusterDirectory_ and ClusterDirectorySynchronizer_ are lazy-created.
-        auto guard = Guard(ClusterDirectoryLock_);
-        if (!ClusterDirectory_) {
-            ClusterDirectory_ = New<TClusterDirectory>();
+        auto guard = Guard(CellDirectorySynchronizerLock_);
+        if (!CellDirectorySynchronizer_) {
+            CellDirectorySynchronizer_ = New<TCellDirectorySynchronizer>(
+                Config_->CellDirectorySynchronizer,
+                CellDirectory_,
+                PrimaryMasterCellId_,
+                Logger);
+        }
+        return CellDirectorySynchronizer_;
+    }
+
+    const TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer()
+    {
+        auto guard = Guard(ClusterDirectorySynchronizerLock_);
+        if (!ClusterDirectorySynchronizer_) {
             ClusterDirectorySynchronizer_ = New<TClusterDirectorySynchronizer>(
                 Config_->ClusterDirectorySynchronizer,
                 this,
                 ClusterDirectory_);
         }
+        return ClusterDirectorySynchronizer_;
     }
+
 
     IChannelPtr CreatePeerChannel(TMasterConnectionConfigPtr config, EPeerKind kind)
     {

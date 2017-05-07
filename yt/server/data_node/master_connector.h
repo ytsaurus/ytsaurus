@@ -191,8 +191,17 @@ private:
     //! the locations appropriately.
     void InitMedia();
 
+    //! Synchronizes cell and cluster directories.
+    void SyncDirectories();
+
+    //! Starts the lease transaction and attaches the abort handler.
+    void StartLeaseTransaction();
+
     //! Handles lease transaction abort.
     void OnLeaseTransactionAborted();
+
+    //! Starts the lease transaction and attaches the abort handler.
+    void SendRegisterRequest();
 
     //! Computes the current node statistics.
     NNodeTrackerClient::NProto::TNodeStatistics ComputeStatistics();

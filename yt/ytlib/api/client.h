@@ -268,15 +268,18 @@ struct TTransactionCommitOptions
     , public TPrerequisiteOptions
     , public TTransactionalOptions
 {
-    //! If none, then a random participant is chosen as a coordinator.
-    NElection::TCellId CoordinatorCellId;
+    //! If not null, then this particular cell will be the coordinator.
+    NObjectClient::TCellId CoordinatorCellId;
+
+    //! If not #InvalidCellTag, a random participant from the given cell will be the coordinator.
+    NObjectClient::TCellTag CoordinatorCellTag = NObjectClient::InvalidCellTag;
 
     //! If |true| then two-phase-commit protocol is executed regardless of the number of participants.
     bool Force2PC = false;
 
     //! If |true| then all participants will use the commit timestamp provided by the coordinator.
     //! If |false| then the participants will use individual commit timestamps based on their cell tag.
-    bool InheritCommitTimestamp = false;
+    bool InheritCommitTimestamp = true;
 };
 
 struct TTransactionCommitResult

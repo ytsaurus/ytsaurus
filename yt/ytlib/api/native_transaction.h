@@ -13,7 +13,7 @@ struct TForeignTransactionStartOptions
 {
     //! If |true| then the foreign transaction will use the start timestamp or its originator.
     //! If |false| then the foreign transaction will generate its own start timestamp.
-    bool InheritStartTimestamp = false;
+    bool InheritStartTimestamp = true;
 
 };
 struct INativeTransaction

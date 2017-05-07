@@ -111,7 +111,8 @@ public:
     explicit TImpl(TIntrusivePtr<TTransactionManager::TImpl> owner)
         : Owner_(owner)
         , Logger(NLogging::TLogger(TransactionClientLogger)
-            .AddTag("CellId: %v", Owner_->PrimaryCellId_))
+            .AddTag("ConnectionCellTag: %v",
+                CellTagFromId(Owner_->PrimaryCellId_)))
     { }
 
     ~TImpl()
@@ -726,8 +727,20 @@ private:
             return options.CoordinatorCellId;
         }
 
-        auto participantIds = GetRegisteredParticipantIds();
-        return participantIds[RandomNumber(participantIds.size())];
+        std::vector<TCellId> feasibleParticipantIds;
+        for (const auto& cellId : GetRegisteredParticipantIds()) {
+            if (options.CoordinatorCellTag == InvalidCellTag ||
+                CellTagFromId(cellId) == options.CoordinatorCellTag)
+            {
+                feasibleParticipantIds.push_back(cellId);
+            }
+        }
+
+        if (feasibleParticipantIds.empty()) {
+            THROW_ERROR_EXCEPTION("No participant matches the coordinator criteria");
+        }
+
+        return feasibleParticipantIds[RandomNumber(feasibleParticipantIds.size())];
     }
 
     TTransactionCommitResult OnAtomicTransactionCommitted(
