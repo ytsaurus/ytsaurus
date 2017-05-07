@@ -1064,6 +1064,7 @@ private:
     {
         auto params = New<TOperationRuntimeParams>();
         params->Weight = spec->Weight;
+        params->ResourceLimits = spec->ResourceLimits;
         return params;
     }
 

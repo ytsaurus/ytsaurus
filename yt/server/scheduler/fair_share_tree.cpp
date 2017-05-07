@@ -2100,7 +2100,7 @@ TJobResources TOperationElement::ComputeResourceDemand() const
 TJobResources TOperationElement::ComputeResourceLimits() const
 {
     auto maxShareLimits = GetHost()->GetResourceLimits(GetSchedulingTagFilter()) * Spec_->MaxShareRatio;
-    auto perTypeLimits = ToJobResources(Spec_->ResourceLimits, InfiniteJobResources());
+    auto perTypeLimits = ToJobResources(RuntimeParams_->ResourceLimits, InfiniteJobResources());
     return Min(maxShareLimits, perTypeLimits);
 }
 

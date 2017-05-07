@@ -425,6 +425,19 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
         }
     }
 
+    def _check_running_jobs(self, op_id, desired_running_jobs):
+        success_iter = 0
+        min_success_iteration = 10
+        for i in xrange(100):
+            running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id))
+            if running_jobs:
+                assert len(running_jobs) <= desired_running_jobs
+                success_iter += 1
+                if success_iter == min_success_iteration:
+                    return
+            time.sleep(0.1)
+        assert False
+
     def test_scheduler_guaranteed_resources_ratio(self):
         create("map_node", "//sys/pools/big_pool", attributes={"min_share_ratio": 1.0})
         create("map_node", "//sys/pools/big_pool/subpool_1", attributes={"weight": 1.0})
@@ -482,19 +495,6 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
         resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
         create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
 
-        def check_running_jobs(op_id, desired_running_jobs):
-            success_iter = 0
-            min_success_iteration = 10
-            for i in xrange(100):
-                running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id))
-                if running_jobs:
-                    assert len(running_jobs) <= desired_running_jobs
-                    success_iter += 1
-                    if success_iter == min_success_iteration:
-                        return
-                time.sleep(0.1)
-            assert False
-
         while True:
             pools = get("//sys/scheduler/orchid/scheduler/pools")
             if "test_pool" in pools:
@@ -520,7 +520,7 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 3, "pool": "test_pool", "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
-        check_running_jobs(op.id, 1)
+        self._check_running_jobs(op.id, 1)
         op.abort()
 
         op = map(
@@ -529,12 +529,30 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 3, "resource_limits": resource_limits, "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
-        check_running_jobs(op.id, 1)
+        self._check_running_jobs(op.id, 1)
         op_limits = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))
         for resource, limit in resource_limits.iteritems():
             assert assert_almost_equal(op_limits[resource], limit)
         op.abort()
 
+    def test_resource_limits_runtime(self):
+
+        self._prepare_tables()
+        data = [{"foo": i} for i in xrange(3)]
+        write_table("//tmp/t_in", data)
+
+        op = map(
+            dont_track=True,
+            command="sleep 100",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"job_count": 3, "resource_limits": {"user_slots": 1}})
+        self._check_running_jobs(op.id, 1)
+
+        set("//sys/operations/{0}/@resource_limits".format(op.id), {"user_slots": 2})
+        self._check_running_jobs(op.id, 2)
+
+        op.abort()
 
     def test_max_possible_resource_usage(self):
         create("map_node", "//sys/pools/low_cpu_pool", attributes={"resource_limits": {"cpu": 1}})
