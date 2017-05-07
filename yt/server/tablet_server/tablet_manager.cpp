@@ -422,7 +422,7 @@ public:
 
         YCHECK(table->Replicas().insert(replica).second);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %x)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %llx)",
             table->GetId(),
             replica->GetId(),
             mode,
@@ -3041,7 +3041,7 @@ private:
         PopulateTableReplicaInfoFromStatistics(replicaInfo, request->statistics());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Table replica statistics updated (TabletId: %v, ReplicaId: %v, "
-            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %x)",
+            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %llx)",
             tabletId,
             replicaId,
             replicaInfo->GetCurrentReplicationRowIndex(),
@@ -3388,7 +3388,7 @@ private:
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
             "AttachedChunkIds: %v, DetachedChunkIds: %v, "
-            "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %x)",
+            "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %llx)",
             transaction->GetId(),
             table->GetId(),
             tabletId,

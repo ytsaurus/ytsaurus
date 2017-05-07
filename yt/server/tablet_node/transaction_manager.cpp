@@ -242,7 +242,7 @@ public:
             CreateLease(transaction);
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %x, StartTime: %v, "
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %llx, StartTime: %v, "
             "Timeout: %v, Transient: %v)",
             transactionId,
             startTimestamp,
@@ -355,7 +355,7 @@ public:
             RunPrepareTransactionActions(transaction, persistent);
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, "
-                "PrepareTimestamp: %x)",
+                "PrepareTimestamp: %llx)",
                 transactionId,
                 persistent,
                 prepareTimestamp);
@@ -411,7 +411,7 @@ public:
         TransactionCommitted_.Fire(transaction);
         RunCommitTransactionActions(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %x)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
             transactionId,
             commitTimestamp);
 
@@ -821,7 +821,7 @@ private:
     {
         auto barrierTimestamp = request->timestamp();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Handling transaction barrier (Timestamp: %x)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Handling transaction barrier (Timestamp: %llx)",
             barrierTimestamp);
 
         while (!SerializingTransactionHeap_.empty()) {
@@ -835,7 +835,7 @@ private:
             LastSerializedCommitTimestamp_ = commitTimestamp;
 
             const auto& transactionId = transaction->GetId();
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %x)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %llx)",
                 transaction->GetId(),
                 commitTimestamp);
 
@@ -852,7 +852,7 @@ private:
 
     void OnPeriodicBarrierCheck()
     {
-        LOG_DEBUG("Running periodic barrier check (BarrierTimestamp: %x, MinPrepareTimestamp: %x)",
+        LOG_DEBUG("Running periodic barrier check (BarrierTimestamp: %llx, MinPrepareTimestamp: %llx)",
             TransientBarrierTimestamp_,
             GetMinPrepareTimestamp());
 
@@ -870,7 +870,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Committing transaction barrier (Timestamp: %x->%x)",
+        LOG_DEBUG("Committing transaction barrier (Timestamp: %llx -> %llx)",
             TransientBarrierTimestamp_,
             minPrepareTimestamp);
 
