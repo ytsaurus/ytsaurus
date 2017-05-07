@@ -272,3 +272,10 @@ def uuid_hash_pair(uuid):
     return HashPair(
         yson.YsonUint64(i2 + (i3 << 32)),
         yson.YsonUint64(i0 + (i1 << 32)))
+
+def object_type_from_uuid(uuid):
+    i3, i2, i1, i0 = (int(s, 16) for s in uuid.split("-"))
+    return i1 & 0xffff
+
+def is_master_transaction(transaction_id):
+    return object_type_from_uuid(transaction_id) in (1, 4)

@@ -1,6 +1,6 @@
 from .driver import make_request
 from .table_helpers import _prepare_format, _to_chunk_stream
-from .common import set_param, bool_to_string
+from .common import set_param, bool_to_string, require, is_master_transaction, YtError
 from .config import get_config, get_option, get_command_param
 from .transaction_commands import _make_transactional_request
 from .ypath import TablePath
@@ -16,6 +16,13 @@ except ImportError:  # Python 3
 import yt.logger as logger
 
 from copy import deepcopy
+
+def _check_transaction_type(client):
+    transaction_id = get_command_param("transaction_id", client=client)
+    if transaction_id == null_transaction_id:
+        return
+    require(not is_master_transaction(transaction_id),
+            lambda: YtError("Dynamic table commands can not be performed under master transaction"))
 
 class DynamicTableRequestRetrier(Retrier):
     def __init__(self, retry_config, command, params, data=None, client=None):
@@ -85,6 +92,8 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     set_param(params, "max_subqueries", max_subqueries)
     set_param(params, "workload_descriptor", workload_descriptor)
 
+    _check_transaction_type(client)
+
     response = DynamicTableRequestRetrier(
         get_config(client)["dynamic_table_retries"],
         "select_rows",
@@ -130,6 +139,8 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
     retry_config["enable"] = retry_config["enable"] and \
         not aggregate and get_command_param("transaction_id", client) == null_transaction_id
 
+    _check_transaction_type(client)
+
     DynamicTableRequestRetrier(
         retry_config,
         "insert_rows",
@@ -168,6 +179,8 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
     retry_config["enable"] = retry_config["enable"] and \
         get_command_param("transaction_id", client) == null_transaction_id
 
+    _check_transaction_type(client)
+
     DynamicTableRequestRetrier(
         retry_config,
         "delete_rows",
@@ -201,6 +214,8 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
 
     input_data = b"".join(_to_chunk_stream(input_stream, format, raw, split_rows=False,
                                            chunk_size=get_config(client)["write_retries"]["chunk_size"]))
+
+    _check_transaction_type(client)
 
     response = DynamicTableRequestRetrier(
         get_config(client)["dynamic_table_retries"],
