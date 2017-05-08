@@ -1882,7 +1882,9 @@ private:
                 if (currentReplicationRowIndex < totalRowCount) {
                     THROW_ERROR_EXCEPTION("Replica %v of tablet %v is not synchronously writeable: some rows are not replicated yet",
                         replicaInfo.GetId(),
-                        tablet->GetId());
+                        tablet->GetId())
+                        << TErrorAttribute("current_replication_row_index", currentReplicationRowIndex)
+                        << TErrorAttribute("total_row_count", totalRowCount);
                 }
                 YCHECK(!replicaInfo.GetPreparedReplicationTransactionId());
                 break;
@@ -1891,7 +1893,9 @@ private:
                 if (currentReplicationRowIndex > totalRowCount) {
                     THROW_ERROR_EXCEPTION("Replica %v of tablet %v is not asynchronously writeable: some synchronous writes are still in progress",
                         replicaInfo.GetId(),
-                        tablet->GetId());
+                        tablet->GetId())
+                        << TErrorAttribute("current_replication_row_index", currentReplicationRowIndex)
+                        << TErrorAttribute("total_row_count", totalRowCount);
                 }
                 break;
 
@@ -1905,7 +1909,7 @@ private:
         for (const auto& replicaId : syncReplicaIds) {
             const auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
             if (!replicaInfo) {
-                THROW_ERROR_EXCEPTION("Sync replica %v is not known for tablet %v",
+                THROW_ERROR_EXCEPTION("Synchronous replica %v is not known for tablet %v",
                     replicaId,
                     tablet->GetId());
             }
@@ -1921,7 +1925,7 @@ private:
             const auto& replicaInfo = pair.second;
             if (replicaInfo.GetMode() == ETableReplicaMode::Sync) {
                 if (std::find(syncReplicaIds.begin(), syncReplicaIds.end(), replicaId) == syncReplicaIds.end()) {
-                    THROW_ERROR_EXCEPTION("Sync replica %v of tablet %v is not being written by client",
+                    THROW_ERROR_EXCEPTION("Synchronous replica %v of tablet %v is not being written by client",
                         replicaId,
                         tablet->GetId());
                 }
