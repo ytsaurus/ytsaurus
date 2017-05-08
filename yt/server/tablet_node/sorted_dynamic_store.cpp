@@ -1024,11 +1024,22 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
     for (const auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
         auto revision = RegisterRevision(value->Timestamp);
         WriteRevisions_.push_back(revision);
-        auto list = PrepareFixedValue(result, value->Id);
-        auto& uncommittedValue = list.GetUncommitted();
-        uncommittedValue.Revision = revision;
-        CaptureUnversionedValue(&uncommittedValue, *value);
-        list.Commit();
+
+        TDynamicValue dynamicValue;
+        CaptureUnversionedValue(&dynamicValue, *value);
+        dynamicValue.Revision = revision;
+
+        int index = value->Id;
+        auto currentList = result.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
+        if (currentList && currentList.HasUncommitted()) {
+            currentList.GetUncommitted() = dynamicValue;
+            currentList.Commit();
+            PrepareFixedValue(result, index);
+        } else {
+            auto newList = PrepareFixedValue(result, index);
+            newList.GetUncommitted() = dynamicValue;
+            newList.Commit();
+        }
     }
 
     std::sort(

@@ -4,6 +4,7 @@
 #include "driver.h"
 
 #include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -314,6 +315,16 @@ struct TTabletWriteOptions
     NTransactionClient::EAtomicity Atomicity;
     NTransactionClient::EDurability Durability;
 };
+
+struct TInsertRowsOptions
+    : public TTabletWriteOptions
+    , public NApi::TModifyRowsOptions
+{ };
+
+struct TDeleteRowsOptions
+    : public TTabletWriteOptions
+    , public NApi::TModifyRowsOptions
+{ };
 
 template <class TOptions, class = void>
 class TTabletWriteCommandBase

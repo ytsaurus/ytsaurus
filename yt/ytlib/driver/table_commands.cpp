@@ -427,6 +427,8 @@ std::vector<TUnversionedRow> ParseRows(
 
 TInsertRowsCommand::TInsertRowsCommand()
 {
+    RegisterParameter("require_sync_replica", Options.RequireSyncReplica)
+        .Optional();
     RegisterParameter("table_writer", TableWriter)
         .Default();
     RegisterParameter("path", Path);
@@ -475,7 +477,8 @@ void TInsertRowsCommand::DoExecute(ICommandContextPtr context)
     transaction->WriteRows(
         Path.GetPath(),
         valueConsumer.GetNameTable(),
-        std::move(rowRange));
+        std::move(rowRange),
+        Options);
 
     if (ShouldCommitTransaction()) {
         WaitFor(transaction->Commit())
@@ -579,6 +582,8 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
 
 TDeleteRowsCommand::TDeleteRowsCommand()
 {
+    RegisterParameter("require_sync_replica", Options.RequireSyncReplica)
+        .Optional();
     RegisterParameter("table_writer", TableWriter)
         .Default();
     RegisterParameter("path", Path);
@@ -617,7 +622,8 @@ void TDeleteRowsCommand::DoExecute(ICommandContextPtr context)
     transaction->DeleteRows(
         Path.GetPath(),
         valueConsumer.GetNameTable(),
-        std::move(keyRange));
+        std::move(keyRange),
+        Options);
 
     if (ShouldCommitTransaction()) {
         WaitFor(transaction->Commit())
@@ -691,7 +697,7 @@ TAlterTableReplicaCommand::TAlterTableReplicaCommand()
     RegisterParameter("replica_id", ReplicaId);
     RegisterParameter("enabled", Options.Enabled)
         .Optional();
-    RegisterParameter("mode", Options.Enabled)
+    RegisterParameter("mode", Options.Mode)
         .Optional();
 }
 

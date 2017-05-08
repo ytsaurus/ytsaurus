@@ -3244,9 +3244,10 @@ public:
     {
     	auto guard = Guard(SpinLock_);
 
-        auto result = ValidateActiveAsync<TTransactionCommitResult>();
-        if (result) {
-            return result;
+        if (State_ != ETransactionState::Active) {
+            return MakeFuture<TTransactionCommitResult>(TError("Cannot commit since transaction %v is already in %Qlv state",
+                GetId(),
+                State_));
         }
 
         State_ = ETransactionState::Commit;
@@ -3263,9 +3264,10 @@ public:
             return AbortResult_;
         }
 
-        auto result = ValidateActiveAsync<void>();
-        if (result) {
-            return result;
+        if (State_ != ETransactionState::Active && State_ != ETransactionState::Flush) {
+            return MakeFuture<void>(TError("Cannot abort since transaction %v is already in %Qlv state",
+                GetId(),
+                State_));
         }
 
         State_ = ETransactionState::Abort;
@@ -3284,9 +3286,10 @@ public:
     {
     	auto guard = Guard(SpinLock_);
 
-        auto result = ValidateActiveAsync<TTransactionFlushResult>();
-        if (result) {
-            return result;
+        if (State_ != ETransactionState::Active) {
+            return MakeFuture<TTransactionFlushResult>(TError("Cannot flush since transaction %v is already in %Qlv state",
+                GetId(),
+                State_));
         }
 
         LOG_DEBUG("Flushing transaction");
@@ -3298,10 +3301,16 @@ public:
 
     virtual void AddAction(const TCellId& cellId, const TTransactionActionData& data) override
     {
+        auto guard = Guard(SpinLock_);
+
         YCHECK(TypeFromId(cellId) == EObjectType::TabletCell ||
                TypeFromId(cellId) == EObjectType::ClusterCell);
 
-        ValidateActiveSync();
+        if (State_ != ETransactionState::Active) {
+            THROW_ERROR_EXCEPTION("Cannot add action since transaction %v is already in %Qlv state",
+                GetId(),
+                State_);
+        }
 
         if (GetAtomicity() != EAtomicity::Full) {
             THROW_ERROR_EXCEPTION("Atomicity must be %Qlv for custom actions",
@@ -3384,7 +3393,7 @@ public:
         const TYPath& path,
         TNameTablePtr nameTable,
         TSharedRange<TUnversionedRow> rows,
-        const TWriteRowsOptions& options) override
+        const TModifyRowsOptions& options) override
     {
         std::vector<TRowModification> modifications;
         modifications.reserve(rows.Size());
@@ -3399,14 +3408,15 @@ public:
         ModifyRows(
             path,
             std::move(nameTable),
-            MakeSharedRange(std::move(modifications), std::move(rows)));
+            MakeSharedRange(std::move(modifications), std::move(rows)),
+            options);
     }
 
     virtual void WriteRows(
         const TYPath& path,
         TNameTablePtr nameTable,
         TSharedRange<TVersionedRow> rows,
-        const TWriteRowsOptions& options) override
+        const TModifyRowsOptions& options) override
     {
         std::vector<TRowModification> modifications;
         modifications.reserve(rows.Size());
@@ -3421,14 +3431,15 @@ public:
         ModifyRows(
             path,
             std::move(nameTable),
-            MakeSharedRange(std::move(modifications), std::move(rows)));
+            MakeSharedRange(std::move(modifications), std::move(rows)),
+            options);
     }
 
     virtual void DeleteRows(
         const TYPath& path,
         TNameTablePtr nameTable,
         TSharedRange<TUnversionedRow> keys,
-        const TDeleteRowsOptions& options) override
+        const TModifyRowsOptions& options) override
     {
         std::vector<TRowModification> modifications;
         modifications.reserve(keys.Size());
@@ -3443,19 +3454,25 @@ public:
         ModifyRows(
             path,
             std::move(nameTable),
-            MakeSharedRange(std::move(modifications), std::move(keys)));
+            MakeSharedRange(std::move(modifications), std::move(keys)),
+            options);
     }
 
     virtual void ModifyRows(
         const TYPath& path,
         TNameTablePtr nameTable,
         TSharedRange<TRowModification> modifications,
-        const TModifyRowsOptions& options = TModifyRowsOptions()) override
+        const TModifyRowsOptions& options) override
     {
     	auto guard = Guard(SpinLock_);
 
         ValidateTabletTransaction();
-    	ValidateActiveSync();
+
+        if (State_ != ETransactionState::Active) {
+            THROW_ERROR_EXCEPTION("Cannot modify rows since transaction %v is already in %Qlv state",
+                GetId(),
+                State_);
+        }
 
         Requests_.push_back(std::make_unique<TModificationRequest>(
             this,
@@ -3465,7 +3482,8 @@ public:
             std::move(modifications),
             options));
 
-        LOG_DEBUG("Row modifications buffered (Count: %v)", modifications.Size());
+        LOG_DEBUG("Row modifications buffered (Count: %v)",
+            modifications.Size());
     }
 
 
@@ -3663,7 +3681,15 @@ private:
 
         void SubmitRows()
         {
-            for (const auto& replicaData : Transaction_->SyncReplicas_) {
+            if (!TableSession_->GetInfo()->Replicas.empty() &&
+                TableSession_->SyncReplicas().empty() &&
+                Options_.RequireSyncReplica)
+            {
+                THROW_ERROR_EXCEPTION("Table %v has no synchronous replicas",
+                    TableSession_->GetInfo()->Path);
+            }
+
+            for (const auto& replicaData : TableSession_->SyncReplicas()) {
                 replicaData.Transaction->ModifyRows(
                     replicaData.ReplicaInfo->ReplicaPath,
                     NameTable_,
@@ -3797,6 +3823,12 @@ private:
 
     std::vector<std::unique_ptr<TModificationRequest>> Requests_;
 
+    struct TSyncReplica
+    {
+        TTableReplicaInfoPtr ReplicaInfo;
+        ITransactionPtr Transaction;
+    };
+
     class TTableCommitSession
         : public TIntrinsicRefCounted
     {
@@ -3806,12 +3838,20 @@ private:
             TTableMountInfoPtr tableInfo)
             : Transaction_(transaction)
             , TableInfo_(std::move(tableInfo))
+            , Logger(NLogging::TLogger(transaction->Logger)
+                .AddTag("Path: %v", TableInfo_->Path))
         { }
 
         const TTableMountInfoPtr& GetInfo() const
         {
             return TableInfo_;
         }
+
+        const std::vector<TSyncReplica>& SyncReplicas() const
+        {
+            return SyncReplicas_;
+        }
+
 
         void RegisterSyncReplicas(bool* clusterDirectorySynced)
         {
@@ -3820,13 +3860,24 @@ private:
                     continue;
                 }
 
-                Transaction_->RegisterSyncReplica(TableInfo_, replicaInfo, clusterDirectorySynced);
+                LOG_DEBUG("Sync table replica registered (ReplicaId: %v, ClusterName: %v, ReplicaPath: %v)",
+                    replicaInfo->ReplicaId,
+                    replicaInfo->ClusterName,
+                    replicaInfo->ReplicaPath);
+
+                auto syncReplicaTransaction = Transaction_->GetSyncReplicaTransaction(
+                    replicaInfo,
+                    clusterDirectorySynced);
+                SyncReplicas_.push_back(TSyncReplica{replicaInfo, std::move(syncReplicaTransaction)});
             }
         }
 
     private:
         TNativeTransaction* const Transaction_;
         const TTableMountInfoPtr TableInfo_;
+        const NLogging::TLogger Logger;
+
+        std::vector<TSyncReplica> SyncReplicas_;
 
     };
 
@@ -4272,15 +4323,6 @@ private:
     //! Maps replica cluster name to sync replica transaction.
     yhash_map<Stroka, ITransactionPtr> ClusterNameToSyncReplicaTransaction_;
 
-    struct TSyncReplica
-    {
-        TTableReplicaInfoPtr ReplicaInfo;
-        ITransactionPtr Transaction;
-    };
-
-    //! Describes sync replicas and their transactions.
-    std::vector<TSyncReplica> SyncReplicas_;
-
     //! Caches mappings from name table ids to schema ids.
     yhash<std::pair<TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
 
@@ -4333,23 +4375,6 @@ private:
             replicaInfo->ClusterName);
 
         return transaction;
-    }
-
-    void RegisterSyncReplica(
-        const TTableMountInfoPtr& tableInfo,
-        const TTableReplicaInfoPtr& replicaInfo,
-        bool* clusterDirectorySynced)
-    {
-        LOG_DEBUG("Sync table replica registered (TablePath: %v, ReplicaId: %v, ClusterName: %v, ReplicaPath: %v)",
-            tableInfo->Path,
-            replicaInfo->ReplicaId,
-            replicaInfo->ClusterName,
-            replicaInfo->ReplicaPath);
-
-        auto syncReplicaTransaction = GetSyncReplicaTransaction(
-            replicaInfo,
-            clusterDirectorySynced);
-        SyncReplicas_.push_back(TSyncReplica{replicaInfo, std::move(syncReplicaTransaction)});
     }
 
     TTableCommitSessionPtr GetOrCreateTableSession(const TYPath& path)
@@ -4442,12 +4467,10 @@ private:
             if (session->GetInfo()->IsReplicated()) {
                 options.Force2PC = true;
             }
+            if (!session->SyncReplicas().empty()) {
+                options.CoordinatorCellTag = Client_->Connection_->GetPrimaryMasterCellTag();
+            }
         }
-
-        if (!SyncReplicas_.empty()) {
-            options.CoordinatorCellTag = Client_->Connection_->GetPrimaryMasterCellTag();
-        }
-
         return options;
     }
 
@@ -4479,6 +4502,9 @@ private:
         } catch (const std::exception& ex) {
             // Fire and forget.
             Transaction_->Abort();
+            for (const auto& transaction : GetForeignTransactions()) {
+                transaction->Abort();
+            }
             throw;
         }
 
@@ -4492,9 +4518,7 @@ private:
     {
         auto asyncResult = SendRequests();
         asyncResult.Subscribe(BIND([transaction = Transaction_] (const TError& error) {
-            if (error.IsOK()) {
-                transaction->Detach();
-            } else {
+            if (!error.IsOK()) {
                 transaction->Abort();
             }
         }));
@@ -4541,24 +4565,6 @@ private:
         if (TypeFromId(GetId()) == EObjectType::NestedTransaction) {
             THROW_ERROR_EXCEPTION("Nested master transactions cannot be used for updating dynamic tables");
         }
-    }
-
-    void ValidateActiveSync()
-    {
-        if (State_ != ETransactionState::Active) {
-            THROW_ERROR_EXCEPTION("Transaction is already in %Qlv state",
-                State_);
-        }
-    }
-
-    template <class T>
-    TFuture<T> ValidateActiveAsync()
-    {
-        if (State_ != ETransactionState::Active) {
-            return MakeFuture<T>(TError("Transaction is already in %Qlv state",
-                State_));
-        }
-        return TFuture<T>();
     }
 
 
