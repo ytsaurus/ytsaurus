@@ -4,6 +4,9 @@ A collection of the Apache Spark [stub files](https://www.python.org/dev/peps/pe
 
 Tests and configuration files have been originally contributed to the [Typeshed project](https://github.com/python/typeshed/). Please refer to its [contributors list](https://github.com/python/typeshed/graphs/contributors) and [license](https://github.com/python/typeshed/blob/master/LICENSE) for details.
 
+## Motivation
+
+![SPARK-20631](https://i.imgur.com/GfDCGjv.gif)
 
 ## Usage
 
