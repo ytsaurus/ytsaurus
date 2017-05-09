@@ -23,7 +23,6 @@ struct TAlterTableOptions
 {
     TNullable<NTableClient::TTableSchema> Schema;
     TNullable<bool> Dynamic;
-    TNullable<NTableClient::ETableReplicationMode> ReplicationMode;
 };
 
 class TTableNodeProxy

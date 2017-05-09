@@ -334,8 +334,6 @@ TAlterTableCommand::TAlterTableCommand()
         .Optional();
     RegisterParameter("dynamic", Options.Dynamic)
         .Optional();
-    RegisterParameter("replication_mode", Options.ReplicationMode)
-        .Optional();
 }
 
 void TAlterTableCommand::DoExecute(ICommandContextPtr context)

@@ -81,7 +81,6 @@ struct TTableMountInfo
     TEnumIndexedVector<NTableClient::TTableSchema, ETableSchemaKind> Schemas;
 
     bool Dynamic;
-    NTableClient::ETableReplicationMode ReplicationMode;
     bool NeedKeyEvaluation;
 
     std::vector<TTabletInfoPtr> Tablets;

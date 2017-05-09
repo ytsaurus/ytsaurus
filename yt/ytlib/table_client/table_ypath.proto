@@ -115,7 +115,6 @@ message TRspGetMountInfo
     repeated TTabletInfo tablets = 3;
     repeated NYT.NHiveClient.NProto.TCellDescriptor tablet_cells = 4;
     required bool dynamic = 5;
-    required int32 replication_mode = 6; // ETableReplicationMode
     repeated TReplicaInfo replicas = 7;
 }
 
@@ -125,7 +124,6 @@ message TReqAlter
 {
     optional TTableSchemaExt schema = 1;
     optional bool dynamic = 2;
-    optional int32 replication_mode = 3; // ETableReplicationMode
 }
 
 message TRspAlter

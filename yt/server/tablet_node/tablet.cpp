@@ -261,8 +261,7 @@ TTablet::TTablet(
     TOwningKey pivotKey,
     TOwningKey nextPivotKey,
     EAtomicity atomicity,
-    ECommitOrdering commitOrdering,
-    ETableReplicationMode replicationMode)
+    ECommitOrdering commitOrdering)
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
@@ -272,7 +271,6 @@ TTablet::TTablet(
     , State_(ETabletState::Mounted)
     , Atomicity_(atomicity)
     , CommitOrdering_(commitOrdering)
-    , ReplicationMode_(replicationMode)
     , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreRowCount : 0)
     , RetainedTimestamp_(MinTimestamp)
     , Config_(config)
@@ -371,7 +369,6 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, TableSchema_);
     Save(context, Atomicity_);
     Save(context, CommitOrdering_);
-    Save(context, ReplicationMode_);
     Save(context, HashTableSize_);
     Save(context, RuntimeData_->TotalRowCount);
     Save(context, RuntimeData_->TrimmedRowCount);
@@ -413,7 +410,6 @@ void TTablet::Load(TLoadContext& context)
     Load(context, TableSchema_);
     Load(context, Atomicity_);
     Load(context, CommitOrdering_);
-    Load(context, ReplicationMode_);
     Load(context, HashTableSize_);
     Load(context, RuntimeData_->TotalRowCount);
     Load(context, RuntimeData_->TrimmedRowCount);
@@ -939,7 +935,6 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
     snapshot->PhysicalSchemaData = PhysicalSchemaData_;
     snapshot->KeysSchemaData = KeysSchemaData_;
     snapshot->Atomicity = Atomicity_;
-    snapshot->ReplicationMode = ReplicationMode_;
     snapshot->HashTableSize = HashTableSize_;
     snapshot->StoreCount = static_cast<int>(StoreIdMap_.size());
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;

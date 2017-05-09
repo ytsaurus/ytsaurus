@@ -122,8 +122,6 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("schema_mode"));
     descriptors->push_back(TAttributeDescriptor("chunk_writer")
         .SetCustom(true));
-    descriptors->push_back(TAttributeDescriptor("replication_mode")
-        .SetPresent(table->IsSorted() && table->IsDynamic()));
     descriptors->push_back(TAttributeDescriptor("table_chunk_format_statistics")
         .SetExternal(table->IsExternal())
         .SetOpaque(true));
@@ -309,12 +307,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
         return true;
     }
 
-    if (key == "replication_mode" && trunkTable->IsSorted() && trunkTable->IsDynamic()) {
-        BuildYsonFluently(consumer)
-            .Value(trunkTable->GetReplicationMode());
-        return true;
-    }
-
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
@@ -360,31 +352,6 @@ void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)
     auto dynamic = options.Dynamic.Get(table->IsDynamic());
     auto schema = options.Schema.Get(table->TableSchema());
 
-    if (options.ReplicationMode) {
-        ValidateNoTransaction();
-
-        if (table->GetTabletState() != ETabletState::Unmounted) {
-            THROW_ERROR_EXCEPTION("Cannot change table replica mode since not all of its tablets are in %Qlv state",
-                ETabletState::Unmounted);
-        }
-        if (!dynamic) {
-            THROW_ERROR_EXCEPTION("Table replication mode can only be set for dynamic tables");
-        }
-        if (!schema.IsSorted()) {
-            THROW_ERROR_EXCEPTION("Table replication mode can only be set for sorted tables");
-        }
-        if (table->IsReplicated()) {
-            THROW_ERROR_EXCEPTION("Table replication mode cannot be explicitly set for replicated tables");
-        } else {
-            auto mode = *options.ReplicationMode;
-            if (mode != ETableReplicationMode::None &&
-                mode != ETableReplicationMode::AsynchronousSink)
-            {
-                THROW_ERROR_EXCEPTION("Replication mode %Qlv cannot be explicitly set", mode);
-            }
-        }
-    }
-
     // NB: Sorted dynamic tables contain unique keys, set this for user.
     if (dynamic && options.Schema && options.Schema->IsSorted() && !options.Schema->GetUniqueKeys()) {
         schema = schema.ToUniqueKeys();
@@ -408,10 +375,6 @@ void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)
         } else {
             tabletManager->MakeTableStatic(table);
         }
-    }
-
-    if (options.ReplicationMode) {
-        table->SetReplicationMode(*options.ReplicationMode);
     }
 }
 
@@ -731,7 +694,6 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
 
     ToProto(response->mutable_table_id(), trunkTable->GetId());
     response->set_dynamic(trunkTable->IsDynamic());
-    response->set_replication_mode(static_cast<int>(trunkTable->GetReplicationMode()));
     ToProto(response->mutable_schema(), trunkTable->TableSchema());
 
     yhash_set<TTabletCell*> cells;
@@ -777,14 +739,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (request->has_dynamic()) {
         options.Dynamic = request->dynamic();
     }
-    if (request->has_replication_mode()) {
-        options.ReplicationMode = ETableReplicationMode(request->replication_mode());
-    }
 
-    context->SetRequestInfo("Schema: %v, Dynamic: %v, ReplicationMode: %v",
+    context->SetRequestInfo("Schema: %v, Dynamic: %v",
         options.Schema,
-        options.Dynamic,
-        options.ReplicationMode);
+        options.Dynamic);
 
     AlterTable(options);
 

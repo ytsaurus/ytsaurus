@@ -292,13 +292,12 @@ private:
                 tableInfo->Schemas[ETableSchemaKind::VersionedWrite] = tableInfo->Schemas[ETableSchemaKind::Primary].ToVersionedWrite();
                 tableInfo->Schemas[ETableSchemaKind::Delete] = tableInfo->Schemas[ETableSchemaKind::Primary].ToDelete();
 
-                auto physicalSchema = tableInfo->ReplicationMode == ETableReplicationMode::Source
+                auto physicalSchema = tableInfo->IsReplicated()
                     ? tableInfo->Schemas[ETableSchemaKind::Primary].ToReplicationLog()
                     : tableInfo->Schemas[ETableSchemaKind::Primary];
                 tableInfo->Schemas[ETableSchemaKind::Query] = physicalSchema.ToQuery();
                 tableInfo->Schemas[ETableSchemaKind::Lookup] = physicalSchema.ToLookup();
 
-                tableInfo->ReplicationMode = ETableReplicationMode(rsp->replication_mode());
                 tableInfo->Dynamic = rsp->dynamic();
                 tableInfo->NeedKeyEvaluation = tableInfo->Schemas[ETableSchemaKind::Primary].HasComputedColumns();
 

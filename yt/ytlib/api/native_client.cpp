@@ -1698,9 +1698,6 @@ private:
         if (options.Dynamic) {
             req->set_dynamic(*options.Dynamic);
         }
-        if (options.ReplicationMode) {
-            req->set_replication_mode(static_cast<int>(*options.ReplicationMode));
-        }
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
