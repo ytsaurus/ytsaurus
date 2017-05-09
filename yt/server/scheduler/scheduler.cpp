@@ -2264,6 +2264,7 @@ private:
                 } catch (const std::exception& ex) {
                     LOG_ERROR(ex, "Failed to abort controller");
                     MasterConnector_->Disconnect();
+                    return;
                 }
             }
         }
