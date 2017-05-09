@@ -558,11 +558,12 @@ TTimestamp TStoreManagerBase::GenerateMonotonicCommitTimestamp(TTimestamp timest
 
 void TStoreManagerBase::UpdateLastCommitTimestamp(TTimestamp timestamp)
 {
-    if (Tablet_->GetAtomicity() == EAtomicity::Full &&
-        TabletContext_->GetAutomatonState() == EPeerState::Leading)
-    {
-        YCHECK(Tablet_->GetUnflushedTimestamp() <= timestamp);
-    }
+    // XXX(babenko): this does not work properly in presence of versioned writes via replicator
+    //if (Tablet_->GetAtomicity() == EAtomicity::Full &&
+    //    TabletContext_->GetAutomatonState() == EPeerState::Leading)
+    //{
+    //    YCHECK(Tablet_->GetUnflushedTimestamp() <= timestamp);
+    //}
 
     Tablet_->SetLastCommitTimestamp(std::max(
         Tablet_->GetLastCommitTimestamp(),
