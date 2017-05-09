@@ -246,7 +246,7 @@ public:
         TDuration transactionTimeout,
         TTransactionSignature signature,
         int rowCount,
-        bool lockless,
+        bool versioned,
         const TSyncReplicaIdList& syncReplicaIds,
         TWireProtocolReader* reader,
         TFuture<void>* commitResult)
@@ -291,6 +291,11 @@ public:
 
             auto readerBefore = reader->GetCurrent();
             auto adjustedSignature = signature;
+            auto lockless =
+                atomicity == EAtomicity::None ||
+                tablet->IsPhysicallyOrdered() ||
+                tablet->IsReplicated() ||
+                versioned;
             if (lockless) {
                 // Skip the whole message.
                 reader->SetCurrent(reader->GetEnd());
@@ -3138,7 +3143,7 @@ void TTabletManager::Write(
     TDuration transactionTimeout,
     TTransactionSignature signature,
     int rowCount,
-    bool lockless,
+    bool versioned,
     const TSyncReplicaIdList& syncReplicaIds,
     TWireProtocolReader* reader,
     TFuture<void>* commitResult)
@@ -3150,7 +3155,7 @@ void TTabletManager::Write(
         transactionTimeout,
         signature,
         rowCount,
-        lockless,
+        versioned,
         syncReplicaIds,
         reader,
         commitResult);
