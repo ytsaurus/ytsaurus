@@ -4146,11 +4146,7 @@ private:
             req->set_signature(cellSession->AllocateRequestSignature());
             req->set_request_codec(static_cast<int>(Config_->WriteRequestCodec));
             req->set_row_count(batch->RowCount);
-            req->set_lockless(
-                transaction->GetAtomicity() == EAtomicity::None ||
-                TableInfo_->IsOrdered() ||
-                TableInfo_->IsReplicated() ||
-                !VersionedSubmittedRows_.empty());
+            req->set_versioned(!VersionedSubmittedRows_.empty());
             for (const auto& replicaInfo : TableInfo_->Replicas) {
                 if (replicaInfo->Mode == ETableReplicaMode::Sync) {
                     ToProto(req->add_sync_replica_ids(), replicaInfo->ReplicaId);
@@ -4158,12 +4154,12 @@ private:
             }
             req->Attachments().push_back(batch->RequestData);
 
-            LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x, Lockless: %v)",
+            LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x, Versioned: %v)",
                 InvokeBatchIndex_,
                 Batches_.size(),
                 batch->RowCount,
                 req->signature(),
-                req->lockless());
+                req->versioned());
 
             req->Invoke().Subscribe(
                 BIND(&TTabletCommitSession::OnResponse, MakeStrong(this))

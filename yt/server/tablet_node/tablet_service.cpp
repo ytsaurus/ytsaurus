@@ -79,7 +79,7 @@ private:
         auto signature = request->signature();
         auto rowCount = request->row_count();
         auto requestCodecId = NCompression::ECodec(request->request_codec());
-        auto lockless = request->lockless();
+        auto versioned = request->versioned();
         auto syncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids());
 
         ValidateTabletTransactionId(transactionId);
@@ -89,7 +89,7 @@ private:
 
         context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %llx, "
             "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x, RowCount: %v, "
-            "RequestCodec: %v, Lockless: %v, SyncReplicaIds: %v",
+            "RequestCodec: %v, Versioned: %v, SyncReplicaIds: %v",
             tabletId,
             transactionId,
             transactionStartTimestamp,
@@ -99,7 +99,7 @@ private:
             signature,
             rowCount,
             requestCodecId,
-            lockless,
+            versioned,
             syncReplicaIds);
 
         // NB: Must serve the whole request within a single epoch.
@@ -115,6 +115,11 @@ private:
             THROW_ERROR_EXCEPTION("Invalid atomicity mode: %Qlv instead of %Qlv",
                 atomicity,
                 tabletSnapshot->Atomicity);
+        }
+
+        if (versioned && user != NSecurityClient::ReplicatorUserName) {
+            THROW_ERROR_EXCEPTION("Versioned writes are only allowed for %Qv user",
+                NSecurityClient::ReplicatorUserName);
         }
 
         securityManager->ValidateResourceLimits(
@@ -142,7 +147,7 @@ private:
                 transactionTimeout,
                 signature,
                 rowCount,
-                lockless,
+                versioned,
                 syncReplicaIds,
                 &reader,
                 &commitResult);
