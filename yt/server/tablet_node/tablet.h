@@ -89,7 +89,6 @@ struct TTabletSnapshot
     NTabletClient::TSchemaData PhysicalSchemaData;
     NTabletClient::TSchemaData KeysSchemaData;
     NTransactionClient::EAtomicity Atomicity;
-    NTableClient::ETableReplicationMode ReplicationMode;
     int HashTableSize = 0;
     int OverlappingStoreCount = 0;
     NTransactionClient::TTimestamp RetainedTimestamp = NTransactionClient::MinTimestamp;
@@ -250,7 +249,6 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::ECommitOrdering, CommitOrdering);
-    DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableReplicationMode, ReplicationMode);
 
     DEFINE_BYVAL_RO_PROPERTY(int, HashTableSize);
 
@@ -288,8 +286,7 @@ public:
         TOwningKey pivotKey,
         TOwningKey nextPivotKey,
         NTransactionClient::EAtomicity atomicity,
-        NTransactionClient::ECommitOrdering commitOrdering,
-        NTableClient::ETableReplicationMode replicationMode);
+        NTransactionClient::ECommitOrdering commitOrdering);
 
     ETabletState GetPersistentState() const;
 
