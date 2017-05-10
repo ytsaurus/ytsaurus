@@ -18,7 +18,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TCallback<TFuture<void>(yhash_set<TInputChunkPtr> chunkSpecs)> TScrapeChunksCallback;
+using TScrapeChunksCallback = TCallback<TFuture<void>(const yhash_set<TInputChunkPtr>& chunkSpecs)>;
 
 TScrapeChunksCallback CreateScrapeChunksSessionCallback(
     const TChunkScraperConfigPtr config,
@@ -60,13 +60,12 @@ protected:
     const TFetcherConfigPtr Config_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const IInvokerPtr Invoker_;
-    NTableClient::TRowBufferPtr RowBuffer_;
+    const NTableClient::TRowBufferPtr RowBuffer_;
+    const TScrapeChunksCallback ScraperCallback_;
+    const NLogging::TLogger Logger;
 
     //! All chunks for which info is to be fetched.
     std::vector<TInputChunkPtr> Chunks_;
-    TScrapeChunksCallback ScraperCallback_;
-    NLogging::TLogger Logger;
-
 
     virtual TFuture<void> FetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,
