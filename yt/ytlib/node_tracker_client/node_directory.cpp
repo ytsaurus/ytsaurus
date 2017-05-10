@@ -368,7 +368,7 @@ const TNodeDescriptor& TNodeDirectory::GetDescriptor(const Stroka& address)
 
 void TNodeDirectory::Save(TStreamSaveContext& context) const
 {
-    yhash_map<TNodeId, TNodeDescriptor> idToDescriptor;
+    yhash<TNodeId, TNodeDescriptor> idToDescriptor;
     {
         NConcurrency::TReaderGuard guard(SpinLock_);
         for (const auto& pair : IdToDescriptor_) {
@@ -382,7 +382,7 @@ void TNodeDirectory::Save(TStreamSaveContext& context) const
 void TNodeDirectory::Load(TStreamLoadContext& context)
 {
     using NYT::Load;
-    auto idToDescriptor = Load<yhash_map<TNodeId, TNodeDescriptor>>(context);
+    auto idToDescriptor = Load<yhash<TNodeId, TNodeDescriptor>>(context);
     NConcurrency::TWriterGuard guard(SpinLock_);
     for (const auto& pair : idToDescriptor) {
         DoAddDescriptor(pair.first, pair.second);

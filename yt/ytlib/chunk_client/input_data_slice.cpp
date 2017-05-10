@@ -3,6 +3,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/serialize.h>
 
 namespace NYT {
@@ -243,7 +244,7 @@ void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const TRow
         }
     }
     if (minKey) {
-        dataSlice->LowerLimit().MergeLowerKey(minKey);
+        dataSlice->LowerLimit().MergeLowerKey(rowBuffer->Capture(minKey));
     }
     if (maxKey) {
         dataSlice->UpperLimit().MergeUpperKey(GetKeySuccessor(maxKey, rowBuffer));

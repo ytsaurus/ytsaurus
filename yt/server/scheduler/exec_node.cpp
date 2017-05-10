@@ -51,7 +51,7 @@ double TExecNode::GetIOWeight() const
     return IOWeight_;
 }
 
-void TExecNode::SetIOWeights(const yhash_map<Stroka, double>& mediumToWeight)
+void TExecNode::SetIOWeights(const yhash<Stroka, double>& mediumToWeight)
 {
     TWriterGuard guard(SpinLock_);
     // NB: surely, something smarter than this should be done with individual medium weights here.

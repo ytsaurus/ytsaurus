@@ -97,6 +97,9 @@ public:
 
     //! How often min needed resources for jobs are retrieved from controller.
     TDuration MinNeededResourcesUpdatePeriod;
+ 
+    //! Maximum number of ephemeral pools that can be created by user.
+    int MaxEphemeralPoolsPerUser;
 
     TFairShareStrategyConfig()
     {
@@ -195,6 +198,10 @@ public:
 
         RegisterParameter("min_needed_resources_update_period", MinNeededResourcesUpdatePeriod)
             .Default(TDuration::Seconds(3));
+
+        RegisterParameter("max_ephemeral_pools_per_user", MaxEphemeralPoolsPerUser)
+            .GreaterThanOrEqual(1)
+            .Default(5);
 
         RegisterValidator([&] () {
             if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
@@ -837,7 +844,7 @@ public:
     TRemoteCopyOperationOptionsPtr RemoteCopyOperationOptions;
 
     //! Default environment variables set for every job.
-    yhash_map<Stroka, Stroka> Environment;
+    yhash<Stroka, Stroka> Environment;
 
     //! Interval between consequent snapshots.
     TDuration SnapshotPeriod;
@@ -1133,7 +1140,7 @@ public:
             .DefaultNew();
 
         RegisterParameter("environment", Environment)
-            .Default(yhash_map<Stroka, Stroka>())
+            .Default(yhash<Stroka, Stroka>())
             .MergeBy(NYTree::EMergeStrategy::Combine);
 
         RegisterParameter("snapshot_timeout", SnapshotTimeout)

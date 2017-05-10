@@ -44,7 +44,7 @@ using TDataCenterId = NObjectClient::TObjectId;
 // Address type and value list.
 using TAddressList = std::vector<std::pair<Stroka, Stroka>>;
 using TNetworkPreferenceList = std::vector<Stroka>;
-using TAddressMap = yhash_map<Stroka, Stroka>;
+using TAddressMap = yhash<Stroka, Stroka>;
 
 class TNodeDescriptor;
 

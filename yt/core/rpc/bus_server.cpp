@@ -118,7 +118,7 @@ private:
 
             if (!isOneWay) {
                 auto response = CreateErrorResponseMessage(requestId, error);
-                replyBus->Send(response, EDeliveryTrackingLevel::None);
+                replyBus->Send(response, TSendOptions(EDeliveryTrackingLevel::None));
             }
             return;
         }
@@ -136,7 +136,7 @@ private:
 
             if (!isOneWay) {
                 auto response = CreateErrorResponseMessage(requestId, error);
-                replyBus->Send(std::move(response), EDeliveryTrackingLevel::None);
+                replyBus->Send(std::move(response), TSendOptions(EDeliveryTrackingLevel::None));
             }
             return;
         }
