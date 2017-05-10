@@ -139,7 +139,7 @@ private:
     };
 
     bool Active_ = false;
-    yhash_map<TTransactionId, TTransactionDescriptor> IdMap_;
+    yhash<TTransactionId, TTransactionDescriptor> IdMap_;
     std::set<TTransactionDescriptor*, TTransationDeadlineComparer> DeadlineMap_;
 
     void OnTick();

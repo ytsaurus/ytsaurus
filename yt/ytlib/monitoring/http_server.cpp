@@ -108,8 +108,8 @@ private:
     };
 
 private:
-    typedef yhash_map<Stroka, TSyncHandler> TSyncHandlerMap;
-    typedef yhash_map<Stroka, TAsyncHandler> TAsyncHandlerMap;
+    typedef yhash<Stroka, TSyncHandler> TSyncHandlerMap;
+    typedef yhash<Stroka, TAsyncHandler> TAsyncHandlerMap;
 
 private:
     std::unique_ptr<TCallback> Callback;

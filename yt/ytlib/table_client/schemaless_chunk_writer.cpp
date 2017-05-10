@@ -64,6 +64,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 using namespace NApi;
+using namespace NQueryClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -509,7 +510,7 @@ public:
         , DataToBlockFlush_(Config_->BlockSize)
     {
         // Only scan-optimized version for now.
-        yhash_map<Stroka, TDataBlockWriter*> groupBlockWriters;
+        yhash<Stroka, TDataBlockWriter*> groupBlockWriters;
         for (const auto& column : Schema_.Columns()) {
             if (column.Group && groupBlockWriters.find(*column.Group) == groupBlockWriters.end()) {
                 auto blockWriter = std::make_unique<TDataBlockWriter>();
@@ -837,7 +838,11 @@ public:
         , NameTable_(nameTable)
         , Schema_(schema)
         , LastKey_(lastKey)
-    { }
+    {
+        if (Options_->EvaluateComputedColumns) {
+            ColumnEvaluator_ = Client_->GetNativeConnection()->GetColumnEvaluatorCache()->Find(Schema_);
+        }
+    }
 
     virtual TFuture<void> GetReadyEvent() override
     {
@@ -954,6 +959,7 @@ private:
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemalessChunkWriterTag());
 
+    TColumnEvaluatorPtr ColumnEvaluator_;
 
     // Maps global name table indexes into chunk name table indexes.
     std::vector<int> IdMapping_;
@@ -964,9 +970,8 @@ private:
 
     void EvaluateComputedColumns(TMutableUnversionedRow row)
     {
-        if (Options_->EvaluateComputedColumns) {
-            auto evaluator = Client_->GetNativeConnection()->GetColumnEvaluatorCache()->Find(Schema_);
-            evaluator->EvaluateKeys(row, RowBuffer_);
+        if (ColumnEvaluator_) {
+            ColumnEvaluator_->EvaluateKeys(row, RowBuffer_);
         }
     }
 

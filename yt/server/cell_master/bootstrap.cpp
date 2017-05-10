@@ -354,9 +354,7 @@ void TBootstrap::DoInitialize()
         cellConfig->ValidateAllPeersPresent();
     }
 
-    auto localAddress = BuildServiceAddress(
-        TAddressResolver::Get()->GetLocalHostName(),
-        Config_->RpcPort);
+    auto localAddress = BuildServiceAddress(GetLocalHostName(), Config_->RpcPort);
 
     TCellConfigPtr localCellConfig;
     TPeerId localPeerId;

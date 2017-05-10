@@ -1918,6 +1918,112 @@ class TestSortedDynamicTablesResourceLimits(TestSortedDynamicTablesBase):
 
 ##################################################################
 
+class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
+    NUM_NODES = 1
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "resource_limits": {
+                "tablet_static_memory": 20000
+            },
+            "tablet_manager": {
+                "error_backoff_time": 1000*5,
+            },
+        },
+    }
+
+    def _get_statistics(self, table):
+        return get(table + "/@tablets/0/statistics")
+
+    def _wait_preload(self, table):
+        def is_preloaded():
+            statistics = self._get_statistics(table)
+            return (
+                statistics["preload_completed_store_count"] > 0 and
+                statistics["preload_pending_store_count"] == 0 and
+                statistics["preload_failed_store_count"] == 0)
+
+        wait(is_preloaded)
+
+    def _wait_preload_failed(self, table):
+        def is_preload_failed():
+            statistics = self._get_statistics(table)
+            return (
+                statistics["preload_pending_store_count"] == 0 and
+                statistics["preload_failed_store_count"] > 0)
+
+        wait(is_preload_failed)
+
+    def test_in_memory_limit_exceeded(self):
+        LARGE = "//tmp/large"
+        SMALL = "//tmp/small"
+
+        def table_create(table):
+            self._create_simple_table(
+                table,
+                optimize_for="lookup",
+                in_memory_mode="uncompressed",
+                max_dynamic_store_row_count=10,
+                replication_factor=1,
+                read_quorum=1,
+                write_quorum=1,
+            )
+
+            self.sync_mount_table(table)
+
+        def check_lookup(table, keys, rows):
+            assert lookup_rows(table, keys) == rows
+
+        def generate_string(amount):
+            return "x" * amount
+
+        def table_insert_rows(length, table):
+            rows = [{"key": i, "value": generate_string(length)} for i in xrange(10)]
+            keys = [{"key": row["key"]} for row in rows]
+            insert_rows(table, rows)
+            return keys, rows
+
+        tablet_cell_attributes = {
+            "changelog_replication_factor": 1,
+            "changelog_read_quorum": 1,
+            "changelog_write_quorum": 1
+        }
+
+        set("//sys/tablet_cell_bundles/default/@options", tablet_cell_attributes)
+
+        self.sync_create_cells(1)
+
+        table_create(LARGE)
+        table_create(SMALL)
+
+        # create large table over memory limit
+        large_data = table_insert_rows(10000, LARGE)
+        self.sync_flush_table(LARGE)
+        self.sync_unmount_table(LARGE)
+
+        # create small table for final preload checking
+        small_data = table_insert_rows(1000, SMALL)
+        self.sync_flush_table(SMALL)
+        self.sync_unmount_table(SMALL)
+
+        # mount large table to trigger memory limit
+        self.sync_mount_table(LARGE)
+        self._wait_preload(LARGE)
+        check_lookup(LARGE, *large_data)
+
+        # mount small table, preload must fail
+        self.sync_mount_table(SMALL)
+        self._wait_preload_failed(SMALL)
+
+        # unmounting large table releases the memory to allow small table to be preloaded
+        self.sync_unmount_table(LARGE)
+        self._wait_preload(SMALL)
+        check_lookup(SMALL, *small_data)
+
+        # cleanup
+        self.sync_unmount_table(SMALL)
+
+##################################################################
+
 class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
     DELTA_DRIVER_CONFIG = {
         "max_rows_per_write_request": 2,

@@ -61,8 +61,7 @@ public:
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck) override
+        const TSendOptions& options) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -75,8 +74,7 @@ public:
         return sessionOrError.Value()->Send(
             std::move(request),
             std::move(responseHandler),
-            timeout,
-            requestAck);
+            options);
     }
 
     virtual TFuture<void> Terminate(const TError& error) override
@@ -245,22 +243,25 @@ private:
         IClientRequestControlPtr Send(
             IClientRequestPtr request,
             IClientResponseHandlerPtr responseHandler,
-            TNullable<TDuration> timeout,
-            bool requestAck)
+            const TSendOptions& options)
         {
             YCHECK(request);
             YCHECK(responseHandler);
             VERIFY_THREAD_AFFINITY_ANY();
 
-            auto requestControl = New<TClientRequestControl>(this, request, timeout, responseHandler);
+            auto requestControl = New<TClientRequestControl>(
+                this,
+                request,
+                options.Timeout,
+                std::move(responseHandler));
 
             auto& header = request->Header();
             header.set_start_time(ToProto(TInstant::Now()));
-            if (timeout) {
-                header.set_timeout(ToProto(*timeout));
+            if (options.Timeout) {
+                header.set_timeout(ToProto(*options.Timeout));
                 auto timeoutCookie = TDelayedExecutor::Submit(
                     BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
-                    *timeout);
+                    *options.Timeout);
                 requestControl->SetTimeoutCookie(Guard(SpinLock_), std::move(timeoutCookie));
             } else {
                 header.clear_timeout();
@@ -274,12 +275,12 @@ private:
                         &TSession::OnRequestSerialized,
                         MakeStrong(this),
                         requestControl,
-                        requestAck));
+                        options));
             } else {
                 auto&& requestMessage = request->Serialize();
                 OnRequestSerialized(
                     requestControl,
-                    requestAck,
+                    options,
                     std::move(requestMessage));
             }
 
@@ -342,7 +343,7 @@ private:
             ToProto(header.mutable_realm_id(), realmId);
 
             auto message = CreateRequestCancelationMessage(header);
-            bus->Send(std::move(message), EDeliveryTrackingLevel::None);
+            bus->Send(std::move(message), NBus::TSendOptions(EDeliveryTrackingLevel::None));
         }
 
         void HandleTimeout(const TClientRequestControlPtr& requestControl, bool aborted)
@@ -475,16 +476,16 @@ private:
         TSpinLock SpinLock_;
         bool Terminated_ = false;
         TError TerminationError_;
-        typedef yhash_map<TRequestId, TClientRequestControlPtr> TActiveRequestMap;
+        typedef yhash<TRequestId, TClientRequestControlPtr> TActiveRequestMap;
         TActiveRequestMap ActiveRequestMap_;
 
         NConcurrency::TReaderWriterSpinLock CachedMethodMetadataLock_;
-        yhash_map<std::pair<Stroka, Stroka>, TMethodMetadata> CachedMethodMetadata_;
+        yhash<std::pair<Stroka, Stroka>, TMethodMetadata> CachedMethodMetadata_;
 
 
         void OnRequestSerialized(
             const TClientRequestControlPtr& requestControl,
-            bool requestAck,
+            const TSendOptions& options,
             const TErrorOr<TSharedRefArray>& requestMessageOrError)
         {
             VERIFY_THREAD_AFFINITY_ANY();
@@ -551,11 +552,14 @@ private:
 
             const auto& requestMessage = requestMessageOrError.Value();
 
-            auto level = requestAck
+            NBus::TSendOptions busOptions;
+            busOptions.TrackingLevel = options.RequestAck
                 ? EDeliveryTrackingLevel::Full
                 : EDeliveryTrackingLevel::ErrorOnly;
-
-            bus->Send(requestMessage, level).Subscribe(BIND(
+            busOptions.ChecksummedPartCount = options.GenerateAttachmentChecksums
+                ? NBus::TSendOptions::AllParts
+                : 2; // RPC header + request body
+            bus->Send(requestMessage, busOptions).Subscribe(BIND(
                 &TSession::OnAcknowledgement,
                 MakeStrong(this),
                 requestId));
@@ -564,12 +568,14 @@ private:
             const auto& method = requestControl->GetMethod();
             const auto& timeout = requestControl->GetTimeout();
 
-            LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, Endpoint: %v)",
+            LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, "
+                "ChecksummedPartCount: %v, Endpoint: %v)",
                 requestId,
                 service,
                 method,
                 timeout,
-                level,
+                busOptions.TrackingLevel,
+                busOptions.ChecksummedPartCount,
                 bus->GetEndpointDescription());
         }
 

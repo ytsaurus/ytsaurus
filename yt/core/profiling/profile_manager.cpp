@@ -313,13 +313,13 @@ private:
     TSimpleCounter DequeuedCounter;
 
     TMultipleProducerSingleConsumerLockFreeStack<TQueuedSample> SampleQueue;
-    yhash_map<TYPath, TBucketPtr> PathToBucket;
+    yhash<TYPath, TBucketPtr> PathToBucket;
     TIdGenerator SampleIdGenerator;
 
     TForkAwareSpinLock TagSpinLock;
     std::vector<TTag> IdToTag;
-    yhash_map<std::pair<Stroka, Stroka>, int> TagToId;
-    typedef yhash_map<Stroka, std::vector<Stroka>> TTagKeyToValues;
+    yhash<std::pair<Stroka, Stroka>, int> TagToId;
+    typedef yhash<Stroka, std::vector<Stroka>> TTagKeyToValues;
     TTagKeyToValues TagKeyToValues;
 
 #ifdef _linux_

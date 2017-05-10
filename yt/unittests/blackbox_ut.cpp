@@ -255,7 +255,7 @@ class TMockBlackboxService
     : public IBlackboxService
 {
 public:
-    MOCK_METHOD2(Call, TFuture<INodePtr>(const Stroka&, const yhash_map<Stroka, Stroka>&));
+    MOCK_METHOD2(Call, TFuture<INodePtr>(const Stroka&, const yhash<Stroka, Stroka>&));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

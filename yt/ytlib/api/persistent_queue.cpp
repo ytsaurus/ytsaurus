@@ -154,7 +154,7 @@ private:
         std::deque<TBatch> Batches;
         int BatchesRowCount = 0;
         i64 BatchesDataWeight = 0;
-        yhash_map<int, TTablet> TabletMap;
+        yhash<int, TTablet> TabletMap;
         std::atomic<bool> Failed = {false};
     };
 
@@ -721,7 +721,7 @@ private:
             yhash_set<i64> ConsumedRowIndexes;
         };
 
-        yhash_map<int, TTabletStatistics> tabletStatisticsMap;
+        yhash<int, TTabletStatistics> tabletStatisticsMap;
 
         for (const auto& row : stateRows) {
             auto& tablet = tabletStatisticsMap[row.TabletIndex];
