@@ -221,7 +221,7 @@ protected:
 
     NConcurrency::TReaderWriterSpinLock ServicesLock_;
     TServerConfigPtr Config_;
-    yhash_map<TServiceId, IServicePtr> ServiceMap_;
+    yhash<TServiceId, IServicePtr> ServiceMap_;
 
     virtual void DoStart();
     virtual TFuture<void> DoStop(bool graceful);

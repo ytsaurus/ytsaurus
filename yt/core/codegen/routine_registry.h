@@ -56,8 +56,8 @@ private:
         TTypeBuilder typeBuilder);
 
 private:
-    yhash_map<Stroka, uint64_t> SymbolToAddress_;
-    yhash_map<Stroka, TTypeBuilder> SymbolToTypeBuilder_;
+    yhash<Stroka, uint64_t> SymbolToAddress_;
+    yhash<Stroka, TTypeBuilder> SymbolToTypeBuilder_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

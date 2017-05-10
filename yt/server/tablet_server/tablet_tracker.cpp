@@ -63,10 +63,14 @@ private:
     {
         //! Key is minus the number of spare slots.
         std::multimap<int, TNode*> Nodes;
-        yhash_map<TNode*, std::multimap<int, TNode*>::iterator> NodeToIterator;
+        yhash<TNode*, std::multimap<int, TNode*>::iterator> NodeToIterator;
     };
 
+//<<<<<<< HEAD
     yhash_map<Stroka, TPerTagData> TagToData_;
+//=======
+//    yhash<TNullable<Stroka>, TPerTagData> TagToData_;
+//>>>>>>> prestable/19.1
 
 
     void InsertNode(TPerTagData* data, TNode* node)

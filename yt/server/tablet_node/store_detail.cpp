@@ -287,6 +287,11 @@ void TDynamicStoreBase::SetStoreState(EStoreState state)
     TStoreBase::SetStoreState(state);
 }
 
+i64 TDynamicStoreBase::GetCompressedDataSize() const
+{
+    return GetPoolCapacity();
+}
+
 i64 TDynamicStoreBase::GetUncompressedDataSize() const
 {
     return GetPoolCapacity();
@@ -494,6 +499,11 @@ const TChunkMeta& TChunkStoreBase::GetChunkMeta() const
     return *ChunkMeta_;
 }
 
+i64 TChunkStoreBase::GetCompressedDataSize() const
+{
+    return MiscExt_.compressed_data_size();
+}
+
 i64 TChunkStoreBase::GetUncompressedDataSize() const
 {
     return MiscExt_.uncompressed_data_size();
@@ -591,16 +601,6 @@ TFuture<void> TChunkStoreBase::GetPreloadFuture() const
 void TChunkStoreBase::SetPreloadFuture(TFuture<void> future)
 {
     PreloadFuture_ = std::move(future);
-}
-
-TFuture<void> TChunkStoreBase::GetPreloadBackoffFuture() const
-{
-    return PreloadBackoffFuture_;
-}
-
-void TChunkStoreBase::SetPreloadBackoffFuture(TFuture<void> future)
-{
-    PreloadBackoffFuture_ = std::move(future);
 }
 
 EStoreCompactionState TChunkStoreBase::GetCompactionState() const
@@ -737,24 +737,24 @@ void TChunkStoreBase::PrecacheProperties()
     MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
 }
 
-TInstant TChunkStoreBase::GetLastPreloadAttemptTimestamp() const
+bool TChunkStoreBase::IsPreloadAllowed() const
 {
-    return LastPreloadAttemptTimestamp_;
+    return Now() > AllowedPreloadTimestamp_;
 }
 
-void TChunkStoreBase::UpdatePreloadAttemptTimestamp()
+void TChunkStoreBase::UpdatePreloadAttempt()
 {
-    LastPreloadAttemptTimestamp_ = Now();
+    AllowedPreloadTimestamp_ = Now() + Config_->ErrorBackoffTime;
 }
 
-TInstant TChunkStoreBase::GetLastCompactionAttemptTimestamp() const
+bool TChunkStoreBase::IsCompactionAllowed() const
 {
-    return LastCompactionAttemptTimestamp_;
+    return Now() > AllowedCompactionTimestamp_;
 }
 
-void TChunkStoreBase::UpdateCompactionAttemptTimestamp()
+void TChunkStoreBase::UpdateCompactionAttempt()
 {
-    LastCompactionAttemptTimestamp_ = Now();
+    AllowedCompactionTimestamp_ = Now() + Config_->ErrorBackoffTime;
 }
 
 EInMemoryMode TChunkStoreBase::GetInMemoryMode() const
@@ -781,10 +781,6 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
     if (PreloadFuture_) {
         PreloadFuture_.Cancel();
         PreloadFuture_.Reset();
-    }
-    if (PreloadBackoffFuture_) {
-        PreloadBackoffFuture_.Cancel();
-        PreloadBackoffFuture_.Reset();
     }
 
     if (mode == EInMemoryMode::None) {

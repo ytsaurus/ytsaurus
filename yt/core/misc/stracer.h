@@ -23,7 +23,7 @@ DEFINE_REFCOUNTED_TYPE(TStrace)
 struct TStracerResult
     : public NYTree::TYsonSerializable
 {
-    yhash_map<int, TStracePtr> Traces;
+    yhash<int, TStracePtr> Traces;
 
     TStracerResult();
 };

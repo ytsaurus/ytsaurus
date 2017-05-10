@@ -146,8 +146,6 @@ private: \
     IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<NScheduler::TAbortedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<NScheduler::TRunningJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
 
-    IMPLEMENT_SAFE_VOID_METHOD(SaveSnapshot, (TOutputStream* output), (output), THREAD_AFFINITY_ANY())
-
     IMPLEMENT_SAFE_VOID_METHOD(Commit, (), (), INVOKER_AFFINITY(CancelableInvoker))
     IMPLEMENT_SAFE_VOID_METHOD(Abort, (), (), THREAD_AFFINITY(ControlThread))
     IMPLEMENT_SAFE_VOID_METHOD(Forget, (), (), THREAD_AFFINITY(ControlThread))
@@ -214,6 +212,10 @@ public:
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildJobSplitterInfo(NYson::IYsonConsumer* consumer) const override;
+
+    // NB(max42, babenko): this method should not be safe. Writing a core dump or trying to fail
+    // operation from a forked process is a bad idea.
+    virtual void SaveSnapshot(TOutputStream* output) override;
 
     virtual NYson::TYsonString GetProgress() const override;
     virtual NYson::TYsonString GetBriefProgress() const override;
@@ -661,7 +663,7 @@ protected:
         bool CompletedFired;
 
         //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
-        yhash_map<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
+        yhash<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
 
     private:
         TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
@@ -759,7 +761,7 @@ protected:
         std::multimap<TInstant, TTaskPtr> DelayedTasks;
 
         //! Local tasks keyed by node id.
-        yhash_map<NNodeTrackerClient::TNodeId, yhash_set<TTaskPtr>> NodeIdToTasks;
+        yhash<NNodeTrackerClient::TNodeId, yhash_set<TTaskPtr>> NodeIdToTasks;
 
         TTaskGroup()
         {
@@ -898,6 +900,7 @@ protected:
 
     bool GetCommitting();
     void SetCommitting();
+    void SetCommitted();
 
     // Revival.
     void ReinstallLivePreview();
@@ -1180,7 +1183,7 @@ protected:
 private:
     typedef TOperationControllerBase TThis;
 
-    typedef yhash_map<NChunkClient::TChunkId, TInputChunkDescriptor> TInputChunkMap;
+    typedef yhash<NChunkClient::TChunkId, TInputChunkDescriptor> TInputChunkMap;
 
     //! Keeps information needed to maintain the liveness state of input chunks.
     TInputChunkMap InputChunkMap;
@@ -1199,14 +1202,14 @@ private:
     NConcurrency::TReaderWriterSpinLock CachedNeededResourcesLock;
 
     //! Maps an intermediate chunk id to its originating completed job.
-    yhash_map<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap;
+    yhash<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap;
 
     TIntermediateChunkScraperPtr IntermediateChunkScraper;
 
     //! Maps scheduler's job ids to controller's joblets.
     //! NB: |TJobPtr -> TJobletPtr| mapping would be faster but
     //! it cannot be serialized that easily.
-    yhash_map<TJobId, TJobletPtr> JobletMap;
+    yhash<TJobId, TJobletPtr> JobletMap;
 
     NChunkClient::TChunkScraperPtr InputChunkScraper;
 
@@ -1256,7 +1259,7 @@ private:
     const std::unique_ptr<NTableClient::IValueConsumer> EventLogValueConsumer_;
     const std::unique_ptr<NYson::IYsonConsumer> EventLogTableConsumer_;
 
-    typedef yhash_map<EJobType, std::unique_ptr<IDigest>> TMemoryDigestMap;
+    typedef yhash<EJobType, std::unique_ptr<IDigest>> TMemoryDigestMap;
     TMemoryDigestMap JobProxyMemoryDigests_;
     TMemoryDigestMap UserJobMemoryDigests_;
 
@@ -1349,7 +1352,7 @@ private:
         TDuration suspiciousInactivityTimeout,
         i64 suspiciousCpuUsageThreshold,
         double suspiciousInputPipeIdleTimeFraction,
-        const TBriefJobStatisticsPtr& briefStatistics);
+        const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -156,9 +156,9 @@ public:
                 Bootstrap_));
         }
 
-        auto localHostName = TAddressResolver::Get()->GetLocalHostName();
-        int port = Bootstrap_->GetConfig()->RpcPort;
-        ServiceAddress_ = BuildServiceAddress(localHostName, port);
+        ServiceAddress_ = BuildServiceAddress(
+            GetLocalHostName(),
+            Bootstrap_->GetConfig()->RpcPort);
 
         for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
             JobStateToTag_[state] = TProfileManager::Get()->RegisterTag("state", FormatEnum(state));
@@ -1025,7 +1025,7 @@ private:
 
     TInstant ConnectionTime_;
 
-    typedef yhash_map<TOperationId, TOperationPtr> TOperationIdMap;
+    typedef yhash<TOperationId, TOperationPtr> TOperationIdMap;
     TOperationIdMap IdToOperation_;
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
@@ -1040,7 +1040,7 @@ private:
         TExecNodeDescriptorListPtr ExecNodeDescriptors;
     };
 
-    mutable yhash_map<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
+    mutable yhash<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
 
     TProfiler TotalResourceLimitsProfiler_;
     TProfiler MainNodesResourceLimitsProfiler_;
@@ -2192,7 +2192,12 @@ private:
             operation->Cancel();
             auto controller = operation->GetController();
             if (controller) {
-                controller->Abort();
+                try {
+                    controller->Abort();
+                } catch (const std::exception& ex) {
+                    LOG_ERROR(ex, "Failed to abort controller");
+                    MasterConnector_->Disconnect();
+                }
             }
         }
 
@@ -2209,6 +2214,23 @@ private:
         LogOperationFinished(operation, logEventType, error);
 
         FinishOperation(operation);
+    }
+
+    void CompleteCompletingOperation(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto codicilGuard = operation->MakeCodicilGuard();
+
+        LOG_INFO("Completing operation (OperationId: %v)",
+             operation->GetId());
+
+        SetOperationFinalState(operation, EOperationState::Completed, TError());
+
+        auto flushResult = WaitFor(MasterConnector_->FlushOperationNode(operation));
+        YCHECK(flushResult.IsOK());
+
+        LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
 
     void AbortAbortingOperation(TOperationPtr operation, TControllerTransactionsPtr controllerTransactions)
@@ -2234,7 +2256,8 @@ private:
 
         SetOperationFinalState(operation, EOperationState::Aborted, TError());
 
-        WaitFor(MasterConnector_->FlushOperationNode(operation));
+        auto flushResult = WaitFor(MasterConnector_->FlushOperationNode(operation));
+        YCHECK(flushResult.IsOK());
 
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
@@ -2245,14 +2268,21 @@ private:
 
         for (const auto& operationReport : operationReports) {
             const auto& operation = operationReport.Operation;
+
+            if (operationReport.IsCommitted) {
+                CompleteCompletingOperation(operation);
+                continue;
+            }
+
             if (operation->GetState() == EOperationState::Aborting) {
                 AbortAbortingOperation(operation, operationReport.ControllerTransactions);
+                continue;
+            }
+
+            if (operationReport.UserTransactionAborted) {
+                OnUserTransactionAborted(operation);
             } else {
-                if (operationReport.UserTransactionAborted) {
-                    OnUserTransactionAborted(operation);
-                } else {
-                    ReviveOperation(operation, operationReport.ControllerTransactions);
-                }
+                ReviveOperation(operation, operationReport.ControllerTransactions);
             }
         }
     }

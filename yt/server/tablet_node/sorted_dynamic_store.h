@@ -199,7 +199,7 @@ private:
 
     struct TLoadScratchData
     {
-        yhash_map<TTimestamp, ui32> TimestampToRevision;
+        yhash<TTimestamp, ui32> TimestampToRevision;
         std::vector<std::vector<ui32>> WriteRevisions;
     };
 

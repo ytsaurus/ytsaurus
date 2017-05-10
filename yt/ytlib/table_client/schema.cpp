@@ -1136,7 +1136,7 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
         }
     }
 
-    yhash_map<Stroka, TColumnSchema> nameToColumnSchema;
+    yhash<Stroka, TColumnSchema> nameToColumnSchema;
     std::vector<Stroka> columnNames;
 
     for (const auto& schema : schemas) {

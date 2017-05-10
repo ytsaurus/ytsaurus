@@ -25,6 +25,7 @@ struct TOperationReport
     TOperationPtr Operation;
     NControllerAgent::TControllerTransactionsPtr ControllerTransactions;
     bool UserTransactionAborted = false;
+    bool IsCommitted = false;
 };
 
 //! Information retrieved during scheduler-master handshake.
@@ -52,6 +53,8 @@ public:
     NControllerAgent::TMasterConnectorPtr GetControllerAgentMasterConnector() const;
 
     bool IsConnected() const;
+
+    void Disconnect();
 
     TFuture<void> CreateOperationNode(TOperationPtr operation, const NControllerAgent::TOperationControllerInitializeResult& initializeResult);
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation);
