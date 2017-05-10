@@ -20,9 +20,9 @@ public:
     void RegisterAbortActionHandler(const TTransactionAbortActionHandlerDescriptor<TTransaction>& descriptor);
 
 protected:
-    yhash_map<Stroka, TTransactionPrepareActionHandler<TTransaction>> PrepareActionHandlerMap_;
-    yhash_map<Stroka, TTransactionCommitActionHandler<TTransaction>> CommitActionHandlerMap_;
-    yhash_map<Stroka, TTransactionAbortActionHandler<TTransaction>> AbortActionHandlerMap_;
+    yhash<Stroka, TTransactionPrepareActionHandler<TTransaction>> PrepareActionHandlerMap_;
+    yhash<Stroka, TTransactionCommitActionHandler<TTransaction>> CommitActionHandlerMap_;
+    yhash<Stroka, TTransactionAbortActionHandler<TTransaction>> AbortActionHandlerMap_;
 
 
     void RunPrepareTransactionActions(TTransaction* transaction, bool persistent);

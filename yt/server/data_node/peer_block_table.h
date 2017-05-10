@@ -53,7 +53,7 @@ private:
     TPeerBlockTableConfigPtr Config_;
 
     //! Each vector is sorted by decreasing expiration time.
-    yhash_map<TBlockId, std::vector<TPeerInfo>> Table_;
+    yhash<TBlockId, std::vector<TPeerInfo>> Table_;
 
     TInstant LastSwept_;
 

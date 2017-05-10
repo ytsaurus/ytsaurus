@@ -117,7 +117,7 @@ struct TTabletSnapshot
 
     TRuntimeTabletDataPtr RuntimeData;
 
-    yhash_map<TTableReplicaId, TTableReplicaSnapshotPtr> Replicas;
+    yhash<TTableReplicaId, TTableReplicaSnapshotPtr> Replicas;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
@@ -257,7 +257,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(IDynamicStorePtr, ActiveStore);
 
-    using TReplicaMap = yhash_map<TTableReplicaId, TTableReplicaInfo>;
+    using TReplicaMap = yhash<TTableReplicaId, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
@@ -321,7 +321,7 @@ public:
     //! Returns the Eden if no such partition exists.
     TPartition* GetContainingPartition(const TOwningKey& minKey, const TOwningKey& maxKey);
 
-    const yhash_map<TStoreId, IStorePtr>& StoreIdMap() const;
+    const yhash<TStoreId, IStorePtr>& StoreIdMap() const;
     const std::map<i64, IOrderedStorePtr>& StoreRowIndexMap() const;
     void AddStore(IStorePtr store);
     void RemoveStore(IStorePtr store);
@@ -390,9 +390,9 @@ private:
     std::unique_ptr<TPartition> Eden_;
 
     TPartitionList PartitionList_;
-    yhash_map<TPartitionId, TPartition*> PartitionMap_;
+    yhash<TPartitionId, TPartition*> PartitionMap_;
 
-    yhash_map<TStoreId, IStorePtr> StoreIdMap_;
+    yhash<TStoreId, IStorePtr> StoreIdMap_;
     std::map<i64, IOrderedStorePtr> StoreRowIndexMap_;
 
     TSortedDynamicRowKeyComparer RowKeyComparer_;

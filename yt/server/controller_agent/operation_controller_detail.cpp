@@ -1238,6 +1238,10 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
 
     LOG_INFO("Initializing operation for revive");
 
+    if (GetCommitting()) {
+        THROW_ERROR_EXCEPTION("Unable to revive operation that started committing results");
+    }
+
     InitializeConnections();
 
     std::atomic<bool> cleanStart = {false};
@@ -1245,15 +1249,20 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
 
     // Check transactions.
     {
+        std::vector<std::pair<ITransactionPtr, TFuture<void>>> asyncCheckResults;
+
         auto checkTransaction = [&] (ITransactionPtr transaction) {
             if (cleanStart) {
                 return;
             }
+
             if (!transaction) {
                 cleanStart = true;
                 LOG_INFO("Operation transaction is missing, will use clean start");
                 return;
             }
+
+            asyncCheckResults.push_back(std::make_pair(transaction, transaction->Ping()));
         };
 
         // NB: Async transaction is not checked.
@@ -1261,6 +1270,18 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
         checkTransaction(controllerTransactions->Input);
         checkTransaction(controllerTransactions->Output);
         checkTransaction(controllerTransactions->DebugOutput);
+
+        for (auto pair : asyncCheckResults) {
+            const auto& transaction = pair.first;
+            const auto& asyncCheckResult = pair.second;
+            auto error = WaitFor(asyncCheckResult);
+            if (!error.IsOK()) {
+                cleanStart = true;
+                LOG_INFO(error,
+                    "Error renewing operation transaction %v, will use clean start",
+                    transaction->GetId());
+            }
+        }
     }
 
     // Downloading snapshot.
@@ -1592,8 +1613,10 @@ void TOperationControllerBase::SafeMaterialize()
     LOG_INFO("Materialization finished");
 }
 
-void TOperationControllerBase::SafeSaveSnapshot(TOutputStream* output)
+void TOperationControllerBase::SaveSnapshot(TOutputStream* output)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TSaveContext context;
     context.SetVersion(GetCurrentSnapshotVersion());
     context.SetOutput(output);
@@ -1911,6 +1934,20 @@ void TOperationControllerBase::SetCommitting()
         .ThrowOnError();
 }
 
+void TOperationControllerBase::SetCommitted()
+{
+    const auto& client = Host->GetMasterClient();
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
+    auto path = GetOperationPath(OperationId) + "/@committed";
+    auto req = TYPathProxy::Set(path);
+    SetTransactionId(req, OutputTransaction->GetId());
+    req->set_value(ConvertToYsonString(true).GetData());
+    WaitFor(proxy.Execute(req))
+        .ThrowOnError();
+}
+
 void TOperationControllerBase::SafeCommit()
 {
     // XXX(babenko): hotfix for YT-4636
@@ -1924,6 +1961,8 @@ void TOperationControllerBase::SafeCommit()
     EndUploadOutputTables(UpdatingTables);
     CustomCommit();
 
+    // NB: commited attribute is set under sync transaction.
+    SetCommitted();
     CommitTransactions();
 
     MasterConnector->UnregisterOperation(OperationId);
@@ -1939,8 +1978,8 @@ void TOperationControllerBase::CommitTransactions()
 
     CommitTransaction(InputTransaction);
     CommitTransaction(OutputTransaction);
-    CommitTransaction(SyncSchedulerTransaction);
     CommitTransaction(DebugOutputTransaction);
+    CommitTransaction(SyncSchedulerTransaction);
 
     LOG_INFO("Scheduler transactions committed");
 
@@ -2424,7 +2463,7 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
             .Run();
 
         // Resulting future is dropped intentionally.
-        asyncResult.Apply(BIND(
+        asyncResult.Subscribe(BIND(
             &TOperationControllerBase::AnalyzeBriefStatistics,
             MakeStrong(this),
             joblet,
@@ -2792,16 +2831,9 @@ void TOperationControllerBase::SafeAbort()
     // NB: Error ignored since we cannot do anything with it.
     WaitFor(MasterConnector->FlushOperationNode(OperationId));
 
-    auto abortTransaction = [&] (ITransactionPtr transaction) {
-        if (transaction) {
-            // Fire-and-forget.
-            transaction->Abort();
-        }
-    };
-
     AreTransactionsActive = false;
 
-    // Skip commiting anything if operation controller already tried to commit results.
+    // Skip committing anything if operation controller already tried to commit results.
     if (!GetCommitting()) {
         try {
             if (StderrTable && StderrTable->IsBeginUploadCompleted()) {
@@ -2822,10 +2854,21 @@ void TOperationControllerBase::SafeAbort()
         }
     }
 
+    std::vector<TFuture<void>> abortTransactionFutures;
+
+    auto abortTransaction = [&] (ITransactionPtr transaction) {
+        if (transaction) {
+            abortTransactionFutures.push_back(transaction->Abort());
+        }
+    };
+
     abortTransaction(InputTransaction);
     abortTransaction(OutputTransaction);
     abortTransaction(SyncSchedulerTransaction);
     abortTransaction(AsyncSchedulerTransaction);
+
+    WaitFor(Combine(abortTransactionFutures))
+        .ThrowOnError();
 
     State = EControllerState::Finished;
 
@@ -5897,8 +5940,15 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
     TDuration suspiciousInactivityTimeout,
     i64 suspiciousCpuUsageThreshold,
     double suspiciousInputPipeIdleTimeFraction,
-    const TBriefJobStatisticsPtr& briefStatistics)
+    const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError)
 {
+    if (!briefStatisticsOrError.IsOK()) {
+        LOG_WARNING(briefStatisticsOrError, "Not analyzing brief statistics of job due to an error (JobId: %v)");
+        return;
+    }
+
+    const auto& briefStatistics = briefStatisticsOrError.Value();
+
     bool wasActive = !job->BriefStatistics ||
         CheckJobActivity(
             job->BriefStatistics,
@@ -6041,7 +6091,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_output_format(ConvertToYsonString(outputFormat).GetData());
     }
 
-    auto fillEnvironment = [&] (yhash_map<Stroka, Stroka>& env) {
+    auto fillEnvironment = [&] (yhash<Stroka, Stroka>& env) {
         for (const auto& pair : env) {
             jobSpec->add_environment(Format("%v=%v", pair.first, pair.second));
         }

@@ -746,7 +746,7 @@ TPartition* TTablet::GetContainingPartition(
     return Eden_.get();
 }
 
-const yhash_map<TStoreId, IStorePtr>& TTablet::StoreIdMap() const
+const yhash<TStoreId, IStorePtr>& TTablet::StoreIdMap() const
 {
     return StoreIdMap_;
 }
@@ -956,7 +956,11 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
             switch (preloadState) {
                 case EStorePreloadState::Scheduled:
                 case EStorePreloadState::Running:
-                    ++snapshot->PreloadPendingStoreCount;
+                    if (chunkStore->IsPreloadAllowed()) {
+                        ++snapshot->PreloadPendingStoreCount;
+                    } else {
+                        ++snapshot->PreloadFailedStoreCount;
+                    }
                     break;
                 case EStorePreloadState::Complete:
                     ++snapshot->PreloadCompletedStoreCount;
@@ -1037,7 +1041,7 @@ void TTablet::Initialize()
     }
 
     // Assign lock indexes to data components.
-    yhash_map<Stroka, int> groupToIndex;
+    yhash<Stroka, int> groupToIndex;
     for (int index = keyColumnCount; index < PhysicalSchema_.Columns().size(); ++index) {
         const auto& columnSchema = PhysicalSchema_.Columns()[index];
         int lockIndex = TSortedDynamicRow::PrimaryLockIndex;

@@ -75,9 +75,9 @@ TTcpConnection::TTcpConnection(
             Id_,
             EndpointDescription_))
     , InterfaceType_(interfaceType)
-    , EnableChecksums_(Config_->CalculateChecksum)
+    , GenerateChecksums_(Config_->GenerateChecksums)
     , MessageEnqueuedCallback_(BIND(&TTcpConnection::OnMessageEnqueuedThunk, MakeWeak(this)))
-    , Decoder_(Logger, Config_->VerifyChecksum)
+    , Decoder_(Logger, Config_->VerifyChecksums)
     , ReadStallTimeout_(NProfiling::DurationToCpuDuration(Config_->ReadStallTimeout))
     , Encoder_(Logger)
     , WriteStallTimeout_(NProfiling::DurationToCpuDuration(Config_->WriteStallTimeout))
@@ -315,8 +315,9 @@ void TTcpConnection::OnInterfaceTypeEstablished(ETcpInterfaceType interfaceType)
 
     Statistics_ = DispatcherThread_->GetStatistics(interfaceType);
 
-    if (EnableChecksums_) {
-        EnableChecksums_ = (interfaceType == ETcpInterfaceType::Remote);
+    // Suppress checksum generation for local traffic.
+    if (interfaceType == ETcpInterfaceType::Local) {
+        GenerateChecksums_ = false;
     }
 
     UpdateConnectionCount(+1);
@@ -533,11 +534,11 @@ const IAttributeDictionary& TTcpConnection::GetEndpointAttributes() const
     return *EndpointAttributes_;
 }
 
-TFuture<void> TTcpConnection::Send(TSharedRefArray message, EDeliveryTrackingLevel level)
+TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TQueuedMessage queuedMessage(std::move(message), level);
+    TQueuedMessage queuedMessage(std::move(message), options);
 
     // NB: Log first to avoid producing weird traces.
     LOG_DEBUG("Outcoming message enqueued (PacketId: %v)",
@@ -789,7 +790,7 @@ bool TTcpConnection::OnMessagePacketReceived()
         Decoder_.GetPacketSize());
 
     if (Any(Decoder_.GetPacketFlags() & EPacketFlags::RequestAck)) {
-        EnqueuePacket(EPacketType::Ack, EPacketFlags::None, Decoder_.GetPacketId());
+        EnqueuePacket(EPacketType::Ack, EPacketFlags::None, 0, Decoder_.GetPacketId());
     }
 
     auto message = Decoder_.GetMessage();
@@ -801,11 +802,12 @@ bool TTcpConnection::OnMessagePacketReceived()
 TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
     EPacketType type,
     EPacketFlags flags,
+    int checksummedPartCount,
     const TPacketId& packetId,
     TSharedRefArray message)
 {
     size_t size = TPacketEncoder::GetPacketSize(type, message);
-    auto* packet = new TPacket(type, flags, packetId, std::move(message), size);
+    auto* packet = new TPacket(type, flags, checksummedPartCount, packetId, std::move(message), size);
     QueuedPackets_.push(packet);
     UpdatePendingOut(+1, +size);
     return packet;
@@ -1011,7 +1013,8 @@ bool TTcpConnection::MaybeEncodeFragments()
         bool encodeResult = Encoder_.Start(
             packet->Type,
             packet->Flags,
-            EnableChecksums_,
+            GenerateChecksums_,
+            packet->ChecksummedPartCount,
             packet->PacketId,
             packet->Message);
         if (!encodeResult) {
@@ -1142,13 +1145,14 @@ void TTcpConnection::ProcessOutcomingMessages()
         auto& queuedMessage = *it;
 
         const auto& packetId = queuedMessage.PacketId;
-        auto flags = queuedMessage.Level == EDeliveryTrackingLevel::Full
+        auto flags = queuedMessage.Options.TrackingLevel == EDeliveryTrackingLevel::Full
             ? EPacketFlags::RequestAck
             : EPacketFlags::None;
 
         auto* packet = EnqueuePacket(
             EPacketType::Message,
             flags,
+            GenerateChecksums_ ? queuedMessage.Options.ChecksummedPartCount : 0,
             packetId,
             std::move(queuedMessage.Message));
 

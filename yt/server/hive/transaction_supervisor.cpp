@@ -168,7 +168,7 @@ private:
     TEntityMap<TCommit> TransientCommitMap_;
     TEntityMap<TCommit> PersistentCommitMap_;
 
-    yhash_map<TTransactionId, TAbort> TransientAbortMap_;
+    yhash<TTransactionId, TAbort> TransientAbortMap_;
 
 
     class TWrappedParticipant
@@ -346,7 +346,7 @@ private:
                 if (underlying->IsValid()) {
                     promise.SetFrom(func(underlying));
                 } else if (succeedOnInvalid) {
-                    LOG_DEBUG("Transaction participant is no longer, assuming sucessful response");
+                    LOG_DEBUG("Transaction participant is no longer valid; assuming success");
                     promise.Set(TError());
                 } else {
                     promise.Set(TError("Participant cell %v is no longer valid", CellId_));
@@ -399,8 +399,8 @@ private:
     using TWrappedParticipantPtr = TIntrusivePtr<TWrappedParticipant>;
     using TWrappedParticipantWeakPtr = TWeakPtr<TWrappedParticipant>;
 
-    yhash_map<TCellId, TWrappedParticipantPtr> StrongParticipantMap_;
-    yhash_map<TCellId, TWrappedParticipantWeakPtr> WeakParticipantMap_;
+    yhash<TCellId, TWrappedParticipantPtr> StrongParticipantMap_;
+    yhash<TCellId, TWrappedParticipantWeakPtr> WeakParticipantMap_;
     TPeriodicExecutorPtr ParticipantCleanupExecutor_;
 
 

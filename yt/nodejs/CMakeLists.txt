@@ -14,6 +14,12 @@ function(NODE target)
     set(_node_link_flags "${_node_link_flags} -undefined dynamic_lookup")
   endif()
 
+  if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+    set(_node_link_flags "${_node_link_flags} -Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/linker.map.darwin")
+  else()
+    set(_node_link_flags "${_node_link_flags} -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linker.map")
+  endif()
+
   set_target_properties(${target}
     PROPERTIES
     PREFIX ""
