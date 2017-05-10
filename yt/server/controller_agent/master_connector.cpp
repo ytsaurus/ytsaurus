@@ -353,6 +353,7 @@ private:
                 const auto& controller = pair.second;
                 for (const auto& transaction : controller->GetTransactions()) {
                     if (deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end()) {
+                        TInverseGuard<TSpinLock> inverseGuard(ControllersLock_);
                         controller->OnTransactionAborted(transaction->GetId());
                         break;
                     }
