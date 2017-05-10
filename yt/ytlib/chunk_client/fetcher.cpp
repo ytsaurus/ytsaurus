@@ -47,7 +47,7 @@ public:
         , Logger(logger)
     { }
 
-    TFuture<void> ScrapeChunks(yhash_set<TInputChunkPtr> chunkSpecs)
+    TFuture<void> ScrapeChunks(const yhash_set<TInputChunkPtr>& chunkSpecs)
     {
         yhash_set<TChunkId> chunkIds;
         ChunkMap_.clear();
