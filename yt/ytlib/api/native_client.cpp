@@ -2556,7 +2556,7 @@ private:
             MakeStrong(this),
             GetConnection()->GetHeavyInvoker(),
             NNodeTrackerClient::TNodeDescriptor(),
-            TClosure(),
+            BIND([] { }),
             Null);
 
         auto jobInputReader = New<TJobInputReader>(userJobReader, GetConnection()->GetHeavyInvoker());
