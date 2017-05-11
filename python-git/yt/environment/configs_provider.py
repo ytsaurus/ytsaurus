@@ -348,6 +348,9 @@ class ConfigsProvider_18(ConfigsProvider):
                     },
                     "multicell_manager": {
                         "cell_statistics_gossip_period": 80
+                    },
+                    "cell_directory_synchronizer": {
+                        "sync_period": 500
                     }
                 })
 
@@ -375,6 +378,12 @@ class ConfigsProvider_18(ConfigsProvider):
             },
             "timestamp_provider": {
                 "addresses": master_connection_configs[primary_cell_tag]["addresses"]
+            },
+            "cell_directory_synchronizer": {
+                "sync_period": 500
+            },
+            "cluster_directory_synchronizer": {
+                "sync_period": 500
             }
         }
 

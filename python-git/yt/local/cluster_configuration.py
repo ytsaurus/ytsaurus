@@ -24,6 +24,7 @@ MASTER_CONFIG_PATCHES = [
         "security_manager": None,
         "object_manager": None,
         "hive_manager": None,
+        "cell_directory_synchronizer": None
     },
     {
         "cypress_manager": {

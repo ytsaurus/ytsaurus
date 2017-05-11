@@ -1,4 +1,5 @@
-from .cypress_commands import search, concatenate, find_free_subpath, create_revision_parameter, get_attribute
+from .cypress_commands import search, concatenate, find_free_subpath, create_revision_parameter, \
+                              get_attribute
 from .table_commands import create_temp_table, write_table, read_table
 from .dynamic_table_commands import select_rows, insert_rows, delete_rows, lookup_rows
 from .run_operation_commands import run_erase, run_merge, run_sort, run_map_reduce, run_map, run_reduce, \
