@@ -382,7 +382,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
     """
 
     # TODO(ostyakov): Remove local import
-    from .batch_execution import create_batch_client
+    from .batch_helpers import create_batch_client
 
     if not root and not get_config(client)["prefix"]:
         root = "/"
