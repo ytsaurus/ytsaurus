@@ -17,8 +17,11 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnEvaluator::TColumnEvaluator(std::vector<TColumn> columns)
+TColumnEvaluator::TColumnEvaluator(
+    std::vector<TColumn> columns,
+    std::vector<bool> isAggregate)
     : Columns_(std::move(columns))
+    , IsAggregate_(std::move(isAggregate))
 { }
 
 TColumnEvaluatorPtr TColumnEvaluator::Create(
@@ -27,6 +30,7 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
     const TConstFunctionProfilerMapPtr& profilers)
 {
     std::vector<TColumn> columns(schema.GetColumnCount());
+    std::vector<bool> isAggregate(schema.GetColumnCount());
 
     for (int index = 0; index < schema.GetColumnCount(); ++index) {
         auto& column = columns[index];
@@ -57,11 +61,11 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
             auto type = schema.Columns()[index].Type;
             column.Aggregate = CodegenAggregate(
                 BuiltinAggregateCG->GetAggregate(aggregateName)->Profile(type, type, type, aggregateName));
-            column.IsAggregate = true;
+            isAggregate[index] = true;
         }
     }
 
-    return New<TColumnEvaluator>(std::move(columns));
+    return New<TColumnEvaluator>(std::move(columns), std::move(isAggregate));
 }
 
 void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buffer, int index) const
@@ -102,11 +106,6 @@ const std::vector<int>& TColumnEvaluator::GetReferenceIds(int index) const
 TConstExpressionPtr TColumnEvaluator::GetExpression(int index) const
 {
     return Columns_[index].Expression;
-}
-
-bool TColumnEvaluator::IsAggregate(int index) const
-{
-    return Columns_[index].IsAggregate;
 }
 
 void TColumnEvaluator::InitAggregate(
