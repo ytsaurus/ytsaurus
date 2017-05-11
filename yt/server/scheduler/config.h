@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/server/controller_agent/public.h>
+
 #include <yt/server/job_proxy/config.h>
 
 #include <yt/ytlib/api/config.h>
@@ -89,6 +91,15 @@ public:
 
     //! To investigate CPU load of node shard threads.
     bool EnableSchedulingTags;
+
+    //! Backoff for printing tree scheduling info in heartbeat.
+    TDuration HeartbeatTreeSchedulingInfoLogBackoff;
+
+    //! How often min needed resources for jobs are retrieved from controller.
+    TDuration MinNeededResourcesUpdatePeriod;
+ 
+    //! Maximum number of ephemeral pools that can be created by user.
+    int MaxEphemeralPoolsPerUser;
 
     TFairShareStrategyConfig()
     {
@@ -181,6 +192,16 @@ public:
 
         RegisterParameter("enable_scheduling_tags", EnableSchedulingTags)
             .Default(true);
+
+        RegisterParameter("heartbeat_tree_scheduling_info_log_period", HeartbeatTreeSchedulingInfoLogBackoff)
+            .Default(TDuration::MilliSeconds(100));
+
+        RegisterParameter("min_needed_resources_update_period", MinNeededResourcesUpdatePeriod)
+            .Default(TDuration::Seconds(3));
+
+        RegisterParameter("max_ephemeral_pools_per_user", MaxEphemeralPoolsPerUser)
+            .GreaterThanOrEqual(1)
+            .Default(5);
 
         RegisterValidator([&] () {
             if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
@@ -725,6 +746,9 @@ public:
     //! Missing jobs are checked not more often then this period.
     TDuration CheckMissingJobsPeriod;
 
+    //! Max available exec node resources are updated not more often then this period.
+    TDuration MaxAvailableExecNodeResourcesUpdatePeriod;
+
     //! Maximum allowed running time of operation. Null value is interpreted as infinity.
     TNullable<TDuration> OperationTimeLimit;
 
@@ -820,7 +844,7 @@ public:
     TRemoteCopyOperationOptionsPtr RemoteCopyOperationOptions;
 
     //! Default environment variables set for every job.
-    yhash_map<Stroka, Stroka> Environment;
+    yhash<Stroka, Stroka> Environment;
 
     //! Interval between consequent snapshots.
     TDuration SnapshotPeriod;
@@ -1010,6 +1034,9 @@ public:
         RegisterParameter("check_missing_jobs_period", CheckMissingJobsPeriod)
             .Default(TDuration::Seconds(10));
 
+        RegisterParameter("max_available_exec_node_resources_update_period", MaxAvailableExecNodeResourcesUpdatePeriod)
+            .Default(TDuration::Seconds(10));
+
         RegisterParameter("operation_time_limit", OperationTimeLimit)
             .Default();
 
@@ -1113,7 +1140,7 @@ public:
             .DefaultNew();
 
         RegisterParameter("environment", Environment)
-            .Default(yhash_map<Stroka, Stroka>())
+            .Default(yhash<Stroka, Stroka>())
             .MergeBy(NYTree::EMergeStrategy::Combine);
 
         RegisterParameter("snapshot_timeout", SnapshotTimeout)

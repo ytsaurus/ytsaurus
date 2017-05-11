@@ -102,16 +102,9 @@ public:
         Y_UNIMPLEMENTED();
     }
 
-    virtual TFuture<void> EnableTableReplica(
+    virtual TFuture<void> AlterTableReplica(
         const NTabletClient::TTableReplicaId& replicaId,
-        const NApi::TEnableTableReplicaOptions& options) override
-    {
-        Y_UNIMPLEMENTED();
-    }
-
-    virtual TFuture<void> DisableTableReplica(
-        const NTabletClient::TTableReplicaId& replicaId,
-        const NApi::TDisableTableReplicaOptions& options) override
+        const NApi::TAlterTableReplicaOptions& options) override
     {
         Y_UNIMPLEMENTED();
     }

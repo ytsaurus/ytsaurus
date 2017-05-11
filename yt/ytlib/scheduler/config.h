@@ -147,6 +147,9 @@ public:
     //! If candidate exec nodes are not found for more than timeout time then operation will be failed.
     TDuration AvailableNodesMissingTimeout;
 
+    //! Suspend operation in case of jobs failed due to account limit exceeded.
+    bool SuspendOperationIfAccountLimitExceeded;
+
     TOperationSpecBase();
 };
 
@@ -168,7 +171,7 @@ public:
 
     TNullable<bool> EnableInputTableIndex;
 
-    yhash_map<Stroka, Stroka> Environment;
+    yhash<Stroka, Stroka> Environment;
 
     double CpuLimit;
     TNullable<TDuration> JobTimeLimit;
@@ -412,6 +415,8 @@ public:
     NTableClient::TKeyColumns ReduceBy;
     NTableClient::TKeyColumns SortBy;
 
+    std::vector<NTableClient::TOwningKey> PivotKeys;
+
     TReduceOperationSpec();
 };
 
@@ -593,6 +598,8 @@ public:
     TResourceLimitsConfig();
 };
 
+DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
+
 class TSchedulableConfig
     : public TSupportsSchedulingTagsConfig
 {
@@ -620,8 +627,6 @@ public:
 
     TSchedulableConfig();
 };
-
-DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 
 class TPoolConfig
     : public TSchedulableConfig
@@ -665,6 +670,8 @@ class TOperationRuntimeParams
 {
 public:
     double Weight;
+
+    TResourceLimitsConfigPtr ResourceLimits;
 
     TOperationRuntimeParams();
 };

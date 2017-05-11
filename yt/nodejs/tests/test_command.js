@@ -317,6 +317,7 @@ describe("YtCommand - command descriptors", function() {
             'abort_tx',
             'add_member',
             'alter_table',
+            'alter_table_replica',
             'check_permission',
             'commit_tx',
             'complete_op',

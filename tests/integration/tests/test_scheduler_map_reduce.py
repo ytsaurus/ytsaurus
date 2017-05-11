@@ -20,7 +20,10 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
           "min_uncompressed_block_size" : 1
         },
         "map_reduce_operation_options" : {
-          "min_uncompressed_block_size" : 1
+          "min_uncompressed_block_size" : 1,
+          "spec_template" : {
+            "use_legacy_controller" : False,
+          }
         },
         "enable_partition_map_job_size_adjustment" : True
       }
@@ -292,7 +295,7 @@ print "x={0}\ty={1}".format(x, y)
                      "reducer": {"format": "dsv"},
                      "resource_limits" : { "user_slots" : 1}})
 
-        assert len(read_table("//tmp/t_out")) == 1 
+        assert len(read_table("//tmp/t_out")) == 1
 
     def test_intermediate_live_preview(self):
         create_user("u")
@@ -307,9 +310,12 @@ print "x={0}\ty={1}".format(x, y)
                         sort_by=["foo"], spec={"intermediate_data_acl": acl})
 
         time.sleep(2)
-        assert exists("//sys/operations/{0}/intermediate".format(op.id))
 
-        intermediate_acl = get("//sys/operations/{0}/intermediate/@acl".format(op.id))
+        operation_path = "//sys/operations/{0}".format(op.id)
+        scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        assert exists(operation_path + "/intermediate", tx=scheduler_transaction_id)
+
+        intermediate_acl = get(operation_path + "/intermediate/@acl", tx=scheduler_transaction_id)
         assert [make_ace("allow", "root", "read")] + acl == intermediate_acl
 
         op.track()
@@ -338,7 +344,9 @@ print "x={0}\ty={1}".format(x, y)
                         in_="//tmp/t1", out="//tmp/t2",
                         sort_by=["foo"], spec={"intermediate_compression_codec": "brotli_3"})
         time.sleep(1)
-        assert "brotli_3" == get("//sys/operations/{0}/intermediate/@compression_codec".format(op.id))
+        operation_path = "//sys/operations/{0}".format(op.id)
+        async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        assert "brotli_3" == get("//sys/operations/{0}/intermediate/@compression_codec".format(op.id), tx=async_transaction_id)
         op.abort()
 
     @unix_only

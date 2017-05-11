@@ -50,11 +50,15 @@ void TTableNode::BeginUpload(EUpdateMode mode)
 void TTableNode::EndUpload(
     const TDataStatistics* statistics,
     const TTableSchema& schema,
-    ETableSchemaMode schemaMode)
+    ETableSchemaMode schemaMode,
+    TNullable<NTableClient::EOptimizeFor> optimizeFor)
 {
     SchemaMode_ = schemaMode;
     TableSchema_ = schema;
-    TChunkOwnerBase::EndUpload(statistics, schema, schemaMode);
+    if (optimizeFor) {
+        OptimizeFor_.Set(*optimizeFor);
+    }
+    TChunkOwnerBase::EndUpload(statistics, schema, schemaMode, optimizeFor);
 }
 
 bool TTableNode::IsSorted() const
@@ -127,11 +131,11 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
         Load(context, UnflushedTimestamp_);
     }
     // COMPAT(babenko)
-    if (context.GetVersion() >= 509) {
+    if (context.GetVersion() >= 600) {
         Load(context, ReplicationMode_);
     }
     // COMPAT(babenko)
-    if (context.GetVersion() >= 513) {
+    if (context.GetVersion() >= 601) {
         Load(context, OptimizeFor_);
     } else {
         if (Attributes_) {

@@ -3,7 +3,7 @@
 #include "public.h"
 #include "connection.h"
 
-#include <yt/server/job_agent/public.h>
+#include <yt/ytlib/job_tracker_client/public.h>
 
 #include <yt/ytlib/chunk_client/config.h>
 
@@ -189,6 +189,12 @@ struct TDisableTableReplicaOptions
     : public TTimeoutOptions
 { };
 
+struct TAlterTableReplicaOptions
+    : public TTimeoutOptions
+{
+    TNullable<bool> Enabled;
+};
+
 struct TAddMemberOptions
     : public TTimeoutOptions
     , public TMutatingOptions
@@ -223,18 +229,28 @@ struct TTransactionStartOptions
     , public TPrerequisiteOptions
 {
     TNullable<TDuration> Timeout;
+
     //! If not null then the transaction must use this externally provided id.
-    //! Only applicable to tablet trasactions.
+    //! Only applicable to tablet transactions.
     NTransactionClient::TTransactionId Id;
+
     NTransactionClient::TTransactionId ParentId;
+
     bool AutoAbort = true;
     bool Sticky = false;
+
     TNullable<TDuration> PingPeriod;
     bool Ping = true;
     bool PingAncestors = true;
+
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
+
     NTransactionClient::EAtomicity Atomicity = NTransactionClient::EAtomicity::Full;
     NTransactionClient::EDurability Durability = NTransactionClient::EDurability::Sync;
+
+    //! If not null then the transaction must use this externally provided start timestamp.
+    //! Only applicable to tablet transactions.
+    NTransactionClient::TTimestamp StartTimestamp = NTransactionClient::NullTimestamp;
 };
 
 struct TTransactionAttachOptions
@@ -254,8 +270,12 @@ struct TTransactionCommitOptions
     //! If none, then a random participant is chosen as a coordinator.
     NElection::TCellId CoordinatorCellId;
 
-    //! If |true| then two-phase-commit procotol is executed regardless of the number of participants.
+    //! If |true| then two-phase-commit protocol is executed regardless of the number of participants.
     bool Force2PC = false;
+
+    //! If |true| then all participants will use the commit timestamp provided by the coordinator.
+    //! If |false| then the participants will use individual commit timestamps based on their cell tag.
+    bool InheritCommitTimestamp = false;
 };
 
 struct TTransactionCommitResult
@@ -461,6 +481,8 @@ struct TFileWriterOptions
     , public TPrerequisiteOptions
 {
     bool Append = true;
+    TNullable<NCompression::ECodec> CompressionCodec;
+    TNullable<NErasure::ECodec> ErasureCodec;
     TFileWriterConfigPtr Config;
 };
 
@@ -543,8 +565,8 @@ DEFINE_ENUM(EJobSortDirection,
 struct TListJobsOptions
     : public TTimeoutOptions
 {
-    TNullable<NJobAgent::EJobType> JobType;
-    TNullable<NJobAgent::EJobState> JobState;
+    TNullable<NJobTrackerClient::EJobType> JobType;
+    TNullable<NJobTrackerClient::EJobState> JobState;
 
     EJobSortField SortField = EJobSortField::StartTime;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
@@ -603,9 +625,9 @@ struct TClusterMeta
 
 struct TJob
 {
-    NJobAgent::TJobId JobId;
-    NJobAgent::EJobType JobType;
-    NJobAgent::EJobState JobState;
+    NJobTrackerClient::TJobId JobId;
+    NJobTrackerClient::EJobType JobType;
+    NJobTrackerClient::EJobState JobState;
     TInstant StartTime;
     TNullable<TInstant> FinishTime;
     Stroka Address;
@@ -811,13 +833,9 @@ struct IClient
         i64 trimmedRowCount,
         const TTrimTableOptions& options = TTrimTableOptions()) = 0;
 
-    virtual TFuture<void> EnableTableReplica(
+    virtual TFuture<void> AlterTableReplica(
         const NTabletClient::TTableReplicaId& replicaId,
-        const TEnableTableReplicaOptions& options = TEnableTableReplicaOptions()) = 0;
-
-    virtual TFuture<void> DisableTableReplica(
-        const NTabletClient::TTableReplicaId& replicaId,
-        const TDisableTableReplicaOptions& options = TDisableTableReplicaOptions()) = 0;
+        const TAlterTableReplicaOptions& options = TAlterTableReplicaOptions()) = 0;
 
     // Security
     virtual TFuture<void> AddMember(

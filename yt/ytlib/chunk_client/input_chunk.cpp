@@ -173,7 +173,7 @@ void TInputChunk::ReleasePartitionsExt()
 ////////////////////////////////////////////////////////////////////////////////
 
 //! ToProto is used to pass chunk specs to job proxy as part of TTableInputSpec.
-void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
+void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, EDataSourceType dataSourceType)
 {
     ToProto(chunkSpec->mutable_chunk_id(), inputChunk->ChunkId_);
     const auto& replicas = inputChunk->GetReplicaList();
@@ -207,7 +207,7 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
 
     // This is the default intermediate table chunk format,
     // so we omit chunk_meta altogether to minimize job spec size.
-    if (inputChunk->TableChunkFormat_ != ETableChunkFormat::SchemalessHorizontal) {
+    if (inputChunk->TableChunkFormat_ != ETableChunkFormat::SchemalessHorizontal || dataSourceType != EDataSourceType::UnversionedTable) {
         chunkSpec->mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
         chunkSpec->mutable_chunk_meta()->set_version(static_cast<int>(inputChunk->TableChunkFormat_));
         chunkSpec->mutable_chunk_meta()->mutable_extensions();

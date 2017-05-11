@@ -5,7 +5,6 @@
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT {
-namespace NScheduler {
 
 using namespace NYTree;
 using namespace NYson;
@@ -185,6 +184,5 @@ THistogramQuartiles ComputeHistogramQuartiles(const THistogramView& histogramVie
     return result;
 }
 
-} // namespace NScheduler
 } // namespace NYT
 

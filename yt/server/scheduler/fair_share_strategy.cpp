@@ -2,9 +2,10 @@
 #include "fair_share_tree.h"
 #include "public.h"
 #include "config.h"
-#include "job_resources.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
+
+#include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/async_rw_lock.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -72,6 +73,11 @@ public:
             GetCurrentInvoker(),
             BIND(&TFairShareStrategy::OnFairShareLogging, MakeWeak(this)),
             Config->FairShareLogPeriod);
+
+        MinNeededJobResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
+            GetCurrentInvoker(),
+            BIND(&TFairShareStrategy::OnMinNeededJobResourcesUpdate, MakeWeak(this)),
+            Config->MinNeededResourcesUpdatePeriod);
     }
 
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
@@ -97,6 +103,7 @@ public:
 
         FairShareLoggingExecutor_->Start();
         FairShareUpdateExecutor_->Start();
+        MinNeededJobResourcesUpdateExecutor_->Start();
     }
 
     virtual void ResetState() override
@@ -105,6 +112,7 @@ public:
 
         FairShareLoggingExecutor_->Stop();
         FairShareUpdateExecutor_->Stop();
+        MinNeededJobResourcesUpdateExecutor_->Stop();
 
         // Do fair share update in order to rebuild tree snapshot
         // to drop references to old nodes.
@@ -127,6 +135,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         ValidateOperationCountLimit(operation);
+        ValidateEphemeralPoolLimit(operation);
     }
 
     void RegisterOperation(const TOperationPtr& operation) override
@@ -147,10 +156,14 @@ public:
 
         YCHECK(OperationIdToElement.insert(std::make_pair(operation->GetId(), operationElement)).second);
 
-        auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
+        const auto& userName = operation->GetAuthenticatedUser();
+
+        auto poolName = spec->Pool ? *spec->Pool : userName;
         auto pool = FindPool(poolName);
         if (!pool) {
             pool = New<TPool>(Host, poolName, Config);
+            pool->SetUserName(userName);
+            UserToEphemeralPools[userName].insert(poolName);
             RegisterPool(pool);
         }
         if (!pool->GetParent()) {
@@ -281,7 +294,7 @@ public:
             }
 
             // Track ids appearing in various branches of the tree.
-            yhash_map<Stroka, TYPath> poolIdToPath;
+            yhash<Stroka, TYPath> poolIdToPath;
 
             // NB: std::function is needed by parseConfig to capture itself.
             std::function<void(INodePtr, TCompositeSchedulerElementPtr)> parseConfig =
@@ -456,6 +469,19 @@ public:
             .Do(BIND(&TFairShareStrategy::BuildElementYson, Unretained(this), element));
     }
 
+    void BuildEssentialOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& element = FindOperationElement(operationId);
+        if (!element) {
+            return;
+        }
+
+        BuildYsonMapFluently(consumer)
+            .Do(BIND(&TFairShareStrategy::BuildEssentialOperationElementYson, Unretained(this), element));
+    }
+
     virtual void BuildBriefOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -480,7 +506,8 @@ public:
         BuildYsonMapFluently(consumer)
             .Item("fair_share_info").BeginMap()
                 .Do(BIND(&TFairShareStrategy::BuildFairShareInfo, Unretained(this)))
-            .EndMap();
+            .EndMap()
+            .Item("user_to_ephemeral_pools").Value(UserToEphemeralPools);
     }
 
     virtual Stroka GetOperationLoggingProgress(const TOperationId& operationId) override
@@ -492,10 +519,10 @@ public:
         auto dynamicAttributes = GetGlobalDynamicAttributes(element);
 
         return Format(
-            "Scheduling = {Status: %v, DominantResource: %v, Demand: %.4lf, "
-            "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lg, AdjustedMinShare: %.4lf, "
-            "GuaranteedResourcesRatio: %.4lf, "
-            "MaxPossibleUsage: %.4lf,  BestAllocation: %.4lf, "
+            "Scheduling = {Status: %v, DominantResource: %v, Demand: %.6lf, "
+            "Usage: %.6lf, FairShare: %.6lf, Satisfaction: %.4lg, AdjustedMinShare: %.6lf, "
+            "GuaranteedResourcesRatio: %.6lf, "
+            "MaxPossibleUsage: %.6lf,  BestAllocation: %.6lf, "
             "Starving: %v, Weight: %v, "
             "PreemptableRunningJobs: %v, "
             "AggressivelyPreemptableRunningJobs: %v}",
@@ -586,9 +613,27 @@ public:
 
         PROFILE_TIMING ("/fair_share_log_time") {
             // Log pools information.
-
             Host->LogEventFluently(ELogEventType::FairShareInfo, now)
                 .Do(BIND(&TFairShareStrategy::BuildFairShareInfo, Unretained(this)));
+
+            for (const auto& pair : OperationIdToElement) {
+                const auto& operationId = pair.first;
+                LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
+                    GetOperationLoggingProgress(operationId),
+                    operationId);
+            }
+        }
+    }
+
+    // NB: This function is public for testing purposes.
+    virtual void OnFairShareEssentialLoggingAt(TInstant now) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        PROFILE_TIMING ("/fair_share_log_time") {
+            // Log pools information.
+            Host->LogEventFluently(ELogEventType::FairShareInfo, now)
+                .Do(BIND(&TFairShareStrategy::BuildEssentialFairShareInfo, Unretained(this)));
 
             for (const auto& pair : OperationIdToElement) {
                 const auto& operationId = pair.first;
@@ -604,10 +649,12 @@ private:
     ISchedulerStrategyHost* const Host;
 
     INodePtr LastPoolsNodeUpdate;
-    typedef yhash_map<Stroka, TPoolPtr> TPoolMap;
+    typedef yhash<Stroka, TPoolPtr> TPoolMap;
     TPoolMap Pools;
 
-    typedef yhash_map<TOperationId, TOperationElementPtr> TOperationElementPtrByIdMap;
+    yhash<Stroka, yhash_set<Stroka>> UserToEphemeralPools;
+
+    typedef yhash<TOperationId, TOperationElementPtr> TOperationElementPtrByIdMap;
     TOperationElementPtrByIdMap OperationIdToElement;
 
     std::list<TOperationPtr> OperationQueue;
@@ -619,7 +666,7 @@ private:
         int Index;
         int Count;
     };
-    yhash_map<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount;
+    yhash<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount;
 
     TRootElementPtr RootElement;
 
@@ -679,6 +726,9 @@ private:
 
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
+    TPeriodicExecutorPtr MinNeededJobResourcesUpdateExecutor_;
+
+    TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -695,6 +745,17 @@ private:
     void OnFairShareUpdate()
     {
         OnFairShareUpdateAt(TInstant::Now());
+    }
+
+    void OnMinNeededJobResourcesUpdate() override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Starting min needed job resources update");
+        for (const auto& pair : OperationIdToElement) {
+            pair.second->UpdateMinNeededJobResources();
+        }
+        LOG_INFO("Min needed job resources successfully updated");
     }
 
     void OnFairShareLogging()
@@ -737,6 +798,30 @@ private:
             }
         };
 
+        bool enableSchedulingInfoLogging = false;
+        auto now = GetCpuInstant();
+        if (LastSchedulingInformationLoggedTime_ + DurationToCpuDuration(Config->HeartbeatTreeSchedulingInfoLogBackoff) < now) {
+            enableSchedulingInfoLogging = true;
+            LastSchedulingInformationLoggedTime_ = now;
+        }
+
+        auto logAndCleanSchedulingStatistics = [&] (const Stroka& stageName) {
+            if (!enableSchedulingInfoLogging) {
+                return;
+            }
+            LOG_DEBUG("%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, DeactivationReasons: %v, CanStartMoreJobs: %v)",
+                stageName,
+                context.ActiveTreeSize,
+                context.ActiveOperationCount,
+                context.DeactivationReasons,
+                schedulingContext->CanStartMoreJobs());
+            context.ActiveTreeSize = 0;
+            context.ActiveOperationCount = 0;
+            for (auto& item : context.DeactivationReasons) {
+                item = 0;
+            }
+        };
+
         // First-chance scheduling.
         int nonPreemptiveScheduleJobCount = 0;
         {
@@ -756,6 +841,10 @@ private:
                 NonPreemptiveProfilingCounters,
                 nonPreemptiveScheduleJobCount,
                 timer.GetElapsed() - context.TotalScheduleJobDuration);
+
+            if (nonPreemptiveScheduleJobCount > 0) {
+                logAndCleanSchedulingStatistics("Non preemtive");
+            }
         }
 
         // Compute discount to node usage.
@@ -822,6 +911,9 @@ private:
                 PreemptiveProfilingCounters,
                 preemptiveScheduleJobCount,
                 timer.GetElapsed() - context.TotalScheduleJobDuration);
+            if (preemptiveScheduleJobCount > 0) {
+                logAndCleanSchedulingStatistics("Preemtive");
+            }
         }
 
         int startedAfterPreemption = schedulingContext->StartedJobs().size();
@@ -980,6 +1072,7 @@ private:
     {
         auto params = New<TOperationRuntimeParams>();
         params->Weight = spec->Weight;
+        params->ResourceLimits = spec->ResourceLimits;
         return params;
     }
 
@@ -1066,6 +1159,11 @@ private:
     void UnregisterPool(const TPoolPtr& pool)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto userName = pool->GetUserName();
+        if (userName) {
+            YCHECK(UserToEphemeralPools[*userName].erase(pool->GetId()) == 1);
+        }
 
         UnregisterSchedulingTagFilter(pool->GetSchedulingTagFilterIndex());
 
@@ -1244,6 +1342,19 @@ private:
             });
     }
 
+    void BuildEssentialPoolsInformation(IYsonConsumer* consumer)
+    {
+        BuildYsonMapFluently(consumer)
+            .Item("pools").DoMapFor(Pools, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
+                const auto& id = pair.first;
+                const auto& pool = pair.second;
+                fluent
+                    .Item(id).BeginMap()
+                        .Do(BIND(&TFairShareStrategy::BuildEssentialPoolElementYson, Unretained(this), pool))
+                    .EndMap();
+            });
+    }
+
     void BuildFairShareInfo(IYsonConsumer* consumer)
     {
         BuildYsonMapFluently(consumer)
@@ -1255,6 +1366,21 @@ private:
                     BuildYsonMapFluently(fluent)
                         .Item(ToString(operationId)).BeginMap()
                             .Do(BIND(&TFairShareStrategy::BuildOperationProgress, Unretained(this), operationId))
+                        .EndMap();
+                });
+    }
+
+    void BuildEssentialFairShareInfo(IYsonConsumer* consumer)
+    {
+        BuildYsonMapFluently(consumer)
+            .Do(BIND(&TFairShareStrategy::BuildEssentialPoolsInformation, Unretained(this)))
+            .Item("operations").DoMapFor(
+                OperationIdToElement,
+                [=] (TFluentMap fluent, const TOperationElementPtrByIdMap::value_type& pair) {
+                    const auto& operationId = pair.first;
+                    BuildYsonMapFluently(fluent)
+                        .Item(ToString(operationId)).BeginMap()
+                            .Do(BIND(&TFairShareStrategy::BuildEssentialOperationProgress, Unretained(this), operationId))
                         .EndMap();
                 });
     }
@@ -1291,6 +1417,31 @@ private:
             .Item("fair_share_ratio").Value(attributes.FairShareRatio)
             .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
             .Item("best_allocation_ratio").Value(attributes.BestAllocationRatio);
+    }
+
+    void BuildEssentialElementYson(const TSchedulerElementPtr& element, IYsonConsumer* consumer,
+                                   bool shouldPrintResourceUsage)
+    {
+        const auto& attributes = element->Attributes();
+        auto dynamicAttributes = GetGlobalDynamicAttributes(element);
+
+        BuildYsonMapFluently(consumer)
+            .Item("usage_ratio").Value(element->GetResourceUsageRatio())
+            .Item("demand_ratio").Value(attributes.DemandRatio)
+            .Item("fair_share_ratio").Value(attributes.FairShareRatio)
+            .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
+            .DoIf(shouldPrintResourceUsage, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("resource_usage").Value(element->GetResourceUsage());
+            });
+    }
+
+    void BuildEssentialPoolElementYson(const TSchedulerElementPtr& element, IYsonConsumer* consumer) {
+        BuildEssentialElementYson(element, consumer, false);
+    }
+
+    void BuildEssentialOperationElementYson(const TSchedulerElementPtr& element, IYsonConsumer* consumer) {
+        BuildEssentialElementYson(element, consumer, true);
     }
 
     TYPath GetPoolPath(const TCompositeSchedulerElementPtr& element)
@@ -1352,11 +1503,35 @@ private:
         }
     }
 
+    void ValidateEphemeralPoolLimit(const TOperationPtr& operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto pool = FindPool(GetOperationPoolName(operation));
+        if (pool) {
+            return;
+        }
+
+        const auto& userName = operation->GetAuthenticatedUser();
+
+        auto it = UserToEphemeralPools.find(userName);
+        if (it == UserToEphemeralPools.end()) {
+            return;
+        }
+
+        if (it->second.size() + 1 > Config->MaxEphemeralPoolsPerUser) {
+            THROW_ERROR_EXCEPTION("Limit for number of ephemeral pools %v for user %v has been reached",
+                Config->MaxEphemeralPoolsPerUser,
+                userName);
+        }
+    }
+
     void DoValidateOperationStart(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         ValidateOperationCountLimit(operation);
+        ValidateEphemeralPoolLimit(operation);
 
         auto immediateParentPool = FindPool(GetOperationPoolName(operation));
         // NB: Check is not performed if operation is started in default or unknown pool.

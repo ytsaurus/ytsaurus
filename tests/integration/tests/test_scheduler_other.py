@@ -1,4 +1,5 @@
 import pytest
+from flaky import flaky
 
 from yt_env_setup import YTEnvSetup, unix_only, require_ytserver_root_privileges, wait
 from yt.environment.helpers import assert_almost_equal
@@ -180,6 +181,39 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         op1.track()
         with pytest.raises(YtError):
             op2.track()
+
+    def test_operation_suspend_with_account_limit_exceeded(self):
+        create_account("limited")
+        set("//sys/accounts/limited/@resource_limits/chunk_count", 1)
+
+        self._create_table("//tmp/in")
+        self._create_table("//tmp/out")
+        set("//tmp/out/@account", "limited")
+        write_table("//tmp/in", [{"foo": i} for i in xrange(3)])
+
+        op = map(dont_track=True,
+            command="sleep $YT_JOB_INDEX; cat",
+            in_=["//tmp/in"],
+            out="//tmp/out",
+            spec={
+                "data_size_per_job": 1,
+                "suspend_operation_if_account_limit_exceeded": True
+            })
+
+        wait(lambda: get("//sys/operations/{0}/@suspended".format(op.id)), iter=20)
+
+        assert get("//sys/operations/{0}/@state".format(op.id)) == "running"
+
+        alerts = get("//sys/operations/{0}/@alerts".format(op.id))
+        assert list(alerts) == ["operation_suspended"]
+
+        set("//sys/accounts/limited/@resource_limits/chunk_count", 10)
+        op.resume()
+        op.track()
+
+        assert get("//sys/operations/{0}/@state".format(op.id)) == "completed"
+        assert not get("//sys/operations/{0}/@suspended".format(op.id))
+        assert not get("//sys/operations/{0}/@alerts".format(op.id))
 
     def test_fifo_default(self):
         self._create_table("//tmp/in")
@@ -391,6 +425,19 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
         }
     }
 
+    def _check_running_jobs(self, op_id, desired_running_jobs):
+        success_iter = 0
+        min_success_iteration = 10
+        for i in xrange(100):
+            running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id))
+            if running_jobs:
+                assert len(running_jobs) <= desired_running_jobs
+                success_iter += 1
+                if success_iter == min_success_iteration:
+                    return
+            time.sleep(0.1)
+        assert False
+
     def test_scheduler_guaranteed_resources_ratio(self):
         create("map_node", "//sys/pools/big_pool", attributes={"min_share_ratio": 1.0})
         create("map_node", "//sys/pools/big_pool/subpool_1", attributes={"weight": 1.0})
@@ -448,19 +495,6 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
         resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
         create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
 
-        def check_running_jobs(op_id, desired_running_jobs):
-            success_iter = 0
-            min_success_iteration = 10
-            for i in xrange(100):
-                running_jobs = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id))
-                if running_jobs:
-                    assert len(running_jobs) <= desired_running_jobs
-                    success_iter += 1
-                    if success_iter == min_success_iteration:
-                        return
-                time.sleep(0.1)
-            assert False
-
         while True:
             pools = get("//sys/scheduler/orchid/scheduler/pools")
             if "test_pool" in pools:
@@ -486,7 +520,7 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 3, "pool": "test_pool", "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
-        check_running_jobs(op.id, 1)
+        self._check_running_jobs(op.id, 1)
         op.abort()
 
         op = map(
@@ -495,12 +529,30 @@ class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 3, "resource_limits": resource_limits, "mapper": {"memory_limit": memory_limit}, "testing": testing_options})
-        check_running_jobs(op.id, 1)
+        self._check_running_jobs(op.id, 1)
         op_limits = get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/resource_limits".format(op.id))
         for resource, limit in resource_limits.iteritems():
             assert assert_almost_equal(op_limits[resource], limit)
         op.abort()
 
+    def test_resource_limits_runtime(self):
+
+        self._prepare_tables()
+        data = [{"foo": i} for i in xrange(3)]
+        write_table("//tmp/t_in", data)
+
+        op = map(
+            dont_track=True,
+            command="sleep 100",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"job_count": 3, "resource_limits": {"user_slots": 1}})
+        self._check_running_jobs(op.id, 1)
+
+        set("//sys/operations/{0}/@resource_limits".format(op.id), {"user_slots": 2})
+        self._check_running_jobs(op.id, 2)
+
+        op.abort()
 
     def test_max_possible_resource_usage(self):
         create("map_node", "//sys/pools/low_cpu_pool", attributes={"resource_limits": {"cpu": 1}})
@@ -1579,7 +1631,8 @@ class TestSchedulerPools(YTEnvSetup):
             "event_log" : {
                 "flush_period" : 300,
                 "retry_backoff_time": 300
-            }
+            },
+            "max_ephemeral_pools_per_user": 3,
         }
     }
 
@@ -1614,26 +1667,86 @@ class TestSchedulerPools(YTEnvSetup):
         op.track()
 
     def test_default_parent_pool(self):
-        self._prepare()
+        create("table", "//tmp/t_in")
+        set("//tmp/t_in/@replication_factor", 1)
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        for output in ["//tmp/t_out1", "//tmp/t_out2"]:
+            create("table", output)
+            set(output + "/@replication_factor", 1)
 
         create("map_node", "//sys/pools/default_pool")
         time.sleep(0.2)
 
-        op = map(
+        op1 = map(
             dont_track=True,
             waiting_jobs=True,
             command="cat",
             in_="//tmp/t_in",
-            out="//tmp/t_out")
+            out="//tmp/t_out1")
+
+        op2 = map(
+            dont_track=True,
+            waiting_jobs=True,
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out2",
+            spec={"pool": "my_pool"})
 
         pool = get("//sys/scheduler/orchid/scheduler/pools/root")
         assert pool["parent"] == "default_pool"
 
+        pool = get("//sys/scheduler/orchid/scheduler/pools/my_pool")
+        assert pool["parent"] == "default_pool"
+
+        assert __builtin__.set(["root", "my_pool"]) == \
+               __builtin__.set(get("//sys/scheduler/orchid/scheduler/user_to_ephemeral_pools/root"))
+
         remove("//sys/pools/default_pool")
         time.sleep(0.2)
 
-        op.resume_jobs()
-        op.track()
+        for op in [op1, op2]:
+            op.resume_jobs()
+            op.track()
+
+    def test_ephemeral_pools_limit(self):
+        create("table", "//tmp/t_in")
+        set("//tmp/t_in/@replication_factor", 1)
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        for i in xrange(1, 5):
+            output = "//tmp/t_out" + str(i)
+            create("table", output)
+            set(output + "/@replication_factor", 1)
+
+        create("map_node", "//sys/pools/default_pool")
+        time.sleep(0.2)
+
+        ops = []
+        for i in xrange(1, 4):
+            ops.append(map(
+                dont_track=True,
+                waiting_jobs=True,
+                command="cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out" + str(i),
+                spec={"pool": "pool" + str(i)}))
+
+        assert __builtin__.set(["pool" + str(i) for i in xrange(1, 4)]) == \
+               __builtin__.set(get("//sys/scheduler/orchid/scheduler/user_to_ephemeral_pools/root"))
+
+        with pytest.raises(YtError):
+            map(command="cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out4",
+                spec={"pool": "pool4"})
+
+        remove("//sys/pools/default_pool")
+        time.sleep(0.2)
+
+        for op in ops:
+            op.resume_jobs()
+            op.track()
 
     def test_event_log(self):
         self._prepare()
@@ -2176,7 +2289,15 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         }
     }
 
+    @require_ytserver_root_privileges
     def test_false_suspicious_jobs(self):
+        def get_running_jobs(op_id):
+            path = "//sys/scheduler/orchid/scheduler/operations/" + op_id
+            if not exists(path, verbose=False):
+                return []
+            else:
+                return get(path + "/running_jobs", verbose=False)
+
         create("table", "//tmp/t", attributes={"replication_factor": 1})
         create("table", "//tmp/t1", attributes={"replication_factor": 1})
         create("table", "//tmp/t2", attributes={"replication_factor": 1})
@@ -2195,21 +2316,17 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
             in_="//tmp/t",
             out="//tmp/t2")
 
-        while True:
-            if not exists("//sys/scheduler/orchid/scheduler/operations/" + op1.id):
-                running_jobs1 = []
-            else:
-                running_jobs1 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op1.id))
-
-            if not exists("//sys/scheduler/orchid/scheduler/operations/" + op2.id):
-                running_jobs2 = []
-            else:
-                running_jobs2 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op2.id))
-
-            if len(running_jobs1) == 0 or len(running_jobs2) == 0:
-                time.sleep(1)
+        for i in xrange(200):
+            running_jobs1 = get_running_jobs(op1.id)
+            running_jobs2 = get_running_jobs(op2.id)
+            print >>sys.stderr, "running_jobs1:", len(running_jobs1), "running_jobs2:", len(running_jobs2)
+            if not running_jobs1 or not running_jobs2:
+                time.sleep(0.1)
             else:
                 break
+
+        if not running_jobs1 or not running_jobs2:
+            assert False, "Failed to have running jobs in both operations"
 
         time.sleep(5)
 
@@ -2228,6 +2345,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         op2.abort()
 
     @pytest.mark.xfail(reason="TODO(max42)")
+    @require_ytserver_root_privileges
     def test_true_suspicious_job(self):
         # This test involves dirty hack to make lots of retries for fetching feasible
         # seeds from master making the job suspicious (as it doesn't give the input for the
@@ -2539,7 +2657,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "intermediate_data_skew_alert_min_interquartile_range": 50,
                 "intermediate_data_skew_alert_min_partition_size": 50,
                 "short_jobs_alert_min_job_count": 3,
-                "short_jobs_alert_min_job_duration": 2000
+                "short_jobs_alert_min_job_duration": 5000
             },
             "iops_threshold": 50,
             "map_reduce_operation_options": {
@@ -2634,13 +2752,14 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "excessive_disk_usage" in get("//sys/operations/{0}/@alerts".format(op.id))
 
+    @flaky(max_runs=3)
     def test_long_aborted_jobs_alert(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(5)])
         create("table", "//tmp/t_out")
 
         op = map(
-            command="sleep 1; cat",
+            command="sleep 100; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={
@@ -2648,16 +2767,18 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             },
             dont_track=True)
 
-        running_jobs_path = "//sys/scheduler/orchid/scheduler/operations/" + op.id + "/progress/jobs/running"
+        operation_orchid_path = "//sys/scheduler/orchid/scheduler/operations/" + op.id
+        running_jobs_count_path = operation_orchid_path + "/progress/jobs/running"
 
         def running_jobs_exists():
-            return exists(running_jobs_path) and get(running_jobs_path) >= 1
+            return exists(running_jobs_count_path) and get(running_jobs_count_path) >= 1
 
         wait(running_jobs_exists)
 
-        set_banned_flag(True)
+        for job in ls(operation_orchid_path + "/running_jobs"):
+            abort_job(job)
 
-        time.sleep(0.2)
+        time.sleep(1.5)
 
         assert "long_aborted_jobs" in get("//sys/operations/{0}/@alerts".format(op.id))
 
@@ -2686,9 +2807,10 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "intermediate_data_skew" in get("//sys/operations/{0}/@alerts".format(op.id))
 
+    @flaky(max_runs=3)
     def test_short_jobs_alert(self):
         create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(7)])
+        write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(4)])
         create("table", "//tmp/t_out")
 
         op = map(
@@ -2702,7 +2824,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         assert "short_jobs_duration" in get("//sys/operations/{0}/@alerts".format(op.id))
 
         op = map(
-            command="sleep 2; cat",
+            command="sleep 5; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={
@@ -2750,7 +2872,6 @@ class TestMainNodesFilter(YTEnvSetup):
         assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_ratio".format(op.id)), 1.0)
         assert assert_almost_equal(get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op.id)), 2.0)
 
-
 class TestNewPoolMetrics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -2764,6 +2885,7 @@ class TestNewPoolMetrics(YTEnvSetup):
             "fair_share_profiling_period": 100,
         },
     }
+
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "enable_cgroups": True,
@@ -2845,3 +2967,86 @@ class TestNewPoolMetrics(YTEnvSetup):
         jobs_11 = ls("//sys/operations/{0}/jobs".format(op11.id))
         assert len(jobs_11) >= 2
 
+class TestMinNeededResources(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "safe_scheduler_online_time": 500,
+            "min_needed_resources_update_period": 200
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "memory": 10 * 1024 * 1024 * 1024,
+                    "cpu": 3
+                }
+            }
+        },
+        "resource_limits": {
+            "memory": 20 * 1024 * 1024 * 1024
+        }
+    }
+
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1
+        }
+    }
+
+    def test_min_needed_resources(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": 1}])
+        create("table", "//tmp/t_out")
+
+        op1 = map(
+            command="sleep 100; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "mapper": {
+                    "memory_limit": 8 * 1024 * 1024 * 1024,
+                    "memory_reserve_factor": 1.0,
+                    "cpu_limit": 1
+                }
+            },
+            dont_track=True)
+
+        op1_path = "//sys/scheduler/orchid/scheduler/operations/" + op1.id
+        wait(lambda: exists(op1_path) and get(op1_path + "/state") == "running")
+
+        time.sleep(3.0)
+
+        assert get(op1_path + "/progress/schedule_job_statistics/count") > 0
+
+        create("table", "//tmp/t2_in")
+        write_table("//tmp/t2_in", [{"x": 1}])
+        create("table", "//tmp/t2_out")
+
+        op2 = map(
+            command="cat",
+            in_="//tmp/t2_in",
+            out="//tmp/t2_out",
+            spec={
+                "mapper": {
+                    "memory_limit": 3 * 1024 * 1024 * 1024,
+                    "memory_reserve_factor": 1.0,
+                    "cpu_limit": 1
+                }
+            },
+            dont_track=True)
+
+        op2_path = "//sys/scheduler/orchid/scheduler/operations/" + op2.id
+        wait(lambda: exists(op2_path) and get(op2_path + "/state") == "running")
+
+        time.sleep(3.0)
+        assert get(op2_path + "/progress/schedule_job_statistics/count") == 0
+
+        abort_op(op1.id)
+
+        op2.track()

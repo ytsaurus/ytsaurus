@@ -236,7 +236,7 @@ private:
             case EValueType::Double:
                 return TypeBuilder<TDynamicValueData, false>::TDouble::get(Builder_.Context_);
             case EValueType::String:
-                return TypeBuilder<TDynamicValueData, false>::TString::get(Builder_.Context_);
+                return TypeBuilder<TDynamicValueData, false>::TStringType::get(Builder_.Context_);
             default:
                 Y_UNREACHABLE();
         }
@@ -306,7 +306,7 @@ private:
             case EValueType::Double:
                 return TypeBuilder<TUnversionedValueData, false>::TDouble::get(Builder_.Context_);
             case EValueType::String:
-                return TypeBuilder<TUnversionedValueData, false>::TString::get(Builder_.Context_);
+                return TypeBuilder<TUnversionedValueData, false>::TStringType::get(Builder_.Context_);
             default:
                 Y_UNREACHABLE();
         }

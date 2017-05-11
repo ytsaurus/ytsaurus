@@ -11,6 +11,7 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/misc/lazy_ptr.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref.h>
 
@@ -103,14 +104,20 @@ private:
 
     struct TWindowSlot
     {
-        TPromise<TSharedRef> Block = NewPromise<TSharedRef>();
+        TLazyUniquePtr<TPromise<TSharedRef>> BlockPromise;
         std::atomic<int> RemainingFetches = { 0 };
         std::unique_ptr<NConcurrency::TAsyncSemaphoreGuard> AsyncSemaphoreGuard;
         bool Cached = false;
         std::atomic_flag FetchStarted = ATOMIC_FLAG_INIT;
+
+        TWindowSlot()
+            : BlockPromise(BIND([] () {
+                return new TPromise<TSharedRef>(NewPromise<TSharedRef>());
+            }))
+        { }
     };
 
-    yhash_map<int, int> BlockIndexToWindowIndex_;
+    yhash<int, int> BlockIndexToWindowIndex_;
 
     std::unique_ptr<TWindowSlot[]> Window_;
     int WindowSize_ = 0;
@@ -119,12 +126,12 @@ private:
 
     int TotalRemainingFetches_ = 0;
     std::atomic<i64> TotalRemainingSize_ = { 0 };
-    int FirstUnfetchedWindowIndex_ = 0; 
+    int FirstUnfetchedWindowIndex_ = 0;
 
     NCompression::ICodec* const Codec_;
 
     bool IsFetchingCompleted_ = false;
-    
+
     NLogging::TLogger Logger;
 };
 
@@ -145,7 +152,7 @@ public:
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId);
 
-    TFuture<TSharedRef> FetchNextBlock(); 
+    TFuture<TSharedRef> FetchNextBlock();
 
     using TBlockFetcher::HasMoreBlocks;
     using TBlockFetcher::IsFetchingCompleted;

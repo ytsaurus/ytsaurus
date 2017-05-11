@@ -175,7 +175,7 @@ void TStoreManagerBase::BackoffStoreRemoval(IStorePtr store)
             auto compactionState = chunkStore->GetCompactionState();
             if (compactionState == EStoreCompactionState::Complete) {
                 chunkStore->SetCompactionState(EStoreCompactionState::None);
-                chunkStore->UpdateCompactionAttemptTimestamp();
+                chunkStore->UpdateCompactionAttempt();
             }
             break;
         }
@@ -238,7 +238,7 @@ void TStoreManagerBase::BackoffStoreCompaction(IChunkStorePtr store)
 {
     YCHECK(store->GetCompactionState() == EStoreCompactionState::Running);
     store->SetCompactionState(EStoreCompactionState::None);
-    store->UpdateCompactionAttemptTimestamp();
+    store->UpdateCompactionAttempt();
 }
 
 void TStoreManagerBase::ScheduleStorePreload(IChunkStorePtr store)
@@ -296,16 +296,18 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
 
 IChunkStorePtr TStoreManagerBase::PeekStoreForPreload()
 {
-    while (!Tablet_->PreloadStoreIds().empty()) {
+    for (size_t size = Tablet_->PreloadStoreIds().size(); size != 0; --size) {
         auto id = Tablet_->PreloadStoreIds().front();
         auto store = Tablet_->FindStore(id);
         if (store) {
             auto chunkStore = store->AsChunk();
             if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled) {
-                if (chunkStore->GetLastPreloadAttemptTimestamp() + Config_->ErrorBackoffTime > Now()) {
-                    return nullptr;
+                if (chunkStore->IsPreloadAllowed()) {
+                    return chunkStore;
                 }
-                return chunkStore;
+                Tablet_->PreloadStoreIds().pop_front();
+                Tablet_->PreloadStoreIds().push_back(id);
+                continue;
             }
         }
         Tablet_->PreloadStoreIds().pop_front();
@@ -334,10 +336,14 @@ void TStoreManagerBase::BackoffStorePreload(IChunkStorePtr store)
 {
     YCHECK(store->GetPreloadState() == EStorePreloadState::Running);
     store->SetPreloadState(EStorePreloadState::None);
-    store->UpdatePreloadAttemptTimestamp();
+    store->UpdatePreloadAttempt();
     store->SetPreloadFuture(TFuture<void>());
-    store->SetPreloadBackoffFuture(TFuture<void>());
     ScheduleStorePreload(store);
+}
+
+ui64 TStoreManagerBase::GetInMemoryConfigRevision() const
+{
+    return InMemoryConfigRevision_;
 }
 
 void TStoreManagerBase::Mount(const std::vector<TAddStoreDescriptor>& storeDescriptors)
@@ -510,6 +516,7 @@ void TStoreManagerBase::CheckForUnlockedStore(IDynamicStore* store)
 
 void TStoreManagerBase::UpdateInMemoryMode()
 {
+    ++InMemoryConfigRevision_;
     auto mode = Tablet_->GetConfig()->InMemoryMode;
 
     for (const auto& storeId : Tablet_->PreloadStoreIds()) {

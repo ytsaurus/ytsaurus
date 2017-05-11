@@ -267,9 +267,9 @@ private:
 
     std::vector<TWeakPtr<TCompositeAutomatonPart>> Parts_;
 
-    yhash_map<Stroka, TMethodDescriptor> MethodNameToDescriptor_;
+    yhash<Stroka, TMethodDescriptor> MethodNameToDescriptor_;
 
-    yhash_map<Stroka, TLoaderDescriptor> PartNameToLoaderDescriptor_;
+    yhash<Stroka, TLoaderDescriptor> PartNameToLoaderDescriptor_;
 
     yhash_set<Stroka> SaverPartNames_;
     std::vector<TSyncSaverDescriptor> SyncSavers_;

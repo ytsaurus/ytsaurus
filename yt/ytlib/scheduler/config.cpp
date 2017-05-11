@@ -133,6 +133,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("available_nodes_missing_timeout", AvailableNodesMissingTimeout)
         .Default(TDuration::Hours(1));
 
+    RegisterParameter("suspend_operation_if_account_limit_exceeded", SuspendOperationIfAccountLimitExceeded)
+        .Default(false);
+
     RegisterValidator([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -430,6 +433,8 @@ TReduceOperationSpec::TReduceOperationSpec()
     RegisterParameter("reduce_by", ReduceBy)
         .NonEmpty();
     RegisterParameter("sort_by", SortBy)
+        .Default();
+    RegisterParameter("pivot_keys", PivotKeys)
         .Default();
 
     RegisterValidator([&] () {
@@ -813,6 +818,8 @@ TOperationRuntimeParams::TOperationRuntimeParams()
     RegisterParameter("weight", Weight)
         .Default(1.0)
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
+    RegisterParameter("resource_limits", ResourceLimits)
+        .DefaultNew();
 }
 
 TSchedulerConnectionConfig::TSchedulerConnectionConfig()

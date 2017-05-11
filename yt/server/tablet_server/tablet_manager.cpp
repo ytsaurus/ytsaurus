@@ -465,25 +465,50 @@ public:
         }
     }
 
-    void EnableTableReplica(TTableReplica* replica)
+    void SetTableReplicaEnabled(TTableReplica* replica, bool enabled)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto state = replica->GetState();
-        if (state == ETableReplicaState::Enabled) {
-            return;
+        if (enabled) {
+            if (state == ETableReplicaState::Enabled) {
+                return;
+            }
+            if (state != ETableReplicaState::Disabled) {
+                replica->ThrowInvalidState();
+            }
+        } else {
+            if (state == ETableReplicaState::Disabled || state == ETableReplicaState::Disabling) {
+                return;
+            }
+            if (state != ETableReplicaState::Enabled) {
+                replica->ThrowInvalidState();
+            }
         }
 
-        if (state != ETableReplicaState::Disabled) {
-            replica->ThrowInvalidState();
-        }
         auto* table = replica->GetTable();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica enabled (TableId: %v, ReplicaId: %v)",
-            table->GetId(),
-            replica->GetId());
+        if (enabled) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Table replica enabled (TableId: %v, ReplicaId: %v)",
+                table->GetId(),
+                replica->GetId());
 
-        replica->SetState(ETableReplicaState::Enabled);
+            replica->SetState(ETableReplicaState::Enabled);
+        } else {
+            for (auto* tablet : table->Tablets()) {
+                if (tablet->GetState() == ETabletState::Unmounting) {
+                    THROW_ERROR_EXCEPTION("Cannot disable replica since tablet %v is in %Qlv state",
+                        tablet->GetId(),
+                        tablet->GetState());
+                }
+            }
+
+            LOG_DEBUG_UNLESS(IsRecovery(), "Disabling table replica (TableId: %v, ReplicaId: %v)",
+                table->GetId(),
+                replica->GetId());
+
+            replica->SetState(ETableReplicaState::Disabling);
+        }
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         for (auto* tablet : table->Tablets()) {
@@ -492,62 +517,20 @@ public:
             }
 
             auto* replicaInfo = tablet->GetReplicaInfo(replica);
-            replicaInfo->SetState(ETableReplicaState::Enabled);
+
+            if (enabled) {
+                replicaInfo->SetState(ETableReplicaState::Enabled);
+            } else {
+                replicaInfo->SetState(ETableReplicaState::Disabling);
+                YCHECK(replica->DisablingTablets().insert(tablet).second);
+            }
 
             auto* cell = tablet->GetCell();
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-            TReqEnableTableReplica req;
+            TReqSetTableReplicaEnabled req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_replica_id(), replica->GetId());
-            hiveManager->PostMessage(mailbox, req);
-        }
-    }
-
-    void DisableTableReplica(TTableReplica* replica)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto state = replica->GetState();
-        if (state == ETableReplicaState::Disabled || state == ETableReplicaState::Disabling) {
-            return;
-        }
-
-        if (state != ETableReplicaState::Enabled) {
-            replica->ThrowInvalidState();
-        }
-
-        auto* table = replica->GetTable();
-
-        for (auto* tablet : table->Tablets()) {
-            if (tablet->GetState() == ETabletState::Unmounting) {
-                THROW_ERROR_EXCEPTION("Cannot disable replica since tablet %v is in %Qlv state",
-                    tablet->GetId(),
-                    tablet->GetState());
-            }
-        }
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Disabling table replica (TableId: %v, ReplicaId: %v)",
-            table->GetId(),
-            replica->GetId());
-
-        replica->SetState(ETableReplicaState::Disabling);
-
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-        for (auto* tablet : table->Tablets()) {
-            if (!tablet->IsActive()) {
-                continue;
-            }
-
-            auto* replicaInfo = tablet->GetReplicaInfo(replica);
-            replicaInfo->SetState(ETableReplicaState::Disabling);
-
-            YCHECK(replica->DisablingTablets().insert(tablet).second);
-
-            auto* cell = tablet->GetCell();
-            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-            TReqDisableTableReplica req;
-            ToProto(req.mutable_tablet_id(), tablet->GetId());
-            ToProto(req.mutable_replica_id(), replica->GetId());
+            req.set_enabled(enabled);
             hiveManager->PostMessage(mailbox, req);
         }
 
@@ -1261,6 +1244,12 @@ public:
         // Do after all validations.
         TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
+        if (mountConfig->InMemoryMode != EInMemoryMode::None &&
+            writerOptions->ErasureCodec != NErasure::ECodec::None)
+        {
+            THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
+        }
+
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
         auto serializedWriterConfig = ConvertToYsonString(writerConfig);
@@ -1422,9 +1411,10 @@ public:
                     continue;
                 }
 
-                TReqEnableTableReplica req;
+                TReqSetTableReplicaEnabled req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 ToProto(req.mutable_replica_id(), replica->GetId());
+                req.set_enabled(true);
                 hiveManager->PostMessage(mailbox, req);
 
                 replicaInfo.SetState(ETableReplicaState::Enabled);
@@ -1493,6 +1483,12 @@ public:
 
         // Do after all validations.
         TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
+
+        if (mountConfig->InMemoryMode != EInMemoryMode::None &&
+            writerOptions->ErasureCodec != NErasure::ECodec::None)
+        {
+            THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
+        }
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
@@ -2281,10 +2277,10 @@ private:
     TEntityMap<TTableReplica> TableReplicaMap_;
     TEntityMap<TTabletAction> TabletActionMap_;
 
-    yhash_map<Stroka, TTabletCellBundle*> NameToTabletCellBundleMap_;
+    yhash<Stroka, TTabletCellBundle*> NameToTabletCellBundleMap_;
 
     yhash_multimap<Stroka, TTabletCell*> AddressToCell_;
-    yhash_map<TTransaction*, TTabletCell*> TransactionToCellMap_;
+    yhash<TTransaction*, TTabletCell*> TransactionToCellMap_;
 
     bool InitializeCellBundles_ = false;
     TTabletCellBundleId DefaultTabletCellBundleId_;
@@ -2328,7 +2324,7 @@ private:
             TableReplicaMap_.LoadKeys(context);
         }
         // COMPAT(savrus)
-        if (context.GetVersion() >= 508) {
+        if (context.GetVersion() >= 600) {
             TabletActionMap_.LoadKeys(context);
         }
     }
@@ -2345,14 +2341,14 @@ private:
             TableReplicaMap_.LoadValues(context);
         }
         // COMPAT(savrus)
-        if (context.GetVersion() >= 508) {
+        if (context.GetVersion() >= 600) {
             TabletActionMap_.LoadValues(context);
         }
 
         // COMPAT(babenko)
         InitializeCellBundles_ = (context.GetVersion() < 400);
         // COMPAT(savrus)
-        UpdateChunkListsKind_ = (context.GetVersion() < 511);
+        UpdateChunkListsKind_ = (context.GetVersion() < 600);
     }
 
 
@@ -3048,6 +3044,10 @@ private:
 
     void CheckForReplicaDisabled(TTableReplica* replica)
     {
+        if (replica->GetState() != ETableReplicaState::Disabling) {
+            return;
+        }
+
         if (!replica->DisablingTablets().empty()) {
             return;
         }
@@ -3107,7 +3107,10 @@ private:
                 auto* oldTabletChunkList = chunkLists[index]->AsChunkList();
                 auto* newTabletChunkList = chunkManager->CreateChunkList(oldTabletChunkList->GetKind());
                 newTabletChunkList->SetPivotKey(oldTabletChunkList->GetPivotKey());
-                chunkManager->AttachToChunkList(newTabletChunkList, oldTabletChunkList->Children());
+                chunkManager->AttachToChunkList(
+                    newTabletChunkList,
+                    oldTabletChunkList->Children().data() + oldTabletChunkList->GetTrimmedChildCount(),
+                    oldTabletChunkList->Children().data() + oldTabletChunkList->Children().size());
                 chunkManager->AttachToChunkList(newRootChunkList, newTabletChunkList);
             }
 
@@ -3131,7 +3134,10 @@ private:
                 if (objectManager->GetObjectRefCounter(oldTabletChunkList) > 1) {
                     auto* newTabletChunkList = chunkManager->CreateChunkList(oldTabletChunkList->GetKind());
                     newTabletChunkList->SetPivotKey(oldTabletChunkList->GetPivotKey());
-                    chunkManager->AttachToChunkList(newTabletChunkList, oldTabletChunkList->Children());
+                    chunkManager->AttachToChunkList(
+                        newTabletChunkList,
+                        oldTabletChunkList->Children().data() + oldTabletChunkList->GetTrimmedChildCount(),
+                        oldTabletChunkList->Children().data() + oldTabletChunkList->Children().size());
                     chunkLists[index] = newTabletChunkList;
 
                     // TODO(savrus): make a helper to replace a tablet chunk list.
@@ -3814,8 +3820,11 @@ private:
         const TTableNode* table,
         const TTableMountConfigPtr& mountConfig)
     {
-        if (!table->IsSorted() && mountConfig->EnableLookupHashTable) {
-            THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" cannot be \"true\" for ordered dynamic table");
+        if (table->IsReplicated() && mountConfig->InMemoryMode != EInMemoryMode::None) {
+            THROW_ERROR_EXCEPTION("Cannot mount a replicated dynamic table in memory");
+        }
+        if (!table->IsPhysicallySorted() && mountConfig->EnableLookupHashTable) {
+            THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" can be \"true\" only for sorted dynamic table");
         }
     }
 
@@ -3860,10 +3869,10 @@ private:
         (*writerOptions)->ReplicationFactor = chunkProperties[primaryMediumIndex].GetReplicationFactor();
         (*writerOptions)->MediumName = primaryMedium->GetName();
         (*writerOptions)->Account = table->GetAccount()->GetName();
-        (*writerOptions)->CompressionCodec = tableAttributes.Get<NCompression::ECodec>("compression_codec");
-        (*writerOptions)->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec");
+        (*writerOptions)->CompressionCodec = table->GetCompressionCodec();
+        (*writerOptions)->ErasureCodec = table->GetErasureCodec();
         (*writerOptions)->ChunksVital = chunkProperties.GetVital();
-        (*writerOptions)->OptimizeFor = tableAttributes.Get<EOptimizeFor>("optimize_for");
+        (*writerOptions)->OptimizeFor = table->GetOptimizeFor();
     }
 
     static void ParseTabletRange(
@@ -4295,14 +4304,9 @@ void TTabletManager::DestroyTableReplica(TTableReplica* replica)
     Impl_->DestroyTableReplica(replica);
 }
 
-void TTabletManager::EnableTableReplica(TTableReplica* replica)
+void TTabletManager::SetTableReplicaEnabled(TTableReplica* replica, bool enabled)
 {
-    Impl_->EnableTableReplica(replica);
-}
-
-void TTabletManager::DisableTableReplica(TTableReplica* replica)
-{
-    Impl_->DisableTableReplica(replica);
+    Impl_->SetTableReplicaEnabled(replica, enabled);
 }
 
 TTabletAction* TTabletManager::CreateTabletAction(

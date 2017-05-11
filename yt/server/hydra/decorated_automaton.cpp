@@ -612,21 +612,17 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(snapshotStore)
     , BatchCommitTimeCounter_("/batch_commit_time")
-    , Logger(HydraLogger)
+    , Logger(NLogging::TLogger(HydraLogger)
+        .AddTag("CellId: %v", CellManager_->GetCellId()))
 {
     YCHECK(Config_);
     YCHECK(CellManager_);
     YCHECK(Automaton_);
     YCHECK(ControlInvoker_);
     YCHECK(SnapshotStore_);
-
     VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
 
-    Logger.AddTag("CellId: %v", CellManager_->GetCellId());
-
-    BuildingSnapshot_.clear();
-    AutomatonVersion_ = TVersion();
     StopEpoch();
 }
 
@@ -867,6 +863,12 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    if (SnapshotParamsPromise_) {
+        LOG_INFO("Snapshot canceled");
+        SnapshotParamsPromise_.ToFuture().Cancel();
+        SnapshotParamsPromise_.Reset();
+    }
+
     auto loggedVersion = GetLoggedVersion();
 
     LOG_INFO("Snapshot scheduled (Version: %v)",
@@ -874,10 +876,6 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
 
     LastSnapshotTime_ = TInstant::Now();
     SnapshotVersion_ = loggedVersion;
-
-    if (SnapshotParamsPromise_) {
-        SnapshotParamsPromise_.ToFuture().Cancel();
-    }
     SnapshotParamsPromise_ = NewPromise<TRemoteSnapshotParams>();
 
     MaybeStartSnapshotBuilder();
@@ -964,6 +962,8 @@ bool TDecoratedAutomaton::HasReadyMutations() const
 
 void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
 {
+    TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
+
     NProfiling::TScopedTimer timer;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
         while (!PendingMutations_.empty()) {
@@ -1036,26 +1036,35 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    const auto& request = context->Request();
     auto automatonVersion = GetAutomatonVersion();
 
-    if (request.Type.empty()) {
+    // Refs are fine here (but see below).
+    const auto& request = context->Request();
+    const auto& mutationType = request.Type;
+    const auto& handler = request.Handler;
+
+    // Cannot access #request after the handler has been invoked since the latter
+    // could submit more mutations and cause #PendingMutations_ to be reallocated.
+    // So we'd better make the needed copies right away.
+    // Cf. YT-6908.
+    auto mutationId = request.MutationId;
+
+    if (mutationType.empty()) {
         LOG_DEBUG_UNLESS(IsRecovery(), "Skipping heartbeat mutation (Version: %v)",
             automatonVersion);
     } else {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v)",
-            automatonVersion,
-            request.Type,
-            request.MutationId);
+        auto* descriptor = GetTypeDescriptor(mutationType);
 
         TMutationContextGuard contextGuard(context);
-
-        auto* descriptor = GetTypeDescriptor(request.Type);
-
         NProfiling::TScopedTimer timer;
 
-        if (request.Handler) {
-            request.Handler.Run(context);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v, MutationId: %v)",
+            automatonVersion,
+            mutationType,
+            mutationId);
+
+        if (handler) {
+            handler.Run(context);
         } else {
             Automaton_->ApplyMutation(context);
         }
@@ -1064,13 +1073,13 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
             descriptor->CumulativeTimeCounter,
             NProfiling::DurationToValue(timer.GetElapsed()));
 
-        if (Options_.ResponseKeeper && request.MutationId) {
+        if (Options_.ResponseKeeper && mutationId) {
             if (State_ == EPeerState::Leading) {
-                YCHECK(request.MutationId == PendingMutationIds_.front());
+                YCHECK(mutationId == PendingMutationIds_.front());
                 PendingMutationIds_.pop();
             }
             const auto& response = context->Response();
-            Options_.ResponseKeeper->EndRequest(request.MutationId, response.Data);
+            Options_.ResponseKeeper->EndRequest(mutationId, response.Data);
         }
     }
 

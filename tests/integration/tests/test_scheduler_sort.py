@@ -17,7 +17,10 @@ class TestSchedulerSortCommands(YTEnvSetup):
         "scheduler" : {
             "sort_operation_options" : {
                 "min_uncompressed_block_size" : 1,
-                "min_partition_size" : 1
+                "min_partition_size" : 1,
+                "spec_template" : {
+                    "use_legacy_controller" : False,
+                }
             }
         }
     }
@@ -221,7 +224,6 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert len(read_table("//tmp/t_out")) == 50
 
-    @pytest.mark.xfail(reason="Enable when new sorted pool is enabled by default")
     def test_several_merge_jobs_per_partition(self):
         create("table", "//tmp/t_in")
         rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in xrange(500)]

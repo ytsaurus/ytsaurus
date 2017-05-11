@@ -94,6 +94,7 @@ message TReqWriteRows
     required bytes compressed_data = 8;
     optional uint32 signature = 9;
     required bool lockless = 10;
+    required int32 row_count = 11;
 }
 
 message TReqTrimRows
@@ -145,16 +146,11 @@ message TReqRemoveTableReplica
     required NYT.NProto.TGuid replica_id = 2;
 }
 
-message TReqEnableTableReplica
+message TReqSetTableReplicaEnabled
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid replica_id = 2;
-}
-
-message TReqDisableTableReplica
-{
-    required NYT.NProto.TGuid tablet_id = 1;
-    required NYT.NProto.TGuid replica_id = 2;
+    required bool enabled = 3;
 }
 
 message TReqReplicateRows

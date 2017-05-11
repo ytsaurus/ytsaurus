@@ -65,10 +65,10 @@ public:
         return Connection_->GetEndpointAttributes();
     }
 
-    virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel level) override
+    virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        return Connection_->Send(std::move(message), level);
+        return Connection_->Send(std::move(message), options);
     }
 
     virtual void Terminate(const TError& error) override

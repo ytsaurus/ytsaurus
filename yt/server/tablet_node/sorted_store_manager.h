@@ -47,7 +47,7 @@ public:
     virtual void StartEpoch(TTabletSlotPtr slot) override;
     virtual void StopEpoch() override;
 
-    static void LockRow(TTransaction* transaction, bool prelock, const TSortedDynamicRowRef& rowRef);
+    void LockRow(TTransaction* transaction, bool prelock, const TSortedDynamicRowRef& rowRef);
     void ConfirmRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
     void PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
     void CommitRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);

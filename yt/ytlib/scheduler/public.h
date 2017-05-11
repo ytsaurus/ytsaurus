@@ -72,6 +72,7 @@ DEFINE_ENUM(EAbortReason,
     (UserRequest)
     (NodeOffline)
     (WaitingTimeout)
+    (AccountLimitExceeded)
     (Unknown)
     (SchedulingFirst)
     (SchedulingTimeout)
@@ -157,6 +158,8 @@ DECLARE_REFCOUNTED_CLASS(TStrategyOperationSpec)
 DECLARE_REFCOUNTED_CLASS(TOperationRuntimeParams)
 
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig)
+
+class TJobResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 

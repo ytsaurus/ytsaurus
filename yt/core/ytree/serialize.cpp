@@ -190,7 +190,11 @@ void Deserialize(char& value, INodePtr node)
 // TDuration
 void Deserialize(TDuration& value, INodePtr node)
 {
-    value = TDuration::MilliSeconds(node->AsInt64()->GetValue());
+    if (node->GetType() == ENodeType::Int64) {
+        value = TDuration::MilliSeconds(node->AsInt64()->GetValue());
+    } else {
+        value = TDuration::MilliSeconds(node->AsUint64()->GetValue());
+    }
 }
 
 // TInstant
@@ -198,6 +202,8 @@ void Deserialize(TInstant& value, INodePtr node)
 {
     if (node->GetType() == ENodeType::Int64) {
         value = TInstant::MilliSeconds(node->AsInt64()->GetValue());
+    } else if (node->GetType() == ENodeType::Uint64) {
+        value = TInstant::MilliSeconds(node->AsUint64()->GetValue());
     } else {
         value = TInstant::ParseIso8601(node->AsString()->GetValue());
     }

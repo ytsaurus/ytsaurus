@@ -53,6 +53,8 @@ public:
 
     TDuration CoreForwarderTimeout;
 
+    i64 AheadMemoryReserve;
+
     TJobProxyConfig()
     {
         RegisterParameter("slot_index", SlotIndex);
@@ -86,6 +88,9 @@ public:
 
         RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
             .Default();
+
+        RegisterParameter("ahead_memory_reserve", AheadMemoryReserve)
+            .Default(200 * 1024 * 1024);
     }
 };
 

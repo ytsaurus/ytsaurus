@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "data_source.h"
 #include "input_chunk.h"
 #include "read_limit.h"
 
@@ -164,7 +165,8 @@ std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
 
 void ToProto(
     NProto::TChunkSpec* chunkSpec,
-    const TInputChunkSlicePtr& inputSlice);
+    const TInputChunkSlicePtr& inputSlice,
+    EDataSourceType dataSourceType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

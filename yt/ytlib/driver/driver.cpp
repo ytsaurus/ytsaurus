@@ -1,4 +1,5 @@
 #include "driver.h"
+#include "driver.h"
 #include "command.h"
 #include "config.h"
 #include "cypress_commands.h"
@@ -138,6 +139,7 @@ public:
 
         REGISTER(TEnableTableReplicaCommand,   "enable_table_replica",    Null,       Null,       true,  false);
         REGISTER(TDisableTableReplicaCommand,  "disable_table_replica",   Null,       Null,       true,  false);
+        REGISTER(TAlterTableReplicaCommand,    "alter_table_replica",     Null,       Null,       true,  false);
 
         REGISTER(TMountTableCommand,           "mount_table",             Null,       Null,       true,  false);
         REGISTER(TUnmountTableCommand,         "unmount_table",           Null,       Null,       true,  false);
@@ -274,7 +276,7 @@ private:
         TExecuteCallback Execute;
     };
 
-    yhash_map<Stroka, TCommandEntry> CommandNameToEntry_;
+    yhash<Stroka, TCommandEntry> CommandNameToEntry_;
 
 
     template <class TCommand>

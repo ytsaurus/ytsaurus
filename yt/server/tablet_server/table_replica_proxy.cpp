@@ -125,14 +125,12 @@ private:
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {
-        DISPATCH_YPATH_SERVICE_METHOD(Enable);
-        DISPATCH_YPATH_SERVICE_METHOD(Disable);
+        DISPATCH_YPATH_SERVICE_METHOD(Alter);
         return TBase::DoInvoke(context);
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NTabletClient::NProto, Enable)
+    DECLARE_YPATH_SERVICE_METHOD(NTabletClient::NProto, Alter)
     {
-        Y_UNUSED(request);
         Y_UNUSED(response);
 
         DeclareMutating();
@@ -140,22 +138,9 @@ private:
         auto* replica = GetThisImpl();
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->EnableTableReplica(replica);
-
-        context->Reply();
-    }
-
-    DECLARE_YPATH_SERVICE_METHOD(NTabletClient::NProto, Disable)
-    {
-        Y_UNUSED(request);
-        Y_UNUSED(response);
-
-        DeclareMutating();
-
-        auto* replica = GetThisImpl();
-
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->DisableTableReplica(replica);
+        if (request->has_enabled()) {
+            tabletManager->SetTableReplicaEnabled(replica, request->enabled());
+        }
 
         context->Reply();
     }

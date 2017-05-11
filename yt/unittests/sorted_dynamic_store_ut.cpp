@@ -240,7 +240,11 @@ private:
     void LockRow(TTransaction* transaction, bool prelock, TSortedDynamicRow row)
     {
         auto rowRef = TSortedDynamicRowRef(Store_.Get(), nullptr, row);
-        TSortedStoreManager::LockRow(transaction, prelock, rowRef);
+        if (prelock) {
+            transaction->PrelockedRows().push(rowRef);
+        } else {
+            transaction->LockedRows().push_back(rowRef);
+        }
     }
 };
 

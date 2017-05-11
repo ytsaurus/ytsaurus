@@ -58,7 +58,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS inline __m128i AlignedPrefixLoad(const void* p, si
     return _mm_shift_right_si128(_mm_load_si128((__m128i*)((char*)p - offset)), offset);
 }
 
-inline __m128i UnalignedLoad(const void* buf, size_t expectedLength = 16)
+ATTRIBUTE_NO_SANITIZE_ADDRESS inline __m128i UnalignedLoad(const void* buf, size_t expectedLength = 16)
 {
     size_t length;
     __m128i result = AlignedPrefixLoad(buf, &length);
