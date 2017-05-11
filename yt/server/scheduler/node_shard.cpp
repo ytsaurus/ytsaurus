@@ -638,8 +638,21 @@ void TNodeShard::AbortJob(const TJobId& jobId, const TError& error)
     LOG_DEBUG(error, "Aborting job by internal request (JobId: %v, OperationId: %v)",
         jobId,
         job->GetOperationId());
+
     auto status = JobStatusFromError(error);
     OnJobAborted(job, &status);
+}
+
+void TNodeShard::FailJob(const TJobId& jobId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    auto job = GetJobOrThrow(jobId);
+    LOG_DEBUG("Failing job by internal request (JobId: %v, OperationId: %v)",
+        jobId,
+        job->GetOperationId());
+
+    job->SetFailRequested(true);
 }
 
 void TNodeShard::BuildNodesYson(IYsonConsumer* consumer)
@@ -1072,15 +1085,17 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 SetJobState(job, state);
                 if (state == EJobState::Running) {
                     OnJobRunning(job, jobStatus);
-                    if (job->GetInterruptReason() != EInterruptReason::None) {
-                        ToProto(response->add_jobs_to_interrupt(), jobId);
-                    }
                     if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
                         LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v, JobId: %v, OperationId: %v)",
                             CpuInstantToInstant(job->GetInterruptDeadline()),
                             jobId,
                             job->GetOperationId());
                         ToProto(response->add_jobs_to_abort(), jobId);
+                    } else if (job->GetFailRequested()) {
+                        LOG_DEBUG("Job fail requested (JobId: %v)", jobId);
+                        ToProto(response->add_jobs_to_fail(), jobId);
+                    } else if (job->GetInterruptReason() != EInterruptReason::None) {
+                        ToProto(response->add_jobs_to_interrupt(), jobId);
                     }
                 }
             }
@@ -1675,6 +1690,13 @@ public:
         // A neat way to choose the proper overload.
         typedef void (TNodeShard::*CorrectSignature)(const TJobId&, const TError&);
         return BIND(static_cast<CorrectSignature>(&TNodeShard::AbortJob), NodeShard_, JobId_, error)
+            .AsyncVia(NodeShard_->GetInvoker())
+            .Run();
+    }
+
+    virtual TFuture<void> FailJob() override
+    {
+        return BIND(&TNodeShard::FailJob, NodeShard_, JobId_)
             .AsyncVia(NodeShard_->GetInvoker())
             .Run();
     }

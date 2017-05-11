@@ -135,6 +135,8 @@ public:
 
     void InterruptJob(const TJobId& jobId, EInterruptReason reason);
 
+    void FailJob(const TJobId& jobId);
+
     void BuildNodesYson(NYson::IYsonConsumer* consumer);
 
     TOperationId GetOperationIdByJobId(const TJobId& job);

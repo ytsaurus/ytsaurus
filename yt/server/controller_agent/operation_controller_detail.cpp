@@ -2343,6 +2343,8 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
                 break;
         }
     }
+
+    CheckFailedJobsStatusReceived();
 }
 
 void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary)
@@ -2386,6 +2388,8 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         OnOperationFailed(TError("Failed jobs limit exceeded")
             << TErrorAttribute("max_failed_job_count", maxFailedJobCount));
     }
+
+    CheckFailedJobsStatusReceived();
 }
 
 void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary)
@@ -2427,13 +2431,16 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         JobSplitter_->OnJobAborted(*jobSummary);
     }
 
-    ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ abortReason == EAbortReason::UserRequest);
+    bool requestJobNodeCreation = (abortReason == EAbortReason::UserRequest);
+    ProcessFinishedJobResult(std::move(jobSummary), requestJobNodeCreation);
 
     RemoveJoblet(jobId);
 
     if (abortReason == EAbortReason::AccountLimitExceeded) {
         Host->OnOperationSuspended(OperationId, TError("Account limit exceeded"));
     }
+
+    CheckFailedJobsStatusReceived();
 }
 
 void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)
@@ -2903,15 +2910,10 @@ void TOperationControllerBase::CheckTimeLimit()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    auto timeLimit = Config->OperationTimeLimit;
-    if (Spec->TimeLimit) {
-        timeLimit = Spec->TimeLimit;
-    }
-
+    auto timeLimit = GetTimeLimit();
     if (timeLimit) {
         if (TInstant::Now() - StartTime > *timeLimit) {
-            OnOperationFailed(TError("Operation is running for too long, aborted")
-                << TErrorAttribute("time_limit", *timeLimit));
+            OnOperationTimeLimitExceeded();
         }
     }
 }
@@ -3790,11 +3792,9 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
     Y_UNUSED(interrupted);
 
     // This can happen if operation failed during completion in derived class (e.x. SortController).
-    if (IsFinished()) {
+    if (State.exchange(EControllerState::Finished) == EControllerState::Finished) {
         return;
     }
-
-    State = EControllerState::Finished;
 
     BuildAndSaveProgress();
 
@@ -3812,11 +3812,9 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
     VERIFY_THREAD_AFFINITY_ANY();
 
     // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
-    if (IsFinished()) {
+    if (State.exchange(EControllerState::Finished) == EControllerState::Finished) {
         return;
     }
-
-    State = EControllerState::Finished;
 
     BuildAndSaveProgress();
 
@@ -3828,24 +3826,53 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
     Host->OnOperationFailed(OperationId, error);
 }
 
-void TOperationControllerBase::OnOperationAborted(const TError& error)
+TNullable<TDuration> TOperationControllerBase::GetTimeLimit() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    auto timeLimit = Config->OperationTimeLimit;
+    if (Spec->TimeLimit) {
+        timeLimit = Spec->TimeLimit;
+    }
+    return timeLimit;
+}
 
-    // We want to avoid entering this method twice.
-    // This can happen since method waits operation attributes to be flushed.
-    if (IsFinished()) {
+TError TOperationControllerBase::GetTimeLimitError() const
+{
+    return TError("Operation is running for too long, aborted")
+        << TErrorAttribute("time_limit", GetTimeLimit());
+}
+
+
+void TOperationControllerBase::OnOperationTimeLimitExceeded()
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    EControllerState expected = EControllerState::Running;
+    if (!State.compare_exchange_strong(expected, EControllerState::Failing)) {
         return;
     }
 
-    State = EControllerState::Finished;
+    for (const auto& joblet : JobletMap) {
+        auto jobHost = Host->GetJobHost(joblet.first);
 
-    BuildAndSaveProgress();
+        jobHost->FailJob();
+    }
 
-    // NB: Error ignored since we cannot do anything with it.
-    WaitFor(MasterConnector->FlushOperationNode(OperationId));
+    auto error = GetTimeLimitError();
+    if (!JobletMap.empty()) {
+        TDelayedExecutor::MakeDelayed(Config->OperationControllerFailTimeout)
+            .Apply(BIND(&TOperationControllerBase::OnOperationFailed, MakeWeak(this), error, /* flush */ true)
+            .Via(CancelableInvoker));
+    } else {
+        OnOperationFailed(error, /* flush */ true);
+    }
+}
 
-    Host->OnOperationAborted(OperationId, error);
+void TOperationControllerBase::CheckFailedJobsStatusReceived()
+{
+    if (IsFailing() && JobletMap.empty()) {
+        auto error = GetTimeLimitError();
+        OnOperationFailed(error, /* flush */ true);
+    }
 }
 
 void TOperationControllerBase::OnOperationCrashed(const TAssertionFailedException& ex)
@@ -3924,6 +3951,11 @@ bool TOperationControllerBase::IsPrepared() const
 bool TOperationControllerBase::IsRunning() const
 {
     return State == EControllerState::Running;
+}
+
+bool TOperationControllerBase::IsFailing() const
+{
+    return State == EControllerState::Failing;
 }
 
 bool TOperationControllerBase::IsFinished() const

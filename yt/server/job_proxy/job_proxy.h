@@ -50,6 +50,7 @@ public:
     virtual void SignalJob(const Stroka& signalName) override;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;
     virtual void Interrupt() override;
+    virtual void Fail() override;
 
     virtual const NJobAgent::TJobId& GetJobId() const override;
 

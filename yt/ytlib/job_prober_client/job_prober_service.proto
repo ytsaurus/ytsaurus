@@ -64,4 +64,13 @@ message TReqInterrupt
 message TRspInterrupt
 { }
 
+message TReqFail
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspFail
+{ }
+
+
 ////////////////////////////////////////////////////////////////////////////////

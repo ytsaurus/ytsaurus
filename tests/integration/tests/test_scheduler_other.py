@@ -69,6 +69,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "operation_time_limit_check_period" : 100,
+            "operation_fail_timeout": 3000,
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
@@ -173,8 +174,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             out="//tmp/out2",
             spec={'time_limit': 1000})
 
-        # we should wait as least time_limit + heartbeat_period
-        time.sleep(1.2)
+        # Have to wait for process termination, job proxy can't kill user process when cgroups are not enabled.
+        time.sleep(3.2)
         assert get("//sys/operations/{0}/@state".format(op1.id)) not in ["failing", "failed"]
         assert get("//sys/operations/{0}/@state".format(op2.id)) in ["failing", "failed"]
 
@@ -214,6 +215,28 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert get("//sys/operations/{0}/@state".format(op.id)) == "completed"
         assert not get("//sys/operations/{0}/@suspended".format(op.id))
         assert not get("//sys/operations/{0}/@alerts".format(op.id))
+
+    def test_fail_context_saved_on_time_limit(self):
+        self._create_table("//tmp/in")
+        self._create_table("//tmp/out")
+
+        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+
+        op = map(dont_track=True,
+            command="sleep 2.0; cat >/dev/null",
+            in_=["//tmp/in"],
+            out="//tmp/out",
+            spec={'time_limit': 1000})
+
+        wait(lambda: get("//sys/operations/{0}/@state".format(op.id)) == "failed")
+
+        time.sleep(1)
+        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+        jobs = ls(jobs_path)
+        assert len(jobs) > 0
+
+        for job_id in jobs:
+            assert len(read_file(jobs_path + "/" + job_id + "/fail_context")) > 0
 
     def test_fifo_default(self):
         self._create_table("//tmp/in")

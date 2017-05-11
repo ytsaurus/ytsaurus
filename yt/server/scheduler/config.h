@@ -728,6 +728,8 @@ public:
 
     TDuration OperationTimeLimitCheckPeriod;
 
+    TDuration OperationControllerFailTimeout;
+
     TDuration AvailableExecNodesCheckPeriod;
 
     TDuration OperationProgressAnalysisPeriod;
@@ -1015,6 +1017,9 @@ public:
 
         RegisterParameter("operation_time_limit_check_period", OperationTimeLimitCheckPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("operation_controller_fail_timeout", OperationControllerFailTimeout)
+            .Default(TDuration::Seconds(120));
 
         RegisterParameter("available_exec_nodes_check_period", AvailableExecNodesCheckPeriod)
             .Default(TDuration::Seconds(5));

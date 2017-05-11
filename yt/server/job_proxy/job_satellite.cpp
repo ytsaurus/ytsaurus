@@ -240,6 +240,7 @@ public:
     virtual TYsonString PollJobShell(const TYsonString& parameters) override;
     virtual Stroka GetStderr() override;
     virtual void Interrupt() override;
+    virtual void Fail() override;
 
 private:
     const pid_t RootPid_;
@@ -302,6 +303,11 @@ TYsonString TJobSatelliteWorker::PollJobShell(const TYsonString& parameters)
 }
 
 void TJobSatelliteWorker::Interrupt()
+{
+    Y_UNREACHABLE();
+}
+
+void TJobSatelliteWorker::Fail()
 {
     Y_UNREACHABLE();
 }

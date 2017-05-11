@@ -81,6 +81,7 @@ DEFINE_ENUM(EInputChunkState,
 DEFINE_ENUM(EControllerState,
     (Preparing)
     (Running)
+    (Failing)
     (Finished)
 );
 
@@ -1008,7 +1009,7 @@ protected:
 
     virtual void OnOperationFailed(const TError& error, bool flush = true);
 
-    virtual void OnOperationAborted(const TError& error);
+    virtual void OnOperationTimeLimitExceeded();
 
     virtual bool IsCompleted() const = 0;
 
@@ -1022,6 +1023,9 @@ protected:
 
     //! Returns |true| as long as the operation can schedule new jobs.
     bool IsRunning() const;
+
+    //! Returns |true| as long as the operation is waiting for jobs abort events.
+    bool IsFailing() const;
 
     //! Returns |true| when operation completion event is scheduled to control invoker.
     bool IsFinished() const;
@@ -1180,6 +1184,8 @@ protected:
 
     virtual NScheduler::TJobSplitterConfigPtr GetJobSplitterConfig() const;
 
+    void CheckFailedJobsStatusReceived();
+
 private:
     typedef TOperationControllerBase TThis;
 
@@ -1305,6 +1311,9 @@ private:
     void UpdateAllTasksIfNeeded();
 
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
+
+    TNullable<TDuration> GetTimeLimit() const;
+    TError GetTimeLimitError() const;
 
     //! Sets finish time and other timing statistics.
     void FinalizeJoblet(
