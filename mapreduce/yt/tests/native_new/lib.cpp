@@ -26,7 +26,7 @@ namespace NTesting {
 
 IClientPtr CreateTestClient()
 {
-    Stroka ytProxy = GetEnv("YT_PROXY");
+    TString ytProxy = GetEnv("YT_PROXY");
     if (ytProxy.empty()) {
         ythrow yexception() << "YT_PROXY env variable must be set";
     }

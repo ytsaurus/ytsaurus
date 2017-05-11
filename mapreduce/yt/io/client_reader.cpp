@@ -29,7 +29,7 @@ TClientReader::TClientReader(
     const TAuth& auth,
     const TTransactionId& transactionId,
     EDataStreamFormat format,
-    const Stroka& formatConfig,
+    const TString& formatConfig,
     const TTableReaderOptions& options)
     : Path_(path)
     , Auth_(auth)
@@ -93,9 +93,9 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
     const int lastAttempt = TConfig::Get()->ReadRetryCount - 1;
 
     for (int attempt = 0; attempt <= lastAttempt; ++attempt) {
-        Stroka requestId;
+        TString requestId;
         try {
-            Stroka proxyName = GetProxyForHeavyRequest(Auth_);
+            TString proxyName = GetProxyForHeavyRequest(Auth_);
 
             THttpHeader header("GET", GetReadTableCommand());
             header.SetToken(Auth_.Token);

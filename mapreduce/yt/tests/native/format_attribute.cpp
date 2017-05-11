@@ -13,9 +13,9 @@ using namespace NTest;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka NormalizeDsv(const Stroka& value)
+TString NormalizeDsv(const TString& value)
 {
-    yvector<Stroka> splited = StringSplitter(value).Split('\t').ToList<Stroka>();
+    yvector<TString> splited = StringSplitter(value).Split('\t').ToList<TString>();
     Sort(splited.begin(), splited.end());
     return JoinRange("\t", splited.begin(), splited.end());
 }

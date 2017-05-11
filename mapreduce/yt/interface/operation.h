@@ -115,7 +115,7 @@ struct TUserJobSpec
     FLUENT_FIELD_OPTION(i64, MemoryLimit);
     FLUENT_FIELD_OPTION(i64, ExtraTmpfsSize);
 
-    FLUENT_FIELD_OPTION(Stroka, JobBinary);
+    FLUENT_FIELD_OPTION(TString, JobBinary);
 };
 
 struct TMapOperationSpec
@@ -328,14 +328,14 @@ struct TOperationOptions
     FLUENT_FIELD_OPTION(TNode, Spec);
     FLUENT_FIELD_DEFAULT(bool, Wait, true);
     FLUENT_FIELD_DEFAULT(bool, UseTableFormats, false);
-    FLUENT_FIELD(Stroka, JobCommandPrefix);
-    FLUENT_FIELD(Stroka, JobCommandSuffix);
+    FLUENT_FIELD(TString, JobCommandPrefix);
+    FLUENT_FIELD(TString, JobCommandSuffix);
 
     //
     // If MountSandboxInTmpfs is set all files required by job will be put into tmpfs.
     // The same can be done with TConfig::MountSandboxInTmpfs option.
     FLUENT_FIELD_DEFAULT(bool, MountSandboxInTmpfs, false);
-    FLUENT_FIELD_OPTION(Stroka, FileStorage);
+    FLUENT_FIELD_OPTION(TString, FileStorage);
     FLUENT_FIELD_OPTION(TNode, SecureVault);
 
     // Provides the transaction id, under which all

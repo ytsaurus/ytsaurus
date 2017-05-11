@@ -69,7 +69,7 @@ SIMPLE_UNIT_TEST_SUITE(ErrorSuite)
                 R"""(}]})""";
         TError error;
         error.ParseFrom(jsonText);
-        Stroka ysonText = error.GetYsonText();
+        TString ysonText = error.GetYsonText();
         TError error2(NodeFromYsonString(ysonText));
         UNIT_ASSERT_EQUAL(
             ysonText,

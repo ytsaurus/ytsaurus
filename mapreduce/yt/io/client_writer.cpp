@@ -14,7 +14,7 @@ TClientWriter::TClientWriter(
     const TAuth& auth,
     const TTransactionId& transactionId,
     EDataStreamFormat format,
-    const Stroka& formatConfig,
+    const TString& formatConfig,
     const TTableWriterOptions& options)
     : BlockWriter_(new TBlockWriter(
         auth,

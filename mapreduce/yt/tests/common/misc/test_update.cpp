@@ -16,7 +16,7 @@ using namespace NTestUtil;
 
 namespace {
 
-using TData = yvector<yvector<Stroka>>;
+using TData = yvector<yvector<TString>>;
 
 
 class TUpdate
@@ -67,15 +67,15 @@ public:
         toAdd.push_back({ "", "", "c" });
         toAdd.push_back({ "", "", "" });
         for (int i = 0; i < 200; ++i) {
-            Stroka key = Sprintf("%d", (int) 'a' + (i % 26));
-            Stroka subkey = Sprintf("%d", (int) 'a' + (i % 7));
+            TString key = Sprintf("%d", (int) 'a' + (i % 26));
+            TString subkey = Sprintf("%d", (int) 'a' + (i % 7));
             toAdd.push_back({ key, subkey, key });
         }
         return toAdd;
     }
 
     static TData GetSmallSortedTestData() {
-        yvector<yvector<Stroka>> toAdd;
+        yvector<yvector<TString>> toAdd;
         toAdd.push_back({ "xx", "xx", "xxx" });
         toAdd.push_back({ "xy", "xy", "yyy"  });
         toAdd.push_back({ "xz", "xz", "zzz"  });

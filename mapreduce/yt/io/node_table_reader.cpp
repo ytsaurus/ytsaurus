@@ -114,7 +114,7 @@ TRowBuilder::TRowBuilder(TRowQueue* queue)
 
 void TRowBuilder::OnStringScalar(const TStringBuf& value)
 {
-    Row_.Size += sizeof(TNode) + sizeof(Stroka) + value.Size();
+    Row_.Size += sizeof(TNode) + sizeof(TString) + value.Size();
     Builder_->OnStringScalar(value);
 }
 
@@ -177,7 +177,7 @@ void TRowBuilder::OnBeginMap()
 
 void TRowBuilder::OnKeyedItem(const TStringBuf& key)
 {
-    Row_.Size += sizeof(Stroka) + key.Size();
+    Row_.Size += sizeof(TString) + key.Size();
     Builder_->OnKeyedItem(key);
 }
 

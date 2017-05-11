@@ -25,59 +25,59 @@ class TNode;
 class THttpHeader
 {
 public:
-    THttpHeader(const Stroka& method, const Stroka& command, bool isApi = true);
+    THttpHeader(const TString& method, const TString& command, bool isApi = true);
 
-    void AddParam(const Stroka& key, const char* value);
-    void AddParam(const Stroka& key, const Stroka& value);
-    void AddParam(const Stroka& key, i64 value);
-    void AddParam(const Stroka& key, ui64 value);
-    void AddParam(const Stroka& key, bool value);
-    void RemoveParam(const Stroka& key);
+    void AddParam(const TString& key, const char* value);
+    void AddParam(const TString& key, const TString& value);
+    void AddParam(const TString& key, i64 value);
+    void AddParam(const TString& key, ui64 value);
+    void AddParam(const TString& key, bool value);
+    void RemoveParam(const TString& key);
 
     void AddTransactionId(const TTransactionId& transactionId);
-    void AddPath(const Stroka& path);
+    void AddPath(const TString& path);
     void AddOperationId(const TOperationId& operationId);
     void AddMutationId();
     bool HasMutationId() const;
 
-    void SetToken(const Stroka& token);
+    void SetToken(const TString& token);
 
     void SetDataStreamFormat(EDataStreamFormat format);
     EDataStreamFormat GetDataStreamFormat() const;
 
-    void SetInputFormat(const Stroka& format);
-    void SetOutputFormat(const Stroka& format);
+    void SetInputFormat(const TString& format);
+    void SetOutputFormat(const TString& format);
 
-    void SetParameters(const Stroka& parameters);
+    void SetParameters(const TString& parameters);
     void SetParameters(const TNode& parameters);
-    Stroka GetParameters() const;
+    TString GetParameters() const;
 
-    void SetRequestCompression(const Stroka& compression);
-    void SetResponseCompression(const Stroka& compression);
+    void SetRequestCompression(const TString& compression);
+    void SetResponseCompression(const TString& compression);
 
-    Stroka GetCommand() const;
-    Stroka GetUrl() const;
-    Stroka GetHeader(const Stroka& hostName, const Stroka& requestId) const;
+    TString GetCommand() const;
+    TString GetUrl() const;
+    TString GetHeader(const TString& hostName, const TString& requestId) const;
 
 private:
-    const Stroka Method;
-    const Stroka Command;
+    const TString Method;
+    const TString Command;
     const bool IsApi;
 
-    yhash<Stroka, Stroka> Params;
+    yhash<TString, TString> Params;
 
-    Stroka Token;
+    TString Token;
 
     TNode Attributes;
 
     EDataStreamFormat DataStreamFormat = DSF_YSON_TEXT;
 
-    Stroka InputFormat;
-    Stroka OutputFormat;
-    Stroka Parameters;
+    TString InputFormat;
+    TString OutputFormat;
+    TString Parameters;
 
-    Stroka RequestCompression = "identity";
-    Stroka ResponseCompression = "identity";
+    TString RequestCompression = "identity";
+    TString ResponseCompression = "identity";
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,10 +89,10 @@ public:
 
     static TAddressCache* Get();
 
-    TAddressPtr Resolve(const Stroka& hostName);
+    TAddressPtr Resolve(const TString& hostName);
 
 private:
-    yhash<Stroka, TAddressPtr> Cache_;
+    yhash<TString, TAddressPtr> Cache_;
     TRWMutex Lock_;
 };
 
@@ -111,13 +111,13 @@ using TConnectionPtr = TAtomicSharedPtr<TConnection>;
 class TConnectionPool
 {
 public:
-    using TConnectionMap = yhash_mm<Stroka, TConnectionPtr>;
+    using TConnectionMap = yhash_mm<TString, TConnectionPtr>;
 
     static TConnectionPool* Get();
 
-    TConnectionPtr Connect(const Stroka& hostName, TDuration socketTimeout);
+    TConnectionPtr Connect(const TString& hostName, TDuration socketTimeout);
     void Release(TConnectionPtr connection);
-    void Invalidate(const Stroka& hostName, TConnectionPtr connection);
+    void Invalidate(const TString& hostName, TConnectionPtr connection);
 
 private:
     void Refresh();
@@ -141,8 +141,8 @@ public:
     // (they will appear in some error messages).
     THttpResponse(
         TInputStream* socketStream,
-        const Stroka& requestId,
-        const Stroka& hostName);
+        const TString& requestId,
+        const TString& hostName);
 
     const THttpHeaders& Headers() const;
 
@@ -159,8 +159,8 @@ private:
 
 private:
     THttpInput HttpInput_;
-    const Stroka RequestId_;
-    const Stroka HostName_;
+    const TString RequestId_;
+    const TString HostName_;
     int HttpCode_ = 0;
     TMaybe<TErrorResponse> ErrorResponse_;
     bool IsExhausted_ = false;
@@ -171,24 +171,24 @@ private:
 class THttpRequest
 {
 public:
-    explicit THttpRequest(const Stroka& hostName);
+    explicit THttpRequest(const TString& hostName);
     ~THttpRequest();
 
-    Stroka GetRequestId() const;
+    TString GetRequestId() const;
 
     void Connect(TDuration socketTimeout = TDuration::Zero());
     THttpOutput* StartRequest(const THttpHeader& request);
     void FinishRequest();
     THttpResponse* GetResponseStream();
 
-    Stroka GetResponse();
+    TString GetResponse();
 
     void InvalidateConnection();
 
 private:
-    Stroka HostName;
-    Stroka RequestId;
-    Stroka Url_;
+    TString HostName;
+    TString RequestId;
+    TString Url_;
 
     TConnectionPtr Connection;
 

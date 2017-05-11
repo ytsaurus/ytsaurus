@@ -48,7 +48,7 @@ ui64 RoundUpFileSize(ui64 size)
     return (size + roundUpTo - 1) & ~(roundUpTo - 1);
 }
 
-Stroka ToString(EMergeMode mode)
+TString ToString(EMergeMode mode)
 {
     switch (mode) {
         case MM_UNORDERED: return "unordered";
@@ -60,7 +60,7 @@ Stroka ToString(EMergeMode mode)
 
 bool IsLocalMode(const TAuth& auth)
 {
-    static yhash<Stroka, bool> localModeMap;
+    static yhash<TString, bool> localModeMap;
     static TRWMutex mutex;
 
     {
@@ -72,7 +72,7 @@ bool IsLocalMode(const TAuth& auth)
     }
 
     bool isLocalMode = false;
-    Stroka localModeAttr("//sys/@local_mode_fqdn");
+    TString localModeAttr("//sys/@local_mode_fqdn");
     if (Exists(auth, TTransactionId(), localModeAttr)) {
         auto fqdn = NodeFromYsonString(Get(auth, TTransactionId(), localModeAttr)).AsString();
         isLocalMode = (fqdn == TProcessState::Get()->HostName);
@@ -96,7 +96,7 @@ public:
         }
     }
 
-    Stroka Finish(const TOperationId& operationId)
+    TString Finish(const TOperationId& operationId)
     {
         TDuration duration;
         with_lock(Lock_) {
@@ -130,7 +130,7 @@ public:
     TJobPreparer(
         const TAuth& auth,
         const TTransactionId& transactionId,
-        const Stroka& commandLineName,
+        const TString& commandLineName,
         const TUserJobSpec& spec,
         IJob* job,
         size_t outputTableCount,
@@ -158,7 +158,7 @@ public:
             BinaryPath_ = *Spec_.JobBinary_;
         }
 
-        Stroka jobBinaryPath;
+        TString jobBinaryPath;
         if (!IsLocalMode(auth)) {
             UploadBinary();
             jobBinaryPath = "./cppbinary";
@@ -183,12 +183,12 @@ public:
         return Files_;
     }
 
-    const Stroka& GetClassName() const
+    const TString& GetClassName() const
     {
         return ClassName_;
     }
 
-    const Stroka& GetCommand() const
+    const TString& GetCommand() const
     {
         return Command_;
     }
@@ -216,14 +216,14 @@ private:
     TMultiFormatDesc OutputDesc_;
     TOperationOptions Options_;
 
-    Stroka BinaryPath_;
+    TString BinaryPath_;
     yvector<TRichYPath> Files_;
     bool HasState_ = false;
-    Stroka ClassName_;
-    Stroka Command_;
+    TString ClassName_;
+    TString Command_;
     ui64 TotalFileSize_ = 0;
 
-    static void CalculateMD5(const Stroka& localFileName, char* buf)
+    static void CalculateMD5(const TString& localFileName, char* buf)
     {
         MD5::File(~localFileName, buf);
     }
@@ -233,7 +233,7 @@ private:
         MD5::Data(reinterpret_cast<const unsigned char*>(buffer.Data()), buffer.Size(), buf);
     }
 
-    static THolder<TInputStream> CreateStream(const Stroka& localPath)
+    static THolder<TInputStream> CreateStream(const TString& localPath)
     {
         return new TMappedFileInput(localPath);
     }
@@ -243,7 +243,7 @@ private:
         return new TBufferInput(buffer);
     }
 
-    Stroka GetFileStorage() const
+    TString GetFileStorage() const
     {
         return Options_.FileStorage_ ?
             *Options_.FileStorage_ :
@@ -252,22 +252,22 @@ private:
 
     void CreateStorage() const
     {
-        Stroka cypressFolder = TStringBuilder() << GetFileStorage() << "/hash";
+        TString cypressFolder = TStringBuilder() << GetFileStorage() << "/hash";
         if (!Exists(Auth_, Options_.FileStorageTransactionId_, cypressFolder)) {
             Create(Auth_, Options_.FileStorageTransactionId_, cypressFolder, "map_node", true, true);
         }
     }
 
     template <class TSource>
-    Stroka UploadToCache(const TSource& source) const
+    TString UploadToCache(const TSource& source) const
     {
         constexpr size_t md5Size = 32;
         char buf[md5Size + 1];
         CalculateMD5(source, buf);
 
-        Stroka twoDigits(buf + md5Size - 2, 2);
+        TString twoDigits(buf + md5Size - 2, 2);
 
-        Stroka cypressPath = TStringBuilder() << GetFileStorage() <<
+        TString cypressPath = TStringBuilder() << GetFileStorage() <<
             "/hash/" << twoDigits << "/" << buf;
 
         int retryCount = 256;
@@ -302,7 +302,7 @@ private:
                     return cypressPath;
                 }
 
-                Stroka uniquePath = TStringBuilder() << GetFileStorage() <<
+                TString uniquePath = TStringBuilder() << GetFileStorage() <<
                     "/" << twoDigits << "/cpp_" << CreateGuidAsString();
 
                 Create(Auth_, Options_.FileStorageTransactionId_, uniquePath, "file", true, true,
@@ -406,7 +406,7 @@ private:
         }
     }
 
-    void UploadProtoConfig(const Stroka& fileName, const TMultiFormatDesc& desc) {
+    void UploadProtoConfig(const TString& fileName, const TMultiFormatDesc& desc) {
         if (desc.Format != TMultiFormatDesc::F_PROTO) {
             return;
         }
@@ -431,7 +431,7 @@ void DumpOperationStderrs(
     TOutputStream& stream,
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const Stroka& operationPath)
+    const TString& operationPath)
 {
     const size_t RESULT_LIMIT = 1 << 20;
     const size_t BLOCK_SIZE = 16 << 10;
@@ -568,8 +568,8 @@ const TMultiFormatDesc& MergeIntermediateDesc(const TMultiFormatDesc& lh, const 
 TOperationId StartOperation(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const Stroka& operationName,
-    const Stroka& ysonSpec)
+    const TString& operationName,
+    const TString& ysonSpec)
 {
     THttpHeader header("POST", operationName);
     header.AddTransactionId(transactionId);
@@ -599,7 +599,7 @@ EOperationStatus CheckOperation(
         ythrow yexception() << "Operation " << opIdStr << " does not exist";
     }
 
-    Stroka state = NodeFromYsonString(
+    TString state = NodeFromYsonString(
         Get(auth, transactionId, statePath)).AsString();
 
     if (state == "completed") {
@@ -612,7 +612,7 @@ EOperationStatus CheckOperation(
             ~TOperationTracker::Get()->Finish(operationId));
 
         auto errorPath = opPath + "/@result/error";
-        Stroka error;
+        TString error;
         if (Exists(auth, transactionId, errorPath)) {
             error = Get(auth, transactionId, errorPath);
         }
@@ -778,7 +778,7 @@ void BuildUserJobFluently(
 void BuildCommonOperationPart(const TOperationOptions& options, TFluentMap fluent)
 {
     const TProcessState* properties = TProcessState::Get();
-    const Stroka& pool = TConfig::Get()->Pool;
+    const TString& pool = TConfig::Get()->Pool;
 
     fluent
         .Item("started_by")
@@ -802,7 +802,7 @@ void BuildCommonOperationPart(const TOperationOptions& options, TFluentMap fluen
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka MergeSpec(TNode& dst, const TOperationOptions& options)
+TString MergeSpec(TNode& dst, const TOperationOptions& options)
 {
     MergeNodes(dst["spec"], TConfig::Get()->Spec);
     if (options.Spec_) {
@@ -843,7 +843,7 @@ void LogJob(const TOperationId& opId, IJob* job, const char* type)
     }
 }
 
-Stroka DumpYPath(const TRichYPath& path)
+TString DumpYPath(const TRichYPath& path)
 {
     TStringStream stream;
     TYsonWriter writer(&stream, YF_TEXT, YT_NODE);
@@ -1181,7 +1181,7 @@ TOperationId ExecuteMapReduce(
         reduceOutputDesc,
         options);
 
-    Stroka title;
+    TString title;
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()

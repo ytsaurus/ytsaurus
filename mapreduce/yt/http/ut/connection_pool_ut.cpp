@@ -79,7 +79,7 @@ SIMPLE_UNIT_TEST_SUITE(NConnectionPoolSuite) {
     SIMPLE_UNIT_TEST(TestReleaseUnread) {
         auto simpleServer = CreateSimpleHttpServer();
 
-        const Stroka hostName = TStringBuilder() << "localhost:" << simpleServer->GetPort();
+        const TString hostName = TStringBuilder() << "localhost:" << simpleServer->GetPort();
 
         for (size_t i = 0; i != 10; ++i) {
             THttpRequest request(hostName);
@@ -94,7 +94,7 @@ SIMPLE_UNIT_TEST_SUITE(NConnectionPoolSuite) {
         TConnectionPoolConfigGuard g(1);
 
         auto simpleServer = CreateSimpleHttpServer();
-        const Stroka hostName = TStringBuilder() << "localhost:" << simpleServer->GetPort();
+        const TString hostName = TStringBuilder() << "localhost:" << simpleServer->GetPort();
         auto threadPool = CreateMtpQueue(20);
 
         const auto func = [&] {

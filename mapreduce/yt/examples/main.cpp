@@ -10,8 +10,8 @@ namespace NExample {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka SERVER("hahn");
-const Stroka PREFIX("//tmp/cpp/cpp_examples");
+const TString SERVER("hahn");
+const TString PREFIX("//tmp/cpp/cpp_examples");
 
 void CreateSandbox()
 {
@@ -54,10 +54,10 @@ void IdMapperNode()
 {
     auto client = CreateClient(SERVER);
 
-    Stroka input(PREFIX + "/input");
+    TString input(PREFIX + "/input");
     RemoveTable(client, input);
 
-    Stroka output(PREFIX + "/output");
+    TString output(PREFIX + "/output");
     RemoveTable(client, output);
 
     auto writer = client->CreateTableWriter<TNode>(input);
@@ -112,10 +112,10 @@ void IdMapperYaMR()
 {
     auto client = CreateClient(SERVER);
 
-    Stroka input(PREFIX + "/input");
+    TString input(PREFIX + "/input");
     RemoveTable(client, input);
 
-    Stroka output(PREFIX + "/output");
+    TString output(PREFIX + "/output");
     RemoveTable(client, output);
 
     auto writer = client->CreateTableWriter<TYaMRRow>(input);
@@ -173,10 +173,10 @@ void IdMapperProto()
 {
     auto client = CreateClient(SERVER);
 
-    Stroka input(PREFIX + "/input");
+    TString input(PREFIX + "/input");
     RemoveTable(client, input);
 
-    Stroka output(PREFIX + "/output");
+    TString output(PREFIX + "/output");
     RemoveTable(client, output);
 
     auto writer = client->CreateTableWriter<TSampleProto>(input);
@@ -271,9 +271,9 @@ void ManyTablesMapperNode()
 
     TMapOperationSpec spec;
 
-    yvector<Stroka> inputs;
+    yvector<TString> inputs;
     for (int i = 0; i < inputCount; ++i) {
-        Stroka input = PREFIX + Sprintf("/input%d", i);
+        TString input = PREFIX + Sprintf("/input%d", i);
         inputs.push_back(input);
         RemoveTable(client, input);
 
@@ -290,9 +290,9 @@ void ManyTablesMapperNode()
         spec.AddInput<TNode>(input);
    }
 
-    yvector<Stroka> outputs;
+    yvector<TString> outputs;
     for (int i = 0; i < outputCount; ++i) {
-        Stroka output = PREFIX + Sprintf("/output%d", i);
+        TString output = PREFIX + Sprintf("/output%d", i);
         outputs.push_back(output);
         RemoveTable(client, output);
 
@@ -356,16 +356,16 @@ void JoinReducerProto()
 {
     auto client = CreateClient(SERVER);
 
-    Stroka inputLeft = PREFIX + "/input_left";
+    TString inputLeft = PREFIX + "/input_left";
     RemoveTable(client, inputLeft);
 
-    Stroka inputRight = PREFIX + "/input_right";
+    TString inputRight = PREFIX + "/input_right";
     RemoveTable(client, inputRight);
 
-    Stroka outputSum(PREFIX + "/output_sum");
+    TString outputSum(PREFIX + "/output_sum");
     RemoveTable(client, outputSum);
 
-    Stroka outputProduct(PREFIX + "/output_product");
+    TString outputProduct(PREFIX + "/output_product");
     RemoveTable(client, outputProduct);
 
     {
@@ -427,7 +427,7 @@ void JoinReducerProto()
 void Tablets()
 {
     auto client = CreateClient(SERVER);
-    Stroka table(PREFIX + "/tablets");
+    TString table(PREFIX + "/tablets");
 
     TNode schema;
     schema.Add(TNode()("name", "a")("type", "int64")("sort_order", "ascending"));
@@ -477,7 +477,7 @@ void Tablets()
         }
     }
     { // select
-        Stroka query = Sprintf("* from [%s] where b > 7", ~table);
+        TString query = Sprintf("* from [%s] where b > 7", ~table);
         auto rows = client->SelectRows(query);
         for (const auto& row : rows) {
             Cout <<
@@ -494,7 +494,7 @@ void ReadMultipleRangesNode()
 {
     auto client = CreateClient(SERVER);
 
-    Stroka input(PREFIX + "/input");
+    TString input(PREFIX + "/input");
     RemoveTable(client, input);
 
     auto writer = client->CreateTableWriter<TNode>(
@@ -532,7 +532,7 @@ void ReadMultipleRangesYaMR()
 {
     auto client = CreateClient(SERVER);
 
-    Stroka input(PREFIX + "/input");
+    TString input(PREFIX + "/input");
     RemoveTable(client, input);
 
     auto writer = client->CreateTableWriter<TYaMRRow>(

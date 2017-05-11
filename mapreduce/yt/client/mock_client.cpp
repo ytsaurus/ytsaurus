@@ -261,11 +261,11 @@ IFileWriterPtr TMockClient::CreateFileWriter(const TRichYPath&, const TFileWrite
     return new TMockFileWriter();
 }
 
-TRawTableReaderPtr TMockClient::CreateRawReader(const TRichYPath&, EDataStreamFormat, const TTableReaderOptions&, const Stroka&) {
+TRawTableReaderPtr TMockClient::CreateRawReader(const TRichYPath&, EDataStreamFormat, const TTableReaderOptions&, const TString&) {
     return new TMockRawTableReader();
 }
 
-TRawTableWriterPtr TMockClient::CreateRawWriter(const TRichYPath&, EDataStreamFormat, const TTableWriterOptions&, const Stroka&) {
+TRawTableWriterPtr TMockClient::CreateRawWriter(const TRichYPath&, EDataStreamFormat, const TTableWriterOptions&, const TString&) {
     return new TMockRawTableWriter();
 }
 
@@ -368,7 +368,7 @@ TNode::TList TMockClient::LookupRows(const TYPath&, const TNode::TList&, const T
     return TNode::TList();
 }
 
-TNode::TList TMockClient::SelectRows(const Stroka&, const TSelectRowsOptions&) {
+TNode::TList TMockClient::SelectRows(const TString&, const TSelectRowsOptions&) {
     return TNode::TList();
 }
 

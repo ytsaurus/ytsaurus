@@ -120,10 +120,10 @@ YT_TEST(TIo, ReadMultipleRangesYaMR)
 
 namespace {
 
-Stroka RandomBytes() {
+TString RandomBytes() {
     static TReallyFastRng32 RNG(42);
     ui64 value = RNG.GenRand64();
-    return Stroka((const char*)&value, sizeof(value));
+    return TString((const char*)&value, sizeof(value));
 }
 
 } // namespace
@@ -169,7 +169,7 @@ YT_TEST(TIo, ReadUncanonicalPath)
     }
     writer->Finish();
 
-    TRichYPath path(Input() + Stroka("[#10:#20,30:40,#50:#60,70:80,#90,95]"));
+    TRichYPath path(Input() + TString("[#10:#20,30:40,#50:#60,70:80,#90,95]"));
 
     auto reader = Client()->CreateTableReader<TNode>(path);
     for (; reader->IsValid(); reader->Next()) {

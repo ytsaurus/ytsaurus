@@ -8,7 +8,7 @@ namespace NYT {
 
 TTempTable::TTempTable(
     IClientBasePtr client,
-    const Stroka& prefix,
+    const TString& prefix,
     const TYPath& path,
     const TCreateOptions& options)
     : Client_(client)
@@ -40,7 +40,7 @@ TTempTable::~TTempTable()
     }
 }
 
-Stroka TTempTable::Name() const
+TString TTempTable::Name() const
 {
     return Name_;
 }

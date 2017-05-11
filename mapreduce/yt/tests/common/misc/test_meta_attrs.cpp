@@ -36,7 +36,7 @@ protected:
         TTableMetaAttrs attrs;
         client.GetTableMetaAttrs(Table(), attrs);
 
-        yvector<std::pair<Stroka, Stroka>> sorted;
+        yvector<std::pair<TString, TString>> sorted;
         for (auto it = attrs.Begin(); it != attrs.End(); ++it) {
             sorted.push_back(std::make_pair(it.GetName(), it.GetValueAsStroka()));
         }
@@ -63,16 +63,16 @@ protected:
     void SetSomeAttrs(TClient& client)
     {
         TTableMetaAttrs attrs;
-        attrs.SetAttr("x", Stroka("1"));
-        attrs.SetAttr("y", Stroka("10"));
+        attrs.SetAttr("x", TString("1"));
+        attrs.SetAttr("y", TString("10"));
         client.SetTableMetaAttrs(Table(), attrs);
     }
 
     void AppendSomeAttrs(TClient& client)
     {
         TTableMetaAttrs attrs;
-        attrs.SetAttr("y", Stroka("foo"));
-        attrs.SetAttr("z", Stroka("bar"));
+        attrs.SetAttr("y", TString("foo"));
+        attrs.SetAttr("z", TString("bar"));
         client.AppendTableMetaAttrs(Table(), attrs);
     }
 

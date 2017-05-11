@@ -40,7 +40,7 @@ TMaybe<TDuration> TAttemptLimitedRetryPolicy::GetRetryInterval(const TErrorRespo
     return e.GetRetryInterval();
 }
 
-Stroka TAttemptLimitedRetryPolicy::GetAttemptDescription() const
+TString TAttemptLimitedRetryPolicy::GetAttemptDescription() const
 {
     TStringStream s;
     s << "attempt " << Attempt_ << " of " << AttemptLimit_;
@@ -64,12 +64,12 @@ TResponseInfo RetryRequest(
     while (true) {
         retryPolicy.NotifyNewAttempt();
         THttpHeader currentHeader = header;
-        Stroka response;
+        TString response;
 
         THttpRequest request(auth.ServerName);
-        Stroka requestId = request.GetRequestId();
+        TString requestId = request.GetRequestId();
         try {
-            Stroka hostName = auth.ServerName;
+            TString hostName = auth.ServerName;
 
             if (useMutationId) {
                 if (retryWithSameMutationId) {

@@ -24,7 +24,7 @@ struct IRetryPolicy
     // Return Nothing() if retries must not be continued.
     virtual TMaybe<TDuration> GetRetryInterval(const yexception& e) const = 0;
     virtual TMaybe<TDuration> GetRetryInterval(const TErrorResponse& e) const = 0;
-    virtual Stroka GetAttemptDescription() const = 0;
+    virtual TString GetAttemptDescription() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -39,7 +39,7 @@ public:
 
     virtual TMaybe<TDuration> GetRetryInterval(const yexception& e) const override;
     virtual TMaybe<TDuration> GetRetryInterval(const TErrorResponse& e) const override;
-    virtual Stroka GetAttemptDescription() const override;
+    virtual TString GetAttemptDescription() const override;
 
 private:
     const ui32 AttemptLimit_;
@@ -50,8 +50,8 @@ private:
 
 struct TResponseInfo
 {
-    Stroka RequestId;
-    Stroka Response;
+    TString RequestId;
+    TString Response;
 };
 
 ////////////////////////////////////////////////////////////////////

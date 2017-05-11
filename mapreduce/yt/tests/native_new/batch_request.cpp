@@ -17,7 +17,7 @@ using namespace NYT::NTesting;
 class TYtPrefixGuard
 {
 public:
-    TYtPrefixGuard(const Stroka& ytPrefix)
+    TYtPrefixGuard(const TString& ytPrefix)
     {
         OldYtPrefix = NYT::TConfig::Get()->Prefix;
         NYT::TConfig::Get()->Prefix = ytPrefix;
@@ -31,7 +31,7 @@ public:
     }
 
 private:
-    Stroka OldYtPrefix;
+    TString OldYtPrefix;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -223,7 +223,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
 
         UNIT_ASSERT_EXCEPTION(badLockRes.GetValue(), TErrorResponse);
 
-        auto getLockAttr = [&] (const TLockId& lockId, const Stroka& attrName) {
+        auto getLockAttr = [&] (const TLockId& lockId, const TString& attrName) {
             return client->Get("//sys/locks/" + GetGuidAsString(lockId) + "/@" + attrName).AsString();
         };
         UNIT_ASSERT_VALUES_EQUAL(
@@ -277,7 +277,7 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
 
         client->ExecuteBatch(batchRequest);
 
-        auto checkNode = [] (IClientBasePtr client, const Stroka& path, const Stroka& expectedType, const TNodeId& expectedNodeId) {
+        auto checkNode = [] (IClientBasePtr client, const TString& path, const TString& expectedType, const TNodeId& expectedNodeId) {
             const auto actualId = client->Get(path + "/@id").AsString();
             UNIT_ASSERT_VALUES_EQUAL(actualId, GetGuidAsString(expectedNodeId));
             const auto actualType = client->Get(path + "/@type").AsString();
@@ -344,9 +344,9 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
     using TCheckCopyMoveFunc = std::function<
         void(
             IClientBasePtr client,
-            const Stroka& sourcePath,
-            const Stroka& destinationPath,
-            const Stroka& expectedContent,
+            const TString& sourcePath,
+            const TString& destinationPath,
+            const TString& expectedContent,
             const TNodeId& nodeId)>;
 
     template <typename TOptions, typename TMethod>
@@ -416,9 +416,9 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
     SIMPLE_UNIT_TEST(TestMove) {
         auto checkMoved = [] (
             IClientBasePtr client,
-            const Stroka& sourcePath,
-            const Stroka& destinationPath,
-            const Stroka& expectedContent,
+            const TString& sourcePath,
+            const TString& destinationPath,
+            const TString& expectedContent,
             const TNodeId& nodeId)
         {
             UNIT_ASSERT_VALUES_EQUAL(client->Exists(sourcePath), false);
@@ -431,9 +431,9 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
     SIMPLE_UNIT_TEST(TestCopy) {
         const auto checkCopied = [] (
             IClientBasePtr client,
-            const Stroka& sourcePath,
-            const Stroka& destinationPath,
-            const Stroka& expectedContent,
+            const TString& sourcePath,
+            const TString& destinationPath,
+            const TString& expectedContent,
             const TNodeId& nodeId)
         {
             UNIT_ASSERT_VALUES_EQUAL(client->Get(sourcePath).AsString(), expectedContent);
@@ -472,8 +472,8 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
 
         auto checkLink = [] (
             IClientBasePtr client,
-            const Stroka& targetPath,
-            const Stroka& linkPath,
+            const TString& targetPath,
+            const TString& linkPath,
             const TNodeId& nodeId)
         {
             UNIT_ASSERT_VALUES_EQUAL(client->Get(linkPath + "&/@target_path").AsString(), targetPath);
@@ -568,10 +568,10 @@ SIMPLE_UNIT_TEST_SUITE(BatchRequestSuite)
     SIMPLE_UNIT_TEST(TestBigRequest) {
         auto client = CreateTestClient();
         TBatchRequest batchRequest;
-        const Stroka aaa(32 * 1024, 'a');
-        const Stroka bbb(32 * 1024, 'b');
-        const Stroka ccc(32 * 1024, 'c');
-        const Stroka ddd(32 * 1024, 'd');
+        const TString aaa(32 * 1024, 'a');
+        const TString bbb(32 * 1024, 'b');
+        const TString ccc(32 * 1024, 'c');
+        const TString ddd(32 * 1024, 'd');
         auto resA = batchRequest.Set("//testing/aaa", aaa);
         auto resB = batchRequest.Set("//testing/bbb", bbb);
         auto resC = batchRequest.Set("//testing/ccc", ccc);

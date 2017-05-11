@@ -98,7 +98,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
     {
         TTabletFixture fixture;
         auto client = fixture.Client();
-        const Stroka tablePath = "//testing/test-mount-unmount";
+        const TString tablePath = "//testing/test-mount-unmount";
         CreateTestTable(client, tablePath);
 
         client->MountTable(tablePath);
@@ -115,7 +115,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
     {
         TTabletFixture fixture;
         auto client = fixture.Client();
-        const Stroka tablePath = "//testing/test-reshard";
+        const TString tablePath = "//testing/test-reshard";
         CreateTestTable(client, tablePath);
         client->MountTable(tablePath);
         WaitForTableState(client, tablePath, "mounted");
@@ -148,7 +148,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
     {
         TTabletFixture fixture;
         auto client = fixture.Client();
-        const Stroka tablePath = "//testing/test-insert-lookup-delete";
+        const TString tablePath = "//testing/test-insert-lookup-delete";
         CreateTestTable(client, tablePath);
         client->MountTable(tablePath);
         WaitForTableState(client, tablePath, "mounted");
@@ -179,7 +179,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
     {
         TTabletFixture fixture;
         auto client = fixture.Client();
-        const Stroka tablePath = "//testing/test-atomicity-insert";
+        const TString tablePath = "//testing/test-atomicity-insert";
         CreateTestTable(client, tablePath);
         client->Set(tablePath + "/@atomicity", "none");
         client->MountTable(tablePath);
@@ -220,7 +220,7 @@ SIMPLE_UNIT_TEST_SUITE(TabletClient) {
     {
         TTabletFixture fixture;
         auto client = fixture.Client();
-        const Stroka tablePath = "//testing/test-timeout-type";
+        const TString tablePath = "//testing/test-timeout-type";
         CreateTestTable(client, tablePath);
         client->MountTable(tablePath);
         WaitForTableState(client, tablePath, "mounted");

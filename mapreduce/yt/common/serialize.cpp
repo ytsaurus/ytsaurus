@@ -10,7 +10,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const Stroka& value, IYsonConsumer* consumer)
+void Serialize(const TString& value, IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(value);
 }
@@ -25,7 +25,7 @@ void Serialize(const char* value, IYsonConsumer* consumer)
     consumer->OnStringScalar(value);
 }
 
-void Deserialize(Stroka& value, const TNode& node)
+void Deserialize(TString& value, const TNode& node)
 {
     value = node.AsString();
 }
@@ -150,7 +150,7 @@ void Deserialize(TKeyBase<T>& key, const TNode& node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(EValueType type)
+TString ToString(EValueType type)
 {
     switch (type) {
         case VT_INT64: return "int64";
@@ -184,7 +184,7 @@ void Deserialize(EValueType& valueType, const TNode& node)
     }
 }
 
-Stroka ToString(ESortOrder sortOrder)
+TString ToString(ESortOrder sortOrder)
 {
     switch (sortOrder) {
         case SO_ASCENDING: return "ascending";

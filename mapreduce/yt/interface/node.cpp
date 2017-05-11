@@ -21,15 +21,15 @@ TNode::TNode()
 { }
 
 TNode::TNode(const char* s)
-    : Value_(TVariantTypeTag<Stroka>(), Stroka(s))
+    : Value_(TVariantTypeTag<TString>(), TString(s))
 { }
 
 TNode::TNode(const TStringBuf& s)
-    : Value_(TVariantTypeTag<Stroka>(), Stroka(s))
+    : Value_(TVariantTypeTag<TString>(), TString(s))
 { }
 
-TNode::TNode(Stroka s)
-    : Value_(TVariantTypeTag<Stroka>(), std::move(s))
+TNode::TNode(TString s)
+    : Value_(TVariantTypeTag<TString>(), std::move(s))
 { }
 
 TNode::TNode(int i)
@@ -106,7 +106,7 @@ void TNode::Clear()
 
 bool TNode::IsString() const
 {
-    return Value_.Is<Stroka>();
+    return Value_.Is<TString>();
 }
 
 bool TNode::IsInt64() const
@@ -148,7 +148,7 @@ bool TNode::Empty() const
 {
     switch (GetType()) {
         case STRING:
-            return Value_.As<Stroka>().empty();
+            return Value_.As<TString>().empty();
         case LIST:
             return Value_.As<TList>().empty();
         case MAP:
@@ -162,7 +162,7 @@ size_t TNode::Size() const
 {
     switch (GetType()) {
         case STRING:
-            return Value_.As<Stroka>().size();
+            return Value_.As<TString>().size();
         case LIST:
             return Value_.As<TList>().size();
         case MAP:
@@ -177,7 +177,7 @@ TNode::EType TNode::GetType() const
     switch (Value_.Tag()) {
         case TValue::TagOf<TUndefined>():
             return UNDEFINED;
-        case TValue::TagOf<Stroka>():
+        case TValue::TagOf<TString>():
             return STRING;
         case TValue::TagOf<i64>():
             return INT64;
@@ -197,10 +197,10 @@ TNode::EType TNode::GetType() const
     Y_UNREACHABLE();
 }
 
-const Stroka& TNode::AsString() const
+const TString& TNode::AsString() const
 {
     CheckType(STRING);
-    return Value_.As<Stroka>();
+    return Value_.As<TString>();
 }
 
 i64 TNode::AsInt64() const
@@ -310,14 +310,14 @@ bool TNode::HasKey(const TStringBuf key) const
     return Value_.As<TMap>().has(key);
 }
 
-TNode& TNode::operator()(const Stroka& key, const TNode& value)
+TNode& TNode::operator()(const TString& key, const TNode& value)
 {
     AssureMap();
     Value_.As<TMap>()[key] = value;
     return *this;
 }
 
-TNode& TNode::operator()(const Stroka& key, TNode&& value)
+TNode& TNode::operator()(const TString& key, TNode&& value)
 {
     AssureMap();
     Value_.As<TMap>()[key] = std::move(value);
@@ -378,9 +378,9 @@ void TNode::MoveWithoutAttributes(TNode&& rhs)
     rhs.Clear();
 }
 
-const Stroka& TNode::TypeToString(EType type)
+const TString& TNode::TypeToString(EType type)
 {
-    static Stroka typeNames[] = {
+    static TString typeNames[] = {
         "UNDEFINED",
         "STRING",
         "INT64",

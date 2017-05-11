@@ -392,7 +392,7 @@ public:
         JobFunctions[name] = RunJob<TJob>;
     }
 
-    Stroka GetJobName(IJob* job)
+    TString GetJobName(IJob* job)
     {
         const auto* typeInfoPtr = &typeid(*job);
         CheckJobRegistered(typeInfoPtr);
@@ -406,8 +406,8 @@ public:
     }
 
 private:
-    yhash<const std::type_info*, Stroka> JobNames;
-    yhash<Stroka, TJobFunction> JobFunctions;
+    yhash<const std::type_info*, TString> JobNames;
+    yhash<TString, TJobFunction> JobFunctions;
 
     void CheckNotRegistered(const std::type_info* typeInfoPtr, const char* name)
     {
@@ -469,8 +469,8 @@ struct TReducerRegistrator
     }
 };
 
-inline Stroka YtRegistryTypeName(const Stroka& name) {
-    Stroka res = name;
+inline TString YtRegistryTypeName(const TString& name) {
+    TString res = name;
 #ifdef _win_
     SubstGlobal(res, "class ", "");
 #endif

@@ -103,7 +103,7 @@ public:
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
 
     virtual TNode::TList SelectRows(
-        const Stroka& query,
+        const TString& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
     virtual ui64 GenerateTimestamp() = 0;
@@ -123,7 +123,7 @@ public:
 };
 
 IClientPtr CreateClient(
-    const Stroka& serverName,
+    const TString& serverName,
     const TCreateClientOptions& options = TCreateClientOptions());
 
 ////////////////////////////////////////////////////////////////////////////////

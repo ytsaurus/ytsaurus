@@ -10,17 +10,17 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 struct TConfig
 {
-    Stroka Hosts;
-    Stroka Pool;
-    Stroka Token;
-    Stroka Prefix;
-    Stroka ApiVersion;
-    Stroka LogLevel;
+    TString Hosts;
+    TString Pool;
+    TString Token;
+    TString Prefix;
+    TString ApiVersion;
+    TString LogLevel;
 
-    Stroka ContentEncoding;
-    Stroka AcceptEncoding;
+    TString ContentEncoding;
+    TString AcceptEncoding;
 
-    Stroka GlobalTxId;
+    TString GlobalTxId;
 
     bool ForceIpV4;
     bool ForceIpV6;
@@ -45,10 +45,10 @@ struct TConfig
     int ReadRetryCount;
     int StartOperationRetryCount;
 
-    Stroka RemoteTempFilesDirectory;
-    Stroka RemoteTempTablesDirectory;
+    TString RemoteTempFilesDirectory;
+    TString RemoteTempTablesDirectory;
 
-    Stroka JobBinary;
+    TString JobBinary;
 
     bool UseClientProtobuf;
 
@@ -80,12 +80,12 @@ struct TConfig
     static bool GetBool(const char* var, bool defaultValue = false);
     static int GetInt(const char* var, int defaultValue);
     static TDuration GetDuration(const char* var, TDuration defaultValue);
-    static Stroka GetEncoding(const char* var);
+    static TString GetEncoding(const char* var);
 
-    static void ValidateToken(const Stroka& token);
-    static Stroka LoadTokenFromFile(const Stroka& tokenPath);
+    static void ValidateToken(const TString& token);
+    static TString LoadTokenFromFile(const TString& tokenPath);
 
-    static TNode LoadJsonSpec(const Stroka& strSpec);
+    static TNode LoadJsonSpec(const TString& strSpec);
 
     void LoadToken();
     void LoadSpec();
@@ -100,11 +100,11 @@ struct TConfig
 
 struct TProcessState
 {
-    Stroka HostName;
-    Stroka UserName;
-    yvector<Stroka> CommandLine;
+    TString HostName;
+    TString UserName;
+    yvector<TString> CommandLine;
     int Pid;
-    Stroka ClientVersion;
+    TString ClientVersion;
 
     TProcessState();
 

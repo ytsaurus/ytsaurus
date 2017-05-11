@@ -124,7 +124,7 @@ ui64 TYaMRTableReader::GetRowIndex() const
     return TLenvalTableReader::GetRowIndex();
 }
 
-void TYaMRTableReader::ReadField(Stroka* result, i32 length)
+void TYaMRTableReader::ReadField(TString* result, i32 length)
 {
     result->resize(length);
     size_t count = Load(result->begin(), length);

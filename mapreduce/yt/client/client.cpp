@@ -239,7 +239,7 @@ public:
         const TRichYPath& path,
         EDataStreamFormat format,
         const TTableReaderOptions& options,
-        const Stroka& formatConfig = Stroka()) override
+        const TString& formatConfig = TString()) override
     {
         return CreateClientReader(path, format, options, formatConfig).Get();
     }
@@ -248,7 +248,7 @@ public:
         const TRichYPath& path,
         EDataStreamFormat format,
         const TTableWriterOptions& options,
-        const Stroka& formatConfig = Stroka()) override
+        const TString& formatConfig = TString()) override
     {
         return ::MakeIntrusive<TBlockWriter>(
             Auth_,
@@ -406,7 +406,7 @@ private:
         const TRichYPath& path,
         EDataStreamFormat format,
         const TTableReaderOptions& options,
-        const Stroka& formatConfig = Stroka())
+        const TString& formatConfig = TString())
     {
         return ::MakeIntrusive<TClientReader>(
             CanonizePath(Auth_, path),
@@ -421,7 +421,7 @@ private:
         const TRichYPath& path,
         EDataStreamFormat format,
         const TTableWriterOptions& options,
-        const Stroka& formatConfig = Stroka())
+        const TString& formatConfig = TString())
     {
         auto realPath = CanonizePath(Auth_, path);
         if (!NYT::Exists(Auth_, TransactionId_, realPath.Path_)) {
@@ -712,7 +712,7 @@ public:
     }
 
     TNode::TList SelectRows(
-        const Stroka& query,
+        const TString& query,
         const TSelectRowsOptions& options) override
     {
         THttpHeader header("GET", "select_rows");
@@ -806,7 +806,7 @@ private:
 };
 
 IClientPtr CreateClient(
-    const Stroka& serverName,
+    const TString& serverName,
     const TCreateClientOptions& options)
 {
     bool mockRun = getenv("YT_CLIENT_MOCK_RUN") ? FromString<bool>(getenv("YT_CLIENT_MOCK_RUN")) : false;
@@ -819,8 +819,8 @@ IClientPtr CreateClient(
 
     TAuth auth;
     auth.ServerName = serverName;
-    if (serverName.find('.') == Stroka::npos &&
-        serverName.find(':') == Stroka::npos)
+    if (serverName.find('.') == TString::npos &&
+        serverName.find(':') == TString::npos)
     {
         auth.ServerName += ".yt.yandex.net";
     }

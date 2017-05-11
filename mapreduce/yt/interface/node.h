@@ -34,7 +34,7 @@ public:
     };
 
     using TList = yvector<TNode>;
-    using TMap = yhash<Stroka, TNode>;
+    using TMap = yhash<TString, TNode>;
 
 private:
     struct TEntity {
@@ -50,7 +50,7 @@ private:
         i64,
         ui64,
         double,
-        Stroka,
+        TString,
         TList,
         TMap,
         TEntity,
@@ -62,7 +62,7 @@ public:
     TNode();
     TNode(const char* s);
     TNode(const TStringBuf& s);
-    TNode(Stroka s);
+    TNode(TString s);
     TNode(int i);
 
     //this case made speccially for prevent mess cast of EType into TNode through TNode(int) constructor
@@ -106,7 +106,7 @@ public:
 
     EType GetType() const;
 
-    const Stroka& AsString() const;
+    const TString& AsString() const;
     i64 AsInt64() const;
     ui64 AsUint64() const;
     double AsDouble() const;
@@ -129,8 +129,8 @@ public:
 
     bool HasKey(const TStringBuf key) const;
 
-    TNode& operator()(const Stroka& key, const TNode& value);
-    TNode& operator()(const Stroka& key, TNode&& value);
+    TNode& operator()(const TString& key, const TNode& value);
+    TNode& operator()(const TString& key, TNode&& value);
 
     const TNode& operator[](const TStringBuf key) const;
     TNode& operator[](const TStringBuf key);
@@ -143,7 +143,7 @@ public:
 
     void MoveWithoutAttributes(TNode&& rhs);
 
-    static const Stroka& TypeToString(EType type);
+    static const TString& TypeToString(EType type);
 
 private:
     void Copy(const TNode& rhs);

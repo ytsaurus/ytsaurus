@@ -20,16 +20,16 @@ class TError
 {
 public:
     TError();
-    TError(const Stroka& message);
-    TError(int code, const Stroka& message);
+    TError(const TString& message);
+    TError(int code, const TString& message);
     TError(const NJson::TJsonValue& value);
     TError(const TNode& value);
 
     int GetCode() const;
-    const Stroka& GetMessage() const;
+    const TString& GetMessage() const;
     const yvector<TError>& InnerErrors() const;
 
-    void ParseFrom(const Stroka& jsonError);
+    void ParseFrom(const TString& jsonError);
 
     int GetInnerCode() const;
     bool ContainsErrorCode(int code) const;
@@ -39,11 +39,11 @@ public:
     bool HasAttributes() const;
     const TNode::TMap& GetAttributes() const;
 
-    Stroka GetYsonText() const;
+    TString GetYsonText() const;
 
 private:
     int Code_;
-    Stroka Message_;
+    TString Message_;
     yvector<TError> InnerErrors_;
     TNode::TMap Attributes_;
 };
@@ -54,18 +54,18 @@ class TErrorResponse
     : public yexception
 {
 public:
-    TErrorResponse(int httpCode, const Stroka& requestId);
+    TErrorResponse(int httpCode, const TString& requestId);
     TErrorResponse(int httpCode, TError error);
 
     // Check if response is actually not a error.
     bool IsOk() const;
 
-    void SetRawError(const Stroka& message);
+    void SetRawError(const TString& message);
     void SetError(TError error);
-    void ParseFromJsonError(const Stroka& jsonError);
+    void ParseFromJsonError(const TString& jsonError);
 
     int GetHttpCode() const;
-    Stroka GetRequestId() const;
+    TString GetRequestId() const;
 
     bool IsRetriable() const;
     TDuration GetRetryInterval() const;
@@ -101,7 +101,7 @@ public:
 
 private:
     int HttpCode_;
-    Stroka RequestId_;
+    TString RequestId_;
     TError Error_;
 
     bool Retriable_ = false;

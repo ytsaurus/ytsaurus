@@ -47,7 +47,7 @@ TFileReader::~TFileReader()
 
 void TFileReader::CreateRequest()
 {
-    Stroka proxyName = GetProxyForHeavyRequest(Auth_);
+    TString proxyName = GetProxyForHeavyRequest(Auth_);
 
     THttpHeader header("GET", GetReadFileCommand());
     header.SetToken(Auth_.Token);
@@ -74,7 +74,7 @@ void TFileReader::CreateRequest()
     LOG_DEBUG("RSP %s - file stream", ~Request_->GetRequestId());
 }
 
-Stroka TFileReader::GetActiveRequestId() const
+TString TFileReader::GetActiveRequestId() const
 {
     if (Request_) {
         return Request_->GetRequestId();

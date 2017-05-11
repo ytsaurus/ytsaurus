@@ -8,10 +8,10 @@ namespace NYT {
 
 struct IYsonConsumer;
 
-void Serialize(const Stroka& value, IYsonConsumer* consumer);
+void Serialize(const TString& value, IYsonConsumer* consumer);
 void Serialize(const TStringBuf& value, IYsonConsumer* consumer);
 void Serialize(const char* value, IYsonConsumer* consumer);
-void Deserialize(Stroka& value, const TNode& node);
+void Deserialize(TString& value, const TNode& node);
 
 void Serialize(signed char value, IYsonConsumer* consumer);
 void Serialize(short value, IYsonConsumer* consumer);

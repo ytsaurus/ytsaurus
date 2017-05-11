@@ -58,7 +58,7 @@ public:
         : CutLevel_(cutLevel)
     { }
 
-    virtual void OutputLine(const Stroka& line) = 0;
+    virtual void OutputLine(const TString& line) = 0;
 
     void Log(ELevel level, const TSourceLocation& sourceLocation, const char* format, va_list args) override
     {
@@ -92,7 +92,7 @@ public:
         : TLoggerBase(cutLevel)
     { }
 
-    void OutputLine(const Stroka& line) override
+    void OutputLine(const TString& line) override
     {
         Cerr << line;
     }
@@ -109,12 +109,12 @@ class TFileLogger
     : public TLoggerBase
 {
 public:
-    TFileLogger(ELevel cutLevel, const Stroka& path, bool append)
+    TFileLogger(ELevel cutLevel, const TString& path, bool append)
         : TLoggerBase(cutLevel)
         , Stream_(TFile(path, OpenAlways | WrOnly | Seq | (append ? ForAppend : EOpenMode())))
     { }
 
-    void OutputLine(const Stroka& line) override
+    void OutputLine(const TString& line) override
     {
         Stream_ << line;
     }
@@ -123,7 +123,7 @@ private:
     TFileOutput Stream_;
 };
 
-ILoggerPtr CreateFileLogger(ILogger::ELevel cutLevel, const Stroka& path, bool append)
+ILoggerPtr CreateFileLogger(ILogger::ELevel cutLevel, const TString& path, bool append)
 {
     return new TFileLogger(cutLevel, path, append);
 }

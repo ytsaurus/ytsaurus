@@ -26,10 +26,10 @@ bool IsYt()
     return GetEnv("MR_RUNTIME") == "YT";
 }
 
-Stroka MaybeStripPrefix(const Stroka& path)
+TString MaybeStripPrefix(const TString& path)
 {
     // Right now GetTableList doesn't strip `//' prefix :(
-    const Stroka prefix = "//";
+    const TString prefix = "//";
     if (path.StartsWith(prefix)) {
         return path.substr(prefix.size());
     } else {
@@ -50,7 +50,7 @@ class TCypressManipulations
 
             {
                 NMR::TClient client(GetServer());
-                yvector<Stroka> tableList;
+                yvector<TString> tableList;
                 client.GetTableList(&tableList, NMR::GT_PREFIX_MATCH, "home/testing");
                 for (const auto& table : tableList) {
                     client.Drop(table);
@@ -65,7 +65,7 @@ class TCypressManipulations
             }
         }
 
-        void CreatePath(const Stroka& path)
+        void CreatePath(const TString& path)
         {
             Y_ENSURE(path.StartsWith("home/testing"),
                 "Bug in test code: all paths must be in home/testing directory. " << path);
@@ -75,7 +75,7 @@ class TCypressManipulations
             update.Add("foo", "bar");
         }
 
-        void CreateBrokenSymlink(const Stroka& path)
+        void CreateBrokenSymlink(const TString& path)
         {
             Y_ENSURE(path.StartsWith("home/testing"),
                 "Bug in test code: all pathes must be in home/testing directory. " << path);
@@ -85,7 +85,7 @@ class TCypressManipulations
             }
 
             auto client = CreateClient(ServerName());
-            const Stroka targetPath = "//tmp_path_for_broken_link";
+            const TString targetPath = "//tmp_path_for_broken_link";
             client->Create(targetPath, NT_TABLE);
             client->Link(targetPath, "//" + path);
             client->Remove(targetPath);
@@ -96,7 +96,7 @@ class TCypressManipulations
             return *Server;
         }
 
-        void SetOpaque(const Stroka& path, EOpaqueType type, bool value)
+        void SetOpaque(const TString& path, EOpaqueType type, bool value)
         {
             if (!IsYt()) {
                 return;
@@ -133,7 +133,7 @@ YT_TEST(TCypressManipulations, GetTableList_Prefix_Simple)
     CreatePath("home/testing/bar");
     CreatePath("home/testing/baz");
 
-    yvector<Stroka> tableList;
+    yvector<TString> tableList;
     NMR::TClient client(GetServer());
     client.GetTableList(&tableList, NMR::GT_PREFIX_MATCH, "home/testing");
     for (const auto& table : tableList) {
@@ -144,7 +144,7 @@ YT_TEST(TCypressManipulations, GetTableList_Prefix_Simple)
 YT_TEST(TCypressManipulations, GetTableList_Prefix_Opaque)
 {
 
-    const yvector<Stroka> expectedPaths = {
+    const yvector<TString> expectedPaths = {
         "home/testing/bool_false/1",
         "home/testing/bool_false/2",
         "home/testing/bool_false/3",
@@ -171,7 +171,7 @@ YT_TEST(TCypressManipulations, GetTableList_Prefix_Opaque)
     SetOpaque("home/testing/string_false", OT_STRING, false);
     SetOpaque("home/testing/string_true", OT_STRING, true);
 
-    yvector<Stroka> tableList;
+    yvector<TString> tableList;
     NMR::TClient client(GetServer());
     client.GetTableList(&tableList, NMR::GT_PREFIX_MATCH, "home/testing");
     Sort(tableList.begin(), tableList.end());
@@ -185,7 +185,7 @@ YT_TEST(TCypressManipulations, GetTableList_Prefix_OpaqueString)
     CreatePath("home/testing/tt/baz");
     SetOpaque("home/testing/tt", OT_STRING, true);
 
-    yvector<Stroka> tableList;
+    yvector<TString> tableList;
     NMR::TClient client(GetServer());
     client.GetTableList(&tableList, NMR::GT_PREFIX_MATCH, "home/testing");
     for (const auto& table : tableList) {
@@ -199,7 +199,7 @@ YT_TEST(TCypressManipulations, GetTableList_Prefix_BrokenSymlink)
     CreatePath("home/testing/bar");
     CreateBrokenSymlink("home/testing/baz");
 
-    yvector<Stroka> tableList;
+    yvector<TString> tableList;
     NMR::TClient client(GetServer());
     client.GetTableList(&tableList, NMR::GT_PREFIX_MATCH, "home/testing");
     for (const auto& table : tableList) {

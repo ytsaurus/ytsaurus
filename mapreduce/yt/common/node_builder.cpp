@@ -61,7 +61,7 @@ void TNodeBuilder::OnBeginMap()
 
 void TNodeBuilder::OnKeyedItem(const TStringBuf& key)
 {
-    Stack_.push(&(*Stack_.top())[Stroka(key)]);
+    Stack_.push(&(*Stack_.top())[TString(key)]);
 }
 
 void TNodeBuilder::OnEndMap()

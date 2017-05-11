@@ -78,12 +78,12 @@ TError::TError()
     : Code_(0)
 { }
 
-TError::TError(const Stroka& message)
+TError::TError(const TString& message)
     : Code_(NYT::NClusterErrorCodes::Generic)
     , Message_(message)
 { }
 
-TError::TError(int code, const Stroka& message)
+TError::TError(int code, const TString& message)
     : Code_(code)
     , Message_(message)
 { }
@@ -157,7 +157,7 @@ int TError::GetCode() const
     return Code_;
 }
 
-const Stroka& TError::GetMessage() const
+const TString& TError::GetMessage() const
 {
     return Message_;
 }
@@ -167,7 +167,7 @@ const yvector<TError>& TError::InnerErrors() const
     return InnerErrors_;
 }
 
-void TError::ParseFrom(const Stroka& jsonError)
+void TError::ParseFrom(const TString& jsonError)
 {
     TJsonValue value;
     TStringInput input(jsonError);
@@ -226,7 +226,7 @@ const TNode::TMap& TError::GetAttributes() const
     return Attributes_;
 }
 
-Stroka TError::GetYsonText() const
+TString TError::GetYsonText() const
 {
     TStringStream out;
     TYsonWriter writer(&out, YF_TEXT);
@@ -236,7 +236,7 @@ Stroka TError::GetYsonText() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TErrorResponse::TErrorResponse(int httpCode, const Stroka& requestId)
+TErrorResponse::TErrorResponse(int httpCode, const TString& requestId)
     : HttpCode_(httpCode)
     , RequestId_(requestId)
 { }
@@ -246,7 +246,7 @@ bool TErrorResponse::IsOk() const
     return Error_.GetCode() == 0;
 }
 
-void TErrorResponse::SetRawError(const Stroka& message)
+void TErrorResponse::SetRawError(const TString& message)
 {
     Error_ = TError(message);
     Setup();
@@ -258,7 +258,7 @@ void TErrorResponse::SetError(TError error)
     Setup();
 }
 
-void TErrorResponse::ParseFromJsonError(const Stroka& jsonError)
+void TErrorResponse::ParseFromJsonError(const TString& jsonError)
 {
     Error_.ParseFrom(jsonError);
     Setup();
@@ -269,7 +269,7 @@ int TErrorResponse::GetHttpCode() const
     return HttpCode_;
 }
 
-Stroka TErrorResponse::GetRequestId() const
+TString TErrorResponse::GetRequestId() const
 {
     return RequestId_;
 }

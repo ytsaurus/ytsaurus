@@ -21,38 +21,38 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THttpHeader::THttpHeader(const Stroka& method, const Stroka& command, bool isApi)
+THttpHeader::THttpHeader(const TString& method, const TString& command, bool isApi)
     : Method(method)
     , Command(command)
     , IsApi(isApi)
 { }
 
-void THttpHeader::AddParam(const Stroka& key, const char* value)
+void THttpHeader::AddParam(const TString& key, const char* value)
 {
     Params[key] = value;
 }
 
-void THttpHeader::AddParam(const Stroka& key, const Stroka& value)
+void THttpHeader::AddParam(const TString& key, const TString& value)
 {
     Params[key] = value;
 }
 
-void THttpHeader::AddParam(const Stroka& key, i64 value)
+void THttpHeader::AddParam(const TString& key, i64 value)
 {
     Params[key] = Sprintf("%" PRIi64, value);
 }
 
-void THttpHeader::AddParam(const Stroka& key, ui64 value)
+void THttpHeader::AddParam(const TString& key, ui64 value)
 {
     Params[key] = Sprintf("%" PRIu64, value);
 }
 
-void THttpHeader::AddParam(const Stroka& key, bool value)
+void THttpHeader::AddParam(const TString& key, bool value)
 {
     Params[key] = value ? "true" : "false";
 }
 
-void THttpHeader::RemoveParam(const Stroka& key)
+void THttpHeader::RemoveParam(const TString& key)
 {
     Params.erase(key);
 }
@@ -66,7 +66,7 @@ void THttpHeader::AddTransactionId(const TTransactionId& transactionId)
     }
 }
 
-void THttpHeader::AddPath(const Stroka& path)
+void THttpHeader::AddPath(const TString& path)
 {
     AddParam("path", path);
 }
@@ -86,7 +86,7 @@ bool THttpHeader::HasMutationId() const
     return Params.has("mutation_id");
 }
 
-void THttpHeader::SetToken(const Stroka& token)
+void THttpHeader::SetToken(const TString& token)
 {
     Token = token;
 }
@@ -101,17 +101,17 @@ EDataStreamFormat THttpHeader::GetDataStreamFormat() const
     return DataStreamFormat;
 }
 
-void THttpHeader::SetInputFormat(const Stroka& format)
+void THttpHeader::SetInputFormat(const TString& format)
 {
     InputFormat = format;
 }
 
-void THttpHeader::SetOutputFormat(const Stroka& format)
+void THttpHeader::SetOutputFormat(const TString& format)
 {
     OutputFormat = format;
 }
 
-void THttpHeader::SetParameters(const Stroka& parameters)
+void THttpHeader::SetParameters(const TString& parameters)
 {
     Parameters = parameters;
 }
@@ -121,27 +121,27 @@ void THttpHeader::SetParameters(const TNode& parameters)
     Parameters = NodeToYsonString(parameters);
 }
 
-Stroka THttpHeader::GetParameters() const
+TString THttpHeader::GetParameters() const
 {
     return Parameters;
 }
 
-void THttpHeader::SetRequestCompression(const Stroka& compression)
+void THttpHeader::SetRequestCompression(const TString& compression)
 {
     RequestCompression = compression;
 }
 
-void THttpHeader::SetResponseCompression(const Stroka& compression)
+void THttpHeader::SetResponseCompression(const TString& compression)
 {
     ResponseCompression = compression;
 }
 
-Stroka THttpHeader::GetCommand() const
+TString THttpHeader::GetCommand() const
 {
     return Command;
 }
 
-Stroka THttpHeader::GetUrl() const
+TString THttpHeader::GetUrl() const
 {
     TStringStream url;
 
@@ -166,7 +166,7 @@ Stroka THttpHeader::GetUrl() const
     return url.Str();
 }
 
-Stroka THttpHeader::GetHeader(const Stroka& hostName, const Stroka& requestId) const
+TString THttpHeader::GetHeader(const TString& hostName, const TString& requestId) const
 {
     TStringStream header;
 
@@ -208,7 +208,7 @@ Stroka THttpHeader::GetHeader(const Stroka& hostName, const Stroka& requestId) c
             break;
     }
 
-    auto printYTHeader = [&header] (const char* headerName, const Stroka& value) {
+    auto printYTHeader = [&header] (const char* headerName, const TString& value) {
         static const size_t maxHttpHeaderSize = 64 << 10;
         if (!value) {
             return;
@@ -218,7 +218,7 @@ Stroka THttpHeader::GetHeader(const Stroka& hostName, const Stroka& requestId) c
             return;
         }
 
-        Stroka encoded;
+        TString encoded;
         Base64Encode(value, encoded);
         auto ptr = encoded.Data();
         auto finish = encoded.Data() + encoded.Size();
@@ -246,7 +246,7 @@ TAddressCache* TAddressCache::Get()
     return Singleton<TAddressCache>();
 }
 
-TAddressCache::TAddressPtr TAddressCache::Resolve(const Stroka& hostName)
+TAddressCache::TAddressPtr TAddressCache::Resolve(const TString& hostName)
 {
     {
         TReadGuard guard(Lock_);
@@ -255,11 +255,11 @@ TAddressCache::TAddressPtr TAddressCache::Resolve(const Stroka& hostName)
         }
     }
 
-    Stroka host(hostName);
+    TString host(hostName);
     ui16 port = 80;
 
     auto colon = hostName.find(':');
-    if (colon != Stroka::npos) {
+    if (colon != TString::npos) {
         port = FromString<ui16>(hostName.substr(colon + 1));
         host = hostName.substr(0, colon);
     }
@@ -279,7 +279,7 @@ TConnectionPool* TConnectionPool::Get()
 }
 
 TConnectionPtr TConnectionPool::Connect(
-    const Stroka& hostName,
+    const TString& hostName,
     TDuration socketTimeout)
 {
     Refresh();
@@ -348,7 +348,7 @@ void TConnectionPool::Release(TConnectionPtr connection)
 }
 
 void TConnectionPool::Invalidate(
-    const Stroka& hostName,
+    const TString& hostName,
     TConnectionPtr connection)
 {
     auto guard = Guard(Lock_);
@@ -462,8 +462,8 @@ SOCKET TConnectionPool::DoConnect(TAddressCache::TAddressPtr address)
 
 THttpResponse::THttpResponse(
     TInputStream* socketStream,
-    const Stroka& requestId,
-    const Stroka& hostName)
+    const TString& requestId,
+    const TString& hostName)
     : HttpInput_(socketStream)
     , RequestId_(requestId)
     , HostName_(hostName)
@@ -475,7 +475,7 @@ THttpResponse::THttpResponse(
 
     ErrorResponse_ = TErrorResponse(HttpCode_, RequestId_);
 
-    auto logAndSetError = [&] (const Stroka& rawError) {
+    auto logAndSetError = [&] (const TString& rawError) {
         LOG_ERROR("RSP %s - HTTP %d - %s",
             ~RequestId_,
             HttpCode_,
@@ -598,7 +598,7 @@ void THttpResponse::CheckTrailers(const THttpHeaders& trailers)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THttpRequest::THttpRequest(const Stroka& hostName)
+THttpRequest::THttpRequest(const TString& hostName)
     : HostName(hostName)
 {
     RequestId = CreateGuidAsString();
@@ -629,7 +629,7 @@ THttpRequest::~THttpRequest()
     }
 }
 
-Stroka THttpRequest::GetRequestId() const
+TString THttpRequest::GetRequestId() const
 {
     return RequestId;
 }
@@ -694,9 +694,9 @@ THttpResponse* THttpRequest::GetResponseStream()
     return Input.Get();
 }
 
-Stroka THttpRequest::GetResponse()
+TString THttpRequest::GetResponse()
 {
-    Stroka result = GetResponseStream()->ReadAll();
+    TString result = GetResponseStream()->ReadAll();
     if (LogResponse) {
         const size_t sizeLimit = 2 << 10;
         if (result.size() > sizeLimit) {

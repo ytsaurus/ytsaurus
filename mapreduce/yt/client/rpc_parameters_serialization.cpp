@@ -13,7 +13,7 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////
 
-Stroka ToString(ELockMode mode)
+TString ToString(ELockMode mode)
 {
     switch (mode) {
         case LM_EXCLUSIVE: return "exclusive";
@@ -23,7 +23,7 @@ Stroka ToString(ELockMode mode)
     Y_UNREACHABLE();
 }
 
-Stroka ToString(ENodeType type)
+TString ToString(ENodeType type)
 {
     switch (type) {
         case NT_STRING: return "string_node";
@@ -40,7 +40,7 @@ Stroka ToString(ENodeType type)
     Y_UNREACHABLE();
 }
 
-Stroka ToString(EAtomicity atomicity)
+TString ToString(EAtomicity atomicity)
 {
     switch (atomicity) {
         case EAtomicity::None:
@@ -51,7 +51,7 @@ Stroka ToString(EAtomicity atomicity)
     Y_UNREACHABLE();
 }
 
-Stroka ToString(EDurability atomicity)
+TString ToString(EDurability atomicity)
 {
     switch (atomicity) {
         case EDurability::Sync:

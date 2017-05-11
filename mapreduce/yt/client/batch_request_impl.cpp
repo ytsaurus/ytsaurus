@@ -22,7 +22,7 @@ using NThreading::NewPromise;
 ////////////////////////////////////////////////////////////////////
 
 
-static Stroka RequestInfo(const TNode& request)
+static TString RequestInfo(const TNode& request)
 {
     return TStringBuilder()
         << request["command"].AsString() << ' ' << NodeToYsonString(request["parameters"]);
@@ -191,7 +191,7 @@ void TBatchRequestImpl::MarkExecuted()
 
 template <typename TResponseParser>
 typename TResponseParser::TFutureResult TBatchRequestImpl::AddRequest(
-    const Stroka& command,
+    const TString& command,
     TNode parameters,
     TMaybe<TNode> input)
 {
@@ -358,7 +358,7 @@ void TBatchRequestImpl::ParseResponse(
 
 void TBatchRequestImpl::ParseResponse(
     TNode node,
-    const Stroka& requestId,
+    const TString& requestId,
     const IRetryPolicy& retryPolicy,
     TBatchRequestImpl* retryBatch,
     TInstant now)

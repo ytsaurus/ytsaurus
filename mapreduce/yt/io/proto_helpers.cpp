@@ -49,7 +49,7 @@ int SaveDependencies(
     return fileIndex;
 }
 
-yvector<const Descriptor*> GetJobDescriptors(const Stroka& fileName)
+yvector<const Descriptor*> GetJobDescriptors(const TString& fileName)
 {
     yvector<const Descriptor*> descriptors;
     if (!TFsPath(fileName).Exists()) {
@@ -58,7 +58,7 @@ yvector<const Descriptor*> GetJobDescriptors(const Stroka& fileName)
     }
 
     TFileInput input(fileName);
-    Stroka line;
+    TString line;
     while (input.ReadLine(line)) {
         const auto* pool = DescriptorPool::generated_pool();
         const auto* descriptor = pool->FindMessageTypeByName(line);
@@ -84,7 +84,7 @@ TNode MakeProtoFormatConfig(const yvector<const Descriptor*>& descriptors)
         messageIndices.push_back(descriptor->index());
     }
 
-    Stroka fileDescriptorSetBytes;
+    TString fileDescriptorSetBytes;
     set.SerializeToString(&fileDescriptorSetBytes);
 
     return BuildYsonNodeFluently()
