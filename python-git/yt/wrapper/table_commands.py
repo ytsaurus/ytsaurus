@@ -534,7 +534,9 @@ def is_sorted(table, client=None):
                           default="false",
                           client=client))
 
-def alter_table_replica(replica_id, enable, client=None):
+def alter_table_replica(replica_id, enable, mode="async", client=None):
     """TODO"""
-    return make_request("alter_table_replica", params={"replica_id": replica_id, "enable": enable}, client=client)
-
+    require(mode in ("sync", "async"), lambda: YtError("Invalid mode. Expected sync or async"))
+    return make_request("alter_table_replica",
+                        params={"replica_id": replica_id, "enable": enable, "mode": mode},
+                        client=client)
