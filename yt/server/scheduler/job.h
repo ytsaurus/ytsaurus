@@ -68,6 +68,9 @@ class TJob
     //! Flag that marks job as preempted by scheduler.
     DEFINE_BYVAL_RW_PROPERTY(bool, Preempted);
 
+    //! Job fail was requested by scheduler.
+    DEFINE_BYVAL_RW_PROPERTY(bool, FailRequested, false);
+
     //! String describing preemption reason.
     DEFINE_BYVAL_RW_PROPERTY(Stroka, PreemptionReason);
 

@@ -24,6 +24,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, SignalJob);
     DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, PollJobShell);
     DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, Interrupt);
+    DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, Fail);
 };
 
 ////////////////////////////////////////////////////////////////////

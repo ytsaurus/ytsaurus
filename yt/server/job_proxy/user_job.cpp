@@ -341,7 +341,7 @@ public:
         return result;
     }
 
-    virtual void Abort() override
+    virtual void Cleanup() override
     {
         bool expected = true;
         if (Prepared_.compare_exchange_strong(expected, false)) {
@@ -652,6 +652,13 @@ private:
         ValidatePrepared();
 
         UserJobReadController_->InterruptReader();
+    }
+
+    virtual void Fail() override
+    {
+        auto error = TError("Job failed by external request");
+        CleanupUserProcesses(error);
+        JobErrorPromise_.TrySet(error);
     }
 
     void ValidatePrepared()

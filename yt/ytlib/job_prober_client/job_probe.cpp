@@ -104,6 +104,16 @@ public:
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
     }
 
+    virtual void Fail() override
+    {
+        EnsureJobProberProxy();
+        auto req = JobProberProxy_->Fail();
+
+        ToProto(req->mutable_job_id(), JobId_);
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
+    }
+
 private:
     const TTcpBusClientConfigPtr TcpBusClientConfig_;
     const TJobId JobId_;

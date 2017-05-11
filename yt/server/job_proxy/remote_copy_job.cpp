@@ -110,7 +110,7 @@ public:
         return result;
     }
 
-    virtual void Abort() override
+    virtual void Cleanup() override
     { }
 
     virtual double GetProgress() const override

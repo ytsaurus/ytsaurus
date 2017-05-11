@@ -16,6 +16,7 @@ struct IJobProbe
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
     virtual Stroka GetStderr() = 0;
     virtual void Interrupt() = 0;
+    virtual void Fail() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobProbe)

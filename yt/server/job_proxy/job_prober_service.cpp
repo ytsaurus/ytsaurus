@@ -51,6 +51,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Interrupt));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Fail));
     }
 
 private:
@@ -113,6 +114,15 @@ private:
         Y_UNUSED(response);
 
         JobProxy_->Interrupt();
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Fail)
+    {
+        Y_UNUSED(response);
+
+        JobProxy_->Fail();
 
         context->Reply();
     }

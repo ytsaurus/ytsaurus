@@ -130,6 +130,11 @@ void TJobProxy::Interrupt()
     Job_->Interrupt();
 }
 
+void TJobProxy::Fail()
+{
+    Job_->Fail();
+}
+
 IServerPtr TJobProxy::GetRpcServer() const
 {
     return RpcServer_;
@@ -667,7 +672,7 @@ void TJobProxy::EnsureStderrResult(TJobResult* jobResult)
 void TJobProxy::Exit(EJobProxyExitCode exitCode)
 {
     if (Job_) {
-        Job_->Abort();
+        Job_->Cleanup();
     }
 
     NLogging::TLogManager::Get()->Shutdown();

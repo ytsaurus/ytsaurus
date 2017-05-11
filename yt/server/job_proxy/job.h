@@ -71,7 +71,7 @@ struct IJob
 
     //! Tries to clean up (e.g. user processes), best effort guarantees.
     //! Used during abnormal job proxy termination.
-    virtual void Abort() = 0;
+    virtual void Cleanup() = 0;
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const = 0;
     virtual std::vector<NChunkClient::TDataSliceDescriptor> GetUnreadDataSliceDescriptors() const = 0;

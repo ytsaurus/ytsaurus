@@ -116,6 +116,11 @@ public:
         }
     }
 
+    virtual void Fail() override
+    {
+        THROW_ERROR_EXCEPTION("Fail not implemented");
+    }
+
     virtual const TJobId& GetId() const override
     {
         return JobId_;

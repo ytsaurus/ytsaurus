@@ -442,6 +442,19 @@ public:
         }
     }
 
+    virtual void Fail() override
+    {
+        VERIFY_THREAD_AFFINITY(ControllerThread);
+        ValidateJobRunning();
+
+        try {
+            Slot_->GetJobProberClient()->Fail();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error failing job on job proxy")
+                    << ex;
+        }
+    }
+
 private:
     const TJobId Id_;
     const TOperationId OperationId_;
