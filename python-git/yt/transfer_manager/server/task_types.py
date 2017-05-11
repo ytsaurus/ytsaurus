@@ -17,7 +17,8 @@ class Task(object):
                  job_timeout=None, intermediate_format=None, lease_timeout=None, queue_name=None,
                  force_copy_with_operation=None, external=None, additional_attributes=None, table_for_errors=None,
                  schema_inference_mode=None, temp_files_dir=None, hive_json_format_attributes=None,
-                 data_proxy_role=None, logger=None, pack_yt_wrapper=None, pack_yson_bindings=None):
+                 data_proxy_role=None, logger=None, pack_yt_wrapper=None, pack_yson_bindings=None,
+                 state_description=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.source_cluster_token = get_value(source_cluster_token, token)
@@ -39,6 +40,7 @@ class Task(object):
         self.skip_if_destination_exists = skip_if_destination_exists
         self.progress = progress
         self.history = history
+        self.state_description = state_description
 
         self.backend_tag = backend_tag
         self.pool = pool

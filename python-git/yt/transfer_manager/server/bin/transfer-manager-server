@@ -533,12 +533,14 @@ class Application(object):
             if task.state == "running":
                 running_tasks.append(task_id)
                 task.state = "pending"
+                task.state_description = "Waiting for the start of Transfer Manager"
                 # To optimize start time we do not change state in Cypress here.
                 # It lead us to the situation when state in cypress differ from state in memory,
                 # but for such tasks it is not bad.
                 #self._change_task_state(id, "pending")
             if task.state == "pending":
                 self._append_pending_task(task)
+                task.state_description = "Waiting for the start of Transfer Manager"
 
         self.logger.info("Tasks loaded from cypress")
 
@@ -556,10 +558,12 @@ class Application(object):
         with self._profiling_mutex:
             self._profiling["pending_task_count"][task.get_direction_id_with_user()] += 1
 
-    def _change_task_state(self, id, new_state):
+    def _change_task_state(self, id, new_state, new_state_description=None):
         with self._mutex:
             old_state = self._tasks[id].state
             self._tasks[id].state = new_state
+            if new_state_description:
+                self._tasks[id].state_description = new_state_description
             self._dump_task(id)
             self._tasks[id].logger.info("Task change state: %s -> %s", old_state, new_state)
 
@@ -664,6 +668,7 @@ class Application(object):
     def _can_run(self, task):
         direction_running_task_count = len(self._running_tasks_per_direction[task.get_direction_id()])
         if direction_running_task_count >= self._config["running_tasks_limit_per_direction"]:
+            task.state_description = "Waiting in the direction queue"
             return False
 
         client, _ = task.get_active_and_passive_clients(self._get_clusters_configuration())
@@ -688,7 +693,7 @@ class Application(object):
                 pass
 
     # NB: return generator for waiting actual task abort.
-    def _abort_task(self, id):
+    def _abort_task(self, id, reason):
         process = None
         with self._mutex:
             if self._tasks[id].state in ["aborting", "aborted", "completed", "failed"]:
@@ -721,7 +726,9 @@ class Application(object):
                 new_state = "aborted"
                 if task_was_executed and not task_is_aborted:
                     new_state = "aborting"
-                self._change_task_state(id, new_state)
+
+                new_state_description = "{0}. Reason: {1}".format(new_state.title(), reason)
+                self._change_task_state(id, new_state, new_state_description)
 
         if not task_was_executed:
             return
@@ -755,7 +762,7 @@ class Application(object):
                     task = self._tasks[id]
                     if task.lease_timeout is not None and (now - task._last_ping_time > task.lease_timeout):
                         task.logger.info("Lease of task has expired")
-                        self._abort_task(id)
+                        self._abort_task(id, reason="lease of task has expired")
 
                 for id, process in list(iteritems(self._task_processes)):
                     task = self._tasks[id]
@@ -773,12 +780,14 @@ class Application(object):
                         elif message["type"] == "operation_started":
                             self._tasks[id].progress["operations"].append(message["operation"])
                             self._dump_task(id)
+                            task.state_description = "Running the operation"
                         elif message["type"] == "transaction_started":
                             self._tasks[id].progress["transactions"].append(message["transaction"])
                             self._dump_task(id)
                         elif message["type"] in ["completed", "skipped"]:
                             completed = True
                             complete_type = message["type"]
+                            task.state_description = message["type"].title()
                         else:
                             assert False, "Incorrect message type: " + message["type"]
 
@@ -802,7 +811,7 @@ class Application(object):
                             pass
                         elif error is not None:
                             self._tasks[id].error = error
-                            self._change_task_state(id, "failed")
+                            self._change_task_state(id, "failed", "An error has occured")
                         elif completed:
                             if process_is_alive:
                                 task.logger.warning("Task completed, but process still alive!")
@@ -827,15 +836,19 @@ class Application(object):
                 # Prepare config once.
                 temporary_config = None
                 runned_tasks = 0
+                scheduling_complete = False
                 for id in self._pending_tasks:
                     task = self._tasks[id]
+                    if scheduling_complete:
+                        task.state_description = "Waiting in scheduler queue"
+                        continue
                     try:
                         if not self._can_run(self._tasks[id]):
                             task.logger.info("Task pending")
                             continue
                     except SchedulingError as error:
                         self._tasks[id].error = error.simplify()
-                        self._change_task_state(id, "failed")
+                        self._change_task_state(id, "failed", "An error has occured")
                         continue
 
                     direction_id = self._tasks[id].get_direction_id()
@@ -848,7 +861,7 @@ class Application(object):
 
                     self._tasks[id].start_time = now_str()
                     self._tasks[id].progress = {"operations": [], "transactions": []}
-                    self._change_task_state(id, "running")
+                    self._change_task_state(id, "running", "Preparing to start the operation")
 
                     if temporary_config is None:
                         with tempfile.NamedTemporaryFile(delete=False, dir=self._config.get("default_tmp_dir")) as fout:
@@ -868,7 +881,7 @@ class Application(object):
 
                     runned_tasks += 1
                     if runned_tasks >= self._config["max_tasks_to_run_per_scheduling_round"]:
-                        break
+                        scheduling_complete = True
 
                 self._pending_tasks = filter(lambda id: self._tasks[id].state == "pending", self._pending_tasks)
 
@@ -889,11 +902,13 @@ class Application(object):
         task_description = task.dict(hide_token=True)
         direction_index = 1
         with self._mutex:
-            for id in self._pending_tasks:
+            for queue_index, id in enumerate(self._pending_tasks):
                 if id == task.id:
                     task_description["direction_index"] = direction_index
                     # XXX(asaitgalin): Frontend can use this attribute
-                    task_description["queue_index"] = direction_index
+                    task_description["queue_index"] = queue_index + 1
+                    task_description["state_description"] += " (direction_index: {0}, queue_index: {0})" \
+                        .format(direction_index, queue_index + 1)
                     break
 
                 if self._tasks[id].get_direction_id() == task.get_direction_id():
@@ -905,7 +920,7 @@ class Application(object):
         self.logger.info("Aborting running operations and transactions of tasks")
         clusters = self._clusters_configuration.clusters
 
-        def do_abort(task_id, object_dict, abort_func, type_):
+        def do_abort(task, object_dict, abort_func, type_):
             cluster_name, object_id = object_dict["cluster_name"], object_dict["id"]
             if cluster_name not in clusters:
                 return
@@ -945,9 +960,9 @@ class Application(object):
                 return
 
             for operation in task.progress.get("operations", []):
-                do_abort(task.id, operation, safe_abort_operation, "operation")
+                do_abort(task, operation, safe_abort_operation, "operation")
             for transaction in task.progress.get("transactions", []):
-                do_abort(task.id, transaction,
+                do_abort(task, transaction,
                          lambda obj_id, client: client.abort_transaction(obj_id), "transaction")
 
         for task_id in running_tasks:
@@ -975,6 +990,7 @@ class Application(object):
                 user=user,
                 token=token,
                 state="pending",
+                state_description="Waiting in scheduler queue",
                 logger=task_logger,
                 **params)
         except TypeError as error:
@@ -1010,6 +1026,7 @@ class Application(object):
             destination_client = task.get_destination_client(clusters_configuration.clusters)
             if destination_client._type == "yt" and destination_client.exists(task.destination_table):
                 task.state = "skipped"
+                task.state_description = "Skipped since destination table exists"
                 task.finish_time = now_str()
 
         if not dry_run:
@@ -1112,7 +1129,7 @@ class Application(object):
         with self._mutex:
             self._check_permission(id, request.headers, "Aborting")
 
-        waiting_abort = self._abort_task(id)
+        waiting_abort = self._abort_task(id, "user request")
         if waiting_abort is not None:
             for _ in waiting_abort:
                 time.sleep(self._sleep_step)
@@ -1145,6 +1162,7 @@ class Application(object):
             self._tasks[id].history.append(history_element)
 
             self._tasks[id].state = "pending"
+            self._tasks[id].state_description = "Waiting in scheduler queue"
             self._tasks[id].restart_time = now_str()
             self._tasks[id]._last_ping_time = time.time()
 
@@ -1232,11 +1250,13 @@ class Application(object):
         copy_finished_time = time.time()
 
         tasks_direction_indexes = {}
+        tasks_queue_indexes = {}
         queue_sizes = defaultdict(int)
-        for id in pending_tasks:
+        for queue_index, id in enumerate(pending_tasks):
             direction_id = tasks[id].get_direction_id()
             queue_sizes[direction_id] += 1
             tasks_direction_indexes[id] = queue_sizes[direction_id]
+            tasks_queue_indexes[id] = queue_index + 1
 
         if user is not None:
             tasks = dict([(id, task) for id, task in iteritems(tasks) if task.user == user])
@@ -1255,8 +1275,9 @@ class Application(object):
             if id in tasks_direction_indexes:
                 description["direction_index"] = tasks_direction_indexes[id]
                 # XXX(asaitgalin): Frontend can use this attribute
-                description["queue_index"] = tasks_direction_indexes[id]
-
+                description["queue_index"] = tasks_queue_indexes[id]
+                description["state_description"] += " (direction_index: {0}, queue_index: {0})" \
+                    .format(description["direction_index"], description["queue_index"])
             try:
                 json.dumps(description)
             except UnicodeDecodeError:

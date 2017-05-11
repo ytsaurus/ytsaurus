@@ -147,6 +147,7 @@ class Poller(object):
 
         aborted_task_count = 0
         failed_task_count = 0
+        tasks_state_descriptions = {}
 
         while not all_started or running_tasks or failed_tasks_infos:
             tasks_to_remove = []
@@ -160,6 +161,7 @@ class Poller(object):
                     return
 
                 state = task_dict["state"]
+                state_description = task_dict["state_description"]
 
                 if state == "completed":
                     logger.info("Task %s completed", task_id)
@@ -189,6 +191,10 @@ class Poller(object):
                             failed_tasks_infos[local_task_id] = (attempts_made + 1, time.time(), True)
                     else:
                         failed_task_count += 1
+                elif tasks_state_descriptions.get(task_id) != state_description:
+                    logger.info("Task %s %s. %s", task_id, state, state_description)
+                    tasks_state_descriptions[task_id] = state_description
+                    continue
                 else:
                     continue
 
