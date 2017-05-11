@@ -50,7 +50,7 @@ class TFormatAttribute
             }
         }
 
-        void CreatePath(const Stroka& path)
+        void CreatePath(const TString& path)
         {
             Y_ENSURE(path.StartsWith("home/testing"),
                 "Bug in test code: all paths must be in home/testing directory. " << path);
@@ -60,7 +60,7 @@ class TFormatAttribute
             update.Add("foo", "bar");
         }
 
-        void CreateBrokenSymlink(const Stroka& path)
+        void CreateBrokenSymlink(const TString& path)
         {
             Y_ENSURE(path.StartsWith("home/testing"),
                 "Bug in test code: all pathes must be in home/testing directory. " << path);

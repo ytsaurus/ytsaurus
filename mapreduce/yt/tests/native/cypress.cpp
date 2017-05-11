@@ -68,8 +68,8 @@ YT_TEST(TCypress, Copy)
 
 YT_TEST(TCypress, Copy_PreserveExpirationTime)
 {
-    const Stroka expirationTime = "2042-02-15T18:45:19.591902Z";
-    for (Stroka path : {"//tmp/table_default", "//tmp/table_false", "//tmp/table_true"}) {
+    const TString expirationTime = "2042-02-15T18:45:19.591902Z";
+    for (TString path : {"//tmp/table_default", "//tmp/table_false", "//tmp/table_true"}) {
         Client()->Create(path, NT_TABLE);
         Client()->Set(path + "/@expiration_time", expirationTime);
     }
@@ -98,8 +98,8 @@ YT_TEST(TCypress, Move)
 
 YT_TEST(TCypress, Move_PreserveExpirationTime)
 {
-    const Stroka expirationTime = "2042-02-15T18:45:19.591902Z";
-    for (Stroka path : {"//tmp/table_default", "//tmp/table_false", "//tmp/table_true"}) {
+    const TString expirationTime = "2042-02-15T18:45:19.591902Z";
+    for (TString path : {"//tmp/table_default", "//tmp/table_false", "//tmp/table_true"}) {
         Client()->Create(path, NT_TABLE);
         Client()->Set(path + "/@expiration_time", expirationTime);
     }

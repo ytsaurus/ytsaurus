@@ -12,7 +12,7 @@ int Main(int argc, const char* argv[])
         return 1;
     }
 
-    Stroka mode(argv[1]);
+    TString mode(argv[1]);
 
     if (mode == "--list") {
         for (auto t : *Singleton<TTestMap>()) {
@@ -29,7 +29,7 @@ int Main(int argc, const char* argv[])
         }
 
         TTestConfig::Get()->ServerName = argv[2];
-        Stroka testName(argv[3]);
+        TString testName(argv[3]);
 
         auto test = TTestMap::Get()->find(testName);
         if (test == TTestMap::Get()->end()) {

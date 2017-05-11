@@ -29,7 +29,7 @@ protected:
 
 private:
     void CreateRequest();
-    Stroka GetActiveRequestId() const;
+    TString GetActiveRequestId() const;
 
 private:
     const TRichYPath Path_;

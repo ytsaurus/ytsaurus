@@ -22,7 +22,7 @@ public:
         const TAuth& auth,
         const TTransactionId& transactionId,
         EDataStreamFormat format,
-        const Stroka& formatConfig,
+        const TString& formatConfig,
         const TTableReaderOptions& options);
 
     bool Retry(
@@ -39,7 +39,7 @@ private:
     TAuth Auth_;
     TTransactionId TransactionId_;
     EDataStreamFormat Format_;
-    Stroka FormatConfig_;
+    TString FormatConfig_;
     TTableReaderOptions Options_;
 
     THolder<TPingableTransaction> ReadTransaction_;

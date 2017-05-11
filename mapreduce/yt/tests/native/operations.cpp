@@ -11,17 +11,17 @@ namespace NNativeTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<Stroka, Stroka> GetKeyValuePair(const TNode& row)
+std::pair<TString, TString> GetKeyValuePair(const TNode& row)
 {
     return std::make_pair(row["key"].AsString(), row["value"].AsString());
 }
 
-std::pair<Stroka, Stroka> GetKeyValuePair(const TYaMRProto& row)
+std::pair<TString, TString> GetKeyValuePair(const TYaMRProto& row)
 {
     return std::make_pair(row.key(), row.value());
 }
 
-std::pair<Stroka, Stroka> GetKeyValuePair(const TYaMRRow& row)
+std::pair<TString, TString> GetKeyValuePair(const TYaMRRow& row)
 {
     return std::make_pair(row.Key.ToString(), row.Value.ToString());
 }
@@ -29,16 +29,16 @@ std::pair<Stroka, Stroka> GetKeyValuePair(const TYaMRRow& row)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-void AddKeyValueRow(TTableWriter<T>* writer, const Stroka& key, const Stroka& value);
+void AddKeyValueRow(TTableWriter<T>* writer, const TString& key, const TString& value);
 
 template<>
-void AddKeyValueRow<TNode>(TTableWriter<TNode>* writer, const Stroka& key, const Stroka& value)
+void AddKeyValueRow<TNode>(TTableWriter<TNode>* writer, const TString& key, const TString& value)
 {
     writer->AddRow(TNode()("key", key)("value", value));
 }
 
 template<>
-void AddKeyValueRow<TYaMRProto>(TTableWriter<TYaMRProto>* writer, const Stroka& key, const Stroka& value)
+void AddKeyValueRow<TYaMRProto>(TTableWriter<TYaMRProto>* writer, const TString& key, const TString& value)
 {
     TYaMRProto proto;
     proto.Setkey(key);
@@ -47,7 +47,7 @@ void AddKeyValueRow<TYaMRProto>(TTableWriter<TYaMRProto>* writer, const Stroka& 
 }
 
 template<>
-void AddKeyValueRow<TYaMRRow>(TTableWriter<TYaMRRow>* writer, const Stroka& key, const Stroka& value)
+void AddKeyValueRow<TYaMRRow>(TTableWriter<TYaMRRow>* writer, const TString& key, const TString& value)
 {
     TYaMRRow row;
     row.Key = key;
@@ -566,11 +566,11 @@ protected:
         );
 
         auto reader = Client()->CreateTableReader<TNode>(Output());
-        yvector<Stroka> values;
+        yvector<TString> values;
         for (; reader->IsValid(); reader->Next()) {
             values.emplace_back(reader->GetRow()["value"].AsString());
         }
-        const yvector<Stroka> expectedValues = {
+        const yvector<TString> expectedValues = {
             "0: a; 0: b; 0: w; 0: x; ",
             "1: c; 1: d; 1: y; 1: z; ",
         };
@@ -647,7 +647,7 @@ class TMapperWithFile
     : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    TMapperWithFile(const Stroka& fileName = Stroka())
+    TMapperWithFile(const TString& fileName = TString())
         : FileName_(fileName)
     { }
 
@@ -664,7 +664,7 @@ public:
     }
 
 private:
-    Stroka FileName_;
+    TString FileName_;
 };
 REGISTER_MAPPER(TMapperWithFile);
 
@@ -683,7 +683,7 @@ public:
     }
 
 private:
-    Stroka FileName_;
+    TString FileName_;
 };
 REGISTER_MAPPER(TMapperWithSecureVault);
 
@@ -718,7 +718,7 @@ YT_TEST(TOperationWith, CypressTable)
         writer->Finish();
     }
 
-    Stroka sandboxName("table_in_sandbox");
+    TString sandboxName("table_in_sandbox");
     TNode format("yson");
     format.Attributes()("format", "text");
     Client()->Map(
@@ -745,7 +745,7 @@ YT_TEST(TOperationWith, CypressFile)
         writer->Finish();
     }
 
-    Stroka sandboxName("file_in_sandbox");
+    TString sandboxName("file_in_sandbox");
     Client()->Map(
         TMapOperationSpec()
             .AddInput<TNode>(Input())
@@ -762,7 +762,7 @@ YT_TEST(TOperationWith, CypressFile)
 YT_TEST(TOperationWith, LocalFile)
 {
     WriteInput();
-    Stroka localName("local_file");
+    TString localName("local_file");
     {
         TFileOutput stream(localName);
         stream << "file content" << Endl;

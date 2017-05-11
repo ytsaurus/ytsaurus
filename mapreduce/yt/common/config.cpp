@@ -25,7 +25,7 @@ namespace NYT {
 
 bool TConfig::GetBool(const char* var, bool defaultValue)
 {
-    Stroka val = GetEnv(var, "");
+    TString val = GetEnv(var, "");
     if (val.Empty()) {
         return defaultValue;
     }
@@ -35,7 +35,7 @@ bool TConfig::GetBool(const char* var, bool defaultValue)
 int TConfig::GetInt(const char* var, int defaultValue)
 {
     int result = 0;
-    Stroka val = GetEnv(var, "");
+    TString val = GetEnv(var, "");
     if (val.Empty()) {
         return defaultValue;
     }
@@ -52,9 +52,9 @@ TDuration TConfig::GetDuration(const char* var, TDuration defaultValue)
     return TDuration::Seconds(GetInt(var, defaultValue.Seconds()));
 }
 
-Stroka TConfig::GetEncoding(const char* var)
+TString TConfig::GetEncoding(const char* var)
 {
-    const Stroka encoding = GetEnv(var, "identity");
+    const TString encoding = GetEnv(var, "identity");
 
     const char* supportedEncodings[] = {
         "identity",
@@ -71,7 +71,7 @@ Stroka TConfig::GetEncoding(const char* var)
     Y_FAIL("%s: encoding '%s' is not supported", var, ~encoding);
 }
 
-void TConfig::ValidateToken(const Stroka& token)
+void TConfig::ValidateToken(const TString& token)
 {
     for (size_t i = 0; i < token.size(); ++i) {
         ui8 ch = token[i];
@@ -81,13 +81,13 @@ void TConfig::ValidateToken(const Stroka& token)
     }
 }
 
-Stroka TConfig::LoadTokenFromFile(const Stroka& tokenPath)
+TString TConfig::LoadTokenFromFile(const TString& tokenPath)
 {
     TFsPath path(tokenPath);
-    return path.IsFile() ? Strip(TFileInput(~path).ReadAll()) : Stroka();
+    return path.IsFile() ? Strip(TFileInput(~path).ReadAll()) : TString();
 }
 
-TNode TConfig::LoadJsonSpec(const Stroka& strSpec)
+TNode TConfig::LoadJsonSpec(const TString& strSpec)
 {
     TNode spec;
     TStringInput input(strSpec);
@@ -106,11 +106,11 @@ TNode TConfig::LoadJsonSpec(const Stroka& strSpec)
 
 void TConfig::LoadToken()
 {
-    Stroka envToken = GetEnv("YT_TOKEN");
+    TString envToken = GetEnv("YT_TOKEN");
     if (envToken) {
         Token = envToken;
     } else {
-        Stroka tokenPath = GetEnv("YT_TOKEN_PATH");
+        TString tokenPath = GetEnv("YT_TOKEN_PATH");
         if (!tokenPath) {
             tokenPath = GetHomeDir() + "/.yt/token";
         }
@@ -121,7 +121,7 @@ void TConfig::LoadToken()
 
 void TConfig::LoadSpec()
 {
-    Stroka strSpec = GetEnv("YT_SPEC", "{}");
+    TString strSpec = GetEnv("YT_SPEC", "{}");
     Spec = LoadJsonSpec(strSpec);
 
     strSpec = GetEnv("YT_TABLE_WRITER", "{}");

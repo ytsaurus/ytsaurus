@@ -27,9 +27,9 @@ public:
     TBlockWriter(
         const TAuth& auth,
         const TTransactionId& parentId,
-        const Stroka& command,
+        const TString& command,
         EDataStreamFormat format,
-        const Stroka& formatConfig,
+        const TString& formatConfig,
         const TRichYPath& path,
         size_t bufferSize,
         const TWriterOptions& options)
@@ -59,13 +59,13 @@ protected:
 
 private:
     TAuth Auth_;
-    Stroka Command_;
+    TString Command_;
     EDataStreamFormat Format_;
-    Stroka FormatConfig_;
+    TString FormatConfig_;
     size_t BufferSize_;
 
-    Stroka Parameters_;
-    Stroka SecondaryParameters_;
+    TString Parameters_;
+    TString SecondaryParameters_;
 
     TPingableTransaction WriteTransaction_;
 

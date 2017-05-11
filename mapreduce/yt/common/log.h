@@ -30,7 +30,7 @@ void SetLogger(ILoggerPtr logger);
 ILoggerPtr GetLogger();
 
 ILoggerPtr CreateStdErrLogger(ILogger::ELevel cutLevel);
-ILoggerPtr CreateFileLogger(ILogger::ELevel cutLevel, const Stroka& path, bool append = false);
+ILoggerPtr CreateFileLogger(ILogger::ELevel cutLevel, const TString& path, bool append = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

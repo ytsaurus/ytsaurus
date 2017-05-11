@@ -48,7 +48,7 @@ public:
         TInstant now = TInstant::Now());
     void ParseResponse(
         TNode response,
-        const Stroka& requestId,
+        const TString& requestId,
         const IRetryPolicy& retryPolicy,
         TBatchRequestImpl* retryBatch,
         TInstant now = TInstant::Now());
@@ -112,7 +112,7 @@ private:
 private:
     template <typename TResponseParser>
     typename TResponseParser::TFutureResult AddRequest(
-        const Stroka& command,
+        const TString& command,
         TNode parameters,
         TMaybe<TNode> input);
 

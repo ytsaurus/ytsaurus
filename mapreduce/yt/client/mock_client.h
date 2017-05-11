@@ -32,9 +32,9 @@ public:
 
     IFileWriterPtr CreateFileWriter(const TRichYPath&, const TFileWriterOptions&) override;
 
-    TRawTableReaderPtr CreateRawReader(const TRichYPath& path, EDataStreamFormat format, const TTableReaderOptions& options, const Stroka& formatConfig) override;
+    TRawTableReaderPtr CreateRawReader(const TRichYPath& path, EDataStreamFormat format, const TTableReaderOptions& options, const TString& formatConfig) override;
 
-    TRawTableWriterPtr CreateRawWriter(const TRichYPath& path, EDataStreamFormat format, const TTableWriterOptions& options, const Stroka& formatConfig) override;
+    TRawTableWriterPtr CreateRawWriter(const TRichYPath& path, EDataStreamFormat format, const TTableWriterOptions& options, const TString& formatConfig) override;
 
     ::TIntrusivePtr<INodeReaderImpl> CreateNodeReader(const TRichYPath&, const TTableReaderOptions&) override;
 
@@ -90,7 +90,7 @@ public:
 
     TNode::TList LookupRows(const TYPath&, const TNode::TList&, const TLookupRowsOptions&) override;
 
-    TNode::TList SelectRows(const Stroka&, const TSelectRowsOptions&) override;
+    TNode::TList SelectRows(const TString&, const TSelectRowsOptions&) override;
 
     ui64 GenerateTimestamp() override;
 

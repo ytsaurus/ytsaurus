@@ -133,13 +133,13 @@ struct TColumnSchema
 {
     using TSelf = TColumnSchema;
 
-    FLUENT_FIELD(Stroka, Name);
+    FLUENT_FIELD(TString, Name);
     FLUENT_FIELD(EValueType, Type);
     FLUENT_FIELD_OPTION(ESortOrder, SortOrder);
-    FLUENT_FIELD_OPTION(Stroka, Lock);
-    FLUENT_FIELD_OPTION(Stroka, Expression);
-    FLUENT_FIELD_OPTION(Stroka, Aggregate);
-    FLUENT_FIELD_OPTION(Stroka, Group);
+    FLUENT_FIELD_OPTION(TString, Lock);
+    FLUENT_FIELD_OPTION(TString, Expression);
+    FLUENT_FIELD_OPTION(TString, Aggregate);
+    FLUENT_FIELD_OPTION(TString, Group);
 };
 
 struct TTableSchema
@@ -195,7 +195,7 @@ struct TRichYPath
     FLUENT_FIELD_OPTION(bool, Foreign);
     FLUENT_FIELD_OPTION(i64, RowCountLimit);
 
-    FLUENT_FIELD_OPTION(Stroka, FileName);
+    FLUENT_FIELD_OPTION(TString, FileName);
     FLUENT_FIELD_OPTION(bool, Executable);
     FLUENT_FIELD_OPTION(TNode, Format);
     FLUENT_FIELD_OPTION(TTableSchema, Schema);
@@ -221,7 +221,7 @@ struct TAttributeFilter
 {
     using TSelf = TAttributeFilter;
 
-    FLUENT_VECTOR_FIELD(Stroka, Attribute);
+    FLUENT_VECTOR_FIELD(TString, Attribute);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

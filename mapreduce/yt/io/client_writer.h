@@ -21,7 +21,7 @@ public:
         const TAuth& auth,
         const TTransactionId& transactionId,
         EDataStreamFormat format,
-        const Stroka& formatConfig,
+        const TString& formatConfig,
         const TTableWriterOptions& options);
 
     size_t GetStreamCount() const override;

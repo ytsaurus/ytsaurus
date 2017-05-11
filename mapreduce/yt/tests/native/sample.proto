@@ -35,7 +35,7 @@ message TTypeProto
     optional fixed64  Fixed64  = 6  [(NYT.column_name) = "Fixed64"];
     optional fixed32  Fixed32  = 7  [(NYT.column_name) = "Fixed32"];
     optional bool     Bool     = 8  [(NYT.column_name) = "Boolean"];
-    optional string   String   = 9  [(NYT.column_name) = "Stroka"];
+    optional string   String   = 9  [(NYT.column_name) = "TString"];
 // group = 10
     optional TMessage Message  = 11 [(NYT.column_name) = "Message"];
     optional bytes    Bytes    = 12 [(NYT.column_name) = "Bytes"];

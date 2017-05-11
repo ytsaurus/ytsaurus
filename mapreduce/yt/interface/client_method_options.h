@@ -135,8 +135,8 @@ struct TLockOptions
     using TSelf = TLockOptions;
 
     FLUENT_FIELD_DEFAULT(bool, Waitable, false);
-    FLUENT_FIELD_OPTION(Stroka, AttributeKey);
-    FLUENT_FIELD_OPTION(Stroka, ChildKey);
+    FLUENT_FIELD_OPTION(TString, AttributeKey);
+    FLUENT_FIELD_OPTION(TString, ChildKey);
 };
 
 template <class TDerived>
@@ -203,8 +203,8 @@ struct TCreateClientOptions
 {
     using TSelf = TCreateClientOptions;
 
-    FLUENT_FIELD(Stroka, Token);
-    FLUENT_FIELD(Stroka, TokenPath);
+    FLUENT_FIELD(TString, Token);
+    FLUENT_FIELD(TString, TokenPath);
 };
 
 struct TExecuteBatchOptions

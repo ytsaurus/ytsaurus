@@ -38,8 +38,8 @@ public:
     }
 
 private:
-    yvector<yvector<Stroka>> GetData() const {
-        static yvector<yvector<Stroka>> data =  {
+    yvector<yvector<TString>> GetData() const {
+        static yvector<yvector<TString>> data =  {
             { "a", "a", "a" },
             { "c", "c", "c" },
             { "e", "e", "e" },
@@ -83,7 +83,7 @@ private:
     THolder<NMR::TServer> Server;
 };
 
-Stroka ItToString(const NMR::TTableIterator&& it) {
+TString ItToString(const NMR::TTableIterator&& it) {
     TStringStream ss;
     ss << "IsValid: " << it.IsValid()
         << " GetRecordIndex: " << it.GetRecordIndex();

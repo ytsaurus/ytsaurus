@@ -411,13 +411,13 @@ class TFluentYsonWriterState
     : public TThrRefBase
 {
 public:
-    using TValue = Stroka;
+    using TValue = TString;
 
     explicit TFluentYsonWriterState(EYsonFormat format)
         : Writer(&Output, format)
     { }
 
-    Stroka GetValue()
+    TString GetValue()
     {
         return Output.Str();
     }
@@ -465,13 +465,13 @@ class TFluentJsonWriterState
     : public TThrRefBase
 {
 public:
-    using TValue = Stroka;
+    using TValue = TString;
 
     explicit TFluentJsonWriterState(EJsonFormat format)
         : Writer(&Output, YT_NODE, format)
     { }
 
-    Stroka GetValue()
+    TString GetValue()
     {
         Writer.Flush();
         return Output.Str();

@@ -33,7 +33,7 @@ TNode MakeNodeFromMessage(const Message& row)
             continue;
         }
 
-        Stroka columnName = fieldDesc->options().GetExtension(column_name);
+        TString columnName = fieldDesc->options().GetExtension(column_name);
         if (columnName.empty()) {
             const auto& keyColumnName = fieldDesc->options().GetExtension(key_column_name);
             columnName = keyColumnName.empty() ? fieldDesc->name() : keyColumnName;

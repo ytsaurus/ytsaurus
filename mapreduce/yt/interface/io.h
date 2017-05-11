@@ -165,13 +165,13 @@ public:
         const TRichYPath& path,
         EDataStreamFormat format,
         const TTableReaderOptions& options,
-        const Stroka& formatConfig = Stroka()) = 0;
+        const TString& formatConfig = TString()) = 0;
 
     virtual TRawTableWriterPtr CreateRawWriter(
         const TRichYPath& path,
         EDataStreamFormat format,
         const TTableWriterOptions& options,
-        const Stroka& formatConfig = Stroka()) = 0;
+        const TString& formatConfig = TString()) = 0;
 
 private:
     virtual ::TIntrusivePtr<INodeReaderImpl> CreateNodeReader(

@@ -15,25 +15,25 @@ class TAbortableHttpResponse
 public:
     TAbortableHttpResponse(
         TInputStream* socketStream,
-        const Stroka& requestId,
-        const Stroka& hostName,
-        const Stroka& url);
+        const TString& requestId,
+        const TString& hostName,
+        const TString& url);
 
     ~TAbortableHttpResponse();
 
     // Aborts any responses which match `urlPattern` (i.e. contain it in url).
     // Returns number of aborted responses.
-    static int AbortAll(const Stroka& urlPattern);
+    static int AbortAll(const TString& urlPattern);
 
     void Abort();
-    const Stroka& GetUrl() const;
+    const TString& GetUrl() const;
 
 private:
     size_t DoRead(void* buf, size_t len) override;
     size_t DoSkip(size_t len) override;
 
 private:
-    Stroka Url_;
+    TString Url_;
     std::atomic<bool> Aborted_ = {false};
 };
 

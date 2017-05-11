@@ -100,8 +100,8 @@ namespace NYT {
     using TOperationId = TGUID;
     using TTabletCellId = TGUID;
 
-    using TYPath = Stroka;
-    using TLocalFilePath = Stroka;
+    using TYPath = TString;
+    using TLocalFilePath = TString;
 
     template <class T>
     struct TKeyBase;
@@ -110,7 +110,7 @@ namespace NYT {
     using TKey = TKeyBase<TNode>;
 
     // key column names
-    using TKeyColumns = TKeyBase<Stroka>;
+    using TKeyColumns = TKeyBase<TString>;
 
     enum EValueType : int;
 

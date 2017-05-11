@@ -42,7 +42,7 @@ public:
 
     void PrintSchema()
     {
-        auto schema = Client()->Get(Input() + Stroka("/@schema"));
+        auto schema = Client()->Get(Input() + TString("/@schema"));
         Cout << NodeToYsonString(schema) << Endl << Endl;
     }
 

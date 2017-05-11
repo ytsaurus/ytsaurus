@@ -12,8 +12,8 @@ namespace NYT {
 
 struct TAuth
 {
-    Stroka ServerName;
-    Stroka Token;
+    TString ServerName;
+    TString Token;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -39,7 +39,7 @@ void CommitTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka Get(
+TString Get(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path);
@@ -48,7 +48,7 @@ void Set(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    const Stroka& value);
+    const TString& value);
 
 bool Exists(
     const TAuth& auth,
@@ -59,7 +59,7 @@ void Create(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    const Stroka& type,
+    const TString& type,
     bool ignoreExisting = true,
     bool recursive = false,
     const TMaybe<TNode>& attributes = Nothing());
@@ -84,13 +84,13 @@ void Lock(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    const Stroka& mode);
+    const TString& mode);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ParseBoolFromResponse(const Stroka& response);
+bool ParseBoolFromResponse(const TString& response);
 
-TGUID ParseGuidFromResponse(const Stroka& response);
+TGUID ParseGuidFromResponse(const TString& response);
 
 TRichYPath CanonizePath(
     const TAuth& auth, const TRichYPath& path);
@@ -100,12 +100,12 @@ yvector<TRichYPath> CanonizePaths(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka GetProxyForHeavyRequest(const TAuth& auth);
+TString GetProxyForHeavyRequest(const TAuth& auth);
 
-Stroka RetryRequest(
+TString RetryRequest(
     const TAuth& auth,
     THttpHeader& header,
-    const Stroka& body = "",
+    const TString& body = "",
     bool isHeavy = false,
     bool isOperation = false);
 

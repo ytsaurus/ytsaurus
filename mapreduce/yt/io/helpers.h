@@ -33,7 +33,7 @@ struct TIOOptionsTraits<TTableWriterOptions>
 };
 
 template <class TOptions>
-Stroka FormIORequestParameters(
+TString FormIORequestParameters(
     const TRichYPath& path,
     const TOptions& options)
 {
@@ -45,7 +45,7 @@ Stroka FormIORequestParameters(
 }
 
 template <>
-inline Stroka FormIORequestParameters(
+inline TString FormIORequestParameters(
     const TRichYPath& path,
     const TFileReaderOptions& options)
 {
@@ -63,7 +63,7 @@ inline Stroka FormIORequestParameters(
 }
 
 template <>
-inline Stroka FormIORequestParameters<TTableWriterOptions>(
+inline TString FormIORequestParameters<TTableWriterOptions>(
     const TRichYPath& path,
     const TTableWriterOptions& options)
 {

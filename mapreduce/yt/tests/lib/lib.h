@@ -12,7 +12,7 @@ namespace NTest {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTestMap
-    : public yhash<Stroka, std::function<void(NUnitTest::TTestContext&)>>
+    : public yhash<TString, std::function<void(NUnitTest::TTestContext&)>>
 {
     static TTestMap* Get()
     {
@@ -22,7 +22,7 @@ struct TTestMap
 
 struct TTestRegistrator
 {
-    inline TTestRegistrator(const Stroka& name, std::function<void(NUnitTest::TTestContext&)> func) {
+    inline TTestRegistrator(const TString& name, std::function<void(NUnitTest::TTestContext&)> func) {
         TTestMap::Get()->insert({name, func});
     }
 };
@@ -36,7 +36,7 @@ struct TTestConfig
         return Singleton<TTestConfig>();
     }
 
-    Stroka ServerName;
+    TString ServerName;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,10 +53,10 @@ public:
     void TearDown() override
     { }
 
-    const Stroka& ServerName() { return ServerName_; }
+    const TString& ServerName() { return ServerName_; }
 
 private:
-    Stroka ServerName_;
+    TString ServerName_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

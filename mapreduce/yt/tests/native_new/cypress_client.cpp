@@ -37,9 +37,9 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
 
         for (const auto nodeType : nodeTypeList) {
             auto nodeTypeStr = NYT::NDetail::ToString(nodeType);
-            const Stroka nodePath = "//testing/" + nodeTypeStr;
-            const Stroka nodeTypePath = nodePath + "/@type";
-            const Stroka nodeIdPath = nodePath + "/@id";
+            const TString nodePath = "//testing/" + nodeTypeStr;
+            const TString nodeTypePath = nodePath + "/@type";
+            const TString nodeIdPath = nodePath + "/@id";
 
             auto nodeId = client->Create(nodePath, nodeType);
             UNIT_ASSERT_VALUES_EQUAL(client->Get(nodeTypePath), nodeTypeStr);
@@ -168,7 +168,7 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
 
         auto maxSizeRes = client->List("//testing", TListOptions().MaxSize(1));
         UNIT_ASSERT_VALUES_EQUAL(maxSizeRes.size(), 1);
-        UNIT_ASSERT(yhash_set<Stroka>({"foo", "bar"}).has(maxSizeRes[0].AsString()));
+        UNIT_ASSERT(yhash_set<TString>({"foo", "bar"}).has(maxSizeRes[0].AsString()));
 
         auto attrFilterRes = client->List("//testing",
             TListOptions().AttributeFilter(TAttributeFilter().AddAttribute("attr_name")));

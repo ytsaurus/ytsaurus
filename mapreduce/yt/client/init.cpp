@@ -68,7 +68,7 @@ void Initialize(int argc, const char* argv[])
         return;
     }
 
-    Stroka jobType(argv[1]);
+    TString jobType(argv[1]);
     if (jobType != "--yt-map" && jobType != "--yt-reduce") {
         WriteVersionToLog();
         return;
@@ -76,7 +76,7 @@ void Initialize(int argc, const char* argv[])
 
     InitializeSecureVault();
 
-    Stroka jobName(argv[2]);
+    TString jobName(argv[2]);
     size_t outputTableCount = FromString<size_t>(argv[3]);
     int hasState = FromString<int>(argv[4]);
 

@@ -15,10 +15,10 @@ using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static Stroka GenerateRandomData(size_t size, ui64 seed = 42) {
+static TString GenerateRandomData(size_t size, ui64 seed = 42) {
     TReallyFastRng32 rng(seed);
 
-    Stroka result;
+    TString result;
     result.reserve(size + sizeof(ui64));
     while (result.size() < size) {
         ui64 value = rng.GenRand64();
@@ -57,7 +57,7 @@ public:
     }
 
 private:
-    Stroka FileData_;
+    TString FileData_;
     IClientPtr Client_;
 };
 
@@ -71,7 +71,7 @@ SIMPLE_UNIT_TEST_SUITE(FileIo)
 
         auto client = testReaderFixture.GetClient();
         auto reader = client->CreateFileReader("//testing/file");
-        Stroka result;
+        TString result;
         const auto readNextPart = [&] {
             char buffer[1024];
             size_t read = reader->Read(buffer, sizeof(buffer));
@@ -104,7 +104,7 @@ SIMPLE_UNIT_TEST_SUITE(FileIo)
             "//testing/file",
             TFileReaderOptions().Offset(offset).Length(length));
 
-        Stroka result;
+        TString result;
         const auto readNextPart = [&] {
             char buffer[1024];
             size_t read = reader->Read(buffer, sizeof(buffer));

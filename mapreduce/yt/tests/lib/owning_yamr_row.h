@@ -11,12 +11,12 @@ namespace NTest {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOwningYaMRRow {
-    Stroka Key;
-    Stroka SubKey;
-    Stroka Value;
+    TString Key;
+    TString SubKey;
+    TString Value;
 
     TOwningYaMRRow(const TYaMRRow& row);
-    TOwningYaMRRow(Stroka key, Stroka subKey, Stroka value);
+    TOwningYaMRRow(TString key, TString subKey, TString value);
 };
 
 bool operator == (const TOwningYaMRRow& row1, const TOwningYaMRRow& row2);

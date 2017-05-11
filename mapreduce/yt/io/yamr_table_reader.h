@@ -40,15 +40,15 @@ public:
     void NextKey() override;
 
 private:
-    void ReadField(Stroka* result, i32 length);
+    void ReadField(TString* result, i32 length);
 
     void ReadRow();
     void SkipRow() override;
 
     TYaMRRow Row_;
-    Stroka Key_;
-    Stroka SubKey_;
-    Stroka Value_;
+    TString Key_;
+    TString SubKey_;
+    TString Value_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -28,7 +28,7 @@ public:
     TOperationFailedError(
         EState state,
         TOperationId id,
-        Stroka error = Stroka())
+        TString error = TString())
         : State(state)
         , Id(id)
         , Error(error)
@@ -42,7 +42,7 @@ public:
 public:
     EState State;
     TOperationId Id;
-    Stroka Error;
+    TString Error;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,7 +35,7 @@ public:
 } // anonymous namespace
 
 YT_TEST(TWithBTTable, EmptyTable) {
-    Stroka tableName;
+    TString tableName;
     {
         WithUniqBTTable t(GetServer(), "tmp/");
         tableName = t.Name();
@@ -46,7 +46,7 @@ YT_TEST(TWithBTTable, EmptyTable) {
 }
 
 YT_TEST(TWithBTTable, NonEmptyTable) {
-    Stroka tableName;
+    TString tableName;
     {
         WithUniqBTTable t(GetServer(), "tmp/");
         tableName = t.Name();

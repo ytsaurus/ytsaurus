@@ -33,10 +33,10 @@ REGISTER_SAVELOAD_CLASS(0x73BC2B28, TFailingMap);
 int main(int argc, const char** argv) {
     NMR::Initialize(argc, argv);
 
-    const Stroka ytProxy = GetEnv("YT_PROXY");
+    const TString ytProxy = GetEnv("YT_PROXY");
     const int sleepSeconds = FromString<int>(GetEnv("SLEEP_SECONDS"));
-    const Stroka inputTable = GetEnv("INPUT_TABLE");
-    const Stroka outputTable = GetEnv("OUTPUT_TABLE");
+    const TString inputTable = GetEnv("INPUT_TABLE");
+    const TString outputTable = GetEnv("OUTPUT_TABLE");
     TServer server(ytProxy);
     {
         TClient client(server);

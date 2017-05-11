@@ -13,7 +13,7 @@ TOwningYaMRRow::TOwningYaMRRow(const TYaMRRow& row)
     , Value(row.Value.ToString())
 {}
 
-TOwningYaMRRow::TOwningYaMRRow(Stroka key, Stroka subKey, Stroka value)
+TOwningYaMRRow::TOwningYaMRRow(TString key, TString subKey, TString value)
     : Key(std::move(key))
     , SubKey(std::move(subKey))
     , Value(std::move(value))

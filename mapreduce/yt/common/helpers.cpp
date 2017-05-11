@@ -84,7 +84,7 @@ TNode CreateEmptyNodeByType(EYsonType type)
     return result;
 }
 
-TNode NodeFromYsonString(const Stroka& input, EYsonType type)
+TNode NodeFromYsonString(const TString& input, EYsonType type)
 {
     TStringInput stream(input);
 
@@ -96,7 +96,7 @@ TNode NodeFromYsonString(const Stroka& input, EYsonType type)
     return result;
 }
 
-Stroka NodeToYsonString(const TNode& node, EYsonFormat format)
+TString NodeToYsonString(const TNode& node, EYsonFormat format)
 {
     TStringStream stream;
     TYsonWriter writer(&stream, format);
@@ -105,7 +105,7 @@ Stroka NodeToYsonString(const TNode& node, EYsonFormat format)
     return stream.Str();
 }
 
-TNode NodeFromJsonString(const Stroka& input, EYsonType type)
+TNode NodeFromJsonString(const TString& input, EYsonType type)
 {
     TStringInput stream(input);
 
@@ -126,7 +126,7 @@ TNode NodeFromJsonValue(const NJson::TJsonValue& input)
     return result;
 }
 
-Stroka NodeListToYsonString(const TNode::TList& nodes)
+TString NodeListToYsonString(const TNode::TList& nodes)
 {
     TStringStream stream;
     TYsonWriter writer(&stream, YF_BINARY, YT_LIST_FRAGMENT);
@@ -144,14 +144,14 @@ TNode NodeFromYPath(const TRichYPath& path)
     .EndMap();
 }
 
-Stroka AttributesToYsonString(const TNode& node)
+TString AttributesToYsonString(const TNode& node)
 {
     return BuildYsonStringFluently().BeginMap()
         .Item("attributes").Value(node)
     .EndMap();
 }
 
-Stroka AttributeFilterToYsonString(const TAttributeFilter& filter)
+TString AttributeFilterToYsonString(const TAttributeFilter& filter)
 {
     return BuildYsonStringFluently().BeginMap()
         .Item("attributes").Value(filter)
@@ -200,22 +200,22 @@ TYPath AddPathPrefix(const TYPath& path)
     return TConfig::Get()->Prefix + path;
 }
 
-Stroka GetWriteTableCommand()
+TString GetWriteTableCommand()
 {
     return TConfig::Get()->ApiVersion == "v2" ? "write" : "write_table";
 }
 
-Stroka GetReadTableCommand()
+TString GetReadTableCommand()
 {
     return TConfig::Get()->ApiVersion == "v2" ? "read" : "read_table";
 }
 
-Stroka GetWriteFileCommand()
+TString GetWriteFileCommand()
 {
     return TConfig::Get()->ApiVersion == "v2" ? "upload" : "write_file";
 }
 
-Stroka GetReadFileCommand()
+TString GetReadFileCommand()
 {
     return TConfig::Get()->ApiVersion == "v2" ? "download" : "read_file";
 }

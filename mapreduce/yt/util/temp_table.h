@@ -11,13 +11,13 @@ class TTempTable
 public:
     explicit TTempTable(
         IClientBasePtr client,
-        const Stroka& prefix = {},
+        const TString& prefix = {},
         const TYPath& path = {},
         const TCreateOptions& options = {});
 
     ~TTempTable();
 
-    Stroka Name() const;
+    TString Name() const;
 
 private:
     IClientBasePtr Client_;

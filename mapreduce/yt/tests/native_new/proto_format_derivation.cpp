@@ -89,7 +89,7 @@ class TReduceCombiner
 public:
     void Do(TTableReader<TInputRow>* reader, TTableWriter<TOutputRow>* writer)
     {
-        const Stroka host = GetRow<TUrlRow>(reader).GetHost();
+        const TString host = GetRow<TUrlRow>(reader).GetHost();
         ui64 httpCodeTotal = 0;
         for (; reader->IsValid(); reader->Next()) {
             const auto& row = GetRow<TUrlRow>(reader);
@@ -109,7 +109,7 @@ public:
 
     void Do(TTableReader<TInputRow>* reader, TTableWriter<TOutputRow>* writer)
     {
-        const Stroka host = GetRow<TUrlRow>(reader).GetHost();
+        const TString host = GetRow<TUrlRow>(reader).GetHost();
         ui64 httpCodeTotal = 0;
         for (; reader->IsValid(); reader->Next()) {
             const auto& row = GetRow<TUrlRow>(reader);

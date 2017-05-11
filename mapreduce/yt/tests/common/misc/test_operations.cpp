@@ -35,7 +35,7 @@ public:
     const char* Input() { return "tmp/input"; }
     const char* Output() { return "tmp/output"; }
 
-    void PrintTable(const Stroka& tableName) {
+    void PrintTable(const TString& tableName) {
         TClient client(Server());
         TTable table(client, tableName);
         Cout << "IsSorted: " << table.IsSorted() << Endl;
@@ -48,7 +48,7 @@ public:
         }
     }
 
-    void SimpleFillTable(const Stroka& tableName) {
+    void SimpleFillTable(const TString& tableName) {
         TClient client(Server());
         TUpdate update(client, tableName);
         for (int i = 0; i < 10; ++i) {
@@ -110,13 +110,13 @@ YT_TEST(TOperation, IdMapIdReduce)
 YT_TEST(TOperation, SingleMerge) {
     SimpleFillTable(Input());
     Server().Sort(Input());
-    yvector<Stroka> srcTables = { Input() };
+    yvector<TString> srcTables = { Input() };
     Server().Merge(srcTables, Output());
     PrintTable(Output());
 }
 
 YT_TEST(TOperation, MultiMerge) {
-    const yvector<Stroka> srcs = { "tmp/t0", "tmp/t1", "tmp/t2" };
+    const yvector<TString> srcs = { "tmp/t0", "tmp/t1", "tmp/t2" };
     {
         TClient client(Server());
         TUpdate update0(client, srcs[0]);

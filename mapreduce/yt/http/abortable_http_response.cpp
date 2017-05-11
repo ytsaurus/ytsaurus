@@ -24,11 +24,11 @@ public:
         return *Singleton<TAbortableHttpResponseRegistry>();
     }
 
-    int AbortAll(const Stroka& urlPattern)
+    int AbortAll(const TString& urlPattern)
     {
         int result = 0;
         for (auto& response : ResponseList_) {
-            if (response.GetUrl().find(urlPattern) != Stroka::npos) {
+            if (response.GetUrl().find(urlPattern) != TString::npos) {
                 response.Abort();
                 ++result;
             }
@@ -43,9 +43,9 @@ private:
 
 TAbortableHttpResponse::TAbortableHttpResponse(
     TInputStream* socketStream,
-    const Stroka& requestId,
-    const Stroka& hostName,
-    const Stroka& url)
+    const TString& requestId,
+    const TString& hostName,
+    const TString& url)
     : THttpResponse(socketStream, requestId, hostName)
     , Url_(url)
 {
@@ -78,12 +78,12 @@ void TAbortableHttpResponse::Abort()
     Aborted_ = true;
 }
 
-int TAbortableHttpResponse::AbortAll(const Stroka& urlPattern)
+int TAbortableHttpResponse::AbortAll(const TString& urlPattern)
 {
     return TAbortableHttpResponseRegistry::Get().AbortAll(urlPattern);
 }
 
-const Stroka& TAbortableHttpResponse::GetUrl() const
+const TString& TAbortableHttpResponse::GetUrl() const
 {
     return Url_;
 }

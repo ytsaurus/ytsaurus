@@ -20,18 +20,18 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ParseBoolFromResponse(const Stroka& response)
+bool ParseBoolFromResponse(const TString& response)
 {
     return GetBool(NodeFromYsonString(response));
 }
 
-TGUID ParseGuidFromResponse(const Stroka& response)
+TGUID ParseGuidFromResponse(const TString& response)
 {
     auto node = NodeFromYsonString(response);
     return GetGuid(node.AsString());
 }
 
-void ParseJsonStringArray(const Stroka& response, yvector<Stroka>& result)
+void ParseJsonStringArray(const TString& response, yvector<TString>& result)
 {
     NJson::TJsonValue value;
     TStringInput input(response);
@@ -48,7 +48,7 @@ void ParseJsonStringArray(const Stroka& response, yvector<Stroka>& result)
 TRichYPath CanonizePath(const TAuth& auth, const TRichYPath& path)
 {
     TRichYPath result;
-    if (path.Path_.find_first_of("<>{}[]") != Stroka::npos) {
+    if (path.Path_.find_first_of("<>{}[]") != TString::npos) {
         THttpHeader header("GET", "parse_ypath");
         header.SetParameters(NodeToYsonString(NodeFromYPath(path)));
         auto response = NodeFromYsonString(RetryRequest(auth, header));
@@ -98,7 +98,7 @@ TTransactionId StartTransaction(
 
 void TransactionRequest(
     const TAuth& auth,
-    const Stroka& command,
+    const TString& command,
     const TTransactionId& transactionId)
 {
     THttpHeader header("POST", command);
@@ -138,7 +138,7 @@ void CommitTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka Get(
+TString Get(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path)
@@ -153,7 +153,7 @@ void Set(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    const Stroka& value)
+    const TString& value)
 {
     THttpHeader header("PUT", "set");
     header.AddTransactionId(transactionId);
@@ -177,7 +177,7 @@ void Create(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    const Stroka& type,
+    const TString& type,
     bool ignoreExisting,
     bool recursive,
     const TMaybe<TNode>& attributes)
@@ -237,7 +237,7 @@ void Lock(
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TYPath& path,
-    const Stroka& mode)
+    const TString& mode)
 {
     THttpHeader header("POST", "lock");
     header.AddTransactionId(transactionId);
@@ -249,15 +249,15 @@ void Lock(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka GetProxyForHeavyRequest(const TAuth& auth)
+TString GetProxyForHeavyRequest(const TAuth& auth)
 {
     if (!TConfig::Get()->UseHosts) {
         return auth.ServerName;
     }
 
-    yvector<Stroka> hosts;
+    yvector<TString> hosts;
     THttpHeader header("GET", TConfig::Get()->Hosts, false);
-    Stroka response = RetryRequest(auth, header);
+    TString response = RetryRequest(auth, header);
     ParseJsonStringArray(response, hosts);
     if (hosts.empty()) {
         ythrow yexception() << "returned list of proxies is empty";
@@ -274,10 +274,10 @@ Stroka GetProxyForHeavyRequest(const TAuth& auth)
     return hosts[hostIdx];
 }
 
-Stroka RetryRequest(
+TString RetryRequest(
     const TAuth& auth,
     THttpHeader& header,
-    const Stroka& body,
+    const TString& body,
     bool isHeavy,
     bool isOperation)
 {
@@ -295,12 +295,12 @@ Stroka RetryRequest(
 
     for (int attempt = 0; attempt < retryCount; ++attempt) {
         bool hasError = false;
-        Stroka response;
-        Stroka requestId;
+        TString response;
+        TString requestId;
         TDuration retryInterval;
 
         try {
-            Stroka hostName = auth.ServerName;
+            TString hostName = auth.ServerName;
             if (isHeavy) {
                 hostName = GetProxyForHeavyRequest(auth);
             }
@@ -380,7 +380,7 @@ void RetryHeavyWriteRequest(
         TPingableTransaction attemptTx(auth, parentId);
 
         auto input = streamMaker();
-        Stroka requestId;
+        TString requestId;
 
         try {
             auto proxyName = GetProxyForHeavyRequest(auth);
