@@ -21,16 +21,14 @@ public:
         TFuture<IChannelPtr> asyncChannel,
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck)
+        const TSendOptions& options)
         : Request_(std::move(request))
         , ResponseHandler_(std::move(responseHandler))
-        , Timeout_(timeout)
-        , RequestAck_(requestAck)
+        , Options_(options)
         , StartTime_(TInstant::Now())
     {
-        if (Timeout_) {
-            asyncChannel = asyncChannel.WithTimeout(*Timeout_);
+        if (Options_.Timeout) {
+            asyncChannel = asyncChannel.WithTimeout(*Options_.Timeout);
         }
 
         asyncChannel.Subscribe(BIND(&TRoamingRequestControl::OnGotChannel, MakeStrong(this)));
@@ -56,8 +54,7 @@ public:
 private:
     IClientRequestPtr Request_;
     IClientResponseHandlerPtr ResponseHandler_;
-    const TNullable<TDuration> Timeout_;
-    const bool RequestAck_;
+    const TSendOptions Options_;
     const TInstant StartTime_;
 
     std::atomic<bool> Semaphore_ = {false};
@@ -80,19 +77,18 @@ private:
             return;
         }
 
-        TNullable<TDuration> adjustedTimeout;
-        if (Timeout_) {
+        auto adjustedOptions = Options_;
+        if (Options_.Timeout) {
             auto now = TInstant::Now();
-            auto deadline = StartTime_ + *Timeout_;
-            adjustedTimeout = now > deadline ? TDuration::Zero() : deadline - now;
+            auto deadline = StartTime_ + *Options_.Timeout;
+            adjustedOptions.Timeout = now > deadline ? TDuration::Zero() : deadline - now;
         }
 
         const auto& channel = result.Value();
         auto requestControl = channel->Send(
             std::move(Request_),
             std::move(ResponseHandler_),
-            adjustedTimeout,
-            RequestAck_);
+            adjustedOptions);
 
         SetUnderlying(std::move(requestControl));
     }
@@ -121,8 +117,7 @@ public:
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck) override
+        const TSendOptions& options) override
     {
         Y_ASSERT(request);
         Y_ASSERT(responseHandler);
@@ -137,8 +132,7 @@ public:
                 return channel->Send(
                     std::move(request),
                     std::move(responseHandler),
-                    timeout,
-                    requestAck);
+                    options);
             } else {
                 responseHandler->HandleError(*channelOrError);
                 return New<TClientRequestControlThunk>();
@@ -149,8 +143,7 @@ public:
             std::move(asyncChannel),
             std::move(request),
             std::move(responseHandler),
-            timeout,
-            requestAck);
+            options);
     }
 
     virtual TFuture<void> Terminate(const TError& error) override

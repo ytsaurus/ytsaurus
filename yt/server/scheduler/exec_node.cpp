@@ -1,7 +1,8 @@
 #include "exec_node.h"
-#include "job_resources.h"
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/ytlib/scheduler/job_resources.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -50,7 +51,7 @@ double TExecNode::GetIOWeight() const
     return IOWeight_;
 }
 
-void TExecNode::SetIOWeights(const yhash_map<Stroka, double>& mediumToWeight)
+void TExecNode::SetIOWeights(const yhash<Stroka, double>& mediumToWeight)
 {
     TWriterGuard guard(SpinLock_);
     // NB: surely, something smarter than this should be done with individual medium weights here.

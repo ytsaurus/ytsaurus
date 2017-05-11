@@ -1,4 +1,4 @@
-#include <yt_udf.h>
+#include "yt_udf.h"
 
 #include <time.h>
 
@@ -6,6 +6,7 @@ int64_t sleep(
     TExpressionContext* context,
     int64_t value)
 {
+    (void)context;
     if (value < 1) {
         value = 1;
     }

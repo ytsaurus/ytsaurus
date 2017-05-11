@@ -2,9 +2,10 @@
 
 #include "public.h"
 #include "event_log.h"
-#include "job_resources.h"
 
 #include <yt/ytlib/node_tracker_client/node.pb.h>
+
+#include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/actions/signal.h>
 
@@ -82,6 +83,12 @@ struct ISchedulerStrategy
 
     //! Called periodically to log scheduling tree state.
     virtual void OnFairShareLoggingAt(TInstant now) = 0;
+
+    //! Called periodically to log essential for simulator tree state.
+    virtual void OnFairShareEssentialLoggingAt(TInstant now) = 0;
+
+    //! Called periodically to update min needed job resources for operation.
+    virtual void OnMinNeededJobResourcesUpdate() = 0;
 
     //! Resets memoized state.
     virtual void ResetState() = 0;

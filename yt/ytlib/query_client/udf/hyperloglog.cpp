@@ -2,7 +2,7 @@
 
 #include <yt/core/misc/hyperloglog.h>
 
-#include <yt_udf_cpp.h>
+#include "yt_udf_cpp.h"
 
 static uint64_t Hash(TUnversionedValue* v)
 {

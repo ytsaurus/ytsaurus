@@ -17,8 +17,6 @@ import __builtin__
 import os
 import sys
 from collections import defaultdict
-import calendar
-import datetime
 
 ##################################################################
 
@@ -679,6 +677,32 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/t_output") == [{"hello": "world"}]
 
+    def test_file_with_subdir(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"hello": "world"}])
+
+        file = "//tmp/test_file"
+        create("file", file)
+        write_file(file, "{value=42};\n")
+
+        map(in_="//tmp/t_input",
+            out=["//tmp/t_output"],
+            command="cat dir/my_file >&2; cat",
+            file=[to_yson_type("//tmp/test_file", attributes={"file_name": "dir/my_file"})],
+            verbose=True)
+
+        with pytest.raises(YtError):
+            map(in_="//tmp/t_input",
+                out=["//tmp/t_output"],
+                command="cat dir/my_file >&2; cat",
+                file=[to_yson_type("//tmp/test_file", attributes={"file_name": "../dir/my_file"})],
+                spec={"max_failed_job_count": 1},
+                verbose=True)
+
+        assert read_table("//tmp/t_output") == [{"hello": "world"}]
+
     def test_two_inputs_at_the_same_time(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output1")
@@ -1123,7 +1147,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             environment={"PYTHONPATH": os.environ["PYTHONPATH"]})
 
         jobs_archive_path = "//sys/operations_archive/jobs"
-        
+
         rows = []
 
         jobs = get("//sys/operations/{}/jobs".format(op.id), attributes=[
@@ -1135,7 +1159,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             "error",
             "statistics",
             "size",
-            "uncompressed_data_size" 
+            "uncompressed_data_size"
         ])
 
         for job_id, job in jobs.iteritems():
@@ -1805,9 +1829,10 @@ print row + table_index
 
         operation_path = "//sys/operations/{0}".format(op.id)
 
-        assert exists(operation_path + "/output_0")
-        assert effective_acl == get(operation_path + "/output_0/@acl")
-        assert schema == get(operation_path + "/output_0/@schema")
+        async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        assert exists(operation_path + "/output_0", tx=async_transaction_id)
+        assert effective_acl == get(operation_path + "/output_0/@acl", tx=async_transaction_id)
+        assert schema == get(operation_path + "/output_0/@schema", tx=async_transaction_id)
 
         op.resume_job(op.jobs[0])
         op.resume_job(op.jobs[1])
@@ -1815,8 +1840,7 @@ print row + table_index
             time.sleep(0.2)
         time.sleep(1)
 
-        transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
-        live_preview_data = read_table(operation_path + "/output_0", tx=transaction_id)
+        live_preview_data = read_table(operation_path + "/output_0", tx=async_transaction_id)
         assert len(live_preview_data) == 2
         assert all(record in data for record in live_preview_data)
 
@@ -2639,7 +2663,7 @@ print row + table_index
     def test_map_job_splitter(self, ordered):
         create("table", "//tmp/in_1")
         write_table(
-            "<append=true>//tmp/in_1",
+            "//tmp/in_1",
             [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)])
 
         input_ = ["//tmp/in_1"] * 5
@@ -2688,6 +2712,24 @@ done
         for row in got:
             del row["data"]
         assert sorted(got) == sorted(expected * 5)
+
+    def test_ypath_attributes_on_output_tables(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", {"a": "b" * 10000})
+
+        for optimize_for in ["lookup", "scan"]:
+            create("table", "//tmp/tout1_" + optimize_for)
+            map(in_="//tmp/t1", out="<optimize_for={0}>//tmp/tout1_{0}".format(optimize_for), command="cat")
+            assert get("//tmp/tout1_{}/@optimize_for".format(optimize_for)) == optimize_for
+
+        for compression_codec in ["none", "lz4"]:
+            create("table", "//tmp/tout2_" + compression_codec)
+            map(in_="//tmp/t1", out="<compression_codec={0}>//tmp/tout2_{0}".format(compression_codec), command="cat")
+
+            stats = get("//tmp/tout2_{}/@compression_statistics".format(compression_codec))
+            assert compression_codec in stats, str(stats)
+            assert stats[compression_codec]["chunk_count"] > 0
+
 
 
 ##################################################################
@@ -3092,7 +3134,9 @@ class TestSandboxTmpfs(YTEnvSetup):
             })
 
         script = "#!/usr/bin/env python\n"\
-                 "import sys; sys.stdout.write(sys.stdin.read())\n"
+                 "import sys\n"\
+                 "sys.stdout.write(sys.stdin.read())\n"\
+                 "with open('test_file', 'w') as f: f.write('Hello world!')"
         create("file", "//tmp/script")
         write_file("//tmp/script", script)
         set("//tmp/script/@executable", True)

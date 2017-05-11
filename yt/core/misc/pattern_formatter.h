@@ -14,7 +14,7 @@ public:
     Stroka Format(const Stroka& pattern);
 
 private:
-    typedef yhash_map<Stroka, Stroka> TPropertyMap;
+    typedef yhash<Stroka, Stroka> TPropertyMap;
     TPropertyMap PropertyMap;
 
 };

@@ -1,8 +1,12 @@
 #include "framework.h"
 #include "ql_helpers.h"
 #include "udf/invalid_ir.h"
-#include "udf/malloc_udf.h"
+
+#ifdef YT_IN_ARCADIA
+#include <library/resource/resource.h>
+#else
 #include "udf/test_udfs.h"
+#endif
 
 #include <yt/ytlib/query_client/callbacks.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
@@ -650,10 +654,7 @@ protected:
 
         ActionQueue_ = New<TActionQueue>("Test");
 
-        auto bcImplementations = TSharedRef(
-            test_udfs_bc,
-            test_udfs_bc_len,
-            nullptr);
+        auto bcImplementations = UDF_BC(test_udfs);
 
         MergeFrom(TypeInferers_.Get(), *BuiltinTypeInferrersMap);
         MergeFrom(FunctionProfilers_.Get(), *BuiltinFunctionCG);
@@ -720,18 +721,22 @@ protected:
         builder.RegisterFunction(
             "abs_udf_arity",
             "abs_udf",
+            std::unordered_map<TTypeArgument, TUnionType>(),
             std::vector<TType>{EValueType::Int64, EValueType::Int64},
+            EValueType::Null,
             EValueType::Int64,
             bcImplementations,
-            ECallingConvention::Simple);
+            GetCallingConvention(ECallingConvention::Simple));
 
         builder.RegisterFunction(
             "abs_udf_double",
             "abs_udf",
+            std::unordered_map<TTypeArgument, TUnionType>(),
             std::vector<TType>{EValueType::Double},
+            EValueType::Null,
             EValueType::Int64,
             bcImplementations,
-            ECallingConvention::Simple);
+            GetCallingConvention(ECallingConvention::Simple));
 
         builder.RegisterFunction(
             "throw_if_negative_udf",
@@ -830,7 +835,7 @@ protected:
         i64 outputRowLimit,
         EFailureLocation failureLocation)
     {
-        yhash_map<TGuid, size_t> sourceGuids;
+        yhash<TGuid, size_t> sourceGuids;
         size_t index = 0;
         for (const auto& dataSplit : dataSplits) {
             EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath(dataSplit.first), _))

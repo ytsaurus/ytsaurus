@@ -18,7 +18,7 @@ message TReqCoordinatorCommitDistributedTransactionPhaseOne
     required NYT.NProto.TGuid transaction_id = 1;
     optional NYT.NProto.TGuid mutation_id = 2;
     repeated NYT.NProto.TGuid participant_cell_ids = 3;
-    required uint64 coordinator_prepare_timestamp = 4;
+    required bool inherit_commit_timestamp = 5;
 }
 
 message TReqCoordinatorCommitDistributedTransactionPhaseTwo

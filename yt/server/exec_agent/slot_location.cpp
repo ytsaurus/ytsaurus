@@ -146,7 +146,7 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
         ValidateEnabled();
 
         auto sandboxPath = GetSandboxPath(slotIndex, kind);
-        auto destinationPath = NFS::CombinePaths(sandboxPath, destinationName);
+        auto destinationPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, destinationName));
 
         LOG_DEBUG("Making sandbox copy (SourcePath: %v, DestinationName: %v)",
             sourcePath,
@@ -155,7 +155,7 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
         try {
             // This validations do not disable slot.
             ValidateNotExists(destinationPath);
-            ValidateFileName(destinationName);
+            ForceSubdirectories(destinationPath, sandboxPath);
         } catch (const std::exception& ex) {
             // Job will be failed.
             THROW_ERROR_EXCEPTION(
@@ -182,7 +182,12 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                 destinationPath,
                 Bootstrap_->GetConfig()->ExecAgent->SlotManager->FileCopyChunkSize);
             EnsureNotInUse(destinationPath);
-            NFS::SetExecutableMode(destinationPath, executable);
+
+            auto permissions = 0666;
+            if (executable) {
+                permissions |= 0111;
+            }
+            SetPermissions(destinationPath, permissions);
         } catch (const TErrorException& ex) {
             if (IsInsideTmpfs(destinationPath) && ex.Error().FindMatching(ELinuxErrorCode::NOSPC)) {
                 THROW_ERROR_EXCEPTION("Failed to make a copy for file %Qv into sandbox %v: tmpfs is too small",
@@ -210,14 +215,14 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
         ValidateEnabled();
 
         auto sandboxPath = GetSandboxPath(slotIndex, kind);
-        auto linkPath = NFS::CombinePaths(sandboxPath, linkName);
+        auto linkPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, linkName));
 
         LOG_DEBUG("Making sandbox symlink (TargetPath: %v, LinkName: %v)", targetPath, linkName);
 
         try {
             // This validations do not disable slot.
             ValidateNotExists(linkPath);
-            ValidateFileName(linkName);
+            ForceSubdirectories(linkPath, sandboxPath);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to make a symlink %Qv into sandbox %v", linkName, sandboxPath)
                 << ex;
@@ -256,7 +261,7 @@ TFuture<Stroka> TSlotLocation::MakeSandboxTmpfs(
         try {
             // This validations do not disable slot.
             if (!HasRootPermissions_) {
-                THROW_ERROR_EXCEPTION("Sandbox tmpfs in disabled since node doesn't have root permissions");
+                THROW_ERROR_EXCEPTION("Sandbox tmpfs is disabled since node doesn't have root permissions");
             }
 
             if (!tmpfsPath.StartsWith(sandboxPath)) {
@@ -434,13 +439,6 @@ void TSlotLocation::ValidateNotExists(const Stroka& path)
     }
 }
 
-void TSlotLocation::ValidateFileName(const Stroka& fileName)
-{
-    if (NFS::GetFileName(fileName) != fileName) {
-        THROW_ERROR_EXCEPTION("File name cannot include nested directories");
-    }
-}
-
 void TSlotLocation::EnsureNotInUse(const Stroka& path) const
 {
     // Take exclusive lock in blocking fashion to ensure that no
@@ -475,6 +473,17 @@ bool TSlotLocation::IsInsideTmpfs(const Stroka& path) const
     }
 
     return false;
+}
+
+void TSlotLocation::ForceSubdirectories(const Stroka& filePath, const Stroka& sandboxPath) const
+{
+    auto dirPath = NFS::GetDirectoryName(filePath);
+    if (!dirPath.StartsWith(sandboxPath)) {
+        THROW_ERROR_EXCEPTION("Path of the file must be inside the sandbox directory")
+            << TErrorAttribute("sandbox_path", sandboxPath)
+            << TErrorAttribute("file_path", filePath);
+    }
+    NFS::MakeDirRecursive(dirPath);
 }
 
 void TSlotLocation::ValidateEnabled() const

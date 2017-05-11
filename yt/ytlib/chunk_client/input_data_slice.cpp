@@ -3,6 +3,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/serialize.h>
 
 namespace NYT {
@@ -67,7 +68,6 @@ void TInputDataSlice::Persist(NTableClient::TPersistenceContext& context)
     Persist(context, ChunkSlices);
     Persist(context, Type);
     Persist(context, Tag);
-    Persist(context, Disabled);
     Persist(context, InputStreamIndex);
 }
 
@@ -121,7 +121,7 @@ void ToProto(
 {
     for (const auto& slice : inputDataSlice->ChunkSlices) {
         auto* chunk = dataSliceDescriptor->add_chunks();
-        ToProto(chunk, slice);
+        ToProto(chunk, slice, inputDataSlice->Type);
         if (inputDataSlice->Tag) {
             chunk->set_data_slice_tag(*inputDataSlice->Tag);
         }
@@ -244,7 +244,7 @@ void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const TRow
         }
     }
     if (minKey) {
-        dataSlice->LowerLimit().MergeLowerKey(minKey);
+        dataSlice->LowerLimit().MergeLowerKey(rowBuffer->Capture(minKey));
     }
     if (maxKey) {
         dataSlice->UpperLimit().MergeUpperKey(GetKeySuccessor(maxKey, rowBuffer));
@@ -330,7 +330,7 @@ i64 GetCumulativeRowCount(const std::vector<TInputDataSlicePtr>& dataSlices)
 i64 GetCumulativeDataSize(const std::vector<TInputDataSlicePtr>& dataSlices)
 {
     i64 result = 0;
-    for (const auto& dataSlice : dataSlices) {
+for (const auto& dataSlice : dataSlices) {
         result += dataSlice->GetDataSize();
     }
     return result;

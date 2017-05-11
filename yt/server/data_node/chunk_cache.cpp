@@ -235,7 +235,7 @@ struct TArtifactMetaHeader
     ui64 Version = ExpectedVersion;
 
     static constexpr ui64 ExpectedSignature = 0x313030484d415459ull; // YTAMH001
-    static constexpr ui64 ExpectedVersion = 3;
+    static constexpr ui64 ExpectedVersion = 4;
 };
 
 constexpr ui64 TArtifactMetaHeader::ExpectedSignature;
@@ -368,7 +368,7 @@ public:
 
             auto downloader = &TImpl::DownloadChunk;
             if (!canPrepareSingleChunk) {
-                switch (EDataSourceType(key.data_source_type())) {
+                switch (EDataSourceType(key.data_source().type())) {
                     case EDataSourceType::File:
                         downloader = &TImpl::DownloadFile;
                         break;
@@ -543,7 +543,7 @@ private:
 
     bool CanPrepareSingleChunk(const TArtifactKey& key)
     {
-        if (EDataSourceType(key.data_source_type()) != EDataSourceType::File) {
+        if (EDataSourceType(key.data_source().type()) != EDataSourceType::File) {
             return false;
         }
         if (key.chunk_specs_size() != 1) {
@@ -748,11 +748,11 @@ private:
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
         auto dataSourceDirectory = New<NChunkClient::TDataSourceDirectory>();
 
-        TNullable<TTableSchema> schema = key.has_table_schema()
-            ? MakeNullable(FromProto<TTableSchema>(key.table_schema()))
+        TNullable<TTableSchema> schema = key.data_source().has_table_schema()
+            ? MakeNullable(FromProto<TTableSchema>(key.data_source().table_schema()))
             : Null;
 
-        switch (EDataSourceType(key.data_source_type())) {
+        switch (EDataSourceType(key.data_source().type())) {
             case EDataSourceType::UnversionedTable:
                 dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(CachedSourcePath, schema, Null));
 
@@ -767,7 +767,7 @@ private:
                     CachedSourcePath,
                     *schema,
                     Null,
-                    key.timestamp()));
+                    key.data_source().timestamp()));
                 dataSliceDescriptors.push_back(TDataSliceDescriptor(FromProto<std::vector<TChunkSpec>>(key.chunk_specs())));
                 break;
 

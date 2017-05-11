@@ -1,7 +1,8 @@
 #include "public.h"
 #include "scheduler.h"
-#include "job_resources.h"
 #include "scheduling_tag.h"
+
+#include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/ytlib/api/client.h>
 
@@ -10,6 +11,8 @@
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/public.h>
 
@@ -44,15 +47,6 @@ struct INodeShardHost
         const Stroka& user,
         const TOperationId& operationId,
         NYTree::EPermission permission) = 0;
-
-    virtual TFuture<void> UpdateOperationWithFinishedJob(
-        const TOperationId& operationId,
-        const TJobId& jobId,
-        bool jobFailedOrAborted,
-        const NYson::TYsonString& jobAttributes,
-        const NChunkClient::TChunkId& stderrChunkId,
-        const NChunkClient::TChunkId& failContextChunkId,
-        TFuture<NYson::TYsonString> inputPathsFuture) = 0;
 
     virtual TFuture<void> AttachJobContext(
         const NYTree::TYPath& path,
@@ -107,7 +101,7 @@ public:
 
     void OnMasterDisconnected();
 
-    void RegisterOperation(const TOperationId& operationId, const IOperationControllerPtr& operationController);
+    void RegisterOperation(const TOperationId& operationId, const NControllerAgent::IOperationControllerPtr& operationController);
     void UnregisterOperation(const TOperationId& operationId);
 
     yhash_set<TOperationId> ProcessHeartbeat(const TScheduler::TCtxHeartbeatPtr& context);
@@ -125,8 +119,6 @@ public:
 
     NYson::TYsonString StraceJob(const TJobId& jobId, const Stroka& user);
 
-    NYson::TYsonString GetJobStatistics(const TJobId& jobId);
-
     void DumpJobInputContext(const TJobId& jobId, const NYTree::TYPath& path, const Stroka& user);
 
     NNodeTrackerClient::TNodeDescriptor GetJobNode(const TJobId& jobId, const Stroka& user);
@@ -139,12 +131,13 @@ public:
 
     void AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const Stroka& user);
 
+    void AbortJob(const TJobId& jobId, const TError& error);
+
     void InterruptJob(const TJobId& jobId, EInterruptReason reason);
 
     void BuildNodesYson(NYson::IYsonConsumer* consumer);
-    void BuildOperationJobsYson(const TOperationId& operationId, NYson::IYsonConsumer* consumer);
-    void BuildJobYson(const TJobId& job, NYson::IYsonConsumer* consumer);
-    void BuildSuspiciousJobsYson(NYson::IYsonConsumer* consumer);
+
+    TOperationId GetOperationIdByJobId(const TJobId& job);
 
     TJobResources GetTotalResourceLimits();
     TJobResources GetTotalResourceUsage();
@@ -161,18 +154,7 @@ public:
     int GetExecNodeCount();
     int GetTotalNodeCount();
 
-    struct TOperationStatePatch
-    {
-        bool CanCreateJobNodeForAbortedOrFailedJobs;
-        bool CanCreateJobNodeForJobsWithStderr;
-    };
-
-    struct TNodeShardPatch
-    {
-        yhash_map<TOperationId, TOperationStatePatch> OperationPatches;
-    };
-
-    void UpdateState(const TNodeShardPatch& patch);
+    void SetInterruptHint(const TJobId& jobId, bool hint);
 
 private:
     const int Id_;
@@ -190,7 +172,7 @@ private:
     NConcurrency::TReaderWriterSpinLock CachedExecNodeDescriptorsLock_;
     TExecNodeDescriptorListPtr CachedExecNodeDescriptors_ = New<TExecNodeDescriptorList>();
 
-    yhash_map<TSchedulingTagFilter, TJobResources> SchedulingTagFilterToResources_;
+    yhash<TSchedulingTagFilter, TJobResources> SchedulingTagFilterToResources_;
 
     // Exec node is the node that is online and has user slots.
     std::atomic<int> ExecNodeCount_ = {0};
@@ -209,21 +191,19 @@ private:
 
     struct TOperationState
     {
-        TOperationState(const IOperationControllerPtr& controller)
+        TOperationState(const NControllerAgent::IOperationControllerPtr& controller)
             : Controller(controller)
         { }
 
         yhash_map<TJobId, TJobPtr> Jobs;
-        IOperationControllerPtr Controller;
+        NControllerAgent::IOperationControllerPtr Controller;
         bool Terminated = false;
         bool JobsAborted = false;
-        bool CanCreateJobNodeForAbortedOrFailedJobs = true;
-        bool CanCreateJobNodeForJobsWithStderr = true;
     };
 
-    yhash_map<TOperationId, TOperationState> OperationStates_;
+    yhash<TOperationId, TOperationState> OperationStates_;
 
-    typedef yhash_map<NNodeTrackerClient::TNodeId, TExecNodePtr> TExecNodeByIdMap;
+    typedef yhash<NNodeTrackerClient::TNodeId, TExecNodePtr> TExecNodeByIdMap;
     TExecNodeByIdMap IdToNode_;
 
     const NObjectClient::TCellTag PrimaryMasterCellTag_;
@@ -282,8 +262,6 @@ private:
     void OnJobWaiting(const TJobPtr& /*job*/);
     void OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool abandoned = false);
     void OnJobFailed(const TJobPtr& job, TJobStatus* status);
-
-    void ProcessFinishedJobResult(const TJobPtr& job);
 
     void IncreaseProfilingCounter(const TJobPtr& job, i64 value);
 

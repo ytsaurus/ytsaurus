@@ -23,10 +23,12 @@ option(YT_BUILD_ENABLE_PYTHON_3_4         "Build Python 3.4 bindings" FALSE)
 option(YT_BUILD_ENABLE_PERL               "Build Perl bindings" FALSE)
 option(YT_BUILD_HAVE_RAGEL                "Do you have Ragel 6.8?" FALSE)
 option(YT_BUILD_HAVE_BISON                "Do you have Bison 3.0?" FALSE)
-option(YT_BUILD_ENABLE_ASAN               "Build with Address Sanitizer enabled" FALSE)
 option(YT_BUILD_ENABLE_GDB_INDEX          "Build with .gdb_index section (speeds up gdb startup)" FALSE)
 option(YT_USE_LTO                         "Enable link time optimizations" FALSE)
 option(YT_USE_SSE                         "Enable using sse4 optimization flags" TRUE)
+option(YT_USE_ASAN                        "Enable Address Sanitizer" FALSE)
+option(YT_USE_TSAN                        "Enable Thread Sanitizer" FALSE)
+option(YT_USE_MSAN                        "Enable Memory Sanitizer" FALSE)
 
 ################################################################################
 # Include various CMake modules.

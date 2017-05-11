@@ -663,9 +663,11 @@ TEnableTableReplicaCommand::TEnableTableReplicaCommand()
 void TEnableTableReplicaCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
-    auto asyncResult = client->EnableTableReplica(
+    TAlterTableReplicaOptions options;
+    options.Enabled = true;
+    auto asyncResult = client->AlterTableReplica(
         ReplicaId,
-        Options);
+        options);
     WaitFor(asyncResult)
         .ThrowOnError();
 }
@@ -680,7 +682,27 @@ TDisableTableReplicaCommand::TDisableTableReplicaCommand()
 void TDisableTableReplicaCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
-    auto asyncResult = client->DisableTableReplica(
+    TAlterTableReplicaOptions options;
+    options.Enabled = false;
+    auto asyncResult = client->AlterTableReplica(
+        ReplicaId,
+        options);
+    WaitFor(asyncResult)
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAlterTableReplicaCommand::TAlterTableReplicaCommand()
+{
+    RegisterParameter("replica_id", ReplicaId);
+    RegisterParameter("enabled", Options.Enabled);
+}
+
+void TAlterTableReplicaCommand::DoExecute(ICommandContextPtr context)
+{
+    auto client = context->GetClient();
+    auto asyncResult = client->AlterTableReplica(
         ReplicaId,
         Options);
     WaitFor(asyncResult)

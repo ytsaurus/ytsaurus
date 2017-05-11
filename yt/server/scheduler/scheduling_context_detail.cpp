@@ -51,9 +51,14 @@ bool TSchedulingContextBase::HasEnoughResources(const TJobResources& neededResou
         ResourceUsage_ + neededResources);
 }
 
+bool TSchedulingContextBase::CanStartJob(const TJobResources& jobResources) const
+{
+    return HasEnoughResources(jobResources - ResourceUsageDiscount());
+}
+
 bool TSchedulingContextBase::CanStartMoreJobs() const
 {
-    if (!HasEnoughResources(MinSpareNodeResources() - ResourceUsageDiscount())) {
+    if (!CanStartJob(MinSpareNodeResources())) {
         return false;
     }
 
@@ -80,10 +85,8 @@ TJobPtr TSchedulingContextBase::StartJob(const TOperationId& operationId, const 
         Node_,
         startTime,
         jobStartRequest.ResourceLimits,
-        jobStartRequest.Restarted,
         jobStartRequest.Interruptible,
-        jobStartRequest.SpecBuilder,
-        jobStartRequest.Account);
+        jobStartRequest.SpecBuilder);
     StartedJobs_.push_back(job);
     return job;
 }
@@ -97,6 +100,11 @@ void TSchedulingContextBase::PreemptJob(TJobPtr job)
 TJobId TSchedulingContextBase::GenerateJobId()
 {
     return MakeJobId(CellTag_, Node_->GetId());
+}
+
+TJobResources TSchedulingContextBase::GetFreeResources()
+{
+    return ResourceLimits_ - ResourceUsage_;
 }
 
 ////////////////////////////////////////////////////////////////////

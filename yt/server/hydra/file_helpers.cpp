@@ -9,7 +9,7 @@ namespace NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileWrapper::TFileWrapper(const Stroka& fileName, ui32 oMode)
-    : File_(fileName, EOpenModeFlag(oMode))
+    : File_(fileName, OpenMode(oMode))
 { }
 
 i64 TFileWrapper::Seek(i64 offset, SeekDir origin)

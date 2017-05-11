@@ -19,6 +19,9 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             "operations_update_period" : 10,
             "running_jobs_update_period" : 10,
             "reduce_operation_options" : {
+                "spec_template" : {
+                    "use_legacy_controller" : False,
+                },
                 "job_splitter" : {
                     "min_job_time": 5000,
                     "min_total_data_size": 1024,
@@ -1328,6 +1331,59 @@ done
         assert completed["total"] >= 6
         assert interrupted["job_split"] >= 1
 
+    def test_intermediate_live_preview(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "foo", "type": "string", "sort_order": "ascending"}]})
+        write_table("//tmp/t1", {"foo": "bar"})
+        create("table", "//tmp/t2")
+
+        op = reduce(dont_track=True, command="cat; sleep 3",
+                    in_="//tmp/t1", out="//tmp/t2",
+                    reduce_by=["foo"])
+
+        time.sleep(2)
+
+        operation_path = "//sys/operations/{0}".format(op.id)
+        scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        assert exists(operation_path + "/output_0", tx=scheduler_transaction_id)
+
+        op.track()
+        assert read_table("//tmp/t2") == [{"foo": "bar"}]
+
+    def test_pivot_keys(self):
+        create("table", "//tmp/t1", attributes={"schema": [
+            {"name": "key", "type": "string", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"}]})
+        create("table", "//tmp/t2")
+        for i in range(1, 13):
+            write_table("<append=%true>//tmp/t1", {"key": "%02d" % i, "value": i})
+        reduce(in_="//tmp/t1",
+               out="//tmp/t2",
+               command="cat",
+               reduce_by=["key"],
+               spec={"pivot_keys": [["05"], ["10"]]})
+        assert get("//tmp/t2/@chunk_count") == 3
+        chunk_ids = get("//tmp/t2/@chunk_ids")
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [3, 4, 5]
+
+    def test_pivot_keys_incorrect_options(self):
+        create("table", "//tmp/t1", attributes={"schema": [
+            {"name": "key", "type": "string", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"}]})
+        create("table", "//tmp/t2")
+        for i in range(1, 13):
+            write_table("<append=%true>//tmp/t1", {"key": "%02d" % i, "value": i})
+        with pytest.raises(YtError):
+            reduce(in_="//tmp/t1",
+                   out="//tmp/t2",
+                   command="cat",
+                   reduce_by=["key"],
+                   spec={"pivot_keys": [["10"], ["05"]]})
+        with pytest.raises(YtError):
+            reduce(in_="<teleport=%true>//tmp/t1",
+                   out="//tmp/t2",
+                   command="cat",
+                   reduce_by=["key"],
+                   spec={"pivot_keys": [["05"], ["10"]]})
 
 ##################################################################
 

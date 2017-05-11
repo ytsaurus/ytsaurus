@@ -129,7 +129,7 @@ void TServiceCombiner::GetSelf(
     std::atomic<bool> incomplete = {false};
 
     // TODO(max42): Make it more efficient :(
-    std::vector<TFuture<yhash_map<Stroka, INodePtr>>> serviceResultFutures;
+    std::vector<TFuture<yhash<Stroka, INodePtr>>> serviceResultFutures;
     for (const auto& service : Services_) {
         auto innerRequest = TYPathProxy::Get("");
         innerRequest->set_limit(limit);
@@ -142,7 +142,7 @@ void TServiceCombiner::GetSelf(
                 if (node->Attributes().Get("incomplete", false)) {
                     incomplete = true;
                 }
-                return ConvertTo<yhash_map<Stroka, INodePtr>>(node);
+                return ConvertTo<yhash<Stroka, INodePtr>>(node);
             }));
         serviceResultFutures.push_back(asyncInnerResult);
     }
@@ -150,7 +150,7 @@ void TServiceCombiner::GetSelf(
     auto serviceResults = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    yhash_map<Stroka, INodePtr> combinedServiceResults;
+    yhash<Stroka, INodePtr> combinedServiceResults;
     for (const auto& serviceResult : serviceResults) {
         if (static_cast<i64>(serviceResult.size() + combinedServiceResults.size()) > limit) {
             combinedServiceResults.insert(

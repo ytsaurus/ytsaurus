@@ -177,21 +177,11 @@ private:
     TAsyncSemaphorePtr PreloadSemaphore_;
 
     TReaderWriterSpinLock InterceptedDataSpinLock_;
-    yhash_map<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
+    yhash<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
 
     void ScanSlot(TTabletSlotPtr slot)
     {
-        if (IsMemoryLimitExceeded()) {
-            LOG_DEBUG("Store preload is disabled due to memory pressure (CellId: %v)",
-                slot->GetCellId());
-            return;
-        }
-
-        if (slot->GetAutomatonState() != EPeerState::Leading) {
-            return;
-        }
-
         const auto& tabletManager = slot->GetTabletManager();
         for (const auto& pair : tabletManager->Tablets()) {
             auto* tablet = pair.second;
@@ -244,25 +234,30 @@ private:
         IStoreManagerPtr storeManager)
     {
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v, StoreId: %v",
+        Logger.AddTag("TabletId: %v, StoreId: %v, CellId: %v",
             tablet->GetId(),
-            store->GetId());
+            store->GetId(),
+            slot->GetCellId());
 
         auto invoker = tablet->GetEpochAutomatonInvoker();
 
         try {
+            auto revision = storeManager->GetInMemoryConfigRevision();
             auto finalizer = Finally(
                 [&] () {
                     LOG_WARNING("Backing off tablet store preload");
-                    store->SetPreloadBackoffFuture(
-                        BIND(&IStoreManager::BackoffStorePreload, storeManager, store)
-                            .AsyncVia(invoker)
-                            .Run());
+                    invoker->Invoke(BIND([revision, storeManager, store] {
+                        if (storeManager->GetInMemoryConfigRevision() == revision) {
+                            storeManager->BackoffStorePreload(store);
+                        }
+                    }));
                 });
-            if (!IsMemoryLimitExceeded()) {
-                auto tabletSnapshot = Bootstrap_->GetTabletSlotManager()->FindTabletSnapshot(tablet->GetId());
-                PreloadInMemoryStore(tabletSnapshot, store, CompressionInvoker_);
+            if (IsMemoryLimitExceeded()) {
+                LOG_INFO("Store preload is disabled due to memory pressure");
+                return;
             }
+            auto tabletSnapshot = Bootstrap_->GetTabletSlotManager()->FindTabletSnapshot(tablet->GetId());
+            PreloadInMemoryStore(tabletSnapshot, store, CompressionInvoker_);
             finalizer.Release();
             storeManager->EndStorePreload(store);
         } catch (const std::exception& ex) {
@@ -464,6 +459,12 @@ void PreloadInMemoryStore(
 
     auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
     auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
+
+    auto erasureCodec = NErasure::ECodec(miscExt.erasure_codec());
+    if (erasureCodec != NErasure::ECodec::None) {
+        THROW_ERROR_EXCEPTION("Could not preload erasure coded store %v",
+            store->GetId());
+    }
 
     auto codecId = NCompression::ECodec(miscExt.compression_codec());
     auto* codec = NCompression::GetCodec(codecId);

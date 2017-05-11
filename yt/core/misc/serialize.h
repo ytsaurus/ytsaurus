@@ -679,8 +679,7 @@ struct TVariantSerializer
     static void Load(C& context, TVariant<Ts...>& variant)
     {
         int tag = NYT::Load<int>(context);
-        YCHECK(tag >= 0 && tag < sizeof...(Ts));
-        TVariantSerializerTraits<Ts...>::Load(context, variant.Tag(), variant);
+        TVariantSerializerTraits<Ts...>::Load(context, tag, variant);
     }
 };
 
@@ -914,9 +913,9 @@ struct TSorterSelector<std::unordered_map<T...>, C, TSortedTag>
 };
 
 template <class C, class... T>
-struct TSorterSelector<yhash_map<T...>, C, TSortedTag>
+struct TSorterSelector<yhash<T...>, C, TSortedTag>
 {
-    typedef TCollectionSorter<yhash_map<T...>, TKeySorterComparer<C>> TSorter;
+    typedef TCollectionSorter<yhash<T...>, TKeySorterComparer<C>> TSorter;
 };
 
 template <class C, class... T>
@@ -1619,7 +1618,7 @@ struct TSerializerTraits<std::unordered_map<K, V, H, P, A>, C, void>
 };
 
 template <class K, class V, class Q, class A, class C>
-struct TSerializerTraits<yhash_map<K, V, Q, A>, C, void>
+struct TSerializerTraits<yhash<K, V, Q, A>, C, void>
 {
     typedef TMapSerializer<> TSerializer;
 };

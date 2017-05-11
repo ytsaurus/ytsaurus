@@ -497,12 +497,14 @@ TEST_F(TYsonParserTest, MemoryLimitOK)
 
 TEST_F(TYsonParserTest, MemoryLimitFit)
 {
+    auto s = Stroka(777, 'a');
+
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnKeyedItem("key"));
-    EXPECT_CALL(Mock, OnStringScalar(Stroka(777, 'a')));
+    EXPECT_CALL(Mock, OnStringScalar(s));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Run("{key=" + Stroka(777, 'a') + "}", EYsonType::Node, 777);
+    Run("{key=" + s + "}", EYsonType::Node, 777);
 }
 
 TEST_F(TYsonParserTest, MemoryLimitExceeded)

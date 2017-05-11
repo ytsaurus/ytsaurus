@@ -2,14 +2,28 @@
 #include "config.h"
 #include "job.h"
 #include "job_metrics.h"
-#include "job_resources.h"
 #include "scheduler_strategy.h"
 #include "scheduling_tag.h"
+
+#include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
 namespace NYT {
 namespace NScheduler {
+
+////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EDeactivationReason,
+    (IsNotAlive)
+    (UnmatchedSchedulingTag)
+    (IsNotStarving)
+    (IsBlocked)
+    (TryStartScheduleJobFailed)
+    (ScheduleJobFailed)
+    (NoBestLeafDescendant)
+    (MinNeededResourcesUnsatisfied)
+);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -60,6 +74,10 @@ struct TFairShareContext
     TDuration ExecScheduleJobDuration;
     TEnumIndexedVector<int, EScheduleJobFailReason> FailedScheduleJob;
     bool HasAggressivelyStarvingNodes = false;
+
+    int ActiveOperationCount = 0;
+    int ActiveTreeSize = 0;
+    TEnumIndexedVector<int, EDeactivationReason> DeactivationReasons;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -310,7 +328,7 @@ public:
 protected:
     const NProfiling::TTagId ProfilingTag_;
 
-    using TChildMap = yhash_map<TSchedulerElementPtr, int>;
+    using TChildMap = yhash<TSchedulerElementPtr, int>;
     using TChildList = std::vector<TSchedulerElementPtr>;
 
     TChildMap EnabledChildToIndex_;
@@ -348,6 +366,7 @@ protected:
 
     const Stroka Id_;
     bool DefaultConfigured_ = true;
+    TNullable<Stroka> UserName_;
 };
 
 class TPool
@@ -364,6 +383,9 @@ public:
         TCompositeSchedulerElement* clonedParent);
 
     bool IsDefaultConfigured() const;
+
+    void SetUserName(const TNullable<Stroka>& userName);
+    const TNullable<Stroka>& GetUserName() const;
 
     TPoolConfigPtr GetConfig();
     void SetConfig(TPoolConfigPtr config);
@@ -419,7 +441,7 @@ DEFINE_REFCOUNTED_TYPE(TPool)
 class TOperationElementFixedState
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(IOperationControllerPtr, Controller);
+    DEFINE_BYVAL_RO_PROPERTY(NControllerAgent::IOperationControllerPtr, Controller);
 
 protected:
     explicit TOperationElementFixedState(TOperationPtr operation);
@@ -461,16 +483,16 @@ public:
         int maxConcurrentScheduleJobCalls,
         NProfiling::TCpuDuration scheduleJobFailBackoffTime) const;
 
-    bool TryStartScheduleJob(
-        NProfiling::TCpuInstant now,
-        int maxConcurrentScheduleJobCalls,
-        NProfiling::TCpuDuration scheduleJobFailBackoffTime);
+    void IncreaseConcurrentScheduleJobCalls();
+    void DecreaseConcurrentScheduleJobCalls();
 
-    void FinishScheduleJob(
-        bool enableBackoff,
-        NProfiling::TCpuInstant now);
+    void SetLastScheduleJobFailTime(NProfiling::TCpuInstant now);
 
     TJobResources Finalize();
+
+    void SetMinNeededJobResources(std::vector<TJobResources> jobResourcesList);
+    std::vector<TJobResources> GetMinNeededJobResourcesList() const;
+    TJobResources GetMinNeededJobResources() const;
 
 private:
     template <typename T>
@@ -598,7 +620,7 @@ private:
         }
     };
 
-    yhash_map<TJobId, TJobProperties> JobPropertiesMap_;
+    yhash<TJobId, TJobProperties> JobPropertiesMap_;
     NConcurrency::TReaderWriterSpinLock JobPropertiesMapLock_;
 
     std::atomic<int> ConcurrentScheduleJobCalls_ = {0};
@@ -609,6 +631,10 @@ private:
     NJobTrackerClient::TStatistics ControllerTimeStatistics_;
 
     void IncreaseJobResourceUsage(TJobProperties& properties, const TJobResources& resourcesDelta);
+
+    NConcurrency::TReaderWriterSpinLock CachedMinNeededJobResourcesLock_;
+    std::vector<TJobResources> CachedMinNeededJobResourcesList_;
+    TJobResources CachedMinNeededJobResources_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElementSharedState)
@@ -634,6 +660,7 @@ public:
 
     virtual void UpdateBottomUp(TDynamicAttributesList& dynamicAttributesList) override;
     virtual void UpdateTopDown(TDynamicAttributesList& dynamicAttributesList) override;
+    virtual void UpdateMinNeededJobResources();
 
     virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const override;
 
@@ -688,11 +715,25 @@ public:
 private:
     TOperationElementSharedStatePtr SharedState_;
 
+    bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
+
     bool IsBlocked(NProfiling::TCpuInstant now) const;
 
     TJobResources GetHierarchicalResourceLimits(const TFairShareContext& context) const;
 
-    TScheduleJobResultPtr DoScheduleJob(TFairShareContext& context);
+    bool TryStartScheduleJob(
+        NProfiling::TCpuInstant now,
+        int maxConcurrentScheduleJobCalls,
+        NProfiling::TCpuDuration scheduleJobFailBackoffTime,
+        const TJobResources& jobLimits,
+        const TJobResources& minNeededResources);
+
+    void FinishScheduleJob(
+        bool enableBackoff,
+        NProfiling::TCpuInstant now,
+        const TJobResources& minNeededResources);
+
+    TScheduleJobResultPtr DoScheduleJob(TFairShareContext& context, const TJobResources& jobLimits, const TJobResources& jobResourceDiscount);
 
     TJobResources ComputeResourceDemand() const;
     TJobResources ComputeResourceLimits() const;

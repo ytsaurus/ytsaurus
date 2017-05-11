@@ -67,7 +67,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, SnapshotStatistics_);
     Load(context, DeltaStatistics_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 515) {
+    if (context.GetVersion() >= 601) {
         Load(context, CompressionCodec_);
         Load(context, ErasureCodec_);
     } else {
@@ -153,7 +153,8 @@ void TChunkOwnerBase::BeginUpload(EUpdateMode mode)
 void TChunkOwnerBase::EndUpload(
     const TDataStatistics* statistics,
     const NTableClient::TTableSchema& /*schema*/,
-    NTableClient::ETableSchemaMode /*schemaMode*/)
+    NTableClient::ETableSchemaMode /*schemaMode*/,
+    TNullable<NTableClient::EOptimizeFor> /*optimizeFor*/)
 {
     TNullable<TDataStatistics> updateStatistics;
 

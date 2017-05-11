@@ -6,6 +6,12 @@
 
 #include <yt/core/misc/ref.h>
 
+#ifdef YT_IN_ARCADIA
+#define UDF_BC(name) TSharedRef::FromString(::NResource::Find(Stroka("/llvm_bc/") + #name))
+#else
+#define UDF_BC(name) TSharedRef(name ## _bc, name ## _bc_len, nullptr)
+#endif
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -45,23 +51,6 @@ struct TFunctionRegistryBuilder
 
     void RegisterFunction(
         const Stroka& functionName,
-        const Stroka& symbolName,
-        std::vector<TType> argumentTypes,
-        TType resultType,
-        TSharedRef implementationFile,
-        ECallingConvention callingConvention);
-
-    void RegisterFunction(
-        const Stroka& functionName,
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-        std::vector<TType> argumentTypes,
-        TType repeatedArgType,
-        TType resultType,
-        TSharedRef implementationFile);
-
-    void RegisterFunction(
-        const Stroka& functionName,
-        const Stroka& symbolName,
         std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,

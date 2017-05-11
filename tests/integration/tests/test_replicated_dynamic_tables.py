@@ -135,6 +135,20 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         insert_rows("//tmp/t", [{"key": 1, "value1": "test"}])
         delete_rows("//tmp/t", [{"key": 2}])
 
+    def test_replicated_in_memory_fail(self):
+        self._create_cells()
+        with pytest.raises(YtError):
+            self._create_replicated_table("//tmp/t", attributes={"in_memory_mode": "compressed"})
+        with pytest.raises(YtError):
+            self._create_replicated_table("//tmp/t", attributes={"in_memory_mode": "uncompressed"})
+
+    def test_replicated_in_memory_remount_fail(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        set("//tmp/t/@in_memory_mode", "compressed")
+        with pytest.raises(YtError):
+            remount_table("//tmp/t")
+
     def test_add_replica_fail1(self):
         with pytest.raises(YtError): create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
 
@@ -163,13 +177,13 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         assert len(attributes["tablets"]) == 1
         assert attributes["tablets"][tablet_id]["state"] == "none"
 
-        enable_table_replica(replica_id)
+        alter_table_replica(replica_id, enabled=True)
         attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
         assert attributes["state"] == "enabled"
         assert len(attributes["tablets"]) == 1
         assert attributes["tablets"][tablet_id]["state"] == "none"
 
-        disable_table_replica(replica_id)
+        alter_table_replica(replica_id, enabled=False)
         attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
         assert attributes["state"] == "disabled"
         assert len(attributes["tablets"]) == 1
@@ -182,7 +196,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         assert get("#{0}/@state".format(replica_id)) == "disabled"
 
-        enable_table_replica(replica_id)
+        self.sync_enable_table_replica(replica_id)
         assert get("#{0}/@state".format(replica_id)) == "enabled"
 
         self.sync_disable_table_replica(replica_id)
@@ -194,7 +208,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         self._create_replica_table("//tmp/r")
 
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
-        enable_table_replica(replica_id)
+        self.sync_enable_table_replica(replica_id)
    
         insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
         sleep(1.0)
@@ -219,7 +233,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        enable_table_replica(replica_id)
+        self.sync_enable_table_replica(replica_id)
    
         assert get("#{0}/@tablets/{1}/current_replication_row_index".format(replica_id, tablet_id)) == 0
 
@@ -238,7 +252,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
 
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        enable_table_replica(replica_id)
+        self.sync_enable_table_replica(replica_id)
    
         assert get("#{0}/@tablets/{1}/current_replication_row_index".format(replica_id, tablet_id)) == 0
 
@@ -261,7 +275,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={
             "start_replication_timestamp": generate_timestamp()
         })
-        enable_table_replica(replica_id)
+        self.sync_enable_table_replica(replica_id)
 
         if with_data:
             insert_rows("//tmp/t", [{"key": 2, "value1": "test"}])
@@ -284,7 +298,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         self._create_replica_table("//tmp/r")
 
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
-        enable_table_replica(replica_id)
+        self.sync_enable_table_replica(replica_id)
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}])
         sleep(1.0)
@@ -311,7 +325,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         self._create_replica_table("//tmp/r", schema=self.AGGREGATE_SCHEMA)
 
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
-        enable_table_replica(replica_id)
+        self.sync_enable_table_replica(replica_id)
    
         insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}])
         sleep(1.0)
@@ -337,8 +351,8 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}])
         sleep(1.0)
         get("#{0}/@replication_lag_time".format(replica_id)) > 1000000
-        
-        enable_table_replica(replica_id)
+
+        self.sync_enable_table_replica(replica_id)
         sleep(1.0)
         assert get("#{0}/@replication_lag_time".format(replica_id)) == 0
 
@@ -348,7 +362,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         self._create_replica_table("//tmp/r", schema=self.EXPRESSION_SCHEMA)
 
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
-        enable_table_replica(replica_id)
+        self.sync_enable_table_replica(replica_id)
 
         insert_rows("//tmp/t", [{"key": 1, "value": 2}])
         sleep(1.0)
@@ -370,7 +384,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         self._create_replica_table("//tmp/r", schema=self.SIMPLE_SCHEMA)
 
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
-        enable_table_replica(replica_id)
+        self.sync_enable_table_replica(replica_id)
 
         insert_rows("//tmp/t", [{"key": 1, "value1": "v", "value2": 2}])
         sleep(1.0)
@@ -390,7 +404,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         self._create_replica_table("//tmp/r", schema=self.SIMPLE_SCHEMA)
 
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
-        enable_table_replica(replica_id)
+        self.sync_enable_table_replica(replica_id)
 
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 1

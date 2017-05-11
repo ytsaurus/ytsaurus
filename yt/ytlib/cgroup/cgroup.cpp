@@ -3,13 +3,13 @@
 
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
-
 #include <yt/core/tools/registry.h>
 #include <yt/core/tools/tools.h>
 
 #include <yt/core/ytree/fluent.h>
 
 #include <util/string/split.h>
+#include <util/system/filemap.h>
 
 #include <util/system/yield.h>
 
@@ -160,7 +160,7 @@ void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const
     YCHECK(!IsNull());
 #ifdef _linux_
     auto path = GetPath(name);
-    TFileOutput output(TFile(path, EOpenModeFlag::WrOnly));
+    TFileOutput output(TFile(path, OpenMode::WrOnly));
     output << value;
 #endif
 }
@@ -170,7 +170,7 @@ void TNonOwningCGroup::Append(const Stroka& name, const Stroka& value) const
     YCHECK(!IsNull());
 #ifdef _linux_
     auto path = GetPath(name);
-    TFileOutput output(TFile(path, EOpenModeFlag::ForAppend));
+    TFileOutput output(TFile(path, OpenMode::ForAppend));
     output << value;
 #endif
 }
@@ -212,17 +212,25 @@ const Stroka& TNonOwningCGroup::GetFullPath() const
 
 std::vector<TNonOwningCGroup> TNonOwningCGroup::GetChildren() const
 {
-    std::vector<TNonOwningCGroup> result;
+    // We retry enumerating directories, since it may fail with weird diagnostics if
+    // number of subcgroups changes.
+    while (true) {
+        try {
+            std::vector<TNonOwningCGroup> result;
 
-    if (IsNull()) {
-        return result;
-    }
+            if (IsNull()) {
+                return result;
+            }
 
-    auto directories = NFS::EnumerateDirectories(FullPath_);
-    for (const auto& directory : directories) {
-        result.emplace_back(NFS::CombinePaths(FullPath_, directory));
+            auto directories = NFS::EnumerateDirectories(FullPath_);
+            for (const auto& directory : directories) {
+                result.emplace_back(NFS::CombinePaths(FullPath_, directory));
+            }
+            return result;
+        } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Failed to list subcgroups (Path: %v)", FullPath_);
+        }
     }
-    return result;
 }
 
 void TNonOwningCGroup::EnsureExistance() const

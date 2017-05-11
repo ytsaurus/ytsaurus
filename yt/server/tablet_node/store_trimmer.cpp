@@ -59,6 +59,9 @@ private:
 
     void OnScanSlot(const TTabletSlotPtr& slot)
     {
+        if (slot->GetAutomatonState() != EPeerState::Leading) {
+            return;
+        }
         const auto& tabletManager = slot->GetTabletManager();
         for (const auto& pair : tabletManager->Tablets()) {
             auto* tablet = pair.second;

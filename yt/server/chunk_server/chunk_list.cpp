@@ -106,8 +106,8 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
 
     // COMPAT(babenko)
     if (context.GetVersion() >= 400) {
-        //COMPAT(savrus)
-        if (context.GetVersion() >= 510) {
+        // COMPAT(savrus)
+        if (context.GetVersion() >= 600) {
             Load(context, Kind_);
         } else {
             Load<bool>(context);
@@ -115,8 +115,8 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
         Load(context, TrimmedChildCount_);
     }
 
-    //COMPAT(savrus)
-    if (context.GetVersion() >= 511) {
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 600) {
         Load(context, PivotKey_);
     }
 

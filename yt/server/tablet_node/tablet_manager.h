@@ -53,6 +53,7 @@ public:
         NTransactionClient::TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
         TTransactionSignature signature,
+        int rowCount,
         NTabletClient::TWireProtocolReader* reader,
         TFuture<void>* commitResult);
 

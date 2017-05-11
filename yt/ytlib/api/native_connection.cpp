@@ -116,7 +116,6 @@ public:
             timestampProviderConfig->RpcTimeout = Config_->PrimaryMaster->RpcTimeout;
         }
         TimestampProvider_ = CreateRemoteTimestampProvider(
-            PrimaryMasterCellTag_,
             timestampProviderConfig,
             LightChannelFactory_);
 
@@ -364,7 +363,7 @@ private:
     TCellTag PrimaryMasterCellTag_;
     TCellTagList SecondaryMasterCellTags_;
 
-    TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
+    TEnumIndexedVector<yhash<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     IBlockCachePtr BlockCache_;
     ITableMountCachePtr TableMountCache_;
@@ -384,7 +383,7 @@ private:
     };
 
     TReaderWriterSpinLock StickyTransactionLock_;
-    yhash_map<TTransactionId, TStickyTransactionEntry> IdToStickyTransactionEntry_;
+    yhash<TTransactionId, TStickyTransactionEntry> IdToStickyTransactionEntry_;
 
     IChannelPtr CreatePeerChannel(TMasterConnectionConfigPtr config, EPeerKind kind)
     {

@@ -58,7 +58,11 @@ def prepare(options, build_context):
     options.build_enable_python_2_7 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_2_7", "YES"))
     options.build_enable_python_skynet = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_SKYNET", "YES"))
     options.build_enable_perl = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PERL", "YES"))
-    options.build_enable_asan = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_ASAN", "NO"))
+
+    options.use_asan = parse_yes_no_bool(os.environ.get("USE_ASAN", "NO"))
+    options.use_tsan = parse_yes_no_bool(os.environ.get("USE_TSAN", "NO"))
+    options.use_msan = parse_yes_no_bool(os.environ.get("USE_MSAN", "NO"))
+    options.use_asan = options.use_asan or parse_yes_no_bool(os.environ.get("BUILD_ENABLE_ASAN", "NO"))  # compat
 
     options.git_branch = options.branch
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
@@ -89,7 +93,6 @@ def prepare(options, build_context):
     if not options.cxx:
         raise RuntimeError("Failed to locate CXX compiler")
 
-    # Temporaly turn off
     # options.use_lto = (options.type != "Debug")
     options.use_lto = False
 
@@ -141,8 +144,10 @@ def configure(options, build_context):
         "-DYT_BUILD_ENABLE_PYTHON_2_7={0}".format(format_yes_no(options.build_enable_python_2_7)),
         "-DYT_BUILD_ENABLE_PYTHON_SKYNET={0}".format(format_yes_no(options.build_enable_python_skynet)),
         "-DYT_BUILD_ENABLE_PERL={0}".format(format_yes_no(options.build_enable_perl)),
-        "-DYT_BUILD_ENABLE_ASAN={0}".format(format_yes_no(options.build_enable_asan)),
-        "-DYT_USE_LTO={0}".format(options.use_lto),
+        "-DYT_USE_ASAN={0}".format(format_yes_no(options.use_asan)),
+        "-DYT_USE_TSAN={0}".format(format_yes_no(options.use_tsan)),
+        "-DYT_USE_MSAN={0}".format(format_yes_no(options.use_msan)),
+        "-DYT_USE_LTO={0}".format(format_yes_no(options.use_lto)),
         "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
         "-DCMAKE_C_COMPILER={0}".format(options.cc),
         options.checkout_directory],

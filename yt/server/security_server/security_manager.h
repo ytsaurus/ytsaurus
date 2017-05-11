@@ -133,6 +133,9 @@ public:
     //! Returns "guest" built-in user.
     TUser* GetGuestUser();
 
+    //! Returns "owner" built-in user.
+    TUser* GetOwnerUser();
+
 
     //! Returns group with a given name (|nullptr| if none).
     TGroup* FindGroupByName(const Stroka& name);

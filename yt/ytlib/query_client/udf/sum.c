@@ -1,9 +1,10 @@
-#include <yt_udf.h>
+#include "yt_udf.h"
 
 void sum_init(
     TExpressionContext* context,
     TUnversionedValue* result)
 {
+    (void)context;
     result->Type = Null;
 }
 
@@ -13,6 +14,7 @@ static void sum_iteration(
     TUnversionedValue* state,
     TUnversionedValue* newValue)
 {
+    (void)context;
     if (newValue->Type == Null) {
         result->Type = state->Type;
         result->Data = state->Data;
@@ -54,6 +56,7 @@ void sum_finalize(
     TUnversionedValue* result,
     TUnversionedValue* state)
 {
+    (void)context;
     result->Type = state->Type;
     result->Data = state->Data;
 }

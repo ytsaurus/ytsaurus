@@ -2,7 +2,8 @@
 
 #include "scheduling_context.h"
 #include "exec_node.h"
-#include "job_resources.h"
+
+#include <yt/ytlib/scheduler/job_resources.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -32,6 +33,7 @@ public:
 
     virtual TJobPtr GetStartedJob(const TJobId& jobId) const override;
 
+    virtual bool CanStartJob(const TJobResources& jobResources) const override;
     virtual bool CanStartMoreJobs() const override;
     virtual bool CanSchedule(const TSchedulingTagFilter& filter) const override;
 
@@ -40,6 +42,8 @@ public:
     virtual void PreemptJob(TJobPtr job) override;
 
     virtual TJobId GenerateJobId() override;
+
+    virtual TJobResources GetFreeResources() override;
 
 private:
     virtual bool HasEnoughResources(const TJobResources& neededResources) const;

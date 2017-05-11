@@ -569,6 +569,18 @@ int TNode::GetTotalTabletSlots() const
         Statistics_.available_tablet_slots();
 }
 
+bool TNode::HasMedium(int mediumIndex) const
+{
+    const auto& locations = Statistics_.locations();
+    auto it = std::find_if(
+        locations.begin(),
+        locations.end(),
+        [=] (const auto& location) {
+            return location.medium_index() == mediumIndex;
+        });
+    return it != locations.end();
+}
+
 TNullable<double> TNode::GetFillFactor(int mediumIndex) const
 {
     i64 freeSpace = 0;

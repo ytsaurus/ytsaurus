@@ -1,7 +1,7 @@
 import yt_commands
 
 from yt.environment import YTInstance
-from yt.common import makedirp, update, YtError
+from yt.common import makedirp, update, YtError, format_error
 
 import pytest
 
@@ -50,11 +50,11 @@ def resolve_test_paths(name):
     path_to_environment = os.path.join(path_to_sandbox, "run")
     return path_to_sandbox, path_to_environment
 
-def wait(predicate):
-    for _ in xrange(100):
+def wait(predicate, iter=100, sleep_backoff=0.3):
+    for _ in xrange(iter):
         if predicate():
             return
-        sleep(0.3)
+        sleep(sleep_backoff)
     pytest.fail("wait failed")
 
 def _pytest_finalize_func(environment, process_call_args):
@@ -432,8 +432,14 @@ class YTEnvSetup(object):
             except:
                 pass
 
+    def sync_enable_table_replica(self, replica_id, driver=None):
+        yt_commands.alter_table_replica(replica_id, enabled=True, driver=driver)
+
+        print "Waiting for replica to become enabled..."
+        wait(lambda: yt_commands.get("#{0}/@state".format(replica_id), driver=driver) == "enabled")
+
     def sync_disable_table_replica(self, replica_id, driver=None):
-        yt_commands.disable_table_replica(replica_id, driver=driver)
+        yt_commands.alter_table_replica(replica_id, enabled=False, driver=driver)
 
         print "Waiting for replica to become disabled..."
         wait(lambda: yt_commands.get("#{0}/@state".format(replica_id), driver=driver) == "disabled")
@@ -454,11 +460,17 @@ class YTEnvSetup(object):
         if yt_commands.get("//sys/scheduler/instances/@count", driver=driver) == 0:
             return
 
+        operation_from_orchid = []
         try:
-            for operation_id in yt_commands.ls("//sys/scheduler/orchid/scheduler/operations", driver=driver):
+            operation_from_orchid = yt_commands.ls("//sys/scheduler/orchid/scheduler/operations", driver=driver)
+        except YtError as err:
+            print >>sys.stderr, format_error(err)
+
+        for operation_id in operation_from_orchid:
+            try:
                 yt_commands.abort_op(operation_id, driver=driver)
-        except YtError:
-            pass
+            except YtError as err:
+                print >>sys.stderr, format_error(err)
 
         for operation in yt_commands.ls("//sys/operations", driver=driver):
             yt_commands.remove("//sys/operations/" + operation, recursive=True, driver=driver)
