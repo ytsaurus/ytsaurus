@@ -32,6 +32,7 @@ import sys
 import time
 import logging
 import pickle as standard_pickle
+import platform
 
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 TMPFS_SIZE_MULTIPLIER = 1.01
@@ -247,6 +248,19 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
     files_to_compress = {}
     module_filter = load_function(get_config(client)["pickling"]["module_filter"])
     extra_modules = getattr(sys, "extra_modules", set())
+
+    def add_file_to_compress(file, module_name, name):
+        relpath = module_relpath([module_name, name], file, client)
+        if relpath is None:
+            if logger.LOGGER.isEnabledFor(logging_level):
+                logger.log(logging_level, "Cannot determine relative path of module " + str(module))
+            return
+
+        if relpath in files_to_compress:
+            return
+
+        files_to_compress[relpath] = file
+
     for name, module in list(iteritems(sys.modules)):
         if module_filter is not None and not module_filter(module):
             continue
@@ -273,16 +287,11 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
             if get_config(client)["pickling"]["force_using_py_instead_of_pyc"] and file.endswith(".pyc"):
                 file = file[:-1]
 
-            relpath = module_relpath([module.__name__, name], file, client)
-            if relpath is None:
-                if logger.LOGGER.isEnabledFor(logging_level):
-                    logger.log(logging_level, "Cannot determine relative path of module " + str(module))
-                continue
+            add_file_to_compress(file, module.__name__, name)
 
-            if relpath in files_to_compress:
-                continue
-
-            files_to_compress[relpath] = file
+            if get_config(client)["pickling"]["enable_modules_compatibility_filter"] and file.endswith(".pyc") and \
+                    os.path.exists(file[:-1]):
+                add_file_to_compress(file[:-1], module.__name__, name)
         else:
             # Module can be a package without __init__.py, for example,
             # if module is added from *.pth file or manually added in client code.
@@ -443,10 +452,11 @@ def build_modules_arguments(modules_info, create_temp_file, file_argument_builde
     for info in modules_info:
         info["filename"] = file_argument_builder({"filename": info["filename"], "hash": info["hash"]})
 
-    platform_version = None
-    if config["pickling"]["ignore_yson_bindings_for_incompatible_platforms"]:
-        platform_version = get_platform_version()
-    modules_info = {"modules": modules_info, "platform_version": platform_version}
+    modules_info = {"modules": modules_info,
+                    "platform_version": get_platform_version(),
+                    "python_version": platform.python_version(),
+                    "ignore_yson_bindings": config["pickling"]["ignore_yson_bindings_for_incompatible_platforms"],
+                    "enable_modules_compatibility_filter": config["pickling"]["enable_modules_compatibility_filter"]}
 
     modules_info_filename = create_temp_file(prefix="_modules_info")
     with open(modules_info_filename, "wb") as fout:
