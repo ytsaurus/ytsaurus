@@ -233,6 +233,6 @@ if __name__ == "__main__":
 
     configure_logger(config["logging"])
     logger = TaskIdLogger(logging.getLogger("TM.task"), task.id)
-    yt_logger.LOGGER = logging.getLogger("TM.task.yt")
+    yt_logger.LOGGER = TaskIdLogger(logging.getLogger("TM.task.yt"), task.id)
 
     execute_task(task, message_queue, config, logger)

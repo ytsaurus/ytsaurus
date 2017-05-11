@@ -96,6 +96,7 @@ class Application(object):
     def __init__(self, config_path):
         self._start_time = time.time()
         self._pid = os.getpid()
+        self._fqdn = socket.getfqdn()
         self._daemon = Flask(__name__)
 
         self._sleep_step = 0.5
@@ -1411,6 +1412,11 @@ class Application(object):
                 src_cluster=src_cluster,
                 dst_cluster=dst_cluster,
                 **queue_kwarg(queue)))
+
+        sensors.append(make_solomon_sensor(
+            "active_instance",
+            int(self._lock_acquired),
+            host=self._fqdn))
 
         return Response(json.dumps({"sensors": sensors}), mimetype="application/json")
 

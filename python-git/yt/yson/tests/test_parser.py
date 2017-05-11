@@ -241,3 +241,41 @@ if yt_yson_bindings:
                 self.loads(b"{a=b")
             with pytest.raises(Exception):
                 self.loads(b"{a=b}{c=d}")
+
+        def test_context(self):
+            STREAM_BLOCK_SIZE = 1024 * 1024
+            try:
+                yt_yson_bindings.loads("abacaba{")
+            except YsonError as error:
+                assert error.inner_errors[0]["attributes"]["context"] == "abacaba{"
+                assert error.inner_errors[0]["attributes"]["context_pos"] == 0
+
+            try:
+                yt_yson_bindings.loads("{a=b;c=d;e=f;[}")
+            except YsonError as error:
+                assert error.inner_errors[0]["attributes"]["context"] == "b;c=d;e=f;[}"
+                assert error.inner_errors[0]["attributes"]["context_pos"] == 10
+
+            try:
+                yt_yson_bindings.loads("[0;1;2;3;4;5;{1=2}]")
+            except YsonError as error:
+                assert error.inner_errors[0]["attributes"]["context"] == ";2;3;4;5;{1=2}]"
+                assert error.inner_errors[0]["attributes"]["context_pos"] == 10
+
+            try:
+                yt_yson_bindings.loads("[1;5;{1=2}]")
+            except YsonError as error:
+                assert error.inner_errors[0]["attributes"]["context"] == "[1;5;{1=2}]"
+                assert error.inner_errors[0]["attributes"]["context_pos"] == 6
+
+            try:
+                yt_yson_bindings.loads("[" + "ab" * (STREAM_BLOCK_SIZE // 2) + ";{1=2}]")
+            except YsonError as error:
+                assert error.inner_errors[0]["attributes"]["context"] == "abababab;{1=2}]"
+                assert error.inner_errors[0]["attributes"]["context_pos"] == 10
+
+            try:
+                yt_yson_bindings.loads("[" + "a" * STREAM_BLOCK_SIZE + ";{1=2}]")
+            except YsonError as error:
+                assert error.inner_errors[0]["attributes"]["context"] == "aaaaaaaa;{1=2}]"
+                assert error.inner_errors[0]["attributes"]["context_pos"] == 10

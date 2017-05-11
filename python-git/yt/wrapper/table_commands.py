@@ -534,10 +534,7 @@ def is_sorted(table, client=None):
                           default="false",
                           client=client))
 
-def enable_table_replica(replica_id, client=None):
+def alter_table_replica(replica_id, enable, client=None):
     """TODO"""
-    return make_request("enable_table_replica", params={"replica_id": replica_id}, client=client)
+    return make_request("alter_table_replica", params={"replica_id": replica_id, "enable": enable}, client=client)
 
-def disable_table_replica(replica_id, client=None):
-    """TODO"""
-    return make_request("disable_table_replica", params={"replica_id": replica_id}, client=client)

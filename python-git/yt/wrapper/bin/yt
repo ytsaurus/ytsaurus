@@ -94,15 +94,18 @@ $ yt read //tmp/test_table --format dsv
 >> b=hello  a=10
    b=world  a=20
 
+Run map-reduce operation, append result to destination table.
 $ yt map-reduce --mapper "python my_mapper.py" --map-local-file "~/my_mapper.py" --reducer "./my_reducer.pl" --reduce-file "//tmp/my_reducer.pl"
 --src //project/some_existing_table  --src some_another_table_in_prefix_directory --dst <append=true>//tmp/sepulki
 --reduce-by "column_one" --reduce-by "column_two"
 >> [...] operation 5-6-7-8 initializing [...]
 
-Run map-reduce operation, append result to destination table.
-
 Note! Without modification `append=true` destination table is overwritten.
 Note! Specify paths to user scripts!
+
+Lookup rows from dynamic table.
+$ echo '{host=abc.com}' | yt lookup-rows //my/dynamic/table
+>> {"host"="abc.com";"last_seen_time": "2017-04-10T12:35:10"}
 
 
 See also:
@@ -568,13 +571,10 @@ def add_alter_table_parser(add_parser):
     dynamic_parser.add_argument("--dynamic", dest="dynamic", default=None, action="store_true")
     dynamic_parser.add_argument("--static", dest="dynamic", default=None, action="store_false")
 
-def add_enable_table_replica_parser(add_parser):
-    parser = add_parser("enable-table-replica", yt.enable_table_replica)
+def add_alter_table_replica_parser(add_parser):
+    parser = add_parser("alter-table-replica", yt.alter_table_replica)
     parser.add_argument("replica_id")
-
-def add_disable_table_replica_parser(add_parser):
-    parser = add_parser("disable-table-replica", yt.disable_table_replica)
-    parser.add_argument("replica_id")
+    parser.add_argument("--enable", default=False, action="store_true")
 
 @copy_docstring_from(yt.select_rows)
 def select_rows(**args):
@@ -985,8 +985,7 @@ def main():
     add_freeze_table_parser(add_parser)
     add_unfreeze_table_parser(add_parser)
 
-    add_enable_table_replica_parser(add_parser)
-    add_disable_table_replica_parser(add_parser)
+    add_alter_table_replica_parser(add_parser)
 
     add_select_rows_parser(add_parser)
     add_lookup_rows_parser(add_parser)

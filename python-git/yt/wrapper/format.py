@@ -252,7 +252,8 @@ class Format(object):
                         range_index = attributes[range_index_attribute_name]
                     continue
 
-                row[table_index_column_name] = table_index
+                if table_index_column_name is not None:
+                    row[table_index_column_name] = table_index
                 if range_index is not None:
                     row[range_index_column_name] = range_index
                 if row_index is not None:
