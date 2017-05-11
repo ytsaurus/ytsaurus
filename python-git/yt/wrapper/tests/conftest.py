@@ -1,12 +1,14 @@
-from .helpers import TESTS_LOCATION, TEST_DIR, TESTS_SANDBOX, ENABLE_JOB_CONTROL, sync_create_cell
+from .helpers import TESTS_LOCATION, TEST_DIR, TESTS_SANDBOX, ENABLE_JOB_CONTROL, sync_create_cell, get_test_file_path
 
 from yt.environment import YTInstance
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update
+from yt.common import which, makedirp
 import yt.logger as logger
 import yt.tests_runner as tests_runner
 import yt.environment.init_operation_archive as init_operation_archive
+import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six import itervalues
 from yt.packages.six.moves import reload_module
@@ -14,6 +16,7 @@ from yt.packages.six.moves import reload_module
 import yt.wrapper as yt
 
 import os
+import imp
 import re
 import sys
 import uuid
@@ -295,6 +298,32 @@ def test_environment_job_archive(request):
 
     return environment
 
+@pytest.fixture(scope="session")
+def test_dynamic_library(request):
+    if not which("g++"):
+        raise RuntimeError("g++ not found")
+    libs_dir = os.path.join(TESTS_SANDBOX, "yt_test_dynamic_library")
+    makedirp(libs_dir)
+
+    get_number_lib = get_test_file_path("getnumber.cpp")
+    subprocess.check_call(["g++", get_number_lib, "-shared", "-fPIC", "-o", os.path.join(libs_dir, "libgetnumber.so")])
+
+    dependant_lib = get_test_file_path("yt_test_lib.cpp")
+    dependant_lib_output = os.path.join(libs_dir, "yt_test_dynamic_library.so")
+    subprocess.check_call(["g++", dependant_lib, "-shared", "-o", dependant_lib_output,
+                           "-L", libs_dir, "-l", "getnumber", "-fPIC"])
+
+    # Adding this pseudo-module to sys.modules and ensuring it will be collected with
+    # its dependency (libgetnumber.so)
+    module = imp.new_module("yt_test_dynamic_library")
+    module.__file__ = dependant_lib_output
+    sys.modules["yt_test_dynamic_library"] = module
+
+    def finalizer():
+        del sys.modules["yt_test_dynamic_library"]
+
+    request.addfinalizer(finalizer)
+    return libs_dir, "libgetnumber.so"
 
 def test_method_teardown():
     if yt.config["backend"] == "proxy":

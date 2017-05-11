@@ -12,7 +12,6 @@ except ImportError:
     has_test_module = False
 
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
-from yt.common import which, makedirp
 from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs
 from yt.wrapper.table import TablePath
@@ -25,7 +24,6 @@ from yt.packages.six.moves import xrange, zip as izip
 import yt.wrapper as yt
 
 import os
-import imp
 import sys
 import time
 import string
@@ -64,7 +62,7 @@ class CreateModulesArchive(object):
     def __call__(self, tempfiles_manager=None, custom_python_used=False):
         return create_modules_archive_default(tempfiles_manager, custom_python_used, None)
 
-@pytest.mark.usefixtures("yt_env")
+@pytest.mark.usefixtures("yt_env", "test_dynamic_library")
 class TestOperations(object):
     def setup(self):
         yt.config["tabular_data_format"] = yt.format.JsonFormat()
@@ -1151,38 +1149,20 @@ if __name__ == "__main__":
             logger.LOGGER.setLevel(old_level)
 
     @add_failed_operation_stderrs_to_error_message
-    def test_enable_dynamic_libraries_collection(self):
+    def test_enable_dynamic_libraries_collection(self, test_dynamic_library):
+        libs_dir, so_file = test_dynamic_library
         def mapper(rec):
             assert "_shared" in os.environ["LD_LIBRARY_PATH"]
             for root, dirs, files in os.walk("."):
-                if "libgetnumber.so" in files:
+                if so_file in files:
                     break
             else:
-                assert False, "Dependency libgetnumber.so not collected"
+                assert False, "Dependency {0} not collected".format(so_file)
             yield rec
 
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1, "y": 1}])
 
-        if not which("g++"):
-            raise RuntimeError("g++ not found")
-
-        libs_dir = os.path.join(TESTS_SANDBOX, "test_enable_dynamic_libraries_collection_libs")
-        makedirp(libs_dir)
-
-        get_number_lib = get_test_file_path("getnumber.cpp")
-        subprocess.check_call(["g++", get_number_lib, "-shared", "-fPIC", "-o", os.path.join(libs_dir, "libgetnumber.so")])
-
-        dependant_lib = get_test_file_path("yt_test_lib.cpp")
-        dependant_lib_output = os.path.join(libs_dir, "yt_test_dynamic_libraries_collection.so")
-        subprocess.check_call(["g++", dependant_lib, "-shared", "-o", dependant_lib_output,
-                               "-L", libs_dir, "-l", "getnumber", "-fPIC"])
-
-        # Adding this pseudo-module to sys.modules and ensuring it will be collected with
-        # its dependency (libgetnumber.so)
-        module = imp.new_module("yt_test_dynamic_libraries_collection")
-        module.__file__ = dependant_lib_output
-        sys.modules["yt_test_dynamic_libraries_collection"] = module
         old_ld_library_path = os.environ.get("LD_LIBRARY_PATH", "")
         os.environ["LD_LIBRARY_PATH"] = os.pathsep.join([old_ld_library_path, libs_dir])
         try:
@@ -1191,7 +1171,6 @@ if __name__ == "__main__":
                                         lambda lib: not lib.startswith("/lib")):
                     yt.run_map(mapper, table, TEST_DIR + "/out")
         finally:
-            del sys.modules["yt_test_dynamic_libraries_collection"]
             if old_ld_library_path:
                 os.environ["LD_LIBRARY_PATH"] = old_ld_library_path
 
@@ -1335,3 +1314,44 @@ if __name__ == "__main__":
 
         yt.run_map(mapper, table, table, files=['<file_name="cool_name.dat">' + f.name])
         check(yt.read_table(table), [{"k": "etwas"}])
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_modules_compatibility_filter(self, test_dynamic_library):
+        libs_dir, so_file = test_dynamic_library
+        def check_platforms_are_different(rec):
+            assert "_shared" in os.environ["LD_LIBRARY_PATH"]
+            for root, dirs, files in os.walk("."):
+                if so_file in files:
+                    assert False, "Dependency {0} is collected".format(so_file)
+            yield rec
+
+        def check_platforms_are_same(rec):
+            assert "_shared" in os.environ["LD_LIBRARY_PATH"]
+            for root, dirs, files in os.walk("."):
+                if so_file in files:
+                    break
+            else:
+                assert False, "Dependency {0} is not collected".format(so_file)
+            yield rec
+
+        old_platform = sys.platform
+        sys.platform = "linux_test_platform"
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1, "y": 1}])
+
+        old_ld_library_path = os.environ.get("LD_LIBRARY_PATH", "")
+        os.environ["LD_LIBRARY_PATH"] = os.pathsep.join([old_ld_library_path, libs_dir])
+        try:
+            with set_config_option("pickling/dynamic_libraries/enable_auto_collection", True):
+                with set_config_option("pickling/enable_modules_compatibility_filter", True):
+                    yt.run_map(check_platforms_are_different, table, TEST_DIR + "/out")
+                yt.run_map(check_platforms_are_same, table, TEST_DIR + "/out")
+
+                sys.platform = old_platform
+                with set_config_option("pickling/enable_modules_compatibility_filter", True):
+                    yt.run_map(check_platforms_are_same, table, TEST_DIR + "/out")
+        finally:
+            if old_ld_library_path:
+                os.environ["LD_LIBRARY_PATH"] = old_ld_library_path
+            sys.platform = old_platform

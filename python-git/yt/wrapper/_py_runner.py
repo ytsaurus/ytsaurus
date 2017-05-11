@@ -9,6 +9,14 @@ def get_platform_version():
         version.append(platform.linux_distribution())
     return tuple(version)
 
+def filter_out_modules(module_path, filter_function):
+    import os
+    for path, dirnames, filenames in os.walk(module_path):
+        for file_name in filenames:
+            file_path = os.path.join(path, file_name)
+            if filter_function(file_path):
+                os.remove(file_path)
+
 def main():
     # We should use local imports because of replacing __main__ module cause cleaning globals.
     import os
@@ -17,6 +25,7 @@ def main():
     import time
     import zipfile
     import pickle as standard_pickle
+    import platform
 
     start_time = time.time()
 
@@ -52,18 +61,33 @@ def main():
         module_locations = ["./modules", "./tmpfs/modules"]
         sys.path = __python_eggs + module_locations + sys.path
 
-        # Should be imported as early as possible to check python interpreter version.
-        import yt.wrapper.version_check
-
         client_version = modules_info["platform_version"]
+        client_python_version = modules_info["python_version"]
         server_version = get_platform_version()
+        server_python_version = platform.python_version()
 
-        if client_version is not None and client_version != server_version:
+        if modules_info["enable_modules_compatibility_filter"]:
+            python_filter_function = lambda path: path.endswith(".pyc") and os.path.exists(path[:-1]) or \
+                                                  "hashlib" in path
+            platform_filter_function = lambda path: path.endswith(".so") and not path.endswith("yson_lib.so") or \
+                                                    python_filter_function(path)
+
+            if client_version != server_version or client_python_version != server_python_version:
+                for module_path in module_locations:
+                    if client_version != server_version:
+                        filter_out_modules(module_path, platform_filter_function)
+                    else:
+                        filter_out_modules(module_path, python_filter_function)
+
+        if client_version != server_version and modules_info["ignore_yson_bindings"]:
             from shutil import rmtree
             for location in module_locations:
                 yson_bindings_path = os.path.join(location, "yt_yson_bindings")
                 if os.path.exists(yson_bindings_path):
                     rmtree(yson_bindings_path)
+
+        # Should be imported as early as possible to check python interpreter version.
+        import yt.wrapper.version_check
 
         if "." in __main_module_name:
             __main_module_package = __main_module_name.rsplit(".", 1)[0]
@@ -85,4 +109,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

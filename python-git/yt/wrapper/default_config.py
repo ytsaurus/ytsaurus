@@ -243,6 +243,8 @@ default_config = {
         "ignore_yson_bindings_for_incompatible_platforms": True,
         # Enable using function name as operation title.
         "use_function_name_as_title": True,
+        # Enable modules filtering if client and server OS/python versions are different.
+        "enable_modules_compatibility_filter": False
     },
 
     # Enables special behavior if client works with local mode cluster.
