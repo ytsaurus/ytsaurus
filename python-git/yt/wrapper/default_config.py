@@ -365,6 +365,9 @@ default_config = {
     # Default value of raw option in read, write, select, insert, lookup, delete.
     "default_value_of_raw_option": False,
 
+    # Default value for enable_batch_mode option in search command.
+    "enable_batch_mode_for_search": False,
+
     # Retries for read request. This type of retries parse data stream, if it is enabled, reading may be much slower.
     "read_retries": retries_config(count=30, enable=True, backoff={"policy": "rounded_up_to_request_timeout"})\
         .update_template_dict({

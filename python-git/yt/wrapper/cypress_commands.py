@@ -359,7 +359,7 @@ def find_free_subpath(path, client=None):
 def search(root="", node_type=None, path_filter=None, object_filter=None, subtree_filter=None,
            map_node_order=lambda path, obj: sorted(obj), list_node_order=None, attributes=None,
            exclude=None, depth_bound=None, follow_links=False, read_from=None,
-           enable_batch_mode=False, client=None):
+           enable_batch_mode=None, client=None):
     """Searches for some nodes in Cypress subtree.
 
     :param root: path to search.
@@ -394,6 +394,9 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
     request_attributes.append("opaque")
 
     exclude = deepcopy(flatten(get_value(exclude, ["//sys/operations"])))
+
+    if enable_batch_mode is None:
+        enable_batch_mode = get_config(client)["enable_batch_mode_for_search"]
 
     class CompositeNode(object):
         def __init__(self, path, depth, content=None, ignore_opaque=False,
