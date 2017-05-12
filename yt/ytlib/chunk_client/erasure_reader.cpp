@@ -6,6 +6,7 @@
 #include "chunk_writer.h"
 #include "config.h"
 #include "dispatcher.h"
+#include "block.h"
 #include "replication_reader.h"
 
 #include <yt/ytlib/api/native_client.h>
@@ -68,8 +69,7 @@ public:
         , WorkloadDescriptor_(workloadDescriptor)
     { }
 
-
-    TFuture<std::vector<TSharedRef>> Run()
+    TFuture<std::vector<TBlock>> Run()
     {
         // For each reader we find blocks to read and their initial indices.
         std::vector<
@@ -101,15 +101,15 @@ public:
             blockLocations[readerIndex].second.push_back(initialPosition++);
         }
 
-        std::vector<TFuture<std::vector<TSharedRef>>> readBlocksFutures;
+        std::vector<TFuture<std::vector<TBlock>>> readBlocksFutures;
         for (int readerIndex = 0; readerIndex < Readers_.size(); ++readerIndex) {
             auto reader = Readers_[readerIndex];
             readBlocksFutures.push_back(reader->ReadBlocks(WorkloadDescriptor_, blockLocations[readerIndex].first));
         }
 
         return Combine(readBlocksFutures).Apply(
-            BIND([=, this_ = MakeStrong(this)] (std::vector<std::vector<TSharedRef>> readBlocks) {
-                std::vector<TSharedRef> resultBlocks(BlockIndexes_.size());
+            BIND([=, this_ = MakeStrong(this)] (std::vector<std::vector<TBlock>> readBlocks) {
+                std::vector<TBlock> resultBlocks(BlockIndexes_.size());
                 for (int readerIndex = 0; readerIndex < readBlocks.size(); ++readerIndex) {
                     for (int blockIndex = 0; blockIndex < readBlocks[readerIndex].size(); ++blockIndex) {
                         resultBlocks[blockLocations[readerIndex].second[blockIndex]] = readBlocks[readerIndex][blockIndex];
@@ -146,7 +146,7 @@ public:
         YCHECK(!Readers_.empty());
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<int>& blockIndexes) override
     {
@@ -161,7 +161,7 @@ public:
             }).AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         int firstBlockIndex,
         int blockCount) override
@@ -312,7 +312,7 @@ private:
         promise.Set(blockOrError);
     }
 
-    void OnBlockRead(TPromise<TSharedRef> promise, const TErrorOr<std::vector<TSharedRef>>& blocksOrError)
+    void OnBlockRead(TPromise<TSharedRef> promise, const TErrorOr<std::vector<TBlock>>& blocksOrError)
     {
         if (!blocksOrError.IsOK()) {
             Complete(promise, TError(blocksOrError));
@@ -322,7 +322,7 @@ private:
         const auto& blocks = blocksOrError.Value();
         for (const auto& block : blocks) {
             BlockIndex_ += 1;
-            Blocks_.push_back(block);
+            Blocks_.push_back(block.Data);
             BlocksDataSize_ += block.Size();
         }
 
@@ -725,7 +725,7 @@ private:
             }
 
             auto writer = GetWriterForIndex(block.Index);
-            if (!writer->WriteBlock(block.Data)) {
+            if (!writer->WriteBlock(TBlock(block.Data))) {
                 WaitFor(writer->GetReadyEvent())
                     .ThrowOnError();
             }

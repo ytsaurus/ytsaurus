@@ -106,13 +106,13 @@ TRefCountedChunkMetaPtr TJournalChunk::DoReadMeta(const TNullable<std::vector<in
     return FilterMeta(Meta_, extensionTags);
 }
 
-TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlockSet(
+TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockSet(
     const std::vector<int>& blockIndexes,
     const TBlockReadOptions& options)
 {
     // Extract the initial contiguous segment of blocks.
     if (blockIndexes.empty()) {
-        return MakeFuture(std::vector<TSharedRef>());
+        return MakeFuture(std::vector<TBlock>());
     }
 
     int firstBlockIndex = blockIndexes.front();
@@ -124,7 +124,7 @@ TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlockSet(
     return ReadBlockRange(firstBlockIndex, blockCount, options);
 }
 
-TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlockRange(
+TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
     int firstBlockIndex,
     int blockCount,
     const TBlockReadOptions& options)
@@ -134,10 +134,10 @@ TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlockRange(
     YCHECK(blockCount >= 0);
 
     if (!options.FetchFromDisk) {
-        return MakeFuture(std::vector<TSharedRef>());
+        return MakeFuture(std::vector<TBlock>());
     }
 
-    auto promise = NewPromise<std::vector<TSharedRef>>();
+    auto promise = NewPromise<std::vector<TBlock>>();
 
     auto callback = BIND(
         &TJournalChunk::DoReadBlockRange,
@@ -157,7 +157,7 @@ TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlockRange(
 void TJournalChunk::DoReadBlockRange(
     int firstBlockIndex,
     int blockCount,
-    TPromise<std::vector<TSharedRef>> promise)
+    TPromise<std::vector<TBlock>> promise)
 {
     auto config = Bootstrap_->GetConfig()->DataNode;
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
@@ -208,7 +208,7 @@ void TJournalChunk::DoReadBlockRange(
         locationProfiler.Enqueue("/journal_read_throughput", bytesRead * 1000000 / (1 + readTime.MicroSeconds()), EMetricType::Gauge);
         DataNodeProfiler.Increment(DiskJournalReadByteCounter, bytesRead);
 
-        promise.Set(blocks);
+        promise.Set(TBlock::Wrap(blocks));
     } catch (const std::exception& ex) {
         promise.Set(TError(ex));
     }

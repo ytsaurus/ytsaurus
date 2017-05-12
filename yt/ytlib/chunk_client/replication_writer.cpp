@@ -106,7 +106,7 @@ public:
         TReplicationWriter* writer,
         int startBlockIndex);
 
-    void AddBlock(const TSharedRef& block);
+    void AddBlock(const TBlock& block);
 
     void ScheduleProcess();
 
@@ -126,7 +126,7 @@ private:
     bool Flushing_ = false;
     std::vector<bool> SentTo_;
 
-    std::vector<TSharedRef> Blocks_;
+    std::vector<TBlock> Blocks_;
     int FirstBlockIndex_;
 
     i64 Size_ = 0;
@@ -164,8 +164,8 @@ public:
 
     virtual TFuture<void> Open() override;
 
-    virtual bool WriteBlock(const TSharedRef& block) override;
-    virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override;
+    virtual bool WriteBlock(const TBlock& block) override;
+    virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override;
     virtual TFuture<void> GetReadyEvent() override;
 
     virtual TFuture<void> Close(const TChunkMeta& chunkMeta) override;
@@ -259,7 +259,7 @@ private:
     void CancelWriter(bool abort);
     void CancelNode(TNodePtr node, bool abort);
 
-    void AddBlocks(const std::vector<TSharedRef>& blocks);
+    void AddBlocks(const std::vector<TBlock>& blocks);
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 };
@@ -277,7 +277,7 @@ TGroup::TGroup(
     , Logger(writer->Logger)
 { }
 
-void TGroup::AddBlock(const TSharedRef& block)
+void TGroup::AddBlock(const TBlock& block)
 {
     Blocks_.push_back(block);
     Size_ += block.Size();
@@ -332,7 +332,9 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
     ToProto(req->mutable_session_id(), sessionId);
     req->set_first_block_index(FirstBlockIndex_);
     req->set_populate_cache(writer->Config_->PopulateCache);
-    req->Attachments().insert(req->Attachments().begin(), Blocks_.begin(), Blocks_.end());
+
+    // TODO(prime): push checksums to RPC layer
+    req->Attachments() = TBlock::Unwrap(Blocks_);
 
     LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v)",
         GetStartBlockIndex(),
@@ -936,12 +938,12 @@ void TReplicationWriter::CancelNode(TNodePtr node, bool abort)
     }
 }
 
-bool TReplicationWriter::WriteBlock(const TSharedRef& block)
+bool TReplicationWriter::WriteBlock(const TBlock& block)
 {
-    return WriteBlocks(std::vector<TSharedRef>(1, block));
+    return WriteBlocks(std::vector<TBlock>(1, block));
 }
 
-bool TReplicationWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
+bool TReplicationWriter::WriteBlocks(const std::vector<TBlock>& blocks)
 {
     YCHECK(IsOpen_);
     YCHECK(!IsClosing_);
@@ -981,7 +983,7 @@ TFuture<void> TReplicationWriter::GetReadyEvent()
     return State_.GetOperationError();
 }
 
-void TReplicationWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
+void TReplicationWriter::AddBlocks(const std::vector<TBlock>& blocks)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
     YCHECK(!IsCloseRequested_);

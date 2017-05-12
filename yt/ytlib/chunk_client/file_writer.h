@@ -26,8 +26,8 @@ public:
     // IChunkWriter implementation.
     virtual TFuture<void> Open() override;
 
-    virtual bool WriteBlock(const TSharedRef& block) override;
-    virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override;
+    virtual bool WriteBlock(const TBlock& block) override;
+    virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override;
 
     virtual TFuture<void> GetReadyEvent() override;
 

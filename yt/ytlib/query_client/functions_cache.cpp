@@ -10,6 +10,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/block.h>
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
 
@@ -518,13 +519,13 @@ public:
 
         std::vector<TSharedRef> blocks;
         while (true) {
-            TSharedRef block;
+            NChunkClient::TBlock block;
             if (!reader->ReadBlock(&block)) {
                 break;
             }
 
-            if (block) {
-                blocks.push_back(std::move(block));
+            if (block.Data) {
+                blocks.push_back(std::move(block.Data));
             }
 
             WaitFor(reader->GetReadyEvent())

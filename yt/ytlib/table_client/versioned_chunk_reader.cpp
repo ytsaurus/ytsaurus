@@ -316,7 +316,7 @@ private:
         YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
 
         BlockReader_.reset(new TSimpleVersionedBlockReader(
-            CurrentBlock_.Get().ValueOrThrow(),
+            CurrentBlock_.Get().ValueOrThrow().Data,
             ChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
             ChunkMeta_->ChunkSchema(),
             ChunkMeta_->GetChunkKeyColumnCount(),
@@ -491,7 +491,7 @@ private:
         ++CurrentBlockIndex_;
         int chunkBlockIndex = BlockIndexes_[CurrentBlockIndex_];
         BlockReader_.reset(new TSimpleVersionedBlockReader(
-            CurrentBlock_.Get().ValueOrThrow(),
+            CurrentBlock_.Get().ValueOrThrow().Data,
             ChunkMeta_->BlockMeta().blocks(chunkBlockIndex),
             ChunkMeta_->ChunkSchema(),
             ChunkMeta_->GetChunkKeyColumnCount(),

@@ -564,7 +564,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
 
     YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
     BlockReader_.reset(new THorizontalSchemalessBlockReader(
-        CurrentBlock_.Get().ValueOrThrow(),
+        CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
         IdMapping_,
         ChunkKeyColumnCount_,
@@ -868,7 +868,7 @@ void THorizontalSchemalessLookupChunkReader::InitFirstBlock()
     const auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
 
     BlockReader_.reset(new THorizontalSchemalessBlockReader(
-        CurrentBlock_.Get().ValueOrThrow(),
+        CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
         IdMapping_,
         ChunkKeyColumnCount_,
