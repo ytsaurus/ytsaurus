@@ -109,7 +109,7 @@ void TInputSliceLimit::Persist(const TPersistenceContext& context)
     Persist(context, Key);
 }
 
-Stroka ToString(const TInputSliceLimit& limit)
+TString ToString(const TInputSliceLimit& limit)
 {
     return Format("RowIndex: %v, Key: %v", limit.RowIndex, limit.Key);
 }
@@ -372,7 +372,7 @@ void TInputChunkSlice::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TInputChunkSlicePtr& slice)
+TString ToString(const TInputChunkSlicePtr& slice)
 {
     return Format("ChunkId: %v, LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataSize: %v, PartIndex: %v",
         slice->GetInputChunk()->ChunkId(),

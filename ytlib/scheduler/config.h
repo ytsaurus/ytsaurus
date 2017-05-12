@@ -89,7 +89,7 @@ class TOperationSpecBase
 {
 public:
     //! Account holding intermediate data produces by the operation.
-    Stroka IntermediateDataAccount;
+    TString IntermediateDataAccount;
 
     //! Codec used for compressing intermediate output during shuffle.
     NCompression::ECodec IntermediateCompressionCodec;
@@ -97,13 +97,13 @@ public:
     //! Replication factor for intermediate data.
     int IntermediateDataReplicationFactor;
 
-    Stroka IntermediateDataMediumName;
+    TString IntermediateDataMediumName;
 
     //! Acl used for intermediate tables and stderrs.
     NYTree::IListNodePtr IntermediateDataAcl;
 
     //! Account for job nodes and operation files (stderrs and input contexts of failed jobs).
-    Stroka JobNodeAccount;
+    TString JobNodeAccount;
 
     //! What to do during initialization if some chunks are unavailable.
     EUnavailableChunkAction UnavailableChunkStrategy;
@@ -125,7 +125,7 @@ public:
 
     bool EnableSortVerification;
 
-    TNullable<Stroka> Title;
+    TNullable<TString> Title;
 
     //! Limit on operation execution time.
     TNullable<TDuration> TimeLimit;
@@ -135,7 +135,7 @@ public:
     TTestingOperationOptionsPtr TestingOperationOptions;
 
     //! Users that can change operation parameters, e.g abort or suspend it.
-    std::vector<Stroka> Owners;
+    std::vector<TString> Owners;
 
     //! A storage keeping YSON map that is hidden under ACL in Cypress. It will be exported
     //! to all user jobs via environment variables.
@@ -158,7 +158,7 @@ class TUserJobSpec
     : public NYTree::TYsonSerializable
 {
 public:
-    Stroka Command;
+    TString Command;
 
     std::vector<NYPath::TRichYPath> FilePaths;
 
@@ -168,7 +168,7 @@ public:
 
     TNullable<bool> EnableInputTableIndex;
 
-    yhash<Stroka, Stroka> Environment;
+    yhash<TString, TString> Environment;
 
     double CpuLimit;
     TNullable<TDuration> JobTimeLimit;
@@ -185,7 +185,7 @@ public:
     i64 CustomStatisticsCountLimit;
 
     TNullable<i64> TmpfsSize;
-    TNullable<Stroka> TmpfsPath;
+    TNullable<TString> TmpfsPath;
 
     bool CopyFiles;
 
@@ -202,7 +202,7 @@ class TInputlyQueryableSpec
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    TNullable<Stroka> InputQuery;
+    TNullable<TString> InputQuery;
     TNullable<NTableClient::TTableSchema> InputSchema;
 
     TInputlyQueryableSpec();
@@ -474,7 +474,7 @@ public:
 
     int ShuffleNetworkLimit;
 
-    std::vector<Stroka> SortBy;
+    std::vector<TString> SortBy;
 
     //! If |true| then the scheduler attempts to distribute partition jobs evenly
     //! (w.r.t. the uncompressed input data size) across the cluster to balance IO
@@ -533,7 +533,7 @@ class TMapReduceOperationSpec
 public:
     std::vector<NYPath::TRichYPath> OutputTablePaths;
 
-    std::vector<Stroka> ReduceBy;
+    std::vector<TString> ReduceBy;
 
     TUserJobSpecPtr Mapper;
     TUserJobSpecPtr ReduceCombiner;
@@ -561,14 +561,14 @@ class TRemoteCopyOperationSpec
     : public TSimpleOperationSpecBase
 {
 public:
-    TNullable<Stroka> ClusterName;
-    TNullable<Stroka> NetworkName;
+    TNullable<TString> ClusterName;
+    TNullable<TString> NetworkName;
     TNullable<NApi::TNativeConnectionConfigPtr> ClusterConnection;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     NYPath::TRichYPath OutputTablePath;
     int MaxChunkCountPerJob;
     bool CopyAttributes;
-    TNullable<std::vector<Stroka>> AttributeKeys;
+    TNullable<std::vector<TString>> AttributeKeys;
 
     ESchemaInferenceMode SchemaInferenceMode;
 
@@ -651,7 +651,7 @@ class TStrategyOperationSpec
     : public TSchedulableConfig
 {
 public:
-    TNullable<Stroka> Pool;
+    TNullable<TString> Pool;
 
     TStrategyOperationSpec();
 };

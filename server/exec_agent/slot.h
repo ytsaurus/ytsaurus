@@ -42,20 +42,20 @@ struct ISlot
 
     virtual TFuture<void> MakeLink(
         ESandboxKind sandboxKind,
-        const Stroka& targetPath,
-        const Stroka& linkName,
+        const TString& targetPath,
+        const TString& linkName,
         bool isExecutable) = 0;
 
     virtual TFuture<void> MakeCopy(
         ESandboxKind sandboxKind,
-        const Stroka& sourcePath,
-        const Stroka& destinationName,
+        const TString& sourcePath,
+        const TString& destinationName,
         bool isExecutable) = 0;
 
-    virtual TFuture<Stroka> PrepareTmpfs(
+    virtual TFuture<TString> PrepareTmpfs(
         ESandboxKind sandboxKind,
         i64 size,
-        Stroka path,
+        TString path,
         bool enable) = 0;
 
     virtual NJobProberClient::IJobProbePtr GetJobProberClient() = 0;
@@ -73,7 +73,7 @@ ISlotPtr CreateSlot(
     int slotIndex,
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
-    const Stroka& nodeTag);
+    const TString& nodeTag);
 
 ////////////////////////////////////////////////////////////////////////////////
 

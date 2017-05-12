@@ -74,7 +74,7 @@ private:
         descriptors->push_back("unflushed_timestamp");
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
     {
         const auto* tablet = GetThisImpl();
         const auto* table = tablet->GetTable();

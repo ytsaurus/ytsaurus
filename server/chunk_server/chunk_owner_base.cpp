@@ -74,7 +74,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
         if (Attributes_) {
             auto& attributes = Attributes_->Attributes();
             {
-                static const Stroka compressionCodecAttributeName("compression_codec");
+                static const TString compressionCodecAttributeName("compression_codec");
                 auto it = attributes.find(compressionCodecAttributeName);
                 if (it != attributes.end()) {
                     const auto& value = it->second;
@@ -86,7 +86,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
                 }
             }
             {
-                static const Stroka erasureCodecAttributeName("erasure_codec");
+                static const TString erasureCodecAttributeName("erasure_codec");
                 auto it = attributes.find(erasureCodecAttributeName);
                 if (it != attributes.end()) {
                     const auto& value = it->second;

@@ -80,7 +80,7 @@ private:
     void OnRangeConsumed(const char* begin, const char* end);
     void AppendToContextBuffer(char symbol);
 
-    Stroka GetContext() const;
+    TString GetContext() const;
     std::unique_ptr<NYTree::IAttributeDictionary> GetDebugInfo() const;
 
     IYamrConsumerPtr Consumer;
@@ -91,7 +91,7 @@ private:
 
     bool ExpectingEscapedChar;
 
-    Stroka CurrentToken;
+    TString CurrentToken;
 
     // Diagnostic Info
     i64 Offset;
@@ -137,7 +137,7 @@ private:
 
     bool HasSubkey;
 
-    Stroka CurrentToken;
+    TString CurrentToken;
 
     union {
         ui32 Value;

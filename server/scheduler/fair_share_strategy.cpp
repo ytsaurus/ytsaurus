@@ -34,7 +34,7 @@ static const auto& Profiler = SchedulerProfiler;
 
 TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 {
-    static std::unordered_map<Stroka, TTagId> tagId;
+    static std::unordered_map<TString, TTagId> tagId;
 
     auto reasonAsString = ToString(reason);
     auto it = tagId.find(reasonAsString);
@@ -276,13 +276,13 @@ public:
 
         try {
             // Build the set of potential orphans.
-            yhash_set<Stroka> orphanPoolIds;
+            yhash_set<TString> orphanPoolIds;
             for (const auto& pair : Pools) {
                 YCHECK(orphanPoolIds.insert(pair.first).second);
             }
 
             // Track ids appearing in various branches of the tree.
-            yhash<Stroka, TYPath> poolIdToPath;
+            yhash<TString, TYPath> poolIdToPath;
 
             // NB: std::function is needed by parseConfig to capture itself.
             std::function<void(INodePtr, TCompositeSchedulerElementPtr)> parseConfig =
@@ -497,7 +497,7 @@ public:
             .EndMap();
     }
 
-    virtual Stroka GetOperationLoggingProgress(const TOperationId& operationId) override
+    virtual TString GetOperationLoggingProgress(const TOperationId& operationId) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -636,7 +636,7 @@ private:
     ISchedulerStrategyHost* const Host;
 
     INodePtr LastPoolsNodeUpdate;
-    typedef yhash<Stroka, TPoolPtr> TPoolMap;
+    typedef yhash<TString, TPoolPtr> TPoolMap;
     TPoolMap Pools;
 
     typedef yhash<TOperationId, TOperationElementPtr> TOperationElementPtrByIdMap;
@@ -680,7 +680,7 @@ private:
 
     struct TProfilingCounters
     {
-        TProfilingCounters(const Stroka& prefix)
+        TProfilingCounters(const TString& prefix)
             : PrescheduleJobTimeCounter(prefix + "/preschedule_job_time")
             , TotalControllerScheduleJobTimeCounter(prefix + "/controller_schedule_job_time/total")
             , ExecControllerScheduleJobTimeCounter(prefix + "/controller_schedule_job_time/exec")
@@ -778,7 +778,7 @@ private:
             LastSchedulingInformationLoggedTime_ = now;
         }
 
-        auto logAndCleanSchedulingStatistics = [&] (const Stroka& stageName) {
+        auto logAndCleanSchedulingStatistics = [&] (const TString& stageName) {
             if (!enableSchedulingInfoLogging) {
                 return;
             }
@@ -1234,7 +1234,7 @@ private:
         }
     }
 
-    TPoolPtr FindPool(const Stroka& id)
+    TPoolPtr FindPool(const TString& id)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1242,7 +1242,7 @@ private:
         return it == Pools.end() ? nullptr : it->second;
     }
 
-    TPoolPtr GetPool(const Stroka& id)
+    TPoolPtr GetPool(const TString& id)
     {
         auto pool = FindPool(id);
         YCHECK(pool);
@@ -1413,7 +1413,7 @@ private:
 
     TYPath GetPoolPath(const TCompositeSchedulerElementPtr& element)
     {
-        std::vector<Stroka> tokens;
+        std::vector<TString> tokens;
         auto current = element;
         while (!current->IsRoot()) {
             if (current->IsExplicit()) {
@@ -1432,7 +1432,7 @@ private:
         return path;
     }
 
-    Stroka GetOperationPoolName(const TOperationPtr& operation)
+    TString GetOperationPoolName(const TOperationPtr& operation)
     {
         auto spec = ParseSpec(operation, operation->GetSpec());
         return spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();

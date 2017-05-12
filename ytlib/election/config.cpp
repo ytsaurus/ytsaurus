@@ -14,12 +14,12 @@ using namespace NObjectClient;
 TCellPeerConfig::TCellPeerConfig()
 { }
 
-TCellPeerConfig::TCellPeerConfig(const TNullable<Stroka>& address, bool voting)
+TCellPeerConfig::TCellPeerConfig(const TNullable<TString>& address, bool voting)
     : Address(address)
     , Voting(voting)
 { }
 
-Stroka ToString(const TCellPeerConfig& config)
+TString ToString(const TCellPeerConfig& config)
 {
     TStringBuilder builder;
     builder.AppendFormat("%v", config.Address);
@@ -46,7 +46,7 @@ void Serialize(const TCellPeerConfig& config, IYsonConsumer* consumer)
 
 void Deserialize(TCellPeerConfig& config, INodePtr node)
 {
-    config.Address = node->GetType() == ENodeType::Entity ? Null : MakeNullable(node->GetValue<Stroka>());
+    config.Address = node->GetType() == ENodeType::Entity ? Null : MakeNullable(node->GetValue<TString>());
     config.Voting = node->Attributes().Get<bool>("voting", true);
 }
 

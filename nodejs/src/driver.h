@@ -31,7 +31,7 @@ public:
     static v8::Handle<v8::Value> New(const v8::Arguments& args);
 
     static v8::Handle<v8::Value> FindCommandDescriptor(const v8::Arguments& args);
-    v8::Handle<v8::Value> DoFindCommandDescriptor(const Stroka& commandName);
+    v8::Handle<v8::Value> DoFindCommandDescriptor(const TString& commandName);
 
     static v8::Handle<v8::Value> GetCommandDescriptors(const v8::Arguments& args);
     v8::Handle<v8::Value> DoGetCommandDescriptors();

@@ -58,7 +58,7 @@ TMutableRef TSharedMutableRef::TAllocationHolder::GetRef()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef::TStringHolder::TStringHolder(Stroka&& string, TRefCountedTypeCookie cookie)
+TSharedRef::TStringHolder::TStringHolder(TString&& string, TRefCountedTypeCookie cookie)
     : String_(std::move(string))
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
     , Cookie_(cookie)
@@ -78,22 +78,22 @@ TSharedRef::TStringHolder::~TStringHolder()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TRef& ref)
+TString ToString(const TRef& ref)
 {
-    return Stroka(ref.Begin(), ref.End());
+    return TString(ref.Begin(), ref.End());
 }
 
-Stroka ToString(const TMutableRef& ref)
-{
-    return ToString(TRef(ref));
-}
-
-Stroka ToString(const TSharedRef& ref)
+TString ToString(const TMutableRef& ref)
 {
     return ToString(TRef(ref));
 }
 
-Stroka ToString(const TSharedMutableRef& ref)
+TString ToString(const TSharedRef& ref)
+{
+    return ToString(TRef(ref));
+}
+
+TString ToString(const TSharedMutableRef& ref)
 {
     return ToString(TRef(ref));
 }

@@ -26,7 +26,7 @@ struct TQueryStatistics
 void ToProto(NProto::TQueryStatistics* serialized, const TQueryStatistics& original);
 TQueryStatistics FromProto(const NProto::TQueryStatistics& protoClause);
 
-Stroka ToString(const TQueryStatistics& stat);
+TString ToString(const TQueryStatistics& stat);
 
 ////////////////////////////////////////////////////////////////////////////////
 

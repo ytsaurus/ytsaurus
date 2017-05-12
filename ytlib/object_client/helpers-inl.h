@@ -12,7 +12,7 @@ namespace NObjectClient {
 
 inline NYPath::TYPath FromObjectId(const TObjectId& id)
 {
-    return Stroka(ObjectIdPathPrefix) + ToString(id);
+    return TString(ObjectIdPathPrefix) + ToString(id);
 }
 
 inline bool IsVersionedType(EObjectType type)

@@ -55,7 +55,7 @@ void TTabletAction::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TTabletAction& action)
+TString ToString(const TTabletAction& action)
 {
     return Format("ActionId: %v, Kind: %v, KeepFinished: %v, SkipFreezing: %v, Freeze: %v, TabletCount: %v, Tablets: %v, Cells: %v, PivotKeys: %v",
         action.GetId(),

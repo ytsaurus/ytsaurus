@@ -46,7 +46,7 @@ public:
         return DoGetReplicationCellTags(object->As<TObject>());
     }
 
-    virtual Stroka GetName(const TObjectBase* object) override
+    virtual TString GetName(const TObjectBase* object) override
     {
         return DoGetName(object->As<TObject>());
     }
@@ -111,7 +111,7 @@ protected:
         return EmptyCellTags();
     }
 
-    virtual Stroka DoGetName(const TObject* object) = 0;
+    virtual TString DoGetName(const TObject* object) = 0;
 
     virtual IObjectProxyPtr DoGetProxy(
         TObject* object,

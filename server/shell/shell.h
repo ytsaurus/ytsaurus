@@ -14,18 +14,18 @@ namespace NShell {
 
 struct TShellOptions
 {
-    Stroka ExePath = "/bin/bash";
+    TString ExePath = "/bin/bash";
     TNullable<int> Uid;
-    Stroka Term = "xterm";
+    TString Term = "xterm";
     int Height = 24;
     int Width = 80;
-    Stroka WorkingDir = "/";
-    TNullable<Stroka> CGroupBasePath;
-    std::vector<Stroka> Environment;
-    TNullable<Stroka> Bashrc;
-    TNullable<Stroka> MessageOfTheDay;
+    TString WorkingDir = "/";
+    TNullable<TString> CGroupBasePath;
+    std::vector<TString> Environment;
+    TNullable<TString> Bashrc;
+    TNullable<TString> MessageOfTheDay;
     TDuration InactivityTimeout;
-    TNullable<Stroka> Command;
+    TNullable<TString> Command;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

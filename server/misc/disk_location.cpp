@@ -15,7 +15,7 @@ using namespace NCellNode;
 
 TDiskLocation::TDiskLocation(
     TDiskLocationConfigPtr config,
-    const Stroka& id,
+    const TString& id,
     const NLogging::TLogger& logger)
     : Logger(logger)
     , Config_(config)

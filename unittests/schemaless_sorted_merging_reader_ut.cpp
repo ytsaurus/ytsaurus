@@ -40,22 +40,22 @@ public:
         return UnreadRowCount_;
     }
 
-    const Stroka& GetFirstUnreadRow() const
+    const TString& GetFirstUnreadRow() const
     {
         return FirstUnreadRow_;
     }
 
 private:
     i64 UnreadRowCount_;
-    Stroka FirstUnreadRow_;
+    TString FirstUnreadRow_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTableData
 {
-    Stroka Schema;
-    std::vector<Stroka> Rows;
+    TString Schema;
+    std::vector<TString> Rows;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,7 +105,7 @@ public:
         if (Interrupted_ || RowIndex_ >= TableData_.Rows.size()) {
             return false;
         }
-        Stroka tableIndexYson = Format("; \"@table_index\"=%d", InputTableIndex_);
+        TString tableIndexYson = Format("; \"@table_index\"=%d", InputTableIndex_);
         while (rows->size() < rows->capacity() && RowIndex_ < TableData_.Rows.size()) {
             Rows_.emplace_back(YsonToSchemafulRow(TableData_.Rows[RowIndex_] + tableIndexYson, TableSchema_, false));
             rows->emplace_back(Rows_.back());
@@ -177,14 +177,14 @@ protected:
         int rowsPerRead,
         int interruptRowCount,
         int expectedReadRowCount,
-        Stroka expectedLastReadRow,
-        std::vector<std::pair<int,Stroka>> expectedResult)
+        TString expectedLastReadRow,
+        std::vector<std::pair<int,TString>> expectedResult)
     {
         auto reader = createReader(resultStorage);
         std::vector<TUnversionedRow> rows;
         rows.reserve(rowsPerRead);
         int readRowCount = 0;
-        Stroka lastReadRow;
+        TString lastReadRow;
         bool interrupted = false;
         if (readRowCount >= interruptRowCount && !interrupted) {
             reader->Interrupt();
@@ -213,11 +213,11 @@ protected:
         }
     }
 
-    std::vector<Stroka> ReadAll(
+    std::vector<TString> ReadAll(
         TReaderFactory createReader,
         std::vector<TResultStorage> *resultStorage)
     {
-        std::vector<Stroka> result;
+        std::vector<TString> result;
         auto reader = createReader(resultStorage);
         std::vector<TUnversionedRow> rows;
         rows.reserve(1);
@@ -308,9 +308,9 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedMergingReaderSingleTable)
             rowsPerRead,
             interruptRowCount,
             interruptRowCount,
-            interruptRowCount != 0 ? rows[interruptRowCount - 1] : Stroka(""),
+            interruptRowCount != 0 ? rows[interruptRowCount - 1] : TString(""),
             {
-                {0, Stroka("")},
+                {0, TString("")},
             });
     }
 }
@@ -414,8 +414,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMulti
         3,
         rows[2],
         {
-            {6, Stroka("[\"ab\", 1, 21u, 1]")},
-            {8, Stroka("[\"ab\", 3, 3u, 2]")},
+            {6, TString("[\"ab\", 1, 21u, 1]")},
+            {8, TString("[\"ab\", 3, 3u, 2]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -427,8 +427,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMulti
         5,
         rows[4],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 1]")},
-            {8, Stroka("[\"ab\", 3, 3u, 2]")},
+            {4, TString("[\"bb\", 2, 23u, 1]")},
+            {8, TString("[\"ab\", 3, 3u, 2]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -440,8 +440,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMulti
         5,
         rows[4],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 1]")},
-            {8, Stroka("[\"ab\", 3, 3u, 2]")},
+            {4, TString("[\"bb\", 2, 23u, 1]")},
+            {8, TString("[\"ab\", 3, 3u, 2]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -453,8 +453,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMulti
         6,
         rows[5],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 1]")},
-            {7, Stroka("[\"ac\", 5, 5u, 2]")},
+            {4, TString("[\"bb\", 2, 23u, 1]")},
+            {7, TString("[\"ac\", 5, 5u, 2]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -466,8 +466,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMulti
         7,
         rows[6],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 1]")},
-            {7, Stroka("[\"ac\", 5, 5u, 2]")},
+            {4, TString("[\"bb\", 2, 23u, 1]")},
+            {7, TString("[\"ac\", 5, 5u, 2]")},
         });
 }
 
@@ -525,8 +525,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBef
         4,
         rows[3],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 0]")},
-            {8, Stroka("[\"ab\", 3, 3u, 1]")},
+            {4, TString("[\"bb\", 2, 23u, 0]")},
+            {8, TString("[\"ab\", 3, 3u, 1]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -538,8 +538,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBef
         4,
         rows[3],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 0]")},
-            {8, Stroka("[\"ab\", 3, 3u, 1]")},
+            {4, TString("[\"bb\", 2, 23u, 0]")},
+            {8, TString("[\"ab\", 3, 3u, 1]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -551,8 +551,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBef
         6,
         rows[5],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 0]")},
-            {7, Stroka("[\"ac\", 5, 5u, 1]")},
+            {4, TString("[\"bb\", 2, 23u, 0]")},
+            {7, TString("[\"ac\", 5, 5u, 1]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -564,8 +564,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBef
         6,
         rows[5],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 0]")},
-            {7, Stroka("[\"ac\", 5, 5u, 1]")},
+            {4, TString("[\"bb\", 2, 23u, 0]")},
+            {7, TString("[\"ac\", 5, 5u, 1]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -577,8 +577,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBef
         8,
         rows[7],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 0]")},
-            {6, Stroka("[\"ba\", 7, 7u, 1]")},
+            {4, TString("[\"bb\", 2, 23u, 0]")},
+            {6, TString("[\"ba\", 7, 7u, 1]")},
         });
 }
 
@@ -626,7 +626,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBef
         4,
         rows[3],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 2]")},
+            {4, TString("[\"bb\", 2, 23u, 2]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -638,7 +638,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBef
         4,
         rows[3],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 2]")},
+            {4, TString("[\"bb\", 2, 23u, 2]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -650,7 +650,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBef
         5,
         rows[4],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 2]")},
+            {4, TString("[\"bb\", 2, 23u, 2]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -662,7 +662,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBef
         6,
         rows[5],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 2]")},
+            {4, TString("[\"bb\", 2, 23u, 2]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -674,7 +674,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBef
         8,
         rows[7],
         {
-            {2, Stroka("[\"cb\", 3, 25u, 2]")},
+            {2, TString("[\"cb\", 3, 25u, 2]")},
         });
 }
 
@@ -720,7 +720,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMulti
         4,
         rows[3],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 0]")},
+            {4, TString("[\"bb\", 2, 23u, 0]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -732,7 +732,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMulti
         4,
         rows[3],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 0]")},
+            {4, TString("[\"bb\", 2, 23u, 0]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -744,7 +744,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMulti
         8,
         rows[7],
         {
-            {2, Stroka("[\"cb\", 3, 25u, 0]")},
+            {2, TString("[\"cb\", 3, 25u, 0]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -756,7 +756,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMulti
         8,
         rows[7],
         {
-            {2, Stroka("[\"cb\", 3, 25u, 0]")},
+            {2, TString("[\"cb\", 3, 25u, 0]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -768,7 +768,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMulti
         8,
         rows[7],
         {
-            {2, Stroka("[\"cb\", 3, 25u, 0]")},
+            {2, TString("[\"cb\", 3, 25u, 0]")},
         });
 }
 
@@ -816,7 +816,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderForeignBeforeP
         3,
         rows[2],
         {
-            {5, Stroka("[\"ab\", 1, 22u, 2]")},
+            {5, TString("[\"ab\", 1, 22u, 2]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -828,7 +828,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderForeignBeforeP
         4,
         rows[3],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 2]")},
+            {4, TString("[\"bb\", 2, 23u, 2]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -840,7 +840,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderForeignBeforeP
         5,
         rows[4],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 2]")},
+            {4, TString("[\"bb\", 2, 23u, 2]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -852,7 +852,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderForeignBeforeP
         6,
         rows[5],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 2]")},
+            {4, TString("[\"bb\", 2, 23u, 2]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -864,7 +864,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderForeignBeforeP
         7,
         rows[6],
         {
-            {3, Stroka("[\"bb\", 2, 24u, 2]")},
+            {3, TString("[\"bb\", 2, 24u, 2]")},
         });
 }
 
@@ -910,7 +910,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderPrimaryBeforeF
         4,
         rows[3],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 0]")},
+            {4, TString("[\"bb\", 2, 23u, 0]")},
         });
     interruptRowCount = 4;
     rowsPerRead = 2;
@@ -922,7 +922,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderPrimaryBeforeF
         4,
         rows[3],
         {
-            {4, Stroka("[\"bb\", 2, 23u, 0]")},
+            {4, TString("[\"bb\", 2, 23u, 0]")},
         });
     interruptRowCount = 5;
     rowsPerRead = 5;
@@ -934,7 +934,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderPrimaryBeforeF
         7,
         rows[7], // Note: rows[6] should be skipped
         {
-            {3, Stroka("[\"bb\", 2, 24u, 0]")},
+            {3, TString("[\"bb\", 2, 24u, 0]")},
         });
     interruptRowCount = 6;
     rowsPerRead = 2;
@@ -946,7 +946,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderPrimaryBeforeF
         8,
         rows[7],
         {
-            {2, Stroka("[\"cb\", 3, 25u, 0]")},
+            {2, TString("[\"cb\", 3, 25u, 0]")},
         });
     interruptRowCount = 7;
     rowsPerRead = 7;
@@ -958,7 +958,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderPrimaryBeforeF
         8,
         rows[7],
         {
-            {2, Stroka("[\"cb\", 3, 25u, 0]")},
+            {2, TString("[\"cb\", 3, 25u, 0]")},
         });
 }
 
@@ -1025,7 +1025,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderCheckLastRows)
         8,
         rows[7],
         {
-            {0, Stroka("")},
+            {0, TString("")},
         });
 }
 

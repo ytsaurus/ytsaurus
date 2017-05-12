@@ -48,7 +48,7 @@ class TRemoteSnapshotStoreOptions
 public:
     int SnapshotReplicationFactor;
     NCompression::ECodec SnapshotCompressionCodec;
-    Stroka SnapshotPrimaryMedium;
+    TString SnapshotPrimaryMedium;
 
     TRemoteSnapshotStoreOptions()
     {
@@ -73,7 +73,7 @@ public:
     int ChangelogReadQuorum;
     int ChangelogWriteQuorum;
     bool EnableChangelogMultiplexing;
-    Stroka ChangelogPrimaryMedium;
+    TString ChangelogPrimaryMedium;
 
     TRemoteChangelogStoreOptions()
     {

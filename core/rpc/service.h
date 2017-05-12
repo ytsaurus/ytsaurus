@@ -54,16 +54,16 @@ struct IServiceContext
     virtual TMutationId GetMutationId() const = 0;
 
     //! Returns request service name.
-    virtual const Stroka& GetService() const = 0;
+    virtual const TString& GetService() const = 0;
 
     //! Returns request method name.
-    virtual const Stroka& GetMethod() const = 0;
+    virtual const TString& GetMethod() const = 0;
 
     //! Returns request realm id.
     virtual const TRealmId& GetRealmId() const = 0;
 
     //! Returns the name of the user issuing the request.
-    virtual const Stroka& GetUser() const = 0;
+    virtual const TString& GetUser() const = 0;
 
     //! Returns |true| if the request if one-way, i.e. replying to it is not possible.
     virtual bool IsOneWay() const = 0;
@@ -141,10 +141,10 @@ struct IServiceContext
     virtual NProto::TRequestHeader& RequestHeader() = 0;
 
     //! Sets and immediately logs the request logging info.
-    virtual void SetRawRequestInfo(const Stroka& info) = 0;
+    virtual void SetRawRequestInfo(const TString& info) = 0;
 
     //! Sets the response logging info. This info will be logged when the context is replied.
-    virtual void SetRawResponseInfo(const Stroka& info) = 0;
+    virtual void SetRawResponseInfo(const TString& info) = 0;
 
     //! Returns the logger for request/response messages.
     virtual const NLogging::TLogger& GetLogger() const = 0;
@@ -179,16 +179,16 @@ DEFINE_REFCOUNTED_TYPE(IServiceContext)
 struct TServiceId
 {
     TServiceId();
-    TServiceId(const Stroka& serviceName, const TRealmId& realmId = NullRealmId);
+    TServiceId(const TString& serviceName, const TRealmId& realmId = NullRealmId);
 
-    Stroka ServiceName;
+    TString ServiceName;
     TRealmId RealmId;
 };
 
 bool operator == (const TServiceId& lhs, const TServiceId& rhs);
 bool operator != (const TServiceId& lhs, const TServiceId& rhs);
 
-Stroka ToString(const TServiceId& serviceId);
+TString ToString(const TServiceId& serviceId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -236,7 +236,7 @@ struct hash<NYT::NRpc::TServiceId>
     inline size_t operator()(const NYT::NRpc::TServiceId& id) const
     {
         return
-            THash<Stroka>()(id.ServiceName) * 497 +
+            THash<TString>()(id.ServiceName) * 497 +
             THash<NYT::NRpc::TRealmId>()(id.RealmId);
     }
 };

@@ -439,7 +439,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
         Null,
         options->MediumName,
         partConfig->PreferLocalHost,
-        std::vector<Stroka>(),
+        std::vector<TString>(),
         nodeDirectory,
         ChunkClientLogger);
 

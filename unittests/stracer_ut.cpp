@@ -42,7 +42,7 @@ TEST(TStracer, Basic)
 
     EXPECT_TRUE(result->Traces[pid]->ProcessName == "SomeCoolProcess")
         << result->Traces[pid]->ProcessName;
-    EXPECT_TRUE(result->Traces[pid]->Trace.find("write(42, \"hello\\n\", 6) = -1 EBADF") != Stroka::npos)
+    EXPECT_TRUE(result->Traces[pid]->Trace.find("write(42, \"hello\\n\", 6) = -1 EBADF") != TString::npos)
         << result->Traces[pid]->Trace;
 }
 #endif

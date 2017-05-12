@@ -14,7 +14,7 @@ class TEVSchedulerThread
 {
 public:
     TEVSchedulerThread(
-        const Stroka& threadName,
+        const TString& threadName,
         bool enableLogging);
 
     const IInvokerPtr& GetInvoker();

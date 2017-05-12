@@ -12,7 +12,7 @@ struct TCrcTestCase
     ui64 Iso;
     ui64 Ecma;
     ui64 Ours;
-    Stroka Data;
+    TString Data;
 };
 
 static std::vector<TCrcTestCase> Cases = {

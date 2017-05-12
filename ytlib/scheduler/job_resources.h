@@ -61,14 +61,14 @@ public:
     XX(memory,                Memory) \
     XX(network,               Network)
 
-Stroka FormatResourceUsage(const TJobResources& usage, const TJobResources& limits);
-Stroka FormatResources(const TJobResources& resources);
-Stroka FormatResources(const TExtendedJobResources& resources);
+TString FormatResourceUsage(const TJobResources& usage, const TJobResources& limits);
+TString FormatResources(const TJobResources& resources);
+TString FormatResources(const TExtendedJobResources& resources);
 
 void ProfileResources(
     const NProfiling::TProfiler& profiler,
     const TJobResources& resources,
-    const Stroka& prefix = Stroka(),
+    const TString& prefix = TString(),
     const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);
 
 NNodeTrackerClient::EResourceType GetDominantResource(

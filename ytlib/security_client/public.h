@@ -14,20 +14,20 @@ typedef NObjectClient::TObjectId TSubjectId;
 typedef NObjectClient::TObjectId TUserId;
 typedef NObjectClient::TObjectId TGroupId;
 
-extern const Stroka TmpAccountName;
-extern const Stroka SysAccountName;
-extern const Stroka IntermediateAccountName;
+extern const TString TmpAccountName;
+extern const TString SysAccountName;
+extern const TString IntermediateAccountName;
 
 using NRpc::RootUserName;
-extern const Stroka GuestUserName;
-extern const Stroka JobUserName;
-extern const Stroka SchedulerUserName;
+extern const TString GuestUserName;
+extern const TString JobUserName;
+extern const TString SchedulerUserName;
 
-extern const Stroka EveryoneGroupName;
-extern const Stroka UsersGroupName;
-extern const Stroka SuperusersGroupName;
-extern const Stroka ReplicatorUserName;
-extern const Stroka OwnerUserName;
+extern const TString EveryoneGroupName;
+extern const TString UsersGroupName;
+extern const TString SuperusersGroupName;
+extern const TString ReplicatorUserName;
+extern const TString OwnerUserName;
 
 DEFINE_ENUM(ESecurityAction,
     ((Undefined)(0))  // Intermediate state, used internally.

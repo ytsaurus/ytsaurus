@@ -39,7 +39,7 @@ public:
         return ConvertToYsonString(data, NYson::EYsonFormat::Text);
     }
 
-    void Set(const TYPath& path, const Stroka& value)
+    void Set(const TYPath& path, const TString& value)
     {
         SyncYPathSet(RootService, path, TYsonString(value));
     }
@@ -54,12 +54,12 @@ public:
         return TextifyYson(SyncYPathGet(RootService, path));
     }
 
-    std::vector<Stroka> List(const TYPath& path)
+    std::vector<TString> List(const TYPath& path)
     {
         return SyncYPathList(RootService, path);
     }
 
-    void Check(const TYPath& path, const Stroka& expected)
+    void Check(const TYPath& path, const TString& expected)
     {
         TYsonString output = Get(path);
         EXPECT_TRUE(
@@ -174,7 +174,7 @@ TEST_F(TYPathTest, Ls)
     auto result = List("");
     std::sort(result.begin(), result.end());
 
-    std::vector<Stroka> expected;
+    std::vector<TString> expected;
     expected.push_back("a");
     expected.push_back("c");
     expected.push_back("d");
@@ -406,12 +406,12 @@ class TEmbeddedYPathOpsTest
     : public ::testing::Test
 {
 public:
-    static INodePtr ParseNode(const Stroka& data)
+    static INodePtr ParseNode(const TString& data)
     {
         return ConvertToNode(TYsonString(data));
     }
 
-    static void ExpectEqual(INodePtr node, const Stroka& ysonString)
+    static void ExpectEqual(INodePtr node, const TString& ysonString)
     {
         EXPECT_EQ(ConvertToYsonString(node, EYsonFormat::Text).GetData(), ysonString);
     }

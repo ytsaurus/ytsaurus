@@ -24,7 +24,7 @@ TExecNode::TExecNode(
     , HasPendingUnregistration_(false)
 { }
 
-const Stroka& TExecNode::GetDefaultAddress() const
+const TString& TExecNode::GetDefaultAddress() const
 {
     return NodeDescriptor_.GetDefaultAddress();
 }
@@ -51,7 +51,7 @@ double TExecNode::GetIOWeight() const
     return IOWeight_;
 }
 
-void TExecNode::SetIOWeights(const yhash<Stroka, double>& mediumToWeight)
+void TExecNode::SetIOWeights(const yhash<TString, double>& mediumToWeight)
 {
     TWriterGuard guard(SpinLock_);
     // NB: surely, something smarter than this should be done with individual medium weights here.
@@ -88,10 +88,10 @@ void TExecNode::SetResourceUsage(const TJobResources& value)
 
 TExecNodeDescriptor::TExecNodeDescriptor(
     NNodeTrackerClient::TNodeId id,
-    const Stroka& address,
+    const TString& address,
     double ioWeight,
     const TJobResources& resourceLimits,
-    const yhash_set<Stroka>& tags)
+    const yhash_set<TString>& tags)
     : Id(id)
     , Address(address)
     , IOWeight(ioWeight)

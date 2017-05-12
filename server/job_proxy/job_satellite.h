@@ -13,8 +13,8 @@ namespace NJobProxy {
 void RunJobSatellite(
     TJobSatelliteConnectionConfigPtr config,
     int uid,
-    const std::vector<Stroka>& env,
-    const Stroka& jobId);
+    const std::vector<TString>& env,
+    const TString& jobId);
 void NotifyExecutorPrepared(TJobSatelliteConnectionConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////

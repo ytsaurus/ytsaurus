@@ -25,7 +25,7 @@ class TTabletCellBundle
     , public TRefTracked<TTabletCellBundle>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(Stroka, Name);
+    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
 
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 

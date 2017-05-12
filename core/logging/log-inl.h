@@ -22,13 +22,13 @@ TLogger& TLogger::AddTag(const char* format, const TArgs&... args)
 namespace NDetail {
 
 template <class... TArgs>
-Stroka FormatLogMessage(const char* format, const TArgs&... args)
+TString FormatLogMessage(const char* format, const TArgs&... args)
 {
     return Format(format, args...);
 }
 
 template <class... TArgs>
-Stroka FormatLogMessage(const TError& error, const char* format, const TArgs&... args)
+TString FormatLogMessage(const TError& error, const char* format, const TArgs&... args)
 {
     TStringBuilder builder;
     Format(&builder, format, args...);
@@ -38,7 +38,7 @@ Stroka FormatLogMessage(const TError& error, const char* format, const TArgs&...
 }
 
 template <class T>
-Stroka FormatLogMessage(const T& obj)
+TString FormatLogMessage(const T& obj)
 {
     return ToString(obj);
 }
@@ -47,7 +47,7 @@ template <class TLogger>
 void LogEventImpl(
     TLogger& logger,
     ELogLevel level,
-    Stroka message)
+    TString message)
 {
     TLogEvent event;
     event.Instant = NProfiling::GetCpuInstant();

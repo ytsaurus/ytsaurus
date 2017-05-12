@@ -22,7 +22,7 @@ public:
 
     void SendToProfiler(
         const NProfiling::TProfiler& profiler,
-        const Stroka& prefix,
+        const TString& prefix,
         const NProfiling::TTagIdList& tagIds) const;
 
 private:

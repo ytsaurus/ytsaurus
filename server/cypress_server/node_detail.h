@@ -297,8 +297,8 @@ struct TCypressScalarTypeTraits
 { };
 
 template <>
-struct TCypressScalarTypeTraits<Stroka>
-    : public NYTree::NDetail::TScalarTypeTraits<Stroka>
+struct TCypressScalarTypeTraits<TString>
+    : public NYTree::NDetail::TScalarTypeTraits<TString>
 {
     static const NObjectClient::EObjectType ObjectType;
     static const NYTree::ENodeType NodeType;
@@ -441,8 +441,8 @@ class TMapNode
     : public TCypressNodeBase
 {
 public:
-    typedef yhash<Stroka, TCypressNodeBase*> TKeyToChild;
-    typedef yhash<TCypressNodeBase*, Stroka> TChildToKey;
+    typedef yhash<TString, TCypressNodeBase*> TKeyToChild;
+    typedef yhash<TCypressNodeBase*, TString> TChildToKey;
 
     DEFINE_BYREF_RW_PROPERTY(TKeyToChild, KeyToChild);
     DEFINE_BYREF_RW_PROPERTY(TChildToKey, ChildToKey);

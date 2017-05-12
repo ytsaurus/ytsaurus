@@ -104,7 +104,7 @@ TStracePtr DoStrace(int pid)
             << tracerResult.Status;
     }
 
-    trace->Trace = Stroka(tracerResult.Error.Begin(), tracerResult.Error.End());
+    trace->Trace = TString(tracerResult.Error.Begin(), tracerResult.Error.End());
     return trace;
 }
 

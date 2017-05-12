@@ -40,7 +40,7 @@ struct TBoundaryKeys
     bool operator !=(const TBoundaryKeys& other) const;
 };
 
-Stroka ToString(const TBoundaryKeys& keys);
+TString ToString(const TBoundaryKeys& keys);
 
 void Serialize(const TBoundaryKeys& keys, NYson::IYsonConsumer* consumer);
 

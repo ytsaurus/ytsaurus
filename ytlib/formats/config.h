@@ -179,7 +179,7 @@ public:
     char KeyValueSeparator;
 
     // Only supported for tabular data
-    TNullable<Stroka> LinePrefix;
+    TNullable<TString> LinePrefix;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDsvFormatConfigBase)
@@ -190,9 +190,9 @@ class TYamrFormatConfig
     : public TYamrFormatConfigBase
 {
 public:
-    Stroka Key;
-    Stroka Subkey;
-    Stroka Value;
+    TString Key;
+    TString Subkey;
+    TString Value;
 
     TYamrFormatConfig()
     {
@@ -228,7 +228,7 @@ class TDsvFormatConfig
 {
 public:
 
-    Stroka TableIndexColumn;
+    TString TableIndexColumn;
 
     TDsvFormatConfig()
     {
@@ -263,8 +263,8 @@ class TYamredDsvFormatConfig
 public:
     char YamrKeysSeparator;
 
-    std::vector<Stroka> KeyColumnNames;
-    std::vector<Stroka> SubkeyColumnNames;
+    std::vector<TString> KeyColumnNames;
+    std::vector<TString> SubkeyColumnNames;
 
     TYamredDsvFormatConfig()
     {
@@ -293,7 +293,7 @@ public:
             .Default(' ');
 
         RegisterValidator([&] () {
-            yhash_set<Stroka> names;
+            yhash_set<TString> names;
 
             for (const auto& name : KeyColumnNames) {
                 if (!names.insert(name).second) {
@@ -326,14 +326,14 @@ class TSchemafulDsvFormatConfig
     : public TTableFormatConfigBase
 {
 public:
-    TNullable<std::vector<Stroka>> Columns;
+    TNullable<std::vector<TString>> Columns;
 
     EMissingSchemafulDsvValueMode MissingValueMode;
-    Stroka MissingValueSentinel;
+    TString MissingValueSentinel;
 
     TNullable<bool> EnableColumnNamesHeader;
 
-    const std::vector<Stroka>& GetColumnsOrThrow() const
+    const std::vector<TString>& GetColumnsOrThrow() const
     {
         if (!Columns) {
             THROW_ERROR_EXCEPTION("Missing \"columns\" attribute in schemaful DSV format");
@@ -370,7 +370,7 @@ public:
 
         RegisterValidator([&] () {
             if (Columns) {
-                yhash_set<Stroka> names;
+                yhash_set<TString> names;
                 for (const auto& name : *Columns) {
                     if (!names.insert(name).second) {
                         THROW_ERROR_EXCEPTION("Duplicate column name %Qv in schemaful DSV configuration",
@@ -395,7 +395,7 @@ class TProtobufFormatConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    Stroka FileDescriptorSet;
+    TString FileDescriptorSet;
     std::vector<int> FileIndices;
     std::vector<int> MessageIndices;
     bool EnumsAsStrings;

@@ -27,8 +27,8 @@ static const auto& Logger = CypressServerLogger;
 
 namespace NDetail {
 
-const EObjectType TCypressScalarTypeTraits<Stroka>::ObjectType = EObjectType::StringNode;
-const ENodeType   TCypressScalarTypeTraits<Stroka>::NodeType   = ENodeType::String;
+const EObjectType TCypressScalarTypeTraits<TString>::ObjectType = EObjectType::StringNode;
+const ENodeType   TCypressScalarTypeTraits<TString>::NodeType   = ENodeType::String;
 const EObjectType TCypressScalarTypeTraits<i64>::ObjectType    = EObjectType::Int64Node;
 const ENodeType   TCypressScalarTypeTraits<i64>::NodeType      = ENodeType::Int64;
 const EObjectType TCypressScalarTypeTraits<ui64>::ObjectType   = EObjectType::Uint64Node;
@@ -343,7 +343,7 @@ void TMapNodeTypeHandler::DoClone(
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-    yhash<Stroka, TCypressNodeBase*> keyToChildMapStorage;
+    yhash<TString, TCypressNodeBase*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
         sourceNode->GetTrunkNode(),
@@ -577,7 +577,7 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
     IAttributeDictionary* attributes)
 {
     // Make sure that target_path is valid upon creation.
-    auto targetPath = attributes->GetAndRemove<Stroka>("target_path");
+    auto targetPath = attributes->GetAndRemove<TString>("target_path");
     const auto& objectManager = Bootstrap_->GetObjectManager();
     auto* resolver = objectManager->GetObjectResolver();
     resolver->ResolvePath(targetPath, transaction);
@@ -653,7 +653,7 @@ void TDocumentNode::Load(NCellMaster::TLoadContext& context)
     TCypressNodeBase::Load(context);
 
     using NYT::Load;
-    auto serializedValue = Load<Stroka>(context);
+    auto serializedValue = Load<TString>(context);
     Value_ = ConvertToNode(TYsonString(serializedValue));
 }
 

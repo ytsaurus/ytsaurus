@@ -69,7 +69,7 @@ class TJob
     DEFINE_BYVAL_RW_PROPERTY(bool, Preempted);
 
     //! String describing preemption reason.
-    DEFINE_BYVAL_RW_PROPERTY(Stroka, PreemptionReason);
+    DEFINE_BYVAL_RW_PROPERTY(TString, PreemptionReason);
 
     //! The purpose of the job interruption.
     DEFINE_BYVAL_RW_PROPERTY(EInterruptReason, InterruptReason, EInterruptReason::None);

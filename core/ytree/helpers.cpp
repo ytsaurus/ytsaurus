@@ -44,9 +44,9 @@ class TEphemeralAttributeDictionary
     : public IAttributeDictionary
 {
 public:
-    virtual std::vector<Stroka> List() const override
+    virtual std::vector<TString> List() const override
     {
-        std::vector<Stroka> keys;
+        std::vector<TString> keys;
         keys.reserve(Map_.size());
         for (const auto& pair : Map_) {
             keys.push_back(pair.first);
@@ -54,25 +54,25 @@ public:
         return keys;
     }
 
-    virtual TYsonString FindYson(const Stroka& key) const override
+    virtual TYsonString FindYson(const TString& key) const override
     {
         auto it = Map_.find(key);
         return it == Map_.end() ? TYsonString() : TYsonString(it->second);
     }
 
-    virtual void SetYson(const Stroka& key, const TYsonString& value) override
+    virtual void SetYson(const TString& key, const TYsonString& value) override
     {
         Y_ASSERT(value.GetType() == EYsonType::Node);
         Map_[key] = value.GetData();
     }
 
-    virtual bool Remove(const Stroka& key) override
+    virtual bool Remove(const TString& key) override
     {
         return Map_.erase(key) > 0;
     }
 
 public:
-    yhash<Stroka, Stroka> Map_;
+    yhash<TString, TString> Map_;
 
 };
 
@@ -87,22 +87,22 @@ class TEmptyAttributeDictionary
     : public IAttributeDictionary
 {
 public:
-    virtual std::vector<Stroka> List() const override
+    virtual std::vector<TString> List() const override
     {
-        return std::vector<Stroka>();
+        return std::vector<TString>();
     }
 
-    virtual TYsonString FindYson(const Stroka& key) const override
+    virtual TYsonString FindYson(const TString& key) const override
     {
         return TYsonString();
     }
 
-    virtual void SetYson(const Stroka& key, const TYsonString& value) override
+    virtual void SetYson(const TString& key, const TYsonString& value) override
     {
         Y_UNREACHABLE();
     }
 
-    virtual bool Remove(const Stroka& key) override
+    virtual bool Remove(const TString& key) override
     {
         return false;
     }
@@ -172,7 +172,7 @@ void TAttributeDictionaryValueSerializer::Load(TStreamLoadContext& context, IAtt
     obj.Clear();
     size_t size = TSizeSerializer::Load(context);
     for (size_t index = 0; index < size; ++index) {
-        auto key = Load<Stroka>(context);
+        auto key = Load<TString>(context);
         auto value = Load<TYsonString>(context);
         obj.SetYson(key, value);
     }

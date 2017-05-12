@@ -86,7 +86,7 @@ void EscapeAndWrite(
     TOutputStream* stream,
     const TEscapeTable& escapeTable);
 
-Stroka Escape(
+TString Escape(
     const TStringBuf& string,
     const TEscapeTable& escapeTable);
 

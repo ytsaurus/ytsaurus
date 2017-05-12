@@ -54,9 +54,9 @@ public:
         int keyColumnCount,
         const TTableSchema& schema);
 
-    void BuildDDComparer(Stroka& functionName);
-    void BuildDUComparer(Stroka& functionName);
-    void BuildUUComparer(Stroka& functionName);
+    void BuildDDComparer(TString& functionName);
+    void BuildDUComparer(TString& functionName);
+    void BuildUUComparer(TString& functionName);
 
 private:
     class IValueBuilder;
@@ -329,7 +329,7 @@ TComparerBuilder::TComparerBuilder(
     , Context_(Module_->GetContext())
 { }
 
-void TComparerBuilder::BuildDDComparer(Stroka& functionName)
+void TComparerBuilder::BuildDDComparer(TString& functionName)
 {
     Function_ = Function::Create(
         TypeBuilder<TDDComparerSignature, false>::get(Context_),
@@ -349,7 +349,7 @@ void TComparerBuilder::BuildDDComparer(Stroka& functionName)
     CreateRet(getInt32(0));
 }
 
-void TComparerBuilder::BuildDUComparer(Stroka& functionName)
+void TComparerBuilder::BuildDUComparer(TString& functionName)
 {
     Function_ = Function::Create(
         TypeBuilder<TDUComparerSignature, false>::get(Context_),
@@ -370,7 +370,7 @@ void TComparerBuilder::BuildDUComparer(Stroka& functionName)
     CreateRet(lengthDifference);
 }
 
-void TComparerBuilder::BuildUUComparer(Stroka& functionName)
+void TComparerBuilder::BuildUUComparer(TString& functionName)
 {
     Function_ = Function::Create(
         TypeBuilder<TUUComparerSignature, false>::get(Context_),
@@ -533,9 +533,9 @@ GenerateComparers(int keyColumnCount, const TTableSchema& schema)
 {
     auto module = TCGModule::Create(GetComparerRoutineRegistry());
     auto builder = TComparerBuilder(module, keyColumnCount, schema);
-    auto ddComparerName = Stroka("DDCompare");
-    auto duComparerName = Stroka("DUCompare");
-    auto uuComparerName = Stroka("UUCompare");
+    auto ddComparerName = TString("DDCompare");
+    auto duComparerName = TString("DUCompare");
+    auto uuComparerName = TString("UUCompare");
 
     builder.BuildDDComparer(ddComparerName);
     builder.BuildDUComparer(duComparerName);

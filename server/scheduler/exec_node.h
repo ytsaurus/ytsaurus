@@ -41,7 +41,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TJobMap, IdToJob);
 
     //! A set of scheduling tags assigned to this node.
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<Stroka>, Tags);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TString>, Tags);
 
     //! Last time when logging of jobs on node took place.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, LastJobsLogTime);
@@ -74,7 +74,7 @@ public:
         NNodeTrackerClient::TNodeId id,
         const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor);
 
-    const Stroka& GetDefaultAddress() const;
+    const TString& GetDefaultAddress() const;
 
     //! Checks if the node can handle jobs demanding a certain #tag.
     bool CanSchedule(const TSchedulingTagFilter& filter) const;
@@ -89,7 +89,7 @@ public:
     double GetIOWeight() const;
 
     //! Set the node's IO weight.
-    void SetIOWeights(const yhash<Stroka, double>& mediumToWeight);
+    void SetIOWeights(const yhash<TString, double>& mediumToWeight);
 
     //! Returns the node's resource limits, as reported by the node.
     const TJobResources& GetResourceLimits() const;
@@ -128,18 +128,18 @@ struct TExecNodeDescriptor
 
     TExecNodeDescriptor(
         NNodeTrackerClient::TNodeId id,
-        const Stroka& address,
+        const TString& address,
         double ioWeight,
         const TJobResources& resourceLimits,
-        const yhash_set<Stroka>& tags);
+        const yhash_set<TString>& tags);
 
     bool CanSchedule(const TSchedulingTagFilter& filter) const;
 
     NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
-    Stroka Address;
+    TString Address;
     double IOWeight = 0.0;
     TJobResources ResourceLimits;
-    yhash_set<Stroka> Tags;
+    yhash_set<TString> Tags;
 
     void Persist(const TStreamPersistenceContext& context);
 };
@@ -165,7 +165,7 @@ struct TJobNodeDescriptor
     TJobNodeDescriptor(const TExecNodeDescriptor& other);
 
     NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
-    Stroka Address;
+    TString Address;
     double IOWeight = 0.0;
 
     void Persist(const TStreamPersistenceContext& context);

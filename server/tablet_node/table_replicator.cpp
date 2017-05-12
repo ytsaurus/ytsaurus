@@ -118,7 +118,7 @@ private:
     const TTabletId TabletId_;
     const TTableSchema TableSchema_;
     const TTableReplicaId ReplicaId_;
-    const Stroka ClusterName_;
+    const TString ClusterName_;
     const TYPath ReplicaPath_;
 
     const TPeriodicExecutorPtr MountConfigUpdateExecutor_;

@@ -23,7 +23,7 @@ namespace {
 template <class T>
 void ReadHeader(
     const TSharedMutableRef& metaFileBlob,
-    const Stroka& fileName,
+    const TString& fileName,
     TChunkMetaHeader_2* metaHeader,
     TRef* metaBlob)
 {
@@ -40,7 +40,7 @@ void ReadHeader(
 
 TFileReader::TFileReader(
     const TChunkId& chunkId,
-    const Stroka& fileName,
+    const TString& fileName,
     bool validateBlocksChecksums)
     : ChunkId_(chunkId)
     , FileName_(fileName)

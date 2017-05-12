@@ -36,7 +36,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual Stroka DoGetName(const TTablet* object) override
+    virtual TString DoGetName(const TTablet* object) override
     {
         return Format("tablet %v", object->GetId());
     }

@@ -50,7 +50,7 @@ class TLocation
 public:
     TLocation(
         ELocationType type,
-        const Stroka& id,
+        const TString& id,
         TStoreLocationConfigBasePtr config,
         NCellNode::TBootstrap* bootstrap);
 
@@ -58,10 +58,10 @@ public:
     ELocationType GetType() const;
 
     //! Returns string id.
-    const Stroka& GetId() const;
+    const TString& GetId() const;
 
     //! Returns the medium name.
-    const Stroka& GetMediumName() const;
+    const TString& GetMediumName() const;
 
     //! Returns the medium descriptor.
     const NChunkClient::TMediumDescriptor& GetMediumDescriptor() const;
@@ -73,7 +73,7 @@ public:
     const NProfiling::TProfiler& GetProfiler() const;
 
     //! Returns the root path of the location.
-    Stroka GetPath() const;
+    TString GetPath() const;
 
     //! Returns the maximum number of bytes the chunks assigned to this location
     //! are allowed to use.
@@ -150,7 +150,7 @@ public:
     int GetChunkCount() const;
 
     //! Returns a full path for a primary chunk file.
-    Stroka GetChunkPath(const TChunkId& chunkId) const;
+    TString GetChunkPath(const TChunkId& chunkId) const;
 
     //! Permanently removes the files comprising a given chunk.
     void RemoveChunkFilesPermanently(const TChunkId& chunkId);
@@ -162,10 +162,10 @@ protected:
     NCellNode::TBootstrap* const Bootstrap_;
 
 
-    static Stroka GetRelativeChunkPath(const TChunkId& chunkId);
-    static void ForceHashDirectories(const Stroka& rootPath);
+    static TString GetRelativeChunkPath(const TChunkId& chunkId);
+    static void ForceHashDirectories(const TString& rootPath);
 
-    virtual bool ShouldSkipFileName(const Stroka& fileName) const;
+    virtual bool ShouldSkipFileName(const TString& fileName) const;
 
     virtual void DoStart();
     virtual std::vector<TChunkDescriptor> DoScan();
@@ -174,7 +174,7 @@ private:
     friend class TPendingIOGuard;
 
     const ELocationType Type_;
-    const Stroka Id_;
+    const TString Id_;
     const TStoreLocationConfigBasePtr Config_;
 
     NChunkClient::TMediumDescriptor MediumDescriptor_;
@@ -217,7 +217,7 @@ private:
 
     virtual TNullable<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) = 0;
 
-    virtual std::vector<Stroka> GetChunkPartNames(const TChunkId& chunkId) const = 0;
+    virtual std::vector<TString> GetChunkPartNames(const TChunkId& chunkId) const = 0;
 
 };
 
@@ -230,7 +230,7 @@ class TStoreLocation
 {
 public:
     TStoreLocation(
-        const Stroka& id,
+        const TString& id,
         TStoreLocationConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
@@ -273,8 +273,8 @@ private:
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler_;
 
 
-    Stroka GetTrashPath() const;
-    Stroka GetTrashChunkPath(const TChunkId& chunkId) const;
+    TString GetTrashPath() const;
+    TString GetTrashChunkPath(const TChunkId& chunkId) const;
     void RegisterTrashChunk(const TChunkId& chunkId);
     void OnCheckTrash();
     void CheckTrashTtl();
@@ -288,8 +288,8 @@ private:
     TNullable<TChunkDescriptor> RepairJournalChunk(const TChunkId& chunkId);
     virtual TNullable<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) override;
 
-    virtual std::vector<Stroka> GetChunkPartNames(const TChunkId& chunkId) const override;
-    virtual bool ShouldSkipFileName(const Stroka& fileName) const override;
+    virtual std::vector<TString> GetChunkPartNames(const TChunkId& chunkId) const override;
+    virtual bool ShouldSkipFileName(const TString& fileName) const override;
 
     virtual void DoStart() override;
     virtual std::vector<TChunkDescriptor> DoScan() override;
@@ -305,7 +305,7 @@ class TCacheLocation
 {
 public:
     TCacheLocation(
-        const Stroka& id,
+        const TString& id,
         TCacheLocationConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
@@ -316,10 +316,10 @@ private:
 
     NConcurrency::IThroughputThrottlerPtr InThrottler_;
 
-    TNullable<TChunkDescriptor> Repair(const TChunkId& chunkId, const Stroka& metaSuffix);
+    TNullable<TChunkDescriptor> Repair(const TChunkId& chunkId, const TString& metaSuffix);
     virtual TNullable<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) override;
 
-    virtual std::vector<Stroka> GetChunkPartNames(const TChunkId& chunkId) const override;
+    virtual std::vector<TString> GetChunkPartNames(const TChunkId& chunkId) const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCacheLocation)

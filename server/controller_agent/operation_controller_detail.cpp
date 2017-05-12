@@ -135,13 +135,13 @@ public:
         }
     }
 
-    const Stroka& GetStatisticsSuffix(EJobState state, EJobType type) const
+    const TString& GetStatisticsSuffix(EJobState state, EJobType type) const
     {
         return StatisticsSuffixes_[state][type];
     }
 
 private:
-    TEnumIndexedVector<TEnumIndexedVector<Stroka, EJobType>, EJobState> StatisticsSuffixes_;
+    TEnumIndexedVector<TEnumIndexedVector<TString, EJobType>, EJobState> StatisticsSuffixes_;
 
 } JobHelper;
 
@@ -3833,11 +3833,11 @@ void TOperationControllerBase::CreateLivePreviewTables()
     auto batchReq = proxy.ExecuteBatch();
 
     auto addRequest = [&] (
-        const Stroka& path,
+        const TString& path,
         TCellTag cellTag,
         int replicationFactor,
         NCompression::ECodec compressionCodec,
-        const Stroka& key,
+        const TString& key,
         const TYsonString& acl,
         TNullable<TTableSchema> schema)
     {
@@ -3912,7 +3912,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
                         .Item("action").Value("allow")
                         .Item("subjects").BeginList()
                             .Item().Value(AuthenticatedUser)
-                            .DoFor(Owners, [] (TFluentList fluent, const Stroka& owner) {
+                            .DoFor(Owners, [] (TFluentList fluent, const TString& owner) {
                                 fluent.Item().Value(owner);
                             })
                         .EndList()
@@ -3970,7 +3970,7 @@ void TOperationControllerBase::LockLivePreviewTables()
 
     auto batchReq = proxy.ExecuteBatch();
 
-    auto addRequest = [&] (const TLivePreviewTableBase& table, const Stroka& key) {
+    auto addRequest = [&] (const TLivePreviewTableBase& table, const TString& key) {
         auto req = TCypressYPathProxy::Lock(FromObjectId(table.LivePreviewTableId));
         req->set_mode(static_cast<int>(ELockMode::Exclusive));
         SetTransactionId(req, AsyncSchedulerTransaction->GetId());
@@ -4168,7 +4168,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
             auto objectIdPath = FromObjectId(table.ObjectId);
             {
                 auto req = TTableYPathProxy::Get(objectIdPath + "/@");
-                std::vector<Stroka> attributeKeys{
+                std::vector<TString> attributeKeys{
                     "dynamic",
                     "chunk_count",
                     "retained_timestamp",
@@ -4224,7 +4224,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
             auto objectIdPath = FromObjectId(table->ObjectId);
             {
                 auto req = TTableYPathProxy::Get(objectIdPath + "/@");
-                std::vector<Stroka> attributeKeys{
+                std::vector<TString> attributeKeys{
                     "schema_mode",
                     "schema",
                     "optimize_for",
@@ -4356,7 +4356,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
             {
                 auto req = TTableYPathProxy::Get(objectIdPath + "/@");
 
-                std::vector<Stroka> attributeKeys{
+                std::vector<TString> attributeKeys{
                     "account",
                     "chunk_writer",
                     "effective_acl",
@@ -4403,8 +4403,8 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 table->Options->CompressionCodec = table->TableUploadOptions.CompressionCodec;
                 table->Options->ErasureCodec = table->TableUploadOptions.ErasureCodec;
                 table->Options->ReplicationFactor = attributes->Get<int>("replication_factor");
-                table->Options->MediumName = attributes->Get<Stroka>("primary_medium");
-                table->Options->Account = attributes->Get<Stroka>("account");
+                table->Options->MediumName = attributes->Get<TString>("primary_medium");
+                table->Options->Account = attributes->Get<TString>("account");
                 table->Options->ChunksVital = attributes->Get<bool>("vital");
                 table->Options->OptimizeFor = table->TableUploadOptions.OptimizeFor;
                 table->Options->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
@@ -4647,7 +4647,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             {
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
                 SetTransactionId(req, InputTransaction->GetId());
-                std::vector<Stroka> attributeKeys;
+                std::vector<TString> attributeKeys;
                 attributeKeys.push_back("file_name");
                 switch (file.Type) {
                     case EObjectType::File:
@@ -4675,7 +4675,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             {
                 auto req = TYPathProxy::Get(file.Path.GetPath() + "&/@");
                 SetTransactionId(req, InputTransaction->GetId());
-                std::vector<Stroka> attributeKeys;
+                std::vector<TString> attributeKeys;
                 attributeKeys.push_back("key");
                 attributeKeys.push_back("file_name");
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
@@ -4687,7 +4687,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
         THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting attributes of user files");
         const auto& batchRsp = batchRspOrError.Value();
 
-        TEnumIndexedVector<yhash_set<Stroka>, EOperationStage> userFileNames;
+        TEnumIndexedVector<yhash_set<TString>, EOperationStage> userFileNames;
         auto validateUserFileName = [&] (const TUserFile& file) {
             // TODO(babenko): more sanity checks?
             auto path = file.Path.GetPath();
@@ -4728,11 +4728,11 @@ void TOperationControllerBase::GetUserFilesAttributes()
                 try {
                     if (linkRsp.IsOK()) {
                         auto linkAttributes = ConvertToAttributes(TYsonString(linkRsp.Value()->value()));
-                        file.FileName = linkAttributes->Get<Stroka>("key");
-                        file.FileName = linkAttributes->Find<Stroka>("file_name").Get(file.FileName);
+                        file.FileName = linkAttributes->Get<TString>("key");
+                        file.FileName = linkAttributes->Find<TString>("file_name").Get(file.FileName);
                     } else {
-                        file.FileName = attributes.Get<Stroka>("key");
-                        file.FileName = attributes.Find<Stroka>("file_name").Get(file.FileName);
+                        file.FileName = attributes.Get<TString>("key");
+                        file.FileName = attributes.Find<TString>("file_name").Get(file.FileName);
                     }
                     file.FileName = file.Path.GetFileName().Get(file.FileName);
                 } catch (const std::exception& ex) {
@@ -4807,7 +4807,7 @@ void TOperationControllerBase::PrepareInputQuery()
 { }
 
 void TOperationControllerBase::ParseInputQuery(
-    const Stroka& queryString,
+    const TString& queryString,
     const TNullable<TTableSchema>& schema)
 {
     for (const auto& table : InputTables) {
@@ -4818,10 +4818,10 @@ void TOperationControllerBase::ParseInputQuery(
 
     auto externalCGInfo = New<TExternalCGInfo>();
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-    auto fetchFunctions = [&] (const std::vector<Stroka>& names, const TTypeInferrerMapPtr& typeInferrers) {
+    auto fetchFunctions = [&] (const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers) {
         MergeFrom(typeInferrers.Get(), *BuiltinTypeInferrersMap);
 
-        std::vector<Stroka> externalNames;
+        std::vector<TString> externalNames;
         for (const auto& name : names) {
             auto found = typeInferrers->find(name);
             if (found == typeInferrers->end()) {
@@ -5294,7 +5294,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
             return;
         }
 
-        auto columnSet = yhash_set<Stroka>(columns->begin(), columns->end());
+        auto columnSet = yhash_set<TString>(columns->begin(), columns->end());
         for (const auto& keyColumn : keyColumns) {
             if (columnSet.find(keyColumn) == columnSet.end()) {
                 THROW_ERROR_EXCEPTION("Column filter for input table %v doesn't include key column %Qv",
@@ -5959,7 +5959,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TUserJobSpecPtr config,
     const std::vector<TUserFile>& files,
-    const Stroka& fileAccount)
+    const TString& fileAccount)
 {
     jobSpec->set_shell_command(config->Command);
     if (config->JobTimeLimit) {
@@ -6010,7 +6010,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_output_format(ConvertToYsonString(outputFormat).GetData());
     }
 
-    auto fillEnvironment = [&] (yhash<Stroka, Stroka>& env) {
+    auto fillEnvironment = [&] (yhash<TString, TString>& env) {
         for (const auto& pair : env) {
             jobSpec->add_environment(Format("%v=%v", pair.first, pair.second));
         }
@@ -6087,7 +6087,7 @@ void TOperationControllerBase::InitUserJobSpec(
             ConvertToYsonString(SecureVault, EYsonFormat::Text)));
 
         for (const auto& pair : SecureVault->GetChildren()) {
-            Stroka value;
+            TString value;
             auto node = pair.second;
             if (node->GetType() == ENodeType::Int64) {
                 value = ToString(node->GetValue<i64>());
@@ -6098,7 +6098,7 @@ void TOperationControllerBase::InitUserJobSpec(
             } else if (node->GetType() == ENodeType::Double) {
                 value = ToString(node->GetValue<double>());
             } else if (node->GetType() == ENodeType::String) {
-                value = node->GetValue<Stroka>();
+                value = node->GetValue<TString>();
             } else {
                 // We do not export composite values as a separate environment variables.
                 continue;
@@ -6167,7 +6167,7 @@ TDataSourceDirectoryPtr TOperationControllerBase::MakeInputDataSources() const
 
 TDataSourceDirectoryPtr TOperationControllerBase::CreateIntermediateDataSource() const
 {
-    static const Stroka IntermediatePath("<intermediate>");
+    static const TString IntermediatePath("<intermediate>");
 
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
@@ -6250,7 +6250,7 @@ INativeClientPtr TOperationControllerBase::CreateClient()
         ->CreateNativeClient(options);
 }
 
-void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const Stroka& operation)
+void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const TString& operation)
 {
     if (spec && spec->FilePaths.size() > Config->MaxUserFileCount) {
         THROW_ERROR_EXCEPTION("Too many user files in %v: maximum allowed %v, actual %v",
@@ -6409,7 +6409,7 @@ void TOperationControllerBase::InferSchemaFromInputOrdered()
 
 void TOperationControllerBase::FilterOutputSchemaByInputColumnSelectors()
 {
-    yhash_set<Stroka> columns;
+    yhash_set<TString> columns;
     for (const auto& table : InputTables) {
         if (auto selectors = table.Path.GetColumns()) {
             for (const auto& column : *selectors) {
@@ -6784,7 +6784,7 @@ public:
         Underlying_->BuildBriefProgress(consumer);
     }
 
-    virtual Stroka GetLoggingProgress() const override
+    virtual TString GetLoggingProgress() const override
     {
         return Underlying_->GetLoggingProgress();
     }

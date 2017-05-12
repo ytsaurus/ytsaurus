@@ -27,16 +27,16 @@ TSharedRefArray CreateMessage(int numParts)
     return TSharedRefArray(std::move(parts));
 }
 
-TSharedRefArray Serialize(Stroka str)
+TSharedRefArray Serialize(TString str)
 {
     return TSharedRefArray(TSharedRef::FromString(str));
 }
 
-Stroka Deserialize(TSharedRefArray message)
+TString Deserialize(TSharedRefArray message)
 {
     Y_ASSERT(message.Size() == 1);
     const auto& part = message[0];
-    return Stroka(part.Begin(), part.Size());
+    return TString(part.Begin(), part.Size());
 }
 
 IBusServerPtr StartBusServer(IMessageHandlerPtr handler)

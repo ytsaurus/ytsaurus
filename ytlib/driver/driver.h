@@ -33,7 +33,7 @@ struct TDriverRequest
     ui64 Id = 0;
 
     //! Command name to execute.
-    Stroka CommandName;
+    TString CommandName;
 
     //! Stream used for reading command input.
     //! The stream must stay alive for the duration of #IDriver::Execute.
@@ -47,7 +47,7 @@ struct TDriverRequest
     NYTree::IMapNodePtr Parameters;
 
     //! Name of the user issuing the request.
-    Stroka AuthenticatedUser = NSecurityClient::RootUserName;
+    TString AuthenticatedUser = NSecurityClient::RootUserName;
 
     //! Provides means to return arbitrary structured data from any command.
     //! Must be filled before writing data to output stream.
@@ -63,7 +63,7 @@ struct TDriverRequest
 struct TCommandDescriptor
 {
     //! Name of the command.
-    Stroka CommandName;
+    TString CommandName;
 
     //! Type of data expected by the command at #TDriverRequest::InputStream.
     NFormats::EDataType InputType;
@@ -95,15 +95,15 @@ struct IDriver
 
     //! Returns a descriptor for the command with a given name or
     //! |Null| if no command with this name is registered.
-    virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) const = 0;
+    virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const TString& commandName) const = 0;
 
     //! Returns a descriptor for then command with a given name.
     //! Fails if no command with this name is registered.
-    TCommandDescriptor GetCommandDescriptor(const Stroka& commandName) const;
+    TCommandDescriptor GetCommandDescriptor(const TString& commandName) const;
 
     //! Returns a descriptor for then command with a given name.
     //! Throws if no command with this name is registered.
-    TCommandDescriptor GetCommandDescriptorOrThrow(const Stroka& commandName) const;
+    TCommandDescriptor GetCommandDescriptorOrThrow(const TString& commandName) const;
 
     //! Returns the list of descriptors for all supported commands.
     virtual const std::vector<TCommandDescriptor> GetCommandDescriptors() const = 0;

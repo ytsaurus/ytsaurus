@@ -119,7 +119,7 @@ void SetDataStatisticsField(TDataStatistics& statistics, TStringBuf key, i64 val
     } // Else we have a strange situation on our hands but we intentionally ignore it.
 }
 
-Stroka ToString(const TDataStatistics& statistics)
+TString ToString(const TDataStatistics& statistics)
 {
     return Format(
         "{UncompressedDataSize: %v, CompressedDataSize: %v, DataWeight: %v, RowCount: %v, "

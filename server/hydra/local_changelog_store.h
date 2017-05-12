@@ -11,7 +11,7 @@ namespace NHydra {
 
 IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(
     TFileChangelogStoreConfigPtr config,
-    const Stroka& threadName,
+    const TString& threadName,
     const NProfiling::TProfiler& profiler);
 
 ////////////////////////////////////////////////////////////////////////////////

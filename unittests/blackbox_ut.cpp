@@ -19,9 +19,9 @@ using ::testing::AllOf;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka CollectMessages(const TError& error)
+TString CollectMessages(const TError& error)
 {
-    Stroka result;
+    TString result;
     std::function<void(const TError&)> impl = [&] (const TError& e) {
         result += e.GetMessage();
         for (const auto& ie : e.InnerErrors()) {
@@ -98,9 +98,9 @@ protected:
         );
     }
 
-    Stroka HttpResponse(int code, Stroka body)
+    TString HttpResponse(int code, TString body)
     {
-        Stroka result;
+        TString result;
         result += "HTTP/1.1 " + ToString(code) + " ";
         switch (code) {
             case 200: result += "Found"; break;
@@ -255,7 +255,7 @@ class TMockBlackboxService
     : public IBlackboxService
 {
 public:
-    MOCK_METHOD2(Call, TFuture<INodePtr>(const Stroka&, const yhash<Stroka, Stroka>&));
+    MOCK_METHOD2(Call, TFuture<INodePtr>(const TString&, const yhash<TString, TString>&));
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -270,13 +270,13 @@ protected:
         , Authenticator_(CreateBlackboxTokenAuthenticator(Config_, Blackbox_))
     { }
 
-    void MockCall(const Stroka& yson)
+    void MockCall(const TString& yson)
     {
         EXPECT_CALL(*Blackbox_, Call("oauth", _))
             .WillOnce(Return(MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(yson)))));
     }
 
-    TFuture<TAuthenticationResult> Invoke(const Stroka& token, const Stroka& userIp)
+    TFuture<TAuthenticationResult> Invoke(const TString& token, const TString& userIp)
     {
         return Authenticator_->Authenticate(TTokenCredentials{token, userIp});
     }
@@ -354,7 +354,7 @@ protected:
         , Authenticator_(CreateCookieAuthenticator(Config_, Blackbox_))
     { }
 
-    void MockCall(const Stroka& yson)
+    void MockCall(const TString& yson)
     {
         EXPECT_CALL(*Blackbox_, Call("sessionid", _))
             .WillOnce(Return(MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(yson)))));

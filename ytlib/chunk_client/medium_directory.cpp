@@ -40,14 +40,14 @@ const TMediumDescriptor* TMediumDirectory::GetByIndexOrThrow(int index) const
     return result;
 }
 
-const TMediumDescriptor* TMediumDirectory::FindByName(const Stroka& name) const
+const TMediumDescriptor* TMediumDirectory::FindByName(const TString& name) const
 {
     NConcurrency::TReaderGuard guard(SpinLock_);
     auto it = NameToDescriptor_.find(name);
     return it == NameToDescriptor_.end() ? nullptr : it->second;
 }
 
-const TMediumDescriptor* TMediumDirectory::GetByNameOrThrow(const Stroka& name) const
+const TMediumDescriptor* TMediumDirectory::GetByNameOrThrow(const TString& name) const
 {
     const auto* result = FindByName(name);
     if (!result) {

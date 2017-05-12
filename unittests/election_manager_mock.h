@@ -20,7 +20,7 @@ public:
     MOCK_METHOD0(OnStopFollowing, void());
 
     MOCK_METHOD0(GetPriority, TPeerPriority());
-    MOCK_METHOD1(FormatPriority, Stroka(TPeerPriority priority));
+    MOCK_METHOD1(FormatPriority, TString(TPeerPriority priority));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

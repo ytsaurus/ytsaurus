@@ -354,7 +354,7 @@ private:
                 .ValueOrThrow();
             LOG_DEBUG("Snapshot list received");
 
-            auto keys = ConvertTo<std::vector<Stroka>>(result);
+            auto keys = ConvertTo<std::vector<TString>>(result);
             int lastestSnapshotId = InvalidSegmentId;
             for (const auto& key : keys) {
                 int id;

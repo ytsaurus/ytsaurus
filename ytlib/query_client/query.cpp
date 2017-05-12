@@ -25,7 +25,7 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Computes key index for a given column name.
-int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& columnName)
+int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const TString& columnName)
 {
     for (int index = 0; index < keyColumns.size(); ++index) {
         if (keyColumns[index] == columnName) {
@@ -37,13 +37,13 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& column
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka InferName(TConstExpressionPtr expr, bool omitValues)
+TString InferName(TConstExpressionPtr expr, bool omitValues)
 {
     bool newTuple = true;
     auto comma = [&] {
         bool isNewTuple = newTuple;
         newTuple = false;
-        return Stroka(isNewTuple ? "" : ", ");
+        return TString(isNewTuple ? "" : ", ");
     };
     auto canOmitParenthesis = [] (TConstExpressionPtr expr) {
         return
@@ -53,7 +53,7 @@ Stroka InferName(TConstExpressionPtr expr, bool omitValues)
     };
 
     if (!expr) {
-        return Stroka();
+        return TString();
     } else if (auto literalExpr = expr->As<TLiteralExpression>()) {
         return omitValues
             ? ToString("?")
@@ -71,7 +71,7 @@ Stroka InferName(TConstExpressionPtr expr, bool omitValues)
         if (!canOmitParenthesis(unaryOp->Operand)) {
             rhsName = "(" + rhsName + ")";
         }
-        return Stroka() + GetUnaryOpcodeLexeme(unaryOp->Opcode) + " " + rhsName;
+        return TString() + GetUnaryOpcodeLexeme(unaryOp->Opcode) + " " + rhsName;
     } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
         auto lhsName = InferName(binaryOp->Lhs, omitValues);
         if (!canOmitParenthesis(binaryOp->Lhs)) {
@@ -86,7 +86,7 @@ Stroka InferName(TConstExpressionPtr expr, bool omitValues)
             " " + GetBinaryOpcodeLexeme(binaryOp->Opcode) + " " +
             rhsName;
     } else if (auto inOp = expr->As<TInOpExpression>()) {
-        Stroka str;
+        TString str;
         for (const auto& argument : inOp->Arguments) {
             str += comma() + InferName(argument, omitValues);
         }
@@ -108,7 +108,7 @@ Stroka InferName(TConstExpressionPtr expr, bool omitValues)
     }
 }
 
-Stroka InferName(TConstBaseQueryPtr query, bool omitValues)
+TString InferName(TConstBaseQueryPtr query, bool omitValues)
 {
     auto namedItemFormatter = [&] (TStringBuilder* builder, const TNamedItem& item) {
         builder->AppendFormat("%v AS %v",
@@ -122,8 +122,8 @@ Stroka InferName(TConstBaseQueryPtr query, bool omitValues)
             item.second ? "DESC" : "ASC");
     };
 
-    std::vector<Stroka> clauses;
-    Stroka str;
+    std::vector<TString> clauses;
+    TString str;
 
     if (query->ProjectClause) {
         str = JoinToString(query->ProjectClause->Projections, namedItemFormatter);
@@ -135,24 +135,24 @@ Stroka InferName(TConstBaseQueryPtr query, bool omitValues)
     if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
         if (derivedQuery->WhereClause) {
             str = InferName(derivedQuery->WhereClause, omitValues);
-            clauses.push_back(Stroka("WHERE ") + str);
+            clauses.push_back(TString("WHERE ") + str);
         }
     }
     if (query->GroupClause) {
         str = JoinToString(query->GroupClause->GroupItems, namedItemFormatter);
-        clauses.push_back(Stroka("GROUP BY ") + str);
+        clauses.push_back(TString("GROUP BY ") + str);
     }
     if (query->HavingClause) {
         str = InferName(query->HavingClause, omitValues);
-        clauses.push_back(Stroka("HAVING ") + str);
+        clauses.push_back(TString("HAVING ") + str);
     }
     if (query->OrderClause) {
         str = JoinToString(query->OrderClause->OrderItems, orderItemFormatter);
-        clauses.push_back(Stroka("ORDER BY ") + str);
+        clauses.push_back(TString("ORDER BY ") + str);
     }
     if (query->Limit < std::numeric_limits<i64>::max()) {
         str = ToString(query->Limit);
-        clauses.push_back(Stroka("LIMIT ") + str);
+        clauses.push_back(TString("LIMIT ") + str);
     }
 
     return JoinToString(clauses, STRINGBUF(" "));
