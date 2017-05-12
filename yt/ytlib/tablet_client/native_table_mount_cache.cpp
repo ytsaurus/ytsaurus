@@ -298,6 +298,7 @@ private:
                 tableInfo->Schemas[ETableSchemaKind::Query] = physicalSchema.ToQuery();
                 tableInfo->Schemas[ETableSchemaKind::Lookup] = physicalSchema.ToLookup();
 
+                tableInfo->UpstreamReplicaId = FromProto<TTableReplicaId>(rsp->upstream_replica_id());
                 tableInfo->Dynamic = rsp->dynamic();
                 tableInfo->NeedKeyEvaluation = tableInfo->Schemas[ETableSchemaKind::Primary].HasComputedColumns();
 

@@ -233,11 +233,16 @@ private:
                 YCHECK(readReplicationBatch());
             }
 
-            foreignTransaction->WriteRows(
-                ReplicaPath_,
-                TNameTable::FromSchema(TableSchema_),
-                MakeSharedRange(std::move(replicationRows), std::move(rowBuffer)));
-            
+            {
+                TModifyRowsOptions options;
+                options.UpstreamReplicaId = ReplicaId_;
+                foreignTransaction->WriteRows(
+                    ReplicaPath_,
+                    TNameTable::FromSchema(TableSchema_),
+                    MakeSharedRange(std::move(replicationRows), std::move(rowBuffer)),
+                    options);
+            }
+
             {
                 NProto::TReqReplicateRows req;
                 ToProto(req.mutable_tablet_id(), TabletId_);

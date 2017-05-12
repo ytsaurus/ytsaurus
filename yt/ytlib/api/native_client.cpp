@@ -1698,6 +1698,9 @@ private:
         if (options.Dynamic) {
             req->set_dynamic(*options.Dynamic);
         }
+        if (options.UpstreamReplicaId) {
+            ToProto(req->mutable_upstream_replica_id(), *options.UpstreamReplicaId);
+        }
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
@@ -3673,7 +3676,7 @@ private:
 
         void PrepareTableSessions()
         {
-            TableSession_ = Transaction_->GetOrCreateTableSession(Path_);
+            TableSession_ = Transaction_->GetOrCreateTableSession(Path_, Options_.UpstreamReplicaId);
         }
 
         void SubmitRows()
@@ -3687,11 +3690,13 @@ private:
             }
 
             for (const auto& replicaData : TableSession_->SyncReplicas()) {
+                auto replicaOptions = Options_;
+                replicaOptions.UpstreamReplicaId = replicaData.ReplicaInfo->ReplicaId;
                 replicaData.Transaction->ModifyRows(
                     replicaData.ReplicaInfo->ReplicaPath,
                     NameTable_,
                     Modifications_,
-                    Options_);
+                    replicaOptions);
             }
 
             const auto& tableInfo = TableSession_->GetInfo();
@@ -3765,7 +3770,7 @@ private:
                                 TabletIndexColumnId_,
                                 TUnversionedRow(modification.Row));
                         }
-                        auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo);
+                        auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
                         auto command = GetCommand(modification.Type);
                         session->SubmitRow(command, capturedRow);
                         break;
@@ -3777,7 +3782,7 @@ private:
                             primarySchema,
                             primaryIdMapping);
                         auto tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow);
-                        auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo);
+                        auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
                         auto command = GetCommand(modification.Type);
                         session->SubmitRow(command, capturedRow);
                         break;
@@ -3832,9 +3837,11 @@ private:
     public:
         TTableCommitSession(
             TNativeTransaction* transaction,
-            TTableMountInfoPtr tableInfo)
+            TTableMountInfoPtr tableInfo,
+            const TTableReplicaId& upstreamReplicaId)
             : Transaction_(transaction)
             , TableInfo_(std::move(tableInfo))
+            , UpstreamReplicaId_(upstreamReplicaId)
             , Logger(NLogging::TLogger(transaction->Logger)
                 .AddTag("Path: %v", TableInfo_->Path))
         { }
@@ -3842,6 +3849,11 @@ private:
         const TTableMountInfoPtr& GetInfo() const
         {
             return TableInfo_;
+        }
+
+        const TTableReplicaId& GetUpstreamReplicaId() const
+        {
+            return UpstreamReplicaId_;
         }
 
         const std::vector<TSyncReplica>& SyncReplicas() const
@@ -3872,6 +3884,7 @@ private:
     private:
         TNativeTransaction* const Transaction_;
         const TTableMountInfoPtr TableInfo_;
+        const TTableReplicaId UpstreamReplicaId_;
         const NLogging::TLogger Logger;
 
         std::vector<TSyncReplica> SyncReplicas_;
@@ -3889,10 +3902,12 @@ private:
             TNativeTransactionPtr transaction,
             TTabletInfoPtr tabletInfo,
             TTableMountInfoPtr tableInfo,
+            TTableCommitSessionPtr tableSession,
             TColumnEvaluatorPtr columnEvauator)
             : Transaction_(transaction)
             , TableInfo_(std::move(tableInfo))
             , TabletInfo_(std::move(tabletInfo))
+            , TableSession_(std::move(tableSession))
             , Config_(transaction->Client_->Connection_->GetConfig())
             , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].Columns().size())
             , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].GetKeyColumnCount())
@@ -3965,6 +3980,7 @@ private:
         const TWeakPtr<TNativeTransaction> Transaction_;
         const TTableMountInfoPtr TableInfo_;
         const TTabletInfoPtr TabletInfo_;
+        const TTableCommitSessionPtr TableSession_;
         const TNativeConnectionConfigPtr Config_;
         const int ColumnCount_;
         const int KeyColumnCount_;
@@ -4152,14 +4168,19 @@ private:
                     ToProto(req->add_sync_replica_ids(), replicaInfo->ReplicaId);
                 }
             }
+            if (TableSession_->GetUpstreamReplicaId()) {
+                ToProto(req->mutable_upstream_replica_id(), TableSession_->GetUpstreamReplicaId());
+            }
             req->Attachments().push_back(batch->RequestData);
 
-            LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x, Versioned: %v)",
+            LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x, "
+                "Versioned: %v, UpstreamReplicaId: %v)",
                 InvokeBatchIndex_,
                 Batches_.size(),
                 batch->RowCount,
                 req->signature(),
-                req->versioned());
+                req->versioned(),
+                TableSession_->GetUpstreamReplicaId());
 
             req->Invoke().Subscribe(
                 BIND(&TTabletCommitSession::OnResponse, MakeStrong(this))
@@ -4370,7 +4391,7 @@ private:
         return transaction;
     }
 
-    TTableCommitSessionPtr GetOrCreateTableSession(const TYPath& path)
+    TTableCommitSessionPtr GetOrCreateTableSession(const TYPath& path, const TTableReplicaId& upstreamReplicaId)
     {
         auto it = TablePathToSession_.find(path);
         if (it == TablePathToSession_.end()) {
@@ -4380,13 +4401,24 @@ private:
 
             it = TablePathToSession_.emplace(
                 path,
-                New<TTableCommitSession>(this, std::move(tableInfo))
+                New<TTableCommitSession>(this, std::move(tableInfo), upstreamReplicaId)
             ).first;
+        } else {
+            const auto& session = it->second;
+            if (session->GetUpstreamReplicaId() != upstreamReplicaId) {
+                THROW_ERROR_EXCEPTION("Mismatched upstream replica is specified for modifications to table %v: %v != !v",
+                    path,
+                    upstreamReplicaId,
+                    session->GetUpstreamReplicaId());
+            }
         }
         return it->second;
     }
 
-    TTabletCommitSessionPtr GetOrCreateTabletSession(const TTabletInfoPtr& tabletInfo, const TTableMountInfoPtr& tableInfo)
+    TTabletCommitSessionPtr GetOrCreateTabletSession(
+        const TTabletInfoPtr& tabletInfo,
+        const TTableMountInfoPtr& tableInfo,
+        const TTableCommitSessionPtr& tableSession)
     {
         const auto& tabletId = tabletInfo->TabletId;
         auto it = TabletIdToSession_.find(tabletId);
@@ -4399,6 +4431,7 @@ private:
                     this,
                     tabletInfo,
                     tableInfo,
+                    tableSession,
                     evaluator)
                 ).first;
         }

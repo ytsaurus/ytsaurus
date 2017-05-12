@@ -825,6 +825,7 @@ private:
         auto commitOrdering = ECommitOrdering(request->commit_ordering());
         auto storeDescriptors = FromProto<std::vector<TAddStoreDescriptor>>(request->stores());
         bool freeze = request->freeze();
+        auto upstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
         auto replicaDescriptors = FromProto<std::vector<TTableReplicaDescriptor>>(request->replicas());
 
         auto tabletHolder = std::make_unique<TTablet>(
@@ -840,7 +841,8 @@ private:
             pivotKey,
             nextPivotKey,
             atomicity,
-            commitOrdering);
+            commitOrdering,
+            upstreamReplicaId);
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
         if (!tablet->IsPhysicallySorted()) {
@@ -856,7 +858,7 @@ private:
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %x, TableId: %v, Keys: %v .. %v, "
             "StoreCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
-            "CommitOrdering: %v, Frozen: %v)",
+            "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v)",
             tabletId,
             mountRevision,
             tableId,
@@ -868,7 +870,8 @@ private:
             tablet->IsPhysicallySorted() ? Null : MakeNullable(tablet->GetTrimmedRowCount()),
             tablet->GetAtomicity(),
             tablet->GetCommitOrdering(),
-            freeze);
+            freeze,
+            upstreamReplicaId);
 
         for (const auto& descriptor : request->replicas()) {
             AddTableReplica(tablet, descriptor);

@@ -174,6 +174,7 @@ struct TAlterTableOptions
 {
     TNullable<NTableClient::TTableSchema> Schema;
     TNullable<bool> Dynamic;
+    TNullable<NTabletClient::TTableReplicaId> UpstreamReplicaId;
 };
 
 struct TTrimTableOptions

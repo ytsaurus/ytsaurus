@@ -334,6 +334,8 @@ TAlterTableCommand::TAlterTableCommand()
         .Optional();
     RegisterParameter("dynamic", Options.Dynamic)
         .Optional();
+    RegisterParameter("upstream_replica_id", Options.UpstreamReplicaId)
+        .Optional();
 }
 
 void TAlterTableCommand::DoExecute(ICommandContextPtr context)

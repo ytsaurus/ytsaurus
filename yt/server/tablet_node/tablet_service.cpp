@@ -81,6 +81,7 @@ private:
         auto requestCodecId = NCompression::ECodec(request->request_codec());
         auto versioned = request->versioned();
         auto syncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids());
+        auto upstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
 
         ValidateTabletTransactionId(transactionId);
 
@@ -89,7 +90,7 @@ private:
 
         context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %llx, "
             "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x, RowCount: %v, "
-            "RequestCodec: %v, Versioned: %v, SyncReplicaIds: %v",
+            "RequestCodec: %v, Versioned: %v, SyncReplicaIds: %v, UpstreamReplicaId: %v",
             tabletId,
             transactionId,
             transactionStartTimestamp,
@@ -100,7 +101,8 @@ private:
             rowCount,
             requestCodecId,
             versioned,
-            syncReplicaIds);
+            syncReplicaIds,
+            upstreamReplicaId);
 
         // NB: Must serve the whole request within a single epoch.
         TCurrentInvokerGuard invokerGuard(Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
@@ -120,6 +122,18 @@ private:
         if (versioned && user != NSecurityClient::ReplicatorUserName) {
             THROW_ERROR_EXCEPTION("Versioned writes are only allowed for %Qv user",
                 NSecurityClient::ReplicatorUserName);
+        }
+
+        if (upstreamReplicaId && !tabletSnapshot->UpstreamReplicaId) {
+            THROW_ERROR_EXCEPTION("Table is not bound to any upstream replica but replica %v was given",
+                upstreamReplicaId);
+        } else if (!upstreamReplicaId && tabletSnapshot->UpstreamReplicaId) {
+            THROW_ERROR_EXCEPTION("Table is bound to upstream replica %v; direct modifications are forbidden",
+                tabletSnapshot->UpstreamReplicaId);
+        } else if (upstreamReplicaId != tabletSnapshot->UpstreamReplicaId) {
+            THROW_ERROR_EXCEPTION("Mismatched upstream replica: expected %v, got %v",
+                tabletSnapshot->UpstreamReplicaId,
+                upstreamReplicaId);
         }
 
         securityManager->ValidateResourceLimits(

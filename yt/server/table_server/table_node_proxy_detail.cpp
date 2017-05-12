@@ -122,6 +122,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("schema_mode"));
     descriptors->push_back(TAttributeDescriptor("chunk_writer")
         .SetCustom(true));
+    descriptors->push_back(TAttributeDescriptor("upstream_replica_id")
+        .SetPresent(table->IsSorted() && table->IsDynamic()));
     descriptors->push_back(TAttributeDescriptor("table_chunk_format_statistics")
         .SetExternal(table->IsExternal())
         .SetOpaque(true));
@@ -307,6 +309,12 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
         return true;
     }
 
+    if (key == "upstream_replica_id" && trunkTable->IsSorted() && trunkTable->IsDynamic()) {
+        BuildYsonFluently(consumer)
+            .Value(trunkTable->GetUpstreamReplicaId());
+        return true;
+    }
+
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
@@ -352,6 +360,24 @@ void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)
     auto dynamic = options.Dynamic.Get(table->IsDynamic());
     auto schema = options.Schema.Get(table->TableSchema());
 
+    if (options.UpstreamReplicaId) {
+        ValidateNoTransaction();
+
+        if (table->GetTabletState() != ETabletState::Unmounted) {
+            THROW_ERROR_EXCEPTION("Cannot change upstream replica since not all of its tablets are in %Qlv state",
+                ETabletState::Unmounted);
+        }
+        if (!dynamic) {
+            THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
+        }
+        if (!schema.IsSorted()) {
+            THROW_ERROR_EXCEPTION("Upstream replica can only be set for sorted tables");
+        }
+        if (table->IsReplicated()) {
+            THROW_ERROR_EXCEPTION("Upstream replica cannot be explicitly set for replicated tables");
+        }
+    }
+
     // NB: Sorted dynamic tables contain unique keys, set this for user.
     if (dynamic && options.Schema && options.Schema->IsSorted() && !options.Schema->GetUniqueKeys()) {
         schema = schema.ToUniqueKeys();
@@ -375,6 +401,10 @@ void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)
         } else {
             tabletManager->MakeTableStatic(table);
         }
+    }
+
+    if (options.UpstreamReplicaId) {
+        table->SetUpstreamReplicaId(*options.UpstreamReplicaId);
     }
 }
 
@@ -694,6 +724,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
 
     ToProto(response->mutable_table_id(), trunkTable->GetId());
     response->set_dynamic(trunkTable->IsDynamic());
+    ToProto(response->mutable_upstream_replica_id(), trunkTable->GetUpstreamReplicaId());
     ToProto(response->mutable_schema(), trunkTable->TableSchema());
 
     yhash_set<TTabletCell*> cells;
@@ -739,10 +770,14 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (request->has_dynamic()) {
         options.Dynamic = request->dynamic();
     }
+    if (request->has_upstream_replica_id()) {
+        options.UpstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
+    }
 
-    context->SetRequestInfo("Schema: %v, Dynamic: %v",
+    context->SetRequestInfo("Schema: %v, Dynamic: %v, UpstreamReplicaId: %v",
         options.Schema,
-        options.Dynamic);
+        options.Dynamic,
+        options.UpstreamReplicaId);
 
     AlterTable(options);
 
