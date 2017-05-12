@@ -63,7 +63,7 @@ TObjectServiceProxy::TReqExecuteBatch::Invoke()
 TObjectServiceProxy::TReqExecuteBatchPtr
 TObjectServiceProxy::TReqExecuteBatch::AddRequest(
     TYPathRequestPtr innerRequest,
-    const Stroka& key)
+    const TString& key)
 {
     return AddRequestMessage(
         innerRequest ? innerRequest->Serialize() : TSharedRefArray(),
@@ -73,7 +73,7 @@ TObjectServiceProxy::TReqExecuteBatch::AddRequest(
 TObjectServiceProxy::TReqExecuteBatchPtr
 TObjectServiceProxy::TReqExecuteBatch::AddRequestMessage(
     TSharedRefArray innerRequestMessage,
-    const Stroka& key)
+    const TString& key)
 {
     if (!key.empty()) {
         int index = static_cast<int>(InnerRequestMessages.size());
@@ -122,7 +122,7 @@ TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
 
 TObjectServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
     TClientContextPtr clientContext,
-    const std::multimap<Stroka, int>& keyToIndexes)
+    const std::multimap<TString, int>& keyToIndexes)
     : TClientResponse(std::move(clientContext))
     , KeyToIndexes(keyToIndexes)
 { }
@@ -173,17 +173,17 @@ TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(i
     return GetResponse<TYPathResponse>(index);
 }
 
-TNullable<TErrorOr<TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const Stroka& key) const
+TNullable<TErrorOr<TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const TString& key) const
 {
     return FindResponse<TYPathResponse>(key);
 }
 
-TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
+TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const TString& key) const
 {
     return GetResponse<TYPathResponse>(key);
 }
 
-std::vector<TErrorOr<NYTree::TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key) const
+std::vector<TErrorOr<NYTree::TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const TString& key) const
 {
     return GetResponses<TYPathResponse>(key);
 }
@@ -212,7 +212,7 @@ TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError GetCumulativeError(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError, const Stroka& key)
+TError GetCumulativeError(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError, const TString& key)
 {
     if (!batchRspOrError.IsOK()) {
         return batchRspOrError;

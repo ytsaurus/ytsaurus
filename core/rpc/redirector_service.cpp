@@ -78,24 +78,24 @@ public:
         return FromProto<TRealmId>(Header_->realm_id());
     }
 
-    virtual const Stroka& GetService() const override
+    virtual const TString& GetService() const override
     {
         return Header_->service();
     }
 
-    virtual const Stroka& GetMethod() const override
+    virtual const TString& GetMethod() const override
     {
         return Header_->method();
     }
 
-    virtual const Stroka& GetUser() const override
+    virtual const TString& GetUser() const override
     {
         return Header_->has_user()
             ? Header_->user()
             : RootUserName;
     }
 
-    virtual void SetUser(const Stroka& user) override
+    virtual void SetUser(const TString& user) override
     {
         if (user == RootUserName) {
             Header_->clear_user();

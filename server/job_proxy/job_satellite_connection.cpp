@@ -27,7 +27,7 @@ TJobSatelliteConnection::TJobSatelliteConnection(
     ConnectionConfigPtr_->JobProxyRpcClientConfig->UnixDomainName = jobProxyRpcServerConfig->UnixDomainName;
 }
 
-Stroka TJobSatelliteConnection::GetConfigPath() const
+TString TJobSatelliteConnection::GetConfigPath() const
 {
     return ConfigFile_;
 }

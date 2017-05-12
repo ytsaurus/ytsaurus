@@ -46,7 +46,7 @@ public:
         const NJobTrackerClient::TJobId& jobId,
         NBus::TTcpBusServerConfigPtr jobProxyRpcServerConfig);
 
-    Stroka GetConfigPath() const;
+    TString GetConfigPath() const;
     NBus::TTcpBusClientConfigPtr GetRpcClientConfig() const;
     const NJobTrackerClient::TJobId& GetJobId() const;
 
@@ -55,7 +55,7 @@ public:
 private:
     const NJobTrackerClient::TJobId JobId_;
 
-    Stroka ConfigFile_;
+    TString ConfigFile_;
     TJobSatelliteConnectionConfigPtr ConnectionConfigPtr_;
 };
 

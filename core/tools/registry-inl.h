@@ -55,9 +55,9 @@ TGenericTool MakeGeneric(TFunc internal)
 template <class TTool>
 struct TToolRegistrator
 {
-    explicit TToolRegistrator(const Stroka& toolName)
+    explicit TToolRegistrator(const TString& toolName)
     {
-        auto typeName = Stroka(typeid(TTool).name());
+        auto typeName = TString(typeid(TTool).name());
         auto tool = MakeGeneric(TTool());
         TToolRegistryEntry entry{toolName, tool};
         auto* registry = GetToolRegistry();

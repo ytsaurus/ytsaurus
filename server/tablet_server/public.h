@@ -91,7 +91,7 @@ struct TTabletStatistics;
 struct TTabletPerformanceCounter;
 struct TTabletPerformanceCounters;
 
-extern const Stroka DefaultTabletCellBundleName;
+extern const TString DefaultTabletCellBundleName;
 
 ////////////////////////////////////////////////////////////////////////////////
 

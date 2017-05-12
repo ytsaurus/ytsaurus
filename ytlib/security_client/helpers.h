@@ -9,8 +9,8 @@ namespace NSecurityClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYPath::TYPath GetUserPath(const Stroka& name);
-NYPath::TYPath GetGroupPath(const Stroka& name);
+NYPath::TYPath GetUserPath(const TString& name);
+NYPath::TYPath GetGroupPath(const TString& name);
 
 ////////////////////////////////////////////////////////////////////////////////
 

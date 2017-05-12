@@ -70,10 +70,10 @@ class TJobProbeCGroupTools
 {
 public:
     ~TJobProbeCGroupTools();
-    static TIntrusivePtr<TJobProbeCGroupTools> Create(const TJobId& jobId, pid_t rootPid, int uid, const std::vector<Stroka>& env);
+    static TIntrusivePtr<TJobProbeCGroupTools> Create(const TJobId& jobId, pid_t rootPid, int uid, const std::vector<TString>& env);
 
     TYsonString StraceJob();
-    void SignalJob(const Stroka& signalName);
+    void SignalJob(const TString& signalName);
     TYsonString PollJobShell(const TYsonString& parameters);
     TFuture<void> AsyncGracefulShutdown(const TError& error);
 
@@ -81,7 +81,7 @@ private:
     NCGroup::TFreezer Freezer_;
     const pid_t RootPid_;
     const int Uid_;
-    const std::vector<Stroka> Environment_;
+    const std::vector<TString> Environment_;
     const NConcurrency::TActionQueuePtr AuxQueue_;
     std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
     IShellManagerPtr ShellManager_;
@@ -90,7 +90,7 @@ private:
         const NJobTrackerClient::TJobId& jobId,
         pid_t rootPid,
         int uid,
-        const std::vector<Stroka>& env);
+        const std::vector<TString>& env);
     void Init();
 
     DECLARE_NEW_FRIEND();
@@ -102,7 +102,7 @@ TJobProbeCGroupTools::TJobProbeCGroupTools(
     const TJobId& jobId,
     pid_t rootPid,
     int uid,
-    const std::vector<Stroka>& env)
+    const std::vector<TString>& env)
     : Freezer_(GetCGroupUserJobPrefix() + ToString(jobId))
     , RootPid_(rootPid)
     , Uid_(uid)
@@ -110,7 +110,7 @@ TJobProbeCGroupTools::TJobProbeCGroupTools(
     , AuxQueue_(New<TActionQueue>("JobAux"))
 { }
 
-TIntrusivePtr<TJobProbeCGroupTools> TJobProbeCGroupTools::Create(const TJobId& jobId, pid_t rootPid, int uid, const std::vector<Stroka>& env)
+TIntrusivePtr<TJobProbeCGroupTools> TJobProbeCGroupTools::Create(const TJobId& jobId, pid_t rootPid, int uid, const std::vector<TString>& env)
 {
     auto tools = New<TJobProbeCGroupTools>(jobId, rootPid, uid, env);
     try {
@@ -131,7 +131,7 @@ void TJobProbeCGroupTools::Init()
     currentWorkDir = currentWorkDir.substr(0, currentWorkDir.find_last_of("/"));
     
     // Copy environment to process arguments
-    std::vector<Stroka> shellEnvironment;
+    std::vector<TString> shellEnvironment;
     shellEnvironment.reserve(Environment_.size());
     for (const auto& var : Environment_) {
         if (var.StartsWith("YT_")) {
@@ -142,7 +142,7 @@ void TJobProbeCGroupTools::Init()
     ShellManager_ = CreateShellManager(
         NFS::CombinePaths(currentWorkDir, NExecAgent::SandboxDirectoryNames[NExecAgent::ESandboxKind::Home]),
         Uid_,
-        TNullable<Stroka>(GetCGroupUserJobBase()),
+        TNullable<TString>(GetCGroupUserJobBase()),
         Format("Job environment:\n%v\n", JoinToString(Environment_, STRINGBUF("\n"))),
         std::move(shellEnvironment));
 }
@@ -184,7 +184,7 @@ TYsonString TJobProbeCGroupTools::StraceJob()
     return ConvertToYsonString(result.Value());
 }
 
-void TJobProbeCGroupTools::SignalJob(const Stroka& signalName)
+void TJobProbeCGroupTools::SignalJob(const TString& signalName)
 {
     auto arg = New<TSignalerArg>();
     arg->Pids = Freezer_.GetTasks();
@@ -231,20 +231,20 @@ class TJobSatelliteWorker
     : public IJobProbe
 {
 public:
-    TJobSatelliteWorker(const pid_t rootPid, int uid, const std::vector<Stroka>& env, const TJobId& jobId);
+    TJobSatelliteWorker(const pid_t rootPid, int uid, const std::vector<TString>& env, const TJobId& jobId);
     void GracefulShutdown(const TError& error);
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     virtual TYsonString StraceJob() override;
-    virtual void SignalJob(const Stroka& signalName) override;
+    virtual void SignalJob(const TString& signalName) override;
     virtual TYsonString PollJobShell(const TYsonString& parameters) override;
-    virtual Stroka GetStderr() override;
+    virtual TString GetStderr() override;
     virtual void Interrupt() override;
 
 private:
     const pid_t RootPid_;
     const int Uid_;
-    const std::vector<Stroka> Env_;
+    const std::vector<TString> Env_;
     const TJobId JobId_;
     TIntrusivePtr<TJobProbeCGroupTools> JobProbe_;
 
@@ -254,7 +254,7 @@ private:
 TJobSatelliteWorker::TJobSatelliteWorker(
     pid_t rootPid,
     int uid,
-    const std::vector<Stroka>& env,
+    const std::vector<TString>& env,
     const TJobId& jobId)
     : RootPid_(rootPid)
     , Uid_(uid)
@@ -284,12 +284,12 @@ TYsonString TJobSatelliteWorker::StraceJob()
     return JobProbe_->StraceJob();
 }
 
-Stroka TJobSatelliteWorker::GetStderr()
+TString TJobSatelliteWorker::GetStderr()
 {
     Y_UNREACHABLE();
 }
 
-void TJobSatelliteWorker::SignalJob(const Stroka& signalName)
+void TJobSatelliteWorker::SignalJob(const TString& signalName)
 {
     EnsureJobProbe();
     JobProbe_->SignalJob(signalName);
@@ -323,7 +323,7 @@ public:
         TJobSatelliteConnectionConfigPtr config,
         pid_t rootPid,
         int uid,
-        const std::vector<Stroka>& env,
+        const std::vector<TString>& env,
         const TJobId& jobId);
     void Run();
     void Stop(const TError& error);
@@ -332,7 +332,7 @@ private:
     const TJobSatelliteConnectionConfigPtr SatelliteConnectionConfig_;
     const pid_t RootPid_;
     const int Uid_;
-    const std::vector<Stroka> Env_;
+    const std::vector<TString> Env_;
     const TJobId JobId_;
     const NConcurrency::TActionQueuePtr JobSatelliteMainThread_;
     NRpc::IServerPtr RpcServer_;
@@ -343,7 +343,7 @@ private:
 TJobSatellite::TJobSatellite(TJobSatelliteConnectionConfigPtr config,
     pid_t rootPid,
     int uid,
-    const std::vector<Stroka>& env,
+    const std::vector<TString>& env,
     const TJobId& jobId)
     : SatelliteConnectionConfig_(config)
     , RootPid_(rootPid)
@@ -382,8 +382,8 @@ void TJobSatellite::Run()
 void RunJobSatellite(
     TJobSatelliteConnectionConfigPtr config,
     const int uid,
-    const std::vector<Stroka>& env,
-    const Stroka& jobId)
+    const std::vector<TString>& env,
+    const TString& jobId)
 {
     pid_t pid = fork();
     if (pid == -1) {

@@ -17,11 +17,11 @@ typedef std::function<NYson::TYsonString(const NYson::TYsonString&)> TGenericToo
 
 struct TToolRegistryEntry
 {
-    Stroka Name;
+    TString Name;
     TGenericTool Tool;
 };
 
-typedef std::map<Stroka, TToolRegistryEntry> TToolRegistry;
+typedef std::map<TString, TToolRegistryEntry> TToolRegistry;
 
 TToolRegistry* GetToolRegistry();
 

@@ -83,7 +83,7 @@ public:
         int minCount,
         TNullable<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
-        const TNullable<Stroka>& preferredHostName);
+        const TNullable<TString>& preferredHostName);
 
     TChunkList* CreateChunkList(EChunkListKind kind);
 
@@ -166,16 +166,16 @@ public:
     TMedium* GetMediumByIndexOrThrow(int index) const;
 
     //! Renames an existing medium. Throws on name conflict.
-    void RenameMedium(TMedium* medium, const Stroka& newName);
+    void RenameMedium(TMedium* medium, const TString& newName);
 
     //! Validates and changes medium priority.
     void SetMediumPriority(TMedium* medium, int priority);
 
     //! Returns the medium with a given name (|nullptr| if none).
-    TMedium* FindMediumByName(const Stroka& name) const;
+    TMedium* FindMediumByName(const TString& name) const;
 
     //! Returns the medium with a given name (throws if none).
-    TMedium* GetMediumByNameOrThrow(const Stroka& name) const;
+    TMedium* GetMediumByNameOrThrow(const TString& name) const;
 
 private:
     class TImpl;

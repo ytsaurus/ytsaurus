@@ -11,7 +11,7 @@ namespace NBlackbox {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ComputeMD5(const Stroka& token)
+TString ComputeMD5(const TString& token)
 {
     std::array<char, 16> buffer;
     MD5_CTX ctx;

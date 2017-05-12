@@ -200,7 +200,7 @@ std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
     const ICodec* codec,
-    const Stroka& networkName,
+    const TString& networkName,
     IBlockCachePtr blockCache,
     NConcurrency::IThroughputThrottlerPtr throttler)
 {

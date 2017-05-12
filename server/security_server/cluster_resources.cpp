@@ -259,7 +259,7 @@ void FormatValue(TStringBuilder* builder, const TClusterResources& resources, co
         resources.ChunkCount);
 }
 
-Stroka ToString(const TClusterResources& resources)
+TString ToString(const TClusterResources& resources)
 {
     return ToStringViaBuilder(resources);
 }

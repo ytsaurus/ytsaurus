@@ -8,7 +8,7 @@ namespace NRpc {
 const TRequestId NullRequestId;
 const TRealmId NullRealmId;
 const TMutationId NullMutationId;
-const Stroka RootUserName("root");
+const TString RootUserName("root");
 
 ////////////////////////////////////////////////////////////////////////////////
 

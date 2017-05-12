@@ -229,7 +229,7 @@ private:
         TJobId JobId;
         TYPath Path;
         TChunkId ChunkId;
-        Stroka DescriptionType;
+        TString DescriptionType;
     };
 
     struct TOperationNodeUpdate

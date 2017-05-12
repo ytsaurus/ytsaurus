@@ -183,7 +183,7 @@ public:
     bool IsAlive() const;
     void SetAlive(bool alive);
 
-    virtual Stroka GetId() const = 0;
+    virtual TString GetId() const = 0;
 
     virtual double GetWeight() const = 0;
     virtual double GetMinShareRatio() const = 0;
@@ -273,7 +273,7 @@ public:
     TCompositeSchedulerElement(
         ISchedulerStrategyHost* host,
         TFairShareStrategyConfigPtr strategyConfig,
-        const Stroka& profilingName);
+        const TString& profilingName);
     TCompositeSchedulerElement(
         const TCompositeSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -361,9 +361,9 @@ DEFINE_REFCOUNTED_TYPE(TCompositeSchedulerElement)
 class TPoolFixedState
 {
 protected:
-    explicit TPoolFixedState(const Stroka& id);
+    explicit TPoolFixedState(const TString& id);
 
-    const Stroka Id_;
+    const TString Id_;
     bool DefaultConfigured_ = true;
 };
 
@@ -374,7 +374,7 @@ class TPool
 public:
     TPool(
         ISchedulerStrategyHost* host,
-        const Stroka& id,
+        const TString& id,
         TFairShareStrategyConfigPtr strategyConfig);
     TPool(
         const TPool& other,
@@ -389,7 +389,7 @@ public:
     virtual bool IsExplicit() const override;
     virtual bool IsAggressiveStarvationEnabled() const override;
 
-    virtual Stroka GetId() const override;
+    virtual TString GetId() const override;
 
     virtual double GetWeight() const override;
     virtual double GetMinShareRatio() const override;
@@ -659,7 +659,7 @@ public:
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
     virtual bool ScheduleJob(TFairShareContext& context) override;
 
-    virtual Stroka GetId() const override;
+    virtual TString GetId() const override;
 
     virtual double GetWeight() const override;
     virtual double GetMinShareRatio() const override;
@@ -743,7 +743,7 @@ public:
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 
-    virtual Stroka GetId() const override;
+    virtual TString GetId() const override;
 
     virtual double GetWeight() const override;
     virtual double GetMinShareRatio() const override;

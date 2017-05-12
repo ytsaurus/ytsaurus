@@ -134,7 +134,7 @@ using is_trivially_move_constructible = is_trivial<T>;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Make global hash functions from util/ visible for STL.
-template <> struct hash<Stroka> : public ::hash<Stroka> { };
+template <> struct hash<TString> : public ::hash<TString> { };
 template <> struct hash<TStringBuf> : public ::hash<TStringBuf> { };
 
 } // namespace std

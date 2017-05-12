@@ -14,12 +14,12 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka RemoveSpaces(const Stroka& str)
+TString RemoveSpaces(const TString& str)
 {
-    Stroka res = str;
+    TString res = str;
     while (true) {
         size_t pos = res.find(" ");
-        if (pos == Stroka::npos) {
+        if (pos == TString::npos) {
             break;
         }
         res.replace(pos, 1, "");
@@ -56,7 +56,7 @@ TEST(TCustomTypeSerializationTest, TNullable)
     {
         TNullable<int> value = Null;
         auto yson = ConvertToYsonString(value);
-        EXPECT_EQ(Stroka("#"), yson.GetData());
+        EXPECT_EQ(TString("#"), yson.GetData());
         EXPECT_EQ(value, ConvertTo<TNullable<int>>(yson));
     }
 }
@@ -78,7 +78,7 @@ TEST(TSerializationTest, PackRefs)
 
 TEST(TSerializationTest, Map)
 {
-    std::map<Stroka, size_t> original{{"First", 12U}, {"Second", 7883U}, {"Third", 7U}};
+    std::map<TString, size_t> original{{"First", 12U}, {"Second", 7883U}, {"Third", 7U}};
     auto yson = ConvertToYsonString(original);
     auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
     EXPECT_EQ(original, deserialized);
@@ -86,7 +86,7 @@ TEST(TSerializationTest, Map)
 
 TEST(TSerializationTest, Set)
 {
-    std::set<Stroka> original{"First", "Second", "Third"};
+    std::set<TString> original{"First", "Second", "Third"};
     auto yson = ConvertToYsonString(original);
     auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
     EXPECT_EQ(original, deserialized);
@@ -94,7 +94,7 @@ TEST(TSerializationTest, Set)
 
 TEST(TSerializationTest, MultiSet)
 {
-    std::multiset<Stroka> original{"First", "Second", "Third", "Second", "Third", "Third"};
+    std::multiset<TString> original{"First", "Second", "Third", "Second", "Third", "Third"};
     auto yson = ConvertToYsonString(original);
     auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
     EXPECT_EQ(original, deserialized);
@@ -102,7 +102,7 @@ TEST(TSerializationTest, MultiSet)
 
 TEST(TSerializationTest, MultiMap)
 {
-    std::multimap<Stroka, size_t> original{{"First", 12U}, {"Second", 7883U}, {"Third", 7U}};
+    std::multimap<TString, size_t> original{{"First", 12U}, {"Second", 7883U}, {"Third", 7U}};
     auto yson = ConvertToYsonString(original);
     auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
     EXPECT_EQ(original, deserialized);
@@ -110,14 +110,14 @@ TEST(TSerializationTest, MultiMap)
 
 TEST(TSerializationTest, MultiMapErrorDuplicateKey)
 {
-    std::multimap<Stroka, size_t> original{{"First", 12U}, {"Second", 7883U}, {"First", 2U}, {"Second", 3U}};
+    std::multimap<TString, size_t> original{{"First", 12U}, {"Second", 7883U}, {"First", 2U}, {"Second", 3U}};
     auto yson = ConvertToYsonString(original);
     EXPECT_THROW(ConvertTo<std::decay<decltype(original)>::type>(yson), std::exception);
 }
 
 TEST(TSerializationTest, UnorderedMap)
 {
-    std::unordered_map<Stroka, size_t> original{{"First", 12U}, {"Second", 7883U}, {"Third", 7U}};
+    std::unordered_map<TString, size_t> original{{"First", 12U}, {"Second", 7883U}, {"Third", 7U}};
     auto yson = ConvertToYsonString(original);
     auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
     EXPECT_EQ(original, deserialized);
@@ -125,7 +125,7 @@ TEST(TSerializationTest, UnorderedMap)
 
 TEST(TSerializationTest, UnorderedSet)
 {
-    const std::unordered_set<Stroka> original{"First", "Second", "Third"};
+    const std::unordered_set<TString> original{"First", "Second", "Third"};
     auto yson = ConvertToYsonString(original);
     auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
     EXPECT_EQ(original, deserialized);
@@ -133,7 +133,7 @@ TEST(TSerializationTest, UnorderedSet)
 
 TEST(TSerializationTest, UnorderedMultiSet)
 {
-    const std::unordered_multiset<Stroka> original{"First", "Second", "Third", "Second", "Third", "Third"};
+    const std::unordered_multiset<TString> original{"First", "Second", "Third", "Second", "Third", "Third"};
     auto yson = ConvertToYsonString(original);
     auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
     EXPECT_EQ(original, deserialized);
@@ -141,7 +141,7 @@ TEST(TSerializationTest, UnorderedMultiSet)
 
 TEST(TSerializationTest, UnorderedMultiMap)
 {
-    const std::unordered_multimap<Stroka, size_t> original{{"First", 12U}, {"Second", 7883U}, {"Third", 7U}};
+    const std::unordered_multimap<TString, size_t> original{{"First", 12U}, {"Second", 7883U}, {"Third", 7U}};
     auto yson = ConvertToYsonString(original);
     auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
     EXPECT_EQ(original, deserialized);
@@ -149,14 +149,14 @@ TEST(TSerializationTest, UnorderedMultiMap)
 
 TEST(TSerializationTest, UnorderedMultiMapErrorDuplicateKey)
 {
-    const std::unordered_multimap<Stroka, size_t> original{{"Second", 7883U}, {"Third", 7U}, {"Second", 7U}};
+    const std::unordered_multimap<TString, size_t> original{{"Second", 7883U}, {"Third", 7U}, {"Second", 7U}};
     auto yson = ConvertToYsonString(original);
     EXPECT_THROW(ConvertTo<std::decay<decltype(original)>::type>(yson), std::exception);
 }
 
 TEST(TSerializationTest, Vector)
 {
-    const std::vector<Stroka> original{"First", "Second", "Third"};
+    const std::vector<TString> original{"First", "Second", "Third"};
     auto yson = ConvertToYsonString(original);
     auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
     EXPECT_EQ(original, deserialized);
@@ -164,7 +164,7 @@ TEST(TSerializationTest, Vector)
 
 TEST(TSerializationTest, Pair)
 {
-    auto original = std::make_pair<size_t, Stroka>(1U, "Second");
+    auto original = std::make_pair<size_t, TString>(1U, "Second");
     auto yson = ConvertToYsonString(original);
     auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
     EXPECT_EQ(original, deserialized);
@@ -180,7 +180,7 @@ TEST(TSerializationTest, Atomic)
 
 TEST(TSerializationTest, Array)
 {
-    std::array<Stroka, 4> original{{"One", "Two", "3", "4"}};
+    std::array<TString, 4> original{{"One", "Two", "3", "4"}};
     auto yson = ConvertToYsonString(original);
     auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
     EXPECT_EQ(original, deserialized);
@@ -188,7 +188,7 @@ TEST(TSerializationTest, Array)
 
 TEST(TSerializationTest, Tuple)
 {
-    auto original = std::make_tuple<int, Stroka, size_t>(43, "Stroka", 343U);
+    auto original = std::make_tuple<int, TString, size_t>(43, "TString", 343U);
     auto yson = ConvertToYsonString(original);
     auto deserialized = ConvertTo<std::decay<decltype(original)>::type>(yson);
     EXPECT_EQ(original, deserialized);
@@ -196,10 +196,10 @@ TEST(TSerializationTest, Tuple)
 
 TEST(TSerializationTest, VectorOfTuple)
 {
-    std::vector<std::tuple<int, Stroka, size_t>> original{
-        std::make_tuple<int, Stroka, size_t>(43, "First", 343U),
-        std::make_tuple<int, Stroka, size_t>(0, "Second", 7U),
-        std::make_tuple<int, Stroka, size_t>(2323, "Third", 9U)
+    std::vector<std::tuple<int, TString, size_t>> original{
+        std::make_tuple<int, TString, size_t>(43, "First", 343U),
+        std::make_tuple<int, TString, size_t>(0, "Second", 7U),
+        std::make_tuple<int, TString, size_t>(2323, "Third", 9U)
     };
 
     auto yson = ConvertToYsonString(original);
@@ -209,7 +209,7 @@ TEST(TSerializationTest, VectorOfTuple)
 
 TEST(TSerializationTest, MapOnArray)
 {
-    std::map<Stroka, std::array<size_t, 3>> original{
+    std::map<TString, std::array<size_t, 3>> original{
         {"1", {{2112U, 4343U, 5445U}}},
         {"22", {{54654U, 93U, 5U}}},
         {"333", {{7U, 93U, 9U}}},

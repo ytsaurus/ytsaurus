@@ -42,8 +42,8 @@ private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr TableReader;
 
-    TNullable<Stroka> PartIndexColumnName;
-    TNullable<Stroka> DataColumnName;
+    TNullable<TString> PartIndexColumnName;
+    TNullable<TString> DataColumnName;
 
     virtual void OnLoaded() override;
     virtual void DoExecute(ICommandContextPtr context) override;
@@ -178,7 +178,7 @@ public:
     TSelectRowsCommand();
 
 private:
-    Stroka Query;
+    TString Query;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };
@@ -216,7 +216,7 @@ public:
 private:
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
-    TNullable<std::vector<Stroka>> ColumnNames;
+    TNullable<std::vector<TString>> ColumnNames;
     bool Versioned;
 
     virtual void DoExecute(ICommandContextPtr context) override;

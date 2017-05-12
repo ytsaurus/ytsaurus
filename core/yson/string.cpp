@@ -15,7 +15,7 @@ TYsonString::TYsonString()
     : Null_(true)
 { }
 
-TYsonString::TYsonString(const Stroka& data, EYsonType type)
+TYsonString::TYsonString(const TString& data, EYsonType type)
     : Null_(false)
     , Data_(data)
     , Type_(type)
@@ -26,7 +26,7 @@ TYsonString::operator bool() const
     return !Null_;
 }
 
-const Stroka& TYsonString::GetData() const
+const TString& TYsonString::GetData() const
 {
     YCHECK(!Null_);
     return Data_;
@@ -98,7 +98,7 @@ bool operator != (const TYsonString& lhs, const TYsonString& rhs)
     return !(lhs == rhs);
 }
 
-Stroka ToString(const TYsonString& yson)
+TString ToString(const TYsonString& yson)
 {
     return yson.GetData();
 }

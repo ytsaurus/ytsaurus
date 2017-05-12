@@ -68,8 +68,8 @@ void Serialize(unsigned long long value, NYson::IYsonConsumer* consumer);
 // double
 void Serialize(double value, NYson::IYsonConsumer* consumer);
 
-// Stroka
-void Serialize(const Stroka& value, NYson::IYsonConsumer* consumer);
+// TString
+void Serialize(const TString& value, NYson::IYsonConsumer* consumer);
 
 // TStringBuf
 void Serialize(const TStringBuf& value, NYson::IYsonConsumer* consumer);
@@ -157,8 +157,8 @@ void Deserialize(unsigned long long& value, INodePtr node);
 // double
 void Deserialize(double& value, INodePtr node);
 
-// Stroka
-void Deserialize(Stroka& value, INodePtr node);
+// TString
+void Deserialize(TString& value, INodePtr node);
 
 // bool
 void Deserialize(bool& value, INodePtr node);

@@ -70,8 +70,8 @@ public:
     // sensitive information.
     DEFINE_BYVAL_RW_PROPERTY(NYTree::IMapNodePtr, SecureVault);
 
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, AuthenticatedUser);
-    DEFINE_BYVAL_RO_PROPERTY(std::vector<Stroka>, Owners);
+    DEFINE_BYVAL_RO_PROPERTY(TString, AuthenticatedUser);
+    DEFINE_BYVAL_RO_PROPERTY(std::vector<TString>, Owners);
 
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
@@ -143,8 +143,8 @@ public:
         const NRpc::TMutationId& mutationId,
         NTransactionClient::TTransactionId userTransactionId,
         NYTree::IMapNodePtr spec,
-        const Stroka& authenticatedUser,
-        const std::vector<Stroka>& owners,
+        const TString& authenticatedUser,
+        const std::vector<TString>& owners,
         TInstant startTime,
         IInvokerPtr controlInvoker,
         EOperationState state = EOperationState::None,
@@ -152,7 +152,7 @@ public:
         const std::vector<TOperationEvent>& events = {});
 
 private:
-    const Stroka CodicilData_;
+    const TString CodicilData_;
     const TCancelableContextPtr CancelableContext_;
     const IInvokerPtr CancelableInvoker_;
 

@@ -108,12 +108,12 @@ struct TQueryOptions
 
 struct TBaseColumn
 {
-    TBaseColumn(const Stroka& name, EValueType type)
+    TBaseColumn(const TString& name, EValueType type)
         : Name(name)
         , Type(type)
     { }
 
-    Stroka Name;
+    TString Name;
     EValueType Type;
 };
 

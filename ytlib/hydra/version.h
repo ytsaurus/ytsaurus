@@ -35,7 +35,7 @@ struct TVersion
 };
 
 void FormatValue(TStringBuilder* builder, TVersion version, const TStringBuf& spec);
-Stroka ToString(TVersion version);
+TString ToString(TVersion version);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -36,7 +36,7 @@ public:
     }
 
 private:
-    virtual Stroka DoGetName(const TMasterObject* /*object*/) override
+    virtual TString DoGetName(const TMasterObject* /*object*/) override
     {
         return "master";
     }

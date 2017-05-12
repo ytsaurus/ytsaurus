@@ -24,7 +24,7 @@ namespace NCypressServer {
 struct TLockKey
 {
     ELockKeyKind Kind = ELockKeyKind::None;
-    Stroka Name;
+    TString Name;
 
     bool operator ==(const TLockKey& other) const;
     bool operator !=(const TLockKey& other) const;
@@ -43,8 +43,8 @@ struct TLockRequest
     TLockRequest();
     TLockRequest(ELockMode mode);
 
-    static TLockRequest MakeSharedChild(const Stroka& key);
-    static TLockRequest MakeSharedAttribute(const Stroka& key);
+    static TLockRequest MakeSharedChild(const TString& key);
+    static TLockRequest MakeSharedAttribute(const TString& key);
 
     void Persist(NCellMaster::TPersistenceContext& context);
 

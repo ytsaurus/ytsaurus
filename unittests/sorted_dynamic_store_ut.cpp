@@ -139,7 +139,7 @@ protected:
     }
 
 
-    Stroka DumpStore()
+    TString DumpStore()
     {
         TStringBuilder builder;
         builder.AppendFormat("RowCount=%v ValueCount=%v MinTimestamp=%v MaxTimestamp=%v\n",
@@ -540,8 +540,8 @@ protected:
 
 TEST_P(TSortedDynamicRowKeyComparerTest, Test)
 {
-    auto str1 = Stroka(std::get<0>(GetParam()));
-    auto str2 = Stroka(std::get<1>(GetParam()));
+    auto str1 = TString(std::get<0>(GetParam()));
+    auto str2 = TString(std::get<1>(GetParam()));
 
     auto urow1 = BuildRow(str1, false);
     auto urow2 = BuildRow(str2, false);
@@ -722,7 +722,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, PrelockManyWritesAndCommit)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), "key=1;a=99"));
 
     for (int i = 0; i < 100; ++i) {
-        EXPECT_TRUE(AreRowsEqual(LookupRow(key, timestamps[i]), Stroka("key=1;a=" + ToString(i))));
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, timestamps[i]), TString("key=1;a=" + ToString(i))));
     }
 }
 
@@ -1378,8 +1378,8 @@ protected:
         // NB: Key columns must go first.
         TTableSchema schema({
             TColumnSchema(TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending)),
-            TColumnSchema(TColumnSchema("a", EValueType::Int64).SetLock(Stroka("l1"))),
-            TColumnSchema(TColumnSchema("b", EValueType::Double).SetLock(Stroka("l2"))),
+            TColumnSchema(TColumnSchema("a", EValueType::Int64).SetLock(TString("l1"))),
+            TColumnSchema(TColumnSchema("b", EValueType::Double).SetLock(TString("l2"))),
             TColumnSchema(TColumnSchema("c", EValueType::String))
         });
         return schema;
@@ -1750,7 +1750,7 @@ TEST_F(TNonAtomicSortedDynamicStoreTest, Write3)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), "key=1;a=99"));
 
     for (int i = 0; i < 100; ++i) {
-        EXPECT_TRUE(AreRowsEqual(LookupRow(key, timestamps[i]), Stroka("key=1;a=" + ToString(i))));
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, timestamps[i]), TString("key=1;a=" + ToString(i))));
     }
 }
 

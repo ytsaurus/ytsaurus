@@ -15,22 +15,22 @@ public:
     ~TCoreForwarder();
 
     // Returns true if an error happened, false otherwise.
-    bool Main(const std::vector<Stroka>& args);
+    bool Main(const std::vector<TString>& args);
 
 private:
     int ProcessId_ = 0;
     int UserId_ = 0;
-    Stroka ExecutableName_;
+    TString ExecutableName_;
     ui64 RLimitCore_ = 0;
-    Stroka JobProxySocketNameDirectory_;
-    Stroka FallbackPath_;
+    TString JobProxySocketNameDirectory_;
+    TString FallbackPath_;
 
-    void ParseArgs(const std::vector<Stroka>& args);
+    void ParseArgs(const std::vector<TString>& args);
 
-    void GuardedMain(const std::vector<Stroka>& args);
+    void GuardedMain(const std::vector<TString>& args);
 
     void WriteCoreToDisk();
-    void ForwardCore(const Stroka& SocketName);
+    void ForwardCore(const TString& SocketName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -193,11 +193,11 @@ private:
 
     TCommandDescriptor Descriptor_;
 
-    Stroka Input_;
+    TString Input_;
     TStringInput SyncInput_;
     IAsyncInputStreamPtr AsyncInput_;
 
-    Stroka Output_;
+    TString Output_;
     TStringOutput SyncOutput_;
     IAsyncOutputStreamPtr AsyncOutput_;
 

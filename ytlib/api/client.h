@@ -214,13 +214,13 @@ struct TCheckPermissionOptions
 
 struct TCheckPermissionResult
 {
-    TError ToError(const Stroka& user, NYTree::EPermission permission) const;
+    TError ToError(const TString& user, NYTree::EPermission permission) const;
 
     NSecurityClient::ESecurityAction Action;
     NObjectClient::TObjectId ObjectId;
-    TNullable<Stroka> ObjectName;
+    TNullable<TString> ObjectName;
     NSecurityClient::TSubjectId SubjectId;
-    TNullable<Stroka> SubjectName;
+    TNullable<TString> SubjectName;
 };
 
 // TODO(lukyan): Use TTransactionalOptions as base class
@@ -349,7 +349,7 @@ struct TGetNodeOptions
 {
     // XXX(sandello): This one is used only in ProfileManager to pass `from_time`.
     std::shared_ptr<const NYTree::IAttributeDictionary> Options;
-    TNullable<std::vector<Stroka>> Attributes;
+    TNullable<std::vector<TString>> Attributes;
     TNullable<i64> MaxSize;
 };
 
@@ -377,7 +377,7 @@ struct TListNodeOptions
     , public TSuppressableAccessTrackingOptions
     , public TPrerequisiteOptions
 {
-    TNullable<std::vector<Stroka>> Attributes;
+    TNullable<std::vector<TString>> Attributes;
     TNullable<i64> MaxSize;
 };
 
@@ -405,8 +405,8 @@ struct TLockNodeOptions
     , public TPrerequisiteOptions
 {
     bool Waitable = false;
-    TNullable<Stroka> ChildKey;
-    TNullable<Stroka> AttributeKey;
+    TNullable<TString> ChildKey;
+    TNullable<TString> AttributeKey;
 };
 
 struct TLockNodeResult
@@ -519,7 +519,7 @@ struct TStartOperationOptions
 struct TAbortOperationOptions
     : public TTimeoutOptions
 {
-    TNullable<Stroka> AbortMessage;
+    TNullable<TString> AbortMessage;
 };
 
 struct TSuspendOperationOptions
@@ -630,12 +630,12 @@ struct TJob
     NJobTrackerClient::EJobState JobState;
     TInstant StartTime;
     TNullable<TInstant> FinishTime;
-    Stroka Address;
+    TString Address;
     NYson::TYsonString Error;
     NYson::TYsonString Statistics;
     TNullable<ui64> StderrSize;
     TNullable<double> Progress;
-    TNullable<Stroka> CoreInfos;
+    TNullable<TString> CoreInfos;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -673,7 +673,7 @@ struct IClientBase
         const TVersionedLookupRowsOptions& options = TVersionedLookupRowsOptions()) = 0;
 
     virtual TFuture<TSelectRowsResult> SelectRows(
-        const Stroka& query,
+        const TString& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
     // TODO(babenko): batch read and batch write
@@ -847,17 +847,17 @@ struct IClient
 
     // Security
     virtual TFuture<void> AddMember(
-        const Stroka& group,
-        const Stroka& member,
+        const TString& group,
+        const TString& member,
         const TAddMemberOptions& options = TAddMemberOptions()) = 0;
 
     virtual TFuture<void> RemoveMember(
-        const Stroka& group,
-        const Stroka& member,
+        const TString& group,
+        const TString& member,
         const TRemoveMemberOptions& options = TRemoveMemberOptions()) = 0;
 
     virtual TFuture<TCheckPermissionResult> CheckPermission(
-        const Stroka& user,
+        const TString& user,
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options = TCheckPermissionOptions()) = 0;
@@ -910,7 +910,7 @@ struct IClient
 
     virtual TFuture<void> SignalJob(
         const NJobTrackerClient::TJobId& jobId,
-        const Stroka& signalName,
+        const TString& signalName,
         const TSignalJobOptions& options = TSignalJobOptions()) = 0;
 
     virtual TFuture<void> AbandonJob(

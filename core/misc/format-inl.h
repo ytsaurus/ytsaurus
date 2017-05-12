@@ -110,8 +110,8 @@ inline void FormatValue(TStringBuilder* builder, const TStringBuf& value, const 
     }
 }
 
-// Stroka
-inline void FormatValue(TStringBuilder* builder, const Stroka& value, const TStringBuf& format)
+// TString
+inline void FormatValue(TStringBuilder* builder, const TString& value, const TStringBuf& format)
 {
     FormatValue(builder, TStringBuf(value), format);
 }
@@ -618,7 +618,7 @@ void Format(
 }
 
 template <class... TArgs>
-Stroka Format(
+TString Format(
     const char* format,
     const TArgs&... args)
 {

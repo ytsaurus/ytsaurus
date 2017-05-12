@@ -36,7 +36,7 @@ public:
     }
 
     //! Creates a non-owning TRef for a given string.
-    static TRef FromString(const Stroka& str)
+    static TRef FromString(const TString& str)
     {
         return TRef(str.data(), str.length());
     }
@@ -116,7 +116,7 @@ public:
 
     //! Creates a non-owning TMutableRef for a given string.
     //! Ensures that the string is not shared.
-    static TMutableRef FromString(Stroka& str)
+    static TMutableRef FromString(TString& str)
     {
         // NB: begin() invokes CloneIfShared().
         return TMutableRef(str.begin(), str.length());
@@ -174,7 +174,7 @@ public:
     //! Since strings are ref-counted, no data is copied.
     //! The memory is marked with a given tag.
     template <class TTag>
-    static TSharedRef FromString(Stroka str)
+    static TSharedRef FromString(TString str)
     {
         return FromString(std::move(str), GetRefCountedTypeCookie<TTag>());
     }
@@ -182,7 +182,7 @@ public:
     //! Creates a TSharedRef from a string.
     //! Since strings are ref-counted, no data is copied.
     //! The memory is marked with TDefaultSharedBlobTag.
-    static TSharedRef FromString(Stroka str)
+    static TSharedRef FromString(TString str)
     {
         return FromString<TDefaultSharedBlobTag>(std::move(str));
     }
@@ -190,7 +190,7 @@ public:
     //! Creates a TSharedRef reference from a string.
     //! Since strings are ref-counted, no data is copied.
     //! The memory is marked with a given tag.
-    static TSharedRef FromString(Stroka str, TRefCountedTypeCookie tagCookie)
+    static TSharedRef FromString(TString str, TRefCountedTypeCookie tagCookie)
     {
         auto ref = TRef::FromString(str);
         auto holder = New<TStringHolder>(std::move(str), tagCookie);
@@ -270,11 +270,11 @@ private:
         : public TIntrinsicRefCounted
     {
     public:
-        TStringHolder(Stroka&& string, TRefCountedTypeCookie cookie);
+        TStringHolder(TString&& string, TRefCountedTypeCookie cookie);
         ~TStringHolder();
 
     private:
-        const Stroka String_;
+        const TString String_;
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
         const TRefCountedTypeCookie Cookie_;
 #endif
@@ -479,10 +479,10 @@ inline const TSharedRef* end(const TSharedRefArray& array)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TRef& ref);
-Stroka ToString(const TMutableRef& ref);
-Stroka ToString(const TSharedRef& ref);
-Stroka ToString(const TSharedMutableRef& ref);
+TString ToString(const TRef& ref);
+TString ToString(const TMutableRef& ref);
+TString ToString(const TSharedRef& ref);
+TString ToString(const TSharedMutableRef& ref);
 
 size_t GetPageSize();
 size_t RoundUpToPage(size_t bytes);

@@ -27,11 +27,11 @@ DEFINE_REFCOUNTED_TYPE(IShellManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 IShellManagerPtr CreateShellManager(
-    const Stroka& workingDir,
+    const TString& workingDir,
     TNullable<int> userId,
-    TNullable<Stroka> freezerFullPath,
-    TNullable<Stroka> messageOfTheDay,
-    std::vector<Stroka> environment);
+    TNullable<TString> freezerFullPath,
+    TNullable<TString> messageOfTheDay,
+    std::vector<TString> environment);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -41,7 +41,7 @@ struct IChannel
 {
     //! Returns a textual representation of the channel's endpoint.
     //! Typically used for logging.
-    virtual const Stroka& GetEndpointDescription() const = 0;
+    virtual const TString& GetEndpointDescription() const = 0;
 
     //! Returns the channel's endpoint attributes.
     //! Typically used for constructing errors.
@@ -78,7 +78,7 @@ DEFINE_REFCOUNTED_TYPE(IChannel)
 struct IChannelFactory
     : public virtual TRefCounted
 {
-    virtual IChannelPtr CreateChannel(const Stroka& address) = 0;
+    virtual IChannelPtr CreateChannel(const TString& address) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChannelFactory)

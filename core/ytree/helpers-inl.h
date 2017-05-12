@@ -13,7 +13,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-T IAttributeDictionary::Get(const Stroka& key) const
+T IAttributeDictionary::Get(const TString& key) const
 {
     auto yson = GetYson(key);
     try {
@@ -26,7 +26,7 @@ T IAttributeDictionary::Get(const Stroka& key) const
 }
 
 template <class T>
-T IAttributeDictionary::GetAndRemove(const Stroka& key)
+T IAttributeDictionary::GetAndRemove(const TString& key)
 {
     auto result = Get<T>(key);
     Remove(key);
@@ -34,13 +34,13 @@ T IAttributeDictionary::GetAndRemove(const Stroka& key)
 }
 
 template <class T>
-T IAttributeDictionary::Get(const Stroka& key, const T& defaultValue) const
+T IAttributeDictionary::Get(const TString& key, const T& defaultValue) const
 {
     return Find<T>(key).Get(defaultValue);
 }
 
 template <class T>
-T IAttributeDictionary::GetAndRemove(const Stroka& key, const T& defaultValue)
+T IAttributeDictionary::GetAndRemove(const TString& key, const T& defaultValue)
 {
     auto result = Find<T>(key);
     if (result) {
@@ -52,7 +52,7 @@ T IAttributeDictionary::GetAndRemove(const Stroka& key, const T& defaultValue)
 }
 
 template <class T>
-typename TNullableTraits<T>::TNullableType IAttributeDictionary::Find(const Stroka& key) const
+typename TNullableTraits<T>::TNullableType IAttributeDictionary::Find(const TString& key) const
 {
     auto yson = FindYson(key);
     if (!yson) {
@@ -68,7 +68,7 @@ typename TNullableTraits<T>::TNullableType IAttributeDictionary::Find(const Stro
 }
 
 template <class T>
-typename TNullableTraits<T>::TNullableType IAttributeDictionary::FindAndRemove(const Stroka& key)
+typename TNullableTraits<T>::TNullableType IAttributeDictionary::FindAndRemove(const TString& key)
 {
     auto result = Find<T>(key);
     if (result) {
@@ -78,7 +78,7 @@ typename TNullableTraits<T>::TNullableType IAttributeDictionary::FindAndRemove(c
 }
 
 template <class T>
-void IAttributeDictionary::Set(const Stroka& key, const T& value)
+void IAttributeDictionary::Set(const TString& key, const T& value)
 {
     auto yson = ConvertToYsonString(value, NYson::EYsonFormat::Binary);
     SetYson(key, yson);

@@ -78,7 +78,7 @@ void TResourceTracker::EnqueueCpuUsage()
     if (timeDelta == 0)
         return;
 
-    Stroka procPath("/proc/self/task");
+    TString procPath("/proc/self/task");
 
     TDirsList dirsList;
     try {
@@ -88,13 +88,13 @@ void TResourceTracker::EnqueueCpuUsage()
         return;
     }
 
-    std::unordered_map<Stroka, std::pair<i64, i64>> threadStats;
+    std::unordered_map<TString, std::pair<i64, i64>> threadStats;
 
     for (int index = 0; index < dirsList.Size(); ++index) {
         auto threadStatPath = NFS::CombinePaths(procPath, dirsList.Next());
         auto cpuStatPath = NFS::CombinePaths(threadStatPath, "stat");
 
-        std::vector<Stroka> fields;
+        std::vector<TString> fields;
         try {
             TIFStream cpuStatFile(cpuStatPath);
             fields = splitStroku(cpuStatFile.ReadLine(), " ");

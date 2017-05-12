@@ -39,7 +39,7 @@ public:
         virtual void SetDefaults() = 0;
         virtual void Save(NYson::IYsonConsumer* consumer) const = 0;
         virtual bool HasValue() const = 0;
-        virtual const std::vector<Stroka>& GetAliases() const = 0;
+        virtual const std::vector<TString>& GetAliases() const = 0;
     };
 
     typedef TIntrusivePtr<IParameter> IParameterPtr;
@@ -59,7 +59,7 @@ public:
         virtual void SetDefaults() override;
         virtual void Save(NYson::IYsonConsumer* consumer) const override;
         virtual bool HasValue() const override;
-        virtual const std::vector<Stroka>& GetAliases() const override;
+        virtual const std::vector<TString>& GetAliases() const override;
 
     public:
         TParameter& Describe(const char* description);
@@ -73,7 +73,7 @@ public:
         TParameter& LessThanOrEqual(TValueType value);
         TParameter& InRange(TValueType lowerBound, TValueType upperBound);
         TParameter& NonEmpty();
-        TParameter& Alias(const Stroka& name);
+        TParameter& Alias(const TString& name);
         TParameter& MergeBy(EMergeStrategy strategy);
 
     private:
@@ -81,7 +81,7 @@ public:
         const char* Description;
         TNullable<T> DefaultValue;
         std::vector<TValidator> Validators;
-        std::vector<Stroka> Aliases;
+        std::vector<TString> Aliases;
         EMergeStrategy MergeStrategy;
     };
 
@@ -104,14 +104,14 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, KeepOptions);
     NYTree::IMapNodePtr GetOptions() const;
 
-    std::vector<Stroka> GetRegisteredKeys() const;
+    std::vector<TString> GetRegisteredKeys() const;
 
 protected:
     virtual void OnLoaded();
 
     template <class T>
     TParameter<T>& RegisterParameter(
-        const Stroka& parameterName,
+        const TString& parameterName,
         T& value);
 
     void RegisterInitializer(const TInitializer& func);
@@ -121,7 +121,7 @@ private:
     template <class T>
     friend class TParameter;
 
-    std::unordered_map<Stroka, IParameterPtr> Parameters;
+    std::unordered_map<TString, IParameterPtr> Parameters;
     NYTree::IMapNodePtr Options;
 
     std::vector<TInitializer> Initializers;

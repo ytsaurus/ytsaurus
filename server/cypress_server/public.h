@@ -46,7 +46,7 @@ class TListNode;
 
 template <class T>
 class TScalarNode;
-using TStringNode  = TScalarNode<Stroka>;
+using TStringNode  = TScalarNode<TString>;
 using TInt64Node   = TScalarNode<i64>;
 using TUint64Node  = TScalarNode<ui64>;
 using TDoubleNode  = TScalarNode<double>;
@@ -54,7 +54,7 @@ using TBooleanNode = TScalarNode<bool>;
 
 template <class T>
 class TScalarNodeTypeHandler;
-using TStringNodeTypeHandler = TScalarNodeTypeHandler<Stroka>;
+using TStringNodeTypeHandler = TScalarNodeTypeHandler<TString>;
 using TInt64NodeTypeHandler = TScalarNodeTypeHandler<i64>;
 using TUint64NodeTypeHandler = TScalarNodeTypeHandler<ui64>;
 using TDoubleNodeTypeHandler = TScalarNodeTypeHandler<double>;

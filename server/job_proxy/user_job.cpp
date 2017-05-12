@@ -120,8 +120,8 @@ using NChunkClient::TDataSliceDescriptor;
 #ifdef _unix_
 
 static const int JobStatisticsFD = 5;
-static Stroka CGroupBase = "user_jobs";
-static Stroka CGroupPrefix = CGroupBase + "/yt-job-";
+static TString CGroupBase = "user_jobs";
+static TString CGroupPrefix = CGroupBase + "/yt-job-";
 
 static const size_t BufferSize = (size_t) 1024 * 1024;
 
@@ -131,20 +131,20 @@ static TNullOutput NullOutput;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static Stroka CreateNamedPipePath()
+static TString CreateNamedPipePath()
 {
-    const Stroka& name = CreateGuidAsString();
+    const TString& name = CreateGuidAsString();
     return NFS::GetRealPath(NFS::CombinePaths("./pipes", name));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka& GetCGroupUserJobBase()
+const TString& GetCGroupUserJobBase()
 {
     return CGroupBase;
 }
 
-const Stroka& GetCGroupUserJobPrefix()
+const TString& GetCGroupUserJobPrefix()
 {
     return CGroupPrefix;
 }
@@ -374,13 +374,13 @@ private:
     const TJobProxyConfigPtr Config_;
     const NScheduler::TJobIOConfigPtr JobIOConfig_;
 
-    Stroka InputPipePath_;
+    TString InputPipePath_;
 
     TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
     TNullable<int> UserId_;
 
     mutable TPromise<void> JobErrorPromise_;
-    Stroka JobFailMessage_;
+    TString JobFailMessage_;
 
     std::atomic<bool> Prepared_ = { false };
     std::atomic<bool> IsWoodpecker_ = { false };
@@ -427,7 +427,7 @@ private:
 
     TProcessPtr Process_;
     TFuture<void> ProcessFinished_;
-    std::vector<Stroka> Environment_;
+    std::vector<TString> Environment_;
 
     TCpuAccounting CpuAccounting_;
     TBlockIO BlockIO_;
@@ -621,7 +621,7 @@ private:
         return result;
     }
 
-    virtual Stroka GetStderr() override
+    virtual TString GetStderr() override
     {
         ValidatePrepared();
 
@@ -637,7 +637,7 @@ private:
         return JobProberClient_->StraceJob();
     }
 
-    virtual void SignalJob(const Stroka& signalName) override
+    virtual void SignalJob(const TString& signalName) override
     {
         JobProberClient_->SignalJob(signalName);
     }
@@ -990,7 +990,7 @@ private:
         return statistics;
     }
 
-    void OnIOErrorOrFinished(const TError& error, const Stroka& message) {
+    void OnIOErrorOrFinished(const TError& error, const TString& message) {
         if (error.IsOK() || error.FindMatching(NPipes::EErrorCode::Aborted)) {
             return;
         }

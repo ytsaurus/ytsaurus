@@ -14,44 +14,44 @@ using namespace NCompression;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka A("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-const Stroka B("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
-const Stroka Abra("abracadabra");
-const Stroka Bara("barakobama");
-const Stroka Empty("");
-const Stroka FewSymbol("abcde");
+const TString A("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+const TString B("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+const TString Abra("abracadabra");
+const TString Bara("barakobama");
+const TString Empty("");
+const TString FewSymbol("abcde");
 
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnversionedStringColumnTest
-    : public TUnversionedColumnTestBase<Stroka>
+    : public TUnversionedColumnTestBase<TString>
 {
 protected:
-    std::vector<TNullable<Stroka>> CreateDirectDense()
+    std::vector<TNullable<TString>> CreateDirectDense()
     {
         return  {Null, A, B};
     }
 
-    std::vector<TNullable<Stroka>> CreateDictionaryDense()
+    std::vector<TNullable<TString>> CreateDictionaryDense()
     {
         return  {Abra, Bara, Null, Bara, Abra};
     }
 
-    std::vector<TNullable<Stroka>> CreateDirectRle()
+    std::vector<TNullable<TString>> CreateDirectRle()
     {
         // 50 * [B] + Null + 50 * [A]
-        std::vector<TNullable<Stroka>> values;
+        std::vector<TNullable<TString>> values;
         AppendVector(&values, MakeVector(50, B));
         values.push_back(Null);
         AppendVector(&values, MakeVector(50, A));
         return values;
     }
 
-    std::vector<TNullable<Stroka>> CreateDictionaryRle()
+    std::vector<TNullable<TString>> CreateDictionaryRle()
     {
         // [ 50 * [A] + 50 * [B] + Null ] * 10
-        std::vector<TNullable<Stroka>> values;
+        std::vector<TNullable<TString>> values;
         for (int i = 0; i < 10; ++i) {
             AppendVector(&values, MakeVector(50, A));
             AppendVector(&values, MakeVector(50, B));
@@ -120,7 +120,7 @@ TEST_F(TUnversionedStringColumnTest, GetEqualRange)
 
 TEST_F(TUnversionedStringColumnTest, ReadValues)
 {
-    std::vector<TNullable<Stroka>> expectedValues;
+    std::vector<TNullable<TString>> expectedValues;
     AppendVector(&expectedValues, CreateDirectDense());
     AppendVector(&expectedValues, CreateDictionaryDense());
     AppendVector(&expectedValues, CreateDirectRle());

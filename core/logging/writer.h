@@ -99,7 +99,7 @@ class TFileLogWriter final
     : public TStreamLogWriterBase
 {
 public:
-    explicit TFileLogWriter(const Stroka& fileName);
+    explicit TFileLogWriter(const TString& fileName);
     ~TFileLogWriter();
 
     virtual void Reload() override;
@@ -112,7 +112,7 @@ private:
     void Open();
     void Close();
 
-    Stroka FileName_;
+    TString FileName_;
     std::atomic<bool> Disabled_ = {false};
 
     std::unique_ptr<TFile> File_;

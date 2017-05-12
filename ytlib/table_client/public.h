@@ -40,14 +40,14 @@ using NTransactionClient::AsyncLastCommittedTimestamp;
 using NTransactionClient::AllCommittedTimestamp;
 using NTransactionClient::NotPreparedTimestamp;
 
-using TKeyColumns = std::vector<Stroka>;
+using TKeyColumns = std::vector<TString>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Keep values below consistent with https://wiki.yandex-team.ru/yt/userdoc/tables.
 const int TypicalColumnCount = 64;
 const int MaxColumnLockCount = 32;
-extern const Stroka PrimaryLockName;
+extern const TString PrimaryLockName;
 const int MaxColumnNameLength = 256;
 const int MaxColumnLockLength = 256;
 const int MaxColumnGroupLength = 256;
@@ -73,12 +73,12 @@ const int MaxColumnId = 32 * 1024;
 
 const int DefaultPartitionTag = -1;
 
-extern const Stroka SystemColumnNamePrefix;
-extern const Stroka TableIndexColumnName;
-extern const Stroka RowIndexColumnName;
-extern const Stroka RangeIndexColumnName;
-extern const Stroka TabletIndexColumnName;
-extern const Stroka TimestampColumnName;
+extern const TString SystemColumnNamePrefix;
+extern const TString TableIndexColumnName;
+extern const TString RowIndexColumnName;
+extern const TString RangeIndexColumnName;
+extern const TString TabletIndexColumnName;
+extern const TString TimestampColumnName;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -45,15 +45,15 @@ static const char* FailedLocalHostName = "<unknown>";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka BuildServiceAddress(const TStringBuf& hostName, int port)
+TString BuildServiceAddress(const TStringBuf& hostName, int port)
 {
-    return Stroka(hostName) + ":" + ToString(port);
+    return TString(hostName) + ":" + ToString(port);
 }
 
 void ParseServiceAddress(const TStringBuf& address, TStringBuf* hostName, int* port)
 {
     int colonIndex = address.find_last_of(':');
-    if (colonIndex == Stroka::npos) {
+    if (colonIndex == TString::npos) {
         THROW_ERROR_EXCEPTION("Service address %Qv is malformed, <host>:<port> format is expected",
             address);
     }
@@ -177,14 +177,14 @@ socklen_t TNetworkAddress::GetLength() const
 TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& address)
 {
     int closingBracketIndex = address.find(']');
-    if (closingBracketIndex == Stroka::npos || address.empty() || address[0] != '[') {
+    if (closingBracketIndex == TString::npos || address.empty() || address[0] != '[') {
         return TError("Address %Qv is malformed, expected [<addr>]:<port> or [<addr>] format",
             address);
     }
 
     int colonIndex = address.find(':', closingBracketIndex + 1);
     TNullable<int> port;
-    if (colonIndex != Stroka::npos) {
+    if (colonIndex != TString::npos) {
         try {
             port = FromString<int>(address.substr(colonIndex + 1));
         } catch (const std::exception) {
@@ -193,7 +193,7 @@ TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& address)
         }
     }
 
-    auto ipAddress = Stroka(address.substr(1, closingBracketIndex - 1));
+    auto ipAddress = TString(address.substr(1, closingBracketIndex - 1));
     {
         // Try to parse as ipv4.
         struct sockaddr_in sa;
@@ -226,7 +226,7 @@ TNetworkAddress TNetworkAddress::Parse(const TStringBuf& address)
     return TryParse(address).ValueOrThrow();
 }
 
-Stroka ToString(const TNetworkAddress& address, bool withPort)
+TString ToString(const TNetworkAddress& address, bool withPort)
 {
     const auto& sockAddr = address.GetSockAddr();
 
@@ -270,7 +270,7 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
         return "invalid://";
     }
 
-    Stroka result("tcp://");
+    TString result("tcp://");
 
     if (ipv6) {
         result.append('[');
@@ -329,9 +329,9 @@ class TAddressResolver::TImpl
 public:
     void Shutdown();
 
-    TFuture<TNetworkAddress> Resolve(const Stroka& hostName);
+    TFuture<TNetworkAddress> Resolve(const TString& hostName);
 
-    Stroka GetLocalHostName();
+    TString GetLocalHostName();
     bool IsLocalHostNameOK();
 
     bool IsLocalAddress(const TNetworkAddress& address);
@@ -351,7 +351,7 @@ private:
     };
 
     TReaderWriterSpinLock CacheLock_;
-    yhash<Stroka, TCacheEntry> Cache_;
+    yhash<TString, TCacheEntry> Cache_;
 
     std::atomic<bool> HasCachedLocalAddresses_ = {false};
     std::vector<TNetworkAddress> CachedLocalAddresses_;
@@ -361,11 +361,11 @@ private:
 
     bool GetLocalHostNameFailed_ = false;
     TSpinLock CachedLocalHostNameLock_;
-    Stroka CachedLocalHostName_;
+    TString CachedLocalHostName_;
 
 
-    TNetworkAddress DoResolve(const Stroka& hostName);
-    Stroka DoGetLocalHostName();
+    TNetworkAddress DoResolve(const TString& hostName);
+    TString DoGetLocalHostName();
 
     void CheckLocalHostResolution();
 
@@ -381,7 +381,7 @@ void TAddressResolver::TImpl::Shutdown()
     Queue_->Shutdown();
 }
 
-TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const Stroka& hostName)
+TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const TString& hostName)
 {
     // Check if |address| parses into a valid IPv4 or IPv6 address.
     {
@@ -428,7 +428,7 @@ TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const Stroka& hostName
     return runAsyncResolve();
 }
 
-TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName)
+TNetworkAddress TAddressResolver::TImpl::DoResolve(const TString& hostName)
 {
     try {
         addrinfo hints;
@@ -463,7 +463,7 @@ TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName)
         auto duration = timer.GetElapsed();
 
         if (gaiResult != 0) {
-            auto gaiError = TError(Stroka(gai_strerror(gaiResult)))
+            auto gaiError = TError(TString(gai_strerror(gaiResult)))
                 << TErrorAttribute("errno", gaiResult);
             THROW_ERROR_EXCEPTION("Failed to resolve host %v", hostName)
                  << gaiError;
@@ -518,7 +518,7 @@ TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName)
     }
 }
 
-Stroka TAddressResolver::TImpl::GetLocalHostName()
+TString TAddressResolver::TImpl::GetLocalHostName()
 {
     static PER_THREAD int ReenteranceLock = 0;
 
@@ -533,7 +533,7 @@ Stroka TAddressResolver::TImpl::GetLocalHostName()
         }
     }
 
-    Stroka result;
+    TString result;
     try {
         ++ReenteranceLock;
         result = DoGetLocalHostName();
@@ -623,7 +623,7 @@ const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
     return CachedLocalAddresses_;
 }
 
-Stroka TAddressResolver::TImpl::DoGetLocalHostName()
+TString TAddressResolver::TImpl::DoGetLocalHostName()
 {
     char hostName[1024];
     memset(hostName, 0, sizeof (hostName));
@@ -651,7 +651,7 @@ Stroka TAddressResolver::TImpl::DoGetLocalHostName()
 
     if (gaiResult != 0) {
         GetLocalHostNameFailed_ = true;
-        auto gaiError = TError(Stroka(gai_strerror(gaiResult)))
+        auto gaiError = TError(TString(gai_strerror(gaiResult)))
             << TErrorAttribute("errno", gaiResult);
         THROW_ERROR_EXCEPTION("getaddrinfo failed")
             << gaiError;
@@ -666,7 +666,7 @@ Stroka TAddressResolver::TImpl::DoGetLocalHostName()
         if ((currentInfo->ai_family == AF_INET && Config_->EnableIPv4) ||
             (currentInfo->ai_family == AF_INET6 && Config_->EnableIPv6))
         {
-            Stroka fqdn(canonname);
+            TString fqdn(canonname);
             LOG_INFO("Localhost FQDN reported by getaddrinfo: %v", fqdn);
             return fqdn;
         }
@@ -730,12 +730,12 @@ void TAddressResolver::Shutdown()
     Impl_->Shutdown();
 }
 
-TFuture<TNetworkAddress> TAddressResolver::Resolve(const Stroka& address)
+TFuture<TNetworkAddress> TAddressResolver::Resolve(const TString& address)
 {
     return Impl_->Resolve(address);
 }
 
-Stroka TAddressResolver::GetLocalHostName()
+TString TAddressResolver::GetLocalHostName()
 {
     return Impl_->GetLocalHostName();
 }

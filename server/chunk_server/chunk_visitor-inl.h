@@ -63,12 +63,12 @@ private:
     }
 
     template <class T>
-    static Stroka FormatKey(T value, typename TEnumTraits<T>::TType* = 0)
+    static TString FormatKey(T value, typename TEnumTraits<T>::TType* = 0)
     {
         return FormatEnum(value);
     }
 
-    static Stroka FormatKey(NObjectClient::TCellTag value)
+    static TString FormatKey(NObjectClient::TCellTag value)
     {
         return ToString(value);
     }

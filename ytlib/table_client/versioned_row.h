@@ -101,7 +101,7 @@ size_t GetDataWeight(const TVersionedValue& value);
 size_t ReadValue(const char* input, TVersionedValue* value);
 size_t WriteValue(char* output, const TVersionedValue& value);
 
-Stroka ToString(const TVersionedValue& value);
+TString ToString(const TVersionedValue& value);
 
 void Save(TStreamSaveContext& context, const TVersionedValue& value);
 void Load(TStreamLoadContext& context, TVersionedValue& value, TChunkedMemoryPool* pool);
@@ -257,9 +257,9 @@ bool operator == (TVersionedRow lhs, TVersionedRow rhs);
 //! Compares versioned rows for nonequality.
 bool operator != (TVersionedRow lhs, TVersionedRow rhs);
 
-Stroka ToString(TVersionedRow row);
-Stroka ToString(TMutableVersionedRow row);
-Stroka ToString(const TVersionedOwningRow& row);
+TString ToString(TVersionedRow row);
+TString ToString(TMutableVersionedRow row);
+TString ToString(const TVersionedOwningRow& row);
 
 //! Checks that #row is a valid client-side versioned data row. Throws on failure.
 /*!

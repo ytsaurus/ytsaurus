@@ -90,7 +90,7 @@ class TDiskLocationConfig
 {
 public:
     //! Root directory for the location.
-    Stroka Path;
+    TString Path;
 
     //! Minimum size the disk partition must have to make this location usable.
     TNullable<i64> MinDiskSpace;

@@ -121,7 +121,7 @@ protected:
         return GenerateId(EObjectType::Chunk);
     }
 
-    Stroka FormatKey(i64 key)
+    TString FormatKey(i64 key)
     {
         return Format("%05d", key);
     }
@@ -137,7 +137,7 @@ protected:
         ETableChunkFormat version,
         i64 keyRepetitions,         // the number of times that each key is repeated
         i64 chunkRows = 300,        // the number of rows in the chunk
-        const Stroka& ysonRange = Stroka("{lower_limit={};upper_limit={}}"),
+        const TString& ysonRange = TString("{lower_limit={};upper_limit={}}"),
                                     // range for chunk, specified as yson text
         i64 minKey = 10000,         // minimal value of key
         i64 blockRows = 79,         // the number of rows per block
