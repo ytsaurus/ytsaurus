@@ -24,7 +24,7 @@ class TProcess
 {
 public:
     explicit TProcess(
-        const Stroka& path,
+        const TString& path,
         bool copyEnv = true,
         TDuration pollPeriod = TDuration::MilliSeconds(100));
 
@@ -32,9 +32,9 @@ public:
     void AddEnvVar(TStringBuf var);
 
     void AddArguments(std::initializer_list<TStringBuf> args);
-    void AddArguments(const std::vector<Stroka>& args);
+    void AddArguments(const std::vector<TString>& args);
 
-    void SetWorkingDirectory(const Stroka& path);
+    void SetWorkingDirectory(const TString& path);
 
     // File actions are done after fork but before exec.
     void AddCloseFileAction(int fd);
@@ -46,15 +46,15 @@ public:
     TFuture<void> Spawn();
     void Kill(int signal);
 
-    Stroka GetPath() const;
+    TString GetPath() const;
     int GetProcessId() const;
     bool IsStarted() const;
     bool IsFinished() const;
 
-    Stroka GetCommandLine() const;
+    TString GetCommandLine() const;
 
 private:
-    const Stroka Path_;
+    const TString Path_;
     const TDuration PollPeriod_;
 
     int ProcessId_;
@@ -64,16 +64,16 @@ private:
     int MaxSpawnActionFD_ = - 1;
 
     NPipes::TPipe Pipe_;
-    std::vector<Stroka> StringHolders_;
+    std::vector<TString> StringHolders_;
     std::vector<const char*> Args_;
     std::vector<const char*> Env_;
-    Stroka ResolvedPath_;
-    Stroka WorkingDirectory_;
+    TString ResolvedPath_;
+    TString WorkingDirectory_;
 
     struct TSpawnAction
     {
         std::function<bool()> Callback;
-        Stroka ErrorMessage;
+        TString ErrorMessage;
     };
 
     std::vector<TSpawnAction> SpawnActions_;

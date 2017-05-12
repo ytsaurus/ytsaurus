@@ -71,12 +71,12 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka StringFromSharedRef(const TSharedRef& sharedRef)
+TString StringFromSharedRef(const TSharedRef& sharedRef)
 {
-    return Stroka(sharedRef.Begin(), sharedRef.Begin() + sharedRef.Size());
+    return TString(sharedRef.Begin(), sharedRef.Begin() + sharedRef.Size());
 }
 
-TSharedRef SharedRefFromString(const Stroka& s)
+TSharedRef SharedRefFromString(const TString& s)
 {
     return TSharedRef::FromString(s);
 }
@@ -241,7 +241,7 @@ public:
         return CreateTcpBusServer(busConfig);
     }
 
-    IChannelPtr CreateChannel(const Stroka& address = "localhost:2000")
+    IChannelPtr CreateChannel(const TString& address = "localhost:2000")
     {
         auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(address));
         return CreateBusChannel(client);
@@ -533,7 +533,7 @@ public:
         return CreateTcpBusServer(busConfig);
     }
 
-    IChannelPtr CreateChannel(const Stroka& address = "unix_domain")
+    IChannelPtr CreateChannel(const TString& address = "unix_domain")
     {
         auto clientConfig = TTcpBusClientConfig::CreateUnixDomain(address);
         auto client = CreateTcpBusClient(clientConfig);

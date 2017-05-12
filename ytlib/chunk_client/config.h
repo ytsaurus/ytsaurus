@@ -286,7 +286,7 @@ class TRemoteWriterOptions
 {
 public:
     bool AllowAllocatingNewTargetNodes;
-    Stroka MediumName;
+    TString MediumName;
     TPlacementId PlacementId;
 
     TRemoteWriterOptions()
@@ -418,7 +418,7 @@ class TMultiChunkWriterOptions
 {
 public:
     int ReplicationFactor;
-    Stroka Account;
+    TString Account;
     bool ChunksVital;
     bool ChunksMovable;
     bool ValidateResourceUsageIncrease;

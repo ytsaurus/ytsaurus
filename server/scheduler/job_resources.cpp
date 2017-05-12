@@ -94,7 +94,7 @@ void TJobResources::Persist(const TStreamPersistenceContext& context)
     #undef XX
 }
 
-Stroka FormatResourceUsage(
+TString FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits)
 {
@@ -114,7 +114,7 @@ Stroka FormatResourceUsage(
         limits.GetNetwork());
 }
 
-Stroka FormatResources(const TJobResources& resources)
+TString FormatResources(const TJobResources& resources)
 {
     return Format(
         "{UserSlots: %v, Cpu: %v, Memory: %v, Network: %v}",
@@ -124,7 +124,7 @@ Stroka FormatResources(const TJobResources& resources)
         resources.GetNetwork());
 }
 
-Stroka FormatResources(const TExtendedJobResources& resources)
+TString FormatResources(const TExtendedJobResources& resources)
 {
     return Format(
         "{UserSlots: %v, Cpu: %v, JobProxyMemory: %v, UserJobMemory: %v, FootprintMemory: %v, Network: %v}",
@@ -139,7 +139,7 @@ Stroka FormatResources(const TExtendedJobResources& resources)
 void ProfileResources(
     const TProfiler& profiler,
     const TJobResources& resources,
-    const Stroka& prefix,
+    const TString& prefix,
     const TTagIdList& tagIds)
 {
     #define XX(name, Name) profiler.Enqueue(prefix + "/" #name, static_cast<i64>(resources.Get##Name()), EMetricType::Gauge, tagIds);

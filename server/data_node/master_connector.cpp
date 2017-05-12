@@ -86,7 +86,7 @@ static const auto& Logger = DataNodeLogger;
 TMasterConnector::TMasterConnector(
     TDataNodeConfigPtr config,
     const TAddressMap& localAddresses,
-    const std::vector<Stroka>& nodeTags,
+    const std::vector<TString>& nodeTags,
     TBootstrap* bootstrap)
     : Config_(config)
     , LocalAddresses_(localAddresses)
@@ -219,7 +219,7 @@ TNodeDescriptor TMasterConnector::GetLocalDescriptor() const
     return LocalDescriptor_;
 }
 
-int TMasterConnector::MediumIndexFromNameOrThrow(const Stroka& mediumName) const
+int TMasterConnector::MediumIndexFromNameOrThrow(const TString& mediumName) const
 {
     auto it = MediumNameToIndex_.find(mediumName);
     if (it == MediumNameToIndex_.end()) {
@@ -229,7 +229,7 @@ int TMasterConnector::MediumIndexFromNameOrThrow(const Stroka& mediumName) const
     return it->second;
 }
 
-int TMasterConnector::MediumPriorityFromNameOrThrow(const Stroka& mediumName) const
+int TMasterConnector::MediumPriorityFromNameOrThrow(const TString& mediumName) const
 {
     auto it = MediumNameToPriority_.find(mediumName);
     if (it == MediumNameToPriority_.end()) {
@@ -1008,7 +1008,7 @@ IChannelPtr TMasterConnector::GetMasterChannel(TCellTag cellTag)
     return cellDirectory->GetChannel(cellId, EPeerKind::Leader);
 }
 
-void TMasterConnector::UpdateRack(const TNullable<Stroka>& rack)
+void TMasterConnector::UpdateRack(const TNullable<TString>& rack)
 {
     TGuard<TSpinLock> guard(LocalDescriptorLock_);
     LocalDescriptor_ = TNodeDescriptor(
@@ -1017,7 +1017,7 @@ void TMasterConnector::UpdateRack(const TNullable<Stroka>& rack)
         LocalDescriptor_.GetDataCenter());
 }
 
-void TMasterConnector::UpdateDataCenter(const TNullable<Stroka>& dc)
+void TMasterConnector::UpdateDataCenter(const TNullable<TString>& dc)
 {
     TGuard<TSpinLock> guard(LocalDescriptorLock_);
     LocalDescriptor_ = TNodeDescriptor(

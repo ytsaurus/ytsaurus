@@ -33,15 +33,15 @@ protected:
     typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, NYTree::IEntityNode, TTableNode> TBase;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
     void AlterTable(
         const TNullable<NTableClient::TTableSchema>& newSchema,
         const TNullable<bool>& newDynamic);
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const TString& key) override;
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
+    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
     virtual void ValidateCustomAttributeUpdate(
-        const Stroka& key,
+        const TString& key,
         const NYson::TYsonString& oldValue,
         const NYson::TYsonString& newValue) override;
     virtual void ValidateFetchParameters(
@@ -78,7 +78,7 @@ public:
 
 protected:
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
 
 };
 

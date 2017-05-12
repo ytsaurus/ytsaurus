@@ -31,7 +31,7 @@ TStringBuf ConvertToStringBuf(const Bytes& pyString)
     return TStringBuf(stringData, length);
 }
 
-Stroka ConvertStringObjectToStroka(const Object& obj)
+TString ConvertStringObjectToStroka(const Object& obj)
 {
     Object pyString = obj;
     if (!PyBytes_Check(pyString.ptr())) {
@@ -44,10 +44,10 @@ Stroka ConvertStringObjectToStroka(const Object& obj)
     char* stringData;
     Py_ssize_t length;
     PyBytes_AsStringAndSize(pyString.ptr(), &stringData, &length);
-    return Stroka(stringData, length);
+    return TString(stringData, length);
 }
 
-Bytes ConvertToPythonString(const Stroka& string)
+Bytes ConvertToPythonString(const TString& string)
 {
     return Py::Bytes(string.c_str(), string.length());
 }

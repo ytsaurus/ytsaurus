@@ -69,7 +69,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<Stroka>>& attributeKeys,
+        const TNullable<std::vector<TString>>& attributeKeys,
         bool stable) override
     {
         GetTargetProxy()->WriteAttributesFragment(consumer, attributeKeys, stable);
@@ -183,7 +183,7 @@ public:
 private:
     const TBootstrap* Bootstrap_;
 
-    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
+    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         return ToNames(GetValues(tabletManager->TabletCellBundles(), sizeLimit));
@@ -198,7 +198,7 @@ private:
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto* cellBundle = tabletManager->FindTabletCellBundleByName(Stroka(key));
+        auto* cellBundle = tabletManager->FindTabletCellBundleByName(TString(key));
         if (!IsObjectAlive(cellBundle)) {
             return nullptr;
         }

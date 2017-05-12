@@ -120,7 +120,7 @@ void TStderrWriter::DoWrite(const void* buf_, size_t len)
     Tail_->Write(buf, len);
 }
 
-Stroka TStderrWriter::GetCurrentData() const
+TString TStderrWriter::GetCurrentData() const
 {
     TStringStream stringStream;
     stringStream.Reserve(GetCurrentSize());

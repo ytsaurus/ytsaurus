@@ -41,7 +41,7 @@ class TOwningStringInput
     : public TInputStream
 {
 public:
-    explicit TOwningStringInput(const Stroka& string)
+    explicit TOwningStringInput(const TString& string)
         : String_(string)
         , Stream_(String_)
     { }
@@ -52,7 +52,7 @@ private:
         return Stream_.Read(buf, len);
     }
 
-    Stroka String_;
+    TString String_;
     TStringInput Stream_;
 };
 

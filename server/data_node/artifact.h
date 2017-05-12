@@ -28,7 +28,7 @@ struct TArtifactKey
     bool operator == (const TArtifactKey& other) const;
 };
 
-Stroka ToString(const TArtifactKey& key);
+TString ToString(const TArtifactKey& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 

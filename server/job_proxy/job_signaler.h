@@ -13,7 +13,7 @@ struct TJobSignalerArg
     : public NYTree::TYsonSerializable
 {
     std::vector<int> Pids;
-    Stroka SignalName;
+    TString SignalName;
 
     TJobSignalerArg();
 };
@@ -22,7 +22,7 @@ DEFINE_REFCOUNTED_TYPE(TJobSignalerArg)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SendSignal(const std::vector<int>& pids, const Stroka& signalName);
+void SendSignal(const std::vector<int>& pids, const TString& signalName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

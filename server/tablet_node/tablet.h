@@ -180,7 +180,7 @@ class TTableReplicaInfo
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TTableReplicaId, Id);
-    DEFINE_BYVAL_RW_PROPERTY(Stroka, ClusterName);
+    DEFINE_BYVAL_RW_PROPERTY(TString, ClusterName);
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, ReplicaPath);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartReplicationTimestamp, NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTransactionId, PreparedReplicationTransactionId);
@@ -229,7 +229,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, PhysicalSchema);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<int>, ColumnIndexToLockIndex);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, LockIndexToName);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, LockIndexToName);
 
     DEFINE_BYVAL_RO_PROPERTY(TOwningKey, PivotKey);
     DEFINE_BYVAL_RO_PROPERTY(TOwningKey, NextPivotKey);

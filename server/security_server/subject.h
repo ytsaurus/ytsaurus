@@ -19,7 +19,7 @@ class TSubject
     : public NObjectServer::TNonversionedObjectBase
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(Stroka, Name);
+    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
 
     typedef yhash_set<TGroup*> TGroupSet;
     //! Set of groups containing this given subject.

@@ -37,7 +37,7 @@ public:
 
     void Initialize();
 
-    int GetAssignedTabletCellCount(const Stroka& address) const;
+    int GetAssignedTabletCellCount(const TString& address) const;
 
     TTabletStatistics GetTabletStatistics(const TTablet* tablet);
 
@@ -90,9 +90,9 @@ public:
     void DisableTableReplica(TTableReplica* replica);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle);
-    TTabletCellBundle* FindTabletCellBundleByName(const Stroka& name);
-    TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const Stroka& name);
-    void RenameTabletCellBundle(TTabletCellBundle* cellBundle, const Stroka& newName);
+    TTabletCellBundle* FindTabletCellBundleByName(const TString& name);
+    TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const TString& name);
+    void RenameTabletCellBundle(TTabletCellBundle* cellBundle, const TString& newName);
     TTabletCellBundle* GetDefaultTabletCellBundle();
     void SetTabletCellBundle(NTableServer::TTableNode* table, TTabletCellBundle* cellBundle);
 
@@ -118,12 +118,12 @@ private:
     TTabletCell* CreateTabletCell(TTabletCellBundle* cellBundle, const NObjectClient::TObjectId& hintId);
     void DestroyTabletCell(TTabletCell* cell);
 
-    TTabletCellBundle* CreateTabletCellBundle(const Stroka& name, const NObjectClient::TObjectId& hintId);
+    TTabletCellBundle* CreateTabletCellBundle(const TString& name, const NObjectClient::TObjectId& hintId);
     void DestroyTabletCellBundle(TTabletCellBundle* cellBundle);
 
     TTableReplica* CreateTableReplica(
         NTableServer::TReplicatedTableNode* table,
-        const Stroka& clusterName,
+        const TString& clusterName,
         const NYPath::TYPath& replicaPath,
         NTransactionClient::TTimestamp startReplicationTimestamp);
     void DestroyTableReplica(TTableReplica* replica);

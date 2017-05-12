@@ -89,7 +89,7 @@ protected:
     }
 
 
-    Stroka DumpStore()
+    TString DumpStore()
     {
         TStringBuilder builder;
         builder.AppendFormat("RowCount=%v ValueCount=%v\n",

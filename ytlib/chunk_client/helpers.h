@@ -58,9 +58,9 @@ TChunkReplicaList AllocateWriteTargets(
     int desiredTargetCount,
     int minTargetCount,
     TNullable<int> replicationFactorOverride,
-    const Stroka& mediumName,
+    const TString& mediumName,
     bool preferLocalHost,
-    const std::vector<Stroka>& forbiddenAddresses,
+    const std::vector<TString>& forbiddenAddresses,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NLogging::TLogger& logger);
 
@@ -111,7 +111,7 @@ struct TUserObject
 
     virtual ~TUserObject() = default;
 
-    virtual Stroka GetPath() const;
+    virtual TString GetPath() const;
 
     void Persist(const TStreamPersistenceContext& context);
 };

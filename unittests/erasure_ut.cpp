@@ -96,7 +96,7 @@ class TErasureMixture
     : public ::testing::Test
 {
 public:
-    static std::vector<TSharedRef> ToSharedRefs(const std::vector<Stroka>& strings)
+    static std::vector<TSharedRef> ToSharedRefs(const std::vector<TString>& strings)
     {
         std::vector<TSharedRef> refs;
         for (const auto& str : strings) {
@@ -159,7 +159,7 @@ TEST_F(TErasureMixture, WriterTest)
     auto codec = GetCodec(codecId);
 
     // Prepare data
-    std::vector<Stroka> dataStrings = {
+    std::vector<TString> dataStrings = {
         "a",
         "b",
         "",
@@ -172,9 +172,9 @@ TEST_F(TErasureMixture, WriterTest)
     for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
         auto filename = "part" + ToString(i + 1);
         if (i == 0) {
-            EXPECT_EQ(Stroka("ab"), TFileInput("part" + ToString(i + 1)).ReadAll());
+            EXPECT_EQ(TString("ab"), TFileInput("part" + ToString(i + 1)).ReadAll());
         } else if (i == 1) {
-            EXPECT_EQ(Stroka("Hello world"), TFileInput("part" + ToString(i + 1)).ReadAll());
+            EXPECT_EQ(TString("Hello world"), TFileInput("part" + ToString(i + 1)).ReadAll());
         } else if (i < 12) {
             EXPECT_EQ("", TFileInput("part" + ToString(i + 1)).ReadAll());
         } else {
@@ -191,7 +191,7 @@ TEST_F(TErasureMixture, ReaderTest)
     auto codec = GetCodec(codecId);
 
     // Prepare data
-    std::vector<Stroka> dataStrings = {
+    std::vector<TString> dataStrings = {
         "a",
         "b",
         "",
@@ -236,7 +236,7 @@ TEST_F(TErasureMixture, RepairTest1)
     auto codec = GetCodec(codecId);
 
     // Prepare data
-    std::vector<Stroka> dataStrings({"a"});
+    std::vector<TString> dataStrings({"a"});
     auto dataRefs = ToSharedRefs(dataStrings);
 
     WriteErasureChunk(codecId, codec, dataRefs);
@@ -291,7 +291,7 @@ TEST_F(TErasureMixture, RepairTest2)
     auto codec = GetCodec(ECodec::Lrc_12_2_2);
 
     // Prepare data
-    std::vector<Stroka> dataStrings = {
+    std::vector<TString> dataStrings = {
         "a",
         "b",
         "",

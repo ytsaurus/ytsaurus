@@ -77,7 +77,7 @@ TEST(TCheckpointableStreamTest, Checkpoints)
 
 TEST(TCheckpointableStreamTest, Encapsulated)
 {
-    Stroka data("this is a test");
+    TString data("this is a test");
     TStringInput rawInput(data);
     auto encapsulatedInput = EscapsulateAsCheckpointableInputStream(&rawInput);
     auto checkpointableInput = CreateCheckpointableInputStream(encapsulatedInput.get());

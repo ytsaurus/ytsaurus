@@ -32,7 +32,7 @@ static const auto& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka GetSlotProcessGroup(int slotIndex)
+TString GetSlotProcessGroup(int slotIndex)
 {
     return "slots/" + ToString(slotIndex);
 }
@@ -50,7 +50,7 @@ public:
 
     virtual TFuture<void> RunJobProxy(
         int slotIndex,
-        const Stroka& workingDirectory,
+        const TString& workingDirectory,
         const TJobId& jobId,
         const TOperationId& operationId) override
     {
@@ -235,9 +235,9 @@ private:
         }
     }
 
-    std::vector<Stroka> GetCGroupPaths(int slotIndex) const
+    std::vector<TString> GetCGroupPaths(int slotIndex) const
     {
-        std::vector<Stroka> result;
+        std::vector<TString> result;
         auto subgroupName = GetSlotProcessGroup(slotIndex);
 
         // Freezer is always implicitly supported.

@@ -54,7 +54,7 @@ public:
         TTransactionManagerConfigPtr config,
         const TCellId& primaryCellId,
         IChannelPtr masterChannel,
-        const Stroka& user,
+        const TString& user,
         ITimestampProviderPtr timestampProvider,
         TCellDirectoryPtr cellDirectory);
 
@@ -74,7 +74,7 @@ private:
     const TTransactionManagerConfigPtr Config_;
     const TCellId PrimaryCellId_;
     const IChannelPtr MasterChannel_;
-    const Stroka User_;
+    const TString User_;
     const ITimestampProviderPtr TimestampProvider_;
     const TCellDirectoryPtr CellDirectory_;
 
@@ -552,7 +552,7 @@ private:
         auto attributes = options.Attributes
             ? options.Attributes->Clone()
             : CreateEphemeralAttributes();
-        auto maybeTitle = attributes->FindAndRemove<Stroka>("title");
+        auto maybeTitle = attributes->FindAndRemove<TString>("title");
         if (maybeTitle) {
             req->set_title(*maybeTitle);
         }
@@ -940,7 +940,7 @@ TTransactionManager::TImpl::TImpl(
     TTransactionManagerConfigPtr config,
     const TCellId& primaryCellId,
     IChannelPtr masterChannel,
-    const Stroka& user,
+    const TString& user,
     ITimestampProviderPtr timestampProvider,
     TCellDirectoryPtr cellDirectory)
     : Config_(config)
@@ -1081,7 +1081,7 @@ TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
     const TCellId& primaryCellId,
     IChannelPtr masterChannel,
-    const Stroka& user,
+    const TString& user,
     ITimestampProviderPtr timestampProvider,
     TCellDirectoryPtr cellDirectory)
     : Impl_(New<TImpl>(

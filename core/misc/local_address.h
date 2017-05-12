@@ -32,8 +32,8 @@ void WriteLocalHostName(const char* data, size_t length) noexcept;
 
 // Get* & Set* wrap Read* & Write* for more convenient usage.
 // The price is -- a dynamically allocated string.
-Stroka GetLocalHostName();
-void SetLocalHostName(const Stroka& hostname);
+TString GetLocalHostName();
+void SetLocalHostName(const TString& hostname);
 
 // Update* function interacts with the system to determine actual hostname
 // of the local machine (by calling `gethostname` and `getaddrinfo`).

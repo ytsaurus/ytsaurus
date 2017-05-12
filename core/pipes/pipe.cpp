@@ -18,7 +18,7 @@ static const auto& Logger = PipesLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNamedPipe::TNamedPipe(const Stroka& path)
+TNamedPipe::TNamedPipe(const TString& path)
     : Path_(path)
 { }
 
@@ -29,7 +29,7 @@ TNamedPipe::~TNamedPipe()
     }
 }
 
-TNamedPipePtr TNamedPipe::Create(const Stroka& path)
+TNamedPipePtr TNamedPipe::Create(const TString& path)
 {
     auto pipe = New<TNamedPipe>(path);
     pipe->Open();
@@ -56,7 +56,7 @@ TAsyncWriterPtr TNamedPipe::CreateAsyncWriter()
     return New<TAsyncWriter>(MakeStrong(this));
 }
 
-Stroka TNamedPipe::GetPath() const
+TString TNamedPipe::GetPath() const
 {
     return Path_;
 }
@@ -168,7 +168,7 @@ void TPipe::CloseWriteFD()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TPipe& pipe)
+TString ToString(const TPipe& pipe)
 {
     return Format("{ReadFD: %v, WriteFD: %v}",
         pipe.GetReadFD(),

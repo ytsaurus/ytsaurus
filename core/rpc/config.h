@@ -15,7 +15,7 @@ class TServerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    yhash<Stroka, NYTree::INodePtr> Services;
+    yhash<TString, NYTree::INodePtr> Services;
 
     TServerConfig()
     {
@@ -32,7 +32,7 @@ class TServiceConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    yhash<Stroka, TMethodConfigPtr> Methods;
+    yhash<TString, TMethodConfigPtr> Methods;
 
     TServiceConfig()
     {
@@ -136,7 +136,7 @@ class TBalancingChannelConfig
 {
 public:
     //! List of seed addresses.
-    std::vector<Stroka> Addresses;
+    std::vector<TString> Addresses;
 
     //! Maximum number of peers to query in parallel when locating alive endpoint.
     int MaxConcurrentDiscoverRequests;

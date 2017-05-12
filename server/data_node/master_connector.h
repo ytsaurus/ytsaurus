@@ -55,7 +55,7 @@ public:
     TMasterConnector(
         TDataNodeConfigPtr config,
         const NNodeTrackerClient::TAddressMap& localAddresses,
-        const std::vector<Stroka>& nodeTags,
+        const std::vector<TString>& nodeTags,
         NCellNode::TBootstrap* bootstrap);
 
     //! Starts interaction with master.
@@ -110,11 +110,11 @@ private:
 
     const TDataNodeConfigPtr Config_;
     const NNodeTrackerClient::TAddressMap LocalAddresses_;
-    const std::vector<Stroka> NodeTags_;
+    const std::vector<TString> NodeTags_;
     const NCellNode::TBootstrap* Bootstrap_;
     const IInvokerPtr ControlInvoker_;
-    yhash<Stroka, int> MediumNameToIndex_;
-    yhash<Stroka, int> MediumNameToPriority_;
+    yhash<TString, int> MediumNameToIndex_;
+    yhash<TString, int> MediumNameToPriority_;
 
     bool Started_ = false;
 
@@ -195,8 +195,8 @@ private:
     // A part of #RegisterAtMaster()'s implementation.
     void SetMediumNameAndIndexMapping(const NNodeTrackerClient::NProto::TRspRegisterNode& rsp);
 
-    int MediumIndexFromNameOrThrow(const Stroka& mediumName) const;
-    int MediumPriorityFromNameOrThrow(const Stroka& mediumName) const;
+    int MediumIndexFromNameOrThrow(const TString& mediumName) const;
+    int MediumPriorityFromNameOrThrow(const TString& mediumName) const;
 
     // A part of #SendIncrementalNodeHeartbeat()'s implementation.
     void UpdateMediumPriorities(const NNodeTrackerClient::NProto::TRspIncrementalHeartbeat& rsp);
@@ -266,10 +266,10 @@ private:
     NRpc::IChannelPtr GetMasterChannel(NObjectClient::TCellTag cellTag);
 
     //! Updates the rack of the local node.
-    void UpdateRack(const TNullable<Stroka>& rack);
+    void UpdateRack(const TNullable<TString>& rack);
 
     //! Updates the data center of the local node.
-    void UpdateDataCenter(const TNullable<Stroka>& dc);
+    void UpdateDataCenter(const TNullable<TString>& dc);
 
     TChunksDelta* GetChunksDelta(NObjectClient::TCellTag cellTag);
     TChunksDelta* GetChunksDelta(const NObjectClient::TObjectId& id);

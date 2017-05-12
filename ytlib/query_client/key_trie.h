@@ -95,7 +95,7 @@ TMutableRowRanges GetRangesFromTrieWithinRange(
     bool insertUndefined = false,
     ui64 rangeCountLimit = std::numeric_limits<ui64>::max());
 
-Stroka ToString(TKeyTriePtr node);
+TString ToString(TKeyTriePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

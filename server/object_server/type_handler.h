@@ -58,7 +58,7 @@ struct IObjectTypeHandler
     virtual EObjectType GetType() const = 0;
 
     //! Returns a human-readable object name.
-    virtual Stroka GetName(const TObjectBase* object) = 0;
+    virtual TString GetName(const TObjectBase* object) = 0;
 
     //! Finds object by id, returns |nullptr| if nothing is found.
     virtual TObjectBase* FindObject(const TObjectId& id) = 0;

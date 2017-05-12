@@ -42,7 +42,7 @@ protected:
         ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
     }
 
-    std::vector<TKeyRange> Coordinate(const Stroka& source, ui64 rangeExpansionLimit = 1000)
+    std::vector<TKeyRange> Coordinate(const TString& source, ui64 rangeExpansionLimit = 1000)
     {
         TQueryPtr query;
         TDataRanges dataSource;
@@ -68,7 +68,7 @@ protected:
         return GetRangesFromSources(prunedSplits);
     }
 
-    std::vector<TKeyRange> CoordinateForeign(const Stroka& source)
+    std::vector<TKeyRange> CoordinateForeign(const TString& source)
     {
         TQueryPtr query;
         TDataRanges dataSource;
@@ -118,7 +118,7 @@ private:
         TTableSchema tableSchema({
             TColumnSchema("k", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(Stroka("l * 2")),
+                .SetExpression(TString("l * 2")),
             TColumnSchema("l", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("m", EValueType::Int64)
@@ -166,7 +166,7 @@ private:
 
 TEST_F(TComputedColumnTest, NoKeyColumnsInPredicate)
 {
-    auto query = Stroka("k from [//t] where a = 10");
+    auto query = TString("k from [//t] where a = 10");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1, result.size());
@@ -177,7 +177,7 @@ TEST_F(TComputedColumnTest, NoKeyColumnsInPredicate)
 
 TEST_F(TComputedColumnTest, Simple)
 {
-    auto query = Stroka("a from [//t] where l = 10");
+    auto query = TString("a from [//t] where l = 10");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1, result.size());
@@ -188,7 +188,7 @@ TEST_F(TComputedColumnTest, Simple)
 
 TEST_F(TComputedColumnTest, Inequality)
 {
-    auto query = Stroka("a from [//t] where l < 10");
+    auto query = TString("a from [//t] where l < 10");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1, result.size());
@@ -199,7 +199,7 @@ TEST_F(TComputedColumnTest, Inequality)
 
 TEST_F(TComputedColumnTest, Composite)
 {
-    auto query = Stroka("a from [//t] where l = 10 and m > 0 and m < 50");
+    auto query = TString("a from [//t] where l = 10 and m > 0 and m < 50");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1, result.size());
@@ -210,7 +210,7 @@ TEST_F(TComputedColumnTest, Composite)
 
 TEST_F(TComputedColumnTest, Vector)
 {
-    auto query = Stroka("a from [//t] where l in (1,2,3)");
+    auto query = TString("a from [//t] where l in (1,2,3)");
     auto result = Coordinate(query);
 
     EXPECT_EQ(3, result.size());
@@ -225,7 +225,7 @@ TEST_F(TComputedColumnTest, Vector)
 
 TEST_F(TComputedColumnTest, ComputedKeyInPredicate)
 {
-    auto query = Stroka("a from [//t] where (k,l) >= (10,20) ");
+    auto query = TString("a from [//t] where (k,l) >= (10,20) ");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1, result.size());
@@ -241,13 +241,13 @@ TEST_F(TComputedColumnTest, ComputedColumnLast)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("k + 3")),
+            .SetExpression(TString("k + 3")),
         TColumnSchema("a", EValueType::Int64),
     });
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where k = 10");
+    auto query = TString("a from [//t] where k = 10");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1, result.size());
@@ -263,10 +263,10 @@ TEST_F(TComputedColumnTest, Complex1)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("n + 1")),
+            .SetExpression(TString("n + 1")),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("o + 2")),
+            .SetExpression(TString("o + 2")),
         TColumnSchema("n", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("o", EValueType::Int64)
@@ -276,7 +276,7 @@ TEST_F(TComputedColumnTest, Complex1)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where k = 10 and n = 20");
+    auto query = TString("a from [//t] where k = 10 and n = 20");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1, result.size());
@@ -292,10 +292,10 @@ TEST_F(TComputedColumnTest, Complex2)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("n + 1")),
+            .SetExpression(TString("n + 1")),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("o + 2")),
+            .SetExpression(TString("o + 2")),
         TColumnSchema("n", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("o", EValueType::Int64)
@@ -305,7 +305,7 @@ TEST_F(TComputedColumnTest, Complex2)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where (k,n) in ((10,20),(50,60))");
+    auto query = TString("a from [//t] where (k,n) in ((10,20),(50,60))");
     auto result = Coordinate(query);
 
     EXPECT_EQ(2, result.size());
@@ -323,10 +323,10 @@ TEST_F(TComputedColumnTest, Complex3)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("o + 1")),
+            .SetExpression(TString("o + 1")),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("o + 2")),
+            .SetExpression(TString("o + 2")),
         TColumnSchema("n", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("o", EValueType::Int64)
@@ -336,7 +336,7 @@ TEST_F(TComputedColumnTest, Complex3)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where k = 10 and n = 20");
+    auto query = TString("a from [//t] where k = 10 and n = 20");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1, result.size());
@@ -350,7 +350,7 @@ TEST_F(TComputedColumnTest, Far0)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("l + 1")),
+            .SetExpression(TString("l + 1")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -360,7 +360,7 @@ TEST_F(TComputedColumnTest, Far0)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where m = 10");
+    auto query = TString("a from [//t] where m = 10");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1, result.size());
@@ -374,7 +374,7 @@ TEST_F(TComputedColumnTest, Far1)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("m + 1")),
+            .SetExpression(TString("m + 1")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -384,7 +384,7 @@ TEST_F(TComputedColumnTest, Far1)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where m = 10");
+    auto query = TString("a from [//t] where m = 10");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1, result.size());
@@ -398,7 +398,7 @@ TEST_F(TComputedColumnTest, Far2)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("n + 1")),
+            .SetExpression(TString("n + 1")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -410,7 +410,7 @@ TEST_F(TComputedColumnTest, Far2)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where n = 10 and l = 20");
+    auto query = TString("a from [//t] where n = 10 and l = 20");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1, result.size());
@@ -424,7 +424,7 @@ TEST_F(TComputedColumnTest, Far3)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("n + 1")),
+            .SetExpression(TString("n + 1")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -436,7 +436,7 @@ TEST_F(TComputedColumnTest, Far3)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where (n,l) in ((10,20), (30,40))");
+    auto query = TString("a from [//t] where (n,l) in ((10,20), (30,40))");
     auto result = Coordinate(query);
 
     EXPECT_EQ(2, result.size());
@@ -452,7 +452,7 @@ TEST_F(TComputedColumnTest, Far4)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("n + 1")),
+            .SetExpression(TString("n + 1")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -464,7 +464,7 @@ TEST_F(TComputedColumnTest, Far4)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where n in (10,30) and l in (20,40)");
+    auto query = TString("a from [//t] where n in (10,30) and l in (20,40)");
     auto result = Coordinate(query);
 
     EXPECT_EQ(4, result.size());
@@ -491,7 +491,7 @@ TEST_F(TComputedColumnTest, NoComputedColumns)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where a = 0");
+    auto query = TString("a from [//t] where a = 0");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1, result.size());
@@ -505,7 +505,7 @@ TEST_F(TComputedColumnTest, Modulo0)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("l % 2")),
+            .SetExpression(TString("l % 2")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -513,7 +513,7 @@ TEST_F(TComputedColumnTest, Modulo0)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where a = 0");
+    auto query = TString("a from [//t] where a = 0");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1, result.size());
@@ -527,7 +527,7 @@ TEST_F(TComputedColumnTest, Modulo1)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("l % 2")),
+            .SetExpression(TString("l % 2")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -535,7 +535,7 @@ TEST_F(TComputedColumnTest, Modulo1)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where l > 0 and l <= 2000");
+    auto query = TString("a from [//t] where l > 0 and l <= 2000");
     auto result = Coordinate(query);
 
     EXPECT_EQ(4, result.size());
@@ -555,10 +555,10 @@ TEST_F(TComputedColumnTest, Modulo2)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("n % 1u")),
+            .SetExpression(TString("n % 1u")),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("n % 1u")),
+            .SetExpression(TString("n % 1u")),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("n", EValueType::Uint64)
@@ -568,7 +568,7 @@ TEST_F(TComputedColumnTest, Modulo2)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where m = 1");
+    auto query = TString("a from [//t] where m = 1");
     auto result = Coordinate(query);
 
     EXPECT_EQ(4, result.size());
@@ -588,10 +588,10 @@ TEST_F(TComputedColumnTest, Modulo3)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("m % 1u")),
+            .SetExpression(TString("m % 1u")),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("m % 1u")),
+            .SetExpression(TString("m % 1u")),
         TColumnSchema("m", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -599,7 +599,7 @@ TEST_F(TComputedColumnTest, Modulo3)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t]");
+    auto query = TString("a from [//t]");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1, result.size());
@@ -613,7 +613,7 @@ TEST_F(TComputedColumnTest, Modulo4)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("m % 2")),
+            .SetExpression(TString("m % 2")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -623,7 +623,7 @@ TEST_F(TComputedColumnTest, Modulo4)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where l in (0,1,2)");
+    auto query = TString("a from [//t] where l in (0,1,2)");
     auto result = Coordinate(query, 10);
 
     EXPECT_EQ(4, result.size());
@@ -643,7 +643,7 @@ TEST_F(TComputedColumnTest, Divide1)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("l / 2")),
+            .SetExpression(TString("l / 2")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -651,7 +651,7 @@ TEST_F(TComputedColumnTest, Divide1)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where l >= 3 and l < 6");
+    auto query = TString("a from [//t] where l >= 3 and l < 6");
     auto result = Coordinate(query);
 
     EXPECT_EQ(2, result.size());
@@ -667,10 +667,10 @@ TEST_F(TComputedColumnTest, Divide2)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("m / 3")),
+            .SetExpression(TString("m / 3")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("m / 4")),
+            .SetExpression(TString("m / 4")),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -678,7 +678,7 @@ TEST_F(TComputedColumnTest, Divide2)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where m > 0 and m <= 6");
+    auto query = TString("a from [//t] where m > 0 and m <= 6");
     auto result = Coordinate(query);
 
     EXPECT_EQ(4, result.size());
@@ -698,10 +698,10 @@ TEST_F(TComputedColumnTest, Divide3)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("m / 2u")),
+            .SetExpression(TString("m / 2u")),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("n % 1u")),
+            .SetExpression(TString("n % 1u")),
         TColumnSchema("m", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("n", EValueType::Uint64)
@@ -711,7 +711,7 @@ TEST_F(TComputedColumnTest, Divide3)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where m >= 0u and m < 3u");
+    auto query = TString("a from [//t] where m >= 0u and m < 3u");
     auto result = Coordinate(query);
 
     EXPECT_EQ(4, result.size());
@@ -731,7 +731,7 @@ TEST_F(TComputedColumnTest, Divide4)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("l / -9223372036854775808")),
+            .SetExpression(TString("l / -9223372036854775808")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -739,7 +739,7 @@ TEST_F(TComputedColumnTest, Divide4)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where l >= -9223372036854775808 and l <= 9223372036854775807");
+    auto query = TString("a from [//t] where l >= -9223372036854775808 and l <= 9223372036854775807");
     auto result = Coordinate(query);
 
     EXPECT_EQ(2, result.size());
@@ -755,7 +755,7 @@ TEST_F(TComputedColumnTest, FarDivide1)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("m / 2")),
+            .SetExpression(TString("m / 2")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -765,7 +765,7 @@ TEST_F(TComputedColumnTest, FarDivide1)
 
     SetSchema(tableSchema);
 
-    auto query = Stroka("a from [//t] where m >= 3 and m < 5");
+    auto query = TString("a from [//t] where m >= 3 and m < 5");
     auto result = Coordinate(query);
 
     EXPECT_EQ(2, result.size());
@@ -790,7 +790,7 @@ TEST_P(TComputedColumnTest, Join)
     SetSchema(tableSchema1);
     SetSecondarySchema(tableSchema2);
 
-    auto query = Stroka("l from [//t] join [//t1] using l where l in (0, 1)");
+    auto query = TString("l from [//t] join [//t1] using l where l in (0, 1)");
     auto result = CoordinateForeign(query);
 
     EXPECT_EQ(2, result.size());

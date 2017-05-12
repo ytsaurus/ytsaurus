@@ -104,7 +104,7 @@ public:
             return owner->GetElectionPriority();
         }
 
-        virtual Stroka FormatPriority(TPeerPriority priority) override
+        virtual TString FormatPriority(TPeerPriority priority) override
         {
             auto version = TVersion::FromRevision(priority);
             return ToString(version);

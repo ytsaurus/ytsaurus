@@ -190,7 +190,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
   /// Build a parser object.
-  TParser::TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, const Stroka& source_yyarg)
+  TParser::TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, const TString& source_yyarg)
     :
 #if YT_QL_YYDEBUG
       yydebug_ (false),
@@ -246,7 +246,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 33: // "string literal"
-        value.copy< Stroka > (other.value);
+        value.copy< TString > (other.value);
         break;
 
       case 74: // expression
@@ -349,7 +349,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 33: // "string literal"
-        value.copy< Stroka > (v);
+        value.copy< TString > (v);
         break;
 
       case 74: // expression
@@ -457,7 +457,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   {}
 
   template <typename Base>
-  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const Stroka v, const location_type& l)
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TString v, const location_type& l)
     : Base (t)
     , value (v)
     , location (l)
@@ -585,7 +585,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 33: // "string literal"
-        value.template destroy< Stroka > ();
+        value.template destroy< TString > ();
         break;
 
       case 74: // expression
@@ -685,7 +685,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 33: // "string literal"
-        value.move< Stroka > (s.value);
+        value.move< TString > (s.value);
         break;
 
       case 74: // expression
@@ -981,7 +981,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   }
 
   TParser::symbol_type
-  TParser::make_StringLiteral (const Stroka& v, const location_type& l)
+  TParser::make_StringLiteral (const TString& v, const location_type& l)
   {
     return symbol_type (token::StringLiteral, v, l);
   }
@@ -1171,7 +1171,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 33: // "string literal"
-        value.move< Stroka > (that.value);
+        value.move< TString > (that.value);
         break;
 
       case 74: // expression
@@ -1272,7 +1272,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 33: // "string literal"
-        value.copy< Stroka > (that.value);
+        value.copy< TString > (that.value);
         break;
 
       case 74: // expression
@@ -1588,7 +1588,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 33: // "string literal"
-        yylhs.value.build< Stroka > ();
+        yylhs.value.build< TString > ();
         break;
 
       case 74: // expression
@@ -1697,19 +1697,19 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 10:
     {
-            yylhs.value.as< TTableDescriptor > () = TTableDescriptor(Stroka(yystack_[1].value.as< TStringBuf > ()), Stroka(yystack_[0].value.as< TStringBuf > ()));
+            yylhs.value.as< TTableDescriptor > () = TTableDescriptor(TString(yystack_[1].value.as< TStringBuf > ()), TString(yystack_[0].value.as< TStringBuf > ()));
         }
     break;
 
   case 11:
     {
-            yylhs.value.as< TTableDescriptor > () = TTableDescriptor(Stroka(yystack_[2].value.as< TStringBuf > ()), Stroka(yystack_[0].value.as< TStringBuf > ()));
+            yylhs.value.as< TTableDescriptor > () = TTableDescriptor(TString(yystack_[2].value.as< TStringBuf > ()), TString(yystack_[0].value.as< TStringBuf > ()));
         }
     break;
 
   case 12:
     {
-            yylhs.value.as< TTableDescriptor > () = TTableDescriptor(Stroka(yystack_[0].value.as< TStringBuf > ()), Stroka());
+            yylhs.value.as< TTableDescriptor > () = TTableDescriptor(TString(yystack_[0].value.as< TStringBuf > ()), TString());
         }
     break;
 
@@ -1856,7 +1856,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
             if (yystack_[2].value.as< TExpressionList > ().size() != 1) {
                 THROW_ERROR_EXCEPTION("Aliased expression %Qv must be scalar", GetSource(yylhs.location, source));
             }
-            auto inserted = head->second.insert(std::make_pair(Stroka(yystack_[0].value.as< TStringBuf > ()), yystack_[2].value.as< TExpressionList > ().front()));
+            auto inserted = head->second.insert(std::make_pair(TString(yystack_[0].value.as< TStringBuf > ()), yystack_[2].value.as< TExpressionList > ().front()));
             if (!inserted.second) {
                 THROW_ERROR_EXCEPTION("Alias %Qv has been already used", yystack_[0].value.as< TStringBuf > ());
             }
@@ -2115,7 +2115,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     break;
 
   case 92:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< Stroka > (); }
+    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< TString > (); }
     break;
 
   case 93:

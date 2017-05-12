@@ -52,23 +52,23 @@ public:
         const NTransactionClient::TTransactionId& transactionId,
         const NRpc::TMutationId& mutationId,
         NYTree::IMapNodePtr spec,
-        const Stroka& user);
+        const TString& user);
 
-    TFuture<void> AbortOperation(TOperationPtr operation, const TError& error, const Stroka& user);
-    TFuture<void> SuspendOperation(TOperationPtr operation, const Stroka& user, bool abortRunningJobs);
-    TFuture<void> ResumeOperation(TOperationPtr operation, const Stroka& user);
+    TFuture<void> AbortOperation(TOperationPtr operation, const TError& error, const TString& user);
+    TFuture<void> SuspendOperation(TOperationPtr operation, const TString& user, bool abortRunningJobs);
+    TFuture<void> ResumeOperation(TOperationPtr operation, const TString& user);
     TFuture<void> CompleteOperation(
         TOperationPtr operation,
         const TError& error,
-        const Stroka& user);
+        const TString& user);
 
-    TFuture<NYson::TYsonString> Strace(const TJobId& jobId, const Stroka& user);
-    TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const Stroka& user);
-    TFuture<NYT::NNodeTrackerClient::TNodeDescriptor> GetJobNode(const TJobId& jobId, const Stroka& user);
-    TFuture<void> SignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user);
-    TFuture<void> AbandonJob(const TJobId& jobId, const Stroka& user);
-    TFuture<NYson::TYsonString> PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const Stroka& user);
-    TFuture<void> AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const Stroka& user);
+    TFuture<NYson::TYsonString> Strace(const TJobId& jobId, const TString& user);
+    TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const TString& user);
+    TFuture<NYT::NNodeTrackerClient::TNodeDescriptor> GetJobNode(const TJobId& jobId, const TString& user);
+    TFuture<void> SignalJob(const TJobId& jobId, const TString& signalName, const TString& user);
+    TFuture<void> AbandonJob(const TJobId& jobId, const TString& user);
+    TFuture<NYson::TYsonString> PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const TString& user);
+    TFuture<void> AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user);
 
     using TCtxHeartbeat = NRpc::TTypedServiceContext<
         NJobTrackerClient::NProto::TReqHeartbeat,

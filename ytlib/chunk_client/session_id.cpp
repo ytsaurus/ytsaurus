@@ -5,7 +5,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TSessionId& id)
+TString ToString(const TSessionId& id)
 {
     if (id.MediumIndex == AllMediaIndex) {
         return Format("%v@*", id.ChunkId);

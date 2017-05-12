@@ -21,7 +21,7 @@ using namespace NYPath;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-Py::Exception CreateYsonError(const Stroka& message, const NYT::TError& error = TError())
+Py::Exception CreateYsonError(const TString& message, const NYT::TError& error = TError())
 {
     auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), true);
     auto ysonErrorClass = Py::Callable(GetAttr(ysonModule, "YsonError"));
@@ -58,7 +58,7 @@ public:
     { }
 
     void Init(TInputStream* inputStream, std::unique_ptr<TInputStream> inputStreamOwner,
-              bool alwaysCreateAttributes, const TNullable<Stroka>& encoding)
+              bool alwaysCreateAttributes, const TNullable<TString>& encoding)
     {
         YCHECK(!inputStreamOwner || inputStreamOwner.get() == inputStream);
         InputStream_ = inputStream;
@@ -258,7 +258,7 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
 
-        Stroka result;
+        TString result;
         TStringOutput stringOutput(result);
 
         try {
@@ -325,7 +325,7 @@ private:
             raw = Py::Boolean(arg);
         }
 
-        TNullable<Stroka> encoding;
+        TNullable<TString> encoding;
         if (HasArgument(args, kwargs, "encoding")) {
             auto arg = ExtractArgument(args, kwargs, "encoding");
             if (!arg.isNone()) {
@@ -455,7 +455,7 @@ private:
             ignoreInnerAttributes = Py::Boolean(arg);
         }
 
-        TNullable<Stroka> encoding("utf-8");
+        TNullable<TString> encoding("utf-8");
         if (HasArgument(args, kwargs, "encoding")) {
             auto arg = ExtractArgument(args, kwargs, "encoding");
             if (arg.isNone()) {

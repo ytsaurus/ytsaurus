@@ -49,7 +49,7 @@ struct TGuid
 void ToProto(NProto::TGuid* protoGuid, const TGuid& guid);
 void FromProto(TGuid* guid, const NProto::TGuid& protoGuid);
 
-Stroka ToString(const TGuid& guid);
+TString ToString(const TGuid& guid);
 
 bool operator == (const TGuid& lhs, const TGuid& rhs);
 bool operator != (const TGuid& lhs, const TGuid& rhs);

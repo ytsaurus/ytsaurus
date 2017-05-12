@@ -22,14 +22,14 @@ DECLARE_REFCOUNTED_STRUCT(ITokenAuthenticator)
 
 struct TTokenCredentials
 {
-    Stroka Token;
-    Stroka UserIp;
+    TString Token;
+    TString UserIp;
 };
 
 struct TAuthenticationResult
 {
-    Stroka Login;
-    Stroka Realm;
+    TString Login;
+    TString Realm;
 };
 
 inline bool operator==(

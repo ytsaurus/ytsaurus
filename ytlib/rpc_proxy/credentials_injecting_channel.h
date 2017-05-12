@@ -9,17 +9,17 @@ namespace NRpcProxy {
 
 NRpc::IChannelPtr CreateTokenInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
-    const Stroka& user,
-    const Stroka& token,
-    const Stroka& userIP);
+    const TString& user,
+    const TString& token,
+    const TString& userIP);
 
 NRpc::IChannelPtr CreateCookieInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
-    const Stroka& user,
-    const Stroka& domain,
-    const Stroka& sessionId,
-    const Stroka& sslSessionId,
-    const Stroka& userIP);
+    const TString& user,
+    const TString& domain,
+    const TString& sessionId,
+    const TString& sslSessionId,
+    const TString& userIP);
 
 ////////////////////////////////////////////////////////////////////////////////
 

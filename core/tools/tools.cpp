@@ -17,7 +17,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonString SpawnTool(const Stroka& toolName, const TYsonString& serializedArgument)
+TYsonString SpawnTool(const TString& toolName, const TYsonString& serializedArgument)
 {
     auto process = TSubprocess::CreateCurrentProcessSpawner();
     process.AddArguments({
@@ -32,10 +32,10 @@ TYsonString SpawnTool(const Stroka& toolName, const TYsonString& serializedArgum
         THROW_ERROR_EXCEPTION("Failed to run %v", toolName)
             << result.Status
             << TErrorAttribute("command_line", process.GetCommandLine())
-            << TErrorAttribute("error", Stroka(result.Error.Begin(), result.Error.End()));
+            << TErrorAttribute("error", TString(result.Error.Begin(), result.Error.End()));
     }
 
-    auto serializedResultOrError = Stroka(result.Output.Begin(), result.Output.End());
+    auto serializedResultOrError = TString(result.Output.Begin(), result.Output.End());
 
     // Treat empty string as OK
     if (serializedResultOrError.Empty()) {
@@ -45,12 +45,12 @@ TYsonString SpawnTool(const Stroka& toolName, const TYsonString& serializedArgum
     return TYsonString(serializedResultOrError);
 }
 
-TYsonString DoRunTool(const Stroka& toolName, const TYsonString& serializedArgument)
+TYsonString DoRunTool(const TString& toolName, const TYsonString& serializedArgument)
 {
     return SpawnTool(toolName, serializedArgument);
 }
 
-TYsonString DoRunToolInProcess(const Stroka& toolName, const TYsonString& serializedArgument)
+TYsonString DoRunToolInProcess(const TString& toolName, const TYsonString& serializedArgument)
 {
     auto serializedResultOrError = ExecuteTool(toolName, serializedArgument);
 
@@ -62,7 +62,7 @@ TYsonString DoRunToolInProcess(const Stroka& toolName, const TYsonString& serial
     return serializedResultOrError;
 }
 
-TYsonString ExecuteTool(const Stroka& toolName, const TYsonString& serializedArgument)
+TYsonString ExecuteTool(const TString& toolName, const TYsonString& serializedArgument)
 {
     try {
         // No logging inside tools.

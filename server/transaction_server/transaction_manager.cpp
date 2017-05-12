@@ -92,7 +92,7 @@ private:
         return transaction->SecondaryCellTags();
     }
 
-    virtual Stroka DoGetName(const TTransaction* transaction) override
+    virtual TString DoGetName(const TTransaction* transaction) override
     {
         return Format("transaction %v", transaction->GetId());
     }
@@ -184,7 +184,7 @@ public:
         const TCellTagList& secondaryCellTags,
         const TCellTagList& replicateToCellTags,
         TNullable<TDuration> timeout,
-        const TNullable<Stroka>& title,
+        const TNullable<TString>& title,
         const IAttributeDictionary& attributes,
         const TTransactionId& hintId)
     {
@@ -924,7 +924,7 @@ TTransaction* TTransactionManager::StartTransaction(
     const TCellTagList& secondaryCellTags,
     const TCellTagList& replicateToCellTags,
     TNullable<TDuration> timeout,
-    const TNullable<Stroka>& title,
+    const TNullable<TString>& title,
     const IAttributeDictionary& attributes,
     const TTransactionId& hintId)
 {

@@ -113,7 +113,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
-        const TNullable<std::vector<Stroka>>& /*attributeKeys*/,
+        const TNullable<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
     {
         Y_UNREACHABLE();
@@ -177,7 +177,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
-        const TNullable<std::vector<Stroka>>& /*attributeKeys*/,
+        const TNullable<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
     {
         Y_UNREACHABLE();
@@ -852,7 +852,7 @@ void TObjectManager::FillAttributes(
 }
 
 TMutationPtr TObjectManager::CreateExecuteMutation(
-    const Stroka& userName,
+    const TString& userName,
     const IServiceContextPtr& context)
 {
     NProto::TReqExecute request;
@@ -1111,7 +1111,7 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
 }
 
 void TObjectManager::HydraExecuteLeader(
-    const Stroka& userName,
+    const TString& userName,
     const IServiceContextPtr& context,
     TMutationContext*)
 {
@@ -1273,7 +1273,7 @@ TTagId TObjectManager::GetTypeTagId(EObjectType type)
     return TypeToEntry_[type].TagId;
 }
 
-TTagId TObjectManager::GetMethodTagId(const Stroka& method)
+TTagId TObjectManager::GetMethodTagId(const TString& method)
 {
     auto it = MethodToTag_.find(method);
     if (it != MethodToTag_.end()) {
@@ -1310,8 +1310,8 @@ std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttri
     auto proxy = handler->GetProxy(object, nullptr);
 
     auto attributes = CreateEphemeralAttributes();
-    yhash_set<Stroka> replicatedKeys;
-    auto replicateKey = [&] (const Stroka& key, const TYsonString& value) {
+    yhash_set<TString> replicatedKeys;
+    auto replicateKey = [&] (const TString& key, const TYsonString& value) {
         if (replicatedKeys.insert(key).second) {
             attributes->SetYson(key, value);
         }
@@ -1329,7 +1329,7 @@ std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttri
             continue;
         }
 
-        auto key = Stroka(descriptor.Key);
+        auto key = TString(descriptor.Key);
         auto value = proxy->FindBuiltinAttribute(key);
         if (value) {
             replicateKey(key, value);

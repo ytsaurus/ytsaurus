@@ -24,7 +24,7 @@ class TActionQueue::TImpl
 {
 public:
     explicit TImpl(
-        const Stroka& threadName,
+        const TString& threadName,
         bool enableLogging,
         bool enableProfiling)
         : Queue_(New<TInvokerQueue>(
@@ -104,7 +104,7 @@ private:
 };
 
 TActionQueue::TActionQueue(
-    const Stroka& threadName,
+    const TString& threadName,
     bool enableLogging,
     bool enableProfiling)
     : Impl_(New<TImpl>(threadName, enableLogging, enableProfiling))
@@ -465,7 +465,7 @@ PER_THREAD TBoundedConcurrencyInvoker* TBoundedConcurrencyInvoker::CurrentSchedu
 IInvokerPtr CreateBoundedConcurrencyInvoker(
     IInvokerPtr underlyingInvoker,
     int maxConcurrentInvocations,
-    const Stroka& invokerName)
+    const TString& invokerName)
 {
     return New<TBoundedConcurrencyInvoker>(
         underlyingInvoker,

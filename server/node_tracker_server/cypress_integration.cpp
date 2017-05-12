@@ -86,7 +86,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<Stroka>>& attributeKeys,
+        const TNullable<std::vector<TString>>& attributeKeys,
         bool stable) override
     {
         GetTargetProxy()->WriteAttributesFragment(consumer, attributeKeys, stable);
@@ -181,7 +181,7 @@ private:
         descriptors->push_back("full_node_count");
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -335,9 +335,9 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
+    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
-        std::vector<Stroka> keys;
+        std::vector<TString> keys;
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         for (const auto& pair : nodeTracker->Racks()) {
             const auto* rack = pair.second;
@@ -355,7 +355,7 @@ private:
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* rack = nodeTracker->FindRackByName(Stroka(key));
+        auto* rack = nodeTracker->FindRackByName(TString(key));
         if (!IsObjectAlive(rack)) {
             return nullptr;
         }
@@ -392,9 +392,9 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
+    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
-        std::vector<Stroka> keys;
+        std::vector<TString> keys;
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         for (const auto& pair : nodeTracker->DataCenters()) {
             const auto* dc = pair.second;
@@ -412,7 +412,7 @@ private:
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
         auto nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* dc = nodeTracker->FindDataCenterByName(Stroka(key));
+        auto* dc = nodeTracker->FindDataCenterByName(TString(key));
         if (!IsObjectAlive(dc)) {
             return nullptr;
         }

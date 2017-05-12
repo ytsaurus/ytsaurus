@@ -42,7 +42,7 @@ private:
     TStringStream Stream_;
     TBufferedBinaryYsonWriter SyncWriter_;
 
-    std::vector<TFuture<Stroka>> AsyncSegments_;
+    std::vector<TFuture<TString>> AsyncSegments_;
 
 
     void FlushCurrentSegment();

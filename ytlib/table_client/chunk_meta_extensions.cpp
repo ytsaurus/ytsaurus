@@ -41,7 +41,7 @@ bool TBoundaryKeys::operator !=(const TBoundaryKeys& other) const
     return MinKey != other.MinKey || MaxKey != other.MaxKey;
 }
 
-Stroka ToString(const TBoundaryKeys& keys)
+TString ToString(const TBoundaryKeys& keys)
 {
     return Format("MinKey: %v, MaxKey: %v",
         keys.MinKey,
