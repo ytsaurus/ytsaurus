@@ -511,7 +511,7 @@ public:
                 name);
         }
 
-        if (RackMap_.GetSize() >= MaxRackCount) {
+        if (RackCount_ >= MaxRackCount) {
             THROW_ERROR_EXCEPTION("Rack count limit %v is reached",
                 MaxRackCount);
         }
@@ -763,6 +763,10 @@ private:
     TCpuInstant TotalNodeStatisticsUpdateDeadline_ = 0;
     TTotalNodeStatistics TotalNodeStatistics_;
 
+    // Cf. YT-7009.
+    // Maintain a dedicated counter of alive racks since RackMap_ may contain zombies.
+    // This is exactly the number of 1-bits in UsedRackIndexes_.
+    int RackCount_ = 0;
     TRackSet UsedRackIndexes_;
 
     yhash<Stroka, TNode*> AddressToNodeMap_;
@@ -1123,6 +1127,8 @@ private:
 
         NameToRackMap_.clear();
         NameToDataCenterMap_.clear();
+        UsedRackIndexes_.reset();
+        RackCount_ = 0;
 
         AggregatedOnlineNodeCount_ = 0;
         LocalRegisteredNodeCount_ = 0;
@@ -1153,6 +1159,7 @@ private:
         }
 
         UsedRackIndexes_.reset();
+        RackCount_ = 0;
         for (const auto& pair : RackMap_) {
             auto* rack = pair.second;
 
@@ -1161,6 +1168,7 @@ private:
             auto rackIndex = rack->GetIndex();
             YCHECK(!UsedRackIndexes_.test(rackIndex));
             UsedRackIndexes_.set(rackIndex);
+            ++RackCount_;
         }
 
         for (const auto& pair : DataCenterMap_) {
@@ -1490,6 +1498,7 @@ private:
             }
             if (!UsedRackIndexes_.test(index)) {
                 UsedRackIndexes_.set(index);
+                ++RackCount_;
                 return index;
             }
         }
@@ -1500,6 +1509,7 @@ private:
     {
         YCHECK(UsedRackIndexes_.test(index));
         UsedRackIndexes_.reset(index);
+        --RackCount_;
     }
 
     void OnValidateSecondaryMasterRegistration(TCellTag cellTag)
