@@ -96,7 +96,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, PollJobShell)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
-        auto parameters = FromProto<Stroka>(request->parameters());
+        auto parameters = FromProto<TString>(request->parameters());
 
         context->SetRequestInfo("JobId: %v, Parameters: %v",
             jobId,

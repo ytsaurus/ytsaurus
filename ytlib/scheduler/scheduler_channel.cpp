@@ -47,7 +47,7 @@ public:
             .EndMap()))
     { }
 
-    virtual const Stroka& GetEndpointDescription() const override
+    virtual const TString& GetEndpointDescription() const override
     {
         return EndpointDescription_;
     }
@@ -105,7 +105,7 @@ private:
     const IChannelPtr MasterChannel_;
     const TNetworkPreferenceList Networks_;
 
-    const Stroka EndpointDescription_;
+    const TString EndpointDescription_;
     const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
 
     TSpinLock SpinLock_;

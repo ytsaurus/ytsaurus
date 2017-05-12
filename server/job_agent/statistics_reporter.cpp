@@ -143,7 +143,7 @@ private:
     const TStatisticsReporterConfigPtr Config_;
     const INativeClientPtr Client_;
     const TActionQueuePtr Reporter_ = New<TActionQueue>("Reporter");
-    const Stroka DefaultLocalAddress_;
+    const TString DefaultLocalAddress_;
     const TStatisticsTableDescriptor Table_;
 
     std::atomic<bool> Enabled_ = {false};

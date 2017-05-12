@@ -16,7 +16,7 @@ namespace NYT {
 namespace NFormats {
 namespace {
 
-typedef yvector<Stroka> VectorStrok;
+typedef yvector<TString> VectorStrok;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,7 +71,7 @@ protected:
 
     // Splits output into key and sorted vector of values that are entries of the last YAMR column.
     // Returns true if success (there are >= 2 values after splitting by field separator), otherwise false.
-    bool ExtractKeyValue(Stroka output, Stroka& key, VectorStrok& value, char fieldSeparator = '\t')
+    bool ExtractKeyValue(TString output, TString& key, VectorStrok& value, char fieldSeparator = '\t')
     {
         char delimiter[2] = {fieldSeparator, 0};
         // Splitting by field separator.
@@ -86,7 +86,7 @@ protected:
     }
 
     // The same function as previous, version with subkey.
-    bool ExtractKeySubkeyValue(Stroka output, Stroka& key, Stroka& subkey, VectorStrok& value, char fieldSeparator = '\t')
+    bool ExtractKeySubkeyValue(TString output, TString& key, TString& subkey, VectorStrok& value, char fieldSeparator = '\t')
     {
         char delimiter[2] = {fieldSeparator, 0};
         // Splitting by field separator.
@@ -102,7 +102,7 @@ protected:
     }
 
     // Compares output and expected output ignoring the order of entries in YAMR value column.
-    void CompareKeyValue(Stroka output, Stroka expected, char recordSeparator = '\n', char fieldSeparator = '\t')
+    void CompareKeyValue(TString output, TString expected, char recordSeparator = '\n', char fieldSeparator = '\t')
     {
         char delimiter[2] = {recordSeparator, 0};
         VectorStrok outputRows = splitStroku(output, delimiter, 0 /* maxFields */ , KEEP_EMPTY_TOKENS);
@@ -114,8 +114,8 @@ protected:
         outputRows.pop_back();
         expectedRows.pop_back();
 
-        Stroka outputKey;
-        Stroka expectedKey;
+        TString outputKey;
+        TString expectedKey;
         VectorStrok outputValue;
         VectorStrok expectedValue;
         for (int rowIndex = 0; rowIndex < static_cast<int>(outputRows.size()); rowIndex++) {
@@ -127,7 +127,7 @@ protected:
     }
 
     // The same function as previous, version with subkey.
-    void CompareKeySubkeyValue(Stroka output, Stroka expected, char recordSeparator = '\n', char fieldSeparator = '\t')
+    void CompareKeySubkeyValue(TString output, TString expected, char recordSeparator = '\n', char fieldSeparator = '\t')
     {
         char delimiter[2] = {recordSeparator, 0};
         VectorStrok outputRows = splitStroku(output, delimiter, 0 /* maxFields */ , KEEP_EMPTY_TOKENS);
@@ -139,10 +139,10 @@ protected:
         outputRows.pop_back();
         expectedRows.pop_back();
 
-        Stroka outputKey;
-        Stroka expectedKey;
-        Stroka outputSubkey;
-        Stroka expectedSubkey;
+        TString outputKey;
+        TString expectedKey;
+        TString outputSubkey;
+        TString expectedSubkey;
         VectorStrok outputValue;
         VectorStrok expectedValue;
         for (int rowIndex = 0; rowIndex < static_cast<int>(outputRows.size()); rowIndex++) {
@@ -184,11 +184,11 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Simple)
         .Get()
         .ThrowOnError();
 
-    Stroka expectedOutput =
+    TString expectedOutput =
         "a1\tvalue_x=x\n"
         "a2\tvalue_y=y\tkey_b=b\n";
 
-    Stroka output = OutputStream_.Str();
+    TString output = OutputStream_.Str();
 
     CompareKeyValue(expectedOutput, output);
 }
@@ -220,11 +220,11 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SimpleWithSubkey)
         .Get()
         .ThrowOnError();
 
-    Stroka expectedOutput =
+    TString expectedOutput =
         "a b1\tc\t\n"
         "a b2\tc\t\n";
 
-    Stroka output = OutputStream_.Str();
+    TString output = OutputStream_.Str();
 
     CompareKeySubkeyValue(expectedOutput, output);
 }
@@ -272,7 +272,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
         .Get()
         .ThrowOnError();
 
-    Stroka expectedOutput = Stroka(
+    TString expectedOutput = TString(
         "\xff\xff\xff\xff" "\x2a\x00\x00\x00" // Table index.
         "\xfd\xff\xff\xff" "\x17\x00\x00\x00" // Range index.
         "\xfc\xff\xff\xff" "\x11\x00\x00\x00\x00\x00\x00\x00" // Row index.
@@ -288,7 +288,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
         13 * 4 + 4 + 1 + 9 + 4 + 1 + 0
     );
 
-    Stroka output = OutputStream_.Str();
+    TString output = OutputStream_.Str();
     EXPECT_EQ(expectedOutput, output)
         << "expected length: " << expectedOutput.length()
         << ", "
@@ -316,8 +316,8 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Escaping)
         .Get()
         .ThrowOnError();
 
-    Stroka expectedOutput = "a\\n \\nb\\t\tvalue\\t_t=\\nva\\\\lue\\t\n";
-    Stroka output = OutputStream_.Str();
+    TString expectedOutput = "a\\n \\nb\\t\tvalue\\t_t=\\nva\\\\lue\\t\n";
+    TString output = OutputStream_.Str();
 
     EXPECT_EQ(expectedOutput, output);
 }
@@ -386,8 +386,8 @@ TEST_F(TSchemalessWriterForYamredDsvTest, NonStringValues)
         .Get()
         .ThrowOnError();
 
-    Stroka expectedOutput = "-42\t18\tkey_b=true\tvalue_x=3.14\tvalue_y=yt\n";
-    Stroka output = OutputStream_.Str();
+    TString expectedOutput = "-42\t18\tkey_b=true\tvalue_x=3.14\tvalue_y=yt\n";
+    TString output = OutputStream_.Str();
 
     EXPECT_EQ(expectedOutput, output);
 }
@@ -414,8 +414,8 @@ TEST_F(TSchemalessWriterForYamredDsvTest, ErasingSubkeyColumnsWhenHasSubkeyIsFal
         .Get()
         .ThrowOnError();
 
-    Stroka expectedOutput = "a\tkey_c=c\tvalue_x=x\n";
-    Stroka output = OutputStream_.Str();
+    TString expectedOutput = "a\tkey_c=c\tvalue_x=x\n";
+    TString output = OutputStream_.Str();
 
     EXPECT_EQ(expectedOutput, output);
 }

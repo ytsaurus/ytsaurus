@@ -18,7 +18,7 @@ using namespace NLogging;
 
 TDiskHealthChecker::TDiskHealthChecker(
     TDiskHealthCheckerConfigPtr config,
-    const Stroka& path,
+    const TString& path,
     IInvokerPtr invoker,
     TLogger logger,
     const TProfiler& profiler)

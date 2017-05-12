@@ -39,8 +39,8 @@ TYPathRequest::TYPathRequest(const TRequestHeader& header)
 { }
 
 TYPathRequest::TYPathRequest(
-    const Stroka& service,
-    const Stroka& method,
+    const TString& service,
+    const TString& method,
     const TYPath& path,
     bool mutating)
 {
@@ -72,22 +72,22 @@ TRealmId TYPathRequest::GetRealmId() const
     return NullRealmId;
 }
 
-const Stroka& TYPathRequest::GetMethod() const
+const TString& TYPathRequest::GetMethod() const
 {
     return Header_.method();
 }
 
-const Stroka& TYPathRequest::GetService() const
+const TString& TYPathRequest::GetService() const
 {
     return Header_.service();
 }
 
-void TYPathRequest::SetUser(const Stroka& /*user*/)
+void TYPathRequest::SetUser(const TString& /*user*/)
 {
     Y_UNREACHABLE();
 }
 
-const Stroka& TYPathRequest::GetUser() const
+const TString& TYPathRequest::GetUser() const
 {
     Y_UNREACHABLE();
 }
@@ -289,12 +289,12 @@ void ExecuteVerb(
             , UnderlyingContext_(std::move(underlyingContext))
         { }
 
-        virtual void SetRawRequestInfo(const Stroka& info) override
+        virtual void SetRawRequestInfo(const TString& info) override
         {
             UnderlyingContext_->SetRawRequestInfo(info);
         }
 
-        virtual void SetRawResponseInfo(const Stroka& info) override
+        virtual void SetRawResponseInfo(const TString& info) override
         {
             UnderlyingContext_->SetRawResponseInfo(info);
         }
@@ -328,7 +328,7 @@ void ExecuteVerb(
 TFuture<TYsonString> AsyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TNullable<std::vector<Stroka>>& attributeKeys)
+    const TNullable<std::vector<TString>>& attributeKeys)
 {
     auto request = TYPathProxy::Get(path);
     if (attributeKeys) {
@@ -340,7 +340,7 @@ TFuture<TYsonString> AsyncYPathGet(
         }));
 }
 
-Stroka SyncYPathGetKey(const IYPathServicePtr& service, const TYPath& path)
+TString SyncYPathGetKey(const IYPathServicePtr& service, const TYPath& path)
 {
     auto request = TYPathProxy::GetKey(path);
     return ExecuteVerb(service, request)
@@ -351,7 +351,7 @@ Stroka SyncYPathGetKey(const IYPathServicePtr& service, const TYPath& path)
 TYsonString SyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TNullable<std::vector<Stroka>>& attributeKeys)
+    const TNullable<std::vector<TString>>& attributeKeys)
 {
     return
         AsyncYPathGet(
@@ -408,7 +408,7 @@ void SyncYPathRemove(
         .ThrowOnError();
 }
 
-std::vector<Stroka> SyncYPathList(
+std::vector<TString> SyncYPathList(
     const IYPathServicePtr& service,
     const TYPath& path,
     TNullable<i64> limit)
@@ -418,7 +418,7 @@ std::vector<Stroka> SyncYPathList(
         .ValueOrThrow();
 }
 
-TFuture<std::vector<Stroka>> AsyncYPathList(
+TFuture<std::vector<TString>> AsyncYPathList(
     const IYPathServicePtr& service,
     const TYPath& path,
     TNullable<i64> limit)
@@ -429,7 +429,7 @@ TFuture<std::vector<Stroka>> AsyncYPathList(
     }
     return ExecuteVerb(service, request)
         .Apply(BIND([] (TYPathProxy::TRspListPtr response) {
-            return ConvertTo<std::vector<Stroka>>(TYsonString(response->value()));
+            return ConvertTo<std::vector<TString>>(TYsonString(response->value()));
         }));
 }
 
@@ -444,7 +444,7 @@ void ApplyYPathOverride(
     }
 
     TYPath path(overrideString.begin(), overrideString.begin() + eqIndex);
-    TYsonString value(Stroka(overrideString.begin() + eqIndex + 1, overrideString.end()));
+    TYsonString value(TString(overrideString.begin() + eqIndex + 1, overrideString.end()));
 
     ForceYPath(root, path);
     SyncYPathSet(root, path, value);
@@ -453,8 +453,8 @@ void ApplyYPathOverride(
 static INodePtr WalkNodeByYPath(
     const INodePtr& root,
     const TYPath& path,
-    std::function<INodePtr(const Stroka&)> handleMissingAttribute,
-    std::function<INodePtr(const IMapNodePtr&, const Stroka&)> handleMissingChildKey,
+    std::function<INodePtr(const TString&)> handleMissingAttribute,
+    std::function<INodePtr(const IMapNodePtr&, const TString&)> handleMissingChildKey,
     std::function<INodePtr(const IListNodePtr&, int)> handleMissingChildIndex)
 {
     auto currentNode = root;
@@ -511,11 +511,11 @@ INodePtr GetNodeByYPath(
     return WalkNodeByYPath(
         root,
         path,
-        [] (const Stroka& key) {
+        [] (const TString& key) {
             ThrowNoSuchAttribute(key);
             return nullptr;
         },
-        [] (const IMapNodePtr& node, const Stroka& key) {
+        [] (const IMapNodePtr& node, const TString& key) {
             ThrowNoSuchChildKey(node, key);
             return nullptr;
         },
@@ -533,10 +533,10 @@ INodePtr FindNodeByYPath(
     return WalkNodeByYPath(
         root,
         path,
-        [] (const Stroka& key) {
+        [] (const TString& key) {
             return nullptr;
         },
-        [] (const IMapNodePtr& node, const Stroka& key) {
+        [] (const IMapNodePtr& node, const TString& key) {
             return nullptr;
         },
         [] (const IListNodePtr& node, int index) {
@@ -554,14 +554,14 @@ void SetNodeByYPath(
 
     NYPath::TTokenizer tokenizer(path);
 
-    Stroka currentToken;
-    Stroka currentLiteralValue;
+    TString currentToken;
+    TString currentLiteralValue;
     auto nextSegment = [&] () {
         tokenizer.Skip(NYPath::ETokenType::Ampersand);
         tokenizer.Expect(NYPath::ETokenType::Slash);
         tokenizer.Advance();
         tokenizer.Expect(NYPath::ETokenType::Literal);
-        currentToken = Stroka(tokenizer.GetToken());
+        currentToken = TString(tokenizer.GetToken());
         currentLiteralValue = tokenizer.GetLiteralValue();
     };
 
@@ -629,14 +629,14 @@ void ForceYPath(
 
     NYPath::TTokenizer tokenizer(path);
 
-    Stroka currentToken;
-    Stroka currentLiteralValue;
+    TString currentToken;
+    TString currentLiteralValue;
     auto nextSegment = [&] () {
         tokenizer.Skip(NYPath::ETokenType::Ampersand);
         tokenizer.Expect(NYPath::ETokenType::Slash);
         tokenizer.Advance();
         tokenizer.Expect(NYPath::ETokenType::Literal);
-        currentToken = Stroka(tokenizer.GetToken());
+        currentToken = TString(tokenizer.GetToken());
         currentLiteralValue = tokenizer.GetLiteralValue();
     };
 
@@ -683,14 +683,14 @@ TYPath GetNodeYPath(
     const INodePtr& node,
     INodePtr* root)
 {
-    std::vector<Stroka> tokens;
+    std::vector<TString> tokens;
     auto current = node;
     while (true) {
         auto parent = current->GetParent();
         if (!parent) {
             break;
         }
-        Stroka token;
+        TString token;
         switch (parent->GetType()) {
             case ENodeType::List: {
                 auto index = parent->AsList()->GetChildIndex(current);
@@ -821,7 +821,7 @@ bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs)
         }
 
         case ENodeType::String:
-            return lhs->GetValue<Stroka>() == rhs->GetValue<Stroka>();
+            return lhs->GetValue<TString>() == rhs->GetValue<TString>();
 
         case ENodeType::Int64:
             return lhs->GetValue<i64>() == rhs->GetValue<i64>();

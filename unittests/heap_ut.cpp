@@ -9,9 +9,9 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka GetRandomString(int len)
+TString GetRandomString(int len)
 {
-    Stroka str;
+    TString str;
     for (int i = 0; i < len; ++i) {
         str.push_back('a' + rand() % 26);
     }
@@ -22,7 +22,7 @@ TEST(THeapTest, MakeThenExtract)
 {
     srand(0);
 
-    std::vector<Stroka> words;
+    std::vector<TString> words;
     for (int i = 0; i < 10000; ++i) {
         words.push_back(GetRandomString(10));
     }
@@ -30,10 +30,10 @@ TEST(THeapTest, MakeThenExtract)
     auto sorted = words;
     std::sort(sorted.begin(), sorted.end());
 
-    NYT::MakeHeap(words.begin(), words.end(), std::greater<Stroka>());
+    NYT::MakeHeap(words.begin(), words.end(), std::greater<TString>());
     auto end = words.end();
     while (end != words.begin()) {
-        NYT::ExtractHeap(words.begin(), end, std::greater<Stroka>());
+        NYT::ExtractHeap(words.begin(), end, std::greater<TString>());
         --end;
     }
 
@@ -44,7 +44,7 @@ TEST(THeapTest, InsertThenExtract)
 {
     srand(0);
 
-    std::vector<Stroka> words;
+    std::vector<TString> words;
     for (int i = 0; i < 10000; ++i) {
         words.push_back(GetRandomString(10));
     }
@@ -53,12 +53,12 @@ TEST(THeapTest, InsertThenExtract)
     std::sort(sorted.begin(), sorted.end());
 
     for (auto it = words.begin(); it != words.end(); ++it) {
-        NYT::AdjustHeapBack(words.begin(), it, std::greater<Stroka>());
+        NYT::AdjustHeapBack(words.begin(), it, std::greater<TString>());
     }
 
     auto end = words.end();
     while (end != words.begin()) {
-        NYT::ExtractHeap(words.begin(), end, std::greater<Stroka>());
+        NYT::ExtractHeap(words.begin(), end, std::greater<TString>());
         --end;
     }
 

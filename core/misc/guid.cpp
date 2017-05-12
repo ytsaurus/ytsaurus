@@ -243,7 +243,7 @@ bool TGuid::FromString(const TStringBuf &str, TGuid* guid)
     return true;
 }
 
-Stroka ToString(const TGuid& guid)
+TString ToString(const TGuid& guid)
 {
     return ToStringViaBuilder(guid);
 }

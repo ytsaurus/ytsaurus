@@ -112,7 +112,7 @@ protected:
 
     const TDuration RpcTimeout;
 
-    static Stroka GetPeerAddress(TPeerId id)
+    static TString GetPeerAddress(TPeerId id)
     {
         return "peer" + ToString(id);
     }

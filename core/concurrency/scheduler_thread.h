@@ -51,7 +51,7 @@ public:
 protected:
     TSchedulerThread(
         std::shared_ptr<TEventCount> callbackEventCount,
-        const Stroka& threadName,
+        const TString& threadName,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
         bool enableProfiling);
@@ -79,7 +79,7 @@ protected:
     void OnContextSwitch();
 
     const std::shared_ptr<TEventCount> CallbackEventCount;
-    const Stroka ThreadName;
+    const TString ThreadName;
     const bool EnableLogging;
 
     NProfiling::TProfiler Profiler;

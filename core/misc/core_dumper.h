@@ -16,7 +16,7 @@ namespace NYT {
 
 struct TCoreDump
 {
-    Stroka Path;
+    TString Path;
     TFuture<void> WrittenEvent;
 };
 
@@ -28,7 +28,7 @@ class TCoreDumper
 public:
     explicit TCoreDumper(const TCoreDumperConfigPtr& config);
 
-    TCoreDump WriteCoreDump(const std::vector<Stroka>& notes);
+    TCoreDump WriteCoreDump(const std::vector<TString>& notes);
 
 private:
     const TCoreDumperConfigPtr Config_;

@@ -24,7 +24,7 @@ class TFileChangelogDispatcher
 public:
     TFileChangelogDispatcher(
         const TFileChangelogDispatcherConfigPtr config,
-        const Stroka& threadName,
+        const TString& threadName,
         const NProfiling::TProfiler& profiler);
 
     ~TFileChangelogDispatcher();
@@ -34,13 +34,13 @@ public:
 
     //! Synchronously creates a new changelog.
     IChangelogPtr CreateChangelog(
-        const Stroka& path,
+        const TString& path,
         const NProto::TChangelogMeta& meta,
         TFileChangelogConfigPtr config);
 
     //! Synchronously opens an existing changelog.
     IChangelogPtr OpenChangelog(
-        const Stroka& path,
+        const TString& path,
         TFileChangelogConfigPtr config);
 
     //! Flushes all active changelogs owned by this dispatcher.

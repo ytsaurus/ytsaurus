@@ -62,7 +62,7 @@ Handle<Value> SpawnBasicYtError(const Arguments& args)
 
     TError fakeError;
     fakeError.SetCode(code);
-    fakeError.SetMessage(Stroka(*message, message.length()));
+    fakeError.SetMessage(TString(*message, message.length()));
 
     auto children = attributes->GetChildren();
     for (const auto& child : children) {
@@ -87,7 +87,7 @@ Handle<Value> ConvertErrorToV8(const TError& error)
         for (const auto& key : errorAttributes.List()) {
             auto value = errorAttributes.GetYson(key);
 
-            Stroka encodedValue;
+            TString encodedValue;
             encodedValue.reserve(value.GetData().length() * 2);
             TStringOutput valueStream(encodedValue);
             auto valueWriter = CreateJsonConsumer(&valueStream);

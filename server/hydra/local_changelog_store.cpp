@@ -26,7 +26,7 @@ DECLARE_REFCOUNTED_CLASS(TLocalChangelogStoreFactory)
 
 namespace {
 
-Stroka GetChangelogPath(const Stroka& path, int id)
+TString GetChangelogPath(const TString& path, int id)
 {
     return NFS::CombinePaths(
         path,
@@ -102,7 +102,7 @@ class TLocalChangelogStoreFactory
 public:
     TLocalChangelogStoreFactory(
         TFileChangelogStoreConfigPtr config,
-        const Stroka& threadName,
+        const TString& threadName,
         const NProfiling::TProfiler& profiler)
         : TAsyncSlruCacheBase(config->ChangelogReaderCache)
         , Config_(config)
@@ -305,7 +305,7 @@ IChangelogStorePtr TLocalChangelogStoreFactory::CreateStore(TVersion reachableVe
 
 IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(
     TFileChangelogStoreConfigPtr config,
-    const Stroka& threadName,
+    const TString& threadName,
     const NProfiling::TProfiler& profiler)
 {
     auto store = New<TLocalChangelogStoreFactory>(config, threadName, profiler);

@@ -159,7 +159,7 @@ private:
         { Y_UNREACHABLE(); } \
     else
 
-inline Stroka DumpRangeToHex(const TRef& data)
+inline TString DumpRangeToHex(const TRef& data)
 {
     TStringBuilder builder;
     builder.AppendChar('<');

@@ -23,8 +23,8 @@ DEFINE_ENUM(ETokenType,
     (Range)
 );
 
-Stroka ToYPathLiteral(const TStringBuf& value);
-Stroka ToYPathLiteral(i64 value);
+TString ToYPathLiteral(const TStringBuf& value);
+TString ToYPathLiteral(i64 value);
 
 TStringBuf ExtractListIndex(const TStringBuf& token);
 int ParseListIndex(const TStringBuf& token);

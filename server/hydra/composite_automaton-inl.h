@@ -49,7 +49,7 @@ T* TLoadContext::GetEntity(TEntitySerializationKey key) const
 template <class TContext>
 void TCompositeAutomatonPart::RegisterSaver(
     ESyncSerializationPriority priority,
-    const Stroka& name,
+    const TString& name,
     TCallback<void(TContext&)> saver)
 {
     RegisterSaver(
@@ -63,7 +63,7 @@ void TCompositeAutomatonPart::RegisterSaver(
 template <class TContext>
 void TCompositeAutomatonPart::RegisterSaver(
     EAsyncSerializationPriority priority,
-    const Stroka& name,
+    const TString& name,
     TCallback<TCallback<void(TContext&)>()> callback)
 {
     RegisterSaver(
@@ -79,7 +79,7 @@ void TCompositeAutomatonPart::RegisterSaver(
 
 template <class TContext>
 void TCompositeAutomatonPart::RegisterLoader(
-    const Stroka& name,
+    const TString& name,
     TCallback<void(TContext&)> loader)
 {
     TCompositeAutomatonPart::RegisterLoader(

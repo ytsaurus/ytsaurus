@@ -79,7 +79,7 @@ protected:
     const int KeyColumnCount_;
     const int SchemaColumnCount_;
     const int ColumnLockCount_;
-    const std::vector<Stroka> LockIndexToName_;
+    const std::vector<TString> LockIndexToName_;
     const std::vector<int> ColumnIndexToLockIndex_;
 
     EStoreState StoreState_;

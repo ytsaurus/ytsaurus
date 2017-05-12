@@ -16,7 +16,7 @@ class TDiskLocation
 public:
     TDiskLocation(
         TDiskLocationConfigPtr config,
-        const Stroka& id,
+        const TString& id,
         const NLogging::TLogger& logger);
 
     //! Returns |true| iff the location is enabled.

@@ -16,7 +16,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnRange::TColumnRange(const Stroka& begin, const Stroka& end)
+TColumnRange::TColumnRange(const TString& begin, const TString& end)
     : IsInfinite_(false)
     , Begin_(begin)
     , End_(end)
@@ -28,18 +28,18 @@ TColumnRange::TColumnRange(const Stroka& begin, const Stroka& end)
     }
 }
 
-TColumnRange::TColumnRange(const Stroka& begin)
+TColumnRange::TColumnRange(const TString& begin)
     : IsInfinite_(true)
     , Begin_(begin)
     , End_("")
 { }
 
-Stroka TColumnRange::Begin() const
+TString TColumnRange::Begin() const
 {
     return Begin_;
 }
 
-Stroka TColumnRange::End() const
+TString TColumnRange::End() const
 {
     return End_;
 }
@@ -85,13 +85,13 @@ TChannel::TChannel()
 { }
 
 TChannel::TChannel(
-    const std::vector<Stroka> columns,
+    const std::vector<TString> columns,
     std::vector<TColumnRange> ranges)
     : Columns_(std::move(columns))
     , Ranges_(std::move(ranges))
 { }
 
-void TChannel::AddColumn(const Stroka& column)
+void TChannel::AddColumn(const TString& column)
 {
     for (const auto& existingColumn : Columns_) {
         if (existingColumn == column) {
@@ -107,7 +107,7 @@ void TChannel::AddRange(const TColumnRange& range)
     Ranges_.push_back(range);
 }
 
-void TChannel::AddRange(const Stroka& begin, const Stroka& end)
+void TChannel::AddRange(const TString& begin, const TString& end)
 {
     Ranges_.push_back(TColumnRange(begin, end));
 }
@@ -193,7 +193,7 @@ bool TChannel::Overlaps(const TChannel& channel) const
     return false;
 }
 
-const std::vector<Stroka>& TChannel::GetColumns() const
+const std::vector<TString>& TChannel::GetColumns() const
 {
     return Columns_;
 }
@@ -246,7 +246,7 @@ const TChannel& TChannel::Empty()
 
 TChannel& operator -= (TChannel& lhs, const TChannel& rhs)
 {
-    std::vector<Stroka> newColumns;
+    std::vector<TString> newColumns;
     for (const auto& column : lhs.Columns_) {
         if (!rhs.Contains(column)) {
             newColumns.push_back(column);
@@ -257,7 +257,7 @@ TChannel& operator -= (TChannel& lhs, const TChannel& rhs)
     std::vector<TColumnRange> rhsRanges(rhs.Ranges_);
     for (const auto& column : rhs.Columns_) {
         // Add single columns as ranges.
-        Stroka rangeEnd;
+        TString rangeEnd;
         rangeEnd.reserve(column.Size() + 1);
         rangeEnd.append(column);
         rangeEnd.append('\0');
@@ -339,7 +339,7 @@ void ToProto(NProto::TChannel* protoChannel, const TChannel& channel)
 void FromProto(TChannel* channel, const NProto::TChannel& protoChannel)
 {
     *channel = TChannel(
-        FromProto<std::vector<Stroka>>(protoChannel.columns()),
+        FromProto<std::vector<TString>>(protoChannel.columns()),
         FromProto<std::vector<TColumnRange>>(protoChannel.ranges()));
 }
 
@@ -353,7 +353,7 @@ void Deserialize(TChannel& channel, INodePtr node)
     for (auto child : node->AsList()->GetChildren()) {
         switch (child->GetType()) {
             case ENodeType::String:
-                channel.AddColumn(child->GetValue<Stroka>());
+                channel.AddColumn(child->GetValue<TString>());
                 break;
 
             case ENodeType::List: {
@@ -365,7 +365,7 @@ void Deserialize(TChannel& channel, INodePtr node)
                             THROW_ERROR_EXCEPTION("Channel range description cannot contain %Qv items",
                                 item->GetType());
                         }
-                        channel.AddRange(TColumnRange(item->GetValue<Stroka>()));
+                        channel.AddRange(TColumnRange(item->GetValue<TString>()));
                         break;
                     }
 
@@ -380,7 +380,7 @@ void Deserialize(TChannel& channel, INodePtr node)
                             THROW_ERROR_EXCEPTION("Channel range description cannot contain %Qv items",
                                 itemHi->GetType());
                         }
-                        channel.AddRange(TColumnRange(itemLo->GetValue<Stroka>(), itemHi->GetValue<Stroka>()));
+                        channel.AddRange(TColumnRange(itemLo->GetValue<TString>(), itemHi->GetValue<TString>()));
                         break;
                     }
 
@@ -402,7 +402,7 @@ void Serialize(const TChannel& channel, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginList()
-            .DoFor(channel.GetColumns(), [] (TFluentList fluent, const Stroka& column) {
+            .DoFor(channel.GetColumns(), [] (TFluentList fluent, const TString& column) {
                 fluent.Item().Value(column);
             })
             .DoFor(channel.GetRanges(), [] (TFluentList fluent, const TColumnRange& range) {

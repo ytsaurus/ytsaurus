@@ -18,7 +18,7 @@ using namespace NYPath;
 
 namespace {
 
-Stroka GetNodePathHelper(IConstNodePtr node)
+TString GetNodePathHelper(IConstNodePtr node)
 {
     auto path = node->GetPath();
     return path.empty() ? "Node" : Format("Node %v", path);
@@ -36,7 +36,7 @@ void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType 
         actualType);
 }
 
-void ThrowNoSuchChildKey(IConstNodePtr node, const Stroka& key)
+void ThrowNoSuchChildKey(IConstNodePtr node, const TString& key)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
@@ -54,7 +54,7 @@ void ThrowNoSuchChildIndex(IConstNodePtr node, int index)
         index);
 }
 
-void ThrowNoSuchAttribute(const Stroka& key)
+void ThrowNoSuchAttribute(const TString& key)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
@@ -62,7 +62,7 @@ void ThrowNoSuchAttribute(const Stroka& key)
         ToYPathLiteral(key));
 }
 
-void ThrowNoSuchCustomAttribute(const Stroka& key)
+void ThrowNoSuchCustomAttribute(const TString& key)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
@@ -70,7 +70,7 @@ void ThrowNoSuchCustomAttribute(const Stroka& key)
         ToYPathLiteral(key));
 }
 
-void ThrowNoSuchBuiltinAttribute(const Stroka& key)
+void ThrowNoSuchBuiltinAttribute(const TString& key)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
@@ -78,7 +78,7 @@ void ThrowNoSuchBuiltinAttribute(const Stroka& key)
         ToYPathLiteral(key));
 }
 
-void ThrowMethodNotSupported(const Stroka& method, const TNullable<Stroka>& resolveType)
+void ThrowMethodNotSupported(const TString& method, const TNullable<TString>& resolveType)
 {
     auto error = TError(
         NRpc::EErrorCode::NoSuchMethod,
@@ -114,13 +114,13 @@ void ThrowCannotReplaceRoot()
     THROW_ERROR_EXCEPTION("Root node cannot be replaced");
 }
 
-void ThrowCannotRemoveAttribute(const Stroka& key)
+void ThrowCannotRemoveAttribute(const TString& key)
 {
     THROW_ERROR_EXCEPTION("Attribute %Qv cannot be removed",
         ToYPathLiteral(key));
 }
 
-void ThrowCannotSetBuiltinAttribute(const Stroka& key)
+void ThrowCannotSetBuiltinAttribute(const TString& key)
 {
     THROW_ERROR_EXCEPTION("Builtin attribute %Qv cannot be set",
         ToYPathLiteral(key));

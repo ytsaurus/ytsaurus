@@ -12,8 +12,8 @@ protected:
     bool HandleToolOptions();
 
 private:
-    Stroka ToolName_;
-    Stroka ToolSpec_;
+    TString ToolName_;
+    TString ToolSpec_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

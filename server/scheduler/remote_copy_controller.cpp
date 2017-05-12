@@ -108,7 +108,7 @@ private:
             , Index_(index)
         { }
 
-        virtual Stroka GetId() const override
+        virtual TString GetId() const override
         {
             return "RemoteCopy";
         }
@@ -387,7 +387,7 @@ private:
             auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
             TObjectServiceProxy proxy(channel);
 
-            auto userAttributeKeys = InputTableAttributes_->Get<std::vector<Stroka>>("user_attribute_keys");
+            auto userAttributeKeys = InputTableAttributes_->Get<std::vector<TString>>("user_attribute_keys");
             auto attributeKeys = Spec_->AttributeKeys.Get(userAttributeKeys);
 
             auto batchReq = proxy.ExecuteBatch();
@@ -451,7 +451,7 @@ private:
 
     // Progress reporting.
 
-    virtual Stroka GetLoggingProgress() const override
+    virtual TString GetLoggingProgress() const override
     {
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v}, "

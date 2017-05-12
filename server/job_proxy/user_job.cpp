@@ -118,8 +118,8 @@ using NChunkClient::TDataSliceDescriptor;
 #ifdef _unix_
 
 static const int JobStatisticsFD = 5;
-static Stroka CGroupBase = "user_jobs";
-static Stroka CGroupPrefix = CGroupBase + "/yt-job-";
+static TString CGroupBase = "user_jobs";
+static TString CGroupPrefix = CGroupBase + "/yt-job-";
 
 static const size_t BufferSize = (size_t) 1024 * 1024;
 
@@ -129,9 +129,9 @@ static TNullOutput NullOutput;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static Stroka CreateNamedPipePath()
+static TString CreateNamedPipePath()
 {
-    const Stroka& name = CreateGuidAsString();
+    const TString& name = CreateGuidAsString();
     return NFS::GetRealPath(NFS::CombinePaths("./pipes", name));
 }
 
@@ -357,7 +357,7 @@ private:
     const TJobProxyConfigPtr Config_;
     const NScheduler::TJobIOConfigPtr JobIOConfig_;
 
-    Stroka InputPipePath_;
+    TString InputPipePath_;
 
     TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
     TNullable<int> UserId_;
@@ -407,7 +407,7 @@ private:
 
     TProcessPtr Process_;
     TFuture<void> ProcessFinished_;
-    std::vector<Stroka> Environment_;
+    std::vector<TString> Environment_;
 
     // Destroy shell manager before user job cgrops, since its cgroups are typically
     // nested, and we need to mantain destroy order.
@@ -458,7 +458,7 @@ private:
         }
 
         // Copy environment to process arguments
-        std::vector<Stroka> shellEnvironment;
+        std::vector<TString> shellEnvironment;
         shellEnvironment.reserve(Environment_.size());
         for (const auto& var : Environment_) {
             Process_->AddArguments({"--env", var});
@@ -470,7 +470,7 @@ private:
         ShellManager_ = CreateShellManager(
             NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Home]),
             UserId_,
-            TNullable<Stroka>(static_cast<bool>(CGroupsConfig_), CGroupBase),
+            TNullable<TString>(static_cast<bool>(CGroupsConfig_), CGroupBase),
             Format("Job environment:\n%v\n", JoinToString(shellEnvironment, STRINGBUF("\n"))),
             std::move(shellEnvironment));
     }
@@ -620,7 +620,7 @@ private:
         return result;
     }
 
-    virtual Stroka GetStderr() override
+    virtual TString GetStderr() override
     {
         ValidatePrepared();
 
@@ -652,7 +652,7 @@ private:
         return ConvertToYsonString(result.Value());
     }
 
-    virtual void SignalJob(const Stroka& signalName) override
+    virtual void SignalJob(const TString& signalName) override
     {
         ValidatePrepared();
 
@@ -1066,7 +1066,7 @@ private:
         return statistics;
     }
 
-    void OnIOErrorOrFinished(const TError& error, const Stroka& message) {
+    void OnIOErrorOrFinished(const TError& error, const TString& message) {
         if (error.IsOK() || error.FindMatching(NPipes::EErrorCode::Aborted)) {
             return;
         }

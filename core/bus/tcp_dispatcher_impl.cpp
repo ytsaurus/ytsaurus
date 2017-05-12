@@ -31,7 +31,7 @@ static const auto CheckPeriod = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNetworkAddress GetUnixDomainAddress(const Stroka& name)
+TNetworkAddress GetUnixDomainAddress(const TString& name)
 {
 #ifdef _linux_
     // Abstract unix sockets are supported only on Linux.
@@ -66,7 +66,7 @@ bool IsLocalBusTransportEnabled()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTcpDispatcherThread::TTcpDispatcherThread(const Stroka& threadName)
+TTcpDispatcherThread::TTcpDispatcherThread(const TString& threadName)
     : TEVSchedulerThread(threadName, false)
     , CheckExecutor_(New<TPeriodicExecutor>(
         GetInvoker(),

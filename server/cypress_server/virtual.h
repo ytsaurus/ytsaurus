@@ -56,10 +56,10 @@ protected:
     // ISystemAttributeProvider overrides
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual const yhash_set<const char*>& GetBuiltinAttributeKeys() override;
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
-    virtual bool RemoveBuiltinAttribute(const Stroka& key) override;
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const TString& key) override;
+    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
+    virtual bool RemoveBuiltinAttribute(const TString& key) override;
 
 private:
     NYTree::TBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
@@ -68,7 +68,7 @@ private:
 
     struct TFetchItem
     {
-        Stroka Key;
+        TString Key;
         NYson::TYsonString Attributes;
     };
 
@@ -77,7 +77,7 @@ private:
     {
         IInvokerPtr Invoker;
         i64 Limit = -1;
-        TNullable<std::vector<Stroka>> AttributeKeys;
+        TNullable<std::vector<TString>> AttributeKeys;
         bool Incomplete = false;
         std::vector<TFetchItem> Items;
     };
@@ -86,7 +86,7 @@ private:
 
     TFuture<TFetchItemsSessionPtr> FetchItems(
         i64 limit,
-        const TNullable<std::vector<Stroka>>& attributeKeys);
+        const TNullable<std::vector<TString>>& attributeKeys);
 
     TFuture<void> FetchItemsFromLocal(TFetchItemsSessionPtr session);
     TFuture<void> FetchItemsFromRemote(TFetchItemsSessionPtr session, NObjectClient::TCellTag cellTag);
@@ -94,7 +94,7 @@ private:
     TFuture<std::pair<NObjectClient::TCellTag, i64>> FetchSizeFromLocal();
     TFuture<std::pair<NObjectClient::TCellTag, i64>> FetchSizeFromRemote(NObjectClient::TCellTag cellTag);
 
-    TFuture<NYson::TYsonString> GetOwningNodeAttributes(const TNullable<std::vector<Stroka>>& attributeKeys);
+    TFuture<NYson::TYsonString> GetOwningNodeAttributes(const TNullable<std::vector<TString>>& attributeKeys);
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Enumerate);
 

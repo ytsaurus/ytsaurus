@@ -33,7 +33,7 @@ class TCGModule
     : public TRefCounted
 {
 public:
-    static TCGModulePtr Create(TRoutineRegistry* routineRegistry, const Stroka& moduleName = "module");
+    static TCGModulePtr Create(TRoutineRegistry* routineRegistry, const TString& moduleName = "module");
 
     ~TCGModule();
 
@@ -41,22 +41,22 @@ public:
 
     llvm::Module* GetModule() const;
 
-    llvm::Constant* GetRoutine(const Stroka& symbol) const;
+    llvm::Constant* GetRoutine(const TString& symbol) const;
 
-    void ExportSymbol(const Stroka& name);
+    void ExportSymbol(const TString& name);
 
     template <class TSignature>
-    TCGFunction<TSignature> GetCompiledFunction(const Stroka& name);
+    TCGFunction<TSignature> GetCompiledFunction(const TString& name);
 
     void AddObjectFile(std::unique_ptr<llvm::object::ObjectFile> sharedObject);
 
-    bool SymbolIsLoaded(const Stroka& symbol) const;
+    bool SymbolIsLoaded(const TString& symbol) const;
 
-    void AddLoadedSymbol(const Stroka& symbol);
+    void AddLoadedSymbol(const TString& symbol);
 
-    bool FunctionIsLoaded(const Stroka& function) const;
+    bool FunctionIsLoaded(const TString& function) const;
 
-    void AddLoadedFunction(const Stroka& function);
+    void AddLoadedFunction(const TString& function);
 
 private:
     class TImpl;
@@ -65,7 +65,7 @@ private:
     DECLARE_NEW_FRIEND();
 
     explicit TCGModule(std::unique_ptr<TImpl> impl);
-    uint64_t GetFunctionAddress(const Stroka& name);
+    uint64_t GetFunctionAddress(const TString& name);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCGModule)

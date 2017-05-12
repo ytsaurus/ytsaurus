@@ -41,9 +41,9 @@ public:
     IInvokerPtr GetControlInvoker() const;
 
     std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId);
-    Stroka GetStderr(const NJobTrackerClient::TJobId& jobId);
+    TString GetStderr(const NJobTrackerClient::TJobId& jobId);
     NYson::TYsonString Strace(const NJobTrackerClient::TJobId& jobId);
-    void SignalJob(const NJobTrackerClient::TJobId& jobId, const Stroka& signalName);
+    void SignalJob(const NJobTrackerClient::TJobId& jobId, const TString& signalName);
     NYson::TYsonString PollJobShell(const NJobTrackerClient::TJobId& jobId, const NYson::TYsonString& parameters);
     void Interrupt(const NJobTrackerClient::TJobId& jobId);
 

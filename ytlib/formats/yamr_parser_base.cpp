@@ -29,7 +29,7 @@ TYamrConsumerBase::TYamrConsumerBase(NYson::IYsonConsumer* consumer)
 
 void TYamrConsumerBase::SwitchTable(i64 tableIndex)
 {
-    static const Stroka Key = FormatEnum(EControlAttribute::TableIndex);
+    static const TString Key = FormatEnum(EControlAttribute::TableIndex);
     Consumer->OnListItem();
     Consumer->OnBeginAttributes();
     Consumer->OnKeyedItem(Key);
@@ -88,9 +88,9 @@ void TYamrDelimitedBaseParser::Finish()
     }
 }
 
-Stroka TYamrDelimitedBaseParser::GetContext() const
+TString TYamrDelimitedBaseParser::GetContext() const
 {
-    Stroka result;
+    TString result;
     const char* last = ContextBuffer + BufferPosition;
     if (Offset >= ContextBufferSize) {
         result.append(last, ContextBuffer + ContextBufferSize);
@@ -117,9 +117,9 @@ void TYamrDelimitedBaseParser::ProcessTableSwitch(const TStringBuf& tableIndex)
     try {
          value = FromString<i64>(tableIndex);
     } catch (const std::exception& ex) {
-        Stroka tableIndexString(tableIndex);
+        TString tableIndexString(tableIndex);
         if (tableIndex.Size() > ContextBufferSize) {
-            tableIndexString = Stroka(tableIndex.SubStr(0, ContextBufferSize)) + "...truncated...";
+            tableIndexString = TString(tableIndex.SubStr(0, ContextBufferSize)) + "...truncated...";
         }
         THROW_ERROR_EXCEPTION("YAMR line %Qv cannot be parsed as a table switch; did you forget a record separator?",
             tableIndexString)

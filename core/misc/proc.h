@@ -30,13 +30,13 @@ std::vector<int> GetPidsByUid(int uid);
  */
 i64 GetProcessRss(int pid = -1);
 
-Stroka GetProcessName(int pid);
-std::vector<Stroka> GetProcessCommandLine(int pid);
+TString GetProcessName(int pid);
+std::vector<TString> GetProcessCommandLine(int pid);
 
 TError StatusToError(int status);
 
-void RemoveDirAsRoot(const Stroka& path);
-void RemoveDirContentAsRoot(const Stroka& path);
+void RemoveDirAsRoot(const TString& path);
+void RemoveDirContentAsRoot(const TString& path);
 
 bool TryClose(int fd, bool ignoreBadFD = true);
 void SafeClose(int fd, bool ignoreBadFD = true);
@@ -48,7 +48,7 @@ void SafeSetCloexec(int fd);
 
 bool TryExecve(const char* path, const char* const* argv, const char* const* env);
 
-void CreateStderrFile(Stroka fileName);
+void CreateStderrFile(TString fileName);
 
 // Returns a pipe with CLOSE_EXEC flag.
 void SafePipe(int fd[2]);
@@ -65,9 +65,9 @@ void SafeMakeNonblocking(int fd);
 
 void SafeSetUid(int uid);
 
-Stroka SafeGetUsernameByUid(int uid);
+TString SafeGetUsernameByUid(int uid);
 
-void SetPermissions(const Stroka& path, int permissions);
+void SetPermissions(const TString& path, int permissions);
 void SetPermissions(int fd, int permissions);
 
 void CloseAllDescriptors(const std::vector<int>& exceptFor = std::vector<int>());
@@ -79,7 +79,7 @@ bool HasRootPermissions();
 
 struct TRemoveDirAsRootTool
 {
-    void operator()(const Stroka& arg) const;
+    void operator()(const TString& arg) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,7 +93,7 @@ struct TKillAllByUidTool
 
 struct TRemoveDirContentAsRootTool
 {
-    void operator()(const Stroka& arg) const;
+    void operator()(const TString& arg) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,7 +102,7 @@ class TMountTmpfsConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    Stroka Path;
+    TString Path;
     int UserId;
     i64 Size;
 
@@ -131,7 +131,7 @@ class TUmountConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    Stroka Path;
+    TString Path;
     bool Detach;
 
     TUmountConfig()

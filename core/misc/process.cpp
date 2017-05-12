@@ -136,7 +136,7 @@ bool TryResetSignals()
     return true;
 }
 
-TErrorOr<Stroka> ResolveBinaryPath(const Stroka& binary)
+TErrorOr<TString> ResolveBinaryPath(const TString& binary)
 {
     std::vector<TError> accumulatedErrors;
 
@@ -171,7 +171,7 @@ TErrorOr<Stroka> ResolveBinaryPath(const Stroka& binary)
     // XXX(sandello): Sometimes we drop PATH from environment when spawning isolated processes.
     // In this case, try to locate somewhere nearby.
     {
-        auto probe = Stroka::Join(GetDirName(GetExecPath()), "/", binary);
+        auto probe = TString::Join(GetDirName(GetExecPath()), "/", binary);
         if (test(probe.c_str())) {
             return probe;
         }
@@ -198,7 +198,7 @@ TErrorOr<Stroka> ResolveBinaryPath(const Stroka& binary)
         buffer[i] = 0;
 
         if (test(buffer.data())) {
-            return Stroka(buffer.data(), i);
+            return TString(buffer.data(), i);
         }
     }
 
@@ -211,8 +211,8 @@ TErrorOr<Stroka> ResolveBinaryPath(const Stroka& binary)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProcess::TProcess(const Stroka& path, bool copyEnv, TDuration pollPeriod)
-    // Stroka is guaranteed to be zero-terminated.
+TProcess::TProcess(const TString& path, bool copyEnv, TDuration pollPeriod)
+    // TString is guaranteed to be zero-terminated.
     // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/StrokaAndTStringBuf#sobstvennosimvoly
     : Path_(path)
     , PollPeriod_(pollPeriod)
@@ -249,14 +249,14 @@ void TProcess::AddArguments(std::initializer_list<TStringBuf> args)
     }
 }
 
-void TProcess::AddArguments(const std::vector<Stroka>& args)
+void TProcess::AddArguments(const std::vector<TString>& args)
 {
     for (const auto& arg : args) {
         AddArgument(arg);
     }
 }
 
-void TProcess::SetWorkingDirectory(const Stroka& path)
+void TProcess::SetWorkingDirectory(const TString& path)
 {
     WorkingDirectory_ = path;
 }
@@ -594,7 +594,7 @@ void TProcess::Kill(int signal)
 #endif
 }
 
-Stroka TProcess::GetPath() const
+TString TProcess::GetPath() const
 {
     return Path_;
 }
@@ -614,7 +614,7 @@ bool TProcess::IsFinished() const
     return Finished_;
 }
 
-Stroka TProcess::GetCommandLine() const
+TString TProcess::GetCommandLine() const
 {
     TStringBuilder builder;
     builder.AppendString(Path_);
@@ -658,7 +658,7 @@ Stroka TProcess::GetCommandLine() const
 
 const char* TProcess::Capture(const TStringBuf& arg)
 {
-    StringHolders_.push_back(Stroka(arg));
+    StringHolders_.push_back(TString(arg));
     return StringHolders_.back().c_str();
 }
 

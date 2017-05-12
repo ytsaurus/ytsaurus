@@ -176,7 +176,7 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
     return true;
 }
 
-Stroka ToString(const TArtifactKey& key)
+TString ToString(const TArtifactKey& key)
 {
     return Format("{%v}", key.DebugString());
 }

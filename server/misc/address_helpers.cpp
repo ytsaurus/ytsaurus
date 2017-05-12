@@ -18,7 +18,7 @@ TAddressMap GetLocalAddresses(const TAddressList& addresses, int port)
     }
 
     // Add default address.
-    const auto pair = result.emplace(DefaultNetworkName, Stroka());
+    const auto pair = result.emplace(DefaultNetworkName, TString());
     if (pair.second) {
         pair.first->second = BuildServiceAddress(GetLocalHostName(), port);
     }

@@ -41,8 +41,8 @@ TEST(TVariantTest, Pod2)
 
 TEST(TVariantTest, NonPod1)
 {
-    TVariant<Stroka> v(Stroka("hello"));
-    EXPECT_EQ("hello", v.As<Stroka>());
+    TVariant<TString> v(TString("hello"));
+    EXPECT_EQ("hello", v.As<TString>());
 }
 
 struct S
@@ -96,8 +96,8 @@ TEST(TVariantTest, NonPod2)
 {
     S::Reset();
     {
-        TVariant<Stroka, S> v(Stroka("hello"));
-        EXPECT_EQ("hello", v.As<Stroka>());
+        TVariant<TString, S> v(TString("hello"));
+        EXPECT_EQ("hello", v.As<TString>());
     }
     EXPECT_EQ(0, S::CtorCalls);
     EXPECT_EQ(0, S::DtorCalls);
@@ -110,7 +110,7 @@ TEST(TVariantTest, ConstructCopy1)
     S::Reset();
     {
         S s(123);
-        TVariant<Stroka, S> v(s);
+        TVariant<TString, S> v(s);
         EXPECT_EQ(123, v.As<S>().Value);
         EXPECT_EQ(123, s.Value);
     }
@@ -125,8 +125,8 @@ TEST(TVariantTest, ConstructCopy2)
     S::Reset();
     {
         S s(123);
-        TVariant<Stroka, S> v1(s);
-        TVariant<Stroka, S> v2(v1);
+        TVariant<TString, S> v1(s);
+        TVariant<TString, S> v2(v1);
         EXPECT_EQ(123, s.Value);
         EXPECT_EQ(123, v1.As<S>().Value);
         EXPECT_EQ(123, v2.As<S>().Value);
@@ -143,7 +143,7 @@ TEST(TVariantTest, ConstructMove1)
     S::Reset();
     {
         S s(123);
-        TVariant<Stroka, S> v(std::move(s));
+        TVariant<TString, S> v(std::move(s));
         EXPECT_EQ(123, v.As<S>().Value);
         EXPECT_EQ(-1, s.Value);
     }
@@ -158,8 +158,8 @@ TEST(TVariantTest, ConstructMove2)
     S::Reset();
     {
         S s(123);
-        TVariant<Stroka, S> v1(std::move(s));
-        TVariant<Stroka, S> v2(std::move(v1));
+        TVariant<TString, S> v1(std::move(s));
+        TVariant<TString, S> v2(std::move(v1));
         EXPECT_EQ(-1, v1.As<S>().Value);
         EXPECT_EQ(123, v2.As<S>().Value);
         EXPECT_EQ(-1, s.Value);
@@ -175,10 +175,10 @@ TEST(TVariantTest, Move)
     S::Reset();
     {
         S s(123);
-        TVariant<Stroka, S> v1(s);
+        TVariant<TString, S> v1(s);
         EXPECT_EQ(123, v1.As<S>().Value);
 
-        TVariant<Stroka, S> v2(std::move(v1));
+        TVariant<TString, S> v2(std::move(v1));
         EXPECT_EQ(-1, v1.As<S>().Value);
         EXPECT_EQ(123, v2.As<S>().Value);
         EXPECT_EQ(123, s.Value);
@@ -194,8 +194,8 @@ TEST(TVariantTest, AssignCopy)
     S::Reset();
     {
         S s(123);
-        TVariant<Stroka, S> v1(s);
-        TVariant<Stroka, S> v2(Stroka("hello"));
+        TVariant<TString, S> v1(s);
+        TVariant<TString, S> v2(TString("hello"));
         v2 = v1;
 
         EXPECT_EQ(123, v1.As<S>().Value);
@@ -213,8 +213,8 @@ TEST(TVariantTest, MoveCopy)
     S::Reset();
     {
         S s(123);
-        TVariant<Stroka, S> v1(s);
-        TVariant<Stroka, S> v2(Stroka("hello"));
+        TVariant<TString, S> v1(s);
+        TVariant<TString, S> v2(TString("hello"));
         v2 = std::move(v1);
 
         EXPECT_EQ(-1, v1.As<S>().Value);

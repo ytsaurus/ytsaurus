@@ -57,10 +57,10 @@ protected:
         explicit TCustomAttributeDictionary(TNontemplateCypressNodeProxyBase* proxy);
 
         // IAttributeDictionary members
-        virtual std::vector<Stroka> List() const override;
-        virtual NYson::TYsonString FindYson(const Stroka& key) const override;
-        virtual void SetYson(const Stroka& key, const NYson::TYsonString& value) override;
-        virtual bool Remove(const Stroka& key) override;
+        virtual std::vector<TString> List() const override;
+        virtual NYson::TYsonString FindYson(const TString& key) const override;
+        virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
+        virtual bool Remove(const TString& key) override;
 
     private:
         TNontemplateCypressNodeProxyBase* const Proxy_;
@@ -83,11 +83,11 @@ protected:
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
-    TFuture<NYson::TYsonString> GetExternalBuiltinAttributeAsync(const Stroka& key);
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
-    virtual bool RemoveBuiltinAttribute(const Stroka& key) override;
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const TString& key) override;
+    TFuture<NYson::TYsonString> GetExternalBuiltinAttributeAsync(const TString& key);
+    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
+    virtual bool RemoveBuiltinAttribute(const TString& key) override;
 
     virtual void BeforeInvoke(const NRpc::IServiceContextPtr& context) override;
     virtual void AfterInvoke(const NRpc::IServiceContextPtr& context) override;
@@ -222,7 +222,7 @@ protected:
         TCypressNodeBase* trunkNode);
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
 
     virtual bool CanHaveChildren() const override;
 
@@ -349,9 +349,9 @@ private:
             node); \
     }
 
-BEGIN_DEFINE_SCALAR_TYPE(String, Stroka)
+BEGIN_DEFINE_SCALAR_TYPE(String, TString)
     protected:
-        virtual void ValidateValue(const Stroka& value) override
+        virtual void ValidateValue(const TString& value) override
         {
             auto length = value.length();
             auto limit = Bootstrap_->GetConfig()->CypressManager->MaxStringNodeLength;
@@ -363,7 +363,7 @@ BEGIN_DEFINE_SCALAR_TYPE(String, Stroka)
                     limit);
             }
         }
-END_DEFINE_SCALAR_TYPE(String, Stroka)
+END_DEFINE_SCALAR_TYPE(String, TString)
 
 BEGIN_DEFINE_SCALAR_TYPE(Int64, i64)
 END_DEFINE_SCALAR_TYPE(Int64, i64)
@@ -397,14 +397,14 @@ public:
 
     virtual void Clear() override;
     virtual int GetChildCount() const override;
-    virtual std::vector< std::pair<Stroka, NYTree::INodePtr> > GetChildren() const override;
-    virtual std::vector<Stroka> GetKeys() const override;
-    virtual NYTree::INodePtr FindChild(const Stroka& key) const override;
-    virtual bool AddChild(NYTree::INodePtr child, const Stroka& key) override;
-    virtual bool RemoveChild(const Stroka& key) override;
+    virtual std::vector< std::pair<TString, NYTree::INodePtr> > GetChildren() const override;
+    virtual std::vector<TString> GetKeys() const override;
+    virtual NYTree::INodePtr FindChild(const TString& key) const override;
+    virtual bool AddChild(NYTree::INodePtr child, const TString& key) override;
+    virtual bool RemoveChild(const TString& key) override;
     virtual void ReplaceChild(NYTree::INodePtr oldChild, NYTree::INodePtr newChild) override;
     virtual void RemoveChild(NYTree::INodePtr child) override;
-    virtual Stroka GetChildKey(NYTree::IConstNodePtr child) override;
+    virtual TString GetChildKey(NYTree::IConstNodePtr child) override;
 
 private:
     typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode> TBase;
@@ -431,7 +431,7 @@ private:
 
     void DoRemoveChild(
         TMapNode* impl,
-        const Stroka& key,
+        const TString& key,
         TCypressNodeBase* childImpl);
 
 };
@@ -500,7 +500,7 @@ private:
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TLinkNode> TBase;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
 
     bool IsBroken() const;
 
@@ -542,8 +542,8 @@ private:
     virtual void ExistsRecursive(const NYPath::TYPath& path, TReqExists* request, TRspExists* response, const TCtxExistsPtr& context) override;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
 
 };
 

@@ -261,7 +261,7 @@ private:
     TError InactivityError_;
     TPromise<void> TerminatedPromise_ = NewPromise<void>();
 
-    TNullable<Stroka> Command_;
+    TNullable<TString> Command_;
 
     NLogging::TLogger Logger = ShellLogger;
 

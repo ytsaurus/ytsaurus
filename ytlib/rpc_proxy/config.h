@@ -21,7 +21,7 @@ public:
             .Default(TDuration::Seconds(3));
     }
 
-    std::vector<Stroka> Addresses;
+    std::vector<TString> Addresses;
     TDuration PingPeriod;
 };
 

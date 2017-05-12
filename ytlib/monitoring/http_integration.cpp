@@ -25,7 +25,7 @@ using namespace NHttp;
 
 namespace {
 
-Stroka OnResponse(const TYPathProxy::TErrorOrRspGetPtr& rspOrError)
+TString OnResponse(const TYPathProxy::TErrorOrRspGetPtr& rspOrError)
 {
     if (!rspOrError.IsOK()) {
         // TODO(sandello): Proper JSON escaping here.
@@ -47,12 +47,12 @@ Stroka OnResponse(const TYPathProxy::TErrorOrRspGetPtr& rspOrError)
     return FormatOKResponse(output.Str());
 }
 
-void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
+void ParseQuery(IAttributeDictionary* attributes, const TString& query)
 {
     auto params = splitStroku(query, "&");
     for (const auto& param : params) {
         auto eqIndex = param.find_first_of('=');
-        if (eqIndex == Stroka::npos) {
+        if (eqIndex == TString::npos) {
             THROW_ERROR_EXCEPTION("Missing value of query parameter %Qv",
                 param);
         }
@@ -60,7 +60,7 @@ void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
             THROW_ERROR_EXCEPTION("Empty query parameter name");
         }
 
-        Stroka key = param.substr(0, eqIndex);
+        TString key = param.substr(0, eqIndex);
         TYsonString value(param.substr(eqIndex + 1));
 
         // Just a check, IAttributeDictionary takes raw YSON anyway.
@@ -75,15 +75,15 @@ void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
     }
 }
 
-TFuture<Stroka> HandleRequest(IYPathServicePtr service, const Stroka& url)
+TFuture<TString> HandleRequest(IYPathServicePtr service, const TString& url)
 {
     try {
         // TODO(babenko): rewrite using some standard URL parser
         auto unescapedUrl = UnescapeUrl(url);
         auto queryIndex = unescapedUrl.find_first_of('?');
-        auto path = queryIndex == Stroka::npos ? unescapedUrl : unescapedUrl.substr(0, queryIndex);
+        auto path = queryIndex == TString::npos ? unescapedUrl : unescapedUrl.substr(0, queryIndex);
         auto req = TYPathProxy::Get(path);
-        if (queryIndex != Stroka::npos) {
+        if (queryIndex != TString::npos) {
             auto options = CreateEphemeralAttributes();
             ParseQuery(options.get(), unescapedUrl.substr(queryIndex + 1));
             ToProto(req->mutable_options(), *options);
@@ -91,7 +91,7 @@ TFuture<Stroka> HandleRequest(IYPathServicePtr service, const Stroka& url)
         return ExecuteVerb(service, req).Apply(BIND(&OnResponse));
     } catch (const std::exception& ex) {
         // TODO(sandello): Proper JSON escaping here.
-        return MakeFuture(FormatInternalServerErrorResponse(Stroka(ex.what()).Quote()));
+        return MakeFuture(FormatInternalServerErrorResponse(TString(ex.what()).Quote()));
     }
 }
 

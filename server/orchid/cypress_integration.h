@@ -19,7 +19,7 @@ struct TOrchidManifest
     : public NYTree::TYsonSerializable
 {
     NNodeTrackerClient::TAddressMap RemoteAddresses;
-    Stroka RemoteRoot;
+    TString RemoteRoot;
     TDuration Timeout;
 
     TOrchidManifest()

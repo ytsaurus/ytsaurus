@@ -26,7 +26,7 @@ public:
      */
     TFileReader(
         const TChunkId& chunkId,
-        const Stroka& fileName,
+        const TString& fileName,
         bool validateBlocksChecksums = true);
 
 
@@ -49,7 +49,7 @@ public:
 
 private:
     const TChunkId ChunkId_;
-    const Stroka FileName_;
+    const TString FileName_;
     const bool ValidateBlockChecksums_;
 
     TMutex Mutex_;

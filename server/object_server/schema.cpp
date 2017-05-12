@@ -90,7 +90,7 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual Stroka DoGetName(const TSchemaObject* /*object*/) override
+    virtual TString DoGetName(const TSchemaObject* /*object*/) override
     {
         return Format("%Qlv schema", Type_);
     }
