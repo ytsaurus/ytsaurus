@@ -18,6 +18,7 @@ message TReqWrite
     required int32 row_count = 9;
     required bool versioned = 10;
     repeated NYT.NProto.TGuid sync_replica_ids = 11;
+    optional NYT.NProto.TGuid upstream_replica_id = 12;
     // Attachement contains wire-encoded data.
 }
 

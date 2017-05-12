@@ -109,6 +109,7 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, LastCommitTimestamp_);
     Save(context, RetainedTimestamp_);
     Save(context, UnflushedTimestamp_);
+    Save(context, UpstreamReplicaId_);
     Save(context, OptimizeFor_);
 }
 
@@ -132,6 +133,10 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 600 && context.GetVersion() <= 601) {
         Load<int>(context); // replication mode
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 602) {
+        Load(context, UpstreamReplicaId_);
     }
     // COMPAT(babenko)
     if (context.GetVersion() >= 601) {

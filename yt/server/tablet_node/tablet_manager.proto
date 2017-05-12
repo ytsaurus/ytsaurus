@@ -49,6 +49,7 @@ message TReqMountTablet
     required int64 trimmed_row_count = 12;
     required bool freeze = 13;
     repeated TTableReplicaDescriptor replicas = 14;
+    optional NYT.NProto.TGuid upstream_replica_id = 18;
 }
 
 message TReqUnmountTablet

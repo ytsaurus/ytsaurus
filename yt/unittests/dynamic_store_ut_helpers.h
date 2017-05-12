@@ -133,7 +133,8 @@ protected:
             sorted ? MinKey() : TOwningKey(),
             sorted ? MaxKey() : TOwningKey(),
             GetAtomicity(),
-            GetCommitOrdering());
+            GetCommitOrdering(),
+            TTableReplicaId());
 
         auto storeManager = CreateStoreManager(Tablet_.get());
         Tablet_->SetStoreManager(storeManager);

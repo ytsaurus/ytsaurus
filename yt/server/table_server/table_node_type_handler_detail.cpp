@@ -96,6 +96,19 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         THROW_ERROR_EXCEPTION("Cannot specify both \"tablet_count\" and \"pivot_keys\"");
     }
 
+    auto upstreamReplicaId = attributes->GetAndRemove<TTableReplicaId>("upstream_replica_id", TTableReplicaId());
+    if (upstreamReplicaId) {
+        if (!dynamic) {
+            THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
+        }
+        if (!maybeSchema->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Upstream replica can only be set for sorted tables");
+        }
+        if (replicated) {
+            THROW_ERROR_EXCEPTION("Upstream replica cannot be set for replicated tables");
+        }
+    }
+
     TBase::InitializeAttributes(attributes);
 
     auto nodeHolder = TBase::DoCreate(
@@ -127,6 +140,8 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                 tabletManager->ReshardTable(node, 0, 0, maybePivotKeys->size(), *maybePivotKeys);
             }
         }
+
+        node->SetUpstreamReplicaId(upstreamReplicaId);
     } catch (const std::exception&) {
         DoDestroy(node);
         throw;
@@ -156,6 +171,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
     branchedNode->SetRetainedTimestamp(originatingNode->GetCurrentRetainedTimestamp());
     branchedNode->SetUnflushedTimestamp(originatingNode->GetCurrentUnflushedTimestamp());
+    branchedNode->SetUpstreamReplicaId(originatingNode->GetUpstreamReplicaId());
 
     TBase::DoBranch(originatingNode, branchedNode, mode);
 }
@@ -197,6 +213,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     clonedNode->SetLastCommitTimestamp(sourceNode->GetLastCommitTimestamp());
     clonedNode->SetRetainedTimestamp(sourceNode->GetRetainedTimestamp());
     clonedNode->SetUnflushedTimestamp(sourceNode->GetUnflushedTimestamp());
+    clonedNode->SetUpstreamReplicaId(sourceNode->GetUpstreamReplicaId());
+    clonedNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
     tabletManager->SetTabletCellBundle(clonedNode, trunkSourceNode->GetTabletCellBundle());

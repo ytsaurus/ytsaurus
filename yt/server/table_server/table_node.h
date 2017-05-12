@@ -37,6 +37,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::EAtomicity, Atomicity, NTransactionClient::EAtomicity::Full);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ECommitOrdering, CommitOrdering, NTransactionClient::ECommitOrdering::Weak);
+    DEFINE_BYVAL_RW_PROPERTY(NTabletClient::TTableReplicaId, UpstreamReplicaId);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, UnflushedTimestamp, NTransactionClient::NullTimestamp);

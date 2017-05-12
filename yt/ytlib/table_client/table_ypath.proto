@@ -115,6 +115,7 @@ message TRspGetMountInfo
     repeated TTabletInfo tablets = 3;
     repeated NYT.NHiveClient.NProto.TCellDescriptor tablet_cells = 4;
     required bool dynamic = 5;
+    required NYT.NProto.TGuid upstream_replica_id = 6;
     repeated TReplicaInfo replicas = 7;
 }
 
@@ -124,6 +125,7 @@ message TReqAlter
 {
     optional TTableSchemaExt schema = 1;
     optional bool dynamic = 2;
+    optional NYT.NProto.TGuid upstream_replica_id = 3;
 }
 
 message TRspAlter
