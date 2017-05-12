@@ -7,7 +7,7 @@ IF(NOT OS_WINDOWS)
 ENDIF()
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
-add_library(yt-core STATIC ${YT_SRCS_RESOLVED})
+add_library(yt-core ${YT_SRCS_RESOLVED})
 
 llvm_map_components_to_libraries(
   REQUIRED_LLVM_LIBRARIES
@@ -26,6 +26,7 @@ target_link_libraries(yt-core
   deps-arcadia-contrib-libs-zstd07
   deps-arcadia-library-http
   deps-arcadia-library-streams-lz
+  deps-arcadia-library-getopt
   deps-arcadia-util
   deps-contrib-libs-brotli
   deps-yt-contrib-farmhash
