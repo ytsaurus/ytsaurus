@@ -1938,13 +1938,13 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
 {
     rows->clear();
 
+    if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        return true;
+    }
+
     if (Finished_) {
         RowCount_ = RowIndex_.load();
         return false;
-    }
-
-    if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
-        return true;
     }
 
     bool readerFinished = !CurrentReader_->Read(rows);
@@ -2000,8 +2000,7 @@ TKeyColumns TSchemalessMultiChunkReader<TBase>::GetKeyColumns() const
 template <class TBase>
 void TSchemalessMultiChunkReader<TBase>::Interrupt()
 {
-    if (!Finished_) {
-        Finished_ = true;
+    if (!Finished_.exchange(true)) {
         TBase::OnInterrupt();
     }
 }
