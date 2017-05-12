@@ -160,17 +160,18 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A nifty counter initializer for TRefCountedTracker.
-static class TRefCountedTrackerInitializer
+class TRefCountedTrackerInitializer
 {
 public:
     TRefCountedTrackerInitializer();
-} RefCountedTrackerInitializer;
+};
 
 // Never destroyed.
 extern TRefCountedTracker* RefCountedTrackerInstance;
 
 Y_FORCE_INLINE TRefCountedTracker* TRefCountedTracker::Get()
 {
+    static TRefCountedTrackerInitializer refCountedTrackerInitializer;
     return RefCountedTrackerInstance;
 }
 
