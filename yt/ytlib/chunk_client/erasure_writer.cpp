@@ -7,6 +7,7 @@
 #include "dispatcher.h"
 #include "replication_writer.h"
 #include "helpers.h"
+#include "block.h"
 #include "private.h"
 
 #include <yt/ytlib/api/client.h>
@@ -39,8 +40,8 @@ namespace {
 // Helpers
 
 // Split blocks into continuous groups of approximately equal sizes.
-std::vector<std::vector<TSharedRef>> SplitBlocks(
-    const std::vector<TSharedRef>& blocks,
+std::vector<std::vector<TBlock>> SplitBlocks(
+    const std::vector<TBlock>& blocks,
     int groupCount)
 {
     i64 totalSize = 0;
@@ -48,7 +49,7 @@ std::vector<std::vector<TSharedRef>> SplitBlocks(
         totalSize += block.Size();
     }
 
-    std::vector<std::vector<TSharedRef>> groups(1);
+    std::vector<std::vector<TBlock>> groups(1);
     i64 currentSize = 0;
     for (const auto& block : blocks) {
         groups.back().push_back(block);
@@ -57,7 +58,7 @@ std::vector<std::vector<TSharedRef>> SplitBlocks(
         while (currentSize * groupCount >= totalSize * groups.size() &&
                groups.size() < groupCount)
         {
-            groups.push_back(std::vector<TSharedRef>());
+            groups.push_back(std::vector<TBlock>());
         }
     }
 
@@ -77,7 +78,7 @@ i64 RoundUp(i64 num, i64 mod)
 class TSlicer
 {
 public:
-    explicit TSlicer(const std::vector<TSharedRef>& blocks)
+    explicit TSlicer(const std::vector<TBlock>& blocks)
         : Blocks_(blocks)
     { }
 
@@ -107,11 +108,11 @@ public:
 
             if (innerStart < innerEnd) {
                 if (resultSize == innerEnd - innerStart) {
-                    return block.Slice(innerStart, innerEnd);
+                    return block.Data.Slice(innerStart, innerEnd);
                 }
 
                 initialize();
-                std::copy(block.Begin() + innerStart, block.Begin() + innerEnd, result.Begin() + pos);
+                std::copy(block.Data.Begin() + innerStart, block.Data.Begin() + innerEnd, result.Begin() + pos);
 
                 pos += (innerEnd - innerStart);
             }
@@ -127,9 +128,8 @@ public:
     }
 
 private:
-
     // Mutable since we want to return subref of blocks.
-    mutable std::vector<TSharedRef> Blocks_;
+    mutable std::vector<TBlock> Blocks_;
 };
 
 } // namespace
@@ -165,13 +165,13 @@ public:
             .Run();
     }
 
-    virtual bool WriteBlock(const TSharedRef& block) override
+    virtual bool WriteBlock(const TBlock& block) override
     {
         Blocks_.push_back(block);
         return true;
     }
 
-    virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override
+    virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override
     {
         bool result = true;
         for (const auto& block : blocks) {
@@ -236,7 +236,7 @@ private:
 
     void EncodeAndWriteParityBlocks();
 
-    void WriteDataPart(IChunkWriterPtr writer, const std::vector<TSharedRef>& blocks);
+    void WriteDataPart(IChunkWriterPtr writer, const std::vector<TBlock>& blocks);
 
     TFuture<void> WriteParityBlocks(const std::vector<TSharedRef>& blocks);
 
@@ -253,11 +253,11 @@ private:
     bool IsOpen_ = false;
 
     std::vector<IChunkWriterPtr> Writers_;
-    std::vector<TSharedRef> Blocks_;
+    std::vector<TBlock> Blocks_;
 
     // Information about blocks, necessary to write blocks
     // and encode parity parts
-    std::vector<std::vector<TSharedRef>> Groups_;
+    std::vector<std::vector<TBlock>> Groups_;
     std::vector<TSlicer> Slicers_;
     i64 ParityDataSize_;
     int WindowCount_;
@@ -267,7 +267,6 @@ private:
     TChunkInfo ChunkInfo_;
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
-
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -355,7 +354,7 @@ TFuture<void> TErasureWriter::WriteDataBlocks()
     return Combine(asyncResults);
 }
 
-void TErasureWriter::WriteDataPart(IChunkWriterPtr writer, const std::vector<TSharedRef>& blocks)
+void TErasureWriter::WriteDataPart(IChunkWriterPtr writer, const std::vector<TBlock>& blocks)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -405,7 +404,7 @@ TFuture<void> TErasureWriter::WriteParityBlocks(const std::vector<TSharedRef>& b
     std::vector<TFuture<void>> asyncResults;
     for (int index = 0; index < Codec_->GetParityPartCount(); ++index) {
         const auto& writer = Writers_[Codec_->GetDataPartCount() + index];
-        writer->WriteBlock(blocks[index]);
+        writer->WriteBlock(TBlock(blocks[index]));
         asyncResults.push_back(writer->GetReadyEvent());
     }
     return Combine(asyncResults);

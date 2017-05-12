@@ -8,6 +8,7 @@
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/block.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -76,13 +77,13 @@ public:
     {
         ValidateAborted();
 
-        TSharedRef block;
+        TBlock block;
         if (!Reader_ || !Reader_->ReadBlock(&block)) {
             return MakeFuture(TSharedRef());
         }
 
-        if (block) {
-            return MakeFuture(block);
+        if (block.Data) {
+            return MakeFuture(block.Data);
         }
 
         return Reader_->GetReadyEvent().Apply(

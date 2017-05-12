@@ -41,7 +41,7 @@ public:
         , FailureHandler_(std::move(failureHandler))
     { }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<int>& blockIndexes) override
     {
@@ -53,7 +53,7 @@ public:
         return session->Promise.ToFuture();
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         int firstBlockIndex,
         int blockCount) override
@@ -69,7 +69,7 @@ public:
             blockCount,
             options);
 
-        return asyncResult.Apply(BIND([=] (const TErrorOr<std::vector<TSharedRef>>& blocksOrError) {
+        return asyncResult.Apply(BIND([=] (const TErrorOr<std::vector<TBlock>>& blocksOrError) {
             if (!blocksOrError.IsOK()) {
                 ThrowError(blocksOrError);
             }
@@ -111,8 +111,8 @@ private:
     {
         TWorkloadDescriptor WorkloadDescriptor;
         std::vector<int> BlockIndexes;
-        std::vector<TSharedRef> Blocks;
-        TPromise<std::vector<TSharedRef>> Promise = NewPromise<std::vector<TSharedRef>>();
+        std::vector<TBlock> Blocks;
+        TPromise<std::vector<TBlock>> Promise = NewPromise<std::vector<TBlock>>();
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
@@ -159,7 +159,7 @@ private:
     void OnBlockSetRead(
         TReadBlockSetSessionPtr session,
         const std::vector<int>& localIndexes,
-        const TErrorOr<std::vector<TSharedRef>>& blocksOrError)
+        const TErrorOr<std::vector<TBlock>>& blocksOrError)
     {
         try {
             if (!blocksOrError.IsOK()) {

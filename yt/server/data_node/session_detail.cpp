@@ -147,7 +147,7 @@ TFuture<IChunkPtr> TSessionBase::Finish(const TChunkMeta* chunkMeta, const TNull
 
 TFuture<void> TSessionBase::PutBlocks(
     int startBlockIndex,
-    const std::vector<TSharedRef>& blocks,
+    const std::vector<TBlock>& blocks,
     bool enableCaching)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);

@@ -222,10 +222,11 @@ private:
                 EndRowIndex_ - CurrentRowIndex_));
             THROW_ERROR_EXCEPTION_IF_FAILED(rowsOrError);
 
-            const auto& rows = rowsOrError.Value();
-            if (!rows.empty()) {
-                CurrentRowIndex_ += rows.size();
-                return rows;
+            const auto& rowsBlocks = rowsOrError.Value();
+            if (!rowsBlocks.empty()) {
+                CurrentRowIndex_ += rowsBlocks.size();
+
+                return TBlock::Unwrap(rowsBlocks);
             }
 
             CurrentChunkReader_.Reset();

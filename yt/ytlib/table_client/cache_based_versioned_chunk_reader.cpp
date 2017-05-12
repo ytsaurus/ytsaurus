@@ -99,20 +99,20 @@ class TSimpleBlockCache
     : public IBlockCache
 {
 public:
-    explicit TSimpleBlockCache(const std::vector<TSharedRef>& blocks)
+    explicit TSimpleBlockCache(const std::vector<TBlock>& blocks)
         : Blocks_(blocks)
     { }
 
     virtual void Put(
         const TBlockId& /*id*/,
         EBlockType /*type*/,
-        const TSharedRef& /*block*/,
+        const TBlock& /*block*/,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
     {
         Y_UNREACHABLE();
     }
 
-    virtual TSharedRef Find(
+    virtual TBlock Find(
         const TBlockId& id,
         EBlockType type) override
     {
@@ -127,13 +127,13 @@ public:
     }
 
 private:
-    const std::vector<TSharedRef>& Blocks_;
+    const std::vector<TBlock>& Blocks_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkLookupHashTablePtr CreateChunkLookupHashTable(
-    const std::vector<TSharedRef>& blocks,
+    const std::vector<TBlock>& blocks,
     TCachedVersionedChunkMetaPtr chunkMeta,
     TKeyComparer keyComparer)
 {
@@ -175,7 +175,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
         switch(chunkMeta->GetChunkFormat()) {
             case ETableChunkFormat::VersionedSimple:
                 blockReader = std::make_unique<TSimpleVersionedBlockReader>(
-                    uncompressedBlock,
+                    uncompressedBlock.Data,
                     blockMeta,
                     chunkMeta->ChunkSchema(),
                     chunkMeta->GetChunkKeyColumnCount(),
@@ -189,7 +189,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
             case ETableChunkFormat::SchemalessHorizontal:
                 blockReader = std::make_unique<THorizontalSchemalessVersionedBlockReader>(
-                    uncompressedBlock,
+                    uncompressedBlock.Data,
                     blockMeta,
                     BuildSchemalessHorizontalSchemaIdMapping(TColumnFilter(), chunkMeta),
                     chunkMeta->GetChunkKeyColumnCount(),
@@ -371,7 +371,7 @@ private:
 
         auto uncompressedBlock = blockCache->Find(blockId, EBlockType::UncompressedData);
         if (uncompressedBlock) {
-            return uncompressedBlock;
+            return uncompressedBlock.Data;
         }
 
         auto compressedBlock = blockCache->Find(blockId, EBlockType::CompressedData);
@@ -379,9 +379,9 @@ private:
             auto codecId = NCompression::ECodec(chunkMeta->Misc().compression_codec());
             auto* codec = NCompression::GetCodec(codecId);
 
-            auto uncompressedBlock = codec->Decompress(compressedBlock);
+            auto uncompressedBlock = codec->Decompress(compressedBlock.Data);
             if (codecId != NCompression::ECodec::None) {
-                blockCache->Put(blockId, EBlockType::UncompressedData, uncompressedBlock, Null);
+                blockCache->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), Null);
             }
             return uncompressedBlock;
         }

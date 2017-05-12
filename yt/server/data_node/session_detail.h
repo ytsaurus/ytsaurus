@@ -48,7 +48,7 @@ public:
 
     virtual TFuture<void> PutBlocks(
         int startBlockIndex,
-        const std::vector<TSharedRef>& blocks,
+        const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) override;
 
     virtual TFuture<void> SendBlocks(
@@ -83,7 +83,7 @@ protected:
         const TNullable<int>& blockCount) = 0;
     virtual TFuture<void> DoPutBlocks(
         int startBlockIndex,
-        const std::vector<TSharedRef>& blocks,
+        const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) = 0;
     virtual TFuture<void> DoSendBlocks(
         int startBlockIndex,

@@ -247,10 +247,10 @@ private:
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
         }
 
-        // Put blocks.
+        // TODO(prime): pull checksum from RPC layer
         auto result = session->PutBlocks(
             firstBlockIndex,
-            request->Attachments(),
+            TBlock::Wrap(request->Attachments()),
             populateCache);
 
         // Flush blocks if needed.
@@ -389,8 +389,10 @@ private:
                 blockIndexes,
                 options);
 
-            response->Attachments() = WaitFor(asyncBlocks)
-                .ValueOrThrow();
+            // TODO(prime): push checksum to RPC layer
+            response->Attachments() = TBlock::Unwrap(
+                WaitFor(asyncBlocks)
+                .ValueOrThrow());
         }
 
         int blocksWithData = 0;
@@ -493,8 +495,10 @@ private:
                 blockCount,
                 options);
 
-            response->Attachments() = WaitFor(asyncBlocks)
-                .ValueOrThrow();
+            // TODO(prime): push checksum to RPC layer
+            response->Attachments() = TBlock::Unwrap(
+                WaitFor(asyncBlocks)
+                .ValueOrThrow());
         }
 
         int blocksWithData = response->Attachments().size();

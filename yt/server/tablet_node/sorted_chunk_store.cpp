@@ -86,13 +86,13 @@ public:
     virtual void Put(
         const TBlockId& id,
         EBlockType type,
-        const TSharedRef& data,
+        const TBlock& data,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& source) override
     {
         UnderlyingCache_->Put(id, type, data, source);
     }
 
-    virtual TSharedRef Find(
+    virtual TBlock Find(
         const TBlockId& id,
         EBlockType type) override
     {
@@ -141,7 +141,7 @@ private:
     const EBlockType Type_;
     const IBlockCachePtr UnderlyingCache_;
 
-    std::vector<TSharedRef> Blocks_;
+    std::vector<TBlock> Blocks_;
     std::atomic<bool> Preloaded_ = {false};
 };
 

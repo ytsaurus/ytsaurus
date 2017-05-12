@@ -6,6 +6,7 @@
 #include "dispatcher.h"
 #include "erasure_writer.h"
 #include "helpers.h"
+#include "block.h"
 #include "replication_writer.h"
 #include "chunk_service_proxy.h"
 #include "helpers.h"
@@ -58,8 +59,8 @@ public:
         IThroughputThrottlerPtr throttler);
 
     virtual TFuture<void> Open() override;
-    virtual bool WriteBlock(const TSharedRef& block) override;
-    virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override;
+    virtual bool WriteBlock(const TBlock& block) override;
+    virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override;
 
     virtual TFuture<void> GetReadyEvent() override;
 
@@ -147,12 +148,12 @@ TFuture<void> TConfirmingWriter::Open()
     return OpenFuture_;
 }
 
-bool TConfirmingWriter::WriteBlock(const TSharedRef& block)
+bool TConfirmingWriter::WriteBlock(const TBlock& block)
 {
-    return WriteBlocks(std::vector<TSharedRef>(1, block));
+    return WriteBlocks(std::vector<TBlock>(1, block));
 }
 
-bool TConfirmingWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
+bool TConfirmingWriter::WriteBlocks(const std::vector<TBlock>& blocks)
 {
     YCHECK(Initialized_);
     YCHECK(OpenFuture_.IsSet());

@@ -2,6 +2,7 @@
 #include "chunk_meta_extensions.h"
 #include "chunk_replica.h"
 #include "format.h"
+#include "block.h"
 
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/checksum.h>
@@ -57,7 +58,7 @@ TFuture<void> TFileWriter::Open()
     return VoidFuture;
 }
 
-bool TFileWriter::WriteBlock(const TSharedRef& block)
+bool TFileWriter::WriteBlock(const TBlock& block)
 {
     YCHECK(IsOpen_);
     YCHECK(!IsClosed_);
@@ -67,11 +68,10 @@ bool TFileWriter::WriteBlock(const TSharedRef& block)
         blockInfo->set_offset(DataFile_->GetPosition());
         blockInfo->set_size(static_cast<int>(block.Size()));
 
-        auto checksum = GetChecksum(block);
-        blockInfo->set_checksum(checksum);
+        blockInfo->set_checksum(block.GetOrComputeChecksum());
 
         NFS::ExpectIOErrors([&] () {
-            DataFile_->Write(block.Begin(), block.Size());
+            DataFile_->Write(block.Data.Begin(), block.Size());
         });
 
         DataSize_ += block.Size();
@@ -86,7 +86,7 @@ bool TFileWriter::WriteBlock(const TSharedRef& block)
     return true;
 }
 
-bool TFileWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
+bool TFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
 {
     YCHECK(IsOpen_);
     YCHECK(!IsClosed_);
