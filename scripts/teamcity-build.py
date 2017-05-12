@@ -143,6 +143,7 @@ def configure(options):
         "-DYT_USE_LTO={0}".format(format_yes_no(options.use_lto)),
         "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
         "-DCMAKE_C_COMPILER={0}".format(options.cc),
+        "-DBUILD_SHARED_LIBS=OFF",
         options.checkout_directory],
         cwd=options.working_directory)
 
