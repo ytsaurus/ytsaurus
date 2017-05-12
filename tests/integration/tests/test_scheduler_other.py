@@ -85,7 +85,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             ops.append(
                 map(dont_track=True,
                     # Sleep is necessary since we not support revive for completing operations.
-                    command="sleep 2; cat",
+                    command="sleep 3; cat",
                     in_=["//tmp/t_in"],
                     out="//tmp/t_out" + str(i)))
 
