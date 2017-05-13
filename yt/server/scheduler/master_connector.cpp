@@ -430,6 +430,7 @@ private:
             UpdateClusterDirectory();
             ListOperations();
             RequestOperationAttributes();
+            RequestCommittedFlag();
             return Result;
         }
 
@@ -583,6 +584,7 @@ private:
                             "async_scheduler_transaction_id",
                             "input_transaction_id",
                             "output_transaction_id",
+                            "completion_transaction_id",
                             "debug_output_transaction_id",
                             "spec",
                             "authenticated_user",
@@ -640,6 +642,67 @@ private:
                     auto operationReport = Owner->CreateOperationFromAttributes(operationId, *attributesNode, std::move(secureVault));
                     if (operationReport.Operation) {
                         Result.OperationReports.push_back(operationReport);
+                    }
+                }
+            }
+        }
+
+        // - Request committed flag for operations.
+        void RequestCommittedFlag()
+        {
+            std::vector<TOperationReport*> operationsWithOutputTransaction;
+
+            auto getBatchKey = [] (const TOperationReport& report) {
+                return "get_op_committed_attr_" + ToString(report.Operation->GetId());
+            };
+
+            auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
+
+            {
+                LOG_INFO("Fetching committed attribute for operations");
+                for (auto& report : Result.OperationReports) {
+                    if (!report.ControllerTransactions->Output) {
+                        continue;
+                    }
+
+                    operationsWithOutputTransaction.push_back(&report);
+
+                    for (auto transactionId : {
+                        report.ControllerTransactions->Output->GetId(),
+                        report.ControllerTransactions->Sync ? report.ControllerTransactions->Sync->GetId() : NullTransactionId,
+                        NullTransactionId})
+                    {
+                        auto req = TYPathProxy::Get(GetOperationPath(report.Operation->GetId()) + "/@");
+                        std::vector<Stroka> attributeKeys{
+                            "committed"
+                        };
+                        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                        SetTransactionId(req, transactionId);
+                        batchReq->AddRequest(req, getBatchKey(report));
+                    }
+                }
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError);
+            const auto& batchRsp = batchRspOrError.Value();
+
+            {
+                for (int index = 0; index < static_cast<int>(operationsWithOutputTransaction.size()); ++index) {
+                    auto* report = operationsWithOutputTransaction[index];
+                    auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(*report));
+
+                    for (auto rsp : rsps) {
+                        if (!rsp.IsOK()) {
+                            // Output transaction may be aborted or expired.
+                            continue;
+                        }
+
+                        auto attributesRsp = rsp.Value();
+                        auto attributes = ConvertToAttributes(TYsonString(attributesRsp->value()));
+                        if (attributes->Get<bool>("committed", false)) {
+                            report->IsCommitted = true;
+                        }
                     }
                 }
             }
@@ -764,7 +827,10 @@ private:
             true,
             "output transaction");
 
-        result.IsCommitted = attributes.Get<bool>("is_committed", false);
+        result.ControllerTransactions->Completion = attachTransaction(
+            attributes.Get<TTransactionId>("completion_transaction_id", TTransactionId()),
+            true,
+            "completion transaction");
 
         // COMPAT(ermolovd). We use NullTransactionId as default value for the transition period.
         // Once all clusters are updated to version that creates debug_output transaction

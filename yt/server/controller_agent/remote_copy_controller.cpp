@@ -408,7 +408,7 @@ private:
             for (const auto& key : attributeKeys) {
                 auto req = TYPathProxy::Set(path + "/@" + key);
                 req->set_value(InputTableAttributes_->GetYson(key).GetData());
-                SetTransactionId(req, OutputTransaction->GetId());
+                SetTransactionId(req, CompletionTransaction->GetId());
                 batchReq->AddRequest(req);
             }
 

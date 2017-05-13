@@ -845,19 +845,22 @@ public:
     void MaterializeOperation(TOperationPtr operation)
     {
         auto controller = operation->GetController();
-        // TODO(ignat): avoid non-necessary async call here if operation is successfully revived.
-        operation->SetState(EOperationState::Materializing);
-        BIND(&IOperationController::Materialize, controller)
-            .AsyncVia(controller->GetCancelableInvoker())
-            .Run()
-            .Subscribe(BIND([operation] (const TError& error) {
-                if (error.IsOK()) {
-                    if (operation->GetState() == EOperationState::Materializing) {
-                        operation->SetState(EOperationState::Running);
+        if (controller->IsRevivedFromSnapshot()) {
+            operation->SetState(EOperationState::Running);
+        } else {
+            operation->SetState(EOperationState::Materializing);
+            BIND(&IOperationController::Materialize, controller)
+                .AsyncVia(controller->GetCancelableInvoker())
+                .Run()
+                .Subscribe(BIND([operation] (const TError& error) {
+                    if (error.IsOK()) {
+                        if (operation->GetState() == EOperationState::Materializing) {
+                            operation->SetState(EOperationState::Running);
+                        }
                     }
-                }
-            })
-            .Via(operation->GetCancelableControlInvoker()));
+                })
+                .Via(operation->GetCancelableControlInvoker()));
+        }
     }
 
 
@@ -1731,8 +1734,6 @@ private:
     {
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        operation->SetState(EOperationState::Reviving);
-
         const auto& operationId = operation->GetId();
 
         LOG_INFO("Reviving operation (OperationId: %v)",
@@ -2268,6 +2269,8 @@ private:
 
         for (const auto& operationReport : operationReports) {
             const auto& operation = operationReport.Operation;
+
+            operation->SetState(EOperationState::Reviving);
 
             if (operationReport.IsCommitted) {
                 CompleteCompletingOperation(operation);

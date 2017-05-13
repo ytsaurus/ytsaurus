@@ -747,10 +747,58 @@ class TestSchedulerRevive(YTEnvSetup):
 
         self.Env.start_schedulers()
 
-        with pytest.raises(YtError):
-            op.track()
+        op.track()
+        
+        assert "completed" == get("//sys/operations/" + op.id + "/@state")
 
-        assert "failed" == get("//sys/operations/" + op.id + "/@state")
+        assert read_table("//tmp/t_out") == []
+
+    @pytest.mark.parametrize("stage", ["stage" + str(index) for index in xrange(1, 8)])
+    def test_completing_with_sleep(self, stage):
+        self._prepare_tables()
+
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 10",
+                 spec={
+                     "testing": {
+                         "delay_inside_operation_commit": 4000,
+                         "delay_inside_operation_commit_stage": stage,
+                     }
+                 })
+
+        self._wait_state(op, "running")
+
+        # Wait for snapshot.
+        time.sleep(2)
+
+        op.complete(ignore_result=True)
+
+        self._wait_state(op, "completing")
+
+        # Wait to perform complete before sleep.
+        time.sleep(1)
+
+        self.Env.kill_schedulers()
+
+        assert "completing" == get("//sys/operations/" + op.id + "/@state")
+
+        self.Env.start_schedulers()
+
+        op.track()
+        
+        events = get("//sys/operations/{0}/@events".format(op.id))
+
+        events_prefix = ["initializing", "preparing", "materializing", "running", "completing"]
+        if stage <= "stage5":
+            correct_events = events_prefix + ["reviving", "running", "completing", "completed"]
+        else:
+            correct_events = events_prefix + ["reviving", "completed"]
+
+        print >>sys.stderr, "EVENTS", [event["state"] for event in events if event["state"] != "pending"]
+        assert correct_events == [event["state"] for event in events if event["state"] != "pending"]
+
+        assert "completed" == get("//sys/operations/" + op.id + "/@state")
+
+        assert read_table("//tmp/t_out") == []
 
     def test_failing(self):
         self._prepare_tables()
