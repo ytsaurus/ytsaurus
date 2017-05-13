@@ -201,7 +201,7 @@ void TSchedulerElement::UpdateAttributes()
         Attributes_.DominantResource = GetDominantResource(usage, TotalResourceLimits_);
     }
 
-    Attributes_.DominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);;
+    Attributes_.DominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);
 
     auto dominantDemand = GetResource(demand, Attributes_.DominantResource);
     Attributes_.DemandRatio =

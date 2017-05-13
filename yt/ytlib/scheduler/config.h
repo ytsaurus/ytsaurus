@@ -55,12 +55,25 @@ DEFINE_REFCOUNTED_TYPE(TJobIOConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EDelayInsideOperationCommitStage,
+    (Stage1)
+    (Stage2)
+    (Stage3)
+    (Stage4)
+    (Stage5)
+    (Stage6)
+    (Stage7)
+);
+
 class TTestingOperationOptions
     : public NYTree::TYsonSerializable
 {
 public:
     TDuration SchedulingDelay;
     ESchedulingDelayType SchedulingDelayType;
+
+    TDuration DelayInsideOperationCommit;
+    EDelayInsideOperationCommitStage DelayInsideOperationCommitStage;
 
     TTestingOperationOptions();
 };
