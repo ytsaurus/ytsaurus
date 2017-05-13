@@ -247,35 +247,35 @@ if yt_yson_bindings:
             try:
                 yt_yson_bindings.loads(b"abacaba{")
             except YsonError as error:
-                assert error.inner_errors[0]["attributes"]["context"] == "abacaba{"
+                assert error.inner_errors[0]["attributes"]["context"] == b"abacaba{"
                 assert error.inner_errors[0]["attributes"]["context_pos"] == 0
 
             try:
                 yt_yson_bindings.loads(b"{a=b;c=d;e=f;[}")
             except YsonError as error:
-                assert error.inner_errors[0]["attributes"]["context"] == "b;c=d;e=f;[}"
+                assert error.inner_errors[0]["attributes"]["context"] == b"b;c=d;e=f;[}"
                 assert error.inner_errors[0]["attributes"]["context_pos"] == 10
 
             try:
                 yt_yson_bindings.loads(b"[0;1;2;3;4;5;{1=2}]")
             except YsonError as error:
-                assert error.inner_errors[0]["attributes"]["context"] == ";2;3;4;5;{1=2}]"
+                assert error.inner_errors[0]["attributes"]["context"] == b";2;3;4;5;{1=2}]"
                 assert error.inner_errors[0]["attributes"]["context_pos"] == 10
 
             try:
                 yt_yson_bindings.loads(b"[1;5;{1=2}]")
             except YsonError as error:
-                assert error.inner_errors[0]["attributes"]["context"] == "[1;5;{1=2}]"
+                assert error.inner_errors[0]["attributes"]["context"] == b"[1;5;{1=2}]"
                 assert error.inner_errors[0]["attributes"]["context_pos"] == 6
 
             try:
                 yt_yson_bindings.loads(b"[" + b"ab" * (STREAM_BLOCK_SIZE // 2) + b";{1=2}]")
             except YsonError as error:
-                assert error.inner_errors[0]["attributes"]["context"] == "abababab;{1=2}]"
+                assert error.inner_errors[0]["attributes"]["context"] == b"abababab;{1=2}]"
                 assert error.inner_errors[0]["attributes"]["context_pos"] == 10
 
             try:
                 yt_yson_bindings.loads(b"[" + b"a" * STREAM_BLOCK_SIZE + b";{1=2}]")
             except YsonError as error:
-                assert error.inner_errors[0]["attributes"]["context"] == "aaaaaaaa;{1=2}]"
+                assert error.inner_errors[0]["attributes"]["context"] == b"aaaaaaaa;{1=2}]"
                 assert error.inner_errors[0]["attributes"]["context_pos"] == 10
