@@ -688,8 +688,6 @@ private:
                     context.Phase = EWritePhase::Lock;
                     context.Transaction = transaction;
                     YCHECK(storeManager->ExecuteWrites(&reader, &context));
-
-                    tablet->SetWriteLogsRowCount(tablet->GetWriteLogsRowCount() + record.RowCount);
                 }
             };
             applyWrites(transaction->ImmediateLockedWriteLog());
@@ -704,7 +702,6 @@ private:
 
                     LockTablet(tablet);
                     transaction->LockedTablets().push_back(tablet);
-                    tablet->SetWriteLogsRowCount(tablet->GetWriteLogsRowCount() + record.RowCount);
                 }
             };
             lockTablets(transaction->ImmediateLocklessWriteLog());
@@ -2217,7 +2214,6 @@ private:
         const TTransactionWriteRecord& record,
         TTransactionSignature signature)
     {
-        tablet->SetWriteLogsRowCount(tablet->GetWriteLogsRowCount() + record.RowCount);
         WriteLogsMemoryTrackerGuard_.UpdateSize(record.GetByteSize());
         writeLog->Enqueue(record);
         transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
@@ -2227,10 +2223,6 @@ private:
     {
         i64 byteSize = 0;
         for (const auto& record : *writeLog) {
-            auto* tablet = FindTablet(record.TabletId);
-            if (tablet) {
-                tablet->SetWriteLogsRowCount(tablet->GetWriteLogsRowCount() - record.RowCount);
-            }
             byteSize += record.GetByteSize();
         }
         WriteLogsMemoryTrackerGuard_.UpdateSize(-byteSize);
@@ -2501,9 +2493,6 @@ private:
             auto& replicaInfo = pair.second;
             StopTableReplicaEpoch(&replicaInfo);
         }
-
-        tablet->SetPrelockedRowCount(0);
-        tablet->SetWriteLogsRowCount(0);
     }
 
 
@@ -2567,8 +2556,6 @@ private:
                 .Item("hash_table_size").Value(tablet->GetHashTableSize())
                 .Item("overlapping_store_count").Value(tablet->GetOverlappingStoreCount())
                 .Item("retained_timestamp").Value(tablet->GetRetainedTimestamp())
-                .Item("prelocked_row_count").Value(tablet->GetPrelockedRowCount())
-                .Item("write_logs_row_count").Value(tablet->GetWriteLogsRowCount())
                 .Item("config")
                     .BeginAttributes()
                         .Item("opaque").Value(true)
