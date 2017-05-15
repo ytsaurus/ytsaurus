@@ -198,7 +198,6 @@ void TSortedStoreManager::LockRow(TTransaction* transaction, bool prelock, const
 {
     if (prelock) {
         transaction->PrelockedRows().push(rowRef);
-        Tablet_->SetPrelockedRowCount(Tablet_->GetPrelockedRowCount() + 1);
     } else {
         transaction->LockedRows().push_back(rowRef);
     }
@@ -207,7 +206,6 @@ void TSortedStoreManager::LockRow(TTransaction* transaction, bool prelock, const
 void TSortedStoreManager::ConfirmRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
 {
     transaction->LockedRows().push_back(rowRef);
-    Tablet_->SetPrelockedRowCount(Tablet_->GetPrelockedRowCount() - 1);
 }
 
 void TSortedStoreManager::PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
