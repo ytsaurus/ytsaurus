@@ -190,7 +190,7 @@ inline T& TNode::As() {
 
 template<typename T>
 inline const T& TNode::As() const {
-    return const_cast<TNode*>(this)->As<T>();
+    return Value_.As<T>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
