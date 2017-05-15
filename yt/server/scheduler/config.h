@@ -821,6 +821,7 @@ public:
     double UserJobMemoryDigestPrecision;
     double UserJobMemoryReserveQuantile;
     double JobProxyMemoryReserveQuantile;
+    double ResourceOverdraftFactor;
 
     // Duration of no activity by job to be considered as suspicious.
     TDuration SuspiciousInactivityTimeout;
@@ -1118,6 +1119,9 @@ public:
         RegisterParameter("job_proxy_memory_reserve_quantile", JobProxyMemoryReserveQuantile)
             .InRange(0.0, 1.0)
             .Default(0.95);
+        RegisterParameter("resource_overdraft_factor", ResourceOverdraftFactor)
+            .InRange(1.0, 10.0)
+            .Default(1.1);
 
         RegisterParameter("suspicious_inactivity_timeout", SuspiciousInactivityTimeout)
             .Default(TDuration::Minutes(1));
