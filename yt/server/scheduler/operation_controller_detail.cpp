@@ -2035,7 +2035,7 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobId& jobId, TInstant st
 
 void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TStatistics& statistics, bool resourceOverdraft)
 {
-    static const double ResourceOverdraftFactor = 1.1;
+    static const double ResourceOverdraftDelta = 0.05;
 
     auto jobType = joblet->JobType;
     bool taskUpdateNeeded = false;
@@ -2047,8 +2047,8 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TSta
         if (resourceOverdraft) {
             // During resource overdraft actual max memory values may be outdated,
             // since statistics are updated periodically. To ensure that digest converge to large enough
-            // values we introduce addictional factor.
-            actualFactor *= ResourceOverdraftFactor;
+            // values we introduce additional factor.
+            actualFactor = std::max(actualFactor, joblet->UserJobMemoryReserveFactor + ResourceOverdraftDelta);
         }
         LOG_TRACE("Adding sample to the job proxy memory digest (JobType: %v, Sample: %v, JobId: %v)",
             jobType,
@@ -2064,7 +2064,7 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TSta
         double actualFactor = static_cast<double>(*jobProxyMaxMemoryUsage) /
             (joblet->EstimatedResourceUsage.GetJobProxyMemory() + joblet->EstimatedResourceUsage.GetFootprintMemory());
         if (resourceOverdraft) {
-            actualFactor *= ResourceOverdraftFactor;
+            actualFactor = std::max(actualFactor, joblet->JobProxyMemoryReserveFactor + ResourceOverdraftDelta);
         }
         LOG_TRACE("Adding sample to the user job memory digest (JobType: %v, Sample: %v, JobId: %v)",
             jobType,
