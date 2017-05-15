@@ -94,8 +94,8 @@ class TestTransferManager(object):
         port_locks_path = os.path.join(TESTS_SANDBOX, "ports")
         os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = port_locks_path
 
-        self._first_cluster_yt_instance = start(node_count=3, path=TEST_RUN_PATH, enable_debug_logging=True, id="first")
-        self._second_cluster_yt_instance = start(node_count=3, path=TEST_RUN_PATH, enable_debug_logging=True, id="second")
+        self._first_cluster_yt_instance = start(node_count=3, path=TEST_RUN_PATH, enable_debug_logging=True, id="first", cell_tag=0)
+        self._second_cluster_yt_instance = start(node_count=3, path=TEST_RUN_PATH, enable_debug_logging=True, id="second", cell_tag=1)
 
         self.first_cluster_client = self._first_cluster_yt_instance.create_client()
         self.second_cluster_client = self._second_cluster_yt_instance.create_client()
