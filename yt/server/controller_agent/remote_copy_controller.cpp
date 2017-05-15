@@ -254,6 +254,7 @@ private:
         StartInputTransaction(NullTransactionId);
         StartOutputTransaction(UserTransactionId);
         StartDebugOutputTransaction();
+        AreTransactionsActive = true;
     }
 
     virtual void DoInitialize() override

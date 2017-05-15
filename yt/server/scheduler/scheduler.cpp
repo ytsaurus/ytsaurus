@@ -2245,7 +2245,6 @@ private:
             }
         };
 
-        abortTransaction(controllerTransactions->Sync);
         abortTransaction(controllerTransactions->Async);
         abortTransaction(controllerTransactions->Input);
         abortTransaction(controllerTransactions->Output);
