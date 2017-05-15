@@ -101,6 +101,9 @@ public:
     bool IsMap() const;
     bool IsEntity() const;
 
+    template<typename T>
+    bool IsOfType() const noexcept;
+
     bool Empty() const;
     size_t Size() const;
 
@@ -115,6 +118,12 @@ public:
     const TMap& AsMap() const;
     TList& AsList();
     TMap& AsMap();
+
+    template<typename T>
+    T& As();
+
+    template<typename T>
+    const T& As() const;
 
     static TNode CreateList();
     static TNode CreateMap();
@@ -168,6 +177,21 @@ bool operator==(const TNode& lhs, const TNode& rhs);
 bool operator!=(const TNode& lhs, const TNode& rhs);
 
 bool GetBool(const TNode& node);
+
+template<typename T>
+inline bool TNode::IsOfType() const noexcept {
+    return (Value_.Tag() == TValue::TagOf<T>());
+}
+
+template<typename T>
+inline T& TNode::As() {
+    return Value_.As<T>();
+}
+
+template<typename T>
+inline const T& TNode::As() const {
+    return const_cast<TNode*>(this)->As<T>();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
