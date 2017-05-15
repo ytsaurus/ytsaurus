@@ -27,6 +27,11 @@
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 
+#include <mutex>
+
+#include <link.h>
+#include <dlfcn.h>
+
 namespace NYT {
 namespace NCodegen {
 
@@ -42,13 +47,30 @@ static bool DumpIR()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static int ProgramHeaderCallback(dl_phdr_info* info, size_t /*size*/, void* /*data*/)
+{
+    if (strstr(info->dlpi_name, "ytnode.node")) {
+        dlopen(info->dlpi_name, RTLD_NOW | RTLD_GLOBAL);
+    }
+
+    return 0;
+}
+
+void LoadDynamicLibrarySymbols()
+{
+    dl_iterate_phdr(ProgramHeaderCallback, nullptr);
+}
+
 class TCGMemoryManager
     : public llvm::SectionMemoryManager
 {
 public:
     explicit TCGMemoryManager(TRoutineRegistry* routineRegistry)
         : RoutineRegistry_(routineRegistry)
-    { }
+    {
+        static std::once_flag onceFlag;
+        std::call_once(onceFlag, &LoadDynamicLibrarySymbols);
+    }
 
     virtual uint64_t getSymbolAddress(const std::string& name) override
     {
