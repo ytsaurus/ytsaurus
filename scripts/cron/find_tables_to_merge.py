@@ -64,7 +64,8 @@ def main():
                            subtree_filter=lambda path, obj:
                                args.ignore_suppress_nightly_merge or
                                not obj.attributes.get("suppress_nightly_merge", False),
-                           exclude=args.filter_out):
+                           exclude=args.filter_out,
+                           enable_batch_mode=True):
         chunk_count = int(table.attributes["chunk_count"])
         if chunk_count == 0:
             continue
@@ -96,7 +97,8 @@ def main():
             tables_to_merge = yt.get(args.queue_path) + tables_to_merge
         for index in xrange(5):
             try:
-                yt.set(args.queue_path, tables_to_merge)
+                # Hack to avoid failing merging processes
+                yt.set(args.queue_path, tables_to_merge[:45000])
                 break
             except yt.YtResponseError:
                 time.sleep(5)
