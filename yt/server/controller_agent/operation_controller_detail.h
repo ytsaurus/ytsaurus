@@ -92,7 +92,6 @@ DEFINE_ENUM(EOutputTableType,
 );
 
 DEFINE_ENUM(ETransactionType,
-    (Sync)
     (Async)
     (Input)
     (Output)
@@ -310,7 +309,6 @@ protected:
     // Maps node ids to descriptors for job input chunks.
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory;
 
-    NApi::ITransactionPtr SyncSchedulerTransaction;
     NApi::ITransactionPtr AsyncSchedulerTransaction;
     NApi::ITransactionPtr InputTransaction;
     NApi::ITransactionPtr OutputTransaction;
@@ -319,6 +317,8 @@ protected:
     NApi::ITransactionPtr UserTransaction;
 
     NTransactionClient::TTransactionId UserTransactionId;
+
+    std::atomic<bool> AreTransactionsActive = {false};
 
     bool CommitFinished = false;
 
@@ -891,7 +891,6 @@ protected:
 
     // Initialize transactions
     void StartAsyncSchedulerTransaction();
-    void StartSyncSchedulerTransaction();
     void StartInputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
     void StartOutputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
     void StartDebugOutputTransaction();
@@ -1276,8 +1275,6 @@ private:
     TMemoryDigestMap UserJobMemoryDigests_;
 
     const Stroka CodicilData_;
-
-    std::atomic<bool> AreTransactionsActive = {false};
 
     std::unique_ptr<IHistogram> EstimatedInputDataSizeHistogram_;
     std::unique_ptr<IHistogram> InputDataSizeHistogram_;

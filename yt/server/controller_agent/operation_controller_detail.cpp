@@ -1258,7 +1258,6 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
         };
 
         // NB: Async transaction is not checked.
-        checkTransaction(controllerTransactions->Sync);
         checkTransaction(controllerTransactions->Input);
         checkTransaction(controllerTransactions->Output);
         checkTransaction(controllerTransactions->DebugOutput);
@@ -1305,13 +1304,11 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
         if (cleanStart) {
             LOG_INFO("Aborting operation transactions");
             // NB: Don't touch user transaction.
-            scheduleAbort(controllerTransactions->Sync);
             scheduleAbort(controllerTransactions->Input);
             scheduleAbort(controllerTransactions->Output);
             scheduleAbort(controllerTransactions->DebugOutput);
         } else {
             LOG_INFO("Reusing operation transactions");
-            SyncSchedulerTransaction = controllerTransactions->Sync;
             InputTransaction = controllerTransactions->Input;
             OutputTransaction = controllerTransactions->Output;
             DebugOutputTransaction = controllerTransactions->DebugOutput;
@@ -1664,9 +1661,8 @@ void TOperationControllerBase::SafeRevive()
 void TOperationControllerBase::InitializeTransactions()
 {
     StartAsyncSchedulerTransaction();
-    StartSyncSchedulerTransaction();
-    StartInputTransaction(SyncSchedulerTransaction->GetId());
-    StartOutputTransaction(SyncSchedulerTransaction->GetId());
+    StartInputTransaction(UserTransactionId);
+    StartOutputTransaction(UserTransactionId);
     StartDebugOutputTransaction();
     AreTransactionsActive = true;
 }
@@ -1709,14 +1705,6 @@ ITransactionPtr TOperationControllerBase::StartTransaction(
         transaction->GetId());
 
     return transaction;
-}
-
-void TOperationControllerBase::StartSyncSchedulerTransaction()
-{
-    SyncSchedulerTransaction = StartTransaction(
-        ETransactionType::Sync,
-        AuthenticatedMasterClient,
-        UserTransactionId);
 }
 
 void TOperationControllerBase::StartAsyncSchedulerTransaction()
@@ -1993,7 +1981,6 @@ void TOperationControllerBase::CommitTransactions()
 
     SleepInStage(EDelayInsideOperationCommitStage::Stage7);
 
-    CommitTransaction(SyncSchedulerTransaction);
     CommitTransaction(DebugOutputTransaction);
 
     LOG_INFO("Scheduler transactions committed");
@@ -2825,7 +2812,6 @@ std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
                 // NB: User transaction must be returned first to correctly detect that operation aborted due to user transaction abort.
                 UserTransaction,
                 AsyncSchedulerTransaction,
-                SyncSchedulerTransaction,
                 InputTransaction,
                 OutputTransaction,
                 CompletionTransaction,
@@ -2889,7 +2875,6 @@ void TOperationControllerBase::SafeAbort()
 
     abortTransaction(InputTransaction);
     abortTransaction(OutputTransaction);
-    abortTransaction(SyncSchedulerTransaction);
     abortTransaction(AsyncSchedulerTransaction);
 
     WaitFor(Combine(abortTransactionFutures))
@@ -5859,7 +5844,6 @@ void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     BuildYsonMapFluently(consumer)
-        .Item("sync_scheduler_transaction_id").Value(SyncSchedulerTransaction ? SyncSchedulerTransaction->GetId() : NullTransactionId)
         .Item("async_scheduler_transaction_id").Value(AsyncSchedulerTransaction ? AsyncSchedulerTransaction->GetId() : NullTransactionId)
         .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
         .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId)

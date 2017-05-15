@@ -147,7 +147,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         time.sleep(2)
         self.Env.kill_schedulers()
 
-        abort_transaction(get("//sys/operations/{0}/@sync_scheduler_transaction_id".format(op.id)))
+        abort_transaction(get("//sys/operations/{0}/@input_transaction_id".format(op.id)))
+        abort_transaction(get("//sys/operations/{0}/@output_transaction_id".format(op.id)))
 
         self.Env.start_schedulers()
 

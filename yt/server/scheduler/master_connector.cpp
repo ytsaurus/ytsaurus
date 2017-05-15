@@ -571,7 +571,6 @@ private:
                             "operation_type",
                             "mutation_id",
                             "user_transaction_id",
-                            "sync_scheduler_transaction_id",
                             "async_scheduler_transaction_id",
                             "input_transaction_id",
                             "output_transaction_id",
@@ -660,7 +659,6 @@ private:
 
                     for (auto transactionId : {
                         report.ControllerTransactions->Output->GetId(),
-                        report.ControllerTransactions->Sync ? report.ControllerTransactions->Sync->GetId() : NullTransactionId,
                         NullTransactionId})
                     {
                         auto req = TYPathProxy::Get(GetOperationPath(report.Operation->GetId()) + "/@");
@@ -801,10 +799,6 @@ private:
             false);
 
         result.ControllerTransactions = New<NControllerAgent::TControllerTransactions>();
-        result.ControllerTransactions->Sync = attachTransaction(
-            attributes.Get<TTransactionId>("sync_scheduler_transaction_id"),
-            true,
-            "sync transaction");
         result.ControllerTransactions->Async = attachTransaction(
             attributes.Get<TTransactionId>("async_scheduler_transaction_id"),
             true,

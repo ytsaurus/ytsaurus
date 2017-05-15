@@ -45,7 +45,6 @@ namespace NControllerAgent {
 struct TControllerTransactions
     : public TIntrinsicRefCounted
 {
-    NApi::ITransactionPtr Sync;
     NApi::ITransactionPtr Async;
     NApi::ITransactionPtr Input;
     NApi::ITransactionPtr Output;
