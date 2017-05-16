@@ -4,7 +4,7 @@
 
 #include <util/datetime/base.h>
 
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 #include <util/generic/vector.h>
 #include <util/generic/yexception.h>
 

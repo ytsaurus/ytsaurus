@@ -2,7 +2,7 @@
 
 #include <mapreduce/yt/interface/fwd.h>
 
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 #include <util/stream/output.h>
 
 namespace NYT {

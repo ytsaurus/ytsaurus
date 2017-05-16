@@ -3,7 +3,7 @@
 #include <mapreduce/yt/interface/fwd.h>
 
 #include <util/datetime/base.h>
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 namespace NYT {
 
