@@ -2,7 +2,7 @@
 
 #include <yt/core/misc/nullable.h>
 
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 #include <set>
 

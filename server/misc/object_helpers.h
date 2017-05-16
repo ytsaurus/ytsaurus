@@ -1,6 +1,6 @@
 #pragma once
 
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 #include <vector>
 
