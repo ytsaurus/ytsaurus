@@ -15,6 +15,7 @@
 #include <yt/ytlib/object_client/object_ypath_proxy.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/checksum.h>
 
 #include <yt/core/ytree/permission.h>
 
@@ -67,6 +68,46 @@ void GetUserObjectBasicAttributes(
         userObject.CellTag = rsp->cell_tag();
 
         userObject.Type = NObjectClient::TypeFromId(userObject.ObjectId);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRpcPtr>
+std::vector<TBlock> GetRpcAttachedBlocks(const TRpcPtr& rpc, bool validateChecksums)
+{
+    if (rpc->block_checksums_size() != 0 && rpc->Attachments().size() != rpc->block_checksums_size()) {
+        THROW_ERROR_EXCEPTION("Number of RPC attachments does not match the number of checksums")
+            << TErrorAttribute("num_attachments", rpc->block_checksums_size())
+            << TErrorAttribute("num_checksums", rpc->Attachments().size());
+    }
+
+    std::vector<TBlock> blocks;
+    blocks.reserve(rpc->Attachments().size());
+    for (int i = 0; i < rpc->Attachments().size(); ++i) {
+        auto checksum = NullChecksum;
+        if (rpc->block_checksums_size() != 0) {
+            checksum = rpc->block_checksums(i);
+        }
+
+        blocks.emplace_back(rpc->Attachments()[i], checksum);
+
+        if (validateChecksums && !blocks.back().IsChecksumValid()) {
+            THROW_ERROR_EXCEPTION("Invalid block checksum")
+                << TErrorAttribute("block_index", i);
+        }
+    }
+
+    return blocks;
+}
+
+template <class TRpcPtr>
+void SetRpcAttachedBlocks(const TRpcPtr& rpc, const std::vector<TBlock>& blocks)
+{
+    rpc->Attachments().reserve(blocks.size());
+    for (const auto& block : blocks) {
+        rpc->Attachments().push_back(block.Data);
+        rpc->add_block_checksums(block.Checksum);
     }
 }
 

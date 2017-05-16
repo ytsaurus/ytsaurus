@@ -333,8 +333,7 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
     req->set_first_block_index(FirstBlockIndex_);
     req->set_populate_cache(writer->Config_->PopulateCache);
 
-    // TODO(prime): push checksums to RPC layer
-    req->Attachments() = TBlock::Unwrap(Blocks_);
+    SetRpcAttachedBlocks(req, Blocks_);
 
     LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v)",
         GetStartBlockIndex(),

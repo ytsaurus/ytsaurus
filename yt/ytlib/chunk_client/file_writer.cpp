@@ -63,6 +63,10 @@ bool TFileWriter::WriteBlock(const TBlock& block)
     YCHECK(IsOpen_);
     YCHECK(!IsClosed_);
 
+    if (!block.IsChecksumValid()) {
+        throw TBlockChecksumValidationException();
+    }
+
     try {
         auto* blockInfo = BlocksExt_.add_blocks();
         blockInfo->set_offset(DataFile_->GetPosition());

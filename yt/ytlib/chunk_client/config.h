@@ -341,7 +341,7 @@ public:
         RegisterParameter("verify_compression", VerifyCompression)
             .Default(true);
         RegisterParameter("compute_checksum", ComputeChecksum)
-            .Default(false);
+            .Default(true);
     }
 };
 

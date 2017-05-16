@@ -238,7 +238,7 @@ private:
 
     void WriteDataPart(IChunkWriterPtr writer, const std::vector<TBlock>& blocks);
 
-    TFuture<void> WriteParityBlocks(const std::vector<TSharedRef>& blocks);
+    TFuture<void> WriteParityBlocks(const std::vector<TBlock>& blocks);
 
     TFuture<void> CloseParityWriters();
 
@@ -382,7 +382,11 @@ void TErasureWriter::EncodeAndWriteParityBlocks()
                 for (const auto& slicer : Slicers_) {
                     slices.push_back(slicer.GetSlice(begin, end));
                 }
-                return Codec_->Encode(slices);
+                auto blocks = TBlock::Wrap(Codec_->Encode(slices));
+                for (auto& block : blocks) {
+                    block.Checksum = GetChecksum(block.Data);
+                }
+                return blocks;
             })
             .AsyncVia(TDispatcher::Get()->GetErasurePoolInvoker())
             .Run();
@@ -396,7 +400,7 @@ void TErasureWriter::EncodeAndWriteParityBlocks()
         .ThrowOnError();
 }
 
-TFuture<void> TErasureWriter::WriteParityBlocks(const std::vector<TSharedRef>& blocks)
+TFuture<void> TErasureWriter::WriteParityBlocks(const std::vector<TBlock>& blocks)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 

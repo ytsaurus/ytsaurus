@@ -336,7 +336,6 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
 
         Save(context, chunkWriter->GetChunkMeta());
         Save(context, TBlock::Unwrap(chunkWriter->GetBlocks()));
-        // TODO(prime) save checksums
     });
 }
 
@@ -348,7 +347,6 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
         auto chunkMeta = Load<TChunkMeta>(context);
         auto blocks = Load<std::vector<TSharedRef>>(context);
 
-        // TODO(prime) restore checksums
         auto chunkReader = CreateMemoryReader(chunkMeta, TBlock::Wrap(blocks));
         auto tableReader = CreateSchemafulChunkReader(
                 New<TChunkReaderConfig>(),
