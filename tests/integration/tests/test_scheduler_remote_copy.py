@@ -162,10 +162,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
             address = get("//sys/nodes", driver=self.remote_driver).keys()[0]
             set("//sys/nodes/%s/@banned" % address, flag, driver=self.remote_driver)
-
-            # Give it enough time to register or unregister the node
-            time.sleep(1.0)
-            assert get("//sys/nodes/%s/@state" % address, driver=self.remote_driver) == state
+            wait(lambda: get("//sys/nodes/%s/@state" % address, driver=self.remote_driver) == state)
 
         create("table", "//tmp/t1", driver=self.remote_driver)
         set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
