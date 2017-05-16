@@ -2,6 +2,7 @@ from yt_env_setup import wait, YTEnvSetup
 from yt_commands import *
 
 import __builtin__
+import datetime
 import itertools
 import pytest
 import shutil
@@ -158,7 +159,7 @@ class TestGetJobInput(YTEnvSetup):
             },
             dont_track=True
         )
-        events.wait_event("reducer_almost_complete")
+        events.wait_event("reducer_almost_complete", timeout=datetime.timedelta(300))
 
         job_id_list = os.listdir(self._tmpdir)
         assert len(job_id_list) >= 3
