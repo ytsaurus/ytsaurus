@@ -5984,7 +5984,7 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
     const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError)
 {
     if (!briefStatisticsOrError.IsOK()) {
-        if (BriefStatistics_) {
+        if (job->BriefStatistics) {
             // Failures in brief statistics building are normal during job startup,
             // when readers and writers are not built yet. After we successfully built
             // brief statistics once, we shouldn't fail anymore.
@@ -5992,7 +5992,7 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
             LOG_WARNING(
                 briefStatisticsOrError,
                 "Failed to build brief job statistics (JobId: %v)",
-                Id_);
+                job->JobId);
         }
 
         return;

@@ -79,7 +79,7 @@ void FinalizeChunkData(
 
     if (tabletSnapshot->HashTableSize > 0) {
         data->LookupHashTable = CreateChunkLookupHashTable(
-            data->Blocks,
+            TBlock::Unwrap(data->Blocks),
             data->ChunkMeta,
             tabletSnapshot->RowKeyComparer);
     }
