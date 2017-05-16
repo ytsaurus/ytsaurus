@@ -2,7 +2,7 @@
 
 #include <mapreduce/yt/interface/node.h>
 
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 #include <util/datetime/base.h>
 
 namespace NYT {

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <util/generic/ptr.h>
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 #include <util/system/compat.h>
 #include <util/system/src_location.h>
 
