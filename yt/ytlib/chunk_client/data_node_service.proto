@@ -60,6 +60,9 @@ message TReqPutBlocks
     required int32 first_block_index = 2;
     optional bool populate_cache = 5 [default = false];
     optional bool flush_blocks = 6 [default = false];
+
+    // Might be empty, or contain NullChecksum.
+    repeated fixed64 block_checksums = 8;
 }
 
 message TRspPutBlocks
@@ -120,6 +123,8 @@ message TRspGetBlockSet
 
     // Blocks are returned via attachments and correspond to block_indexes
     // list in the request. Some blocks may be null.
+
+    repeated fixed64 block_checksums = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -145,6 +150,8 @@ message TRspGetBlockRange
 
     // Blocks are returned via attachments and correspond to a prefix of
     // the requested range.
+
+    repeated fixed64 block_checksums = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

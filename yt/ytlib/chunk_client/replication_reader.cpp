@@ -6,6 +6,7 @@
 #include "config.h"
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"
+#include "helpers.h"
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -1145,8 +1146,10 @@ private:
 
         i64 bytesReceived = 0;
         std::vector<int> receivedBlockIndexes;
-        for (int index = 0; index < rsp->Attachments().size(); ++index) {
-            const auto& block = rsp->Attachments()[index];
+
+        auto blocks = GetRpcAttachedBlocks(rsp);
+        for (int index = 0; index < blocks.size(); ++index) {
+            const auto& block = blocks[index];
             if (!block)
                 continue;
 
@@ -1157,10 +1160,9 @@ private:
                 ? TNullable<TNodeDescriptor>(GetPeerDescriptor(peerAddress))
                 : TNullable<TNodeDescriptor>(Null);
 
-            // TODO(prime): get checksum from RPC layer
-            reader->BlockCache_->Put(blockId, EBlockType::CompressedData, TBlock(block), sourceDescriptor);
+            reader->BlockCache_->Put(blockId, EBlockType::CompressedData, block, sourceDescriptor);
 
-            YCHECK(Blocks_.insert(std::make_pair(blockIndex, TBlock(block))).second);
+            YCHECK(Blocks_.insert(std::make_pair(blockIndex, block)).second);
             bytesReceived += block.Size();
             receivedBlockIndexes.push_back(blockIndex);
         }
@@ -1341,17 +1343,17 @@ private:
 
         const auto& rsp = rspOrError.Value();
 
-        const auto& blocks = rsp->Attachments();
+        auto blocks = GetRpcAttachedBlocks(rsp);
+
         int blocksReceived = 0;
         i64 bytesReceived = 0;
-        for (const auto& block : blocks) {
+        for (auto& block : blocks) {
             if (!block)
                 break;
             blocksReceived += 1;
             bytesReceived += block.Size();
 
-            // TODO(prime): get checksum from RPC layer
-            FetchedBlocks_.push_back(TBlock(block));
+            FetchedBlocks_.emplace_back(std::move(block));
          }
 
         BanSeedIfUncomplete(rsp, peerAddress);

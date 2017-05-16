@@ -11,6 +11,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -217,13 +218,15 @@ TFuture<void> TBlobSession::DoSendBlocks(
     req->set_first_block_index(firstBlockIndex);
 
     i64 requestSize = 0;
+
+    std::vector<TBlock> blocks;
     for (int blockIndex = firstBlockIndex; blockIndex < firstBlockIndex + blockCount; ++blockIndex) {
         auto block = GetBlock(blockIndex);
 
-        // TODO(prime): push checksum into RPC layer
-        req->Attachments().push_back(block.Data);
+        blocks.push_back(std::move(block));
         requestSize += block.Size();
     }
+    SetRpcAttachedBlocks(req, blocks);
 
     auto throttler = Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor);
     return throttler->Throttle(requestSize).Apply(BIND([=] () {
@@ -242,14 +245,17 @@ void TBlobSession::DoWriteBlock(const TBlock& block, int blockIndex)
         block.Size());
 
     TScopedTimer timer;
+    TBlockId blockId(GetChunkId(), blockIndex);
     try {
         if (!Writer_->WriteBlock(block)) {
             auto result = Writer_->GetReadyEvent().Get();
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
             Y_UNREACHABLE();
         }
+    } catch (const TBlockChecksumValidationException&) {
+        THROW_ERROR_EXCEPTION("Invalid checksum detected in chunk block")
+            << TErrorAttribute("block_id", block);
     } catch (const std::exception& ex) {
-        TBlockId blockId(GetChunkId(), blockIndex);
         SetFailed(TError(
             NChunkClient::EErrorCode::IOError,
             "Error writing chunk block %v",
