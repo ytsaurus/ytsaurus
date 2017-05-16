@@ -178,7 +178,6 @@ void TBlockFetcher::DecompressBlocks(
             blockIndex,
             windowIndex);
 
-        // TODO(prime): validate checksum
         auto uncompressedBlock = Codec_->Decompress(compressedBlock.Data);
         YCHECK(uncompressedBlock.Size() == blockInfo.UncompressedDataSize);
 

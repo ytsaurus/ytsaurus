@@ -503,7 +503,6 @@ void PreloadInMemoryStore(
 
                 std::vector<TFuture<TSharedRef>> asyncUncompressedBlocks;
                 for (const auto& compressedBlock : compressedBlocks) {
-                    // TODO(prime) validate checksum?
                     asyncUncompressedBlocks.push_back(
                         BIND([=] () { return codec->Decompress(compressedBlock.Data); })
                             .AsyncVia(compressionInvoker)
