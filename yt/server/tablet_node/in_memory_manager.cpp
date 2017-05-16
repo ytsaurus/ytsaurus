@@ -292,7 +292,7 @@ private:
         virtual void Put(
             const TBlockId& id,
             EBlockType type,
-            const TSharedRef& block,
+            const TBlock& block,
             const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
         {
             if (type != BlockType_) {
@@ -323,7 +323,7 @@ private:
                 data->Blocks.resize(id.BlockIndex + 1);
             }
 
-            if (!data->Blocks[id.BlockIndex]) {
+            if (!data->Blocks[id.BlockIndex].Data) {
                 data->Blocks[id.BlockIndex] = block;
                 data->MemoryTrackerGuard.UpdateSize(block.Size());
             }
@@ -331,11 +331,11 @@ private:
             YCHECK(!data->ChunkMeta);
         }
 
-        virtual TSharedRef Find(
+        virtual TBlock Find(
             const TBlockId& /*id*/,
             EBlockType /*type*/) override
         {
-            return TSharedRef();
+            return TBlock();
         }
 
         virtual EBlockType GetSupportedBlockTypes() const override
@@ -490,7 +490,7 @@ void PreloadInMemoryStore(
             startBlockIndex,
             startBlockIndex + readBlockCount - 1);
 
-        std::vector<TSharedRef> cachedBlocks;
+        std::vector<TBlock> cachedBlocks;
         switch (mode) {
             case EInMemoryMode::Compressed:
                 cachedBlocks = std::move(compressedBlocks);
@@ -504,13 +504,13 @@ void PreloadInMemoryStore(
                 std::vector<TFuture<TSharedRef>> asyncUncompressedBlocks;
                 for (const auto& compressedBlock : compressedBlocks) {
                     asyncUncompressedBlocks.push_back(
-                        BIND([=] () { return codec->Decompress(compressedBlock); })
+                        BIND([=] () { return codec->Decompress(compressedBlock.Data); })
                             .AsyncVia(compressionInvoker)
                             .Run());
                 }
 
-                cachedBlocks = WaitFor(Combine(asyncUncompressedBlocks))
-                    .ValueOrThrow();
+                cachedBlocks = TBlock::Wrap(WaitFor(Combine(asyncUncompressedBlocks))
+                    .ValueOrThrow());
                 break;
             }
 

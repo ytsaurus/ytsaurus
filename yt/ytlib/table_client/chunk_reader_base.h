@@ -39,7 +39,7 @@ protected:
     NChunkClient::TSequentialBlockFetcherPtr SequentialBlockFetcher_;
     NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
     TFuture<void> ReadyEvent_ = VoidFuture;
-    TFuture<TSharedRef> CurrentBlock_;
+    TFuture<NChunkClient::TBlock> CurrentBlock_;
 
     bool BlockEnded_ = false;
     bool InitFirstBlockNeeded_ = false;

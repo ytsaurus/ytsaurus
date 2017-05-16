@@ -17,6 +17,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = QueryClientLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TColumnEvaluator::TColumnEvaluator(
     std::vector<TColumn> columns,
     std::vector<bool> isAggregate)
@@ -162,7 +166,7 @@ public:
         , Evaluator_(std::move(evaluator))
     { }
 
-    TColumnEvaluatorPtr GetColumnEvaluator()
+    const TColumnEvaluatorPtr& GetColumnEvaluator()
     {
         return Evaluator_;
     }
@@ -192,6 +196,9 @@ public:
 
         auto cachedEvaluator = Find(id);
         if (!cachedEvaluator) {
+            LOG_DEBUG("Codegen cache miss: generating column evaluator (Schema: %v)",
+                schema);
+
             auto evaluator = TColumnEvaluator::Create(
                 schema,
                 TypeInferers_,
@@ -205,8 +212,8 @@ public:
     }
 
 private:
-    TConstTypeInferrerMapPtr TypeInferers_;
-    TConstFunctionProfilerMapPtr Profilers_;
+    const TConstTypeInferrerMapPtr TypeInferers_;
+    const TConstFunctionProfilerMapPtr Profilers_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,7 +222,10 @@ TColumnEvaluatorCache::TColumnEvaluatorCache(
     TColumnEvaluatorCacheConfigPtr config,
     const TConstTypeInferrerMapPtr& typeInferrers,
     const TConstFunctionProfilerMapPtr& profilers)
-    : Impl_(New<TImpl>(std::move(config), typeInferrers, profilers))
+    : Impl_(New<TImpl>(
+        std::move(config),
+        typeInferrers,
+        profilers))
 { }
 
 TColumnEvaluatorCache::~TColumnEvaluatorCache() = default;

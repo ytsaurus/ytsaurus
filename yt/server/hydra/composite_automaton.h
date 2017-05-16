@@ -186,6 +186,7 @@ private:
     void StartEpoch();
     void StopEpoch();
 
+    void LogHandlerError(const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeAutomatonPart)
@@ -292,6 +293,7 @@ private:
     void OnRecoveryComplete();
 
     std::vector<TCompositeAutomatonPartPtr> GetParts();
+    void LogHandlerError(const TError& error);
 
 };
 

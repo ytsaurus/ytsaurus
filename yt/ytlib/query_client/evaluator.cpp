@@ -176,7 +176,7 @@ private:
         if (enableCodeCache) {
             auto cookie = BeginInsert(id);
             if (cookie.IsActive()) {
-                LOG_DEBUG("Codegen cache miss");
+                LOG_DEBUG("Codegen cache miss: generating query evaluator");
 
                 try {
                     cookie.EndInsert(compileWithLogging());

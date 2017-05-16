@@ -490,6 +490,10 @@ Stroka ToString(TUnversionedRow row);
 Stroka ToString(TMutableUnversionedRow row);
 Stroka ToString(const TUnversionedOwningRow& row);
 
+TOwningKey RowToKey(
+    const NTableClient::TTableSchema& schema,
+    TUnversionedRow row);
+
 //! Constructs a shared range of rows from a non-shared one.
 /*!
  *  The values contained in the rows are also captured.

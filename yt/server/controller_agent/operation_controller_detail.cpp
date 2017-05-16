@@ -2172,7 +2172,7 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobId& jobId, TInstant st
         .Item("job_type").Value(joblet->JobType);
 }
 
-void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TStatistics& statistics)
+void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TStatistics& statistics, bool resourceOverdraft)
 {
     auto jobType = joblet->JobType;
     bool taskUpdateNeeded = false;
@@ -2181,6 +2181,12 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TSta
     if (userJobMaxMemoryUsage) {
         auto* digest = GetUserJobMemoryDigest(jobType);
         double actualFactor = static_cast<double>(*userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
+        if (resourceOverdraft) {
+            // During resource overdraft actual max memory values may be outdated,
+            // since statistics are updated periodically. To ensure that digest converge to large enough
+            // values we introduce additional factor.
+            actualFactor = std::max(actualFactor, joblet->UserJobMemoryReserveFactor * Config->ResourceOverdraftFactor);
+        }
         LOG_TRACE("Adding sample to the job proxy memory digest (JobType: %v, Sample: %v, JobId: %v)",
             jobType,
             actualFactor,
@@ -2194,6 +2200,9 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TSta
         auto* digest = GetJobProxyMemoryDigest(jobType);
         double actualFactor = static_cast<double>(*jobProxyMaxMemoryUsage) /
             (joblet->EstimatedResourceUsage.GetJobProxyMemory() + joblet->EstimatedResourceUsage.GetFootprintMemory());
+        if (resourceOverdraft) {
+            actualFactor = std::max(actualFactor, joblet->JobProxyMemoryReserveFactor * Config->ResourceOverdraftFactor);
+        }
         LOG_TRACE("Adding sample to the user job memory digest (JobType: %v, Sample: %v, JobId: %v)",
             jobType,
             actualFactor,
@@ -2405,7 +2414,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     const auto& statistics = *jobSummary->Statistics;
 
     if (abortReason == EAbortReason::ResourceOverdraft) {
-        UpdateMemoryDigests(joblet, statistics);
+        UpdateMemoryDigests(joblet, statistics, true /* resourceOverdraft */);
     }
 
     if (jobSummary->ShouldLog) {

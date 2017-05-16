@@ -643,7 +643,8 @@ void TJobProxy::CheckMemoryUsage()
                 TotalMaxMemoryUsage_,
                 ApprovedMemoryReserve_.load(),
                 Config_->AheadMemoryReserve);
-            Exit(EJobProxyExitCode::ResourceOverdraft);
+            // TODO(psushin): first improve memory estimates with data weights.
+            // Exit(EJobProxyExitCode::ResourceOverdraft);
         }
     }
     i64 memoryReserve = TotalMaxMemoryUsage_ + Config_->AheadMemoryReserve;

@@ -129,7 +129,7 @@ public:
         EXPECT_TRUE(erasureWriter->Open().Get().IsOK());
 
         for (const auto& ref : data) {
-            erasureWriter->WriteBlock(ref);
+            erasureWriter->WriteBlock(TBlock(ref));
             dataSize += ref.Size();
         }
         EXPECT_TRUE(erasureWriter->Close(meta).Get().IsOK());
@@ -233,7 +233,7 @@ public:
             EXPECT_TRUE(result.IsOK());
             auto resultRef = result.ValueOrThrow().front();
 
-            EXPECT_EQ(ToString(ref), ToString(resultRef));
+            EXPECT_EQ(ToString(ref), ToString(resultRef.Data));
         }
     }
 
@@ -302,7 +302,7 @@ TEST_F(TErasureMixture, ReaderTest)
         for (const auto& ref : dataRefs) {
             auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), std::vector<int>(1, index++)).Get();
             EXPECT_TRUE(result.IsOK());
-            auto resultRef = result.ValueOrThrow().front();
+            auto resultRef = TBlock::Unwrap(result.ValueOrThrow()).front();
 
             EXPECT_EQ(ToString(ref), ToString(resultRef));
         }
@@ -315,7 +315,7 @@ TEST_F(TErasureMixture, ReaderTest)
         indices.push_back(3);
         auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), indices).Get();
         EXPECT_TRUE(result.IsOK());
-        auto resultRef = result.ValueOrThrow();
+        auto resultRef = TBlock::Unwrap(result.ValueOrThrow());
         EXPECT_EQ(ToString(dataRefs[1]), ToString(resultRef[0]));
         EXPECT_EQ(ToString(dataRefs[3]), ToString(resultRef[1]));
     }

@@ -8,6 +8,7 @@
 #include "replication_writer.h"
 #include "helpers.h"
 #include "erasure_helpers.h"
+#include "block.h"
 #include "private.h"
 
 #include <yt/ytlib/api/client.h>
@@ -44,8 +45,8 @@ namespace {
 // Helpers
 
 // Split blocks into continuous groups of approximately equal sizes.
-std::vector<std::vector<TSharedRef>> SplitBlocks(
-    const std::vector<TSharedRef>& blocks,
+std::vector<std::vector<TBlock>> SplitBlocks(
+    const std::vector<TBlock>& blocks,
     int groupCount)
 {
     i64 totalSize = 0;
@@ -53,7 +54,7 @@ std::vector<std::vector<TSharedRef>> SplitBlocks(
         totalSize += block.Size();
     }
 
-    std::vector<std::vector<TSharedRef>> groups(1);
+    std::vector<std::vector<TBlock>> groups(1);
     i64 currentSize = 0;
     for (const auto& block : blocks) {
         groups.back().push_back(block);
@@ -62,7 +63,7 @@ std::vector<std::vector<TSharedRef>> SplitBlocks(
         while (currentSize * groupCount >= totalSize * groups.size() &&
                groups.size() < groupCount)
         {
-            groups.push_back(std::vector<TSharedRef>());
+            groups.push_back(std::vector<TBlock>());
         }
     }
 
@@ -89,13 +90,13 @@ class TInMemoryBlocksReader
     : public IBlocksReader
 {
 public:
-    TInMemoryBlocksReader(const std::vector<TSharedRef>& blocks)
+    TInMemoryBlocksReader(const std::vector<TBlock>& blocks)
         : Blocks_(blocks)
     { }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
-        std::vector<TSharedRef> blocks;
+        std::vector<TBlock> blocks;
         for (int index = 0; index < blockIndexes.size(); ++index) {
             int blockIndex = blockIndexes[index];
             YCHECK(0 <= blockIndex && blockIndex < Blocks_.size());
@@ -105,7 +106,7 @@ public:
     }
 
 private:
-    const std::vector<TSharedRef>& Blocks_;
+    const std::vector<TBlock>& Blocks_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInMemoryBlocksReader)
@@ -143,13 +144,13 @@ public:
             .Run();
     }
 
-    virtual bool WriteBlock(const TSharedRef& block) override
+    virtual bool WriteBlock(const TBlock& block) override
     {
         Blocks_.push_back(block);
         return true;
     }
 
-    virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override
+    virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override
     {
         for (const auto& block : blocks) {
             WriteBlock(block);
@@ -209,11 +210,11 @@ private:
     bool IsOpen_ = false;
 
     std::vector<IChunkWriterPtr> Writers_;
-    std::vector<TSharedRef> Blocks_;
+    std::vector<TBlock> Blocks_;
 
     // Information about blocks, necessary to write blocks
     // and encode parity parts
-    std::vector<std::vector<TSharedRef>> Groups_;
+    std::vector<std::vector<TBlock>> Groups_;
     TParityPartSplitInfo ParityPartSplitInfo_;
 
     // Chunk meta with information about block placement
@@ -310,7 +311,7 @@ TFuture<void> TErasureWriter::WriteDataBlocks()
     return Combine(asyncResults);
 }
 
-void TErasureWriter::WriteDataPart(IChunkWriterPtr writer, const std::vector<TSharedRef>& blocks)
+void TErasureWriter::WriteDataPart(IChunkWriterPtr writer, const std::vector<TBlock>& blocks)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 

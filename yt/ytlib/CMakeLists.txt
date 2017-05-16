@@ -9,7 +9,7 @@ include(query_client/CMakeLists.txt)
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
 
-add_library(yt-library-client STATIC ${YT_SRCS_RESOLVED})
+add_library(yt-library-client ${YT_SRCS_RESOLVED})
 
 target_link_libraries(yt-library-client
   deps-arcadia-contrib-libs-re2

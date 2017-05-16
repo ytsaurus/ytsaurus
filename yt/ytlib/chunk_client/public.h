@@ -42,6 +42,8 @@ class TMediumDirectory;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TBlock;
+
 using TChunkId = NObjectClient::TObjectId;
 extern const TChunkId NullChunkId;
 

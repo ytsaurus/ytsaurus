@@ -3,8 +3,6 @@
 #include "public.h"
 #include "connection.h"
 
-#include <yt/ytlib/job_tracker_client/public.h>
-
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/ytlib/cypress_client/public.h>

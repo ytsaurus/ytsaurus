@@ -88,7 +88,7 @@ TFuture<IChunkPtr> TJournalSession::DoFinish(
 
 TFuture<void> TJournalSession::DoPutBlocks(
     int startBlockIndex,
-    const std::vector<TSharedRef>& blocks,
+    const std::vector<TBlock>& blocks,
     bool /*enableCaching*/)
 {
     auto changelog = Chunk_->GetAttachedChangelog();
@@ -113,7 +113,7 @@ TFuture<void> TJournalSession::DoPutBlocks(
          index < static_cast<int>(blocks.size());
          ++index)
     {
-        lastAppendResult = changelog->Append(blocks[index]);
+        lastAppendResult = changelog->Append(blocks[index].Data);
     }
 
     if (lastAppendResult) {

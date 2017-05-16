@@ -23,7 +23,6 @@ namespace NQueryClient {
 using namespace NConcurrency;
 using namespace NTableClient;
 
-static const auto& Logger = QueryClientLogger;
 static const int PlanFragmentDepthLimit = 50;
 
 struct TQueryPreparerBufferTag
@@ -1535,6 +1534,10 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     i64 outputRowLimit,
     TTimestamp timestamp)
 {
+    auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
+
+    auto Logger = MakeQueryLogger(query);
+
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>(), NAst::TAliasMap()};
     ParseYqlString(
         &astHead,
@@ -1550,11 +1553,10 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
 
     TDataSplit selfDataSplit;
 
-    auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
     TSchemaProxyPtr schemaProxy;
 
     auto table = ast.Table;
-    LOG_DEBUG("Getting initial data split for %v", table.Path);
+    LOG_DEBUG("Getting initial data split (Path: %v)", table.Path);
 
     selfDataSplit = WaitFor(callbacks->GetInitialSplit(table.Path, timestamp))
         .ValueOrThrow();

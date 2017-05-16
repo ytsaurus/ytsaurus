@@ -463,7 +463,7 @@ private:
             auto readBlocks = WaitFor(asyncReadBlocks)
                 .ValueOrThrow();
 
-            std::vector<TSharedRef> writeBlocks;
+            std::vector<TBlock> writeBlocks;
             for (const auto& block : readBlocks) {
                 if (!block)
                     break;
@@ -743,7 +743,7 @@ private:
                     currentRowCount + blockCount - 1);
 
                 for (const auto& block : blocks) {
-                    changelog->Append(block);
+                    changelog->Append(block.Data);
                 }
 
                 currentRowCount += blockCount;

@@ -3,6 +3,7 @@
 #include "public.h"
 #include "chunk_owner_ypath_proxy.h"
 #include "chunk_service_proxy.h"
+#include "block.h"
 
 #include <yt/ytlib/api/public.h>
 
@@ -141,6 +142,14 @@ void GetUserObjectBasicAttributes(
     const NLogging::TLogger& logger,
     NYTree::EPermission permission,
     bool suppressAccessTracking = false);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRpcPtr>
+std::vector<TBlock> GetRpcAttachedBlocks(const TRpcPtr& rpc, bool validateChecksums = true);
+
+template <class TRpcPtr>
+void SetRpcAttachedBlocks(const TRpcPtr& rpc, const std::vector<TBlock>& blocks);
 
 ////////////////////////////////////////////////////////////////////////////////
 

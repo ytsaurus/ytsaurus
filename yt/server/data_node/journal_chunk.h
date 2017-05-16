@@ -32,11 +32,11 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         const TNullable<std::vector<int>>& extensionTags) override;
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlockSet(
+    virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
         const TBlockReadOptions& options) override;
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlockRange(
+    virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
         const TBlockReadOptions& options) override;
@@ -75,7 +75,7 @@ private:
     void DoReadBlockRange(
         int firstBlockIndex,
         int blockCount,
-        TPromise<std::vector<TSharedRef>> promise);
+        TPromise<std::vector<NChunkClient::TBlock>> promise);
 
 };
 

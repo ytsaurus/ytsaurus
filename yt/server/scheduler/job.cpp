@@ -59,6 +59,71 @@ TDuration TJob::GetDuration() const
     return *FinishTime_ - StartTime_;
 }
 
+void TJob::AnalyzeBriefStatistics(
+    TDuration suspiciousInactivityTimeout,
+    i64 suspiciousCpuUsageThreshold,
+    double suspiciousInputPipeIdleTimeFraction,
+    const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError)
+{
+    if (!briefStatisticsOrError.IsOK()) {
+        if (BriefStatistics_) {
+            // Failures in brief statistics building are normal during job startup,
+            // when readers and writers are not built yet. After we successfully built
+            // brief statistics once, we shouldn't fail anymore.
+
+            LOG_WARNING(
+                briefStatisticsOrError,
+                "Failed to build brief job statistics (JobId: %v)",
+                Id_);
+        }
+        return;
+    }
+
+    const auto& briefStatistics = briefStatisticsOrError.Value();
+
+    bool wasActive = false;
+
+    if (!BriefStatistics_ || CheckJobActivity(
+        BriefStatistics_,
+        briefStatistics,
+        suspiciousCpuUsageThreshold,
+        suspiciousInputPipeIdleTimeFraction))
+    {
+        wasActive = true;
+    }
+    BriefStatistics_ = briefStatistics;
+
+    bool wasSuspicious = Suspicious_;
+    Suspicious_ = (!wasActive && BriefStatistics_->Timestamp - LastActivityTime_ > suspiciousInactivityTimeout);
+    if (!wasSuspicious && Suspicious_) {
+        LOG_DEBUG("Found a suspicious job (JobId: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v)",
+            Id_,
+            LastActivityTime_,
+            suspiciousInactivityTimeout);
+    }
+
+    if (wasActive) {
+        LastActivityTime_ = BriefStatistics_->Timestamp;
+    }
+}
+
+void TJob::SetStatus(TJobStatus* status)
+{
+    if (status) {
+        Status_.Swap(status);
+    }
+    if (Status_.has_statistics()) {
+        StatisticsYson_ = TYsonString(Status_.statistics());
+    }
+}
+
+const Stroka& TJob::GetStatisticsSuffix() const
+{
+    auto state = (GetRestarted() && GetState() == EJobState::Completed) ? EJobState::Lost : GetState();
+    auto type = GetType();
+    return JobHelper.GetStatisticsSuffix(state, type);
+}
+
 ////////////////////////////////////////////////////////////////////
 
 TJobSummary::TJobSummary()

@@ -1291,7 +1291,7 @@ private:
 
     void BuildAndSaveProgress();
 
-    void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics);
+    void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics, bool resourceOverdraft = false);
 
     void InitializeHistograms();
     void AddValueToEstimatedHistogram(TJobletPtr joblet);
