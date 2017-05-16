@@ -218,7 +218,7 @@ public:
                 auto resultRef = result[i];
                 auto dataRef = dataRefs[indexes[i]];
                 EXPECT_EQ(dataRef.Size(), resultRef.Size());
-                EXPECT_EQ(ToString(dataRef), ToString(resultRef));
+                EXPECT_EQ(ToString(dataRef), ToString(resultRef.Data));
             }
         }
     }
