@@ -77,7 +77,7 @@ i64 RoundUp(i64 num, i64 mod)
     return DivCeil(num, mod) * mod;
 }
 
-std::vector<i64> BlocksToSizes(const std::vector<TSharedRef>& blocks)
+std::vector<i64> BlocksToSizes(const std::vector<TBlock>& blocks)
 {
     std::vector<i64> sizes;
     for (const auto& block : blocks) {
@@ -231,7 +231,7 @@ private:
 
     TFuture<void> WriteDataBlocks();
 
-    void WriteDataPart(IChunkWriterPtr writer, const std::vector<TSharedRef>& blocks);
+    void WriteDataPart(IChunkWriterPtr writer, const std::vector<TBlock>& blocks);
 
     void EncodeAndWriteParityBlocks();
 
