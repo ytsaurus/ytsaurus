@@ -744,8 +744,12 @@ class YTInstance(object):
                 active_scheduler_orchid_path = None
                 for instance in instances:
                     path = "//sys/scheduler/instances/{0}/orchid/scheduler".format(instance)
-                    if client.get(path + "/connected"):
-                        active_scheduler_orchid_path = path
+                    try:
+                        if client.get(path + "/connected"):
+                            active_scheduler_orchid_path = path
+                    except YtError as err:
+                        if not err.is_resolve_error():
+                            raise
 
                 if active_scheduler_orchid_path is None:
                     return False, "No active scheduler found"
