@@ -64,7 +64,9 @@ protected:
         const TVersionedNodeId& id,
         TCellTag cellTag,
         TTransaction* transaction,
-        IAttributeDictionary* attributes) override
+        IAttributeDictionary* attributes,
+        TAccount* account,
+        bool enableAccounting) override
     {
         TBase::InitializeAttributes(attributes);
 
@@ -76,7 +78,9 @@ protected:
             id,
             cellTag,
             transaction,
-            attributes);
+            attributes,
+            account,
+            enableAccounting);
     }
 
     virtual int GetDefaultReplicationFactor() const override

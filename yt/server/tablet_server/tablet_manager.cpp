@@ -18,6 +18,7 @@
 #include <yt/server/cell_master/hydra_facade.h>
 #include <yt/server/cell_master/serialize.h>
 
+#include <yt/server/chunk_server/helpers.h>
 #include <yt/server/chunk_server/chunk_list.h>
 #include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/chunk_tree_traverser.h>
@@ -1223,9 +1224,10 @@ public:
                 Y_UNREACHABLE();
         }
         for (int mediumIndex = 0; mediumIndex < NChunkClient::MaxMediumCount; ++mediumIndex) {
-            tabletStatistics.DiskSpace[mediumIndex] =
-                table->Properties()[mediumIndex].GetReplicationFactor() *
-                (treeStatistics.RegularDiskSpace + treeStatistics.ErasureDiskSpace);
+            tabletStatistics.DiskSpace[mediumIndex] = CalculateDiskSpaceUsage(
+                table->Properties()[mediumIndex].GetReplicationFactor(),
+                treeStatistics.RegularDiskSpace,
+                treeStatistics.ErasureDiskSpace);
         }
         tabletStatistics.ChunkCount = treeStatistics.ChunkCount;
         tabletStatistics.TabletCountPerMemoryMode[tablet->GetInMemoryMode()] = 1;
@@ -1287,15 +1289,21 @@ public:
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
         ValidateTableMountConfig(table, mountConfig);
-
-        // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
+        ValidateTabletStaticMemoryUpdate(
+            table,
+            firstTabletIndex,
+            lastTabletIndex,
+            mountConfig,
+            false);
 
         if (mountConfig->InMemoryMode != EInMemoryMode::None &&
             writerOptions->ErasureCodec != NErasure::ECodec::None)
         {
             THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
         }
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
@@ -1324,6 +1332,8 @@ public:
             serializedReaderConfig,
             serializedWriterConfig,
             serializedWriterOptions);
+
+        CommitTabletStaticMemoryUpdate(table);
     }
 
     void DoMountTablet(
@@ -1527,15 +1537,21 @@ public:
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
         ValidateTableMountConfig(table, mountConfig);
-
-        // Do after all validations.
-        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
+        ValidateTabletStaticMemoryUpdate(
+            table,
+            firstTabletIndex,
+            lastTabletIndex,
+            mountConfig,
+            true);
 
         if (mountConfig->InMemoryMode != EInMemoryMode::None &&
             writerOptions->ErasureCodec != NErasure::ECodec::None)
         {
             THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
         }
+
+        // Do after all validations.
+        TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedReaderConfig = ConvertToYsonString(readerConfig);
@@ -1575,6 +1591,8 @@ public:
                 hiveManager->PostMessage(mailbox, request);
             }
         }
+
+        CommitTabletStaticMemoryUpdate(table);
     }
 
     void FreezeTable(
@@ -1770,6 +1788,12 @@ public:
         }
 
         int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidateResourceUsageIncrease(
+            table->GetAccount(),
+            TClusterResources(0, 0, newTabletCount - oldTabletCount, 0));
+
         if (tablets.size() - oldTabletCount + newTabletCount > MaxTabletCount) {
             THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %v",
                 MaxTabletCount);
@@ -2001,6 +2025,8 @@ public:
             }
         }
 
+        securityManager->UpdateAccountNodeUsage(table);
+
         // Replace root chunk list.
         table->SetChunkList(newRootChunkList);
         newRootChunkList->AddOwningNode(table);
@@ -2104,6 +2130,9 @@ public:
             THROW_ERROR_EXCEPTION("Cannot switch mode from static to dynamic: table is external");
         }
 
+        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
+        securityManager->ValidateResourceUsageIncrease(table->GetAccount(), TClusterResources(0, 0, 1, 0));
+
         auto* oldRootChunkList = table->GetChunkList();
 
         std::vector<TChunk*> chunks;
@@ -2158,6 +2187,8 @@ public:
         oldRootChunkList->RemoveOwningNode(table);
         objectManager->UnrefObject(oldRootChunkList);
 
+        securityManager->UpdateAccountNodeUsage(table);
+
         LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to dynamic mode (TableId: %v)",
             table->GetId());
     }
@@ -2209,6 +2240,9 @@ public:
         table->Tablets().clear();
 
         table->SetLastCommitTimestamp(NullTimestamp);
+
+        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
+        securityManager->UpdateAccountNodeUsage(table);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to static mode (TableId: %v)",
             table->GetId());
@@ -3125,6 +3159,8 @@ private:
         tablet->SetCell(nullptr);
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
+        CommitTabletStaticMemoryUpdate(table);
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         YCHECK(cell->Tablets().erase(tablet) == 1);
         objectManager->UnrefObject(cell);
@@ -3364,14 +3400,24 @@ private:
         // Copy chunk tree if somebody holds a reference.
         CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex());
 
+        // Save old tabet resource usage.
+        auto oldMemorySize = tablet->GetTabletStaticMemorySize();
+        auto oldStatistics = GetTabletStatistics(tablet);
+
         // Apply all requested changes.
         auto* tabletChunkList = tablet->GetChunkList();
         auto* cell = tablet->GetCell();
-        cell->TotalStatistics() -= GetTabletStatistics(tablet);
         chunkManager->AttachToChunkList(tabletChunkList, chunksToAttach);
         chunkManager->DetachFromChunkList(tabletChunkList, chunksToDetach);
-        cell->TotalStatistics() += GetTabletStatistics(tablet);
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
+
+        // Get new tabet resource usage.
+        auto newMemorySize = tablet->GetTabletStaticMemorySize();
+        auto newStatistics = GetTabletStatistics(tablet);
+        auto deltaStatistics = newStatistics - oldStatistics;
+
+        // Update cell statistics.
+        cell->TotalStatistics() += deltaStatistics;
 
         // Unstage just attached chunks.
         // Update table resource usage.
@@ -3383,8 +3429,16 @@ private:
             tablet->SetStoresUpdatePreparedTransaction(nullptr);
         }
 
+        // Update node resource usage.
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->UpdateAccountNodeUsage(table);
+        auto deltaResources = TClusterResources();
+        deltaResources.ChunkCount = deltaStatistics.ChunkCount;
+        deltaResources.TabletStaticMemory = newMemorySize - oldMemorySize;
+        std::copy(
+            std::begin(deltaStatistics.DiskSpace),
+            std::end(deltaStatistics.DiskSpace),
+            std::begin(deltaResources.DiskSpace));
+        securityManager->IncrementAccountNodeUsage(table, deltaResources);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
             "AttachedChunkIds: %v, DetachedChunkIds: %v, "
@@ -3830,6 +3884,40 @@ private:
 
             DoTabletUnmounted(tablet);
         }
+    }
+
+    void ValidateTabletStaticMemoryUpdate(
+        const TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        const TTableMountConfigPtr& mountConfig,
+        bool remount)
+    {
+        i64 oldMemorySize = 0;
+        i64 newMemorySize = 0;
+
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            const auto* tablet = table->Tablets()[index];
+            if (remount && !tablet->IsActive()) {
+                continue;
+            }
+            if (remount) {
+                oldMemorySize += tablet->GetTabletStaticMemorySize();
+            }
+            newMemorySize += tablet->GetTabletStaticMemorySize(mountConfig->InMemoryMode);
+        }
+
+        auto memorySize = newMemorySize - oldMemorySize;
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidateResourceUsageIncrease(
+            table->GetAccount(),
+            TClusterResources(0, 0, 0, memorySize));
+    }
+
+    void CommitTabletStaticMemoryUpdate(TTableNode* table)
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->UpdateAccountNodeUsage(table);
     }
 
     void ValidateTableMountConfig(

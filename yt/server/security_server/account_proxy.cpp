@@ -113,6 +113,8 @@ private:
                         })
                     .Item("node_count").Value(account->IsNodeCountLimitViolated())
                     .Item("chunk_count").Value(account->IsChunkCountLimitViolated())
+                    .Item("tablet_count").Value(account->IsTabletCountLimitViolated())
+                    .Item("tablet_static_memory").Value(account->IsTabletStaticMemoryLimitViolated())
                 .EndMap();
             return true;
         }

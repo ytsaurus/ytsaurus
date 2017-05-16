@@ -44,7 +44,9 @@ struct INodeTypeHandler
         const TNodeId& hintId,
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes) = 0;
+        NYTree::IAttributeDictionary* attributes,
+        NSecurityServer::TAccount* account,
+        bool enableAccounting) = 0;
 
     //! Performs cleanup on node destruction.
     /*!
@@ -83,7 +85,8 @@ struct INodeTypeHandler
         TCypressNodeBase* sourceNode,
         ICypressNodeFactory* factory,
         const TNodeId& hintId,
-        ENodeCloneMode mode) = 0;
+        ENodeCloneMode mode,
+        NSecurityServer::TAccount* account) = 0;
 
     //! Returns |true| if nodes of this type can be stored at external cells.
     virtual bool IsExternalizable() const = 0;

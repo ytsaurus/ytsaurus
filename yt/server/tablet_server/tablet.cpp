@@ -24,6 +24,8 @@ using namespace NCellMaster;
 using namespace NYTree;
 using namespace NTransactionClient;
 
+using NTabletNode::EInMemoryMode;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
@@ -221,7 +223,7 @@ TTablet::TTablet(const TTabletId& id)
     : TNonversionedObjectBase(id)
     , Index_(-1)
     , State_(ETabletState::Unmounted)
-    , InMemoryMode_(NTabletNode::EInMemoryMode::None)
+    , InMemoryMode_(EInMemoryMode::None)
     , RetainedTimestamp_(MinTimestamp)
 { }
 
@@ -356,6 +358,28 @@ TChunkList* TTablet::GetChunkList()
 const TChunkList* TTablet::GetChunkList() const
 {
     return const_cast<TTablet*>(this)->GetChunkList();
+}
+
+i64 TTablet::GetTabletStaticMemorySize(EInMemoryMode mode) const
+{
+    // TODO(savrus) consider lookup hash table.
+
+    const auto& statistics = GetChunkList()->Statistics();
+    switch (mode) {
+        case EInMemoryMode::Compressed:
+            return statistics.CompressedDataSize;
+        case EInMemoryMode::Uncompressed:
+            return statistics.UncompressedDataSize;
+        case EInMemoryMode::None:
+            return 0;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+i64 TTablet::GetTabletStaticMemorySize() const
+{
+    return GetTabletStaticMemorySize(GetInMemoryMode());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

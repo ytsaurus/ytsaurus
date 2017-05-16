@@ -372,6 +372,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
 
         auto* node = LockThisImpl();
         if (node->GetAccount() != account) {
+            // TODO(savrus) See YT-7050
             securityManager->ValidateResourceUsageIncrease(account, TClusterResources(1, 0));
             securityManager->SetAccount(node, account);
         }

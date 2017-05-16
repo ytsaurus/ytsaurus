@@ -32,8 +32,13 @@ class TestAccounts(YTEnvSetup):
         set("//sys/accounts/{0}/@resource_limits/chunk_count".format(account), value)
 
     def _set_account_zero_limits(self, account):
-        set("//sys/accounts/{0}/@resource_limits".format(account),
-            {"disk_space_per_medium": {"default" : 0}, "chunk_count": 0, "node_count": 0})
+        set("//sys/accounts/{0}/@resource_limits".format(account), {
+            "disk_space_per_medium": {"default" : 0},
+            "chunk_count": 0,
+            "node_count": 0,
+            "tablet_count": 0,
+            "tablet_static_memory": 0
+        })
 
     def _is_account_disk_space_limit_violated(self, account):
         return get("//sys/accounts/{0}/@violated_resource_limits/disk_space".format(account))

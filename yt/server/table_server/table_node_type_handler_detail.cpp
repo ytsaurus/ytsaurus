@@ -33,6 +33,8 @@ using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NTabletServer;
 
+using NTabletNode::EInMemoryMode;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TImpl>
@@ -45,7 +47,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     const TVersionedNodeId& id,
     TCellTag cellTag,
     TTransaction* transaction,
-    IAttributeDictionary* attributes)
+    IAttributeDictionary* attributes,
+    TAccount* account,
+    bool enableAccounting)
 {
     if (!attributes->Contains("compression_codec")) {
         attributes->Set("compression_codec", NCompression::ECodec::Lz4);
@@ -95,7 +99,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     if (maybeTabletCount && maybePivotKeys) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"tablet_count\" and \"pivot_keys\"");
     }
-
     auto upstreamReplicaId = attributes->GetAndRemove<TTableReplicaId>("upstream_replica_id", TTableReplicaId());
     if (upstreamReplicaId) {
         if (!dynamic) {
@@ -115,7 +118,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         id,
         cellTag,
         transaction,
-        attributes);
+        attributes,
+        account,
+        enableAccounting);
     auto* node = nodeHolder.get();
 
     try {
@@ -193,11 +198,17 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     TImpl* sourceNode,
     TImpl* clonedNode,
     ICypressNodeFactory* factory,
-    ENodeCloneMode mode)
+    ENodeCloneMode mode,
+    TAccount* account)
 {
+    const auto& securityManager = this->Bootstrap_->GetSecurityManager();
+    securityManager->ValidateResourceUsageIncrease(
+        account,
+        TClusterResources(0, 0, sourceNode->GetTrunkNode()->Tablets().size()));
+
     const auto& tabletManager = this->Bootstrap_->GetTabletManager();
 
-    TBase::DoClone(sourceNode, clonedNode, factory, mode);
+    TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
 
     if (sourceNode->IsDynamic()) {
         tabletManager->CloneTable(
@@ -224,6 +235,27 @@ template <class TImpl>
 int TTableNodeTypeHandlerBase<TImpl>::GetDefaultReplicationFactor() const
 {
     return this->Bootstrap_->GetConfig()->CypressManager->DefaultTableReplicationFactor;
+}
+
+template <class TImpl>
+TClusterResources TTableNodeTypeHandlerBase<TImpl>::GetAccountingResourceUsage(
+    const TCypressNodeBase* node)
+{
+    int tabletCount = 0;
+    i64 memorySize = 0;
+
+    if (node->IsTrunk()) {
+        const auto* table = node->As<TImpl>();
+        tabletCount = table->Tablets().size();
+        for (const auto* tablet : table->Tablets()) {
+            if (tablet->GetState() != ETabletState::Unmounted) {
+                memorySize += tablet->GetTabletStaticMemorySize();
+            }
+        }
+    }
+
+    return TBase::GetAccountingResourceUsage(node) +
+        TClusterResources(0, 0, tabletCount, memorySize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

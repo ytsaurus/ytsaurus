@@ -51,6 +51,7 @@ using namespace NTableClient;
 using namespace NTransactionServer;
 using namespace NTabletServer;
 using namespace NNodeTrackerServer;
+using namespace NSecurityServer;
 
 using NChunkClient::TReadLimit;
 
@@ -389,18 +390,27 @@ void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)
         dynamic,
         table->IsEmpty());
 
+    auto oldSchema = table->TableSchema();
+    auto oldSchemaMode = table->GetSchemaMode();
+
     if (options.Schema) {
         table->TableSchema() = std::move(schema);
         table->SetSchemaMode(ETableSchemaMode::Strong);
     }
 
-    if (options.Dynamic) {
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        if (*options.Dynamic) {
-            tabletManager->MakeTableDynamic(table);
-        } else {
-            tabletManager->MakeTableStatic(table);
+    try {
+        if (options.Dynamic) {
+            const auto& tabletManager = Bootstrap_->GetTabletManager();
+            if (*options.Dynamic) {
+                tabletManager->MakeTableDynamic(table);
+            } else {
+                tabletManager->MakeTableStatic(table);
+            }
         }
+    } catch (const std::exception&) {
+        table->TableSchema() = std::move(oldSchema);
+        table->SetSchemaMode(oldSchemaMode);
+        throw;
     }
 
     if (options.UpstreamReplicaId) {
