@@ -1308,7 +1308,7 @@ void TChunkReplicator::ScheduleNewJobs(
             auto& queue = node->ChunkRemovalQueue();
             auto it = queue.begin();
             while (it != queue.end()) {
-                if (hasSpareRemovalResources()) {
+                if (!hasSpareRemovalResources()) {
                     break;
                 }
 
