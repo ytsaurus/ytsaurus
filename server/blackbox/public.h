@@ -3,7 +3,7 @@
 #include <yt/core/misc/hash.h>
 #include <yt/core/misc/ref_counted.h>
 
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 namespace NYT {
 namespace NBlackbox {
