@@ -409,6 +409,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             self.force_search = force_search
 
     def process_response_error(error, map_node):
+        map_node.content = None
         if error.is_access_denied():
             logger.warning("Cannot traverse %s, access denied" % map_node.path)
         elif error.is_resolve_error() and map_node.ignore_resolve_error:
