@@ -106,7 +106,18 @@ public:
     //! Interval between consequent replicator state checks.
     TDuration ReplicatorEnabledCheckPeriod;
 
+    //! Throttles chunk jobs.
     NConcurrency::TThroughputThrottlerConfigPtr JobThrottler;
+
+    //! Controls the maximum number of unsuccessful attempts to schedule a replication job.
+    int MaxMisscheduledReplicationJobsPerHeartbeat;
+    //! Controls the maximum number of unsuccessful attempts to schedule a repair job.
+    int MaxMisscheduledRepairJobsPerHeartbeat;
+    //! Controls the maximum number of unsuccessful attempts to schedule a removal job.
+    int MaxMisscheduledRemovalJobsPerHeartbeat;
+    //! Controls the maximum number of unsuccessful attempts to schedule a seal job.
+    int MaxMisscheduledSealJobsPerHeartbeat;
+
 
     TChunkManagerConfig()
     {
@@ -189,6 +200,15 @@ public:
 
         RegisterParameter("job_throttler", JobThrottler)
             .DefaultNew();
+
+        RegisterParameter("max_misscheduled_replication_jobs_per_heartbeat", MaxMisscheduledReplicationJobsPerHeartbeat)
+            .Default(128);
+        RegisterParameter("max_misscheduled_repair_jobs_per_heartbeat", MaxMisscheduledRepairJobsPerHeartbeat)
+            .Default(128);
+        RegisterParameter("max_misscheduled_removal_jobs_per_heartbeat", MaxMisscheduledRemovalJobsPerHeartbeat)
+            .Default(128);
+        RegisterParameter("max_misscheduled_seal_jobs_per_heartbeat", MaxMisscheduledSealJobsPerHeartbeat)
+            .Default(128);
 
         RegisterInitializer([&] () {
             JobThrottler->Limit = 10000;
