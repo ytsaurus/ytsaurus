@@ -76,19 +76,19 @@ public:
     virtual void Put(
         const TBlockId& /*id*/,
         EBlockType /*type*/,
-        const TSharedRef& /*block*/,
+        const TBlock& /*block*/,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
     {
         Y_UNREACHABLE();
     }
 
-    virtual TSharedRef Find(
+    virtual TBlock Find(
         const TBlockId& id,
         EBlockType type) override
     {
         Y_ASSERT(type == EBlockType::UncompressedData);
         Y_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
-        return Blocks_[id.BlockIndex];
+        return TBlock(Blocks_[id.BlockIndex]);
     }
 
     virtual EBlockType GetSupportedBlockTypes() const override
@@ -145,7 +145,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
         switch(chunkMeta->GetChunkFormat()) {
             case ETableChunkFormat::VersionedSimple:
                 blockReader = std::make_unique<TSimpleVersionedBlockReader>(
-                    uncompressedBlock,
+                    uncompressedBlock.Data,
                     blockMeta,
                     chunkMeta->ChunkSchema(),
                     chunkMeta->GetChunkKeyColumnCount(),
@@ -159,7 +159,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
             case ETableChunkFormat::SchemalessHorizontal:
                 blockReader = std::make_unique<THorizontalSchemalessVersionedBlockReader>(
-                    uncompressedBlock,
+                    uncompressedBlock.Data,
                     blockMeta,
                     BuildSchemalessHorizontalSchemaIdMapping(TColumnFilter(), chunkMeta),
                     chunkMeta->GetChunkKeyColumnCount(),

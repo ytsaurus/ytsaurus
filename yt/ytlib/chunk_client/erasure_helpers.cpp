@@ -171,7 +171,7 @@ public:
             PositionInCurrentBlock_ = copySize;
         }
 
-        if (!Writer_->WriteBlocks(blocksToWrite)) {
+        if (!Writer_->WriteBlocks(TBlock::Wrap(blocksToWrite))) {
             return Writer_->GetReadyEvent();
         }
         return VoidFuture;
@@ -241,11 +241,11 @@ public:
                 .Run();
 
             return blocksFuture.Apply(BIND(
-                [=] (const TErrorOr<std::vector<TSharedRef>>& errorOrBlocks) -> TSharedRef {
+                [=] (const TErrorOr<std::vector<TBlock>>& errorOrBlocks) -> TSharedRef {
                     if (!errorOrBlocks.IsOK()) {
                         THROW_ERROR TError(errorOrBlocks);
                     }
-                    OnBlocksRead(indicesToRequest, errorOrBlocks.Value());
+                    OnBlocksRead(indicesToRequest, TBlock::Unwrap(errorOrBlocks.Value()));
                     return BuildBlock(range);
                 }));
         } else {

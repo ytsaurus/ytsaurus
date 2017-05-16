@@ -36,17 +36,17 @@ public:
         , SavedBlocks_(blocksToSave.size())
     { }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
         if (blockIndexes.empty()) {
-            return MakeFuture(std::vector<TSharedRef>());
+            return MakeFuture(std::vector<TBlock>());
         }
 
         while (!CachedBlocks_.empty() && CachedBlocks_.front().first < blockIndexes.front()) {
             CachedBlocks_.pop_front();
         }
 
-        std::vector<TSharedRef> resultBlocks;
+        std::vector<TBlock> resultBlocks;
 
         int index = 0;
         while (index < blockIndexes.size() && index < CachedBlocks_.size()) {
@@ -58,7 +58,7 @@ public:
         if (index < blockIndexes.size()) {
             auto blockIndexesToRequest = std::vector<int>(blockIndexes.begin() + index, blockIndexes.end());
             auto blocksFuture = UnderlyingReader_->ReadBlocks(WorkloadDescriptor_, blockIndexesToRequest);
-            return blocksFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TSharedRef>& blocks) mutable {
+            return blocksFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) mutable {
                 for (int index = 0; index < blockIndexesToRequest.size(); ++index) {
                     auto blockIndex = blockIndexesToRequest[index];
                     auto block = blocks[index];
@@ -88,7 +88,7 @@ public:
             }
         }
         auto blocksFuture = UnderlyingReader_->ReadBlocks(WorkloadDescriptor_, indexesToRead);
-        return blocksFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TSharedRef>& blocks) mutable {
+        return blocksFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) mutable {
             for (int index = 0; index < blocks.size(); ++index) {
                 auto it = blockIndexToSavedBlocksIndex.find(index);
                 YCHECK(it != blockIndexToSavedBlocksIndex.end());
@@ -97,9 +97,9 @@ public:
         }));
     }
 
-    std::vector<TSharedRef> GetSavedBlocks() const
+    std::vector<TBlock> GetSavedBlocks() const
     {
-        std::vector<TSharedRef> result;
+        std::vector<TBlock> result;
         for (const auto& blockOrNull : SavedBlocks_) {
             YCHECK(blockOrNull);
             result.push_back(*blockOrNull);
@@ -112,8 +112,8 @@ private:
     const TWorkloadDescriptor WorkloadDescriptor_;
     const std::vector<int> BlocksToSave_;
 
-    std::vector<TNullable<TSharedRef>> SavedBlocks_;
-    std::deque<std::pair<int, TSharedRef>> CachedBlocks_;
+    std::vector<TNullable<TBlock>> SavedBlocks_;
+    std::deque<std::pair<int, TBlock>> CachedBlocks_;
 };
 
 DECLARE_REFCOUNTED_TYPE(TMonotonicBlocksReader)
@@ -316,10 +316,14 @@ public:
         return MakeFuture(TError());
     }
 
-    std::vector<TSharedRef> GetSavedBlocks()
+    std::vector<TBlock> GetSavedBlocks()
     {
         YCHECK(TotalBytes_ == SavedBytes_);
-        return std::vector<TSharedRef>(Blocks_.begin(), Blocks_.end());
+        std::vector<TBlock> result;
+        for (const auto& block : Blocks_) {
+            result.emplace_back(TSharedRef(block));
+        }
+        return result;
     }
 
 private:
@@ -431,7 +435,7 @@ public:
         RepairRanges_ = Union(repairRanges);
     }
 
-    TFuture<std::vector<TSharedRef>> Run()
+    TFuture<std::vector<TBlock>> Run()
     {
         return BIND(&TRepairingReaderSession::RepairBlocks, MakeStrong(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
@@ -484,15 +488,15 @@ private:
             .ThrowOnError();
     }
 
-    std::vector<TSharedRef> BuildResult()
+    std::vector<TBlock> BuildResult()
     {
-        std::vector<TSharedRef> result(BlockIndexes_.size());
+        std::vector<TBlock> result(BlockIndexes_.size());
         int partBlockSaverIndex = 0;
         int partReaderIndex = 0;
         for (int partIndex = 0; partIndex < Codec_->GetDataPartCount(); ++partIndex) {
             auto blocksPlacementInPart = DataBlocksPlacementInParts_[partIndex];
 
-            std::vector<TSharedRef> blocks;
+            std::vector<TBlock> blocks;
             if (std::binary_search(ErasedIndices_.begin(), ErasedIndices_.end(), partIndex)) {
                 blocks = PartBlockSavers_[partBlockSaverIndex++]->GetSavedBlocks();
             } else {
@@ -520,7 +524,7 @@ public:
         , ErasedIndices_(erasedIndices)
     { }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<int>& blockIndexes) override
     {
@@ -537,7 +541,7 @@ public:
             }).AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         int firstBlockIndex,
         int blockCount) override

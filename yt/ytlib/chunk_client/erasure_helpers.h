@@ -76,7 +76,7 @@ DEFINE_REFCOUNTED_TYPE(IPartBlockProducer)
 struct IBlocksReader
     : public TRefCounted
 {
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) = 0;
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(const std::vector<int>& blockIndexes) = 0;
 };
 
 DECLARE_REFCOUNTED_TYPE(IBlocksReader)
