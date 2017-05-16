@@ -2,14 +2,11 @@ from functools import wraps
 import logging
 import os
 import shutil
-import sys
 import tempfile
 import time
 import uuid
 import signal
 import fcntl
-
-import yt_version
 
 import pytest
 import yatest.common
@@ -17,10 +14,10 @@ import yatest.common
 import devtools.swag.daemon
 import devtools.swag.ports
 
-_YT_ARCHIVE_NAME = "yt/packages/yt.tar" # comes by FROM_SANDBOX
-_YT_THOR_ARCHIVE_NAME = "yt/packages/yt_thor.tar" # comes by FROM_SANDBOX
 _YT_PREFIX = "//"
 _YT_MAX_START_RETRIES = 3
+
+DEFAULT_YT_VERSION = "18_5"
 
 class YtConfig(object):
     def __init__(self, **kwargs):
@@ -69,10 +66,12 @@ class YtConfig(object):
         self.wait_tablet_cell_initialization = kwargs.get("wait_tablet_cell_initialization")
         self.operations_memory_limit = kwargs.get("operations_memory_limit") or (25 * 1024 * 1024 * 1024)
 
+        self.yt_version = kwargs.get("yt_version", DEFAULT_YT_VERSION)
 
 class YtStuff(object):
     def __init__(self, config=None):
         self.config = config or YtConfig()
+        self.version = self.config.yt_version
 
         self.yt_id = self.config.yt_id or str(uuid.uuid4())
         self.yt_proxy_port = None
@@ -111,7 +110,7 @@ class YtStuff(object):
         subprocess.check_output(['tar', '-cvzf', archive_path, file_path], stderr=subprocess.STDOUT)
 
     def _prepare_files(self):
-        build_path = yatest.common.runtime.build_path()
+        #build_path = yatest.common.runtime.build_path()
         work_path = yatest.common.runtime.work_path()
 
         self.tmpfs_path = self.config.ram_drive_path or yatest.common.get_param("ram_drive_path")
@@ -121,8 +120,6 @@ class YtStuff(object):
         # Folders
         self.yt_path = tempfile.mkdtemp(dir=work_path, prefix="yt_") if self.config.yt_path is None else self.config.yt_path
         self.yt_bins_path = os.path.join(self.yt_path, "bin")
-        if yt_version.YT_VERSION == '17_5':
-            self.yt_python_path = os.path.join(self.yt_path, "python")
         self.yt_node_path = os.path.join(self.yt_path, "node")
         self.yt_node_bin_path = os.path.join(self.yt_node_path, "bin")
         self.yt_node_modules_path = os.path.join(self.yt_path, "node_modules")
@@ -131,8 +128,9 @@ class YtStuff(object):
         self.mapreduce_yt_path = [yatest.common.python_path(), os.path.join(self.yt_bins_path, "mapreduce-yt")]
         self.yt_local_path = [yatest.common.python_path(), os.path.join(self.yt_bins_path, "yt_local")]
 
-        yt_archive_path = os.path.join(build_path, _YT_ARCHIVE_NAME if yt_version.YT_VERSION == "17_5" else _YT_THOR_ARCHIVE_NAME)
+        yt_archive_path = yatest.common.binary_path('yt/packages/{0}/yt/packages/{0}/yt_thor.tar'.format(self.version))
         self._extract_tar(yt_archive_path, self.yt_path)
+
         self._replace_binaries()
 
         user_yt_work_dir_base =  self.config.yt_work_dir or yatest.common.get_param("yt_work_dir")
@@ -157,32 +155,42 @@ class YtStuff(object):
         self.is_running = False
 
     def _replace_binaries(self):
-        version = yt_version.YT_VERSION
-        if version == '17_5':
-            return
-
         for path in (self.yt_bins_path, self.yt_node_bin_path):
             if not os.path.exists(path):
                 os.makedirs(path)
 
-        yt2_arcadia_path = yatest.common.binary_path('yt/packages/contrib/python/yt/bin/yt/yt')
+        yt2_arcadia_path = yatest.common.binary_path('yt/packages/{}/contrib/python/yt/bin/yt/yt'.format(self.version))
         shutil.copy(yt2_arcadia_path, os.path.join(self.yt_bins_path, 'yt2'))
 
-        self.mapreduce_yt_path = [yatest.common.binary_path('yt/packages/contrib/python/yt/bin/mapreduce-yt/mapreduce-yt')]
-        self.yt_local_path = [yatest.common.binary_path('yt/packages/contrib/python/yt_local/bin/local/yt_local')]
-        self.yt_env_watcher_dir_path = yatest.common.binary_path('yt/packages/contrib/python/yt_local/bin/watcher')
+        self.mapreduce_yt_path = [yatest.common.binary_path('yt/packages/{}/contrib/python/yt/bin/mapreduce-yt/mapreduce-yt'.format(self.version))]
+        self.yt_local_path = [yatest.common.binary_path('yt/packages/{}/contrib/python/yt_local/bin/local/yt_local'.format(self.version))]
+        self.yt_env_watcher_dir_path = yatest.common.binary_path('yt/packages/{}/contrib/python/yt_local/bin/watcher'.format(self.version))
 
-        yt_server_arcadia_path = yatest.common.binary_path('yt/packages/yt/{}/yt/server/ytserver_program/ytserver'.format(version))
-        yt_server_custom_path = yatest.common.get_param("yt_ytserver_path")
-        shutil.copy(yt_server_custom_path or yt_server_arcadia_path, os.path.join(self.yt_bins_path, 'ytserver'))
+        if self.version == "18_5":
+            ytserver_path = yatest.common.binary_path('yt/packages/18_5/yt/18_5/yt/server/ytserver_program/ytserver')
+            yt_server_custom_path = yatest.common.get_param('yt_ytserver_path')
+            shutil.copy(yt_server_custom_path or ytserver_path, os.path.join(self.yt_bins_path, 'ytserver'))
+        else:
+            for binary, server_dir in [('master', 'cell_master_program'),
+                                       ('scheduler', 'cell_scheduler_program'),
+                                       ('node', 'cell_node_program'),
+                                       ('job-proxy', 'job_proxy_program'),
+                                       ('exec', 'exec_program')]:
+                binary_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/server/{1}/ytserver-{2}'
+                                                        .format(self.version, server_dir, binary))
+                shutil.copy(binary_path, os.path.join(self.yt_bins_path, 'ytserver-' + binary))
 
-        yt_node_arcadia_path = yatest.common.binary_path('yt/packages/yt/{}/yt/nodejs/targets/bin/ytnode'.format(version))
+            if self.version == '19_2':
+                tools_binary_path = yatest.common.binary_path('yt/packages/19_2/yt/19_2/yt/server/tools_program/ytserver-tools')
+                shutil.copy(tools_binary_path, os.path.join(self.yt_bins_path, 'ytserver-tools'))
+
+        yt_node_arcadia_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/nodejs/targets/bin/ytnode'.format(self.version))
         shutil.copy(yt_node_arcadia_path, os.path.join(self.yt_node_bin_path, 'nodejs'))
 
-        node_modules_archive_path = yatest.common.binary_path('yt/packages/yt/{}/yt/node_modules/resource.tar.gz'.format(version))
+        node_modules_archive_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/node_modules/resource.tar.gz'.format(self.version))
         self._extract_tar(node_modules_archive_path, self.yt_path)
 
-        yt_node_path = yatest.common.binary_path('yt/packages/yt/{}/yt/nodejs/targets/package'.format(version))
+        yt_node_path = yatest.common.binary_path('yt/packages/{0}/yt/{0}/yt/nodejs/targets/package'.format(self.version))
         shutil.copytree(yt_node_path, os.path.join(self.yt_node_modules_path, 'yt'))
 
     def _prepare_env(self):
@@ -198,16 +206,11 @@ class YtStuff(object):
                 self.yt_node_path,
                 self.yt_node_modules_path,
             ])
-        if yt_version.YT_VERSION == '17_5':
-            self.env["PYTHONPATH"] = self.yt_python_path
         self.env["YT_LOCAL_THOR_PATH"] = self.yt_thor_path
         self.env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
         self.env["YT_LOG_LEVEL"] = "DEBUG"
 
     def _import_wrapper(self):
-        if yt_version.YT_VERSION == '17_5':
-            sys.path.insert(0, self.yt_python_path)
-
         import yt.wrapper
         import yt.logger
 
