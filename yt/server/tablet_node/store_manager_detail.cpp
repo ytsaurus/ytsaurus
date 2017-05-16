@@ -26,6 +26,23 @@ using NTabletNode::NProto::TAddStoreDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+void CleanupStorePreload(const IChunkStorePtr& chunkStore)
+{
+    auto preloadState = chunkStore->GetPreloadState();
+    if (preloadState == EStorePreloadState::Scheduled ||
+        preloadState == EStorePreloadState::Running)
+    {
+        chunkStore->SetPreloadState(EStorePreloadState::None);
+        chunkStore->SetPreloadFuture(TFuture<void>());
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStoreManagerBase::TStoreManagerBase(
     TTabletManagerConfigPtr config,
     TTablet* tablet,
@@ -102,13 +119,7 @@ void TStoreManagerBase::StopEpoch()
         if (store->IsChunk()) {
             auto chunkStore = store->AsChunk();
             chunkStore->SetCompactionState(EStoreCompactionState::None);
-            auto preloadState = chunkStore->GetPreloadState();
-            if (preloadState == EStorePreloadState::Scheduled ||
-                preloadState == EStorePreloadState::Running)
-            {
-                chunkStore->SetPreloadState(EStorePreloadState::None);
-                chunkStore->SetPreloadFuture(TFuture<void>());
-            }
+            CleanupStorePreload(chunkStore);
         }
     }
 
@@ -517,24 +528,14 @@ void TStoreManagerBase::CheckForUnlockedStore(IDynamicStore* store)
 void TStoreManagerBase::UpdateInMemoryMode()
 {
     ++InMemoryConfigRevision_;
-    auto mode = Tablet_->GetConfig()->InMemoryMode;
-
-    for (const auto& storeId : Tablet_->PreloadStoreIds()) {
-        auto store = Tablet_->FindStore(storeId);
-        if (store) {
-            auto chunkStore = store->AsChunk();
-            YCHECK(chunkStore->GetPreloadState() == EStorePreloadState::Scheduled);
-            chunkStore->SetPreloadState(EStorePreloadState::None);
-        }
-    }
-
     Tablet_->PreloadStoreIds().clear();
-
+    auto mode = Tablet_->GetConfig()->InMemoryMode;
     for (const auto& pair : Tablet_->StoreIdMap()) {
         const auto& store = pair.second;
         if (store->IsChunk()) {
             auto chunkStore = store->AsChunk();
             chunkStore->SetInMemoryMode(mode);
+            CleanupStorePreload(chunkStore);
             if (mode != EInMemoryMode::None) {
                 ScheduleStorePreload(chunkStore);
             }

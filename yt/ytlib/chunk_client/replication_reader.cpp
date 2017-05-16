@@ -6,6 +6,7 @@
 #include "config.h"
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"
+#include "helpers.h"
 
 #include <yt/ytlib/api/native_client.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -152,11 +153,11 @@ public:
             Networks_);
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<int>& blockIndexes) override;
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         int firstBlockIndex,
         int blockCount) override;
@@ -846,7 +847,7 @@ public:
         Promise_.TrySet(TError("Reader terminated"));
     }
 
-    TFuture<std::vector<TSharedRef>> Run()
+    TFuture<std::vector<TBlock>> Run()
     {
         NextRetry();
         return Promise_;
@@ -857,10 +858,10 @@ private:
     const std::vector<int> BlockIndexes_;
 
     //! Promise representing the session.
-    TPromise<std::vector<TSharedRef>> Promise_ = NewPromise<std::vector<TSharedRef>>();
+    TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
 
     //! Blocks that are fetched so far.
-    yhash<int, TSharedRef> Blocks_;
+    yhash<int, TBlock> Blocks_;
 
     //! Maps peer addresses to block indexes.
     yhash<Stroka, yhash_set<int>> PeerBlocksMap_;
@@ -1145,8 +1146,10 @@ private:
 
         i64 bytesReceived = 0;
         std::vector<int> receivedBlockIndexes;
-        for (int index = 0; index < rsp->Attachments().size(); ++index) {
-            const auto& block = rsp->Attachments()[index];
+
+        auto blocks = GetRpcAttachedBlocks(rsp);
+        for (int index = 0; index < blocks.size(); ++index) {
+            const auto& block = blocks[index];
             if (!block)
                 continue;
 
@@ -1156,6 +1159,7 @@ private:
             auto sourceDescriptor = reader->Options_->EnableP2P
                 ? TNullable<TNodeDescriptor>(GetPeerDescriptor(peerAddress))
                 : TNullable<TNodeDescriptor>(Null);
+
             reader->BlockCache_->Put(blockId, EBlockType::CompressedData, block, sourceDescriptor);
 
             YCHECK(Blocks_.insert(std::make_pair(blockIndex, block)).second);
@@ -1185,14 +1189,14 @@ private:
     {
         LOG_DEBUG("All requested blocks are fetched");
 
-        std::vector<TSharedRef> blocks;
+        std::vector<TBlock> blocks;
         blocks.reserve(BlockIndexes_.size());
         for (int blockIndex : BlockIndexes_) {
             const auto& block = Blocks_[blockIndex];
-            YCHECK(block);
+            YCHECK(block.Data);
             blocks.push_back(block);
         }
-        Promise_.TrySet(std::vector<TSharedRef>(blocks));
+        Promise_.TrySet(std::vector<TBlock>(blocks));
     }
 
     virtual void OnSessionFailed() override
@@ -1208,7 +1212,7 @@ private:
     }
 };
 
-TFuture<std::vector<TSharedRef>> TReplicationReader::ReadBlocks(
+TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TWorkloadDescriptor& workloadDescriptor,
     const std::vector<int>& blockIndexes)
 {
@@ -1240,10 +1244,10 @@ public:
             FirstBlockIndex_ + BlockCount_ - 1);
     }
 
-    TFuture<std::vector<TSharedRef>> Run()
+    TFuture<std::vector<TBlock>> Run()
     {
         if (BlockCount_ == 0) {
-            return MakeFuture(std::vector<TSharedRef>());
+            return MakeFuture(std::vector<TBlock>());
         }
 
         NextRetry();
@@ -1258,10 +1262,10 @@ private:
     const int BlockCount_;
 
     //! Promise representing the session.
-    TPromise<std::vector<TSharedRef>> Promise_ = NewPromise<std::vector<TSharedRef>>();
+    TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
 
     //! Blocks that are fetched so far.
-    std::vector<TSharedRef> FetchedBlocks_;
+    std::vector<TBlock> FetchedBlocks_;
 
     virtual bool IsCanceled() const override
     {
@@ -1339,15 +1343,17 @@ private:
 
         const auto& rsp = rspOrError.Value();
 
-        const auto& blocks = rsp->Attachments();
+        auto blocks = GetRpcAttachedBlocks(rsp);
+
         int blocksReceived = 0;
         i64 bytesReceived = 0;
-        for (const auto& block : blocks) {
+        for (auto& block : blocks) {
             if (!block)
                 break;
             blocksReceived += 1;
             bytesReceived += block.Size();
-            FetchedBlocks_.push_back(block);
+
+            FetchedBlocks_.emplace_back(std::move(block));
          }
 
         BanSeedIfUncomplete(rsp, peerAddress);
@@ -1382,7 +1388,7 @@ private:
             FirstBlockIndex_,
             FirstBlockIndex_ + FetchedBlocks_.size() - 1);
 
-        Promise_.TrySet(std::vector<TSharedRef>(FetchedBlocks_));
+        Promise_.TrySet(std::vector<TBlock>(FetchedBlocks_));
     }
 
     virtual void OnSessionFailed() override
@@ -1399,7 +1405,7 @@ private:
 
 };
 
-TFuture<std::vector<TSharedRef>> TReplicationReader::ReadBlocks(
+TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TWorkloadDescriptor& workloadDescriptor,
     int firstBlockIndex,
     int blockCount)

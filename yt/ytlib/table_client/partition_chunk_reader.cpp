@@ -101,7 +101,7 @@ void TPartitionChunkReader::InitFirstBlock()
 {
     YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
     BlockReader_ = new THorizontalSchemalessBlockReader(
-        CurrentBlock_.Get().ValueOrThrow(),
+        CurrentBlock_.Get().ValueOrThrow().Data,
         BlockMetaExt_.blocks(CurrentBlockIndex_),
         IdMapping_,
         KeyColumns_.size(),

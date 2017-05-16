@@ -30,10 +30,10 @@ class TCachedBlock
     : public TSyncCacheValueBase<TBlockId, TCachedBlock>
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(TSharedRef, Data);
+    DEFINE_BYVAL_RO_PROPERTY(TBlock, Data);
 
 public:
-    TCachedBlock(const TBlockId& id, const TSharedRef& data)
+    TCachedBlock(const TBlockId& id, const TBlock& data)
         : TSyncCacheValueBase(id)
         , Data_(data)
     { }
@@ -58,7 +58,7 @@ public:
         , Type_(type)
     { }
 
-    void Put(const TBlockId& id, const TSharedRef& data)
+    void Put(const TBlockId& id, const TBlock& data)
     {
         auto block = New<TCachedBlock>(id, data);
         if (TryInsert(block)) {
@@ -74,7 +74,7 @@ public:
         }
     }
 
-    TSharedRef Find(const TBlockId& id)
+    TBlock Find(const TBlockId& id)
     {
         auto block = TSyncSlruCacheBase::Find(id);
         if (block) {
@@ -86,7 +86,7 @@ public:
             LOG_TRACE("Block cache miss (BlockId: %v, BlockType: %v)",
                 id,
                 Type_);
-            return TSharedRef();
+            return TBlock();
         }
     }
 
@@ -132,7 +132,7 @@ public:
     virtual void Put(
         const TBlockId& id,
         EBlockType type,
-        const TSharedRef& data,
+        const TBlock& data,
         const TNullable<TNodeDescriptor>& /*source*/) override
     {
         auto cache = FindPerTypeCache(type);
@@ -141,12 +141,12 @@ public:
         }
     }
 
-    virtual TSharedRef Find(
+    virtual TBlock Find(
         const TBlockId& id,
         EBlockType type) override
     {
         auto cache = FindPerTypeCache(type);
-        return cache ? cache->Find(id) : TSharedRef();
+        return cache ? cache->Find(id) : TBlock();
     }
 
     virtual EBlockType GetSupportedBlockTypes() const override
@@ -184,15 +184,15 @@ public:
     virtual void Put(
         const TBlockId& /*id*/,
         EBlockType /*type*/,
-        const TSharedRef& /*data*/,
+        const TBlock& /*data*/,
         const TNullable<TNodeDescriptor>& /*source*/) override
     { }
 
-    virtual TSharedRef Find(
+    virtual TBlock Find(
         const TBlockId& /*id*/,
         EBlockType /*type*/) override
     {
-        return TSharedRef();
+        return TBlock();
     }
 
     virtual EBlockType GetSupportedBlockTypes() const override

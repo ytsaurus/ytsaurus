@@ -209,16 +209,14 @@ protected:
         SamplesExtSize_ += SamplesExt_.entries(SamplesExt_.entries_size() - 1).length();
     }
 
-    void ValidateRow(
+    static void ValidateRowsOrder(
         TVersionedRow row,
         const TUnversionedValue* beginPrevKey,
-        const TUnversionedValue* endPrevKey) const
+        const TUnversionedValue* endPrevKey)
     {
         YCHECK(
             !beginPrevKey && !endPrevKey ||
             CompareRows(beginPrevKey, endPrevKey, row.BeginKeys(), row.EndKeys()) < 0);
-        YCHECK(row.GetWriteTimestampCount() <= std::numeric_limits<ui16>::max());
-        YCHECK(row.GetDeleteTimestampCount() <= std::numeric_limits<ui16>::max());
     }
 };
 
@@ -279,6 +277,22 @@ private:
             ValidateRow(firstRow, LastKey_.Begin(), LastKey_.End());
             WriteRow(rows[index], rows[index - 1].BeginKeys(), rows[index - 1].EndKeys());
             FinishBlockIfLarge(rows[index]);
+        }
+    }
+
+    static void ValidateRow(
+        TVersionedRow row,
+        const TUnversionedValue* beginPrevKey,
+        const TUnversionedValue* endPrevKey)
+    {
+        ValidateRowsOrder(row, beginPrevKey, endPrevKey);
+        if (row.GetWriteTimestampCount() > std::numeric_limits<ui16>::max()) {
+            THROW_ERROR_EXCEPTION("Too many write timestamps in a versioned row")
+                << TErrorAttribute("key", RowToKey(row));
+        }
+        if (row.GetDeleteTimestampCount() > std::numeric_limits<ui16>::max()) {
+            THROW_ERROR_EXCEPTION("Too many delete timestamps in a versioned row")
+                << TErrorAttribute("key", RowToKey(row));
         }
     }
 
@@ -493,6 +507,14 @@ private:
         for (auto row : rows) {
             EmitSampleRandomly(row);
         }
+    }
+
+    static void ValidateRow(
+        TVersionedRow row,
+        const TUnversionedValue* beginPrevKey,
+        const TUnversionedValue* endPrevKey)
+    {
+        ValidateRowsOrder(row, beginPrevKey, endPrevKey);
     }
 
     void TryFlushBlock(TVersionedRow lastRow)

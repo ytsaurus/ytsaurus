@@ -50,17 +50,6 @@ TOwningKey RowToKey(
     return builder.FinishRow();
 }
 
-TOwningKey RowToKey(
-    const TTableSchema& schema,
-    TUnversionedRow row)
-{
-    TUnversionedOwningRowBuilder builder;
-    for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
-        builder.AddValue(row[index]);
-    }
-    return builder.FinishRow();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode

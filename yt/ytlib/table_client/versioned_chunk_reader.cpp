@@ -362,8 +362,13 @@ private:
 
         YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
         BlockReader_.reset(new TSimpleVersionedBlockReader(
+<<<<<<< HEAD
             CurrentBlock_.Get().ValueOrThrow(),
             ChunkMeta_->BlockMeta().blocks(chunkBlockIndex),
+=======
+            CurrentBlock_.Get().ValueOrThrow().Data,
+            ChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
+>>>>>>> prestable/19.1
             ChunkMeta_->ChunkSchema(),
             ChunkMeta_->GetChunkKeyColumnCount(),
             ChunkMeta_->GetKeyColumnCount(),
@@ -550,7 +555,7 @@ private:
     {
         int chunkBlockIndex = BlockIndexes_[NextBlockIndex_];
         BlockReader_.reset(new TSimpleVersionedBlockReader(
-            CurrentBlock_.Get().ValueOrThrow(),
+            CurrentBlock_.Get().ValueOrThrow().Data,
             ChunkMeta_->BlockMeta().blocks(chunkBlockIndex),
             ChunkMeta_->ChunkSchema(),
             ChunkMeta_->GetChunkKeyColumnCount(),

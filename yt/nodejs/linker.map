@@ -1,6 +1,6 @@
 {
 global:
-    ytnode_module;
-local:
     *;
+local:
+    ares*;
 };

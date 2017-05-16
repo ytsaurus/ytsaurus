@@ -292,7 +292,14 @@ public:
     {
         auto asyncResult = CheckPermission(std::move(tabletSnapshot), permission);
         auto maybeResult = asyncResult.TryGet();
-        auto result = maybeResult ? *maybeResult : WaitFor(asyncResult);
+        TError result;
+        if (maybeResult) {
+            result = *maybeResult;
+        } else {
+            LOG_DEBUG("Started waiting for persmission cache result");
+            result = WaitFor(asyncResult);
+            LOG_DEBUG("Finished waiting for persmission cache result");
+        }
         result.ThrowOnError();
     }
 

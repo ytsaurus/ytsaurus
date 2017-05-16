@@ -331,6 +331,7 @@ public:
     i64 EncodeWindowSize;
     double DefaultCompressionRatio;
     bool VerifyCompression;
+    bool ComputeChecksum;
 
     TEncodingWriterConfig()
     {
@@ -340,6 +341,8 @@ public:
         RegisterParameter("default_compression_ratio", DefaultCompressionRatio)
             .Default(0.2);
         RegisterParameter("verify_compression", VerifyCompression)
+            .Default(true);
+        RegisterParameter("compute_checksum", ComputeChecksum)
             .Default(true);
     }
 };
