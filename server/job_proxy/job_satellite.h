@@ -3,7 +3,7 @@
 #include "public.h"
 #include "job_satellite_connection.h"
 
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 namespace NYT {
 namespace NJobProxy {
