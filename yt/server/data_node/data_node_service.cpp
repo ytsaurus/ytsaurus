@@ -22,6 +22,7 @@
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/key_set.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/misc/workload.h>
 
@@ -82,6 +83,7 @@ public:
         YCHECK(Config_);
         YCHECK(Bootstrap_);
 
+        // TODO(prime): disable RPC attachment checksums for methods receiving/returning blocks
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk)
@@ -247,10 +249,10 @@ private:
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
         }
 
-        // TODO(prime): pull checksum from RPC layer
+        // NB: block checksums are validated before disk write
         auto result = session->PutBlocks(
             firstBlockIndex,
-            TBlock::Wrap(request->Attachments()),
+            GetRpcAttachedBlocks(request, /* validateChecksum */ false),
             populateCache);
 
         // Flush blocks if needed.
@@ -389,10 +391,8 @@ private:
                 blockIndexes,
                 options);
 
-            // TODO(prime): push checksum to RPC layer
-            response->Attachments() = TBlock::Unwrap(
-                WaitFor(asyncBlocks)
-                .ValueOrThrow());
+            auto blocks = WaitFor(asyncBlocks).ValueOrThrow();
+            SetRpcAttachedBlocks(response, blocks);
         }
 
         int blocksWithData = 0;
@@ -495,10 +495,7 @@ private:
                 blockCount,
                 options);
 
-            // TODO(prime): push checksum to RPC layer
-            response->Attachments() = TBlock::Unwrap(
-                WaitFor(asyncBlocks)
-                .ValueOrThrow());
+            SetRpcAttachedBlocks(response, WaitFor(asyncBlocks).ValueOrThrow());
         }
 
         int blocksWithData = response->Attachments().size();

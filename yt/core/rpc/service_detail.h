@@ -468,6 +468,12 @@ protected:
             Cancelable = value;
             return *this;
         }
+
+        TMethodDescriptor& SetGenerateAttachmentChecksums(bool value)
+        {
+            GenerateAttachmentChecksums = value;
+            return *this;
+        }
     };
 
     //! Per-user and per-method profiling counters.
