@@ -74,6 +74,14 @@ public:
     //! i.e. no more chunks could be created.
     bool IsChunkCountLimitViolated() const;
 
+    //! Returns |true| is tablet count limit is exceeded,
+    //! i.e. no more tablets could be created.
+    bool IsTabletCountLimitViolated() const;
+
+    //! Returns |true| is tablet static memory limit is exceeded,
+    //! i.e. no more data could be stored in tablet static memory.
+    bool IsTabletStaticMemoryLimitViolated() const;
+
     //! Returns statistics for a given cell tag.
     TAccountStatistics* GetCellStatistics(NObjectClient::TCellTag cellTag);
 

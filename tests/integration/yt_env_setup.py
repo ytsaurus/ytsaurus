@@ -305,6 +305,7 @@ class YTEnvSetup(object):
             self.transactions_at_start.append(set(yt_commands.get_transactions(driver=driver)))
             self.wait_for_nodes(driver=driver)
             self.wait_for_chunk_replicator(driver=driver)
+            self._init_tmp_account(driver=driver)
 
     def teardown_method(self, method):
         for env in [self.Env] + self.remote_envs:
@@ -457,6 +458,10 @@ class YTEnvSetup(object):
 
         print "Waiting for replica to become disabled..."
         wait(lambda: yt_commands.get("#{0}/@state".format(replica_id), driver=driver) == "disabled")
+
+    def _init_tmp_account(self, driver=None):
+        yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_count", 10000, driver=driver)
+        yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_static_memory", 1024 * 1024 * 1024, driver=driver)
 
     def _reset_nodes(self, driver=None):
         nodes = yt_commands.ls("//sys/nodes", attributes=["banned", "resource_limits_overrides", "user_tags"],

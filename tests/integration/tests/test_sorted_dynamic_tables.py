@@ -1887,43 +1887,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
  
 ##################################################################
 
-class TestSortedDynamicTablesResourceLimits(TestSortedDynamicTablesBase):
-    DELTA_NODE_CONFIG = {
-        "tablet_node": {
-            "security_manager": {
-                "resource_limits_cache": {
-                    "expire_after_access_time": 0,
-                },
-            },
-        },
-        "master_cache_service": {
-            "capacity": 0
-        },
-    }
-
-    @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
-    def test_resource_limits(self, resource):
-        create_account("test_account")
-        self.sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        set("//tmp/t/@account", "test_account")
-        self.sync_mount_table("//tmp/t")
-
-        set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
-        insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
-        self.sync_flush_table("//tmp/t")
-
-        with pytest.raises(YtError):
-            insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
-
-        set("//sys/accounts/test_account/@resource_limits/" + resource, 10000)
-        insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
-
-        set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
-        self.sync_unmount_table("//tmp/t")
-
-##################################################################
-
 class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
     NUM_NODES = 1
     DELTA_NODE_CONFIG = {

@@ -167,10 +167,6 @@ public:
     {
         ValidateCreatedNodeType(type);
 
-        auto* account = GetNewNodeAccount();
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidateResourceUsageIncrease(account, TClusterResources(1, 0));
-
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& handler = cypressManager->FindHandler(type);
         if (!handler) {
@@ -189,6 +185,14 @@ public:
         if (attributes->Get<bool>("dynamic", false)) {
             attributes->Set("external", false);
         }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* account = GetNewNodeAccount();
+        auto maybeAccount = attributes->FindAndRemove<Stroka>("account");
+        if (maybeAccount) {
+            account = securityManager->GetAccountByNameOrThrow(*maybeAccount);
+        }
+        securityManager->ValidateResourceUsageIncrease(account, TClusterResources(1, 0));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         bool isExternalDefault =
@@ -257,7 +261,7 @@ public:
             }
             replicationRequest.set_type(static_cast<int>(type));
             ToProto(replicationRequest.mutable_node_attributes(), *replicationAttributes);
-            ToProto(replicationRequest.mutable_account_id(), Account_->GetId());
+            ToProto(replicationRequest.mutable_account_id(), account->GetId());
             replicationRequest.set_enable_accounting(enableAccounting);
             multicellManager->PostToMaster(replicationRequest, cellTag);
         }
@@ -647,7 +651,9 @@ public:
             hintId,
             externalCellTag,
             transaction,
-            attributes);
+            attributes,
+            account,
+            enableAccounting);
         auto* node = RegisterNode(std::move(nodeHolder));
 
         // Set account.
@@ -2098,16 +2104,19 @@ private:
         const TNodeId& hintId,
         ENodeCloneMode mode)
     {
+        // Prepare account.
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* account = factory->GetClonedNodeAccount(sourceNode);
+
         const auto& handler = GetHandler(sourceNode);
         auto* clonedNode = handler->Clone(
             sourceNode,
             factory,
             hintId,
-            mode);
+            mode,
+            account);
 
         // Set account.
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = factory->GetClonedNodeAccount(sourceNode);
         securityManager->SetAccount(clonedNode, account);
 
         // Set owner.

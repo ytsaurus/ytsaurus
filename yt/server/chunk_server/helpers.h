@@ -67,6 +67,11 @@ NTableClient::TOwningKey GetMaxKey(const TChunkTree* chunkTree);
 NTableClient::TOwningKey GetMinKey(const TChunk* chunk);
 NTableClient::TOwningKey GetMinKey(const TChunkTree* chunkTree);
 
+i64 CalculateDiskSpaceUsage(
+    int replicationFactor,
+    i64 regularDiskSpace,
+    i64 erasureDiskSpace);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer

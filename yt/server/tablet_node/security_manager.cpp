@@ -215,6 +215,11 @@ private:
                         key.Account);
                 }
 
+                if (node->AsMap()->GetChild("tablet_static_memory")->GetValue<bool>()) {
+                    THROW_ERROR_EXCEPTION("Account %Qv violates tablet static memory limit",
+                        key.Account);
+                }
+
                 const auto& mediumLimit = node->AsMap()->GetChild("disk_space_per_medium")->AsMap()->FindChild(key.MediumName);
 
                 if (!mediumLimit) {

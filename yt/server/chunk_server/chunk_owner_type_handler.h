@@ -47,7 +47,9 @@ protected:
         const NCypressServer::TVersionedNodeId& id,
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes) override;
+        NYTree::IAttributeDictionary* attributes,
+        NSecurityServer::TAccount* account,
+        bool enableAccounting) override;
 
     virtual void DoDestroy(TChunkOwner* node) override;
 
@@ -73,7 +75,8 @@ protected:
         TChunkOwner* sourceNode,
         TChunkOwner* clonedNode,
         NCypressServer::ICypressNodeFactory* factory,
-        NCypressServer::ENodeCloneMode mode) override;
+        NCypressServer::ENodeCloneMode mode,
+        NSecurityServer::TAccount* account) override;
 
     virtual int GetDefaultReplicationFactor() const = 0;
 };

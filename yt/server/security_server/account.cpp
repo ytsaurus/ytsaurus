@@ -126,6 +126,16 @@ bool TAccount::IsChunkCountLimitViolated() const
     return ClusterStatistics_.ResourceUsage.ChunkCount > ClusterResourceLimits_.ChunkCount;
 }
 
+bool TAccount::IsTabletCountLimitViolated() const
+{
+    return ClusterStatistics_.ResourceUsage.TabletCount > ClusterResourceLimits_.TabletCount;
+}
+
+bool TAccount::IsTabletStaticMemoryLimitViolated() const
+{
+    return ClusterStatistics_.ResourceUsage.TabletStaticMemory > ClusterResourceLimits_.TabletStaticMemory;
+}
+
 TAccountStatistics* TAccount::GetCellStatistics(NObjectClient::TCellTag cellTag)
 {
     auto it = MulticellStatistics_.find(cellTag);

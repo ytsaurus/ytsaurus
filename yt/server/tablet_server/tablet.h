@@ -156,6 +156,9 @@ public:
 
     NChunkServer::TChunkList* GetChunkList();
     const NChunkServer::TChunkList* GetChunkList() const;
+
+    i64 GetTabletStaticMemorySize(NTabletNode::EInMemoryMode mode) const;
+    i64 GetTabletStaticMemorySize() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

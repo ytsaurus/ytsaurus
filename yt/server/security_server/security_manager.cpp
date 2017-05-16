@@ -385,7 +385,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
         if (oldAccount) {
-            UpdateAccountResourceUsage(node, oldAccount, -1);
+            IncrementAccountResourceUsage(node, oldAccount, -1);
             objectManager->UnrefObject(oldAccount);
         }
 
@@ -393,7 +393,7 @@ public:
 
         UpdateNodeCachedResourceUsage(node);
 
-        UpdateAccountResourceUsage(node, account, +1);
+        IncrementAccountResourceUsage(node, account, +1);
 
         objectManager->RefObject(account);
     }
@@ -405,7 +405,7 @@ public:
             return;
         }
 
-        UpdateAccountResourceUsage(node, account, -1);
+        IncrementAccountResourceUsage(node, account, -1);
 
         node->CachedResourceUsage() = TClusterResources();
         node->SetAccount(nullptr);
@@ -434,6 +434,11 @@ public:
         account->SetName(newName);
     }
 
+    void IncrementAccountNodeUsage(TCypressNodeBase* node, const TClusterResources& delta)
+    {
+        IncrementNodeCachedResourceUsage(node, delta);
+    }
+
     void UpdateAccountNodeUsage(TCypressNodeBase* node)
     {
         auto* account = node->GetAccount();
@@ -441,11 +446,11 @@ public:
             return;
         }
 
-        UpdateAccountResourceUsage(node, account, -1);
+        IncrementAccountResourceUsage(node, account, -1);
 
         UpdateNodeCachedResourceUsage(node);
 
-        UpdateAccountResourceUsage(node, account, +1);
+        IncrementAccountResourceUsage(node, account, +1);
     }
 
     void SetNodeResourceAccounting(TCypressNodeBase* node, bool enable)
@@ -459,6 +464,16 @@ public:
         UpdateAccountNodeUsage(node);
     }
 
+    void IncrementAccountResourceUsage(
+        TAccount* account,
+        const TClusterResources& delta)
+    {
+        account->ClusterStatistics().ResourceUsage += delta;
+        account->LocalStatistics().ResourceUsage += delta;
+
+        CheckSanity(account);
+    }
+
     void UpdateAccountStagingUsage(
         TTransaction* transaction,
         TAccount* account,
@@ -468,15 +483,11 @@ public:
             return;
         }
 
-        account->ClusterStatistics().ResourceUsage += delta;
-        account->LocalStatistics().ResourceUsage += delta;
-
-        CheckSanity(account);
+        IncrementAccountResourceUsage(account, delta);
 
         auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
         *transactionUsage += delta;
     }
-
 
     void DestroySubject(TSubject* subject)
     {
@@ -998,6 +1009,22 @@ public:
                 << TErrorAttribute("usage", usage.ChunkCount)
                 << TErrorAttribute("limit", limits.ChunkCount);
         }
+        if (delta.TabletCount > 0 && usage.TabletCount + delta.TabletCount > limits.TabletCount) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AccountLimitExceeded,
+                "Account %Qv is over tablet count limit",
+                account->GetName())
+                << TErrorAttribute("usage", usage.TabletCount)
+                << TErrorAttribute("limit", limits.TabletCount);
+        }
+        if (delta.TabletStaticMemory > 0 && usage.TabletStaticMemory + delta.TabletStaticMemory > limits.TabletStaticMemory) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AccountLimitExceeded,
+                "Account %Qv is over tablet static memory limit",
+                account->GetName())
+                << TErrorAttribute("usage", usage.TabletStaticMemory)
+                << TErrorAttribute("limit", limits.TabletStaticMemory);
+        }
     }
 
 
@@ -1160,7 +1187,18 @@ private:
         }
     }
 
-    static void UpdateAccountResourceUsage(TCypressNodeBase* node, TAccount* account, int delta)
+    void IncrementNodeCachedResourceUsage(TCypressNodeBase* node, const TClusterResources& delta)
+    {
+        if (!node->IsExternal() && node->GetAccountingEnabled()) {
+            node->CachedResourceUsage() += delta;
+            auto* account = node->GetAccount();
+            if (account) {
+                IncrementAccountResourceUsage(account, delta);
+            }
+        }
+    }
+
+    static void IncrementAccountResourceUsage(TCypressNodeBase* node, TAccount* account, int delta)
     {
         auto resourceUsage = node->CachedResourceUsage() * delta;
 
@@ -1212,6 +1250,7 @@ private:
             .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = (i64) 1024 * 1024 * 1024; // 1 GB
         accountHolder->ClusterResourceLimits().NodeCount = 1000;
         accountHolder->ClusterResourceLimits().ChunkCount = 100000;
+        accountHolder->ClusterResourceLimits().TabletCount = 100000;
 
         auto* account = AccountMap_.Insert(id, std::move(accountHolder));
         YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
@@ -1667,9 +1706,9 @@ private:
 
         // Accounts
 
-        // sys, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: root
+        // sys, 1 TB disk space, 100 000 nodes, 1 000 000 chunks, 100 000 tablets, 10TB tablet static memory, allowed for: root
         if (EnsureBuiltinAccountInitialized(SysAccount_, SysAccountId_, SysAccountName)) {
-            SysAccount_->ClusterResourceLimits() = TClusterResources(100000, 1000000000);
+            SysAccount_->ClusterResourceLimits() = TClusterResources(100000, 1000000000, 100000, (i64) 10 * 1024 * 1024 * 1024 * 1024);
             SysAccount_->ClusterResourceLimits()
                 .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = (i64) 1024 * 1024 * 1024 * 1024;
             SysAccount_->Acd().AddEntry(TAccessControlEntry(
@@ -2218,6 +2257,11 @@ void TSecurityManager::RenameAccount(TAccount* account, const Stroka& newName)
 void TSecurityManager::UpdateAccountNodeUsage(TCypressNodeBase* node)
 {
     Impl_->UpdateAccountNodeUsage(node);
+}
+
+void TSecurityManager::IncrementAccountNodeUsage(TCypressNodeBase* node, const TClusterResources& delta)
+{
+    Impl_->IncrementAccountNodeUsage(node, delta);
 }
 
 void TSecurityManager::SetNodeResourceAccounting(NCypressServer::TCypressNodeBase* node, bool enable)
