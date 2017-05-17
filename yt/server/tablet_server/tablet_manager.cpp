@@ -127,6 +127,7 @@ public:
         : TMasterAutomatonPart(bootstrap)
         , Config_(config)
         , TabletTracker_(New<TTabletTracker>(Config_, Bootstrap_))
+        , TabletBalancer_(New<TTabletBalancer>(Config_->TabletBalancer, Bootstrap_))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
@@ -391,9 +392,20 @@ public:
         TReplicatedTableNode* table,
         const Stroka& clusterName,
         const TYPath& replicaPath,
+        ETableReplicaMode mode,
         TTimestamp startReplicationTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        for (const auto* replica : table->Replicas()) {
+            if (replica->GetClusterName() == clusterName &&
+                replica->GetReplicaPath() == replicaPath)
+            {
+                THROW_ERROR_EXCEPTION("Replica table %v at cluster %Qv already exists",
+                    replicaPath,
+                    clusterName);
+            }
+        }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TableReplica, NullObjectId);
@@ -401,6 +413,7 @@ public:
         replicaHolder->SetTable(table);
         replicaHolder->SetClusterName(clusterName);
         replicaHolder->SetReplicaPath(replicaPath);
+        replicaHolder->SetMode(mode);
         replicaHolder->SetStartReplicationTimestamp(startReplicationTimestamp);
         replicaHolder->SetState(ETableReplicaState::Disabled);
 
@@ -409,9 +422,10 @@ public:
 
         YCHECK(table->Replicas().insert(replica).second);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v, StartReplicationTimestamp: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %llx)",
             table->GetId(),
             replica->GetId(),
+            mode,
             startReplicationTimestamp);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
@@ -535,6 +549,39 @@ public:
         }
 
         CheckForReplicaDisabled(replica);
+    }
+
+    void SetTableReplicaMode(TTableReplica* replica, ETableReplicaMode mode)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (replica->GetMode() == mode) {
+            return;
+        }
+
+        auto* table = replica->GetTable();
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table replica mode updated (TableId: %v, ReplicaId: %v, Mode: %v)",
+            table->GetId(),
+            replica->GetId(),
+            mode);
+
+        replica->SetMode(mode);
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        for (auto* tablet : table->Tablets()) {
+            if (!tablet->IsActive()) {
+                continue;
+            }
+
+            auto* cell = tablet->GetCell();
+            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+            TReqSetTableReplicaMode req;
+            ToProto(req.mutable_tablet_id(), tablet->GetId());
+            ToProto(req.mutable_replica_id(), replica->GetId());
+            req.set_mode(static_cast<int>(mode));
+            hiveManager->PostMessage(mailbox, req);
+        }
     }
 
 
@@ -1366,7 +1413,7 @@ public:
                 req.set_atomicity(static_cast<int>(table->GetAtomicity()));
                 req.set_commit_ordering(static_cast<int>(table->GetCommitOrdering()));
                 req.set_freeze(freeze);
-                req.set_replication_mode(static_cast<int>(table->GetReplicationMode()));
+                ToProto(req.mutable_upstream_replica_id(), table->GetUpstreamReplicaId());
                 if (table->IsReplicated()) {
                     auto* replicatedTable = table->As<TReplicatedTableNode>();
                     for (auto* replica : replicatedTable->Replicas()) {
@@ -1390,7 +1437,7 @@ public:
                 }
 
                 LOG_DEBUG_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
-                    "Atomicity: %v, CommitOrdering: %v, Freeze: %v, ReplicationMode: %v)",
+                    "Atomicity: %v, CommitOrdering: %v, Freeze: %v, UpstreamReplicaId: %v)",
                     table->GetId(),
                     tablet->GetId(),
                     cell->GetId(),
@@ -1398,7 +1445,7 @@ public:
                     table->GetAtomicity(),
                     table->GetCommitOrdering(),
                     freeze,
-                    table->GetReplicationMode());
+                    table->GetUpstreamReplicaId());
 
                 hiveManager->PostMessage(mailbox, req);
             }
@@ -2269,7 +2316,7 @@ private:
     const TTabletManagerConfigPtr Config_;
 
     const TTabletTrackerPtr TabletTracker_;
-    TTabletBalancerPtr TabletBalancer_;
+    const TTabletBalancerPtr TabletBalancer_;
 
     TEntityMap<TTabletCellBundle> TabletCellBundleMap_;
     TEntityMap<TTabletCell> TabletCellMap_;
@@ -2747,9 +2794,7 @@ private:
                 PopulateTableReplicaInfoFromStatistics(replicaInfo, protoReplicaInfo.statistics());
             }
 
-            if (TabletBalancer_) {
-                TabletBalancer_->OnTabletHeartbeat(tablet);
-            }
+            TabletBalancer_->OnTabletHeartbeat(tablet);
         }
     }
 
@@ -2996,7 +3041,7 @@ private:
         PopulateTableReplicaInfoFromStatistics(replicaInfo, request->statistics());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Table replica statistics updated (TabletId: %v, ReplicaId: %v, "
-            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %v)",
+            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %llx)",
             tabletId,
             replicaId,
             replicaInfo->GetCurrentReplicationRowIndex(),
@@ -3343,7 +3388,7 @@ private:
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
             "AttachedChunkIds: %v, DetachedChunkIds: %v, "
-            "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %v)",
+            "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %llx)",
             transaction->GetId(),
             table->GetId(),
             tabletId,
@@ -3438,21 +3483,6 @@ private:
     }
 
     
-    virtual void OnRecoveryComplete() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TMasterAutomatonPart::OnRecoveryComplete();
-
-        for (const auto& pair : TabletCellMap_) {
-            auto* cell = pair.second;
-            if (!IsObjectAlive(cell)) {
-                continue;
-            }
-            UpdateCellDirectory(cell);
-        }
-    }
-
     virtual void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -3461,8 +3491,6 @@ private:
 
         if (Bootstrap_->IsPrimaryMaster()) {
             TabletTracker_->Start();
-
-            TabletBalancer_ = New<TTabletBalancer>(Config_->TabletBalancer, Bootstrap_);
             TabletBalancer_->Start();
         }
 
@@ -3480,11 +3508,7 @@ private:
         TMasterAutomatonPart::OnStopLeading();
 
         TabletTracker_->Stop();
-
-        if (TabletBalancer_) {
-            TabletBalancer_->Stop();
-            TabletBalancer_.Reset();
-        }
+        TabletBalancer_->Stop();
 
         if (CleanupExecutor_) {
             CleanupExecutor_->Stop();
@@ -3507,17 +3531,9 @@ private:
             }
         }
 
-        UpdateCellDirectory(cell);
-
         LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell reconfigured (CellId: %v, Version: %v)",
             cell->GetId(),
             cell->GetConfigVersion());
-    }
-
-    void UpdateCellDirectory(TTabletCell* cell)
-    {
-        const auto& cellDirectory = Bootstrap_->GetCellDirectory();
-        cellDirectory->ReconfigureCell(cell->GetDescriptor());
     }
 
 
@@ -4070,6 +4086,7 @@ private:
         descriptor->set_cluster_name(replica->GetClusterName());
         descriptor->set_replica_path(replica->GetReplicaPath());
         descriptor->set_start_replication_timestamp(replica->GetStartReplicationTimestamp());
+        descriptor->set_mode(static_cast<int>(replica->GetMode()));
         PopulateTableReplicaStatisticsFromInfo(descriptor->mutable_statistics(), info);
     }
 
@@ -4290,12 +4307,14 @@ TTableReplica* TTabletManager::CreateTableReplica(
     TReplicatedTableNode* table,
     const Stroka& clusterName,
     const TYPath& replicaPath,
+    ETableReplicaMode mode,
     TTimestamp startReplicationTimestamp)
 {
     return Impl_->CreateTableReplica(
         table,
         clusterName,
         replicaPath,
+        mode,
         startReplicationTimestamp);
 }
 
@@ -4307,6 +4326,11 @@ void TTabletManager::DestroyTableReplica(TTableReplica* replica)
 void TTabletManager::SetTableReplicaEnabled(TTableReplica* replica, bool enabled)
 {
     Impl_->SetTableReplicaEnabled(replica, enabled);
+}
+
+void TTabletManager::SetTableReplicaMode(TTableReplica* replica, ETableReplicaMode mode)
+{
+    Impl_->SetTableReplicaMode(replica, mode);
 }
 
 TTabletAction* TTabletManager::CreateTabletAction(

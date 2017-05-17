@@ -1,6 +1,7 @@
 #include "native_transaction_participant.h"
 
 #include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/cell_directory_synchronizer.h>
 #include <yt/ytlib/hive/transaction_participant.h>
 #include <yt/ytlib/hive/transaction_participant_service_proxy.h>
 
@@ -21,10 +22,12 @@ class TNativeTransactionParticipant
 public:
     TNativeTransactionParticipant(
         TCellDirectoryPtr cellDirectory,
+        TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
         ITimestampProviderPtr timestampProvider,
         const TCellId& cellId,
         const TTransactionParticipantOptions& options)
         : CellDirectory_(std::move(cellDirectory))
+        , CellDirectorySynchronizer_(std::move(cellDirectorySynchronizer))
         , TimestampProvider_(std::move(timestampProvider))
         , CellId_(cellId)
         , Options_(options)
@@ -82,6 +85,7 @@ public:
 
 private:
     const TCellDirectoryPtr CellDirectory_;
+    const TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     const ITimestampProviderPtr TimestampProvider_;
     const TCellId CellId_;
     const TTransactionParticipantOptions Options_;
@@ -90,16 +94,11 @@ private:
     template <class TRequest>
     TFuture<void> SendRequest(std::function<TIntrusivePtr<TRequest>(TTransactionParticipantServiceProxy*)> builder)
     {
-        auto proxy = TryMakeProxy();
-        if (!proxy) {
-            return MakeFuture(TError(
-                NRpc::EErrorCode::Unavailable,
-                "No connection info is available for participant cell %v",
-                CellId_));
-        }
-
-        auto req = builder(proxy.get());
-        return req->Invoke().template As<void>();
+        return GetChannel().Apply(BIND([=] (const NRpc::IChannelPtr& channel) {
+            TTransactionParticipantServiceProxy proxy(channel);
+            auto req = builder(&proxy);
+            return req->Invoke().template As<void>();
+        }));
     }
 
     void PrepareRequest(const TIntrusivePtr<NRpc::TClientRequest>& request)
@@ -107,26 +106,43 @@ private:
         request->SetTimeout(Options_.RpcTimeout);
     }
 
-    std::unique_ptr<TTransactionParticipantServiceProxy> TryMakeProxy()
+    TFuture<NRpc::IChannelPtr> GetChannel()
     {
         auto channel = CellDirectory_->FindChannel(CellId_);
-        if (!channel) {
-            // Let's register a dummy descriptor so as to ask about it during the next sync.
-            CellDirectory_->RegisterCell(CellId_);
-            return nullptr;
+        if (channel) {
+            return MakeFuture(channel);
         }
-        return std::make_unique<TTransactionParticipantServiceProxy>(channel);
+        if (!CellDirectorySynchronizer_) {
+            return MakeNoChannelError();
+        }
+        return CellDirectorySynchronizer_->Sync().Apply(BIND([=, this_ = MakeStrong(this)] () {
+            auto channel = CellDirectory_->FindChannel(CellId_);
+            if (channel) {
+                return MakeFuture(channel);
+            }
+            return MakeNoChannelError();
+        }));
+    }
+
+    TFuture<NRpc::IChannelPtr> MakeNoChannelError()
+    {
+        return MakeFuture<NRpc::IChannelPtr>(TError(
+            NRpc::EErrorCode::Unavailable,
+            "No such participant cell %v",
+            CellId_));
     }
 };
 
 ITransactionParticipantPtr CreateNativeTransactionParticipant(
     TCellDirectoryPtr cellDirectory,
+    TCellDirectorySynchronizerPtr cellDirectorySynchronizer,
     ITimestampProviderPtr timestampProvider,
     const TCellId& cellId,
     const TTransactionParticipantOptions& options)
 {
     return New<TNativeTransactionParticipant>(
         std::move(cellDirectory),
+        std::move(cellDirectorySynchronizer),
         std::move(timestampProvider),
         cellId,
         options);

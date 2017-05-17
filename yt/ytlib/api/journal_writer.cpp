@@ -524,16 +524,6 @@ private:
 
             LOG_INFO("Creating chunk");
 
-            const TMediumDescriptor* mediumDescriptor;
-            {
-                const auto& connection = Client_->GetNativeConnection();
-                WaitFor(connection->SynchronizeMediumDirectory())
-                    .ThrowOnError();
-
-                const auto& mediumDirecotry = connection->GetMediumDirectory();
-                mediumDescriptor = mediumDirecotry->GetByNameOrThrow(PrimaryMedium_);
-            }
-
             {
                 TChunkServiceProxy proxy(UploadMasterChannel_);
 
@@ -546,7 +536,7 @@ private:
                 req->set_account(Account_);
                 ToProto(req->mutable_transaction_id(), UploadTransaction_->GetId());
                 req->set_replication_factor(ReplicationFactor_);
-                req->set_medium_index(mediumDescriptor->Index);
+                req->set_medium_name(PrimaryMedium_);
                 req->set_read_quorum(ReadQuorum_);
                 req->set_write_quorum(WriteQuorum_);
                 req->set_movable(true);
@@ -561,20 +551,18 @@ private:
                 const auto& batchRsp = batchRspOrError.Value();
                 const auto& rsp = batchRsp->create_chunk_subresponses(0);
 
-                session->Id.ChunkId = FromProto<TChunkId>(rsp.chunk_id());
-                session->Id.MediumIndex = mediumDescriptor->Index;
+                session->Id = FromProto<TSessionId>(rsp.session_id());
             }
 
-            LOG_INFO("Chunk created (SessionId: %v)",
+            LOG_INFO("Chunk created (ChunkId: %v)",
                 session->Id);
 
             auto replicas = AllocateWriteTargets(
                 Client_,
-                session->Id.ChunkId,
+                session->Id,
                 ReplicationFactor_,
                 WriteQuorum_,
                 Null,
-                PrimaryMedium_,
                 Config_->PreferLocalHost,
                 GetBannedNodes(),
                 NodeDirectory_,
@@ -756,7 +744,7 @@ private:
                 CurrentSession_->DataSize > Config_->MaxChunkDataSize;
         }
 
-        void EnqueueBatchToSession(TBatchPtr batch)
+        void EnqueueBatchToSession(const TBatchPtr& batch)
         {
             // Reset flushed replica count: this batch might have already been
             // flushed (partially) by the previous (failed session).
@@ -809,7 +797,7 @@ private:
             }
 
             {
-                LOG_INFO("Sealing chunk (SessionId: %v, RowCount: %v)",
+                LOG_INFO("Sealing chunk (ChunkId: %v, RowCount: %v)",
                     sessionId,
                     session->FlushedRowCount);
 
@@ -931,7 +919,7 @@ private:
             return CurrentBatch_;
         }
 
-        void OnBatchTimeout(TBatchPtr batch)
+        void OnBatchTimeout(const TBatchPtr& batch)
         {
             TGuard<TSpinLock> guard(CurrentBatchSpinLock_);
             if (CurrentBatch_ == batch) {
@@ -954,7 +942,9 @@ private:
         }
 
 
-        void SendPing(TChunkSessionWeakPtr session_, TNodeWeakPtr node_)
+        void SendPing(
+            const TChunkSessionWeakPtr& session_,
+            const TNodeWeakPtr& node_)
         {
             auto session = session_.Lock();
             if (!session)
@@ -964,7 +954,7 @@ private:
             if (!node)
                 return;
 
-            LOG_DEBUG("Sending ping (Address: %v, SessionId: %v)",
+            LOG_DEBUG("Sending ping (Address: %v, ChunkId: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 session->Id);
 
@@ -975,25 +965,29 @@ private:
                     .Via(Invoker_));
         }
 
-        void OnPingSent(TChunkSessionPtr session, TNodePtr node, const TDataNodeServiceProxy::TErrorOrRspPingSessionPtr& rspOrError)
+        void OnPingSent(
+            const TChunkSessionPtr& session,
+            const TNodePtr& node,
+            const TDataNodeServiceProxy::TErrorOrRspPingSessionPtr& rspOrError)
         {
-            if (session != CurrentSession_)
+            if (session != CurrentSession_) {
                 return;
+            }
 
             if (!rspOrError.IsOK()) {
                 OnReplicaFailed(rspOrError, node, session);
                 return;
             }
 
-            LOG_DEBUG("Ping succeeded (Address: %v, SessionId: %v)",
+            LOG_DEBUG("Ping succeeded (Address: %v, ChunkId: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 session->Id);
         }
 
 
         void OnChunkStarted(
-            TChunkSessionPtr session,
-            TNodePtr node,
+            const TChunkSessionPtr& session,
+            const TNodePtr& node,
             const TDataNodeServiceProxy::TErrorOrRspStartChunkPtr& rspOrError)
         {
             if (rspOrError.IsOK()) {
@@ -1012,7 +1006,9 @@ private:
             }
         }
 
-        void OnChunkFinished(TNodePtr node, const TDataNodeServiceProxy::TErrorOrRspFinishChunkPtr& rspOrError)
+        void OnChunkFinished(
+            const TNodePtr& node,
+            const TDataNodeServiceProxy::TErrorOrRspFinishChunkPtr& rspOrError)
         {
             if (rspOrError.IsOK()) {
                 LOG_DEBUG("Chunk session finished (Address: %v)",
@@ -1025,7 +1021,7 @@ private:
         }
 
 
-        void MaybeFlushBlocks(TNodePtr node)
+        void MaybeFlushBlocks(const TNodePtr& node)
         {
             if (!node->Started) {
                 return;
@@ -1077,8 +1073,8 @@ private:
         }
 
         void OnBlocksFlushed(
-            TChunkSessionPtr session,
-            TNodePtr node,
+            const TChunkSessionPtr& session,
+            const TNodePtr& node,
             i64 flushRowCount,
             const TDataNodeServiceProxy::TErrorOrRspPutBlocksPtr& rspOrError)
         {
@@ -1129,7 +1125,10 @@ private:
             }
         }
 
-        void OnReplicaFailed(const TError& error, TNodePtr node, TChunkSessionPtr session)
+        void OnReplicaFailed(
+            const TError& error,
+            const TNodePtr& node,
+            const TChunkSessionPtr& session)
         {
             const auto& address = node->Descriptor.GetDefaultAddress();
             LOG_WARNING(error, "Journal replica failed (Address: %v, SessionId: %v)",

@@ -179,7 +179,7 @@ private:
         auto result = CurrentTimestamp_;
         CurrentTimestamp_ += count;
 
-        context->SetResponseInfo("Timestamp: %v", result);
+        context->SetResponseInfo("Timestamp: %llx", result);
 
         context->Response().set_timestamp(result);
         context->Reply();
@@ -207,7 +207,7 @@ private:
         }
 
         CurrentTimestamp_ = (nowSeconds << TimestampCounterWidth);
-        LOG_DEBUG("Timestamp advanced (Timestamp: %v)",
+        LOG_DEBUG("Timestamp advanced (Timestamp: %llx)",
             CurrentTimestamp_);
 
         auto commitTimestamp =
@@ -236,7 +236,7 @@ private:
 
         CommittedTimestamp_ = timestamp;
 
-        LOG_DEBUG("Timestamp committed (Timestamp: %v)",
+        LOG_DEBUG("Timestamp committed (Timestamp: %llx)",
             CommittedTimestamp_);
     }
 
@@ -284,7 +284,7 @@ private:
             CurrentTimestamp_ = persistentTimestamp;
             CommittedTimestamp_ = persistentTimestamp;
 
-            LOG_INFO("Timestamp generator is now active (Timestamp: %v)",
+            LOG_INFO("Timestamp generator is now active (Timestamp: %llx)",
                 persistentTimestamp);
         }).Via(invoker);
 
@@ -327,7 +327,7 @@ private:
 
         PersistentTimestamp_ = request->timestamp();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Persistent timestamp updated (Timestamp: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Persistent timestamp updated (Timestamp: %llx)",
             PersistentTimestamp_);
     }
 

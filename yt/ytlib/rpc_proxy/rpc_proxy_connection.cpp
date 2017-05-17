@@ -29,35 +29,33 @@ TRpcProxyConnection::TRpcProxyConnection(
     NConcurrency::TActionQueuePtr actionQueue)
     : Config_(std::move(config))
     , ActionQueue_(std::move(actionQueue))
-    , Logger(RpcProxyClientLogger)
-{
-    Logger.AddTag("Connection: %p", this);
-}
-
-TRpcProxyConnection::~TRpcProxyConnection()
+    , Logger(NLogging::TLogger(RpcProxyClientLogger)
+        .AddTag("ConnectionId: %v", TGuid::Create()))
 { }
+
+TRpcProxyConnection::~TRpcProxyConnection() = default;
 
 NObjectClient::TCellTag TRpcProxyConnection::GetCellTag()
 {
     Y_UNIMPLEMENTED();
 }
 
-NTabletClient::ITableMountCachePtr TRpcProxyConnection::GetTableMountCache()
+const NTabletClient::ITableMountCachePtr& TRpcProxyConnection::GetTableMountCache()
 {
     Y_UNIMPLEMENTED();
 }
 
-NTransactionClient::ITimestampProviderPtr TRpcProxyConnection::GetTimestampProvider()
+const NTransactionClient::ITimestampProviderPtr& TRpcProxyConnection::GetTimestampProvider()
 {
     Y_UNIMPLEMENTED();
 }
 
-IInvokerPtr TRpcProxyConnection::GetLightInvoker()
+const IInvokerPtr& TRpcProxyConnection::GetLightInvoker()
 {
     return ActionQueue_->GetInvoker();
 }
 
-IInvokerPtr TRpcProxyConnection::GetHeavyInvoker()
+const IInvokerPtr& TRpcProxyConnection::GetHeavyInvoker()
 {
     return ActionQueue_->GetInvoker();
 }

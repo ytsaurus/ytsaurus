@@ -66,7 +66,7 @@ public:
     //! Returns the medium descriptor.
     const NChunkClient::TMediumDescriptor& GetMediumDescriptor() const;
 
-    //! Initializes the medium index.
+    //! Initializes the medium descriptor.
     void SetMediumDescriptor(const NChunkClient::TMediumDescriptor& descriptor);
 
     //! Returns the profiler tagged with location id.

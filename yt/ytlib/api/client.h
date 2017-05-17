@@ -172,7 +172,7 @@ struct TAlterTableOptions
 {
     TNullable<NTableClient::TTableSchema> Schema;
     TNullable<bool> Dynamic;
-    TNullable<NTableClient::ETableReplicationMode> ReplicationMode;
+    TNullable<NTabletClient::TTableReplicaId> UpstreamReplicaId;
 };
 
 struct TTrimTableOptions
@@ -191,6 +191,7 @@ struct TAlterTableReplicaOptions
     : public TTimeoutOptions
 {
     TNullable<bool> Enabled;
+    TNullable<NTabletClient::ETableReplicaMode> Mode;
 };
 
 struct TAddMemberOptions
@@ -265,15 +266,18 @@ struct TTransactionCommitOptions
     , public TPrerequisiteOptions
     , public TTransactionalOptions
 {
-    //! If none, then a random participant is chosen as a coordinator.
-    NElection::TCellId CoordinatorCellId;
+    //! If not null, then this particular cell will be the coordinator.
+    NObjectClient::TCellId CoordinatorCellId;
+
+    //! If not #InvalidCellTag, a random participant from the given cell will be the coordinator.
+    NObjectClient::TCellTag CoordinatorCellTag = NObjectClient::InvalidCellTag;
 
     //! If |true| then two-phase-commit protocol is executed regardless of the number of participants.
     bool Force2PC = false;
 
     //! If |true| then all participants will use the commit timestamp provided by the coordinator.
     //! If |false| then the participants will use individual commit timestamps based on their cell tag.
-    bool InheritCommitTimestamp = false;
+    bool InheritCommitTimestamp = true;
 };
 
 struct TTransactionCommitResult
@@ -508,6 +512,12 @@ struct TTableReaderOptions
     NTableClient::TTableReaderConfigPtr Config;
 };
 
+struct TTableWriterOptions
+    : public TTransactionalOptions
+{
+    NTableClient::TTableWriterConfigPtr Config;
+};
+
 struct TStartOperationOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
@@ -674,7 +684,13 @@ struct IClientBase
         const Stroka& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
-    // TODO(babenko): batch read and batch write
+    virtual TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
+        const NYPath::TRichYPath& path,
+        const TTableReaderOptions& options = TTableReaderOptions()) = 0;
+
+    virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
+        const NYPath::TRichYPath& path,
+        const TTableWriterOptions& options = TTableWriterOptions()) = 0;
 
     // Cypress
     virtual TFuture<NYson::TYsonString> GetNode(
@@ -754,11 +770,6 @@ struct IClientBase
         const NYPath::TYPath& path,
         const TJournalWriterOptions& options = TJournalWriterOptions()) = 0;
 
-
-    // Tables
-    virtual TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
-        const NYPath::TRichYPath& path,
-        const TTableReaderOptions& options = TTableReaderOptions()) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientBase)

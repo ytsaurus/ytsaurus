@@ -50,12 +50,6 @@ public:
             ResponseKeeper->EnableWarmup = false;
         });
     }
-
-    virtual void OnLoaded() override
-    {
-        TServerConfig::OnLoaded();
-        ClusterConnection->MediumDirectorySynchronizer->ReadFrom = NApi::EMasterChannelKind::Follower;
-    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellSchedulerConfig)

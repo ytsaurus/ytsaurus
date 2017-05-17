@@ -45,10 +45,10 @@ namespace NControllerAgent {
 struct TControllerTransactions
     : public TIntrinsicRefCounted
 {
-    NApi::ITransactionPtr Sync;
     NApi::ITransactionPtr Async;
     NApi::ITransactionPtr Input;
     NApi::ITransactionPtr Output;
+    NApi::ITransactionPtr Completion;
     NApi::ITransactionPtr DebugOutput;
 };
 
@@ -81,11 +81,6 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual TMasterConnector* GetMasterConnector() = 0;
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() = 0;
 
     /*!
      *  \note Thread affinity: any
@@ -330,6 +325,9 @@ struct IOperationController
 
     //! Returns whether controller was forgotten or not.
     virtual bool IsForgotten() const = 0;
+    
+    //! Returns whether controller was revived from snapshot.
+    virtual bool IsRevivedFromSnapshot() const = 0;
 
     /*!
      *  \note Thread affinity: any

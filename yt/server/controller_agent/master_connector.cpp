@@ -275,7 +275,7 @@ private:
         auto localConnection = Bootstrap_->GetMasterClient()->GetNativeConnection();
         return cellTag == localConnection->GetCellTag()
             ? localConnection
-            : Bootstrap_->GetClusterDirectory()->FindConnection(cellTag);
+            : localConnection->GetClusterDirectory()->FindConnection(cellTag);
     }
 
     void RefreshTransactions()
@@ -339,6 +339,7 @@ private:
                 const auto& batchRsp = it->second;
                 auto rspOrError = batchRsp->GetResponse("check_tx_" + ToString(id));
                 if (!rspOrError.IsOK()) {
+                    LOG_ERROR(rspOrError, "Found dead transaction %v", id);
                     deadTransactionIds.insert(id);
                 }
             }

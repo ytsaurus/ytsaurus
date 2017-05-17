@@ -6,6 +6,7 @@
 #include <yt/ytlib/chunk_client/erasure_writer.h>
 #include <yt/ytlib/chunk_client/file_reader.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
+#include <yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/core/erasure/codec.h>
 
@@ -23,7 +24,6 @@ namespace {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,12 +120,17 @@ public:
             writers.push_back(NYT::New<TFileWriter>(NullChunkId, filename));
         }
 
-        TChunkMeta meta;
+        NChunkClient::NProto::TChunkMeta meta;
         meta.set_type(1);
         meta.set_version(1);
 
         i64 dataSize = 0;
-        auto erasureWriter = CreateErasureWriter(config, NullChunkId, codecId, codec, writers);
+        auto erasureWriter = CreateErasureWriter(
+            config,
+            TSessionId(),
+            codecId,
+            codec,
+            writers);
         EXPECT_TRUE(erasureWriter->Open().Get().IsOK());
 
         for (const auto& ref : data) {

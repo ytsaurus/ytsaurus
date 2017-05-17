@@ -52,7 +52,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TWriteTableCommand
-    : public TTypedCommand<NApi::TTransactionalOptions>
+    : public TTypedCommand<NApi::TTableWriterOptions>
 {
 public:
     TWriteTableCommand();
@@ -186,7 +186,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TInsertRowsCommand
-    : public TTypedCommand<TTabletWriteOptions>
+    : public TTypedCommand<TInsertRowsOptions>
 {
 public:
     TInsertRowsCommand();
@@ -225,7 +225,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDeleteRowsCommand
-    : public TTypedCommand<TTabletWriteOptions>
+    : public TTypedCommand<TDeleteRowsOptions>
 {
 public:
     TDeleteRowsCommand();

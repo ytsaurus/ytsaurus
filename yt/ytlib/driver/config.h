@@ -24,7 +24,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDriverConfig
-    : public NApi::TNativeConnectionConfig
+    : public NYTree::TYsonSerializable
 {
 public:
     NApi::TFileReaderConfigPtr FileReader;
@@ -33,9 +33,9 @@ public:
     NTableClient::TTableWriterConfigPtr TableWriter;
     NApi::TJournalReaderConfigPtr JournalReader;
     NApi::TJournalWriterConfigPtr JournalWriter;
+
     i64 ReadBufferRowCount;
     i64 ReadBufferSize;
-
     i64 WriteBufferSize;
 
     TSlruCacheConfigPtr ClientCache;

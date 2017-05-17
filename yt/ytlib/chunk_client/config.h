@@ -595,28 +595,5 @@ DEFINE_REFCOUNTED_TYPE(TChunkTeleporterConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TMediumDirectorySynchronizerConfig
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    //! Internal between consequent syncs.
-    TDuration SyncPeriod;
-
-    //! Metadata read settings.
-    NApi::EMasterChannelKind ReadFrom;
-
-    TMediumDirectorySynchronizerConfig()
-    {
-        RegisterParameter("sync_period", SyncPeriod)
-            .Default(TDuration::Minutes(5));
-        RegisterParameter("read_from", ReadFrom)
-            .Default(NApi::EMasterChannelKind::Cache);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TMediumDirectorySynchronizerConfig)
-
-///////////////////////////////////////////////////////////////////////////////
-
 } // namespace NChunkClient
 } // namespace NYT

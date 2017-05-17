@@ -92,10 +92,10 @@ DEFINE_ENUM(EOutputTableType,
 );
 
 DEFINE_ENUM(ETransactionType,
-    (Sync)
     (Async)
     (Input)
     (Output)
+    (Completion)
     (DebugOutput)
 );
 
@@ -201,6 +201,7 @@ public:
     virtual std::vector<TJobResources> GetMinNeededJobResources() const override;
 
     virtual bool IsForgotten() const override;
+    virtual bool IsRevivedFromSnapshot() const override;
 
     virtual bool HasProgress() const override;
     virtual bool HasJobSplitterInfo() const override;
@@ -285,8 +286,7 @@ protected:
 
     std::atomic<EControllerState> State = {EControllerState::Preparing};
     std::atomic<bool> Forgotten = {false};
-
-    bool RevivedFromSnapshot = false;
+    std::atomic<bool> RevivedFromSnapshot = {false};
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;
@@ -309,14 +309,18 @@ protected:
     // Maps node ids to descriptors for job input chunks.
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory;
 
-    NApi::ITransactionPtr SyncSchedulerTransaction;
     NApi::ITransactionPtr AsyncSchedulerTransaction;
     NApi::ITransactionPtr InputTransaction;
     NApi::ITransactionPtr OutputTransaction;
+    NApi::ITransactionPtr CompletionTransaction;
     NApi::ITransactionPtr DebugOutputTransaction;
     NApi::ITransactionPtr UserTransaction;
 
     NTransactionClient::TTransactionId UserTransactionId;
+
+    std::atomic<bool> AreTransactionsActive = {false};
+
+    bool CommitFinished = false;
 
     TOperationSnapshot Snapshot;
 
@@ -385,7 +389,7 @@ protected:
     TNullable<TOutputTable> StderrTable;
     TNullable<TOutputTable> CoreTable;
 
-    // All output tables and stderr table (if present).
+    // All output tables plus stderr and core tables (if present).
     std::vector<TOutputTable*> UpdatingTables;
 
     struct TIntermediateTable
@@ -816,6 +820,7 @@ protected:
     void AnalyzeJobsIOUsage() const;
     void AnalyzeJobsDuration() const;
     void AnalyzeOperationProgess() const;
+    void AnalyzeScheduleJobStatistics() const;
 
     void CheckMinNeededResourcesSanity();
     void UpdateCachedMaxAvailableExecNodeResources();
@@ -862,8 +867,7 @@ protected:
     void GetOutputTablesSchema();
     virtual void PrepareInputTables();
     virtual void PrepareOutputTables();
-    void BeginUploadOutputTables();
-    void GetOutputTablesUploadParams();
+    void LockOutputTablesAndGetAttributes();
     void FetchUserFiles();
     void LockUserFiles();
     void GetUserFilesAttributes();
@@ -887,21 +891,20 @@ protected:
 
     // Initialize transactions
     void StartAsyncSchedulerTransaction();
-    void StartSyncSchedulerTransaction();
     void StartInputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
     void StartOutputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
     void StartDebugOutputTransaction();
 
     // Completion.
     void TeleportOutputChunks();
+    void BeginUploadOutputTables(const std::vector<TOutputTable*>& updatingTables);
     void AttachOutputChunks(const std::vector<TOutputTable*>& tableList);
     void EndUploadOutputTables(const std::vector<TOutputTable*>& tableList);
     void CommitTransactions();
     virtual void CustomCommit();
 
-    bool GetCommitting();
-    void SetCommitting();
-    void SetCommitted();
+    void StartCompletionTransaction();
+    void CommitCompletionTransaction();
 
     // Revival.
     void ReinstallLivePreview();
@@ -1063,6 +1066,8 @@ protected:
         const NScheduler::NProto::TOutputResult& boundaryKeys,
         const NChunkClient::TChunkTreeId& chunkTreeId,
         TOutputTable* outputTable);
+
+    const NObjectClient::TTransactionId& GetTransactionIdForOutputTable(const TOutputTable& table);
 
     virtual void RegisterOutput(TJobletPtr joblet, int key, const NScheduler::TCompletedJobSummary& jobSummary);
 
@@ -1271,8 +1276,6 @@ private:
 
     const Stroka CodicilData_;
 
-    std::atomic<bool> AreTransactionsActive = {false};
-
     std::unique_ptr<IHistogram> EstimatedInputDataSizeHistogram_;
     std::unique_ptr<IHistogram> InputDataSizeHistogram_;
 
@@ -1334,6 +1337,8 @@ private:
         bool dynamic,
         const NTableClient::TTableSchema& schema,
         const NYTree::IAttributeDictionary& attributes) const;
+
+    void SleepInStage(NScheduler::EDelayInsideOperationCommitStage desiredStage);
 
     //! An internal helper for invoking OnOperationFailed with an error
     //! built by data from `ex`.

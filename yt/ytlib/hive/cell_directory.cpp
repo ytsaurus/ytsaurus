@@ -29,10 +29,6 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const auto& Logger = HiveClientLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TCellPeerDescriptor::TCellPeerDescriptor()
     : Voting_(true)
 { }
@@ -145,10 +141,12 @@ public:
     TImpl(
         TCellDirectoryConfigPtr config,
         IChannelFactoryPtr channelFactory,
-        const TNetworkPreferenceList& networks)
+        const TNetworkPreferenceList& networks,
+        const NLogging::TLogger& logger)
         : Config_(config)
         , ChannelFactory_(channelFactory)
         , Networks_(networks)
+        , Logger(logger)
     { }
 
     IChannelPtr FindChannel(const TCellId& cellId, EPeerKind peerKind)
@@ -290,6 +288,7 @@ private:
     const TCellDirectoryConfigPtr Config_;
     const IChannelFactoryPtr ChannelFactory_;
     const TNetworkPreferenceList Networks_;
+    const NLogging::TLogger Logger;
 
     struct TEntry
     {
@@ -330,11 +329,13 @@ private:
 TCellDirectory::TCellDirectory(
     TCellDirectoryConfigPtr config,
     IChannelFactoryPtr channelFactory,
-    const TNetworkPreferenceList& networks)
+    const TNetworkPreferenceList& networks,
+    const NLogging::TLogger& logger)
     : Impl_(New<TImpl>(
         config,
         channelFactory,
-        networks))
+        networks,
+        logger))
 { }
 
 TCellDirectory::~TCellDirectory()

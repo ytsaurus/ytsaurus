@@ -341,7 +341,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<Stroka, INode
         execNode->SetIOWeights(ioWeights);
 
         if (oldState != newState) {
-            LOG_INFO("Node state changed (NodeId: %v, Address: %v, State: %v->%v)",
+            LOG_INFO("Node state changed (NodeId: %v, Address: %v, State: %v -> %v)",
                 nodeId,
                 address,
                 oldState,

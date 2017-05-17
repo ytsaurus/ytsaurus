@@ -56,6 +56,8 @@ TNativeConnectionConfig::TNativeConnectionConfig()
         .Default();
     RegisterParameter("cell_directory", CellDirectory)
         .DefaultNew();
+    RegisterParameter("cell_directory_synchronizer", CellDirectorySynchronizer)
+        .DefaultNew();
     RegisterParameter("scheduler", Scheduler)
         .DefaultNew();
     RegisterParameter("transaction_manager", TransactionManager)
@@ -63,6 +65,8 @@ TNativeConnectionConfig::TNativeConnectionConfig()
     RegisterParameter("block_cache", BlockCache)
         .DefaultNew();
     RegisterParameter("table_mount_cache", TableMountCache)
+        .DefaultNew();
+    RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
         .DefaultNew();
 
     RegisterParameter("query_evaluator", QueryEvaluator)
@@ -111,12 +115,10 @@ TNativeConnectionConfig::TNativeConnectionConfig()
     RegisterParameter("function_impl_cache", FunctionImplCache)
         .DefaultNew();
 
-    RegisterParameter("medium_directory_synchronizer", MediumDirectorySynchronizer)
-        .DefaultNew();
-
     RegisterParameter("light_pool_size", LightPoolSize)
         .Describe("Number of threads handling light requests")
         .Default(1);
+
     RegisterParameter("heavy_pool_size", HeavyPoolSize)
         .Describe("Number of threads handling heavy requests")
         .Default(4);

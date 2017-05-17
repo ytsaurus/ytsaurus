@@ -184,7 +184,7 @@ private:
         LOG_INFO("Creating output chunk");
 
         // Create output chunk.
-        auto outputChunkId = CreateChunk(
+        auto outputSessionId = CreateChunk(
             Host_->GetClient(),
             CellTagFromId(OutputChunkListId_),
             writerOptions,
@@ -193,7 +193,7 @@ private:
             Logger);
 
         LOG_INFO("Output chunk created (ChunkId: %v)",
-            outputChunkId);
+            outputSessionId);
 
         // Copy chunk.
         LOG_INFO("Copying chunk data");
@@ -219,7 +219,7 @@ private:
             auto writers = CreateErasurePartWriters(
                 WriterConfig_,
                 New<TRemoteWriterOptions>(),
-                outputChunkId,
+                outputSessionId,
                 erasureCodec,
                 New<TNodeDirectory>(),
                 Host_->GetClient());
@@ -269,7 +269,7 @@ private:
             auto writer = CreateReplicationWriter(
                 WriterConfig_,
                 New<TRemoteWriterOptions>(),
-                outputChunkId,
+                outputSessionId,
                 TChunkReplicaList(),
                 New<TNodeDirectory>(),
                 Host_->GetClient());
@@ -312,7 +312,7 @@ private:
             batchReq->set_suppress_upstream_sync(true);
 
             auto* req = batchReq->add_confirm_chunk_subrequests();
-            ToProto(req->mutable_chunk_id(), outputChunkId);
+            ToProto(req->mutable_chunk_id(), outputSessionId.ChunkId);
             *req->mutable_chunk_info() = chunkInfo;
             *req->mutable_chunk_meta() = masterChunkMeta;
             NYT::ToProto(req->mutable_replicas(), writtenReplicas);
@@ -322,7 +322,7 @@ private:
                 GetCumulativeError(batchRspOrError),
                 NChunkClient::EErrorCode::MasterCommunicationFailed,
                 "Failed to confirm chunk %v",
-                outputChunkId);
+                outputSessionId);
         }
     }
 

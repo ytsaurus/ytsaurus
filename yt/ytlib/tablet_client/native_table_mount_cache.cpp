@@ -47,10 +47,6 @@ using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletClientLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTabletCache
 {
 public:
@@ -131,6 +127,11 @@ bool TTableMountInfo::IsOrdered() const
     return !IsSorted();
 }
 
+bool TTableMountInfo::IsReplicated() const
+{
+    return TypeFromId(TableId) == EObjectType::ReplicatedTable;
+}
+
 TTabletInfoPtr TTableMountInfo::GetTabletForRow(const TRange<TUnversionedValue>& row) const
 {
     int keyColumnCount = Schemas[ETableSchemaKind::Primary].GetKeyColumnCount();
@@ -202,7 +203,7 @@ void TTableMountInfo::ValidateOrdered() const
 
 void TTableMountInfo::ValidateNotReplicated() const
 {
-    if (ReplicationMode == ETableReplicationMode::Source) {
+    if (IsReplicated()) {
         THROW_ERROR_EXCEPTION("Table %v is replicated", Path);
     }
 }
@@ -217,10 +218,12 @@ public:
     TTableMountCache(
         TTableMountCacheConfigPtr config,
         IChannelPtr masterChannel,
-        TCellDirectoryPtr cellDirectory)
+        TCellDirectoryPtr cellDirectory,
+        const NLogging::TLogger& logger)
         : TExpiringCache(config)
-        , Config_(config)
-        , CellDirectory_(cellDirectory)
+        , Config_(std::move(config))
+        , CellDirectory_(std::move(cellDirectory))
+        , Logger(logger)
         , ObjectProxy_(masterChannel)
     { }
 
@@ -252,6 +255,8 @@ public:
 private:
     const TTableMountCacheConfigPtr Config_;
     const TCellDirectoryPtr CellDirectory_;
+
+    const NLogging::TLogger Logger;
 
     TObjectServiceProxy ObjectProxy_;
     TTabletCache TabletCache_;
@@ -287,13 +292,13 @@ private:
                 tableInfo->Schemas[ETableSchemaKind::VersionedWrite] = tableInfo->Schemas[ETableSchemaKind::Primary].ToVersionedWrite();
                 tableInfo->Schemas[ETableSchemaKind::Delete] = tableInfo->Schemas[ETableSchemaKind::Primary].ToDelete();
 
-                auto physicalSchema = tableInfo->ReplicationMode == ETableReplicationMode::Source
+                auto physicalSchema = tableInfo->IsReplicated()
                     ? tableInfo->Schemas[ETableSchemaKind::Primary].ToReplicationLog()
                     : tableInfo->Schemas[ETableSchemaKind::Primary];
                 tableInfo->Schemas[ETableSchemaKind::Query] = physicalSchema.ToQuery();
                 tableInfo->Schemas[ETableSchemaKind::Lookup] = physicalSchema.ToLookup();
 
-                tableInfo->ReplicationMode = ETableReplicationMode(rsp->replication_mode());
+                tableInfo->UpstreamReplicaId = FromProto<TTableReplicaId>(rsp->upstream_replica_id());
                 tableInfo->Dynamic = rsp->dynamic();
                 tableInfo->NeedKeyEvaluation = tableInfo->Schemas[ETableSchemaKind::Primary].HasComputedColumns();
 
@@ -330,11 +335,16 @@ private:
 
                 for (const auto& protoDescriptor : rsp->tablet_cells()) {
                     auto descriptor = FromProto<TCellDescriptor>(protoDescriptor);
-                    if (CellDirectory_->ReconfigureCell(descriptor)) {
-                        LOG_DEBUG("Hive cell reconfigured (CellId: %v, ConfigVersion: %v)",
-                            descriptor.CellId,
-                            descriptor.ConfigVersion);
-                    }
+                    CellDirectory_->ReconfigureCell(descriptor);
+                }
+
+                for (const auto& protoReplicaInfo : rsp->replicas()) {
+                    auto replicaInfo = New<TTableReplicaInfo>();
+                    replicaInfo->ReplicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());
+                    replicaInfo->ClusterName = protoReplicaInfo.cluster_name();
+                    replicaInfo->ReplicaPath = protoReplicaInfo.replica_path();
+                    replicaInfo->Mode = ETableReplicaMode(protoReplicaInfo.mode());
+                    tableInfo->Replicas.push_back(replicaInfo);
                 }
 
                 if (tableInfo->IsSorted()) {
@@ -364,12 +374,14 @@ private:
 ITableMountCachePtr CreateNativeTableMountCache(
     TTableMountCacheConfigPtr config,
     IChannelPtr masterChannel,
-    TCellDirectoryPtr cellDirectory)
+    TCellDirectoryPtr cellDirectory,
+    const NLogging::TLogger& logger)
 {
     return New<TTableMountCache>(
         std::move(config),
         std::move(masterChannel),
-        std::move(cellDirectory));
+        std::move(cellDirectory),
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

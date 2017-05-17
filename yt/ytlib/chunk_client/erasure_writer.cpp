@@ -34,7 +34,6 @@ using namespace NErasure;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
-using namespace NChunkClient::NProto;
 using namespace NErasureHelpers;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -121,12 +120,12 @@ class TErasureWriter
 public:
     TErasureWriter(
         TErasureWriterConfigPtr config,
-        const TChunkId& chunkId,
+        const TSessionId& sessionId,
         ECodec codecId,
         ICodec* codec,
         const std::vector<IChunkWriterPtr>& writers)
         : Config_(config)
-        , ChunkId_(chunkId)
+        , SessionId_(sessionId)
         , CodecId_(codecId)
         , Codec_(codec)
         , Writers_(writers)
@@ -163,12 +162,12 @@ public:
         return MakeFuture(TError());
     }
 
-    virtual const TChunkInfo& GetChunkInfo() const override
+    virtual const NProto::TChunkInfo& GetChunkInfo() const override
     {
         return ChunkInfo_;
     }
 
-    virtual const TDataStatistics& GetDataStatistics() const override
+    virtual const NProto::TDataStatistics& GetDataStatistics() const override
     {
         Y_UNREACHABLE();
     }
@@ -194,16 +193,16 @@ public:
         return result;
     }
 
-    virtual TFuture<void> Close(const TChunkMeta& chunkMeta) override;
+    virtual TFuture<void> Close(const NProto::TChunkMeta& chunkMeta) override;
 
     virtual TChunkId GetChunkId() const override
     {
-        return ChunkId_;
+        return SessionId_.ChunkId;
     }
 
 private:
     const TErasureWriterConfigPtr Config_;
-    const TChunkId ChunkId_;
+    const TSessionId SessionId_;
     const ECodec CodecId_;
     ICodec* const Codec_;
 
@@ -218,14 +217,14 @@ private:
     TParityPartSplitInfo ParityPartSplitInfo_;
 
     // Chunk meta with information about block placement
-    TChunkMeta ChunkMeta_;
-    TChunkInfo ChunkInfo_;
+    NProto::TChunkMeta ChunkMeta_;
+    NProto::TChunkInfo ChunkInfo_;
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 
     void PrepareBlocks();
 
-    void PrepareChunkMeta(const TChunkMeta& chunkMeta);
+    void PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta);
 
     void DoOpen();
 
@@ -257,10 +256,10 @@ void TErasureWriter::PrepareBlocks()
     ParityPartSplitInfo_ = TParityPartSplitInfo::Build(Config_->ErasureWindowSize, partSize);
 }
 
-void TErasureWriter::PrepareChunkMeta(const TChunkMeta& chunkMeta)
+void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
 {
     int start = 0;
-    TErasurePlacementExt placementExt;
+    NProto::TErasurePlacementExt placementExt;
     for (const auto& group : Groups_) {
         auto* info = placementExt.add_part_infos();
         info->set_first_block_index(start);
@@ -364,7 +363,7 @@ void TErasureWriter::EncodeAndWriteParityBlocks()
         .ThrowOnError();
 }
 
-TFuture<void> TErasureWriter::Close(const TChunkMeta& chunkMeta)
+TFuture<void> TErasureWriter::Close(const NProto::TChunkMeta& chunkMeta)
 {
     YCHECK(IsOpen_);
 
@@ -403,14 +402,14 @@ void TErasureWriter::OnClosed()
 
 IChunkWriterPtr CreateErasureWriter(
     TErasureWriterConfigPtr config,
-    const TChunkId& chunkId,
+    const TSessionId& sessionId,
     ECodec codecId,
     ICodec* codec,
     const std::vector<IChunkWriterPtr>& writers)
 {
     return New<TErasureWriter>(
         config,
-        chunkId,
+        sessionId,
         codecId,
         codec,
         writers);
@@ -421,7 +420,7 @@ IChunkWriterPtr CreateErasureWriter(
 std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
-    const TChunkId& chunkId,
+    const TSessionId& sessionId,
     ICodec* codec,
     TNodeDirectoryPtr nodeDirectory,
     NApi::INativeClientPtr client,
@@ -434,11 +433,10 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
 
     auto replicas = AllocateWriteTargets(
         client,
-        chunkId,
+        sessionId,
         codec->GetTotalPartCount(),
         codec->GetTotalPartCount(),
         Null,
-        options->MediumName,
         partConfig->PreferLocalHost,
         std::vector<Stroka>(),
         nodeDirectory,
@@ -448,11 +446,13 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
 
     std::vector<IChunkWriterPtr> writers;
     for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
-        auto partId = ErasurePartIdFromChunkId(chunkId, index);
+        auto partSessionId = TSessionId(
+            ErasurePartIdFromChunkId(sessionId.ChunkId, index),
+            sessionId.MediumIndex);
         writers.push_back(CreateReplicationWriter(
             partConfig,
             options,
-            partId,
+            partSessionId,
             TChunkReplicaList(1, replicas[index]),
             nodeDirectory,
             client,

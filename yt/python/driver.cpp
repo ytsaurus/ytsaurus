@@ -107,16 +107,13 @@ public:
         auto configDict = ExtractArgument(args, kwargs, "config");
         ValidateArgumentsEmpty(args, kwargs);
 
-        auto config = New<TDriverConfig>();
-        auto configNode = ConvertObjectToNode(configDict);
         try {
-            config->Load(configNode);
+            ConfigNode_ = ConvertObjectToNode(configDict);
+            UnderlyingDriver_ = CreateDriver(ConfigNode_);
         } catch(const std::exception& ex) {
-            throw Py::RuntimeError(Stroka("Error loading driver configuration\n") + ex.what());
+            throw Py::RuntimeError(Stroka("Error creating driver\n") + ex.what());
         }
 
-        Config_ = config;
-        UnderlyingDriver_ = CreateDriver(config);
         YCHECK(ActiveDrivers.emplace(Id_, UnderlyingDriver_).second);
     }
 
@@ -346,7 +343,7 @@ public:
     {
         ValidateArgumentsEmpty(args, kwargs);
 
-        return ConvertTo<Py::Object>(Config_);
+        return ConvertTo<Py::Object>(ConfigNode_);
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetConfig)
 
@@ -354,7 +351,7 @@ private:
     const TGuid Id_;
     const NLogging::TLogger Logger;
 
-    TDriverConfigPtr Config_;
+    INodePtr ConfigNode_;
     IDriverPtr UnderlyingDriver_;
 };
 

@@ -22,7 +22,7 @@ class THttpProxyConfig
 {
 public:
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
-    NDriver::TDriverConfigPtr Driver;
+    NYTree::INodePtr Driver;
     TAddressResolverConfigPtr AddressResolver;
     NLogging::TLogConfigPtr Logging;
     NTracing::TTraceManagerConfigPtr Tracing;
@@ -35,8 +35,7 @@ public:
             .DefaultNew();
         RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
             .DefaultNew();
-        RegisterParameter("driver", Driver)
-            .DefaultNew();
+        RegisterParameter("driver", Driver);
         RegisterParameter("address_resolver", AddressResolver)
             .DefaultNew();
     }

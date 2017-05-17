@@ -79,7 +79,6 @@ public:
     const NDataNode::TBlobReaderCachePtr& GetBlobReaderCache() const;
     const NDataNode::TJournalDispatcherPtr& GetJournalDispatcher() const;
     const NDataNode::TMasterConnectorPtr& GetMasterConnector() const;
-    const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory();
     const NQueryClient::TColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const;
     const NQueryClient::ISubexecutorPtr& GetQueryExecutor() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;

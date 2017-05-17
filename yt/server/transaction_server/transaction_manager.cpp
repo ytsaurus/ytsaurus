@@ -346,7 +346,7 @@ public:
 
         FinishTransaction(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
             transactionId,
             commitTimestamp);
     }
@@ -556,7 +556,7 @@ public:
 
             RunPrepareTransactionActions(transaction, persistent);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %llx)",
                 transactionId,
                 persistent,
                 prepareTimestamp);

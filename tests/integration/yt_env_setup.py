@@ -213,7 +213,9 @@ class YTEnvSetup(object):
                     "secondary_masters": instance.configs["master"][0]["secondary_masters"],
                     "timestamp_provider": instance.configs["master"][0]["timestamp_provider"],
                     "transaction_manager": instance.configs["master"][0]["transaction_manager"],
-                    "table_mount_cache": instance.configs["driver"]["table_mount_cache"]
+                    "table_mount_cache": instance.configs["driver"]["table_mount_cache"],
+                    "cell_directory_synchronizer": instance.configs["driver"]["cell_directory_synchronizer"],
+                    "cluster_directory_synchronizer": instance.configs["driver"]["cluster_directory_synchronizer"]
                 }
                 clusters[instance._cluster_name] = connection_config
 
