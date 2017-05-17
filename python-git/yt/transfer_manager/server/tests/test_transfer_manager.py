@@ -19,6 +19,7 @@ import pytest
 import tarfile
 import time
 import uuid
+import signal
 
 TM_CONFIG_PATH = "config.json"
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
@@ -86,6 +87,17 @@ def _abort_operations_and_transactions(client):
 
 @pytest.mark.skipif(PY3, reason="Transfer manager is available only for Python 2")
 class TestTransferManager(object):
+    @classmethod
+    def _stop_processes(self):
+        try:
+            stop(self._first_cluster_yt_instance.id, path=TEST_RUN_PATH)
+            stop(self._second_cluster_yt_instance.id, path=TEST_RUN_PATH)
+
+            pgid = os.getpgid(self._tm_process.pid)
+            os.killpg(pgid, signal.SIGKILL)
+        except:
+            pass
+
     def setup_class(self):
         yt_client = get_yt_client()
         if yt_client is None:
@@ -94,51 +106,52 @@ class TestTransferManager(object):
         port_locks_path = os.path.join(TESTS_SANDBOX, "ports")
         os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = port_locks_path
 
-        self._first_cluster_yt_instance = start(node_count=3, path=TEST_RUN_PATH, enable_debug_logging=True, id="first", cell_tag=0)
-        self._second_cluster_yt_instance = start(node_count=3, path=TEST_RUN_PATH, enable_debug_logging=True, id="second", cell_tag=1)
+        try:
+            self._first_cluster_yt_instance = start(node_count=3, path=TEST_RUN_PATH, enable_debug_logging=True, id="first", cell_tag=0)
+            self._second_cluster_yt_instance = start(node_count=3, path=TEST_RUN_PATH, enable_debug_logging=True, id="second", cell_tag=1)
 
-        self.first_cluster_client = self._first_cluster_yt_instance.create_client()
-        self.second_cluster_client = self._second_cluster_yt_instance.create_client()
+            self.first_cluster_client = self._first_cluster_yt_instance.create_client()
+            self.second_cluster_client = self._second_cluster_yt_instance.create_client()
 
-        self.first_cluster_client.create("map_node", "//tm_token_storage")
-        self.first_cluster_client.create("map_node", "//transfer_manager")
+            self.first_cluster_client.create("map_node", "//tm_token_storage")
+            self.first_cluster_client.create("map_node", "//transfer_manager")
 
-        first_cluster_url = self.first_cluster_client.config["proxy"]["url"]
-        second_cluster_url = self.second_cluster_client.config["proxy"]["url"]
+            first_cluster_url = self.first_cluster_client.config["proxy"]["url"]
+            second_cluster_url = self.second_cluster_client.config["proxy"]["url"]
 
-        tm_config["clusters"]["clusterA"]["options"]["proxy"] = first_cluster_url
-        tm_config["clusters"]["clusterB"]["options"]["proxy"] = second_cluster_url
+            tm_config["clusters"]["clusterA"]["options"]["proxy"] = first_cluster_url
+            tm_config["clusters"]["clusterB"]["options"]["proxy"] = second_cluster_url
 
-        port_iterator = OpenPortIterator(port_locks_path)
-        tm_config["port"] = next(port_iterator)
-        tm_config["logging"]["port"] = next(port_iterator)
-        tm_config["task_executor"]["port"] = next(port_iterator)
-        tm_config["yt_backend_options"]["proxy"] = first_cluster_url
-        tm_config["logging"]["filename"] = os.path.join(TEST_RUN_PATH, "transfer_manager.log")
+            port_iterator = OpenPortIterator(port_locks_path)
+            tm_config["port"] = next(port_iterator)
+            tm_config["logging"]["port"] = next(port_iterator)
+            tm_config["task_executor"]["port"] = next(port_iterator)
+            tm_config["yt_backend_options"]["proxy"] = first_cluster_url
+            tm_config["logging"]["filename"] = os.path.join(TEST_RUN_PATH, "transfer_manager.log")
 
-        self._tm_process = _start_transfer_manager(yt_client, tm_config)
+            self._tm_process = _start_transfer_manager(yt_client, tm_config)
 
-        current_wait_time = 0
-        while current_wait_time < MAX_WAIT_TIME:
-            try:
-                result = requests.get("http://localhost:{0}/ping".format(tm_config["port"]))
-                if result.status_code == 200:
-                    break
-            except:
-                pass
+            current_wait_time = 0
+            while current_wait_time < MAX_WAIT_TIME:
+                try:
+                    result = requests.get("http://localhost:{0}/ping".format(tm_config["port"]))
+                    if result.status_code == 200:
+                        break
+                except:
+                    pass
 
-            time.sleep(SLEEP_QUANTUM)
-            current_wait_time += SLEEP_QUANTUM
-        else:
-            raise YtError("Transfer manager is still not ready after {0} seconds".format(current_wait_time))
+                time.sleep(SLEEP_QUANTUM)
+                current_wait_time += SLEEP_QUANTUM
+            else:
+                raise YtError("Transfer manager is still not ready after {0} seconds".format(current_wait_time))
 
-        self.tm_client = TransferManager("http://localhost:{0}".format(tm_config["port"]), token="test_token")
+            self.tm_client = TransferManager("http://localhost:{0}".format(tm_config["port"]), token="test_token")
+        except:
+            self._stop_processes()
+            raise
 
     def teardown_class(self):
-        stop(self._first_cluster_yt_instance.id, path=TEST_RUN_PATH)
-        stop(self._second_cluster_yt_instance.id, path=TEST_RUN_PATH)
-        self._tm_process.terminate()
-        self._tm_process.wait()
+        self._stop_processes()
 
     def setup(self):
         for dir in ("//tm", "//tmp/yt_wrapper/file_storage"):
