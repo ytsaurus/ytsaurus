@@ -151,6 +151,13 @@ class TestCypressCommands(object):
                 TEST_DIR + "/dir_with_slash" + "/dir_\\\\_x" + "/inner_dir"] \
                == list(yt.search(TEST_DIR + "/dir_with_slash", enable_batch_mode=enable_batch_mode))
 
+        yt.create("map_node", TEST_DIR + "/search_test")
+        yt.create_table(TEST_DIR + "/search_test/search_test_table")
+        yt.link(TEST_DIR + "/search_test/search_test_table", TEST_DIR + "/search_test/link_to_table")
+        yt.remove(TEST_DIR + "/search_test/search_test_table")
+
+        assert list(yt.search(TEST_DIR + "/search_test", follow_links=True)) == [TEST_DIR + "/search_test"]
+
     def test_create(self):
         with pytest.raises(yt.YtError):
             yt.create("map_node", TEST_DIR + "/map", attributes={"type": "table"})
