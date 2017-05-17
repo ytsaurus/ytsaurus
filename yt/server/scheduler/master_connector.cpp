@@ -812,14 +812,10 @@ private:
             true,
             "output transaction");
 
-<<<<<<< HEAD
-        result.IsCommitted = attributes.Get<bool>("committed", false);
-=======
         result.ControllerTransactions->Completion = attachTransaction(
             attributes.Get<TTransactionId>("completion_transaction_id", TTransactionId()),
             true,
             "completion transaction");
->>>>>>> prestable/19.2
 
         // COMPAT(ermolovd). We use NullTransactionId as default value for the transition period.
         // Once all clusters are updated to version that creates debug_output transaction
