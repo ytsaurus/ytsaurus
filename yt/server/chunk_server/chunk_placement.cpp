@@ -86,7 +86,7 @@ public:
 private:
     const int MaxReplicasPerRack_;
 
-    std::array<i8, MaxRackCount> PerRackCounters_{};
+    std::array<i8, RackIndexBound> PerRackCounters_{};
     TNodeList ForbiddenNodes_;
     TNodeList AddedNodes_;
 
@@ -332,7 +332,7 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
     auto mediumIndex = chunkWithIndexes.GetMediumIndex();
     int maxReplicasPerRack = GetMaxReplicasPerRack(chunk, mediumIndex, Null);
 
-    std::array<i8, MaxRackCount> perRackCounters{};
+    std::array<i8, RackIndexBound> perRackCounters{};
     for (auto replica : chunk->StoredReplicas()) {
         if (replica.GetMediumIndex() != mediumIndex)
             continue;

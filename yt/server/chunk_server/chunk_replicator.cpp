@@ -214,7 +214,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     auto replicationFactors = chunk->ComputeReplicationFactors();
 
     TPerMediumArray<bool> hasUnsafelyPlacedReplicas{};
-    TPerMediumArray<std::array<ui8, MaxRackCount + 1>> perRackReplicaCounters{};
+    TPerMediumArray<std::array<ui8, RackIndexBound>> perRackReplicaCounters{};
 
     TPerMediumIntArray replicaCount{};
     TPerMediumIntArray decommissionedReplicaCount{};
@@ -373,7 +373,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
 
     TPerMediumArray<std::array<TNodePtrWithIndexesList, ChunkReplicaIndexBound>> decommissionedReplicas{};
-    TPerMediumArray<std::array<ui8, MaxRackCount + 1>> perRackReplicaCounters{};
+    TPerMediumArray<std::array<ui8, RackIndexBound>> perRackReplicaCounters{};
     // An arbitrary replica collocated with too may others within a single rack - per medium.
     TPerMediumIntArray unsafelyPlacedReplicaIndexes;
     unsafelyPlacedReplicaIndexes.fill(-1);
@@ -654,7 +654,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
     int sealedReplicaCount = 0;
     int unsealedReplicaCount = 0;
     TNodePtrWithIndexesList decommissionedReplicas;
-    std::array<ui8, MaxRackCount + 1> perRackReplicaCounters{};
+    std::array<ui8, RackIndexBound> perRackReplicaCounters{};
     bool hasUnsafelyPlacedReplicas = false;
 
     for (auto replica : chunk->StoredReplicas()) {

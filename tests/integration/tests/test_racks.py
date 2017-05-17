@@ -274,7 +274,7 @@ class TestRacks(YTEnvSetup):
         assert read_journal("//tmp/j") == self.JOURNAL_DATA
 
     def test_rack_count_limit(self):
-        for i in xrange(127):
+        for i in xrange(255):
             create_rack("r" + str(i))
         with pytest.raises(YtError): create_rack("too_many")
 
