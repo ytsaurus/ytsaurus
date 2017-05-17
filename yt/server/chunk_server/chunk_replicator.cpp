@@ -214,7 +214,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     auto replicationFactors = chunk->ComputeReplicationFactors();
 
     TPerMediumArray<bool> hasUnsafelyPlacedReplicas{};
-    TPerMediumArray<std::array<ui8, MaxRackCount + 1>> perRackReplicaCounters{};
+    TPerMediumArray<std::array<ui8, RackIndexBound>> perRackReplicaCounters{};
 
     TPerMediumIntArray replicaCount{};
     TPerMediumIntArray decommissionedReplicaCount{};
@@ -373,7 +373,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
 
     TPerMediumArray<std::array<TNodePtrWithIndexesList, ChunkReplicaIndexBound>> decommissionedReplicas{};
-    TPerMediumArray<std::array<ui8, MaxRackCount + 1>> perRackReplicaCounters{};
+    TPerMediumArray<std::array<ui8, RackIndexBound>> perRackReplicaCounters{};
     // An arbitrary replica collocated with too may others within a single rack - per medium.
     TPerMediumIntArray unsafelyPlacedReplicaIndexes;
     unsafelyPlacedReplicaIndexes.fill(-1);
@@ -663,7 +663,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
     int sealedReplicaCount = 0;
     int unsealedReplicaCount = 0;
     TNodePtrWithIndexesList decommissionedReplicas;
-    std::array<ui8, MaxRackCount + 1> perRackReplicaCounters{};
+    std::array<ui8, RackIndexBound> perRackReplicaCounters{};
     bool hasUnsafelyPlacedReplicas = false;
 
     for (auto replica : chunk->StoredReplicas()) {
@@ -1230,9 +1230,15 @@ void TChunkReplicator::ScheduleNewJobs(
         }
     };
 
+    int misscheduledReplicationJobs = 0;
+    int misscheduledRepairJobs = 0;
+    int misscheduledSealJobs = 0;
+    int misscheduledRemovalJobs = 0;
+
     // NB: Beware of chunks larger than the limit; we still need to be able to replicate them one by one.
     auto hasSpareReplicationResources = [&] () {
         return
+            misscheduledReplicationJobs < Config_->MaxMisscheduledReplicationJobsPerHeartbeat &&
             resourceUsage.replication_slots() < resourceLimits.replication_slots() &&
             (resourceUsage.replication_slots() == 0 || resourceUsage.replication_data_size() < resourceLimits.replication_data_size());
     };
@@ -1240,12 +1246,21 @@ void TChunkReplicator::ScheduleNewJobs(
     // NB: Beware of chunks larger than the limit; we still need to be able to repair them one by one.
     auto hasSpareRepairResources = [&] () {
         return
+            misscheduledRepairJobs < Config_->MaxMisscheduledRepairJobsPerHeartbeat &&
             resourceUsage.repair_slots() < resourceLimits.repair_slots() &&
             (resourceUsage.repair_slots() == 0 || resourceUsage.repair_data_size() < resourceLimits.repair_data_size());
     };
 
     auto hasSpareSealResources = [&] () {
-        return resourceUsage.seal_slots() < resourceLimits.seal_slots();
+        return
+            misscheduledSealJobs < Config_->MaxMisscheduledSealJobsPerHeartbeat &&
+            resourceUsage.seal_slots() < resourceLimits.seal_slots();
+    };
+
+    auto hasSpareRemovalResources = [&] () {
+        return
+            misscheduledRemovalJobs < Config_->MaxMisscheduledRemovalJobsPerHeartbeat &&
+            resourceUsage.removal_slots() < resourceLimits.removal_slots();
     };
 
     if (IsEnabled()) {
@@ -1264,6 +1279,8 @@ void TChunkReplicator::ScheduleNewJobs(
                         auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
                         if (CreateReplicationJob(node, chunkWithIndexes, medium, &job)) {
                             mediumIndexSet.reset(mediumIndex);
+                        } else {
+                            ++misscheduledReplicationJobs;
                         }
                         registerJob(std::move(job));
                     }
@@ -1295,6 +1312,8 @@ void TChunkReplicator::ScheduleNewJobs(
                     if (CreateRepairJob(node, chunkWithIndexes, &job)) {
                         chunk->SetRepairQueueIterator(chunkWithIndexes.GetMediumIndex(), Null);
                         chunkRepairQueue.erase(jt);
+                    } else {
+                        ++misscheduledRepairJobs;
                     }
                     registerJob(std::move(job));
                 }
@@ -1306,7 +1325,7 @@ void TChunkReplicator::ScheduleNewJobs(
             auto& queue = node->ChunkRemovalQueue();
             auto it = queue.begin();
             while (it != queue.end()) {
-                if (resourceUsage.removal_slots() >= resourceLimits.removal_slots()) {
+                if (!hasSpareRemovalResources()) {
                     break;
                 }
 
@@ -1322,6 +1341,8 @@ void TChunkReplicator::ScheduleNewJobs(
                         TJobPtr job;
                         if (CreateRemovalJob(node, chunkIdWithIndexes, &job)) {
                             mediumIndexSet.reset(mediumIndex);
+                        } else {
+                            ++misscheduledRemovalJobs;
                         }
                         registerJob(std::move(job));
                     }
@@ -1358,7 +1379,9 @@ void TChunkReplicator::ScheduleNewJobs(
                     }
 
                     TJobPtr job;
-                    CreateBalancingJob(node, chunkWithIndexes, targetFillFactor, &job);
+                    if (!CreateBalancingJob(node, chunkWithIndexes, targetFillFactor, &job)) {
+                        ++misscheduledReplicationJobs;
+                    }
                     registerJob(std::move(job));
                 }
             }
@@ -1383,6 +1406,8 @@ void TChunkReplicator::ScheduleNewJobs(
                     TJobPtr job;
                     if (CreateSealJob(node, chunkWithIndexes, &job)) {
                         mediumIndexSet.reset(mediumIndex);
+                    } else {
+                        ++misscheduledRepairJobs;
                     }
                     registerJob(std::move(job));
                 }

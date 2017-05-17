@@ -750,12 +750,15 @@ private:
                     << ex;
                 LOG_ERROR(error);
 
-                // We abort asyncInput mainly for stderr.
+                // We abort asyncInput for stderr.
                 // Almost all readers are aborted in `OnIOErrorOrFinished', but stderr doesn't,
                 // because we want to read and save as much stderr as possible even if job is failing.
                 // But if stderr transferring fiber itself fails, child process may hang
                 // if it wants to write more stderr. So we abort input (and therefore close the pipe) here.
-                asyncInput->Abort();
+                if (asyncInput == StderrPipeReader_) {
+                    asyncInput->Abort();
+                }
+
                 THROW_ERROR error;
             }
         }));
@@ -997,7 +1000,8 @@ private:
         return statistics;
     }
 
-    void OnIOErrorOrFinished(const TError& error, const Stroka& message) {
+    void OnIOErrorOrFinished(const TError& error, const Stroka& message)
+    {
         if (error.IsOK() || error.FindMatching(NPipes::EErrorCode::Aborted)) {
             return;
         }

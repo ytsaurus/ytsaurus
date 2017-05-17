@@ -362,7 +362,7 @@ private:
     }
 };
 
-typedef TIntrusivePtr<TReplicationReader> TReplicationReaderPtr;
+using TReplicationReaderPtr = TIntrusivePtr<TReplicationReader>;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -555,7 +555,7 @@ protected:
     std::vector<TPeer> PickPeerCandidates(
         int count,
         std::function<bool(const Stroka&)> filter,
-        TReplicationReaderPtr reader)
+        const TReplicationReaderPtr& reader)
     {
         std::vector<TPeer> candidates;
         while (!PeerQueue_.empty() && candidates.size() < count) {
@@ -705,7 +705,7 @@ protected:
     }
 
     template <class TResponsePtr>
-    void BanSeedIfUncomplete(TResponsePtr rsp, const Stroka& address)
+    void BanSeedIfUncomplete(const TResponsePtr& rsp, const Stroka& address)
     {
         if (IsSeed(address) && !rsp->has_complete_chunk()) {
             LOG_DEBUG("Seed does not contain the chunk (Address: %v)", address);
@@ -912,7 +912,7 @@ private:
         return false;
     }
 
-    void FetchBlocksFromCache(TReplicationReaderPtr reader)
+    void FetchBlocksFromCache(const TReplicationReaderPtr& reader)
     {
         for (int blockIndex : BlockIndexes_) {
             if (Blocks_.find(blockIndex) == Blocks_.end()) {
@@ -926,7 +926,10 @@ private:
         }
     }
 
-    TNullable<TPeer> SelectBestPeer(const std::vector<TPeer>& candidates, const std::vector<int>& blockIndexes, TReplicationReaderPtr reader)
+    TNullable<TPeer> SelectBestPeer(
+        const std::vector<TPeer>& candidates,
+        const std::vector<int>& blockIndexes,
+        const TReplicationReaderPtr& reader)
     {
         LOG_DEBUG("Gathered candidate peers (Addresses: %v)", candidates);
 
@@ -942,8 +945,7 @@ private:
         std::vector<TPeer> probePeers;
 
         for (const auto& peer : candidates) {
-            IChannelPtr channel = GetHeavyChannel(peer.Address);
-
+            auto channel = GetHeavyChannel(peer.Address);
             if (!channel) {
                 continue;
             }
@@ -1040,7 +1042,9 @@ private:
             .Run();
     }
 
-    bool UpdatePeerBlockMap(TDataNodeServiceProxy::TRspGetBlockSetPtr rsp, TReplicationReaderPtr reader)
+    bool UpdatePeerBlockMap(
+        const TDataNodeServiceProxy::TRspGetBlockSetPtr& rsp,
+        const TReplicationReaderPtr& reader)
     {
         if (!Config_->FetchFromPeers && rsp->peer_descriptors_size() > 0) {
             LOG_DEBUG("Peer suggestions received but ignored");
@@ -1104,8 +1108,7 @@ private:
         }
 
         const auto& peerAddress = maybePeer->Address;
-        IChannelPtr channel = GetHeavyChannel(peerAddress);
-
+        auto channel = GetHeavyChannel(peerAddress);
         if (!channel) {
             RequestBlocks();
             return;
@@ -1308,8 +1311,7 @@ private:
         }
 
         const auto& peerAddress = candidates.front().Address;
-        IChannelPtr channel = GetHeavyChannel(peerAddress);
-
+        auto channel = GetHeavyChannel(peerAddress);
         if (!channel) {
             RequestBlocks();
             return;
@@ -1492,7 +1494,7 @@ private:
         }
 
         const auto& peerAddress = candidates.front().Address;
-        IChannelPtr channel = GetHeavyChannel(peerAddress);
+        auto channel = GetHeavyChannel(peerAddress);
         if (!channel) {
             RequestMeta();
             return;
@@ -1587,15 +1589,15 @@ IChunkReaderPtr CreateReplicationReader(
     YCHECK(nodeDirectory);
 
     auto reader = New<TReplicationReader>(
-        config,
-        options,
-        client,
-        nodeDirectory,
+        std::move(config),
+        std::move(options),
+        std::move(client),
+        std::move(nodeDirectory),
         localDescriptor,
         chunkId,
         seedReplicas,
-        blockCache,
-        throttler);
+        std::move(blockCache),
+        std::move(throttler));
     reader->Initialize();
     return reader;
 }
