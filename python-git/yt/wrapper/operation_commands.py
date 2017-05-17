@@ -1,3 +1,4 @@
+from .common import ThreadPoolHelper
 from .config import get_config
 from .errors import YtError, YtOperationFailedError, YtResponseError
 from .driver import make_request
@@ -18,7 +19,6 @@ from yt.packages.six.moves import builtins, filter as ifilter, map as imap
 import logging
 from datetime import datetime
 from time import sleep
-from multiprocessing.pool import ThreadPool
 from multiprocessing import TimeoutError
 
 try:
@@ -295,7 +295,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
 
     thread_count = get_config(client)["operation_tracker"]["stderr_download_thread_count"]
     if thread_count > 1:
-        pool = ThreadPool(thread_count)
+        pool = ThreadPoolHelper(thread_count)
         timeout = get_config(client)["operation_tracker"]["stderr_download_timeout"] / 1000.0
         try:
             pool.map_async(download_job_stderr, jobs).get(timeout)
