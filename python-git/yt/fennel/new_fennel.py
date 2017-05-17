@@ -185,7 +185,7 @@ def convert_to_tskved_json(row):
 
 def write_row(row, stream):
     format = yt.DsvFormat(enable_escaping=True)
-    with GzipFile(fileobj=stream, mode="a") as zipped_stream:
+    with GzipFile(fileobj=stream, mode="a", mtime=0.0) as zipped_stream:
         zipped_stream.write(LOGBROKER_TSKV_PREFIX)
         format.dump_row(convert_to_tskved_json(row), zipped_stream)
 
