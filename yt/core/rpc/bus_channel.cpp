@@ -17,6 +17,7 @@
 #include <yt/core/misc/singleton.h>
 
 #include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/timing.h>
 
 #include <yt/core/rpc/rpc.pb.h>
 
@@ -426,7 +427,11 @@ private:
                     error = FromProto<TError>(header.error());
                 }
                 if (error.IsOK()) {
-                    NotifyResponse(requestId, responseHandler, std::move(message));
+                    NotifyResponse(
+                        requestId,
+                        requestControl,
+                        responseHandler,
+                        std::move(message));
                 } else {
                     if (error.GetCode() == EErrorCode::PoisonPill) {
                         LOG_FATAL(error, "Poison pill received");
@@ -482,6 +487,7 @@ private:
         NConcurrency::TReaderWriterSpinLock CachedMethodMetadataLock_;
         yhash<std::pair<Stroka, Stroka>, TMethodMetadata> CachedMethodMetadata_;
 
+        NProfiling::TCpuInstant SendInstant_ = 0;
 
         void OnRequestSerialized(
             const TClientRequestControlPtr& requestControl,
@@ -564,16 +570,14 @@ private:
                 MakeStrong(this),
                 requestId));
 
-            const auto& service = requestControl->GetService();
-            const auto& method = requestControl->GetMethod();
-            const auto& timeout = requestControl->GetTimeout();
+            SendInstant_ = NProfiling::GetCpuInstant();
 
             LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, "
                 "ChecksummedPartCount: %v, Endpoint: %v)",
                 requestId,
-                service,
-                method,
-                timeout,
+                requestControl->GetService(),
+                requestControl->GetMethod(),
+                requestControl->GetTimeout(),
                 busOptions.TrackingLevel,
                 busOptions.ChecksummedPartCount,
                 bus->GetEndpointDescription());
@@ -638,7 +642,9 @@ private:
                     << TErrorAttribute("timeout", *requestControl->GetTimeout());
             }
 
-            LOG_DEBUG(detailedError, "%v (RequestId: %v)", reason, requestControl->GetRequestId());
+            LOG_DEBUG(detailedError, "%v (RequestId: %v)",
+                reason,
+                requestControl->GetRequestId());
 
             responseHandler->HandleError(detailedError);
         }
@@ -647,8 +653,6 @@ private:
             const TRequestId& requestId,
             const IClientResponseHandlerPtr& responseHandler)
         {
-            YCHECK(responseHandler);
-
             LOG_DEBUG("Request acknowledged (RequestId: %v)", requestId);
 
             responseHandler->HandleAcknowledgement();
@@ -656,16 +660,18 @@ private:
 
         void NotifyResponse(
             const TRequestId& requestId,
+            const TClientRequestControlPtr& requestControl,
             const IClientResponseHandlerPtr& responseHandler,
             TSharedRefArray message)
         {
-            YCHECK(responseHandler);
-
-            LOG_DEBUG("Response received (RequestId: %v)", requestId);
+            LOG_DEBUG("Response received (RequestId: %v, Method: %v:%v, ElapsedTime: %v)",
+                requestId,
+                requestControl->GetService(),
+                requestControl->GetMethod(),
+                NProfiling::CpuDurationToDuration(NProfiling::GetCpuInstant() - SendInstant_));
 
             responseHandler->HandleResponse(std::move(message));
         }
-
     };
 
     //! Controls a sent request.
