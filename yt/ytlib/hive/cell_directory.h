@@ -17,6 +17,8 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <yt/core/logging/public.h>
+
 namespace NYT {
 namespace NHiveClient {
 
@@ -82,7 +84,8 @@ public:
     TCellDirectory(
         TCellDirectoryConfigPtr config,
         NRpc::IChannelFactoryPtr channelFactory,
-        const NNodeTrackerClient::TNetworkPreferenceList& networks);
+        const NNodeTrackerClient::TNetworkPreferenceList& networks,
+        const NLogging::TLogger& logger);
     ~TCellDirectory();
 
     //! Returns a peer channel of a given kind for a given cell id (|nullptr| if none is known).
@@ -113,9 +116,6 @@ public:
 
     //! Returns the list of all registered cells, their versions, and configurations.
     std::vector<TCellInfo> GetRegisteredCells();
-
-    //! Populates the directory with the entries of the remote one via Hive RPC interface.
-    TFuture<void> Synchronize(NRpc::IChannelPtr channel);
 
     //! Returns |true| if the cell was unregistered by calling #UnregisterCell.
     bool IsCellUnregistered(const TCellId& cellId);

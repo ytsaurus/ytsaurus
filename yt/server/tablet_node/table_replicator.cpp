@@ -58,13 +58,11 @@ public:
         TTabletManagerConfigPtr config,
         TTablet* tablet,
         TTableReplicaInfo* replicaInfo,
-        TClusterDirectoryPtr clusterDirectory,
         INativeConnectionPtr localConnection,
         TTabletSlotPtr slot,
         TSlotManagerPtr slotManager,
         IInvokerPtr workerInvoker)
         : Config_(std::move(config))
-        , ClusterDirectory_(std::move(clusterDirectory))
         , LocalConnection_(std::move(localConnection))
         , Slot_(std::move(slot))
         , SlotManager_(std::move(slotManager))
@@ -109,7 +107,6 @@ public:
 
 private:
     const TTabletManagerConfigPtr Config_;
-    const TClusterDirectoryPtr ClusterDirectory_;
     const INativeConnectionPtr LocalConnection_;
     const TTabletSlotPtr Slot_;
     const TSlotManagerPtr SlotManager_;
@@ -167,7 +164,7 @@ private:
                 THROW_ERROR_EXCEPTION("No mount configuration is available");
             }
 
-            auto foreignConnection = ClusterDirectory_->FindConnection(ClusterName_);
+            auto foreignConnection = LocalConnection_->GetClusterDirectory()->FindConnection(ClusterName_);
             if (!foreignConnection) {
                 THROW_ERROR_EXCEPTION("Replica cluster %Qv is not known", ClusterName_)
                     << HardErrorAttribute;
@@ -236,11 +233,16 @@ private:
                 YCHECK(readReplicationBatch());
             }
 
-            foreignTransaction->WriteRows(
-                ReplicaPath_,
-                TNameTable::FromSchema(TableSchema_),
-                MakeSharedRange(std::move(replicationRows), std::move(rowBuffer)));
-            
+            {
+                TModifyRowsOptions options;
+                options.UpstreamReplicaId = ReplicaId_;
+                foreignTransaction->WriteRows(
+                    ReplicaPath_,
+                    TNameTable::FromSchema(TableSchema_),
+                    MakeSharedRange(std::move(replicationRows), std::move(rowBuffer)),
+                    options);
+            }
+
             {
                 NProto::TReqReplicateRows req;
                 ToProto(req.mutable_tablet_id(), TabletId_);
@@ -321,7 +323,7 @@ private:
 
         YCHECK(actualRowIndex == rowIndex);
 
-        LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %v)",
+        LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %llx)",
             rowIndex,
             timestamp);
 
@@ -345,7 +347,7 @@ private:
 
         auto startReplicationTimestamp = replicaSnapshot->StartReplicationTimestamp;
 
-        LOG_DEBUG("Started computing replication start row index (StartReplicationTimestamp: %v, RowIndexLo: %v, RowIndexHi: %v)",
+        LOG_DEBUG("Started computing replication start row index (StartReplicationTimestamp: %llx, RowIndexLo: %v, RowIndexHi: %v)",
             startReplicationTimestamp,
             rowIndexLo,
             rowIndexHi);
@@ -370,7 +372,7 @@ private:
             ++startRowIndex;
         }
 
-        LOG_DEBUG("Finished computing replication start row index (StartRowIndex: %v, StartTimestamp: %v)",
+        LOG_DEBUG("Finished computing replication start row index (StartRowIndex: %v, StartTimestamp: %llx)",
             startRowIndex,
             startTimestamp);
 
@@ -444,7 +446,7 @@ private:
 
                 if (timestamp <= replicaSnapshot->StartReplicationTimestamp) {
                     YCHECK(row == readerRows[0]);
-                    LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %v, LogRecordTimestamp: %v)",
+                    LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %llx, LogRecordTimestamp: %llx)",
                         replicaSnapshot->StartReplicationTimestamp,
                         timestamp);
                     return false;
@@ -478,7 +480,7 @@ private:
         *newReplicationTimestamp = prevTimestamp;
 
         LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
-            "NewReplicationRowIndex: %v, NewReplicationTimestamp: %v)",
+            "NewReplicationRowIndex: %v, NewReplicationTimestamp: %llx)",
             currentRowIndex,
             rowCount,
             dataWeight,
@@ -605,7 +607,6 @@ TTableReplicator::TTableReplicator(
     TTabletManagerConfigPtr config,
     TTablet* tablet,
     TTableReplicaInfo* replicaInfo,
-    TClusterDirectoryPtr clusterDirectory,
     INativeConnectionPtr localConnection,
     TTabletSlotPtr slot,
     TSlotManagerPtr slotManager,
@@ -614,7 +615,6 @@ TTableReplicator::TTableReplicator(
         std::move(config),
         tablet,
         replicaInfo,
-        std::move(clusterDirectory),
         std::move(localConnection),
         std::move(slot),
         std::move(slotManager),

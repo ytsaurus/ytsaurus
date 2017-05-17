@@ -4,8 +4,6 @@
 
 #include <yt/ytlib/ypath/public.h>
 
-#include <yt/core/concurrency/public.h>
-
 namespace NYT {
 namespace NApi {
 

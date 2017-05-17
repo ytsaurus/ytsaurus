@@ -87,13 +87,6 @@ TSortedStoreManager::TSortedStoreManager(
     }
 }
 
-bool TSortedStoreManager::IsLockless()
-{
-    return
-        Tablet_->GetAtomicity() == EAtomicity::None ||
-        Tablet_->GetReplicationMode() == ETableReplicationMode::AsynchronousSink;
-}
-
 bool TSortedStoreManager::ExecuteWrites(
     TWireProtocolReader* reader,
     TWriteContext* context)
@@ -103,27 +96,26 @@ bool TSortedStoreManager::ExecuteWrites(
         auto readerCheckpoint = reader->GetCurrent();
         auto command = reader->ReadCommand();
 
-
-        switch (command) {
-            case EWireProtocolCommand::WriteRow:
-            case EWireProtocolCommand::DeleteRow:
-                if (Tablet_->GetReplicationMode() != ETableReplicationMode::None) {
-                    THROW_ERROR_EXCEPTION("Unversioned writes in %Qlv replication mode are not allowed",
-                        Tablet_->GetReplicationMode());
-                }
-                break;
-
-            case EWireProtocolCommand::WriteVersionedRow:
-                if (Tablet_->GetReplicationMode() != ETableReplicationMode::AsynchronousSink) {
-                    THROW_ERROR_EXCEPTION("Versioned writes in %Qlv replication mode are not allowed",
-                        Tablet_->GetReplicationMode());
-                }
-                break;
-
-            default:
-                THROW_ERROR_EXCEPTION("Unsupported write command %v",
-                    command);
-        }
+        //switch (command) {
+        //    case EWireProtocolCommand::WriteRow:
+        //    case EWireProtocolCommand::DeleteRow:
+        //        if (Tablet_->GetReplicationMode() != ETableReplicationMode::None) {
+        //            THROW_ERROR_EXCEPTION("Unversioned writes in %Qlv replication mode are not allowed",
+        //                Tablet_->GetReplicationMode());
+        //        }
+        //        break;
+        //
+        //    case EWireProtocolCommand::VersionedWriteRow:
+        //        if (Tablet_->GetReplicationMode() != ETableReplicationMode::AsynchronousSink) {
+        //            THROW_ERROR_EXCEPTION("Versioned writes in %Qlv replication mode are not allowed",
+        //                Tablet_->GetReplicationMode());
+        //        }
+        //        break;
+        //
+        //    default:
+        //        THROW_ERROR_EXCEPTION("Unsupported write command %v",
+        //            command);
+        //}
 
         switch (command) {
             case EWireProtocolCommand::WriteRow: {
@@ -138,7 +130,7 @@ bool TSortedStoreManager::ExecuteWrites(
                 break;
             }
 
-            case EWireProtocolCommand::WriteVersionedRow: {
+            case EWireProtocolCommand::VersionedWriteRow: {
                 auto row = reader->ReadVersionedRow(Tablet_->PhysicalSchemaData(), false);
                 rowRef = ModifyRow(row, context);
                 break;
@@ -206,7 +198,6 @@ void TSortedStoreManager::LockRow(TTransaction* transaction, bool prelock, const
 {
     if (prelock) {
         transaction->PrelockedRows().push(rowRef);
-        Tablet_->SetPrelockedRowCount(Tablet_->GetPrelockedRowCount() + 1);
     } else {
         transaction->LockedRows().push_back(rowRef);
     }
@@ -215,7 +206,6 @@ void TSortedStoreManager::LockRow(TTransaction* transaction, bool prelock, const
 void TSortedStoreManager::ConfirmRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
 {
     transaction->LockedRows().push_back(rowRef);
-    Tablet_->SetPrelockedRowCount(Tablet_->GetPrelockedRowCount() - 1);
 }
 
 void TSortedStoreManager::PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)

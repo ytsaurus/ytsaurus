@@ -17,6 +17,7 @@
 #include <yt/server/transaction_server/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
 
@@ -83,6 +84,7 @@ private:
 
         const auto& cellDirectory = Bootstrap_->GetCellDirectory();
         auto leaderChannel = cellDirectory->GetChannel(Bootstrap_->GetCellId(), EPeerKind::Leader);
+
         TChunkServiceProxy leaderProxy(std::move(leaderChannel));
         auto leaderRequest = leaderProxy.TouchChunks();
         leaderRequest->SetTimeout(context->GetTimeout());
@@ -165,8 +167,7 @@ private:
         TNodeDirectoryBuilder builder(response->mutable_node_directory());
 
         for (const auto& subrequest : request->subrequests()) {
-            auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
-            int mediumIndex = subrequest.medium_index();
+            auto sessionId = FromProto<TSessionId>(subrequest.session_id());
             int desiredTargetCount = subrequest.desired_target_count();
             int minTargetCount = subrequest.min_target_count();
             auto replicationFactorOverride = subrequest.has_replication_factor_override()
@@ -179,9 +180,8 @@ private:
 
             auto* subresponse = response->add_subresponses();
             try {
-                auto* medium = chunkManager->GetMediumByIndexOrThrow(mediumIndex);
-
-                auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
+                auto* medium = chunkManager->GetMediumByIndexOrThrow(sessionId.MediumIndex);
+                auto* chunk = chunkManager->GetChunkOrThrow(sessionId.ChunkId);
 
                 TNodeList forbiddenNodes;
                 for (const auto& address : forbiddenAddresses) {
@@ -203,34 +203,32 @@ private:
 
                 for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
                     auto* target = targets[index];
-                    auto replica = TNodePtrWithIndexes(target, GenericChunkReplicaIndex, mediumIndex);
+                    auto replica = TNodePtrWithIndexes(target, GenericChunkReplicaIndex, sessionId.MediumIndex);
                     builder.Add(replica);
                     subresponse->add_replicas(ToProto<ui32>(replica));
                 }
 
                 LOG_DEBUG("Write targets allocated "
                     "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-                    "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v, Medium: %v)",
-                    chunkId,
+                    "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v)",
+                    sessionId,
                     desiredTargetCount,
                     minTargetCount,
                     replicationFactorOverride,
                     preferredHostName,
                     forbiddenAddresses,
-                    MakeFormattableRange(targets, TNodePtrAddressFormatter()),
-                    medium->GetName());
+                    MakeFormattableRange(targets, TNodePtrAddressFormatter()));
             } catch (const std::exception& ex) {
                 auto error = TError(ex);
                 LOG_DEBUG(error, "Error allocating write targets "
                     "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
                     "PreferredHostName: %v, ForbiddenAddresses: %v, MediumIndex: %v)",
-                    chunkId,
+                    sessionId,
                     desiredTargetCount,
                     minTargetCount,
                     replicationFactorOverride,
                     preferredHostName,
-                    forbiddenAddresses,
-                    mediumIndex);
+                    forbiddenAddresses);
                 ToProto(subresponse->mutable_error(), error);
             }
         }

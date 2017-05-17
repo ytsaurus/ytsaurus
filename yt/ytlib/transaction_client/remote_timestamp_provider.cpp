@@ -206,7 +206,7 @@ private:
 
         TGuard<TSpinLock> guard(SpinLock_);
         if (timestamp > LatestTimestamp_) {
-            LOG_DEBUG("Latest timestamp updated (Timestamp: %v)", timestamp);
+            LOG_DEBUG("Latest timestamp updated (Timestamp: %llx)", timestamp);
             LatestTimestamp_ = timestamp;
         }
     }

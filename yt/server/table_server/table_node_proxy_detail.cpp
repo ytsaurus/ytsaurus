@@ -122,7 +122,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("schema_mode"));
     descriptors->push_back(TAttributeDescriptor("chunk_writer")
         .SetCustom(true));
-    descriptors->push_back(TAttributeDescriptor("replication_mode")
+    descriptors->push_back(TAttributeDescriptor("upstream_replica_id")
         .SetPresent(table->IsSorted() && table->IsDynamic()));
     descriptors->push_back(TAttributeDescriptor("table_chunk_format_statistics")
         .SetExternal(table->IsExternal())
@@ -309,9 +309,9 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
         return true;
     }
 
-    if (key == "replication_mode" && trunkTable->IsSorted() && trunkTable->IsDynamic()) {
+    if (key == "upstream_replica_id" && trunkTable->IsSorted() && trunkTable->IsDynamic()) {
         BuildYsonFluently(consumer)
-            .Value(trunkTable->GetReplicationMode());
+            .Value(trunkTable->GetUpstreamReplicaId());
         return true;
     }
 
@@ -360,28 +360,21 @@ void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)
     auto dynamic = options.Dynamic.Get(table->IsDynamic());
     auto schema = options.Schema.Get(table->TableSchema());
 
-    if (options.ReplicationMode) {
+    if (options.UpstreamReplicaId) {
         ValidateNoTransaction();
 
         if (table->GetTabletState() != ETabletState::Unmounted) {
-            THROW_ERROR_EXCEPTION("Cannot change table replica mode since not all of its tablets are in %Qlv state",
+            THROW_ERROR_EXCEPTION("Cannot change upstream replica since not all of its tablets are in %Qlv state",
                 ETabletState::Unmounted);
         }
         if (!dynamic) {
-            THROW_ERROR_EXCEPTION("Table replication mode can only be set for dynamic tables");
+            THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
         }
         if (!schema.IsSorted()) {
-            THROW_ERROR_EXCEPTION("Table replication mode can only be set for sorted tables");
+            THROW_ERROR_EXCEPTION("Upstream replica can only be set for sorted tables");
         }
         if (table->IsReplicated()) {
-            THROW_ERROR_EXCEPTION("Table replication mode cannot be explicitly set for replicated tables");
-        } else {
-            auto mode = *options.ReplicationMode;
-            if (mode != ETableReplicationMode::None &&
-                mode != ETableReplicationMode::AsynchronousSink)
-            {
-                THROW_ERROR_EXCEPTION("Replication mode %Qlv cannot be explicitly set", mode);
-            }
+            THROW_ERROR_EXCEPTION("Upstream replica cannot be explicitly set for replicated tables");
         }
     }
 
@@ -410,8 +403,8 @@ void TTableNodeProxy::AlterTable(const TAlterTableOptions& options)
         }
     }
 
-    if (options.ReplicationMode) {
-        table->SetReplicationMode(*options.ReplicationMode);
+    if (options.UpstreamReplicaId) {
+        table->SetUpstreamReplicaId(*options.UpstreamReplicaId);
     }
 }
 
@@ -727,11 +720,11 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     ValidateNotExternal();
     ValidateNoTransaction();
 
-    auto* trunkTable = GetThisImpl();
+    const auto* trunkTable = GetThisImpl();
 
     ToProto(response->mutable_table_id(), trunkTable->GetId());
     response->set_dynamic(trunkTable->IsDynamic());
-    response->set_replication_mode(static_cast<int>(trunkTable->GetReplicationMode()));
+    ToProto(response->mutable_upstream_replica_id(), trunkTable->GetUpstreamReplicaId());
     ToProto(response->mutable_schema(), trunkTable->TableSchema());
 
     yhash_set<TTabletCell*> cells;
@@ -752,6 +745,17 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         ToProto(response->add_tablet_cells(), cell->GetDescriptor());
     }
 
+    if (trunkTable->IsReplicated()) {
+        const auto* replicatedTable = trunkTable->As<TReplicatedTableNode>();
+        for (const auto* replica : replicatedTable->Replicas()) {
+            auto* protoReplica = response->add_replicas();
+            ToProto(protoReplica->mutable_replica_id(), replica->GetId());
+            protoReplica->set_cluster_name(replica->GetClusterName());
+            protoReplica->set_replica_path(replica->GetReplicaPath());
+            protoReplica->set_mode(static_cast<int>(replica->GetMode()));
+        }
+    }
+
     context->Reply();
 }
 
@@ -766,14 +770,14 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (request->has_dynamic()) {
         options.Dynamic = request->dynamic();
     }
-    if (request->has_replication_mode()) {
-        options.ReplicationMode = ETableReplicationMode(request->replication_mode());
+    if (request->has_upstream_replica_id()) {
+        options.UpstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
     }
 
-    context->SetRequestInfo("Schema: %v, Dynamic: %v, ReplicationMode: %v",
+    context->SetRequestInfo("Schema: %v, Dynamic: %v, UpstreamReplicaId: %v",
         options.Schema,
         options.Dynamic,
-        options.ReplicationMode);
+        options.UpstreamReplicaId);
 
     AlterTable(options);
 
@@ -817,6 +821,7 @@ bool TReplicatedTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonCons
                         .Item("cluster_name").Value(replica->GetClusterName())
                         .Item("replica_path").Value(replica->GetReplicaPath())
                         .Item("state").Value(replica->GetState())
+                        .Item("mode").Value(replica->GetMode())
                         .Item("replication_lag_time").Value(replica->ComputeReplicationLagTime())
                     .EndMap();
             });

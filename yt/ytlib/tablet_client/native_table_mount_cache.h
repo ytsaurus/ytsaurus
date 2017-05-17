@@ -14,7 +14,8 @@ namespace NTabletClient {
 ITableMountCachePtr CreateNativeTableMountCache(
     TTableMountCacheConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    NHiveClient::TCellDirectoryPtr cellDirectory);
+    NHiveClient::TCellDirectoryPtr cellDirectory,
+    const NLogging::TLogger& logger);
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -179,9 +179,8 @@ void TOperationControllerBase::TOutputTable::Persist(const TPersistenceContext& 
     Persist(context, TableUploadOptions);
     Persist(context, Options);
     Persist(context, ChunkPropertiesUpdateNeeded);
+    Persist(context, OutputType);
     Persist(context, Type);
-    Persist(context, UploadTransactionId);
-    Persist(context, OutputChunkListId);
     Persist(context, DataStatistics);
     // NB: Scheduler snapshots need not be stable.
     Persist<
@@ -997,7 +996,7 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
 
-    auto options = New<TTableWriterOptions>();
+    auto options = New<NTableClient::TTableWriterOptions>();
     options->Account = Controller->Spec->IntermediateDataAccount;
     options->ChunksVital = false;
     options->ChunksMovable = false;
@@ -1225,8 +1224,6 @@ TOperationControllerBase::TOperationControllerBase(
     UserTransaction = UserTransactionId
         ? Host->GetMasterClient()->AttachTransaction(UserTransactionId, userAttachOptions)
         : nullptr;
-
-    MasterConnector->RegisterOperation(OperationId, MakeStrong(this));
 }
 
 void TOperationControllerBase::InitializeConnections()
@@ -1238,14 +1235,9 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
 
     LOG_INFO("Initializing operation for revive");
 
-    if (GetCommitting()) {
-        THROW_ERROR_EXCEPTION("Unable to revive operation that started committing results");
-    }
-
     InitializeConnections();
 
     std::atomic<bool> cleanStart = {false};
-
 
     // Check transactions.
     {
@@ -1266,7 +1258,6 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
         };
 
         // NB: Async transaction is not checked.
-        checkTransaction(controllerTransactions->Sync);
         checkTransaction(controllerTransactions->Input);
         checkTransaction(controllerTransactions->Output);
         checkTransaction(controllerTransactions->DebugOutput);
@@ -1306,19 +1297,18 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
             }
         };
 
-        // NB: Async transaction is always aborted.
+        // NB: Async and Completion transactions are always aborted.
         scheduleAbort(controllerTransactions->Async);
+        scheduleAbort(controllerTransactions->Completion);
 
         if (cleanStart) {
             LOG_INFO("Aborting operation transactions");
             // NB: Don't touch user transaction.
-            scheduleAbort(controllerTransactions->Sync);
             scheduleAbort(controllerTransactions->Input);
             scheduleAbort(controllerTransactions->Output);
             scheduleAbort(controllerTransactions->DebugOutput);
         } else {
             LOG_INFO("Reusing operation transactions");
-            SyncSchedulerTransaction = controllerTransactions->Sync;
             InputTransaction = controllerTransactions->Input;
             OutputTransaction = controllerTransactions->Output;
             DebugOutputTransaction = controllerTransactions->DebugOutput;
@@ -1346,6 +1336,8 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
         InitializeStructures();
     }
 
+    MasterConnector->RegisterOperation(OperationId, MakeStrong(this));
+
     LOG_INFO("Operation initialized");
 }
 
@@ -1370,6 +1362,8 @@ void TOperationControllerBase::Initialize()
 
     WaitFor(initializeFuture)
         .ThrowOnError();
+
+    MasterConnector->RegisterOperation(OperationId, MakeStrong(this));
 
     LOG_INFO("Operation initialized");
 }
@@ -1522,18 +1516,12 @@ void TOperationControllerBase::SafePrepare()
         GetOutputTablesSchema();
         PrepareOutputTables();
 
-        BeginUploadOutputTables();
-        GetOutputTablesUploadParams();
+        LockOutputTablesAndGetAttributes();
     }
 }
 
 void TOperationControllerBase::SafeMaterialize()
 {
-    if (RevivedFromSnapshot) {
-        // Operation is successfully revived, skipping materialization.
-        return;
-    }
-
     try {
         FetchInputTables();
         FetchUserFiles();
@@ -1673,9 +1661,8 @@ void TOperationControllerBase::SafeRevive()
 void TOperationControllerBase::InitializeTransactions()
 {
     StartAsyncSchedulerTransaction();
-    StartSyncSchedulerTransaction();
-    StartInputTransaction(SyncSchedulerTransaction->GetId());
-    StartOutputTransaction(SyncSchedulerTransaction->GetId());
+    StartInputTransaction(UserTransactionId);
+    StartOutputTransaction(UserTransactionId);
     StartDebugOutputTransaction();
     AreTransactionsActive = true;
 }
@@ -1718,14 +1705,6 @@ ITransactionPtr TOperationControllerBase::StartTransaction(
         transaction->GetId());
 
     return transaction;
-}
-
-void TOperationControllerBase::StartSyncSchedulerTransaction()
-{
-    SyncSchedulerTransaction = StartTransaction(
-        ETransactionType::Sync,
-        AuthenticatedMasterClient,
-        UserTransactionId);
 }
 
 void TOperationControllerBase::StartAsyncSchedulerTransaction()
@@ -1908,61 +1887,82 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
     LOG_INFO("Finished loading snapshot");
 }
 
-bool TOperationControllerBase::GetCommitting()
+void TOperationControllerBase::StartCompletionTransaction()
 {
-    const auto& client = Host->GetMasterClient();
-    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-    TObjectServiceProxy proxy(channel);
+    CompletionTransaction = StartTransaction(
+        ETransactionType::Completion,
+        AuthenticatedOutputMasterClient,
+        OutputTransaction->GetId());
 
-    auto path = GetOperationPath(OperationId) + "/@committing";
-    auto req = TYPathProxy::Exists(path);
-    auto rsp = WaitFor(proxy.Execute(req))
-        .ValueOrThrow();
-    return ConvertTo<bool>(rsp->value());
+    // Set transaction id to cypress.
+    {
+        const auto& client = Host->GetMasterClient();
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
+
+        auto path = GetOperationPath(OperationId) + "/@completion_transaction_id";
+        auto req = TYPathProxy::Set(path);
+        req->set_value(ConvertToYsonString(CompletionTransaction->GetId()).GetData());
+        WaitFor(proxy.Execute(req))
+            .ThrowOnError();
+    }
 }
 
-void TOperationControllerBase::SetCommitting()
+void TOperationControllerBase::CommitCompletionTransaction()
 {
-    const auto& client = Host->GetMasterClient();
-    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-    TObjectServiceProxy proxy(channel);
+    // Set committed flag.
+    {
+        const auto& client = Host->GetMasterClient();
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
 
-    auto path = GetOperationPath(OperationId) + "/@committing";
-    auto req = TYPathProxy::Set(path);
-    req->set_value(ConvertToYsonString(true).GetData());
-    WaitFor(proxy.Execute(req))
+        auto path = GetOperationPath(OperationId) + "/@committed";
+        auto req = TYPathProxy::Set(path);
+        SetTransactionId(req, CompletionTransaction->GetId());
+        req->set_value(ConvertToYsonString(true).GetData());
+        WaitFor(proxy.Execute(req))
+            .ThrowOnError();
+    }
+
+    WaitFor(CompletionTransaction->Commit())
         .ThrowOnError();
+    CompletionTransaction.Reset();
+
+    CommitFinished = true;
 }
 
-void TOperationControllerBase::SetCommitted()
+void TOperationControllerBase::SleepInStage(EDelayInsideOperationCommitStage desiredStage)
 {
-    const auto& client = Host->GetMasterClient();
-    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-    TObjectServiceProxy proxy(channel);
+    auto delay = Spec->TestingOperationOptions
+        ? Spec->TestingOperationOptions->DelayInsideOperationCommit
+        : TDuration();
+    auto stage = Spec->TestingOperationOptions
+        ? Spec->TestingOperationOptions->DelayInsideOperationCommitStage
+        : EDelayInsideOperationCommitStage::Stage1;
 
-    auto path = GetOperationPath(OperationId) + "/@committed";
-    auto req = TYPathProxy::Set(path);
-    SetTransactionId(req, OutputTransaction->GetId());
-    req->set_value(ConvertToYsonString(true).GetData());
-    WaitFor(proxy.Execute(req))
-        .ThrowOnError();
+    if (delay && stage == desiredStage) {
+        WaitFor(TDelayedExecutor::MakeDelayed(delay));
+    }
 }
 
 void TOperationControllerBase::SafeCommit()
 {
-    // XXX(babenko): hotfix for YT-4636
-    if (GetCommitting()) {
-        THROW_ERROR_EXCEPTION("Operation is already committing");
-    }
-    SetCommitting();
+    StartCompletionTransaction();
 
+    SleepInStage(EDelayInsideOperationCommitStage::Stage1);
+    BeginUploadOutputTables(UpdatingTables);
+    SleepInStage(EDelayInsideOperationCommitStage::Stage2);
     TeleportOutputChunks();
+    SleepInStage(EDelayInsideOperationCommitStage::Stage3);
     AttachOutputChunks(UpdatingTables);
+    SleepInStage(EDelayInsideOperationCommitStage::Stage4);
     EndUploadOutputTables(UpdatingTables);
+    SleepInStage(EDelayInsideOperationCommitStage::Stage5);
+
     CustomCommit();
 
-    // NB: commited attribute is set under sync transaction.
-    SetCommitted();
+    CommitCompletionTransaction();
+    SleepInStage(EDelayInsideOperationCommitStage::Stage6);
     CommitTransactions();
 
     MasterConnector->UnregisterOperation(OperationId);
@@ -1978,8 +1978,10 @@ void TOperationControllerBase::CommitTransactions()
 
     CommitTransaction(InputTransaction);
     CommitTransaction(OutputTransaction);
+
+    SleepInStage(EDelayInsideOperationCommitStage::Stage7);
+
     CommitTransaction(DebugOutputTransaction);
-    CommitTransaction(SyncSchedulerTransaction);
 
     LOG_INFO("Scheduler transactions committed");
 
@@ -1993,7 +1995,7 @@ void TOperationControllerBase::TeleportOutputChunks()
         Config,
         AuthenticatedOutputMasterClient,
         CancelableInvoker,
-        OutputTransaction->GetId(),
+        CompletionTransaction->GetId(),
         Logger);
 
     for (auto& table : OutputTables) {
@@ -2819,9 +2821,9 @@ std::vector<ITransactionPtr> TOperationControllerBase::GetTransactions()
                 // NB: User transaction must be returned first to correctly detect that operation aborted due to user transaction abort.
                 UserTransaction,
                 AsyncSchedulerTransaction,
-                SyncSchedulerTransaction,
                 InputTransaction,
                 OutputTransaction,
+                CompletionTransaction,
                 DebugOutputTransaction
             })
         {
@@ -2850,14 +2852,16 @@ void TOperationControllerBase::SafeAbort()
     AreTransactionsActive = false;
 
     // Skip committing anything if operation controller already tried to commit results.
-    if (!GetCommitting()) {
+    if (!CommitFinished) {
         try {
-            if (StderrTable && StderrTable->IsBeginUploadCompleted()) {
+            if (StderrTable) {
+                BeginUploadOutputTables({StderrTable.GetPtr()});
                 AttachOutputChunks({StderrTable.GetPtr()});
                 EndUploadOutputTables({StderrTable.GetPtr()});
             }
 
-            if (CoreTable && CoreTable->IsBeginUploadCompleted()) {
+            if (CoreTable) {
+                BeginUploadOutputTables({CoreTable.GetPtr()});
                 AttachOutputChunks({CoreTable.GetPtr()});
                 EndUploadOutputTables({CoreTable.GetPtr()});
             }
@@ -2880,7 +2884,6 @@ void TOperationControllerBase::SafeAbort()
 
     abortTransaction(InputTransaction);
     abortTransaction(OutputTransaction);
-    abortTransaction(SyncSchedulerTransaction);
     abortTransaction(AsyncSchedulerTransaction);
 
     WaitFor(Combine(abortTransactionFutures))
@@ -3151,6 +3154,21 @@ void TOperationControllerBase::AnalyzeJobsDuration() const
     Host->SetOperationAlert(OperationId, EOperationAlertType::ShortJobsDuration, error);
 }
 
+void TOperationControllerBase::AnalyzeScheduleJobStatistics() const
+{
+    auto jobSpecThrottlerActivationCount = ScheduleJobStatistics_->Failed[EScheduleJobFailReason::JobSpecThrottling];
+    auto activationCountThreshold = Config->OperationAlertsConfig->JobSpecThrottlingAlertActivationCountThreshold;
+
+    TError error;
+    if (jobSpecThrottlerActivationCount > activationCountThreshold) {
+        error = TError(
+            "Excessive job spec throttling is detected. Usage ratio of operation can be "
+            "significatly less than fair share ratio")
+                << TErrorAttribute("job_spec_throttler_activation_count", jobSpecThrottlerActivationCount);
+    }
+    Host->SetOperationAlert(OperationId, EOperationAlertType::ExcessiveJobSpecThrottling, error);
+}
+
 void TOperationControllerBase::AnalyzeOperationProgess() const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
@@ -3162,6 +3180,7 @@ void TOperationControllerBase::AnalyzeOperationProgess() const
     AnalyzeAbortedJobs();
     AnalyzeJobsIOUsage();
     AnalyzeJobsDuration();
+    AnalyzeScheduleJobStatistics();
 }
 
 void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()
@@ -3736,6 +3755,13 @@ bool TOperationControllerBase::IsForgotten() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return Forgotten;
+}
+
+bool TOperationControllerBase::IsRevivedFromSnapshot() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return RevivedFromSnapshot;
 }
 
 void TOperationControllerBase::IncreaseNeededResources(const TJobResources& resourcesDelta)
@@ -4330,7 +4356,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 
-        for (auto* table : UpdatingTables) {
+        for (const auto* table : UpdatingTables) {
             auto objectIdPath = FromObjectId(table->ObjectId);
             {
                 auto req = TTableYPathProxy::Get(objectIdPath + "/@");
@@ -4342,12 +4368,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
                     "erasure_codec"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                if (table->OutputType == EOutputTableType::Output) {
-                    SetTransactionId(req, OutputTransaction->GetId());
-                } else {
-                    YCHECK(table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core);
-                    SetTransactionId(req, DebugOutputTransaction->GetId());
-                }
+                SetTransactionId(req, GetTransactionIdForOutputTable(*table));
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -4412,7 +4433,7 @@ void TOperationControllerBase::PrepareInputTables()
 void TOperationControllerBase::PrepareOutputTables()
 { }
 
-void TOperationControllerBase::BeginUploadOutputTables()
+void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 {
     LOG_INFO("Locking output tables");
 
@@ -4424,33 +4445,16 @@ void TOperationControllerBase::BeginUploadOutputTables()
             auto batchReq = proxy.ExecuteBatch();
             for (const auto* table : UpdatingTables) {
                 auto objectIdPath = FromObjectId(table->ObjectId);
-                auto req = TTableYPathProxy::BeginUpload(objectIdPath);
-                if (table->OutputType == EOutputTableType::Output) {
-                    SetTransactionId(req, OutputTransaction->GetId());
-                } else {
-                    YCHECK(table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core);
-                    SetTransactionId(req, DebugOutputTransaction->GetId());
-                }
+                auto req = TCypressYPathProxy::Lock(objectIdPath);
+                SetTransactionId(req, GetTransactionIdForOutputTable(*table));
                 GenerateMutationId(req);
-                req->set_update_mode(static_cast<int>(table->TableUploadOptions.UpdateMode));
-                req->set_lock_mode(static_cast<int>(table->TableUploadOptions.LockMode));
-                req->set_upload_transaction_title(Format("Upload to %v from operation %v",
-                    table->Path.GetPath(),
-                    OperationId));
-                batchReq->AddRequest(req, "begin_upload");
+                req->set_mode(static_cast<int>(table->TableUploadOptions.LockMode));
+                batchReq->AddRequest(req, "lock");
             }
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 GetCumulativeError(batchRspOrError),
-                "Error starting upload transactions for output tables");
-            const auto& batchRsp = batchRspOrError.Value();
-
-            auto beginUploadRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspBeginUpload>("begin_upload");
-            for (int index = 0; index < UpdatingTables.size(); ++index) {
-                auto* table = UpdatingTables[index];
-                const auto& rsp = beginUploadRspsOrError[index].Value();
-                table->UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
-            }
+                "Error locking output tables");
         }
     }
 
@@ -4476,7 +4480,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                     "vital"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                SetTransactionId(req, table->UploadTransactionId);
+                SetTransactionId(req, GetTransactionIdForOutputTable(*table));
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -4537,10 +4541,45 @@ void TOperationControllerBase::BeginUploadOutputTables()
     }
 }
 
-void TOperationControllerBase::GetOutputTablesUploadParams()
+void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutputTable*>& updatingTables)
 {
+    LOG_INFO("Beginning upload for output tables");
+
+    {
+        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
+
+        {
+            auto batchReq = proxy.ExecuteBatch();
+            for (const auto* table : updatingTables) {
+                auto objectIdPath = FromObjectId(table->ObjectId);
+                auto req = TTableYPathProxy::BeginUpload(objectIdPath);
+                SetTransactionId(req, GetTransactionIdForOutputTable(*table));
+                GenerateMutationId(req);
+                req->set_update_mode(static_cast<int>(table->TableUploadOptions.UpdateMode));
+                req->set_lock_mode(static_cast<int>(table->TableUploadOptions.LockMode));
+                req->set_upload_transaction_title(Format("Upload to %v from operation %v",
+                    table->Path.GetPath(),
+                    OperationId));
+                batchReq->AddRequest(req, "begin_upload");
+            }
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                GetCumulativeError(batchRspOrError),
+                "Error starting upload transactions for output tables");
+            const auto& batchRsp = batchRspOrError.Value();
+
+            auto beginUploadRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspBeginUpload>("begin_upload");
+            for (int index = 0; index < updatingTables.size(); ++index) {
+                auto* table = updatingTables[index];
+                const auto& rsp = beginUploadRspsOrError[index].Value();
+                table->UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+            }
+        }
+    }
+
     yhash<TCellTag, std::vector<TOutputTable*>> cellTagToTables;
-    for (auto* table : UpdatingTables) {
+    for (auto* table : updatingTables) {
         cellTagToTables[table->CellTag].push_back(table);
     }
 
@@ -5604,6 +5643,20 @@ void TOperationControllerBase::RegisterBoundaryKeys(
     });
 }
 
+const TTransactionId& TOperationControllerBase::GetTransactionIdForOutputTable(const TOutputTable& table)
+{
+    if (table.OutputType == EOutputTableType::Output) {
+        if (CompletionTransaction) {
+            return CompletionTransaction->GetId();
+        } else {
+            return OutputTransaction->GetId();
+        }
+    } else {
+        YCHECK(table.OutputType == EOutputTableType::Stderr || table.OutputType == EOutputTableType::Core);
+        return DebugOutputTransaction->GetId();
+    }
+}
+
 void TOperationControllerBase::RegisterOutput(
     TInputChunkPtr chunkSpec,
     int key,
@@ -5800,7 +5853,6 @@ void TOperationControllerBase::BuildOperationAttributes(IYsonConsumer* consumer)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     BuildYsonMapFluently(consumer)
-        .Item("sync_scheduler_transaction_id").Value(SyncSchedulerTransaction ? SyncSchedulerTransaction->GetId() : NullTransactionId)
         .Item("async_scheduler_transaction_id").Value(AsyncSchedulerTransaction ? AsyncSchedulerTransaction->GetId() : NullTransactionId)
         .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
         .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId)
@@ -6851,6 +6903,11 @@ public:
     virtual bool IsForgotten() const override
     {
         return Underlying_->IsForgotten();
+    }
+
+    virtual bool IsRevivedFromSnapshot() const override
+    {
+        return Underlying_->IsRevivedFromSnapshot();
     }
 
     virtual TJobResources GetNeededResources() const override

@@ -221,7 +221,7 @@ public:
         ProfilingExecutor_->Start();
 
         auto nameTable = New<TNameTable>();
-        auto options = New<TTableWriterOptions>();
+        auto options = New<NTableClient::TTableWriterOptions>();
         options->EnableValidationOptions();
 
         EventLogWriter_ = CreateSchemalessBufferedTableWriter(
@@ -845,19 +845,22 @@ public:
     void MaterializeOperation(TOperationPtr operation)
     {
         auto controller = operation->GetController();
-        // TODO(ignat): avoid non-necessary async call here if operation is successfully revived.
-        operation->SetState(EOperationState::Materializing);
-        BIND(&IOperationController::Materialize, controller)
-            .AsyncVia(controller->GetCancelableInvoker())
-            .Run()
-            .Subscribe(BIND([operation] (const TError& error) {
-                if (error.IsOK()) {
-                    if (operation->GetState() == EOperationState::Materializing) {
-                        operation->SetState(EOperationState::Running);
+        if (controller->IsRevivedFromSnapshot()) {
+            operation->SetState(EOperationState::Running);
+        } else {
+            operation->SetState(EOperationState::Materializing);
+            BIND(&IOperationController::Materialize, controller)
+                .AsyncVia(controller->GetCancelableInvoker())
+                .Run()
+                .Subscribe(BIND([operation] (const TError& error) {
+                    if (error.IsOK()) {
+                        if (operation->GetState() == EOperationState::Materializing) {
+                            operation->SetState(EOperationState::Running);
+                        }
                     }
-                }
-            })
-            .Via(operation->GetCancelableControlInvoker()));
+                })
+                .Via(operation->GetCancelableControlInvoker()));
+        }
     }
 
 
@@ -870,11 +873,6 @@ public:
     virtual const NApi::INativeClientPtr& GetMasterClient() const override
     {
         return Bootstrap_->GetMasterClient();
-    }
-
-    virtual const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() override
-    {
-        return Bootstrap_->GetClusterDirectory();
     }
 
     virtual const TNodeDirectoryPtr& GetNodeDirectory() override
@@ -1731,8 +1729,6 @@ private:
     {
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        operation->SetState(EOperationState::Reviving);
-
         const auto& operationId = operation->GetId();
 
         LOG_INFO("Reviving operation (OperationId: %v)",
@@ -2250,7 +2246,6 @@ private:
             }
         };
 
-        abortTransaction(controllerTransactions->Sync);
         abortTransaction(controllerTransactions->Async);
         abortTransaction(controllerTransactions->Input);
         abortTransaction(controllerTransactions->Output);
@@ -2269,6 +2264,8 @@ private:
 
         for (const auto& operationReport : operationReports) {
             const auto& operation = operationReport.Operation;
+
+            operation->SetState(EOperationState::Reviving);
 
             if (operationReport.IsCommitted) {
                 CompleteCompletingOperation(operation);
@@ -2292,6 +2289,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        const auto& clusterDirectory = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetClusterDirectory();
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("connected").Value(MasterConnector_->IsConnected())
@@ -2332,7 +2333,7 @@ private:
                         }
                     })
                 .EndMap()
-                .Item("clusters").DoMapFor(GetClusterDirectory()->GetClusterNames(), [=] (TFluentMap fluent, const Stroka& clusterName) {
+                .Item("clusters").DoMapFor(clusterDirectory->GetClusterNames(), [=] (TFluentMap fluent, const Stroka& clusterName) {
                     BuildClusterYson(clusterName, fluent);
                 })
                 .Item("config").Value(Config_)
@@ -2342,9 +2343,17 @@ private:
 
     void BuildClusterYson(const Stroka& clusterName, IYsonConsumer* consumer)
     {
+        const auto& clusterDirectory = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetClusterDirectory();
+        auto connection = clusterDirectory->FindConnection(clusterName);
+        if (!connection) {
+            return;
+        }
         BuildYsonMapFluently(consumer)
             .Item(clusterName)
-            .Value(GetClusterDirectory()->FindConnection(clusterName)->GetConfig());
+            .Value(connection->GetConfig());
     }
 
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer) const

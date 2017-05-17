@@ -189,23 +189,16 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->TableWriter,
         TableWriter);
 
-
-    auto nameTable = New<TNameTable>();
-    nameTable->SetEnableColumnNameValidation();
-
-    auto options = New<TTableWriterOptions>();
-    options->EnableValidationOptions();
-
-    auto writer = CreateSchemalessTableWriter(
+    config = UpdateYsonSerializable(
         config,
-        options,
-        Path,
-        nameTable,
-        context->GetClient(),
-        transaction);
+        GetOptions());
 
-    WaitFor(writer->Open())
-        .ThrowOnError();
+    Options.Config = config;
+
+    auto writer = WaitFor(context->GetClient()->CreateTableWriter(
+        Path,
+        Options))
+        .ValueOrThrow();
 
     TWritingValueConsumer valueConsumer(
         writer,
@@ -341,7 +334,7 @@ TAlterTableCommand::TAlterTableCommand()
         .Optional();
     RegisterParameter("dynamic", Options.Dynamic)
         .Optional();
-    RegisterParameter("replication_mode", Options.ReplicationMode)
+    RegisterParameter("upstream_replica_id", Options.UpstreamReplicaId)
         .Optional();
 }
 
@@ -434,6 +427,8 @@ std::vector<TUnversionedRow> ParseRows(
 
 TInsertRowsCommand::TInsertRowsCommand()
 {
+    RegisterParameter("require_sync_replica", Options.RequireSyncReplica)
+        .Optional();
     RegisterParameter("table_writer", TableWriter)
         .Default();
     RegisterParameter("path", Path);
@@ -482,7 +477,8 @@ void TInsertRowsCommand::DoExecute(ICommandContextPtr context)
     transaction->WriteRows(
         Path.GetPath(),
         valueConsumer.GetNameTable(),
-        std::move(rowRange));
+        std::move(rowRange),
+        Options);
 
     if (ShouldCommitTransaction()) {
         WaitFor(transaction->Commit())
@@ -586,6 +582,8 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
 
 TDeleteRowsCommand::TDeleteRowsCommand()
 {
+    RegisterParameter("require_sync_replica", Options.RequireSyncReplica)
+        .Optional();
     RegisterParameter("table_writer", TableWriter)
         .Default();
     RegisterParameter("path", Path);
@@ -624,7 +622,8 @@ void TDeleteRowsCommand::DoExecute(ICommandContextPtr context)
     transaction->DeleteRows(
         Path.GetPath(),
         valueConsumer.GetNameTable(),
-        std::move(keyRange));
+        std::move(keyRange),
+        Options);
 
     if (ShouldCommitTransaction()) {
         WaitFor(transaction->Commit())
@@ -696,7 +695,10 @@ void TDisableTableReplicaCommand::DoExecute(ICommandContextPtr context)
 TAlterTableReplicaCommand::TAlterTableReplicaCommand()
 {
     RegisterParameter("replica_id", ReplicaId);
-    RegisterParameter("enabled", Options.Enabled);
+    RegisterParameter("enabled", Options.Enabled)
+        .Optional();
+    RegisterParameter("mode", Options.Mode)
+        .Optional();
 }
 
 void TAlterTableReplicaCommand::DoExecute(ICommandContextPtr context)

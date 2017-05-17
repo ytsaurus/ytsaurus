@@ -96,16 +96,16 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         THROW_ERROR_EXCEPTION("Cannot specify both \"tablet_count\" and \"pivot_keys\"");
     }
 
-    auto maybeReplicationMode = attributes->FindAndRemove<ETableReplicationMode>("replication_mode");
-    if (maybeReplicationMode) {
+    auto upstreamReplicaId = attributes->GetAndRemove<TTableReplicaId>("upstream_replica_id", TTableReplicaId());
+    if (upstreamReplicaId) {
         if (!dynamic) {
-            THROW_ERROR_EXCEPTION("Table replication mode can only be set for dynamic tables");
+            THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
         }
         if (!maybeSchema->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Table replication mode can only be set for sorted tables");
+            THROW_ERROR_EXCEPTION("Upstream replica can only be set for sorted tables");
         }
         if (replicated) {
-            THROW_ERROR_EXCEPTION("Table replication mode cannot be explicitly set for replicated tables");
+            THROW_ERROR_EXCEPTION("Upstream replica cannot be set for replicated tables");
         }
     }
 
@@ -123,7 +123,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             // NB: This setting is not visible in attributes but crucial for replication
             // to work properly.
             node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Strong);
-            node->SetReplicationMode(ETableReplicationMode::Source);
         }
 
         if (maybeSchema) {
@@ -142,9 +141,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             }
         }
 
-        if (maybeReplicationMode) {
-            node->SetReplicationMode(*maybeReplicationMode);
-        }
+        node->SetUpstreamReplicaId(upstreamReplicaId);
     } catch (const std::exception&) {
         DoDestroy(node);
         throw;
@@ -174,7 +171,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
     branchedNode->SetRetainedTimestamp(originatingNode->GetCurrentRetainedTimestamp());
     branchedNode->SetUnflushedTimestamp(originatingNode->GetCurrentUnflushedTimestamp());
-    branchedNode->SetReplicationMode(originatingNode->GetReplicationMode());
+    branchedNode->SetUpstreamReplicaId(originatingNode->GetUpstreamReplicaId());
 
     TBase::DoBranch(originatingNode, branchedNode, mode);
 }
@@ -216,7 +213,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     clonedNode->SetLastCommitTimestamp(sourceNode->GetLastCommitTimestamp());
     clonedNode->SetRetainedTimestamp(sourceNode->GetRetainedTimestamp());
     clonedNode->SetUnflushedTimestamp(sourceNode->GetUnflushedTimestamp());
-    clonedNode->SetReplicationMode(sourceNode->GetReplicationMode());
+    clonedNode->SetUpstreamReplicaId(sourceNode->GetUpstreamReplicaId());
     clonedNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();

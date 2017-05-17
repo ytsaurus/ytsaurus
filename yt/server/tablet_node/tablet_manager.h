@@ -54,6 +54,8 @@ public:
         TDuration transactionTimeout,
         TTransactionSignature signature,
         int rowCount,
+        bool versioned,
+        const TSyncReplicaIdList& syncReplicaIds,
         NTabletClient::TWireProtocolReader* reader,
         TFuture<void>* commitResult);
 

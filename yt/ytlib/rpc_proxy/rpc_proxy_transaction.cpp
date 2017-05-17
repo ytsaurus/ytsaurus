@@ -100,7 +100,7 @@ void TRpcProxyTransaction::WriteRows(
     const NYPath::TYPath& path,
     NTableClient::TNameTablePtr nameTable,
     TSharedRange<NTableClient::TUnversionedRow> rows,
-    const TWriteRowsOptions& options)
+    const TModifyRowsOptions& options)
 {
     std::vector<TRowModification> modifications;
     modifications.reserve(rows.Size());
@@ -112,14 +112,14 @@ void TRpcProxyTransaction::WriteRows(
         path,
         std::move(nameTable),
         MakeSharedRange(std::move(modifications), rows.GetHolder()),
-        TModifyRowsOptions());
+        options);
 }
 
 void TRpcProxyTransaction::DeleteRows(
     const NYPath::TYPath& path,
     NTableClient::TNameTablePtr nameTable,
     TSharedRange<NTableClient::TKey> keys,
-    const TDeleteRowsOptions& options)
+    const TModifyRowsOptions& options)
 {
     std::vector<TRowModification> modifications;
     modifications.reserve(keys.Size());
@@ -131,7 +131,7 @@ void TRpcProxyTransaction::DeleteRows(
         path,
         std::move(nameTable),
         MakeSharedRange(std::move(modifications), keys.GetHolder()),
-        TModifyRowsOptions());
+        options);
 }
 
 void TRpcProxyTransaction::ModifyRows(

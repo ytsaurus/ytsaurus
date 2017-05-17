@@ -89,6 +89,8 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NJournalClient;
 using namespace NJournalServer;
 
+using NChunkClient::TSessionId;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ChunkServerLogger;
@@ -1590,11 +1592,12 @@ private:
         bool isJournal = (chunkType == EObjectType::JournalChunk);
         auto erasureCodecId = isErasure ? NErasure::ECodec(subrequest->erasure_codec()) : NErasure::ECodec::None;
         int replicationFactor = isErasure ? 1 : subrequest->replication_factor();
-        int mediumIndex = subrequest->medium_index();
+        const auto& mediumName = subrequest->medium_name();
         int readQuorum = isJournal ? subrequest->read_quorum() : 0;
         int writeQuorum = isJournal ? subrequest->write_quorum() : 0;
 
-        auto* medium = GetMediumByIndexOrThrow(mediumIndex);
+        auto* medium = GetMediumByNameOrThrow(mediumName);
+        int mediumIndex = medium->GetIndex();
 
         ValidateReplicationFactor(replicationFactor);
 
@@ -1624,6 +1627,8 @@ private:
         chunk->SetMovable(subrequest->movable());
         chunk->SetLocalVital(subrequest->vital());
 
+        auto sessionId = TSessionId(chunk->GetId(), mediumIndex);
+
         auto& chunkProperties = chunk->LocalProperties();
         chunkProperties[mediumIndex].SetReplicationFactor(replicationFactor);
         chunkProperties.SetVital(subrequest->vital());
@@ -1637,19 +1642,17 @@ private:
         }
 
         if (subresponse) {
-            ToProto(subresponse->mutable_chunk_id(), chunk->GetId());
+            ToProto(subresponse->mutable_session_id(), sessionId);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(),
             "Chunk created "
             "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, "
-            "Medium: %v, ReplicationFactor: %v, "
-            "ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, Movable: %v, Vital: %v)",
-            chunk->GetId(),
+            "ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, Movable: %v, Vital: %v)",
+            sessionId,
             GetObjectId(chunkList),
             transaction->GetId(),
             account->GetName(),
-            medium->GetName(),
             replicationFactor,
             readQuorum,
             writeQuorum,

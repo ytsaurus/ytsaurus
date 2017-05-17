@@ -4,17 +4,12 @@ import "yt/core/misc/guid.proto";
 import "yt/core/misc/error.proto";
 import "yt/ytlib/misc/workload.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/ytlib/chunk_client/session_id.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_info.proto";
 import "yt/ytlib/chunk_client/chunk_slice.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
-
-message TSessionId
-{
-    required NYT.NProto.TGuid chunk_id = 1;
-    required int32 medium_index = 2;
-}
 
 message TReqStartChunk
 {

@@ -131,7 +131,7 @@ private:
     NTabletServer::TTabletManagerPtr TabletManager_;
     NHiveServer::THiveManagerPtr HiveManager_;
     NHiveClient::TCellDirectoryPtr CellDirectory_;
-    NHiveClient::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
+    NHiveServer::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NConcurrency::TActionQueuePtr ControlQueue_;
     TCoreDumperPtr CoreDumper_;
 

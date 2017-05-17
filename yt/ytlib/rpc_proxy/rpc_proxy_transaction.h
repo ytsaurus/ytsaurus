@@ -91,13 +91,13 @@ public:
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TUnversionedRow> rows,
-        const NApi::TWriteRowsOptions& options) override;
+        const NApi::TModifyRowsOptions& options) override;
 
     virtual void WriteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TVersionedRow> rows,
-        const NApi::TWriteRowsOptions& options) override
+        const NApi::TModifyRowsOptions& options) override
     {
         Y_UNIMPLEMENTED();
     }
@@ -106,7 +106,7 @@ public:
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TKey> keys,
-        const NApi::TDeleteRowsOptions& options) override;
+        const NApi::TModifyRowsOptions& options) override;
 
     virtual void ModifyRows(
         const NYPath::TYPath& path,

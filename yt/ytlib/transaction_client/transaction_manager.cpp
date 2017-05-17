@@ -111,7 +111,8 @@ public:
     explicit TImpl(TIntrusivePtr<TTransactionManager::TImpl> owner)
         : Owner_(owner)
         , Logger(NLogging::TLogger(TransactionClientLogger)
-            .AddTag("CellId: %v", Owner_->PrimaryCellId_))
+            .AddTag("ConnectionCellTag: %v",
+                CellTagFromId(Owner_->PrimaryCellId_)))
     { }
 
     ~TImpl()
@@ -534,7 +535,7 @@ private:
 
         Register();
 
-        LOG_DEBUG("Starting transaction (StartTimestamp: %v, Type: %v)",
+        LOG_DEBUG("Starting transaction (StartTimestamp: %llx, Type: %v)",
             StartTimestamp_,
             Type_);
 
@@ -585,7 +586,7 @@ private:
         const auto& rsp = rspOrError.Value();
         Id_ = FromProto<TTransactionId>(rsp->id());
 
-        LOG_DEBUG("Master transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
+        LOG_DEBUG("Master transaction started (TransactionId: %v, StartTimestamp: %llx, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
             Id_,
             StartTimestamp_,
             AutoAbort_,
@@ -612,7 +613,7 @@ private:
 
         State_ = ETransactionState::Active;
 
-        LOG_DEBUG("Atomic tablet transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v)",
+        LOG_DEBUG("Atomic tablet transaction started (TransactionId: %v, StartTimestamp: %llx, AutoAbort: %v)",
             Id_,
             StartTimestamp_,
             AutoAbort_);
@@ -726,8 +727,20 @@ private:
             return options.CoordinatorCellId;
         }
 
-        auto participantIds = GetRegisteredParticipantIds();
-        return participantIds[RandomNumber(participantIds.size())];
+        std::vector<TCellId> feasibleParticipantIds;
+        for (const auto& cellId : GetRegisteredParticipantIds()) {
+            if (options.CoordinatorCellTag == InvalidCellTag ||
+                CellTagFromId(cellId) == options.CoordinatorCellTag)
+            {
+                feasibleParticipantIds.push_back(cellId);
+            }
+        }
+
+        if (feasibleParticipantIds.empty()) {
+            THROW_ERROR_EXCEPTION("No participant matches the coordinator criteria");
+        }
+
+        return feasibleParticipantIds[RandomNumber(feasibleParticipantIds.size())];
     }
 
     TTransactionCommitResult OnAtomicTransactionCommitted(

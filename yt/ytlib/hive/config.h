@@ -21,13 +21,13 @@ class TClusterDirectorySynchronizerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! Interval between consequent SyncCells requests to the primary Hive Manager.
+    //! Interval between consequent directory updates.
     TDuration SyncPeriod;
 
     TClusterDirectorySynchronizerConfig()
     {
         RegisterParameter("sync_period", SyncPeriod)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Seconds(60));
     }
 };
 
@@ -39,7 +39,7 @@ class TCellDirectorySynchronizerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! Interval between consequent SyncCells requests to the primary Hive Manager.
+    //! Interval between consequent directory updates.
     TDuration SyncPeriod;
 
     //! Timeout for SyncCells requests.

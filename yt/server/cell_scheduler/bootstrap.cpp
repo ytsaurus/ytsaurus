@@ -19,7 +19,6 @@
 #include <yt/ytlib/api/native_connection.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
-#include <yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/ytlib/hydra/config.h>
 #include <yt/ytlib/hydra/peer_channel.h>
@@ -132,8 +131,6 @@ void TBootstrap::DoRun()
         Config_->BusServer->BindRetryCount,
         Config_->BusServer->BindRetryBackoff));
 
-    ClusterDirectory_ = New<TClusterDirectory>();
-
     NodeDirectory_ = New<TNodeDirectory>();
 
     NodeDirectorySynchronizer_ = New<TNodeDirectorySynchronizer>(
@@ -238,11 +235,6 @@ IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const
 const TSchedulerPtr& TBootstrap::GetScheduler() const
 {
     return Scheduler_;
-}
-
-const TClusterDirectoryPtr& TBootstrap::GetClusterDirectory() const
-{
-    return ClusterDirectory_;
 }
 
 const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const

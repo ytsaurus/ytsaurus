@@ -254,6 +254,7 @@ private:
         StartInputTransaction(NullTransactionId);
         StartOutputTransaction(UserTransactionId);
         StartDebugOutputTransaction();
+        AreTransactionsActive = true;
     }
 
     virtual void DoInitialize() override
@@ -274,6 +275,8 @@ private:
             AuthenticatedInputMasterClient = connection->CreateNativeClient(options);
         } else {
             AuthenticatedInputMasterClient = Host
+                ->GetMasterClient()
+                ->GetNativeConnection()
                 ->GetClusterDirectory()
                 ->GetConnectionOrThrow(*Spec_->ClusterName)
                 ->CreateNativeClient(options);
@@ -408,7 +411,7 @@ private:
             for (const auto& key : attributeKeys) {
                 auto req = TYPathProxy::Set(path + "/@" + key);
                 req->set_value(InputTableAttributes_->GetYson(key).GetData());
-                SetTransactionId(req, OutputTransaction->GetId());
+                SetTransactionId(req, CompletionTransaction->GetId());
                 batchReq->AddRequest(req);
             }
 
@@ -501,7 +504,10 @@ private:
 
         ToProto(schedulerJobSpecExt->mutable_data_source_directory(), MakeInputDataSources());
 
-        const auto& clusterDirectory = Host->GetClusterDirectory();
+        const auto& clusterDirectory = Host
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetClusterDirectory();
         TNativeConnectionConfigPtr connectionConfig;
         if (Spec_->ClusterConnection) {
             connectionConfig = *Spec_->ClusterConnection;
