@@ -567,8 +567,6 @@ private:
                 MakeStrong(this),
                 requestId));
 
-            Timer_.Emplace();
-
             LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, "
                 "ChecksummedPartCount: %v, Endpoint: %v)",
                 requestId,
