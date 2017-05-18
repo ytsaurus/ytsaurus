@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from yt.wrapper.common import chunk_iter_list
+
 import yt.logger as logger
 import yt.wrapper as yt
 
@@ -59,7 +61,7 @@ def main():
     links = set()
     aux_objects = yt.search(args.directory,
                             object_filter=lambda obj: obj.attributes["type"] in ["link", "map_node", "list_node"],
-                            attributes=["modification_time", "count", "type", "account"])
+                            attributes=["modification_time", "count", "type", "account"], enable_batch_mode=True)
     for obj in aux_objects:
         if obj.attributes["type"] == "link":
             links.add(str(obj))
@@ -72,7 +74,7 @@ def main():
 
     # collect table and files
     objects = []
-    for obj in yt.search(args.directory,
+    for obj in yt.search(args.directory, enable_batch_mode=True,
                          node_type=["table", "file", "link"],
                          attributes=["access_time", "modification_time", "locks", "hash", "resource_usage", "account", "type", "target_path"]):
         if is_locked(obj):
@@ -125,53 +127,79 @@ def main():
                 remaining_dir_sizes[os.path.dirname(obj)] -= 1
             add_to_remove(obj)
 
-    # log and remove
-    for obj in to_remove:
-        try:
-            new_obj_info = yt.get(obj, attributes=["modification_time", "access_time"])
-        except yt.YtResponseError as error:
-            if not error.is_resolve_error():
-                raise
-            continue
-        if get_age(new_obj_info) <= safe_age:
-            continue
-        info = ""
-        if hasattr(obj, "attributes"):
-            info = "(size=%s) (access_time=%s)" % (obj.attributes["resource_usage"]["disk_space"], get_time(obj))
-        logger.info("Removing %s %s", obj, info)
+    max_batch_size = yt.config["max_batch_size"]
+    batch_client = yt.create_batch_client()
 
-        dir_sizes[os.path.dirname(obj)] -= 1
-        try:
-            yt.remove(obj, force=True)
-        except yt.YtResponseError as error:
-            if not error.is_concurrent_transaction_lock_conflict():
-                raise
+    # log and remove
+    for objects in chunk_iter_list(to_remove, max_batch_size):
+        new_objects_info = []
+        for obj in objects:
+            get_result = batch_client.get(obj, attributes=["modification_time", "access_time"])
+            new_objects_info.append((obj, get_result))
+
+        batch_client.commit_batch()
+
+        remove_results = []
+        for obj, new_obj_info in new_objects_info:
+            if new_obj_info.get_error():
+                error = yt.YtResponseError(new_obj_info.get_error())
+                if not error.is_resolve_error():
+                    raise error
+                continue
+
+            if get_age(new_obj_info.get_result()) <= safe_age:
+                continue
+
+            info = ""
+            if hasattr(obj, "attributes"):
+                info = "(size=%s) (access_time=%s)" % (obj.attributes["resource_usage"]["disk_space"], get_time(obj))
+            logger.info("Removing %s %s", obj, info)
+
+            dir_sizes[os.path.dirname(obj)] -= 1
+
+            remove_result = batch_client.remove(obj, force=True)
+            remove_results.append(remove_result)
+
+        batch_client.commit_batch()
+        for remove_result in remove_results:
+            if remove_result.get_error():
+                error = yt.YtResponseError(remove_result.get_error())
+                if not error.is_concurrent_transaction_lock_conflict():
+                    raise error
 
     # check broken links
-    for obj in yt.search(args.directory, node_type=["link"], attributes=["broken", "account"]):
+    for obj in yt.search(args.directory, node_type=["link"], attributes=["broken", "account"], enable_batch_mode=True):
         if args.do_not_remove_objects_with_other_account and obj.attributes.get("account") != args.account:
             continue
         if str(obj.attributes["broken"]) == "true":
             logger.warning("Removing broken link %s", obj)
-            yt.remove(obj, force=True)
+            batch_client.remove(obj, force=True)
+
+    batch_client.commit_batch()
 
     for iter in xrange(5):
+        removed_dirs = []
         for dir in dirs:
             if args.do_not_remove_objects_with_other_account and dir.attributes.get("account") != args.account:
                 continue
+
             if dir_sizes[str(dir)] == 0 and get_age(dir).days > args.max_age:
                 logger.info("Removing empty dir %s", dir)
                 # To avoid removing twice
                 dir_sizes[str(dir)] = -1
-                try:
-                    try:
-                        yt.remove(dir, force=True)
-                        dir_sizes[os.path.dirname(dir)] -= 1
-                    except yt.YtResponseError as error:
-                        if not error.is_concurrent_transaction_lock_conflict():
-                            raise
-                except yt.YtError:
+
+                remove_result = batch_client.remove(dir, force=True)
+                removed_dirs.append((dir, remove_result))
+
+        batch_client.commit_batch()
+
+        for dir, remove_result in removed_dirs:
+            if remove_result.get_error():
+                error = yt.YtResponseError(remove_result.get_error())
+                if not error.is_concurrent_transaction_lock_conflict():
                     logger.exception("Failed to remove dir %s", dir)
+            else:
+                dir_sizes[os.path.dirname(dir)] -= 1
 
 if __name__ == "__main__":
     main()
