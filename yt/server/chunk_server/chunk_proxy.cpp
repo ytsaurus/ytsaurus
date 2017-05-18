@@ -11,6 +11,7 @@
 
 #include <yt/server/node_tracker_server/node.h>
 #include <yt/server/node_tracker_server/node_directory_builder.h>
+#include <yt/server/node_tracker_server/node_tracker.h>
 
 #include <yt/server/object_server/object_detail.h>
 
@@ -72,6 +73,8 @@ private:
         descriptors->push_back(TAttributeDescriptor("cached_replicas")
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor("stored_replicas")
+            .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor("last_seen_replicas")
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor("movable")
             .SetPresent(!isForeign));
@@ -154,24 +157,24 @@ private:
         auto* chunk = GetThisImpl();
         auto isForeign = chunk->IsForeign();
 
-        auto serializeReplica = [&] (TFluentList fluent, TNodePtrWithIndexes replica) {
+        auto serializePhysicalReplica = [&] (TFluentList fluent, TNodePtrWithIndexes replica) {
             auto* medium = chunkManager->GetMediumByIndex(replica.GetMediumIndex());
             fluent.Item()
                 .BeginAttributes()
                     .Item("medium").Value(medium->GetName())
                     .DoIf(chunk->IsErasure(), [&] (TFluentAttributes fluent) {
-                            fluent
-                                .Item("index").Value(replica.GetReplicaIndex());
-                        })
+                        fluent
+                            .Item("index").Value(replica.GetReplicaIndex());
+                    })
                     .DoIf(chunk->IsJournal(), [&] (TFluentAttributes fluent) {
-                            fluent
-                                .Item("type").Value(EJournalReplicaType(replica.GetReplicaIndex()));
-                        })
+                        fluent
+                            .Item("type").Value(EJournalReplicaType(replica.GetReplicaIndex()));
+                    })
                 .EndAttributes()
                 .Value(replica.GetPtr()->GetDefaultAddress());
         };
 
-        auto serializeReplicas = [&] (IYsonConsumer* consumer, TNodePtrWithIndexesList& replicas) {
+        auto serializePhysicalReplicas = [&] (IYsonConsumer* consumer, TNodePtrWithIndexesList& replicas) {
             std::sort(
                 replicas.begin(),
                 replicas.end(),
@@ -182,19 +185,57 @@ private:
                     return lhs.GetMediumIndex() < rhs.GetMediumIndex();
                 });
             BuildYsonFluently(consumer)
-                .DoListFor(replicas, serializeReplica);
+                .DoListFor(replicas, serializePhysicalReplica);
+        };
+
+        auto serializeLastSeenReplica = [&] (TFluentList fluent, TNodePtrWithIndexes replica) {
+            fluent.Item()
+                .BeginAttributes()
+                    .DoIf(chunk->IsErasure(), [&] (TFluentAttributes fluent) {
+                        fluent
+                            .Item("index").Value(replica.GetReplicaIndex());
+                    })
+                .EndAttributes()
+                .Value(replica.GetPtr()->GetDefaultAddress());
+        };
+
+        auto serializeLastSeenReplicas = [&] (IYsonConsumer* consumer, const TNodePtrWithIndexesList& replicas) {
+            BuildYsonFluently(consumer)
+                .DoListFor(replicas, serializeLastSeenReplica);
         };
 
         if (!isForeign) {
             if (key == "cached_replicas") {
                 TNodePtrWithIndexesList replicas(chunk->CachedReplicas().begin(), chunk->CachedReplicas().end());
-                serializeReplicas(consumer, replicas);
+                serializePhysicalReplicas(consumer, replicas);
                 return true;
             }
 
             if (key == "stored_replicas") {
                 TNodePtrWithIndexesList replicas(chunk->StoredReplicas().begin(), chunk->StoredReplicas().end());
-                serializeReplicas(consumer, replicas);
+                serializePhysicalReplicas(consumer, replicas);
+                return true;
+            }
+
+            if (key == "last_seen_replicas") {
+                TNodePtrWithIndexesList replicas;
+                const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+                auto addReplica = [&] (TNodeId nodeId, int replicaIndex) {
+                    auto* node = nodeTracker->FindNode(nodeId);
+                    if (IsObjectAlive(node)) {
+                        replicas.push_back(TNodePtrWithIndexes(node, replicaIndex, DefaultStoreMediumIndex));
+                    }
+                };
+                if (chunk->IsErasure()) {
+                    for (int index = 0; index < NErasure::MaxTotalPartCount; ++index) {
+                        addReplica(chunk->LastSeenReplicas()[index], index);
+                    }
+                } else {
+                    for (auto nodeId : chunk->LastSeenReplicas()) {
+                        addReplica(nodeId, GenericChunkReplicaIndex);
+                    }
+                }
+                serializeLastSeenReplicas(consumer, replicas);
                 return true;
             }
 
