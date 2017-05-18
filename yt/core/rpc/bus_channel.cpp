@@ -17,7 +17,7 @@
 #include <yt/core/misc/singleton.h>
 
 #include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/timing.h>
+#include <yt/core/profiling/scoped_timer.h>
 
 #include <yt/core/rpc/rpc.pb.h>
 
@@ -487,7 +487,7 @@ private:
         NConcurrency::TReaderWriterSpinLock CachedMethodMetadataLock_;
         yhash<std::pair<Stroka, Stroka>, TMethodMetadata> CachedMethodMetadata_;
 
-        NProfiling::TCpuInstant SendInstant_ = 0;
+        TNullable<NProfiling::TScopedTimer> Timer_;
 
         void OnRequestSerialized(
             const TClientRequestControlPtr& requestControl,
@@ -570,7 +570,7 @@ private:
                 MakeStrong(this),
                 requestId));
 
-            SendInstant_ = NProfiling::GetCpuInstant();
+            Timer_.Emplace();
 
             LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, "
                 "ChecksummedPartCount: %v, Endpoint: %v)",
@@ -668,7 +668,7 @@ private:
                 requestId,
                 requestControl->GetService(),
                 requestControl->GetMethod(),
-                NProfiling::CpuDurationToDuration(NProfiling::GetCpuInstant() - SendInstant_));
+                Timer_->GetElapsed());
 
             responseHandler->HandleResponse(std::move(message));
         }
