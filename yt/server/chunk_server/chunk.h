@@ -100,8 +100,13 @@ public:
     using TStoredReplicas = TNodePtrWithIndexesList;
     const TStoredReplicas& StoredReplicas() const;
 
-    void AddReplica(TNodePtrWithIndexes replica, bool cached);
-    void RemoveReplica(TNodePtrWithIndexes replica, bool cached);
+    using TLastSeenReplicas = std::array<TNodeId, LastSeenReplicaCount>;
+    //! For non-erasure chunks, contains a FIFO queue of seen replicas; its tail position is kept in #CurrentLastSeenReplicaIndex_.
+    //! For erasure chunks, this array is directly addressed by replica indexes; at most one replica is kept per part.
+    const TLastSeenReplicas& LastSeenReplicas() const;
+
+    void AddReplica(TNodePtrWithIndexes replica, const TMedium* medium);
+    void RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium);
     TNodePtrWithIndexesList GetReplicas() const;
 
     void ApproveReplica(TNodePtrWithIndexes replica);
@@ -222,6 +227,9 @@ private:
     //! no replicas are being maintained for foreign chunks.
     std::unique_ptr<TStoredReplicas> StoredReplicas_;
     static const TStoredReplicas EmptyStoredReplicas;
+
+    TLastSeenReplicas LastSeenReplicas_;
+    int CurrentLastSeenReplicaIndex_ = 0;
 
 };
 

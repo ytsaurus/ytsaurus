@@ -33,6 +33,8 @@ TChunk::TChunk(const TChunkId& id)
     ChunkMeta_.set_type(static_cast<int>(EChunkType::Unknown));
     ChunkMeta_.set_version(-1);
     ChunkMeta_.mutable_extensions();
+
+    std::fill(LastSeenReplicas_.begin(), LastSeenReplicas_.end(), InvalidNodeId);
 }
 
 TChunkTreeStatistics TChunk::GetStatistics() const
@@ -91,6 +93,8 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     // deterministic (i.e. when unregistering a node we traverse certain hashtables).
     TNullableVectorSerializer<TDefaultSerializer, TSortedTag>::Save(context, StoredReplicas_);
     Save(context, CachedReplicas_);
+    Save(context, LastSeenReplicas_);
+    Save(context, CurrentLastSeenReplicaIndex_);
     Save(context, ExportCounter_);
     if (ExportCounter_ > 0) {
         TRangeSerializer::Save(context, TRef::FromPod(ExportDataList_));
@@ -131,6 +135,20 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, Parents_);
     Load(context, StoredReplicas_);
     Load(context, CachedReplicas_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 603) {
+        Load(context, LastSeenReplicas_);
+        Load(context, CurrentLastSeenReplicaIndex_);
+    } else {
+        for (auto replica : StoredReplicas()) {
+            if (IsErasure()) {
+                LastSeenReplicas_[replica.GetReplicaIndex()] = replica.GetPtr()->GetId();
+            } else {
+                LastSeenReplicas_[CurrentLastSeenReplicaIndex_] = replica.GetPtr()->GetId();
+                CurrentLastSeenReplicaIndex_ = (CurrentLastSeenReplicaIndex_ + 1) % LastSeenReplicaCount;
+            }
+        }
+    }
     Load(context, ExportCounter_);
     if (ExportCounter_ > 0) {
         // COMPAT(shakurov)
@@ -167,19 +185,9 @@ void TChunk::RemoveParent(TChunkList* parent)
     Parents_.erase(it);
 }
 
-const TChunk::TCachedReplicas& TChunk::CachedReplicas() const
+void TChunk::AddReplica(TNodePtrWithIndexes replica, const TMedium* medium)
 {
-    return CachedReplicas_ ? *CachedReplicas_ : EmptyCachedReplicas;
-}
-
-const TChunk::TStoredReplicas& TChunk::StoredReplicas() const
-{
-    return StoredReplicas_ ? *StoredReplicas_ : EmptyStoredReplicas;
-}
-
-void TChunk::AddReplica(TNodePtrWithIndexes replica, bool cached)
-{
-    if (cached) {
+    if (medium->GetCache()) {
         Y_ASSERT(!IsJournal());
         if (!CachedReplicas_) {
             CachedReplicas_ = std::make_unique<TCachedReplicas>();
@@ -198,12 +206,20 @@ void TChunk::AddReplica(TNodePtrWithIndexes replica, bool cached)
             }
         }
         StoredReplicas_->push_back(replica);
+        if (!medium->GetTransient()) {
+            if (IsErasure()) {
+                LastSeenReplicas_[replica.GetReplicaIndex()] = replica.GetPtr()->GetId();
+            } else {
+                LastSeenReplicas_[CurrentLastSeenReplicaIndex_] = replica.GetPtr()->GetId();
+                CurrentLastSeenReplicaIndex_ = (CurrentLastSeenReplicaIndex_ + 1) % LastSeenReplicaCount;
+            }
+        }
     }
 }
 
-void TChunk::RemoveReplica(TNodePtrWithIndexes replica, bool cached)
+void TChunk::RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium)
 {
-    if (cached) {
+    if (medium->GetCache()) {
         Y_ASSERT(CachedReplicas_);
         YCHECK(CachedReplicas_->erase(replica) == 1);
         if (CachedReplicas_->empty()) {

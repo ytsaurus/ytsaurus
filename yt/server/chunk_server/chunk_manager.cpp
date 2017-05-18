@@ -2157,7 +2157,7 @@ private:
             return;
         }
 
-        chunk->AddReplica(nodeWithIndexes, medium->GetCache());
+        chunk->AddReplica(nodeWithIndexes, medium);
 
         if (!IsRecovery()) {
             LOG_EVENT(
@@ -2200,7 +2200,7 @@ private:
             return;
         }
 
-        chunk->RemoveReplica(nodeWithIndexes, cached);
+        chunk->RemoveReplica(nodeWithIndexes, medium);
 
         switch (reason) {
             case ERemoveReplicaReason::IncrementalHeartbeat:
