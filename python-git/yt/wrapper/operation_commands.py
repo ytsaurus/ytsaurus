@@ -293,7 +293,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
     if only_failed_jobs:
         jobs = builtins.list(ifilter(lambda obj: "error" in obj.attributes, jobs))
 
-    thread_count = get_config(client)["operation_tracker"]["stderr_download_thread_count"]
+    thread_count = min(get_config(client)["operation_tracker"]["stderr_download_thread_count"], len(jobs))
     if thread_count > 1:
         pool = ThreadPoolHelper(thread_count)
         timeout = get_config(client)["operation_tracker"]["stderr_download_timeout"] / 1000.0
