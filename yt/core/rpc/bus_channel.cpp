@@ -17,7 +17,6 @@
 #include <yt/core/misc/singleton.h>
 
 #include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/scoped_timer.h>
 
 #include <yt/core/rpc/rpc.pb.h>
 
@@ -487,8 +486,6 @@ private:
         NConcurrency::TReaderWriterSpinLock CachedMethodMetadataLock_;
         yhash<std::pair<Stroka, Stroka>, TMethodMetadata> CachedMethodMetadata_;
 
-        TNullable<NProfiling::TScopedTimer> Timer_;
-
         void OnRequestSerialized(
             const TClientRequestControlPtr& requestControl,
             const TSendOptions& options,
@@ -664,11 +661,11 @@ private:
             const IClientResponseHandlerPtr& responseHandler,
             TSharedRefArray message)
         {
-            LOG_DEBUG("Response received (RequestId: %v, Method: %v:%v, ElapsedTime: %v)",
+            LOG_DEBUG("Response received (RequestId: %v, Method: %v:%v, TotalTime: %v)",
                 requestId,
                 requestControl->GetService(),
                 requestControl->GetMethod(),
-                Timer_->GetElapsed());
+                requestControl->GetTotalTime());
 
             responseHandler->HandleResponse(std::move(message));
         }
@@ -735,6 +732,11 @@ private:
             return Timeout_;
         }
 
+        TDuration GetTotalTime() const
+        {
+            return TotalTime_;
+        }
+
         bool IsActive(const TGuard<TSpinLock>&) const
         {
             return static_cast<bool>(ResponseHandler_);
@@ -754,7 +756,7 @@ private:
         void Finalize(const TGuard<TSpinLock>&, IClientResponseHandlerPtr* responseHandler)
         {
             *responseHandler = std::move(ResponseHandler_);
-            Profiler.TimingStop(Timer_, STRINGBUF("total"));
+            TotalTime_ = Profiler.TimingStop(Timer_, STRINGBUF("total"));
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
         }
 
@@ -784,6 +786,7 @@ private:
         IClientResponseHandlerPtr ResponseHandler_;
 
         NProfiling::TTimer Timer_;
+        TDuration TotalTime_;
     };
 
 };
