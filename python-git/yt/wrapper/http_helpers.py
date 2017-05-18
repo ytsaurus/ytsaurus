@@ -189,7 +189,8 @@ class RequestRetrier(Retrier):
         if timeout is None:
             timeout = get_value(get_config(client)["proxy"]["request_retry_timeout"],
                                 get_config(client)["proxy"]["request_timeout"])
-        self.timeout = timeout
+        self.requests_timeout = timeout
+        self.timeout = timeout[1] if isinstance(timeout, tuple) else timeout
 
         retriable_errors = list(get_retriable_errors())
         if is_ping:
@@ -222,10 +223,10 @@ class RequestRetrier(Retrier):
 
         try:
             session = _get_session(client=self.client)
-            if isinstance(self.timeout, tuple):
+            if isinstance(self.requests_timeout, tuple):
                 timeout = tuple(imap(lambda elem: elem / 1000.0, self.timeout))
             else:
-                timeout = self.timeout / 1000.0
+                timeout = self.requests_timeout / 1000.0
             response = create_response(session.request(self.method, url, timeout=timeout, **self.kwargs),
                                        request_info, self.client)
 
