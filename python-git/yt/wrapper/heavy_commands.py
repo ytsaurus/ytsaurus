@@ -181,7 +181,7 @@ class ReadIterator(IteratorRetrier):
                 params,
                 return_content=False,
                 use_heavy_proxy=True,
-                allow_retries=True,
+                allow_retries=False,
                 client=self.client)
 
             if self.transaction:
