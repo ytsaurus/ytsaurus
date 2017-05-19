@@ -49,6 +49,7 @@ public:
     TNullable<Stroka> LocalHostFqdn;
     int Retries;
     TDuration ResolveTimeout;
+    TDuration MaxResolveTimeout;
     TDuration WarningTimeout;
 
     TAddressResolverConfig()
@@ -63,8 +64,16 @@ public:
             .Default(25);
         RegisterParameter("resolve_timeout", ResolveTimeout)
             .Default(TDuration::MilliSeconds(200));
+        RegisterParameter("max_resolve_timeout", MaxResolveTimeout)
+            .Default(TDuration::MilliSeconds(5000));
         RegisterParameter("warning_timeout", WarningTimeout)
             .Default(TDuration::MilliSeconds(500));
+
+        RegisterInitializer([this] () {
+            RefreshTime = TDuration::Seconds(60);
+            ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(120);
+            ExpireAfterFailedUpdateTime = TDuration::Seconds(120);
+        });
     }
 };
 

@@ -32,6 +32,7 @@ public:
     TImpl(
         int retries,
         TDuration resolveTimeout,
+        TDuration maxResolveTimeout,
         TDuration warningTimeout);
     ~TImpl();
 
@@ -46,6 +47,7 @@ public:
 private:
     const int Retries_;
     const TDuration ResolveTimeout_;
+    const TDuration MaxResolveTimeout_;
     const TDuration WarningTimeout_;
 
     struct TNameRequest
@@ -92,9 +94,11 @@ std::atomic_flag TDnsResolver::TImpl::LibraryLock_ = ATOMIC_FLAG_INIT;
 TDnsResolver::TImpl::TImpl(
     int retries,
     TDuration resolveTimeout,
+    TDuration maxResolveTimeout,
     TDuration warningTimeout)
     : Retries_(retries)
     , ResolveTimeout_(resolveTimeout)
+    , MaxResolveTimeout_(maxResolveTimeout)
     , WarningTimeout_(warningTimeout)
     , ResolverThread_(&ResolverThreadMain, this)
 {
@@ -123,6 +127,8 @@ TDnsResolver::TImpl::TImpl(
     mask |= ARES_OPT_FLAGS;
     Options_.timeout = ResolveTimeout_.MilliSeconds();
     mask |= ARES_OPT_TIMEOUTMS;
+    Options_.maxtimeout = MaxResolveTimeout_.MilliSeconds();
+    mask |= ARES_OPT_MAXTIMEOUTMS;
     Options_.tries = Retries_;
     mask |= ARES_OPT_TRIES;
     Options_.sock_state_cb = &TDnsResolver::TImpl::OnSocketStateChanged;
@@ -437,8 +443,9 @@ void TDnsResolver::TImpl::OnNameResolutionDebugLog(
 TDnsResolver::TDnsResolver(
     int retries,
     TDuration resolveTimeout,
+    TDuration maxResolveTimeout,
     TDuration warningTimeout)
-    : Impl_{new TImpl{retries, resolveTimeout, warningTimeout}}
+    : Impl_{new TImpl{retries, resolveTimeout, maxResolveTimeout, warningTimeout}}
 { }
 
 TDnsResolver::~TDnsResolver() = default;

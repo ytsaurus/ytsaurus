@@ -15,6 +15,7 @@ public:
     TDnsResolver(
         int retries,
         TDuration resolveTimeout,
+        TDuration maxResolveTimeout,
         TDuration warningTimeout);
     ~TDnsResolver();
 
