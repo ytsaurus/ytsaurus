@@ -190,7 +190,7 @@ class RequestRetrier(Retrier):
             timeout = get_value(get_config(client)["proxy"]["request_retry_timeout"],
                                 get_config(client)["proxy"]["request_timeout"])
         self.requests_timeout = timeout
-        self.timeout = timeout[1] if isinstance(timeout, tuple) else timeout
+        retries_timeout = timeout[1] if isinstance(timeout, tuple) else timeout
 
         retriable_errors = list(get_retriable_errors())
         if is_ping:
@@ -201,7 +201,7 @@ class RequestRetrier(Retrier):
         self.headers = headers
 
         super(RequestRetrier, self).__init__(exceptions=tuple(retriable_errors),
-                                             timeout=timeout,
+                                             timeout=retries_timeout,
                                              retry_config=retry_config,
                                              chaos_monkey_enable=get_option("_ENABLE_HTTP_CHAOS_MONKEY", client))
 
@@ -224,7 +224,7 @@ class RequestRetrier(Retrier):
         try:
             session = _get_session(client=self.client)
             if isinstance(self.requests_timeout, tuple):
-                timeout = tuple(imap(lambda elem: elem / 1000.0, self.timeout))
+                timeout = tuple(imap(lambda elem: elem / 1000.0, self.requests_timeout))
             else:
                 timeout = self.requests_timeout / 1000.0
             response = create_response(session.request(self.method, url, timeout=timeout, **self.kwargs),
