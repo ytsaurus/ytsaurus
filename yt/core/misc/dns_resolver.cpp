@@ -331,7 +331,7 @@ void TDnsResolver::TImpl::ResolverThreadMain()
         struct epoll_event events[MaxEventsPerPoll];
 
         int timeout = tvp
-            ? tvp->tv_sec * 1000 + tvp->tv_usec / 1000
+            ? tvp->tv_sec * 1000 + (tvp->tv_usec + 999) / 1000
             : -1;
         int count = HandleEintr(epoll_wait, EpollFd, events, MaxEventsPerPoll, timeout);
 
