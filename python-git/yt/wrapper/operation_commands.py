@@ -121,12 +121,12 @@ def get_operation_state(operation, client=None):
     Raises :class:`YtError <yt.common.YtError>` if operation does not exists.
     """
     config = get_config(client)
-    retry_count = config["proxy"]["request_retry_count"]
-    config["proxy"]["request_retry_count"] = config["proxy"]["operation_state_discovery_retry_count"]
+    retry_count = config["proxy"]["retries"]["count"]
+    config["proxy"]["retries"]["count"] = config["proxy"]["operation_state_discovery_retry_count"]
     try:
         return OperationState(get_operation_attributes(operation, client=client)["state"])
     finally:
-        config["proxy"]["request_retry_count"] = retry_count
+        config["proxy"]["retries"]["count"] = retry_count
 
 def get_operation_progress(operation, client=None):
     def calculate_total(counter):
