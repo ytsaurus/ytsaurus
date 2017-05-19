@@ -165,7 +165,7 @@ class YTInstance(object):
         self._uuid = generate_uuid()
         self._lock = RLock()
 
-        self.path = os.path.abspath(path)
+        self.path = os.path.realpath(os.path.abspath(path))
         self.logs_path = os.path.abspath(os.path.join(self.path, "logs"))
         self.configs_path = os.path.abspath(os.path.join(self.path, "configs"))
         self.runtime_data_path = os.path.abspath(os.path.join(self.path, "runtime_data"))
