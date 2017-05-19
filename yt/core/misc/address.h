@@ -63,16 +63,16 @@ public:
         RegisterParameter("retries", Retries)
             .Default(25);
         RegisterParameter("resolve_timeout", ResolveTimeout)
-            .Default(TDuration::MilliSeconds(200));
+            .Default(TDuration::MilliSeconds(500));
         RegisterParameter("max_resolve_timeout", MaxResolveTimeout)
             .Default(TDuration::MilliSeconds(5000));
         RegisterParameter("warning_timeout", WarningTimeout)
-            .Default(TDuration::MilliSeconds(500));
+            .Default(TDuration::MilliSeconds(1000));
 
         RegisterInitializer([this] () {
             RefreshTime = TDuration::Seconds(60);
             ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(120);
-            ExpireAfterFailedUpdateTime = TDuration::Seconds(120);
+            ExpireAfterFailedUpdateTime = TDuration::Seconds(30);
         });
     }
 };
