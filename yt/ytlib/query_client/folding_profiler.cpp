@@ -542,7 +542,7 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query
             joinBatchSize = query->Limit;
         }
 
-        ConstExpressionPtr joinPredicate = joinClause->Predicate;
+        TConstExpressionPtr joinPredicate = joinClause->Predicate;
         if (!joinClause->IsLeft) {
             TConstExpressionPtr foreignPredicate;
             std::tie(foreignPredicate, whereClause) = SplitPredicateByColumnSubset(
