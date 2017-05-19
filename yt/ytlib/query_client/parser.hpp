@@ -322,30 +322,33 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // const-value
       char dummy9[sizeof(TNullable<TLiteralValue>)];
 
+      // join-predicate
+      char dummy10[sizeof(TNullableExpressionList)];
+
       // order-expr-list
-      char dummy10[sizeof(TOrderExpressionList)];
+      char dummy11[sizeof(TOrderExpressionList)];
 
       // qualified-identifier
-      char dummy11[sizeof(TReferenceExpressionPtr)];
+      char dummy12[sizeof(TReferenceExpressionPtr)];
 
       // "identifier"
-      char dummy12[sizeof(TStringBuf)];
+      char dummy13[sizeof(TStringBuf)];
 
       // table-descriptor
-      char dummy13[sizeof(TTableDescriptor)];
+      char dummy14[sizeof(TTableDescriptor)];
 
       // is-left
       // is-desc
-      char dummy14[sizeof(bool)];
+      char dummy15[sizeof(bool)];
 
       // "double literal"
-      char dummy15[sizeof(double)];
+      char dummy16[sizeof(double)];
 
       // "int64 literal"
-      char dummy16[sizeof(i64)];
+      char dummy17[sizeof(i64)];
 
       // "uint64 literal"
-      char dummy17[sizeof(ui64)];
+      char dummy18[sizeof(ui64)];
 };
 
     /// Symbol semantic values.
@@ -472,6 +475,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   basic_symbol (typename Base::kind_type t, const TLiteralValueTupleList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TNullable<TLiteralValue> v, const location_type& l);
+
+  basic_symbol (typename Base::kind_type t, const TNullableExpressionList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TOrderExpressionList v, const location_type& l);
 
@@ -844,7 +849,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const short int yytable_[];
 
-  static const unsigned char yycheck_[];
+  static const short int yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -959,8 +964,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 218,     ///< Last index in yytable_.
-      yynnts_ = 43,  ///< Number of nonterminal symbols.
+      yylast_ = 226,     ///< Last index in yytable_.
+      yynnts_ = 44,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 43, ///< Termination state number.
       yyterror_ = 1,

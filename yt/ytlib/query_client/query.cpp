@@ -624,6 +624,10 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
     proto->set_is_left(original->IsLeft);
     proto->set_can_use_source_ranges(original->CanUseSourceRanges);
     proto->set_common_key_prefix(original->CommonKeyPrefix);
+
+    if (original->Predicate) {
+        ToProto(proto->mutable_predicate(), original->Predicate);
+    }
 }
 
 void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& serialized)
@@ -639,6 +643,10 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
     FromProto(&result->IsLeft, serialized.is_left());
     FromProto(&result->CanUseSourceRanges, serialized.can_use_source_ranges());
     FromProto(&result->CommonKeyPrefix, serialized.common_key_prefix());
+
+    if (serialized.has_predicate()) {
+        FromProto(&result->Predicate, serialized.predicate());
+    }
 
     *original = result;
 }
@@ -727,7 +735,7 @@ void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
     ToProto(serialized->mutable_join_clauses(), original->JoinClauses);
 
     if (original->WhereClause) {
-        ToProto(serialized->mutable_predicate(), original->WhereClause);
+        ToProto(serialized->mutable_where_clause(), original->WhereClause);
     }
 
     if (original->GroupClause) {
@@ -764,8 +772,8 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
 
     FromProto(&result->JoinClauses, serialized.join_clauses());
 
-    if (serialized.has_predicate()) {
-        FromProto(&result->WhereClause, serialized.predicate());
+    if (serialized.has_where_clause()) {
+        FromProto(&result->WhereClause, serialized.where_clause());
     }
 
     if (serialized.has_group_clause()) {

@@ -2646,6 +2646,71 @@ TEST_F(TQueryEvaluateTest, TestLeftJoin)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestLeftJoinWithCondition)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    }, 0);
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "a=1",
+        "a=2",
+        "a=3",
+        "a=4"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64},
+    }, 1);
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        "a=1;b=1;c=1",
+        "a=1;b=2;c=1",
+        "a=1;b=3;c=1",
+        "a=2;b=1;c=1",
+        "a=2;b=3;c=1",
+        "a=3;b=1;c=1"
+    });
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"s", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "a=1;s=1",
+        "a=4"
+    }, resultSplit);
+
+    Evaluate(
+        "a, sum(c) as s FROM [//left] left join [//right] using a where b = 2 or b = # group by a",
+        splits,
+        sources,
+        OrderedResultMatcher(result, {"a"}));
+
+    auto result2 = YsonToRows({
+        "a=1;s=1",
+        "a=2",
+        "a=3",
+        "a=4"
+    }, resultSplit);
+
+    Evaluate(
+        "a, sum(c) as s FROM [//left] left join [//right] using a and b = 2 group by a",
+        splits,
+        sources,
+        OrderedResultMatcher(result2, {"a"}));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, ComplexAlias)
 {
     auto split = MakeSplit({

@@ -247,6 +247,8 @@ struct TJoinClause
     std::vector<Stroka> SelfJoinedColumns;
     std::vector<Stroka> ForeignJoinedColumns;
 
+    TConstExpressionPtr Predicate;
+
     bool CanUseSourceRanges;
     std::vector<TConstExpressionPtr> ForeignEquations;
     std::vector<std::pair<TConstExpressionPtr, bool>> SelfEquations;

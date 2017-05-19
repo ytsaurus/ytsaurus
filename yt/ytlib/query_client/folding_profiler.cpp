@@ -542,16 +542,23 @@ void TQueryProfiler::Profile(TCodegenSource* codegenSource, TConstQueryPtr query
             joinBatchSize = query->Limit;
         }
 
-        TConstExpressionPtr foreignFilter;
+        ConstExpressionPtr joinPredicate = joinClause->Predicate;
         if (!joinClause->IsLeft) {
-            std::tie(foreignFilter, whereClause) = SplitPredicateByColumnSubset(
+            TConstExpressionPtr foreignPredicate;
+            std::tie(foreignPredicate, whereClause) = SplitPredicateByColumnSubset(
                 whereClause,
                 joinClause->GetRenamedSchema());
+
+            if (joinPredicate) {
+                joinPredicate = MakeAndExpression(joinPredicate, foreignPredicate);
+            } else {
+                joinPredicate = foreignPredicate;
+            }
         }
 
         int index = Variables_->AddOpaque<TJoinParameters>(GetJoinEvaluator(
             *joinClause,
-            foreignFilter,
+            joinPredicate,
             schema,
             query->InputRowLimit,
             query->OutputRowLimit,
