@@ -1,6 +1,6 @@
 #include <yt/ytlib/table_client/unversioned_value.h>
 
-#include <yt_udf_cpp.h>
+#include "yt_udf_cpp.h"
 
 extern "C" void farm_hash(
     TExpressionContext* context,

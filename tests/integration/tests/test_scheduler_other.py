@@ -85,7 +85,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             ops.append(
                 map(dont_track=True,
                     # Sleep is necessary since we not support revive for completing operations.
-                    command="sleep 2; cat",
+                    command="sleep 3; cat",
                     in_=["//tmp/t_in"],
                     out="//tmp/t_out" + str(i)))
 
@@ -1527,7 +1527,8 @@ class TestSchedulerPools(YTEnvSetup):
             "event_log" : {
                 "flush_period" : 300,
                 "retry_backoff_time": 300
-            }
+            },
+            "max_ephemeral_pools_per_user": 3,
         }
     }
 
@@ -1562,26 +1563,86 @@ class TestSchedulerPools(YTEnvSetup):
         op.track()
 
     def test_default_parent_pool(self):
-        self._prepare()
+        create("table", "//tmp/t_in")
+        set("//tmp/t_in/@replication_factor", 1)
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        for output in ["//tmp/t_out1", "//tmp/t_out2"]:
+            create("table", output)
+            set(output + "/@replication_factor", 1)
 
         create("map_node", "//sys/pools/default_pool")
         time.sleep(0.2)
 
-        op = map(
+        op1 = map(
             dont_track=True,
             waiting_jobs=True,
             command="cat",
             in_="//tmp/t_in",
-            out="//tmp/t_out")
+            out="//tmp/t_out1")
+
+        op2 = map(
+            dont_track=True,
+            waiting_jobs=True,
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out2",
+            spec={"pool": "my_pool"})
 
         pool = get("//sys/scheduler/orchid/scheduler/pools/root")
         assert pool["parent"] == "default_pool"
 
+        pool = get("//sys/scheduler/orchid/scheduler/pools/my_pool")
+        assert pool["parent"] == "default_pool"
+
+        assert __builtin__.set(["root", "my_pool"]) == \
+               __builtin__.set(get("//sys/scheduler/orchid/scheduler/user_to_ephemeral_pools/root"))
+
         remove("//sys/pools/default_pool")
         time.sleep(0.2)
 
-        op.resume_jobs()
-        op.track()
+        for op in [op1, op2]:
+            op.resume_jobs()
+            op.track()
+
+    def test_ephemeral_pools_limit(self):
+        create("table", "//tmp/t_in")
+        set("//tmp/t_in/@replication_factor", 1)
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        for i in xrange(1, 5):
+            output = "//tmp/t_out" + str(i)
+            create("table", output)
+            set(output + "/@replication_factor", 1)
+
+        create("map_node", "//sys/pools/default_pool")
+        time.sleep(0.2)
+
+        ops = []
+        for i in xrange(1, 4):
+            ops.append(map(
+                dont_track=True,
+                waiting_jobs=True,
+                command="cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out" + str(i),
+                spec={"pool": "pool" + str(i)}))
+
+        assert __builtin__.set(["pool" + str(i) for i in xrange(1, 4)]) == \
+               __builtin__.set(get("//sys/scheduler/orchid/scheduler/user_to_ephemeral_pools/root"))
+
+        with pytest.raises(YtError):
+            map(command="cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out4",
+                spec={"pool": "pool4"})
+
+        remove("//sys/pools/default_pool")
+        time.sleep(0.2)
+
+        for op in ops:
+            op.resume_jobs()
+            op.track()
 
     def test_event_log(self):
         self._prepare()

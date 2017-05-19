@@ -1,4 +1,4 @@
-#include <yt_udf.h>
+#include "yt_udf.h"
 
 #include <inttypes.h>
 #include <stdint.h>
@@ -54,13 +54,13 @@ static void validate_format_string_length(int length)
 {
     if (length > MaxFormatLength) {
         char buffer[DefaultBufferLength];
-        int length = snprintf(
+        int resultLength = snprintf(
             buffer,
             sizeof(buffer),
             "Format string is too long: %d > %d",
             length,
             MaxFormatLength);
-        buffer[length] = 0;
+        buffer[resultLength] = 0;
         ThrowException(buffer);
     }
 }
@@ -107,6 +107,8 @@ int64_t timestamp_floor_hour(
     TExpressionContext* context,
     int64_t timestamp)
 {
+    (void)context;
+
     validate_timestamp(timestamp);
 
     time_t rawtime = timestamp;
@@ -123,6 +125,8 @@ int64_t timestamp_floor_day(
     TExpressionContext* context,
     int64_t timestamp)
 {
+    (void)context;
+
     validate_timestamp(timestamp);
 
     time_t rawtime = timestamp;
@@ -140,6 +144,8 @@ int64_t timestamp_floor_week(
     TExpressionContext* context,
     int64_t timestamp)
 {
+    (void)context;
+
     validate_timestamp(timestamp);
 
     time_t rawtime = timestamp;
@@ -160,6 +166,8 @@ int64_t timestamp_floor_month(
     TExpressionContext* context,
     int64_t timestamp)
 {
+    (void)context;
+
     validate_timestamp(timestamp);
 
     time_t rawtime = timestamp;
@@ -178,6 +186,8 @@ int64_t timestamp_floor_year(
     TExpressionContext* context,
     int64_t timestamp)
 {
+    (void)context;
+
     validate_timestamp(timestamp);
 
     time_t rawtime = timestamp;

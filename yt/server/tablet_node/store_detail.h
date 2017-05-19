@@ -122,6 +122,7 @@ public:
     //! invokes #OnSetPassive.
     virtual void SetStoreState(EStoreState state);
 
+    virtual i64 GetCompressedDataSize() const override;
     virtual i64 GetUncompressedDataSize() const override;
 
     // IDynamicStore implementation.
@@ -192,6 +193,7 @@ public:
     virtual TTimestamp GetMinTimestamp() const override;
     virtual TTimestamp GetMaxTimestamp() const override;
 
+    virtual i64 GetCompressedDataSize() const override;
     virtual i64 GetUncompressedDataSize() const override;
     virtual i64 GetRowCount() const override;
 

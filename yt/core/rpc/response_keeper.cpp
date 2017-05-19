@@ -119,7 +119,7 @@ public:
             return MakeFuture(finishedIt->second);
         }
 
-        if (isRetry && NProfiling::GetCpuInstant() < WarmupDeadline_) {
+        if (isRetry && IsWarmingUp()) {
             THROW_ERROR_EXCEPTION("Cannot reliably check for a duplicate mutating request")
                 << TErrorAttribute("mutation_id", id)
                 << TErrorAttribute("warmup_time", Config_->WarmupTime);
@@ -211,6 +211,11 @@ public:
         }
     }
 
+    bool IsWarmingUp() const
+    {
+        return NProfiling::GetCpuInstant() < WarmupDeadline_;
+    }
+
 private:
     const TResponseKeeperConfigPtr Config_;
     const IInvokerPtr Invoker_;
@@ -221,7 +226,7 @@ private:
     bool Started_ = false;
     NProfiling::TCpuInstant WarmupDeadline_ = 0;
 
-    yhash_map<TMutationId, TSharedRefArray> FinishedResponses_;
+    yhash<TMutationId, TSharedRefArray> FinishedResponses_;
     int FinishedResponseCount_ = 0;
     i64 FinishedResponseSpace_ = 0;
 
@@ -233,7 +238,7 @@ private:
 
     std::deque<TEvictionItem> ResponseEvictionQueue_;
 
-    yhash_map<TMutationId, TPromise<TSharedRefArray>> PendingResponses_;
+    yhash<TMutationId, TPromise<TSharedRefArray>> PendingResponses_;
 
     NLogging::TLogger Logger;
 
@@ -332,6 +337,11 @@ void TResponseKeeper::CancelRequest(const TMutationId& id, const TError& error)
 bool TResponseKeeper::TryReplyFrom(IServiceContextPtr context)
 {
     return Impl_->TryReplyFrom(std::move(context));
+}
+
+bool TResponseKeeper::IsWarmingUp() const
+{
+    return Impl_->IsWarmingUp();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

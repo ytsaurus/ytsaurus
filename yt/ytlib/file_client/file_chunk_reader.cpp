@@ -77,7 +77,7 @@ public:
         return ReadyEvent_;
     }
 
-    virtual bool ReadBlock(TSharedRef* block) override
+    virtual bool ReadBlock(TBlock* block) override
     {
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
             return true;
@@ -87,7 +87,7 @@ public:
             return false;
         }
 
-        block->Reset();
+        *block = TBlock();
         if (BlockFetched_) {
             BlockFetched_ = false;
             CurrentBlock_ = SequentialBlockFetcher_->FetchNextBlock();
@@ -100,7 +100,7 @@ public:
         YCHECK(ReadyEvent_.IsSet());
         if (ReadyEvent_.Get().IsOK()) {
             *block = GetBlock();
-            YCHECK(!block->Empty());
+            YCHECK(!block->Data.Empty());
             BlockFetched_ = true;
         }
 
@@ -149,7 +149,7 @@ private:
 
     NLogging::TLogger Logger = FileClientLogger;
 
-    TFuture<TSharedRef> CurrentBlock_;
+    TFuture<TBlock> CurrentBlock_;
 
     void DoOpen()
     {
@@ -237,27 +237,27 @@ private:
         LOG_INFO("File reader opened");
     }
 
-    TSharedRef GetBlock()
+    TBlock GetBlock()
     {
         auto block = CurrentBlock_.Get().ValueOrThrow();
 
-        auto* begin = block.Begin();
-        auto* end = block.End();
+        auto* begin = block.Data.Begin();
+        auto* end = block.Data.End();
 
         YCHECK(EndOffset_ > 0);
 
         if (EndOffset_ < block.Size()) {
-            end = block.Begin() + EndOffset_;
+            end = block.Data.Begin() + EndOffset_;
         }
 
         if (StartOffset_ > 0) {
-            begin = block.Begin() + StartOffset_;
+            begin = block.Data.Begin() + StartOffset_;
         }
 
         StartOffset_ = std::max(StartOffset_ - static_cast<i64>(block.Size()), (i64)0);
         EndOffset_ = std::max(EndOffset_ - static_cast<i64>(block.Size()), (i64)0);
 
-        return block.Slice(begin, end);
+        return TBlock(block.Data.Slice(begin, end));
     }
 
 };
@@ -288,20 +288,20 @@ class TFileMultiChunkReader
 public:
     using TSequentialMultiReaderBase::TSequentialMultiReaderBase;
 
-    virtual bool ReadBlock(TSharedRef* block) override
+    virtual bool ReadBlock(TBlock* block) override
     {
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
             return true;
         }
 
-        block->Reset();
+        *block = TBlock();
 
         // Nothing to read.
         if (!CurrentReader_)
             return false;
 
         bool readerFinished = !CurrentReader_->ReadBlock(block);
-        if (!block->Empty()) {
+        if (!block->Data.Empty()) {
             return true;
         }
 

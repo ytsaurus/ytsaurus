@@ -709,6 +709,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "time": 2, "value": 30}]
 
+    @pytest.mark.parametrize("aggregate", ["avg", "cardinality"])
+    def test_invalid_aggregate(self, aggregate):
+        self.sync_create_cells(1)
+        with pytest.raises(YtError):
+            self._create_table_with_aggregate_column("//tmp/t", aggregate=aggregate)
+
     def test_reshard_data(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t1", optimize_for = "scan")

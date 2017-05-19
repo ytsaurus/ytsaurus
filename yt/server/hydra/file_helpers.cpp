@@ -8,7 +8,7 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileWrapper::TFileWrapper(const Stroka& fileName, ui32 oMode)
+TFileWrapper::TFileWrapper(const Stroka& fileName, EOpenMode oMode)
     : File_(fileName, oMode)
 { }
 

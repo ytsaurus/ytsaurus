@@ -962,6 +962,8 @@ bool TDecoratedAutomaton::HasReadyMutations() const
 
 void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
 {
+    TContextSwitchGuard contextSwitchGuard([] { Y_UNREACHABLE(); });
+
     NProfiling::TScopedTimer timer;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
         while (!PendingMutations_.empty()) {

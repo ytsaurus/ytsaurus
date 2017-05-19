@@ -274,7 +274,7 @@ private:
         TExecuteCallback Execute;
     };
 
-    yhash_map<Stroka, TCommandEntry> CommandNameToEntry_;
+    yhash<Stroka, TCommandEntry> CommandNameToEntry_;
 
 
     template <class TCommand>

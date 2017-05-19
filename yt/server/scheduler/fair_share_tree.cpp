@@ -384,7 +384,7 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
 {
     auto cloneChildren = [&] (
         const std::vector<TSchedulerElementPtr>& list,
-        yhash_map<TSchedulerElementPtr, int>* clonedMap,
+        yhash<TSchedulerElementPtr, int>* clonedMap,
         std::vector<TSchedulerElementPtr>* clonedList)
     {
         for (const auto& child : list) {
@@ -1027,6 +1027,16 @@ TPool::TPool(const TPool& other, TCompositeSchedulerElement* clonedParent)
 bool TPool::IsDefaultConfigured() const
 {
     return DefaultConfigured_;
+}
+
+void TPool::SetUserName(const TNullable<Stroka>& userName)
+{
+    UserName_ = userName;
+}
+
+const TNullable<Stroka>& TPool::GetUserName() const
+{
+    return UserName_;
 }
 
 TPoolConfigPtr TPool::GetConfig()

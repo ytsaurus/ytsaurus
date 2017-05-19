@@ -436,8 +436,8 @@ class TMapNode
     : public TCypressNodeBase
 {
 public:
-    typedef yhash_map<Stroka, TCypressNodeBase*> TKeyToChild;
-    typedef yhash_map<TCypressNodeBase*, Stroka> TChildToKey;
+    typedef yhash<Stroka, TCypressNodeBase*> TKeyToChild;
+    typedef yhash<TCypressNodeBase*, Stroka> TChildToKey;
 
     DEFINE_BYREF_RW_PROPERTY(TKeyToChild, KeyToChild);
     DEFINE_BYREF_RW_PROPERTY(TChildToKey, ChildToKey);
@@ -498,7 +498,7 @@ class TListNode
 {
 public:
     typedef std::vector<TCypressNodeBase*> TIndexToChild;
-    typedef yhash_map<TCypressNodeBase*, int> TChildToIndex;
+    typedef yhash<TCypressNodeBase*, int> TChildToIndex;
 
     DEFINE_BYREF_RW_PROPERTY(TIndexToChild, IndexToChild);
     DEFINE_BYREF_RW_PROPERTY(TChildToIndex, ChildToIndex);

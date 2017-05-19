@@ -11,12 +11,25 @@
 
 #include <contrib/libs/c-ares/ares.h>
 
+#ifdef _linux_
+#define YT_DNS_RESOLVER_USE_EPOLL
+#define YT_DNS_RESOLVER_USE_EVENTFD
+#endif
+
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <sys/epoll.h>
-#include <sys/eventfd.h>
 #include <sys/socket.h>
+
+#ifdef YT_DNS_RESOLVER_USE_EPOLL
+#include <sys/epoll.h>
+#else
+#include <sys/select.h>
+#endif
+
+#ifdef YT_DNS_RESOLVER_USE_EVENTFD
+#include <sys/eventfd.h>
+#endif
 
 namespace NYT {
 
@@ -68,8 +81,15 @@ private:
     TNameRequestQueue Queue_;
 
     TThread ResolverThread_;
+#ifdef YT_DNS_RESOLVER_USE_EPOLL
     int EpollFd = -1;
+#endif
+#ifdef YT_DNS_RESOLVER_USE_EVENTFD
     int EventFd = -1;
+#else
+    int PipeFds[2] = {-1, -1};
+    std::atomic<int> PipeCount_ = {0};
+#endif
     std::atomic<bool> Alive_ = {true};
 
     ares_channel Channel_;
@@ -102,15 +122,26 @@ TDnsResolver::TImpl::TImpl(
     , WarningTimeout_(warningTimeout)
     , ResolverThread_(&ResolverThreadMain, this)
 {
+#ifdef YT_DNS_RESOLVER_USE_EPOLL
     EpollFd = HandleEintr(epoll_create1, EPOLL_CLOEXEC);
     YCHECK(EpollFd >= 0);
+#endif
+
+#ifdef YT_DNS_RESOLVER_USE_EVENTFD
     EventFd = HandleEintr(eventfd, 0, EFD_CLOEXEC | EFD_NONBLOCK);
     YCHECK(EventFd >= 0);
+    const int notificationFd = EventFd;
+#else
+#ifdef _darwin_
+    YCHECK(HandleEintr(pipe, PipeFds) == 0);
+#else
+    YCHECK(HandleEintr(pipe2, PipeFds, O_CLOEXEC) == 0);
+#endif
+    const int notificationFd = PipeFds[0];
+#endif
 
-    struct epoll_event event{0, {0}};
-    event.events = EPOLLIN;
-    event.data.fd = EventFd;
-    YCHECK(epoll_ctl(EpollFd, EPOLL_CTL_ADD, EventFd, &event) == 0);
+    OnSocketCreated(notificationFd, AF_UNSPEC, this);
+    OnSocketStateChanged(this, notificationFd, 1, 0);
 
     // Init library globals.
     // c-ares 1.10+ provides recursive behaviour of init/cleanup.
@@ -154,8 +185,15 @@ TDnsResolver::TImpl::~TImpl()
     ares_library_cleanup();
     LibraryLock_.clear(std::memory_order_release);
 
+#ifdef YT_DNS_RESOLVER_USE_EVENTFD
     YCHECK(HandleEintr(close, EventFd) == 0);
+#else
+    YCHECK(HandleEintr(close, PipeFds[0]) == 0);
+    YCHECK(HandleEintr(close, PipeFds[1]) == 0);
+#endif
+#ifdef YT_DNS_RESOLVER_USE_EPOLL
     YCHECK(HandleEintr(close, EpollFd) == 0);
+#endif
 }
 
 void TDnsResolver::TImpl::Start()
@@ -208,14 +246,31 @@ TFuture<TNetworkAddress> TDnsResolver::TImpl::ResolveName(
 
 void TDnsResolver::TImpl::RaiseNotification()
 {
+#ifdef YT_DNS_RESOLVER_USE_EVENTFD
     size_t one = 1;
     YCHECK(HandleEintr(write, EventFd, &one, sizeof(one)) == sizeof(one));
+#else
+    if (PipeCount_.load(std::memory_order_relaxed) > 0) {
+        // Avoid trashing pipe with redundant notifications.
+        return;
+    }
+    char c = 'x';
+    YCHECK(HandleEintr(write, PipeFds[1], &c, sizeof(char)) == sizeof(char));
+    PipeCount_.fetch_add(1, std::memory_order_relaxed);
+#endif
 }
 
 void TDnsResolver::TImpl::ClearNotification()
 {
+#ifdef YT_DNS_RESOLVER_USE_EVENTFD
     size_t count = 0;
     YCHECK(HandleEintr(read, EventFd, &count, sizeof(count)) == sizeof(count));
+#else
+    for (int count = PipeCount_.exchange(0, std::memory_order_relaxed); count > 0; --count) {
+        char c;
+        YCHECK(HandleEintr(read, PipeFds[0], &c, sizeof(char)) == sizeof(char));
+    }
+#endif
 }
 
 void* TDnsResolver::TImpl::ResolverThreadMain(void* opaque)
@@ -229,7 +284,6 @@ void TDnsResolver::TImpl::ResolverThreadMain()
     TThread::CurrentThreadSetName("DnsResolver");
 
     constexpr size_t MaxRequestsPerDrain = 100;
-    constexpr size_t MaxEventsPerPoll = 10;
 
     auto drainQueue = [this] () -> bool {
         for (size_t iteration = 0; iteration < MaxRequestsPerDrain; ++iteration) {
@@ -253,13 +307,18 @@ void TDnsResolver::TImpl::ResolverThreadMain()
                 family,
                 &OnNameResolution,
                 request.get());
-            // Releasing unique_ptr on a separate line, because argument evaluation order is not specified.
+            // Releasing unique_ptr on a separate line,
+            // because argument evaluation order is not specified.
             request.release();
         }
         return false;
     };
 
-    struct epoll_event events[MaxEventsPerPoll];
+#ifdef YT_DNS_RESOLVER_USE_EVENTFD
+    const int notificationFd = EventFd;
+#else
+    const int notificationFd = PipeFds[0];
+#endif
 
     while (Alive_.load(std::memory_order_relaxed)) {
         struct timeval* tvp, tv;
@@ -267,10 +326,13 @@ void TDnsResolver::TImpl::ResolverThreadMain()
 
         bool drain = false;
 
+#ifdef YT_DNS_RESOLVER_USE_EPOLL
+        constexpr size_t MaxEventsPerPoll = 10;
+        struct epoll_event events[MaxEventsPerPoll];
+
         int timeout = tvp
             ? tvp->tv_sec * 1000 + tvp->tv_usec / 1000
             : -1;
-
         int count = HandleEintr(epoll_wait, EpollFd, events, MaxEventsPerPoll, timeout);
 
         if (count < 0) {
@@ -281,23 +343,48 @@ void TDnsResolver::TImpl::ResolverThreadMain()
             // According to c-ares implementation this loop would cost O(#dns-servers-total * #dns-servers-active).
             // Hope that we are not creating too much connections!
             for (int i = 0; i < count; ++i) {
-                int fd = events[i].data.fd;
-                if (fd == EventFd) {
+                int triggeredFd = events[i].data.fd;
+                if (triggeredFd == notificationFd) {
                     drain = true;
                     continue;
                 }
+
                 int read = (events[i].events & EPOLLIN) != 0;
                 int write = (events[i].events & EPOLLOUT) != 0;
-                ares_process_fd(Channel_, read ? fd : ARES_SOCKET_BAD, write ? fd : ARES_SOCKET_BAD);
+                ares_process_fd(
+                    Channel_,
+                    read ? triggeredFd : ARES_SOCKET_BAD,
+                    write ? triggeredFd : ARES_SOCKET_BAD);
             }
         }
+#else
+        fd_set readFds, writeFds;
+        FD_ZERO(&readFds);
+        FD_ZERO(&writeFds);
+
+        int nFds = ares_fds(Channel_, &readFds, &writeFds);
+        nFds = std::max(nFds, 1 + notificationFd);
+        FD_SET(notificationFd, &readFds);
+
+        YCHECK(nFds <= FD_SETSIZE); // This is inherent limitation by select().
+
+        int result = select(nFds, &readFds, &writeFds, nullptr, tvp);
+        YCHECK(result >= 0);
+
+        ares_process(Channel_, &readFds, &writeFds);
+
+        if (FD_ISSET(notificationFd, &readFds)) {
+            drain = true;
+        }
+#endif
 
         if (drain && drainQueue()) {
             ClearNotification();
         }
     }
 
-    // Make sure that there are no more enqueued requests. We have observed `Alive_ == false` previously,
+    // Make sure that there are no more enqueued requests.
+    // We have observed `Alive_ == false` previously,
     // which implies that producers no longer pushing to the queue.
     while (!drainQueue());
     // Cancel out all pending requests.
@@ -306,18 +393,31 @@ void TDnsResolver::TImpl::ResolverThreadMain()
 
 int TDnsResolver::TImpl::OnSocketCreated(int socket, int type, void* opaque)
 {
+    int result = 0;
+#ifdef YT_DNS_RESOLVER_USE_EPOLL
     auto this_ = static_cast<TDnsResolver::TImpl*>(opaque);
     struct epoll_event event{0, {0}};
     event.data.fd = socket;
-    int result = epoll_ctl(this_->EpollFd, EPOLL_CTL_ADD, socket, &event);
-    if (result < 0) {
+    result = epoll_ctl(this_->EpollFd, EPOLL_CTL_ADD, socket, &event);
+    if (result != 0) {
         LOG_WARNING(TError::FromSystem(), "epoll_ctl() failed");
+        result = -1;
     }
+#else
+    if (socket >= FD_SETSIZE) {
+        LOG_WARNING(
+            "File descriptor is out of valid range (Fd: %v, Limit: %v)",
+            socket,
+            FD_SETSIZE);
+        result = -1;
+    }
+#endif
     return result;
 }
 
 void TDnsResolver::TImpl::OnSocketStateChanged(void* opaque, int socket, int read, int write)
 {
+#ifdef YT_DNS_RESOLVER_USE_EPOLL
     auto this_ = static_cast<TDnsResolver::TImpl*>(opaque);
     struct epoll_event event{0, {0}};
     event.data.fd = socket;
@@ -331,10 +431,10 @@ void TDnsResolver::TImpl::OnSocketStateChanged(void* opaque, int socket, int rea
     if (!read && !write) {
         op = EPOLL_CTL_DEL;
     }
-    int result = epoll_ctl(this_->EpollFd, op, socket, &event);
-    if (result < 0) {
-        LOG_WARNING(TError::FromSystem(), "epoll_ctl() failed");
-    }
+    YCHECK(epoll_ctl(this_->EpollFd, op, socket, &event) == 0);
+#else
+    YCHECK(socket < FD_SETSIZE);
+#endif
 }
 
 void TDnsResolver::TImpl::OnNameResolution(

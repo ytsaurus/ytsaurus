@@ -26,7 +26,7 @@ public:
 DEFINE_REFCOUNTED_TYPE(IChunkLookupHashTable)
 
 IChunkLookupHashTablePtr CreateChunkLookupHashTable(
-    const std::vector<TSharedRef>& blocks,
+    const std::vector<NChunkClient::TBlock>& blocks,
     TCachedVersionedChunkMetaPtr chunkMeta,
     TKeyComparer keyComparer);
 

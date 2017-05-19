@@ -368,13 +368,13 @@ private:
             candidates.begin(),
             candidates.end(),
             [] (const TSortedChunkStorePtr& lhs, const TSortedChunkStorePtr& rhs) {
-                return lhs->GetUncompressedDataSize() > rhs->GetUncompressedDataSize();
+                return lhs->GetCompressedDataSize() > rhs->GetCompressedDataSize();
             });
 
         i64 dataSizeSum = 0;
         int bestStoreCount = -1;
         for (int i = 0; i < candidates.size(); ++i) {
-            dataSizeSum += candidates[i]->GetUncompressedDataSize();
+            dataSizeSum += candidates[i]->GetCompressedDataSize();
             int storeCount = i + 1;
             if (storeCount >= config->MinPartitioningStoreCount &&
                 storeCount <= config->MaxPartitioningStoreCount &&
@@ -409,7 +409,7 @@ private:
 #if 0
         // Don't compact partitions (excluding Eden) whose data size exceeds the limit.
         // Let Partition Balancer do its job.
-        if (!partition->IsEden() && partition->GetUncompressedDataSize() > config->MaxCompactionDataSize) {
+        if (!partition->IsEden() && partition->GetCompressedDataSize() > config->MaxCompactionDataSize) {
             return std::vector<TSortedChunkStorePtr>();
         }
 #endif
@@ -421,8 +421,9 @@ private:
                 continue;
             }
 
+            // FIXME: check here
             // Don't compact large Eden stores.
-            if (partition->IsEden() && store->GetUncompressedDataSize() >= config->MinPartitioningDataSize) {
+            if (partition->IsEden() && store->GetCompressedDataSize() >= config->MinPartitioningDataSize) {
                 continue;
             }
 
@@ -451,7 +452,7 @@ private:
             candidates.begin(),
             candidates.end(),
             [] (TSortedChunkStorePtr lhs, TSortedChunkStorePtr rhs) {
-                return lhs->GetUncompressedDataSize() < rhs->GetUncompressedDataSize();
+                return lhs->GetCompressedDataSize() < rhs->GetCompressedDataSize();
             });
 
         const auto* eden = tablet->GetEden();
@@ -466,7 +467,7 @@ private:
                 if (storeCount > config->MaxCompactionStoreCount) {
                    break;
                 }
-                i64 dataSize = candidates[j]->GetUncompressedDataSize();
+                i64 dataSize = candidates[j]->GetCompressedDataSize();
                 if (!tooManyOverlappingStores &&
                     dataSize > config->CompactionDataSizeBase &&
                     dataSizeSum > 0 && dataSize > dataSizeSum * config->CompactionDataSizeRatio) {
@@ -690,7 +691,7 @@ private:
         try {
             i64 dataSize = 0;
             for (const auto& store : stores) {
-                dataSize += store->GetUncompressedDataSize();
+                dataSize += store->GetCompressedDataSize();
                 storeManager->BeginStoreCompaction(store);
             }
 
@@ -1028,7 +1029,7 @@ private:
         try {
             i64 dataSize = 0;
             for (const auto& store : stores) {
-                dataSize += store->GetUncompressedDataSize();
+                dataSize += store->GetCompressedDataSize();
                 storeManager->BeginStoreCompaction(store);
             }
 

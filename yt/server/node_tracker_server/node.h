@@ -63,7 +63,7 @@ public:
     ui64 GetVisitMark(int mediumIndex);
     void SetVisitMark(int mediumIndex, ui64 mark);
 
-    using TMulticellStates = yhash_map<NObjectClient::TCellTag, ENodeState>;
+    using TMulticellStates = yhash<NObjectClient::TCellTag, ENodeState>;
     DEFINE_BYREF_RO_PROPERTY(TMulticellStates, MulticellStates);
 
     //! Tags specified by user in "user_tags" attribute.
@@ -116,7 +116,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TReplicaSet, Replicas);
 
     //! Maps replicas to the leader timestamp when this replica was registered by a client.
-    typedef yhash_map<TChunkPtrWithIndexes, TInstant> TUnapprovedReplicaMap;
+    typedef yhash<TChunkPtrWithIndexes, TInstant> TUnapprovedReplicaMap;
     DEFINE_BYREF_RW_PROPERTY(TUnapprovedReplicaMap, UnapprovedReplicas);
 
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
@@ -127,21 +127,21 @@ public:
     //!   Medium index indicates the medium where this replica is being stored.
     //! Value:
     //!   Indicates media where acting as replication targets for this chunk.
-    using TChunkReplicationQueues = std::vector<yhash_map<TChunkPtrWithIndexes, TMediumIndexSet>>;
+    using TChunkReplicationQueues = std::vector<yhash<TChunkPtrWithIndexes, TMediumIndexSet>>;
     DEFINE_BYREF_RW_PROPERTY(TChunkReplicationQueues, ChunkReplicationQueues);
 
     //! Key:
     //!   Encodes chunk and one of its parts (for erasure chunks only, others use GenericChunkReplicaIndex).
     //! Value:
     //!   Indicates media where removal of this chunk is scheduled.
-    using TChunkRemovalQueue = yhash_map<NChunkClient::TChunkIdWithIndex, TMediumIndexSet>;
+    using TChunkRemovalQueue = yhash<NChunkClient::TChunkIdWithIndex, TMediumIndexSet>;
     DEFINE_BYREF_RW_PROPERTY(TChunkRemovalQueue, ChunkRemovalQueue);
 
     //! Key:
     //!   Indicates an unsealed chunk.
     //! Value:
     //!   Indicates media where seal of this chunk is scheduled.
-    typedef yhash_map<TChunk*, TMediumIndexSet> TChunkSealQueue;
+    typedef yhash<TChunk*, TMediumIndexSet> TChunkSealQueue;
     DEFINE_BYREF_RW_PROPERTY(TChunkSealQueue, ChunkSealQueue);
 
     // Tablet Manager stuff.

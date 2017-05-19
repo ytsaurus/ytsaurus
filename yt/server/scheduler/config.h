@@ -93,6 +93,9 @@ public:
     //! Backoff for printing tree scheduling info in heartbeat.
     TDuration HeartbeatTreeSchedulingInfoLogBackoff;
 
+    //! Maximum number of ephemeral pools that can be created by user.
+    int MaxEphemeralPoolsPerUser;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -187,6 +190,10 @@ public:
 
         RegisterParameter("heartbeat_tree_scheduling_info_log_period", HeartbeatTreeSchedulingInfoLogBackoff)
             .Default(TDuration::MilliSeconds(100));
+
+        RegisterParameter("max_ephemeral_pools_per_user", MaxEphemeralPoolsPerUser)
+            .GreaterThanOrEqual(1)
+            .Default(5);
 
         RegisterValidator([&] () {
             if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
@@ -756,7 +763,7 @@ public:
     TRemoteCopyOperationOptionsPtr RemoteCopyOperationOptions;
 
     //! Default environment variables set for every job.
-    yhash_map<Stroka, Stroka> Environment;
+    yhash<Stroka, Stroka> Environment;
 
     //! Interval between consequent snapshots.
     TDuration SnapshotPeriod;
@@ -814,6 +821,7 @@ public:
     double UserJobMemoryDigestPrecision;
     double UserJobMemoryReserveQuantile;
     double JobProxyMemoryReserveQuantile;
+    double ResourceOverdraftFactor;
 
     // Duration of no activity by job to be considered as suspicious.
     TDuration SuspiciousInactivityTimeout;
@@ -1040,7 +1048,7 @@ public:
             .DefaultNew();
 
         RegisterParameter("environment", Environment)
-            .Default(yhash_map<Stroka, Stroka>())
+            .Default(yhash<Stroka, Stroka>())
             .MergeBy(NYTree::EMergeStrategy::Combine);
 
         RegisterParameter("snapshot_timeout", SnapshotTimeout)
@@ -1111,6 +1119,9 @@ public:
         RegisterParameter("job_proxy_memory_reserve_quantile", JobProxyMemoryReserveQuantile)
             .InRange(0.0, 1.0)
             .Default(0.95);
+        RegisterParameter("resource_overdraft_factor", ResourceOverdraftFactor)
+            .InRange(1.0, 10.0)
+            .Default(1.1);
 
         RegisterParameter("suspicious_inactivity_timeout", SuspiciousInactivityTimeout)
             .Default(TDuration::Minutes(1));

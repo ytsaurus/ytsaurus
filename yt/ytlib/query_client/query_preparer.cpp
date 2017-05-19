@@ -23,7 +23,6 @@ namespace NQueryClient {
 using namespace NConcurrency;
 using namespace NTableClient;
 
-static const auto& Logger = QueryClientLogger;
 static const int PlanFragmentDepthLimit = 50;
 
 struct TQueryPreparerBufferTag
@@ -1088,7 +1087,7 @@ public:
     TSchemaProxy()
     { }
 
-    TSchemaProxy(const yhash_map<std::pair<Stroka, Stroka>, TBaseColumn>& lookup)
+    TSchemaProxy(const yhash<std::pair<Stroka, Stroka>, TBaseColumn>& lookup)
         : Lookup_(lookup)
     { }
 
@@ -1135,13 +1134,13 @@ public:
     virtual void Finish()
     { }
 
-    const yhash_map<std::pair<Stroka, Stroka>, TBaseColumn>& GetLookup() const
+    const yhash<std::pair<Stroka, Stroka>, TBaseColumn>& GetLookup() const
     {
         return Lookup_;
     }
 
 private:
-    yhash_map<std::pair<Stroka, Stroka>, TBaseColumn> Lookup_;
+    yhash<std::pair<Stroka, Stroka>, TBaseColumn> Lookup_;
 
 protected:
     virtual TNullable<TBaseColumn> ProvideColumn(const Stroka& name, const Stroka& tableName)
@@ -1213,7 +1212,7 @@ public:
 
 private:
     std::vector<TColumnDescriptor>* Mapping_;
-    yhash_map<Stroka, size_t> ColumnsCollisions_;
+    yhash<Stroka, size_t> ColumnsCollisions_;
     const TTableSchema SourceTableSchema_;
     Stroka TableName_;
 
@@ -1537,6 +1536,10 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     i64 outputRowLimit,
     TTimestamp timestamp)
 {
+    auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
+
+    auto Logger = MakeQueryLogger(query);
+
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>(), NAst::TAliasMap()};
     ParseYqlString(
         &astHead,
@@ -1552,11 +1555,10 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
 
     TDataSplit selfDataSplit;
 
-    auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
     TSchemaProxyPtr schemaProxy;
 
     auto table = ast.Table;
-    LOG_DEBUG("Getting initial data split for %v", table.Path);
+    LOG_DEBUG("Getting initial data split (Path: %v)", table.Path);
 
     selfDataSplit = WaitFor(callbacks->GetInitialSplit(table.Path, timestamp))
         .ValueOrThrow();

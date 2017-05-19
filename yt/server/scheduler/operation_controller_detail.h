@@ -600,7 +600,7 @@ protected:
         bool CompletedFired;
 
         //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
-        yhash_map<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
+        yhash<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
 
         TJobResources ApplyMemoryReserve(const TExtendedJobResources& jobResources) const;
 
@@ -696,7 +696,7 @@ protected:
         std::multimap<TInstant, TTaskPtr> DelayedTasks;
 
         //! Local tasks keyed by node id.
-        yhash_map<NNodeTrackerClient::TNodeId, yhash_set<TTaskPtr>> NodeIdToTasks;
+        yhash<NNodeTrackerClient::TNodeId, yhash_set<TTaskPtr>> NodeIdToTasks;
 
         TTaskGroup()
         {
@@ -1096,7 +1096,7 @@ protected:
 private:
     typedef TOperationControllerBase TThis;
 
-    typedef yhash_map<NChunkClient::TChunkId, TInputChunkDescriptor> TInputChunkMap;
+    typedef yhash<NChunkClient::TChunkId, TInputChunkDescriptor> TInputChunkMap;
 
     //! Keeps information needed to maintain the liveness state of input chunks.
     TInputChunkMap InputChunkMap;
@@ -1115,14 +1115,14 @@ private:
     NConcurrency::TReaderWriterSpinLock CachedNeededResourcesLock;
 
     //! Maps an intermediate chunk id to its originating completed job.
-    yhash_map<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap;
+    yhash<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap;
 
     TIntermediateChunkScraperPtr IntermediateChunkScraper;
 
     //! Maps scheduler's job ids to controller's joblets.
     //! NB: |TJobPtr -> TJobletPtr| mapping would be faster but
     //! it cannot be serialized that easily.
-    yhash_map<TJobId, TJobletPtr> JobletMap;
+    yhash<TJobId, TJobletPtr> JobletMap;
 
     NChunkClient::TChunkScraperPtr InputChunkScraper;
 
@@ -1161,7 +1161,7 @@ private:
     const std::unique_ptr<NTableClient::IValueConsumer> EventLogValueConsumer_;
     const std::unique_ptr<NYson::IYsonConsumer> EventLogTableConsumer_;
 
-    typedef yhash_map<EJobType, std::unique_ptr<IDigest>> TMemoryDigestMap;
+    typedef yhash<EJobType, std::unique_ptr<IDigest>> TMemoryDigestMap;
     TMemoryDigestMap JobProxyMemoryDigests_;
     TMemoryDigestMap UserJobMemoryDigests_;
 
@@ -1182,7 +1182,7 @@ private:
 
     void BuildAndSaveProgress();
 
-    void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics);
+    void UpdateMemoryDigests(TJobletPtr joblet, const NJobTrackerClient::TStatistics& statistics, bool resourceOverdraft = false);
 
     void InitializeHistograms();
     void UpdateEstimatedHistogram(TJobletPtr joblet);

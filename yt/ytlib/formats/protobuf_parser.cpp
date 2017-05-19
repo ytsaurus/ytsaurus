@@ -322,7 +322,7 @@ private:
     const Descriptor* MessageDescriptor_;
 
     std::vector<TField> Fields_;
-    yhash_map<ui32, TField> HashFields_;
+    yhash<ui32, TField> HashFields_;
     static constexpr size_t MinHashTag_ = 256;
 
     EState State_ = EState::InsideLength;

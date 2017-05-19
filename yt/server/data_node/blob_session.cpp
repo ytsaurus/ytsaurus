@@ -92,7 +92,7 @@ TChunkInfo TBlobSession::GetChunkInfo() const
 
 TFuture<void> TBlobSession::DoPutBlocks(
     int startBlockIndex,
-    const std::vector<TSharedRef>& blocks,
+    const std::vector<TBlock>& blocks,
     bool enableCaching)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -132,7 +132,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
 
         auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
-            if (TRef::AreBitwiseEqual(slot.Block, block)) {
+            if (TRef::AreBitwiseEqual(slot.Block.Data, block.Data)) {
                 LOG_WARNING("Skipped duplicate block (Block: %v)", blockIndex);
                 continue;
             }
@@ -219,7 +219,9 @@ TFuture<void> TBlobSession::DoSendBlocks(
     i64 requestSize = 0;
     for (int blockIndex = firstBlockIndex; blockIndex < firstBlockIndex + blockCount; ++blockIndex) {
         auto block = GetBlock(blockIndex);
-        req->Attachments().push_back(block);
+
+        // TODO(prime): push checksum into RPC layer
+        req->Attachments().push_back(block.Data);
         requestSize += block.Size();
     }
 
@@ -229,7 +231,7 @@ TFuture<void> TBlobSession::DoSendBlocks(
     }));
 }
 
-void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
+void TBlobSession::DoWriteBlock(const TBlock& block, int blockIndex)
 {
     // Thread affinity: WriterThread
 
@@ -471,7 +473,7 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
     while (WindowStartBlockIndex_ <= flushedBlockIndex) {
         auto& slot = GetSlot(WindowStartBlockIndex_);
         YCHECK(slot.State == ESlotState::Written);
-        slot.Block = TSharedRef();
+        slot.Block = TBlock();
         slot.MemoryTrackerGuard.Release();
         slot.PendingIOGuard.Release();
         slot.WrittenPromise.Reset();
@@ -517,7 +519,7 @@ TBlobSession::TSlot& TBlobSession::GetSlot(int blockIndex)
     return Window_[blockIndex];
 }
 
-TSharedRef TBlobSession::GetBlock(int blockIndex)
+TBlock TBlobSession::GetBlock(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

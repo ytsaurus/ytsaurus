@@ -92,6 +92,9 @@ public:
      */
     bool TryReplyFrom(IServiceContextPtr context);
 
+    //! Returns |true| if the keeper is still warming up.
+    bool IsWarmingUp() const;
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

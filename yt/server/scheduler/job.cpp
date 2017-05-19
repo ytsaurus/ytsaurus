@@ -132,32 +132,28 @@ TDuration TJob::GetDuration() const
     return *FinishTime_ - StartTime_;
 }
 
-TBriefJobStatisticsPtr TJob::BuildBriefStatistics(const TYsonString& statisticsYson) const
-{
-    auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(statisticsYson);
-
-    auto briefStatistics = New<TBriefJobStatistics>();
-    briefStatistics->ProcessedInputRowCount = GetNumericValue(statistics, "/data/input/row_count");
-    briefStatistics->ProcessedInputUncompressedDataSize = GetNumericValue(statistics, "/data/input/uncompressed_data_size");
-    briefStatistics->ProcessedInputCompressedDataSize = GetNumericValue(statistics, "/data/input/compressed_data_size");
-    briefStatistics->InputPipeIdleTime = FindNumericValue(statistics, "/user_job/pipes/input/idle_time");
-    briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, "/job_proxy/cpu/user");
-    briefStatistics->Timestamp = statistics.GetTimestamp().Get(TInstant::Now());
-
-    auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
-    briefStatistics->ProcessedOutputUncompressedDataSize = outputDataStatistics.uncompressed_data_size();
-    briefStatistics->ProcessedOutputCompressedDataSize = outputDataStatistics.compressed_data_size();
-    briefStatistics->ProcessedOutputRowCount = outputDataStatistics.row_count();
-
-    return briefStatistics;
-}
-
 void TJob::AnalyzeBriefStatistics(
     TDuration suspiciousInactivityTimeout,
     i64 suspiciousCpuUsageThreshold,
     double suspiciousInputPipeIdleTimeFraction,
-    const TBriefJobStatisticsPtr& briefStatistics)
+    const TErrorOr<TBriefJobStatisticsPtr>& briefStatisticsOrError)
 {
+    if (!briefStatisticsOrError.IsOK()) {
+        if (BriefStatistics_) {
+            // Failures in brief statistics building are normal during job startup,
+            // when readers and writers are not built yet. After we successfully built
+            // brief statistics once, we shouldn't fail anymore.
+
+            LOG_WARNING(
+                briefStatisticsOrError,
+                "Failed to build brief job statistics (JobId: %v)",
+                Id_);
+        }
+        return;
+    }
+
+    const auto& briefStatistics = briefStatisticsOrError.Value();
+
     bool wasActive = false;
 
     if (!BriefStatistics_ || CheckJobActivity(

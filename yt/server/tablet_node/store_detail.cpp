@@ -283,6 +283,11 @@ void TDynamicStoreBase::SetStoreState(EStoreState state)
     TStoreBase::SetStoreState(state);
 }
 
+i64 TDynamicStoreBase::GetCompressedDataSize() const
+{
+    return GetPoolCapacity();
+}
+
 i64 TDynamicStoreBase::GetUncompressedDataSize() const
 {
     return GetPoolCapacity();
@@ -396,6 +401,11 @@ void TChunkStoreBase::Initialize(const TAddStoreDescriptor* descriptor)
 const TChunkMeta& TChunkStoreBase::GetChunkMeta() const
 {
     return *ChunkMeta_;
+}
+
+i64 TChunkStoreBase::GetCompressedDataSize() const
+{
+    return MiscExt_.compressed_data_size();
 }
 
 i64 TChunkStoreBase::GetUncompressedDataSize() const

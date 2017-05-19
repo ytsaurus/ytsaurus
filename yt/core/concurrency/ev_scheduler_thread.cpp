@@ -18,7 +18,7 @@ void TEVSchedulerThread::TInvoker::Invoke(TClosure callback)
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
 TThreadId TEVSchedulerThread::TInvoker::GetThreadId() const
 {
-    return Owner_->ThreadId;
+    return Owner_->ThreadId_;
 }
 
 bool TEVSchedulerThread::TInvoker::CheckAffinity(IInvokerPtr invoker) const
@@ -95,7 +95,7 @@ EBeginExecuteResult TEVSchedulerThread::BeginExecuteCallbacks()
         return EBeginExecuteResult::QueueEmpty;
     }
 
-    CallbackEventCount->CancelWait();
+    CallbackEventCount_->CancelWait();
 
     if (IsShutdown()) {
         return EBeginExecuteResult::Terminated;

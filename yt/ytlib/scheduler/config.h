@@ -169,7 +169,7 @@ public:
 
     TNullable<bool> EnableInputTableIndex;
 
-    yhash_map<Stroka, Stroka> Environment;
+    yhash<Stroka, Stroka> Environment;
 
     double CpuLimit;
     TNullable<TDuration> JobTimeLimit;
@@ -412,6 +412,8 @@ class TReduceOperationSpec
 public:
     NTableClient::TKeyColumns ReduceBy;
     NTableClient::TKeyColumns SortBy;
+
+    std::vector<NTableClient::TOwningKey> PivotKeys;
 
     TReduceOperationSpec();
 };

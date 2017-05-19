@@ -17,6 +17,8 @@ struct TSortedJobOptions
     int ForeignPrefixLength;
     bool EnablePeriodicYielder = true;
 
+    std::vector<NTableClient::TKey> PivotKeys;
+
     //! An upper bound for a total number of slices that is allowed. If this value
     //! is exceeded, an exception is thrown.
     i64 MaxTotalSliceCount;

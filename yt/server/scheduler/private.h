@@ -43,7 +43,7 @@ struct TFairShareContext;
 
 class TProgressCounter;
 
-using TOperationElementByIdMap = yhash_map<TOperationId, TOperationElement*>;
+using TOperationElementByIdMap = yhash<TOperationId, TOperationElement*>;
 
 DEFINE_ENUM(ESchedulableStatus,
     (Normal)

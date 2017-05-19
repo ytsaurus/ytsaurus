@@ -1023,7 +1023,7 @@ private:
 
     TInstant ConnectionTime_;
 
-    typedef yhash_map<TOperationId, TOperationPtr> TOperationIdMap;
+    typedef yhash<TOperationId, TOperationPtr> TOperationIdMap;
     TOperationIdMap IdToOperation_;
 
     TReaderWriterSpinLock ExecNodeDescriptorsLock_;
@@ -1038,7 +1038,7 @@ private:
         TExecNodeDescriptorListPtr ExecNodeDescriptors;
     };
 
-    mutable yhash_map<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
+    mutable yhash<TSchedulingTagFilter, TExecNodeDescriptorsEntry> CachedExecNodeDescriptorsByTags_;
 
     TProfiler TotalResourceLimitsProfiler_;
     TProfiler MainNodesResourceLimitsProfiler_;
@@ -2264,6 +2264,7 @@ private:
                 } catch (const std::exception& ex) {
                     LOG_ERROR(ex, "Failed to abort controller");
                     MasterConnector_->Disconnect();
+                    return;
                 }
             }
         }

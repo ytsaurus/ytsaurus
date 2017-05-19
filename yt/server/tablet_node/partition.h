@@ -80,6 +80,7 @@ public:
     TCallback<void(TSaveContext&)> AsyncSave();
     void AsyncLoad(TLoadContext& context);
 
+    i64 GetCompressedDataSize() const;
     i64 GetUncompressedDataSize() const;
     i64 GetUnmergedRowCount() const;
 

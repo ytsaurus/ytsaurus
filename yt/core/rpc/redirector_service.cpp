@@ -198,11 +198,12 @@ IClientRequestControlPtr DoRedirectServiceRequest(
         request->GetRealmId(),
         timeout);
 
+    TSendOptions options;
+    options.Timeout = timeout;
     return channel->Send(
         std::move(request),
         std::move(responseHandler),
-        timeout,
-        true);
+        options);
 }
 
 } // namespace
@@ -288,12 +289,12 @@ private:
     const IChannelPtr SinkChannel_;
     
     TSpinLock SpinLock_;
-    yhash_map<TRequestId, IClientRequestControlPtr> ActiveRequestMap_;
+    yhash<TRequestId, IClientRequestControlPtr> ActiveRequestMap_;
     
     
     void OnResponse(
         const TRequestId& requestId,
-        IBusPtr replyBus,
+        const IBusPtr& replyBus,
         TSharedRefArray message)
     {
         {
@@ -301,7 +302,8 @@ private:
             // NB: We're OK with duplicate request ids.
             ActiveRequestMap_.erase(requestId);
         }
-        replyBus->Send(std::move(message), EDeliveryTrackingLevel::None);
+
+        replyBus->Send(std::move(message), NBus::TSendOptions(EDeliveryTrackingLevel::None));
     }
 
 };
