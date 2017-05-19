@@ -87,14 +87,19 @@ using NTableClient::TTableReaderOptions;
 
 namespace {
 
-void CommitTransaction(const ITransactionPtr& transaction)
+void CommitTransaction(ITransactionPtr& transaction)
 {
     if (!transaction) {
         return;
     }
     auto result = WaitFor(transaction->Commit());
-    THROW_ERROR_EXCEPTION_IF_FAILED(result, "Transaction %v has failed to commit",
-        transaction->GetId());
+    if (!result.IsOK()) {
+        transaction->Abort(); // Ignore result.
+        THROW_ERROR_EXCEPTION("Transaction %v has failed to commit",
+            transaction->GetId())
+            << result;
+    }
+    transaction.Reset();
 }
 
 } // namespace
