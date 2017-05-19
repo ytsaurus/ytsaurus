@@ -71,7 +71,7 @@ def _create_map_node_from_local_dir(local_path, dest_path, client):
 
 def _create_node_from_local_file(local_filename, dest_filename, client):
     if not os.path.isfile(local_filename + ".meta"):
-        logger.warning("Found file {0} without meta info, skipping".format(file))
+        logger.warning("Found file {0} without meta info, skipping".format(local_filename))
         return
 
     with open(local_filename + ".meta", "rb") as f:
@@ -83,7 +83,7 @@ def _create_node_from_local_file(local_filename, dest_filename, client):
 
         if meta["type"] != "table":
             logger.warning("Found file {0} with currently unsupported type {1}" \
-                           .format(file, meta["type"]))
+                           .format(local_filename, meta["type"]))
             return
 
         if "format" not in meta:
