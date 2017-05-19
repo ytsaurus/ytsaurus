@@ -14,6 +14,7 @@ from .format import YtFormatReadError
 import yt.logger as logger
 
 import time
+from copy import deepcopy
 
 class FakeTransaction(object):
     def __enter__(self):
@@ -42,7 +43,7 @@ class WriteRequestRetrier(Retrier):
             "backoff": get_config(client)["retry_backoff"],
             "count": get_config(client)["proxy"]["request_retry_count"],
         }
-        retry_config = update(get_config(client)["write_retries"], remove_nones_from_dict(retry_config))
+        retry_config = update(deepcopy(get_config(client)["write_retries"]), remove_nones_from_dict(retry_config))
         request_timeout = get_value(get_config(client)["proxy"]["heavy_request_retry_timeout"],
                                     get_config(client)["proxy"]["heavy_request_timeout"])
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
@@ -138,7 +139,7 @@ class ReadIterator(IteratorRetrier):
             "count": get_config(client)["read_retries"]["retry_count"],
             "backoff": get_config(client)["retry_backoff"],
         }
-        retry_config = update(get_config(client)["read_retries"], remove_nones_from_dict(retry_config))
+        retry_config = update(deepcopy(get_config(client)["read_retries"]), remove_nones_from_dict(retry_config))
         timeout = get_value(get_config(client)["proxy"]["heavy_request_retry_timeout"],
                             get_config(client)["proxy"]["heavy_request_timeout"])
 
