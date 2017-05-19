@@ -177,13 +177,7 @@ TConstExpressionPtr MakeAndExpression(TConstExpressionPtr lhs, TConstExpressionP
     }
 
     return New<TBinaryOpExpression>(
-        InferBinaryExprType(
-            EBinaryOp::And,
-            lhs->Type,
-            rhs->Type,
-            "",
-            InferName(lhs),
-            InferName(rhs)),
+        EValueType::Boolean,
         EBinaryOp::And,
         lhs,
         rhs);
@@ -206,13 +200,7 @@ TConstExpressionPtr MakeOrExpression(TConstExpressionPtr lhs, TConstExpressionPt
     }
 
     return New<TBinaryOpExpression>(
-        InferBinaryExprType(
-            EBinaryOp::Or,
-            lhs->Type,
-            rhs->Type,
-            "",
-            InferName(lhs),
-            InferName(rhs)),
+        EValueType::Boolean,
         EBinaryOp::Or,
         lhs,
         rhs);
