@@ -48,6 +48,9 @@ struct IJobSizeConstraints
     virtual i64 GetInputSliceDataSize() const = 0;
     virtual i64 GetInputSliceRowCount() const = 0;
 
+    //! Approximate primary data size. Has meaning only in context of sorted operation.
+    virtual i64 GetPrimaryDataSizePerJob() const = 0;
+
     virtual void Persist(const NPhoenix::TPersistenceContext& context) = 0;
 };
 
@@ -58,8 +61,9 @@ DEFINE_REFCOUNTED_TYPE(IJobSizeConstraints)
 IJobSizeConstraintsPtr CreateSimpleJobSizeConstraints(
     const TSimpleOperationSpecBasePtr& spec,
     const TSimpleOperationOptionsPtr& options,
-    i64 inputDataSize,
-    i64 inputRowCount = std::numeric_limits<i64>::max());
+    i64 primaryInputDataSize,
+    i64 inputRowCount = std::numeric_limits<i64>::max(),
+    i64 foreignInputDataSize = 0);
 
 IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
     const TSortOperationSpecBasePtr& spec,
@@ -82,6 +86,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     bool isExplicitJobCount,
     int jobCount,
     i64 dataSizePerJob,
+    i64 primaryDataSizePerJob,
     i64 maxDataSlicesPerJob,
     i64 maxDataSizePerJob,
     i64 inputSliceDataSize,
@@ -141,13 +146,12 @@ struct TLockedUserObject
 
 ////////////////////////////////////////////////////////////////////
 
+TBriefJobStatisticsPtr BuildBriefStatistics(const NYson::TYsonString& statisticsYson);
 
-
+////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT
-
-////////////////////////////////////////////////////////////////////
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

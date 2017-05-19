@@ -29,7 +29,7 @@ private:
 
     virtual TFuture<void> DoPutBlocks(
         int startBlockIndex,
-        const std::vector<TSharedRef>& blocks,
+        const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) override;
 
     virtual TFuture<void> DoSendBlocks(

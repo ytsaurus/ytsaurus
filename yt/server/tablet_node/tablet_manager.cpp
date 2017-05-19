@@ -1341,7 +1341,7 @@ private:
         // NB: Must handle store removals before store additions since
         // row index map forbids having multiple stores with the same starting row index.
         // But before proceeding to removals, we must take care of backing stores.
-        yhash_map<TStoreId, IDynamicStorePtr> idToBackingStore;
+        yhash<TStoreId, IDynamicStorePtr> idToBackingStore;
         auto registerBackingStore = [&] (const IStorePtr& store) {
             YCHECK(idToBackingStore.insert(std::make_pair(store->GetId(), store->AsDynamic())).second);
         };
@@ -1437,7 +1437,7 @@ private:
         auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
 
         int partitionIndex = partition->GetIndex();
-        i64 partitionDataSize = partition->GetUncompressedDataSize();
+        i64 partitionDataSize = partition->GetCompressedDataSize();
 
         auto storeManager = tablet->GetStoreManager()->AsSorted();
         bool result = storeManager->SplitPartition(partition->GetIndex(), pivotKeys);
@@ -1495,7 +1495,7 @@ private:
         i64 partitionsDataSize = 0;
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
             const auto& partition = tablet->PartitionList()[index];
-            partitionsDataSize += partition->GetUncompressedDataSize();
+            partitionsDataSize += partition->GetCompressedDataSize();
         }
 
         auto storeManager = tablet->GetStoreManager()->AsSorted();
@@ -2381,6 +2381,7 @@ private:
                 .Item("sampling_request_time").Value(partition->GetSamplingRequestTime())
                 .Item("compaction_time").Value(partition->GetCompactionTime())
                 .Item("uncompressed_data_size").Value(partition->GetUncompressedDataSize())
+                .Item("compressed_data_size").Value(partition->GetCompressedDataSize())
                 .Item("unmerged_row_count").Value(partition->GetUnmergedRowCount())
                 .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {
                     fluent

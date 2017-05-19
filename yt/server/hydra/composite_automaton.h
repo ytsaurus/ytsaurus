@@ -186,6 +186,7 @@ private:
     void StartEpoch();
     void StopEpoch();
 
+    void LogHandlerError(const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeAutomatonPart)
@@ -267,9 +268,9 @@ private:
 
     std::vector<TWeakPtr<TCompositeAutomatonPart>> Parts_;
 
-    yhash_map<Stroka, TMethodDescriptor> MethodNameToDescriptor_;
+    yhash<Stroka, TMethodDescriptor> MethodNameToDescriptor_;
 
-    yhash_map<Stroka, TLoaderDescriptor> PartNameToLoaderDescriptor_;
+    yhash<Stroka, TLoaderDescriptor> PartNameToLoaderDescriptor_;
 
     yhash_set<Stroka> SaverPartNames_;
     std::vector<TSyncSaverDescriptor> SyncSavers_;
@@ -292,6 +293,7 @@ private:
     void OnRecoveryComplete();
 
     std::vector<TCompositeAutomatonPartPtr> GetParts();
+    void LogHandlerError(const TError& error);
 
 };
 

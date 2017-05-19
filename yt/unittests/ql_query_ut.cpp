@@ -834,7 +834,7 @@ protected:
         i64 outputRowLimit,
         EFailureLocation failureLocation)
     {
-        yhash_map<TGuid, size_t> sourceGuids;
+        yhash<TGuid, size_t> sourceGuids;
         size_t index = 0;
         for (const auto& dataSplit : dataSplits) {
             EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath(dataSplit.first), _))

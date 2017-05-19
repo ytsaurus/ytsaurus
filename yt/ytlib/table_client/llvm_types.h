@@ -18,7 +18,7 @@ public:
     typedef TypeBuilder<i64, Cross> TInt64;
     typedef TypeBuilder<ui64, Cross> TUint64;
     typedef TypeBuilder<double, Cross> TDouble;
-    typedef TypeBuilder<const char*, Cross> TString;
+    typedef TypeBuilder<const char*, Cross> TStringType;
     typedef TypeBuilder<const char*, Cross> TAny;
 
     static Type* get(LLVMContext& context)
@@ -39,7 +39,7 @@ public:
             case EValueType::Double:
                 return TDouble::get(context);
             case EValueType::String:
-                return TString::get(context);
+                return TStringType::get(context);
             case EValueType::Any:
                 return TAny::get(context);
             default:

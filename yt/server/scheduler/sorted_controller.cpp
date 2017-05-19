@@ -434,7 +434,6 @@ protected:
         return true;
     }
 
-private:
     class TChunkSliceFetcherFactory
         : public IChunkSliceFetcherFactory
     {
@@ -464,11 +463,28 @@ private:
         TSortedControllerBase* Controller_;
     };
 
-    IChunkSliceFetcherFactoryPtr CreateChunkSliceFetcherFactory()
+    virtual IChunkSliceFetcherFactoryPtr CreateChunkSliceFetcherFactory()
     {
         return New<TChunkSliceFetcherFactory>(this /* controller */);
     };
 
+    virtual TSortedChunkPoolOptions GetSortedChunkPoolOptions()
+    {
+        TSortedChunkPoolOptions chunkPoolOptions;
+        TSortedJobOptions jobOptions;
+        jobOptions.EnableKeyGuarantee = IsKeyGuaranteeEnabled();
+        jobOptions.PrimaryPrefixLength = PrimaryKeyColumns_.size();
+        jobOptions.ForeignPrefixLength = ForeignKeyColumns_.size();
+        jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+        jobOptions.EnablePeriodicYielder = true;
+        chunkPoolOptions.SortedJobOptions = jobOptions;
+        chunkPoolOptions.MinTeleportChunkSize = MinTeleportChunkSize();
+        chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
+        chunkPoolOptions.OperationId = OperationId;
+        return chunkPoolOptions;
+    }
+
+private:
     IChunkSliceFetcherPtr CreateChunkSliceFetcher() const
     {
         TScrapeChunksCallback scraperCallback;
@@ -493,22 +509,6 @@ private:
             Host->GetMasterClient(),
             RowBuffer,
             Logger);
-    }
-
-    TSortedChunkPoolOptions GetSortedChunkPoolOptions()
-    {
-        TSortedChunkPoolOptions chunkPoolOptions;
-        TSortedJobOptions jobOptions;
-        jobOptions.EnableKeyGuarantee = IsKeyGuaranteeEnabled();
-        jobOptions.PrimaryPrefixLength = PrimaryKeyColumns_.size();
-        jobOptions.ForeignPrefixLength = ForeignKeyColumns_.size();
-        jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
-        jobOptions.EnablePeriodicYielder = true;
-        chunkPoolOptions.SortedJobOptions = jobOptions;
-        chunkPoolOptions.MinTeleportChunkSize = MinTeleportChunkSize();
-        chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
-        chunkPoolOptions.OperationId = OperationId;
-        return chunkPoolOptions;
     }
 };
 
@@ -819,7 +819,7 @@ public:
 
         if (teleportOutputCount > 1) {
             THROW_ERROR_EXCEPTION("Too many teleport output tables: maximum allowed 1, actual %v",
-                                  teleportOutputCount);
+                teleportOutputCount);
         }
 
         ValidateUserFileCount(Spec_->Reducer, "reducer");
@@ -886,7 +886,6 @@ private:
     i64 StartRowIndex_ = 0;
 
     TNullable<int> OutputTeleportTableIndex_;
-
 };
 
 class TSortedReduceController
@@ -979,12 +978,50 @@ public:
         if (foreignInputCount != 0 && Spec_->JoinBy.empty()) {
             THROW_ERROR_EXCEPTION("Join key columns are required");
         }
+
+        if (!Spec_->PivotKeys.empty()) {
+            TKey previousKey;
+            for (const auto& key : Spec_->PivotKeys) {
+                if (key < previousKey) {
+                    THROW_ERROR_EXCEPTION("Pivot keys should be sorted")
+                        << TErrorAttribute("lhs", previousKey)
+                        << TErrorAttribute("rhs", key);
+                }
+                previousKey = key;
+                if (key.GetCount() > Spec_->ReduceBy.size()) {
+                    THROW_ERROR_EXCEPTION("Pivot key can't be longer than reduce key column count")
+                        << TErrorAttribute("key", key)
+                        << TErrorAttribute("reduce_by", Spec_->ReduceBy);
+                }
+            }
+            for (auto& table : InputTables) {
+                if (table.Path.GetTeleport()) {
+                    THROW_ERROR_EXCEPTION("Chunk teleportation is not supported when pivot keys are specified");
+                }
+            }
+        }
     }
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedReduceController, 0x761aad8e);
 
     TReduceOperationSpecPtr Spec_;
+
+    virtual IChunkSliceFetcherFactoryPtr CreateChunkSliceFetcherFactory() override
+    {
+        if (Spec_->PivotKeys.empty()) {
+            return TSortedControllerBase::CreateChunkSliceFetcherFactory();
+        } else {
+            return nullptr;
+        }
+    }
+
+    virtual TSortedChunkPoolOptions GetSortedChunkPoolOptions() override
+    {
+        auto options = TSortedControllerBase::GetSortedChunkPoolOptions();
+        options.SortedJobOptions.PivotKeys = std::vector<TKey>(Spec_->PivotKeys.begin(), Spec_->PivotKeys.end());
+        return options;
+    }
 
 };
 

@@ -451,7 +451,7 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
         yhash_set<EObjectType> AcceptedChunkTypes;
     };
 
-    yhash_map<int, TMediumStatistics> mediaStatistics;
+    yhash<int, TMediumStatistics> mediaStatistics;
 
     for (const auto& location : chunkStore->Locations()) {
         auto* locationStatistics = result->add_locations();

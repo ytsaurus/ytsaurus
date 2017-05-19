@@ -125,7 +125,7 @@ public:
         : SlotManager_(std::move(slotManager))
     { }
 
-    void RegisterTabletSnapshotOrThrow(
+    void ValidateAndRegisterTabletSnapshot(
         const TTabletId& tabletId,
         const i64 mountRevision,
         const TTimestamp timestamp)
@@ -151,7 +151,7 @@ public:
 
 private:
     const TSlotManagerPtr SlotManager_;
-    yhash_map<TTabletId, TTabletSnapshotPtr> Map_;
+    yhash<TTabletId, TTabletSnapshotPtr> Map_;
 
 };
 
@@ -185,7 +185,7 @@ public:
     {
         for (const auto& source : dataSources) {
             if (TypeFromId(source.Id) == EObjectType::Tablet) {
-                TabletSnapshots_.RegisterTabletSnapshotOrThrow(
+                TabletSnapshots_.ValidateAndRegisterTabletSnapshot(
                     source.Id,
                     source.MountRevision,
                     Options_.Timestamp);
@@ -927,7 +927,7 @@ public:
             ->GetColumnEvaluatorCache())
     { }
 
-    // IExecutor implementation.
+    // ISubexecutor implementation.
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,

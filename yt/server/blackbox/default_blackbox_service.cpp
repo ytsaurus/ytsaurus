@@ -33,7 +33,7 @@ public:
         , Invoker_(std::move(invoker))
     { }
 
-    virtual TFuture<INodePtr> Call(const Stroka& method, const yhash_map<Stroka, Stroka>& params) override
+    virtual TFuture<INodePtr> Call(const Stroka& method, const yhash<Stroka, Stroka>& params) override
     {
         auto deadline = TInstant::Now() + Config_->RequestTimeout;
         return BIND(&TDefaultBlackboxService::DoCall, MakeStrong(this), method, params, deadline)
@@ -42,7 +42,7 @@ public:
     }
 
 private:
-    static std::pair<Stroka, Stroka> BuildUrl(const Stroka& method, const yhash_map<Stroka, Stroka>& params)
+    static std::pair<Stroka, Stroka> BuildUrl(const Stroka& method, const yhash<Stroka, Stroka>& params)
     {
         TStringBuilder realUrl;
         TStringBuilder safeUrl;
@@ -95,7 +95,7 @@ private:
         return std::make_pair(realUrl.Flush(), safeUrl.Flush());
     }
 
-    INodePtr DoCall(const Stroka& method, const yhash_map<Stroka, Stroka>& params, TInstant deadline)
+    INodePtr DoCall(const Stroka& method, const yhash<Stroka, Stroka>& params, TInstant deadline)
     {
         auto host = AddSchemePrefix(Stroka(GetHost(Config_->Host)), Config_->Secure ? "https" : "http");
         auto port = Config_->Port;

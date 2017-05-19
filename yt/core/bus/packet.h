@@ -29,7 +29,6 @@ constexpr ui32 MaxPacketPartSize = 256ULL * 1024 * 1024;
 constexpr ui32 NullPacketPartSize = 0xffffffff;
 constexpr int TypicalPacketPartCount = 64;
 constexpr int TypicalVariableHeaderSize = TypicalPacketPartCount * (sizeof (ui32) + sizeof (ui64));
-constexpr TChecksum NullChecksum = 0;
 
 struct TPacketHeader
 {
@@ -151,7 +150,8 @@ public:
     bool Start(
         EPacketType type,
         EPacketFlags flags,
-        bool enableChecksums,
+        bool generateChecksums,
+        int checksummedPartCount,
         const TPacketId& packetId,
         TSharedRefArray message);
 

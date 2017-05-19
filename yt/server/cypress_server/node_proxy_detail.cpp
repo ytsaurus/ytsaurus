@@ -796,7 +796,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         void VisitMap(TCypressNodeBase* node)
         {
             Writer_.OnBeginMap();
-            yhash_map<Stroka, TCypressNodeBase*> keyToChildMapStorage;
+            yhash<Stroka, TCypressNodeBase*> keyToChildMapStorage;
             const auto& keyToChildMap = GetMapNodeChildMap(
                 CypressManager_,
                 node,
@@ -1377,7 +1377,7 @@ void TMapNodeProxy::Clear()
     auto* impl = LockThisImpl(ELockMode::Shared);
 
     // Construct children list.
-    yhash_map<Stroka, TCypressNodeBase*> keyToChildMapStorage;
+    yhash<Stroka, TCypressNodeBase*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
@@ -1420,7 +1420,7 @@ int TMapNodeProxy::GetChildCount() const
 
 std::vector<std::pair<Stroka, INodePtr>> TMapNodeProxy::GetChildren() const
 {
-    yhash_map<Stroka, TCypressNodeBase*> keyToChildStorage;
+    yhash<Stroka, TCypressNodeBase*> keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
@@ -1438,7 +1438,7 @@ std::vector<std::pair<Stroka, INodePtr>> TMapNodeProxy::GetChildren() const
 
 std::vector<Stroka> TMapNodeProxy::GetKeys() const
 {
-    yhash_map<Stroka, TCypressNodeBase*> keyToChildStorage;
+    yhash<Stroka, TCypressNodeBase*> keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
@@ -1654,7 +1654,7 @@ void TMapNodeProxy::ListSelf(
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-    yhash_map<Stroka, TCypressNodeBase*> keyToChildMapStorage;
+    yhash<Stroka, TCypressNodeBase*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
         TrunkNode,

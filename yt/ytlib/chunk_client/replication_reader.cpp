@@ -152,11 +152,11 @@ public:
             Networks_);
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<int>& blockIndexes) override;
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TWorkloadDescriptor& workloadDescriptor,
         int firstBlockIndex,
         int blockCount) override;
@@ -198,7 +198,7 @@ private:
     //! Peers returning NoSuchChunk error are banned forever.
     yhash_set<Stroka> BannedForeverPeers_;
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
-    yhash_map<Stroka, int> PeerBanCountMap_;
+    yhash<Stroka, int> PeerBanCountMap_;
 
     TFuture<TChunkReplicaList> AsyncGetSeeds()
     {
@@ -404,7 +404,7 @@ protected:
     TPeerQueue PeerQueue_;
 
     //! Catalogue of peers, seen on current pass.
-    yhash_map<Stroka, TPeer> Peers_;
+    yhash<Stroka, TPeer> Peers_;
 
 
     TSessionBase(
@@ -846,7 +846,7 @@ public:
         Promise_.TrySet(TError("Reader terminated"));
     }
 
-    TFuture<std::vector<TSharedRef>> Run()
+    TFuture<std::vector<TBlock>> Run()
     {
         NextRetry();
         return Promise_;
@@ -857,13 +857,13 @@ private:
     const std::vector<int> BlockIndexes_;
 
     //! Promise representing the session.
-    TPromise<std::vector<TSharedRef>> Promise_ = NewPromise<std::vector<TSharedRef>>();
+    TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
 
     //! Blocks that are fetched so far.
-    yhash_map<int, TSharedRef> Blocks_;
+    yhash<int, TBlock> Blocks_;
 
     //! Maps peer addresses to block indexes.
-    yhash_map<Stroka, yhash_set<int>> PeerBlocksMap_;
+    yhash<Stroka, yhash_set<int>> PeerBlocksMap_;
 
     virtual bool IsCanceled() const override
     {
@@ -1156,9 +1156,11 @@ private:
             auto sourceDescriptor = reader->Options_->EnableP2P
                 ? TNullable<TNodeDescriptor>(GetPeerDescriptor(peerAddress))
                 : TNullable<TNodeDescriptor>(Null);
-            reader->BlockCache_->Put(blockId, EBlockType::CompressedData, block, sourceDescriptor);
 
-            YCHECK(Blocks_.insert(std::make_pair(blockIndex, block)).second);
+            // TODO(prime): get checksum from RPC layer
+            reader->BlockCache_->Put(blockId, EBlockType::CompressedData, TBlock(block), sourceDescriptor);
+
+            YCHECK(Blocks_.insert(std::make_pair(blockIndex, TBlock(block))).second);
             bytesReceived += block.Size();
             receivedBlockIndexes.push_back(blockIndex);
         }
@@ -1185,14 +1187,14 @@ private:
     {
         LOG_DEBUG("All requested blocks are fetched");
 
-        std::vector<TSharedRef> blocks;
+        std::vector<TBlock> blocks;
         blocks.reserve(BlockIndexes_.size());
         for (int blockIndex : BlockIndexes_) {
             const auto& block = Blocks_[blockIndex];
-            YCHECK(block);
+            YCHECK(block.Data);
             blocks.push_back(block);
         }
-        Promise_.TrySet(std::vector<TSharedRef>(blocks));
+        Promise_.TrySet(std::vector<TBlock>(blocks));
     }
 
     virtual void OnSessionFailed() override
@@ -1208,7 +1210,7 @@ private:
     }
 };
 
-TFuture<std::vector<TSharedRef>> TReplicationReader::ReadBlocks(
+TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TWorkloadDescriptor& workloadDescriptor,
     const std::vector<int>& blockIndexes)
 {
@@ -1240,10 +1242,10 @@ public:
             FirstBlockIndex_ + BlockCount_ - 1);
     }
 
-    TFuture<std::vector<TSharedRef>> Run()
+    TFuture<std::vector<TBlock>> Run()
     {
         if (BlockCount_ == 0) {
-            return MakeFuture(std::vector<TSharedRef>());
+            return MakeFuture(std::vector<TBlock>());
         }
 
         NextRetry();
@@ -1258,10 +1260,10 @@ private:
     const int BlockCount_;
 
     //! Promise representing the session.
-    TPromise<std::vector<TSharedRef>> Promise_ = NewPromise<std::vector<TSharedRef>>();
+    TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
 
     //! Blocks that are fetched so far.
-    std::vector<TSharedRef> FetchedBlocks_;
+    std::vector<TBlock> FetchedBlocks_;
 
     virtual bool IsCanceled() const override
     {
@@ -1347,7 +1349,9 @@ private:
                 break;
             blocksReceived += 1;
             bytesReceived += block.Size();
-            FetchedBlocks_.push_back(block);
+
+            // TODO(prime): get checksum from RPC layer
+            FetchedBlocks_.push_back(TBlock(block));
          }
 
         BanSeedIfUncomplete(rsp, peerAddress);
@@ -1382,7 +1386,7 @@ private:
             FirstBlockIndex_,
             FirstBlockIndex_ + FetchedBlocks_.size() - 1);
 
-        Promise_.TrySet(std::vector<TSharedRef>(FetchedBlocks_));
+        Promise_.TrySet(std::vector<TBlock>(FetchedBlocks_));
     }
 
     virtual void OnSessionFailed() override
@@ -1399,7 +1403,7 @@ private:
 
 };
 
-TFuture<std::vector<TSharedRef>> TReplicationReader::ReadBlocks(
+TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TWorkloadDescriptor& workloadDescriptor,
     int firstBlockIndex,
     int blockCount)

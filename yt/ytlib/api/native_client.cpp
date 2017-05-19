@@ -845,7 +845,7 @@ private:
     const INativeConnectionPtr Connection_;
     const TClientOptions Options_;
 
-    TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
+    TEnumIndexedVector<yhash<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     INodeChannelFactoryPtr LightChannelFactory_;
     INodeChannelFactoryPtr HeavyChannelFactory_;
@@ -1390,7 +1390,7 @@ private:
         std::vector<int> keyIndexToResultIndex(keys.Size());
         int currentResultIndex = -1;
 
-        yhash_map<TCellId, TTabletCellLookupSessionPtr> cellIdToSession;
+        yhash<TCellId, TTabletCellLookupSessionPtr> cellIdToSession;
 
         // TODO(sandello): Reuse code from QL here to partition sorted keys between tablets.
         // Get rid of hash map.
@@ -2094,7 +2094,7 @@ private:
             // Maps src index -> list of chunk ids for this src.
             std::vector<std::vector<TChunkId>> groupedChunkIds(srcPaths.size());
             {
-                yhash_map<TCellTag, std::vector<int>> cellTagToIndexes;
+                yhash<TCellTag, std::vector<int>> cellTagToIndexes;
                 for (int srcIndex = 0; srcIndex < srcCellTags.size(); ++srcIndex) {
                     cellTagToIndexes[srcCellTags[srcIndex]].push_back(srcIndex);
                 }
@@ -2556,7 +2556,7 @@ private:
             MakeStrong(this),
             GetConnection()->GetHeavyInvoker(),
             NNodeTrackerClient::TNodeDescriptor(),
-            TClosure(),
+            BIND([] { }),
             Null);
 
         auto jobInputReader = New<TJobInputReader>(userJobReader, GetConnection()->GetHeavyInvoker());
@@ -2931,8 +2931,8 @@ private:
             for (const auto& item : items->GetChildren()) {
                 const auto& attributes = item.second->Attributes();
 
-                auto jobType = ParseEnum<NJobAgent::EJobType>(attributes.Get<Stroka>("job_type"));
-                auto jobState = ParseEnum<NJobAgent::EJobState>(attributes.Get<Stroka>("state"));
+                auto jobType = ParseEnum<NJobTrackerClient::EJobType>(attributes.Get<Stroka>("job_type"));
+                auto jobState = ParseEnum<NJobTrackerClient::EJobState>(attributes.Get<Stroka>("state"));
 
                 if (options.JobType && jobType != *options.JobType) {
                     continue;
@@ -2987,8 +2987,8 @@ private:
             for (const auto& item : items->GetChildren()) {
                 auto values = item.second->AsMap();
 
-                auto jobType = ParseEnum<NJobAgent::EJobType>(values->GetChild("job_type")->AsString()->GetValue());
-                auto jobState = ParseEnum<NJobAgent::EJobState>(values->GetChild("state")->AsString()->GetValue());
+                auto jobType = ParseEnum<NJobTrackerClient::EJobType>(values->GetChild("job_type")->AsString()->GetValue());
+                auto jobState = ParseEnum<NJobTrackerClient::EJobState>(values->GetChild("state")->AsString()->GetValue());
 
                 if (options.JobType && jobType != *options.JobType) {
                     continue;
@@ -3950,7 +3950,7 @@ private:
     using TTabletCommitSessionPtr = TIntrusivePtr<TTabletCommitSession>;
 
     //! Maintains per-tablet commit info.
-    yhash_map<TTabletId, TTabletCommitSessionPtr> TabletIdToSession_;
+    yhash<TTabletId, TTabletCommitSessionPtr> TabletIdToSession_;
 
     class TCellCommitSession
         : public TIntrinsicRefCounted
@@ -4074,10 +4074,10 @@ private:
 
 
     //! Maintains per-cell commit info.
-    yhash_map<TCellId, TCellCommitSessionPtr> CellIdToSession_;
+    yhash<TCellId, TCellCommitSessionPtr> CellIdToSession_;
 
     //! Caches mappings from name table ids to schema ids.
-    yhash_map<std::pair<TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
+    yhash<std::pair<TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
 
 
     const TNameTableToSchemaIdMapping& GetColumnIdMapping(

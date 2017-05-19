@@ -272,7 +272,7 @@ private:
     // Account name -> cluster resources.
     using TAccountResourcesMap = yhash<Stroka, NSecurityServer::TClusterResources>;
     // Cell tag -> account name -> cluster resources.
-    using TMulticellAccountResourcesMap = yhash_map<TCellTag, TAccountResourcesMap>;
+    using TMulticellAccountResourcesMap = yhash<TCellTag, TAccountResourcesMap>;
 
     TFuture<TMulticellAccountResourcesMap> GetMulticellResourceUsageMap()
     {
@@ -432,7 +432,7 @@ private:
         struct TSession
             : public TIntrinsicRefCounted
         {
-            yhash_map<Stroka, TYsonString> Map;
+            yhash<Stroka, TYsonString> Map;
         };
 
         using TSessionPtr = TIntrusivePtr<TSession>;
@@ -446,7 +446,7 @@ private:
                     .EndMap();
             }),
             BIND([] (const TSessionPtr& session, const TYsonString& yson) {
-                auto map = ConvertTo<yhash_map<Stroka, INodePtr>>(yson);
+                auto map = ConvertTo<yhash<Stroka, INodePtr>>(yson);
                 for (const auto& pair : map) {
                     session->Map.emplace(pair.first, ConvertToYsonString(pair.second));
                 }

@@ -612,12 +612,14 @@ void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumn
 
 void ValidateColumnSchema(const TColumnSchema& columnSchema, bool isTableDynamic)
 {
+    static const auto allowedAggregates = yhash_set<Stroka>{"sum", "min", "max", "first"};
+
     try {
         if (columnSchema.Name.empty()) {
             THROW_ERROR_EXCEPTION("Column name cannot be empty");
         }
 
-        if (columnSchema.Name.has_prefix(SystemColumnNamePrefix)) {
+        if (columnSchema.Name.StartsWith(SystemColumnNamePrefix)) {
             THROW_ERROR_EXCEPTION("Column name cannot start with prefix %Qv",
                 SystemColumnNamePrefix);
         }
@@ -661,6 +663,11 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema, bool isTableDynamic
 
         if (columnSchema.Aggregate && columnSchema.SortOrder) {
             THROW_ERROR_EXCEPTION("Key column cannot be aggregated");
+        }
+
+        if (columnSchema.Aggregate && allowedAggregates.find(*columnSchema.Aggregate) == allowedAggregates.end()) {
+            THROW_ERROR_EXCEPTION("Invalid aggregate function %Qv",
+                *columnSchema.Aggregate);
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error validating schema of a column %Qv",
@@ -1102,7 +1109,7 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
         }
     }
 
-    yhash_map<Stroka, TColumnSchema> nameToColumnSchema;
+    yhash<Stroka, TColumnSchema> nameToColumnSchema;
     std::vector<Stroka> columnNames;
 
     for (const auto& schema : schemas) {

@@ -1,6 +1,7 @@
 from yt_env_setup import wait, YTEnvSetup
 from yt_commands import *
 
+import __builtin__
 import itertools
 import pytest
 import shutil
@@ -24,8 +25,16 @@ def get_stderr_dict_from_table(table_path):
         result[job_id] = job_stderr
     return result
 
-def wait_data_in_operation_table_archive():
-    wait(lambda: len(select_rows("* from [{0}]".format(OPERATION_JOB_ARCHIVE_TABLE))) > 0)
+def check_all_jobs_in_operation_archive(job_id_list):
+    rows = select_rows("job_id_hi,job_id_lo from [{0}]".format(OPERATION_JOB_ARCHIVE_TABLE))
+    job_ids_in_archive = __builtin__.set(get_guid_from_parts(r["job_id_lo"], r["job_id_hi"]) for r in rows)
+    return all(job_id in job_ids_in_archive for job_id in job_id_list)
+
+def wait_data_in_operation_table_archive(job_id_list=None):
+    if job_id_list is None:
+        wait(lambda: len(select_rows("* from [{0}]".format(OPERATION_JOB_ARCHIVE_TABLE))) > 0)
+    else:
+        wait(lambda: check_all_jobs_in_operation_archive(job_id_list))
 
 class TestGetJobInput(YTEnvSetup):
     NUM_MASTERS = 1
@@ -121,6 +130,47 @@ class TestGetJobInput(YTEnvSetup):
             assert actual_input
             assert get_job_input(op.id, job_id) == actual_input
 
+    def test_map_reduce(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        events = EventsOnFs()
+
+        write_table("//tmp/t_input", [{"foo": i} for i in xrange(100)])
+
+        cmd = "echo 1 >&2 ; cat | tee {0}/$YT_JOB_ID".format(self._tmpdir)
+        reducer_cmd = " ; ".join([
+            cmd,
+            events.notify_event_cmd("reducer_almost_complete"),
+            events.wait_event_cmd("continue_reducer")])
+        op = map_reduce(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            mapper_command=cmd,
+            reduce_combiner_command=cmd,
+            reducer_command=reducer_cmd,
+            sort_by="foo",
+            spec={
+                "mapper": {"format": "yson"},
+                "reduce_combiner": {"format": "yson"},
+                "reducer": {"format": "yson"},
+                "data_size_per_sort_job": 10,
+                "force_reduce_combiners": True,
+            },
+            dont_track=True
+        )
+        events.wait_event("reducer_almost_complete")
+
+        job_id_list = os.listdir(self._tmpdir)
+        assert len(job_id_list) >= 3
+        wait_data_in_operation_table_archive(job_id_list)
+        for job_id in job_id_list:
+            input_file = os.path.join(self._tmpdir, job_id)
+            with open(input_file) as inf:
+                actual_input = inf.read()
+            assert actual_input
+            assert get_job_input(op.id, job_id) == actual_input
+        events.notify_event("continue_reducer")
+        op.track()
 
     @pytest.mark.parametrize("format", FORMAT_LIST)
     def test_reduce_with_join(self, format):

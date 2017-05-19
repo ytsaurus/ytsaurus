@@ -5,6 +5,7 @@
 #include <yt/server/cell_node/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/block.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -21,14 +22,14 @@ class TCachedBlock
     : public TAsyncCacheValueBase<TBlockId, TCachedBlock>
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(TSharedRef, Data);
+    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TBlock, Data);
     DEFINE_BYREF_RO_PROPERTY(TNullable<NNodeTrackerClient::TNodeDescriptor>, Source);
 
 public:
     //! Constructs a new block from id and data.
     TCachedBlock(
         const TBlockId& blockId,
-        const TSharedRef& data,
+        const NChunkClient::TBlock& data,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& source);
 
 };
@@ -64,7 +65,7 @@ public:
      */
     void PutCachedBlock(
         const TBlockId& blockId,
-        const TSharedRef& data,
+        const NChunkClient::TBlock& data,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& source);
 
     //! Starts an asynchronous block load.
@@ -84,7 +85,7 @@ public:
      *  Note that blob chunks will indicate an error if an attempt is made to read a non-existing block.
      *  Journal chunks, however, will silently ignore it.
      */
-    TFuture<std::vector<TSharedRef>> ReadBlockRange(
+    TFuture<std::vector<NChunkClient::TBlock>> ReadBlockRange(
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,
@@ -97,7 +98,7 @@ public:
      *  The resulting list may contain less blocks than requested.
      *  If the whole chunk or some of its blocks does not exist then null block may be returned.
      */
-    TFuture<std::vector<TSharedRef>> ReadBlockSet(
+    TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
         const TChunkId& chunkId,
         const std::vector<int>& blockIndexes,
         const TBlockReadOptions& options);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "block.h"
 #include "block_id.h"
 
 #include <yt/ytlib/node_tracker_client/public.h>
@@ -29,14 +30,14 @@ struct IBlockCache
     virtual void Put(
         const TBlockId& id,
         EBlockType type,
-        const TSharedRef& data,
+        const TBlock& data,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& source) = 0;
 
     //! Fetches a block from the cache.
     /*!
-     *  If no such block is present, then null is returned.
+     *  If no such block is present, null block is returned.
      */
-    virtual TSharedRef Find(
+    virtual TBlock Find(
         const TBlockId& id,
         EBlockType type) = 0;
 
