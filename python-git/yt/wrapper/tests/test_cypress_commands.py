@@ -161,10 +161,18 @@ class TestCypressCommands(object):
     def test_create(self):
         with pytest.raises(yt.YtError):
             yt.create("map_node", TEST_DIR + "/map", attributes={"type": "table"})
+
         yt.create("map_node", TEST_DIR + "/dir")
+        revision = yt.get(TEST_DIR + "/dir/@revision")
+
         with pytest.raises(yt.YtError):
             yt.create("map_node", TEST_DIR + "/dir")
+
         yt.create("map_node", TEST_DIR + "/dir", ignore_existing=True)
+        assert revision == yt.get(TEST_DIR + "/dir/@revision")
+
+        yt.create("map_node", TEST_DIR + "/dir", force=True)
+        assert revision != yt.get(TEST_DIR + "/dir/@revision")
 
         try:
             yt.create("user", attributes={"name": "test_user"})

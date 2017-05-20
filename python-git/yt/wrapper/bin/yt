@@ -419,6 +419,7 @@ def add_create_parser(add_parser):
     add_ypath_argument(parser, "path", hybrid=True, group_required=False)
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-i", "--ignore-existing", action="store_true")
+    parser.add_argument("-f", "--force", action="store_true")
     add_structured_argument(parser, "--attributes")
 
 @copy_docstring_from(yt.get)
