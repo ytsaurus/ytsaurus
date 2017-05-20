@@ -681,6 +681,7 @@ class TestSchedulerRevive(YTEnvSetup):
         self._create_table("//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
 
+        remove("//tmp/t_out", force=True)
         self._create_table("//tmp/t_out")
 
     def _wait_state(self, op, state):
@@ -757,19 +758,24 @@ class TestSchedulerRevive(YTEnvSetup):
 
     @pytest.mark.parametrize("stage", ["stage" + str(index) for index in xrange(1, 8)])
     def test_completing_with_sleep(self, stage):
-        self._prepare_tables()
+        self._create_table("//tmp/t_in")
+        write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 10",
+        remove("//tmp/t_out", force=True)
+        self._create_table("//tmp/t_out")
+
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; if [ \"$YT_JOB_INDEX\" != \"0\" ]; then sleep 10; fi;",
                  spec={
                      "testing": {
                          "delay_inside_operation_commit": 4000,
                          "delay_inside_operation_commit_stage": stage,
-                     }
+                     },
+                     "job_count": 2
                  })
 
         self._wait_state(op, "running")
 
-        # Wait for snapshot.
+        # Wait for snapshot and job completion.
         time.sleep(2)
 
         op.complete(ignore_result=True)
@@ -777,7 +783,7 @@ class TestSchedulerRevive(YTEnvSetup):
         self._wait_state(op, "completing")
 
         # Wait to perform complete before sleep.
-        time.sleep(1)
+        time.sleep(2)
 
         self.Env.kill_schedulers()
 
@@ -795,12 +801,11 @@ class TestSchedulerRevive(YTEnvSetup):
         else:
             correct_events = events_prefix + ["reviving", "completed"]
 
-        print >>sys.stderr, "EVENTS", [event["state"] for event in events if event["state"] != "pending"]
         assert correct_events == [event["state"] for event in events if event["state"] != "pending"]
 
         assert "completed" == get("//sys/operations/" + op.id + "/@state")
 
-        assert read_table("//tmp/t_out") == []
+        assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
     def test_failing(self):
         self._prepare_tables()
