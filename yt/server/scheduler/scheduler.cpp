@@ -2213,14 +2213,21 @@ private:
         FinishOperation(operation);
     }
 
-    void CompleteCompletingOperation(TOperationPtr operation)
+    void CompleteCompletingOperation(const TOperationReport& report)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& operation = report.Operation;
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
         LOG_INFO("Completing operation (OperationId: %v)",
              operation->GetId());
+
+        if (report.ShouldCommitOutputTransaction) {
+            WaitFor(report.ControllerTransactions->Output->Commit())
+                .ThrowOnError();
+        }
 
         SetOperationFinalState(operation, EOperationState::Completed, TError());
 
@@ -2268,7 +2275,7 @@ private:
             operation->SetState(EOperationState::Reviving);
 
             if (operationReport.IsCommitted) {
-                CompleteCompletingOperation(operation);
+                CompleteCompletingOperation(operationReport);
                 continue;
             }
 

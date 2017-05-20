@@ -26,6 +26,7 @@ struct TOperationReport
     NControllerAgent::TControllerTransactionsPtr ControllerTransactions;
     bool UserTransactionAborted = false;
     bool IsCommitted = false;
+    bool ShouldCommitOutputTransaction = false;
 };
 
 //! Information retrieved during scheduler-master handshake.
