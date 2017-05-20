@@ -266,7 +266,7 @@ def remove(path, recursive=False, force=False, client=None):
         },
         client=client)
 
-def create(type, path=None, recursive=False, ignore_existing=False, attributes=None, client=None):
+def create(type, path=None, recursive=False, ignore_existing=False, force=None, attributes=None, client=None):
     """Creates Cypress node.
 
     :param str type: one of ["table", "file", "map_node", "list_node", ...].
@@ -282,8 +282,9 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
         "type": type,
         "recursive": bool_to_string(recursive),
         "ignore_existing": bool_to_string(ignore_existing),
-        "attributes": get_value(attributes, {})
     }
+    set_param(params, "attributes", attributes)
+    set_param(params, "force", force, bool_to_string)
     if path is not None:
         params["path"] = YPath(path, client=client)
     return _make_formatted_transactional_request("create", params, format=None, client=client)
