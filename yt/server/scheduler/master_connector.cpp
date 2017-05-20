@@ -681,7 +681,9 @@ private:
                     auto* report = operationsWithOutputTransaction[index];
                     auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(*report));
 
+                    size_t rspIndex = 0;
                     for (auto rsp : rsps) {
+                        ++rspIndex;
                         if (!rsp.IsOK()) {
                             // Output transaction may be aborted or expired.
                             continue;
@@ -691,6 +693,10 @@ private:
                         auto attributes = ConvertToAttributes(TYsonString(attributesRsp->value()));
                         if (attributes->Get<bool>("committed", false)) {
                             report->IsCommitted = true;
+                            if (rspIndex == 1) {
+                                report->ShouldCommitOutputTransaction = true;
+                            }
+                            break;
                         }
                     }
                 }
