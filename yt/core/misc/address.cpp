@@ -329,7 +329,7 @@ public:
     TImpl(TAddressResolverConfigPtr config)
         : TExpiringCache(config)
         , Config_(config)
-        , DnsResolver_(config->Retries, config->ResolveTimeout, config->WarningTimeout)
+        , DnsResolver_(config->Retries, config->ResolveTimeout, config->MaxResolveTimeout, config->WarningTimeout)
     {
         DnsResolver_.Start();
 
