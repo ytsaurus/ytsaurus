@@ -121,7 +121,8 @@ DEFINE_REFCOUNTED_TYPE(TPartReader)
 ///////////////////////////////////////////////////////////////////////////////
 
 //! Iterate over encode ranges and perform following logic:
-//! retrieve blocks from parts producer, encode these blocks and pass it to part consumers.
+//! retrieve blocks from parts producer, encode these blocks
+//! and pass it to part consumers.
 class TPartEncoder
     : public TRefCounted
 {
