@@ -97,9 +97,12 @@ public:
 
     //! How often min needed resources for jobs are retrieved from controller.
     TDuration MinNeededResourcesUpdatePeriod;
- 
+
     //! Maximum number of ephemeral pools that can be created by user.
     int MaxEphemeralPoolsPerUser;
+
+    //! If usage ratio is less than threshold multiplied by demand ratio we enables regularization.
+    double ThresholdToEnableMaxPossibleUsageRegularization;
 
     TFairShareStrategyConfig()
     {
@@ -202,6 +205,10 @@ public:
         RegisterParameter("max_ephemeral_pools_per_user", MaxEphemeralPoolsPerUser)
             .GreaterThanOrEqual(1)
             .Default(5);
+
+        RegisterParameter("threshold_to_enable_max_possible_usage_regularization", ThresholdToEnableMaxPossibleUsageRegularization)
+            .InRange(0.0, 1.0)
+            .Default(0.5);
 
         RegisterValidator([&] () {
             if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
