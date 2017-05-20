@@ -173,9 +173,10 @@ class YtTestEnvironment(object):
         self.config["operation_tracker"]["poll_period"] = 100
         if has_proxy:
             self.config["proxy"]["url"] = "localhost:" + self.env.get_proxy_address().split(":", 1)[1]
+
         # NB: to decrease probability of retries test failure.
         self.config["proxy"]["retries"]["count"] = 10
-        self.config["proxy"]["write_retries"]["count"] = 10
+        self.config["write_retries"]["count"] = 10
 
         self.config["proxy"]["retries"]["backoff"]["constant_time"] = 500
         self.config["proxy"]["retries"]["backoff"]["policy"] = "constant_time"
