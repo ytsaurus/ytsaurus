@@ -39,7 +39,7 @@ size_t WriteValue(char* output, const TVersionedValue& value)
 
 Stroka ToString(const TVersionedValue& value)
 {
-    return Format("%v@%v",
+    return Format("%v@%llx",
         static_cast<TUnversionedValue>(value),
         value.Timestamp);
 }
