@@ -892,7 +892,7 @@ class TestSchedulerRevive2(YTEnvSetup):
             self._create_table("//tmp/t_out" + str(index))
             self._create_table("//tmp/t_err" + str(index))
 
-    def test_many_operation(self):
+    def test_many_operations(self):
         self._prepare_tables()
 
         ops = []
