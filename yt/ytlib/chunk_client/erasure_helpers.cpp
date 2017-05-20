@@ -22,6 +22,17 @@ using NYT::FromProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+TPartIndexList GetParityPartIndices(const ICodec* codec)
+{
+    TPartIndexList result;
+    for (int index = codec->GetDataPartCount(); index < codec->GetTotalPartCount(); ++index) {
+        result.push_back(index);
+    }
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 i64 TPartRange::Size() const
 {
     return std::max(static_cast<i64>(0), End - Begin);
@@ -405,7 +416,14 @@ public:
             for (const auto& windowRange : windowRanges) {
                 auto blocks = WaitFor(ProduceBlocks(windowRange))
                     .ValueOrThrow();
-                auto decodedBlocks = Codec_->Decode(blocks, MissingPartIndices_);
+
+                std::vector<TSharedRef> decodedBlocks;
+                if (GetParityPartIndices(Codec_) == MissingPartIndices_) {
+                    YCHECK(blocks.size() == Codec_->GetDataPartCount());
+                    decodedBlocks = Codec_->Encode(blocks);
+                } else {
+                    decodedBlocks = Codec_->Decode(blocks, MissingPartIndices_);
+                }
                 WaitFor(ConsumeBlocks(windowRange, decodedBlocks))
                     .ThrowOnError();
             }
