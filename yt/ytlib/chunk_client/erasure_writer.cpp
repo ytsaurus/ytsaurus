@@ -218,6 +218,7 @@ private:
 
     // Chunk meta with information about block placement
     NProto::TChunkMeta ChunkMeta_;
+    NProto::TErasurePlacementExt PlacementExt_;
     NProto::TChunkInfo ChunkInfo_;
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
@@ -230,11 +231,11 @@ private:
 
     TFuture<void> WriteDataBlocks();
 
-    void WriteDataPart(IChunkWriterPtr writer, const std::vector<TBlock>& blocks);
+    void WriteDataPart(int partIndex, IChunkWriterPtr writer, const std::vector<TBlock>& blocks);
 
     void EncodeAndWriteParityBlocks();
 
-    void OnClosed();
+    void OnWritten();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -259,22 +260,21 @@ void TErasureWriter::PrepareBlocks()
 void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
 {
     int start = 0;
-    NProto::TErasurePlacementExt placementExt;
     for (const auto& group : Groups_) {
-        auto* info = placementExt.add_part_infos();
+        auto* info = PlacementExt_.add_part_infos();
         info->set_first_block_index(start);
         for (const auto& block : group) {
             info->add_block_sizes(block.Size());
         }
         start += group.size();
     }
-    placementExt.set_parity_part_count(Codec_->GetParityPartCount());
-    placementExt.set_parity_block_count(ParityPartSplitInfo_.BlockCount);
-    placementExt.set_parity_block_size(Config_->ErasureWindowSize);
-    placementExt.set_parity_last_block_size(ParityPartSplitInfo_.LastBlockSize);
+    PlacementExt_.set_parity_part_count(Codec_->GetParityPartCount());
+    PlacementExt_.set_parity_block_count(ParityPartSplitInfo_.BlockCount);
+    PlacementExt_.set_parity_block_size(Config_->ErasureWindowSize);
+    PlacementExt_.set_parity_last_block_size(ParityPartSplitInfo_.LastBlockSize);
+    PlacementExt_.mutable_part_checksums()->Resize(Codec_->GetTotalPartCount(), NullChecksum);
 
     ChunkMeta_ = chunkMeta;
-    SetProtoExtension(ChunkMeta_.mutable_extensions(), placementExt);
 }
 
 void TErasureWriter::DoOpen()
@@ -302,6 +302,7 @@ TFuture<void> TErasureWriter::WriteDataBlocks()
             BIND(
                 &TErasureWriter::WriteDataPart,
                 MakeStrong(this),
+                index,
                 Writers_[index],
                 Groups_[index])
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
@@ -310,19 +311,23 @@ TFuture<void> TErasureWriter::WriteDataBlocks()
     return Combine(asyncResults);
 }
 
-void TErasureWriter::WriteDataPart(IChunkWriterPtr writer, const std::vector<TBlock>& blocks)
+void TErasureWriter::WriteDataPart(int partIndex, IChunkWriterPtr writer, const std::vector<TBlock>& blocks)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
+    std::vector<TChecksum> blockChecksums;
     for (const auto& block : blocks) {
-        if (!writer->WriteBlock(block)) {
+        TBlock blockWithChecksum{block};
+        blockWithChecksum.Checksum = block.GetOrComputeChecksum();
+        blockChecksums.push_back(blockWithChecksum.Checksum);
+
+        if (!writer->WriteBlock(blockWithChecksum)) {
             WaitFor(writer->GetReadyEvent())
                 .ThrowOnError();
         }
     }
 
-    WaitFor(writer->Close(ChunkMeta_))
-        .ThrowOnError();
+    PlacementExt_.mutable_part_checksums()->Set(partIndex, CombineChecksums(blockChecksums));
 }
 
 void TErasureWriter::EncodeAndWriteParityBlocks()
@@ -340,9 +345,14 @@ void TErasureWriter::EncodeAndWriteParityBlocks()
         blockProducers.push_back(New<TPartReader>(blocksReader, BlocksToSizes(group)));
     }
 
+    std::vector<TPartWriterPtr> writerConsumers;
     std::vector<IPartBlockConsumerPtr> blockConsumers;
     for (auto index : parityIndices) {
-        blockConsumers.push_back(New<TPartWriter>(Writers_[index], ParityPartSplitInfo_.GetSizes()));
+        writerConsumers.push_back(New<TPartWriter>(
+            Writers_[index],
+            ParityPartSplitInfo_.GetSizes(),
+            /* computeChecksums */ true));
+        blockConsumers.push_back(writerConsumers.back());
     }
 
     std::vector<TPartRange> ranges(1, TPartRange{0, ParityPartSplitInfo_.GetPartSize()});
@@ -355,12 +365,9 @@ void TErasureWriter::EncodeAndWriteParityBlocks()
         blockConsumers);
     encoder->Run();
 
-    std::vector<TFuture<void>> asyncResults;
-    for (auto index : parityIndices) {
-        asyncResults.push_back(Writers_[index]->Close(ChunkMeta_));
+    for (int index = 0; index < parityIndices.size(); ++index) {
+        PlacementExt_.mutable_part_checksums()->Set(parityIndices[index], writerConsumers[index]->GetPartChecksum());
     }
-    WaitFor(Combine(asyncResults))
-        .ThrowOnError();
 }
 
 TFuture<void> TErasureWriter::Close(const NProto::TChunkMeta& chunkMeta)
@@ -382,12 +389,24 @@ TFuture<void> TErasureWriter::Close(const NProto::TChunkMeta& chunkMeta)
     };
 
     return Combine(asyncResults).Apply(
-        BIND(&TErasureWriter::OnClosed, MakeStrong(this)));
+        BIND(&TErasureWriter::OnWritten, MakeStrong(this))
+            .AsyncVia(invoker));
 }
 
 
-void TErasureWriter::OnClosed()
+void TErasureWriter::OnWritten()
 {
+    std::vector<TFuture<void>> asyncResults;
+
+    SetProtoExtension(ChunkMeta_.mutable_extensions(), PlacementExt_);
+
+    for (auto& writer : Writers_) {
+        asyncResults.push_back(writer->Close(ChunkMeta_));
+    }
+
+    WaitFor(Combine(asyncResults))
+        .ThrowOnError();
+
     i64 diskSpace = 0;
     for (auto writer : Writers_) {
         diskSpace += writer->GetChunkInfo().disk_space();

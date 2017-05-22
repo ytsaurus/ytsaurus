@@ -10,6 +10,7 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/numeric_helpers.h>
+#include <yt/core/misc/checksum.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -136,9 +137,10 @@ class TPartWriter::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(IChunkWriterPtr writer, const std::vector<i64>& blockSizes)
+    TImpl(IChunkWriterPtr writer, const std::vector<i64>& blockSizes, bool computeChecksum)
         : Writer_(writer)
         , BlockSizes_(blockSizes)
+        , ComputeChecksum_(computeChecksum)
     { }
 
     TFuture<void> Consume(const TPartRange& range, const TSharedRef& block)
@@ -148,7 +150,7 @@ public:
         Cursor_ = range.End;
 
         i64 blockPosition = 0;
-        std::vector<TSharedRef> blocksToWrite;
+        std::vector<TBlock> blocksToWrite;
 
         // Fill current block if it is started.
         if (PositionInCurrentBlock_ > 0) {
@@ -158,7 +160,8 @@ public:
             blockPosition += copySize;
 
             if (PositionInCurrentBlock_ == CurrentBlock_.Size()) {
-                blocksToWrite.push_back(CurrentBlock_);
+                blocksToWrite.push_back(TBlock(CurrentBlock_));
+
                 ++CurrentBlockIndex_;
                 PositionInCurrentBlock_ = 0;
             }
@@ -169,7 +172,7 @@ public:
             blockPosition + BlockSizes_[CurrentBlockIndex_] <= block.Size())
         {
             auto size = BlockSizes_[CurrentBlockIndex_];
-            blocksToWrite.push_back(block.Slice(blockPosition, blockPosition + size));
+            blocksToWrite.push_back(TBlock(block.Slice(blockPosition, blockPosition + size)));
             blockPosition += size;
             ++CurrentBlockIndex_;
         }
@@ -182,24 +185,39 @@ public:
             PositionInCurrentBlock_ = copySize;
         }
 
-        if (!Writer_->WriteBlocks(TBlock::Wrap(blocksToWrite))) {
+        if (ComputeChecksum_) {
+            for (auto& block : blocksToWrite) {
+                block.Checksum = block.GetOrComputeChecksum();
+                BlockChecksums_.push_back(block.Checksum);
+            }
+        }
+
+        if (!Writer_->WriteBlocks(blocksToWrite)) {
             return Writer_->GetReadyEvent();
         }
         return VoidFuture;
     }
 
+    TChecksum GetPartChecksum() const
+    {
+        return CombineChecksums(BlockChecksums_);
+    }
+
 private:
     const IChunkWriterPtr Writer_;
     const std::vector<i64> BlockSizes_;
+    const bool ComputeChecksum_;
 
     TSharedMutableRef CurrentBlock_;
     int CurrentBlockIndex_ = 0;
     size_t PositionInCurrentBlock_ = 0;
     i64 Cursor_ = 0;
+
+    std::vector<TChecksum> BlockChecksums_;
 };
 
-TPartWriter::TPartWriter(IChunkWriterPtr writer, const std::vector<i64>& blockSizes)
-    : Impl_(New<TImpl>(writer, blockSizes))
+TPartWriter::TPartWriter(IChunkWriterPtr writer, const std::vector<i64>& blockSizes, bool computeChecksum)
+    : Impl_(New<TImpl>(writer, blockSizes, computeChecksum))
 { }
 
 TFuture<void> TPartWriter::Consume(const TPartRange& range, const TSharedRef& block)
@@ -207,7 +225,13 @@ TFuture<void> TPartWriter::Consume(const TPartRange& range, const TSharedRef& bl
     return Impl_->Consume(range, block);
 }
 
-////////////////////////////////////////////////////////////////////////////////
+TChecksum TPartWriter::GetPartChecksum() const
+{
+    return Impl_->GetPartChecksum();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 
 class TPartReader::TImpl
     : public TRefCounted
