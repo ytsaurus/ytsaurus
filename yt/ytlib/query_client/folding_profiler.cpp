@@ -273,15 +273,7 @@ void TQueryProfiler::Profile(
         std::vector<EValueType> keyTypes;
 
         for (const auto& groupItem : groupClause->GroupItems) {
-            if (isMerge) {
-                auto referenceExpr = New<TReferenceExpression>(
-                    groupItem.Expression->Type,
-                    groupItem.Name);
-                codegenGroupExprs.push_back(Profile(TNamedItem(std::move(referenceExpr), groupItem.Name), schema));
-            } else {
-                codegenGroupExprs.push_back(Profile(groupItem, schema));
-            }
-
+            codegenGroupExprs.push_back(Profile(groupItem, schema));
             keyTypes.push_back(groupItem.Expression->Type);
         }
 
