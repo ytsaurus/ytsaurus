@@ -55,6 +55,15 @@ struct TOperationIOSpec
 };
 
 template <class TDerived>
+struct TUserOperationSpecBase
+{
+    using TSelf = TDerived;
+
+    // How many jobs can fail before operation is failed.
+    FLUENT_FIELD_OPTION(ui64, MaxFailedJobCount);
+};
+
+template <class TDerived>
 struct TIntermediateTablesHintSpec
 {
     // When using protobuf format it is important to know exact types of proto messages
@@ -120,6 +129,7 @@ struct TUserJobSpec
 
 struct TMapOperationSpec
     : public TOperationIOSpec<TMapOperationSpec>
+    , public TUserOperationSpecBase<TMapOperationSpec>
 {
     using TSelf = TMapOperationSpec;
 
@@ -129,6 +139,7 @@ struct TMapOperationSpec
 
 struct TReduceOperationSpec
     : public TOperationIOSpec<TReduceOperationSpec>
+    , public TUserOperationSpecBase<TReduceOperationSpec>
 {
     using TSelf = TReduceOperationSpec;
 
@@ -140,6 +151,7 @@ struct TReduceOperationSpec
 
 struct TMapReduceOperationSpec
     : public TOperationIOSpec<TMapReduceOperationSpec>
+    , public TUserOperationSpecBase<TMapReduceOperationSpec>
     , public TIntermediateTablesHintSpec<TMapReduceOperationSpec>
 {
     using TSelf = TMapReduceOperationSpec;
@@ -153,6 +165,7 @@ struct TMapReduceOperationSpec
 
 struct TJoinReduceOperationSpec
     : public TOperationIOSpec<TJoinReduceOperationSpec>
+    , public TUserOperationSpecBase<TJoinReduceOperationSpec>
 {
     using TSelf = TJoinReduceOperationSpec;
 
