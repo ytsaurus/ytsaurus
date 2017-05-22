@@ -87,7 +87,8 @@ _default_provision = {
             "cpu": 1,
             "memory": 4 * GB
         },
-        "memory_limit_addition": None
+        "memory_limit_addition": None,
+        "chunk_store_quota": None
     },
     "proxy": {
         "enable": False,
@@ -104,7 +105,7 @@ def get_default_provision():
 @add_metaclass(abc.ABCMeta)
 class ConfigsProvider(object):
     def build_configs(self, ports_generator, master_dirs, master_tmpfs_dirs=None, scheduler_dirs=None,
-                      node_dirs=None, proxy_dir=None, logs_dir=None, provision=None):
+                      node_dirs=None, node_tmpfs_dirs=None, proxy_dir=None, logs_dir=None, provision=None):
         provision = get_value(provision, get_default_provision())
 
         # XXX(asaitgalin): All services depend on master so it is useful to make
@@ -118,8 +119,15 @@ class ConfigsProvider(object):
 
         scheduler_configs = self._build_scheduler_configs(provision, scheduler_dirs, deepcopy(connection_configs),
                                                           ports_generator, logs_dir)
-        node_configs, node_addresses = \
-            self._build_node_configs(provision, node_dirs, deepcopy(connection_configs), ports_generator, logs_dir)
+
+        node_configs, node_addresses = self._build_node_configs(
+            provision,
+            node_dirs,
+            node_tmpfs_dirs,
+            deepcopy(connection_configs),
+            ports_generator,
+            logs_dir)
+
         proxy_config = self._build_proxy_config(provision, proxy_dir, deepcopy(connection_configs), ports_generator,
                                                 logs_dir, master_cache_nodes=node_addresses)
         driver_configs = self._build_driver_configs(provision, deepcopy(connection_configs),
@@ -148,7 +156,7 @@ class ConfigsProvider(object):
         pass
 
     @abc.abstractmethod
-    def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir):
+    def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir):
         pass
 
     @abc.abstractmethod
@@ -454,7 +462,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
         return proxy_config
 
-    def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir):
+    def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir):
         configs = []
         addresses = []
 
@@ -487,18 +495,31 @@ class ConfigsProvider_18(ConfigsProvider):
 
             set_at(config, "data_node/multiplexed_changelog/path", os.path.join(node_dirs[index], "multiplexed"))
 
-            set_at(config, "data_node/cache_locations", [])
-            config["data_node"]["cache_locations"].append({
-                "path": os.path.join(node_dirs[index], "chunk_cache"),
-                "quota": 256 * MB,
-            })
+            cache_location_config = {
+                "quota": 256 * MB
+            }
 
-            set_at(config, "data_node/store_locations", [])
-            config["data_node"]["store_locations"].append({
-                "path": os.path.join(node_dirs[index], "chunk_store"),
+            if node_tmpfs_dirs is not None:
+                cache_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "chunk_chace")
+            else:
+                cache_location_config["path"] = os.path.join(node_dirs[index], "chunk_chace")
+
+            set_at(config, "data_node/cache_locations", [cache_location_config])
+
+            store_location_config = {
                 "low_watermark": 0,
                 "high_watermark": 0
-            })
+            }
+
+            if provision["node"]["chunk_store_quota"] is not None:
+                store_location_config["quota"] = provision["node"]["chunk_store_quota"]
+
+            if node_tmpfs_dirs is not None:
+                store_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "chunk_store")
+            else:
+                store_location_config["path"] = os.path.join(node_dirs[index], "chunk_store"),
+
+            set_at(config, "data_node/store_locations", [store_location_config])
 
             config["logging"] = init_logging(config.get("logging"), node_logs_dir, "node-{0}".format(index),
                                              provision["enable_debug_logging"])
@@ -584,9 +605,9 @@ class ConfigsProvider_18(ConfigsProvider):
 
 
 class ConfigsProvider_18_3_18_4(ConfigsProvider_18):
-    def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir):
+    def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir):
         configs, addresses = super(ConfigsProvider_18_3_18_4, self)._build_node_configs(
-                provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir)
+                provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir)
 
         current_user = 10000
 
@@ -608,9 +629,9 @@ class ConfigsProvider_18_4(ConfigsProvider_18_3_18_4):
     pass
 
 class ConfigsProvider_18_5(ConfigsProvider_18):
-    def _build_node_configs(self, provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir):
+    def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir):
         configs, addresses = super(ConfigsProvider_18_5, self)._build_node_configs(
-                provision, node_dirs, master_connection_configs, ports_generator, node_logs_dir)
+                provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir)
 
         current_user = 10000
         for i, config in enumerate(configs):

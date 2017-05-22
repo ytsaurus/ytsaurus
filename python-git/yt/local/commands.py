@@ -190,7 +190,8 @@ _START_DEFAULTS = {
     "scheduler_count": 1,
     "jobs_memory_limit": 16 * GB,
     "jobs_cpu_limit": 1,
-    "jobs_user_slot_count": 10
+    "jobs_user_slot_count": 10,
+    "node_chunk_store_quota": 7 * GB
 }
 
 def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=True,
@@ -198,8 +199,8 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
           prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None,
-          wait_tablet_cell_initialization=False, set_pdeath_sig=False, watcher_config=None,
-          cell_tag=0):
+          node_chunk_store_quota=None, wait_tablet_cell_initialization=False, set_pdeath_sig=False,
+          watcher_config=None, cell_tag=0):
 
     options = {}
     for name in _START_DEFAULTS:
