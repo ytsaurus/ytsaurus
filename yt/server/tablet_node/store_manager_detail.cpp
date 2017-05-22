@@ -4,6 +4,7 @@
 #include "tablet_slot.h"
 #include "store.h"
 #include "in_memory_manager.h"
+#include "transaction.h"
 #include "config.h"
 
 #include <yt/server/tablet_node/tablet_manager.pb.h>
@@ -374,7 +375,7 @@ void TStoreManagerBase::Mount(const std::vector<TAddStoreDescriptor>& storeDescr
         const auto& extensions = descriptor.chunk_meta().extensions();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
         if (miscExt.has_max_timestamp()) {
-            UpdateLastCommitTimestamp(miscExt.max_timestamp());
+            UpdateLastCommitTimestamp(nullptr, miscExt.max_timestamp());
         }
     }
 
@@ -553,19 +554,19 @@ TTimestamp TStoreManagerBase::GenerateMonotonicCommitTimestamp(TTimestamp timest
 {
     auto lastCommitTimestamp = Tablet_->GetLastCommitTimestamp();
     auto monotonicTimestamp = std::max(lastCommitTimestamp + 1, timestampHint);
-    UpdateLastCommitTimestamp(monotonicTimestamp);
+    UpdateLastCommitTimestamp(nullptr, monotonicTimestamp);
     return monotonicTimestamp;
 }
 
-void TStoreManagerBase::UpdateLastCommitTimestamp(TTimestamp timestamp)
+void TStoreManagerBase::UpdateLastCommitTimestamp(TTransaction* transaction, TTimestamp timestamp)
 {
-    // XXX(babenko): this does not work properly in presence of versioned writes via replicator
-    //if (Tablet_->GetAtomicity() == EAtomicity::Full &&
-    //    TabletContext_->GetAutomatonState() == EPeerState::Leading)
-    //{
-    //    YCHECK(Tablet_->GetUnflushedTimestamp() <= timestamp);
-    //}
-
+    if (transaction &&
+        !transaction->GetForeign() &&
+        Tablet_->GetAtomicity() == EAtomicity::Full &&
+        TabletContext_->GetAutomatonState() == EPeerState::Leading)
+    {
+        YCHECK(Tablet_->GetUnflushedTimestamp() <= timestamp);
+    }
     Tablet_->SetLastCommitTimestamp(std::max(
         Tablet_->GetLastCommitTimestamp(),
         timestamp));
