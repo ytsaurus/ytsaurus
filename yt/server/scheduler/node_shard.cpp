@@ -1367,13 +1367,12 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
 
         if (job->GetInterruptible() && Config_->JobInterruptTimeout != TDuration::Zero()) {
             if (!job->GetPreempted()) {
-                auto interruptDeadline = now + DurationToCpuDuration(Config_->JobInterruptTimeout);
-                PreemptJob(job, interruptDeadline);
+                PreemptJob(job, DurationToCpuDuration(Config_->JobInterruptTimeout));
                 ToProto(response->add_jobs_to_interrupt(), job->GetId());
             }
             // Else do nothing: job was already interrupted, by deadline not reached yet.
         } else {
-            PreemptJob(job, 0);
+            PreemptJob(job, Null);
             ToProto(response->add_jobs_to_abort(), job->GetId());
         }
     }
@@ -1680,7 +1679,7 @@ void TNodeShard::DoUnregisterJob(const TJobPtr& job)
     }
 }
 
-void TNodeShard::PreemptJob(const TJobPtr& job, TCpuInstant interruptDeadline)
+void TNodeShard::PreemptJob(const TJobPtr& job, TNullable<TCpuDuration> interruptTimeout)
 {
     LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v, Interruptible: %v, Reason: %v)",
         job->GetId(),
@@ -1690,8 +1689,8 @@ void TNodeShard::PreemptJob(const TJobPtr& job, TCpuInstant interruptDeadline)
 
     job->SetPreempted(true);
 
-    if (interruptDeadline != 0) {
-        DoInterruptJob(job, EInterruptReason::Preemption, interruptDeadline);
+    if (interruptTimeout) {
+        DoInterruptJob(job, EInterruptReason::Preemption, *interruptTimeout);
     }
 }
 
