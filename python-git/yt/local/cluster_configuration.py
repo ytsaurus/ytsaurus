@@ -24,7 +24,10 @@ MASTER_CONFIG_PATCHES = [
         "security_manager": None,
         "object_manager": None,
         "hive_manager": None,
-        "cell_directory_synchronizer": None
+        "cell_directory_synchronizer": None,
+        "hydra_manager": {
+            "max_changelog_data_size": 256 * MB
+        }
     },
     {
         "cypress_manager": {
