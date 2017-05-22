@@ -72,7 +72,8 @@ def create_table(path, recursive=None, ignore_existing=False,
     :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
     :param bool recursive: create the path automatically, \
     ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
-    :param bool ignore_existing: if it sets to `False` and table exists, \
+    :param bool ignore_existing: do nothing if path already exists otherwise and option specified,
+    otherwise if path exists and option is not specified
     then :class:`YtResponseError <yt.wrapper.errors.YtResponseError>` will be raised.
     :param dict attributes: attributes.
     """
