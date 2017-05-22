@@ -88,9 +88,11 @@ class TPartWriter
     : public IPartBlockConsumer
 {
 public:
-    TPartWriter(IChunkWriterPtr writer, const std::vector<i64>& blockSizes);
+    TPartWriter(IChunkWriterPtr writer, const std::vector<i64>& blockSizes, bool computeChecksum);
 
     virtual TFuture<void> Consume(const TPartRange& range, const TSharedRef& block) override;
+
+    TChecksum GetPartChecksum() const;
 
 private:
     class TImpl;

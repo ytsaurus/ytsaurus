@@ -5,6 +5,7 @@
 #include "config.h"
 #include "dispatcher.h"
 #include "erasure_helpers.h"
+#include "private.h"
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -193,11 +194,14 @@ private:
         }
 
         // Prepare erasure part writers.
+        std::vector<TPartWriterPtr> writerConsumers;
         std::vector<IPartBlockConsumerPtr> blockConsumers;
         for (int index = 0; index < Writers_.size(); ++index) {
-            blockConsumers.push_back(New<TPartWriter>(
+            writerConsumers.push_back(New<TPartWriter>(
                 Writers_[index],
-                ErasedPartBlockSizes_[index]));
+                ErasedPartBlockSizes_[index],
+                /* computeChecksums */ true));
+            blockConsumers.push_back(writerConsumers.back());
         }
 
         // Run encoder.
@@ -215,6 +219,18 @@ private:
         auto reader = Readers_.front(); // an arbitrary one will do
         auto meta = WaitFor(reader->GetMeta(WorkloadDescriptor_))
             .ValueOrThrow();
+
+        // Validate repaired parts checksums
+        if (placementExt.part_checksums_size() != 0) {
+            YCHECK(placementExt.part_checksums_size() == Codec_->GetTotalPartCount());
+
+            for (int index = 0; index < Writers_.size(); ++index) {
+                TChecksum repairedPartChecksum = writerConsumers[index]->GetPartChecksum();
+                TChecksum expectedPartChecksum = placementExt.part_checksums(ErasedIndices_[index]);
+
+                YCHECK(repairedPartChecksum == expectedPartChecksum);
+            }
+        }
 
         // Close all writers.
         {
