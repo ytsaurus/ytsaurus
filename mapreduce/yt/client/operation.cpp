@@ -800,6 +800,15 @@ void BuildCommonOperationPart(const TOperationOptions& options, TFluentMap fluen
         });
 }
 
+template <typename TSpec>
+void BuildCommonUserOperationPart(const TSpec& baseSpec, TNode* spec)
+{
+    if (baseSpec.MaxFailedJobCount_.Defined()) {
+        (*spec)["max_failed_job_count"] = *baseSpec.MaxFailedJobCount_;
+    }
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString MergeSpec(TNode& dst, const TOperationOptions& options)
@@ -925,6 +934,8 @@ TOperationId ExecuteMap(
         .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
+    BuildCommonUserOperationPart(spec, &specNode["spec"]);
+
     auto operationId = StartOperation(
         auth,
         transactionId,
@@ -1000,6 +1011,8 @@ TOperationId ExecuteReduce(
         .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
 
+    BuildCommonUserOperationPart(spec, &specNode["spec"]);
+
     auto operationId = StartOperation(
         auth,
         transactionId,
@@ -1070,6 +1083,8 @@ TOperationId ExecuteJoinReduce(
         .Item("title").Value(reduce.GetClassName())
         .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
+
+    BuildCommonUserOperationPart(spec, &specNode["spec"]);
 
     auto operationId = StartOperation(
         auth,
@@ -1266,6 +1281,8 @@ TOperationId ExecuteMapReduce(
         .Item("title").Value(title + "reducer:" + reduce.GetClassName())
         .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
     .EndMap().EndMap();
+
+    BuildCommonUserOperationPart(spec, &specNode["spec"]);
 
     auto operationId = StartOperation(
         auth,
