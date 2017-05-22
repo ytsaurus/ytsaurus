@@ -71,6 +71,7 @@ void TTransaction::Save(TSaveContext& context) const
     using NYT::Save;
 
     YCHECK(!Transient_);
+    Save(context, Foreign_);
     Save(context, Timeout_);
     Save(context, GetPersistentState());
     Save(context, StartTimestamp_);
@@ -87,6 +88,7 @@ void TTransaction::Load(TLoadContext& context)
     using NYT::Load;
 
     Transient_ = false;
+    Load(context, Foreign_);
     Load(context, Timeout_);
     Load(context, State_);
     Load(context, StartTimestamp_);
@@ -169,6 +171,11 @@ bool TTransaction::IsPrepared() const
     return
         State_ == ETransactionState::TransientCommitPrepared ||
         State_ == ETransactionState::PersistentCommitPrepared;
+}
+
+bool TTransaction::IsSerializationNeeded() const
+{
+    return !DelayedLocklessWriteLog_.Empty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

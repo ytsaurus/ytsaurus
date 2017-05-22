@@ -26,6 +26,8 @@
 
 #include <yt/ytlib/tablet_client/tablet_service.pb.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
@@ -45,6 +47,7 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 using namespace NTransactionClient;
+using namespace NObjectClient;
 using namespace NHydra;
 using namespace NHiveServer;
 using namespace NCellNode;
@@ -117,6 +120,7 @@ public:
         , LeaseTracker_(New<TTransactionLeaseTracker>(
             Bootstrap_->GetTransactionTrackerInvoker(),
             Logger))
+        , NativeCellTag_(Bootstrap_->GetMasterClient()->GetConnection()->GetCellTag())
         , AbortTransactionIdPool_(Config_->MaxAbortedTransactionPoolSize)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
@@ -230,6 +234,7 @@ public:
         }
 
         auto transactionHolder = std::make_unique<TTransaction>(transactionId);
+        transactionHolder->SetForeign(CellTagFromId(transactionId) != NativeCellTag_);
         transactionHolder->SetTimeout(timeout);
         transactionHolder->SetStartTimestamp(startTimestamp);
         transactionHolder->SetState(ETransactionState::Active);
@@ -415,10 +420,17 @@ public:
             transactionId,
             commitTimestamp);
 
-        SerializingTransactionHeap_.push_back(transaction);
-        AdjustHeapBack(SerializingTransactionHeap_.begin(), SerializingTransactionHeap_.end(), SerializingTransactionHeapComparer);
-
         FinishTransaction(transaction);
+
+        if (transaction->IsSerializationNeeded()) {
+            YCHECK(!transaction->GetForeign());
+            SerializingTransactionHeap_.push_back(transaction);
+            AdjustHeapBack(SerializingTransactionHeap_.begin(), SerializingTransactionHeap_.end(), SerializingTransactionHeapComparer);
+        } else {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction removed without serialization (TransactionId: %v)",
+                transactionId);
+            PersistentTransactionMap_.Remove(transactionId);
+        }
     }
 
     void AbortTransaction(const TTransactionId& transactionId, bool force)
@@ -489,6 +501,7 @@ public:
 private:
     const TTransactionManagerConfigPtr Config_;
     const TTransactionLeaseTrackerPtr LeaseTracker_;
+    const TCellTag NativeCellTag_;
 
     TEntityMap<TTransaction> PersistentTransactionMap_;
     TEntityMap<TTransaction> TransientTransactionMap_;
@@ -624,7 +637,8 @@ private:
         SerializingTransactionHeap_.clear();
         for (const auto& pair : PersistentTransactionMap_) {
             auto* transaction = pair.second;
-            if (transaction->GetState() == ETransactionState::Committed) {
+            if (transaction->GetState() == ETransactionState::Committed && transaction->IsSerializationNeeded()) {
+                YCHECK(!transaction->GetForeign());
                 SerializingTransactionHeap_.push_back(transaction);
             }
             if (transaction->IsPrepared() && !transaction->IsCommitted()) {
@@ -884,6 +898,9 @@ private:
 
     void RegisterPrepareTimestamp(TTransaction* transaction)
     {
+        if (transaction->GetForeign()) {
+            return;
+        }
         auto prepareTimestamp = transaction->GetPrepareTimestamp();
         YCHECK(prepareTimestamp != NullTimestamp);
         YCHECK(PreparedTransactions_.emplace(prepareTimestamp, transaction).second);
@@ -891,6 +908,9 @@ private:
 
     void UnregisterPrepareTimestamp(TTransaction* transaction)
     {
+        if (transaction->GetForeign()) {
+            return;
+        }
         auto prepareTimestamp = transaction->GetPrepareTimestamp();
         if (prepareTimestamp == NullTimestamp) {
             return;

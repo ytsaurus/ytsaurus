@@ -54,6 +54,7 @@ class TTransaction
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Transient);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Foreign);
     DEFINE_BYVAL_RW_PROPERTY(bool, HasLease);
     DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
 
@@ -96,6 +97,8 @@ public:
     bool IsActive() const;
     bool IsCommitted() const;
     bool IsPrepared() const;
+
+    bool IsSerializationNeeded() const;
 
 private:
     TPromise<void> Finished_ = NewPromise<void>();
