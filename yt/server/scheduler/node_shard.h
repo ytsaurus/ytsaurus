@@ -296,7 +296,7 @@ private:
 
     void DoUnregisterJob(const TJobPtr& job);
 
-    void PreemptJob(const TJobPtr& job, NProfiling::TCpuInstant interruptDeadline);
+    void PreemptJob(const TJobPtr& job, TNullable<NProfiling::TCpuDuration> interruptTimeout);
 
     void DoInterruptJob(
         const TJobPtr& job,
