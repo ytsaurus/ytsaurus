@@ -500,9 +500,9 @@ class ConfigsProvider_18(ConfigsProvider):
             }
 
             if node_tmpfs_dirs is not None:
-                cache_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "chunk_chace")
+                cache_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "chunk_cache")
             else:
-                cache_location_config["path"] = os.path.join(node_dirs[index], "chunk_chace")
+                cache_location_config["path"] = os.path.join(node_dirs[index], "chunk_cache")
 
             set_at(config, "data_node/cache_locations", [cache_location_config])
 
@@ -517,7 +517,7 @@ class ConfigsProvider_18(ConfigsProvider):
             if node_tmpfs_dirs is not None:
                 store_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "chunk_store")
             else:
-                store_location_config["path"] = os.path.join(node_dirs[index], "chunk_store"),
+                store_location_config["path"] = os.path.join(node_dirs[index], "chunk_store")
 
             set_at(config, "data_node/store_locations", [store_location_config])
 

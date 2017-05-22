@@ -225,7 +225,7 @@ class YTInstance(object):
             watcher_config = get_watcher_config()
         self.watcher_config = watcher_config
 
-        self._prepare_environment(jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count,
+        self._prepare_environment(jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                                   node_memory_limit_addition, port_range_start, proxy_port, modify_configs_func)
 
     def _get_ports_generator(self, port_range_start):
@@ -279,7 +279,7 @@ class YTInstance(object):
 
         return master_dirs, master_tmpfs_dirs, scheduler_dirs, node_dirs, node_tmpfs_dirs, proxy_dir
 
-    def _prepare_environment(self, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count,
+    def _prepare_environment(self, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                              node_memory_limit_addition, port_range_start, proxy_port, modify_configs_func):
         logger.info("Preparing cluster instance as follows:")
         logger.info("  masters          %d (%d nonvoting)", self.master_count, self.nonvoting_master_count)
