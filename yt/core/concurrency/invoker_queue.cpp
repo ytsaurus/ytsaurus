@@ -32,36 +32,35 @@ struct IActionQueue
      * \param action Pointer to action instance to be dequeued.
      * \param index Index is used as a hint to extract the action
      * using the most suitable implementation-specific way.
-     * \return True on successuful operation. False on empty queue.
+     * \return |true| on successful operation. False on empty queue.
      */
     virtual bool Dequeue(TEnqueuedAction* action, int index) = 0;
 
-    //! Configures the queue for the specified number of threads
+    //! Configures the queue for the specified number of threads.
     /*!
-     * \param threads Number of threads to configure the queue.
+     * \param threadCount Number of threads to configure the queue.
      *
      * \note Must be invoked before any Enqueue/Dequeue invocations.
      */
-    virtual void Configure(int threads) = 0;
+    virtual void Configure(int threadCount) = 0;
 };
 
 class TLockFreeActionQueue
     : public IActionQueue
 {
 public:
-    void Enqueue(const TEnqueuedAction& action, int /*index*/) override
+    virtual void Enqueue(const TEnqueuedAction& action, int /*index*/) override
     {
         Queue_.Enqueue(action);
     }
 
-    bool Dequeue(TEnqueuedAction *action, int /*index*/) override
+    virtual bool Dequeue(TEnqueuedAction *action, int /*index*/) override
     {
         return Queue_.Dequeue(action);
     }
 
-    void Configure(int threads) override
-    {
-    }
+    virtual void Configure(int threadCount) override
+    { }
 
 private:
     TLockFreeQueue<TEnqueuedAction> Queue_;
@@ -125,9 +124,9 @@ class TTryQueues
     using TQueue = TLockQueue<T, TSpinLock>;
 
 public:
-    void Configure(int queues)
+    void Configure(int queueCount)
     {
-        Queues_.resize(queues);
+        Queues_.resize(queueCount);
     }
 
     template <typename U>
@@ -182,19 +181,19 @@ class TMultiLockActionQueue
     : public IActionQueue
 {
 public:
-    void Enqueue(const TEnqueuedAction& action, int index) override
+    virtual void Enqueue(const TEnqueuedAction& action, int index) override
     {
         Queue_.Enqueue(action, index);
     }
 
-    bool Dequeue(TEnqueuedAction *action, int index) override
+    virtual bool Dequeue(TEnqueuedAction *action, int index) override
     {
         return Queue_.Dequeue(action, index);
     }
 
-    void Configure(int threads) override
+    virtual void Configure(int threadCount) override
     {
-        Queue_.Configure(threads);
+        Queue_.Configure(threadCount);
     }
 
 private:
