@@ -9,6 +9,7 @@ import os, stat
 import sys
 import tempfile
 import time
+import calendar
 from datetime import datetime, timedelta
 import cStringIO
 from cStringIO import StringIO
@@ -1042,3 +1043,7 @@ def get_guid_from_parts(lo, hi):
     ints[2] = lo & 0xFFFFFFFF
     ints[3] = lo >> 32
     return "{3:x}-{2:x}-{1:x}-{0:x}".format(*ints)
+
+def datetime_str_to_ts(dt_str):
+    FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+    return calendar.timegm(datetime.strptime(dt_str, FORMAT).timetuple())

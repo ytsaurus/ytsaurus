@@ -779,6 +779,9 @@ TSchedulableConfig::TSchedulableConfig()
     RegisterParameter("fair_share_starvation_tolerance_limit", FairShareStarvationToleranceLimit)
         .InRange(0.0, 1.0)
         .Default();
+
+    RegisterParameter("allow_aggressive_starvation_preemption", AllowAggressiveStarvationPreemption)
+        .Default();
 }
 
 TPoolConfig::TPoolConfig()

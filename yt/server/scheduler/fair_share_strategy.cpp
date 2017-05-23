@@ -970,6 +970,8 @@ private:
             return false;
         }
 
+        aggressivePreemptionEnabled = aggressivePreemptionEnabled && element->IsAggressiveStarvationPreemptionAllowed();
+
         double usageRatio = element->GetResourceUsageRatio();
         const auto& attributes = element->Attributes();
         auto threshold = aggressivePreemptionEnabled
