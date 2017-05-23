@@ -2031,6 +2031,107 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         assert assert_almost_equal(get_usage_ratio(op.id), 1.0 / 3.0)
         assert get_running_job_count(op.id) == 1
 
+class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 6
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_preemption_timeout": 100,
+            "min_share_preemption_timeout": 100,
+            "fair_share_update_period": 100,
+            "aggressive_preemption_satisfaction_threshold": 0.2
+        }
+    }
+
+    @classmethod
+    def modify_node_config(cls, config):
+        for resource in ["cpu", "user_slots"]:
+            config["exec_agent"]["job_controller"]["resource_limits"][resource] = 2
+
+    def test_allow_aggressive_starvation_preemption(self):
+        create("table", "//tmp/t_in")
+        for i in xrange(3):
+            write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out")
+
+        create("map_node", "//sys/pools/special_pool")
+        set("//sys/pools/special_pool/@aggressive_starvation_enabled", True)
+
+        for index in xrange(4):
+            create("map_node", "//sys/pools/pool" + str(index))
+
+        set("//sys/pools/pool0/@allow_aggressive_starvation_preemption", False)
+
+        get_fair_share_ratio = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_ratio".format(op_id))
+
+        get_usage_ratio = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op_id))
+
+        get_running_jobs = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id))
+
+        get_running_job_count = lambda op_id: len(get_running_jobs(op_id))
+
+        ops = []
+        for index in xrange(4):
+            create("table", "//tmp/t_out" + str(index))
+            op = map(
+                command="sleep 1000; cat",
+                in_=["//tmp/t_in"],
+                out="//tmp/t_out" + str(index),
+                spec={
+                    "pool": "pool" + str(index),
+                    "job_count": 3,
+                    "locality_timeout": 0,
+                    "mapper": {"memory_limit": 10 * 1024 * 1024}
+                },
+                dont_track=True)
+            ops.append(op)
+
+        time.sleep(3)
+
+        for op in ops:
+            assert assert_almost_equal(get_fair_share_ratio(op.id), 1.0 / 4.0)
+            assert assert_almost_equal(get_usage_ratio(op.id), 1.0 / 4.0)
+            assert get_running_job_count(op.id) == 3
+
+        special_op = ops[0]
+        special_op_jobs = [
+            {
+                "id": key,
+                "start_time": datetime_str_to_ts(value["start_time"])
+            }
+            for key, value in get_running_jobs(special_op.id).iteritems()]
+
+        special_op_jobs.sort(key=lambda x: x["start_time"])
+        preemtable_job_id = special_op_jobs[-1]["id"]
+
+        op = map(
+            command="sleep 1000; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "pool": "special_pool",
+                "job_count": 1,
+                "locality_timeout": 0,
+                "mapper": {"cpu_limit": 2}
+            },
+            dont_track=True)
+
+        time.sleep(3)
+
+        assert get_running_job_count(op.id) == 1
+
+        special_op_running_job_count = get_running_job_count(special_op.id)
+        assert special_op_running_job_count >= 2
+        if special_op_running_job_count == 2:
+            assert preemtable_job_id not in get_running_jobs(special_op.id)
+
+
 class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
