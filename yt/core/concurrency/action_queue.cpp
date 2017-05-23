@@ -2,7 +2,7 @@
 #include "single_queue_scheduler_thread.h"
 #include "fair_share_queue_scheduler_thread.h"
 #include "private.h"
-#include "profiler_utils.h"
+#include "profiling_helpers.h"
 
 #include <yt/core/actions/invoker_detail.h>
 
