@@ -1,12 +1,16 @@
 #include "sort_controller.h"
 #include "private.h"
 #include "chunk_list_pool.h"
-#include "chunk_pool.h"
 #include "helpers.h"
 #include "job_memory.h"
 #include "map_controller.h"
 #include "operation_controller_detail.h"
-#include "sorted_chunk_pool.h"
+
+#include <yt/server/chunk_pools/atomic_chunk_pool.h>
+#include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/chunk_pools/shuffle_chunk_pool.h>
+#include <yt/server/chunk_pools/sorted_chunk_pool.h>
+#include <yt/server/chunk_pools/unordered_chunk_pool.h>
 
 #include <yt/server/scheduler/helpers.h>
 
@@ -36,6 +40,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
 using namespace NChunkServer;
+using namespace NChunkPools;
 using namespace NTableClient;
 using namespace NJobProxy;
 using namespace NObjectClient;

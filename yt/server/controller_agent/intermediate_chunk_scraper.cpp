@@ -1,10 +1,10 @@
 #include "intermediate_chunk_scraper.h"
 
+#include "config.h"
 #include "private.h"
 
-#include <yt/server/scheduler/config.h>
-
 #include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
 namespace NYT {
 namespace NControllerAgent {

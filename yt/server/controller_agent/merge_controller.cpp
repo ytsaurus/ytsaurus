@@ -2,11 +2,13 @@
 #include "sorted_controller.h"
 #include "private.h"
 #include "chunk_list_pool.h"
-#include "chunk_pool.h"
 #include "helpers.h"
 #include "job_memory.h"
 #include "map_controller.h"
 #include "operation_controller_detail.h"
+
+#include <yt/server/chunk_pools/atomic_chunk_pool.h>
+#include <yt/server/chunk_pools/chunk_pool.h>
 
 #include <yt/ytlib/api/transaction.h>
 
@@ -32,6 +34,7 @@ using namespace NYPath;
 using namespace NYson;
 using namespace NJobProxy;
 using namespace NChunkClient;
+using namespace NChunkPools;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NScheduler::NProto;

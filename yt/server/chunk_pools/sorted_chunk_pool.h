@@ -1,12 +1,14 @@
 #pragma once
 
+#include "private.h"
 #include "chunk_pool.h"
+#include "input_stream.h"
 
 #include <yt/ytlib/table_client/public.h>
 #include <yt/ytlib/job_tracker_client/public.h>
 
 namespace NYT {
-namespace NControllerAgent {
+namespace NChunkPools {
 
 ////////////////////////////////////////////////////////////////////
 
@@ -31,8 +33,8 @@ struct TSortedChunkPoolOptions
     TSortedJobOptions SortedJobOptions;
     i64 MinTeleportChunkSize = 0;
     bool SupportLocality = false;
-    IJobSizeConstraintsPtr JobSizeConstraints;
-    TOperationId OperationId;
+    NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
+    NScheduler::TOperationId OperationId;
 
     void Persist(const TPersistenceContext& context);
 };
@@ -59,5 +61,5 @@ std::unique_ptr<IChunkPool> CreateSortedChunkPool(
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NControllerAgent
+} // namespace NChunkPools
 } // namespace NYT

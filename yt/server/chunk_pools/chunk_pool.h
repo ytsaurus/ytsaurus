@@ -1,12 +1,15 @@
 #pragma once
 
-#include "helpers.h"
-#include "progress_counter.h"
-#include "serialize.h"
+#include "private.h"
+
+#include <yt/server/controller_agent/helpers.h>
+#include <yt/server/controller_agent/progress_counter.h>
+#include <yt/server/controller_agent/serialize.h>
 
 #include <yt/server/chunk_server/public.h>
 
 #include <yt/server/scheduler/job.h>
+#include <yt/server/scheduler/public.h>
 
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 #include <yt/ytlib/chunk_client/public.h>
@@ -14,7 +17,7 @@
 #include <yt/core/misc/small_vector.h>
 
 namespace NYT {
-namespace NControllerAgent {
+namespace NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,30 +134,6 @@ protected:
     bool Finished = false;
 };
 
-////////////////////////////////////////////////////////////////////
-
-struct TInputTable
-    : public TLockedUserObject
-{
-    //! Number of chunks in the whole table (without range selectors).
-    int ChunkCount = -1;
-    std::vector<NChunkClient::TInputChunkPtr> Chunks;
-    NTableClient::TTableSchema Schema;
-    NTableClient::ETableSchemaMode SchemaMode;
-    bool IsDynamic;
-
-    //! Set to true when schema of the table is compatible with the output
-    //! teleport table and when no special options set that disallow chunk
-    //! teleporting (like force_transform = %true).
-    bool IsTeleportable = false;
-
-    bool IsForeign() const;
-
-    bool IsPrimary() const;
-
-    void Persist(const TPersistenceContext& context);
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IChunkPoolOutput
@@ -174,7 +153,7 @@ struct IChunkPoolOutput
 
     virtual int GetTotalJobCount() const = 0;
     virtual int GetPendingJobCount() const = 0;
-    virtual const TProgressCounter& GetJobCounter() const = 0;
+    virtual const NControllerAgent::TProgressCounter& GetJobCounter() const = 0;
 
     //! Approximate average stripe list statistics to estimate memory usage.
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const = 0;
@@ -189,7 +168,7 @@ struct IChunkPoolOutput
 
     virtual void Completed(TCookie cookie, const NScheduler::TCompletedJobSummary& jobSummary) = 0;
     virtual void Failed(TCookie cookie) = 0;
-    virtual void Aborted(TCookie cookie, EAbortReason reason) = 0;
+    virtual void Aborted(TCookie cookie, NScheduler::EAbortReason reason) = 0;
     virtual void Lost(TCookie cookie) = 0;
 
     //! Raised when all the output cookies from this pool no longer correspond to valid jobs.
@@ -216,7 +195,7 @@ public:
 
     virtual i64 GetTotalRowCount() const override;
 
-    virtual const TProgressCounter& GetJobCounter() const override;
+    virtual const NControllerAgent::TProgressCounter& GetJobCounter() const override;
 
     // IPersistent implementation.
 
@@ -228,9 +207,9 @@ public:
     DEFINE_SIGNAL(void(const TError& error), PoolOutputInvalidated)
 
 protected:
-    TProgressCounter DataSizeCounter;
-    TProgressCounter RowCounter;
-    TProgressCounter JobCounter;
+    NControllerAgent::TProgressCounter DataSizeCounter;
+    NControllerAgent::TProgressCounter RowCounter;
+    NControllerAgent::TProgressCounter JobCounter;
 
     std::vector<NChunkClient::TInputChunkPtr> TeleportChunks_;
 };
@@ -278,12 +257,6 @@ struct IChunkPool
     , public virtual IChunkPoolOutput
 { };
 
-std::unique_ptr<IChunkPool> CreateAtomicChunkPool();
-
-std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
-    IJobSizeConstraintsPtr jobSizeConstraints,
-    NScheduler::TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IShuffleChunkPool
@@ -293,64 +266,8 @@ struct IShuffleChunkPool
     virtual IChunkPoolOutput* GetOutput(int partitionIndex) = 0;
 };
 
-std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
-    int partitionCount,
-    i64 dataSizeThreshold);
-
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInputStreamDescriptor
-{
-public:
-    //! Used only for persistence.
-    TInputStreamDescriptor() = default;
-    TInputStreamDescriptor(bool isTeleportable, bool isPrimary, bool isVersioned);
-
-    bool IsTeleportable() const;
-    bool IsPrimary() const;
-    bool IsForeign() const;
-    bool IsVersioned() const;
-    bool IsUnversioned() const;
-
-    void Persist(const TPersistenceContext& context);
-
-private:
-    bool IsTeleportable_;
-    bool IsPrimary_;
-    bool IsVersioned_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-extern TInputStreamDescriptor IntermediateInputStreamDescriptor;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TInputStreamDirectory
-{
-public:
-    //! Used only for persistence
-    TInputStreamDirectory() = default;
-    explicit TInputStreamDirectory(
-        std::vector<TInputStreamDescriptor> descriptors,
-        TInputStreamDescriptor defaultDescriptor = IntermediateInputStreamDescriptor);
-
-    const TInputStreamDescriptor& GetDescriptor(int inputStreamIndex) const;
-
-    int GetDescriptorCount() const;
-
-    void Persist(const TPersistenceContext& context);
-private:
-    std::vector<TInputStreamDescriptor> Descriptors_;
-    TInputStreamDescriptor DefaultDescriptor_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-extern TInputStreamDirectory IntermediateInputStreamDirectory;
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NControllerAgent
+} // namespace NChunkPools
 } // namespace NYT
 

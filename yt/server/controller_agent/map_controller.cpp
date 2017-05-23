@@ -1,11 +1,13 @@
 #include "map_controller.h"
 #include "merge_controller.h"
-#include "chunk_pool.h"
 #include "chunk_list_pool.h"
 #include "helpers.h"
 #include "job_memory.h"
 #include "private.h"
 #include "operation_controller_detail.h"
+
+#include <yt/server/chunk_pools/unordered_chunk_pool.h>
+#include <yt/server/chunk_pools/chunk_pool.h>
 
 #include <yt/ytlib/api/transaction.h>
 
@@ -28,6 +30,7 @@ using namespace NYPath;
 using namespace NChunkServer;
 using namespace NJobProxy;
 using namespace NChunkClient;
+using namespace NChunkPools;
 using namespace NChunkClient::NProto;
 using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;

@@ -3,7 +3,6 @@
 #include "private.h"
 
 #include "chunk_list_pool.h"
-#include "chunk_pool.h"
 #include "job_memory.h"
 #include "job_splitter.h"
 #include "operation_controller.h"
@@ -13,6 +12,9 @@
 
 #include <yt/server/scheduler/config.h>
 #include <yt/server/scheduler/event_log.h>
+
+#include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/chunk_pools/public.h>
 
 #include <yt/server/chunk_server/public.h>
 
@@ -339,6 +341,28 @@ protected:
         void Persist(const TPersistenceContext& context);
     };
 
+    struct TInputTable
+        : public TLockedUserObject
+    {
+        //! Number of chunks in the whole table (without range selectors).
+        int ChunkCount = -1;
+        std::vector<NChunkClient::TInputChunkPtr> Chunks;
+        NTableClient::TTableSchema Schema;
+        NTableClient::ETableSchemaMode SchemaMode;
+        bool IsDynamic;
+
+        //! Set to true when schema of the table is compatible with the output
+        //! teleport table and when no special options set that disallow chunk
+        //! teleporting (like force_transform = %true).
+        bool IsTeleportable = false;
+
+        bool IsForeign() const;
+
+        bool IsPrimary() const;
+
+        void Persist(const TPersistenceContext& context);
+    };
+
     std::vector<TInputTable> InputTables;
 
     struct TJobBoundaryKeys
@@ -478,8 +502,8 @@ protected:
         double UserJobMemoryReserveFactor = -1;
         TJobResources ResourceLimits;
 
-        TChunkStripeListPtr InputStripeList;
-        IChunkPoolOutput::TCookie OutputCookie;
+        NChunkPools::TChunkStripeListPtr InputStripeList;
+        NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
 
         //! All chunk lists allocated for this job.
         /*!
@@ -530,10 +554,10 @@ protected:
         TCompletedJob(
             const TJobId& jobId,
             TTaskPtr sourceTask,
-            IChunkPoolOutput::TCookie outputCookie,
+            NChunkPools::IChunkPoolOutput::TCookie outputCookie,
             i64 dataSize,
-            IChunkPoolInput* destinationPool,
-            IChunkPoolInput::TCookie inputCookie,
+            NChunkPools::IChunkPoolInput* destinationPool,
+            NChunkPools::IChunkPoolInput::TCookie inputCookie,
             const NScheduler::TJobNodeDescriptor& nodeDescriptor)
             : Lost(false)
             , JobId(jobId)
@@ -550,11 +574,11 @@ protected:
         TJobId JobId;
 
         TTaskPtr SourceTask;
-        IChunkPoolOutput::TCookie OutputCookie;
+        NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
         i64 DataSize;
 
-        IChunkPoolInput* DestinationPool;
-        IChunkPoolInput::TCookie InputCookie;
+        NChunkPools::IChunkPoolInput* DestinationPool;
+        NChunkPools::IChunkPoolInput::TCookie InputCookie;
 
         NScheduler::TJobNodeDescriptor NodeDescriptor;
 
@@ -606,8 +630,8 @@ protected:
 
         void ResetCachedMinNeededResources();
 
-        void AddInput(TChunkStripePtr stripe);
-        void AddInput(const std::vector<TChunkStripePtr>& stripes);
+        void AddInput(NChunkPools::TChunkStripePtr stripe);
+        void AddInput(const std::vector<NChunkPools::TChunkStripePtr>& stripes);
         void FinishInput();
 
         void CheckCompleted();
@@ -644,8 +668,8 @@ protected:
 
         TNullable<i64> GetMaximumUsedTmpfsSize() const;
 
-        virtual IChunkPoolInput* GetChunkPoolInput() const = 0;
-        virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;
+        virtual NChunkPools::IChunkPoolInput* GetChunkPoolInput() const = 0;
+        virtual NChunkPools::IChunkPoolOutput* GetChunkPoolOutput() const = 0;
 
         virtual void Persist(const TPersistenceContext& context) override;
 
@@ -668,7 +692,7 @@ protected:
         bool CompletedFired;
 
         //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
-        yhash<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
+        yhash<NChunkPools::IChunkPoolOutput::TCookie, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
 
     private:
         TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
@@ -708,7 +732,7 @@ protected:
         void AddChunksToInputSpec(
             NNodeTrackerClient::TNodeDirectoryBuilder* directoryBuilder,
             NScheduler::NProto::TTableInputSpec* inputSpec,
-            TChunkStripePtr stripe);
+            NChunkPools::TChunkStripePtr stripe);
 
         void AddFinalOutputSpecs(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
         void AddIntermediateOutputSpec(
@@ -722,16 +746,16 @@ protected:
 
         void RegisterIntermediate(
             TJobletPtr joblet,
-            TChunkStripePtr stripe,
+            NChunkPools::TChunkStripePtr stripe,
             TTaskPtr destinationTask,
             bool attachToLivePreview);
         void RegisterIntermediate(
             TJobletPtr joblet,
-            TChunkStripePtr stripe,
-            IChunkPoolInput* destinationPool,
+            NChunkPools::TChunkStripePtr stripe,
+            NChunkPools::IChunkPoolInput* destinationPool,
             bool attachToLivePreview);
 
-        static TChunkStripePtr BuildIntermediateChunkStripe(
+        static NChunkPools::TChunkStripePtr BuildIntermediateChunkStripe(
             google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
 
         void RegisterOutput(
@@ -797,7 +821,7 @@ protected:
 
     void DoAddTaskLocalityHint(TTaskPtr task, NNodeTrackerClient::TNodeId nodeId);
     void AddTaskLocalityHint(TTaskPtr task, NNodeTrackerClient::TNodeId nodeId);
-    void AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe);
+    void AddTaskLocalityHint(TTaskPtr task, NChunkPools::TChunkStripePtr stripe);
     void AddTaskPendingHint(TTaskPtr task);
     void ResetTaskLocalityDelays();
 
@@ -961,12 +985,12 @@ protected:
 
     struct TStripeDescriptor
     {
-        TChunkStripePtr Stripe;
-        IChunkPoolInput::TCookie Cookie;
+        NChunkPools::TChunkStripePtr Stripe;
+        NChunkPools::IChunkPoolInput::TCookie Cookie;
         TTaskPtr Task;
 
         TStripeDescriptor()
-            : Cookie(IChunkPoolInput::NullCookie)
+            : Cookie(NChunkPools::IChunkPoolInput::NullCookie)
         { }
 
         void Persist(const TPersistenceContext& context);
@@ -1059,7 +1083,7 @@ protected:
         const NTableClient::TKeyColumns& fullColumns,
         const NTableClient::TKeyColumns& prefixColumns);
 
-    void RegisterInputStripe(TChunkStripePtr stripe, TTaskPtr task);
+    void RegisterInputStripe(NChunkPools::TChunkStripePtr stripe, TTaskPtr task);
 
 
     void RegisterBoundaryKeys(
@@ -1090,7 +1114,7 @@ protected:
     void RegisterIntermediate(
         TJobletPtr joblet,
         TCompletedJobPtr completedJob,
-        TChunkStripePtr stripe,
+        NChunkPools::TChunkStripePtr stripe,
         bool attachToLivePreview);
 
     void RegisterStderr(TJobletPtr joblet, const NScheduler::TJobSummary& jobSummary);
@@ -1123,13 +1147,13 @@ protected:
     void SliceUnversionedChunks(
         const std::vector<NChunkClient::TInputChunkPtr>& unversionedChunks,
         const IJobSizeConstraintsPtr& jobSizeConstraints,
-        std::vector<TChunkStripePtr>* result) const;
+        std::vector<NChunkPools::TChunkStripePtr>* result) const;
     void SlicePrimaryUnversionedChunks(
         const IJobSizeConstraintsPtr& jobSizeConstraints,
-        std::vector<TChunkStripePtr>* result) const;
+        std::vector<NChunkPools::TChunkStripePtr>* result) const;
     void SlicePrimaryVersionedChunks(
         const IJobSizeConstraintsPtr& jobSizeConstraints,
-        std::vector<TChunkStripePtr>* result) const;
+        std::vector<NChunkPools::TChunkStripePtr>* result) const;
 
     void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,
@@ -1157,7 +1181,7 @@ protected:
 
     i64 GetFinalIOMemorySize(
         NScheduler::TJobIOConfigPtr ioConfig,
-        const TChunkStripeStatisticsVector& stripeStatistics) const;
+        const NChunkPools::TChunkStripeStatisticsVector& stripeStatistics) const;
 
     void InitIntermediateOutputConfig(NScheduler::TJobIOConfigPtr config);
     void InitFinalOutputConfig(NScheduler::TJobIOConfigPtr config);

@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/server/controller_agent/public.h>
+#include <yt/server/controller_agent/config.h>
 
 #include <yt/server/job_proxy/config.h>
 
@@ -224,23 +224,6 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIntermediateChunkScraperConfig
-    : public NChunkClient::TChunkScraperConfig
-{
-public:
-    TDuration RestartTimeout;
-
-    TIntermediateChunkScraperConfig()
-    {
-        RegisterParameter("restart_timeout", RestartTimeout)
-            .Default(TDuration::Seconds(10));
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TIntermediateChunkScraperConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TEventLogConfig
     : public NTableClient::TBufferedTableWriterConfig
 {
@@ -255,32 +238,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TEventLogConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TJobSizeAdjusterConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    TDuration MinJobTime;
-    TDuration MaxJobTime;
-
-    double ExecToPrepareTimeRatio;
-
-    TJobSizeAdjusterConfig()
-    {
-        RegisterParameter("min_job_time", MinJobTime)
-            .Default(TDuration::Seconds(60));
-
-        RegisterParameter("max_job_time", MaxJobTime)
-            .Default(TDuration::Minutes(10));
-
-        RegisterParameter("exec_to_prepare_time_ratio", ExecToPrepareTimeRatio)
-            .Default(20.0);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TJobSizeAdjusterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -403,7 +360,7 @@ class TMapOperationOptions
     : public TSimpleOperationOptions
 {
 public:
-    TJobSizeAdjusterConfigPtr JobSizeAdjuster;
+    NControllerAgent::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
     TJobSplitterConfigPtr JobSplitter;
 
     TMapOperationOptions()
@@ -496,7 +453,7 @@ public:
     i64 CompressedBlockSize;
     i64 MinPartitionSize;
     i64 MinUncompressedBlockSize;
-    TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
+    NControllerAgent::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
 
     TSortOperationOptionsBase()
     {
@@ -934,7 +891,7 @@ public:
     TDuration StaticOrchidCacheUpdatePeriod;
 
     // We use the same config for input chunk scraper and intermediate chunk scraper.
-    TIntermediateChunkScraperConfigPtr ChunkScraper;
+    NControllerAgent::TIntermediateChunkScraperConfigPtr ChunkScraper;
 
     // Enables statistics reporter to send job events/statistics/specs etc.
     bool EnableStatisticsReporter;

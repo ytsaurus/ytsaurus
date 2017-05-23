@@ -1,7 +1,7 @@
 #include "job_size_adjuster.h"
-#include "private.h"
 
-#include <yt/server/scheduler/config.h>
+#include "config.h"
+#include "private.h"
 
 namespace NYT {
 namespace NControllerAgent {

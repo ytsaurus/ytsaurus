@@ -1,6 +1,7 @@
 #include "job_splitter.h"
 #include "private.h"
-#include "chunk_pool.h"
+
+#include <yt/server/chunk_pools/chunk_pool.h>
 
 #include <yt/server/scheduler/config.h>
 
@@ -9,6 +10,7 @@
 namespace NYT {
 namespace NControllerAgent {
 
+using namespace NChunkPools;
 using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
