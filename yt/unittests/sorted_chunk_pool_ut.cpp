@@ -2,14 +2,16 @@
 
 #include "chunk_slice_fetcher_mock.h"
 
-#include <util/stream/null.h>
+#include <yt/server/controller_agent/helpers.h>
+
+#include <yt/server/chunk_pools/sorted_chunk_pool.h>
+
+#include <yt/ytlib/table_client/row_buffer.h>
 
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/phoenix.h>
 
-#include <yt/server/controller_agent/sorted_chunk_pool.h>
-
-#include <yt/ytlib/table_client/row_buffer.h>
+#include <util/stream/null.h>
 
 #include <random>
 
@@ -30,9 +32,10 @@ void PrintTo(const TInputChunk& /* chunk */, std::ostream* /* os */)
 } // namespace NYT
 
 namespace NYT {
-namespace NControllerAgent {
+namespace NChunkPools {
 namespace {
 
+using namespace NControllerAgent;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
@@ -2817,5 +2820,5 @@ INSTANTIATE_TEST_CASE_P(VariousOperationsWithPoolInstantiation,
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NControllerAgent
+} // namespace NChunkPools
 } // namespace NYT

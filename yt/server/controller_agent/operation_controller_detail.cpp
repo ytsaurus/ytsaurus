@@ -1,7 +1,6 @@
 #include "operation_controller_detail.h"
 #include "private.h"
 #include "chunk_list_pool.h"
-#include "chunk_pool.h"
 #include "helpers.h"
 #include "intermediate_chunk_scraper.h"
 #include "job_helpers.h"
@@ -20,6 +19,9 @@
 #include <yt/server/misc/job_table_schema.h>
 
 #include <yt/server/scheduler/job_metrics.h>
+
+#include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/chunk_pools/public.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
@@ -76,6 +78,7 @@
 namespace NYT {
 namespace NControllerAgent {
 
+using namespace NChunkPools;
 using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NFileClient;
@@ -166,6 +169,30 @@ void TOperationControllerBase::TJobBoundaryKeys::Persist(const TPersistenceConte
     Persist(context, MinKey);
     Persist(context, MaxKey);
     Persist(context, ChunkTreeId);
+}
+
+////////////////////////////////////////////////////////////////////
+
+bool TOperationControllerBase::TInputTable::IsForeign() const
+{
+    return Path.GetForeign();
+}
+
+bool TOperationControllerBase::TInputTable::IsPrimary() const
+{
+    return !IsForeign();
+}
+
+void TOperationControllerBase::TInputTable::Persist(const TPersistenceContext& context)
+{
+    TUserObject::Persist(context);
+
+    using NYT::Persist;
+    Persist(context, ChunkCount);
+    Persist(context, Chunks);
+    Persist(context, Schema);
+    Persist(context, SchemaMode);
+    Persist(context, IsDynamic);
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -22,7 +22,7 @@ struct IJobSizeAdjuster
 
 std::unique_ptr<IJobSizeAdjuster> CreateJobSizeAdjuster(
     i64 dataSizePerJob,
-    const NScheduler::TJobSizeAdjusterConfigPtr& config);
+    const TJobSizeAdjusterConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

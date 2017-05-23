@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/chunk_pools/public.h>
+
 #include <yt/server/scheduler/job.h>
 
 namespace NYT {
@@ -13,7 +15,7 @@ struct IJobSplitter
 {
     virtual void OnJobStarted(
         const TJobId& jobId,
-        const TChunkStripeListPtr& inputStripeList) = 0;
+        const NChunkPools::TChunkStripeListPtr& inputStripeList) = 0;
     virtual void OnJobRunning(const NScheduler::TJobSummary& summary) = 0;
     virtual void OnJobFailed(const NScheduler::TFailedJobSummary& summary) = 0;
     virtual void OnJobAborted(const NScheduler::TAbortedJobSummary& summary) = 0;

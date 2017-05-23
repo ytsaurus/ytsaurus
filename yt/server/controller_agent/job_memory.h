@@ -1,7 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_pool.h"
+
+#include <yt/server/chunk_pools/chunk_pool.h>
 
 namespace NYT {
 namespace NControllerAgent {
@@ -13,9 +14,9 @@ i64 GetLFAllocBufferSize();
 
 i64 GetInputIOMemorySize(
     NScheduler::TJobIOConfigPtr ioConfig,
-    const TChunkStripeStatistics& stat);
+    const NChunkPools::TChunkStripeStatistics& stat);
 
-i64 GetSortInputIOMemorySize(const TChunkStripeStatistics& stat);
+i64 GetSortInputIOMemorySize(const NChunkPools::TChunkStripeStatistics& stat);
 
 i64 GetIntermediateOutputIOMemorySize(NScheduler::TJobIOConfigPtr ioConfig);
 

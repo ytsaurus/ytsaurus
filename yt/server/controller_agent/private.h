@@ -18,18 +18,11 @@ DECLARE_REFCOUNTED_CLASS(TSnapshotDownloader)
 
 class TOperationControllerBase;
 
-DECLARE_REFCOUNTED_STRUCT(TChunkStripe)
-
 DECLARE_REFCOUNTED_CLASS(TChunkListPool)
 
 DECLARE_REFCOUNTED_CLASS(TMasterConnector)
 
 class TJobMetricsUpdater;
-
-struct IChunkPoolInput;
-struct IChunkPoolOutput;
-struct IChunkPool;
-struct IShuffleChunkPool;
 
 ////////////////////////////////////////////////////////////////////
 

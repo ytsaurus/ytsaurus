@@ -13,7 +13,7 @@ namespace {
 TEST(TJobSizeAdjusterTest, Simple)
 {
     i64 dataSizePerJob = 128LL * 1024 * 1024;
-    auto config = New<NScheduler::TJobSizeAdjusterConfig>();
+    auto config = New<TJobSizeAdjusterConfig>();
     config->MinJobTime = TDuration::Seconds(20);
     config->ExecToPrepareTimeRatio = 10.0;
     auto jobSizeAdjuster = CreateJobSizeAdjuster(

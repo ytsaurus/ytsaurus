@@ -1,5 +1,6 @@
 #include "job_helpers.h"
-#include "chunk_pool.h"
+
+#include <yt/server/chunk_pools/chunk_pool.h>
 
 #include <yt/server/scheduler/job.h>
 
@@ -8,6 +9,7 @@
 namespace NYT {
 namespace NControllerAgent {
 
+using namespace NChunkPools;
 using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;

@@ -3,6 +3,8 @@
 #include "public.h"
 #include "serialize.h"
 
+#include <yt/server/chunk_pools/public.h>
+
 #include <yt/server/scheduler/job.h>
 
 namespace NYT {
@@ -49,7 +51,7 @@ void ParseStatistics(NScheduler::TJobSummary* jobSummary, const NYson::TYsonStri
 
 NYson::TYsonString BuildInputPaths(
     const std::vector<NYPath::TRichYPath>& inputPaths,
-    const TChunkStripeListPtr& inputStripeList,
+    const NChunkPools::TChunkStripeListPtr& inputStripeList,
     EOperationType operationType,
     EJobType jobType);
 

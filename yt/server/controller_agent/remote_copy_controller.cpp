@@ -1,9 +1,11 @@
 #include "remote_copy_controller.h"
 #include "private.h"
-#include "chunk_pool.h"
 #include "helpers.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
+
+#include <yt/server/chunk_pools/chunk_pool.h>
+#include <yt/server/chunk_pools/atomic_chunk_pool.h>
 
 #include <yt/ytlib/api/config.h>
 #include <yt/ytlib/api/native_connection.h>
@@ -35,6 +37,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NChunkServer;
+using namespace NChunkPools;
 using namespace NJobProxy;
 using namespace NChunkClient;
 using namespace NObjectClient;
