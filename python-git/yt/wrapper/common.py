@@ -16,9 +16,9 @@ import random
 import socket
 import sys
 import threading
-import weakref
 
 from multiprocessing.pool import ThreadPool
+from multiprocessing.dummy import Process as DummyProcess, dummy_current_process
 from collections import Mapping
 from itertools import chain
 from functools import reduce
@@ -283,9 +283,14 @@ def object_type_from_uuid(uuid):
 def is_master_transaction(transaction_id):
     return object_type_from_uuid(transaction_id) in (1, 4)
 
+class _DummyProcess(DummyProcess):
+    def start(self):
+        assert self._parent is dummy_current_process()
+        self._start_called = True
+        if hasattr(self._parent, "_children"):
+            self._parent._children[self] = None
+        threading.Thread.start(self)
+
 class ThreadPoolHelper(ThreadPool):
-    # Fix python bug http://bugs.python.org/issue10015
-    def __init__(self, *args, **kwargs):
-        if not hasattr(threading.current_thread(), "_children"):
-            threading.current_thread()._children = weakref.WeakKeyDictionary()
-        super(ThreadPool, self).__init__(*args, **kwargs)
+    # See: http://bugs.python.org/issue10015
+    Process = _DummyProcess
