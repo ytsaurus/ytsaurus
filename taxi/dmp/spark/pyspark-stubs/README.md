@@ -26,7 +26,7 @@ You'll also need a type checker for example:
 
 ## Version Compatibility
 
-Currently this project uses Spark 2.1.0 as a reference.
+Currently this project uses Spark 2.2 as a reference.
 
 ## API Coverage
 
