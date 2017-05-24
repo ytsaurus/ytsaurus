@@ -179,6 +179,7 @@ struct TErrorAttribute
 };
 
 TError operator << (TError error, const TErrorAttribute& attribute);
+TError operator << (TError error, const std::vector<TErrorAttribute>& attributes);
 TError operator << (TError error, const TError& innerError);
 TError operator << (TError error, TError&& innerError);
 TError operator << (TError error, const std::vector<TError>& innerErrors);
