@@ -148,6 +148,9 @@ def add_start_subparser(subparsers):
     parser.add_argument("--jobs-user-slot-count", type=int, default=_USE_START_DEFAULT,
                         help="slot count for user jobs")
 
+    parser.add_argument("--node-chunk-store-quota", type=int, default=_USE_START_DEFAULT,
+                        help="size for node chunk storage in bytes")
+
     parser.add_argument("--wait-tablet-cell-initialization", action="store_true", default=False,
                         help="wait until tablet cell (created during world initialization) health is good")
     parser.add_argument("--timeout", type=int,

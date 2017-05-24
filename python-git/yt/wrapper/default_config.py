@@ -71,10 +71,15 @@ default_config = {
         # Retries configuration for http requests.
         "retries": retries_config(count=6, enable=True, backoff={"policy": "rounded_up_to_request_timeout"}),
 
+        # Timeout for connect.
+        "connect_timeout": 5000,
         # Timeout for request.
         "request_timeout": 20000,
         # Heavy commands have increased timeout.
         "heavy_request_timeout": 60000,
+
+        # Skip backoff in case of connect timeout error.
+        "skip_backoff_if_connect_timed_out": True,
 
         # Increased retry count used for operation state discovery.
         "operation_state_discovery_retry_count": 100,
@@ -364,6 +369,9 @@ default_config = {
 
     # Default value of raw option in read, write, select, insert, lookup, delete.
     "default_value_of_raw_option": False,
+
+    # Default value for enable_batch_mode option in search command.
+    "enable_batch_mode_for_search": False,
 
     # Retries for read request. This type of retries parse data stream, if it is enabled, reading may be much slower.
     "read_retries": retries_config(count=30, enable=True, backoff={"policy": "rounded_up_to_request_timeout"})\

@@ -266,7 +266,7 @@ def remove(path, recursive=False, force=False, client=None):
         },
         client=client)
 
-def create(type, path=None, recursive=False, ignore_existing=False, attributes=None, client=None):
+def create(type, path=None, recursive=False, ignore_existing=False, force=None, attributes=None, client=None):
     """Creates Cypress node.
 
     :param str type: one of ["table", "file", "map_node", "list_node", ...].
@@ -282,8 +282,9 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
         "type": type,
         "recursive": bool_to_string(recursive),
         "ignore_existing": bool_to_string(ignore_existing),
-        "attributes": get_value(attributes, {})
     }
+    set_param(params, "attributes", attributes)
+    set_param(params, "force", force, bool_to_string)
     if path is not None:
         params["path"] = YPath(path, client=client)
     return _make_formatted_transactional_request("create", params, format=None, client=client)
@@ -359,7 +360,7 @@ def find_free_subpath(path, client=None):
 def search(root="", node_type=None, path_filter=None, object_filter=None, subtree_filter=None,
            map_node_order=lambda path, obj: sorted(obj), list_node_order=None, attributes=None,
            exclude=None, depth_bound=None, follow_links=False, read_from=None,
-           enable_batch_mode=False, client=None):
+           enable_batch_mode=None, client=None):
     """Searches for some nodes in Cypress subtree.
 
     :param root: path to search.
@@ -395,6 +396,9 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
 
     exclude = deepcopy(flatten(get_value(exclude, ["//sys/operations"])))
 
+    if enable_batch_mode is None:
+        enable_batch_mode = get_config(client)["enable_batch_mode_for_search"]
+
     class CompositeNode(object):
         def __init__(self, path, depth, content=None, ignore_opaque=False,
                      ignore_resolve_error=True, force_search=False):
@@ -406,6 +410,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             self.force_search = force_search
 
     def process_response_error(error, map_node):
+        map_node.content = None
         if error.is_access_denied():
             logger.warning("Cannot traverse %s, access denied" % map_node.path)
         elif error.is_resolve_error() and map_node.ignore_resolve_error:

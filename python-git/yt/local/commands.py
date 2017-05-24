@@ -71,7 +71,7 @@ def _create_map_node_from_local_dir(local_path, dest_path, client):
 
 def _create_node_from_local_file(local_filename, dest_filename, client):
     if not os.path.isfile(local_filename + ".meta"):
-        logger.warning("Found file {0} without meta info, skipping".format(file))
+        logger.warning("Found file {0} without meta info, skipping".format(local_filename))
         return
 
     with open(local_filename + ".meta", "rb") as f:
@@ -83,7 +83,7 @@ def _create_node_from_local_file(local_filename, dest_filename, client):
 
         if meta["type"] != "table":
             logger.warning("Found file {0} with currently unsupported type {1}" \
-                           .format(file, meta["type"]))
+                           .format(local_filename, meta["type"]))
             return
 
         if "format" not in meta:
@@ -190,7 +190,8 @@ _START_DEFAULTS = {
     "scheduler_count": 1,
     "jobs_memory_limit": 16 * GB,
     "jobs_cpu_limit": 1,
-    "jobs_user_slot_count": 10
+    "jobs_user_slot_count": 10,
+    "node_chunk_store_quota": 7 * GB
 }
 
 def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=True,
@@ -198,7 +199,8 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
           prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None,
-          wait_tablet_cell_initialization=False, set_pdeath_sig=False, watcher_config=None):
+          node_chunk_store_quota=None, wait_tablet_cell_initialization=False, set_pdeath_sig=False,
+          watcher_config=None, cell_tag=0):
 
     options = {}
     for name in _START_DEFAULTS:
@@ -237,6 +239,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
                              modify_configs_func=modify_configs_func,
                              kill_child_processes=set_pdeath_sig,
                              watcher_config=watcher_config,
+                             cell_tag=cell_tag,
                              **options)
 
     environment.id = sandbox_id

@@ -170,6 +170,11 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
     else:
         logger.warning("Account 'tmp_files' already exists")
 
+    if not client.exists("//sys/tablet_cell_bundles/sys"):
+        client.create("tablet_cell_bundle", attributes={"name": "sys"})
+    else:
+        logger.warning("Tablet cell bundle \"sys\" already exists")
+
     if proxy_address is not None:
         client.set("//sys/@cluster_proxy_address", proxy_address)
     if ui_address is not None:

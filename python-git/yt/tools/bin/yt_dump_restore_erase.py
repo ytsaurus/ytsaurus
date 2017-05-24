@@ -2,6 +2,8 @@
 
 import yt.yson as yson
 from yt.tools.dump_restore_client import DumpRestoreClient
+from yt.wrapper.client import YtClient
+from yt.wrapper.config import get_config
 
 import os
 import copy
@@ -53,7 +55,9 @@ def common_preprocess(options):
     options["job_memory_limit"] = (  # compat
         options.pop("memory_limit", None) or
         options.get("job_memory_limit"))
-    dump_restore_client = DumpRestoreClient(**options)
+    proxy = options.get("proxy", None)
+    options.pop("proxy")
+    dump_restore_client = DumpRestoreClient(YtClient(proxy=proxy, config=get_config(None)), **options)
     return extra_options, dump_restore_client
 
 

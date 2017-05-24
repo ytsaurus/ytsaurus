@@ -15,7 +15,11 @@ import platform
 import random
 import socket
 import sys
+import threading
 
+from multiprocessing.pool import ThreadPool
+from multiprocessing.dummy import Process as DummyProcess, \
+                                  current_process as dummy_current_process
 from collections import Mapping
 from itertools import chain
 from functools import reduce
@@ -272,3 +276,22 @@ def uuid_hash_pair(uuid):
     return HashPair(
         yson.YsonUint64(i2 + (i3 << 32)),
         yson.YsonUint64(i0 + (i1 << 32)))
+
+def object_type_from_uuid(uuid):
+    i3, i2, i1, i0 = (int(s, 16) for s in uuid.split("-"))
+    return i1 & 0xffff
+
+def is_master_transaction(transaction_id):
+    return object_type_from_uuid(transaction_id) in (1, 4)
+
+class _DummyProcess(DummyProcess):
+    def start(self):
+        assert self._parent is dummy_current_process()
+        self._start_called = True
+        if hasattr(self._parent, "_children"):
+            self._parent._children[self] = None
+        threading.Thread.start(self)
+
+class ThreadPoolHelper(ThreadPool):
+    # See: http://bugs.python.org/issue10015
+    Process = _DummyProcess

@@ -419,6 +419,7 @@ def add_create_parser(add_parser):
     add_ypath_argument(parser, "path", hybrid=True, group_required=False)
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-i", "--ignore-existing", action="store_true")
+    parser.add_argument("-f", "--force", action="store_true")
     add_structured_argument(parser, "--attributes")
 
 @copy_docstring_from(yt.get)
@@ -853,15 +854,17 @@ def add_remove_member_parser(add_parser):
     member_args(parser)
 
 def execute(**args):
-    data = chunk_iter_stream(sys.stdin, 16 * MB) if "input_format" in args["params"] else None
-    sys.stdout.write(yt.transaction_commands._make_transactional_request(args["command_name"],
-                                                                         args["params"],
-                                                                         data=data))
+    data = chunk_iter_stream(sys.stdin, 16 * MB) if "input_format" in args["execute_params"] else None
+    result = yt.transaction_commands._make_transactional_request(args["command_name"],
+                                                                 args["execute_params"],
+                                                                 data=data)
+    if "output_format" in args["execute_params"]:
+        sys.stdout.write(result)
 
 def add_execute_parser(add_parser):
     parser = add_parser("execute", help="execute your command")
     parser.add_argument("command_name")
-    add_structured_argument(parser, "params")
+    add_structured_argument(parser, "execute_params")
     parser.set_defaults(func=execute)
 
 def execute_batch(**args):

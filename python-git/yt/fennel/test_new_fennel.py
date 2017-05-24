@@ -49,7 +49,7 @@ def test_monitor():
 def test_convert_rows_to_chunks():
     def encode(str):
         output = StringIO()
-        with GzipFile(fileobj=output, mode="a") as zipped_stream:
+        with GzipFile(fileobj=output, mode="a", mtime=0.0) as zipped_stream:
             zipped_stream.write(str)
         return output.getvalue()
 

@@ -311,16 +311,17 @@ def run_python_pypy_tests(options):
 def build_packages(options):
     if not options.package:
         return
-    if options.codename != "precise":
-        return
 
     packages = ["yandex-yt-python", "yandex-yt-python-tools",
                 "yandex-yt-transfer-manager", "yandex-yt-transfer-manager-client",
                 "yandex-yt-fennel", "yandex-yt-local"]
 
     for package in packages:
+        if options.codename != "precise" and package != "yandex-yt-local":
+            continue
         if package in ("yandex-yt-fennel", "yandex-yt-local") and options.codename == "lucid":
             continue
+
         with cwd(options.checkout_directory, package):
             package_version = run_captured(
                 "dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()

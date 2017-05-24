@@ -131,8 +131,8 @@ class YTInstance(object):
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, port_range_start=None, fqdn=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
-                 modify_configs_func=None, kill_child_processes=False, use_porto_for_servers=False,
-                 watcher_config=None):
+                 node_chunk_store_quota=None, modify_configs_func=None, kill_child_processes=False,
+                 use_porto_for_servers=False, watcher_config=None):
         _configure_logger()
 
         self._subprocess_module = PortoSubprocess if use_porto_for_servers and porto_avaliable() else subprocess
@@ -165,7 +165,7 @@ class YTInstance(object):
         self._uuid = generate_uuid()
         self._lock = RLock()
 
-        self.path = os.path.abspath(path)
+        self.path = os.path.realpath(os.path.abspath(path))
         self.logs_path = os.path.abspath(os.path.join(self.path, "logs"))
         self.configs_path = os.path.abspath(os.path.join(self.path, "configs"))
         self.runtime_data_path = os.path.abspath(os.path.join(self.path, "runtime_data"))
@@ -225,7 +225,7 @@ class YTInstance(object):
             watcher_config = get_watcher_config()
         self.watcher_config = watcher_config
 
-        self._prepare_environment(jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count,
+        self._prepare_environment(jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                                   node_memory_limit_addition, port_range_start, proxy_port, modify_configs_func)
 
     def _get_ports_generator(self, port_range_start):
@@ -268,12 +268,18 @@ class YTInstance(object):
         for dir_ in node_dirs:
             makedirp(dir_)
 
+        node_tmpfs_dirs = None
+        if self._tmpfs_path is not None and not self._load_existing_environment:
+            node_tmpfs_dirs = [os.path.join(self._tmpfs_path, "node", str(i)) for i in xrange(self.node_count)]
+            for dir_ in node_tmpfs_dirs:
+                makedirp(dir_)
+
         proxy_dir = os.path.join(self.runtime_data_path, "proxy")
         makedirp(proxy_dir)
 
-        return master_dirs, master_tmpfs_dirs, scheduler_dirs, node_dirs, proxy_dir
+        return master_dirs, master_tmpfs_dirs, scheduler_dirs, node_dirs, node_tmpfs_dirs, proxy_dir
 
-    def _prepare_environment(self, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count,
+    def _prepare_environment(self, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                              node_memory_limit_addition, port_range_start, proxy_port, modify_configs_func):
         logger.info("Preparing cluster instance as follows:")
         logger.info("  masters          %d (%d nonvoting)", self.master_count, self.nonvoting_master_count)
@@ -306,18 +312,20 @@ class YTInstance(object):
         if jobs_user_slot_count is not None:
             provision["node"]["jobs_resource_limits"]["user_slots"] = jobs_user_slot_count
         provision["node"]["memory_limit_addition"] = node_memory_limit_addition
+        provision["node"]["chunk_store_quota"] = node_chunk_store_quota
         provision["proxy"]["enable"] = self.has_proxy
         provision["proxy"]["http_port"] = proxy_port
         provision["fqdn"] = self._hostname
         provision["enable_debug_logging"] = self._enable_debug_logging
 
-        master_dirs, master_tmpfs_dirs, scheduler_dirs, node_dirs, proxy_dir = self._prepare_directories()
+        master_dirs, master_tmpfs_dirs, scheduler_dirs, node_dirs, node_tmpfs_dirs, proxy_dir = self._prepare_directories()
         cluster_configuration = configs_provider.build_configs(
             self._get_ports_generator(port_range_start),
             master_dirs,
             master_tmpfs_dirs,
             scheduler_dirs,
             node_dirs,
+            node_tmpfs_dirs,
             proxy_dir,
             self.logs_path,
             provision)
@@ -744,8 +752,12 @@ class YTInstance(object):
                 active_scheduler_orchid_path = None
                 for instance in instances:
                     path = "//sys/scheduler/instances/{0}/orchid/scheduler".format(instance)
-                    if client.get(path + "/connected"):
-                        active_scheduler_orchid_path = path
+                    try:
+                        if client.get(path + "/connected"):
+                            active_scheduler_orchid_path = path
+                    except YtError as err:
+                        if not err.is_resolve_error():
+                            raise
 
                 if active_scheduler_orchid_path is None:
                     return False, "No active scheduler found"
