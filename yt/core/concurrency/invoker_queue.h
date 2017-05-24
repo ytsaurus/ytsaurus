@@ -37,7 +37,7 @@ public:
 
     void SetThreadId(TThreadId threadId);
 
-    void Configure(int threads);
+    void Configure(int threadCount);
 
     virtual void Invoke(TClosure callback) override;
 
