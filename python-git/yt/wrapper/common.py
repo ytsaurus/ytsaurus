@@ -18,7 +18,8 @@ import sys
 import threading
 
 from multiprocessing.pool import ThreadPool
-from multiprocessing.dummy import Process as DummyProcess, dummy_current_process
+from multiprocessing.dummy import Process as DummyProcess, \
+                                  current_process as dummy_current_process
 from collections import Mapping
 from itertools import chain
 from functools import reduce
