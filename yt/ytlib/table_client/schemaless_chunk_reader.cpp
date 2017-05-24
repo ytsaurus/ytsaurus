@@ -345,12 +345,35 @@ void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> ex
     extensionTags.push_back(TProtoExtensionTag<TMiscExt>::Value);
     extensionTags.push_back(TProtoExtensionTag<NProto::TBlockMetaExt>::Value);
     extensionTags.push_back(TProtoExtensionTag<NProto::TNameTableExt>::Value);
-    auto asynChunkMeta = UnderlyingReader_->GetMeta(
-        Config_->WorkloadDescriptor,
-        partitionTag,
-        extensionTags);
-    ChunkMeta_ = WaitFor(asynChunkMeta)
-        .ValueOrThrow();
+
+    auto hasAllExtensions = [&] () {
+        yhash_set<int> tags;
+        for (const auto& protoExtension : ChunkSpec_.chunk_meta().extensions().extensions()) {
+            tags.insert(protoExtension.tag());
+        }
+
+        for (auto extensionTag : extensionTags) {
+            if (!tags.has(extensionTag)) {
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    if (hasAllExtensions()) {
+        // This usually happens when reading dynamic tables, so not partition tag
+        // should be present.
+        YCHECK(!partitionTag);
+        ChunkMeta_ = ChunkSpec_.chunk_meta();
+    } else {
+        auto asynChunkMeta = UnderlyingReader_->GetMeta(
+            Config_->WorkloadDescriptor,
+            partitionTag,
+            extensionTags);
+        ChunkMeta_ = WaitFor(asynChunkMeta)
+            .ValueOrThrow();
+    }
 
     YCHECK(ChunkMeta_.version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
 
