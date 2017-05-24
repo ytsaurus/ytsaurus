@@ -1,3 +1,4 @@
+from .common import ThreadPoolHelper
 from .config import get_config
 from .errors import YtError, YtOperationFailedError, YtResponseError
 from .driver import make_request
@@ -18,7 +19,6 @@ from yt.packages.six.moves import builtins, filter as ifilter, map as imap
 import logging
 from datetime import datetime
 from time import sleep
-from multiprocessing.pool import ThreadPool
 from multiprocessing import TimeoutError
 
 try:
@@ -121,12 +121,12 @@ def get_operation_state(operation, client=None):
     Raises :class:`YtError <yt.common.YtError>` if operation does not exists.
     """
     config = get_config(client)
-    retry_count = config["proxy"]["request_retry_count"]
-    config["proxy"]["request_retry_count"] = config["proxy"]["operation_state_discovery_retry_count"]
+    retry_count = config["proxy"]["retries"]["count"]
+    config["proxy"]["retries"]["count"] = config["proxy"]["operation_state_discovery_retry_count"]
     try:
         return OperationState(get_operation_attributes(operation, client=client)["state"])
     finally:
-        config["proxy"]["request_retry_count"] = retry_count
+        config["proxy"]["retries"]["count"] = retry_count
 
 def get_operation_progress(operation, client=None):
     def calculate_total(counter):
@@ -293,9 +293,9 @@ def get_stderrs(operation, only_failed_jobs, client=None):
     if only_failed_jobs:
         jobs = builtins.list(ifilter(lambda obj: "error" in obj.attributes, jobs))
 
-    thread_count = get_config(client)["operation_tracker"]["stderr_download_thread_count"]
+    thread_count = min(get_config(client)["operation_tracker"]["stderr_download_thread_count"], len(jobs))
     if thread_count > 1:
-        pool = ThreadPool(thread_count)
+        pool = ThreadPoolHelper(thread_count)
         timeout = get_config(client)["operation_tracker"]["stderr_download_timeout"] / 1000.0
         try:
             pool.map_async(download_job_stderr, jobs).get(timeout)

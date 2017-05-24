@@ -496,6 +496,15 @@ test_sandbox_file_name_specification()
         --format dsv
 }
 
+test_execute()
+{
+    local table_path="//home/wrapper_test/test_table"
+    $YT execute create '{type=table;path="'"$table_path"'";output_format=yson}'
+    check 'true' $($YT execute exists '{path="'"$table_path"'";output_format=json}')
+    $YT execute remove '{path="'"$table_path"'"}'
+    check 'false' $($YT execute exists '{path="'"$table_path"'";output_format=json}')
+}
+
 tear_down
 run_test test_cypress_commands
 run_test test_list_long_format
@@ -516,3 +525,4 @@ run_test test_transform
 run_test test_create_temp_table
 run_test test_dynamic_table_commands
 run_test test_sandbox_file_name_specification
+run_test test_execute
