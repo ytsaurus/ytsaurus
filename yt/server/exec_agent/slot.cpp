@@ -82,7 +82,10 @@ public:
                 Location_->GetSlotPath(SlotIndex_),
                 jobId,
                 operationId);
-        });
+        },
+        // Job proxy preparation is uncancelable, otherwise we might try to kill
+        // never started job proxy process.
+        true);
     }
 
     virtual TFuture<void> MakeLink(
