@@ -50,12 +50,12 @@ bool TryExecve(const char* path, const char* const* argv, const char* const* env
 
 void CreateStderrFile(Stroka fileName);
 
-// Returns a pipe with CLOSE_EXEC flag.
+//! Returns a pipe with CLOSE_EXEC flag.
 void SafePipe(int fd[2]);
 
 int SafeDup(int fd);
 
-// Returns a pty with CLOSE_EXEC flag on master channel.
+//! Returns a pty with CLOSE_EXEC flag on master channel.
 void SafeOpenPty(int* masterFD, int* slaveFD, int height, int width);
 void SafeLoginTty(int fd);
 void SafeSetTtyWindowSize(int slaveFD, int height, int width);
