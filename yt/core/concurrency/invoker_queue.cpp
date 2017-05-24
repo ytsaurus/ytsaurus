@@ -242,9 +242,9 @@ void TInvokerQueue::SetThreadId(TThreadId threadId)
     ThreadId = threadId;
 }
 
-void TInvokerQueue::Configure(int threads)
+void TInvokerQueue::Configure(int threadCount)
 {
-    Queue->Configure(threads);
+    Queue->Configure(threadCount);
 }
 
 void TInvokerQueue::Invoke(TClosure callback)
