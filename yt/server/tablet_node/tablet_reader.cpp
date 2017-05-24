@@ -221,7 +221,7 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
         upperRowIndex = totalRowCount;
     }
 
-    std::vector<ISchemafulReaderPtr> readers;
+    std::vector<std::function<ISchemafulReaderPtr()>> readers;
     if (lowerRowIndex < upperRowIndex && !tabletSnapshot->OrderedStores.empty()) {
         auto lowerIt = std::upper_bound(
             tabletSnapshot->OrderedStores.begin(),
@@ -236,18 +236,20 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
             if (store->GetStartingRowIndex() >= upperRowIndex) {
                 break;
             }
-            readers.emplace_back(store->CreateReader(
-                tabletSnapshot,
-                tabletIndex,
-                lowerRowIndex,
-                upperRowIndex,
-                columnFilter,
-                workloadDescriptor));
+            readers.emplace_back([=] () {
+                return store->CreateReader(
+                    tabletSnapshot,
+                    tabletIndex,
+                    lowerRowIndex,
+                    upperRowIndex,
+                    columnFilter,
+                    workloadDescriptor);
+            });
             ++it;
         }
     }
 
-    return CreateSchemafulConcatencatingReader(readers);
+    return CreateSchemafulConcatenatingReader(readers);
 }
 
 ISchemafulReaderPtr CreateSchemafulTabletReader(
