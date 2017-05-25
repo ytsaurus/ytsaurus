@@ -88,7 +88,8 @@ _default_provision = {
             "memory": 4 * GB
         },
         "memory_limit_addition": None,
-        "chunk_store_quota": None
+        "chunk_store_quota": None,
+        "allow_chunk_storage_in_tmpfs": False
     },
     "proxy": {
         "enable": False,
@@ -499,7 +500,7 @@ class ConfigsProvider_18(ConfigsProvider):
                 "quota": 256 * MB
             }
 
-            if node_tmpfs_dirs is not None:
+            if node_tmpfs_dirs is not None and provision["node"]["allow_chunk_storage_in_tmpfs"]:
                 cache_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "chunk_cache")
             else:
                 cache_location_config["path"] = os.path.join(node_dirs[index], "chunk_cache")
@@ -514,7 +515,7 @@ class ConfigsProvider_18(ConfigsProvider):
             if provision["node"]["chunk_store_quota"] is not None:
                 store_location_config["quota"] = provision["node"]["chunk_store_quota"]
 
-            if node_tmpfs_dirs is not None:
+            if node_tmpfs_dirs is not None and provision["node"]["allow_chunk_storage_in_tmpfs"]:
                 store_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "chunk_store")
             else:
                 store_location_config["path"] = os.path.join(node_dirs[index], "chunk_store")

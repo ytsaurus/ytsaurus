@@ -131,8 +131,8 @@ class YTInstance(object):
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, port_range_start=None, fqdn=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
-                 node_chunk_store_quota=None, modify_configs_func=None, kill_child_processes=False,
-                 use_porto_for_servers=False, watcher_config=None):
+                 node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
+                 kill_child_processes=False, use_porto_for_servers=False, watcher_config=None):
         _configure_logger()
 
         self._subprocess_module = PortoSubprocess if use_porto_for_servers and porto_avaliable() else subprocess
@@ -226,7 +226,8 @@ class YTInstance(object):
         self.watcher_config = watcher_config
 
         self._prepare_environment(jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
-                                  node_memory_limit_addition, port_range_start, proxy_port, modify_configs_func)
+                                  node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, proxy_port,
+                                  modify_configs_func)
 
     def _get_ports_generator(self, port_range_start):
         if port_range_start and isinstance(port_range_start, int):
@@ -280,7 +281,8 @@ class YTInstance(object):
         return master_dirs, master_tmpfs_dirs, scheduler_dirs, node_dirs, node_tmpfs_dirs, proxy_dir
 
     def _prepare_environment(self, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
-                             node_memory_limit_addition, port_range_start, proxy_port, modify_configs_func):
+                             node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, proxy_port,
+                             modify_configs_func):
         logger.info("Preparing cluster instance as follows:")
         logger.info("  masters          %d (%d nonvoting)", self.master_count, self.nonvoting_master_count)
         logger.info("  nodes            %d", self.node_count)
@@ -313,6 +315,7 @@ class YTInstance(object):
             provision["node"]["jobs_resource_limits"]["user_slots"] = jobs_user_slot_count
         provision["node"]["memory_limit_addition"] = node_memory_limit_addition
         provision["node"]["chunk_store_quota"] = node_chunk_store_quota
+        provision["node"]["allow_chunk_storage_in_tmpfs"] = allow_chunk_storage_in_tmpfs
         provision["proxy"]["enable"] = self.has_proxy
         provision["proxy"]["http_port"] = proxy_port
         provision["fqdn"] = self._hostname

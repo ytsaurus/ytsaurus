@@ -199,8 +199,8 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
           prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None,
-          node_chunk_store_quota=None, wait_tablet_cell_initialization=False, set_pdeath_sig=False,
-          watcher_config=None, cell_tag=0):
+          node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=True, wait_tablet_cell_initialization=False,
+          set_pdeath_sig=False, watcher_config=None, cell_tag=0):
 
     options = {}
     for name in _START_DEFAULTS:
@@ -240,6 +240,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
                              kill_child_processes=set_pdeath_sig,
                              watcher_config=watcher_config,
                              cell_tag=cell_tag,
+                             allow_chunk_storage_in_tmpfs=allow_chunk_storage_in_tmpfs,
                              **options)
 
     environment.id = sandbox_id
