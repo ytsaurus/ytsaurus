@@ -123,7 +123,7 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TJsonFormatConfig)
 
-///////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 // Readers for Yamr and Dsv share lots of methods and functionality                          //
 // and dependency diagram has the following shape:                                           //
 //                                                                                           //
