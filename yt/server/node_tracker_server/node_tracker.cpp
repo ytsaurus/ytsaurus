@@ -1635,7 +1635,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, NodeMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Rack, TRack, RackMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, DataCenter, TDataCenter, DataCenterMap_)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TNodeTracker::TNodeTracker(
     TNodeTrackerConfigPtr config,
@@ -1813,7 +1813,7 @@ DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeLocationChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TReqFullHeartbeat*), FullHeartbeat, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TReqIncrementalHeartbeat*, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl_);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TNodeTracker::TClusterNodeTypeHandler::TClusterNodeTypeHandler(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->NodeMap_)
@@ -1835,7 +1835,7 @@ void TNodeTracker::TClusterNodeTypeHandler::DoZombifyObject(TNode* node)
     Owner_->DestroyNode(node);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TNodeTracker::TRackTypeHandler::TRackTypeHandler(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->RackMap_)
@@ -1864,7 +1864,7 @@ void TNodeTracker::TRackTypeHandler::DoZombifyObject(TRack* rack)
     Owner_->DestroyRack(rack);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TNodeTracker::TDataCenterTypeHandler::TDataCenterTypeHandler(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->DataCenterMap_)
@@ -1894,7 +1894,7 @@ void TNodeTracker::TDataCenterTypeHandler::DoZombifyObject(TDataCenter* dc)
     Owner_->DestroyDataCenter(dc);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NNodeTrackerServer
 } // namespace NYT
