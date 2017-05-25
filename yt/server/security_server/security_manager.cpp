@@ -243,7 +243,7 @@ private:
     virtual void DoZombifyObject(TGroup* group) override;
 };
 
-/////////////////////////////////////////////////////////////////////////// /////
+////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManager::TImpl
     : public TMasterAutomatonPart
@@ -2073,7 +2073,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, AccountM
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, User, TUser, UserMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Group, TGroup, GroupMap_)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->AccountMap_)
@@ -2102,7 +2102,7 @@ void TSecurityManager::TAccountTypeHandler::DoZombifyObject(TAccount* account)
     Owner_->DestroyAccount(account);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->UserMap_)
@@ -2131,7 +2131,7 @@ void TSecurityManager::TUserTypeHandler::DoZombifyObject(TUser* user)
     Owner_->DestroyUser(user);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->GroupMap_)
@@ -2160,7 +2160,7 @@ void TSecurityManager::TGroupTypeHandler::DoZombifyObject(TGroup* group)
     Owner_->DestroyGroup(group);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TSecurityManager(
     TSecurityManagerConfigPtr config,
@@ -2433,7 +2433,7 @@ DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, *Impl_)
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NSecurityServer
 } // namespace NYT

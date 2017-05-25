@@ -2467,7 +2467,7 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, PrecariousV
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, QuorumMissingChunks, *ChunkReplicator_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, UnsafelyPlacedChunks, *ChunkReplicator_);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkTypeHandlerBase::TChunkTypeHandlerBase(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->ChunkMap_)
@@ -2824,7 +2824,7 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, QuorumMissingChunk
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, UnsafelyPlacedChunks, *Impl_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, ForeignChunks, *Impl_);
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer
 } // namespace NYT
