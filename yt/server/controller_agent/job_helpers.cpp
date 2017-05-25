@@ -17,7 +17,7 @@ using namespace NChunkClient;
 using namespace NPhoenix;
 using namespace NScheduler;
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 static const Stroka InputRowCountPath = "/data/input/row_count";
 static const Stroka InputUncompressedDataSizePath = "/data/input/uncompressed_data_size";
@@ -25,7 +25,7 @@ static const Stroka InputCompressedDataSizePath = "/data/input/compressed_data_s
 static const Stroka InputPipeIdleTimePath = "/user_job/pipes/input/idle_time";
 static const Stroka JobProxyCpuUsagePath = "/job_proxy/cpu/user";
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 void TBriefJobStatistics::Persist(const NPhoenix::TPersistenceContext& context)
 {
@@ -41,7 +41,7 @@ void TBriefJobStatistics::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, JobProxyCpuUsage);
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, IYsonConsumer* consumer)
 {
@@ -71,7 +71,7 @@ void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, IYsonConsumer* 
         .EndMap();
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 bool CheckJobActivity(
     const TBriefJobStatisticsPtr& lhs,
@@ -245,7 +245,7 @@ TYsonString BuildInputPaths(
         });
 }
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 void TScheduleJobStatistics::RecordJobResult(const TScheduleJobResultPtr& scheduleJobResult)
 {
@@ -266,7 +266,7 @@ void TScheduleJobStatistics::Persist(const TPersistenceContext& context)
 
 DECLARE_DYNAMIC_PHOENIX_TYPE(TScheduleJobStatistics, 0x1ba9c7e0);
 
-////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NControllerAgent
 } // namespace NYT
