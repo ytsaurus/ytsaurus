@@ -65,6 +65,7 @@ class YtConfig(object):
 
         self.wait_tablet_cell_initialization = kwargs.get("wait_tablet_cell_initialization")
         self.operations_memory_limit = kwargs.get("operations_memory_limit") or (25 * 1024 * 1024 * 1024)
+        self.forbid_chunk_storage_in_tmpfs = kwargs.get("forbid_chunk_storage_in_tmpfs")
 
         self.yt_version = kwargs.get("yt_version", DEFAULT_YT_VERSION)
 
@@ -243,6 +244,8 @@ class YtStuff(object):
 
             if self.config.wait_tablet_cell_initialization:
                 args += ["--wait-tablet-cell-initialization"]
+            if self.config.forbid_chunk_storage_in_tmpfs:
+                args += ["--forbid-chunk-storage-in-tmpfs"]
 
             if self.config.proxy_port is not None:
                 self.yt_proxy_port = self.config.proxy_port
@@ -418,7 +421,7 @@ class YtStuff(object):
     def stop_local_yt(self):
         if self.is_running:
             self.suspend_local_yt()
-            with open(os.path.join(self.yt_work_dir, self.yt_id, "locked_file")) as lock_file:
+            with open(os.path.join(self.yt_work_dir, self.yt_id, "lock_file")) as lock_file:
                 fcntl.flock(lock_file, fcntl.LOCK_EX)
                 fcntl.flock(lock_file, fcntl.LOCK_UN)
 
