@@ -31,13 +31,13 @@ def get_compressor(codec_name):
     if codec_name not in _CODECS:
         raise YtError('Compression module for codec "{0}" not found. Make sure you have '
                       'installed all necessary packages'.format(codec_name))
-    return _CODECS[codec_name]
+    return _CODECS[codec_name]()
 
 def _create_zlib_compressor():
     zlib_obj = zlib.compressobj()
     return _Compressor(zlib_obj.compress, zlib_obj.flush)
 
-_CODECS["gzip"] = _create_zlib_compressor()
+_CODECS["gzip"] = _create_zlib_compressor
 
 try:
     import brotli
@@ -46,6 +46,6 @@ try:
         inner_compressor = brotli.Compressor(quality=quality)
         return _Compressor(inner_compressor.process, inner_compressor.finish)
 
-    _CODECS["br"] = _create_brotli_compressor()
+    _CODECS["br"] = _create_brotli_compressor
 except ImportError:
     pass
