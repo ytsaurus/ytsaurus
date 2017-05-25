@@ -19,33 +19,6 @@ static std::atomic_flag FiberRegistryLock = ATOMIC_FLAG_INIT;
 static std::list<TFiber*> FiberRegistry;
 #endif
 
-static class TFiberIdGenerator
-{
-public:
-    TFiberIdGenerator()
-    {
-        Seed_.store(static_cast<TFiberId>(::time(nullptr)));
-    }
-
-    TFiberId Generate()
-    {
-        const TFiberId Factor = std::numeric_limits<TFiberId>::max() - 173864;
-        Y_ASSERT(Factor % 2 == 1); // Factor must be coprime with 2^n.
-
-        while (true) {
-            auto seed = Seed_++;
-            auto id = seed * Factor;
-            if (id != InvalidFiberId) {
-                return id;
-            }
-        }
-    }
-
-private:
-    std::atomic<TFiberId> Seed_;
-
-} FiberIdGenerator;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TFiber::TFiber(TClosure callee, EExecutionStack stack)
@@ -84,7 +57,7 @@ TFiberId TFiber::GetId() const
 
 void TFiber::RegenerateId()
 {
-    Id_ = FiberIdGenerator.Generate();
+    Id_ = GenerateFiberId();
 }
 
 EFiberState TFiber::GetState() const

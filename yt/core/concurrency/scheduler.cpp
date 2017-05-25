@@ -30,6 +30,38 @@ void SetCurrentScheduler(IScheduler* scheduler)
 
 PER_THREAD TFiberId CurrentFiberId = InvalidFiberId;
 
+static class TFiberIdGenerator
+{
+public:
+    TFiberIdGenerator()
+    {
+        Seed_.store(static_cast<TFiberId>(::time(nullptr)));
+    }
+
+    TFiberId Generate()
+    {
+        const TFiberId Factor = std::numeric_limits<TFiberId>::max() - 173864;
+        Y_ASSERT(Factor % 2 == 1); // Factor must be coprime with 2^n.
+
+        while (true) {
+            auto seed = Seed_++;
+            auto id = seed * Factor;
+            if (id != InvalidFiberId) {
+                return id;
+            }
+        }
+    }
+
+private:
+    std::atomic<TFiberId> Seed_;
+
+} FiberIdGenerator;
+
+TFiberId GenerateFiberId()
+{
+    return FiberIdGenerator.Generate();
+}
+
 TFiberId GetCurrentFiberId()
 {
     return CurrentFiberId;
