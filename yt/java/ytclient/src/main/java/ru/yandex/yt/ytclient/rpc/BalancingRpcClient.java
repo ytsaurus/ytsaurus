@@ -1,8 +1,5 @@
 package ru.yandex.yt.ytclient.rpc;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CancellationException;
