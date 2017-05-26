@@ -75,6 +75,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
             "fair_share_profiling_period": 100,
+            "alerts_update_period": 100,
         }
     }
 
@@ -204,6 +205,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             })
 
         wait(lambda: get("//sys/operations/{0}/@suspended".format(op.id)), iter=20)
+
+        time.sleep(0.5)
 
         assert get("//sys/operations/{0}/@state".format(op.id)) == "running"
 
