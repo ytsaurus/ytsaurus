@@ -1,5 +1,9 @@
 package ru.yandex.yt.ytclient.examples;
 
+import com.codahale.metrics.ConsoleReporter;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
@@ -18,6 +22,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -32,6 +37,9 @@ public class SelectRowsBenchmark {
         final BusConnector connector = ExamplesUtil.createConnector();
         final String user = ExamplesUtil.getUser();
         String token = ExamplesUtil.getToken();
+
+        final MetricRegistry metrics = new MetricRegistry();
+        final Histogram metric = metrics.histogram("requests");
 
         OptionParser parser = new OptionParser();
 
@@ -80,6 +88,12 @@ public class SelectRowsBenchmark {
 
         final String finalToken = token;
 
+        ConsoleReporter reporter = ConsoleReporter.forRegistry(metrics)
+            .convertRatesTo(TimeUnit.SECONDS)
+            .convertDurationsTo(TimeUnit.MILLISECONDS)
+            .build();
+        reporter.start(5, TimeUnit.SECONDS);
+
         List<RpcClient> proxiesConnections = proxies.stream().map(x ->
             ExamplesUtil.createRpcClient(connector, user, finalToken, x, 9013)
         ).collect(Collectors.toList());
@@ -98,7 +112,8 @@ public class SelectRowsBenchmark {
                     long t0 = System.nanoTime();
                     UnversionedRowset rowset = client.selectRows(request).join();
                     long t1 = System.nanoTime();
-                    logger.info("Request time: {}", (t1 - t0) / 1000000.0);
+                    metric.update((t1 - t0) / 1000000);
+                    // logger.info("Request time: {}", (t1 - t0) / 1000000.0);
                 }
             } catch (Throwable e) {
                 logger.error("error `{}`", e.toString());
