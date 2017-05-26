@@ -336,6 +336,10 @@ def lookup_rows(path, data, **kwargs):
     kwargs["path"] = path
     return execute_command_with_output_format("lookup_rows", kwargs, input_stream=_prepare_rows_stream(data))
 
+def get_in_sync_replicas(path, data, **kwargs):
+    kwargs["path"] = path
+    return yson.loads(execute_command("get_in_sync_replicas", kwargs, input_stream=_prepare_rows_stream(data)))
+
 def start_transaction(**kwargs):
     return yson.loads(execute_command("start_tx", kwargs))
 

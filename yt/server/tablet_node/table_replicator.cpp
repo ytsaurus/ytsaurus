@@ -4,6 +4,7 @@
 #include "tablet_slot.h"
 #include "tablet_reader.h"
 #include "tablet_manager.h"
+#include "transaction_manager.h"
 #include "config.h"
 #include "private.h"
 
@@ -187,11 +188,18 @@ private:
 
             const auto& tabletRuntimeData = tabletSnapshot->RuntimeData;
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
+            auto updateSuccessTimestamp = [&] {
+                replicaRuntimeData->LastReplicationTimestamp.store(
+                    Slot_->GetTransactionManager()->GetMinPrepareTimestamp(),
+                    std::memory_order_relaxed);
+            };
             auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
             if (tabletRuntimeData->TotalRowCount <= lastReplicationRowIndex) {
+                updateSuccessTimestamp();
                 return;
             }
             if (replicaRuntimeData->PreparedReplicationRowIndex > lastReplicationRowIndex) {
+                updateSuccessTimestamp();
                 return;
             }
 
@@ -262,6 +270,10 @@ private:
                     .ThrowOnError();
             }
             LOG_DEBUG("Finished committing replication transaction");
+
+            replicaRuntimeData->LastReplicationTimestamp.store(
+                newReplicationTimestamp,
+                std::memory_order_relaxed);
         } catch (const std::exception& ex) {
             TError error(ex);
             if (error.Attributes().Get<bool>("hard", false)) {

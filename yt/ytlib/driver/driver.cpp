@@ -138,6 +138,7 @@ public:
 
         REGISTER(TEnableTableReplicaCommand,   "enable_table_replica",    Null,       Null,       true,  false);
         REGISTER(TDisableTableReplicaCommand,  "disable_table_replica",   Null,       Null,       true,  false);
+        REGISTER(TGetInSyncReplicasCommand,    "get_in_sync_replicas",    Tabular,    Structured, false, true );
 
         REGISTER(TMountTableCommand,           "mount_table",             Null,       Null,       true,  false);
         REGISTER(TUnmountTableCommand,         "unmount_table",           Null,       Null,       true,  false);

@@ -33,6 +33,7 @@ struct TRuntimeTableReplicaData
 {
     std::atomic<i64> CurrentReplicationRowIndex = {0};
     std::atomic<TTimestamp> CurrentReplicationTimestamp = {NullTimestamp};
+    std::atomic<TTimestamp> LastReplicationTimestamp = {NullTimestamp};
     std::atomic<i64> PreparedReplicationRowIndex = {-1};
 
     void Populate(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;

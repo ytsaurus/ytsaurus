@@ -184,6 +184,12 @@ struct TDisableTableReplicaOptions
     : public TTimeoutOptions
 { };
 
+struct TGetInSyncReplicasOptions
+    : public TTimeoutOptions
+{
+    NTransactionClient::TTimestamp Timestamp = NTransactionClient::NullTimestamp;
+};
+
 struct TAddMemberOptions
     : public TTimeoutOptions
     , public TMutatingOptions
@@ -648,6 +654,12 @@ struct IClientBase
     virtual TFuture<TSelectRowsResult> SelectRows(
         const Stroka& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
+
+    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const TGetInSyncReplicasOptions& options = TGetInSyncReplicasOptions()) = 0;
 
     // TODO(babenko): batch read and batch write
 
