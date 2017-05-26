@@ -12,15 +12,18 @@ import java.util.function.Function;
  */
 public class BalancingRpcClient implements RpcClient {
     final private Duration maxDelay;
-    final private ArrayList<RpcClient> destinations;
+    final private List<RpcClient> destinations;
     final private Timer timer = new Timer();
 
     public BalancingRpcClient(Duration maxDelay, RpcClient ... destinations) {
         this.maxDelay = maxDelay;
-
         this.destinations = new ArrayList<>();
-        this.destinations.ensureCapacity(destinations.length);
         Collections.addAll(this.destinations, destinations);
+    }
+
+    public BalancingRpcClient(Duration maxDelay, List<RpcClient> destinations) {
+        this.maxDelay = maxDelay;
+        this.destinations = destinations;
     }
 
     @Override
