@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 public class YTreeBuilder implements YTreeConsumer {
-
     private final List<State> stack = new ArrayList<>();
     private Map<String, YTreeNode> currentAttributes;
 
