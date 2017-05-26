@@ -373,8 +373,8 @@ class OperationArchiver(object):
                 archived_op_ids.append(op_id)
 
         try:
-            self.yt.insert_rows(BY_ID_ARCHIVE_PATH, by_id_rows)
-            self.yt.insert_rows(BY_START_TIME_ARCHIVE_PATH, by_start_time_rows)
+            self.yt.insert_rows(BY_ID_ARCHIVE_PATH, by_id_rows, update=True)
+            self.yt.insert_rows(BY_START_TIME_ARCHIVE_PATH, by_start_time_rows, update=True)
         except:
             failed_count += len(by_id_rows)
             raise
@@ -454,7 +454,7 @@ class JobInfoFetcher(object):
         logger.info("Inserting %d jobs", len(rows))
 
         try:
-            self.yt.insert_rows(JOBS_PATH, rows)
+            self.yt.insert_rows(JOBS_PATH, rows, update=True)
         except:
             failed_count += len(rows)
             raise
@@ -473,7 +473,7 @@ class StderrInserter(object):
         logger.info("Inserting %d stderrs", len(rowset))
 
         try:
-            self.yt.insert_rows(STDERRS_PATH, rowset)
+            self.yt.insert_rows(STDERRS_PATH, rowset, update=True)
         except:
             self.metrics.add("failed_to_archive_stderr_count", 1)
             raise
