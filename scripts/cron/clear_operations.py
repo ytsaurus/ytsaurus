@@ -1,9 +1,7 @@
 #!/usr/bin/python
 
-import yt.tools.operations_archive as operations_archive
-
 from yt.wrapper.http_helpers import get_token, get_proxy_url
-from yt.common import datetime_to_string
+from yt.common import datetime_to_string, date_string_to_timestamp_mcs
 
 import yt.logger as logger
 import yt.wrapper as yt
@@ -25,9 +23,11 @@ from collections import deque
 
 import yt.packages.requests as requests
 
-# Temporally set these paths here
-operations_archive.STDERRS = "{}/stderrs".format(operations_archive.OPERATIONS_ARCHIVE_PATH)
-operations_archive.JOBS = "{}/jobs".format(operations_archive.OPERATIONS_ARCHIVE_PATH)
+OPERATIONS_ARCHIVE_PATH = "//sys/operations_archive"
+BY_ID_ARCHIVE_PATH = "{}/ordered_by_id".format(OPERATIONS_ARCHIVE_PATH)
+BY_START_TIME_ARCHIVE_PATH = "{}/ordered_by_start_time".format(OPERATIONS_ARCHIVE_PATH)
+STDERRS_PATH = "{}/stderrs".format(OPERATIONS_ARCHIVE_PATH)
+JOBS_PATH = "{}/jobs".format(OPERATIONS_ARCHIVE_PATH)
 
 Operation = namedtuple("Operation", ["start_time", "finish_time", "id", "user", "state", "spec"])
 
@@ -304,7 +304,7 @@ class OperationArchiver(object):
         self.metrics = metrics
         self.yt = yt.YtClient(config=yt.config.config)
 
-        if not self.yt.exists(operations_archive.BY_ID_ARCHIVE) or not self.yt.exists(operations_archive.BY_START_TIME_ARCHIVE):
+        if not self.yt.exists(BY_ID_ARCHIVE_PATH) or not self.yt.exists(BY_START_TIME_ARCHIVE_PATH):
             raise Exception("Operations archive tables do not exist")
 
     def get_archive_rows(self, op_id, data):
@@ -326,7 +326,7 @@ class OperationArchiver(object):
         if self.version == 0:
             datestr_to_timestamp = datestr_to_timestamp_legacy
         else:
-            datestr_to_timestamp = operations_archive.datestr_to_timestamp
+            datestr_to_timestamp = date_string_to_timestamp_mcs
 
         by_id_row["id_hi"] = yson.YsonUint64(id_hi)
         by_id_row["id_lo"] = yson.YsonUint64(id_lo)
@@ -373,8 +373,8 @@ class OperationArchiver(object):
                 archived_op_ids.append(op_id)
 
         try:
-            self.yt.insert_rows(operations_archive.BY_ID_ARCHIVE, by_id_rows)
-            self.yt.insert_rows(operations_archive.BY_START_TIME_ARCHIVE, by_start_time_rows)
+            self.yt.insert_rows(BY_ID_ARCHIVE_PATH, by_id_rows)
+            self.yt.insert_rows(BY_START_TIME_ARCHIVE_PATH, by_start_time_rows)
         except:
             failed_count += len(by_id_rows)
             raise
@@ -419,8 +419,8 @@ class JobInfoFetcher(object):
             row["type" if self.version >= 6 else "job_type"] = attributes["job_type"]
             row["state"] = attributes["state"]
             row["address"] = attributes["address"]
-            row["start_time"] = operations_archive.datestr_to_timestamp(attributes["start_time"])
-            row["finish_time"] = operations_archive.datestr_to_timestamp(attributes["finish_time"])
+            row["start_time"] = date_string_to_timestamp_mcs(attributes["start_time"])
+            row["finish_time"] = date_string_to_timestamp_mcs(attributes["finish_time"])
 
             stderr = value.get("stderr")
             if self.version >= 4 and stderr:
@@ -454,7 +454,7 @@ class JobInfoFetcher(object):
         logger.info("Inserting %d jobs", len(rows))
 
         try:
-            self.yt.insert_rows(operations_archive.JOBS, rows)
+            self.yt.insert_rows(JOBS_PATH, rows)
         except:
             failed_count += len(rows)
             raise
@@ -473,7 +473,7 @@ class StderrInserter(object):
         logger.info("Inserting %d stderrs", len(rowset))
 
         try:
-            self.yt.insert_rows(operations_archive.STDERRS, rowset)
+            self.yt.insert_rows(STDERRS_PATH, rowset)
         except:
             self.metrics.add("failed_to_archive_stderr_count", 1)
             raise
@@ -623,7 +623,7 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
     if archive:
         logger.info("Archiving %d operations", len(operations_to_archive))
         after_archive_queue = NonBlockingQueue()
-        version = yt.get("{}/@".format(operations_archive.OPERATIONS_ARCHIVE_PATH)).get("version", 0)
+        version = yt.get("{}/@".format(OPERATIONS_ARCHIVE_PATH)).get("version", 0)
 
         thread_safe_metrics = ThreadSafeCounter(metrics)
         with timers["archiving_operations"]:
