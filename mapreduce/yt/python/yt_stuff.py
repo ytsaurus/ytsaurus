@@ -449,7 +449,7 @@ class YtStuff(object):
             shutil.copyfile(common_interface_log, p)
 
         def _ignore(path, names):
-            IGNORE_DIRS_ALWAYS = ["ui", "pipes"]
+            IGNORE_DIRS_ALWAYS = ["ui", "pipes", "node_modules"]
             IGNORE_DIRS = ["chunk_store", "chunk_cache", "changelogs", "snapshots"]
             ignored = set()
             for name in names:
