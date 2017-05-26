@@ -586,6 +586,55 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGetInSyncReplicasCommand::TGetInSyncReplicasCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("timestamp", Options.Timestamp);
+}
+
+void TGetInSyncReplicasCommand::DoExecute(ICommandContextPtr context)
+{
+    auto tableMountCache = context->GetClient()->GetConnection()->GetTableMountCache();
+    auto asyncTableInfo = tableMountCache->GetTableInfo(Path.GetPath());
+    auto tableInfo = WaitFor(asyncTableInfo)
+        .ValueOrThrow();
+
+    tableInfo->ValidateDynamic();
+    tableInfo->ValidateReplicated();
+
+    auto config = UpdateYsonSerializable(
+        context->GetConfig()->TableWriter,
+        TableWriter);
+
+    struct TInSyncBufferTag
+    { };
+
+    // Parse input data.
+    TBuildingValueConsumer valueConsumer(
+        tableInfo->Schemas[ETableSchemaKind::Lookup],
+        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
+    auto keys = ParseRows(context, config, &valueConsumer);
+    auto rowBuffer = New<TRowBuffer>(TInSyncBufferTag());
+    auto capturedKeys = rowBuffer->Capture(keys);
+    auto mutableKeyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
+    auto keyRange = TSharedRange<TUnversionedRow>(
+        static_cast<const TUnversionedRow*>(mutableKeyRange.Begin()),
+        static_cast<const TUnversionedRow*>(mutableKeyRange.End()),
+        mutableKeyRange.GetHolder());
+    auto nameTable = valueConsumer.GetNameTable();
+
+    auto asyncReplicas = context->GetClient()->GetInSyncReplicas(
+        Path.GetPath(),
+        std::move(nameTable),
+        std::move(keyRange),
+        Options);
+    auto replicasResult = WaitFor(asyncReplicas);
+    auto replicas = replicasResult.ValueOrThrow();
+    context->ProduceOutputValue(BuildYsonStringFluently().List(replicas));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDeleteRowsCommand::TDeleteRowsCommand()
 {
     RegisterParameter("table_writer", TableWriter)

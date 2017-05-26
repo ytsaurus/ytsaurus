@@ -176,6 +176,15 @@ TFuture<NApi::TSelectRowsResult> TRpcProxyClientBase::SelectRows(
     }));
 }
 
+TFuture<std::vector<NTabletClient::TTableReplicaId>> TRpcProxyClientBase::GetInSyncReplicas(
+    const NYPath::TYPath& path,
+    NTableClient::TNameTablePtr nameTable,
+    const TSharedRange<NTableClient::TKey>& keys,
+    const NApi::TGetInSyncReplicasOptions& options)
+{
+    Y_UNIMPLEMENTED();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpcProxy

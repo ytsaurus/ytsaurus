@@ -29,7 +29,7 @@ namespace NTabletClient {
 struct TTabletInfo
     : public TRefCounted
 {
-    NObjectClient::TObjectId TabletId;
+    NTabletClient::TTabletId TabletId;
     i64 MountRevision = 0;
     NTabletClient::ETabletState State;
     NTableClient::TOwningKey PivotKey;
@@ -87,6 +87,7 @@ struct TTableMountInfo
     void ValidateSorted() const;
     void ValidateOrdered() const;
     void ValidateNotReplicated() const;
+    void ValidateReplicated() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountInfo)

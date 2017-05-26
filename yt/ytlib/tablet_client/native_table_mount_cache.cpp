@@ -142,7 +142,8 @@ TTabletInfoPtr TTableMountInfo::GetTabletForRow(TUnversionedRow row) const
         [&] (TUnversionedRow lhs, const TTabletInfoPtr& rhs) {
             return CompareRows(lhs, rhs->PivotKey, keyColumnCount) < 0;
         });
-    return it == Tablets.begin() ? nullptr : *(--it);
+    YCHECK(it != Tablets.begin());
+    return *(--it);
 }
 
 TTabletInfoPtr TTableMountInfo::GetRandomMountedTablet() const
@@ -185,6 +186,13 @@ void TTableMountInfo::ValidateNotReplicated() const
 {
     if (Replicated) {
         THROW_ERROR_EXCEPTION("Table %v is replicated", Path);
+    }
+}
+
+void TTableMountInfo::ValidateReplicated() const
+{
+    if (!Replicated) {
+        THROW_ERROR_EXCEPTION("Table %v is not replicated", Path);
     }
 }
 

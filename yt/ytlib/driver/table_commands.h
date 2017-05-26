@@ -224,6 +224,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetInSyncReplicasCommand
+    : public TTypedCommand<NApi::TGetInSyncReplicasOptions>
+{
+public:
+    TGetInSyncReplicasCommand();
+
+private:
+    NYTree::INodePtr TableWriter;
+    NYPath::TRichYPath Path;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDeleteRowsCommand
     : public TTypedCommand<TTabletWriteOptions>
 {
