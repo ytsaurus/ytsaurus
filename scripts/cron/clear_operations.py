@@ -71,14 +71,13 @@ class NonBlockingQueue(object):
         self.data = deque(iterable) if iterable is not None else deque()
         self.executing_count = 0
         self.closed = False
+        self.active = False
         self.mutex = Lock()
 
     def put(self, value):
         self.put_many([value])
 
     def put_many(self, values):
-        if self.closed:
-            raise Exception("Call put on closed queue")
         with self.mutex:
             self.data.extend(values)
 
@@ -88,7 +87,7 @@ class NonBlockingQueue(object):
                 return default
             else:
                 self.executing_count += 1
-                return self.data.pop()
+                return self.data.popleft()
 
     def task_done(self, count=1):
         with self.mutex:
@@ -103,9 +102,16 @@ class NonBlockingQueue(object):
     def close(self):
         self.closed = True
 
+    def activate(self):
+        self.active = True
+
+    def is_finished(self):
+        with self.mutex:
+            return self.executing_count == 0 and len(self.data) == 0 and self.active
+
     def is_done(self):
         with self.mutex:
-            return self.executing_count == 0 and len(self.data) == 0 and self.closed
+            return self.executing_count == 0 and len(self.data) == 0 and self.active or self.closed
 
     def clear(self):
         result = []
@@ -144,7 +150,9 @@ def batching_queue_worker(queue, worker_cls, args=(), batch_size=32):
             try:
                 worker(values[:])
             except:
-                logger.exception("Exception caught")
+                logger.exception("Exception caught, rescheduling items...")
+                sleep(10)
+                queue.put_many(values[:])
             finally:
                 queue.task_done(len(values))
 
@@ -161,25 +169,28 @@ def run_batching_queue_workers(queue, worker_cls, thread_count, args=(), batch_s
     run_workers(batching_queue_worker, (queue, worker_cls, args, batch_size), thread_count)
 
 def wait_for_queue(queue, name, end_time=None, sleep_timeout=0.2):
-    queue.close()
+    queue.activate()
     counter = 0
     result = []
     while True:
-        if queue.is_done():
+        if queue.is_finished():
             break
         else:
             sleep(sleep_timeout)
             if counter % max(int(1.0 / sleep_timeout), 1) == 0:
                 logger.info(
-                    "Waiting for processing items in queue '%s' (left items: %d, items in progress: %d)",
+                    "Waiting for processing items in queue '%s' (left items: %d, items in progress: %d, time left: %s)",
                     name,
                     len(queue),
-                    queue.executing_count)
+                    queue.executing_count,
+                    str(end_time - datetime.utcnow()) if end_time is not None else "inf")
         counter += 1
-        if not result and end_time is not None and datetime.utcnow() > end_time:
+        if end_time is not None and datetime.utcnow() > end_time:
             logger.info("Waiting timeout is expired for queue '%s'", name)
-            result = queue.clear()
+            queue.close()
+            result.extend(queue.clear())
     logger.info("Joined queue '%s'", name)
+    result.extend(queue.clear())
     return result
 
 # Push metrics
@@ -367,10 +378,7 @@ class OperationArchiver(object):
         except:
             failed_count += len(by_id_rows)
             raise
-        finally:
-            self.metrics.add("failed_to_archive_count", failed_count)
 
-        self.metrics.add("archived_count", len(archived_op_ids))
         self.clean_queue.put_many(archived_op_ids)
 
 class JobInfoFetcher(object):
@@ -505,8 +513,12 @@ class StderrDownloader(object):
         row["stderr"] = rsp.content
         self.insert_queue.put(row)
 
-def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, archiving_timeout,
-                     max_operations_per_user, robots, archive, archive_jobs, thread_count, stderr_thread_count, push_metrics):
+def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, execution_timeout,
+                     max_operations_per_user, robots, archive, archive_jobs, thread_count,
+                     stderr_thread_count, push_metrics, remove_threshold):
+
+    archiving_time_limit = datetime.utcnow() + execution_timeout * 3 / 4
+    end_time_limit = datetime.utcnow() + execution_timeout
 
     #
     # Step 1: Fetch data from Cypress.
@@ -578,7 +590,7 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, arc
     with timers["getting_job_counts"]:
         consider_queue = NonBlockingQueue(operations_to_consider)
         run_batching_queue_workers(consider_queue, JobsCountGetter, thread_count, (operations_with_job_counts,))
-        wait_for_queue(consider_queue, "get_job_count")
+        wait_for_queue(consider_queue, "get_job_count", archiving_time_limit)
 
     user_counts = Counter()
     number_of_retained_operations = 0
@@ -609,17 +621,22 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, arc
     now_before_clean = datetime.utcnow()
 
     if archive:
-        end_time_limit = datetime.utcnow() + archiving_timeout
-
         logger.info("Archiving %d operations", len(operations_to_archive))
         after_archive_queue = NonBlockingQueue()
         version = yt.get("{}/@".format(operations_archive.OPERATIONS_ARCHIVE_PATH)).get("version", 0)
 
         thread_safe_metrics = ThreadSafeCounter(metrics)
         with timers["archiving_operations"]:
+            operations_to_archive_count = len(operations_to_archive)
             archive_queue = NonBlockingQueue(operations_to_archive)
             run_batching_queue_workers(archive_queue, OperationArchiver, thread_count, (after_archive_queue, version, thread_safe_metrics))
-            after_archive_queue.put_many(wait_for_queue(archive_queue, "archive_operation", end_time_limit))
+            rest_operations = wait_for_queue(archive_queue, "archive_operation", archiving_time_limit)
+
+            thread_safe_metrics.add("failed_to_archive_count", len(rest_operations))
+            thread_safe_metrics.add("archived_count", operations_to_archive_count - len(rest_operations))
+
+            if len(rest_operations) > remove_threshold:
+                after_archive_queue.put_many(rest_operations[remove_threshold:])
 
         if version >= 3 and archive_jobs:
             logger.info("Fetching job lists for %d operations", len(operations_to_archive))
@@ -629,7 +646,7 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, arc
             with timers["archiving_jobs"]:
                 job_info_queue = after_archive_queue
                 run_batching_queue_workers(job_info_queue, JobInfoFetcher, thread_count, (stderr_queue, remove_queue, version, thread_safe_metrics))
-                remove_queue.put_many(wait_for_queue(job_info_queue, "archive_job_info", end_time_limit))
+                remove_queue.put_many(wait_for_queue(job_info_queue, "archive_job_info", archiving_time_limit))
 
             logger.info("Archiving %d stderrs", len(stderr_queue))
 
@@ -638,8 +655,8 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, arc
                 run_queue_workers(stderr_queue, StderrDownloader, stderr_thread_count, (insert_queue, version, thread_safe_metrics))
                 run_batching_queue_workers(insert_queue, StderrInserter, thread_count, (thread_safe_metrics,))
 
-                wait_for_queue(stderr_queue, "fetch_stderr", end_time_limit)
-                wait_for_queue(insert_queue, "insert_jobs", end_time_limit)
+                wait_for_queue(stderr_queue, "fetch_stderr", archiving_time_limit)
+                wait_for_queue(insert_queue, "insert_jobs", archiving_time_limit)
         else:
             remove_queue = after_archive_queue
     else:
@@ -647,9 +664,11 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, arc
 
     remove_count = len(remove_queue)
     logger.info("Removing %d operations", len(remove_queue))
+
+    failed_to_remove_operations = []
     with timers["removing_operations"]:
-        run_batching_queue_workers(remove_queue, OperationCleaner, thread_count)
-        wait_for_queue(remove_queue, "remove_operations")
+        run_batching_queue_workers(remove_queue, OperationCleaner, thread_count, batch_size=8)
+        failed_to_remove_operations.extend(wait_for_queue(remove_queue, "remove_operations", end_time_limit))
 
     now_after_clean = datetime.utcnow()
 
@@ -673,10 +692,13 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, arc
         number_of_retained_operations)
 
     logger.info("Times: (%s)", "; ".join(["{}: {}".format(name, str(timer)) for name, timer in timers.iteritems()]))
-    logger.info("Metrics: (%s)", "; ".join(["{}: {}".format(name, value) for name, value in metrics.iteritems()]))
 
     metrics["total_time_ms"] = total_time * 1000
-    metrics["per_operation_time_ms"] = total_time * 1000 / len(operations)
+    metrics["per_operation_time_ms"] = total_time * 1000 / len(operations) if len(operations) > 0 else 0
+    metrics["removed_count"] = remove_count - len(failed_to_remove_operations)
+    metrics["failed_to_remove_count"] = len(failed_to_remove_operations)
+
+    logger.info("Metrics: (%s)", "; ".join(["{}: {}".format(name, value) for name, value in metrics.iteritems()]))
 
     if push_metrics:
         for name, timer in timers.iteritems():
@@ -713,7 +735,8 @@ def main():
                         help="parallelism level for operation cleansing")
     parser.add_argument("--stderr-thread-count", metavar="N", type=int, default=96,
                         help="parallelism level for downloading stderrs")
-
+    parser.add_argument("--remove-threshold", metavar="N", type=int, default=20000,
+                        help="remove operations without archiving after N threshold")
 
     args = parser.parse_args()
 
@@ -729,7 +752,8 @@ def main():
         args.archive_jobs,
         args.thread_count,
         args.stderr_thread_count,
-        args.push_metrics)
+        args.push_metrics,
+        args.remove_threshold)
 
 if __name__ == "__main__":
     main()
