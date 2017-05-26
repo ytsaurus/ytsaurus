@@ -2,7 +2,6 @@ package ru.yandex.yt.ytclient.examples;
 
 import com.codahale.metrics.ConsoleReporter;
 import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
@@ -22,6 +21,9 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -37,6 +39,7 @@ public class SelectRowsBenchmark {
         final BusConnector connector = ExamplesUtil.createConnector();
         final String user = ExamplesUtil.getUser();
         String token = ExamplesUtil.getToken();
+        int threads = 4;
 
         final MetricRegistry metrics = new MetricRegistry();
         final Histogram metric = metrics.histogram("requests");
@@ -51,10 +54,14 @@ public class SelectRowsBenchmark {
             .withRequiredArg().ofType(String.class);
         OptionSpec<Integer> switchTimeoutOpt = parser.accepts("switchtimeout", "switchtimeout")
             .withRequiredArg().ofType(Integer.class);
+        OptionSpec<Integer> threadsOpt = parser.accepts("threads", "threads")
+            .withRequiredArg().ofType(Integer.class);
 
         List<String> proxies = null;
         final List<String> requests = new ArrayList<>();
         Duration localTimeout = Duration.ofMillis(60);
+        ExecutorService executorService;
+        final LinkedBlockingQueue<String> queue = new LinkedBlockingQueue<>(threads);
 
         OptionSet option = parser.parse(args);
 
@@ -85,6 +92,9 @@ public class SelectRowsBenchmark {
         if (option.hasArgument(switchTimeoutOpt)) {
             localTimeout = Duration.ofMillis(option.valueOf(switchTimeoutOpt));
         }
+        if (option.hasArgument(threadsOpt)) {
+            threads = option.valueOf(threadsOpt);
+        }
 
         final String finalToken = token;
 
@@ -93,6 +103,8 @@ public class SelectRowsBenchmark {
             .convertDurationsTo(TimeUnit.MILLISECONDS)
             .build();
         reporter.start(5, TimeUnit.SECONDS);
+
+        executorService = Executors.newFixedThreadPool(threads);
 
         List<RpcClient> proxiesConnections = proxies.stream().map(x ->
             ExamplesUtil.createRpcClient(connector, user, finalToken, x, 9013)
@@ -103,17 +115,27 @@ public class SelectRowsBenchmark {
             proxiesConnections
         );
 
-        ApiServiceClient client = new ApiServiceClient(rpcClient,
+        final ApiServiceClient client = new ApiServiceClient(rpcClient,
             new RpcOptions().setDefaultTimeout(Duration.ofSeconds(5)));
 
-        for (;;) {
-            try {
-                for (String request : requests) {
+        executorService.execute(() -> {
+            for (;;) {
+                try {
+                    String request = queue.take();
                     long t0 = System.nanoTime();
                     UnversionedRowset rowset = client.selectRows(request).join();
                     long t1 = System.nanoTime();
                     metric.update((t1 - t0) / 1000000);
-                    // logger.info("Request time: {}", (t1 - t0) / 1000000.0);
+                } catch (Throwable e) {
+                    logger.error("error `{}`", e.toString());
+                }
+            }
+        });
+
+        for (;;) {
+            try {
+                for (String request : requests) {
+                    queue.put(request);
                 }
             } catch (Throwable e) {
                 logger.error("error `{}`", e.toString());
