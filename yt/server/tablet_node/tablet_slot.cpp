@@ -601,18 +601,11 @@ public:
         return TagIdList_;
     }
 
-    void SetMinPrepareTimestamp(TTimestamp timestamp)
+    const TRuntimeTabletCellDataPtr& GetRuntimeData() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        RuntimeData_->MinPrepareTimestamp.store(timestamp, std::memory_order_relaxed);
-    }
-
-    TTimestamp GetMinPrepareTimestamp() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return RuntimeData_->MinPrepareTimestamp.load(std::memory_order_relaxed);
+        return RuntimeData_;
     }
 
 private:
@@ -967,15 +960,11 @@ const NProfiling::TTagIdList& TTabletSlot::GetTagIdList()
     return Impl_->GetTagIdList();
 }
 
-void TTabletSlot::SetMinPrepareTimestamp(TTimestamp timestamp)
+const TRuntimeTabletCellDataPtr& TTabletSlot::GetRuntimeData() const
 {
-    Impl_->SetMinPrepareTimestamp(timestamp);
+    return Impl_->GetRuntimeData();
 }
 
-TTimestamp TTabletSlot::GetMinPrepareTimestamp() const
-{
-    return Impl_->GetMinPrepareTimestamp();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

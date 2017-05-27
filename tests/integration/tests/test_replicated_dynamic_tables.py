@@ -179,7 +179,6 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         insert_rows("//tmp/t", rows)
         timestamp1 = generate_timestamp()
         assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id]
-        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == []
         sleep(1.0)  # wait for replica update
         assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id]
         assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id]
