@@ -416,6 +416,8 @@ class JobInfoFetcher(object):
             row["job_id_hi"] = yson.YsonUint64(job_id_hi)
             row["job_id_lo"] = yson.YsonUint64(job_id_lo)
             row["error"] = attributes.get("error")
+            if "job_type" not in attributes:
+                logger.info("XXX op_id: %s, job_id: %s", op_id, job_id)
             row["type" if self.version >= 6 else "job_type"] = attributes["job_type"]
             row["state"] = attributes["state"]
             row["address"] = attributes["address"]
