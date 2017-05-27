@@ -601,6 +601,20 @@ public:
         return TagIdList_;
     }
 
+    void SetMinPrepareTimestamp(TTimestamp timestamp)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        RuntimeData_->MinPrepareTimestamp.store(timestamp, std::memory_order_relaxed);
+    }
+
+    TTimestamp GetMinPrepareTimestamp() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return RuntimeData_->MinPrepareTimestamp.load(std::memory_order_relaxed);
+    }
+
 private:
     TTabletSlot* const Owner_;
     const int SlotIndex_;
@@ -642,6 +656,8 @@ private:
     TSpinLock InvokersSpinLock_;
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedAutomatonInvokers_;
+
+    const TRuntimeTabletCellDataPtr RuntimeData_ = New<TRuntimeTabletCellData>();
 
     bool Initialized_ = false;
     bool Finalizing_ = false;
@@ -949,6 +965,16 @@ const IYPathServicePtr& TTabletSlot::GetOrchidService()
 const NProfiling::TTagIdList& TTabletSlot::GetTagIdList()
 {
     return Impl_->GetTagIdList();
+}
+
+void TTabletSlot::SetMinPrepareTimestamp(TTimestamp timestamp)
+{
+    Impl_->SetMinPrepareTimestamp(timestamp);
+}
+
+TTimestamp TTabletSlot::GetMinPrepareTimestamp() const
+{
+    return Impl_->GetMinPrepareTimestamp();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

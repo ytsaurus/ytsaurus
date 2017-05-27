@@ -863,6 +863,7 @@ private:
         }
 
         auto minPrepareTimestamp = GetMinPrepareTimestamp();
+        Slot_->SetMinPrepareTimestamp(minPrepareTimestamp);
         if (minPrepareTimestamp <= TransientBarrierTimestamp_) {
             return;
         }
