@@ -134,7 +134,7 @@ def queue_worker(queue, worker_cls, args=()):
             finally:
                 queue.task_done()
 
-def batching_queue_worker(queue, worker_cls, args=(), batch_size=32):
+def batching_queue_worker(queue, worker_cls, args=(), batch_size=32, failed_items=None):
     worker = worker_cls(*args)
     while not queue.is_done():
         values = []
@@ -150,9 +150,9 @@ def batching_queue_worker(queue, worker_cls, args=(), batch_size=32):
             try:
                 worker(values[:])
             except:
-                logger.exception("Exception caught, rescheduling items...")
-                sleep(10)
-                queue.put_many(values[:])
+                logger.exception("Exception caught")
+                if failed_items is not None:
+                    failed_items.extend(values[:])
             finally:
                 queue.task_done(len(values))
 
@@ -165,8 +165,8 @@ def run_workers(worker, args, thread_count):
 def run_queue_workers(queue, worker_cls, thread_count, args=()):
     run_workers(queue_worker, (queue, worker_cls, args), thread_count)
 
-def run_batching_queue_workers(queue, worker_cls, thread_count, args=(), batch_size=32):
-    run_workers(batching_queue_worker, (queue, worker_cls, args, batch_size), thread_count)
+def run_batching_queue_workers(queue, worker_cls, thread_count, args=(), batch_size=32, failed_items=None):
+    run_workers(batching_queue_worker, (queue, worker_cls, args, batch_size, failed_items), thread_count)
 
 def wait_for_queue(queue, name, end_time=None, sleep_timeout=0.2):
     queue.activate()
@@ -298,9 +298,25 @@ class OperationCleaner(object):
             raise yt.YtError("Failed to remove operations", inner_errors=[errors])
 
 class OperationArchiver(object):
-    def __init__(self, clean_queue, version, metrics):
+    ATTRIBUTES = [
+        "brief_statistics",
+        "error",
+        "job_type",
+        "state",
+        "address",
+        "uncompressed_data_size",
+        "error",
+        "size",
+        "start_time",
+        "finish_time",
+        "uncompressed_data_size"
+    ]
+
+    def __init__(self, clean_queue, stderr_queue, version, archive_jobs, metrics):
         self.clean_queue = clean_queue
+        self.stderr_queue = stderr_queue
         self.version = version
+        self.archive_jobs = archive_jobs
         self.metrics = metrics
         self.yt = yt.YtClient(config=yt.config.config)
 
@@ -350,59 +366,6 @@ class OperationArchiver(object):
 
         return by_id_row, by_start_time_row
 
-    def __call__(self, op_ids):
-        responses = self.yt.execute_batch(requests=[{
-                "command": "get",
-                "parameters": {
-                    "path": "//sys/operations/{}/@".format(op_id)
-                }
-            } for op_id in op_ids])
-
-        by_id_rows = []
-        by_start_time_rows = []
-        archived_op_ids = []
-        failed_count = 0
-        for op_id, rsp in zip(op_ids, responses):
-            if "error" in rsp:
-                failed_count += 1
-                logger.info("Failed to get attributes of operations %s", op_id)
-            else:
-                by_id_row, by_start_time_row = self.get_archive_rows(op_id, rsp["output"])
-                by_id_rows.append(by_id_row)
-                by_start_time_rows.append(by_start_time_row)
-                archived_op_ids.append(op_id)
-
-        try:
-            self.yt.insert_rows(BY_ID_ARCHIVE_PATH, by_id_rows, update=True)
-            self.yt.insert_rows(BY_START_TIME_ARCHIVE_PATH, by_start_time_rows, update=True)
-        except:
-            failed_count += len(by_id_rows)
-            raise
-
-        self.clean_queue.put_many(archived_op_ids)
-
-class JobInfoFetcher(object):
-    ATTRIBUTES = [
-        "brief_statistics",
-        "error",
-        "job_type",
-        "state",
-        "address",
-        "uncompressed_data_size",
-        "error",
-        "size",
-        "start_time",
-        "finish_time",
-        "uncompressed_data_size"
-    ]
-
-    def __init__(self, stderr_queue, clean_queue, version, metrics):
-        self.stderr_queue = stderr_queue
-        self.clean_queue = clean_queue
-        self.version = version
-        self.metrics = metrics
-        self.yt = yt.YtClient(config=yt.config.config)
-
     def get_insert_rows(self, op_id, jobs):
         op_id_hi, op_id_lo = id_to_parts(op_id, self.version)
         rows = []
@@ -433,7 +396,7 @@ class JobInfoFetcher(object):
                 self.stderr_queue.put((op_id, job_id))
         return rows
 
-    def __call__(self, op_ids):
+    def do_archive_jobs(self, op_ids):
         responses = self.yt.execute_batch(requests=[{
                 "command": "get",
                 "parameters": {
@@ -466,6 +429,44 @@ class JobInfoFetcher(object):
         self.metrics.add("archived_job_count", len(rows))
         self.clean_queue.put_many(archived_op_ids)
 
+    def __call__(self, op_ids):
+        responses = self.yt.execute_batch(requests=[{
+                "command": "get",
+                "parameters": {
+                    "path": "//sys/operations/{}/@".format(op_id)
+                }
+            } for op_id in op_ids])
+
+        by_id_rows = []
+        by_start_time_rows = []
+        archived_op_ids = []
+        failed_count = 0
+        for op_id, rsp in zip(op_ids, responses):
+            if "error" in rsp:
+                failed_count += 1
+                logger.info("Failed to get attributes of operations %s", op_id)
+            else:
+                by_id_row, by_start_time_row = self.get_archive_rows(op_id, rsp["output"])
+                by_id_rows.append(by_id_row)
+                by_start_time_rows.append(by_start_time_row)
+                archived_op_ids.append(op_id)
+
+        try:
+            self.yt.insert_rows(BY_ID_ARCHIVE_PATH, by_id_rows, update=True)
+            self.yt.insert_rows(BY_START_TIME_ARCHIVE_PATH, by_start_time_rows, update=True)
+        except:
+            failed_count += len(by_id_rows)
+            raise
+        finally:
+            self.metrics.add("failed_to_archive_count", failed_count)
+
+        self.metrics.add("archived_count", len(archived_op_ids))
+
+        if self.archive_jobs:
+            self.do_archive_jobs(archived_op_ids)
+        else:
+            self.clean_queue.put_many(archived_op_ids)
+
 class StderrInserter(object):
     def __init__(self, metrics):
         self.metrics = metrics
@@ -474,11 +475,7 @@ class StderrInserter(object):
     def __call__(self, rowset):
         logger.info("Inserting %d stderrs", len(rowset))
 
-        try:
-            self.yt.insert_rows(STDERRS_PATH, rowset, update=True)
-        except:
-            self.metrics.add("failed_to_archive_stderr_count", 1)
-            raise
+        self.yt.insert_rows(STDERRS_PATH, rowset, update=True)
 
         self.metrics.add("archived_stderr_count", len(rowset))
         self.metrics.add("archived_stderr_size", sum(len(row["stderr"]) for row in rowset))
@@ -495,11 +492,7 @@ class StderrDownloader(object):
         proxy_url = get_proxy_url(yt.config.config["proxy"]["url"])
         path = "http://{}/api/v3/read_file?path=//sys/operations/{}/jobs/{}/stderr".format(proxy_url, op_id, job_id)
 
-        try:
-            rsp = requests.get(path, headers={"Authorization": "OAuth {}".format(token)}, allow_redirects=True, timeout=20)
-        except:
-            self.metrics.add("failed_to_archive_stderr_count", 1)
-            raise
+        rsp = requests.get(path, headers={"Authorization": "OAuth {}".format(token)}, allow_redirects=True, timeout=20)
 
         if not rsp.content:
             return
@@ -519,8 +512,9 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
                      max_operations_per_user, robots, archive, archive_jobs, thread_count,
                      stderr_thread_count, push_metrics, remove_threshold):
 
-    archiving_time_limit = datetime.utcnow() + execution_timeout * 3 / 4
-    end_time_limit = datetime.utcnow() + execution_timeout
+    now = datetime.utcnow()
+    end_time_limit = now + execution_timeout
+    archiving_time_limit = now + execution_timeout * 5 / 6
 
     #
     # Step 1: Fetch data from Cypress.
@@ -531,8 +525,6 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
             return None
         else:
             return parse(value).replace(tzinfo=None)
-
-    now = datetime.utcnow()
 
     metrics = Counter({name: 0 for name in [
         "failed_to_archive_count",
@@ -548,7 +540,6 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
         "getting_job_counts",
         "getting_operations_list",
         "archiving_operations",
-        "archiving_jobs",
         "archiving_stderrs",
         "removing_operations"]}
 
@@ -623,33 +614,24 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
     now_before_clean = datetime.utcnow()
 
     if archive:
+        operation_archiving_time_limit = datetime.utcnow() + (archiving_time_limit - datetime.utcnow()) / 2
+
         logger.info("Archiving %d operations", len(operations_to_archive))
-        after_archive_queue = NonBlockingQueue()
         version = yt.get("{}/@".format(OPERATIONS_ARCHIVE_PATH)).get("version", 0)
+
+        archive_jobs = archive_jobs and version >= 3
+
+        archive_queue = NonBlockingQueue(operations_to_archive)
+        remove_queue = NonBlockingQueue()
+        stderr_queue = NonBlockingQueue()
+        failed_to_archive = []
 
         thread_safe_metrics = ThreadSafeCounter(metrics)
         with timers["archiving_operations"]:
-            operations_to_archive_count = len(operations_to_archive)
-            archive_queue = NonBlockingQueue(operations_to_archive)
-            run_batching_queue_workers(archive_queue, OperationArchiver, thread_count, (after_archive_queue, version, thread_safe_metrics))
-            rest_operations = wait_for_queue(archive_queue, "archive_operation", archiving_time_limit)
+            run_batching_queue_workers(archive_queue, OperationArchiver, thread_count, (remove_queue, stderr_queue, version, archive_jobs, thread_safe_metrics), failed_items=failed_to_archive)
+            failed_to_archive.extend(wait_for_queue(archive_queue, "archive_operation", operation_archiving_time_limit))
 
-            thread_safe_metrics.add("failed_to_archive_count", len(rest_operations))
-            thread_safe_metrics.add("archived_count", operations_to_archive_count - len(rest_operations))
-
-            if len(rest_operations) > remove_threshold:
-                after_archive_queue.put_many(rest_operations[remove_threshold:])
-
-        if version >= 3 and archive_jobs:
-            logger.info("Fetching job lists for %d operations", len(operations_to_archive))
-            stderr_queue = NonBlockingQueue()
-
-            remove_queue = NonBlockingQueue()
-            with timers["archiving_jobs"]:
-                job_info_queue = after_archive_queue
-                run_batching_queue_workers(job_info_queue, JobInfoFetcher, thread_count, (stderr_queue, remove_queue, version, thread_safe_metrics))
-                remove_queue.put_many(wait_for_queue(job_info_queue, "archive_job_info", archiving_time_limit))
-
+        if archive_jobs:
             logger.info("Archiving %d stderrs", len(stderr_queue))
 
             with timers["archiving_stderrs"]:
@@ -657,20 +639,23 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
                 run_queue_workers(stderr_queue, StderrDownloader, stderr_thread_count, (insert_queue, version, thread_safe_metrics))
                 run_batching_queue_workers(insert_queue, StderrInserter, thread_count, (thread_safe_metrics,))
 
-                wait_for_queue(stderr_queue, "fetch_stderr", archiving_time_limit)
-                wait_for_queue(insert_queue, "insert_jobs", archiving_time_limit)
-        else:
-            remove_queue = after_archive_queue
+                failed_stderr_count = 0
+                failed_stderr_count += len(wait_for_queue(stderr_queue, "fetch_stderr", archiving_time_limit))
+                failed_stderr_count += len(wait_for_queue(insert_queue, "insert_jobs", archiving_time_limit))
+                thread_safe_metrics.add("failed_to_archive_stderr_count", failed_stderr_count)
+
+        if len(failed_to_archive) > remove_threshold:
+            remove_queue.put_many(failed_to_archive[remove_threshold:])
     else:
         remove_queue = NonBlockingQueue(operations_to_archive)
 
     remove_count = len(remove_queue)
     logger.info("Removing %d operations", len(remove_queue))
 
-    failed_to_remove_operations = []
+    failed_to_remove = []
     with timers["removing_operations"]:
-        run_batching_queue_workers(remove_queue, OperationCleaner, thread_count, batch_size=8)
-        failed_to_remove_operations.extend(wait_for_queue(remove_queue, "remove_operations", end_time_limit))
+        run_batching_queue_workers(remove_queue, OperationCleaner, thread_count, batch_size=8, failed_items=failed_to_remove)
+        failed_to_remove.extend(wait_for_queue(remove_queue, "remove_operations", end_time_limit))
 
     now_after_clean = datetime.utcnow()
 
@@ -697,8 +682,8 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
 
     metrics["total_time_ms"] = total_time * 1000
     metrics["per_operation_time_ms"] = total_time * 1000 / len(operations) if len(operations) > 0 else 0
-    metrics["removed_count"] = remove_count - len(failed_to_remove_operations)
-    metrics["failed_to_remove_count"] = len(failed_to_remove_operations)
+    metrics["removed_count"] = remove_count - len(failed_to_remove)
+    metrics["failed_to_remove_count"] = len(failed_to_remove)
 
     logger.info("Metrics: (%s)", "; ".join(["{}: {}".format(name, value) for name, value in metrics.iteritems()]))
 
