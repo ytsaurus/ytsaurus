@@ -243,39 +243,41 @@ if yt_yson_bindings:
                 self.loads(b"{a=b}{c=d}")
 
         def test_context(self):
+            def check_context(error, context, context_pos):
+                error_attrs = error.inner_errors[0]["attributes"]
+                if "context_pos" in error_attrs:
+                    assert context == error_attrs["context"]
+                    assert context_pos == error_attrs["context_pos"]
+                else:
+                    assert context[context_pos:] == error_attrs["context"]
+
             STREAM_BLOCK_SIZE = 1024 * 1024
             try:
                 yt_yson_bindings.loads(b"abacaba{")
             except YsonError as error:
-                assert error.inner_errors[0]["attributes"]["context"] == b"abacaba{"
-                assert error.inner_errors[0]["attributes"]["context_pos"] == 0
+                check_context(error, b"abacaba{", 0)
 
             try:
                 yt_yson_bindings.loads(b"{a=b;c=d;e=f;[}")
             except YsonError as error:
-                assert error.inner_errors[0]["attributes"]["context"] == b"b;c=d;e=f;[}"
-                assert error.inner_errors[0]["attributes"]["context_pos"] == 10
+                check_context(error, b"b;c=d;e=f;[}", 10)
 
             try:
                 yt_yson_bindings.loads(b"[0;1;2;3;4;5;{1=2}]")
             except YsonError as error:
-                assert error.inner_errors[0]["attributes"]["context"] == b";2;3;4;5;{1=2}]"
-                assert error.inner_errors[0]["attributes"]["context_pos"] == 10
+                check_context(error, b";2;3;4;5;{1=2}]", 10)
 
             try:
                 yt_yson_bindings.loads(b"[1;5;{1=2}]")
             except YsonError as error:
-                assert error.inner_errors[0]["attributes"]["context"] == b"[1;5;{1=2}]"
-                assert error.inner_errors[0]["attributes"]["context_pos"] == 6
+                check_context(error, b"[1;5;{1=2}]", 6)
 
             try:
                 yt_yson_bindings.loads(b"[" + b"ab" * (STREAM_BLOCK_SIZE // 2) + b";{1=2}]")
             except YsonError as error:
-                assert error.inner_errors[0]["attributes"]["context"] == b"abababab;{1=2}]"
-                assert error.inner_errors[0]["attributes"]["context_pos"] == 10
+                check_context(error, b"abababab;{1=2}]", 10)
 
             try:
                 yt_yson_bindings.loads(b"[" + b"a" * STREAM_BLOCK_SIZE + b";{1=2}]")
             except YsonError as error:
-                assert error.inner_errors[0]["attributes"]["context"] == b"aaaaaaaa;{1=2}]"
-                assert error.inner_errors[0]["attributes"]["context_pos"] == 10
+                check_context(error, b"aaaaaaaa;{1=2}]", 10)
