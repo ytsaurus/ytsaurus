@@ -190,7 +190,7 @@ private:
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
             auto updateSuccessTimestamp = [&] {
                 replicaRuntimeData->LastReplicationTimestamp.store(
-                    Slot_->GetMinPrepareTimestamp(),
+                    Slot_->GetRuntimeData()->MinPrepareTimestamp.load(std::memory_order_relaxed),
                     std::memory_order_relaxed);
             };
             auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
