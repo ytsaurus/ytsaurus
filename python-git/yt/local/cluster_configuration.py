@@ -243,8 +243,8 @@ def modify_cluster_configuration(cluster_configuration, abi_version,
         for patch in NODE_CONFIG_PATCHES:
             update(config, patch)
 
-            if node_config_patch:
-                update(config, node_config_patch)
+        if node_config_patch:
+            update(config, node_config_patch)
 
     if proxy_config_patch:
         update(cluster_configuration["proxy"], proxy_config_patch)
