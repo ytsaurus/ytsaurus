@@ -177,7 +177,7 @@ public:
 
         return batchReq->Invoke().Apply(
             BIND(&TImpl::OnOperationNodeCreated, MakeStrong(this), operation)
-                .AsyncVia(Bootstrap->GetControlInvoker()));
+                .AsyncVia(GetCancelableControlInvoker()));
     }
 
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation)
