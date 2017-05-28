@@ -238,7 +238,7 @@ def run_unit_tests(options):
             "--gtest_death_test_style=threadsafe",
             "--gtest_output=xml:" + os.path.join(options.working_directory, "gtest_unittester.xml")],
             cwd=sandbox_current,
-            timeout=15 * 60)
+            timeout=20 * 60)
     except ChildHasNonZeroExitCode as err:
         teamcity_message('Copying unit tests sandbox from "{0}" to "{1}"'.format(
             sandbox_current, sandbox_archive), status="WARNING")
