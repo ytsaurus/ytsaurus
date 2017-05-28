@@ -2594,16 +2594,19 @@ void TOperationControllerBase::SafeAbort()
 
     std::vector<TFuture<void>> abortTransactionFutures;
 
-    auto abortTransaction = [&] (ITransactionPtr transaction) {
+    auto abortTransaction = [&] (ITransactionPtr transaction, bool sync = true) {
         if (transaction) {
-            abortTransactionFutures.push_back(transaction->Abort());
+            auto asyncResult = transaction->Abort();
+            if (sync) {
+                abortTransactionFutures.push_back(asyncResult);
+            }
         }
     };
 
     abortTransaction(InputTransaction);
     abortTransaction(OutputTransaction);
     abortTransaction(SyncSchedulerTransaction);
-    abortTransaction(AsyncSchedulerTransaction);
+    abortTransaction(AsyncSchedulerTransaction, /* sync */ false);
 
     WaitFor(Combine(abortTransactionFutures))
         .ThrowOnError();
