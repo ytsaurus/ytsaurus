@@ -405,7 +405,7 @@ YT.clusters = {
 
 def get_watcher_config():
     return {
-        "logs_rotate_max_part_count": 5,
+        "logs_rotate_max_part_count": 100,
         "logs_rotate_size": "8M",
         "logs_rotate_interval": 120
     }
