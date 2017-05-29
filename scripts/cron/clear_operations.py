@@ -514,7 +514,7 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
 
     now = datetime.utcnow()
     end_time_limit = now + execution_timeout
-    archiving_time_limit = now + execution_timeout * 5 / 6
+    archiving_time_limit = now + execution_timeout * 7 / 8
 
     #
     # Step 1: Fetch data from Cypress.
@@ -628,7 +628,13 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
 
         thread_safe_metrics = ThreadSafeCounter(metrics)
         with timers["archiving_operations"]:
-            run_batching_queue_workers(archive_queue, OperationArchiver, thread_count, (remove_queue, stderr_queue, version, archive_jobs, thread_safe_metrics), failed_items=failed_to_archive)
+            run_batching_queue_workers(
+                archive_queue,
+                OperationArchiver,
+                thread_count,
+                (remove_queue, stderr_queue, version, archive_jobs, thread_safe_metrics),
+                batch_size=64,
+                failed_items=failed_to_archive)
             failed_to_archive.extend(wait_for_queue(archive_queue, "archive_operation", operation_archiving_time_limit))
 
         if archive_jobs:
@@ -704,8 +710,8 @@ def main():
                         help="do not touch operations within N seconds of their completion to avoid races")
     parser.add_argument("--archive-timeout", metavar="N", type=int, default=2,
                         help="remove all failed operation older than N days")
-    parser.add_argument("--archiving-timeout", metavar="N", type=int, default=240,
-                        help="archiving wait time N seconds")
+    parser.add_argument("--execution-timeout", metavar="N", type=int, default=280,
+                        help="max execution time N seconds")
     parser.add_argument("--max-operations-per-user", metavar="N", type=int, default=200,
                         help="remove old operations of user if limit exceeded")
     parser.add_argument("--robot", action="append",
@@ -732,7 +738,7 @@ def main():
         args.hard_limit,
         timedelta(seconds=args.grace_timeout),
         timedelta(days=args.archive_timeout),
-        timedelta(seconds=args.archiving_timeout),
+        timedelta(seconds=args.execution_timeout),
         args.max_operations_per_user,
         args.robot if args.robot is not None else [],
         args.archive,
