@@ -349,13 +349,13 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
 
         auto chunkReader = CreateMemoryReader(chunkMeta, TBlock::Wrap(blocks));
         auto tableReader = CreateSchemafulChunkReader(
-                New<TChunkReaderConfig>(),
-                chunkReader,
-                GetNullBlockCache(),
-                Schema_,
-                TKeyColumns(),
-                chunkMeta,
-                TReadRange());
+            New<TChunkReaderConfig>(),
+            chunkReader,
+            GetNullBlockCache(),
+            Schema_,
+            TKeyColumns(),
+            chunkMeta,
+            TReadRange());
 
         std::vector<TUnversionedRow> rows;
         rows.reserve(SnapshotRowsPerRead);
