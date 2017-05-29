@@ -3,6 +3,8 @@ package ru.yandex.yt.ytclient.proxy;
 import java.time.Duration;
 import java.util.List;
 
+import ru.yandex.yt.rpcproxy.ERowsetKind;
+import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -14,8 +16,6 @@ import ru.yandex.yt.ytclient.wire.VersionedRowset;
 import ru.yandex.yt.ytclient.wire.WireColumnSchema;
 import ru.yandex.yt.ytclient.wire.WireProtocol;
 import ru.yandex.yt.ytclient.wire.WireProtocolReader;
-import ru.yandex.yt.rpcproxy.ERowsetKind;
-import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 
 public class ApiServiceUtil {
     public static final long MICROS_PER_SECOND = 1_000_000L;

@@ -1,9 +1,5 @@
 package ru.yandex.yt.ytclient.proxy;
 
-import ru.yandex.yt.ytclient.rpc.DiscoverableRpcService;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
-import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
-import ru.yandex.yt.ytclient.rpc.annotations.RpcService;
 import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
 import ru.yandex.yt.rpcproxy.TReqCommitTransaction;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
@@ -22,6 +18,10 @@ import ru.yandex.yt.rpcproxy.TRspPingTransaction;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
 import ru.yandex.yt.rpcproxy.TRspStartTransaction;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
+import ru.yandex.yt.ytclient.rpc.DiscoverableRpcService;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
+import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
+import ru.yandex.yt.ytclient.rpc.annotations.RpcService;
 
 /**
  * Сервис для работы с API через RPC

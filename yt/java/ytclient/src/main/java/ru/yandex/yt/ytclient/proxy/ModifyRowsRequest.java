@@ -7,11 +7,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import ru.yandex.yt.rpcproxy.ERowModificationType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
 import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
-import ru.yandex.yt.rpcproxy.ERowModificationType;
 
 public class ModifyRowsRequest {
     private final String path;

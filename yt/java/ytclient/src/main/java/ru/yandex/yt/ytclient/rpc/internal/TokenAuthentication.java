@@ -2,12 +2,12 @@ package ru.yandex.yt.ytclient.rpc.internal;
 
 import java.util.Objects;
 
+import ru.yandex.yt.rpc.TRequestHeader;
+import ru.yandex.yt.rpcproxy.TCredentialsExt;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
-import ru.yandex.yt.rpc.TRequestHeader;
-import ru.yandex.yt.rpcproxy.TCredentialsExt;
 
 /**
  * Декоратор для RpcClient, добавляющий аутентификацию по токену

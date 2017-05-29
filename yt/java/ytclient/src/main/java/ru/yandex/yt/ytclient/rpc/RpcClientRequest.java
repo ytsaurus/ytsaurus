@@ -3,8 +3,8 @@ package ru.yandex.yt.ytclient.rpc;
 import java.time.Duration;
 import java.util.List;
 
-import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.rpc.TRequestHeader;
+import ru.yandex.yt.ytclient.misc.YtGuid;
 
 /**
  * Базовый интерфейс для построения rpc запросов

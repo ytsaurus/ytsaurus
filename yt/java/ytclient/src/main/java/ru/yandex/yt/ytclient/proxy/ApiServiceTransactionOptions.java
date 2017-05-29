@@ -3,8 +3,8 @@ package ru.yandex.yt.ytclient.proxy;
 import java.time.Duration;
 import java.util.Objects;
 
-import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.rpcproxy.ETransactionType;
+import ru.yandex.yt.ytclient.misc.YtGuid;
 
 /**
  * Опции для открытия транзакций
