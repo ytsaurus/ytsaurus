@@ -2265,23 +2265,23 @@ private:
                 continue;
             }
 
-            auto error = CheckLock(
-                trunkNode,
-                nullptr,
-                ELockMode::Exclusive,
-                true);
-
-            if (error.IsOK()) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Removing expired node (NodeId: %v)",
-                    nodeId);
+            try {
+                auto error = CheckLock(
+                    trunkNode,
+                    nullptr,
+                    ELockMode::Exclusive,
+                    true);
+                error.ThrowOnError();
 
                 auto nodeProxy = GetNodeProxy(trunkNode, nullptr);
                 auto parentProxy = nodeProxy->GetParent();
                 parentProxy->RemoveChild(nodeProxy);
-            } else {
-                LOG_DEBUG_UNLESS(IsRecovery(), error, "Cannot remove an expired node; backing off and retrying (NodeId: %v)",
-                    nodeId);
 
+                LOG_DEBUG_UNLESS(IsRecovery(), "Expired node removed (NodeId: %v)",
+                    nodeId);
+            } catch (const std::exception& ex) {
+                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Cannot remove an expired node; backing off and retrying (NodeId: %v)",
+                    nodeId);
                 ExpirationTracker_->OnNodeRemovalFailed(trunkNode);
             }
         }
