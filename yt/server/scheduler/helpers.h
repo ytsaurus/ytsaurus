@@ -61,6 +61,7 @@ DEFINE_REFCOUNTED_TYPE(IJobSizeConstraints)
 IJobSizeConstraintsPtr CreateSimpleJobSizeConstraints(
     const TSimpleOperationSpecBasePtr& spec,
     const TSimpleOperationOptionsPtr& options,
+    int outputTableCount,
     i64 primaryInputDataSize,
     i64 inputRowCount = std::numeric_limits<i64>::max(),
     i64 foreignInputDataSize = 0);
@@ -79,7 +80,8 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
 
 IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     const TSortOperationSpecBasePtr& spec,
-    const TSortOperationOptionsBasePtr& options);
+    const TSortOperationOptionsBasePtr& options,
+    int outputTableCount);
 
 IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     bool canAdjustDataSizePerJob,

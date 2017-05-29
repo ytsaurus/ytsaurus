@@ -2755,16 +2755,6 @@ void TOperationControllerBase::UpdateTask(TTaskPtr task)
         newTotalJobCount,
         FormatResources(CachedNeededResources));
 
-    i64 outputTablesTimesJobsCount = OutputTables.size() * newTotalJobCount;
-    if (outputTablesTimesJobsCount > Config->MaxOutputTablesTimesJobsCount) {
-        OnOperationFailed(TError(
-                "Maximum allowed number of output tables times job count violated: %v > %v",
-                outputTablesTimesJobsCount,
-                Config->MaxOutputTablesTimesJobsCount)
-            << TErrorAttribute("output_table_count", OutputTables.size())
-            << TErrorAttribute("job_count", newTotalJobCount));
-    }
-
     task->CheckCompleted();
 }
 
