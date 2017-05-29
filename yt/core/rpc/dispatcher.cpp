@@ -4,6 +4,7 @@
 #include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/misc/singleton.h>
+#include <yt/core/misc/shutdown.h>
 
 namespace NYT {
 namespace NRpc {
@@ -77,6 +78,10 @@ const IInvokerPtr& TDispatcher::GetHeavyInvoker()
 {
     return Impl_->GetHeavyInvoker();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_SHUTDOWN_CALLBACK(7, TDispatcher::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 

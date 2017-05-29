@@ -3,9 +3,6 @@
 #include <yt/core/misc/shutdown.h>
 #include <yt/core/logging/log_manager.h>
 
-// XXX(sandello): This is a dirty hack. :(
-#include <yt/server/hydra/private.h>
-
 class TYTEnvironment
     : public ::testing::Environment
 {

@@ -12,6 +12,7 @@
 #include <yt/core/misc/id_generator.h>
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/singleton.h>
+#include <yt/core/misc/shutdown.h>
 
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/fluent.h>
@@ -438,6 +439,10 @@ TTagId TProfileManager::RegisterTag(const TTag& tag)
 {
     return Impl_->RegisterTag(tag);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_SHUTDOWN_CALLBACK(4, TProfileManager::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 

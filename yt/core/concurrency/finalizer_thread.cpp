@@ -1,6 +1,8 @@
 #include "single_queue_scheduler_thread.h"
 #include "profiler_utils.h"
 
+#include <yt/core/misc/shutdown.h>
+
 namespace NYT {
 namespace NConcurrency {
 
@@ -184,6 +186,8 @@ void ShutdownFinalizerThread()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_SHUTDOWN_CALLBACK(1, ShutdownFinalizerThread);
 
 } // namespace NConcurrency
 } // namespace NYT
