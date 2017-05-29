@@ -1644,6 +1644,8 @@ private:
         const TMountTableOptions& options)
     {
         auto req = TTableYPathProxy::Mount(path);
+        SetMutationId(req, options);
+
         if (options.FirstTabletIndex) {
             req->set_first_tablet_index(*options.FirstTabletIndex);
         }
@@ -1665,6 +1667,8 @@ private:
         const TUnmountTableOptions& options)
     {
         auto req = TTableYPathProxy::Unmount(path);
+        SetMutationId(req, options);
+
         if (options.FirstTabletIndex) {
             req->set_first_tablet_index(*options.FirstTabletIndex);
         }
@@ -1683,6 +1687,8 @@ private:
         const TRemountTableOptions& options)
     {
         auto req = TTableYPathProxy::Remount(path);
+        SetMutationId(req, options);
+
         if (options.FirstTabletIndex) {
             req->set_first_tablet_index(*options.FirstTabletIndex);
         }
@@ -1700,6 +1706,8 @@ private:
         const TFreezeTableOptions& options)
     {
         auto req = TTableYPathProxy::Freeze(path);
+        SetMutationId(req, options);
+
         if (options.FirstTabletIndex) {
             req->set_first_tablet_index(*options.FirstTabletIndex);
         }
@@ -1717,6 +1725,8 @@ private:
         const TUnfreezeTableOptions& options)
     {
         auto req = TTableYPathProxy::Unfreeze(path);
+        SetMutationId(req, options);
+
         if (options.FirstTabletIndex) {
             req->set_first_tablet_index(*options.FirstTabletIndex);
         }
@@ -1734,6 +1744,8 @@ private:
         const TReshardTableOptions& options)
     {
         auto req = TTableYPathProxy::Reshard(path);
+        SetMutationId(req, options);
+
         if (options.FirstTabletIndex) {
             req->set_first_tablet_index(*options.FirstTabletIndex);
         }

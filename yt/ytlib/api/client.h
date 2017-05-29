@@ -130,6 +130,7 @@ struct TPrerequisiteOptions
 
 struct TMountTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 {
     NTabletClient::TTabletCellId CellId = NTabletClient::NullTabletCellId;
@@ -138,6 +139,7 @@ struct TMountTableOptions
 
 struct TUnmountTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 {
     bool Force = false;
@@ -145,21 +147,25 @@ struct TUnmountTableOptions
 
 struct TRemountTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 { };
 
 struct TFreezeTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 { };
 
 struct TUnfreezeTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 { };
 
 struct TReshardTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 { };
 
