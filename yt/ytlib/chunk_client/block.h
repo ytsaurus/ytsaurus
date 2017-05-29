@@ -33,6 +33,8 @@ struct TBlock
 
     bool IsChecksumValid() const;
 
+    void ValidateChecksum() const;
+
     TChecksum GetOrComputeChecksum() const;
 
     static std::vector<TBlock> Wrap(const std::vector<TSharedRef>& blocks);
@@ -44,7 +46,14 @@ struct TBlock
 
 class TBlockChecksumValidationException
     : public std::exception
-{ };
+{
+public:
+    TBlockChecksumValidationException(TChecksum expected, TChecksum actual)
+        : Expected(expected)
+        , Actual(actual) {}
+
+    const TChecksum Expected, Actual;
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 

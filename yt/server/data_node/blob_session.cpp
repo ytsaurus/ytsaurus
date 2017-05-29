@@ -252,11 +252,13 @@ void TBlobSession::DoWriteBlock(const TBlock& block, int blockIndex)
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
             Y_UNREACHABLE();
         }
-    } catch (const TBlockChecksumValidationException&) {
+    } catch (const TBlockChecksumValidationException& ex) {
         SetFailed(TError(
-            NChunkClient::EErrorCode::IOError,
+            NChunkClient::EErrorCode::InvalidBlockChecksum,
             "Invalid checksum detected in chunk block %v",
-            blockId),
+            blockId)
+            << TErrorAttribute("expected_checksum", ex.Expected)
+            << TErrorAttribute("actual_checksum", ex.Actual),
             /* fatal */ false);
     } catch (const std::exception& ex) {
         SetFailed(TError(

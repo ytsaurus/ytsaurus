@@ -147,6 +147,7 @@ DEFINE_ENUM(EErrorCode,
     ((WriteThrottlingActive)    (718))
     ((NoSuchMedium)             (719))
     ((OptimisticLockFailure)    (720))
+    ((InvalidBlockChecksum)     (721))
 );
 
 //! Values must be contiguous.
