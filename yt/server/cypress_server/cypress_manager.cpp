@@ -2266,17 +2266,9 @@ private:
             }
 
             try {
-                auto error = CheckLock(
-                    trunkNode,
-                    nullptr,
-                    ELockMode::Exclusive,
-                    true);
-                error.ThrowOnError();
-
                 auto nodeProxy = GetNodeProxy(trunkNode, nullptr);
                 auto parentProxy = nodeProxy->GetParent();
                 parentProxy->RemoveChild(nodeProxy);
-
                 LOG_DEBUG_UNLESS(IsRecovery(), "Expired node removed (NodeId: %v)",
                     nodeId);
             } catch (const std::exception& ex) {
