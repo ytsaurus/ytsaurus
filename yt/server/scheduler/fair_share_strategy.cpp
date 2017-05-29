@@ -1122,6 +1122,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         const auto& operationElement = GetOperationElement(operationId);
+        operationElement.UpdateMinNeededJobResources();
+
         auto* parent = operationElement->GetParent();
         parent->EnableChild(operationElement);
         IncreaseRunningOperationCount(parent, 1);
