@@ -26,19 +26,12 @@ THorizontalSchemalessBlockReader::THorizontalSchemalessBlockReader(
     YCHECK(Meta_.row_count() > 0);
 
     keyColumnCount = std::max(KeyColumnCount_, ChunkKeyColumnCount_);
-    auto keyDataSize = GetUnversionedRowByteSize(keyColumnCount);
+    auto keyDataSize = GetUnversionedRowByteSize(KeyColumnCount_);
     KeyBuffer_.reserve(keyDataSize);
-    Key_ = TMutableKey::Create(KeyBuffer_.data(), keyColumnCount);
+    Key_ = TMutableKey::Create(KeyBuffer_.data(), KeyColumnCount_);
 
     for (int index = 0; index < KeyColumnCount_; ++index) {
-        auto& value = Key_[index];
-        value.Id = index;
-    }
-
-    for (int index = ChunkKeyColumnCount_; index < keyColumnCount; ++index) {
-        auto& value = Key_[index];
-        value.Id = index;
-        value.Type = EValueType::Null;
+        Key_[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
     }
 
     i64 offsetsLength = sizeof(ui32) * Meta_.row_count();
