@@ -253,8 +253,11 @@ void TBlobSession::DoWriteBlock(const TBlock& block, int blockIndex)
             Y_UNREACHABLE();
         }
     } catch (const TBlockChecksumValidationException&) {
-        THROW_ERROR_EXCEPTION("Invalid checksum detected in chunk block")
-            << TErrorAttribute("block_id", block);
+        SetFailed(TError(
+            NChunkClient::EErrorCode::IOError,
+            "Invalid checksum detected in chunk block %v",
+            blockId),
+            /* fatal */ false);
     } catch (const std::exception& ex) {
         SetFailed(TError(
             NChunkClient::EErrorCode::IOError,
@@ -566,7 +569,7 @@ void TBlobSession::ReleaseSpace()
     Location_->UpdateUsedSpace(-Size_);
 }
 
-void TBlobSession::SetFailed(const TError& error)
+void TBlobSession::SetFailed(const TError& error, bool fatal)
 {
     // Thread affinity: WriterThread
 
@@ -578,8 +581,10 @@ void TBlobSession::SetFailed(const TError& error)
     Bootstrap_->GetControlInvoker()->Invoke(
         BIND(&TBlobSession::MarkAllSlotsWritten, MakeStrong(this), error));
 
-    Location_->Disable(Error_);
-    Y_UNREACHABLE(); // Disable() exits the process.
+    if (fatal) {
+        Location_->Disable(Error_);
+        Y_UNREACHABLE(); // Disable() exits the process.
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
