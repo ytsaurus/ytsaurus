@@ -2,6 +2,7 @@
 #include "tcp_dispatcher_impl.h"
 
 #include <yt/core/misc/singleton.h>
+#include <yt/core/misc/shutdown.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -73,6 +74,10 @@ void TTcpDispatcher::SetClientThreadCount(int clientThreadCount)
 {
     Get()->Impl_->SetClientThreadCount(clientThreadCount);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_SHUTDOWN_CALLBACK(6, TTcpDispatcher::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 
