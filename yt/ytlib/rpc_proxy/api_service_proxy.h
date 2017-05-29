@@ -35,6 +35,13 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, LinkNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ConcatenateNodes);
 
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, MountTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, UnmountTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, RemountTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, FreezeTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, UnfreezeTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ReshardTable);
+
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, LookupRows);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, VersionedLookupRows);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, SelectRows);

@@ -79,6 +79,13 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LinkNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ConcatenateNodes));
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(MountTable));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnmountTable));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemountTable));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FreezeTable));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnfreezeTable));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReshardTable));
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows));
@@ -396,6 +403,18 @@ private:
         }
         if (proto.has_suppress_modification_tracking()) {
             options->SuppressModificationTracking = proto.suppress_modification_tracking();
+        }
+    }
+
+    static void FromProto(
+        TTabletRangeOptions* options,
+        const NProto::TTabletRangeOptions& proto)
+    {
+        if (proto.has_first_tablet_index()) {
+            options->FirstTabletIndex = proto.first_tablet_index();
+        }
+        if (proto.has_last_tablet_index()) {
+            options->LastTabletIndex = proto.last_tablet_index();
         }
     }
 
@@ -893,6 +912,173 @@ private:
             }));
     }
 
+    ////////////////////////////////////////////////////////////////////////////////
+    // TABLES (NON-TRANSACTIONAL)
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, MountTable)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+
+        TMountTableOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_cell_id()) {
+            NYT::FromProto(&options.CellId, request->cell_id());
+        }
+        if (request->has_freeze()) {
+            options.Freeze = request->freeze();
+        }
+
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        if (request->has_tablet_range_options()) {
+            FromProto(&options, request->tablet_range_options());
+        }
+
+        client->MountTable(path, options)
+            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, UnmountTable)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+
+        TUnmountTableOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_force()) {
+            options.Force = request->force();
+        }
+
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        if (request->has_tablet_range_options()) {
+            FromProto(&options, request->tablet_range_options());
+        }
+
+        client->UnmountTable(path, options)
+            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, RemountTable)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+
+        TRemountTableOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        if (request->has_tablet_range_options()) {
+            FromProto(&options, request->tablet_range_options());
+        }
+
+        client->RemountTable(path, options)
+            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, FreezeTable)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+
+        TFreezeTableOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        if (request->has_tablet_range_options()) {
+            FromProto(&options, request->tablet_range_options());
+        }
+
+        client->FreezeTable(path, options)
+            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, UnfreezeTable)
+    {
+        auto client = GetAuthenticatedClientOrAbortContext(context, request);
+        if (!client) {
+            return;
+        }
+
+        auto&& path = request->path();
+
+        TUnfreezeTableOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        if (request->has_tablet_range_options()) {
+            FromProto(&options, request->tablet_range_options());
+        }
+
+        client->UnfreezeTable(path, options)
+            .Subscribe(BIND([=] (const TErrorOr<void>& result) {
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                } else {
+                    context->Reply();
+                }
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NRpcProxy::NProto, ReshardTable)
+    {
+        Y_UNREACHABLE();
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // TABLES (TRANSACTIONAL)
     ////////////////////////////////////////////////////////////////////////////////
 
     template <class TContext, class TRequest, class TOptions>

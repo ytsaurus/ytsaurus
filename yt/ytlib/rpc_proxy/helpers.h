@@ -37,6 +37,10 @@ void ToProto(
     NProto::TSuppressableAccessTrackingOptions* proto,
     const NApi::TSuppressableAccessTrackingOptions& options);
 
+void ToProto(
+    NProto::TTabletRangeOptions* proto,
+    const NApi::TTabletRangeOptions& options);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateRowsetDescriptor(

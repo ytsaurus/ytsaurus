@@ -54,6 +54,7 @@ struct TPrerequisiteOptions;
 struct TMasterReadOptions;
 struct TMutatingOptions;
 struct TSuppressableAccessTrackingOptions;
+struct TTabletRangeOptions;
 
 DECLARE_REFCOUNTED_STRUCT(IConnection)
 DECLARE_REFCOUNTED_STRUCT(IAdmin)
