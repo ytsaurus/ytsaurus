@@ -1,18 +1,25 @@
 package ru.yandex.yt.ytclient.rpc;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Created by aozeritsky on 24.05.2017.
  */
 public class BalancingRpcClient implements RpcClient {
+    private static final Logger logger = LoggerFactory.getLogger(BalancingRpcClient.class);
+
     final private Duration maxDelay;
-    final private List<RpcClient> destinations;
+    final private ArrayList<RpcClient> destinations;
     final private Timer timer = new Timer();
 
     public BalancingRpcClient(Duration maxDelay, RpcClient ... destinations) {
@@ -23,7 +30,8 @@ public class BalancingRpcClient implements RpcClient {
 
     public BalancingRpcClient(Duration maxDelay, List<RpcClient> destinations) {
         this.maxDelay = maxDelay;
-        this.destinations = destinations;
+        this.destinations = new ArrayList<>();
+        this.destinations.addAll(destinations);
     }
 
     @Override
@@ -31,22 +39,7 @@ public class BalancingRpcClient implements RpcClient {
         for (RpcClient client : destinations) {
             client.close();
         }
-    }
-
-    public static <T> CompletionStage<T> exceptionallyCompose(
-        CompletionStage<T> stage,
-        Function<Throwable, ? extends CompletionStage<T>> fn) {
-        return dereference(wrap(stage).exceptionally(fn));
-    }
-
-    public static <T> CompletionStage<T> dereference(
-        CompletionStage<? extends CompletionStage<T>> stage) {
-        return stage.thenCompose(Function.identity());
-    }
-
-    private static <T> CompletionStage<CompletionStage<T>> wrap(CompletionStage<T> future) {
-        //noinspection unchecked
-        return future.thenApply(CompletableFuture::completedFuture);
+        timer.cancel();
     }
 
     private static class SendData {
@@ -63,6 +56,7 @@ public class BalancingRpcClient implements RpcClient {
             @Override
             public void onAcknowledgement() {
                 if (request.isOneWay()) {
+                    //logger.error("cancel `{}`", s.task);
                     s.task.cancel();
                     f.complete(null);
                 }
@@ -71,6 +65,7 @@ public class BalancingRpcClient implements RpcClient {
             @Override
             public void onResponse(List<byte[]> attachments) {
                 s.task.cancel();
+                //logger.error("cancel `{}`", s.task);
                 if (request.isOneWay()) {
                     f.completeExceptionally(new IllegalStateException("Server replied to a one-way request"));
                 } else {
@@ -106,31 +101,104 @@ public class BalancingRpcClient implements RpcClient {
         });
     }
 
-    private final RuntimeException identityError = new RuntimeException("empty destinations");
+    private static class DelayedFutureTask {
+        CompletableFuture<List<byte[]>> f;
+        TimerTask task;
 
-    private CompletionStage<List<byte[]>> identity() {
-        CompletableFuture<List<byte[]>> id = new CompletableFuture<>();
-        id.completeExceptionally(identityError);
-        return id;
+        void cancel() {
+            task.cancel();
+            if (f != null) {
+                f.cancel(true);
+            }
+        }
+    }
+
+    private CompletionStage<List<byte[]>> delayedExecute(List<CompletionStage<List<byte[]>>> prevSteps, long delay, Supplier<CompletionStage<List<byte[]>>> what) {
+        CompletableFuture<List<byte[]>> result = new CompletableFuture<>();
+        DelayedFutureTask task = new DelayedFutureTask();
+
+        task.task = new TimerTask() {
+            @Override
+            public void run() {
+                boolean completeAny = false;
+                for (CompletionStage<List<byte[]>> step : prevSteps) {
+                    CompletableFuture s = step.toCompletableFuture();
+                    completeAny |= s.isDone() && ! s.isCompletedExceptionally();
+                }
+
+                if (!completeAny) {
+                    // run new future
+                    task.f = what.get().toCompletableFuture();
+                    task.f.whenComplete((res, error) -> {
+                        if (error != null) {
+                            result.completeExceptionally(error);
+                        } else {
+                            result.complete(res);
+                        }
+                    });
+                }
+            }
+        };
+
+        timer.schedule(task.task, delay);
+
+        return result.whenComplete((a, error) -> {
+            if (error instanceof CancellationException) {
+                //logger.error("cancel `{}`", task);
+                task.cancel();
+            }
+        });
     }
 
     @Override
     public RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler) {
+        List<RpcClient> destinations = (List<RpcClient>)this.destinations.clone();
         Collections.shuffle(destinations);
 
-        destinations.stream();
+        ArrayList<CompletionStage<List<byte[]>>> allSteps = new ArrayList<>();
+        allSteps.ensureCapacity(destinations.size());
 
-        CompletionStage<List<byte[]>> result = destinations.stream().reduce(identity(),
-            (a, b) -> exceptionallyCompose(a, error -> {
-                if (error != identityError && error.getCause() != identityError) {
-                    // TODO: log here
+        long delta = maxDelay.toMillis();
+        int i = 0;
+
+        for (RpcClient client : destinations) {
+            long delay = delta * i;
+            List<CompletionStage<List<byte[]>>> currentList = (List<CompletionStage<List<byte[]>>>)allSteps.clone();
+            CompletionStage<List<byte[]>> currentStep = delayedExecute(currentList, delay, () -> sendOnce(client, request));
+            allSteps.add(currentStep);
+            i ++;
+        }
+
+        CompletableFuture<List<byte[]>> result = new CompletableFuture<>();
+
+        AtomicInteger count = new AtomicInteger(0);
+        int totalCount = destinations.size();
+
+        for (CompletionStage<List<byte[]>> step : allSteps) {
+            step.whenComplete((value, error) -> {
+                if (error != null) {
+                    if (count.incrementAndGet() == totalCount) {
+                        result.completeExceptionally(error);
+                    }
+                } else {
+                    result.complete(value);
+                    for (CompletionStage<List<byte[]>> stepLocal : allSteps) {
+                        if (step != stepLocal) {
+                            stepLocal.toCompletableFuture().cancel(true);
+                        }
+                    }
                 }
-                return sendOnce(b, request);
-            }),
-            (a, b) -> exceptionallyCompose(a, error -> b)
-        );
+            });
+        }
 
-        result.thenAccept(r -> {
+
+        result.whenComplete((a, b) -> {
+            if (b instanceof CancellationException) {
+                for (CompletionStage<List<byte[]>> step : allSteps) {
+                    step.toCompletableFuture().cancel(true);
+                }
+            }
+        }).thenAccept(r -> {
             if (request.isOneWay()) {
                 handler.onAcknowledgement();
             } else {
