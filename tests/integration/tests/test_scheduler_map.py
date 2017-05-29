@@ -2502,6 +2502,8 @@ print row + table_index
     # ToDo(psushin): uncomment and use parameter after YT-7064.
     #@pytest.mark.parametrize("ordered", [False, True])
     def test_map_interrupt_job(self):
+        ordered = False
+
         create("table", "//tmp/in_1")
         write_table(
             "//tmp/in_1",
@@ -2518,7 +2520,7 @@ print row + table_index
         create("table", output)
 
         op = map(
-            ordered=False,
+            ordered=ordered,
             dont_track=True,
             waiting_jobs=True,
             label="interrupt_job",
