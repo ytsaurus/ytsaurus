@@ -8,11 +8,11 @@ import java.util.Objects;
 
 import com.google.protobuf.MessageLite;
 
+import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
-import ru.yandex.yt.rpc.TRequestHeader;
 
 /**
  * Реализация интерфейсов

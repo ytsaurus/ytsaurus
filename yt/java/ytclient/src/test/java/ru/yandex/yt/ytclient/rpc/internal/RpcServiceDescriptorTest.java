@@ -7,12 +7,12 @@ import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.MessageLite;
 import org.junit.Test;
 
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
-import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.rpc.TReqDiscover;
 import ru.yandex.yt.rpc.TRspDiscover;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
 import ru.yandex.yt.rpcproxy.TRspGetNode;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
+import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;

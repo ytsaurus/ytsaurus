@@ -1,7 +1,10 @@
 package ru.yandex.yt.ytclient.examples;
 
+import java.time.Duration;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
 import ru.yandex.yt.ytclient.rpc.BalancingRpcClient;
@@ -12,8 +15,6 @@ import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
 import ru.yandex.yt.ytclient.ytree.YTreeMapNode;
-
-import java.time.Duration;
 
 /**
  * Created by aozeritsky on 24.05.2017.

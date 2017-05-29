@@ -6,11 +6,11 @@ import java.util.concurrent.CompletableFuture;
 
 import com.google.protobuf.MessageLite;
 
+import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
-import ru.yandex.yt.rpc.TRequestHeader;
 
 public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder, ResponseType extends MessageLite> extends RequestBuilderBase<RequestType, RpcClientResponse<ResponseType>> {
     private final RpcMessageParser<ResponseType> parser;

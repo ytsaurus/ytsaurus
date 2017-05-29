@@ -5,6 +5,7 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransactionOptions;
 import ru.yandex.yt.ytclient.proxy.LookupRowsRequest;
@@ -12,7 +13,6 @@ import ru.yandex.yt.ytclient.proxy.ModifyRowsRequest;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
-import ru.yandex.yt.rpcproxy.ETransactionType;
 
 public class ModifyRowsExample2 {
     private static final Logger logger = LoggerFactory.getLogger(ModifyRowsExample.class);

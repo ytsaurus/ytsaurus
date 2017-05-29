@@ -23,14 +23,14 @@ import io.netty.util.concurrent.ScheduledFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.yt.rpc.TRequestCancelationHeader;
+import ru.yandex.yt.rpc.TRequestHeaderOrBuilder;
+import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.ytclient.bus.Bus;
 import ru.yandex.yt.ytclient.bus.BusDeliveryTracking;
 import ru.yandex.yt.ytclient.bus.BusFactory;
 import ru.yandex.yt.ytclient.bus.BusListener;
 import ru.yandex.yt.ytclient.misc.YtGuid;
-import ru.yandex.yt.rpc.TRequestCancelationHeader;
-import ru.yandex.yt.rpc.TRequestHeaderOrBuilder;
-import ru.yandex.yt.rpc.TResponseHeader;
 
 /**
  * Базовая реализация rpc клиента поверх bus

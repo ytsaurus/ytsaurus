@@ -1,21 +1,5 @@
 package ru.yandex.yt.ytclient.examples;
 
-import com.codahale.metrics.ConsoleReporter;
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.MetricRegistry;
-import joptsimple.OptionParser;
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import ru.yandex.yt.ytclient.bus.BusConnector;
-import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
-import ru.yandex.yt.ytclient.rpc.BalancingRpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
-import ru.yandex.yt.ytclient.wire.UnversionedRowset;
-
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -27,6 +11,22 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import com.codahale.metrics.ConsoleReporter;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.MetricRegistry;
+import joptsimple.OptionParser;
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import ru.yandex.yt.ytclient.bus.BusConnector;
+import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
+import ru.yandex.yt.ytclient.rpc.BalancingRpcClient;
+import ru.yandex.yt.ytclient.rpc.RpcClient;
+import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 
 /**
  * Created by aozeritsky on 26.05.2017.
