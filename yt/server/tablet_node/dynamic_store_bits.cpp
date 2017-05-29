@@ -32,11 +32,8 @@ TOwningKey RowToKey(
          index < schema.GetKeyColumnCount();
          ++index, nullKeyBit <<= 1, ++srcKey, ++columnIt)
     {
-        TUnversionedValue dstKey;
-        dstKey.Id = index;
-        if (nullKeyMask & nullKeyBit) {
-            dstKey.Type = EValueType::Null;
-        } else {
+        auto dstKey = MakeUnversionedSentinelValue(EValueType::Null, index);
+        if (!(nullKeyMask & nullKeyBit)) {
             dstKey.Type = columnIt->Type;
             if (IsStringLikeType(EValueType(dstKey.Type))) {
                 dstKey.Length = srcKey->String->Length;
