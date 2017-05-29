@@ -32,7 +32,7 @@ import java.util.stream.Stream;
  * Created by aozeritsky on 26.05.2017.
  */
 public class SelectRowsBenchmark {
-    private static final Logger logger = LoggerFactory.getLogger(SelectRowsExample.class);
+    private static final Logger logger = LoggerFactory.getLogger(SelectRowsBenchmark.class);
 
     // runme: --proxy n0035-myt.seneca-myt.yt.yandex.net,n0036-myt.seneca-myt.yt.yandex.net,n0037-myt.seneca-myt.yt.yandex.net --input requests
     public static void main(String[] args) throws Exception {
@@ -127,7 +127,7 @@ public class SelectRowsBenchmark {
                     long t1 = System.nanoTime();
                     metric.update((t1 - t0) / 1000000);
                 } catch (Throwable e) {
-                    logger.error("error `{}`", e.toString());
+                    logger.error("error", e);
                 }
             }
         });
