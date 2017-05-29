@@ -1122,7 +1122,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         const auto& operationElement = GetOperationElement(operationId);
-        operationElement.UpdateMinNeededJobResources();
+        operationElement->UpdateMinNeededJobResources();
 
         auto* parent = operationElement->GetParent();
         parent->EnableChild(operationElement);
