@@ -317,6 +317,15 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             result = max(result, value["value"])
         return result
 
+    def _get_operation_last_metric_value(self, metric_key, pool, child_index):
+        results = []
+        for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/operations/" + metric_key, verbose=False)):
+            if value["tags"]["pool"] != pool or value["tags"]["child_index"] != str(child_index):
+                continue
+            results.append((value["value"], value["time"]))
+        last_metric = sorted(results, key=lambda x: x[1])[-1]
+        return last_metric[0]
+
     def test_pool_profiling(self):
         self._prepare_tables()
         create("map_node", "//sys/pools/unique_pool")
@@ -330,6 +339,56 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert self._get_metric_maximum_value("resource_usage/user_slots", "unique_pool") == 1
         assert self._get_metric_maximum_value("resource_demand/cpu", "unique_pool") == 1
         assert self._get_metric_maximum_value("resource_demand/user_slots", "unique_pool") == 1
+
+    def test_operations_profiling(self):
+        self._create_table("//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": "y"}])
+        for i in xrange(2):
+            self._create_table("//tmp/t_out_" + str(i + 1))
+
+        create("map_node", "//sys/pools/some_pool")
+        op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", spec={"pool": "some_pool"}, dont_track=True)
+        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", spec={"pool": "some_pool"}, dont_track=True)
+
+        time.sleep(1.0)
+
+        assert op1.get_state() == "running"
+        assert op2.get_state() == "running"
+
+        get_child_index = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/child_index".format(op_id))
+
+        assert get_child_index(op1.id) == 0
+        assert get_child_index(op2.id) == 1
+
+        range_ = (49999, 50000, 50001)
+
+        assert self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 0) in range_
+        assert self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 0) == 100000
+        assert self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 0) == 100000
+        assert self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 0) in range_
+        assert self._get_operation_last_metric_value("resource_usage/cpu", "some_pool", 0) == 1
+        assert self._get_operation_last_metric_value("resource_usage/user_slots", "some_pool", 0) == 1
+        assert self._get_operation_last_metric_value("resource_demand/cpu", "some_pool", 0) == 1
+        assert self._get_operation_last_metric_value("resource_demand/user_slots", "some_pool", 0) == 1
+
+        assert self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) in range_
+        assert self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 0
+        assert self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000
+        assert self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) in range_
+        assert self._get_operation_last_metric_value("resource_usage/cpu", "some_pool", 1) == 0
+        assert self._get_operation_last_metric_value("resource_usage/user_slots", "some_pool", 1) == 0
+        assert self._get_operation_last_metric_value("resource_demand/cpu", "some_pool", 1) == 1
+        assert self._get_operation_last_metric_value("resource_demand/user_slots", "some_pool", 1) == 1
+
+        op1.abort()
+
+        time.sleep(1.0)
+
+        assert self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) == 100000
+        assert self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 100000
+        assert self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000
+        assert self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) == 100000
 
     def test_suspend_resume(self):
         self._create_table("//tmp/t_in")
