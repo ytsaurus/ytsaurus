@@ -1147,6 +1147,17 @@ class TestCypress(YTEnvSetup):
         time.sleep(0.1)
         assert not exists("//tmp/t")
 
+    def test_expiration_time_wait_for_parent_locks_released(self):
+        create("table", "//tmp/x/t", recursive=True)
+        tx = start_transaction()
+        lock("//tmp/x", tx=tx)
+        set("//tmp/x/t/@expiration_time", str(self._now()))
+        time.sleep(0.1)
+        assert exists("//tmp/t")
+        abort_transaction(tx)
+        time.sleep(0.1)
+        assert not exists("//tmp/t")
+    
     def test_expiration_time_wait_for_locks_released_recursive(self):
         create("map_node", "//tmp/m")
         create("table", "//tmp/m/t")
