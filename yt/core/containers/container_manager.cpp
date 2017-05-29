@@ -5,6 +5,8 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/ytree/convert.h>
+
 #include <yt/core/logging/log.h>
 
 namespace NYT {
