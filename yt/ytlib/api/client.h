@@ -445,6 +445,7 @@ struct TNodeExistsOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
     , public TTransactionalOptions
+    , public TSuppressableAccessTrackingOptions
     , public TPrerequisiteOptions
 { };
 

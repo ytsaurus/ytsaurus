@@ -2342,6 +2342,7 @@ private:
 
         auto req = TYPathProxy::Exists(path);
         SetTransactionId(req, options, true);
+        SetSuppressAccessTracking(req, options);
         SetCachingHeader(req, options);
         batchReq->AddRequest(req);
 
