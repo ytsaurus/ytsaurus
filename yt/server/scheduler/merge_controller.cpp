@@ -831,7 +831,12 @@ private:
     // Unsorted helpers.
     virtual bool IsJobInterruptible() const override
     {
-        return !IsExplicitJobCount;
+        // ToDo(psushin): Restore proper implementation after resolving YT-7064.
+        return false;
+
+        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
+        // return !IsExplicitJobCount &&
+        //    2 * Options->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size();;
     }
 
     virtual TCpuResource GetCpuLimit() const override
