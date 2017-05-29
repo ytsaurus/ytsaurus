@@ -511,6 +511,7 @@ protected:
         auto jobSizeConstraints = CreateSimpleJobSizeConstraints(
             Spec,
             Options,
+            GetOutputTablePaths().size(),
             PrimaryInputDataSize);
 
         MaxDataSizePerJob = jobSizeConstraints->GetDataSizePerJob();
@@ -2161,7 +2162,9 @@ protected:
     // Unsorted helpers.
     virtual bool IsJobInterruptible() const override
     {
-        return !IsExplicitJobCount;
+        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
+        return !IsExplicitJobCount &&
+            2 * Options->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size();
     }
 
     virtual TCpuResource GetCpuLimit() const override
