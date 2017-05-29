@@ -7,9 +7,8 @@ add_library(yt-core-test-framework
 )
 
 target_include_directories(yt-core-test-framework
-  PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}
   PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/contrib/libs/gtest
   ${CMAKE_SOURCE_DIR}/contrib/libs/gmock
 )
