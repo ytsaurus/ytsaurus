@@ -542,7 +542,7 @@ private:
         int keyColumnCount = tabletSnapshot->TableSchema.GetKeyColumnCount();
         int valueColumnCount = tabletSnapshot->TableSchema.GetValueColumnCount();
 
-        Y_ASSERT(logRow.GetCount() == keyColumnCount + valueColumnCount* 2 + 4);
+        Y_ASSERT(logRow.GetCount() == keyColumnCount + valueColumnCount * 2 + 4);
 
         switch (changeType) {
             case ERowModificationType::Write: {
@@ -564,11 +564,11 @@ private:
                     row[currentIndex++] = value; 
                 }
                 for (int index = 0; index < valueColumnCount; ++index) {
-                    const auto& flagsValue  = logRow[index * 2 + keyColumnCount + 5];
+                    const auto& flagsValue = logRow[index * 2 + keyColumnCount + 5];
                     Y_ASSERT(flagsValue.Type == EValueType::Uint64);
                     auto flags = static_cast<EReplicationLogDataFlags>(flagsValue.Data.Uint64);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
-                        auto dataValue = rowBuffer->Capture(logRow[index * 2 + keyColumnCount + 4]);\
+                        auto dataValue = rowBuffer->Capture(logRow[index * 2 + keyColumnCount + 4]);
                         dataValue.Id = index + keyColumnCount;
                         dataValue.Aggregate = Any(flags & EReplicationLogDataFlags::Aggregate);
                         row[currentIndex++] = dataValue;
