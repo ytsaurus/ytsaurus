@@ -97,6 +97,18 @@ void ToProto(
     proto->set_suppress_modification_tracking(options.SuppressModificationTracking);
 }
 
+void ToProto(
+    NProto::TTabletRangeOptions* proto,
+    const TTabletRangeOptions& options)
+{
+    if (options.FirstTabletIndex) {
+        proto->set_first_tablet_index(*options.FirstTabletIndex);
+    }
+    if (options.LastTabletIndex) {
+        proto->set_last_tablet_index(*options.LastTabletIndex);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // ROWSETS
 ////////////////////////////////////////////////////////////////////////////////

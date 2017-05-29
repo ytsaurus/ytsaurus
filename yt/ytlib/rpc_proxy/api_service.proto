@@ -273,6 +273,13 @@ message TSuppressableAccessTrackingOptions
     optional bool suppress_modification_tracking = 2 [default = false];
 }
 
+// 105
+message TTabletRangeOptions
+{
+    optional int32 first_tablet_index = 1;
+    optional int32 last_tablet_index = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // CYPRESS
 ////////////////////////////////////////////////////////////////////////////////
@@ -303,7 +310,7 @@ message TReqGetNode
     optional TColumnFilter attributes = 2;
     optional uint32 max_size = 3;
 
-    // TODO(sandello):
+    // TODO(sandello): What to do with this?
     // std::shared_ptr<const NYTree::IAttributeDictionary> Options;
 
     optional TTransactionalOptions transactional_options = 100;
@@ -495,6 +502,98 @@ message TReqConcatenateNodes
 }
 
 message TRspConcatenateNodes
+{
+}
+
+//------------------------------------------------------------------------------
+
+////////////////////////////////////////////////////////////////////////////////
+// TABLES (NON-TRANSACTIONAL)
+////////////////////////////////////////////////////////////////////////////////
+
+//------------------------------------------------------------------------------
+
+message TReqMountTable
+{
+    required string path = 1; // ypath
+
+    optional NYT.NProto.TGuid cell_id = 2;
+    optional bool freeze = 3 [default = false];
+
+    optional TMutatingOptions mutating_options = 103;
+    optional TTabletRangeOptions tablet_range_options = 104;
+}
+
+message TRspMountTable
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqUnmountTable
+{
+    required string path = 1; // ypath
+
+    optional bool force = 2 [default = false];
+
+    optional TMutatingOptions mutating_options = 103;
+    optional TTabletRangeOptions tablet_range_options = 104;
+}
+
+message TRspUnmountTable
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqRemountTable
+{
+    required string path = 1; // ypath
+
+    optional TMutatingOptions mutating_options = 103;
+    optional TTabletRangeOptions tablet_range_options = 104;
+}
+
+message TRspRemountTable
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqFreezeTable
+{
+    required string path = 1; // ypath
+
+    optional TMutatingOptions mutating_options = 103;
+    optional TTabletRangeOptions tablet_range_options = 104;
+}
+
+message TRspFreezeTable
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqUnfreezeTable
+{
+    required string path = 1; // ypath
+
+    optional TMutatingOptions mutating_options = 103;
+    optional TTabletRangeOptions tablet_range_options = 104;
+}
+
+message TRspUnfreezeTable
+{
+}
+
+//------------------------------------------------------------------------------
+
+message TReqReshardTable
+{
+    required string path = 1; // ypath
+}
+
+message TRspReshardTable
 {
 }
 
