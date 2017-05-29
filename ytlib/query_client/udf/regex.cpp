@@ -2,9 +2,9 @@
 
 #include <functional>
 
-namespace google { namespace re2 {
+namespace re2 {
     class RE2;
-} }
+}
 
 extern "C" re2::RE2* RegexCreate(TUnversionedValue*);
 extern "C" void RegexDestroy(re2::RE2*);
