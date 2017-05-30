@@ -36,7 +36,9 @@ Stroka DemangleSymbol(const Stroka& name)
 uint64_t TRoutineRegistry::GetAddress(const Stroka& symbol) const
 {
     auto it = SymbolToAddress_.find(symbol);
-    YCHECK(it != SymbolToAddress_.end());
+    if (it == SymbolToAddress_.end()) {
+        THROW_ERROR_EXCEPTION("Symbol %Qv not found", symbol);
+    }
     return it->second;
 }
 
