@@ -190,13 +190,15 @@ public:
                 Error_.ThrowOnError();
                 switch (State_) {
                     case ETransactionState::Committing:
-                        THROW_ERROR_EXCEPTION("Transaction is already being committed");
-
+                        THROW_ERROR_EXCEPTION("Transaction is already being committed (TransactionId: %v)",
+                            GetId());
                     case ETransactionState::Committed:
-                        THROW_ERROR_EXCEPTION("Transaction is already committed");
+                        THROW_ERROR_EXCEPTION("Transaction is already committed (TransactionId: %v)",
+                            GetId());
 
                     case ETransactionState::Aborted:
-                        THROW_ERROR_EXCEPTION("Transaction is already aborted");
+                        THROW_ERROR_EXCEPTION("Transaction is already aborted (TransactionId: %v)",
+                            GetId());
 
                     case ETransactionState::Active:
                         State_ = ETransactionState::Committing;

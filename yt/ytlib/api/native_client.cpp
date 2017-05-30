@@ -4352,8 +4352,9 @@ private:
     void ValidateActiveSync()
     {
         if (State_ != ETransactionState::Active) {
-            THROW_ERROR_EXCEPTION("Transaction is already in %Qlv state",
-                State_);
+            THROW_ERROR_EXCEPTION("Transaction is already in %Qlv state (TransactionId: %v)",
+                State_,
+                GetId());
         }
     }
 
@@ -4361,8 +4362,9 @@ private:
     TFuture<T> ValidateActiveAsync()
     {
         if (State_ != ETransactionState::Active) {
-            return MakeFuture<T>(TError("Transaction is already in %Qlv state",
-                State_));
+            return MakeFuture<T>(TError("Transaction is already in %Qlv state (TransactionId: %v)",
+                State_,
+                GetId()));
         }
         return TFuture<T>();
     }

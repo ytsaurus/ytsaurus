@@ -2262,7 +2262,7 @@ private:
                 try {
                     controller->Abort();
                 } catch (const std::exception& ex) {
-                    LOG_ERROR(ex, "Failed to abort controller");
+                    LOG_ERROR(ex, "Failed to abort controller of operation %v", operation->GetId());
                     MasterConnector_->Disconnect();
                     return;
                 }
