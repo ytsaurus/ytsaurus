@@ -44,23 +44,25 @@ udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs_fc.cpp
 
 list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
 
-add_executable(unittester
-  ${YT_SRCS_RESOLVED}
-  ${YT_UNITTESTS_MAIN}
-)
-
 if(MSVC)
-  target_add_definitions(unittester -D_VARIADIC_MAX=10)
-  target_add_definitions(unittester -DGTEST_HAS_SEH=0)
+  add_definitions(-D_VARIADIC_MAX=10)
+  add_definitions(-DGTEST_HAS_SEH=0)
 endif()
 
-target_include_directories(unittester
-  PRIVATE
+include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/contrib/libs/gtest
+  ${CMAKE_SOURCE_DIR}/contrib/libs/gmock
+)
+
+add_executable(unittester
+  ${YT_SRCS_RESOLVED}
 )
 
 target_link_libraries(unittester
   yt-library-client
   yt-library-server
-  yt-core-test-framework
+  deps-arcadia-library-lfalloc
+  deps-arcadia-contrib-libs-gtest
+  deps-arcadia-contrib-libs-gmock
 )
