@@ -779,7 +779,7 @@ class TestSchedulerRevive(YTEnvSetup):
         self._wait_state(op, "running")
 
         # Wait for snapshot and job completion.
-        time.sleep(2)
+        time.sleep(3)
 
         op.complete(ignore_result=True)
 
