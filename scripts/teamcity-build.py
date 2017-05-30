@@ -25,6 +25,7 @@ import re
 import socket
 import tempfile
 import shutil
+import fnmatch
 import xml.etree.ElementTree as etree
 import xml.parsers.expat
 
