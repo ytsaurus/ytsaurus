@@ -1058,10 +1058,10 @@ def create_format(yson_name, attributes=None, **kwargs):
         "json": JsonFormat
     }
 
-    try:
-        return NAME_TO_FORMAT[name](attributes=attributes, **kwargs)
-    except KeyError:
+    if name not in NAME_TO_FORMAT:
         raise YtFormatError("Incorrect format " + name)
+
+    return NAME_TO_FORMAT[name](attributes=attributes, **kwargs)
 
 def loads_row(string, format=None, client=None):
     """Converts string to parsed row."""
