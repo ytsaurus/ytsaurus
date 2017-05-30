@@ -1792,7 +1792,7 @@ public:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidateResourceUsageIncrease(
             table->GetAccount(),
-            TClusterResources(0, 0, newTabletCount - oldTabletCount, 0));
+            TClusterResources().SetTabletCount(newTabletCount - oldTabletCount));
 
         if (tablets.size() - oldTabletCount + newTabletCount > MaxTabletCount) {
             THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %v",
@@ -2131,7 +2131,7 @@ public:
         }
 
         const auto& securityManager = this->Bootstrap_->GetSecurityManager();
-        securityManager->ValidateResourceUsageIncrease(table->GetAccount(), TClusterResources(0, 0, 1, 0));
+        securityManager->ValidateResourceUsageIncrease(table->GetAccount(), TClusterResources().SetTabletCount(1));
 
         auto* oldRootChunkList = table->GetChunkList();
 
@@ -3431,9 +3431,9 @@ private:
 
         // Update node resource usage.
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto deltaResources = TClusterResources();
-        deltaResources.ChunkCount = deltaStatistics.ChunkCount;
-        deltaResources.TabletStaticMemory = newMemorySize - oldMemorySize;
+        auto deltaResources = TClusterResources()
+            .SetChunkCount(deltaStatistics.ChunkCount)
+            .SetTabletStaticMemory(newMemorySize - oldMemorySize);
         std::copy(
             std::begin(deltaStatistics.DiskSpace),
             std::end(deltaStatistics.DiskSpace),
@@ -3911,7 +3911,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidateResourceUsageIncrease(
             table->GetAccount(),
-            TClusterResources(0, 0, 0, memorySize));
+            TClusterResources().SetTabletStaticMemory(memorySize));
     }
 
     void CommitTabletStaticMemoryUpdate(TTableNode* table)

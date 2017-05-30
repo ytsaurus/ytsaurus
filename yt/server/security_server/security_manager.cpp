@@ -1708,9 +1708,12 @@ private:
 
         // sys, 1 TB disk space, 100 000 nodes, 1 000 000 chunks, 100 000 tablets, 10TB tablet static memory, allowed for: root
         if (EnsureBuiltinAccountInitialized(SysAccount_, SysAccountId_, SysAccountName)) {
-            SysAccount_->ClusterResourceLimits() = TClusterResources(100000, 1000000000, 100000, (i64) 10 * 1024 * 1024 * 1024 * 1024);
-            SysAccount_->ClusterResourceLimits()
-                .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = (i64) 1024 * 1024 * 1024 * 1024;
+            SysAccount_->ClusterResourceLimits() = TClusterResources()
+                .SetNodeCount(100000)
+                .SetChunkCount(1000000000)
+                .SetTabletCount(100000)
+                .SetTabletStaticMemory((i64) 10 * 1024 * 1024 * 1024 * 1024)
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, (i64) 1024 * 1024 * 1024 * 1024);
             SysAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 RootUser_,
@@ -1719,9 +1722,10 @@ private:
 
         // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
         if (EnsureBuiltinAccountInitialized(TmpAccount_, TmpAccountId_, TmpAccountName)) {
-            TmpAccount_->ClusterResourceLimits() = TClusterResources(100000, 1000000000);
-            TmpAccount_->ClusterResourceLimits()
-                .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = (i64) 1024 * 1024 * 1024 * 1024;
+            TmpAccount_->ClusterResourceLimits() = TClusterResources()
+                .SetNodeCount(100000)
+                .SetChunkCount(1000000000)
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, (i64) 1024 * 1024 * 1024 * 1024);
             TmpAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
@@ -1730,9 +1734,10 @@ private:
 
         // intermediate, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
         if (EnsureBuiltinAccountInitialized(IntermediateAccount_, IntermediateAccountId_, IntermediateAccountName)) {
-            IntermediateAccount_->ClusterResourceLimits() = TClusterResources(100000, 1000000000);
-            IntermediateAccount_->ClusterResourceLimits()
-                .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = (i64) 1024 * 1024 * 1024 * 1024;
+            IntermediateAccount_->ClusterResourceLimits() = TClusterResources()
+                .SetNodeCount(100000)
+                .SetChunkCount(1000000000)
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, (i64) 1024 * 1024 * 1024 * 1024);
             IntermediateAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,

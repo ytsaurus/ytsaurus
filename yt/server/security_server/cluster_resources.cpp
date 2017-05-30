@@ -39,17 +39,35 @@ TClusterResources::TClusterResources()
     , TabletStaticMemory(0)
 { }
 
-TClusterResources::TClusterResources(
-    int nodeCount,
-    int chunkCount,
-    int tabletCount,
-    i64 tabletStaticMemory)
-    : DiskSpace{}
-    , NodeCount(nodeCount)
-    , ChunkCount(chunkCount)
-    , TabletCount(tabletCount)
-    , TabletStaticMemory(tabletStaticMemory)
-{ }
+TClusterResources&& TClusterResources::SetNodeCount(int nodeCount) &&
+{
+    NodeCount = nodeCount;
+    return std::move(*this);
+}
+
+TClusterResources&& TClusterResources::SetChunkCount(int chunkCount) &&
+{
+    ChunkCount = chunkCount;
+    return std::move(*this);
+}
+
+TClusterResources&& TClusterResources::SetTabletCount(int tabletCount) &&
+{
+    TabletCount = tabletCount;
+    return std::move(*this);
+}
+
+TClusterResources&& TClusterResources::SetTabletStaticMemory(i64 tabletStaticMemory) &&
+{
+    TabletStaticMemory = tabletStaticMemory;
+    return std::move(*this);
+}
+
+TClusterResources&& TClusterResources::SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &&
+{
+    DiskSpace[mediumIndex] = diskSpace;
+    return std::move(*this);
+}
 
 void TClusterResources::Save(NCellMaster::TSaveContext& context) const
 {
@@ -167,7 +185,11 @@ TSerializableClusterResources::TSerializableClusterResources(
 
 TClusterResources TSerializableClusterResources::ToClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager) const
 {
-    TClusterResources result(NodeCount_, ChunkCount_, TabletCount_, TabletStaticMemory_);
+    auto result = TClusterResources()
+        .SetNodeCount(NodeCount_)
+        .SetChunkCount(ChunkCount_)
+        .SetTabletCount(TabletCount_)
+        .SetTabletStaticMemory(TabletStaticMemory_);
     for (const auto& pair : DiskSpacePerMedium_) {
         auto* medium = chunkManager->GetMediumByNameOrThrow(pair.first);
         result.DiskSpace[medium->GetIndex()] = pair.second;
