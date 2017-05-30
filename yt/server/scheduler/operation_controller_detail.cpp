@@ -92,14 +92,17 @@ void CommitTransaction(ITransactionPtr& transaction)
     if (!transaction) {
         return;
     }
-    auto result = WaitFor(transaction->Commit());
+
+    auto transactionId = transaction->GetId();
+    auto asyncResult = transaction->Commit();
+    transaction.Reset();
+
+    auto result = WaitFor(asyncResult);
     if (!result.IsOK()) {
-        transaction->Abort(); // Ignore result.
         THROW_ERROR_EXCEPTION("Transaction %v has failed to commit",
-            transaction->GetId())
+            transactionId)
             << result;
     }
-    transaction.Reset();
 }
 
 } // namespace
