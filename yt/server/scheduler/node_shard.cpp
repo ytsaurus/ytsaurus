@@ -1356,7 +1356,6 @@ TFuture<void> TNodeShard::ProcessScheduledJobs(
         operationsToLog->insert(job->GetOperationId());
     }
 
-    auto now = GetCpuInstant();
     for (const auto& job : schedulingContext->PreemptedJobs()) {
         if (!OperationExists(job->GetOperationId()) || job->GetHasPendingUnregistration()) {
             LOG_DEBUG("Dangling preempted job found (JobId: %v, OperationId: %v)",
