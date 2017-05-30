@@ -440,6 +440,7 @@ class TOperationElementFixedState
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(IOperationControllerPtr, Controller);
+    DEFINE_BYVAL_RW_PROPERTY(int, ChildIndex, -1);
 
 protected:
     explicit TOperationElementFixedState(TOperationPtr operation);

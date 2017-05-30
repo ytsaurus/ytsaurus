@@ -1,5 +1,5 @@
 #include "single_queue_scheduler_thread.h"
-#include "profiler_utils.h"
+#include "profiling_helpers.h"
 
 #include <yt/core/misc/shutdown.h>
 

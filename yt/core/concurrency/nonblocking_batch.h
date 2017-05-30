@@ -1,8 +1,6 @@
 #pragma once
 
 #include <yt/core/actions/future.h>
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/misc/intrusive_ptr.h>
 
 #include <queue>
 #include <vector>
