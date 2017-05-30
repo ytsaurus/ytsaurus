@@ -18,14 +18,16 @@ def create(type_, name, client):
         else:
             raise
 
+def check_member(subject, group, client):
+    members = client.get('//sys/groups/{}/@members'.format(group))
+    return subject in members
+
 def add_member(subject, group, client):
-    try:
-        client.add_member(subject, group)
-    except yt.YtResponseError as err:
-        if "is already present in group" in err.message:
-            logger.warning(err.message)
-        else:
-            raise
+    # Be aware of posible race here
+    if check_member(subject, group, client):
+        logger.warning("{} is already present in group {}".format(subject, group))
+        return True
+    client.add_member(subject, group)
 
 def check_acl(acl, required_keys, optional_keys):
     for k in required_keys:
@@ -78,8 +80,8 @@ def get_default_resource_limits(client):
 
 def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None):
     client = get_value(client, yt)
-    users = ["odin", "cron", "nightly_tester", "application_operations"]
-    groups = ["devs", "admins"]
+    users = ["odin", "cron", "nightly_tester", "application_operations", "robot-yt-mon"]
+    groups = ["devs", "admins", "admin_snapshots"]
     if idm:
         groups.append("yandex")
     everyone_group = "everyone" if not idm else "yandex"
@@ -88,8 +90,11 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
         create("user", user, client)
     for group in groups:
         create("group", group, client)
+
     add_member("cron", "superusers", client)
     add_member("devs", "admins", client)
+    add_member("robot-yt-mon", "admin_snapshots", client)
+
     if idm:
         add_member("users", "yandex", client)
     add_member("application_operations", "superusers", client)
@@ -116,6 +121,26 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
                       attributes={
                           "opaque": "true",
                           "account": "tmp"})
+
+    # Create admins stuff
+    if not client.exists("//sys/admin"):
+        client.create("map_node", "//sys/admin")
+
+    if not client.exists("//sys/admin/snapshots"):
+        client.create("map_node", "//sys/admin/snapshots")
+
+    if client.exists("//sys/admin"):
+        client.set("//sys/admin/@acl",
+                   [
+                       {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "read", "mount", "administer"]}
+                   ])
+
+    if client.exists("//sys/admin/snapshots"):
+        client.set("//sys/admin/snapshots/@acl",
+                   [
+                       {"action": "allow", "subjects": ["admin_snapshots"], "permissions": ["write", "read", "remove"]}
+                   ])
+
     # add_acl to schemas
     for schema in ["user", "group", "tablet_cell"]:
         if client.exists("//sys/schemas/%s" % schema):
