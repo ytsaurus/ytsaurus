@@ -90,10 +90,16 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CancelChunk));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks)
+            .SetMaxQueueSize(5000)
+            .SetMaxConcurrency(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks)
+            .SetMaxQueueSize(5000)
+            .SetMaxConcurrency(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlocks)
+            .SetMaxQueueSize(5000)
+            .SetMaxConcurrency(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)

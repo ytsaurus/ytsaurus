@@ -386,7 +386,7 @@ void SafePipe(int fd[2])
     {
         int result = ::pipe(fd);
         if (result == -1) {
-            THROW_ERROR_EXCEPTION("Error creating pipe: pipe creation failed")
+            THROW_ERROR_EXCEPTION("Error creating pipe")
                 << TError::FromSystem();
         }
     }
