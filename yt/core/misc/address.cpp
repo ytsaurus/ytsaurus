@@ -11,7 +11,6 @@
 #include <yt/core/misc/local_address.h>
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/expiring_cache.h>
-#include <yt/core/misc/shutdown.h>
 
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/scoped_timer.h>
@@ -528,10 +527,6 @@ void TAddressResolver::Configure(TAddressResolverConfigPtr config)
     Y_ASSERT(Impl_);
     return Impl_->Configure(std::move(config));
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-REGISTER_SHUTDOWN_CALLBACK(2, TAddressResolver::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 
