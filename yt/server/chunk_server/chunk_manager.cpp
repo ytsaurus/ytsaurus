@@ -1606,8 +1606,9 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountByNameOrThrow(subrequest->account());
-        TClusterResources resourceUsageIncrease(0, 1);
-        resourceUsageIncrease.DiskSpace[mediumIndex] = 1;
+        auto resourceUsageIncrease = TClusterResources()
+            .SetChunkCount(1)
+            .SetMediumDiskSpace(mediumIndex, 1);
         if (subrequest->validate_resource_usage_increase()) {
             securityManager->ValidateResourceUsageIncrease(account, resourceUsageIncrease);
         }

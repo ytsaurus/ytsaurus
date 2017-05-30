@@ -373,7 +373,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
         auto* node = LockThisImpl();
         if (node->GetAccount() != account) {
             // TODO(savrus) See YT-7050
-            securityManager->ValidateResourceUsageIncrease(account, TClusterResources(1, 0));
+            securityManager->ValidateResourceUsageIncrease(account, TClusterResources().SetNodeCount(1));
             securityManager->SetAccount(node, account);
         }
 
@@ -1036,7 +1036,7 @@ void TNontemplateCypressNodeProxyBase::SetChildNode(
 
 TClusterResources TNontemplateCypressNodeProxyBase::GetResourceUsage() const
 {
-    return TClusterResources(1, 0);
+    return TClusterResources().SetNodeCount(1);
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)

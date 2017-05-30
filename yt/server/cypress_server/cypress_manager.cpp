@@ -192,7 +192,7 @@ public:
         if (maybeAccount) {
             account = securityManager->GetAccountByNameOrThrow(*maybeAccount);
         }
-        securityManager->ValidateResourceUsageIncrease(account, TClusterResources(1, 0));
+        securityManager->ValidateResourceUsageIncrease(account, TClusterResources().SetNodeCount(1));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         bool isExternalDefault =
@@ -295,7 +295,7 @@ public:
             // might not be aware of the actual resource usage.
             // This should be safe since chunk lists are shared anyway.
             const auto& securityManager = Bootstrap_->GetSecurityManager();
-            securityManager->ValidateResourceUsageIncrease(clonedAccount, TClusterResources(1, 0));
+            securityManager->ValidateResourceUsageIncrease(clonedAccount, TClusterResources().SetNodeCount(1));
         }
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();

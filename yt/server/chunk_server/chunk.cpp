@@ -63,7 +63,7 @@ TChunkTreeStatistics TChunk::GetStatistics() const
 
 TClusterResources TChunk::GetResourceUsage() const
 {
-    TClusterResources result(0, 1);
+    auto result = TClusterResources().SetChunkCount(1);
     if (!IsConfirmed()) {
         return result;
     }

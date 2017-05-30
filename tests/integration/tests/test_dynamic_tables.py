@@ -565,7 +565,6 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
     def test_tablet_count_set_account(self):
         create_account("test_account")
         self.sync_create_cells(1)
-        print get("//sys/accounts/tmp/@resource_limits/tablet_count", 1)
         self._create_ordered_table("//tmp/t", tablet_count=2)
 
         # Not implemented: YT-7050
@@ -588,7 +587,6 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
         assert get("//sys/accounts/test_account/@resource_usage/tablet_count") == 0
 
         set("//sys/accounts/test_account/@resource_limits/tablet_count", 0)
-        print get("//tmp/t/@dynamic")
         with pytest.raises(YtError):
             alter_table("//tmp/t", dynamic=True)
 

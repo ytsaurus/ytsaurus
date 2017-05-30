@@ -204,7 +204,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     const auto& securityManager = this->Bootstrap_->GetSecurityManager();
     securityManager->ValidateResourceUsageIncrease(
         account,
-        TClusterResources(0, 0, sourceNode->GetTrunkNode()->Tablets().size()));
+        TClusterResources().SetTabletCount(sourceNode->GetTrunkNode()->Tablets().size()));
 
     const auto& tabletManager = this->Bootstrap_->GetTabletManager();
 
@@ -254,8 +254,10 @@ TClusterResources TTableNodeTypeHandlerBase<TImpl>::GetAccountingResourceUsage(
         }
     }
 
-    return TBase::GetAccountingResourceUsage(node) +
-        TClusterResources(0, 0, tabletCount, memorySize);
+    auto resourceUsage = TClusterResources()
+        .SetTabletCount(tabletCount)
+        .SetTabletStaticMemory(memorySize);
+    return TBase::GetAccountingResourceUsage(node) + resourceUsage;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
