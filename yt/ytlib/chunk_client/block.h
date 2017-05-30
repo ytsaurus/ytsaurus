@@ -4,6 +4,7 @@
 
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/ref.h>
+#include <yt/core/misc/property.h>
 
 #include <vector>
 
@@ -49,10 +50,12 @@ class TBlockChecksumValidationException
 {
 public:
     TBlockChecksumValidationException(TChecksum expected, TChecksum actual)
-        : Expected(expected)
-        , Actual(actual) {}
+        : Expected_(expected)
+        , Actual_(actual)
+    { }
 
-    const TChecksum Expected, Actual;
+    DEFINE_BYVAL_RO_PROPERTY(TChecksum, Expected);
+    DEFINE_BYVAL_RO_PROPERTY(TChecksum, Actual);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
