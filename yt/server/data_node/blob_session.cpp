@@ -257,8 +257,8 @@ void TBlobSession::DoWriteBlock(const TBlock& block, int blockIndex)
             NChunkClient::EErrorCode::InvalidBlockChecksum,
             "Invalid checksum detected in chunk block %v",
             blockId)
-            << TErrorAttribute("expected_checksum", ex.Expected)
-            << TErrorAttribute("actual_checksum", ex.Actual),
+            << TErrorAttribute("expected_checksum", ex.GetExpected())
+            << TErrorAttribute("actual_checksum", ex.GetActual()),
             /* fatal */ false);
     } catch (const std::exception& ex) {
         SetFailed(TError(
