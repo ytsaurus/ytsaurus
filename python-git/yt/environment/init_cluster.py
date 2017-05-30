@@ -23,11 +23,14 @@ def check_member(subject, group, client):
     return subject in members
 
 def add_member(subject, group, client):
-    # Be aware of posible race here
-    if check_member(subject, group, client):
-        logger.warning("{} is already present in group {}".format(subject, group))
-        return True
-    client.add_member(subject, group)
+    try:
+        client.add_member(subject, group)
+    except:
+        if check_member(subject, group, client):
+            logger.warning("{} is already present in group {}".format(subject, group))
+            return True
+        else:
+            raise
 
 def check_acl(acl, required_keys, optional_keys):
     for k in required_keys:
