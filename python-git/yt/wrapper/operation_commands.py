@@ -293,8 +293,11 @@ def get_stderrs(operation, only_failed_jobs, client=None):
     if only_failed_jobs:
         jobs = builtins.list(ifilter(lambda obj: "error" in obj.attributes, jobs))
 
+    if not get_config(client)["operation_tracker"]["stderr_download_threading_enable"]:
+        return [get_stderr_from_job(path, client) for path in jobs]
+
     thread_count = min(get_config(client)["operation_tracker"]["stderr_download_thread_count"], len(jobs))
-    if thread_count > 1:
+    if thread_count > 0:
         pool = ThreadPoolHelper(thread_count)
         timeout = get_config(client)["operation_tracker"]["stderr_download_timeout"] / 1000.0
         try:
@@ -304,9 +307,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
         finally:
             pool.terminate()
             pool.join()
-        return result
-    else:
-        return [get_stderr_from_job(path, client) for path in jobs]
+    return result
 
 def format_operation_stderrs(jobs_with_stderr):
     """Formats operation jobs with stderr to string."""

@@ -327,9 +327,12 @@ default_config = {
         "abort_on_sigint": True,
         # Log job statistics on operation complete.
         "log_job_statistics": False,
+        # Enable multithreading in stderr downloading.
+        "stderr_download_threading_enable": True,
         # Number of threads for downloading jobs stderr messages.
         "stderr_download_thread_count": 10,
         # Timeout for downloading jobs stderr messages.
+        # This parameter is only supported if stderr_download_threading_enable is True.
         "stderr_download_timeout": 60 * 1000
     },
 

@@ -1253,6 +1253,18 @@ if __name__ == "__main__":
         stderrs_list = get_stderrs(operation.id, False)
         assert len(stderrs_list) == 10
 
+        old_timeout = yt.config["operation_tracker"]["stderr_download_timeout"]
+        old_thread_count = yt.config["operation_tracker"]["stderr_download_thread_count"]
+        yt.config["operation_tracker"]["stderr_download_timeout"] = 100
+        yt.config["operation_tracker"]["stderr_download_thread_count"] = 1
+
+        try:
+            stderrs_list = get_stderrs(operation.id, False)
+            assert len(stderrs_list) < 10
+        finally:
+            yt.config["operation_tracker"]["stderr_download_timeout"] = old_timeout
+            yt.config["operation_tracker"]["stderr_download_thread_count"] = old_thread_count
+
         binary = get_test_file_path("stderr_download.py")
         process = subprocess.Popen(["python", binary, operation.id], env=self.env, stderr=subprocess.PIPE)
 
