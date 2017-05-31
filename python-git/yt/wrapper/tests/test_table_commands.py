@@ -538,3 +538,43 @@ class TestTableCommands(object):
 
         with pytest.raises(yt.YtResponseError):
             yt.insert_rows(table, [{"a": "b"}])
+
+    def test_trim_rows(self):
+        def remove_control_attributes(rows):
+            for row in rows:
+                if "$tablet_index" in row:
+                    del row["$tablet_index"]
+                if "$row_index" in row:
+                    del row["$row_index"]
+
+        with set_config_option("tabular_data_format", None):
+            table = TEST_DIR + "/test_trimmed_table"
+            yt.create_table(table, attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "x", "type": "string"},
+                    {"name": "y", "type": "string"}
+                ]})
+
+            tablet_id = yt.create("tablet_cell", attributes={"size": 1})
+            while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
+                time.sleep(0.1)
+
+            yt.mount_table(table)
+            while yt.get("{0}/@tablets/0/state".format(table)) != 'mounted':
+                time.sleep(0.1)
+
+            yt.insert_rows(table, [{"x": "a", "y": "b"}, {"x": "c", "y": "d"}, {"x": "e", "y": "f"}], raw=False)
+            rows = list(yt.select_rows("* from [{0}]".format(table), raw=False))
+            tablet_index = rows[0].get("$tablet_index")
+            remove_control_attributes(rows)
+            assert [{"x": "a", "y": "b"}, {"x": "c", "y": "d"}, {"x": "e", "y": "f"}] == rows
+
+            yt.trim_rows(table, tablet_index, 1)
+
+            rows = list(yt.select_rows("* from [{0}]".format(table), raw=False))
+            remove_control_attributes(rows)
+            assert [{"x": "c", "y": "d"}, {"x": "e", "y": "f"}] == rows
+
+            yt.trim_rows(table, tablet_index, 3)
+            assert [] == list(yt.select_rows("* from [{0}]".format(table), raw=False))
