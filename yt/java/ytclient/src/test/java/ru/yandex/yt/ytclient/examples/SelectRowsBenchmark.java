@@ -1,7 +1,5 @@
 package ru.yandex.yt.ytclient.examples;
 
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.SharedMetricRegistries;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -20,7 +18,9 @@ import java.util.stream.Stream;
 
 import com.codahale.metrics.ConsoleReporter;
 import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
