@@ -372,6 +372,12 @@ TNode::TList TMockClient::SelectRows(const TString&, const TSelectRowsOptions&) 
     return TNode::TList();
 }
 
+void TMockClient::EnableTableReplica(const TReplicaId&) {
+}
+
+void TMockClient::DisableTableReplica(const TReplicaId&) {
+}
+
 ui64 TMockClient::GenerateTimestamp() {
     return 0;
 }

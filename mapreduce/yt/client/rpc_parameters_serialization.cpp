@@ -36,6 +36,8 @@ TString ToString(ENodeType type)
         case NT_FILE: return "file";
         case NT_TABLE: return "table";
         case NT_DOCUMENT: return "document";
+        case NT_REPLICATED_TABLE: return "replicated_table";
+        case NT_TABLE_REPLICA: return "table_replica";
     }
     Y_UNREACHABLE();
 }
