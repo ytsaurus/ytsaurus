@@ -1,19 +1,28 @@
 package ru.yandex.yt.ytclient.rpc;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import java.util.Random;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.Collections;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+
+import ru.yandex.yt.rpcproxy.TReqGetNode;
+import ru.yandex.yt.rpcproxy.TRspGetNode;
+import ru.yandex.yt.ytclient.ytree.YTreeNode;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.codahale.metrics.Counter;
+
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
+import com.google.common.collect.ImmutableList;
 
 /**
  * Created by aozeritsky on 24.05.2017.
@@ -22,24 +31,72 @@ public class BalancingRpcClient implements RpcClient {
     private static final Logger logger = LoggerFactory.getLogger(BalancingRpcClient.class);
 
     final private Duration maxDelay;
-    final private ArrayList<RpcClient> destinations;
+    final private Destination[] destinations;
+    final private Random rnd = new Random();
+
+    private int aliveCount;
     final private Timer timer = new Timer();
+
+    // TODO: move somewhere to core
+    final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("default");
+    final Counter inflight = metrics.counter("inflight");
+
+    final private class Destination {
+        final RpcClient client;
+        boolean isAlive;
+        int index;
+
+        Destination(RpcClient client, int index) {
+            this.client = client;
+            isAlive = true;
+            this.index = index;
+        }
+
+        void close() {
+            client.close();
+        }
+
+        void setAlive() {
+            synchronized (destinations) {
+                if (index >= aliveCount) {
+                    Destination t = destinations[aliveCount];
+                    destinations[aliveCount] = destinations[index];
+                    destinations[index] = t;
+                    index = aliveCount;
+                    aliveCount ++;
+                }
+            }
+        }
+
+        void setDead() {
+            synchronized (destinations) {
+                if (index < aliveCount) {
+                    aliveCount --;
+                    Destination t = destinations[aliveCount];
+                    destinations[aliveCount] = destinations[index];
+                    destinations[index] = t;
+                    index = aliveCount;
+                }
+            }
+        }
+    }
 
     public BalancingRpcClient(Duration maxDelay, RpcClient ... destinations) {
         this.maxDelay = maxDelay;
-        this.destinations = new ArrayList<>();
-        Collections.addAll(this.destinations, destinations);
-    }
+        this.destinations = new Destination[destinations.length];
+        int i = 0;
+        for (RpcClient client : destinations) {
+            int index = i++;
+            this.destinations[index] = new Destination(client, index);
+        }
+        this.aliveCount = this.destinations.length;
 
-    public BalancingRpcClient(Duration maxDelay, List<RpcClient> destinations) {
-        this.maxDelay = maxDelay;
-        this.destinations = new ArrayList<>();
-        this.destinations.addAll(destinations);
+        schedulePing();
     }
 
     @Override
     public void close() {
-        for (RpcClient client : destinations) {
+        for (Destination client : destinations) {
             client.close();
         }
         timer.cancel();
@@ -50,7 +107,7 @@ public class BalancingRpcClient implements RpcClient {
         TimerTask task;
     }
 
-    private CompletionStage<List<byte[]>> sendOnce(RpcClient dst, RpcClientRequest request) {
+    private CompletionStage<List<byte[]>> sendOnce(Destination dst, RpcClientRequest request) {
         CompletableFuture<List<byte[]>> f = new CompletableFuture<>();
 
         SendData s = new SendData();
@@ -78,11 +135,17 @@ public class BalancingRpcClient implements RpcClient {
 
             @Override
             public void onError(Throwable error) {
-                f.completeExceptionally(error);
+                try {
+                    f.completeExceptionally(error);
+                } catch (Throwable e) {
+                    // ignore
+                }
             }
         };
 
-        s.control = dst.send(request, handler);
+        inflight.inc();
+
+        s.control = dst.client.send(request, handler);
         s.task = new TimerTask() {
             @Override
             public void run() {
@@ -90,6 +153,8 @@ public class BalancingRpcClient implements RpcClient {
                     // TODO: log here
                     s.control.cancel();
                     f.cancel(true);
+                    // mark destination as bad
+                    dst.setDead();
                 }
             }
         };
@@ -97,10 +162,16 @@ public class BalancingRpcClient implements RpcClient {
         timer.schedule(s.task, maxDelay.toMillis());
 
         return f.whenComplete((a, b) -> {
-            if (b != null && b instanceof CancellationException) {
+            if (b instanceof CancellationException) {
                 // TODO: log here
                 s.control.cancel();
+            } else if (b != null) {
+                dst.setDead();
+            } else {
+                dst.setAlive();
             }
+
+            inflight.dec();
         });
     }
 
@@ -123,22 +194,27 @@ public class BalancingRpcClient implements RpcClient {
         task.task = new TimerTask() {
             @Override
             public void run() {
-                boolean completeAny = false;
-                for (CompletionStage<List<byte[]>> step : prevSteps) {
-                    CompletableFuture s = step.toCompletableFuture();
-                    completeAny |= s.isDone() && ! s.isCompletedExceptionally();
-                }
+                try {
+                    boolean completeAny = false;
+                    for (CompletionStage<List<byte[]>> step : prevSteps) {
+                        CompletableFuture s = step.toCompletableFuture();
+                        completeAny |= s.isDone() && !s.isCompletedExceptionally();
+                    }
 
-                if (!completeAny) {
-                    // run new future
-                    task.f = what.get().toCompletableFuture();
-                    task.f.whenComplete((res, error) -> {
-                        if (error != null) {
-                            result.completeExceptionally(error);
-                        } else {
-                            result.complete(res);
-                        }
-                    });
+                    if (!completeAny) {
+                        // run new future
+                        task.f = what.get().toCompletableFuture();
+                        task.f.whenComplete((res, error) -> {
+                            if (error != null) {
+                                result.completeExceptionally(error);
+                            } else {
+                                result.complete(res);
+                            }
+                        });
+                    }
+                } catch (Throwable e) {
+                    logger.error("timer error", e);
+                    // System.exit(1);
                 }
             }
         };
@@ -153,22 +229,92 @@ public class BalancingRpcClient implements RpcClient {
         });
     }
 
+    private List<Destination> selectDestinations() {
+        final int maxSelect = 3;
+        final ArrayList<Destination> result = new ArrayList<>();
+        result.ensureCapacity(maxSelect);
+
+        synchronized (destinations) {
+            int count = aliveCount;
+            if (count == 0) {
+                // try some of dead clients
+                count = destinations.length;
+            }
+
+            while (count != 0 && result.size() < maxSelect) {
+                int idx = rnd.nextInt(count);
+                Destination t = destinations[idx];
+                destinations[idx] = destinations[count-1];
+                destinations[count-1] = t;
+                result.add(t);
+            }
+        }
+
+        return result;
+    }
+
+    public interface PingService {
+        RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> getNode();
+    }
+
+    private CompletableFuture<YTreeNode> pingDestination(Destination client) {
+        PingService service = client.client.getService(PingService.class);
+        RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> builder = service.getNode();
+        builder.body().setPath("//tmp");
+        CompletableFuture<YTreeNode> f = RpcUtil
+            .apply(builder.invoke(), response -> YTreeNode.parseByteString(response.body().getData()))
+            .thenApply(node -> {
+                client.setAlive();
+                return node;
+            }).exceptionally(unused -> null); // ignore exceptions ?
+
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                f.cancel(true);
+            }
+        }, maxDelay.toMillis());
+
+        return f;
+    }
+
+    private void schedulePing() {
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                pingDeadDestinations();
+            }
+        }, 2*maxDelay.toMillis());
+    }
+
+    private void pingDeadDestinations() {
+        // logger.info("ping");
+
+        synchronized (destinations) {
+            CompletableFuture<YTreeNode> futures[] = new CompletableFuture[destinations.length - aliveCount];
+            for (int i = aliveCount; i < destinations.length; ++i) {
+                futures[i - aliveCount] = pingDestination(destinations[i]);
+            }
+
+            CompletableFuture.allOf(futures).whenComplete((a, b) -> {
+                schedulePing();
+            });
+        }
+    }
+
     @Override
     public RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler) {
-        List<RpcClient> destinations = (List<RpcClient>)this.destinations.clone();
-        Collections.shuffle(destinations);
+        List<Destination> destinations = selectDestinations();
 
-        ArrayList<CompletionStage<List<byte[]>>> allSteps = new ArrayList<>();
-        allSteps.ensureCapacity(destinations.size());
+        ImmutableList.Builder<CompletionStage<List<byte[]>>> builder = ImmutableList.builder();
 
         long delta = maxDelay.toMillis();
         int i = 0;
 
-        for (RpcClient client : destinations) {
+        for (Destination client : destinations) {
             long delay = delta * i;
-            List<CompletionStage<List<byte[]>>> currentList = (List<CompletionStage<List<byte[]>>>)allSteps.clone();
-            CompletionStage<List<byte[]>> currentStep = delayedExecute(currentList, delay, () -> sendOnce(client, request));
-            allSteps.add(currentStep);
+            CompletionStage<List<byte[]>> currentStep = delayedExecute(builder.build(), delay, () -> sendOnce(client, request));
+            builder.add(currentStep);
             i ++;
         }
 
@@ -176,6 +322,7 @@ public class BalancingRpcClient implements RpcClient {
 
         AtomicInteger count = new AtomicInteger(0);
         int totalCount = destinations.size();
+        final ImmutableList<CompletionStage<List<byte[]>>> allSteps = builder.build();
 
         for (CompletionStage<List<byte[]>> step : allSteps) {
             step.whenComplete((value, error) -> {
@@ -193,7 +340,6 @@ public class BalancingRpcClient implements RpcClient {
                 }
             });
         }
-
 
         result.whenComplete((a, b) -> {
             if (b instanceof CancellationException) {
