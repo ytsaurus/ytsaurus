@@ -16,3 +16,6 @@ set(SRCS
 )
 
 add_library(${NAME} STATIC ${SRCS})
+
+set_target_properties(deps-arcadia-contrib-libs-base64 PROPERTIES COMPILE_FLAGS -mavx2)
+
