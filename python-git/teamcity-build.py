@@ -107,16 +107,20 @@ def prepare(options):
 @build_step
 @skip_step_if_tests_are_disabled
 def checkout(options):
-    run([
-            "git",
-            "clone",
-            "git@github.yandex-team.ru:yt/yt.git",
-            "--recurse-submodules",
-            "--branch",
-            "prestable/19",
-            options.yt_source_directory
-        ],
-        cwd=options.yt_build_directory)
+    if not os.path.exists(options.yt_source_directory):
+        run([
+                "git",
+                "clone",
+                "git@github.yandex-team.ru:yt/yt.git",
+                "--recurse-submodules",
+                "--branch",
+                "prestable/19",
+                options.yt_source_directory
+            ],
+            cwd=options.yt_build_directory)
+    else:
+        run(["git", "pull"], cwd=options.yt_source_directory)
+        run(["git", "submodule", "update", "--init", "--recursive"], cwd=options.yt_source_directory)
 
 @build_step
 @skip_step_if_tests_are_disabled
