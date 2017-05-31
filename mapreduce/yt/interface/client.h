@@ -106,6 +106,10 @@ public:
         const TString& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
+    virtual void EnableTableReplica(const TReplicaId& replicaid) = 0;
+
+    virtual void DisableTableReplica(const TReplicaId& replicaid) = 0;
+
     virtual ui64 GenerateTimestamp() = 0;
 
     // Execute several light requests in parallel.

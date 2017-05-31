@@ -22,7 +22,9 @@ enum ENodeType : int
     NT_LIST,
     NT_FILE,
     NT_TABLE,
-    NT_DOCUMENT
+    NT_DOCUMENT,
+    NT_REPLICATED_TABLE,
+    NT_TABLE_REPLICA
 };
 
 class ICypressClient

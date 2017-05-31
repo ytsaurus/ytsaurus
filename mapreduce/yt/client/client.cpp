@@ -739,6 +739,18 @@ public:
         return NodeFromYsonString(response, YT_LIST_FRAGMENT).AsList();
     }
 
+    void EnableTableReplica(const TReplicaId& replicaid) override {
+        THttpHeader header("POST", "enable_table_replica");
+        header.AddParam("replica_id", GetGuidAsString(replicaid));
+        RetryRequest(Auth_, header);
+    }
+
+    void DisableTableReplica(const TReplicaId& replicaid) override {
+        THttpHeader header("POST", "disable_table_replica");
+        header.AddParam("replica_id", GetGuidAsString(replicaid));
+        RetryRequest(Auth_, header);
+    }
+
     ui64 GenerateTimestamp() override {
         THttpHeader header("GET", "generate_timestamp");
         auto response = RetryRequest(Auth_, header, "", true);
