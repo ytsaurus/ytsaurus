@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.examples;
 
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.SharedMetricRegistries;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -11,6 +12,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -36,6 +41,13 @@ import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 public class SelectRowsBenchmark {
     private static final Logger logger = LoggerFactory.getLogger(SelectRowsBenchmark.class);
 
+    static int inflight = 0;
+    static int maxInflight = 3000;
+    static int rpsLimit = 30000;
+
+    static final Lock lock = new ReentrantLock();
+    static final Condition notFull = lock.newCondition();
+
     static class RequestGroup {
         final List<String> requests = new ArrayList<>();
     };
@@ -48,7 +60,8 @@ public class SelectRowsBenchmark {
         int threads = 12;
 
         final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("default");
-        final Histogram metric = metrics.histogram("requests");
+        final Histogram requestsHistogram = metrics.histogram("requestsHistogram");
+        final Meter requestsMeter = metrics.meter("requestsMeter");
 
         OptionParser parser = new OptionParser();
 
@@ -61,6 +74,10 @@ public class SelectRowsBenchmark {
         OptionSpec<Integer> switchTimeoutOpt = parser.accepts("switchtimeout", "switchtimeout")
             .withRequiredArg().ofType(Integer.class);
         OptionSpec<Integer> threadsOpt = parser.accepts("threads", "threads")
+            .withRequiredArg().ofType(Integer.class);
+        OptionSpec<Integer> rpsLimitOpt = parser.accepts("rps", "rps")
+            .withRequiredArg().ofType(Integer.class);
+        OptionSpec<Integer> inflightOpt = parser.accepts("inflight", "inflight")
             .withRequiredArg().ofType(Integer.class);
 
         List<String> proxies = null;
@@ -80,6 +97,13 @@ public class SelectRowsBenchmark {
         } else {
             parser.printHelpOn(System.out);
             System.exit(1);
+        }
+
+        if (option.hasArgument(rpsLimitOpt)) {
+            rpsLimit = option.valueOf(rpsLimitOpt);
+        }
+        if (option.hasArgument(inflightOpt)) {
+            maxInflight = option.valueOf(inflightOpt);
         }
 
         requests.add(new RequestGroup());
@@ -131,21 +155,50 @@ public class SelectRowsBenchmark {
         for (int i = 0; i < threads; ++i) {
             executorService.execute(() -> {
                 for (; ; ) {
+                    lock.lock();
+
                     try {
+                        while (requestsMeter.getMeanRate() > rpsLimit) {
+                            Thread.sleep(10);
+                        }
+
+                        while (inflight >= maxInflight) {
+                            notFull.await();
+                        }
+
                         RequestGroup request = queue.take();
                         long t0 = System.nanoTime();
 
+                        inflight ++;
                         List<CompletableFuture<UnversionedRowset>> futures = request
                             .requests.stream()
                             .map(s -> client.selectRows(s)).collect(Collectors.toList());
 
-                        CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()])).join();
+                        // TODO: maxInflight here
+                        CompletableFuture
+                            .allOf(futures.toArray(new CompletableFuture[futures.size()]))
+                            .whenComplete((a, b) -> {
+                                try {
+                                    lock.lock();
+                                    inflight --;
+                                    if (inflight < maxInflight) {
+                                        notFull.signalAll();
+                                    }
 
-                        long t1 = System.nanoTime();
-                        metric.update((t1 - t0) / 1000000);
+                                    long t1 = System.nanoTime();
+                                    requestsHistogram.update((t1 - t0) / 1000000);
+                                    requestsMeter.mark();
+
+                                } finally {
+                                    lock.unlock();
+                                }
+                            });
+
                     } catch (Throwable e) {
                         logger.error("error", e);
                         // System.exit(1);
+                    } finally {
+                        lock.unlock();
                     }
                 }
             });
