@@ -1,10 +1,12 @@
 package ru.yandex.yt.ytclient.examples;
 
+import com.codahale.metrics.SharedMetricRegistries;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -34,14 +36,18 @@ import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 public class SelectRowsBenchmark {
     private static final Logger logger = LoggerFactory.getLogger(SelectRowsBenchmark.class);
 
+    static class RequestGroup {
+        final List<String> requests = new ArrayList<>();
+    };
+
     // runme: --proxy n0035-myt.seneca-myt.yt.yandex.net,n0036-myt.seneca-myt.yt.yandex.net,n0037-myt.seneca-myt.yt.yandex.net --input requests
     public static void main(String[] args) throws Exception {
         final BusConnector connector = ExamplesUtil.createConnector();
         final String user = ExamplesUtil.getUser();
         String token = ExamplesUtil.getToken();
-        int threads = 4;
+        int threads = 12;
 
-        final MetricRegistry metrics = new MetricRegistry();
+        final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("default");
         final Histogram metric = metrics.histogram("requests");
 
         OptionParser parser = new OptionParser();
@@ -58,10 +64,10 @@ public class SelectRowsBenchmark {
             .withRequiredArg().ofType(Integer.class);
 
         List<String> proxies = null;
-        final List<String> requests = new ArrayList<>();
+        final ArrayList<RequestGroup> requests = new ArrayList<>();
         Duration localTimeout = Duration.ofMillis(60);
         ExecutorService executorService;
-        final LinkedBlockingQueue<String> queue = new LinkedBlockingQueue<>(threads);
+        final LinkedBlockingQueue<RequestGroup> queue = new LinkedBlockingQueue<>(threads*2);
 
         OptionSet option = parser.parse(args);
 
@@ -76,12 +82,16 @@ public class SelectRowsBenchmark {
             System.exit(1);
         }
 
+        requests.add(new RequestGroup());
+
         if (option.hasArgument(inputOpt)) {
             Stream<String> lines = Files.lines(Paths.get(option.valueOf(inputOpt)));
             lines.forEach(line -> {
                 String newLine = line.trim();
-                if (!newLine.isEmpty()) {
-                    requests.add(newLine);
+                if (newLine.isEmpty()) {
+                    requests.add(new RequestGroup());
+                } else {
+                    requests.get(requests.size() - 1).requests.add(newLine);
                 }
             });
         } else {
@@ -112,29 +122,38 @@ public class SelectRowsBenchmark {
 
         RpcClient rpcClient = new BalancingRpcClient(
             localTimeout,
-            proxiesConnections
+            proxiesConnections.toArray(new RpcClient[proxiesConnections.size()])
         );
 
         final ApiServiceClient client = new ApiServiceClient(rpcClient,
             new RpcOptions().setDefaultTimeout(Duration.ofSeconds(5)));
 
-        executorService.execute(() -> {
-            for (;;) {
-                try {
-                    String request = queue.take();
-                    long t0 = System.nanoTime();
-                    UnversionedRowset rowset = client.selectRows(request).join();
-                    long t1 = System.nanoTime();
-                    metric.update((t1 - t0) / 1000000);
-                } catch (Throwable e) {
-                    logger.error("error", e);
+        for (int i = 0; i < threads; ++i) {
+            executorService.execute(() -> {
+                for (; ; ) {
+                    try {
+                        RequestGroup request = queue.take();
+                        long t0 = System.nanoTime();
+
+                        List<CompletableFuture<UnversionedRowset>> futures = request
+                            .requests.stream()
+                            .map(s -> client.selectRows(s)).collect(Collectors.toList());
+
+                        CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()])).join();
+
+                        long t1 = System.nanoTime();
+                        metric.update((t1 - t0) / 1000000);
+                    } catch (Throwable e) {
+                        logger.error("error", e);
+                        // System.exit(1);
+                    }
                 }
-            }
-        });
+            });
+        }
 
         for (;;) {
             try {
-                for (String request : requests) {
+                for (RequestGroup request : requests) {
                     queue.put(request);
                 }
             } catch (Throwable e) {
