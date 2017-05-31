@@ -56,6 +56,18 @@ bool TBlock::IsChecksumValid() const
     return GetChecksum(Data) == Checksum;
 }
 
+void TBlock::ValidateChecksum() const
+{
+    if (Checksum == NullChecksum) {
+        return;
+    }
+
+    auto actual = GetChecksum(Data);
+    if (actual != Checksum) {
+        throw TBlockChecksumValidationException(Checksum, actual);
+    }
+}
+
 TChecksum TBlock::GetOrComputeChecksum() const
 {
     if (Checksum == NullChecksum) {

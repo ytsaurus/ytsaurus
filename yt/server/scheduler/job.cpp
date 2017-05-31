@@ -57,9 +57,6 @@ TDuration TJob::GetDuration() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobSummary::TJobSummary()
-{ }
-
 TJobSummary::TJobSummary(const TJobPtr& job, TJobStatus* status)
     : Id(job->GetId())
     , State(job->GetState())
@@ -183,7 +180,7 @@ TJobStartRequest::TJobStartRequest(
     , Interruptible(interruptible)
     , SpecBuilder(std::move(specBuilder))
 { }
-    
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TScheduleJobResult::RecordFail(EScheduleJobFailReason reason)

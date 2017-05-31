@@ -117,14 +117,17 @@ void CommitTransaction(ITransactionPtr& transaction)
     if (!transaction) {
         return;
     }
-    auto result = WaitFor(transaction->Commit());
+
+    auto transactionId = transaction->GetId();
+    auto asyncResult = transaction->Commit();
+    transaction.Reset();
+
+    auto result = WaitFor(asyncResult);
     if (!result.IsOK()) {
-        transaction->Abort(); // Ignore result.
         THROW_ERROR_EXCEPTION("Transaction %v has failed to commit",
-            transaction->GetId())
+            transactionId)
             << result;
     }
-    transaction.Reset();
 }
 
 } // namespace
@@ -286,19 +289,17 @@ TOperationControllerBase::TJoblet::TJoblet(TOperationControllerBase* controller,
 
 TOperationControllerBase::TJoblet::~TJoblet() = default;
 
-void TOperationControllerBase::TJobInfoBase::Persist(const TPersistenceContext& context)
+void TOperationControllerBase::TJoblet::SendJobMetrics(const TStatistics& jobStatistics, bool flush)
 {
-    using NYT::Persist;
-    Persist(context, JobId);
-    Persist(context, JobType);
-    Persist(context, NodeDescriptor);
-    Persist(context, StartTime);
-    Persist(context, FinishTime);
-    Persist(context, Account);
-    Persist(context, Suspicious);
-    Persist(context, LastActivityTime);
-    Persist(context, BriefStatistics);
-    Persist(context, Progress);
+    // NOTE: after snapshot is loaded JobMetricsUpdater_ can be missing.
+    if (JobMetricsUpdater_) {
+        const auto timestamp = jobStatistics.GetTimestamp().Get(CpuInstantToInstant(GetCpuInstant()));
+        const auto jobMetrics = TJobMetrics::FromJobTrackerStatistics(jobStatistics);
+        JobMetricsUpdater_->Update(timestamp, jobMetrics);
+        if (flush) {
+            JobMetricsUpdater_->Flush();
+        }
+    }
 }
 
 void TOperationControllerBase::TJoblet::Persist(const TPersistenceContext& context)
@@ -314,6 +315,25 @@ void TOperationControllerBase::TJoblet::Persist(const TPersistenceContext& conte
     TJobInfoBase::Persist(context);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+void TOperationControllerBase::TJobInfoBase::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, JobId);
+    Persist(context, JobType);
+    Persist(context, NodeDescriptor);
+    Persist(context, StartTime);
+    Persist(context, FinishTime);
+    Persist(context, Account);
+    Persist(context, Suspicious);
+    Persist(context, LastActivityTime);
+    Persist(context, BriefStatistics);
+    Persist(context, Progress);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TOperationControllerBase::TFinishedJobInfo::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -321,19 +341,6 @@ void TOperationControllerBase::TFinishedJobInfo::Persist(const TPersistenceConte
     Persist(context, InputPaths);
 
     TJobInfoBase::Persist(context);
-}
-
-void TOperationControllerBase::TJoblet::SendJobMetrics(const TStatistics& jobStatistics, bool flush)
-{
-    // NOTE: after snapshot is loaded JobMetricsUpdater_ can be missing.
-    if (JobMetricsUpdater_) {
-        const auto timestamp = jobStatistics.GetTimestamp().Get(CpuInstantToInstant(GetCpuInstant()));
-        const auto jobMetrics = TJobMetrics::FromJobTrackerStatistics(jobStatistics);
-        JobMetricsUpdater_->Update(timestamp, jobMetrics);
-        if (flush) {
-            JobMetricsUpdater_->Flush();
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2908,15 +2915,18 @@ void TOperationControllerBase::SafeAbort()
 
     std::vector<TFuture<void>> abortTransactionFutures;
 
-    auto abortTransaction = [&] (ITransactionPtr transaction) {
+    auto abortTransaction = [&] (ITransactionPtr transaction, bool sync = true) {
         if (transaction) {
-            abortTransactionFutures.push_back(transaction->Abort());
+            auto asyncResult = transaction->Abort();
+            if (sync) {
+                abortTransactionFutures.push_back(asyncResult);
+            }
         }
     };
 
     abortTransaction(InputTransaction);
     abortTransaction(OutputTransaction);
-    abortTransaction(AsyncSchedulerTransaction);
+    abortTransaction(AsyncSchedulerTransaction, /* sync */ false);
 
     WaitFor(Combine(abortTransactionFutures))
         .ThrowOnError();
@@ -3334,16 +3344,6 @@ void TOperationControllerBase::UpdateTask(TTaskPtr task)
         oldTotalJobCount,
         newTotalJobCount,
         FormatResources(CachedNeededResources));
-
-    i64 outputTablesTimesJobsCount = OutputTables.size() * newTotalJobCount;
-    if (outputTablesTimesJobsCount > Config->MaxOutputTablesTimesJobsCount) {
-        OnOperationFailed(TError(
-                "Maximum allowed number of output tables times job count violated: %v > %v",
-                outputTablesTimesJobsCount,
-                Config->MaxOutputTablesTimesJobsCount)
-            << TErrorAttribute("output_table_count", OutputTables.size())
-            << TErrorAttribute("job_count", newTotalJobCount));
-    }
 
     task->CheckCompleted();
 }

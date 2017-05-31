@@ -369,6 +369,9 @@ public:
     //! Enables block checksums validation.
     bool ValidateBlockChecksums;
 
+    //! Use DIRECT_IO flag when writing chunks data to disk.
+    bool EnableWriteDirectIO;
+
     //! The time after which any registered placement info expires.
     TDuration PlacementExpirationTime;
 
@@ -488,6 +491,9 @@ public:
 
         RegisterParameter("placement_expiration_time", PlacementExpirationTime)
             .Default(TDuration::Hours(1));
+
+        RegisterParameter("enable_write_direct_io", EnableWriteDirectIO)
+            .Default(false);
 
         RegisterInitializer([&] () {
             ChunkMetaCache->Capacity = (i64) 1024 * 1024 * 1024;

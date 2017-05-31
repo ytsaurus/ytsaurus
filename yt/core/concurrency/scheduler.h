@@ -64,6 +64,9 @@ IScheduler* TryGetCurrentScheduler();
 //! Sets the current scheduler. Can only be called once per thread.
 void SetCurrentScheduler(IScheduler* scheduler);
 
+//! Generates a fresh fiber id.
+TFiberId GenerateFiberId();
+
 //! Returns the current fiber id.
 TFiberId GetCurrentFiberId();
 

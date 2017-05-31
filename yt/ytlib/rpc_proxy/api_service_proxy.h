@@ -23,7 +23,24 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CommitTransaction);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbortTransaction);
 
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ExistsNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetNode);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, SetNode);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, RemoveNode);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ListNode);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CreateNode);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, LockNode);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CopyNode);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, MoveNode);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, LinkNode);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ConcatenateNodes);
+
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, MountTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, UnmountTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, RemountTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, FreezeTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, UnfreezeTable);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ReshardTable);
 
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, LookupRows);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, VersionedLookupRows);

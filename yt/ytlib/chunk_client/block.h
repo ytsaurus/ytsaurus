@@ -4,6 +4,7 @@
 
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/ref.h>
+#include <yt/core/misc/property.h>
 
 #include <vector>
 
@@ -33,6 +34,8 @@ struct TBlock
 
     bool IsChecksumValid() const;
 
+    void ValidateChecksum() const;
+
     TChecksum GetOrComputeChecksum() const;
 
     static std::vector<TBlock> Wrap(const std::vector<TSharedRef>& blocks);
@@ -44,7 +47,16 @@ struct TBlock
 
 class TBlockChecksumValidationException
     : public std::exception
-{ };
+{
+public:
+    TBlockChecksumValidationException(TChecksum expected, TChecksum actual)
+        : Expected_(expected)
+        , Actual_(actual)
+    { }
+
+    DEFINE_BYVAL_RO_PROPERTY(TChecksum, Expected);
+    DEFINE_BYVAL_RO_PROPERTY(TChecksum, Actual);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

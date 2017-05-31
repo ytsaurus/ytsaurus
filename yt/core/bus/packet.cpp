@@ -1,4 +1,5 @@
 #include "packet.h"
+#include "bus.h"
 
 namespace NYT {
 namespace NBus {
@@ -257,7 +258,10 @@ bool TPacketEncoder::Start(
                     return false;
                 }
                 PartSizes_[index] = part.Size();
-                PartChecksums_[index] = generateChecksums && index < checksummedPartCount ? GetChecksum(part) : NullChecksum;
+                PartChecksums_[index] =
+                    generateChecksums && (index < checksummedPartCount || checksummedPartCount == TSendOptions::AllParts)
+                    ? GetChecksum(part)
+                    : NullChecksum;
             } else {
                 PartSizes_[index] = NullPacketPartSize;
                 PartChecksums_[index] = NullChecksum;

@@ -107,6 +107,7 @@ struct TTableMountInfo
     void ValidateSorted() const;
     void ValidateOrdered() const;
     void ValidateNotReplicated() const;
+    void ValidateReplicated() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountInfo)

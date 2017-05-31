@@ -607,6 +607,12 @@ public:
         const Stroka& query,
         const TSelectRowsOptions& options),
         (query, options))
+    IMPLEMENT_METHOD(std::vector<NTabletClient::TTableReplicaId>, GetInSyncReplicas, (
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const TGetInSyncReplicasOptions& options),
+        (path, nameTable, keys, options))
     IMPLEMENT_METHOD(void, MountTable, (
         const TYPath& path,
         const TMountTableOptions& options),
@@ -1074,6 +1080,14 @@ private:
         const auto& cellDirectory = Connection_->GetCellDirectory();
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
         return CreateAuthenticatedChannel(std::move(channel), Options_.User);
+    }
+
+    IChannelPtr GetReadCellChannelOrThrow(const TTabletCellId& cellId) const
+    {
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
+        const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, EPeerKind::Leader);
+        return HeavyChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddress(Connection_->GetNetworks()));
     }
 
 
@@ -1553,11 +1567,87 @@ private:
         return TSelectRowsResult{rowset, statistics};
     }
 
+    std::vector<TTableReplicaId> DoGetInSyncReplicas(
+        const TYPath& path,
+        TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const TGetInSyncReplicasOptions& options)
+    {
+        if (options.Timestamp < MinTimestamp || options.Timestamp > MaxTimestamp) {
+            THROW_ERROR_EXCEPTION("Invalid timestamp specified")
+                << TErrorAttribute("timestamp", options.Timestamp);
+        }
+        
+        const auto& tableMountCache = Connection_->GetTableMountCache();
+        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
+            .ValueOrThrow();
+
+        tableInfo->ValidateDynamic();
+        tableInfo->ValidateSorted();
+        tableInfo->ValidateReplicated();
+
+        yhash<TCellId, std::vector<TTabletId>> channels;
+        yhash_set<TTabletId> tablets;
+        for (const auto& key : keys) {
+            auto tabletInfo = tableInfo->GetTabletForRow(key);
+            if (tablets.count(tabletInfo->TabletId) == 0) {
+                tablets.insert(tabletInfo->TabletId);
+                ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
+                channels[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+            }
+        }
+
+        std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> futures;
+        for (const auto& channelPair : channels) {
+            const auto& cellId = channelPair.first;
+            const auto& tablets = channelPair.second;
+            const auto channel = GetReadCellChannelOrThrow(cellId);
+
+            TQueryServiceProxy proxy(channel);
+            proxy.SetDefaultTimeout(options.Timeout);
+
+            auto req = proxy.GetTabletInfo();
+            ToProto(req->mutable_tablet_ids(), tablets);
+            futures.push_back(req->Invoke());
+        }
+        auto responsesResult = WaitFor(Combine(futures));
+        auto responses = responsesResult.ValueOrThrow();
+
+        yhash<TTableReplicaId, int> replicaCounter;
+        for (const auto& response : responses) {
+            for (const auto& protoTabletInfo : response->tablet_info()) {
+                for (const auto& protoReplicaInfo : protoTabletInfo.replica_info()) {
+                    if (protoReplicaInfo.last_replication_timestamp() >= options.Timestamp) {
+                        ++replicaCounter[FromProto<TTableReplicaId>(protoReplicaInfo.replica_id())];
+                    }
+                }
+            }
+        }
+
+        std::vector<TTableReplicaId> replicas;
+        for (const auto& counter : replicaCounter) {
+            const auto& replicaId = counter.first;
+            auto count = counter.second;
+            if (count == tablets.size()) {
+                replicas.push_back(replicaId);
+            }
+        }
+
+        LOG_DEBUG("Got table in-sync replicas (TableId: %v, Replicas: %v, Timestamp: %llx)",
+            tableInfo->TableId,
+            replicas,
+            options.Timestamp);
+
+        return replicas;
+    }
+
     void DoMountTable(
         const TYPath& path,
         const TMountTableOptions& options)
     {
         auto req = TTableYPathProxy::Mount(path);
+        SetMutationId(req, options);
+
         if (options.FirstTabletIndex) {
             req->set_first_tablet_index(*options.FirstTabletIndex);
         }
@@ -1579,6 +1669,8 @@ private:
         const TUnmountTableOptions& options)
     {
         auto req = TTableYPathProxy::Unmount(path);
+        SetMutationId(req, options);
+
         if (options.FirstTabletIndex) {
             req->set_first_tablet_index(*options.FirstTabletIndex);
         }
@@ -1597,6 +1689,8 @@ private:
         const TRemountTableOptions& options)
     {
         auto req = TTableYPathProxy::Remount(path);
+        SetMutationId(req, options);
+
         if (options.FirstTabletIndex) {
             req->set_first_tablet_index(*options.FirstTabletIndex);
         }
@@ -1614,6 +1708,8 @@ private:
         const TFreezeTableOptions& options)
     {
         auto req = TTableYPathProxy::Freeze(path);
+        SetMutationId(req, options);
+
         if (options.FirstTabletIndex) {
             req->set_first_tablet_index(*options.FirstTabletIndex);
         }
@@ -1631,6 +1727,8 @@ private:
         const TUnfreezeTableOptions& options)
     {
         auto req = TTableYPathProxy::Unfreeze(path);
+        SetMutationId(req, options);
+
         if (options.FirstTabletIndex) {
             req->set_first_tablet_index(*options.FirstTabletIndex);
         }
@@ -1648,6 +1746,8 @@ private:
         const TReshardTableOptions& options)
     {
         auto req = TTableYPathProxy::Reshard(path);
+        SetMutationId(req, options);
+
         if (options.FirstTabletIndex) {
             req->set_first_tablet_index(*options.FirstTabletIndex);
         }
@@ -2255,6 +2355,7 @@ private:
 
         auto req = TYPathProxy::Exists(path);
         SetTransactionId(req, options, true);
+        SetSuppressAccessTracking(req, options);
         SetCachingHeader(req, options);
         batchReq->AddRequest(req);
 
@@ -3591,6 +3692,12 @@ public:
         EObjectType type,
         const TCreateObjectOptions& options),
         (type, options))
+    DELEGATE_METHOD(TFuture<std::vector<NTabletClient::TTableReplicaId>>, GetInSyncReplicas, (
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const TGetInSyncReplicasOptions& options),
+        (path, nameTable, keys, options))
 
 
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<IAsyncZeroCopyInputStreamPtr>, CreateFileReader, (

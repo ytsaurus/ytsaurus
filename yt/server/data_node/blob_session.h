@@ -104,7 +104,7 @@ private:
 
     void ReleaseSpace();
 
-    void SetFailed(const TError& error);
+    void SetFailed(const TError& error, bool fatal = true);
 
 };
 

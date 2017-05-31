@@ -6,15 +6,6 @@ from yt_commands import *
 
 ##################################################################
 
-def get_statistics(statistics, complex_key):
-    result = statistics
-    for part in complex_key.split("."):
-        if part:
-            result = result[part]
-    return result
-
-##################################################################
-
 porto_delta_node_config = {
     "exec_agent": {
         "slot_manager": {
