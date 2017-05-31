@@ -45,6 +45,20 @@ TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
     return {it->second};
 };
 
+TTagId GetChildIndexProfilingTag(int childIndex)
+{
+    static std::unordered_map<int, TTagId> childIndexToTagIdMap;
+
+    auto it = childIndexToTagIdMap.find(childIndex);
+    if (it == childIndexToTagIdMap.end()) {
+        it = childIndexToTagIdMap.emplace(
+            childIndex,
+            TProfileManager::Get()->RegisterTag("child_index", ToString(childIndex))
+        ).first;
+    }
+    return it->second;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareStrategy
@@ -1489,9 +1503,7 @@ private:
     void ProfileOperationElement(TOperationElementPtr element)
     {
         auto poolTag = element->GetParent()->GetProfilingTag();
-        auto childIndexTag = TProfileManager::Get()->RegisterTag(
-            "child_index",
-            ToString(element->GetChildIndex()));
+        auto childIndexTag = GetChildIndexProfilingTag(element->GetChildIndex());
 
         ProfileSchedulerElement(element, "/operations", {poolTag, childIndexTag});
     }
