@@ -120,6 +120,7 @@ public:
                     fragmentParams.GetOpaqueData(),
                     &executionContext);
 
+                fragmentParams.Clear();
             } catch (const std::exception& ex) {
                 LOG_DEBUG("Query evaluation failed");
                 THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
