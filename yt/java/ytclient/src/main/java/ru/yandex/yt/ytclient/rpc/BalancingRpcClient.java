@@ -40,6 +40,8 @@ public class BalancingRpcClient implements RpcClient {
     // TODO: move somewhere to core
     final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("default");
     final Counter inflight = metrics.counter("inflight");
+    final Counter failover = metrics.counter("failover");
+    final Counter total = metrics.counter("total");
 
     final private class Destination {
         final RpcClient client;
@@ -144,6 +146,7 @@ public class BalancingRpcClient implements RpcClient {
         };
 
         inflight.inc();
+        total.inc();
 
         s.control = dst.client.send(request, handler);
         s.task = new TimerTask() {
@@ -203,6 +206,10 @@ public class BalancingRpcClient implements RpcClient {
 
                     if (!completeAny) {
                         // run new future
+                        if (delay > 0) {
+                            failover.inc();
+                        }
+
                         task.f = what.get().toCompletableFuture();
                         task.f.whenComplete((res, error) -> {
                             if (error != null) {
