@@ -323,3 +323,19 @@ def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=N
     set_param(params, "last_tablet_index", last_tablet_index)
 
     make_request("reshard_table", params, client=client)
+
+def trim_rows(path, tablet_index, trimmed_row_count, client=None):
+    """Trim rows of the dynamic table.
+
+    :param path: path to table.
+    :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param int tablet_index: tablet index.
+    :param int trimmed_row_count: trimmed row count.
+    """
+
+    params = {"path": TablePath(path, client=client)}
+
+    set_param(params, "tablet_index", tablet_index)
+    set_param(params, "trimmed_row_count", trimmed_row_count)
+
+    make_request("trim_rows", params, client=client)
