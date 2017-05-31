@@ -564,6 +564,12 @@ def add_reshard_table_parser(add_parser):
     parser.add_argument("pivot_keys", action=ParseStructuredArguments, nargs="*")
     parser.add_argument("--tablet-count", type=int)
 
+def add_trim_rows_parser(add_parser):
+    parser = add_parser("trim-rows", yt.trim_rows)
+    add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("tablet_index", type=int)
+    parser.add_argument("trimmed_row_count", type=int)
+
 def add_alter_table_parser(add_parser):
     parser = add_parser("alter-table", yt.alter_table)
     add_ypath_argument(parser, "path", hybrid=True)
@@ -985,6 +991,7 @@ def main():
     add_unmount_table_parser(add_parser)
     add_remount_table_parser(add_parser)
     add_reshard_table_parser(add_parser)
+    add_trim_rows_parser(add_parser)
     add_alter_table_parser(add_parser)
     add_freeze_table_parser(add_parser)
     add_unfreeze_table_parser(add_parser)
