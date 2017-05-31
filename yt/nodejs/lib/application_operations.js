@@ -664,11 +664,15 @@ function YtApplicationOperations$list(parameters)
             cypress_data = cypress_data.value();
         }
 
-        if (archive_data.isRejected() || archive_counts.isRejected()) {
-            archive_data = [];
-            archive_counts = [];
+        if (archive_data.isRejected()) {
+            return Q.reject(archive_data.error());
         } else {
             archive_data = archive_data.value();
+        }
+
+        if (archive_counts.isRejected()) {
+            return Q.reject(archive_counts.error());
+        } else {
             archive_counts = archive_counts.value();
         }
 

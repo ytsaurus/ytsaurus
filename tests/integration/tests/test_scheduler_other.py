@@ -395,6 +395,15 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             result = max(result, value["value"])
         return result
 
+    def _get_operation_last_metric_value(self, metric_key, pool, child_index):
+        results = []
+        for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/operations/" + metric_key, verbose=False)):
+            if value["tags"]["pool"] != pool or value["tags"]["child_index"] != str(child_index):
+                continue
+            results.append((value["value"], value["time"]))
+        last_metric = sorted(results, key=lambda x: x[1])[-1]
+        return last_metric[0]
+
     def test_pool_profiling(self):
         self._prepare_tables()
         create("map_node", "//sys/pools/unique_pool")
@@ -408,6 +417,56 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert self._get_metric_maximum_value("resource_usage/user_slots", "unique_pool") == 1
         assert self._get_metric_maximum_value("resource_demand/cpu", "unique_pool") == 1
         assert self._get_metric_maximum_value("resource_demand/user_slots", "unique_pool") == 1
+
+    def test_operations_profiling(self):
+        self._create_table("//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": "y"}])
+        for i in xrange(2):
+            self._create_table("//tmp/t_out_" + str(i + 1))
+
+        create("map_node", "//sys/pools/some_pool")
+        op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", spec={"pool": "some_pool"}, dont_track=True)
+        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", spec={"pool": "some_pool"}, dont_track=True)
+
+        time.sleep(1.0)
+
+        assert op1.get_state() == "running"
+        assert op2.get_state() == "running"
+
+        get_child_index = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/child_index".format(op_id))
+
+        assert get_child_index(op1.id) == 0
+        assert get_child_index(op2.id) == 1
+
+        range_ = (49999, 50000, 50001)
+
+        assert self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 0) in range_
+        assert self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 0) == 100000
+        assert self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 0) == 100000
+        assert self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 0) in range_
+        assert self._get_operation_last_metric_value("resource_usage/cpu", "some_pool", 0) == 1
+        assert self._get_operation_last_metric_value("resource_usage/user_slots", "some_pool", 0) == 1
+        assert self._get_operation_last_metric_value("resource_demand/cpu", "some_pool", 0) == 1
+        assert self._get_operation_last_metric_value("resource_demand/user_slots", "some_pool", 0) == 1
+
+        assert self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) in range_
+        assert self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 0
+        assert self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000
+        assert self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) in range_
+        assert self._get_operation_last_metric_value("resource_usage/cpu", "some_pool", 1) == 0
+        assert self._get_operation_last_metric_value("resource_usage/user_slots", "some_pool", 1) == 0
+        assert self._get_operation_last_metric_value("resource_demand/cpu", "some_pool", 1) == 1
+        assert self._get_operation_last_metric_value("resource_demand/user_slots", "some_pool", 1) == 1
+
+        op1.abort()
+
+        time.sleep(1.0)
+
+        assert self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) == 100000
+        assert self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 100000
+        assert self._get_operation_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000
+        assert self._get_operation_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) == 100000
 
     def test_suspend_resume(self):
         self._create_table("//tmp/t_in")
@@ -2215,6 +2274,107 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         assert assert_almost_equal(get_fair_share_ratio(op.id), 1.0 / 3.0)
         assert assert_almost_equal(get_usage_ratio(op.id), 1.0 / 3.0)
         assert get_running_job_count(op.id) == 1
+
+class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 6
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_preemption_timeout": 100,
+            "min_share_preemption_timeout": 100,
+            "fair_share_update_period": 100,
+            "aggressive_preemption_satisfaction_threshold": 0.2
+        }
+    }
+
+    @classmethod
+    def modify_node_config(cls, config):
+        for resource in ["cpu", "user_slots"]:
+            config["exec_agent"]["job_controller"]["resource_limits"][resource] = 2
+
+    def test_allow_aggressive_starvation_preemption(self):
+        create("table", "//tmp/t_in")
+        for i in xrange(3):
+            write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out")
+
+        create("map_node", "//sys/pools/special_pool")
+        set("//sys/pools/special_pool/@aggressive_starvation_enabled", True)
+
+        for index in xrange(4):
+            create("map_node", "//sys/pools/pool" + str(index))
+
+        set("//sys/pools/pool0/@allow_aggressive_starvation_preemption", False)
+
+        get_fair_share_ratio = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_ratio".format(op_id))
+
+        get_usage_ratio = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/usage_ratio".format(op_id))
+
+        get_running_jobs = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id))
+
+        get_running_job_count = lambda op_id: len(get_running_jobs(op_id))
+
+        ops = []
+        for index in xrange(4):
+            create("table", "//tmp/t_out" + str(index))
+            op = map(
+                command="sleep 1000; cat",
+                in_=["//tmp/t_in"],
+                out="//tmp/t_out" + str(index),
+                spec={
+                    "pool": "pool" + str(index),
+                    "job_count": 3,
+                    "locality_timeout": 0,
+                    "mapper": {"memory_limit": 10 * 1024 * 1024}
+                },
+                dont_track=True)
+            ops.append(op)
+
+        time.sleep(3)
+
+        for op in ops:
+            assert assert_almost_equal(get_fair_share_ratio(op.id), 1.0 / 4.0)
+            assert assert_almost_equal(get_usage_ratio(op.id), 1.0 / 4.0)
+            assert get_running_job_count(op.id) == 3
+
+        special_op = ops[0]
+        special_op_jobs = [
+            {
+                "id": key,
+                "start_time": datetime_str_to_ts(value["start_time"])
+            }
+            for key, value in get_running_jobs(special_op.id).iteritems()]
+
+        special_op_jobs.sort(key=lambda x: x["start_time"])
+        preemtable_job_id = special_op_jobs[-1]["id"]
+
+        op = map(
+            command="sleep 1000; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "pool": "special_pool",
+                "job_count": 1,
+                "locality_timeout": 0,
+                "mapper": {"cpu_limit": 2}
+            },
+            dont_track=True)
+
+        time.sleep(3)
+
+        assert get_running_job_count(op.id) == 1
+
+        special_op_running_job_count = get_running_job_count(special_op.id)
+        assert special_op_running_job_count >= 2
+        if special_op_running_job_count == 2:
+            assert preemtable_job_id not in get_running_jobs(special_op.id)
+
 
 class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
     NUM_MASTERS = 1

@@ -274,7 +274,7 @@ private:
 
     void DoUnregisterJob(const TJobPtr& job);
 
-    void PreemptJob(const TJobPtr& job, NProfiling::TCpuInstant interruptDeadline);
+    void PreemptJob(const TJobPtr& job, TNullable<NProfiling::TCpuDuration> interruptTimeout);
 
     void DoInterruptJob(
         const TJobPtr& job,
@@ -299,7 +299,6 @@ private:
     TOperationState& GetOperationState(const TOperationId& operationId);
 
     void BuildNodeYson(TExecNodePtr node, NYson::IYsonConsumer* consumer);
-    void BuildSuspiciousJobYson(const TJobPtr& job, NYson::IYsonConsumer* consumer);
 
 };
 

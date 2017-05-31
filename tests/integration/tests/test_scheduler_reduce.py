@@ -1235,8 +1235,6 @@ echo {v = 2} >&7
         op.track()
 
         result = read_table("//tmp/output", verbose=False)
-        for row in result:
-            print "key:", row["key"], "value:", row["value"]
         if with_foreign:
             assert len(result) == 11
         else:
@@ -1244,6 +1242,9 @@ echo {v = 2} >&7
         row_index = 0
         job_indexes = []
         row_table_count = {}
+
+        assert get("//sys/operations/{0}/@progress/jobs/pending".format(op.id)) == 0
+
         for row in result:
             if row["value"] == "(job)":
                 job_indexes.append(row_index)

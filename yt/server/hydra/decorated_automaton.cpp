@@ -397,14 +397,14 @@ private:
     void OnFinished()
     {
         LOG_INFO("Waiting for transfer loop to finish");
-
         WaitFor(AsyncTransferResult_)
             .ThrowOnError();
+        LOG_INFO("Transfer loop finished");
 
         LOG_INFO("Waiting for snapshot writer to close");
-
         WaitFor(SnapshotWriter_->Close())
             .ThrowOnError();
+        LOG_INFO("Snapshot writer closed");
     }
 };
 

@@ -4,6 +4,7 @@
 #include "tablet_slot.h"
 #include "tablet_reader.h"
 #include "tablet_manager.h"
+#include "transaction_manager.h"
 #include "config.h"
 #include "private.h"
 
@@ -184,11 +185,18 @@ private:
 
             const auto& tabletRuntimeData = tabletSnapshot->RuntimeData;
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
+            auto updateSuccessTimestamp = [&] {
+                replicaRuntimeData->LastReplicationTimestamp.store(
+                    Slot_->GetRuntimeData()->MinPrepareTimestamp.load(std::memory_order_relaxed),
+                    std::memory_order_relaxed);
+            };
             auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
             if (tabletRuntimeData->TotalRowCount <= lastReplicationRowIndex) {
+                updateSuccessTimestamp();
                 return;
             }
             if (replicaRuntimeData->PreparedReplicationRowIndex > lastReplicationRowIndex) {
+                updateSuccessTimestamp();
                 return;
             }
 
@@ -261,6 +269,10 @@ private:
                     .ThrowOnError();
             }
             LOG_DEBUG("Finished committing replication transaction");
+
+            replicaRuntimeData->LastReplicationTimestamp.store(
+                newReplicationTimestamp,
+                std::memory_order_relaxed);
         } catch (const std::exception& ex) {
             TError error(ex);
             if (error.Attributes().Get<bool>("hard", false)) {
@@ -529,7 +541,7 @@ private:
         int keyColumnCount = tabletSnapshot->TableSchema.GetKeyColumnCount();
         int valueColumnCount = tabletSnapshot->TableSchema.GetValueColumnCount();
 
-        Y_ASSERT(logRow.GetCount() == keyColumnCount + valueColumnCount* 2 + 4);
+        Y_ASSERT(logRow.GetCount() == keyColumnCount + valueColumnCount * 2 + 4);
 
         switch (changeType) {
             case ERowModificationType::Write: {
@@ -553,7 +565,7 @@ private:
                 }
                 int replicationValueIndex = 0;
                 for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
-                    const auto& flagsValue  = logRow[logValueIndex * 2 + keyColumnCount + 5];
+                    const auto& flagsValue = logRow[logValueIndex * 2 + keyColumnCount + 5];
                     Y_ASSERT(flagsValue.Type == EValueType::Uint64);
                     auto flags = static_cast<EReplicationLogDataFlags>(flagsValue.Data.Uint64);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {

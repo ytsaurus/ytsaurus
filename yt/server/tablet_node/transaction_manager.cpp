@@ -880,6 +880,7 @@ private:
         }
 
         auto minPrepareTimestamp = GetMinPrepareTimestamp();
+        Slot_->GetRuntimeData()->MinPrepareTimestamp.store(minPrepareTimestamp, std::memory_order_relaxed);
         if (minPrepareTimestamp <= TransientBarrierTimestamp_) {
             return;
         }

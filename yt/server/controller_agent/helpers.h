@@ -51,6 +51,7 @@ DEFINE_REFCOUNTED_TYPE(IJobSizeConstraints)
 IJobSizeConstraintsPtr CreateSimpleJobSizeConstraints(
     const NScheduler::TSimpleOperationSpecBasePtr& spec,
     const NScheduler::TSimpleOperationOptionsPtr& options,
+    int outputTableCount,
     i64 primaryInputDataSize,
     i64 inputRowCount = std::numeric_limits<i64>::max(),
     i64 foreignInputDataSize = 0);
@@ -69,7 +70,8 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
 
 IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     const NScheduler::TSortOperationSpecBasePtr& spec,
-    const NScheduler::TSortOperationOptionsBasePtr& options);
+    const NScheduler::TSortOperationOptionsBasePtr& options,
+    int outputTableCount);
 
 IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     bool canAdjustDataSizePerJob,

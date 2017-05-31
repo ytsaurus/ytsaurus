@@ -2518,8 +2518,11 @@ print row + table_index
         assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
 
-    @pytest.mark.parametrize("ordered", [False, True])
-    def test_map_interrupt_job(self, ordered):
+    # ToDo(psushin): uncomment and use parameter after YT-7064.
+    #@pytest.mark.parametrize("ordered", [False, True])
+    def test_map_interrupt_job(self):
+        ordered = False
+
         create("table", "//tmp/in_1")
         write_table(
             "//tmp/in_1",
@@ -2683,8 +2686,9 @@ print row + table_index
         with pytest.raises(YtError):
             map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"attribute": "really_large" * (2 * 10 ** 6)}, verbose=False)
 
-    @pytest.mark.parametrize("ordered", [False, True])
-    def test_map_job_splitter(self, ordered):
+    # ToDo(psushin): uncomment and use parameter after YT-7064.
+    # @pytest.mark.parametrize("ordered", [False, True])
+    def test_map_job_splitter(self):
         create("table", "//tmp/in_1")
         write_table(
             "//tmp/in_1",
@@ -2706,7 +2710,7 @@ done
 """
 
         op = map(
-            ordered=ordered,
+            ordered=False,
             dont_track=True,
             label="split_job",
             in_=input_,

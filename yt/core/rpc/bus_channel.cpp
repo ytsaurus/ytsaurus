@@ -20,8 +20,6 @@
 
 #include <yt/core/rpc/rpc.pb.h>
 
-#include <yt/core/ypath/token.h>
-
 namespace NYT {
 namespace NRpc {
 
@@ -65,16 +63,16 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto sessionOrError = GetOrCreateSession();
-        if (!sessionOrError.IsOK()) {
-            responseHandler->HandleError(sessionOrError);
+        try {
+            auto session = GetOrCreateSession();
+            return session->Send(
+                std::move(request),
+                std::move(responseHandler),
+                options);
+        } catch (const std::exception& ex) {
+            responseHandler->HandleError(TError(ex));
             return nullptr;
         }
-
-        return sessionOrError.Value()->Send(
-            std::move(request),
-            std::move(responseHandler),
-            options);
     }
 
     virtual TFuture<void> Terminate(const TError& error) override
@@ -118,7 +116,7 @@ private:
     TError TerminationError_;
     TSessionPtr Session_;
 
-    TErrorOr<TSessionPtr> GetOrCreateSession()
+    TSessionPtr GetOrCreateSession()
     {
         IBusPtr bus;
         TSessionPtr session;
@@ -130,19 +128,14 @@ private:
             }
 
             if (Terminated_) {
-                return TError(NRpc::EErrorCode::TransportError, "Channel terminated")
+                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::TransportError, "Channel terminated")
                     << TerminationError_;
             }
 
             session = New<TSession>();
             auto messageHandler = New<TMessageHandler>(session);
 
-            try {
-                bus = Client_->CreateBus(messageHandler);
-            } catch (const std::exception& ex) {
-                return ex;
-            }
-
+            bus = Client_->CreateBus(messageHandler);
             session->Initialize(bus);
             Session_ = session;
         }

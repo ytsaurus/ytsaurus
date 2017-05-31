@@ -273,6 +273,7 @@ protected:
         JobSizeConstraints_ = CreateSimpleJobSizeConstraints(
             Spec_,
             Options_,
+            GetOutputTablePaths().size(),
             PrimaryInputDataSize + ForeignInputDataSize);
 
         InputSliceDataSize_ = JobSizeConstraints_->GetInputSliceDataSize();
@@ -841,7 +842,8 @@ public:
 
     virtual bool IsJobInterruptible() const override
     {
-        return true;
+        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
+        return 2 * Options_->MaxOutputTablesTimesJobsCount > JobCounter.GetTotal() * GetOutputTablePaths().size();
     }
 
     virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
