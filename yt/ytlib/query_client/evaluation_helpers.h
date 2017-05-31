@@ -294,6 +294,12 @@ public:
         return OpaqueValues_.size();
     }
 
+    void Clear()
+    {
+        OpaquePointers_.clear();
+        OpaqueValues_.clear();
+    }
+
 private:
     std::vector<std::unique_ptr<void, void(*)(void*)>> OpaqueValues_;
     std::vector<void*> OpaquePointers_;
