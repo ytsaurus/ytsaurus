@@ -18,16 +18,16 @@ def create(type_, name, client):
         else:
             raise
 
-def check_member(subject, group, client):
-    members = client.get('//sys/groups/{}/@members'.format(group))
+def is_member_of(subject, group, client):
+    members = client.get("//sys/groups/{}/@members".format(group))
     return subject in members
 
 def add_member(subject, group, client):
     try:
         client.add_member(subject, group)
     except:
-        if check_member(subject, group, client):
-            logger.warning("{} is already present in group {}".format(subject, group))
+        if is_member_of(subject, group, client):
+            logger.warning("'{}' is already present in group '{}'".format(subject, group))
             return True
         else:
             raise
@@ -125,12 +125,8 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
                           "opaque": "true",
                           "account": "tmp"})
 
-    # Create admins stuff
-    if not client.exists("//sys/admin"):
-        client.create("map_node", "//sys/admin")
-
-    if not client.exists("//sys/admin/snapshots"):
-        client.create("map_node", "//sys/admin/snapshots")
+    client.create("map_node", "//sys/admin", ignore_existing=True)
+    client.create("map_node", "//sys/admin/snapshots", ignore_existing=True)
 
     if client.exists("//sys/admin"):
         client.set("//sys/admin/@acl",
