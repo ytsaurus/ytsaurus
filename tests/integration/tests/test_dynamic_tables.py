@@ -14,6 +14,7 @@ class TestDynamicTablesBase(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 16
     NUM_SCHEDULERS = 0
+    USE_DYNAMIC_TABLES = True
 
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
