@@ -370,9 +370,9 @@ void TSchedulerElement::CheckForStarvationImpl(
 TCompositeSchedulerElement::TCompositeSchedulerElement(
     ISchedulerStrategyHost* host,
     TFairShareStrategyConfigPtr strategyConfig,
-    const Stroka& profilingName)
+    NProfiling::TTagId profilingTag)
     : TSchedulerElement(host, strategyConfig)
-    , ProfilingTag_(NProfiling::TProfileManager::Get()->RegisterTag("pool", profilingName))
+    , ProfilingTag_(profilingTag)
 { }
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(
@@ -1011,8 +1011,9 @@ TPoolFixedState::TPoolFixedState(const Stroka& id)
 TPool::TPool(
     ISchedulerStrategyHost* host,
     const Stroka& id,
+    NProfiling::TTagId profilingTag,
     TFairShareStrategyConfigPtr strategyConfig)
-    : TCompositeSchedulerElement(host, strategyConfig, id)
+    : TCompositeSchedulerElement(host, strategyConfig, profilingTag)
     , TPoolFixedState(id)
 {
     SetDefaultConfig();
@@ -1994,8 +1995,12 @@ int TOperationElement::ComputePendingJobCount() const
 
 TRootElement::TRootElement(
     ISchedulerStrategyHost* host,
+    NProfiling::TTagId profilingTag,
     TFairShareStrategyConfigPtr strategyConfig)
-    : TCompositeSchedulerElement(host, strategyConfig, RootPoolName)
+    : TCompositeSchedulerElement(
+        host,
+        strategyConfig,
+        profilingTag)
 {
     Attributes_.FairShareRatio = 1.0;
     Attributes_.GuaranteedResourcesRatio = 1.0;
