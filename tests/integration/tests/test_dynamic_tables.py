@@ -653,6 +653,21 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
         _test("compressed")
         _test("uncompressed")
 
+    def test_in_memory_set_account(self):
+        create_account("test_account")
+        self.sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@in_memory_mode", "compressed")
+
+        self.sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value": "A" * 1024}])
+        self.sync_flush_table("//tmp/t")
+        set("//tmp/t/@account", "test_account")
+
+        data_size = get("//tmp/t/@compressed_data_size")
+        assert get("//sys/accounts/tmp/@resource_usage/tablet_static_memory") == 0
+        assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == data_size
+
 ##################################################################
 
 class TestDynamicTableStateTransitions(TestDynamicTablesBase):
