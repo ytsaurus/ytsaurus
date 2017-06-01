@@ -102,7 +102,7 @@ class TestCypress(object):
         content = ""
         for i in xrange(100):
             data = {"a": i, "b": 2 * i, "c": 3 * i}
-            content += json.dumps(data, separators=(',', ':'), sort_keys=True)
+            content += json.dumps(data, separators=(",", ":"), sort_keys=True)
             content += "\n"
         if PY3:
             content = content.encode("utf-8")

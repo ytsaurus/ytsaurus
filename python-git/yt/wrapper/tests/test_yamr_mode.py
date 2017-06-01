@@ -30,15 +30,15 @@ class TestYamrMode(object):
     def test_get_smart_format(self):
         from yt.wrapper.table_commands import _get_format_from_tables as get_format
 
-        existing_table = TEST_DIR + '/table'
+        existing_table = TEST_DIR + "/table"
         yt.create_table(existing_table)
-        not_existing_table = TEST_DIR + '/not_existing'
+        not_existing_table = TEST_DIR + "/not_existing"
 
-        yamred_dsv_table = TEST_DIR + '/yamred_dsv_table'
+        yamred_dsv_table = TEST_DIR + "/yamred_dsv_table"
         yamred_dsv_format = yson.to_yson_type("yamred_dsv", attributes={"has_subkey": True})
         yt.create_table(yamred_dsv_table, attributes={"_format": yamred_dsv_format})
 
-        yson_table = TEST_DIR + '/yson_table'
+        yson_table = TEST_DIR + "/yson_table"
         yt.create_table(yson_table, attributes={"_format": "yson"})
 
         assert get_format([], ignore_unexisting_tables=False) is None
@@ -196,8 +196,8 @@ class TestYamrMode(object):
         input_table = TEST_DIR + "/input_table"
         output_table = TEST_DIR + "/output_table"
         yt.create("table", input_table)
-        data = [b'0\ti\tA\n', b'0\th\tB\n', b'0\tg\tC\n', b'0\tf\tD\n', b'0\te\tE\n',
-                b'0\td\tF\n', b'0\tc\tG\n', b'0\tb\tH\n', b'0\ta\tI\n']
+        data = [b"0\ti\tA\n", b"0\th\tB\n", b"0\tg\tC\n", b"0\tf\tD\n", b"0\te\tE\n",
+                b"0\td\tF\n", b"0\tc\tG\n", b"0\tb\tH\n", b"0\ta\tI\n"]
         yt.write_table(input_table, data)
         yt.run_reduce("cat", source_table=input_table, destination_table=output_table)
         assert list(yt.read_table(output_table)) == data[::-1]

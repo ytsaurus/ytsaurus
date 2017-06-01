@@ -58,7 +58,7 @@ def check_format(format, strings, row):
     assert any(stream.getvalue().rstrip(b"\n") == s.rstrip(b"\n") for s in strings)
 
 def check_table_index(format, raw_row, raw_table_switcher, rows, process_output=None):
-    input_stream = BytesIO(b''.join([raw_row, raw_table_switcher, raw_row]))
+    input_stream = BytesIO(b"".join([raw_row, raw_table_switcher, raw_row]))
     input_stream_str = input_stream.getvalue()
     parsed_rows = list(format.load_rows(input_stream))
     assert parsed_rows == rows
@@ -91,11 +91,11 @@ def test_yson_table_switch():
 
     yson_rows = format.load_rows(BytesIO(input))
     parsed_rows = [dict(yson) for yson in yson_rows]
-    true_input_rows = [{'a': 1, '@table_index': None, "@row_index": 0},
-                       {'a': 1, '@table_index': 1, "@row_index": 1},
-                       {'b': 2, '@table_index': 1, "@row_index": 2}]
+    true_input_rows = [{"a": 1, "@table_index": None, "@row_index": 0},
+                       {"a": 1, "@table_index": 1, "@row_index": 1},
+                       {"b": 2, "@table_index": 1, "@row_index": 2}]
     assert true_input_rows == parsed_rows
-    output_rows = [{'a': 1}, {'a': 1, '@table_index': 1}, {'b': 2, '@table_index': 1}]
+    output_rows = [{"a": 1}, {"a": 1, "@table_index": 1}, {"b": 2, "@table_index": 1}]
     stream = BytesIO()
     format.dump_rows(output_rows, stream)
     dumped_output = stream.getvalue()
@@ -145,7 +145,7 @@ def test_yamr_format():
 
 def test_yamr_load_records_raw():
     records = [b"a\tb\tc\n", b"d\te\tf\n", b"g\th\ti\n"]
-    stream = BytesIO(b''.join(records))
+    stream = BytesIO(b"".join(records))
     format = yt.YamrFormat(has_subkey=True)
     assert list(format.load_rows(stream, raw=True)) == records
 
@@ -259,7 +259,7 @@ def test_raw_dump_records():
         stream = BytesIO()
         if isinstance(value, list):
             format.dump_rows(value, stream, raw=True)
-            assert stream.getvalue() == b''.join(value)
+            assert stream.getvalue() == b"".join(value)
         else:
             format.dump_row(value, stream, raw=True)
             assert stream.getvalue() == value

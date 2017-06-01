@@ -159,4 +159,4 @@ def wait_record_in_job_archive(operation_id, job_id):
     key = {}
     key["operation_id_hi"], key["operation_id_lo"] = operation_id_hash_pair.hi, operation_id_hash_pair.lo
     key["job_id_hi"], key["job_id_lo"] = job_id_hash_pair.hi, job_id_hash_pair.lo
-    wait(lambda: any(yt.lookup_rows("//sys/operations_archive/jobs", [key], column_names=['operation_id_hi'])))
+    wait(lambda: any(yt.lookup_rows("//sys/operations_archive/jobs", [key], column_names=["operation_id_hi"])))
