@@ -20,12 +20,12 @@ namespace NChunkClient {
  */
 struct TBlock
 {
-    TBlock();
+    TBlock() = default;
     explicit TBlock(TSharedRef block);
     TBlock(TSharedRef block, TChecksum checksum);
 
     TSharedRef Data;
-    TChecksum Checksum;
+    TChecksum Checksum = NullChecksum;
 
     operator bool() const;
 
