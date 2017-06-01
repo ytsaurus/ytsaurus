@@ -30,16 +30,17 @@ static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 {
-    static std::unordered_map<Stroka, TTagId> tagId;
+    static yhash_map<EScheduleJobFailReason, TTagId> tagId;
 
-    auto reasonAsString = ToString(reason);
-    auto it = tagId.find(reasonAsString);
+    auto it = tagId.find(reason);
     if (it == tagId.end()) {
         it = tagId.emplace(
-            reasonAsString,
-            TProfileManager::Get()->RegisterTag("reason", reasonAsString)
+            reason,
+            TProfileManager::Get()->RegisterTag("reason", FormatEnum(reason))
         ).first;
     }
     return {it->second};
@@ -47,7 +48,7 @@ TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 
 TTagId GetChildIndexProfilingTag(int childIndex)
 {
-    static std::unordered_map<int, TTagId> childIndexToTagIdMap;
+    static yhash_map<int, TTagId> childIndexToTagIdMap;
 
     auto it = childIndexToTagIdMap.find(childIndex);
     if (it == childIndexToTagIdMap.end()) {
@@ -58,6 +59,8 @@ TTagId GetChildIndexProfilingTag(int childIndex)
     }
     return it->second;
 };
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
