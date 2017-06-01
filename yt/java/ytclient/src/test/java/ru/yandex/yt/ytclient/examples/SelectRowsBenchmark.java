@@ -151,6 +151,9 @@ public class SelectRowsBenchmark {
         final ApiServiceClient client = new ApiServiceClient(rpcClient,
             new RpcOptions().setDefaultTimeout(Duration.ofSeconds(5)));
 
+        // TODO: wait connected
+        TimeUnit.MILLISECONDS.sleep(3000);
+
         for (int i = 0; i < threads; ++i) {
             executorService.execute(() -> {
                 for (;;) {
