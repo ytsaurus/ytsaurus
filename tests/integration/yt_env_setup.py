@@ -111,6 +111,7 @@ class YTEnvSetup(object):
     DELTA_SCHEDULER_CONFIG = {}
 
     USE_PORTO_FOR_SERVERS = False
+    USE_DYNAMIC_TABLES = False
 
     NUM_REMOTE_CLUSTERS = 0
 
@@ -240,6 +241,15 @@ class YTEnvSetup(object):
 
             sleep(1.0)
 
+        if cls.USE_DYNAMIC_TABLES:
+            for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
+                driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
+                if driver is None:
+                    continue
+                # Raise dynamic tables limits since they are zero by default.
+                yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_count", 10000, driver=driver)
+                yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_static_memory", 1024 * 1024 * 1024, driver=driver)
+
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index):
         for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
@@ -305,7 +315,6 @@ class YTEnvSetup(object):
             self.transactions_at_start.append(set(yt_commands.get_transactions(driver=driver)))
             self.wait_for_nodes(driver=driver)
             self.wait_for_chunk_replicator(driver=driver)
-            self._init_tmp_account(driver=driver)
 
     def teardown_method(self, method):
         for env in [self.Env] + self.remote_envs:
@@ -458,10 +467,6 @@ class YTEnvSetup(object):
 
         print "Waiting for replica to become disabled..."
         wait(lambda: yt_commands.get("#{0}/@state".format(replica_id), driver=driver) == "disabled")
-
-    def _init_tmp_account(self, driver=None):
-        yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_count", 10000, driver=driver)
-        yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_static_memory", 1024 * 1024 * 1024, driver=driver)
 
     def _reset_nodes(self, driver=None):
         nodes = yt_commands.ls("//sys/nodes", attributes=["banned", "resource_limits_overrides", "user_tags"],
