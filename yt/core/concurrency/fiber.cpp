@@ -21,9 +21,9 @@ static std::list<TFiber*> FiberRegistry;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFiber::TFiber(TClosure callee, EExecutionStack stack)
+TFiber::TFiber(TClosure callee, EExecutionStackKind stackKind)
     : Callee_(std::move(callee))
-    , Stack_(CreateExecutionStack(stack))
+    , Stack_(CreateExecutionStack(stackKind))
     , Context_(CreateExecutionContext(Stack_.get(), &TFiber::Trampoline))
 {
     RegenerateId();
@@ -201,6 +201,34 @@ void TFiber::Trampoline(void* opaque)
     GetCurrentScheduler()->Return();
 
     Y_UNREACHABLE();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static std::atomic<int> SmallFiberStackPoolSize = {1024};
+static std::atomic<int> LargeFiberStackPoolSize = {1024};
+
+int GetFiberStackPoolSize(EExecutionStackKind stackKind)
+{
+    switch (stackKind) {
+        case EExecutionStackKind::Small: return SmallFiberStackPoolSize.load(std::memory_order_relaxed);
+        case EExecutionStackKind::Large: return LargeFiberStackPoolSize.load(std::memory_order_relaxed);
+        default:                         Y_UNREACHABLE();
+    }
+}
+
+int SetFiberStackPoolSize(EExecutionStackKind stackKind, int poolSize)
+{
+    if (poolSize < 0) {
+        THROW_ERROR_EXCEPTION("Invalid fiber stack pool size %v is given for %Qlv stacks",
+            poolSize,
+            stackKind);
+    }
+    switch (stackKind) {
+        case EExecutionStackKind::Small: SmallFiberStackPoolSize = poolSize;
+        case EExecutionStackKind::Large: LargeFiberStackPoolSize = poolSize;
+        default:                         Y_UNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
