@@ -31,8 +31,7 @@ public:
         RegisterMethod(
             RPC_SERVICE_METHOD_DESC(Heartbeat)
                 .SetHeavy(true)
-                .SetResponseCodec(NCompression::ECodec::Lz4)
-                .SetInvoker(bootstrap->GetControlInvoker(EControlQueue::Heartbeat)));
+                .SetResponseCodec(NCompression::ECodec::Lz4));
     }
 
 private:

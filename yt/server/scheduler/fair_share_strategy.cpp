@@ -72,9 +72,11 @@ class TFairShareStrategy
 public:
     TFairShareStrategy(
         TFairShareStrategyConfigPtr config,
-        ISchedulerStrategyHost* host)
+        ISchedulerStrategyHost* host,
+        const std::vector<IInvokerPtr>& feasibleInvokers)
         : Config(config)
         , Host(host)
+        , FeasibleInvokers(feasibleInvokers)
         , NonPreemptiveProfilingCounters("/non_preemptive")
         , PreemptiveProfilingCounters("/preemptive")
         , LastProfilingTime_(TInstant::Zero())
@@ -116,7 +118,7 @@ public:
 
     virtual void StartPeriodicActivity() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         FairShareLoggingExecutor_->Start();
         FairShareUpdateExecutor_->Start();
@@ -125,7 +127,7 @@ public:
 
     virtual void ResetState() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         FairShareLoggingExecutor_->Stop();
         FairShareUpdateExecutor_->Stop();
@@ -140,7 +142,7 @@ public:
 
     virtual TFuture<void> ValidateOperationStart(const TOperationPtr& operation) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         return BIND(&TFairShareStrategy::DoValidateOperationStart, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())
@@ -149,7 +151,7 @@ public:
 
     virtual void ValidateOperationCanBeRegistered(const TOperationPtr& operation) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         ValidateOperationCountLimit(operation);
         ValidateEphemeralPoolLimit(operation);
@@ -157,7 +159,7 @@ public:
 
     void RegisterOperation(const TOperationPtr& operation) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         auto spec = ParseSpec(operation, operation->GetSpec());
         auto params = BuildInitialRuntimeParams(spec);
@@ -259,7 +261,7 @@ public:
 
     void UnregisterOperation(const TOperationPtr& operation) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         auto operationElement = GetOperationElement(operation->GetId());
         auto* pool = static_cast<TPool*>(operationElement->GetParent());
@@ -349,7 +351,7 @@ public:
 
     void UpdatePools(const INodePtr& poolsNode) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         if (LastPoolsNodeUpdate && AreNodesEqual(LastPoolsNodeUpdate, poolsNode)) {
             LOG_INFO("Pools are not changed, skipping update");
@@ -476,7 +478,7 @@ public:
         const TOperationPtr& operation,
         const INodePtr& update) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& element = FindOperationElement(operation->GetId());
         if (!element)
@@ -498,7 +500,7 @@ public:
 
     virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         Config = config;
         RootElement->UpdateStrategyConfig(Config);
@@ -506,7 +508,7 @@ public:
 
     virtual void BuildOperationAttributes(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& element = GetOperationElement(operationId);
         auto serializedParams = ConvertToAttributes(element->GetRuntimeParams());
@@ -519,7 +521,7 @@ public:
         const TOperationPtr& operation,
         NYson::IYsonConsumer* consumer) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(GetOperationPoolName(operation));
@@ -527,7 +529,7 @@ public:
 
     virtual void BuildOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& element = FindOperationElement(operationId);
         if (!element) {
@@ -547,7 +549,7 @@ public:
 
     void BuildEssentialOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& element = FindOperationElement(operationId);
         if (!element) {
@@ -560,7 +562,7 @@ public:
 
     virtual void BuildBriefOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& element = FindOperationElement(operationId);
         if (!element) {
@@ -576,7 +578,7 @@ public:
 
     virtual void BuildOrchid(IYsonConsumer* consumer) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         BuildPoolsInformation(consumer);
         BuildYsonMapFluently(consumer)
@@ -588,7 +590,7 @@ public:
 
     virtual Stroka GetOperationLoggingProgress(const TOperationId& operationId) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& element = GetOperationElement(operationId);
         const auto& attributes = element->Attributes();
@@ -620,7 +622,7 @@ public:
 
     virtual void BuildBriefSpec(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& element = GetOperationElement(operationId);
         BuildYsonMapFluently(consumer)
@@ -630,7 +632,7 @@ public:
     // NB: This function is public for testing purposes.
     virtual void OnFairShareUpdateAt(TInstant now) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         LOG_INFO("Starting fair share update");
 
@@ -688,7 +690,7 @@ public:
     // NB: This function is public for testing purposes.
     virtual void OnFairShareLoggingAt(TInstant now) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         PROFILE_TIMING ("/fair_share_log_time") {
             // Log pools information.
@@ -707,7 +709,7 @@ public:
     // NB: This function is public for testing purposes.
     virtual void OnFairShareEssentialLoggingAt(TInstant now) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         PROFILE_TIMING ("/fair_share_log_time") {
             // Log pools information.
@@ -726,6 +728,8 @@ public:
 private:
     TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* const Host;
+
+    std::vector<IInvokerPtr> FeasibleInvokers;
 
     INodePtr LastPoolsNodeUpdate;
 
@@ -815,8 +819,6 @@ private:
 
     TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
 
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
     TDynamicAttributes GetGlobalDynamicAttributes(const TSchedulerElementPtr& element) const
     {
         int index = element->GetTreeIndex();
@@ -834,7 +836,7 @@ private:
 
     void OnMinNeededJobResourcesUpdate() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         LOG_INFO("Starting min needed job resources update");
         for (const auto& pair : OperationIdToElement) {
@@ -1165,7 +1167,7 @@ private:
 
     bool CanAddOperationToPool(TCompositeSchedulerElement* pool)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         while (pool) {
             if (pool->RunningOperationCount() >= pool->GetMaxRunningOperationCount()) {
@@ -1206,7 +1208,7 @@ private:
 
     void ActivateOperation(const TOperationId& operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& operationElement = GetOperationElement(operationId);
         operationElement->UpdateMinNeededJobResources();
@@ -1224,7 +1226,7 @@ private:
 
     void RegisterPool(const TPoolPtr& pool)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         int index = RegisterSchedulingTagFilter(TSchedulingTagFilter(pool->GetConfig()->SchedulingTagFilter));
         pool->SetSchedulingTagFilterIndex(index);
@@ -1235,7 +1237,7 @@ private:
 
     void RegisterPool(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
         YCHECK(PoolToMinUnusedSlotIndex.insert(std::make_pair(pool->GetId(), 0)).second);
@@ -1249,7 +1251,7 @@ private:
 
     void UnregisterPool(const TPoolPtr& pool)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         auto userName = pool->GetUserName();
         if (userName) {
@@ -1320,7 +1322,7 @@ private:
 
     void SetPoolParent(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         if (pool->GetParent() == parent)
             return;
@@ -1363,7 +1365,7 @@ private:
 
     TPoolPtr FindPool(const Stroka& id)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         auto it = Pools.find(id);
         return it == Pools.end() ? nullptr : it->second;
@@ -1391,7 +1393,7 @@ private:
 
     TOperationElementPtr FindOperationElement(const TOperationId& operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         auto it = OperationIdToElement.find(operationId);
         return it == OperationIdToElement.end() ? nullptr : it->second;
@@ -1595,7 +1597,7 @@ private:
 
     void ValidateOperationCountLimit(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         auto parentElement = GetParentElement(operation);
 
@@ -1611,7 +1613,7 @@ private:
 
     void ValidateEphemeralPoolLimit(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         auto pool = FindPool(GetOperationPoolName(operation));
         if (pool) {
@@ -1634,7 +1636,7 @@ private:
 
     void DoValidateOperationStart(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         ValidateOperationCountLimit(operation);
         ValidateEphemeralPoolLimit(operation);
@@ -1732,9 +1734,10 @@ private:
 
 ISchedulerStrategyPtr CreateFairShareStrategy(
     TFairShareStrategyConfigPtr config,
-    ISchedulerStrategyHost* host)
+    ISchedulerStrategyHost* host,
+    const std::vector<IInvokerPtr>& feasibleInvokers)
 {
-    return New<TFairShareStrategy>(config, host);
+    return New<TFairShareStrategy>(config, host, feasibleInvokers);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

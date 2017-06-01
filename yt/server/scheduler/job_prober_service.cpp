@@ -33,7 +33,7 @@ class TJobProberService
 public:
     TJobProberService(TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetControlInvoker(),
+            bootstrap->GetControlInvoker(EControlQueue::UserRequest),
             TJobProberServiceProxy::GetDescriptor(),
             SchedulerLogger)
         , Bootstrap_(bootstrap)

@@ -34,7 +34,7 @@ class TSchedulerService
 public:
     TSchedulerService(TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetControlInvoker(),
+            bootstrap->GetControlInvoker(EControlQueue::UserRequest),
             TSchedulerServiceProxy::GetDescriptor(),
             SchedulerLogger)
         , Bootstrap_(bootstrap)

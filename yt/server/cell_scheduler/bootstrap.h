@@ -29,7 +29,7 @@ namespace NCellScheduler {
 
 DEFINE_ENUM(EControlQueue,
     (Default)
-    (Heartbeat)
+    (UserRequest)
 );
 
 class TBootstrap
