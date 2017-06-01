@@ -32,8 +32,10 @@ class TableInfo(object):
         self.get_pivot_keys = get_pivot_keys
         self.in_memory = in_memory
 
-    def create_table(self, client, path, shards):
-        attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
+    def create_table(self, client, path, shards, attributes):
+        attrs = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
+        for attr, value in attrs.iteritems():
+            attributes[attr] = value
 
         logging.info("Creating table %s with attributes %s", path, attributes)
         client.create("table", path, recursive=True, attributes=attributes)
@@ -43,13 +45,17 @@ class TableInfo(object):
 
         client.mount_table(path)
 
-    def alter_table(self, client, path, shards):
+    def alter_table(self, client, path, shards, attributes):
         logging.info("Unmounting table %s", path)
         unmount_table_new(client, path)
-        attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
+        dynamic_attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
+        schema = dynamic_attributes["schema"]
 
-        logging.info("Altering table %s with attributes %s", path, attributes)
-        client.alter_table(path, schema=attributes['schema'])
+        logging.info("Altering table %s with schema %s and attributes %s", path, schema, attributes)
+        client.alter_table(path, schema=schema)
+        for attr, value in attributes.iteritems():
+            if attr != "schema":
+                client.set(path + "/@" + attr, value)
 
         if self.get_pivot_keys:
             client.reshard_table(path, self.get_pivot_keys(shards))
@@ -67,12 +73,13 @@ class TableInfo(object):
 
 DEFAULT_SHARD_COUNT = 100
 class Convert(object):
-    def __init__(self, table, table_info=None, mapper=None, source=None, use_default_mapper=False):
+    def __init__(self, table, table_info=None, mapper=None, source=None, use_default_mapper=False, attributes={}):
         self.table = table
         self.table_info = table_info
         self.mapper = mapper
         self.source = source
         self.use_default_mapper = use_default_mapper
+        self.attributes = attributes
 
     def __call__(self, client, table_info, target_table, source_table, base_path, shard_count=DEFAULT_SHARD_COUNT, **kwargs):
         if self.table_info:
@@ -80,10 +87,10 @@ class Convert(object):
 
         if not self.use_default_mapper and not self.mapper and not self.source and source_table:
             source_table = yt.ypath_join(base_path, source_table)
-            table_info.alter_table(client, source_table, shard_count)
+            table_info.alter_table(client, source_table, shard_count, self.attributes)
             return True  # in place transformation
 
-        table_info.create_table(client, target_table, shard_count)
+        table_info.create_table(client, target_table, shard_count, self.attributes)
 
         source_table = self.source or source_table
         dt_client = DynamicTablesClient(
@@ -344,6 +351,21 @@ TRANSFORMS[7] = [
         use_default_mapper=True)
 ]
 
+TRANSFORMS[8] = [
+    Convert(
+        "ordered_by_id",
+        attributes={"tablet_cell_bundle": "sys"}),
+    Convert(
+        "ordered_by_start_time",
+        attributes={"tablet_cell_bundle": "sys"}),
+    Convert(
+        "jobs",
+        attributes={"tablet_cell_bundle": "sys"}),
+    Convert(
+        "stderrs",
+        attributes={"tablet_cell_bundle": "sys"}),
+]
+
 def swap_table(client, target, source):
     backup_path = target + ".bak"
     if client.exists(target):
@@ -409,7 +431,7 @@ def create_tables_latest_version(client, shard_count=1, base_path=BASE_PATH):
                 schemas[convertion.table] = convertion.table_info
     for table in schemas:
         table_path = BASE_PATH + "/" + table
-        schemas[table].create_table(client, table_path, shard_count)
+        schemas[table].create_table(client, table_path, shard_count, {})
 
 def main():
     parser = argparse.ArgumentParser(description="Transform operations archive")
