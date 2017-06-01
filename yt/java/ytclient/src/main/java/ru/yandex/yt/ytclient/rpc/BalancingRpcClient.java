@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.rpc;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -21,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.rpcproxy.TReqGetNode;
 import ru.yandex.yt.rpcproxy.TRspGetNode;
+import ru.yandex.yt.ytclient.proxy.ApiService;
 import ru.yandex.yt.ytclient.ytree.YTreeNode;
 
 /**
@@ -29,7 +31,8 @@ import ru.yandex.yt.ytclient.ytree.YTreeNode;
 public class BalancingRpcClient implements RpcClient {
     private static final Logger logger = LoggerFactory.getLogger(BalancingRpcClient.class);
 
-    final private Duration maxDelay;
+    final private Duration failoverTimeout;
+    final private Duration pingTimeout;
     final private Destination[] destinations;
     final private Random rnd = new Random();
 
@@ -47,10 +50,13 @@ public class BalancingRpcClient implements RpcClient {
         boolean isAlive;
         int index;
 
+        final ApiService service;
+
         Destination(RpcClient client, int index) {
-            this.client = client;
+            this.client = Objects.requireNonNull(client);
             isAlive = true;
             this.index = index;
+            service = client.getService(ApiService.class);
         }
 
         void close() {
@@ -65,6 +71,8 @@ public class BalancingRpcClient implements RpcClient {
                     destinations[index] = t;
                     index = aliveCount;
                     aliveCount ++;
+
+                    logger.info("backend `{}` is alive", client);
                 }
             }
         }
@@ -77,13 +85,33 @@ public class BalancingRpcClient implements RpcClient {
                     destinations[aliveCount] = destinations[index];
                     destinations[index] = t;
                     index = aliveCount;
+
+                    logger.info("backend `{}` is dead", client);
                 }
             }
         }
+
+        CompletableFuture<YTreeNode> ping() {
+            RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> builder = service.getNode();
+            builder.body().setPath("//tmp");
+            CompletableFuture<YTreeNode> f = RpcUtil
+                .apply(builder.invoke(), response -> YTreeNode.parseByteString(response.body().getData()))
+                .thenApply(node -> {
+                    setAlive();
+                    return node;
+                }).exceptionally(ex -> {
+                    logger.error("ping error", ex);
+                    setDead();
+                    return null;
+                }); // ignore exceptions ?
+
+            return f;
+        }
     }
 
-    public BalancingRpcClient(Duration maxDelay, RpcClient ... destinations) {
-        this.maxDelay = maxDelay;
+    public BalancingRpcClient(Duration failoverTimeout, Duration pingTimeout, RpcClient ... destinations) {
+        this.failoverTimeout = failoverTimeout;
+        this.pingTimeout = pingTimeout;
         this.destinations = new Destination[destinations.length];
         int i = 0;
         for (RpcClient client : destinations) {
@@ -103,29 +131,20 @@ public class BalancingRpcClient implements RpcClient {
         timer.cancel();
     }
 
-    private static class SendData {
-        RpcClientRequestControl control;
-        TimerTask task;
-    }
-
     private CompletionStage<List<byte[]>> sendOnce(Destination dst, RpcClientRequest request) {
         CompletableFuture<List<byte[]>> f = new CompletableFuture<>();
-
-        SendData s = new SendData();
 
         RpcClientResponseHandler handler = new RpcClientResponseHandler() {
             @Override
             public void onAcknowledgement() {
                 if (request.isOneWay()) {
                     //logger.error("cancel `{}`", s.task);
-                    s.task.cancel();
                     f.complete(null);
                 }
             }
 
             @Override
             public void onResponse(List<byte[]> attachments) {
-                s.task.cancel();
                 //logger.error("cancel `{}`", s.task);
                 if (request.isOneWay()) {
                     f.completeExceptionally(new IllegalStateException("Server replied to a one-way request"));
@@ -147,29 +166,13 @@ public class BalancingRpcClient implements RpcClient {
         inflight.inc();
         total.inc();
 
-        s.control = dst.client.send(request, handler);
-        s.task = new TimerTask() {
-            @Override
-            public void run() {
-                if (!f.isDone()) {
-                    // TODO: log here
-                    s.control.cancel();
-                    f.cancel(true);
-                    // mark destination as bad
-                    dst.setDead();
-                }
-            }
-        };
-
-        timer.schedule(s.task, maxDelay.toMillis());
+        final RpcClientRequestControl control = dst.client.send(request, handler);
 
         return f.whenComplete((a, b) -> {
             if (b instanceof CancellationException) {
                 // TODO: log here
-                s.control.cancel();
-            } else if (b != null) {
-                dst.setDead();
-            } else {
+                control.cancel();
+            } else if (b == null) {
                 dst.setAlive();
             }
 
@@ -259,27 +262,15 @@ public class BalancingRpcClient implements RpcClient {
         return result;
     }
 
-    public interface PingService {
-        RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> getNode();
-    }
-
     private CompletableFuture<YTreeNode> pingDestination(Destination client) {
-        PingService service = client.client.getService(PingService.class);
-        RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> builder = service.getNode();
-        builder.body().setPath("//tmp");
-        CompletableFuture<YTreeNode> f = RpcUtil
-            .apply(builder.invoke(), response -> YTreeNode.parseByteString(response.body().getData()))
-            .thenApply(node -> {
-                client.setAlive();
-                return node;
-            }).exceptionally(unused -> null); // ignore exceptions ?
+        CompletableFuture<YTreeNode> f = client.ping();
 
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
                 f.cancel(true);
             }
-        }, maxDelay.toMillis());
+        }, pingTimeout.toMillis());
 
         return f;
     }
@@ -290,16 +281,16 @@ public class BalancingRpcClient implements RpcClient {
             public void run() {
                 pingDeadDestinations();
             }
-        }, 2*maxDelay.toMillis());
+        }, 2*pingTimeout.toMillis());
     }
 
     private void pingDeadDestinations() {
         // logger.info("ping");
 
         synchronized (destinations) {
-            CompletableFuture<YTreeNode> futures[] = new CompletableFuture[destinations.length - aliveCount];
-            for (int i = aliveCount; i < destinations.length; ++i) {
-                futures[i - aliveCount] = pingDestination(destinations[i]);
+            CompletableFuture<YTreeNode> futures[] = new CompletableFuture[destinations.length];
+            for (int i = 0; i < destinations.length; ++i) {
+                futures[i] = pingDestination(destinations[i]);
             }
 
             CompletableFuture.allOf(futures).whenComplete((a, b) -> {
@@ -314,7 +305,7 @@ public class BalancingRpcClient implements RpcClient {
 
         ImmutableList.Builder<CompletionStage<List<byte[]>>> builder = ImmutableList.builder();
 
-        long delta = maxDelay.toMillis();
+        long delta = failoverTimeout.toMillis();
         int i = 0;
 
         for (Destination client : destinations) {

@@ -49,7 +49,7 @@ public class SelectRowsBenchmark {
 
     static class RequestGroup {
         final List<String> requests = new ArrayList<>();
-    };
+    }
 
     // runme: --proxy n0035-myt.seneca-myt.yt.yandex.net,n0036-myt.seneca-myt.yt.yandex.net,n0037-myt.seneca-myt.yt.yandex.net --input requests
     public static void main(String[] args) throws Exception {
@@ -82,6 +82,7 @@ public class SelectRowsBenchmark {
         List<String> proxies = null;
         final ArrayList<RequestGroup> requests = new ArrayList<>();
         Duration localTimeout = Duration.ofMillis(60);
+        Duration pingTimeout = Duration.ofMillis(1000);
         ExecutorService executorService;
         final LinkedBlockingQueue<RequestGroup> queue = new LinkedBlockingQueue<>(threads*2);
 
@@ -145,6 +146,7 @@ public class SelectRowsBenchmark {
 
         RpcClient rpcClient = new BalancingRpcClient(
             localTimeout,
+            pingTimeout,
             proxiesConnections.toArray(new RpcClient[proxiesConnections.size()])
         );
 
