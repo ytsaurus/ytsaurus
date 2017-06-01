@@ -20,7 +20,7 @@ namespace NChunkClient {
  */
 struct TBlock
 {
-    TBlock() = default;
+    TBlock();
     explicit TBlock(TSharedRef block);
     TBlock(TSharedRef block, TChecksum checksum);
 

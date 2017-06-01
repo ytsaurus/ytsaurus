@@ -7,6 +7,10 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+TBlock::TBlock()
+    : Checksum(NullChecksum)
+{ }
+
 TBlock::TBlock(
     TSharedRef block)
     : Data(std::move(block))
