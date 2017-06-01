@@ -7,11 +7,6 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EExecutionStack,
-    (Small) // 256 Kb (default)
-    (Large) //   8 Mb
-);
-
 class TExecutionStackBase
 {
 public:
@@ -80,7 +75,7 @@ private:
 #   error Unsupported platform
 #endif
 
-std::shared_ptr<TExecutionStack> CreateExecutionStack(EExecutionStack stack);
+std::shared_ptr<TExecutionStack> CreateExecutionStack(EExecutionStackKind kind);
 
 ////////////////////////////////////////////////////////////////////////////////
 

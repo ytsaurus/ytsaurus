@@ -1,5 +1,6 @@
 #include "execution_stack.h"
 #include "execution_context.h"
+#include "fiber.h"
 
 #include <yt/core/misc/serialize.h>
 
@@ -130,7 +131,7 @@ VOID CALLBACK TExecutionStack::FiberTrampoline(PVOID opaque)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Size>
+template <EExecutionStackKind Kind, size_t Size>
 class TPooledExecutionStack
     : public TExecutionStack
 {
@@ -140,13 +141,13 @@ public:
     { }
 };
 
-std::shared_ptr<TExecutionStack> CreateExecutionStack(EExecutionStack stack)
+std::shared_ptr<TExecutionStack> CreateExecutionStack(EExecutionStackKind kind)
 {
-    switch (stack) {
-        case EExecutionStack::Small:
-            return ObjectPool<TPooledExecutionStack<SmallExecutionStackSize>>().Allocate();
-        case EExecutionStack::Large:
-            return ObjectPool<TPooledExecutionStack<LargeExecutionStackSize>>().Allocate();
+    switch (kind) {
+        case EExecutionStackKind::Small:
+            return ObjectPool<TPooledExecutionStack<EExecutionStackKind::Small, SmallExecutionStackSize>>().Allocate();
+        case EExecutionStackKind::Large:
+            return ObjectPool<TPooledExecutionStack<EExecutionStackKind::Large, LargeExecutionStackSize>>().Allocate();
         default:
             Y_UNREACHABLE();
     }
@@ -162,11 +163,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Size>
-struct TPooledObjectTraits<NConcurrency::TPooledExecutionStack<Size>, void>
+template <NConcurrency::EExecutionStackKind Kind, size_t Size>
+struct TPooledObjectTraits<NConcurrency::TPooledExecutionStack<Kind, Size>, void>
     : public TPooledObjectTraitsBase
 {
-    typedef NConcurrency::TPooledExecutionStack<Size> TStack;
+    typedef NConcurrency::TPooledExecutionStack<Kind, Size> TStack;
 
     static void Clean(TStack* stack)
     {
@@ -179,11 +180,7 @@ struct TPooledObjectTraits<NConcurrency::TPooledExecutionStack<Size>, void>
 
     static int GetMaxPoolSize()
     {
-#if defined(_unix_)
-        return 1024;
-#elif defined(_win_)
-        return 0;
-#endif
+        return NConcurrency::GetFiberStackPoolSize(Kind);
     }
 };
 
