@@ -253,9 +253,13 @@ public:
 
     virtual void KillAll() override
     {
-        // Kill only first process in conteiner,
+        // Kill only first process in container,
         // others will be killed automaticaly
-        Container_->Kill(SIGKILL);
+        try {
+            Container_->Kill(SIGKILL);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Failed to kill user container");
+        }
     }
 
     virtual void SetCpuShare(double share) override
