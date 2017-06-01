@@ -976,6 +976,10 @@ class YTInstance(object):
         raise YtError("Failed to find yt_env_watcher binary")
 
     def _start_watcher(self):
+        postrotate_commands = []
+        for pid in self._all_processes.keys():
+            postrotate_commands.append("\t/usr/bin/test -d /proc/{0} && kill -HUP {0} >/dev/null 2>&1 || true".format(pid))
+
         logrotate_options = [
             "rotate {0}".format(self.watcher_config["logs_rotate_max_part_count"]),
             "size {0}".format(self.watcher_config["logs_rotate_size"]),
@@ -985,7 +989,10 @@ class YTInstance(object):
             "nomail",
             "noolddir",
             "compress",
-            "create"
+            "create",
+            "postrotate",
+            "\n".join(postrotate_commands),
+            "endscript"
         ]
 
         config_path = os.path.join(self.configs_path, "logs_rotator")
