@@ -9,7 +9,8 @@ namespace NScheduler {
 
 ISchedulerStrategyPtr CreateFairShareStrategy(
     TFairShareStrategyConfigPtr config,
-    ISchedulerStrategyHost* host);
+    ISchedulerStrategyHost* host,
+    const std::vector<IInvokerPtr>& feasibleInvokers);
 
 ////////////////////////////////////////////////////////////////////////////////
 

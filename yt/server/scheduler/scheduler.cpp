@@ -293,11 +293,15 @@ public:
 
     bool IsConnected()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return MasterConnector_->IsConnected();
     }
 
     void ValidateConnected()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         if (!IsConnected()) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
@@ -769,8 +773,23 @@ public:
             .Run();
     }
 
+    void LogOperations(yhash_set<TOperationId> operationsToLog)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& operationId : operationsToLog) {
+            auto operation = FindOperation(operationId);
+            if (!operation) {
+                continue;
+            }
+            LogOperationProgress(operation);
+        }
+    }
+
     void ProcessHeartbeat(TCtxHeartbeatPtr context)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto* request = &context->Request();
         auto nodeId = request->node_id();
 
@@ -781,14 +800,10 @@ public:
                 .Run(context))
             .ValueOrThrow();
 
-        // NB: Do heavy logging after responding to heartbeat.
-        for (const auto& operationId : operationsToLog) {
-            auto operation = FindOperation(operationId);
-            if (!operation) {
-                continue;
-            }
-            LogOperationProgress(operation);
-        }
+        GetControlInvoker()->Invoke(BIND(
+            &TImpl::LogOperations,
+            MakeStrong(this),
+            Passed(std::move(operationsToLog))));
     }
 
     // ISchedulerStrategyHost implementation
@@ -1941,7 +1956,11 @@ private:
 
     void InitStrategy()
     {
-        Strategy_ = CreateFairShareStrategy(Config_, this);
+        std::vector<IInvokerPtr> feasibleInvokers;
+        for (auto controlQueue : TEnumTraits<EControlQueue>::GetDomainValues()) {
+            feasibleInvokers.push_back(Bootstrap_->GetControlInvoker(controlQueue));
+        }
+        Strategy_ = CreateFairShareStrategy(Config_, this, feasibleInvokers);
     }
 
     INodePtr GetSpecTemplate(EOperationType type, IMapNodePtr spec)
