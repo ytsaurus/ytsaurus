@@ -25,50 +25,6 @@ Priority: extra
 Maintainer: YT Team <yt@yandex-team.ru>
 Standards-Version: 3.9.1
 Homepage: http://wiki.yandex-team.ru/YT
-
-Package: yandex-yt
-Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: YT. This package provides server-side software.
-
-Package: yandex-yt-messagebus-proxy
-Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: YT. This package provides MessageBus proxy.
-
-Package: yandex-yt-http-proxy
-Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, nodejs (>= 0.8.0)
-Conflicts: nodejs (>= 0.10.0)
-Description: YT. This package provides HTTP Proxy.
-
-Package: yandex-yt-perl
-Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, ${perl:Depends}, yandex-yt-perl-@YT_ABI_VERSION@
-Description: YT. This package provides facade Perl module with YT API.
-
-Package: yandex-yt-perl-19.2
-Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, ${perl:Depends},
- libcoro-perl (>= 6.370), libev-perl
-Description: YT. This package provides Perl bindings for facade module for ABI @YT_ABI_VERSION@.
-
-Package: yandex-yt-python-2-7-driver
-Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: YT. This package provides Python 2.7 native bindings.
-
-Package: yandex-yt-python-skynet-driver
-Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: YT. This package provides Python Skynet native bindings.
-
-Package: yandex-yt-python-driver
-Architecture: any
-Depends: ${misc:Depends},
-    ${python:Depends},
-    yandex-yt-python (>= 0.7.26-0)
-Description: Native bindings to YT driver.
 '''
 
 download() {
@@ -77,6 +33,8 @@ download() {
 
     local urls="$(curl -s http://dist.yandex.ru/$repository/unstable/amd64/Packages.bz2 | bzip2 -d -c | fgrep $version | fgrep Filename | cut -d' ' -f 2)"
 
+    mkdir -p $version
+    cd $version
     mkdir -p debian
 
     echo "$CONTROL" > debian/control
@@ -86,31 +44,34 @@ download() {
         local package="$(echo $name | cut -d_ -f 1)"
         local suffix="$(echo $name | cut -d_ -f 2)"
 
-        echo "package: ${package}, url: ${url}"
-        
-        wget "http://dist.yandex.ru/${url}"
+        echo "Downloading package: ${package}, url: ${url}"
+        curl -s "http://dist.yandex.ru/${url}" > "${name}.deb"
 
         if [ "$package" == "yandex-yt" ]; then
             dpkg --fsys-tarfile "${name}.deb" | tar xOf - ./usr/share/doc/yandex-yt/changelog.Debian.gz | zcat > debian/changelog
         fi
+
+        echo "" >> debian/control        
+        dpkg-deb -f "${name}.deb" Package Architecture Depends Description Conflicts >> debian/control
 
         dpkg-distaddfile "${name}.deb" unknown extra
     done
 
     local changes_file="yandex-yt_${version}.changes"
 
+    echo "Generating changes..."
     dpkg-genchanges -b -u. > $changes_file
 
-    echo "Signing..."
-
+    echo "Generating signature..."
     gpg --utf8-strings --clearsign --armor --textmode $changes_file
-
     mv "${changes_file}.asc" $changes_file
 }
 
 upload() {
     local repository=$1
     local verison=$2
+
+    cd $version
 
     local changes_file="yandex-yt_${version}.changes"
 
