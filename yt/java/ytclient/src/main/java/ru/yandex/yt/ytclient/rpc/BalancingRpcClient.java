@@ -100,7 +100,7 @@ public class BalancingRpcClient implements RpcClient {
                     setAlive();
                     return node;
                 }).exceptionally(ex -> {
-                    logger.error("ping error", ex);
+                    logger.debug("ping error", ex);
                     setDead();
                     return null;
                 }); // ignore exceptions ?
