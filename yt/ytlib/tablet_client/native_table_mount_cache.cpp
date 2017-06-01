@@ -295,20 +295,18 @@ private:
                 tableInfo->Path = path;
                 tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
 
-                tableInfo->Schemas[ETableSchemaKind::Primary] = FromProto<TTableSchema>(rsp->schema());
-                tableInfo->Schemas[ETableSchemaKind::Write] = tableInfo->Schemas[ETableSchemaKind::Primary].ToWrite();
-                tableInfo->Schemas[ETableSchemaKind::VersionedWrite] = tableInfo->Schemas[ETableSchemaKind::Primary].ToVersionedWrite();
-                tableInfo->Schemas[ETableSchemaKind::Delete] = tableInfo->Schemas[ETableSchemaKind::Primary].ToDelete();
-
-                auto physicalSchema = tableInfo->IsReplicated()
-                    ? tableInfo->Schemas[ETableSchemaKind::Primary].ToReplicationLog()
-                    : tableInfo->Schemas[ETableSchemaKind::Primary];
-                tableInfo->Schemas[ETableSchemaKind::Query] = physicalSchema.ToQuery();
-                tableInfo->Schemas[ETableSchemaKind::Lookup] = physicalSchema.ToLookup();
+                auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
+                primarySchema = FromProto<TTableSchema>(rsp->schema());
+                
+                tableInfo->Schemas[ETableSchemaKind::Write] = primarySchema.ToWrite();
+                tableInfo->Schemas[ETableSchemaKind::VersionedWrite] = primarySchema.ToVersionedWrite();
+                tableInfo->Schemas[ETableSchemaKind::Delete] = primarySchema.ToDelete();
+                tableInfo->Schemas[ETableSchemaKind::Query] = primarySchema.ToQuery();
+                tableInfo->Schemas[ETableSchemaKind::Lookup] = primarySchema.ToLookup();
 
                 tableInfo->UpstreamReplicaId = FromProto<TTableReplicaId>(rsp->upstream_replica_id());
                 tableInfo->Dynamic = rsp->dynamic();
-                tableInfo->NeedKeyEvaluation = tableInfo->Schemas[ETableSchemaKind::Primary].HasComputedColumns();
+                tableInfo->NeedKeyEvaluation = primarySchema.HasComputedColumns();
 
                 for (const auto& protoTabletInfo : rsp->tablets()) {
                     auto tabletInfo = New<TTabletInfo>();

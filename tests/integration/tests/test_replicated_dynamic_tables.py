@@ -4,6 +4,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from time import sleep
 from yt.yson import YsonEntity
+from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
@@ -213,12 +214,13 @@ class TestReplicatedDynamicTables(YTEnvSetup):
     def test_in_sync_relicas_simple(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
-        self._create_replica_table("//tmp/r")
 
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         assert get("#{0}/@state".format(replica_id)) == "disabled"
 
-        enable_table_replica(replica_id)
+        self._create_replica_table("//tmp/r", replica_id)
+
+        self.sync_enable_table_replica(replica_id)
         assert get("#{0}/@state".format(replica_id)) == "enabled"
 
         rows = [{"key": 0, "value1": "test", "value2": 42}]
@@ -228,7 +230,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         sleep(1.0)  # wait for last timestamp update
         assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id]
 
-        insert_rows("//tmp/t", rows)
+        insert_rows("//tmp/t", rows, require_sync_replica=False)
         timestamp1 = generate_timestamp()
         assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id]
         sleep(1.0)  # wait for replica update
@@ -245,13 +247,14 @@ class TestReplicatedDynamicTables(YTEnvSetup):
     def test_in_sync_relicas_disabled(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
-        self._create_replica_table("//tmp/r1")
-        self._create_replica_table("//tmp/r2")
 
         replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1")
         replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2")
 
-        enable_table_replica(replica_id1)
+        self._create_replica_table("//tmp/r1", replica_id1)
+        self._create_replica_table("//tmp/r2", replica_id2)
+
+        self.sync_enable_table_replica(replica_id1)
 
         assert get("#{0}/@state".format(replica_id1)) == "enabled"
         assert get("#{0}/@state".format(replica_id2)) == "disabled"
@@ -259,15 +262,15 @@ class TestReplicatedDynamicTables(YTEnvSetup):
         rows = [{"key": 0, "value1": "test", "value2": 42}]
         keys = [{"key": 0}]
 
-        insert_rows("//tmp/t", rows)
+        insert_rows("//tmp/t", rows, require_sync_replica=False)
         timestamp = generate_timestamp()
 
         sleep(1.0)
         assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp) == [replica_id1]
 
-        enable_table_replica(replica_id2)
+        self.sync_enable_table_replica(replica_id2)
         sleep(1.0)
-        assert sorted(get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp)) == sorted([replica_id1, replica_id2])
+        assert_items_equal(get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp), [replica_id1, replica_id2])
 
     def test_async_replication(self):
         self._create_cells()
