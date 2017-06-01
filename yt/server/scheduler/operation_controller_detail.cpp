@@ -2572,6 +2572,10 @@ void TOperationControllerBase::SafeAbort()
 {
     LOG_INFO("Aborting operation controller");
 
+    // NB: context should be cancelled before aborting transactions,
+    // since controller methods can use this transactions.
+    CancelableContext->Cancel();
+
     AreTransactionsActive = false;
 
     // Skip committing anything if operation controller already tried to commit results.
@@ -2615,8 +2619,6 @@ void TOperationControllerBase::SafeAbort()
         .ThrowOnError();
 
     State = EControllerState::Finished;
-
-    CancelableContext->Cancel();
 
     LOG_INFO("Operation controller aborted");
 }
