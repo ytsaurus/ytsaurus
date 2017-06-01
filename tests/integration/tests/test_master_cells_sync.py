@@ -115,7 +115,7 @@ class TestMasterCellsSync(YTEnvSetup):
         set("//sys/accounts/jupiter/@acl", [make_ace("allow", "jupiter", "use")])
 
         def check(driver):
-            return len(get("//sys/accounts/jupiter/@acl")) == 1
+            return len(get("//sys/accounts/jupiter/@acl", driver=driver)) == 1
 
         self._check_true_for_secondary(lambda driver: check(driver))
 
@@ -126,6 +126,34 @@ class TestMasterCellsSync(YTEnvSetup):
             return exists("//sys/racks/r")
 
         self._check_true_for_secondary(lambda driver: check(driver))
+
+    def test_tablet_cell_bundle_sync(self):
+        create_tablet_cell_bundle("b")
+
+        for i in xrange(10):
+            set("//sys/tablet_cell_bundles/b/@custom{0}".format(i), "value")
+        self._check_true_for_secondary(
+            lambda driver: all([
+                get("//sys/tablet_cell_bundles/b/@custom{0}".format(i), driver=driver) == "value"
+                for i in xrange(10)]))
+
+        multicell_sleep()
+        self._check_true_for_secondary(
+            lambda driver: "b" in ls("//sys/tablet_cell_bundles", driver=driver))
+
+        remove_tablet_cell_bundle("b")
+        self._check_true_for_secondary(
+            lambda driver: "b" not in ls("//sys/tablet_cell_bundles", driver=driver))
+
+    def test_tablet_cell_sync(self):
+        create_tablet_cell_bundle("b")
+        cell_id = create_tablet_cell(attributes={"tablet_cell_bundle": "b"})
+
+        def check(driver):
+            return get("//sys/tablet_cells/{0}/@tablet_cell_bundle".format(cell_id), driver=driver) == "b"
+
+        self._check_true_for_secondary(lambda driver: check(driver))
+
 
 ##################################################################
 
