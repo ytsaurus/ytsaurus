@@ -266,7 +266,7 @@ public:
     TCompositeSchedulerElement(
         ISchedulerStrategyHost* host,
         TFairShareStrategyConfigPtr strategyConfig,
-        const Stroka& profilingName);
+        NProfiling::TTagId profilingTag);
     TCompositeSchedulerElement(
         const TCompositeSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
@@ -368,6 +368,7 @@ public:
     TPool(
         ISchedulerStrategyHost* host,
         const Stroka& id,
+        NProfiling::TTagId profilingTag,
         TFairShareStrategyConfigPtr strategyConfig);
     TPool(
         const TPool& other,
@@ -731,6 +732,7 @@ class TRootElement
 public:
     TRootElement(
         ISchedulerStrategyHost* host,
+        NProfiling::TTagId profilingTag,
         TFairShareStrategyConfigPtr strategyConfig);
     TRootElement(const TRootElement& other);
 
