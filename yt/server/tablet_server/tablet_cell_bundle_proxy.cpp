@@ -49,9 +49,11 @@ private:
     {
         const auto* cellBundle = GetThisImpl();
         attributes->push_back(TAttributeDescriptor("name")
-            .SetReplicated(true));
+            .SetReplicated(true)
+            .SetMandatory(true));
         attributes->push_back(TAttributeDescriptor("options")
-            .SetReplicated(true));
+            .SetReplicated(true)
+            .SetMandatory(true));
         attributes->push_back(TAttributeDescriptor("node_tag")
             .SetReplicated(true)
             .SetPresent(cellBundle->GetNodeTag().HasValue()));
