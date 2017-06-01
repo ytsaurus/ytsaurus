@@ -96,6 +96,8 @@ class TBloomFilter;
 using TChecksum = ui64;
 using TFingerprint = ui64;
 
+constexpr TChecksum NullChecksum = 0;
+
 template <class T, unsigned size>
 class SmallVector;
 
