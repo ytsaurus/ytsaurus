@@ -157,15 +157,15 @@ class TestTableCommands(object):
             ]})
 
         tablet_id = yt.create("tablet_cell", attributes={"size": 1})
-        while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
+        while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
             time.sleep(0.1)
 
         yt.mount_table(table)
-        while yt.get("{0}/@tablets/0/state".format(table)) != 'mounted':
+        while yt.get("{0}/@tablets/0/state".format(table)) != "mounted":
             time.sleep(0.1)
 
         yt.unmount_table(table)
-        while yt.get("{0}/@tablets/0/state".format(table)) != 'unmounted':
+        while yt.get("{0}/@tablets/0/state".format(table)) != "unmounted":
             time.sleep(0.1)
 
     @pytest.mark.xfail(run = False, reason = "In progress")
@@ -175,7 +175,7 @@ class TestTableCommands(object):
         def select():
             schema = '<schema=[{"name"="x";"type"="int64"}; {"name"="y";"type"="int64"}; {"name"="z";"type"="int64"}]>'
             return list(yt.select_rows(
-                '* from [{0}{1}]'.format(schema, table),
+                "* from [{0}{1}]".format(schema, table),
                 format=yt.YsonFormat(format="text", process_table_index=False),
                 raw=False))
 
@@ -207,11 +207,11 @@ class TestTableCommands(object):
                 ]})
 
             tablet_id = yt.create("tablet_cell", attributes={"size": 1})
-            while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
+            while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
                 time.sleep(0.1)
 
             yt.mount_table(table)
-            while yt.get("{0}/@tablets/0/state".format(table)) != 'mounted':
+            while yt.get("{0}/@tablets/0/state".format(table)) != "mounted":
                 time.sleep(0.1)
 
             yt.insert_rows(table, [{"x": "a", "y": "b"}], raw=False)
@@ -239,11 +239,11 @@ class TestTableCommands(object):
                 ]})
 
             tablet_id = yt.create("tablet_cell", attributes={"size": 1})
-            while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
+            while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
                 time.sleep(0.1)
 
             yt.mount_table(table)
-            while yt.get("{0}/@tablets/0/state".format(table)) != 'mounted':
+            while yt.get("{0}/@tablets/0/state".format(table)) != "mounted":
                 time.sleep(0.1)
 
             vanilla_client = Yt(config=yt.config)
@@ -296,15 +296,15 @@ class TestTableCommands(object):
 
     def test_table_index(self):
         dsv = yt.format.DsvFormat(enable_table_index=True, table_index_column="TableIndex")
-        schemaful_dsv = yt.format.SchemafulDsvFormat(columns=['1', '2', '3'],
+        schemaful_dsv = yt.format.SchemafulDsvFormat(columns=["1", "2", "3"],
                                                      enable_table_index=True,
                                                      table_index_column="_table_index_")
 
-        src_table_a = TEST_DIR + '/in_table_a'
-        src_table_b = TEST_DIR + '/in_table_b'
-        dst_table_a = TEST_DIR + '/out_table_a'
-        dst_table_b = TEST_DIR + '/out_table_b'
-        dst_table_ab = TEST_DIR + '/out_table_ab'
+        src_table_a = TEST_DIR + "/in_table_a"
+        src_table_b = TEST_DIR + "/in_table_b"
+        dst_table_a = TEST_DIR + "/out_table_a"
+        dst_table_b = TEST_DIR + "/out_table_b"
+        dst_table_ab = TEST_DIR + "/out_table_ab"
 
         len_a = 5
         len_b = 3
@@ -557,11 +557,11 @@ class TestTableCommands(object):
                 ]})
 
             tablet_id = yt.create("tablet_cell", attributes={"size": 1})
-            while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
+            while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
                 time.sleep(0.1)
 
             yt.mount_table(table)
-            while yt.get("{0}/@tablets/0/state".format(table)) != 'mounted':
+            while yt.get("{0}/@tablets/0/state".format(table)) != "mounted":
                 time.sleep(0.1)
 
             yt.insert_rows(table, [{"x": "a", "y": "b"}, {"x": "c", "y": "d"}, {"x": "e", "y": "f"}], raw=False)

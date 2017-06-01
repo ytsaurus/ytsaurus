@@ -33,7 +33,7 @@ from copy import deepcopy
 
 def test_docs_exist():
     functions = inspect.getmembers(
-        yt, lambda o: inspect.isfunction(o) and not o.__name__.startswith('_'))
+        yt, lambda o: inspect.isfunction(o) and not o.__name__.startswith("_"))
 
     functions_without_doc = list(ifilter(lambda pair: not inspect.getdoc(pair[1]), functions))
     assert not functions_without_doc
@@ -44,7 +44,7 @@ def test_docs_exist():
         if name == "PingTransaction":
             continue # Python Thread is not documented O_o
         public_methods = inspect.getmembers(cl, lambda o: inspect.ismethod(o) and \
-                                                          not o.__name__.startswith('_'))
+                                                          not o.__name__.startswith("_"))
         ignore_methods = set()
         if issubclass(cl, collections.Iterator) and not PY3:
             ignore_methods.add("next")
@@ -70,8 +70,8 @@ def test_ypath_join():
 @pytest.mark.usefixtures("yt_env")
 def test_yt_binary():
     env = get_environment_for_binary_test()
-    env["FALSE"] = '%false'
-    env["TRUE"] = '%true'
+    env["FALSE"] = "%false"
+    env["TRUE"] = "%true"
 
     sandbox_dir = os.path.join(TESTS_SANDBOX, "TestYtBinary_" + uuid.uuid4().hex[:8])
     binaries_dir = os.path.join(os.path.dirname(TESTS_LOCATION), "bin")
@@ -237,7 +237,7 @@ class TestRetries(object):
                     to_yson_type(None, attributes={"range_index": 1}),
                     to_yson_type(None, attributes={"row_index": 2}),
                     {"x": 3}] == \
-                list(yt.read_table(table + '[#0,#2]', format=yt.YsonFormat(process_table_index=False),
+                list(yt.read_table(table + "[#0,#2]", format=yt.YsonFormat(process_table_index=False),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
 
             assert [{"$attributes": {"range_index": 0}, "$value": None},
@@ -246,21 +246,21 @@ class TestRetries(object):
                     {"$attributes": {"range_index": 1}, "$value": None},
                     {"$attributes": {"row_index": 2}, "$value": None},
                     {"x": 3}] == \
-                list(yt.read_table(table + '[#0,#2]', format=yt.JsonFormat(process_table_index=False),
+                list(yt.read_table(table + "[#0,#2]", format=yt.JsonFormat(process_table_index=False),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
 
             assert [{"x": 1, "@row_index": 0, "@range_index": 0, "@table_index": None},
                     {"x": 3, "@row_index": 2, "@range_index": 1, "@table_index": None}] == \
-                list(yt.read_table(table + '[#0,#2]', format=yt.JsonFormat(process_table_index=True),
+                list(yt.read_table(table + "[#0,#2]", format=yt.JsonFormat(process_table_index=True),
                                    control_attributes={"enable_row_index": True, "enable_range_index": True}))
 
             with pytest.raises(yt.YtError):
-                list(yt.read_table(table + '[#0,2]', raw=False, format=yt.YsonFormat(process_table_index=False), unordered=True))
+                list(yt.read_table(table + "[#0,2]", raw=False, format=yt.YsonFormat(process_table_index=False), unordered=True))
 
             assert [b"x=2\n", b"x=3\n"] == list(yt.read_table(table + "[2:]", raw=True, format=yt.DsvFormat()))
 
             with pytest.raises(yt.YtError):
-                list(yt.read_table(table + '[#0,2]', raw=False, format=yt.DsvFormat()))
+                list(yt.read_table(table + "[#0,2]", raw=False, format=yt.DsvFormat()))
 
         finally:
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
@@ -513,8 +513,8 @@ def test_frozen_dict():
 
 class TestResponseStream(object):
     def test_chunk_iterator(self):
-        random_line = lambda: b(''.join(random.choice(string.ascii_lowercase) for _ in xrange(100)))
-        s = b'\n'.join(random_line() for _ in xrange(3))
+        random_line = lambda: b("".join(random.choice(string.ascii_lowercase) for _ in xrange(100)))
+        s = b"\n".join(random_line() for _ in xrange(3))
 
         class StringIterator(Iterator):
             def __init__(self, string, chunk_size=10):

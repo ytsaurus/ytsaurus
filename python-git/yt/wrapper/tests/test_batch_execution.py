@@ -163,19 +163,19 @@ class TestBatchExecution(object):
                     {"name": "y", "type": "string"}
                 ]})
         tablet_id = yt.create("tablet_cell", attributes={"size": 1})
-        while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
+        while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
             time.sleep(0.1)
 
         client.mount_table(table)
         client.commit_batch()
 
-        while yt.get("{0}/@tablets/0/state".format(table)) != 'mounted':
+        while yt.get("{0}/@tablets/0/state".format(table)) != "mounted":
             time.sleep(0.1)
 
         client.unmount_table(table)
         client.commit_batch()
 
-        while yt.get("{0}/@tablets/0/state".format(table)) != 'unmounted':
+        while yt.get("{0}/@tablets/0/state".format(table)) != "unmounted":
             time.sleep(0.1)
 
     def test_transactions(self):

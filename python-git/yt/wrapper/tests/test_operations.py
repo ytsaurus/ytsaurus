@@ -608,11 +608,11 @@ class Mapper(object):
         yt.write_table(table, [{"x": 1}, {"y": 2}])
 
         def print_(rec):
-            print('message')
+            print("message")
 
         @yt.raw
         def write(rec):
-            sys.stdout.write('message')
+            sys.stdout.write("message")
 
         @yt.raw
         def input_(rec):

@@ -210,4 +210,4 @@ class TestJobTool(object):
         path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
         p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
-        assert p_stderr == u"vzshukh".encode('ascii')
+        assert p_stderr == u"vzshukh".encode("ascii")

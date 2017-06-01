@@ -209,10 +209,10 @@ class TestCypressCommands(object):
         assert yt.get(dir_name, attributes=["attr", "second_attr"]).attributes == \
                 {"attr": 1, "second_attr": "str"}
 
-        result = list(yt.search(table, node_type='table', attributes=('my_attribute', )))
+        result = list(yt.search(table, node_type="table", attributes=("my_attribute", )))
         assert len(result) == 1
         assert str(result[0]) == table
-        assert result[0].attributes['my_attribute'] == {'000': 10}
+        assert result[0].attributes["my_attribute"] == {"000": 10}
 
     def test_link(self, yt_env):
         table = TEST_DIR + "/table_with_attributes"
