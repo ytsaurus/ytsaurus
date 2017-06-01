@@ -806,6 +806,12 @@ void BuildCommonUserOperationPart(const TSpec& baseSpec, TNode* spec)
     if (baseSpec.MaxFailedJobCount_.Defined()) {
         (*spec)["max_failed_job_count"] = *baseSpec.MaxFailedJobCount_;
     }
+    if (baseSpec.StderrTablePath_.Defined()) {
+        (*spec)["stderr_table_path"] = *baseSpec.StderrTablePath_;
+    }
+    if (baseSpec.CoreTablePath_.Defined()) {
+        (*spec)["core_table_path"] = *baseSpec.CoreTablePath_;
+    }
 }
 
 
@@ -818,6 +824,17 @@ TString MergeSpec(TNode& dst, const TOperationOptions& options)
         MergeNodes(dst["spec"], *options.Spec_);
     }
     return NodeToYsonString(dst, YF_BINARY);
+}
+
+template <typename TSpec>
+void CreateDebugOutputTables(const TSpec& spec, const TAuth& auth)
+{
+    if (spec.StderrTablePath_.Defined()) {
+        Create(auth, TTransactionId(), *spec.StderrTablePath_, "table", true, true);
+    }
+    if (spec.CoreTablePath_.Defined()) {
+        Create(auth, TTransactionId(), *spec.CoreTablePath_, "table", true, true);
+    }
 }
 
 void CreateOutputTable(
@@ -895,6 +912,7 @@ TOperationId ExecuteMap(
         format = GetTableFormats(auth, transactionId, inputs);
     }
 
+    CreateDebugOutputTables(spec, auth);
     CreateOutputTables(auth, transactionId, outputs);
 
     TJobPreparer map(
@@ -969,6 +987,7 @@ TOperationId ExecuteReduce(
         format = GetTableFormats(auth, transactionId, inputs);
     }
 
+    CreateDebugOutputTables(spec, auth);
     CreateOutputTables(auth, transactionId, outputs);
 
     TJobPreparer reduce(
@@ -1046,6 +1065,7 @@ TOperationId ExecuteJoinReduce(
         format = GetTableFormats(auth, transactionId, inputs);
     }
 
+    CreateDebugOutputTables(spec, auth);
     CreateOutputTables(auth, transactionId, outputs);
 
     TJobPreparer reduce(
@@ -1125,6 +1145,7 @@ TOperationId ExecuteMapReduce(
         format = GetTableFormats(auth, transactionId, inputs);
     }
 
+    CreateDebugOutputTables(spec, auth);
     CreateOutputTables(auth, transactionId, outputs);
 
     TKeyColumns sortBy(spec.SortBy_);
