@@ -279,8 +279,7 @@ public:
                 FinalizeJobIO();
             }
 
-            auto error = TError("Job finished");
-            CleanupUserProcesses(error);
+            CleanupUserProcesses();
 
             if (BlockIOWatchdogExecutor_) {
                 WaitFor(BlockIOWatchdogExecutor_->Stop());
@@ -349,7 +348,7 @@ public:
         bool expected = true;
         if (Prepared_.compare_exchange_strong(expected, false)) {
             // Job has been prepared.
-            CleanupUserProcesses(TError("Job aborted"));
+            CleanupUserProcesses();
         }
     }
 
@@ -393,8 +392,6 @@ private:
     Stroka InputPipePath_;
 
     TNullable<int> UserId_;
-
-    Stroka JobFailMessage_;
 
     std::atomic<bool> Prepared_ = { false };
     std::atomic<bool> IsWoodpecker_ = { false };
@@ -486,7 +483,7 @@ private:
         }
     }
 
-    void CleanupUserProcesses(const TError& error) const
+    void CleanupUserProcesses() const
     {
         BIND(&TUserJob::DoCleanupUserProcesses, MakeWeak(this))
             .Via(PipeIOPool_->GetInvoker())
@@ -497,6 +494,26 @@ private:
     {
         if (ResourceController_) {
             ResourceController_->KillAll();
+        }
+    }
+
+    void KillUserProcesses()
+    {
+        if (JobEnvironmentType_ == EJobEnvironmentType::Simple) {
+            return;
+        }
+
+        BIND(&TUserJob::DoKillUserProcesses, MakeWeak(this))
+            .Via(PipeIOPool_->GetInvoker())
+            .Run();
+    }
+
+    void DoKillUserProcesses()
+    {
+        try {
+            SignalJob("SIGKILL");
+        } catch (const std::exception& ex) {
+            LOG_DEBUG(ex, "Failed to kill user processes");
         }
     }
 
@@ -648,7 +665,7 @@ private:
     virtual void Fail() override
     {
         auto error = TError("Job failed by external request");
-        CleanupUserProcesses(error);
+        CleanupUserProcesses();
         JobErrorPromise_.TrySet(error);
     }
 
@@ -974,7 +991,7 @@ private:
 
         LOG_ERROR(error, "%v", message);
 
-        CleanupUserProcesses(error);
+        KillUserProcesses();
 
         for (const auto& reader : TablePipeReaders_) {
             reader->Abort();
@@ -1015,8 +1032,6 @@ private:
             try {
                 auto userJobError = Synchronizer_->GetUserProcessStatus();
 
-                JobFailMessage_ = "User job failed";
-
                 LOG_DEBUG("Process finished, user status %v, satellite %v",
                     userJobError,
                     satelliteError);
@@ -1032,7 +1047,6 @@ private:
             } catch (const std::exception& ex) {
                 LOG_ERROR(ex, "Unable to get user process status");
 
-                JobFailMessage_ = "Satellite failed";
                 // Likely it is a real bug in satellite or rpc code.
                 LOG_FATAL_IF(satelliteError.IsOK(),
                      "Unable to get process status but satellite returns no errors");
@@ -1152,7 +1166,7 @@ private:
                     NJobProxy::EErrorCode::MemoryCheckFailed,
                     "Failed to get tmpfs size") << ex;
                 JobErrorPromise_.TrySet(error);
-                CleanupUserProcesses(error);
+                CleanupUserProcesses();
             }
         }
         return tmpfsSize;
@@ -1204,7 +1218,7 @@ private:
                 << TErrorAttribute("tmpfs", tmpfsSize)
                 << TErrorAttribute("limit", memoryLimit);
             JobErrorPromise_.TrySet(error);
-            CleanupUserProcesses(error);
+            CleanupUserProcesses();
         }
 
         MaximumTmpfsSize_ = std::max(MaximumTmpfsSize_.load(), tmpfsSize);
@@ -1250,7 +1264,7 @@ private:
             "Job time limit exceeded")
             << TErrorAttribute("limit", UserJobSpec_.job_time_limit());
         JobErrorPromise_.TrySet(error);
-        CleanupUserProcesses(error);
+        CleanupUserProcesses();
     }
 
     // NB(psushin): Read st before asking questions: st/YT-5629.
