@@ -61,6 +61,14 @@ struct TUserOperationSpecBase
 
     // How many jobs can fail before operation is failed.
     FLUENT_FIELD_OPTION(ui64, MaxFailedJobCount);
+
+    // Table to save whole stderr of operation
+    // https://clubs.at.yandex-team.ru/yt/1045
+    FLUENT_FIELD_OPTION(TYPath, StderrTablePath);
+
+    // Table to save coredumps of operation
+    // https://clubs.at.yandex-team.ru/yt/1045
+    FLUENT_FIELD_OPTION(TYPath, CoreTablePath);
 };
 
 template <class TDerived>

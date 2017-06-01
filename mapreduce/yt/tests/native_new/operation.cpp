@@ -24,6 +24,19 @@ REGISTER_MAPPER(TAlwaysFailingMapper);
 
 ////////////////////////////////////////////////////////////////////
 
+class TMapperThatWritesStderr : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    void Do(TReader* reader, TWriter*) {
+        for (; reader->IsValid(); reader->Next()) {
+        }
+        Cerr << "PYSHCH" << Endl;
+    }
+};
+REGISTER_MAPPER(TMapperThatWritesStderr);
+
+////////////////////////////////////////////////////////////////////
+
 SIMPLE_UNIT_TEST_SUITE(Operations)
 {
     SIMPLE_UNIT_TEST(MaxFailedJobCount)
@@ -55,6 +68,30 @@ SIMPLE_UNIT_TEST_SUITE(Operations)
                 UNIT_ASSERT_VALUES_EQUAL(failedJobs.AsInt64(), maxFail);
             }
         }
+    }
+
+    SIMPLE_UNIT_TEST(StderrTablePath)
+    {
+        auto client = CreateTestClient();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>("//testing/input");
+            writer->AddRow(TNode()("foo", "bar"));
+            writer->Finish();
+        }
+
+        client->Map(
+            TMapOperationSpec()
+            .AddInput<TNode>("//testing/input")
+            .AddOutput<TNode>("//testing/output")
+            .StderrTablePath("//testing/stderr"),
+            new TMapperThatWritesStderr);
+
+        auto reader = client->CreateTableReader<TNode>("//testing/stderr");
+        UNIT_ASSERT(reader->IsValid());
+        UNIT_ASSERT_VALUES_EQUAL(reader->GetRow()["data"].AsString(), "PYSHCH\n");
+        reader->Next();
+        UNIT_ASSERT(!reader->IsValid());
     }
 }
 
