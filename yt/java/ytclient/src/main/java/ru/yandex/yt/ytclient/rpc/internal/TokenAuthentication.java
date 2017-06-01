@@ -47,4 +47,9 @@ public class TokenAuthentication implements RpcClient {
         // Пока используем 127.0.0.1
         return "127.0.0.1";
     }
+
+    @Override
+    public String toString() {
+        return "TokenAuthentication@" + client.toString();
+    }
 }

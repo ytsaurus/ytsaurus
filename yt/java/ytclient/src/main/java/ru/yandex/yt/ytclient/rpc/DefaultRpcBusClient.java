@@ -42,6 +42,7 @@ public class DefaultRpcBusClient implements RpcClient {
     private final Lock sessionLock = new ReentrantLock();
     private Session currentSession;
     private boolean closed;
+    private final String name; // for debug
 
     /**
      * Предотвращает дальнейшее использование session
@@ -379,6 +380,17 @@ public class DefaultRpcBusClient implements RpcClient {
 
     public DefaultRpcBusClient(BusFactory busFactory) {
         this.busFactory = Objects.requireNonNull(busFactory);
+        this.name = String.format("DefaultRpcBusClient@%d", System.identityHashCode(this));
+    }
+
+    public DefaultRpcBusClient(BusFactory busFactory, String name) {
+        this.busFactory = Objects.requireNonNull(busFactory);
+        this.name = String.format("%s@%d", name, System.identityHashCode(this));
+    }
+
+    @Override
+    public String toString() {
+        return this.name;
     }
 
     private Session getSession() {
