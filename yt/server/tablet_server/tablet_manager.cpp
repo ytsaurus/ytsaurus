@@ -179,6 +179,14 @@ public:
         transactionManager->RegisterPrepareActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))));
         transactionManager->RegisterCommitActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))));
         transactionManager->RegisterAbortActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->SubscribeReplicateKeysToSecondaryMaster(
+                BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
+            multicellManager->SubscribeReplicateValuesToSecondaryMaster(
+                BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
+        }
     }
 
     TTabletCellBundle* CreateTabletCellBundle(const Stroka& name, const TObjectId& hintId)
@@ -3195,6 +3203,35 @@ private:
         return std::make_pair(beginIt, endIt);
     }
 
+    void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
+        auto tabletCellBundles = GetValuesSortedByKey(TabletCellBundleMap_);
+        for (auto* tabletCellBundle : tabletCellBundles) {
+            objectManager->ReplicateObjectCreationToSecondaryMaster(tabletCellBundle, cellTag);
+        }
+
+        auto tabletCells = GetValuesSortedByKey(TabletCellMap_);
+        for (auto* tabletCell : tabletCells) {
+            objectManager->ReplicateObjectCreationToSecondaryMaster(tabletCell, cellTag);
+        }
+    }
+
+    void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
+        auto tabletCellBundles = GetValuesSortedByKey(TabletCellBundleMap_);
+        for (auto* tabletCellBundle : tabletCellBundles) {
+            objectManager->ReplicateObjectAttributesToSecondaryMaster(tabletCellBundle, cellTag);
+        }
+
+        auto tabletCells = GetValuesSortedByKey(TabletCellMap_);
+        for (auto* tabletCell : tabletCells) {
+            objectManager->ReplicateObjectAttributesToSecondaryMaster(tabletCell, cellTag);
+        }
+    }
 
     static void ValidateTabletCellBundleName(const Stroka& name)
     {
