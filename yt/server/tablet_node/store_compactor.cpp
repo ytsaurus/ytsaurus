@@ -825,6 +825,9 @@ private:
         const TOwningKey& nextTabletPivotKey,
         NLogging::TLogger Logger)
     {
+        auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
+        writerOptions->ValidateResourceUsageIncrease = false;
+
         int writerPoolSize = std::min(
             static_cast<int>(pivotKeys.size()),
             Config_->StoreCompactor->PartitioningWriterPoolSize);
@@ -833,7 +836,7 @@ private:
             tabletSnapshot,
             writerPoolSize,
             tabletSnapshot->WriterConfig,
-            tabletSnapshot->WriterOptions,
+            writerOptions,
             Bootstrap_->GetMasterClient(),
             transaction->GetId());
 
@@ -1167,6 +1170,7 @@ private:
     {
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ChunksEden = isEden;
+        writerOptions->ValidateResourceUsageIncrease = false;
 
         TChunkWriterPool writerPool(
             Bootstrap_->GetInMemoryManager(),

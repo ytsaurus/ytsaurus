@@ -2885,6 +2885,10 @@ void TOperationControllerBase::SafeAbort()
 {
     LOG_INFO("Aborting operation controller");
 
+    // NB: context should be cancelled before aborting transactions,
+    // since controller methods can use this transactions.
+    CancelableContext->Cancel();
+
     // NB: Error ignored since we cannot do anything with it.
     WaitFor(MasterConnector->FlushOperationNode(OperationId));
 
@@ -2932,8 +2936,6 @@ void TOperationControllerBase::SafeAbort()
         .ThrowOnError();
 
     State = EControllerState::Finished;
-
-    CancelableContext->Cancel();
 
     MasterConnector->UnregisterOperation(OperationId);
 

@@ -461,7 +461,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         op1.abort()
 
-        time.sleep(1.0)
+        time.sleep(2.0)
 
         assert self._get_operation_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) == 100000
         assert self._get_operation_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 100000

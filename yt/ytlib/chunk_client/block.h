@@ -26,7 +26,7 @@ struct TBlock
     TBlock(TSharedRef block, TChecksum checksum);
 
     TSharedRef Data;
-    TChecksum Checksum;
+    TChecksum Checksum = NullChecksum;
 
     operator bool() const;
 
