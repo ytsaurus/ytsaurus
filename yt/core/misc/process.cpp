@@ -443,6 +443,9 @@ void TProcess::DoSpawn()
 
 void TProcess::SpawnChild()
 {
+    // NB: When fork() will cause data corruptions when run concurrently with
+    // Disk IO on O_DIRECT file descriptor. Seems like vfork don't suffer from the same issue since.
+
 #ifdef _unix_
     int pid = vfork();
 
