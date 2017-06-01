@@ -153,22 +153,31 @@ public class SelectRowsBenchmark {
 
         for (int i = 0; i < threads; ++i) {
             executorService.execute(() -> {
-                for (; ; ) {
+                for (;;) {
+                    RequestGroup request;
+
+                    try {
+                        request = queue.take();
+                    } catch (InterruptedException e) {
+                        continue;
+                    }
+
                     lock.lock();
 
                     try {
-                        while (requestsMeter.getMeanRate() > rpsLimit) {
-                            Thread.sleep(10);
-                        }
-
                         while (inflight >= maxInflight) {
                             notFull.await();
                         }
 
-                        RequestGroup request = queue.take();
-                        long t0 = System.nanoTime();
-
                         inflight ++;
+                    } catch (InterruptedException e) {
+                        continue;
+                    } finally {
+                        lock.unlock();
+                    }
+
+                    try {
+                        long t0 = System.nanoTime();
                         List<CompletableFuture<UnversionedRowset>> futures = request
                             .requests.stream()
                             .map(s -> client.selectRows(s)).collect(Collectors.toList());
@@ -177,17 +186,17 @@ public class SelectRowsBenchmark {
                         CompletableFuture
                             .allOf(futures.toArray(new CompletableFuture[futures.size()]))
                             .whenComplete((a, b) -> {
+
+                                long t1 = System.nanoTime();
+                                requestsHistogram.update((t1 - t0) / 1000000);
+                                requestsMeter.mark();
+
                                 try {
                                     lock.lock();
                                     inflight --;
                                     if (inflight < maxInflight) {
                                         notFull.signalAll();
                                     }
-
-                                    long t1 = System.nanoTime();
-                                    requestsHistogram.update((t1 - t0) / 1000000);
-                                    requestsMeter.mark();
-
                                 } finally {
                                     lock.unlock();
                                 }
@@ -196,8 +205,6 @@ public class SelectRowsBenchmark {
                     } catch (Throwable e) {
                         logger.error("error", e);
                         // System.exit(1);
-                    } finally {
-                        lock.unlock();
                     }
                 }
             });
@@ -207,6 +214,8 @@ public class SelectRowsBenchmark {
             try {
                 for (RequestGroup request : requests) {
                     queue.put(request);
+                    long sleepTimeMs = 1000 / rpsLimit;
+                    TimeUnit.MILLISECONDS.sleep(sleepTimeMs);
                 }
             } catch (Throwable e) {
                 logger.error("error `{}`", e.toString());
