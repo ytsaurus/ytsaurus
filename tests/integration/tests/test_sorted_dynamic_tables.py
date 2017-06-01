@@ -1816,7 +1816,7 @@ class TestSortedDynamicTablesResourceLimits(TestSortedDynamicTablesBase):
         self.sync_flush_table("//tmp/t")
 
         with pytest.raises(YtError):
-            insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+            insert_rows("//tmp/t", [{"key": 0, "value": "1"}])
 
         set("//sys/accounts/test_account/@resource_limits/" + resource, 10000)
         insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
@@ -1824,6 +1824,9 @@ class TestSortedDynamicTablesResourceLimits(TestSortedDynamicTablesBase):
         set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
         self.sync_unmount_table("//tmp/t")
 
+        self.sync_mount_table("//tmp/t")
+        self.sync_compact_table("//tmp/t")
+        assert get("//tmp/t/@chunk_count") == 1
 
 ##################################################################
 
