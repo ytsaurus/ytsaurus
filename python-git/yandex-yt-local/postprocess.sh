@@ -130,10 +130,10 @@ EOF
 }
 
 YANDEX_YT_LOCAL_VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
-YANDEX_YT_PYTHON_VERSION="0.8.10-0"
+YANDEX_YT_PYTHON_VERSION="0.8.14-0"
 
 if [ "$UBUNTU_CODENAME" = "precise" ]; then
-    YANDEX_YT_VERSIONS="19.1.22136-prestable~bd2d4d9 19.2.22459-prestable~80f9df5"
+    YANDEX_YT_VERSIONS="19.1.22136-prestable~bd2d4d9 19.2.22511-prestable~20f68c7"
 elif [ "$UBUNTU_CODENAME" = "trusty" ]; then
     YANDEX_YT_VERSIONS="19.1.22126-prestable~36fa536 19.2.22411-prestable~1804a04"
 else
