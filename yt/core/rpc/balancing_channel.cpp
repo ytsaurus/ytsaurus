@@ -103,7 +103,7 @@ private:
     yhash_set<Stroka> ActiveAddresses_;
     yhash_set<Stroka> BannedAddresses_;
 
-    yhash_map<Stroka, IChannelPtr> AddressToViableChannel_;
+    yhash<Stroka, IChannelPtr> AddressToViableChannel_;
     std::map<std::pair<size_t, Stroka>, IChannelPtr> HashToViableChannel_;
 
     NLogging::TLogger Logger;

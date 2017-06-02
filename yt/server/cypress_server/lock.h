@@ -65,8 +65,8 @@ struct TCypressNodeLockingState
     // NB: We rely on yhash_* containers not to invalidate iterators on rehash.
     // Keep this in mind when replacing them with std::* analogues.
     yhash_set<TLock*> ExclusiveLocks;
-    yhash_multimap<TLockKey, TLock*> SharedLocks;
-    yhash_multimap<NTransactionServer::TTransaction*, TLock*> SnapshotLocks;
+    yhash_mm<TLockKey, TLock*> SharedLocks;
+    yhash_mm<NTransactionServer::TTransaction*, TLock*> SnapshotLocks;
 
     bool IsEmpty() const;
     void Persist(NCellMaster::TPersistenceContext& context);
@@ -93,9 +93,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TLockListIterator, LockListIterator);
     using TExclusiveLocksIterator = yhash_set<TLock*>::iterator;
     DEFINE_BYVAL_RW_PROPERTY(TExclusiveLocksIterator, ExclusiveLocksIterator);
-    using TSharedLocksIterator = yhash_multimap<TLockKey, TLock*>::iterator;
+    using TSharedLocksIterator = yhash_mm<TLockKey, TLock*>::iterator;
     DEFINE_BYVAL_RW_PROPERTY(TSharedLocksIterator, SharedLocksIterator);
-    using TSnapshotLocksIterator = yhash_multimap<NTransactionServer::TTransaction*, TLock*>::iterator;
+    using TSnapshotLocksIterator = yhash_mm<NTransactionServer::TTransaction*, TLock*>::iterator;
     DEFINE_BYVAL_RW_PROPERTY(TSnapshotLocksIterator, SnapshotLocksIterator);
 
 public:
