@@ -19,10 +19,8 @@ extern const NProfiling::TProfiler BusProfiler;
 using TConnectionId = TGuid;
 using TPacketId = TGuid;
 
-DECLARE_REFCOUNTED_STRUCT(IEventLoopObject)
-
+DECLARE_REFCOUNTED_STRUCT(TTcpDispatcherCounters)
 DECLARE_REFCOUNTED_CLASS(TTcpConnection)
-DECLARE_REFCOUNTED_CLASS(TTcpDispatcherThread)
 
 DEFINE_ENUM(EConnectionType,
     (Client)

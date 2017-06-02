@@ -45,9 +45,10 @@ private:
     {
         return TServerBase::DoStop(graceful).Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
         	// NB: Stop the bus server anyway.
-            BusServer_->Stop();
+            auto asyncResult = BusServer_->Stop();
             BusServer_.Reset();
             error.ThrowOnError();
+            return asyncResult;
         }));
     }
 
