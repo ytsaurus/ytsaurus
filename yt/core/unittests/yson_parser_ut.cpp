@@ -1,8 +1,6 @@
 #include "framework.h"
 #include "yson_consumer_mock.h"
 
-#include <yt/ytlib/table_client/table_consumer.h>
-
 #include <yt/core/yson/null_consumer.h>
 #include <yt/core/yson/parser.h>
 
@@ -16,7 +14,6 @@ using ::testing::InSequence;
 using ::testing::StrictMock;
 using ::testing::HasSubstr;
 
-using namespace NTableClient;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,34 +46,6 @@ public:
         parser.Finish();
     }
 
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TEmptyValueConsumer
-    : public IValueConsumer
-{
-    virtual const TNameTablePtr& GetNameTable() const
-    {
-        return NameTable;
-    }
-
-    virtual bool GetAllowUnknownColumns() const
-    {
-        return true;
-    }
-
-    virtual void OnBeginRow()
-    { }
-
-    virtual void OnValue(const TUnversionedValue& /*value*/)
-    { }
-
-    virtual void OnEndRow()
-    { }
-
-private:
-    TNameTablePtr NameTable = New<TNameTable>();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -559,21 +528,6 @@ TEST_F(TYsonParserTest, ContextInExceptions_ManyBlocks)
     GTEST_FAIL() << "Expected exception to be thrown";
 }
 
-TEST_F(TYsonParserTest, ContextInExceptions_TableConsumer)
-{
-    try {
-        TEmptyValueConsumer emptyValueConsumer;
-        TYsonParser parser(new TTableConsumer(&emptyValueConsumer), EYsonType::ListFragment);
-        parser.Read("{foo=bar};");
-        parser.Read("{bar=baz};LOG_IN");
-        parser.Read("FO something happened");
-        parser.Finish();
-    } catch (const std::exception& ex) {
-        EXPECT_THAT(ex.what(), testing::HasSubstr("LOG_INFO something happened"));
-        return;
-    }
-    GTEST_FAIL() << "Expected exception to be thrown";
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
