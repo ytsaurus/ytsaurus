@@ -424,6 +424,10 @@ class TestMedia(YTEnvSetup):
                 banned = True
         assert banned
 
+    def test_create_with_invalid_attrs_yt_7093(self):
+        with pytest.raises(YtError): create_medium("x", attributes={"priority": "hello"})
+        assert not exists("//sys/media/x")
+
 ################################################################################
 
 class TestMediaMulticell(TestMedia):
