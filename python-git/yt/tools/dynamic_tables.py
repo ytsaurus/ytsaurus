@@ -4,8 +4,6 @@
 import yt.wrapper as yt_module
 import yt.yson as yson
 from yt.common import YtError
-from yt.wrapper.common import update
-from yt.wrapper.client import Yt
 try:
     from yt.wrapper.common import run_with_retries
 except ImportError:
@@ -15,7 +13,6 @@ from yt.packages.six import iteritems
 from yt.packages.six.moves import map as imap, zip as izip
 
 import sys
-import os
 import time
 import logging
 from itertools import takewhile, chain
@@ -267,7 +264,7 @@ class DynamicTablesClient(object):
     def make_driver_yt_client(self):
         """ Make an Yt instnatiated client with no proxy/token options
         (to go from a job to the same cluster) """
-        return Yt(config=self.default_client_config)
+        return yt_module.YtClient(config=self.default_client_config)
 
 
     def build_spec_from_options(self):
@@ -320,7 +317,7 @@ class DynamicTablesClient(object):
 
                 client_config = self.default_client_config
                 def collect_pivot_keys_mapper(tablet):
-                    for pivot_key in get_pivot_keys_new(Yt(config=client_config), tablet):
+                    for pivot_key in get_pivot_keys_new(yt_module.YtClient(config=client_config), tablet):
                         yield {"pivot_key": pivot_key}
 
                 self.yt.run_map(
@@ -397,7 +394,7 @@ class DynamicTablesClient(object):
         workload_descriptor = self.workload_descriptor
         @yt_module.aggregator
         def select_mapper(bounds):
-            client = Yt(config=client_config)
+            client = yt_module.YtClient(config=client_config)
 
             for bound in bounds:
                 def do_select():
@@ -431,7 +428,7 @@ class DynamicTablesClient(object):
         client_config = self.default_client_config
         batch_size = batch_size or self.batch_size
         def insert_mapper(rows):
-            client = Yt(config=client_config)
+            client = yt_module.YtClient(config=client_config)
 
             def make_inserter(rowset):
                 def do_insert():
