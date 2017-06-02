@@ -100,6 +100,7 @@ public:
     bool IsList() const;
     bool IsMap() const;
     bool IsEntity() const;
+    bool IsUndefined() const;
 
     template<typename T>
     bool IsOfType() const noexcept;

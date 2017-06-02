@@ -144,6 +144,11 @@ bool TNode::IsEntity() const
     return Value_.Is<TEntity>();
 }
 
+bool TNode::IsUndefined() const
+{
+    return Value_.Is<TUndefined>();
+}
+
 bool TNode::Empty() const
 {
     switch (GetType()) {
