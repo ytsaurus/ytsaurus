@@ -710,7 +710,7 @@ TString THttpRequest::GetResponse()
                 ~result);
         }
     } else {
-        LOG_INFO("RSP %s - %" PRISZT " bytes",
+        LOG_DEBUG("RSP %s - %" PRISZT " bytes",
             ~RequestId,
             result.size());
     }
