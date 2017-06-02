@@ -48,9 +48,11 @@ private:
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
         attributes->push_back(TAttributeDescriptor("name")
-            .SetReplicated(true));
+            .SetReplicated(true)
+            .SetMandatory(true));
         attributes->push_back(TAttributeDescriptor("options")
-            .SetReplicated(true));
+            .SetReplicated(true)
+            .SetMandatory(true));
         attributes->push_back(TAttributeDescriptor("node_tag_filter")
             .SetReplicated(true));
         attributes->push_back("tablet_cell_count");

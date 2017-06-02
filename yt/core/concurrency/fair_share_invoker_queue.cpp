@@ -12,7 +12,7 @@ using namespace NYTree;
 
 TFairShareInvokerQueue::TFairShareInvokerQueue(
     std::shared_ptr<TEventCount> callbackEventCount,
-    const std::vector<NProfiling::TTagIdList> bucketsTagIds,
+    const std::vector<NProfiling::TTagIdList>& bucketsTagIds,
     bool enableLogging,
     bool enableProfiling)
     : Buckets_(bucketsTagIds.size())
@@ -27,8 +27,7 @@ TFairShareInvokerQueue::TFairShareInvokerQueue(
     }
 }
 
-TFairShareInvokerQueue::~TFairShareInvokerQueue()
-{ }
+TFairShareInvokerQueue::~TFairShareInvokerQueue() = default;
 
 void TFairShareInvokerQueue::SetThreadId(TThreadId threadId)
 {

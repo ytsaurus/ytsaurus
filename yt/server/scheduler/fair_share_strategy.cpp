@@ -32,16 +32,17 @@ static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 {
-    static std::unordered_map<Stroka, TTagId> tagId;
+    static yhash_map<EScheduleJobFailReason, TTagId> tagId;
 
-    auto reasonAsString = ToString(reason);
-    auto it = tagId.find(reasonAsString);
+    auto it = tagId.find(reason);
     if (it == tagId.end()) {
         it = tagId.emplace(
-            reasonAsString,
-            TProfileManager::Get()->RegisterTag("reason", reasonAsString)
+            reason,
+            TProfileManager::Get()->RegisterTag("reason", FormatEnum(reason))
         ).first;
     }
     return {it->second};
@@ -49,7 +50,7 @@ TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 
 TTagId GetChildIndexProfilingTag(int childIndex)
 {
-    static std::unordered_map<int, TTagId> childIndexToTagIdMap;
+    static yhash_map<int, TTagId> childIndexToTagIdMap;
 
     auto it = childIndexToTagIdMap.find(childIndex);
     if (it == childIndexToTagIdMap.end()) {
@@ -60,6 +61,8 @@ TTagId GetChildIndexProfilingTag(int childIndex)
     }
     return it->second;
 };
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,7 +79,7 @@ public:
         , PreemptiveProfilingCounters("/preemptive")
         , LastProfilingTime_(TInstant::Zero())
     {
-        RootElement = New<TRootElement>(Host, config);
+        RootElement = New<TRootElement>(Host, GetPoolProfilingTag(RootPoolName), config);
 
         FairShareUpdateExecutor_ = New<TPeriodicExecutor>(
             GetCurrentInvoker(),
@@ -172,12 +175,12 @@ public:
 
         const auto& userName = operation->GetAuthenticatedUser();
 
-        auto poolName = spec->Pool ? *spec->Pool : userName;
-        auto pool = FindPool(poolName);
+        auto poolId = spec->Pool ? *spec->Pool : userName;
+        auto pool = FindPool(poolId);
         if (!pool) {
-            pool = New<TPool>(Host, poolName, Config);
+            pool = New<TPool>(Host, poolId, GetPoolProfilingTag(poolId), Config);
             pool->SetUserName(userName);
-            UserToEphemeralPools[userName].insert(poolName);
+            UserToEphemeralPools[userName].insert(poolId);
             RegisterPool(pool);
         }
         if (!pool->GetParent()) {
@@ -190,7 +193,7 @@ public:
         pool->IncreaseResourceUsage(operationElement->GetResourceUsage());
         operationElement->SetParent(pool.Get());
 
-        AssignOperationPoolIndex(operation, poolName);
+        AssignOperationPoolIndex(operation, poolId);
 
         if (CanAddOperationToPool(pool.Get())) {
             ActivateOperation(operation->GetId());
@@ -394,7 +397,7 @@ public:
                             YCHECK(orphanPoolIds.erase(childId) == 1);
                         } else {
                             // Create new pool.
-                            pool = New<TPool>(Host, childId, Config);
+                            pool = New<TPool>(Host, childId, GetPoolProfilingTag(childId), Config);
                             pool->SetConfig(config);
                             RegisterPool(pool, parent);
                         }
@@ -703,8 +706,11 @@ private:
     ISchedulerStrategyHost* const Host;
 
     INodePtr LastPoolsNodeUpdate;
-    typedef yhash<Stroka, TPoolPtr> TPoolMap;
+
+    using TPoolMap = yhash<Stroka, TPoolPtr>;
     TPoolMap Pools;
+
+    yhash_map<Stroka, NProfiling::TTagId> PoolIdToProfilingTagId;
 
     yhash<Stroka, yhash_set<Stroka>> UserToEphemeralPools;
 
@@ -1346,6 +1352,18 @@ private:
         auto pool = FindPool(id);
         YCHECK(pool);
         return pool;
+    }
+
+    NProfiling::TTagId GetPoolProfilingTag(const Stroka& id)
+    {
+        auto it = PoolIdToProfilingTagId.find(id);
+        if (it == PoolIdToProfilingTagId.end()) {
+            it = PoolIdToProfilingTagId.emplace(
+                id,
+                NProfiling::TProfileManager::Get()->RegisterTag("pool", id)
+            ).first;
+        }
+        return it->second;
     }
 
 

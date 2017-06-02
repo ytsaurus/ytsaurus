@@ -36,6 +36,11 @@ DEFINE_ENUM(ESyncStreamAdapterStrategy,
 
 class TAsyncSemaphore;
 
+DEFINE_ENUM(EExecutionStackKind,
+    (Small) // 256 Kb (default)
+    (Large) //   8 Mb
+);
+
 class TFiber;
 
 template <class TSignature>
