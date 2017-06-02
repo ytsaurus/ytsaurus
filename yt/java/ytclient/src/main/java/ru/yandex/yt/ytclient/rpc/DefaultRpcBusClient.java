@@ -23,6 +23,7 @@ import io.netty.util.concurrent.ScheduledFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.slf4j.helpers.BasicMarker;
 import ru.yandex.yt.rpc.TRequestCancelationHeader;
 import ru.yandex.yt.rpc.TRequestHeaderOrBuilder;
 import ru.yandex.yt.rpc.TResponseHeader;
@@ -215,11 +216,16 @@ public class DefaultRpcBusClient implements RpcClient {
 
                 BusDeliveryTracking level =
                         request.requestAck() ? BusDeliveryTracking.FULL : BusDeliveryTracking.SENT;
+
+                logger.debug("({}) starting request `{}`", toString(), requestId);
                 session.bus.send(message, level).whenComplete((ignored, exception) -> {
+                    Duration elapsed = Duration.between(started, Instant.now());
                     if (exception != null) {
                         error(exception);
+                        logger.debug("({}) request `{}` finished in {} ms with error `{}`", toString(), requestId, elapsed.toMillis(), exception.toString());
                     } else {
                         ack();
+                        logger.debug("({}) request `{}` finished in {} ms", toString(), requestId, elapsed.toMillis());
                     }
                 });
 
