@@ -368,6 +368,7 @@ int TTcpConnection::GetSocketPort()
 
 void TTcpConnection::CloseSocket()
 {
+    TWriterGuard guard(ControlSpinLock_);
     if (Socket_ != INVALID_SOCKET) {
         close(Socket_);
         Socket_ = INVALID_SOCKET;
