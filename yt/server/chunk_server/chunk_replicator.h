@@ -6,6 +6,8 @@
 
 #include <yt/server/cell_master/public.h>
 
+#include <yt/server/misc/max_min_balancer.h>
+
 #include <yt/server/node_tracker_server/rack.h>
 
 #include <yt/ytlib/chunk_client/chunk_replica.h>
@@ -159,7 +161,8 @@ private:
     //! Medium index designates the medium where the chunk is missing some of
     //! its parts. It's always equal to the index of its queue.
     //! In each queue, a single chunk may only appear once.
-    std::array<TChunkRepairQueue, MaxMediumCount>  ChunkRepairQueues_ = {};
+    TPerMediumArray<TChunkRepairQueue>  ChunkRepairQueues_ = {};
+    TDecayingMaxMinBalancer<int, double> ChunkRepairQueueBalancer_;
 
     const NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
 

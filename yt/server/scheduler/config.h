@@ -300,6 +300,9 @@ public:
     i64 MaxSliceDataSize;
     i64 MinSliceDataSize;
 
+    //! Maximum number of output tables times job count an operation can have.
+    int MaxOutputTablesTimesJobsCount;
+
     TOperationOptions()
     {
         RegisterParameter("spec_template", SpecTemplate)
@@ -321,6 +324,10 @@ public:
         RegisterParameter("min_slice_data_size", MinSliceDataSize)
             .Default((i64)1 * 1024 * 1024)
             .GreaterThan(0);
+
+        RegisterParameter("max_output_tables_times_jobs_count", MaxOutputTablesTimesJobsCount)
+            .Default(20 * 100000)
+            .GreaterThanOrEqual(100000);
 
         RegisterValidator([&] () {
             if (MaxSliceDataSize < MinSliceDataSize) {
@@ -759,9 +766,6 @@ public:
     //! Maximum size of file allowed to be passed to jobs.
     i64 MaxFileSize;
 
-    //! Maximum number of output tables times job count an operation can have.
-    int MaxOutputTablesTimesJobsCount;
-
     //! Maximum number of input tables an operation can have.
     int MaxInputTableCount;
 
@@ -1058,10 +1062,6 @@ public:
         RegisterParameter("max_user_file_count", MaxUserFileCount)
             .Default(1000)
             .GreaterThan(0);
-
-        RegisterParameter("max_output_tables_times_jobs_count", MaxOutputTablesTimesJobsCount)
-            .Default(20 * 100000)
-            .GreaterThanOrEqual(100000);
 
         RegisterParameter("max_started_jobs_per_heartbeat", MaxStartedJobsPerHeartbeat)
             .Default()

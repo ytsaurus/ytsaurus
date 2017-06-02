@@ -17,8 +17,7 @@ class THistogram
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
-    THistogram()
-    { }
+    THistogram() = default;
 
     explicit THistogram(int defaultBuckets)
         : MaxBuckets_(defaultBuckets * HistogramViewReserveFactor)
@@ -157,8 +156,6 @@ void Serialize(const IHistogram& histogram, IYsonConsumer* consumer)
         .EndMap();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 THistogramQuartiles ComputeHistogramQuartiles(const THistogramView& histogramView)
 {
     YCHECK(histogramView.Count.size() > 0);
@@ -183,6 +180,8 @@ THistogramQuartiles ComputeHistogramQuartiles(const THistogramView& histogramVie
 
     return result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 

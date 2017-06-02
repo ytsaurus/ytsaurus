@@ -10,7 +10,6 @@ namespace NChunkClient {
 TBlock::TBlock(
     TSharedRef block)
     : Data(std::move(block))
-    , Checksum(NullChecksum)
 { }
 
 TBlock::TBlock(
@@ -54,6 +53,18 @@ bool TBlock::IsChecksumValid() const
         return true;
     }
     return GetChecksum(Data) == Checksum;
+}
+
+void TBlock::ValidateChecksum() const
+{
+    if (Checksum == NullChecksum) {
+        return;
+    }
+
+    auto actual = GetChecksum(Data);
+    if (actual != Checksum) {
+        throw TBlockChecksumValidationException(Checksum, actual);
+    }
 }
 
 TChecksum TBlock::GetOrComputeChecksum() const

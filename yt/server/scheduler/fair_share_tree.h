@@ -181,6 +181,8 @@ public:
 
     bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const;
 
+    virtual bool IsAggressiveStarvationPreemptionAllowed() const = 0;
+
     bool IsAlive() const;
     void SetAlive(bool alive);
 
@@ -307,6 +309,8 @@ public:
     virtual bool IsExplicit() const;
     virtual bool IsAggressiveStarvationEnabled() const;
 
+    virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
+
     void AddChild(const TSchedulerElementPtr& child, bool enabled = true);
     void EnableChild(const TSchedulerElementPtr& child);
     void RemoveChild(const TSchedulerElementPtr& child);
@@ -394,6 +398,8 @@ public:
     virtual bool IsExplicit() const override;
     virtual bool IsAggressiveStarvationEnabled() const override;
 
+    virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
+
     virtual Stroka GetId() const override;
 
     virtual double GetWeight() const override;
@@ -442,6 +448,7 @@ class TOperationElementFixedState
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NControllerAgent::IOperationControllerPtr, Controller);
+    DEFINE_BYVAL_RW_PROPERTY(int, ChildIndex, -1);
 
 protected:
     explicit TOperationElementFixedState(TOperationPtr operation);
@@ -670,6 +677,8 @@ public:
     virtual bool ScheduleJob(TFairShareContext& context) override;
 
     virtual Stroka GetId() const override;
+
+    virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
     virtual double GetWeight() const override;
     virtual double GetMinShareRatio() const override;

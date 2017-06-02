@@ -45,6 +45,7 @@ using TKeyColumns = std::vector<Stroka>;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Keep values below consistent with https://wiki.yandex-team.ru/yt/userdoc/tables.
+const int MaxKeyColumnCount = 256;
 const int TypicalColumnCount = 64;
 const int MaxColumnLockCount = 32;
 extern const Stroka PrimaryLockName;
@@ -53,7 +54,6 @@ const int MaxColumnLockLength = 256;
 const int MaxColumnGroupLength = 256;
 
 // Only for dynamic tables.
-const int MaxKeyColumnCount = 32;
 const int MaxValuesPerRow = 1024;
 const int MaxRowsPerRowset = 1024 * 1024;
 const i64 MaxStringValueLength = (i64) 16 * 1024 * 1024;

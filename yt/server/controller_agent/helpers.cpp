@@ -26,6 +26,7 @@ public:
     TSimpleJobSizeConstraints(
         const TSimpleOperationSpecBasePtr& spec,
         const TSimpleOperationOptionsPtr& options,
+        int outputTableCount,
         i64 primaryInputDataSize,
         i64 inputRowCount,
         i64 foreignInputDataSize)
@@ -50,6 +51,11 @@ public:
 
         JobCount_ = std::min(JobCount_, maxJobCount);
         JobCount_ = std::min(JobCount_, InputRowCount_);
+   
+        if (JobCount_ * outputTableCount > Options_->MaxOutputTablesTimesJobsCount) {
+            // ToDo(psushin): register alert if explicit job count or data size per job were given.
+            JobCount_ = DivCeil(Options_->MaxOutputTablesTimesJobsCount, outputTableCount);
+        }
 
         YCHECK(JobCount_ >= 0);
         YCHECK(JobCount_ != 0 || InputDataSize_ == 0);
@@ -509,11 +515,12 @@ DEFINE_REFCOUNTED_TYPE(TExplicitJobSizeConstraints);
 IJobSizeConstraintsPtr CreateSimpleJobSizeConstraints(
     const TSimpleOperationSpecBasePtr& spec,
     const TSimpleOperationOptionsPtr& options,
+    int outputTableCount,
     i64 primaryInputDataSize,
     i64 inputRowCount,
     i64 foreignInputDataSize)
 {
-    return New<TSimpleJobSizeConstraints>(spec, options, primaryInputDataSize, inputRowCount, foreignInputDataSize);
+    return New<TSimpleJobSizeConstraints>(spec, options, outputTableCount, primaryInputDataSize, inputRowCount, foreignInputDataSize);
 }
 
 IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(
@@ -536,14 +543,27 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
 
 IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     const TSortOperationSpecBasePtr& spec,
-    const TSortOperationOptionsBasePtr& options)
+    const TSortOperationOptionsBasePtr& options,
+    int outputTableCount)
 {
+
+    // NB(psushin): I don't know real partition size at this point,
+    // but I assume at least 2 sort jobs per partition.
+    // Also I don't know exact partition count, so I take the worst case scenario.
+    i64 jobsPerPartition = DivCeil(
+        options->MaxOutputTablesTimesJobsCount,
+        outputTableCount * options->MaxPartitionCount);
+    i64 estimatedDataSizePerPartition = 2 * spec->DataSizePerSortedJob.Get(spec->DataSizePerShuffleJob);
+
+    i64 minDataSizePerJob = std::max(estimatedDataSizePerPartition / jobsPerPartition, (i64)1);
+    i64 dataSizePerJob = std::max(minDataSizePerJob, spec->DataSizePerSortedJob.Get(spec->DataSizePerShuffleJob));
+
     return CreateExplicitJobSizeConstraints(
         false /* canAdjustDataSizePerJob */,
         false /* isExplicitJobCount */,
         0 /* jobCount */,
-        spec->DataSizePerSortedJob.Get(spec->DataSizePerShuffleJob) /* dataSizePerJob */,
-        spec->DataSizePerSortedJob.Get(spec->DataSizePerShuffleJob) /* dataSizePerJob */,
+        dataSizePerJob /* dataSizePerJob */,
+        dataSizePerJob /* dataSizePerJob */,
         options->MaxDataSlicesPerJob /* maxDataSlicesPerJob */,
         std::numeric_limits<i64>::max() /* maxDataSizePerJob */,
         std::numeric_limits<i64>::max() /* inputSliceDataSize */,

@@ -252,9 +252,14 @@ void TBlobSession::DoWriteBlock(const TBlock& block, int blockIndex)
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
             Y_UNREACHABLE();
         }
-    } catch (const TBlockChecksumValidationException&) {
-        THROW_ERROR_EXCEPTION("Invalid checksum detected in chunk block")
-            << TErrorAttribute("block_id", block);
+    } catch (const TBlockChecksumValidationException& ex) {
+        SetFailed(TError(
+            NChunkClient::EErrorCode::InvalidBlockChecksum,
+            "Invalid checksum detected in chunk block %v",
+            blockId)
+            << TErrorAttribute("expected_checksum", ex.GetExpected())
+            << TErrorAttribute("actual_checksum", ex.GetActual()),
+            /* fatal */ false);
     } catch (const std::exception& ex) {
         SetFailed(TError(
             NChunkClient::EErrorCode::IOError,
@@ -340,7 +345,7 @@ void TBlobSession::DoOpenWriter()
     PROFILE_TIMING ("/blob_chunk_open_time") {
         try {
             auto fileName = Location_->GetChunkPath(GetChunkId());
-            Writer_ = New<TFileWriter>(GetChunkId(), fileName, Options_.SyncOnClose);
+            Writer_ = New<TFileWriter>(GetChunkId(), fileName, Options_.SyncOnClose, Options_.EnableWriteDirectIO);
             // File writer opens synchronously.
             Writer_->Open()
                 .Get()
@@ -566,7 +571,7 @@ void TBlobSession::ReleaseSpace()
     Location_->UpdateUsedSpace(-Size_);
 }
 
-void TBlobSession::SetFailed(const TError& error)
+void TBlobSession::SetFailed(const TError& error, bool fatal)
 {
     // Thread affinity: WriterThread
 
@@ -578,8 +583,10 @@ void TBlobSession::SetFailed(const TError& error)
     Bootstrap_->GetControlInvoker()->Invoke(
         BIND(&TBlobSession::MarkAllSlotsWritten, MakeStrong(this), error));
 
-    Location_->Disable(Error_);
-    Y_UNREACHABLE(); // Disable() exits the process.
+    if (fatal) {
+        Location_->Disable(Error_);
+        Y_UNREACHABLE(); // Disable() exits the process.
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

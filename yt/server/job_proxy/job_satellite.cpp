@@ -32,6 +32,8 @@
 #include <yt/core/misc/stracer.h>
 #include <yt/core/misc/signaler.h>
 
+#include <yt/ytlib/cgroup/cgroup.h>
+
 #include <yt/ytlib/job_tracker_client/public.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>

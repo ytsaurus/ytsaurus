@@ -12,7 +12,7 @@
 #include <yt/core/actions/cancelable_context.h>
 #include <yt/core/actions/future.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/logging/log.h>

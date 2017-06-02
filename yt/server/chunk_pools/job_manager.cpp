@@ -312,11 +312,6 @@ void TJobManager::Completed(IChunkPoolOutput::TCookie cookie, EInterruptReason r
     RowCounter_.Completed(Jobs_[cookie].GetRowCount());
     if (reason == EInterruptReason::None) {
         Jobs_[cookie].SetState(EJobState::Completed);
-    } else {
-        JobCounter_.Increment(1);
-        DataSizeCounter_.Increment(Jobs_[cookie].GetDataSize());
-        RowCounter_.Increment(Jobs_[cookie].GetRowCount());
-        Jobs_[cookie].SetState(EJobState::Pending);
     }
 }
 

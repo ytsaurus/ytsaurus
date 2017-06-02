@@ -3027,7 +3027,7 @@ private:
         auto minReplicationRowIndex = std::numeric_limits<i64>::max();
         for (const auto& pair : tablet->Replicas()) {
             const auto& replicaInfo = pair.second;
-            minReplicationRowIndex = replicaInfo.GetCurrentReplicationRowIndex();
+            minReplicationRowIndex = std::min(minReplicationRowIndex, replicaInfo.GetCurrentReplicationRowIndex());
         }
 
         const auto& storeRowIndexMap = tablet->StoreRowIndexMap();

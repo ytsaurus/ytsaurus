@@ -124,9 +124,9 @@ Stroka KeyToYson(TUnversionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NScheduler::NProto::TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer);
+NScheduler::NProto::TOutputResult GetWrittenChunksBoundaryKeys(
+    ISchemalessMultiChunkWriterPtr writer);
 
-////////////////////////////////////////////////////////////////////////////////
 
 std::pair<TOwningKey, TOwningKey> GetChunkBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
@@ -134,8 +134,8 @@ std::pair<TOwningKey, TOwningKey> GetChunkBoundaryKeys(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
 } // namespace NTableClient
+} // namespace NYT
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

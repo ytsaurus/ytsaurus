@@ -49,6 +49,14 @@ struct TAdminOptions;
 struct TClientOptions;
 struct TTransactionParticipantOptions;
 
+struct TTimeoutOptions;
+struct TTransactionalOptions;
+struct TPrerequisiteOptions;
+struct TMasterReadOptions;
+struct TMutatingOptions;
+struct TSuppressableAccessTrackingOptions;
+struct TTabletRangeOptions;
+
 DECLARE_REFCOUNTED_STRUCT(IConnection)
 DECLARE_REFCOUNTED_STRUCT(IAdmin)
 DECLARE_REFCOUNTED_STRUCT(IClientBase)

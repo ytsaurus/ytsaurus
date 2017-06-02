@@ -478,6 +478,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        LOG_DEBUG("Validating permission %Qv of user %Qv on pool %Qv",
+            permission,
+            user,
+            path);
+
         const auto& client = GetMasterClient();
         auto result = WaitFor(client->CheckPermission(user, GetPoolsPath() + path, permission))
             .ValueOrThrow();
@@ -489,6 +494,8 @@ public:
                 path.empty() ? RootPoolName : path)
                 << result.ToError(user, permission);
         }
+
+        LOG_DEBUG("Pool permission successfully validated");
     }
 
 
@@ -498,6 +505,11 @@ public:
         EPermission permission) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        LOG_DEBUG("Validating permission %Qv of user %Qv on operation %v",
+            permission,
+            user,
+            ToString(operationId));
 
         auto path = GetOperationPath(operationId);
 
@@ -518,6 +530,8 @@ public:
                 user,
                 operationId);
         }
+
+        LOG_DEBUG("Operation permission successfully validated");
     }
 
     TFuture<TOperationPtr> StartOperation(
@@ -2191,7 +2205,7 @@ private:
                 try {
                     controller->Abort();
                 } catch (const std::exception& ex) {
-                    LOG_ERROR(ex, "Failed to abort controller");
+                    LOG_ERROR(ex, "Failed to abort controller (OperationId: %v)", operation->GetId());
                     MasterConnector_->Disconnect();
                     return;
                 }

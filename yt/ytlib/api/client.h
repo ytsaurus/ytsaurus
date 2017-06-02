@@ -132,6 +132,7 @@ struct TPrerequisiteOptions
 
 struct TMountTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 {
     NTabletClient::TTabletCellId CellId = NTabletClient::NullTabletCellId;
@@ -140,6 +141,7 @@ struct TMountTableOptions
 
 struct TUnmountTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 {
     bool Force = false;
@@ -147,21 +149,25 @@ struct TUnmountTableOptions
 
 struct TRemountTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 { };
 
 struct TFreezeTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 { };
 
 struct TUnfreezeTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 { };
 
 struct TReshardTableOptions
     : public TTimeoutOptions
+    , public TMutatingOptions
     , public TTabletRangeOptions
 { };
 
@@ -192,6 +198,12 @@ struct TAlterTableReplicaOptions
 {
     TNullable<bool> Enabled;
     TNullable<NTabletClient::ETableReplicaMode> Mode;
+};
+
+struct TGetInSyncReplicasOptions
+    : public TTimeoutOptions
+{
+    NTransactionClient::TTimestamp Timestamp = NTransactionClient::NullTimestamp;
 };
 
 struct TAddMemberOptions
@@ -466,6 +478,7 @@ struct TNodeExistsOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
     , public TTransactionalOptions
+    , public TSuppressableAccessTrackingOptions
     , public TPrerequisiteOptions
 { };
 
@@ -691,6 +704,13 @@ struct IClientBase
     virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
         const TTableWriterOptions& options = TTableWriterOptions()) = 0;
+
+    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        const TSharedRange<NTableClient::TKey>& keys,
+        const TGetInSyncReplicasOptions& options = TGetInSyncReplicasOptions()) = 0;
+
 
     // Cypress
     virtual TFuture<NYson::TYsonString> GetNode(

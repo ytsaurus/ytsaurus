@@ -707,6 +707,11 @@ bool TCompositeSchedulerElement::IsAggressiveStarvationEnabled() const
     return false;
 }
 
+bool TCompositeSchedulerElement::IsAggressiveStarvationPreemptionAllowed() const
+{
+    return true;
+}
+
 void TCompositeSchedulerElement::AddChild(const TSchedulerElementPtr& child, bool enabled)
 {
     YCHECK(!Cloned_);
@@ -1100,6 +1105,12 @@ void TPool::SetDefaultConfig()
     DoSetConfig(New<TPoolConfig>());
     DefaultConfigured_ = true;
     SchedulingTagFilter_ = EmptySchedulingTagFilter;
+}
+
+bool TPool::IsAggressiveStarvationPreemptionAllowed() const
+{
+    return Config_->AllowAggressiveStarvationPreemption.Get(
+        GetParent()->IsAggressiveStarvationPreemptionAllowed());
 }
 
 bool TPool::IsExplicit() const
@@ -1825,6 +1836,12 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
 Stroka TOperationElement::GetId() const
 {
     return ToString(OperationId_);
+}
+
+bool TOperationElement::IsAggressiveStarvationPreemptionAllowed() const
+{
+    return Spec_->AllowAggressiveStarvationPreemption.Get(
+        GetParent()->IsAggressiveStarvationPreemptionAllowed());
 }
 
 double TOperationElement::GetWeight() const

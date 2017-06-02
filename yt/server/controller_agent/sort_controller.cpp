@@ -1970,11 +1970,13 @@ protected:
             jobOptions.EnablePeriodicYielder = false;
             chunkPoolOptions.OperationId = OperationId;
             chunkPoolOptions.SortedJobOptions = jobOptions;
-            chunkPoolOptions.JobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(Spec, Options);
+            chunkPoolOptions.JobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(
+                Spec,
+                Options,
+                GetOutputTablePaths().size());
             return CreateSortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
         }
     }
-
 
     virtual EJobType GetPartitionJobType() const = 0;
     virtual EJobType GetIntermediateSortJobType() const = 0;

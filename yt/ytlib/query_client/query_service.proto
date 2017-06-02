@@ -42,3 +42,27 @@ message TRspRead
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetTabletInfo
+{
+    repeated NYT.NProto.TGuid tablet_ids = 1;
+}
+
+message TReplicaInfo
+{
+    required NYT.NProto.TGuid replica_id = 1;
+    required uint64 last_replication_timestamp = 2;
+}
+
+message TTabletInfo
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    repeated TReplicaInfo replica_info = 2;
+}
+
+message TRspGetTabletInfo
+{
+    repeated TTabletInfo tablet_info = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
