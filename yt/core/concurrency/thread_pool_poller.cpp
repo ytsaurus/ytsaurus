@@ -147,8 +147,8 @@ private:
     public:
         TThread(TThreadPoolPoller* poller, int index)
             : Poller_(poller)
-              , Index_(index)
-              , Thread_(&TThread::ThreadMainTrampoline, this)
+            , Index_(index)
+            , Thread_(&TThread::ThreadMainTrampoline, this)
         { }
 
         void Start()
@@ -200,14 +200,14 @@ private:
                 // While this is not a fiber-friendly environment, it's nice to have a unique
                 // fiber id installed, for diagnostic purposes.
                 SetCurrentFiberId(GenerateFiberId());
-                HandleEvent();
+                HandleEvents();
                 HandleUnregister();
             }
 
             LOG_DEBUG("Poller thread stopped (Name: %v)", threadName);
         }
 
-        void HandleEvent()
+        void HandleEvents()
         {
             std::array<decltype(Poller_->Impl_)::TEvent, MaxEventsPerPoll> events;
             int eventCount = Poller_->Impl_.Wait(events.data(), MaxEventsPerPoll, PollerThreadQuantum.MicroSeconds());
@@ -275,11 +275,13 @@ private:
 
         void OnCallback()
         {
+            WakeupHandle_.Clear();
+
             TClosure callback;
             while (Callbacks_.Dequeue(&callback)) {
                 callback.Run();
             }
-            WakeupHandle_.Clear();
+
             ArmPoller();
         }
 
