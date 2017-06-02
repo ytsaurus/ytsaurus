@@ -83,8 +83,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(TNodePtrWithIndexes value);
-Stroka ToString(TChunkPtrWithIndexes value);
+TString ToString(TNodePtrWithIndexes value);
+TString ToString(TChunkPtrWithIndexes value);
 
 void ToProto(ui32* protoValue, TNodePtrWithIndexes value);
 

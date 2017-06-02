@@ -249,7 +249,7 @@ class TFileChangelogDispatcher::TImpl
 public:
     TImpl(
         const TFileChangelogDispatcherConfigPtr config,
-        const Stroka& threadName,
+        const TString& threadName,
         const TProfiler& profiler)
         : Config_(config)
         , ProcessQueuesCallback_(BIND(&TImpl::ProcessQueues, MakeWeak(this)))
@@ -582,7 +582,7 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelog)
 
 TFileChangelogDispatcher::TFileChangelogDispatcher(
     TFileChangelogDispatcherConfigPtr config,
-    const Stroka& threadName,
+    const TString& threadName,
     const TProfiler& profiler)
     : Impl_(New<TImpl>(
         config,
@@ -598,7 +598,7 @@ IInvokerPtr TFileChangelogDispatcher::GetInvoker()
 }
 
 IChangelogPtr TFileChangelogDispatcher::CreateChangelog(
-    const Stroka& path,
+    const TString& path,
     const TChangelogMeta& meta,
     TFileChangelogConfigPtr config)
 {
@@ -609,7 +609,7 @@ IChangelogPtr TFileChangelogDispatcher::CreateChangelog(
 }
 
 IChangelogPtr TFileChangelogDispatcher::OpenChangelog(
-    const Stroka& path,
+    const TString& path,
     TFileChangelogConfigPtr config)
 {
     auto syncChangelog = New<TSyncFileChangelog>(path, config);

@@ -333,7 +333,7 @@ private:
     } Length_;
     ui32 ExpectedBytes_ = sizeof(ui32);
 
-    Stroka Data_;
+    TString Data_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -108,18 +108,18 @@ TTableUploadOptions GetTableUploadOptions(
 
 // Mostly used in unittests and for debugging purposes.
 TUnversionedOwningRow YsonToSchemafulRow(
-    const Stroka& yson,
+    const TString& yson,
     const TTableSchema& tableSchema,
     bool treatMissingAsNull);
 TUnversionedOwningRow YsonToSchemalessRow(
-    const Stroka& yson);
+    const TString& yson);
 TVersionedRow YsonToVersionedRow(
     const TRowBufferPtr& rowBuffer,
-    const Stroka& keyYson,
-    const Stroka& valueYson,
+    const TString& keyYson,
+    const TString& valueYson,
     const std::vector<TTimestamp>& deleteTimestamps = std::vector<TTimestamp>());
-TUnversionedOwningRow YsonToKey(const Stroka& yson);
-Stroka KeyToYson(TUnversionedRow row);
+TUnversionedOwningRow YsonToKey(const TString& yson);
+TString KeyToYson(TUnversionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 

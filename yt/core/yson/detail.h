@@ -146,9 +146,9 @@ public:
         ContextSize = 0;
     }
 
-    Stroka GetContextFromCheckpoint() const
+    TString GetContextFromCheckpoint() const
     {
-        Stroka result;
+        TString result;
         result.append(Context, ContextSize);
         if (ContextBegin && *ContextBegin != nullptr) {
             size_t remainingSize = MaxContextSize - ContextSize;
@@ -197,7 +197,7 @@ public:
     void CheckpointContext()
     { }
 
-    Stroka GetContextFromCheckpoint() const
+    TString GetContextFromCheckpoint() const
     {
         return "<context is disabled>";
     }

@@ -103,7 +103,7 @@ Y_FORCE_INLINE void TNullTraceContextGuard::Release()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE bool IsTracingEnabled(const Stroka&)
+Y_FORCE_INLINE bool IsTracingEnabled(const TString&)
 {
     return NTracing::IsTracingEnabled();
 }
@@ -120,7 +120,7 @@ Y_FORCE_INLINE bool IsTracingEnabled(const TTraceContext& context)
 
 template <class T>
 void TraceEvent(
-    const Stroka& annotationKey,
+    const TString& annotationKey,
     const T& annotationValue)
 {
     using ::ToString;
@@ -132,7 +132,7 @@ void TraceEvent(
 template <class T>
 void TraceEvent(
     const TTraceContext& context,
-    const Stroka& annotationKey,
+    const TString& annotationKey,
     const T& annotationValue)
 {
     using ::ToString;

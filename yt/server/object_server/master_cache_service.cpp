@@ -66,18 +66,18 @@ private:
 
     struct TKey
     {
-        Stroka User;
+        TString User;
         TYPath Path;
-        Stroka Service;
-        Stroka Method;
+        TString Service;
+        TString Method;
         TSharedRef RequestBody;
         size_t RequestBodyHash;
 
         TKey(
-            const Stroka& user,
+            const TString& user,
             const TYPath& path,
-            const Stroka& service,
-            const Stroka& method,
+            const TString& service,
+            const TString& method,
             const TSharedRef& requestBody)
             : User(user)
             , Path(path)
@@ -108,7 +108,7 @@ private:
                 TRef::AreBitwiseEqual(RequestBody, other.RequestBody);
         }
 
-        friend Stroka ToString(const TKey& key)
+        friend TString ToString(const TKey& key)
         {
             return Format("{%v %v:%v %v %x}",
                 key.User,

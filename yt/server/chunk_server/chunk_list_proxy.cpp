@@ -87,7 +87,7 @@ private:
         }
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
     {
         auto* chunkList = GetThisImpl();
 
@@ -142,7 +142,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const TString& key) override
     {
         auto* chunkList = GetThisImpl();
 

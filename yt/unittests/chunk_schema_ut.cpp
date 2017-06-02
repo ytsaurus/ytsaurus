@@ -26,15 +26,15 @@ TEST_F(TChunkSchemaTest, RangeContains)
     {
         TColumnRange range(""); // Infinite range
         EXPECT_TRUE(range.Contains(""));
-        EXPECT_TRUE(range.Contains(Stroka(ZeroLiteral)));
+        EXPECT_TRUE(range.Contains(TString(ZeroLiteral)));
         EXPECT_TRUE(range.Contains(TColumnRange("")));
         EXPECT_TRUE(range.Contains("anything"));
     }
 
     {
-        TColumnRange range("", Stroka(ZeroLiteral));
+        TColumnRange range("", TString(ZeroLiteral));
         EXPECT_TRUE(range.Contains(""));
-        EXPECT_FALSE(range.Contains(Stroka(ZeroLiteral)));
+        EXPECT_FALSE(range.Contains(TString(ZeroLiteral)));
         EXPECT_FALSE(range.Contains(TColumnRange("")));
         EXPECT_FALSE(range.Contains("anything"));
     }
@@ -62,7 +62,7 @@ TEST_F(TChunkSchemaTest, RangeOverlaps)
     {
         TColumnRange range("");
         EXPECT_TRUE(range.Overlaps(TColumnRange("")));
-        EXPECT_TRUE(range.Overlaps(TColumnRange("", Stroka(ZeroLiteral))));
+        EXPECT_TRUE(range.Overlaps(TColumnRange("", TString(ZeroLiteral))));
         EXPECT_TRUE(range.Overlaps(TColumnRange("anything", "c")));
     }
 }

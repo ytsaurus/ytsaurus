@@ -64,7 +64,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
     {
         const auto* cellBundle = GetThisImpl();
 
@@ -104,14 +104,14 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(const TString& key, const TYsonString& value) override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
         auto* cellBundle = GetThisImpl();
 
         if (key == "name") {
-            auto newName = ConvertTo<Stroka>(value);
+            auto newName = ConvertTo<TString>(value);
             tabletManager->RenameTabletCellBundle(cellBundle, newName);
             return true;
         }
@@ -127,7 +127,7 @@ private:
         }
 
         if (key == "node_tag") {
-            auto nodeTag = ConvertTo<Stroka>(value);
+            auto nodeTag = ConvertTo<TString>(value);
             cellBundle->SetNodeTag(nodeTag);
             return true;
         }
@@ -135,7 +135,7 @@ private:
         return TBase::SetBuiltinAttribute(key, value);
     }
 
-    virtual bool RemoveBuiltinAttribute(const Stroka& key) override
+    virtual bool RemoveBuiltinAttribute(const TString& key) override
     {
         auto* cellBundle = GetThisImpl();
 

@@ -25,7 +25,7 @@ struct TColumnSchema
 {
     TColumnSchema();
     TColumnSchema(
-        const Stroka& name,
+        const TString& name,
         EValueType type,
         TNullable<ESortOrder> SortOrder = Null);
 
@@ -36,18 +36,18 @@ struct TColumnSchema
     TColumnSchema& operator=(TColumnSchema&&) = default;
 
     TColumnSchema& SetSortOrder(const TNullable<ESortOrder>& value);
-    TColumnSchema& SetLock(const TNullable<Stroka>& value);
-    TColumnSchema& SetExpression(const TNullable<Stroka>& value);
-    TColumnSchema& SetAggregate(const TNullable<Stroka>& value);
-    TColumnSchema& SetGroup(const TNullable<Stroka>& value);
+    TColumnSchema& SetLock(const TNullable<TString>& value);
+    TColumnSchema& SetExpression(const TNullable<TString>& value);
+    TColumnSchema& SetAggregate(const TNullable<TString>& value);
+    TColumnSchema& SetGroup(const TNullable<TString>& value);
 
-    Stroka Name;
+    TString Name;
     EValueType Type;
     TNullable<ESortOrder> SortOrder;
-    TNullable<Stroka> Lock;
-    TNullable<Stroka> Expression;
-    TNullable<Stroka> Aggregate;
-    TNullable<Stroka> Group;
+    TNullable<TString> Lock;
+    TNullable<TString> Expression;
+    TNullable<TString> Aggregate;
+    TNullable<TString> Group;
 };
 
 void Serialize(const TColumnSchema& schema, NYson::IYsonConsumer* consumer);
@@ -148,7 +148,7 @@ private:
     int KeyColumnCount_ = 0;
 };
 
-Stroka ToString(const TTableSchema& schema);
+TString ToString(const TTableSchema& schema);
 
 void Serialize(const TTableSchema& schema, NYson::IYsonConsumer* consumer);
 void Deserialize(TTableSchema& schema, NYTree::INodePtr node);

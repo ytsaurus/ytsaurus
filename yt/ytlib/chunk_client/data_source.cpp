@@ -13,7 +13,7 @@ using namespace NTransactionClient;
 
 TDataSource::TDataSource(
     EDataSourceType type,
-    const TNullable<Stroka>& path,
+    const TNullable<TString>& path,
     const TNullable<TTableSchema>& schema,
     TTimestamp timestamp)
     : Type_(type)
@@ -59,7 +59,7 @@ void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSour
 }
 
 TDataSource MakeVersionedDataSource(
-    const TNullable<Stroka>& path,
+    const TNullable<TString>& path,
     const NTableClient::TTableSchema& schema,
     NTransactionClient::TTimestamp timestamp)
 {
@@ -67,13 +67,13 @@ TDataSource MakeVersionedDataSource(
 }
 
 TDataSource MakeUnversionedDataSource(
-    const TNullable<Stroka>& path,
+    const TNullable<TString>& path,
     const TNullable<NTableClient::TTableSchema>& schema)
 {
     return TDataSource(EDataSourceType::UnversionedTable, path, schema, NullTimestamp);
 }
 
-TDataSource MakeFileDataSource(const TNullable<Stroka>& path)
+TDataSource MakeFileDataSource(const TNullable<TString>& path)
 {
     return TDataSource(EDataSourceType::File, path, Null, NullTimestamp);
 }

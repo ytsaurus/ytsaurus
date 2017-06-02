@@ -24,8 +24,8 @@ using NChunkClient::TChunkListId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka TBlobTableSchema::PartIndexColumn = "part_index";
-const Stroka TBlobTableSchema::DataColumn = "data";
+const TString TBlobTableSchema::PartIndexColumn = "part_index";
+const TString TBlobTableSchema::DataColumn = "data";
 
 TTableSchema TBlobTableSchema::ToTableSchema() const
 {

@@ -42,9 +42,9 @@ using TRackId = NObjectClient::TObjectId;
 using TDataCenterId = NObjectClient::TObjectId;
 
 // Address type and value list.
-using TAddressList = std::vector<std::pair<Stroka, Stroka>>;
-using TNetworkPreferenceList = std::vector<Stroka>;
-using TAddressMap = yhash<Stroka, Stroka>;
+using TAddressList = std::vector<std::pair<TString, TString>>;
+using TNetworkPreferenceList = std::vector<TString>;
+using TAddressMap = yhash<TString, TString>;
 
 class TNodeDescriptor;
 
@@ -57,7 +57,7 @@ DECLARE_REFCOUNTED_CLASS(TNodeDirectorySynchronizerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(INodeChannelFactory)
 
-extern const Stroka DefaultNetworkName;
+extern const TString DefaultNetworkName;
 extern const TNetworkPreferenceList DefaultNetworkPreferences;
 
 DEFINE_ENUM(EErrorCode,

@@ -222,9 +222,9 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
+    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
-        std::vector<Stroka> keys;
+        std::vector<TString> keys;
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         for (const auto& pair : chunkManager->Media()) {
             const auto* medium = pair.second;
@@ -247,7 +247,7 @@ private:
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto* medium = chunkManager->FindMediumByName(Stroka(key));
+        auto* medium = chunkManager->FindMediumByName(TString(key));
         if (!IsObjectAlive(medium)) {
             return nullptr;
         }

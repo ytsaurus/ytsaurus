@@ -40,7 +40,7 @@ TYPED_TEST_P(TYTreeFluentStringScalarTest, Ok)
         .Value(passedScalar);
 }
 
-typedef Types<const char*, Stroka> TYTreeFluentStringScalarTestTypes;
+typedef Types<const char*, TString> TYTreeFluentStringScalarTestTypes;
 
 REGISTER_TYPED_TEST_CASE_P(TYTreeFluentStringScalarTest, Ok);
 INSTANTIATE_TYPED_TEST_CASE_P(

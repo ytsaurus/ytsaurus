@@ -45,14 +45,14 @@ private:
     int RecordCount;
     int FieldCount;
 
-    Stroka CurrentToken;
+    TString CurrentToken;
 
     const char* Consume(const char* begin, const char* end);
 
     void StartRecordIfNeeded();
     void FinishRecord();
 
-    void ValidatePrefix(const Stroka& prefix) const;
+    void ValidatePrefix(const TString& prefix) const;
 
     using EState = EDsvParserState;
     EState State;
@@ -191,7 +191,7 @@ void TDsvParser::FinishRecord()
     FieldCount = 1;
 }
 
-void TDsvParser::ValidatePrefix(const Stroka& prefix) const
+void TDsvParser::ValidatePrefix(const TString& prefix) const
 {
     if (prefix != Config->LinePrefix.Get()) {
         // TODO(babenko): provide position

@@ -55,7 +55,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
+    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto ids = ToObjectIds(transactionManager->TopmostTransactions(), sizeLimit);

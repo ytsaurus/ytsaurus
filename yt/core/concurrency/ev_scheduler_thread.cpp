@@ -30,7 +30,7 @@ bool TEVSchedulerThread::TInvoker::CheckAffinity(IInvokerPtr invoker) const
 ////////////////////////////////////////////////////////////////////////////////
 
 TEVSchedulerThread::TEVSchedulerThread(
-    const Stroka& threadName,
+    const TString& threadName,
     bool enableLogging)
     : TSchedulerThread(
         std::make_shared<TEventCount>(),

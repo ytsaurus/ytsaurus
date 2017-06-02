@@ -54,7 +54,7 @@ DEFINE_ENUM(ESchedulableStatus,
 extern const double ApproximateSizesBoostFactor;
 extern const double JobSizeBoostFactor;
 
-extern const Stroka RootPoolName;
+extern const TString RootPoolName;
 
 extern const NLogging::TLogger SchedulerLogger;
 extern const NLogging::TLogger OperationLogger;

@@ -26,14 +26,14 @@ struct TAdminOptions
 
 struct TClientOptions
 {
-    explicit TClientOptions(const Stroka& user = NSecurityClient::GuestUserName)
+    explicit TClientOptions(const TString& user = NSecurityClient::GuestUserName)
         : User(user)
     { }
 
-    Stroka User;
-    TNullable<Stroka> Token;
-    TNullable<Stroka> SessionId;
-    TNullable<Stroka> SslSessionId;
+    TString User;
+    TNullable<TString> Token;
+    TNullable<TString> SessionId;
+    TNullable<TString> SslSessionId;
 };
 
 struct TTransactionParticipantOptions

@@ -43,7 +43,7 @@ TLocationPtr TChunkBase::GetLocation() const
     return Location_;
 }
 
-Stroka TChunkBase::GetFileName() const
+TString TChunkBase::GetFileName() const
 {
     return Location_->GetChunkPath(Id_);
 }

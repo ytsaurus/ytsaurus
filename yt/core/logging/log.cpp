@@ -42,7 +42,7 @@ void TLogger::Write(TLogEvent&& event) const
     GetLogManager()->Enqueue(std::move(event));
 }
 
-TLogger& TLogger::AddRawTag(const Stroka& tag)
+TLogger& TLogger::AddRawTag(const TString& tag)
 {
     if (!Context_.empty()) {
         Context_ += ", ";
@@ -51,7 +51,7 @@ TLogger& TLogger::AddRawTag(const Stroka& tag)
     return *this;
 }
 
-const Stroka& TLogger::GetContext() const
+const TString& TLogger::GetContext() const
 {
     return Context_;
 }
@@ -70,10 +70,10 @@ TLogManager* TLogger::GetLogManager() const
     return LogManager_;
 }
 
-Stroka TLogger::GetMessageWithContext(const Stroka& originalMessage, const Stroka& context)
+TString TLogger::GetMessageWithContext(const TString& originalMessage, const TString& context)
 {
     auto endIndex = originalMessage.find('\n');
-    if (endIndex == Stroka::npos) {
+    if (endIndex == TString::npos) {
         endIndex = originalMessage.length();
     }
     if (endIndex > 0 && originalMessage[endIndex - 1] == ')') {

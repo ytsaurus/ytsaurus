@@ -117,7 +117,7 @@ void ThrowUnexpectedToken(const TToken& token)
         token);
 }
 
-Stroka ParseAttributes(const Stroka& str, IAttributeDictionary* attributes)
+TString ParseAttributes(const TString& str, IAttributeDictionary* attributes)
 {
     int spaceCount = 0;
     {
@@ -180,7 +180,7 @@ void ParseChannel(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes
 
     tokenizer.ParseNext();
     while (tokenizer.GetCurrentType() != EndColumnSelectorToken) {
-        Stroka begin;
+        TString begin;
         bool isRange = false;
         switch (tokenizer.GetCurrentType()) {
             case NYson::ETokenType::String:
@@ -202,7 +202,7 @@ void ParseChannel(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes
         if (isRange) {
             switch (tokenizer.GetCurrentType()) {
                 case NYson::ETokenType::String: {
-                    Stroka end(tokenizer.CurrentToken().GetStringValue());
+                    TString end(tokenizer.CurrentToken().GetStringValue());
                     channel.AddRange(begin, end);
                     tokenizer.ParseNext();
                     break;
@@ -364,7 +364,7 @@ void ParseRowRanges(NYson::TTokenizer& tokenizer, IAttributeDictionary* attribut
 }
 
 template <class TFunc>
-auto RunAttributeAccessor(const TRichYPath& path, const Stroka& key, TFunc accessor) -> decltype(accessor())
+auto RunAttributeAccessor(const TRichYPath& path, const TString& key, TFunc accessor) -> decltype(accessor())
 {
     try {
         return accessor();
@@ -376,7 +376,7 @@ auto RunAttributeAccessor(const TRichYPath& path, const Stroka& key, TFunc acces
 }
 
 template <class T>
-T GetAttribute(const TRichYPath& path, const Stroka& key, const T& defaultValue)
+T GetAttribute(const TRichYPath& path, const TString& key, const T& defaultValue)
 {
     return RunAttributeAccessor(path, key, [&] () {
         return path.Attributes().Get(key, defaultValue);
@@ -384,14 +384,14 @@ T GetAttribute(const TRichYPath& path, const Stroka& key, const T& defaultValue)
 }
 
 template <class T>
-TNullable<T> FindAttribute(const TRichYPath& path, const Stroka& key)
+TNullable<T> FindAttribute(const TRichYPath& path, const TString& key)
 {
     return RunAttributeAccessor(path, key, [&] () {
         return path.Attributes().Find<T>(key);
     });
 }
 
-TYsonString FindAttributeYson(const TRichYPath& path, const Stroka& key)
+TYsonString FindAttributeYson(const TRichYPath& path, const TString& key)
 {
     return RunAttributeAccessor(path, key, [&] () {
         return path.Attributes().FindYson(key);
@@ -400,7 +400,7 @@ TYsonString FindAttributeYson(const TRichYPath& path, const Stroka& key)
 
 } // namespace
 
-TRichYPath TRichYPath::Parse(const Stroka& str)
+TRichYPath TRichYPath::Parse(const TString& str)
 {
     auto attributes = CreateEphemeralAttributes();
 
@@ -525,9 +525,9 @@ bool TRichYPath::HasNontrivialRanges() const
     return maybeUpperLimit || maybeUpperLimit || maybeRanges;
 }
 
-TNullable<Stroka> TRichYPath::GetFileName() const
+TNullable<TString> TRichYPath::GetFileName() const
 {
-    return FindAttribute<Stroka>(*this, "file_name");
+    return FindAttribute<TString>(*this, "file_name");
 }
 
 TNullable<bool> TRichYPath::GetExecutable() const
@@ -592,7 +592,7 @@ TNullable<NErasure::ECodec> TRichYPath::GetErasureCodec() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TRichYPath& path)
+TString ToString(const TRichYPath& path)
 {
     auto keys = path.Attributes().List();
     if (keys.empty()) {
@@ -600,9 +600,9 @@ Stroka ToString(const TRichYPath& path)
     }
 
     return
-        Stroka('<') +
+        TString('<') +
         ConvertToYsonString(path.Attributes()).GetData() +
-        Stroka('>') +
+        TString('>') +
         path.GetPath();
 }
 
@@ -643,7 +643,7 @@ void Deserialize(TRichYPath& richPath, INodePtr node)
     if (node->GetType() != ENodeType::String) {
         THROW_ERROR_EXCEPTION("YPath can only be parsed from \"string\"");
     }
-    richPath.SetPath(node->GetValue<Stroka>());
+    richPath.SetPath(node->GetValue<TString>());
     richPath.Attributes().Clear();
     richPath.Attributes().MergeFrom(node->Attributes());
 }

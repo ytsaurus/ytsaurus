@@ -28,12 +28,12 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static Stroka CGroupPrefix = GetUsername() + "/yt/unittests/";
+static TString CGroupPrefix = GetUsername() + "/yt/unittests/";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-T CreateCGroup(const Stroka& name)
+T CreateCGroup(const TString& name)
 {
     T group(CGroupPrefix + name);
     group.Create();
@@ -253,7 +253,7 @@ TEST(TCGroup, Bug)
     int reallyRead = ::read(fd, buffer, 1024);
 
     ASSERT_TRUE(reallyRead > 0);
-    EXPECT_STREQ(~Stroka(buffer, reallyRead), "0\n");
+    EXPECT_STREQ(~TString(buffer, reallyRead), "0\n");
 
     auto pid = fork();
     ASSERT_TRUE(pid >= 0);
@@ -354,14 +354,14 @@ TEST(TCGroup, FreezerFreeze)
 
 TEST(TProcessCGroup, Empty)
 {
-    Stroka empty;
+    TString empty;
     auto result = ParseProcessCGroups(empty);
     EXPECT_TRUE(result.empty());
 }
 
 TEST(TProcessCGroup, Basic)
 {
-    Stroka basic("4:blkio:/\n3:cpuacct:/\n2:freezer:/some\n1:memory:/\n");
+    TString basic("4:blkio:/\n3:cpuacct:/\n2:freezer:/some\n1:memory:/\n");
     auto result = ParseProcessCGroups(basic);
     EXPECT_EQ("", result["blkio"]);
     EXPECT_EQ("", result["cpuacct"]);
@@ -382,7 +382,7 @@ TEST(TProcessCGroup, Multiple)
 
 TEST(TProcessCGroup, BadInput)
 {
-    Stroka basic("xxx:cpuacct,cpu,cpuset:/daemons\n");
+    TString basic("xxx:cpuacct,cpu,cpuset:/daemons\n");
     EXPECT_THROW(ParseProcessCGroups(basic), std::exception);
 }
 

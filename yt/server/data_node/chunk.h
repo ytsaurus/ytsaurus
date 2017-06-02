@@ -53,7 +53,7 @@ struct IChunk
     virtual bool IsAlive() const = 0;
 
     //! Returns the full path to the chunk data file.
-    virtual Stroka GetFileName() const = 0;
+    virtual TString GetFileName() const = 0;
 
     //! Returns chunk meta.
     /*!

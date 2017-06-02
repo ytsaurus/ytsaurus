@@ -47,8 +47,8 @@ TEST(TYPathServiceCombinerTest, Simple)
     EXPECT_EQ(true, SyncYPathExists(combinedService, "/key3"));
     EXPECT_EQ(false, SyncYPathExists(combinedService, "/key2/subkeyNonExistent"));
     EXPECT_EQ(true, SyncYPathExists(combinedService, "/key2/subkey1"));
-    EXPECT_EQ((std::vector<Stroka> { "key1", "key2", "key3", "key4" }), SyncYPathList(combinedService, ""));
-    EXPECT_EQ((std::vector<Stroka> { "subkey1", "subkey2" }), SyncYPathList(combinedService, "/key2"));
+    EXPECT_EQ((std::vector<TString> { "key1", "key2", "key3", "key4" }), SyncYPathList(combinedService, ""));
+    EXPECT_EQ((std::vector<TString> { "subkey1", "subkey2" }), SyncYPathList(combinedService, "/key2"));
     EXPECT_THROW(SyncYPathList(combinedService, "/keyNonExistent"), std::exception);
     EXPECT_EQ(ConvertToYsonString(-1, EYsonFormat::Binary), SyncYPathGet(combinedService, "/key4/@attribute1"));
     EXPECT_EQ(ConvertToYsonString("abc", EYsonFormat::Binary), SyncYPathGet(combinedService, "/key2/subkey1"));
@@ -75,7 +75,7 @@ TEST(TYPathServiceCombinerTest, DynamicAndStatic)
     EXPECT_EQ(true, SyncYPathExists(combinedService, "/static_key1"));
     EXPECT_EQ(false, SyncYPathExists(combinedService, "/dynamic_key1"));
     EXPECT_EQ(true, SyncYPathExists(combinedService, "/error_key"));
-    EXPECT_EQ((std::vector<Stroka> { "static_key1", "static_key2", "error_key" }), SyncYPathList(combinedService, ""));
+    EXPECT_EQ((std::vector<TString> { "static_key1", "static_key2", "error_key" }), SyncYPathList(combinedService, ""));
 
     SyncYPathSet(dynamicService, "/dynamic_key1", ConvertToYsonString(3.1415926));
     SyncYPathSet(dynamicService, "/dynamic_key2", TYsonString("#"));
@@ -86,7 +86,7 @@ TEST(TYPathServiceCombinerTest, DynamicAndStatic)
     EXPECT_EQ(true, SyncYPathExists(combinedService, "/static_key1"));
     EXPECT_EQ(true, SyncYPathExists(combinedService, "/dynamic_key1"));
     EXPECT_EQ(true, SyncYPathExists(combinedService, "/error_key"));
-    EXPECT_EQ((std::vector<Stroka> { "static_key1", "static_key2", "error_key", "dynamic_key1", "dynamic_key2" }), SyncYPathList(combinedService, ""));
+    EXPECT_EQ((std::vector<TString> { "static_key1", "static_key2", "error_key", "dynamic_key1", "dynamic_key2" }), SyncYPathList(combinedService, ""));
     EXPECT_EQ(TYsonString("#"), SyncYPathGet(combinedService, "/dynamic_key2"));
 
     SyncYPathSet(dynamicService, "/error_key", ConvertToYsonString(42));
@@ -109,7 +109,7 @@ TEST(TYPathServiceCombinerTest, DynamicAndStatic)
     EXPECT_EQ(true, SyncYPathExists(combinedService, "/static_key1"));
     EXPECT_EQ(true, SyncYPathExists(combinedService, "/dynamic_key1"));
     EXPECT_EQ(true, SyncYPathExists(combinedService, "/error_key"));
-    EXPECT_EQ((std::vector<Stroka> { "static_key1", "static_key2", "error_key", "dynamic_key1", "dynamic_key2" }), SyncYPathList(combinedService, ""));
+    EXPECT_EQ((std::vector<TString> { "static_key1", "static_key2", "error_key", "dynamic_key1", "dynamic_key2" }), SyncYPathList(combinedService, ""));
     EXPECT_EQ(TYsonString("#"), SyncYPathGet(combinedService, "/dynamic_key2"));
 }
 

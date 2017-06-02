@@ -46,7 +46,7 @@ public:
         YCHECK(Client_);
     }
 
-    virtual const Stroka& GetEndpointDescription() const override
+    virtual const TString& GetEndpointDescription() const override
     {
         return Client_->GetEndpointDescription();
     }
@@ -444,7 +444,7 @@ private:
             NProfiling::TTagIdList TagIds;
         };
 
-        const TMethodMetadata& GetMethodMetadata(const Stroka& service, const Stroka& method)
+        const TMethodMetadata& GetMethodMetadata(const TString& service, const TString& method)
         {
             auto key = std::make_pair(service, method);
 
@@ -477,7 +477,7 @@ private:
         TActiveRequestMap ActiveRequestMap_;
 
         NConcurrency::TReaderWriterSpinLock CachedMethodMetadataLock_;
-        yhash<std::pair<Stroka, Stroka>, TMethodMetadata> CachedMethodMetadata_;
+        yhash<std::pair<TString, TString>, TMethodMetadata> CachedMethodMetadata_;
 
         void OnRequestSerialized(
             const TClientRequestControlPtr& requestControl,
@@ -698,12 +698,12 @@ private:
             return RealmId_;
         }
 
-        const Stroka& GetService() const
+        const TString& GetService() const
         {
             return Service_;
         }
 
-        const Stroka& GetMethod() const
+        const TString& GetMethod() const
         {
             return Method_;
         }
@@ -767,8 +767,8 @@ private:
     private:
         const TSessionPtr Session_;
         const TRealmId RealmId_;
-        const Stroka Service_;
-        const Stroka Method_;
+        const TString Service_;
+        const TString Method_;
         const bool OneWay_;
         const TRequestId RequestId_;
         const TNullable<TDuration> Timeout_;
@@ -795,7 +795,7 @@ class TBusChannelFactory
     : public IChannelFactory
 {
 public:
-    virtual IChannelPtr CreateChannel(const Stroka& address) override
+    virtual IChannelPtr CreateChannel(const TString& address) override
     {
         auto config = TTcpBusClientConfig::CreateTcp(address);
         auto client = CreateTcpBusClient(config);

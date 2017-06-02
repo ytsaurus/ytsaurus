@@ -8,7 +8,7 @@ namespace NConcurrency {
 
 class TFinalizerThread
 {
-    static const Stroka ThreadName;
+    static const TString ThreadName;
     static std::atomic<bool> ShutdownStarted;
     static std::atomic<bool> ShutdownFinished;
     static constexpr int ShutdownSpinCount = 100;
@@ -161,7 +161,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka TFinalizerThread::ThreadName = "Finalizer";
+const TString TFinalizerThread::ThreadName = "Finalizer";
 std::atomic<bool> TFinalizerThread::ShutdownStarted = {false};
 std::atomic<bool> TFinalizerThread::ShutdownFinished = {false};
 

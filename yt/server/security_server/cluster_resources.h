@@ -64,7 +64,7 @@ public:
 private:
     int NodeCount_ = 0;
     int ChunkCount_ = 0;
-    yhash<Stroka, i64> DiskSpacePerMedium_;
+    yhash<TString, i64> DiskSpacePerMedium_;
     i64 DiskSpace_; // Compatibility.
 
 };
@@ -91,7 +91,7 @@ bool operator == (const TClusterResources& lhs, const TClusterResources& rhs);
 bool operator != (const TClusterResources& lhs, const TClusterResources& rhs);
 
 void FormatValue(TStringBuilder* builder, const TClusterResources& resources, const TStringBuf& /*format*/);
-Stroka ToString(const TClusterResources& resources);
+TString ToString(const TClusterResources& resources);
 
 ////////////////////////////////////////////////////////////////////////////////
 

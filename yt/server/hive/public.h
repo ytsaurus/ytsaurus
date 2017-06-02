@@ -36,11 +36,11 @@ constexpr int TypicalMailboxCount = 16;
 using TMailboxList = SmallVector<TMailbox*, TypicalMailboxCount>;
 
 template <class TTransaction>
-using TTransactionPrepareActionHandler = TCallback<void(TTransaction*, const Stroka&, bool persistent)>;
+using TTransactionPrepareActionHandler = TCallback<void(TTransaction*, const TString&, bool persistent)>;
 template <class TTransaction>
-using TTransactionCommitActionHandler = TCallback<void(TTransaction*, const Stroka&)>;
+using TTransactionCommitActionHandler = TCallback<void(TTransaction*, const TString&)>;
 template <class TTransaction>
-using TTransactionAbortActionHandler = TCallback<void(TTransaction*, const Stroka&)>;
+using TTransactionAbortActionHandler = TCallback<void(TTransaction*, const TString&)>;
 
 template <class TCallback>
 struct TTransactionActionHandlerDescriptor;

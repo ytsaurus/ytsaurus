@@ -145,7 +145,7 @@ class TNotificationWatch
 public:
     TNotificationWatch(
         TNotificationHandle* handle,
-        const Stroka& path,
+        const TString& path,
         TClosure callback)
         : FD_(handle->GetFD())
         , WD_(-1)
@@ -215,7 +215,7 @@ private:
     }
 
 private:
-    Stroka Path_;
+    TString Path_;
     TClosure Callback_;
 
 };
@@ -305,14 +305,14 @@ public:
         rule->Writers.push_back(stderrWriterName);
 
         if (logLevelStr) {
-            Stroka logLevel = logLevelStr;
+            TString logLevel = logLevelStr;
             logLevel.to_upper(0, std::min(logLevel.size(), static_cast<size_t>(1)));
             rule->MinLevel = TEnumTraits<ELogLevel>::FromString(logLevel);
         } else {
             rule->MinLevel = ELogLevel::Fatal;
         }
 
-        std::vector<Stroka> logExcludeCategories;
+        std::vector<TString> logExcludeCategories;
         if (logExcludeCategoriesStr) {
             logExcludeCategories = splitStroku(logExcludeCategoriesStr, ",");
         }
@@ -321,13 +321,13 @@ public:
             rule->ExcludeCategories.insert(excludeCategory);
         }
 
-        std::vector<Stroka> logIncludeCategories;
+        std::vector<TString> logIncludeCategories;
         if (logIncludeCategoriesStr) {
             logIncludeCategories = splitStroku(logIncludeCategoriesStr, ",");
         }
 
         if (!logIncludeCategories.empty()) {
-            rule->IncludeCategories.Assign(yhash_set<Stroka>());
+            rule->IncludeCategories.Assign(yhash_set<TString>());
             for (const auto& includeCategory : logIncludeCategories) {
                 rule->IncludeCategories->insert(includeCategory);
             }
@@ -386,7 +386,7 @@ public:
         return Version_;
     }
 
-    ELogLevel GetMinLevel(const Stroka& category) const
+    ELogLevel GetMinLevel(const TString& category) const
     {
         TGuard<TForkAwareSpinLock> guard(SpinLock_);
 
@@ -566,13 +566,13 @@ private:
             return SystemWriters_;
         }
 
-        std::pair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
+        std::pair<TString, ELogLevel> cacheKey(event.Category, event.Level);
         auto it = CachedWriters_.find(cacheKey);
         if (it != CachedWriters_.end()) {
             return it->second;
         }
 
-        yhash_set<Stroka> writerIds;
+        yhash_set<TString> writerIds;
         for (const auto& rule : Config_->Rules) {
             if (rule->IsApplicable(event.Category, event.Level)) {
                 writerIds.insert(rule->Writers.begin(), rule->Writers.end());
@@ -592,7 +592,7 @@ private:
         return pair.first->second;
     }
 
-    std::unique_ptr<TNotificationWatch> CreateNoficiationWatch(ILogWriterPtr writer, const Stroka& fileName)
+    std::unique_ptr<TNotificationWatch> CreateNoficiationWatch(ILogWriterPtr writer, const TString& fileName)
     {
 #ifdef _linux_
         if (Config_->WatchPeriod) {
@@ -899,8 +899,8 @@ private:
     std::atomic<ui64> WrittenEvents_ = {0};
     std::atomic<ui64> FlushedEvents_ = {0};
 
-    yhash<Stroka, ILogWriterPtr> Writers_;
-    yhash<std::pair<Stroka, ELogLevel>, std::vector<ILogWriterPtr>> CachedWriters_;
+    yhash<TString, ILogWriterPtr> Writers_;
+    yhash<std::pair<TString, ELogLevel>, std::vector<ILogWriterPtr>> CachedWriters_;
     std::vector<ILogWriterPtr> SystemWriters_;
 
     volatile bool ReopenRequested_ = false;
@@ -955,7 +955,7 @@ int TLogManager::GetVersion() const
     return Impl_->GetVersion();
 }
 
-ELogLevel TLogManager::GetMinLevel(const Stroka& category) const
+ELogLevel TLogManager::GetMinLevel(const TString& category) const
 {
     return Impl_->GetMinLevel(category);
 }

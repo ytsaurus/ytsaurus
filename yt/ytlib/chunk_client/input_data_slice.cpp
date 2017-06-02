@@ -106,7 +106,7 @@ std::pair<TInputDataSlicePtr, TInputDataSlicePtr> TInputDataSlice::SplitByRowInd
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TInputDataSlicePtr& dataSlice)
+TString ToString(const TInputDataSlicePtr& dataSlice)
 {
     return Format("Type: %v, LowerLimit: %v, UpperLimit: %v, ChunkSlices: %v",
         dataSlice->Type,

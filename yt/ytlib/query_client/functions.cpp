@@ -7,12 +7,12 @@ namespace NQueryClient {
 
 namespace {
 
-Stroka TypeToString(TType tp, std::unordered_map<TTypeArgument, EValueType> genericAssignments)
+TString TypeToString(TType tp, std::unordered_map<TTypeArgument, EValueType> genericAssignments)
 {
     if (auto genericId = tp.TryAs<TTypeArgument>()) {
         return TypeToString(genericAssignments[*genericId], genericAssignments);
     } else if (auto unionType = tp.TryAs<TUnionType>()) {
-        Stroka unionString = "one of { ";
+        TString unionString = "one of { ";
         for (auto tp = (*unionType).begin(); tp != (*unionType).end(); tp++) {
             if (tp != (*unionType).begin()) {
                 unionString += ", ";
@@ -30,7 +30,7 @@ EValueType TypingFunction(
     const std::vector<TType>& expectedArgTypes,
     TType repeatedArgType,
     TType resultType,
-    const Stroka& functionName,
+    const TString& functionName,
     const std::vector<EValueType>& argTypes,
     const TStringBuf& source)
 {
@@ -162,7 +162,7 @@ EValueType TypingFunction(
 
 EValueType TFunctionTypeInferrer::InferResultType(
     const std::vector<EValueType>& argumentTypes,
-    const Stroka& name,
+    const TString& name,
     const TStringBuf& source) const
 {
     return TypingFunction(
@@ -177,7 +177,7 @@ EValueType TFunctionTypeInferrer::InferResultType(
 
 EValueType TAggregateTypeInferrer::InferStateType(
     EValueType type,
-    const Stroka& aggregateName,
+    const TString& aggregateName,
     const TStringBuf& source) const
 {
     return TypingFunction(
@@ -192,7 +192,7 @@ EValueType TAggregateTypeInferrer::InferStateType(
 
 EValueType TAggregateTypeInferrer::InferResultType(
     EValueType argumentType,
-    const Stroka& aggregateName,
+    const TString& aggregateName,
     const TStringBuf& source) const
 {
     return TypingFunction(
@@ -207,7 +207,7 @@ EValueType TAggregateTypeInferrer::InferResultType(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const ITypeInferrerPtr& TTypeInferrerMap::GetFunction(const Stroka& functionName) const
+const ITypeInferrerPtr& TTypeInferrerMap::GetFunction(const TString& functionName) const
 {
     auto found = this->find(functionName);
     if (found == this->end()) {
@@ -217,7 +217,7 @@ const ITypeInferrerPtr& TTypeInferrerMap::GetFunction(const Stroka& functionName
     return found->second;
 }
 
-const IFunctionCodegenPtr& TFunctionProfilerMap::GetFunction(const Stroka& functionName) const
+const IFunctionCodegenPtr& TFunctionProfilerMap::GetFunction(const TString& functionName) const
 {
     auto found = this->find(functionName);
     if (found == this->end()) {
@@ -227,7 +227,7 @@ const IFunctionCodegenPtr& TFunctionProfilerMap::GetFunction(const Stroka& funct
     return found->second;
 }
 
-const IAggregateCodegenPtr& TAggregateProfilerMap::GetAggregate(const Stroka& functionName) const
+const IAggregateCodegenPtr& TAggregateProfilerMap::GetAggregate(const TString& functionName) const
 {
     auto found = this->find(functionName);
     if (found == this->end()) {

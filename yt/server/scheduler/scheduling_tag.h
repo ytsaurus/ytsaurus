@@ -17,7 +17,7 @@ public:
 
     void Reload(const TDnfFormula& dnf);
 
-    bool CanSchedule(const yhash_set<Stroka>& nodeTags) const;
+    bool CanSchedule(const yhash_set<TString>& nodeTags) const;
 
     bool IsEmpty() const;
 

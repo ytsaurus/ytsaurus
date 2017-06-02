@@ -1007,7 +1007,7 @@ bool TCompositeSchedulerElement::HasHigherPriorityInFifoMode(const TSchedulerEle
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPoolFixedState::TPoolFixedState(const Stroka& id)
+TPoolFixedState::TPoolFixedState(const TString& id)
     : Id_(id)
 { }
 
@@ -1015,7 +1015,7 @@ TPoolFixedState::TPoolFixedState(const Stroka& id)
 
 TPool::TPool(
     ISchedulerStrategyHost* host,
-    const Stroka& id,
+    const TString& id,
     NProfiling::TTagId profilingTag,
     TFairShareStrategyConfigPtr strategyConfig)
     : TCompositeSchedulerElement(host, strategyConfig, profilingTag)
@@ -1035,12 +1035,12 @@ bool TPool::IsDefaultConfigured() const
     return DefaultConfigured_;
 }
 
-void TPool::SetUserName(const TNullable<Stroka>& userName)
+void TPool::SetUserName(const TNullable<TString>& userName)
 {
     UserName_ = userName;
 }
 
-const TNullable<Stroka>& TPool::GetUserName() const
+const TNullable<TString>& TPool::GetUserName() const
 {
     return UserName_;
 }
@@ -1085,7 +1085,7 @@ bool TPool::IsAggressiveStarvationEnabled() const
     return Config_->EnableAggressiveStarvation;
 }
 
-Stroka TPool::GetId() const
+TString TPool::GetId() const
 {
     return Id_;
 }
@@ -1701,7 +1701,7 @@ bool TOperationElement::ScheduleJob(TFairShareContext& context)
     return true;
 }
 
-Stroka TOperationElement::GetId() const
+TString TOperationElement::GetId() const
 {
     return ToString(OperationId_);
 }
@@ -2056,9 +2056,9 @@ const TSchedulingTagFilter& TRootElement::GetSchedulingTagFilter() const
     return EmptySchedulingTagFilter;
 }
 
-Stroka TRootElement::GetId() const
+TString TRootElement::GetId() const
 {
-    return Stroka(RootPoolName);
+    return TString(RootPoolName);
 }
 
 double TRootElement::GetWeight() const

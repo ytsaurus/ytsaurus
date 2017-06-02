@@ -90,7 +90,7 @@ INodePtr ConvertObjectToNode(const Py::Object& obj)
     auto factory = GetEphemeralNodeFactory();
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
-    Serialize(obj, builder.get(), MakeNullable<Stroka>("utf-8"));
+    Serialize(obj, builder.get(), MakeNullable<TString>("utf-8"));
     return builder->EndTree();
 }
 
@@ -112,7 +112,7 @@ public:
         try {
             config->Load(configNode);
         } catch(const std::exception& ex) {
-            throw Py::RuntimeError(Stroka("Error loading driver configuration\n") + ex.what());
+            throw Py::RuntimeError(TString("Error loading driver configuration\n") + ex.what());
         }
 
         Config_ = config;

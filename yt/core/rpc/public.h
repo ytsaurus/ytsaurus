@@ -72,7 +72,7 @@ extern const TRealmId NullRealmId;
 typedef TGuid TMutationId;
 extern const TMutationId NullMutationId;
 
-extern const Stroka RootUserName;
+extern const TString RootUserName;
 
 ////////////////////////////////////////////////////////////////////////////////
 

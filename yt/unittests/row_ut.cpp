@@ -12,7 +12,7 @@ namespace {
 
 void CheckSerialize(TUnversionedRow original)
 {
-    auto serialized = NYT::ToProto<Stroka>(original);
+    auto serialized = NYT::ToProto<TString>(original);
     auto deserialized =  NYT::FromProto<TUnversionedOwningRow>(serialized);
 
     ASSERT_EQ(original, deserialized);

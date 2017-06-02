@@ -83,7 +83,7 @@ void TTabletCell::Load(TLoadContext& context)
     }
 }
 
-TPeerId TTabletCell::FindPeerId(const Stroka& address) const
+TPeerId TTabletCell::FindPeerId(const TString& address) const
 {
     for (auto peerId = 0; peerId < Peers_.size(); ++peerId) {
         const auto& peer = Peers_[peerId];
@@ -94,7 +94,7 @@ TPeerId TTabletCell::FindPeerId(const Stroka& address) const
     return InvalidPeerId;
 }
 
-TPeerId TTabletCell::GetPeerId(const Stroka& address) const
+TPeerId TTabletCell::GetPeerId(const TString& address) const
 {
     auto peerId = FindPeerId(address);
     YCHECK(peerId != InvalidPeerId);

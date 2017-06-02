@@ -16,9 +16,9 @@ using ::testing::NiceMock;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline Stroka SurroundWithQuotes(const Stroka& s)
+inline TString SurroundWithQuotes(const TString& s)
 {
-    Stroka quote = "\"";
+    TString quote = "\"";
     return quote + s + quote;
 }
 
@@ -37,7 +37,7 @@ TEST(TJsonParserTest, List)
         EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(3.5)));
     EXPECT_CALL(Mock, OnEndList());
 
-    Stroka input = "[1,\"aaa\",3.5]";
+    TString input = "[1,\"aaa\",3.5]";
 
     TStringInput stream(input);
     ParseJson(&stream, &Mock);
@@ -55,7 +55,7 @@ TEST(TJsonParserTest, Map)
         EXPECT_CALL(Mock, OnStringScalar("bar"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = "{\"hello\":\"world\",\"foo\":\"bar\"}";
+    TString input = "{\"hello\":\"world\",\"foo\":\"bar\"}";
 
     TStringInput stream(input);
     ParseJson(&stream, &Mock);
@@ -68,7 +68,7 @@ TEST(TJsonParserTest, Integer1)
 
     EXPECT_CALL(Mock, OnInt64Scalar(1ll << 62));
 
-    Stroka input = "4611686018427387904";
+    TString input = "4611686018427387904";
 
     TStringInput stream(input);
     ParseJson(&stream, &Mock);
@@ -81,7 +81,7 @@ TEST(TJsonParserTest, Integer2)
 
     EXPECT_CALL(Mock, OnInt64Scalar(std::numeric_limits<i64>::max()));
 
-    Stroka input = "9223372036854775807";
+    TString input = "9223372036854775807";
 
     TStringInput stream(input);
     ParseJson(&stream, &Mock);
@@ -94,7 +94,7 @@ TEST(TJsonParserTest, UnsignedInteger)
 
     EXPECT_CALL(Mock, OnUint64Scalar((1ull << 63) + (1ull << 62)));
 
-    Stroka input = "13835058055282163712";
+    TString input = "13835058055282163712";
 
     TStringInput stream(input);
     ParseJson(&stream, &Mock);
@@ -107,7 +107,7 @@ TEST(TJsonParserTest, UnsignedInteger2)
 
     EXPECT_CALL(Mock, OnUint64Scalar((1ull << 63)));
 
-    Stroka input = "9223372036854775808";
+    TString input = "9223372036854775808";
 
     TStringInput stream(input);
     ParseJson(&stream, &Mock);
@@ -120,7 +120,7 @@ TEST(TJsonParserTest, Infinity)
 
     EXPECT_CALL(Mock, OnDoubleScalar(std::numeric_limits<double>::infinity()));
 
-    Stroka input = "inf";
+    TString input = "inf";
 
     TStringInput stream(input);
     ParseJson(&stream, &Mock);
@@ -133,7 +133,7 @@ TEST(TJsonParserTest, MinusInfinity)
 
     EXPECT_CALL(Mock, OnDoubleScalar(-std::numeric_limits<double>::infinity()));
 
-    Stroka input = "-inf";
+    TString input = "-inf";
 
     TStringInput stream(input);
     ParseJson(&stream, &Mock);
@@ -144,7 +144,7 @@ TEST(TJsonParserTest, IncorrectInfinity)
     StrictMock<TMockYsonConsumer> Mock;
     //InSequence dummy; // order in map is not specified
 
-    Stroka input = "[0, -in, 1.0]";
+    TString input = "[0, -in, 1.0]";
 
     TStringInput stream(input);
     EXPECT_ANY_THROW(
@@ -159,7 +159,7 @@ TEST(TJsonParserTest, UnsignedInteger3)
 
     EXPECT_CALL(Mock, OnUint64Scalar(std::numeric_limits<ui64>::max()));
 
-    Stroka input = "18446744073709551615";
+    TString input = "18446744073709551615";
 
     TStringInput stream(input);
     ParseJson(&stream, &Mock);
@@ -172,7 +172,7 @@ TEST(TJsonParserTest, Entity)
 
     EXPECT_CALL(Mock, OnEntity());
 
-    Stroka input = "null";
+    TString input = "null";
 
     TStringInput stream(input);
     ParseJson(&stream, &Mock);
@@ -185,7 +185,7 @@ TEST(TJsonParserTest, EmptyString)
 
     EXPECT_CALL(Mock, OnStringScalar(""));
 
-    Stroka input = SurroundWithQuotes("");
+    TString input = SurroundWithQuotes("");
 
     TStringInput stream(input);
     ParseJson(&stream, &Mock);
@@ -196,7 +196,7 @@ TEST(TJsonParserTest, OutOfRangeUnicodeSymbols)
 {
     StrictMock<TMockYsonConsumer> Mock;
 
-    Stroka input = SurroundWithQuotes("\\u0100");
+    TString input = SurroundWithQuotes("\\u0100");
     TStringInput stream(input);
 
     EXPECT_ANY_THROW(
@@ -209,10 +209,10 @@ TEST(TJsonParserTest, EscapedUnicodeSymbols)
     StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
-    Stroka s = Stroka("\x80\n\xFF", 3);
+    TString s = TString("\x80\n\xFF", 3);
     EXPECT_CALL(Mock, OnStringScalar(s));
 
-    Stroka input = SurroundWithQuotes("\\u0080\\u000A\\u00FF");
+    TString input = SurroundWithQuotes("\\u0080\\u000A\\u00FF");
 
     TStringInput stream(input);
     ParseJson(&stream, &Mock);
@@ -221,7 +221,7 @@ TEST(TJsonParserTest, EscapedUnicodeSymbols)
 TEST(TJsonParserTest, Boolean)
 {
     StrictMock<TMockYsonConsumer> Mock;
-    Stroka input = "true";
+    TString input = "true";
 
     EXPECT_CALL(Mock, OnBooleanScalar(true));
 
@@ -232,7 +232,7 @@ TEST(TJsonParserTest, Boolean)
 TEST(TJsonParserTest, InvalidJson)
 {
     StrictMock<TMockYsonConsumer> Mock;
-    Stroka input = "{\"hello\" = \"world\"}"; // YSon style instead of json
+    TString input = "{\"hello\" = \"world\"}"; // YSon style instead of json
 
     TStringInput stream(input);
     EXPECT_ANY_THROW(
@@ -258,7 +258,7 @@ TEST(TJsonParserTest, Embedded)
         EXPECT_CALL(Mock, OnEndList());
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input =
+    TString input =
         "{"
             "\"a\":{\"foo\":\"bar\"}"
             ","
@@ -290,7 +290,7 @@ TEST(TJsonParserPlainTest, Simple)
         EXPECT_CALL(Mock, OnEndMap());
     EXPECT_CALL(Mock, OnEndList());
 
-    Stroka input = "[1,\"aaa\",3.5,{\"a\": null}]";
+    TString input = "[1,\"aaa\",3.5,{\"a\": null}]";
 
     TStringInput stream(input);
 
@@ -318,7 +318,7 @@ TEST(TJsonParserPlainTest, Incorrect)
         EXPECT_CALL(Mock, OnEndList());
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input =
+    TString input =
         "{"
             "\"$attributes\":{\"foo\":\"bar\"}"
             ","
@@ -348,7 +348,7 @@ TEST(TJsonParserPlainTest, ListFragment)
         EXPECT_CALL(Mock, OnStringScalar("bar"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = "{\"hello\":\"world\"}\n{\"foo\":\"bar\"}\n";
+    TString input = "{\"hello\":\"world\"}\n{\"foo\":\"bar\"}\n";
 
     auto config = New<TJsonFormatConfig>();
     config->Plain = true;
@@ -375,7 +375,7 @@ TEST(TJsonParserTest, ListWithAttributes)
         EXPECT_CALL(Mock, OnInt64Scalar(1));
     EXPECT_CALL(Mock, OnEndList());
 
-    Stroka input =
+    TString input =
         "{"
             "\"$attributes\":{\"foo\":\"bar\"}"
             ","
@@ -401,7 +401,7 @@ TEST(TJsonParserTest, MapWithAttributes)
         EXPECT_CALL(Mock, OnStringScalar("bad"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input =
+    TString input =
         "{"
             "\"$attributes\":{\"foo\":\"bar\"}"
             ","
@@ -424,7 +424,7 @@ TEST(TJsonParserTest, Int64WithAttributes)
 
     EXPECT_CALL(Mock, OnInt64Scalar(42));
 
-    Stroka input =
+    TString input =
         "{"
             "\"$attributes\":{\"foo\":\"bar\"}"
             ","
@@ -447,7 +447,7 @@ TEST(TJsonParserTest, EntityWithAttributes)
 
     EXPECT_CALL(Mock, OnEntity());
 
-    Stroka input =
+    TString input =
         "{"
             "\"$attributes\":{\"foo\":\"bar\"}"
             ","
@@ -470,7 +470,7 @@ TEST(TJsonParserTest, StringWithAttributes)
 
     EXPECT_CALL(Mock, OnStringScalar("some_string"));
 
-    Stroka input =
+    TString input =
         "{"
             "\"$attributes\":{\"foo\":\"bar\"}"
             ","
@@ -497,7 +497,7 @@ TEST(TJsonParserTest, DoubleAttributes)
 
     EXPECT_CALL(Mock, OnStringScalar("some_string"));
 
-    Stroka input =
+    TString input =
         "{"
             "\"$attributes\":{\"foo\":"
                 "{"
@@ -551,7 +551,7 @@ TEST(TJsonParserTest, AnnotateWithTypes)
         EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(89)));
     EXPECT_CALL(Mock, OnEndList());
 
-    Stroka input =
+    TString input =
         "["
             "{\"$value\":\"42\",\"$type\":\"int64\"},"
             "{\"$value\":\"123\",\"$type\":\"uint64\"},"
@@ -577,7 +577,7 @@ TEST(TJsonParserTest, AnnotateWithTypes)
 
 TEST(TJsonParserTest, SomeHackyTest)
 {
-    Stroka input = "{\"$value\": \"yamr\", \"$attributes\": {\"lenval\": \"false\", \"has_subkey\": \"false\"}}";
+    TString input = "{\"$value\": \"yamr\", \"$attributes\": {\"lenval\": \"false\", \"has_subkey\": \"false\"}}";
 
     StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
@@ -600,7 +600,7 @@ TEST(TJsonParserTest, EmptyListFragment)
     StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
-    Stroka empty;
+    TString empty;
     TStringInput stream(empty);
     ParseJson(&stream, &Mock, nullptr, EYsonType::ListFragment);
 }
@@ -621,7 +621,7 @@ TEST(TJsonParserTest, ListFragment)
         EXPECT_CALL(Mock, OnStringScalar("bar"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = "{\"hello\":\"world\"}\n{\"foo\":\"bar\"}\n";
+    TString input = "{\"hello\":\"world\"}\n{\"foo\":\"bar\"}\n";
 
     TStringInput stream(input);
     ParseJson(&stream, &Mock, nullptr, EYsonType::ListFragment);
@@ -640,7 +640,7 @@ TEST(TJsonParserTest, SpecialKeys)
         EXPECT_CALL(Mock, OnStringScalar("20"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = "{\"$$$value\":\"10\",\"$$attributes\":\"20\"}\n";
+    TString input = "{\"$$$value\":\"10\",\"$$attributes\":\"20\"}\n";
 
     TStringInput stream(input);
     ParseJson(&stream, &Mock, nullptr, EYsonType::ListFragment);
@@ -650,7 +650,7 @@ TEST(TJsonParserTest, AttributesWithoutValue)
 {
     StrictMock<TMockYsonConsumer> Mock;
 
-    Stroka input = "{\"$attributes\":\"20\"}";
+    TString input = "{\"$attributes\":\"20\"}";
 
     TStringInput stream(input);
     EXPECT_ANY_THROW(
@@ -662,7 +662,7 @@ TEST(TJsonParserTest, Trash)
 {
     StrictMock<TMockYsonConsumer> Mock;
 
-    Stroka input = "fdslfsdhfkajsdhf";
+    TString input = "fdslfsdhfkajsdhf";
 
     TStringInput stream(input);
     EXPECT_ANY_THROW(
@@ -678,7 +678,7 @@ TEST(TJsonParserTest, TrailingTrash)
     EXPECT_CALL(Mock, OnStringScalar("b"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = "{\"a\":\"b\"} fdslfsdhfkajsdhf";
+    TString input = "{\"a\":\"b\"} fdslfsdhfkajsdhf";
 
     TStringInput stream(input);
     EXPECT_ANY_THROW(
@@ -694,7 +694,7 @@ TEST(TJsonParserTest, MultipleValues)
     EXPECT_CALL(Mock, OnStringScalar("b"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = "{\"a\":\"b\"}{\"a\":\"b\"}";
+    TString input = "{\"a\":\"b\"}{\"a\":\"b\"}";
 
     TStringInput stream(input);
     EXPECT_ANY_THROW(
@@ -708,7 +708,7 @@ TEST(TJsonParserTest, ReservedKeyName)
 
     EXPECT_CALL(Mock, OnBeginMap());
 
-    Stroka input = "{\"$other\":\"20\"}";
+    TString input = "{\"$other\":\"20\"}";
 
     TStringInput stream(input);
     EXPECT_ANY_THROW(
@@ -723,7 +723,7 @@ TEST(TJsonParserTest, MemoryLimit1)
     auto config = New<TJsonFormatConfig>();
     config->MemoryLimit = 10;
 
-    Stroka input = "{\"my_string\":\"" + Stroka(100000, 'X') + "\"}";
+    TString input = "{\"my_string\":\"" + TString(100000, 'X') + "\"}";
 
     TStringInput stream(input);
     EXPECT_ANY_THROW(
@@ -737,11 +737,11 @@ TEST(TJsonParserTest, MemoryLimit2)
 
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("my_string"));
-        Stroka expectedString(100000, 'X');
+        TString expectedString(100000, 'X');
         EXPECT_CALL(Mock, OnStringScalar(expectedString));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = "{\"my_string\":\"" + Stroka(100000, 'X') + "\"}";
+    TString input = "{\"my_string\":\"" + TString(100000, 'X') + "\"}";
 
     auto config = New<TJsonFormatConfig>();
     config->MemoryLimit = 500000;

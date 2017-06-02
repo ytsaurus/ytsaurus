@@ -49,11 +49,11 @@ struct TEnumTraits<T, true>
 
     static constexpr int GetDomainSize();
 
-    static const std::vector<Stroka>& GetDomainNames();
+    static const std::vector<TString>& GetDomainNames();
     static const std::vector<TType>& GetDomainValues();
 
     static TType FromString(const TStringBuf& str);
-    static Stroka ToString(TType value);
+    static TString ToString(TType value);
 
     // For non-bit enums only.
     static constexpr TType GetMinValue();

@@ -41,7 +41,7 @@ class TFileSnapshotReader
 {
 public:
     TFileSnapshotReader(
-        const Stroka& fileName,
+        const TString& fileName,
         int snapshotId,
         bool raw,
         i64 offset)
@@ -83,7 +83,7 @@ public:
     }
 
 private:
-    const Stroka FileName_;
+    const TString FileName_;
     const int SnapshotId_;
     const bool IsRaw_;
     const i64 Offset_;
@@ -186,7 +186,7 @@ private:
 DEFINE_REFCOUNTED_TYPE(TFileSnapshotReader)
 
 ISnapshotReaderPtr CreateFileSnapshotReader(
-    const Stroka& fileName,
+    const TString& fileName,
     int snapshotId,
     bool raw,
     i64 offset)
@@ -205,7 +205,7 @@ class TFileSnapshotWriter
 {
 public:
     TFileSnapshotWriter(
-        const Stroka& fileName,
+        const TString& fileName,
         ECodec codec,
         int snapshotId,
         const TSnapshotMeta& meta,
@@ -265,7 +265,7 @@ public:
     DEFINE_SIGNAL(void(), Closed);
 
 private:
-    const Stroka FileName_;
+    const TString FileName_;
     const ECodec Codec_;
     const int SnapshotId_;
     const TSnapshotMeta Meta_;
@@ -407,7 +407,7 @@ private:
 DEFINE_REFCOUNTED_TYPE(TFileSnapshotWriter)
 
 ISnapshotWriterPtr CreateFileSnapshotWriter(
-    const Stroka& fileName,
+    const TString& fileName,
     ECodec codec,
     int snapshotId,
     const TSnapshotMeta& meta,
@@ -546,7 +546,7 @@ private:
     std::set<int> SnapshotIds_;
 
 
-    Stroka GetSnapshotPath(int snapshotId)
+    TString GetSnapshotPath(int snapshotId)
     {
         return NFS::CombinePaths(
             Config_->Path,

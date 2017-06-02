@@ -46,7 +46,7 @@ private:
         descriptors->push_back("count_by_health");
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
     {
         if (key == "count_by_health") {
             const auto& tabletManager = Bootstrap_->GetTabletManager();

@@ -20,7 +20,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Constructs an address of the form |hostName:port|.
-Stroka BuildServiceAddress(const TStringBuf& hostName, int port);
+TString BuildServiceAddress(const TStringBuf& hostName, int port);
 
 //! Parses service address into host name and port number.
 //! Both #hostName and #port can be |NULL|.
@@ -46,7 +46,7 @@ class TAddressResolverConfig
 public:
     bool EnableIPv4;
     bool EnableIPv6;
-    TNullable<Stroka> LocalHostFqdn;
+    TNullable<TString> LocalHostFqdn;
     int Retries;
     TDuration ResolveTimeout;
     TDuration MaxResolveTimeout;
@@ -104,7 +104,7 @@ private:
     static socklen_t GetGenericLength(const sockaddr& sockAddr);
 };
 
-Stroka ToString(const TNetworkAddress& address, bool withPort = true);
+TString ToString(const TNetworkAddress& address, bool withPort = true);
 
 bool operator == (const TNetworkAddress& lhs, const TNetworkAddress& rhs);
 bool operator != (const TNetworkAddress& lhs, const TNetworkAddress& rhs);
@@ -131,7 +131,7 @@ public:
      *  Calls |getaddrinfo| and returns the first entry belonging to |AF_INET| or |AF_INET6| family.
      *  Caches successful resolutions.
      */
-    TFuture<TNetworkAddress> Resolve(const Stroka& address);
+    TFuture<TNetworkAddress> Resolve(const TString& address);
 
     //! Return |true| if the local host FQDN can be properly determined.
     bool IsLocalHostNameOK();
