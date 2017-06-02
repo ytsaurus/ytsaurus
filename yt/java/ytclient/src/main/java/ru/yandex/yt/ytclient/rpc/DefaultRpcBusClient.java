@@ -69,6 +69,7 @@ public class DefaultRpcBusClient implements RpcClient {
     private class Session implements BusListener {
         private final Bus bus;
         private final ConcurrentHashMap<YtGuid, Request> activeRequests = new ConcurrentHashMap<>();
+        private final String sessionName = String.format("Session(%s@%s)", name, Integer.toHexString(hashCode()));
 
         public Session() {
             bus = busFactory.createBus(this);
@@ -163,6 +164,11 @@ public class DefaultRpcBusClient implements RpcClient {
         public boolean unregister(Request request) {
             return activeRequests.remove(request.requestId, request);
         }
+
+        @Override
+        public String toString() {
+            return sessionName;
+        }
     }
 
     /**
@@ -221,16 +227,16 @@ public class DefaultRpcBusClient implements RpcClient {
                 BusDeliveryTracking level =
                         request.requestAck() ? BusDeliveryTracking.FULL : BusDeliveryTracking.SENT;
 
-                logger.debug("({}) starting request `{}`", toString(), requestId);
+                logger.debug("({}) starting request `{}`", session, requestId);
                 session.bus.send(message, level).whenComplete((ignored, exception) -> {
                     Duration elapsed = Duration.between(started, Instant.now());
                     requestsHistogram.update(elapsed.toMillis());
                     if (exception != null) {
                         error(exception);
-                        logger.debug("({}) request `{}` finished in {} ms with error `{}`", toString(), requestId, elapsed.toMillis(), exception.toString());
+                        logger.debug("({}) request `{}` finished in {} ms with error `{}`", session, requestId, elapsed.toMillis(), exception.toString());
                     } else {
                         ack();
-                        logger.debug("({}) request `{}` finished in {} ms", toString(), requestId, elapsed.toMillis());
+                        logger.debug("({}) request `{}` finished in {} ms", session, requestId, elapsed.toMillis());
                     }
                 });
 
