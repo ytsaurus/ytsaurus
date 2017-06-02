@@ -19,13 +19,13 @@ class TColumnRange
 {
 public:
     //! Creates a finite range.
-    TColumnRange(const Stroka& begin, const Stroka& end);
+    TColumnRange(const TString& begin, const TString& end);
 
     //! Creates an infinite range.
-    explicit TColumnRange(const Stroka& begin = Stroka());
+    explicit TColumnRange(const TString& begin = TString());
 
-    Stroka Begin() const;
-    Stroka End() const;
+    TString Begin() const;
+    TString End() const;
 
     bool Contains(const TStringBuf& value) const;
     bool Contains(const TColumnRange& range) const;
@@ -35,8 +35,8 @@ public:
 
 private:
     bool IsInfinite_;
-    Stroka Begin_;
-    Stroka End_;
+    TString Begin_;
+    TString End_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,12 +47,12 @@ class TChannel
 public:
     TChannel();
     TChannel(
-        std::vector<Stroka> columns,
+        std::vector<TString> columns,
         std::vector<TColumnRange> ranges);
 
-    void AddColumn(const Stroka& column);
+    void AddColumn(const TString& column);
     void AddRange(const TColumnRange& range);
-    void AddRange(const Stroka& begin, const Stroka& end);
+    void AddRange(const TString& begin, const TString& end);
 
     bool Contains(const TStringBuf& column) const;
     bool Contains(const TChannel& channel) const;
@@ -65,7 +65,7 @@ public:
     bool IsEmpty() const;
     bool IsUniversal() const;
 
-    const std::vector<Stroka>& GetColumns() const;
+    const std::vector<TString>& GetColumns() const;
     const std::vector<TColumnRange>& GetRanges() const;
 
     //! Returns the channel containing all possible columns.
@@ -77,7 +77,7 @@ public:
 private:
     friend TChannel& operator -= (TChannel& lhs, const TChannel& rhs);
 
-    std::vector<Stroka> Columns_;
+    std::vector<TString> Columns_;
     std::vector<TColumnRange> Ranges_;
 
 };

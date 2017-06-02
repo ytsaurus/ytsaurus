@@ -146,7 +146,7 @@ void TNameTableReader::Fill() const
     int thisSize = static_cast<int>(IdToNameCache_.size());
     int underlyingSize = NameTable_->GetSize();
     for (int id = thisSize; id < underlyingSize; ++id) {
-        IdToNameCache_.push_back(Stroka(NameTable_->GetName(id)));
+        IdToNameCache_.push_back(TString(NameTable_->GetName(id)));
     }
 }
 
@@ -165,7 +165,7 @@ TNullable<int> TNameTableWriter::FindId(const TStringBuf& name) const
 
     auto maybeId = NameTable_->FindId(name);
     if (maybeId) {
-        Names_.push_back(Stroka(name));
+        Names_.push_back(TString(name));
         YCHECK(NameToId_.insert(std::make_pair(Names_.back(), *maybeId)).second);
     }
     return maybeId;
@@ -188,7 +188,7 @@ int TNameTableWriter::GetIdOrRegisterName(const TStringBuf& name)
     }
 
     auto id = NameTable_->GetIdOrRegisterName(name);
-    Names_.push_back(Stroka(name));
+    Names_.push_back(TString(name));
     YCHECK(NameToId_.insert(std::make_pair(Names_.back(), id)).second);
     return id;
 }

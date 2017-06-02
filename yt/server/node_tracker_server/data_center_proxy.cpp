@@ -46,7 +46,7 @@ private:
         descriptors->push_back("racks");
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
     {
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         const auto* dc = GetThisImpl();
@@ -69,13 +69,13 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(const TString& key, const TYsonString& value) override
     {
         auto* dc = GetThisImpl();
         auto nodeTracker = Bootstrap_->GetNodeTracker();
 
         if (key == "name") {
-            auto newName = ConvertTo<Stroka>(value);
+            auto newName = ConvertTo<TString>(value);
             nodeTracker->RenameDataCenter(dc, newName);
             return true;
         }

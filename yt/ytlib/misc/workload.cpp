@@ -25,7 +25,7 @@ TWorkloadDescriptor::TWorkloadDescriptor(
     EWorkloadCategory category,
     int band,
     TInstant instant,
-    std::vector<Stroka> annotations)
+    std::vector<TString> annotations)
     : Category(category)
     , Band(band)
     , Instant(instant)
@@ -147,7 +147,7 @@ void FormatValue(
     }
 }
 
-Stroka ToString(const TWorkloadDescriptor& descriptor)
+TString ToString(const TWorkloadDescriptor& descriptor)
 {
     return ToStringViaBuilder(descriptor);
 }

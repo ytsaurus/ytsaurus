@@ -21,7 +21,7 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNetworkAddress GetUnixDomainAddress(const Stroka& name);
+TNetworkAddress GetUnixDomainAddress(const TString& name);
 TNetworkAddress GetLocalBusAddress(int port);
 bool IsLocalBusTransportEnabled();
 
@@ -33,7 +33,7 @@ struct IEventLoopObject
     virtual void SyncInitialize() = 0;
     virtual void SyncFinalize() = 0;
     virtual void SyncCheck() = 0;
-    virtual Stroka GetLoggingId() const = 0;
+    virtual TString GetLoggingId() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IEventLoopObject)
@@ -44,7 +44,7 @@ class TTcpDispatcherThread
     : public NConcurrency::TEVSchedulerThread
 {
 public:
-    explicit TTcpDispatcherThread(const Stroka& threadName);
+    explicit TTcpDispatcherThread(const TString& threadName);
 
     const ev::loop_ref& GetEventLoop() const;
 

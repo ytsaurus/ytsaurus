@@ -196,17 +196,17 @@ protected:
     }
 
 
-    TUnversionedOwningRow BuildKey(const Stroka& yson)
+    TUnversionedOwningRow BuildKey(const TString& yson)
     {
         return NTableClient::YsonToKey(yson);
     }
 
-    TUnversionedOwningRow BuildRow(const Stroka& yson, bool treatMissingAsNull = true)
+    TUnversionedOwningRow BuildRow(const TString& yson, bool treatMissingAsNull = true)
     {
         return NTableClient::YsonToSchemafulRow(yson, Tablet_->PhysicalSchema(), treatMissingAsNull);
     }
 
-    bool AreRowsEqual(TUnversionedRow row, const Stroka& yson)
+    bool AreRowsEqual(TUnversionedRow row, const TString& yson)
     {
         return AreRowsEqual(row, yson.c_str());
     }
@@ -216,7 +216,7 @@ protected:
         return AreRowsEqual(row, yson, NameTable_);
     }
 
-    bool AreQueryRowsEqual(TUnversionedRow row, const Stroka& yson)
+    bool AreQueryRowsEqual(TUnversionedRow row, const TString& yson)
     {
         return AreQueryRowsEqual(row, yson.c_str());
     }
@@ -236,7 +236,7 @@ protected:
             return false;
         }
 
-        auto expectedRowParts = ConvertTo<yhash<Stroka, INodePtr>>(
+        auto expectedRowParts = ConvertTo<yhash<TString, INodePtr>>(
             TYsonString(yson, EYsonType::MapFragment));
 
         for (int index = 0; index < row.GetCount(); ++index) {
@@ -275,7 +275,7 @@ protected:
                     if (it == expectedRowParts.end()) {
                         return false;
                     }
-                    if (it->second->GetValue<Stroka>() != Stroka(value.Data.String, value.Length)) {
+                    if (it->second->GetValue<TString>() != TString(value.Data.String, value.Length)) {
                         return false;
                     }
                     break;
@@ -295,13 +295,13 @@ protected:
     }
 
 
-    using TStoreSnapshot = std::pair<Stroka, TCallback<void(TSaveContext&)>>;
+    using TStoreSnapshot = std::pair<TString, TCallback<void(TSaveContext&)>>;
 
     TStoreSnapshot BeginReserializeStore()
     {
         auto store = GetDynamicStore();
 
-        Stroka buffer;
+        TString buffer;
 
         TStringOutput output(buffer);
         TSaveContext saveContext;

@@ -56,7 +56,7 @@ private:
         descriptors->push_back("registered_master_cell_tags");
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
     {
         if (key == "cell_tag") {
             BuildYsonFluently(consumer)
@@ -108,7 +108,7 @@ private:
     }
 
     virtual void ValidateCustomAttributeUpdate(
-        const Stroka& key,
+        const TString& key,
         const TYsonString& /*oldValue*/,
         const TYsonString& newValue) override
     {

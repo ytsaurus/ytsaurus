@@ -38,7 +38,7 @@ public:
         : CellTag_(cellTag)
         , Config_(std::move(config))
     {
-        auto endpointDescription = Stroka("TimestampProvider@");
+        auto endpointDescription = TString("TimestampProvider@");
         auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
                 .Item("timestamp_provider").Value(true)

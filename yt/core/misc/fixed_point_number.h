@@ -119,7 +119,7 @@ template <typename U, int P>
 void Serialize(const TFixedPointNumber<U, P>& number, NYson::IYsonConsumer* consumer);
 
 template <typename U, int P>
-Stroka ToString(const TFixedPointNumber<U, P>& number);
+TString ToString(const TFixedPointNumber<U, P>& number);
 
 template <typename U, int P>
 NYT::TFixedPointNumber<U, P> round(const NYT::TFixedPointNumber<U, P>& number);

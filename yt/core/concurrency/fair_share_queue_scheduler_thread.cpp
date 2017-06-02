@@ -8,7 +8,7 @@ namespace NConcurrency {
 TFairShareQueueSchedulerThread::TFairShareQueueSchedulerThread(
     TFairShareInvokerQueuePtr queue,
     std::shared_ptr<TEventCount> callbackEventCount,
-    const Stroka& threadName,
+    const TString& threadName,
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
     bool enableProfiling)

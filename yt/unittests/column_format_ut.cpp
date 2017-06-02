@@ -24,7 +24,7 @@ TUnversionedValue DoMakeUnversionedValue(double value, int columnId)
     return MakeUnversionedDoubleValue(value, columnId);
 }
 
-TUnversionedValue DoMakeUnversionedValue(Stroka value, int columnId)
+TUnversionedValue DoMakeUnversionedValue(TString value, int columnId)
 {
     return MakeUnversionedStringValue(value, columnId);
 }

@@ -192,7 +192,7 @@ private:
     TTokenizer Tokenizer_;
 
     EExpectedItem Expected_ = EExpectedItem::Initial;
-    Stroka Literal_;
+    TString Literal_;
     int ListIndex_ = 0;
     int CurrentListIndex_ = 0;
     int CurrentDepth_ = 0;
@@ -216,7 +216,7 @@ private:
     void OnStringValue(const TStringBuf& t)
     {
         if (Expected_ == EExpectedItem::Value) {
-            throw TCompleteParsingWithResultException<Stroka>(t);
+            throw TCompleteParsingWithResultException<TString>(t);
         }
     }
 
@@ -311,9 +311,9 @@ TNullable<double> TryGetDouble(const TStringBuf& yson, const TYPath& ypath)
     return TryGetValue<double>(yson, ypath);
 }
 
-TNullable<Stroka> TryGetString(const TStringBuf& yson, const TYPath& ypath)
+TNullable<TString> TryGetString(const TStringBuf& yson, const TYPath& ypath)
 {
-    return TryGetValue<Stroka>(yson, ypath);
+    return TryGetValue<TString>(yson, ypath);
 }
 
 } // namespace NYTree

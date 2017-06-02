@@ -120,7 +120,7 @@ NYson::TYsonString BuildInputPaths(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka TrimCommandForBriefSpec(const Stroka& command);
+TString TrimCommandForBriefSpec(const TString& command);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,7 +133,7 @@ EAbortReason GetAbortReason(const NJobTrackerClient::NProto::TJobResult& result)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka MakeOperationCodicilString(const TOperationId& operationId);
+TString MakeOperationCodicilString(const TOperationId& operationId);
 TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,7 +143,7 @@ TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId);
 struct TLockedUserObject
     : public NChunkClient::TUserObject
 {
-    virtual Stroka GetPath() const override;
+    virtual TString GetPath() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

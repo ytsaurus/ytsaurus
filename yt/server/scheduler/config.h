@@ -57,7 +57,7 @@ public:
     bool EnablePoolStarvation;
 
     //! Default parent pool for operations with unknown pool.
-    Stroka DefaultParentPool;
+    TString DefaultParentPool;
 
     //! Forbid immediate operations in root.
     bool ForbidImmediateOperationsInRoot;
@@ -767,7 +767,7 @@ public:
     TRemoteCopyOperationOptionsPtr RemoteCopyOperationOptions;
 
     //! Default environment variables set for every job.
-    yhash<Stroka, Stroka> Environment;
+    yhash<TString, TString> Environment;
 
     //! Interval between consequent snapshots.
     TDuration SnapshotPeriod;
@@ -781,7 +781,7 @@ public:
     //! If |true|, snapshots are loaded during revival.
     bool EnableSnapshotLoading;
 
-    Stroka SnapshotTempPath;
+    TString SnapshotTempPath;
     NApi::TFileReaderConfigPtr SnapshotReader;
     NApi::TFileWriterConfigPtr SnapshotWriter;
 
@@ -1048,7 +1048,7 @@ public:
             .DefaultNew();
 
         RegisterParameter("environment", Environment)
-            .Default(yhash<Stroka, Stroka>())
+            .Default(yhash<TString, TString>())
             .MergeBy(NYTree::EMergeStrategy::Combine);
 
         RegisterParameter("snapshot_timeout", SnapshotTimeout)

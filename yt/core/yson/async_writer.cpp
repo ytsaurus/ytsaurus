@@ -105,13 +105,13 @@ TFuture<TYsonString> TAsyncYsonWriter::Finish()
 {
     FlushCurrentSegment();
 
-    return Combine(AsyncSegments_).Apply(BIND([type = Type_] (const std::vector<Stroka>& segments) {
+    return Combine(AsyncSegments_).Apply(BIND([type = Type_] (const std::vector<TString>& segments) {
         size_t length = 0;
         for (const auto& segment : segments) {
             length += segment.length();
         }
 
-        Stroka result;
+        TString result;
         result.reserve(length);
         for (const auto& segment : segments) {
             result.append(segment);

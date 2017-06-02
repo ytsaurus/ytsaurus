@@ -33,7 +33,7 @@ public:
     TRichYPath(const TYPath& path, const NYTree::IAttributeDictionary& attributes);
     TRichYPath& operator = (const TRichYPath& other);
 
-    static TRichYPath Parse(const Stroka& str);
+    static TRichYPath Parse(const TString& str);
     TRichYPath Normalize() const;
 
     const TYPath& GetPath() const;
@@ -71,7 +71,7 @@ public:
     void SetRanges(const std::vector<NChunkClient::TReadRange>& value);
 
     // "file_name"
-    TNullable<Stroka> GetFileName() const;
+    TNullable<TString> GetFileName() const;
 
     // "executable"
     TNullable<bool> GetExecutable() const;
@@ -110,7 +110,7 @@ bool operator== (const TRichYPath& lhs, const TRichYPath& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TRichYPath& path);
+TString ToString(const TRichYPath& path);
 
 std::vector<TRichYPath> Normalize(const std::vector<TRichYPath>& paths);
 

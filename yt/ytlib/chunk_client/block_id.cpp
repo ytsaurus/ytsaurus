@@ -19,7 +19,7 @@ TBlockId::TBlockId()
     , BlockIndex(-1)
 { }
 
-Stroka ToString(const TBlockId& id)
+TString ToString(const TBlockId& id)
 {
     return Format("%v:%v", id.ChunkId, id.BlockIndex);
 }

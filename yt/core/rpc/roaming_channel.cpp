@@ -104,7 +104,7 @@ public:
         : Provider_(std::move(provider))
     { }
 
-    virtual const Stroka& GetEndpointDescription() const override
+    virtual const TString& GetEndpointDescription() const override
     {
         return Provider_->GetEndpointDescription();
     }

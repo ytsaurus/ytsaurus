@@ -17,13 +17,13 @@ using ::testing::Values;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWriteVarIntTest: public ::testing::TestWithParam< tuple<ui64, Stroka> >
+class TWriteVarIntTest: public ::testing::TestWithParam< tuple<ui64, TString> >
 { };
 
 TEST_P(TWriteVarIntTest, Serialization)
 {
     ui64 value = get<0>(GetParam());
-    Stroka rightAnswer = get<1>(GetParam());
+    TString rightAnswer = get<1>(GetParam());
 
     TStringStream outputStream;
     WriteVarUint64(&outputStream, value);
@@ -32,13 +32,13 @@ TEST_P(TWriteVarIntTest, Serialization)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReadVarIntTest: public ::testing::TestWithParam< tuple<ui64, Stroka> >
+class TReadVarIntTest: public ::testing::TestWithParam< tuple<ui64, TString> >
 { };
 
 TEST_P(TReadVarIntTest, Serialization)
 {
     ui64 rightAnswer = get<0>(GetParam());
-    Stroka input = get<1>(GetParam());
+    TString input = get<1>(GetParam());
 
     TStringInput inputStream(input);
     ui64 value;
@@ -48,7 +48,7 @@ TEST_P(TReadVarIntTest, Serialization)
 
 TEST(TReadVarIntTest, Overflow)
 {
-    Stroka input("\x80\x80\x80\x80\x80\x80\x80\x80\x80\x80\x01", 11);
+    TString input("\x80\x80\x80\x80\x80\x80\x80\x80\x80\x80\x01", 11);
     TStringInput inputStream(input);
     ui64 value;
     EXPECT_ANY_THROW(ReadVarUint64(&inputStream, &value));
@@ -58,34 +58,34 @@ TEST(TReadVarIntTest, Overflow)
 
 auto ValuesForVarIntTests = Values(
     // Simple cases.
-    make_tuple(0x0ull,                Stroka("\x00", 1)),
-    make_tuple(0x1ull,                Stroka("\x01", 1)),
-    make_tuple(0x2ull,                Stroka("\x02", 1)),
-    make_tuple(0x3ull,                Stroka("\x03", 1)),
-    make_tuple(0x4ull,                Stroka("\x04", 1)),
+    make_tuple(0x0ull,                TString("\x00", 1)),
+    make_tuple(0x1ull,                TString("\x01", 1)),
+    make_tuple(0x2ull,                TString("\x02", 1)),
+    make_tuple(0x3ull,                TString("\x03", 1)),
+    make_tuple(0x4ull,                TString("\x04", 1)),
 
     // The following "magic numbers" are critical points for varint encoding.
-    make_tuple((1ull << 7) - 1,       Stroka("\x7f", 1)),
-    make_tuple((1ull << 7),           Stroka("\x80\x01", 2)),
-    make_tuple((1ull << 14) - 1,      Stroka("\xff\x7f", 2)),
-    make_tuple((1ull << 14),          Stroka("\x80\x80\x01", 3)),
-    make_tuple((1ull << 21) - 1,      Stroka("\xff\xff\x7f", 3)),
-    make_tuple((1ull << 21),          Stroka("\x80\x80\x80\x01", 4)),
-    make_tuple((1ull << 28) - 1,      Stroka("\xff\xff\xff\x7f", 4)),
-    make_tuple((1ull << 28),          Stroka("\x80\x80\x80\x80\x01", 5)),
-    make_tuple((1ull << 35) - 1,      Stroka("\xff\xff\xff\xff\x7f", 5)),
-    make_tuple((1ull << 35),          Stroka("\x80\x80\x80\x80\x80\x01", 6)),
-    make_tuple((1ull << 42) - 1,      Stroka("\xff\xff\xff\xff\xff\x7f", 6)),
-    make_tuple((1ull << 42),          Stroka("\x80\x80\x80\x80\x80\x80\x01", 7)),
-    make_tuple((1ull << 49) - 1,      Stroka("\xff\xff\xff\xff\xff\xff\x7f", 7)),
-    make_tuple((1ull << 49),          Stroka("\x80\x80\x80\x80\x80\x80\x80\x01", 8)),
-    make_tuple((1ull << 56) - 1,      Stroka("\xff\xff\xff\xff\xff\xff\xff\x7f", 8)),
-    make_tuple((1ull << 56),          Stroka("\x80\x80\x80\x80\x80\x80\x80\x80\x01", 9)),
-    make_tuple((1ull << 63) - 1,      Stroka("\xff\xff\xff\xff\xff\xff\xff\xff\x7f", 9)),
-    make_tuple((1ull << 63),          Stroka("\x80\x80\x80\x80\x80\x80\x80\x80\x80\x01", 10)),
+    make_tuple((1ull << 7) - 1,       TString("\x7f", 1)),
+    make_tuple((1ull << 7),           TString("\x80\x01", 2)),
+    make_tuple((1ull << 14) - 1,      TString("\xff\x7f", 2)),
+    make_tuple((1ull << 14),          TString("\x80\x80\x01", 3)),
+    make_tuple((1ull << 21) - 1,      TString("\xff\xff\x7f", 3)),
+    make_tuple((1ull << 21),          TString("\x80\x80\x80\x01", 4)),
+    make_tuple((1ull << 28) - 1,      TString("\xff\xff\xff\x7f", 4)),
+    make_tuple((1ull << 28),          TString("\x80\x80\x80\x80\x01", 5)),
+    make_tuple((1ull << 35) - 1,      TString("\xff\xff\xff\xff\x7f", 5)),
+    make_tuple((1ull << 35),          TString("\x80\x80\x80\x80\x80\x01", 6)),
+    make_tuple((1ull << 42) - 1,      TString("\xff\xff\xff\xff\xff\x7f", 6)),
+    make_tuple((1ull << 42),          TString("\x80\x80\x80\x80\x80\x80\x01", 7)),
+    make_tuple((1ull << 49) - 1,      TString("\xff\xff\xff\xff\xff\xff\x7f", 7)),
+    make_tuple((1ull << 49),          TString("\x80\x80\x80\x80\x80\x80\x80\x01", 8)),
+    make_tuple((1ull << 56) - 1,      TString("\xff\xff\xff\xff\xff\xff\xff\x7f", 8)),
+    make_tuple((1ull << 56),          TString("\x80\x80\x80\x80\x80\x80\x80\x80\x01", 9)),
+    make_tuple((1ull << 63) - 1,      TString("\xff\xff\xff\xff\xff\xff\xff\xff\x7f", 9)),
+    make_tuple((1ull << 63),          TString("\x80\x80\x80\x80\x80\x80\x80\x80\x80\x01", 10)),
 
     // Boundary case.
-    make_tuple(static_cast<ui64>(-1), Stroka("\xff\xff\xff\xff\xff\xff\xff\xff\xff\x01", 10))
+    make_tuple(static_cast<ui64>(-1), TString("\xff\xff\xff\xff\xff\xff\xff\xff\xff\x01", 10))
 );
 
 INSTANTIATE_TEST_CASE_P(ValueParametrized, TWriteVarIntTest,

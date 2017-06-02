@@ -45,11 +45,11 @@ struct IAdmin
         const TGCCollectOptions& options = TGCCollectOptions()) = 0;
 
     virtual TFuture<void> KillProcess(
-        const Stroka& address,
+        const TString& address,
         const TKillProcessOptions& options = TKillProcessOptions()) = 0;
 
-    virtual TFuture<Stroka> WriteCoreDump(
-        const Stroka& address,
+    virtual TFuture<TString> WriteCoreDump(
+        const TString& address,
         const TWriteCoreDumpOptions& options = TWriteCoreDumpOptions()) = 0;
 };
 

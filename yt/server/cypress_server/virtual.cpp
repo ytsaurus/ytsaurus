@@ -117,7 +117,7 @@ void TVirtualMulticellMapBase::GetSelf(
     Y_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
+        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
         : Null;
 
     i64 limit = request->has_limit()
@@ -188,7 +188,7 @@ void TVirtualMulticellMapBase::ListSelf(
     const TCtxListPtr& context)
 {
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
+        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
         : Null;
 
     i64 limit = request->has_limit()
@@ -255,12 +255,12 @@ const yhash_set<const char*>& TVirtualMulticellMapBase::GetBuiltinAttributeKeys(
     return BuiltinAttributeKeysCache_.GetBuiltinAttributeKeys(this);
 }
 
-bool TVirtualMulticellMapBase::GetBuiltinAttribute(const Stroka& /*key*/, IYsonConsumer* /*consumer*/)
+bool TVirtualMulticellMapBase::GetBuiltinAttribute(const TString& /*key*/, IYsonConsumer* /*consumer*/)
 {
     return false;
 }
 
-TFuture<TYsonString> TVirtualMulticellMapBase::GetBuiltinAttributeAsync(const Stroka& key)
+TFuture<TYsonString> TVirtualMulticellMapBase::GetBuiltinAttributeAsync(const TString& key)
 {
     if (key == "count") {
         return FetchSizes().Apply(BIND([] (const std::vector<std::pair<TCellTag, i64>>& multicellSizes) {
@@ -288,12 +288,12 @@ ISystemAttributeProvider* TVirtualMulticellMapBase::GetBuiltinAttributeProvider(
     return this;
 }
 
-bool TVirtualMulticellMapBase::SetBuiltinAttribute(const Stroka& /*key*/, const TYsonString& /*value*/)
+bool TVirtualMulticellMapBase::SetBuiltinAttribute(const TString& /*key*/, const TYsonString& /*value*/)
 {
     return false;
 }
 
-bool TVirtualMulticellMapBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
+bool TVirtualMulticellMapBase::RemoveBuiltinAttribute(const TString& /*key*/)
 {
     return false;
 }
@@ -358,7 +358,7 @@ TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromRemote(
 
 TFuture<TVirtualMulticellMapBase::TFetchItemsSessionPtr> TVirtualMulticellMapBase::FetchItems(
     i64 limit,
-    const TNullable<std::vector<Stroka>>& attributeKeys)
+    const TNullable<std::vector<TString>>& attributeKeys)
 {
     auto session = New<TFetchItemsSession>();
     session->Invoker = CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker());
@@ -463,7 +463,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(TFetchItemsSessionP
         }).AsyncVia(session->Invoker));
 }
 
-TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TNullable<std::vector<Stroka>>& attributeKeys)
+TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TNullable<std::vector<TString>>& attributeKeys)
 {
     TAsyncYsonWriter writer(EYsonType::MapFragment);
     if (OwningNode_) {
@@ -475,7 +475,7 @@ TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TNu
 DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
 {
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
+        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
         : Null;
 
     i64 limit = request->limit();
@@ -614,7 +614,7 @@ private:
         TBase::ListSystemAttributes(descriptors);
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
     {
         auto service = GetService();
         auto* provider = GetTargetBuiltinAttributeProvider(service);
@@ -625,7 +625,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const TString& key) override
     {
         auto service = GetService();
         auto* provider = GetTargetBuiltinAttributeProvider(service);
@@ -639,7 +639,7 @@ private:
         return TBase::GetBuiltinAttributeAsync(key);
     }
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(const TString& key, const TYsonString& value) override
     {
         auto service = GetService();
         auto* provider = GetTargetBuiltinAttributeProvider(service);

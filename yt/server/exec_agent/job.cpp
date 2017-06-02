@@ -361,7 +361,7 @@ public:
         return FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
     }
 
-    virtual Stroka GetStderr() override
+    virtual TString GetStderr() override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
         ValidateJobRunning();
@@ -393,7 +393,7 @@ public:
         return TYsonString(rsp->trace());
     }
 
-    virtual void SignalJob(const Stroka& signalName) override
+    virtual void SignalJob(const TString& signalName) override
     {
         VERIFY_THREAD_AFFINITY(ControllerThread);
         ValidateJobRunning();
@@ -482,12 +482,12 @@ private:
 
 
     ISlotPtr Slot_;
-    TNullable<Stroka> TmpfsPath_;
+    TNullable<TString> TmpfsPath_;
 
     struct TArtifact
     {
         ESandboxKind SandboxKind;
-        Stroka Name;
+        TString Name;
         bool IsExecutable;
         TArtifactKey Key;
         NDataNode::IChunkPtr Chunk;

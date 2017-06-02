@@ -87,12 +87,12 @@ const TSourceLocation& TRefCountedTracker::TNamedSlot::GetLocation() const
     return Key_.Location;
 }
 
-Stroka TRefCountedTracker::TNamedSlot::GetTypeName() const
+TString TRefCountedTracker::TNamedSlot::GetTypeName() const
 {
     return DemangleCxxName(static_cast<const std::type_info*>(GetTypeKey())->name());
 }
 
-Stroka TRefCountedTracker::TNamedSlot::GetFullName() const
+TString TRefCountedTracker::TNamedSlot::GetFullName() const
 {
     const auto& location = Key_.Location;
     return location.IsValid()
@@ -217,7 +217,7 @@ void TRefCountedTracker::SortSnapshot(TNamedStatistics* snapshot, int sortByColu
     std::sort(snapshot->begin(), snapshot->end(), predicate);
 }
 
-Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn) const
+TString TRefCountedTracker::GetDebugInfo(int sortByColumn) const
 {
     auto snapshot = GetSnapshot();
     SortSnapshot(&snapshot, sortByColumn);

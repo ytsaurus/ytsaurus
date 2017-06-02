@@ -273,9 +273,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateDuplicateColumns(const std::vector<Stroka>& columns)
+void ValidateDuplicateColumns(const std::vector<TString>& columns)
 {
-    yhash_set<Stroka> names;
+    yhash_set<TString> names;
     for (const auto& name : columns) {
         if (!names.insert(name).second) {
             THROW_ERROR_EXCEPTION("Duplicate column name %Qv in schemaful DSV config",

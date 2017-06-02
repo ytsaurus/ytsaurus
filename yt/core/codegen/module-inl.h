@@ -12,7 +12,7 @@ namespace NCodegen {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TSignature>
-TCGFunction<TSignature> TCGModule::GetCompiledFunction(const Stroka& name)
+TCGFunction<TSignature> TCGModule::GetCompiledFunction(const TString& name)
 {
     auto type = llvm::TypeBuilder<TSignature, false>::get(GetContext());
     YCHECK(type == GetModule()->getFunction(name.c_str())->getFunctionType());

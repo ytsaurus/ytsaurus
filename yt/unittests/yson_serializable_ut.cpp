@@ -33,7 +33,7 @@ struct TTestSubconfig
     int MyInt;
     unsigned int MyUint;
     bool MyBool;
-    std::vector<Stroka> MyStringList;
+    std::vector<TString> MyStringList;
     ETestEnum MyEnum;
 
     TTestSubconfig()
@@ -54,10 +54,10 @@ class TTestConfig
     : public TYsonSerializable
 {
 public:
-    Stroka MyString;
+    TString MyString;
     TTestSubconfigPtr Subconfig;
     std::vector<TTestSubconfigPtr> SubconfigList;
-    std::unordered_map<Stroka, TTestSubconfigPtr> SubconfigMap;
+    std::unordered_map<TString, TTestSubconfigPtr> SubconfigMap;
     TNullable<i64> NullableInt;
 
     TTestConfig()
@@ -374,21 +374,21 @@ TEST(TYsonSerializableTest, Save)
 
     auto output = ConvertToYsonString(config, NYson::EYsonFormat::Text);
 
-    Stroka subconfigYson =
+    TString subconfigYson =
         "{\"my_bool\"=%false;"
         "\"my_enum\"=\"value1\";"
         "\"my_int\"=200;"
         "\"my_uint\"=50u;"
         "\"my_string_list\"=[]}";
 
-    Stroka subconfigYsonOrigin =
+    TString subconfigYsonOrigin =
         "{\"my_bool\"=%false;"
         "\"my_enum\"=\"value1\";"
         "\"my_int\"=100;"
         "\"my_uint\"=50u;"
         "\"my_string_list\"=[]}";
 
-    Stroka expectedYson;
+    TString expectedYson;
     expectedYson += "{\"my_string\"=\"hello!\";";
     expectedYson += "\"sub\"=" + subconfigYson + ";";
     expectedYson += "\"sub_list\"=[" + subconfigYsonOrigin + "];";
@@ -464,7 +464,7 @@ class TTestConfigLite
     : public TYsonSerializableLite
 {
 public:
-    Stroka MyString;
+    TString MyString;
     TNullable<i64> NullableInt;
 
     TTestConfigLite()
@@ -483,7 +483,7 @@ TEST(TYsonSerializableTest, SaveLite)
 
     auto output = ConvertToYsonString(config, NYson::EYsonFormat::Text);
 
-    Stroka expectedYson;
+    TString expectedYson;
     expectedYson += "{\"my_string\"=\"hello!\";";
     expectedYson += "\"nullable_int\"=42}";
 
@@ -498,7 +498,7 @@ class TTestConfigWithAliases
     : public TYsonSerializable
 {
 public:
-    Stroka Value;
+    TString Value;
 
     TTestConfigWithAliases()
     {
@@ -593,14 +593,14 @@ TEST(TYsonSerializableTest, ParameterTuplesAndContainers)
         : public NYTree::TYsonSerializableLite
     {
     public:
-        std::vector<Stroka> Vector;
-        std::array<Stroka, 3> Array;
-        std::pair<size_t, Stroka> Pair;
-        std::set<Stroka> Set;
-        std::map<Stroka, int> Map;
+        std::vector<TString> Vector;
+        std::array<TString, 3> Array;
+        std::pair<size_t, TString> Pair;
+        std::set<TString> Set;
+        std::map<TString, int> Map;
         std::multiset<int> MultiSet;
-        std::unordered_set<Stroka> UnorderedSet;
-        std::unordered_map<Stroka, int> UnorderedMap;
+        std::unordered_set<TString> UnorderedSet;
+        std::unordered_map<TString, int> UnorderedMap;
         std::unordered_multiset<size_t> UnorderedMultiSet;
 
         TTestClass()

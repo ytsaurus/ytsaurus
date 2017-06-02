@@ -29,7 +29,7 @@ public:
             .Default(TDuration::Seconds(1));
     }
 
-    Stroka Host;
+    TString Host;
     ui16 Port;
     bool Secure;
 
@@ -53,7 +53,7 @@ public:
             .Optional();
     }
 
-    Stroka Scope;
+    TString Scope;
     bool EnableScopeCheck = true;
 };
 

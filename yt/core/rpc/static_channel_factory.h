@@ -12,12 +12,12 @@ class TStaticChannelFactory
     : public IChannelFactory
 {
 public:
-    TStaticChannelFactoryPtr Add(const Stroka& address, IChannelPtr channel);
+    TStaticChannelFactoryPtr Add(const TString& address, IChannelPtr channel);
 
-    virtual IChannelPtr CreateChannel(const Stroka& address) override;
+    virtual IChannelPtr CreateChannel(const TString& address) override;
 
 private:
-    yhash<Stroka, IChannelPtr> ChannelMap;
+    yhash<TString, IChannelPtr> ChannelMap;
 
 };
 

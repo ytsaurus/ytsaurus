@@ -6,7 +6,7 @@ namespace NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka LiteralValueToString(const TLiteralValue& literalValue)
+TString LiteralValueToString(const TLiteralValue& literalValue)
 {
     switch (literalValue.Tag()) {
         case NAst::TLiteralValue::TagOf<NAst::TNullLiteralValue>():
@@ -19,8 +19,8 @@ Stroka LiteralValueToString(const TLiteralValue& literalValue)
             return ToString(literalValue.As<double>());
         case NAst::TLiteralValue::TagOf<bool>():
             return ToString(literalValue.As<bool>());
-        case NAst::TLiteralValue::TagOf<Stroka>():
-            return literalValue.As<Stroka>().Quote();
+        case NAst::TLiteralValue::TagOf<TString>():
+            return literalValue.As<TString>().Quote();
         default:
             Y_UNREACHABLE();
     }
@@ -43,7 +43,7 @@ TStringBuf GetSource(TSourceLocation sourceLocation, const TStringBuf& source)
 }
 
 
-Stroka InferName(const TExpressionList& exprs, bool omitValues)
+TString InferName(const TExpressionList& exprs, bool omitValues)
 {
     auto canOmitParenthesis = [] (const TExpressionPtr& expr) {
         return
@@ -66,14 +66,14 @@ Stroka InferName(const TExpressionList& exprs, bool omitValues)
         });
 }
 
-Stroka FormatColumn(const TStringBuf& name, const TStringBuf& tableName)
+TString FormatColumn(const TStringBuf& name, const TStringBuf& tableName)
 {
     return tableName.empty()
-        ? Stroka(name)
+        ? TString(name)
         : Format("%v.%v", tableName, name);
 }
 
-Stroka InferName(const TExpression* expr, bool omitValues)
+TString InferName(const TExpression* expr, bool omitValues)
 {
     if (auto literalExpr = expr->As<TLiteralExpression>()) {
         return omitValues
@@ -82,13 +82,13 @@ Stroka InferName(const TExpression* expr, bool omitValues)
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         return FormatColumn(referenceExpr->ColumnName, referenceExpr->TableName);
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        Stroka result = functionExpr->FunctionName;
+        TString result = functionExpr->FunctionName;
         result += "(";
         result += InferName(functionExpr->Arguments, omitValues);
         result += ")";
         return result;
     } else if (auto unaryExpr = expr->As<TUnaryOpExpression>()) {
-        return Stroka(GetUnaryOpcodeLexeme(unaryExpr->Opcode)) + " " + InferName(unaryExpr->Operand);
+        return TString(GetUnaryOpcodeLexeme(unaryExpr->Opcode)) + " " + InferName(unaryExpr->Operand);
     } else if (auto binaryExpr = expr->As<TBinaryOpExpression>()) {
         return
             InferName(binaryExpr->Lhs, omitValues) +

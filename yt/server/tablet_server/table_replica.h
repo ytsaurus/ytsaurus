@@ -23,7 +23,7 @@ class TTableReplica
     , public TRefTracked<TTableReplica>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(Stroka, ClusterName);
+    DEFINE_BYVAL_RW_PROPERTY(TString, ClusterName);
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, ReplicaPath);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, StartReplicationTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NTableServer::TReplicatedTableNode*, Table);

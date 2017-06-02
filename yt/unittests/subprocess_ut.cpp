@@ -35,7 +35,7 @@ TEST(TSubprocessTest, PipeOutput)
 
     auto result = subprocess.Execute();
     EXPECT_TRUE(result.Status.IsOK());
-    Stroka output(result.Output.Begin(), result.Output.End());
+    TString output(result.Output.Begin(), result.Output.End());
     EXPECT_TRUE(output == "hello\n") << output;
 }
 

@@ -125,7 +125,7 @@ public:
         TTransactionManagerConfigPtr config,
         const NHiveClient::TCellId& primaryCellId,
         NRpc::IChannelPtr masterChannel,
-        const Stroka& user,
+        const TString& user,
         ITimestampProviderPtr timestampProvider,
         NHiveClient::TCellDirectoryPtr cellDirectory);
 

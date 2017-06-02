@@ -22,7 +22,7 @@ namespace NTableChunkFormat {
 NTableClient::TUnversionedValue DoMakeUnversionedValue(ui64 value, int columnnId);
 NTableClient::TUnversionedValue DoMakeUnversionedValue(i64 value, int columnnId);
 NTableClient::TUnversionedValue DoMakeUnversionedValue(double value, int columnnId);
-NTableClient::TUnversionedValue DoMakeUnversionedValue(Stroka value, int columnnId);
+NTableClient::TUnversionedValue DoMakeUnversionedValue(TString value, int columnnId);
 NTableClient::TUnversionedValue DoMakeUnversionedValue(bool value, int columnId);
 
 NTableClient::TVersionedValue DoMakeVersionedValue(

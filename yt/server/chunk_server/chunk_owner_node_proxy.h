@@ -28,17 +28,17 @@ public:
 
 protected:
     virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const TString& key) override;
     virtual void ValidateCustomAttributeUpdate(
-        const Stroka& key,
+        const TString& key,
         const NYson::TYsonString& oldValue,
         const NYson::TYsonString& newValue) override;
     virtual void ValidateFetchParameters(
         const NChunkClient::TChannel& channel,
         const std::vector<NChunkClient::TReadRange>& ranges);
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
+    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 

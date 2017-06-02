@@ -1010,7 +1010,7 @@ void TDecoratedAutomaton::RotateAutomatonVersionIfNeeded(TVersion mutationVersio
     }
 }
 
-TDecoratedAutomaton::TMutationTypeDescriptor* TDecoratedAutomaton::GetTypeDescriptor(const Stroka& type)
+TDecoratedAutomaton::TMutationTypeDescriptor* TDecoratedAutomaton::GetTypeDescriptor(const TString& type)
 {
     auto it = TypeToDescriptor_.find(type);
     if (it != TypeToDescriptor_.end()) {

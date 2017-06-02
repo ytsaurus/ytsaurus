@@ -33,7 +33,7 @@ public:
     // Job-specific parameters.
     int SlotIndex;
 
-    TNullable<Stroka> TmpfsPath;
+    TNullable<TString> TmpfsPath;
 
     // Job-independent parameters.
     NApi::TNativeConnectionConfigPtr ClusterConnection;
@@ -48,8 +48,8 @@ public:
 
     //! Addresses derived from node local descriptor to leverage locality.
     NNodeTrackerClient::TAddressMap Addresses;
-    TNullable<Stroka> Rack;
-    TNullable<Stroka> DataCenter;
+    TNullable<TString> Rack;
+    TNullable<TString> DataCenter;
 
     TDuration CoreForwarderTimeout;
 

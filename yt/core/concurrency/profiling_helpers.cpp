@@ -10,7 +10,7 @@ using namespace NProfiling;
 
 TTagIdList GetThreadTagIds(
     bool enableProfiling,
-    const Stroka& threadName)
+    const TString& threadName)
 {
     TTagIdList result;
     if (enableProfiling) {
@@ -22,8 +22,8 @@ TTagIdList GetThreadTagIds(
 
 TTagIdList GetBucketTagIds(
     bool enableProfiling,
-    const Stroka& threadName,
-    const Stroka& bucketName)
+    const TString& threadName,
+    const TString& bucketName)
 {
     TTagIdList result;
     if (enableProfiling) {
@@ -36,8 +36,8 @@ TTagIdList GetBucketTagIds(
 
 std::vector<TTagIdList> GetBucketsTagIds(
     bool enableProfiling,
-    const Stroka& threadName,
-    const std::vector<Stroka>& bucketNames)
+    const TString& threadName,
+    const std::vector<TString>& bucketNames)
 {
     std::vector<TTagIdList> result;
     for (const auto& bucketName : bucketNames) {
@@ -46,7 +46,7 @@ std::vector<TTagIdList> GetBucketsTagIds(
     return result;
 }
 
-TTagIdList GetInvokerTagIds(const Stroka& invokerName)
+TTagIdList GetInvokerTagIds(const TString& invokerName)
 {
     TTagIdList result;
     auto* profilingManager = TProfileManager::Get();

@@ -10,7 +10,7 @@ TProgramCgroupMixin::TProgramCgroupMixin(NLastGetopt::TOpts& opts)
 {
     opts
         .AddLongOption("cgroup", "join group upon starting a process")
-        .Handler1T<Stroka>([&] (const Stroka& arg) {
+        .Handler1T<TString>([&] (const TString& arg) {
             CgroupPaths_.push_back(arg);
         })
         .RequiredArgument("CGROUP_PATH");

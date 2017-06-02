@@ -12,7 +12,7 @@ namespace NChunkClient {
 extern const NLogging::TLogger ChunkClientLogger;
 
 //! A suffix to distinguish chunk meta files.
-extern const Stroka ChunkMetaSuffix;
+extern const TString ChunkMetaSuffix;
 
 ////////////////////////////////////////////////////////////////////////////////
 

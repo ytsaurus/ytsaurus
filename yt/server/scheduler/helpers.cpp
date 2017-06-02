@@ -40,11 +40,11 @@ using namespace NChunkClient;
 
 static const auto& Logger = SchedulerLogger;
 
-static const Stroka InputRowCountPath = "/data/input/row_count";
-static const Stroka InputUncompressedDataSizePath = "/data/input/uncompressed_data_size";
-static const Stroka InputCompressedDataSizePath = "/data/input/compressed_data_size";
-static const Stroka InputPipeIdleTimePath = "/user_job/pipes/input/idle_time";
-static const Stroka JobProxyCpuUsagePath = "/job_proxy/cpu/user";
+static const TString InputRowCountPath = "/data/input/row_count";
+static const TString InputUncompressedDataSizePath = "/data/input/uncompressed_data_size";
+static const TString InputCompressedDataSizePath = "/data/input/compressed_data_size";
+static const TString InputPipeIdleTimePath = "/user_job/pipes/input/idle_time";
+static const TString JobProxyCpuUsagePath = "/job_proxy/cpu/user";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -809,7 +809,7 @@ TYsonString BuildInputPaths(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka TrimCommandForBriefSpec(const Stroka& command)
+TString TrimCommandForBriefSpec(const TString& command)
 {
     const int MaxBriefSpecCommandLength = 256;
     return
@@ -834,7 +834,7 @@ EAbortReason GetAbortReason(const NJobTrackerClient::NProto::TJobResult& result)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka MakeOperationCodicilString(const TOperationId& operationId)
+TString MakeOperationCodicilString(const TOperationId& operationId)
 {
     return Format("OperationId: %v", operationId);
 }
@@ -846,7 +846,7 @@ TCodicilGuard MakeOperationCodicilGuard(const TOperationId& operationId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka TLockedUserObject::GetPath() const
+TString TLockedUserObject::GetPath() const
 {
     return FromObjectId(ObjectId);
 }

@@ -21,7 +21,7 @@ using NJobTrackerClient::TSummary;
 
 TEST(TYsonTest, GetYPath)
 {
-    Stroka yson = "{key=value; submap={ other_key=other_value; }}";
+    TString yson = "{key=value; submap={ other_key=other_value; }}";
     auto node = NYT::NYTree::ConvertToNode(TYsonString(yson));
 
     EXPECT_EQ("/submap/other_key", node->AsMap()->GetChild("submap")->AsMap()->GetChild("other_key")->GetPath());
@@ -44,7 +44,7 @@ TEST(TYsonTest, SetNodeByYPath)
 
 TEST(TYsonTest, ConvertToNode)
 {
-    Stroka yson = "{key=value; other_key=10}";
+    TString yson = "{key=value; other_key=10}";
     auto node = NYT::NYTree::ConvertToNode(TYsonString(yson));
 
     ASSERT_NO_THROW(node->AsMap());
@@ -58,10 +58,10 @@ TEST(TYsonTest, ConvertToNode)
 
     child = node->AsMap()->FindChild("key");
     for (auto format : TEnumTraits<EYsonFormat>::GetDomainValues()) {
-        EXPECT_EQ("value", ConvertTo<Stroka>(child));
-        EXPECT_EQ("value", ConvertTo<Stroka>(ConvertToYsonString(child, format)));
+        EXPECT_EQ("value", ConvertTo<TString>(child));
+        EXPECT_EQ("value", ConvertTo<TString>(ConvertToYsonString(child, format)));
     }
-    EXPECT_EQ(ConvertTo<Stroka>(ConvertToYsonString(child)), "value");
+    EXPECT_EQ(ConvertTo<TString>(ConvertToYsonString(child)), "value");
 
     child = node->AsMap()->FindChild("other_key");
     for (auto format : TEnumTraits<EYsonFormat>::GetDomainValues()) {
@@ -72,7 +72,7 @@ TEST(TYsonTest, ConvertToNode)
 
 TEST(TYsonTest, ListFragment)
 {
-    Stroka yson = "{a=b};{c=d}";
+    TString yson = "{a=b};{c=d}";
     NYT::NYTree::INodePtr node;
 
     node = NYT::NYTree::ConvertToNode(TYsonString(yson, EYsonType::ListFragment));
@@ -83,7 +83,7 @@ TEST(TYsonTest, ListFragment)
 
 TEST(TYsonTest, ConvertFromStream)
 {
-    Stroka yson = "{key=value}";
+    TString yson = "{key=value}";
     TStringInput ysonStream(yson);
 
     auto node = ConvertToNode(&ysonStream);
@@ -197,7 +197,7 @@ TEST(TYsonTest, ConvertToUsingBuildingYsonConsumer)
     auto statistics = ConvertTo<TStatistics>(statisticsYson);
     auto data = statistics.Data();
     
-    std::map<Stroka, TSummary> expectedData {
+    std::map<TString, TSummary> expectedData {
         { "/abc/def", TSummary(42, 3, 5, 21) },
         { "/abc/degh", TSummary(27, 1, 27, 27) },
         { "/xyz", TSummary(50, 5, 8, 12) },

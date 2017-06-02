@@ -17,7 +17,7 @@ class TVirtualMapBase
 protected:
     explicit TVirtualMapBase(INodePtr owningNode = nullptr);
 
-    virtual std::vector<Stroka> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const = 0;
+    virtual std::vector<TString> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const = 0;
     virtual i64 GetSize() const = 0;
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const = 0;
 
@@ -33,10 +33,10 @@ protected:
     // ISystemAttributeProvider overrides
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual const yhash_set<const char*>& GetBuiltinAttributeKeys() override;
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
-    virtual bool RemoveBuiltinAttribute(const Stroka& key) override;
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const TString& key) override;
+    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
+    virtual bool RemoveBuiltinAttribute(const TString& key) override;
 
 private:
     const INodePtr OwningNode_;
@@ -53,14 +53,14 @@ class TCompositeMapService
 public:
     TCompositeMapService();
 
-    virtual std::vector<Stroka> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const override;
+    virtual std::vector<TString> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const override;
     virtual i64 GetSize() const override;
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override;
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
 
-    TIntrusivePtr<TCompositeMapService> AddChild(const Stroka& key, IYPathServicePtr service);
-    TIntrusivePtr<TCompositeMapService> AddAttribute(const Stroka& key, NYson::TYsonCallback producer);
+    TIntrusivePtr<TCompositeMapService> AddChild(const TString& key, IYPathServicePtr service);
+    TIntrusivePtr<TCompositeMapService> AddAttribute(const TString& key, NYson::TYsonCallback producer);
 
 private:
     class TImpl;

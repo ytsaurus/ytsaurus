@@ -40,7 +40,7 @@ TEST(TTools, MultiplyByTwo)
 
 struct TStrokaToVoid
 {
-    void operator()(const Stroka& arg) const
+    void operator()(const TString& arg) const
     { }
 };
 

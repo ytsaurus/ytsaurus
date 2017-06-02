@@ -37,7 +37,7 @@ TCoreDumper::TCoreDumper(const TCoreDumperConfigPtr& config)
     , ActionQueue_(New<TActionQueue>("CoreDumper"))
 { }
 
-TCoreDump TCoreDumper::WriteCoreDump(const std::vector<Stroka>& notes)
+TCoreDump TCoreDumper::WriteCoreDump(const std::vector<TString>& notes)
 {
     auto id = TGuid::Create();
     LOG_INFO("Writing core dump (Id: %v, Notes: %v)", id, notes);

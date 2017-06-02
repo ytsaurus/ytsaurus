@@ -37,7 +37,7 @@ class TTabletCellConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    std::vector<TNullable<Stroka>> Addresses;
+    std::vector<TNullable<TString>> Addresses;
 
     TTabletCellConfig()
     {

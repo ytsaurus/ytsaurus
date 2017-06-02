@@ -102,42 +102,42 @@ struct ISystemAttributeProvider
     /*!
      *  \returns |false| if there is no builtin attribute with the given key.
      */
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) = 0;
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) = 0;
 
     //! Asynchronously gets the value of a builtin attribute.
     /*!
      *  \returns A future representing attribute value or null if there is no such async builtin attribute.
      */
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) = 0;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const TString& key) = 0;
 
     //! Sets the value of a builtin attribute.
     /*!
      *  \returns |false| if there is no writable builtin attribute with the given key.
      */
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) = 0;
+    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) = 0;
 
     //! Removes the builtin attribute.
     /*!
      *  \returns |false| if there is no removable builtin attribute with the given key.
      */
-    virtual bool RemoveBuiltinAttribute(const Stroka& key) = 0;
+    virtual bool RemoveBuiltinAttribute(const TString& key) = 0;
 
 
     // Extension methods.
 
     //! Similar to its interface counterpart, but populates a map rather than a vector.
-    void ListSystemAttributes(std::map<Stroka, TAttributeDescriptor>* descriptors);
+    void ListSystemAttributes(std::map<TString, TAttributeDescriptor>* descriptors);
 
     //! Populates the list of all builtin attributes supported by this object.
     void ListBuiltinAttributes(std::vector<TAttributeDescriptor>* descriptors);
 
     //! Returns an instance of TAttributeDescriptor matching a given #key or |Null| if no such
     //! builtin attribute is known.
-    TNullable<TAttributeDescriptor> FindBuiltinAttributeDescriptor(const Stroka& key);
+    TNullable<TAttributeDescriptor> FindBuiltinAttributeDescriptor(const TString& key);
 
     //! Wraps #GetBuiltinAttribute and returns the YSON string instead
     //! of writing it into a consumer.
-    NYson::TYsonString FindBuiltinAttribute(const Stroka& key);
+    NYson::TYsonString FindBuiltinAttribute(const TString& key);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

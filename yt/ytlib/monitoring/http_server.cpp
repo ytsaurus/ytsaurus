@@ -49,7 +49,7 @@ private:
 
             if (!request.Request.empty() && request.Request[0] == '/') {
                 auto slashPosition = request.Request.find('/', 1);
-                if (slashPosition == Stroka::npos) {
+                if (slashPosition == TString::npos) {
                     slashPosition = request.Request.length();
                 }
 
@@ -108,8 +108,8 @@ private:
     };
 
 private:
-    typedef yhash<Stroka, TSyncHandler> TSyncHandlerMap;
-    typedef yhash<Stroka, TAsyncHandler> TAsyncHandlerMap;
+    typedef yhash<TString, TSyncHandler> TSyncHandlerMap;
+    typedef yhash<TString, TAsyncHandler> TAsyncHandlerMap;
 
 private:
     std::unique_ptr<TCallback> Callback;
@@ -152,12 +152,12 @@ public:
         Server->Stop();
     }
 
-    void Register(const Stroka& prefix, TSyncHandler handler)
+    void Register(const TString& prefix, TSyncHandler handler)
     {
         YCHECK(SyncHandlers.insert(std::make_pair(prefix, std::move(handler))).second);
     }
 
-    void Register(const Stroka& prefix, TAsyncHandler handler)
+    void Register(const TString& prefix, TAsyncHandler handler)
     {
         YCHECK(AsyncHandlers.insert(std::make_pair(prefix, std::move(handler))).second);
     }
@@ -165,7 +165,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka FormatInternalServerErrorResponse(const Stroka& body, const Stroka& type)
+TString FormatInternalServerErrorResponse(const TString& body, const TString& type)
 {
     return Format(
         "HTTP/1.1 500 Internal Server Error\r\n"
@@ -179,7 +179,7 @@ Stroka FormatInternalServerErrorResponse(const Stroka& body, const Stroka& type)
         ~body);
 }
 
-Stroka FormatNotImplementedResponse(const Stroka& body, const Stroka& type)
+TString FormatNotImplementedResponse(const TString& body, const TString& type)
 {
     return Format(
         "HTTP/1.1 501 Not Implemented\r\n"
@@ -193,7 +193,7 @@ Stroka FormatNotImplementedResponse(const Stroka& body, const Stroka& type)
         ~body);
 }
 
-Stroka FormatBadGatewayResponse(const Stroka& body, const Stroka& type)
+TString FormatBadGatewayResponse(const TString& body, const TString& type)
 {
     return Format(
         "HTTP/1.1 502 Bad Gateway\r\n"
@@ -207,7 +207,7 @@ Stroka FormatBadGatewayResponse(const Stroka& body, const Stroka& type)
         ~body);
 }
 
-Stroka FormatServiceUnavailableResponse(const Stroka& body, const Stroka& type)
+TString FormatServiceUnavailableResponse(const TString& body, const TString& type)
 {
     return Format(
         "HTTP/1.1 503 Service Unavailable\r\n"
@@ -221,7 +221,7 @@ Stroka FormatServiceUnavailableResponse(const Stroka& body, const Stroka& type)
         ~body);
 }
 
-Stroka FormatGatewayTimeoutResponse(const Stroka& body, const Stroka& type)
+TString FormatGatewayTimeoutResponse(const TString& body, const TString& type)
 {
     return Format(
         "HTTP/1.1 504 Gateway Timeout\r\n"
@@ -235,7 +235,7 @@ Stroka FormatGatewayTimeoutResponse(const Stroka& body, const Stroka& type)
         ~body);
 }
 
-Stroka FormatBadRequestResponse(const Stroka& body, const Stroka& type)
+TString FormatBadRequestResponse(const TString& body, const TString& type)
 {
     return Format(
         "HTTP/1.1 400 Bad Request\r\n"
@@ -249,7 +249,7 @@ Stroka FormatBadRequestResponse(const Stroka& body, const Stroka& type)
         ~body);
 }
 
-Stroka FormatNotFoundResponse(const Stroka& body, const Stroka& type)
+TString FormatNotFoundResponse(const TString& body, const TString& type)
 {
     return Format(
         "HTTP/1.1 404 Not Found\r\n"
@@ -263,7 +263,7 @@ Stroka FormatNotFoundResponse(const Stroka& body, const Stroka& type)
         ~body);
 }
 
-Stroka FormatRedirectResponse(const Stroka& location)
+TString FormatRedirectResponse(const TString& location)
 {
     return Format(
         "HTTP/1.1 303 See Other\r\n"
@@ -275,7 +275,7 @@ Stroka FormatRedirectResponse(const Stroka& location)
         ~location);
 }
 
-Stroka FormatOKResponse(const Stroka& body, const Stroka& type)
+TString FormatOKResponse(const TString& body, const TString& type)
 {
     // TODO(sandello): Unify headers across all these methods; also implement CRYT-61.
     return Format(
@@ -307,12 +307,12 @@ TServer::TServer(int port, int bindRetryCount, TDuration bindRetryBackoff)
 TServer::~TServer()
 { }
 
-void TServer::Register(const Stroka& prefix, TSyncHandler handler)
+void TServer::Register(const TString& prefix, TSyncHandler handler)
 {
     Impl->Register(prefix, handler);
 }
 
-void TServer::Register(const Stroka& prefix, TAsyncHandler handler)
+void TServer::Register(const TString& prefix, TAsyncHandler handler)
 {
     Impl->Register(prefix, handler);
 }

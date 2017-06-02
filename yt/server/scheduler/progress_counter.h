@@ -55,7 +55,7 @@ private:
 
 };
 
-Stroka ToString(const TProgressCounter& counter);
+TString ToString(const TProgressCounter& counter);
 
 void Serialize(const TProgressCounter& counter, NYson::IYsonConsumer* consumer);
 

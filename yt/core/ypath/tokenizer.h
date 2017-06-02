@@ -19,7 +19,7 @@ public:
     TYPath GetPrefix() const;
     TYPath GetSuffix() const;
     TYPath GetInput() const;
-    const Stroka& GetLiteralValue() const;
+    const TString& GetLiteralValue() const;
 
     void Expect(ETokenType expectedType);
     void Skip(ETokenType expectedType);
@@ -32,7 +32,7 @@ private:
     ETokenType PreviousType_;
     TStringBuf Token_;
     TStringBuf Input_;
-    Stroka LiteralValue_;
+    TString LiteralValue_;
 
     void SetType(ETokenType type);
     const char* AdvanceEscaped(const char* current);

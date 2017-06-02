@@ -42,7 +42,7 @@ struct IBus
 {
     //! Returns a textual representation of the bus' endpoint.
     //! Typically used for logging.
-    virtual const Stroka& GetEndpointDescription() const = 0;
+    virtual const TString& GetEndpointDescription() const = 0;
 
     //! Returns the bus' endpoint attributes.
     //! Typically used for constructing errors.

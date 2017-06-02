@@ -365,7 +365,7 @@ protected:
     struct TMethodDescriptor
     {
         TMethodDescriptor(
-            const Stroka& method,
+            const TString& method,
             TLiteHandler liteHandler,
             THeavyHandler heavyHandler);
 
@@ -374,7 +374,7 @@ protected:
         IInvokerPtr Invoker;
 
         //! Service method name.
-        Stroka Method;
+        TString Method;
 
         //! A handler that will serve lite requests.
         TLiteHandler LiteHandler;
@@ -522,7 +522,7 @@ protected:
         TLockFreeQueue<TServiceContextPtr> RequestQueue;
 
         NConcurrency::TReaderWriterSpinLock PerformanceCountersLock;
-        yhash<Stroka, TMethodPerformanceCountersPtr> UserToPerformanceCounters;
+        yhash<TString, TMethodPerformanceCountersPtr> UserToPerformanceCounters;
         TMethodPerformanceCountersPtr RootPerformanceCounters;
     };
 
@@ -554,10 +554,10 @@ protected:
 
     //! Returns a reference to TRuntimeMethodInfo for a given method's name
     //! or |nullptr| if no such method is registered.
-    TRuntimeMethodInfoPtr FindMethodInfo(const Stroka& method);
+    TRuntimeMethodInfoPtr FindMethodInfo(const TString& method);
 
     //! Similar to #FindMethodInfo but fails if no method is found.
-    TRuntimeMethodInfoPtr GetMethodInfo(const Stroka& method);
+    TRuntimeMethodInfoPtr GetMethodInfo(const TString& method);
 
     //! Returns the default invoker passed during construction.
     IInvokerPtr GetDefaultInvoker();
@@ -579,7 +579,7 @@ protected:
      *  \note
      *  Thread affinity: any
      */ 
-    virtual std::vector<Stroka> SuggestAddresses();
+    virtual std::vector<TString> SuggestAddresses();
 
 protected:
     NLogging::TLogger Logger;
@@ -592,7 +592,7 @@ private:
     NProfiling::TTagId ServiceTagId_;
 
     NConcurrency::TReaderWriterSpinLock MethodMapLock_;
-    yhash<Stroka, TRuntimeMethodInfoPtr> MethodMap_;
+    yhash<TString, TRuntimeMethodInfoPtr> MethodMap_;
 
     TSpinLock CancelableRequestLock_;
     yhash<TRequestId, TServiceContext*> IdToContext_;
@@ -617,11 +617,11 @@ private:
 
     TMethodPerformanceCountersPtr CreateMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
-        const Stroka& user);
+        const TString& user);
 
     TMethodPerformanceCounters* LookupMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
-        const Stroka& user);
+        const TString& user);
 
 };
 

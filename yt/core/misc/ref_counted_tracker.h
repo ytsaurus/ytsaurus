@@ -45,7 +45,7 @@ public:
         GetPerThreadSlot(cookie)->Free(size);
     }
 
-    Stroka GetDebugInfo(int sortByColumn = -1) const;
+    TString GetDebugInfo(int sortByColumn = -1) const;
     NYson::TYsonProducer GetMonitoringProducer() const;
 
     i64 GetObjectsAllocated(TRefCountedTypeKey typeKey);
@@ -117,8 +117,8 @@ private:
         TRefCountedTypeKey GetTypeKey() const;
         const TSourceLocation& GetLocation() const;
 
-        Stroka GetTypeName() const;
-        Stroka GetFullName() const;
+        TString GetTypeName() const;
+        TString GetFullName() const;
 
     private:
         TKey Key_;

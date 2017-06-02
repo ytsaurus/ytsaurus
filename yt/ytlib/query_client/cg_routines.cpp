@@ -854,7 +854,7 @@ google::re2::RE2* RegexCreate(TUnversionedValue* regexp)
     if (!re2->ok()) {
         THROW_ERROR_EXCEPTION(
             "Error parsing regular expression %Qv",
-            Stroka(regexp->Data.String, regexp->Length))
+            TString(regexp->Data.String, regexp->Length))
             << TError(re2->error());
     }
     return re2.release();
