@@ -1,5 +1,8 @@
 package ru.yandex.yt.ytclient.rpc;
 
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -37,6 +40,8 @@ import ru.yandex.yt.ytclient.misc.YtGuid;
  */
 public class DefaultRpcBusClient implements RpcClient {
     private static final Logger logger = LoggerFactory.getLogger(DefaultRpcBusClient.class);
+    private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
+    private static final Histogram requestsHistogram = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "histogram"));
 
     private final BusFactory busFactory;
     private final Lock sessionLock = new ReentrantLock();
@@ -219,6 +224,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 logger.debug("({}) starting request `{}`", toString(), requestId);
                 session.bus.send(message, level).whenComplete((ignored, exception) -> {
                     Duration elapsed = Duration.between(started, Instant.now());
+                    requestsHistogram.update(elapsed.toMillis());
                     if (exception != null) {
                         error(exception);
                         logger.debug("({}) request `{}` finished in {} ms with error `{}`", toString(), requestId, elapsed.toMillis(), exception.toString());
