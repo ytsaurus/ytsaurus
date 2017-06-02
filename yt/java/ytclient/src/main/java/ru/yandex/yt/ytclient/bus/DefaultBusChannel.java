@@ -1,6 +1,11 @@
 package ru.yandex.yt.ytclient.bus;
 
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
 import java.net.SocketAddress;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -12,12 +17,19 @@ import io.netty.channel.EventLoop;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.yandex.yt.ytclient.bus.internal.BusOutgoingMessage;
+import ru.yandex.yt.ytclient.misc.YtGuid;
 
 /**
  * Канал, работающий по протоколу bus
  */
 public class DefaultBusChannel implements Bus, BusLifecycle {
+    private static final Logger logger = LoggerFactory.getLogger(DefaultBusChannel.class);
+    private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
+    private static final Histogram packetsHistogram = metrics.histogram(MetricRegistry.name(DefaultBusChannel.class, "packets", "histogram"));
+
     private static final AttributeKey<DefaultBusChannel> CHANNEL_KEY =
             AttributeKey.valueOf(DefaultBusChannel.class.getName());
 
@@ -95,14 +107,34 @@ public class DefaultBusChannel implements Bus, BusLifecycle {
         return result;
     }
 
+    private void logWriteResult(YtGuid packetId, Instant started) {
+        long elapsed = Duration.between(started, Instant.now()).toMillis();
+        logger.debug("(DefaultBusChannel(%s@%d)) message `{}` sent in %d ms",
+            channel, hashCode(), packetId, elapsed);
+        packetsHistogram.update(elapsed);
+    }
+
     /**
      * Немедленно отправляет сообщение и выставляет результат по завершении
      */
     private void sendNow(BusOutgoingMessage outgoingMessage, CompletableFuture<Void> result) {
         if (connected.cause() != null) {
+            logger.debug("(DefaultBusChannel(%s@%d)) cannot send message `{}`: `{}`",
+                channel, hashCode(), outgoingMessage.getPacketId(), connected.cause());
             result.completeExceptionally(connected.cause());
         } else {
+            Instant started = Instant.now();
+            YtGuid packetId = outgoingMessage.getPacketId();
+            logger.debug("(DefaultBusChannel(%s@%d)) sending message `{}`",
+                channel, hashCode(), packetId);
             ChannelFuture writeResult = channel.writeAndFlush(outgoingMessage);
+
+            if (writeResult.isDone()) {
+                logWriteResult(packetId, started);
+            } else {
+                writeResult.addListener(unused -> logWriteResult(packetId, started));
+            }
+
             BusUtil.relayResult(writeResult, result);
             BusUtil.relayCancel(result, writeResult);
         }
