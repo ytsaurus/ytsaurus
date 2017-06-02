@@ -299,7 +299,9 @@ public:
     void ValidateConnected()
     {
         if (!IsConnected()) {
-            THROW_ERROR_EXCEPTION(GetMasterDisconnectedError());
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Master is not connected");
         }
     }
 
@@ -1338,13 +1340,6 @@ private:
         Strategy_->ResetState();
 
         LOG_INFO("Finished scheduler state cleanup");
-    }
-
-    TError GetMasterDisconnectedError()
-    {
-        return TError(
-            NRpc::EErrorCode::Unavailable,
-            "Master is not connected");
     }
 
     void LogOperationFinished(TOperationPtr operation, ELogEventType logEventType, TError error)
