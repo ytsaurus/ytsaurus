@@ -54,9 +54,9 @@ public class SelectRowsBenchmark {
 
     // runme: --proxy n0035-myt.seneca-myt.yt.yandex.net,n0036-myt.seneca-myt.yt.yandex.net,n0037-myt.seneca-myt.yt.yandex.net --input requests
     public static void main(String[] args) throws Exception {
-        final BusConnector connector = ExamplesUtil.createConnector();
         final String user = ExamplesUtil.getUser();
         String token = ExamplesUtil.getToken();
+        int niothreads = 4;
         int threads = 12;
 
         final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
@@ -74,6 +74,8 @@ public class SelectRowsBenchmark {
         OptionSpec<Integer> switchTimeoutOpt = parser.accepts("switchtimeout", "switchtimeout")
             .withRequiredArg().ofType(Integer.class);
         OptionSpec<Integer> threadsOpt = parser.accepts("threads", "threads")
+            .withRequiredArg().ofType(Integer.class);
+        OptionSpec<Integer> nioThreadsOpt = parser.accepts("niothreads", "niothreads")
             .withRequiredArg().ofType(Integer.class);
         OptionSpec<Integer> rpsLimitOpt = parser.accepts("rps", "rps")
             .withRequiredArg().ofType(Integer.class);
@@ -130,7 +132,11 @@ public class SelectRowsBenchmark {
         if (option.hasArgument(threadsOpt)) {
             threads = option.valueOf(threadsOpt);
         }
+        if (option.hasArgument(nioThreadsOpt)) {
+            niothreads = option.valueOf(nioThreadsOpt);
+        }
 
+        final BusConnector connector = ExamplesUtil.createConnector(niothreads);
         final String finalToken = token;
 
         ConsoleReporter reporter = ConsoleReporter.forRegistry(metrics)
