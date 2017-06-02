@@ -5,7 +5,6 @@ from yt.tools.common import update_args
 from yt.tools.yamr import Yamr, YamrError
 from yt.tools.remote_copy_tools import copy_yamr_to_yt_pull, IncorrectRowCount
 from yt.wrapper.cli_helpers import die
-from yt.wrapper.client import Yt
 
 import yt.logger as logger
 import yt.wrapper as yt
@@ -41,7 +40,7 @@ def import_table(object, args):
                     mr_user=params.mr_user,
                     timeout=300.0)
 
-        yt_client = Yt(yt.config["proxy"]["url"], token=yt.config["token"])
+        yt_client = yt.YtClient(yt.config["proxy"]["url"], token=yt.config["token"])
 
         if yamr.is_empty(src):
             logger.info("Source table '%s' is empty", src)

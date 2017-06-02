@@ -2,7 +2,7 @@
 
 import yt.yson as yson
 import yt.wrapper as yt
-from yt.wrapper.client import Yt
+from yt.wrapper import YtClient
 
 import argparse
 import logging
@@ -432,7 +432,7 @@ def main():
     next_version = current_version + 1
 
     target_version = args.target_version
-    client = Yt(proxy=yt.config["proxy"]["url"], token=yt.config["token"])
+    client = YtClient(proxy=yt.config["proxy"]["url"], token=yt.config["token"])
     transform_archive(client, next_version, target_version, args.force, archive_path, shard_count=args.shard_count)
 
 if __name__ == "__main__":

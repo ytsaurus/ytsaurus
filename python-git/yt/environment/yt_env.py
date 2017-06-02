@@ -7,8 +7,8 @@ from .porto_helpers import PortoSubprocess, porto_avaliable
 
 from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which, to_native_str
 from yt.wrapper.common import generate_uuid, flatten
-from yt.wrapper.client import Yt
 from yt.wrapper.errors import YtResponseError
+from yt.wrapper import YtClient
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
@@ -783,7 +783,7 @@ class YTInstance(object):
 
     def create_client(self):
         if self.has_proxy:
-            return Yt(proxy=self.get_proxy_address())
+            return YtClient(proxy=self.get_proxy_address())
         return self.create_native_client()
 
     def create_native_client(self, driver_name="driver"):
@@ -807,7 +807,7 @@ class YTInstance(object):
 
         yt_driver_bindings.configure_logging(self.driver_logging_config)
 
-        return Yt(config=config)
+        return YtClient(config=config)
 
     def _remove_scheduler_lock(self):
         client = self.create_client()
