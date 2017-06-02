@@ -12,6 +12,7 @@ class TestReplicatedDynamicTables(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 0
     NUM_REMOTE_CLUSTERS = 1
+    USE_DYNAMIC_TABLES = True
 
     DELTA_NODE_CONFIG = {
         "cluster_connection": {
