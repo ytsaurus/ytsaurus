@@ -50,7 +50,7 @@ public:
         const NApi::TVersionedLookupRowsOptions& options) override;
 
     virtual TFuture<NApi::TSelectRowsResult> SelectRows(
-        const Stroka& query,
+        const TString& query,
         const NApi::TSelectRowsOptions& options) override;
 
     // TODO(babenko): batch read and batch write

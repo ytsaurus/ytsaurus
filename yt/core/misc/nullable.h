@@ -337,7 +337,7 @@ private:
 };
 
 template <class T>
-Stroka ToString(const TNullable<T>& nullable)
+TString ToString(const TNullable<T>& nullable)
 {
     using ::ToString;
     return nullable ? ToString(*nullable) : "<Null>";

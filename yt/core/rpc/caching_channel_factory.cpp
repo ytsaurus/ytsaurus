@@ -21,7 +21,7 @@ public:
         : UnderlyingFactory_(std::move(underlyingFactory))
     { }
 
-    virtual IChannelPtr CreateChannel(const Stroka& address) override
+    virtual IChannelPtr CreateChannel(const TString& address) override
     {
         {
             TReaderGuard guard(SpinLock_);
@@ -46,7 +46,7 @@ public:
         }
     }
 
-    void EvictChannel(const Stroka& address, IChannel* channel)
+    void EvictChannel(const TString& address, IChannel* channel)
     {
         TWriterGuard guard(SpinLock_);
         auto it = ChannelMap_.find(address);
@@ -59,7 +59,7 @@ private:
     const IChannelFactoryPtr UnderlyingFactory_;
 
     TReaderWriterSpinLock SpinLock_;
-    yhash<Stroka, IChannelPtr> ChannelMap_;
+    yhash<TString, IChannelPtr> ChannelMap_;
 
     class TCachedChannel
         : public IChannel
@@ -68,13 +68,13 @@ private:
         TCachedChannel(
             TCachingChannelFactory* factory,
             IChannelPtr underlyingChannel,
-            const Stroka& address)
+            const TString& address)
             : Factory_(factory)
             , UnderlyingChannel_(std::move(underlyingChannel))
             , Address_(address)
         { }
 
-        virtual const Stroka& GetEndpointDescription() const override
+        virtual const TString& GetEndpointDescription() const override
         {
             return UnderlyingChannel_->GetEndpointDescription();
         }
@@ -107,7 +107,7 @@ private:
     private:
         const TWeakPtr<TCachingChannelFactory> Factory_;
         const IChannelPtr UnderlyingChannel_;
-        const Stroka Address_;
+        const TString Address_;
     };
 };
 

@@ -16,7 +16,7 @@ class TYPathTokenizerTest
 private:
     std::unique_ptr<TTokenizer> Tokenizer;
     std::vector<ETokenType> TokenTypes;
-    std::vector<Stroka> Literals;
+    std::vector<TString> Literals;
 
 public:
     void Prepare(const char* input)
@@ -45,9 +45,9 @@ public:
         while (Tokenize());
     }
 
-    Stroka GetFlattenedTokens()
+    TString GetFlattenedTokens()
     {
-        Stroka result;
+        TString result;
         result.reserve(TokenTypes.size());
         for (auto type : TokenTypes) {
             switch (type) {
@@ -61,7 +61,7 @@ public:
         return result;
     }
 
-    const std::vector<Stroka>& GetLiterals()
+    const std::vector<TString>& GetLiterals()
     {
         return Literals;
     }
@@ -71,35 +71,35 @@ TEST_F(TYPathTokenizerTest, SimpleCase1)
 {
     PrepareAndTokenize("hello");
     EXPECT_EQ("L", GetFlattenedTokens());
-    EXPECT_EQ(std::vector<Stroka>(1, "hello"), GetLiterals());
+    EXPECT_EQ(std::vector<TString>(1, "hello"), GetLiterals());
 }
 
 TEST_F(TYPathTokenizerTest, SimpleCase2)
 {
     PrepareAndTokenize("/");
     EXPECT_EQ("/", GetFlattenedTokens());
-    EXPECT_EQ(std::vector<Stroka>(), GetLiterals());
+    EXPECT_EQ(std::vector<TString>(), GetLiterals());
 }
 
 TEST_F(TYPathTokenizerTest, SimpleCase3)
 {
     PrepareAndTokenize("&");
     EXPECT_EQ("&", GetFlattenedTokens());
-    EXPECT_EQ(std::vector<Stroka>(), GetLiterals());
+    EXPECT_EQ(std::vector<TString>(), GetLiterals());
 }
 
 TEST_F(TYPathTokenizerTest, SimpleCase4)
 {
     PrepareAndTokenize("@");
     EXPECT_EQ("@", GetFlattenedTokens());
-    EXPECT_EQ(std::vector<Stroka>(), GetLiterals());
+    EXPECT_EQ(std::vector<TString>(), GetLiterals());
 }
 
 TEST_F(TYPathTokenizerTest, SimpleCase5)
 {
     PrepareAndTokenize("&//@@&&@/&"); // There are all pairs within this string.
     EXPECT_EQ("&//@@&&@/&", GetFlattenedTokens());
-    EXPECT_EQ(std::vector<Stroka>(), GetLiterals());
+    EXPECT_EQ(std::vector<TString>(), GetLiterals());
 }
 
 TEST_F(TYPathTokenizerTest, SimpleCase6)
@@ -107,7 +107,7 @@ TEST_F(TYPathTokenizerTest, SimpleCase6)
     PrepareAndTokenize("hello/cruel@world&");
     EXPECT_EQ("L/L@L&", GetFlattenedTokens());
 
-    std::vector<Stroka> expectedLiterals;
+    std::vector<TString> expectedLiterals;
     expectedLiterals.push_back("hello");
     expectedLiterals.push_back("cruel");
     expectedLiterals.push_back("world");
@@ -119,32 +119,32 @@ TEST_F(TYPathTokenizerTest, SeeminglyImpossibleLiteral)
     const char* string = "Hello, cruel world; I am here to destroy you.";
     PrepareAndTokenize(string);
     EXPECT_EQ("L", GetFlattenedTokens());
-    EXPECT_EQ(std::vector<Stroka>(1, string), GetLiterals());
+    EXPECT_EQ(std::vector<TString>(1, string), GetLiterals());
 }
 
 TEST_F(TYPathTokenizerTest, IntegersAndDoubles)
 {
     PrepareAndTokenize("0123456789.01234567890");
     EXPECT_EQ("L", GetFlattenedTokens());
-    EXPECT_EQ(std::vector<Stroka>(1, "0123456789.01234567890"), GetLiterals());
+    EXPECT_EQ(std::vector<TString>(1, "0123456789.01234567890"), GetLiterals());
 }
 
 TEST_F(TYPathTokenizerTest, GUID)
 {
     PrepareAndTokenize("c61834-c8f650dc-90b0dfdc-21c02eed");
     EXPECT_EQ("L", GetFlattenedTokens());
-    EXPECT_EQ(std::vector<Stroka>(1, "c61834-c8f650dc-90b0dfdc-21c02eed"), GetLiterals());
+    EXPECT_EQ(std::vector<TString>(1, "c61834-c8f650dc-90b0dfdc-21c02eed"), GetLiterals());
 
     PrepareAndTokenize("000000-11111111-22222222-33333333");
     EXPECT_EQ("L", GetFlattenedTokens());
-    EXPECT_EQ(std::vector<Stroka>(1, "000000-11111111-22222222-33333333"), GetLiterals());
+    EXPECT_EQ(std::vector<TString>(1, "000000-11111111-22222222-33333333"), GetLiterals());
 }
 
 TEST_F(TYPathTokenizerTest, EscapedSpecial)
 {
     PrepareAndTokenize("\\@\\&\\/\\\\\\[\\{");
     EXPECT_EQ("L", GetFlattenedTokens());
-    EXPECT_EQ(std::vector<Stroka>(1, "@&/\\[{"), GetLiterals());
+    EXPECT_EQ(std::vector<TString>(1, "@&/\\[{"), GetLiterals());
 }
 
 TEST_F(TYPathTokenizerTest, EscapedHex)
@@ -184,7 +184,7 @@ TEST_F(TYPathTokenizerTest, EscapedAsInRealWorld)
 {
     PrepareAndTokenize("Madness\\x3f This is Sparta\\x21");
     EXPECT_EQ("L", GetFlattenedTokens());
-    EXPECT_EQ(std::vector<Stroka>(1, "Madness? This is Sparta!"), GetLiterals());
+    EXPECT_EQ(std::vector<TString>(1, "Madness? This is Sparta!"), GetLiterals());
 }
 
 TEST_F(TYPathTokenizerTest, InvalidEscapeSequences)

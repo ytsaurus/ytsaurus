@@ -32,7 +32,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const Stroka SerializedNullRow("");
+static const TString SerializedNullRow("");
 struct TOwningRowTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -285,7 +285,7 @@ size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue)
 
 }
 
-Stroka ToString(const TUnversionedValue& value)
+TString ToString(const TUnversionedValue& value)
 {
     TStringBuilder builder;
     if (value.Aggregate) {
@@ -321,7 +321,7 @@ Stroka ToString(const TUnversionedValue& value)
 
         case EValueType::Any:
             builder.AppendString(ConvertToYsonString(
-                TYsonString(Stroka(value.Data.String, value.Length)),
+                TYsonString(TString(value.Data.String, value.Length)),
                 EYsonFormat::Text).GetData());
             break;
 
@@ -868,21 +868,21 @@ void ValidateClientRow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka SerializeToString(TUnversionedRow row)
+TString SerializeToString(TUnversionedRow row)
 {
     return row
         ? SerializeToString(row.Begin(), row.End())
         : SerializedNullRow;
 }
 
-Stroka SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end)
+TString SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
     int size = 2 * MaxVarUint32Size; // header size
     for (auto* it = begin; it != end; ++it) {
         size += GetByteSize(*it);
     }
 
-    Stroka buffer;
+    TString buffer;
     buffer.resize(size);
 
     char* current = const_cast<char*>(buffer.data());
@@ -898,7 +898,7 @@ Stroka SerializeToString(const TUnversionedValue* begin, const TUnversionedValue
     return buffer;
 }
 
-TUnversionedOwningRow DeserializeFromString(const Stroka& data)
+TUnversionedOwningRow DeserializeFromString(const TString& data)
 {
     if (data == SerializedNullRow) {
         return TUnversionedOwningRow();
@@ -928,7 +928,7 @@ TUnversionedOwningRow DeserializeFromString(const Stroka& data)
     return TUnversionedOwningRow(std::move(rowData), data);
 }
 
-TUnversionedRow DeserializeFromString(const Stroka& data, const TRowBufferPtr& rowBuffer)
+TUnversionedRow DeserializeFromString(const TString& data, const TRowBufferPtr& rowBuffer)
 {
     if (data == SerializedNullRow) {
         return TUnversionedRow();
@@ -964,7 +964,7 @@ void TUnversionedRow::Save(TSaveContext& context) const
 
 void TUnversionedRow::Load(TLoadContext& context)
 {
-    *this = DeserializeFromString(NYT::Load<Stroka>(context), context.GetRowBuffer());
+    *this = DeserializeFromString(NYT::Load<TString>(context), context.GetRowBuffer());
 }
 
 void ValidateValueType(
@@ -1284,19 +1284,19 @@ void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRo
     }
 }
 
-Stroka ToString(TUnversionedRow row)
+TString ToString(TUnversionedRow row)
 {
     return row
         ? "[" + JoinToString(row.Begin(), row.End()) + "]"
         : "<Null>";
 }
 
-Stroka ToString(TMutableUnversionedRow row)
+TString ToString(TMutableUnversionedRow row)
 {
     return ToString(TUnversionedRow(row));
 }
 
-Stroka ToString(const TUnversionedOwningRow& row)
+TString ToString(const TUnversionedOwningRow& row)
 {
     return ToString(row.Get());
 }
@@ -1459,7 +1459,7 @@ void Deserialize(TOwningKey& key, INodePtr node)
                     break;
 
                 case ENodeType::String:
-                    builder.AddValue(MakeUnversionedStringValue(item->GetValue<Stroka>(), id));
+                    builder.AddValue(MakeUnversionedStringValue(item->GetValue<TString>(), id));
                     break;
 
                 case ENodeType::Entity: {
@@ -1494,7 +1494,7 @@ void TUnversionedOwningRow::Save(TStreamSaveContext& context) const
 
 void TUnversionedOwningRow::Load(TStreamLoadContext& context)
 {
-    *this = DeserializeFromString(NYT::Load<Stroka>(context));
+    *this = DeserializeFromString(NYT::Load<TString>(context));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

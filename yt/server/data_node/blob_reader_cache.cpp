@@ -28,7 +28,7 @@ class TBlobReaderCache::TCachedReader
 public:
     TCachedReader(
         const TChunkId& chunkId,
-        const Stroka& fileName,
+        const TString& fileName,
         bool validateBlockChecksums)
         : TAsyncCacheValueBase<TChunkId, TCachedReader>(chunkId)
         , TFileReader(chunkId, fileName, validateBlockChecksums)

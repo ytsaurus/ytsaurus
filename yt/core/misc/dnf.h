@@ -13,15 +13,15 @@ namespace NYT {
 class TConjunctiveClause
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, Include);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, Exclude);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TString>, Include);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TString>, Exclude);
 
 public:
     TConjunctiveClause() = default;
-    TConjunctiveClause(const std::vector<Stroka>& include, const std::vector<Stroka>& exclude);
+    TConjunctiveClause(const std::vector<TString>& include, const std::vector<TString>& exclude);
 
-    bool IsSatisfiedBy(const std::vector<Stroka>& value) const;
-    bool IsSatisfiedBy(const yhash_set<Stroka>& value) const;
+    bool IsSatisfiedBy(const std::vector<TString>& value) const;
+    bool IsSatisfiedBy(const yhash_set<TString>& value) const;
 
     size_t GetHash() const;
 
@@ -48,8 +48,8 @@ public:
 public:
     explicit TDnfFormula(const std::vector<TConjunctiveClause>& clauses = {});
 
-    bool IsSatisfiedBy(const std::vector<Stroka>& value) const;
-    bool IsSatisfiedBy(const yhash_set<Stroka>& value) const;
+    bool IsSatisfiedBy(const std::vector<TString>& value) const;
+    bool IsSatisfiedBy(const yhash_set<TString>& value) const;
 
     size_t GetHash() const;
 

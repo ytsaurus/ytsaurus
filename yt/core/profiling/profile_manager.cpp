@@ -136,7 +136,7 @@ public:
             .DoMapFor(TagKeyToValues, [] (TFluentMap fluent, const TTagKeyToValues::value_type& pair) {
                 fluent
                     .Item(pair.first)
-                    .DoListFor(pair.second, [] (TFluentList fluent, const Stroka& value) {
+                    .DoListFor(pair.second, [] (TFluentList fluent, const TString& value) {
                         fluent
                             .Item().Value(value);
                     });
@@ -318,8 +318,8 @@ private:
 
     TForkAwareSpinLock TagSpinLock;
     std::vector<TTag> IdToTag;
-    yhash<std::pair<Stroka, Stroka>, int> TagToId;
-    typedef yhash<Stroka, std::vector<Stroka>> TTagKeyToValues;
+    yhash<std::pair<TString, TString>, int> TagToId;
+    typedef yhash<TString, std::vector<TString>> TTagKeyToValues;
     TTagKeyToValues TagKeyToValues;
 
 #ifdef _linux_

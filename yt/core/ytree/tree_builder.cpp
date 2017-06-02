@@ -51,7 +51,7 @@ public:
     virtual void OnMyStringScalar(const TStringBuf& value) override
     {
         auto node = Factory->CreateString();
-        node->SetValue(Stroka(value));
+        node->SetValue(TString(value));
         AddNode(node, false);
     }
 
@@ -112,7 +112,7 @@ public:
 
     virtual void OnMyKeyedItem(const TStringBuf& key) override
     {
-        Key = Stroka(key);
+        Key = TString(key);
     }
 
     virtual void OnMyEndMap() override
@@ -139,7 +139,7 @@ private:
 
     //! Contains nodes forming the current path in the tree.
     std::stack<INodePtr> NodeStack;
-    TNullable<Stroka> Key;
+    TNullable<TString> Key;
     INodePtr ResultNode;
     std::unique_ptr<TAttributeConsumer> AttributeConsumer;
     std::unique_ptr<IAttributeDictionary> Attributes;

@@ -42,7 +42,7 @@ struct TInputSliceLimit
     void Persist(const NTableClient::TPersistenceContext& context);
 };
 
-Stroka ToString(const TInputSliceLimit& limit);
+TString ToString(const TInputSliceLimit& limit);
 
 void FormatValue(TStringBuilder* builder, const TInputSliceLimit& limit, const TStringBuf& format);
 
@@ -127,7 +127,7 @@ DEFINE_REFCOUNTED_TYPE(TInputChunkSlice)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TInputChunkSlicePtr& slice);
+TString ToString(const TInputChunkSlicePtr& slice);
 
 ////////////////////////////////////////////////////////////////////////////////
 

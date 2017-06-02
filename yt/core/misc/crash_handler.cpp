@@ -185,7 +185,7 @@ void DumpTimeInfo()
 // the first thread dump stuff and let other threads wait.
 std::atomic<pthread_t*> CrashingThreadId;
 
-NConcurrency::TFls<std::vector<Stroka>> CodicilsStack;
+NConcurrency::TFls<std::vector<TString>> CodicilsStack;
 
 //! Dump codicils.
 void DumpCodicils()
@@ -374,7 +374,7 @@ void InstallCrashSignalHandler(TNullable<std::set<int>> signalNumbers)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PushCodicil(const Stroka& data)
+void PushCodicil(const TString& data)
 {
     CodicilsStack->push_back(data);
 }
@@ -389,7 +389,7 @@ TCodicilGuard::TCodicilGuard()
     : Active_(false)
 { }
 
-TCodicilGuard::TCodicilGuard(const Stroka& data)
+TCodicilGuard::TCodicilGuard(const TString& data)
     : Active_(true)
 {
     PushCodicil(data);

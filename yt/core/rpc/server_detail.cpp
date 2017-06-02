@@ -252,12 +252,12 @@ bool TServiceContextBase::IsRetry() const
     return RequestHeader_->retry();
 }
 
-const Stroka& TServiceContextBase::GetService() const
+const TString& TServiceContextBase::GetService() const
 {
     return RequestHeader_->service();
 }
 
-const Stroka& TServiceContextBase::GetMethod() const
+const TString& TServiceContextBase::GetMethod() const
 {
     return RequestHeader_->method();
 }
@@ -267,7 +267,7 @@ const TRealmId& TServiceContextBase::GetRealmId() const
     return RealmId_;
 }
 
-const Stroka& TServiceContextBase::GetUser() const
+const TString& TServiceContextBase::GetUser() const
 {
     return User_;
 }
@@ -282,7 +282,7 @@ TRequestHeader& TServiceContextBase::RequestHeader()
     return *RequestHeader_;
 }
 
-void TServiceContextBase::SetRawRequestInfo(const Stroka& info)
+void TServiceContextBase::SetRawRequestInfo(const TString& info)
 {
     RequestInfo_ = info;
     if (Logger.IsEnabled(LogLevel_)) {
@@ -290,7 +290,7 @@ void TServiceContextBase::SetRawRequestInfo(const Stroka& info)
     }
 }
 
-void TServiceContextBase::SetRawResponseInfo(const Stroka& info)
+void TServiceContextBase::SetRawResponseInfo(const TString& info)
 {
     Y_ASSERT(!Replied_);
     Y_ASSERT(!IsOneWay());
@@ -344,12 +344,12 @@ bool TServiceContextWrapper::IsRetry() const
     return UnderlyingContext_->IsRetry();
 }
 
-const Stroka& TServiceContextWrapper::GetService() const
+const TString& TServiceContextWrapper::GetService() const
 {
     return UnderlyingContext_->GetService();
 }
 
-const Stroka& TServiceContextWrapper::GetMethod() const
+const TString& TServiceContextWrapper::GetMethod() const
 {
     return UnderlyingContext_->GetMethod();
 }
@@ -359,7 +359,7 @@ const TRealmId& TServiceContextWrapper::GetRealmId() const
     return UnderlyingContext_->GetRealmId();
 }
 
-const Stroka& TServiceContextWrapper::GetUser() const
+const TString& TServiceContextWrapper::GetUser() const
 {
     return UnderlyingContext_->GetUser();
 }
@@ -453,12 +453,12 @@ NProto::TRequestHeader& TServiceContextWrapper::RequestHeader()
     return UnderlyingContext_->RequestHeader();
 }
 
-void TServiceContextWrapper::SetRawRequestInfo(const Stroka& info)
+void TServiceContextWrapper::SetRawRequestInfo(const TString& info)
 {
     UnderlyingContext_->SetRawRequestInfo(info);
 }
 
-void TServiceContextWrapper::SetRawResponseInfo(const Stroka& info)
+void TServiceContextWrapper::SetRawResponseInfo(const TString& info)
 {
     UnderlyingContext_->SetRawResponseInfo(info);
 }
@@ -594,7 +594,7 @@ TFuture<void> TServerBase::DoStop(bool graceful)
     }));
 }
 
-std::vector<IServicePtr> TServerBase::DoFindServices(const Stroka& serviceName)
+std::vector<IServicePtr> TServerBase::DoFindServices(const TString& serviceName)
 {
     std::vector<IServicePtr> result;
     for (const auto& pair : ServiceMap_) {

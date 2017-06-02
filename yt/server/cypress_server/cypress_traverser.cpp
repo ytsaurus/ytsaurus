@@ -77,7 +77,7 @@ private:
     const IInvokerPtr Invoker_;
     const ICypressNodeVisitorPtr Visitor_;
     TTransaction* const Transaction_;
-    const Stroka UserName_;
+    const TString UserName_;
 
     TDuration TotalTime_;
 

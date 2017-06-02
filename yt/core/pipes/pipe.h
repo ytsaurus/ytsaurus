@@ -14,15 +14,15 @@ class TNamedPipe
 {
 public:
     ~TNamedPipe();
-    static TNamedPipePtr Create(const Stroka& path);
+    static TNamedPipePtr Create(const TString& path);
     TAsyncReaderPtr CreateAsyncReader();
     TAsyncWriterPtr CreateAsyncWriter();
-    Stroka GetPath() const;
+    TString GetPath() const;
 
 private:
-    const Stroka Path_;
+    const TString Path_;
 
-    explicit TNamedPipe(const Stroka& path);
+    explicit TNamedPipe(const TString& path);
     void Open();
     DECLARE_NEW_FRIEND();
 };
@@ -34,12 +34,12 @@ DEFINE_REFCOUNTED_TYPE(TNamedPipe)
 struct TNamedPipeConfig
     : public NYTree::TYsonSerializableLite
 {
-    Stroka Path;
+    TString Path;
     int FD;
     bool Write;
 
     TNamedPipeConfig()
-        : TNamedPipeConfig(Stroka(), 0, false)
+        : TNamedPipeConfig(TString(), 0, false)
     { }
 
     TNamedPipeConfig(TNamedPipeConfig&& other)
@@ -49,7 +49,7 @@ struct TNamedPipeConfig
         Write = std::move(other.Write);
     }
 
-    TNamedPipeConfig(const Stroka& path, int fd, bool write)
+    TNamedPipeConfig(const TString& path, int fd, bool write)
         : Path(path)
         , FD(fd)
         , Write(write)
@@ -96,7 +96,7 @@ private:
     friend class TPipeFactory;
 };
 
-Stroka ToString(const TPipe& pipe);
+TString ToString(const TPipe& pipe);
 
 ////////////////////////////////////////////////////////////////////////////////
 

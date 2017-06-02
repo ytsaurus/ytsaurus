@@ -70,14 +70,14 @@ TError::TErrorOr(const std::exception& ex)
     }
 }
 
-TError::TErrorOr(const Stroka& message)
+TError::TErrorOr(const TString& message)
     : Code_(NYT::EErrorCode::Generic)
     , Message_(message)
 {
     CaptureOriginAttributes();
 }
 
-TError::TErrorOr(TErrorCode code, const Stroka& message)
+TError::TErrorOr(TErrorCode code, const TString& message)
     : Code_(code)
     , Message_(message)
 {
@@ -128,12 +128,12 @@ TError& TError::SetCode(TErrorCode code)
     return *this;
 }
 
-const Stroka& TError::GetMessage() const
+const TString& TError::GetMessage() const
 {
     return Message_;
 }
 
-TError& TError::SetMessage(const Stroka& message)
+TError& TError::SetMessage(const TString& message)
 {
     Message_ = message;
     return *this;
@@ -261,7 +261,7 @@ void AppendIndent(TStringBuilder* builer, int indent)
     builer->AppendChar(' ', indent);
 }
 
-void AppendAttribute(TStringBuilder* builder, const Stroka& key, const Stroka& value, int indent)
+void AppendAttribute(TStringBuilder* builder, const TString& key, const TString& value, int indent)
 {
     AppendIndent(builder, indent + 4);
     builder->AppendFormat("%-15s %s", key, value);
@@ -284,8 +284,8 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
     }
 
     // Pretty-print origin.
-    auto host = error.Attributes().Find<Stroka>("host");
-    auto datetime = error.Attributes().Find<Stroka>("datetime");
+    auto host = error.Attributes().Find<TString>("host");
+    auto datetime = error.Attributes().Find<TString>("datetime");
     auto pid = error.Attributes().Find<pid_t>("pid");
     auto tid = error.Attributes().Find<NConcurrency::TThreadId>("tid");
     auto fid = error.Attributes().Find<NConcurrency::TFiberId>("fid");
@@ -316,7 +316,7 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
         YCHECK(tokenizer.ParseNext());
         switch (tokenizer.GetCurrentType()) {
             case ETokenType::String:
-                AppendAttribute(builder, key, Stroka(tokenizer.CurrentToken().GetStringValue()), indent);
+                AppendAttribute(builder, key, TString(tokenizer.CurrentToken().GetStringValue()), indent);
                 break;
             case ETokenType::Int64:
                 AppendAttribute(builder, key, ToString(tokenizer.CurrentToken().GetInt64Value()), indent);
@@ -328,7 +328,7 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
                 AppendAttribute(builder, key, ToString(tokenizer.CurrentToken().GetDoubleValue()), indent);
                 break;
             case ETokenType::Boolean:
-                AppendAttribute(builder, key, Stroka(FormatBool(tokenizer.CurrentToken().GetBooleanValue())), indent);
+                AppendAttribute(builder, key, TString(FormatBool(tokenizer.CurrentToken().GetBooleanValue())), indent);
                 break;
             default:
                 AppendAttribute(builder, key, ConvertToYsonString(value, EYsonFormat::Text).GetData(), indent);
@@ -344,7 +344,7 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
 
 } // namespace
 
-Stroka ToString(const TError& error)
+TString ToString(const TError& error)
 {
     TStringBuilder builder;
     AppendError(&builder, error, 0);
@@ -376,7 +376,7 @@ void ToProto(NYT::NProto::TError* protoError, const TError& error)
 void FromProto(TError* error, const NYT::NProto::TError& protoError)
 {
     error->Code_ = protoError.code();
-    error->Message_ = protoError.has_message() ? protoError.message() : Stroka();
+    error->Message_ = protoError.has_message() ? protoError.message() : TString();
     if (protoError.has_attributes()) {
         error->Attributes_ = FromProto(protoError.attributes());
     } else {
@@ -394,7 +394,7 @@ void Serialize(
         .BeginMap()
             .Item("code").Value(error.GetCode())
             .Item("message").Value(error.GetMessage())
-            .Item("attributes").DoMapFor(error.Attributes().List(), [&] (TFluentMap fluent, const Stroka& key) {
+            .Item("attributes").DoMapFor(error.Attributes().List(), [&] (TFluentMap fluent, const TString& key) {
                 fluent
                     .Item(key).Value(error.Attributes().GetYson(key));
             })
@@ -417,7 +417,7 @@ void Deserialize(TError& error, NYTree::INodePtr node)
     auto mapNode = node->AsMap();
 
     error.Code_ = mapNode->GetChild("code")->GetValue<i64>();
-    error.Message_ = mapNode->GetChild("message")->GetValue<Stroka>();
+    error.Message_ = mapNode->GetChild("message")->GetValue<TString>();
     error.Attributes_ = IAttributeDictionary::FromMap(mapNode->GetChild("attributes")->AsMap());
 
     error.InnerErrors_.clear();

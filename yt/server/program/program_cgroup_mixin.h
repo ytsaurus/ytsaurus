@@ -12,7 +12,7 @@ protected:
     bool HandleCgroupOptions();
 
 private:
-    std::vector<Stroka> CgroupPaths_;
+    std::vector<TString> CgroupPaths_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

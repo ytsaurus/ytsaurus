@@ -25,7 +25,7 @@ public:
     TFuture<TMutationResponse> CommitAndLog(const NLogging::TLogger& logger);
     TFuture<TMutationResponse> CommitAndReply(NRpc::IServiceContextPtr context);
 
-    TMutationPtr SetRequestData(TSharedRef data, Stroka type);
+    TMutationPtr SetRequestData(TSharedRef data, TString type);
     TMutationPtr SetHandler(TCallback<void(TMutationContext*)> handler);
     TMutationPtr SetAllowLeaderForwarding(bool value);
     TMutationPtr SetMutationId(const NRpc::TMutationId& mutationId, bool retry);

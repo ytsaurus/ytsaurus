@@ -68,7 +68,7 @@ void FormatLevel(TMessageBuffer* out, ELogLevel level)
     out->AppendChar(chars[static_cast<int>(level)]);
 }
 
-void FormatMessage(TMessageBuffer* out, const Stroka& message)
+void FormatMessage(TMessageBuffer* out, const TString& message)
 {
     auto current = message.begin();
 

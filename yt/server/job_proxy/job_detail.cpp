@@ -57,7 +57,7 @@ std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
         "Dumping input context is not supported for built-in jobs");
 }
 
-Stroka TJob::GetStderr()
+TString TJob::GetStderr()
 {
     THROW_ERROR_EXCEPTION(
         EErrorCode::UnsupportedJobType,
@@ -71,7 +71,7 @@ TYsonString TJob::StraceJob()
         "Stracing is not supported for built-in jobs");
 }
 
-void TJob::SignalJob(const Stroka& /*signalName*/)
+void TJob::SignalJob(const TString& /*signalName*/)
 {
     THROW_ERROR_EXCEPTION(
         EErrorCode::UnsupportedJobType,

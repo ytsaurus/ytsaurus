@@ -49,10 +49,10 @@ public:
         TNullable<ETcpInterfaceType> interfaceType,
         const TConnectionId& id,
         int socket,
-        const Stroka& endpointDescription,
+        const TString& endpointDescription,
         const NYTree::IAttributeDictionary& endpointAttributes,
-        const TNullable<Stroka>& address,
-        const TNullable<Stroka>& unixDomainName,
+        const TNullable<TString>& address,
+        const TNullable<TString>& unixDomainName,
         int priority,
         IMessageHandlerPtr handler);
 
@@ -64,10 +64,10 @@ public:
     virtual void SyncInitialize() override;
     virtual void SyncFinalize() override;
     virtual void SyncCheck() override;
-    virtual Stroka GetLoggingId() const override;
+    virtual TString GetLoggingId() const override;
 
     // IBus implementation.
-    virtual const Stroka& GetEndpointDescription() const override;
+    virtual const TString& GetEndpointDescription() const override;
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
     virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override;
     virtual void Terminate(const TError& error) override;
@@ -137,10 +137,10 @@ private:
     const EConnectionType ConnectionType_;
     const TConnectionId Id_;
     int Socket_;
-    const Stroka EndpointDescription_;
+    const TString EndpointDescription_;
     const std::unique_ptr<NYTree::IAttributeDictionary> EndpointAttributes_;
-    const TNullable<Stroka> Address_;
-    const TNullable<Stroka> UnixDomainName_;
+    const TNullable<TString> Address_;
+    const TNullable<TString> UnixDomainName_;
 #ifdef _linux_
     const int Priority_;
 #endif

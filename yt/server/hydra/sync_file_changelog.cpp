@@ -213,7 +213,7 @@ class TSyncFileChangelog::TImpl
 {
 public:
     TImpl(
-        const Stroka& fileName,
+        const TString& fileName,
         TFileChangelogConfigPtr config)
         : FileName_(fileName)
         , IndexFileName_(fileName + "." + ChangelogIndexExtension)
@@ -230,7 +230,7 @@ public:
         return Config_;
     }
 
-    const Stroka& GetFileName() const
+    const TString& GetFileName() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -896,8 +896,8 @@ private:
     }
 
 
-    const Stroka FileName_;
-    const Stroka IndexFileName_;
+    const TString FileName_;
+    const TString IndexFileName_;
     const TFileChangelogConfigPtr Config_;
 
     TError Error_;
@@ -930,7 +930,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSyncFileChangelog::TSyncFileChangelog(
-    const Stroka& fileName,
+    const TString& fileName,
     TFileChangelogConfigPtr config)
     : Impl_(new TImpl(
         fileName,
@@ -944,7 +944,7 @@ const TFileChangelogConfigPtr& TSyncFileChangelog::GetConfig()
     return Impl_->GetConfig();
 }
 
-const Stroka& TSyncFileChangelog::GetFileName() const
+const TString& TSyncFileChangelog::GetFileName() const
 {
     return Impl_->GetFileName();
 }

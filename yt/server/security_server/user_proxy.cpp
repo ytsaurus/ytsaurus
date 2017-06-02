@@ -59,7 +59,7 @@ private:
             .SetOpaque(true));
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
     {
         auto* user = GetThisImpl();
 
@@ -116,7 +116,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(const TString& key, const TYsonString& value) override
     {
         auto* user = GetThisImpl();
         const auto& securityManager = Bootstrap_->GetSecurityManager();

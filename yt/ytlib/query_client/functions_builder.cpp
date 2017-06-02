@@ -8,8 +8,8 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 void TFunctionRegistryBuilder::RegisterFunction(
-    const Stroka& functionName,
-    const Stroka& symbolName,
+    const TString& functionName,
+    const TString& symbolName,
     std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     std::vector<TType> argumentTypes,
     TType repeatedArgType,
@@ -31,7 +31,7 @@ void TFunctionRegistryBuilder::RegisterFunction(
 }
 
 void TFunctionRegistryBuilder::RegisterFunction(
-    const Stroka& functionName,
+    const TString& functionName,
     std::vector<TType> argumentTypes,
     TType resultType,
     TSharedRef implementationFile,
@@ -49,7 +49,7 @@ void TFunctionRegistryBuilder::RegisterFunction(
 }
 
 void TFunctionRegistryBuilder::RegisterFunction(
-    const Stroka& functionName,
+    const TString& functionName,
     std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     std::vector<TType> argumentTypes,
     TType repeatedArgType,
@@ -68,7 +68,7 @@ void TFunctionRegistryBuilder::RegisterFunction(
 }
 
 void TFunctionRegistryBuilder::RegisterAggregate(
-    const Stroka& aggregateName,
+    const TString& aggregateName,
     std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     TType argumentType,
     TType resultType,

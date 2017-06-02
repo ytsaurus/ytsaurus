@@ -15,7 +15,7 @@ class TTraceManagerConfig
 public:
     //! Address where all trace events are pushed to.
     //! If |Null| then push is disabled.
-    TNullable<Stroka> Address;
+    TNullable<TString> Address;
 
     //! Maximum number of trace events per batch.
     int MaxBatchSize;

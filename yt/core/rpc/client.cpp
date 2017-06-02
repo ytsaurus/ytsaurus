@@ -16,15 +16,15 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto ClientHostAnnotation = Stroka("client_host");
-static const auto RequestIdAnnotation = Stroka("request_id");
+static const auto ClientHostAnnotation = TString("client_host");
+static const auto RequestIdAnnotation = TString("request_id");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TClientRequest::TClientRequest(
     IChannelPtr channel,
-    const Stroka& service,
-    const Stroka& method,
+    const TString& service,
+    const TString& method,
     bool oneWay,
     int protocolVersion)
     : Channel_(std::move(channel))
@@ -93,24 +93,24 @@ TRealmId TClientRequest::GetRealmId() const
     return FromProto<TRealmId>(Header_.realm_id());
 }
 
-const Stroka& TClientRequest::GetService() const
+const TString& TClientRequest::GetService() const
 {
     return Header_.service();
 }
 
-const Stroka& TClientRequest::GetMethod() const
+const TString& TClientRequest::GetMethod() const
 {
     return Header_.method();
 }
 
-const Stroka& TClientRequest::GetUser() const
+const TString& TClientRequest::GetUser() const
 {
     return Header_.has_user()
         ? Header_.user()
         : RootUserName;
 }
 
-void TClientRequest::SetUser(const Stroka& user)
+void TClientRequest::SetUser(const TString& user)
 {
     if (user == RootUserName) {
         Header_.clear_user();

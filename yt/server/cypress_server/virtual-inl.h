@@ -38,7 +38,7 @@ protected:
     NCellMaster::TBootstrap* const Bootstrap_;
     const NHydra::TReadOnlyEntityMap<TValue>* const Map_;
 
-    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
+    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         return ConvertToStrings(NYT::GetKeys(*Map_, sizeLimit));
     }

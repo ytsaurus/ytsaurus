@@ -41,13 +41,13 @@ public:
         }
     }
 
-    const Stroka& GetStatisticsSuffix(EJobState state, EJobType type) const
+    const TString& GetStatisticsSuffix(EJobState state, EJobType type) const
     {
         return StatisticsSuffixes_[state][type];
     }
 
 private:
-    TEnumIndexedVector<TEnumIndexedVector<Stroka, EJobType>, EJobState> StatisticsSuffixes_;
+    TEnumIndexedVector<TEnumIndexedVector<TString, EJobType>, EJobState> StatisticsSuffixes_;
 
 } JobHelper;
 
@@ -111,7 +111,7 @@ TJob::TJob(
     bool restarted,
     bool interruptible,
     TJobSpecBuilder specBuilder,
-    const Stroka& account)
+    const TString& account)
     : Id_(id)
     , Type_(type)
     , OperationId_(operationId)
@@ -181,7 +181,7 @@ void TJob::SetStatus(TJobStatus* status)
     }
 }
 
-const Stroka& TJob::GetStatisticsSuffix() const
+const TString& TJob::GetStatisticsSuffix() const
 {
     auto state = (GetRestarted() && GetState() == EJobState::Completed) ? EJobState::Lost : GetState();
     auto type = GetType();
@@ -308,7 +308,7 @@ TJobStartRequest::TJobStartRequest(
     bool restarted,
     bool interruptible,
     TJobSpecBuilder specBuilder,
-    const Stroka& account)
+    const TString& account)
     : Id(id)
     , Type(type)
     , ResourceLimits(resourceLimits)

@@ -98,16 +98,16 @@ public:
     TNode* GetNodeOrThrow(TNodeId id);
 
     //! Returns a node registered at the given address (|nullptr| if none).
-    TNode* FindNodeByAddress(const Stroka& address);
+    TNode* FindNodeByAddress(const TString& address);
 
     //! Returns a node registered at the given address (fails if none).
-    TNode* GetNodeByAddress(const Stroka& address);
+    TNode* GetNodeByAddress(const TString& address);
 
     //! Returns a node registered at the given address (throws if none).
-    TNode* GetNodeByAddressOrThrow(const Stroka& address);
+    TNode* GetNodeByAddressOrThrow(const TString& address);
 
     //! Returns an arbitrary node registered at the host (|nullptr| if none).
-    TNode* FindNodeByHostName(const Stroka& hostName);
+    TNode* FindNodeByHostName(const TString& hostName);
 
     //! Returns the list of all nodes belonging to a given rack.
     /*!
@@ -132,44 +132,44 @@ public:
     void SetNodeRack(TNode* node, TRack* rack);
 
     //! Sets the user tags for the node.
-    void SetNodeUserTags(TNode* node, const std::vector<Stroka>& tags);
+    void SetNodeUserTags(TNode* node, const std::vector<TString>& tags);
 
     //! Sets the flag disabling write sessions at the node.
     void SetDisableWriteSessions(TNode* node, bool value);
 
     //! Creates a new rack with a given name. Throws on name conflict.
-    TRack* CreateRack(const Stroka& name);
+    TRack* CreateRack(const TString& name);
 
     //! Destroys an existing rack.
     void DestroyRack(TRack* rack);
 
     //! Renames an existing racks. Throws on name conflict.
-    void RenameRack(TRack* rack, const Stroka& newName);
+    void RenameRack(TRack* rack, const TString& newName);
 
     //! Returns a rack with a given name (|nullptr| if none).
-    TRack* FindRackByName(const Stroka& name);
+    TRack* FindRackByName(const TString& name);
 
     //! Returns a rack with a given name (throws if none).
-    TRack* GetRackByNameOrThrow(const Stroka& name);
+    TRack* GetRackByNameOrThrow(const TString& name);
 
     //! Sets the data center and notifies the subscribers.
     void SetRackDataCenter(TRack* rack, TDataCenter* dc);
 
 
     //! Creates a new data center with a given name. Throws on name conflict.
-    TDataCenter* CreateDataCenter(const Stroka& name);
+    TDataCenter* CreateDataCenter(const TString& name);
 
     //! Destroys an existing data center.
     void DestroyDataCenter(TDataCenter* dc);
 
     //! Renames an existing data center. Throws on name conflict.
-    void RenameDataCenter(TDataCenter* dc, const Stroka& newName);
+    void RenameDataCenter(TDataCenter* dc, const TString& newName);
 
     //! Returns a data center with a given name (|nullptr| if none).
-    TDataCenter* FindDataCenterByName(const Stroka& name);
+    TDataCenter* FindDataCenterByName(const TString& name);
 
     //! Returns a data center with a given name (throws if none).
-    TDataCenter* GetDataCenterByNameOrThrow(const Stroka& name);
+    TDataCenter* GetDataCenterByNameOrThrow(const TString& name);
 
 
     //! Returns the total cluster statistics, aggregated over all nodes.

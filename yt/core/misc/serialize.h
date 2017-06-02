@@ -154,10 +154,10 @@ TSharedRef MergeRefsToRef(const TParts& parts)
 }
 
 template <class TParts>
-Stroka MergeRefsToString(const TParts& parts)
+TString MergeRefsToString(const TParts& parts)
 {
     size_t size = GetByteSize(parts);
-    Stroka packedString;
+    TString packedString;
     packedString.reserve(size);
     for (const auto& part : parts) {
         packedString.append(part.Begin(), part.End());
@@ -565,7 +565,7 @@ struct TEnumSerializer
 struct TStrokaSerializer
 {
     template <class C>
-    static void Save(C& context, const Stroka& value)
+    static void Save(C& context, const TString& value)
     {
         TSizeSerializer::Save(context, value.size());
 
@@ -573,7 +573,7 @@ struct TStrokaSerializer
     }
 
     template <class C>
-    static void Load(C& context, Stroka& value)
+    static void Load(C& context, TString& value)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
         value.resize(size);
@@ -582,7 +582,7 @@ struct TStrokaSerializer
             TRangeSerializer::Load(context, TMutableRef::FromString(value));
         }
 
-        SERIALIZATION_DUMP_WRITE(context, "Stroka %Qv", value);
+        SERIALIZATION_DUMP_WRITE(context, "TString %Qv", value);
     }
 };
 
@@ -1428,7 +1428,7 @@ struct TSerializerTraits<
 };
 
 template <class C>
-struct TSerializerTraits<Stroka, C, void>
+struct TSerializerTraits<TString, C, void>
 {
     typedef TStrokaSerializer TSerializer;
     typedef TValueBoundComparer TComparer;

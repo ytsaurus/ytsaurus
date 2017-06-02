@@ -21,8 +21,8 @@ namespace NTableClient {
 struct TBlobTableSchema
 {
     // Names of special blob columns.
-    static const Stroka PartIndexColumn;
-    static const Stroka DataColumn;
+    static const TString PartIndexColumn;
+    static const TString DataColumn;
 
     // Do not specify anything except name and value
     // type in all column schemas.

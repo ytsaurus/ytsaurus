@@ -452,7 +452,7 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
-    const Stroka& key,
+    const TString& key,
     IYsonConsumer* consumer)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
@@ -536,7 +536,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
     return TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(key, consumer);
 }
 
-TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(const Stroka& key)
+TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(const TString& key)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
     auto* chunkList = node->GetChunkList();
@@ -576,7 +576,7 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(const Stroka
 }
 
 void TChunkOwnerNodeProxy::ValidateCustomAttributeUpdate(
-    const Stroka& key,
+    const TString& key,
     const TYsonString& /*oldValue*/,
     const TYsonString& newValue)
 {
@@ -598,7 +598,7 @@ void TChunkOwnerNodeProxy::ValidateCustomAttributeUpdate(
 }
 
 bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
-    const Stroka& key,
+    const TString& key,
     const TYsonString& value)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -621,7 +621,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 
     if (key == "primary_medium") {
         ValidateNoTransaction();
-        auto mediumName = ConvertTo<Stroka>(value);
+        auto mediumName = ConvertTo<TString>(value);
         auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
         SetPrimaryMedium(medium);
         return true;

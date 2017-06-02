@@ -9,12 +9,12 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ISystemAttributeProvider::ListSystemAttributes(std::map<Stroka, TAttributeDescriptor>* descriptors)
+void ISystemAttributeProvider::ListSystemAttributes(std::map<TString, TAttributeDescriptor>* descriptors)
 {
     std::vector<TAttributeDescriptor> list;
     ListSystemAttributes(&list);
     for (const auto& descriptor : list) {
-        YCHECK(descriptors->insert(std::make_pair(Stroka(descriptor.Key), descriptor)).second);
+        YCHECK(descriptors->insert(std::make_pair(TString(descriptor.Key), descriptor)).second);
     }
 }
 
@@ -31,7 +31,7 @@ void ISystemAttributeProvider::ListBuiltinAttributes(std::vector<TAttributeDescr
 }
 
 TNullable<ISystemAttributeProvider::TAttributeDescriptor> ISystemAttributeProvider::FindBuiltinAttributeDescriptor(
-    const Stroka& key)
+    const TString& key)
 {
     std::vector<TAttributeDescriptor> builtinAttributes;
     ListBuiltinAttributes(&builtinAttributes);
@@ -44,7 +44,7 @@ TNullable<ISystemAttributeProvider::TAttributeDescriptor> ISystemAttributeProvid
     return it == builtinAttributes.end() ? Null : MakeNullable(*it);
 }
 
-TYsonString ISystemAttributeProvider::FindBuiltinAttribute(const Stroka& key)
+TYsonString ISystemAttributeProvider::FindBuiltinAttribute(const TString& key)
 {
     TStringStream stream;
     TBufferedBinaryYsonWriter writer(&stream);

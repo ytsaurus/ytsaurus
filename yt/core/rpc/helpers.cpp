@@ -84,7 +84,7 @@ public:
         , Timeout_(timeout)
     { }
 
-    virtual IChannelPtr CreateChannel(const Stroka& address) override
+    virtual IChannelPtr CreateChannel(const TString& address) override
     {
         auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
         return CreateDefaultTimeoutChannel(underlyingChannel, Timeout_);
@@ -111,7 +111,7 @@ class TAuthenticatedChannel
     : public TChannelWrapper
 {
 public:
-    TAuthenticatedChannel(IChannelPtr underlyingChannel, const Stroka& user)
+    TAuthenticatedChannel(IChannelPtr underlyingChannel, const TString& user)
         : TChannelWrapper(std::move(underlyingChannel))
         , User_(user)
     { }
@@ -129,11 +129,11 @@ public:
     }
 
 private:
-    const Stroka User_;
+    const TString User_;
 
 };
 
-IChannelPtr CreateAuthenticatedChannel(IChannelPtr underlyingChannel, const Stroka& user)
+IChannelPtr CreateAuthenticatedChannel(IChannelPtr underlyingChannel, const TString& user)
 {
     YCHECK(underlyingChannel);
 
@@ -148,12 +148,12 @@ class TAuthenticatedChannelFactory
 public:
     TAuthenticatedChannelFactory(
         IChannelFactoryPtr underlyingFactory,
-        const Stroka& user)
+        const TString& user)
         : UnderlyingFactory_(std::move(underlyingFactory))
         , User_(user)
     { }
 
-    virtual IChannelPtr CreateChannel(const Stroka& address) override
+    virtual IChannelPtr CreateChannel(const TString& address) override
     {
         auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
         return CreateAuthenticatedChannel(underlyingChannel, User_);
@@ -161,13 +161,13 @@ public:
 
 private:
     const IChannelFactoryPtr UnderlyingFactory_;
-    const Stroka User_;
+    const TString User_;
 
 };
 
 IChannelFactoryPtr CreateAuthenticatedChannelFactory(
     IChannelFactoryPtr underlyingFactory,
-    const Stroka& user)
+    const TString& user)
 {
     YCHECK(underlyingFactory);
 
@@ -222,7 +222,7 @@ public:
         , RealmId_(realmId)
     { }
 
-    virtual IChannelPtr CreateChannel(const Stroka& address) override
+    virtual IChannelPtr CreateChannel(const TString& address) override
     {
         auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
         return CreateRealmChannel(underlyingChannel, RealmId_);

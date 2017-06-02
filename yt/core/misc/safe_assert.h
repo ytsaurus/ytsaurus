@@ -16,15 +16,15 @@ namespace NYT {
 class TAssertionFailedException
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Expression);
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, StackTrace);
-    DEFINE_BYVAL_RO_PROPERTY(TNullable<Stroka>, CorePath);
+    DEFINE_BYVAL_RO_PROPERTY(TString, Expression);
+    DEFINE_BYVAL_RO_PROPERTY(TString, StackTrace);
+    DEFINE_BYVAL_RO_PROPERTY(TNullable<TString>, CorePath);
 
 public:
     TAssertionFailedException(
-        const Stroka& expression,
-        const Stroka& stackTrace,
-        const TNullable<Stroka>& corePath);
+        const TString& expression,
+        const TString& stackTrace,
+        const TNullable<TString>& corePath);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

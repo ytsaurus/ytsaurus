@@ -56,7 +56,7 @@ class TCypressFunctionDescriptor
     : public NYTree::TYsonSerializable
 {
 public:
-    Stroka Name;
+    TString Name;
     std::vector<TDescriptorType> ArgumentTypes;
     TNullable<TDescriptorType> RepeatedArgumentType;
     TDescriptorType ResultType;
@@ -93,7 +93,7 @@ class TCypressAggregateDescriptor
     : public NYTree::TYsonSerializable
 {
 public:
-    Stroka Name;
+    TString Name;
     TDescriptorType ArgumentType;
     TDescriptorType StateType;
     TDescriptorType ResultType;
@@ -117,8 +117,8 @@ DEFINE_REFCOUNTED_TYPE(TExternalCGInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const Stroka FunctionDescriptorAttribute("function_descriptor");
-static const Stroka AggregateDescriptorAttribute("aggregate_descriptor");
+static const TString FunctionDescriptorAttribute("function_descriptor");
+static const TString AggregateDescriptorAttribute("aggregate_descriptor");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -128,7 +128,7 @@ TExternalCGInfo::TExternalCGInfo()
 
 namespace {
 
-Stroka GetUdfDescriptorPath(const TYPath& registryPath, const Stroka& functionName)
+TString GetUdfDescriptorPath(const TYPath& registryPath, const TString& functionName)
 {
     return registryPath + "/" + ToYPathLiteral(functionName);
 }
@@ -136,8 +136,8 @@ Stroka GetUdfDescriptorPath(const TYPath& registryPath, const Stroka& functionNa
 } // namespace
 
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
-    const std::vector<Stroka>& functionNames,
-    const Stroka& udfRegistryPath,
+    const std::vector<TString>& functionNames,
+    const TString& udfRegistryPath,
     INativeClientPtr client)
 {
     using NObjectClient::TObjectYPathProxy;
@@ -150,7 +150,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 
     LOG_DEBUG("Looking for UDFs in Cypress");
 
-    auto attributeFilter = std::vector<Stroka>{
+    auto attributeFilter = std::vector<TString>{
         FunctionDescriptorAttribute,
         AggregateDescriptorAttribute};
 
@@ -255,7 +255,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 void AppendUdfDescriptors(
     const TTypeInferrerMapPtr& typers,
     const TExternalCGInfoPtr& cgInfo,
-    const std::vector<Stroka>& names,
+    const std::vector<TString>& names,
     const std::vector<TExternalFunctionSpec>& external)
 {
     YCHECK(names.size() == external.size());
@@ -356,14 +356,14 @@ DEFINE_REFCOUNTED_TYPE(IFunctionRegistry)
 namespace {
 
 class TCypressFunctionRegistry
-    : public TExpiringCache<Stroka, TExternalFunctionSpec>
+    : public TExpiringCache<TString, TExternalFunctionSpec>
     , public IFunctionRegistry
 {
 public:
-    typedef TExpiringCache<Stroka, TExternalFunctionSpec> TBase;
+    typedef TExpiringCache<TString, TExternalFunctionSpec> TBase;
 
     TCypressFunctionRegistry(
-        const Stroka& registryPath,
+        const TString& registryPath,
         TExpiringCacheConfigPtr config,
         TWeakPtr<INativeClient> client,
         IInvokerPtr invoker)
@@ -373,7 +373,7 @@ public:
         , Invoker_(invoker)
     { }
 
-    virtual TFuture<TExternalFunctionSpec> DoGet(const Stroka& key)
+    virtual TFuture<TExternalFunctionSpec> DoGet(const TString& key)
     {
         return DoGetMany({key})
             .Apply(BIND([] (const std::vector<TExternalFunctionSpec>& result) {
@@ -381,20 +381,20 @@ public:
             }));
     }
 
-    virtual TFuture<std::vector<TExternalFunctionSpec>> DoGetMany(const std::vector<Stroka>& keys)
+    virtual TFuture<std::vector<TExternalFunctionSpec>> DoGetMany(const std::vector<TString>& keys)
     {
         return BIND(LookupAllUdfDescriptors, keys, RegistryPath_, Client_.Lock())
             .AsyncVia(Invoker_)
             .Run();
     }
 
-    virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(const std::vector<Stroka>& names) override
+    virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(const std::vector<TString>& names) override
     {
         return Get(names);
     }
 
 private:
-    const Stroka RegistryPath_;
+    const TString RegistryPath_;
     const TWeakPtr<INativeClient> Client_;
     const IInvokerPtr Invoker_;
 
@@ -405,7 +405,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IFunctionRegistryPtr CreateFunctionRegistryCache(
-    const Stroka& registryPath,
+    const TString& registryPath,
     TExpiringCacheConfigPtr config,
     TWeakPtr<INativeClient> client,
     IInvokerPtr invoker)
@@ -463,7 +463,7 @@ bool TFunctionImplKey::operator == (const TFunctionImplKey& other) const
     return true;
 }
 
-Stroka ToString(const TFunctionImplKey& key)
+TString ToString(const TFunctionImplKey& key)
 {
     return Format("{%v}", JoinToString(key.ChunkSpecs, [] (
         TStringBuilder* builder,
@@ -659,7 +659,7 @@ void FetchJobImplementations(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
-    Stroka implementationPath)
+    TString implementationPath)
 {
      for (const auto& function : externalCGInfo->Functions) {
         const auto& name = function.Name;

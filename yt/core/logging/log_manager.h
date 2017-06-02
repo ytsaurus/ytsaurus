@@ -28,7 +28,7 @@ public:
     virtual void Shutdown() override;
 
     int GetVersion() const;
-    ELogLevel GetMinLevel(const Stroka& category) const;
+    ELogLevel GetMinLevel(const TString& category) const;
 
     void Enqueue(TLogEvent&& event);
 

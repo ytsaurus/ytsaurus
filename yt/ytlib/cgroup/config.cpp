@@ -6,12 +6,12 @@ namespace NCGroup {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TCGroupConfig::IsCGroupSupported(const Stroka& cgroupType) const
+bool TCGroupConfig::IsCGroupSupported(const TString& cgroupType) const
 {
     auto it = std::find_if(
         SupportedCGroups.begin(),
         SupportedCGroups.end(),
-        [&] (const Stroka& type) {
+        [&] (const TString& type) {
             return type == cgroupType;
         });
     return it != SupportedCGroups.end();

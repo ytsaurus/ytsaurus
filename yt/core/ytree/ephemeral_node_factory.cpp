@@ -91,7 +91,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<Stroka>>& attributeKeys,
+        const TNullable<std::vector<TString>>& attributeKeys,
         bool stable) override
     {
         if (!HasAttributes()) {
@@ -105,9 +105,9 @@ public:
             std::sort(keys.begin(), keys.end());
         }
 
-        yhash_set<Stroka> matchingKeys;
+        yhash_set<TString> matchingKeys;
         if (attributeKeys) {
-            matchingKeys = yhash_set<Stroka>(attributeKeys->begin(), attributeKeys->end());
+            matchingKeys = yhash_set<TString>(attributeKeys->begin(), attributeKeys->end());
         }
 
         for (const auto& key : keys) {
@@ -174,7 +174,7 @@ private:
             { } \
     };
 
-DECLARE_SCALAR_TYPE(String, Stroka)
+DECLARE_SCALAR_TYPE(String, TString)
 DECLARE_SCALAR_TYPE(Int64, i64)
 DECLARE_SCALAR_TYPE(Uint64, ui64)
 DECLARE_SCALAR_TYPE(Double, double)
@@ -232,14 +232,14 @@ public:
         return KeyToChild.ysize();
     }
 
-    virtual std::vector< std::pair<Stroka, INodePtr> > GetChildren() const override
+    virtual std::vector< std::pair<TString, INodePtr> > GetChildren() const override
     {
-        return std::vector< std::pair<Stroka, INodePtr> >(KeyToChild.begin(), KeyToChild.end());
+        return std::vector< std::pair<TString, INodePtr> >(KeyToChild.begin(), KeyToChild.end());
     }
 
-    virtual std::vector<Stroka> GetKeys() const override
+    virtual std::vector<TString> GetKeys() const override
     {
-        std::vector<Stroka> result;
+        std::vector<TString> result;
         result.reserve(KeyToChild.size());
         for (const auto& pair : KeyToChild) {
             result.push_back(pair.first);
@@ -247,13 +247,13 @@ public:
         return result;
     }
 
-    virtual INodePtr FindChild(const Stroka& key) const override
+    virtual INodePtr FindChild(const TString& key) const override
     {
         auto it = KeyToChild.find(key);
         return it == KeyToChild.end() ? nullptr : it->second;
     }
 
-    virtual bool AddChild(INodePtr child, const Stroka& key) override
+    virtual bool AddChild(INodePtr child, const TString& key) override
     {
         Y_ASSERT(child);
         ValidateYTreeKey(key);
@@ -267,9 +267,9 @@ public:
         }
     }
 
-    virtual bool RemoveChild(const Stroka& key) override
+    virtual bool RemoveChild(const TString& key) override
     {
-        auto it = KeyToChild.find(Stroka(key));
+        auto it = KeyToChild.find(TString(key));
         if (it == KeyToChild.end())
             return false;
 
@@ -318,7 +318,7 @@ public:
         YCHECK(ChildToKey.insert(std::make_pair(newChild, key)).second);
     }
 
-    virtual Stroka GetChildKey(IConstNodePtr child) override
+    virtual TString GetChildKey(IConstNodePtr child) override
     {
         Y_ASSERT(child);
 
@@ -328,8 +328,8 @@ public:
     }
 
 private:
-    yhash<Stroka, INodePtr> KeyToChild;
-    yhash<INodePtr, Stroka> ChildToKey;
+    yhash<TString, INodePtr> KeyToChild;
+    yhash<INodePtr, TString> ChildToKey;
 
     virtual bool DoInvoke(const IServiceContextPtr& context) override
     {

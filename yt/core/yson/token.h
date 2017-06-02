@@ -43,7 +43,7 @@ DEFINE_ENUM(ETokenType,
 
 ETokenType CharToTokenType(char ch);        // returns ETokenType::EndOfStream for non-special chars
 char TokenTypeToChar(ETokenType type);      // Y_UNREACHABLE for non-special types
-Stroka TokenTypeToString(ETokenType type);  // Y_UNREACHABLE for non-special types
+TString TokenTypeToString(ETokenType type);  // Y_UNREACHABLE for non-special types
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,7 +83,7 @@ private:
     bool BooleanValue_;
 };
 
-Stroka ToString(const TToken& token);
+TString ToString(const TToken& token);
 
 ////////////////////////////////////////////////////////////////////////////////
 

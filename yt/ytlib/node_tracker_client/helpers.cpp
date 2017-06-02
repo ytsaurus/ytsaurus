@@ -17,7 +17,7 @@ using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-Stroka FormatResourceUsage(
+TString FormatResourceUsage(
     const TNodeResources& usage,
     const TNodeResources& limits)
 {
@@ -61,7 +61,7 @@ Stroka FormatResourceUsage(
         limits.seal_slots());
 }
 
-Stroka FormatResources(const TNodeResources& resources)
+TString FormatResources(const TNodeResources& resources)
 {
     return Format(
         "{"

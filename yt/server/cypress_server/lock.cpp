@@ -30,7 +30,7 @@ bool TLockKey::operator <(const TLockKey& other) const
 
 TLockKey::operator size_t() const
 {
-    return THash<ELockKeyKind>()(Kind) ^ THash<Stroka>()(Name);
+    return THash<ELockKeyKind>()(Kind) ^ THash<TString>()(Name);
 }
 
 void TLockKey::Persist(TPersistenceContext& context)
@@ -58,7 +58,7 @@ TLockRequest::TLockRequest(ELockMode mode)
     : Mode(mode)
 { }
 
-TLockRequest TLockRequest::MakeSharedChild(const Stroka& key)
+TLockRequest TLockRequest::MakeSharedChild(const TString& key)
 {
     TLockRequest result(ELockMode::Shared);
     result.Key.Kind = ELockKeyKind::Child;
@@ -66,7 +66,7 @@ TLockRequest TLockRequest::MakeSharedChild(const Stroka& key)
     return result;
 }
 
-TLockRequest TLockRequest::MakeSharedAttribute(const Stroka& key)
+TLockRequest TLockRequest::MakeSharedAttribute(const TString& key)
 {
     TLockRequest result(ELockMode::Shared);
     result.Key.Kind = ELockKeyKind::Attribute;

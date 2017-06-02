@@ -167,7 +167,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     int minCount,
     TNullable<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
-    const TNullable<Stroka>& preferredHostName,
+    const TNullable<TString>& preferredHostName,
     ESessionType sessionType)
 {
     auto targetNodes = GetWriteTargets(
@@ -265,7 +265,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     bool forceRackAwareness,
     TNullable<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
-    const TNullable<Stroka>& preferredHostName)
+    const TNullable<TString>& preferredHostName)
 {
     int maxReplicasPerRack = GetMaxReplicasPerRack(chunk, mediumIndex, replicationFactorOverride);
     TTargetCollector collector(chunk, mediumIndex, maxReplicasPerRack, forbiddenNodes);
