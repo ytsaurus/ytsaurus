@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.examples;
 
+import io.netty.channel.nio.NioEventLoopGroup;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -28,6 +29,10 @@ public final class ExamplesUtil {
 
     public static BusConnector createConnector() {
         return new DefaultBusConnector();
+    }
+
+    public static BusConnector createConnector(int threads) {
+        return new DefaultBusConnector(new NioEventLoopGroup(threads), true);
     }
 
     public static String getUser() {
