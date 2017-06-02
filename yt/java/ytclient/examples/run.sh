@@ -11,7 +11,7 @@ done
 
 if [ -z "$JVM_OPTS" ]
 then
-    JVM_OPTS="-Xmx256M -Djava.net.preferIPv6Addresses=true"
+    JVM_OPTS="-Xmx1G -Djava.net.preferIPv6Addresses=true"
 fi
 
 if [ -n "$JAVA_HOME" ]
@@ -24,7 +24,7 @@ fi
 
 if [ -n "$LOG_DIR" ]
 then
-	JVM_OPTS="$JVM_OPTS -Dlogs.dir=$LOG_DIR"
+	JVM_OPTS="$JVM_OPTS -Dlogs.dir=$LOG_DIR -XX:+UseG1GC -XX:MaxGCPauseMillis=10"
 fi
 
 if [ -n "$LOG4J" ]
