@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.examples;
 
+import com.codahale.metrics.JmxReporter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -58,9 +59,9 @@ public class SelectRowsBenchmark {
         String token = ExamplesUtil.getToken();
         int threads = 12;
 
-        final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("default");
-        final Histogram requestsHistogram = metrics.histogram("requestsHistogram");
-        final Meter requestsMeter = metrics.meter("requestsMeter");
+        final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
+        final Histogram requestsHistogram = metrics.histogram(MetricRegistry.name(SelectRowsBenchmark.class, "requests", "histogram"));
+        final Meter requestsMeter = metrics.meter(MetricRegistry.name(SelectRowsBenchmark.class,"requests", "meter"));
 
         OptionParser parser = new OptionParser();
 
@@ -138,6 +139,9 @@ public class SelectRowsBenchmark {
             .build();
         reporter.start(5, TimeUnit.SECONDS);
 
+        final JmxReporter jmxReporter = JmxReporter.forRegistry(metrics).build();
+        jmxReporter.start();
+
         executorService = Executors.newFixedThreadPool(threads);
 
         List<RpcClient> proxiesConnections = proxies.stream().map(x ->
@@ -187,7 +191,6 @@ public class SelectRowsBenchmark {
                             .requests.stream()
                             .map(s -> client.selectRows(s)).collect(Collectors.toList());
 
-                        // TODO: maxInflight here
                         CompletableFuture
                             .allOf(futures.toArray(new CompletableFuture[futures.size()]))
                             .whenComplete((a, b) -> {

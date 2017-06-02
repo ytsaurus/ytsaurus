@@ -40,10 +40,10 @@ public class BalancingRpcClient implements RpcClient {
     final private Timer timer = new Timer();
 
     // TODO: move somewhere to core
-    final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("default");
-    final Counter inflight = metrics.counter("inflight");
-    final Counter failover = metrics.counter("failover");
-    final Counter total = metrics.counter("total");
+    private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
+    private static final Counter inflight = metrics.counter(MetricRegistry.name(BalancingRpcClient.class, "requests", "inflight"));
+    private static final Counter failover = metrics.counter(MetricRegistry.name(BalancingRpcClient.class,"requests", "failover"));
+    private static final Counter total = metrics.counter(MetricRegistry.name(BalancingRpcClient.class,"requests", "total"));
 
     final private class Destination {
         final RpcClient client;
