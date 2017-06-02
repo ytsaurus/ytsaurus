@@ -106,7 +106,7 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 
 struct TJobSummary
 {
-    TJobSummary();
+    TJobSummary() = default;
     TJobSummary(const TJobPtr& job, TJobStatus* status);
     TJobSummary(const TJobId& id, EJobState state);
 

@@ -10,8 +10,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr TChecksum NullChecksum = 0;
-
 TChecksum GetChecksum(const TRef& data);
 
 TChecksum CombineChecksums(const std::vector<TChecksum>& blockChecksums);

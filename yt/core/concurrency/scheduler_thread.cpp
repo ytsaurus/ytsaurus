@@ -345,7 +345,7 @@ void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoke
             resumer = std::move(resumer),
             unwinder = std::move(unwinder)
         ] (const TError&) mutable {
-            LOG_DEBUG("Waking up fiber %x", fiber->GetId());
+            LOG_DEBUG("Waking up fiber %llx", fiber->GetId());
             GuardedInvoke(std::move(invoker), std::move(resumer), std::move(unwinder));
         }));
     } else {

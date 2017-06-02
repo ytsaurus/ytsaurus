@@ -9,6 +9,7 @@ import os, stat
 import sys
 import tempfile
 import time
+import calendar
 from datetime import datetime, timedelta
 import cStringIO
 from cStringIO import StringIO
@@ -335,6 +336,10 @@ def trim_rows(path, tablet_index, trimmed_row_count, **kwargs):
 def lookup_rows(path, data, **kwargs):
     kwargs["path"] = path
     return execute_command_with_output_format("lookup_rows", kwargs, input_stream=_prepare_rows_stream(data))
+
+def get_in_sync_replicas(path, data, **kwargs):
+    kwargs["path"] = path
+    return yson.loads(execute_command("get_in_sync_replicas", kwargs, input_stream=_prepare_rows_stream(data)))
 
 def start_transaction(**kwargs):
     return yson.loads(execute_command("start_tx", kwargs))
@@ -1045,6 +1050,12 @@ def make_schema(columns, **attributes):
 def total_seconds(td):
     return float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10 ** 6) / 10 ** 6
 
+def datetime_str_to_ts(dt_str):
+    FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+    return calendar.timegm(datetime.strptime(dt_str, FORMAT).timetuple())
+
+##################################################################
+
 def get_guid_from_parts(lo, hi):
     assert 0 <= lo < 2 ** 64
     assert 0 <= hi < 2 ** 64
@@ -1063,3 +1074,4 @@ def get_statistics(statistics, complex_key):
         if part:
             result = result[part]
     return result
+

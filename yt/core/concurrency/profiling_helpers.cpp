@@ -1,17 +1,17 @@
-#pragma once
-
+#include "profiling_helpers.h"
 #include <yt/core/profiling/profile_manager.h>
 
 namespace NYT {
 namespace NConcurrency {
 
-////////////////////////////////////////////////////////////////////////////////
+using namespace NProfiling;
 
-inline NProfiling::TTagIdList GetThreadTagIds(
+///////////////////////////////////////////////////////////////////////////////
+
+TTagIdList GetThreadTagIds(
     bool enableProfiling,
     const Stroka& threadName)
 {
-    using namespace NProfiling;
     TTagIdList result;
     if (enableProfiling) {
         auto* profilingManager = TProfileManager::Get();
@@ -20,12 +20,11 @@ inline NProfiling::TTagIdList GetThreadTagIds(
     return result;
 }
 
-inline NProfiling::TTagIdList GetBucketTagIds(
+TTagIdList GetBucketTagIds(
     bool enableProfiling,
     const Stroka& threadName,
     const Stroka& bucketName)
 {
-    using namespace NProfiling;
     TTagIdList result;
     if (enableProfiling) {
         auto* profilingManager = TProfileManager::Get();
@@ -35,12 +34,11 @@ inline NProfiling::TTagIdList GetBucketTagIds(
     return result;
 }
 
-inline std::vector<NProfiling::TTagIdList> GetBucketsTagIds(
+std::vector<TTagIdList> GetBucketsTagIds(
     bool enableProfiling,
     const Stroka& threadName,
     const std::vector<Stroka>& bucketNames)
 {
-    using namespace NProfiling;
     std::vector<TTagIdList> result;
     for (const auto& bucketName : bucketNames) {
         result.emplace_back(GetBucketTagIds(enableProfiling, threadName, bucketName));
@@ -48,9 +46,8 @@ inline std::vector<NProfiling::TTagIdList> GetBucketsTagIds(
     return result;
 }
 
-inline NProfiling::TTagIdList GetInvokerTagIds(const Stroka& invokerName)
+TTagIdList GetInvokerTagIds(const Stroka& invokerName)
 {
-    using namespace NProfiling;
     TTagIdList result;
     auto* profilingManager = TProfileManager::Get();
     result.push_back(profilingManager->RegisterTag("invoker", invokerName));

@@ -683,8 +683,6 @@ TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer
     return result;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 std::pair<TOwningKey, TOwningKey> GetChunkBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     int keyColumnCount)

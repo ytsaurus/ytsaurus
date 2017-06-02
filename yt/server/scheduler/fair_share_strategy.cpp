@@ -47,6 +47,20 @@ TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
     return {it->second};
 };
 
+TTagId GetChildIndexProfilingTag(int childIndex)
+{
+    static std::unordered_map<int, TTagId> childIndexToTagIdMap;
+
+    auto it = childIndexToTagIdMap.find(childIndex);
+    if (it == childIndexToTagIdMap.end()) {
+        it = childIndexToTagIdMap.emplace(
+            childIndex,
+            TProfileManager::Get()->RegisterTag("child_index", ToString(childIndex))
+        ).first;
+    }
+    return it->second;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareStrategy
@@ -176,10 +190,45 @@ public:
         pool->IncreaseResourceUsage(operationElement->GetResourceUsage());
         operationElement->SetParent(pool.Get());
 
+        AssignOperationPoolIndex(operation, poolName);
+
         if (CanAddOperationToPool(pool.Get())) {
             ActivateOperation(operation->GetId());
         } else {
             OperationQueue.push_back(operation);
+        }
+    }
+
+    void AssignOperationPoolIndex(const TOperationPtr& operation, const Stroka& poolName)
+    {
+        auto operationElement = GetOperationElement(operation->GetId());
+        auto it = PoolToSpareChildIndices.find(poolName);
+        auto childIndex = -1;
+
+        if (it == PoolToSpareChildIndices.end() || it->second.empty()) {
+            auto minUnusedIndexIt = PoolToMinUnusedChildIndex.find(poolName);
+            YCHECK(minUnusedIndexIt != PoolToMinUnusedChildIndex.end());
+            childIndex = minUnusedIndexIt->second;
+            ++minUnusedIndexIt->second;
+        } else {
+            auto spareIndexIt = it->second.begin();
+            childIndex = *spareIndexIt;
+            it->second.erase(spareIndexIt);
+        }
+
+        operationElement->SetChildIndex(childIndex);
+    }
+
+    void UnassignOperationPoolIndex(const TOperationPtr& operation, const Stroka& poolName)
+    {
+        auto operationElement = GetOperationElement(operation->GetId());
+        auto childIndex = operationElement->GetChildIndex();
+
+        auto it = PoolToSpareChildIndices.find(poolName);
+        if (it == PoolToSpareChildIndices.end()) {
+            PoolToSpareChildIndices.insert(std::make_pair(poolName, yhash_set<int>{childIndex}));
+        } else {
+            it->second.insert(childIndex);
         }
     }
 
@@ -191,6 +240,7 @@ public:
         auto* pool = static_cast<TPool*>(operationElement->GetParent());
 
         UnregisterSchedulingTagFilter(operationElement->GetSchedulingTagFilterIndex());
+        UnassignOperationPoolIndex(operation, pool->GetId());
 
         auto finalResourceUsage = operationElement->Finalize();
         YCHECK(OperationIdToElement.erase(operation->GetId()) == 1);
@@ -462,6 +512,7 @@ public:
         auto* parent = element->GetParent();
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(parent->GetId())
+            .Item("child_index").Value(element->GetChildIndex())
             .Item("start_time").Value(element->GetStartTime())
             .Item("preemptable_job_count").Value(element->GetPreemptableJobCount())
             .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())
@@ -597,9 +648,12 @@ public:
             if (LastProfilingTime_ + Config->FairShareProfilingPeriod < now) {
                 LastProfilingTime_ = now;
                 for (const auto& pair : Pools) {
-                    ProfileSchedulerElement(pair.second);
+                    ProfileCompositeSchedulerElement(pair.second);
                 }
-                ProfileSchedulerElement(RootElement);
+                ProfileCompositeSchedulerElement(RootElement);
+                for (const auto& pair : OperationIdToElement) {
+                    ProfileOperationElement(pair.second);
+                }
             }
         }
 
@@ -653,6 +707,9 @@ private:
     TPoolMap Pools;
 
     yhash<Stroka, yhash_set<Stroka>> UserToEphemeralPools;
+
+    yhash<Stroka, yhash_set<int>> PoolToSpareChildIndices;
+    yhash<Stroka, int> PoolToMinUnusedChildIndex;
 
     typedef yhash<TOperationId, TOperationElementPtr> TOperationElementPtrByIdMap;
     TOperationElementPtrByIdMap OperationIdToElement;
@@ -1028,6 +1085,8 @@ private:
             return false;
         }
 
+        aggressivePreemptionEnabled = aggressivePreemptionEnabled && element->IsAggressiveStarvationPreemptionAllowed();
+
         double usageRatio = element->GetResourceUsageRatio();
         const auto& attributes = element->Attributes();
         auto threshold = aggressivePreemptionEnabled
@@ -1142,6 +1201,7 @@ private:
         int index = RegisterSchedulingTagFilter(TSchedulingTagFilter(pool->GetConfig()->SchedulingTagFilter));
         pool->SetSchedulingTagFilterIndex(index);
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
+        YCHECK(PoolToMinUnusedChildIndex.insert(std::make_pair(pool->GetId(), 0)).second);
         LOG_INFO("Pool registered (Pool: %v)", pool->GetId());
     }
 
@@ -1150,6 +1210,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
+        YCHECK(PoolToMinUnusedChildIndex.insert(std::make_pair(pool->GetId(), 0)).second);
         pool->SetParent(parent.Get());
         parent->AddChild(pool);
 
@@ -1169,7 +1230,10 @@ private:
 
         UnregisterSchedulingTagFilter(pool->GetSchedulingTagFilterIndex());
 
+        YCHECK(PoolToMinUnusedChildIndex.erase(pool->GetId()) == 1);
+        YCHECK(PoolToSpareChildIndices.erase(pool->GetId()) <= 1);
         YCHECK(Pools.erase(pool->GetId()) == 1);
+
         pool->SetAlive(false);
         auto parent = pool->GetParent();
         SetPoolParent(pool, nullptr);
@@ -1550,50 +1614,18 @@ private:
         Host->ValidatePoolPermission(poolPath, user, EPermission::Use);
     }
 
-    void ProfileSchedulerElement(TCompositeSchedulerElementPtr element)
+    void ProfileOperationElement(TOperationElementPtr element)
+    {
+        auto poolTag = element->GetParent()->GetProfilingTag();
+        auto childIndexTag = GetChildIndexProfilingTag(element->GetChildIndex());
+
+        ProfileSchedulerElement(element, "/operations", {poolTag, childIndexTag});
+    }
+
+    void ProfileCompositeSchedulerElement(TCompositeSchedulerElementPtr element)
     {
         auto tag = element->GetProfilingTag();
-        Profiler.Enqueue(
-            "/pools/fair_share_ratio_x100000",
-            static_cast<i64>(element->Attributes().FairShareRatio * 1e5),
-            EMetricType::Gauge,
-            {tag});
-        Profiler.Enqueue(
-            "/pools/usage_ratio_x100000",
-            static_cast<i64>(element->GetResourceUsageRatio() * 1e5),
-            EMetricType::Gauge,
-            {tag});
-        Profiler.Enqueue(
-            "/pools/demand_ratio_x100000",
-            static_cast<i64>(element->Attributes().DemandRatio * 1e5),
-            EMetricType::Gauge,
-            {tag});
-        Profiler.Enqueue(
-            "/pools/guaranteed_resource_ratio_x100000",
-            static_cast<i64>(element->Attributes().GuaranteedResourcesRatio * 1e5),
-            EMetricType::Gauge,
-            {tag});
-
-        ProfileResources(
-            Profiler,
-            element->GetResourceUsage(),
-            "/pools/resource_usage",
-            {tag});
-        ProfileResources(
-            Profiler,
-            element->ResourceLimits(),
-            "/pools/resource_limits",
-            {tag});
-        ProfileResources(
-            Profiler,
-            element->ResourceDemand(),
-            "/pools/resource_demand",
-            {tag});
-
-        element->GetJobMetrics().SendToProfiler(
-            Profiler,
-            "/pools/metrics",
-            {tag});
+        ProfileSchedulerElement(element, "/pools", {tag});
 
         Profiler.Enqueue(
             "/running_operation_count",
@@ -1605,6 +1637,51 @@ private:
             element->OperationCount(),
             EMetricType::Gauge,
             {tag});
+    }
+
+    void ProfileSchedulerElement(TSchedulerElementPtr element, const Stroka& profilingPrefix, const TTagIdList& tags)
+    {
+        Profiler.Enqueue(
+            profilingPrefix + "/fair_share_ratio_x100000",
+            static_cast<i64>(element->Attributes().FairShareRatio * 1e5),
+            EMetricType::Gauge,
+            tags);
+        Profiler.Enqueue(
+            profilingPrefix + "/usage_ratio_x100000",
+            static_cast<i64>(element->GetResourceUsageRatio() * 1e5),
+            EMetricType::Gauge,
+            tags);
+        Profiler.Enqueue(
+            profilingPrefix + "/demand_ratio_x100000",
+            static_cast<i64>(element->Attributes().DemandRatio * 1e5),
+            EMetricType::Gauge,
+            tags);
+        Profiler.Enqueue(
+            profilingPrefix + "/guaranteed_resource_ratio_x100000",
+            static_cast<i64>(element->Attributes().GuaranteedResourcesRatio * 1e5),
+            EMetricType::Gauge,
+            tags);
+
+        ProfileResources(
+            Profiler,
+            element->GetResourceUsage(),
+            profilingPrefix + "/resource_usage",
+            tags);
+        ProfileResources(
+            Profiler,
+            element->ResourceLimits(),
+            profilingPrefix + "/resource_limits",
+            tags);
+        ProfileResources(
+            Profiler,
+            element->ResourceDemand(),
+            profilingPrefix + "/resource_demand",
+            tags);
+
+        element->GetJobMetrics().SendToProfiler(
+            Profiler,
+            profilingPrefix + "/metrics",
+            tags);
     }
 
     TRootElementSnapshotPtr GetRootSnapshot() const {

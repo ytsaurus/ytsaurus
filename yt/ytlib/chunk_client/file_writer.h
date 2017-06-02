@@ -7,6 +7,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <util/system/file.h>
+#include <util/system/direct_io.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -21,7 +22,8 @@ public:
     TFileWriter(
         const TChunkId& chunkId,
         const Stroka& fileName,
-        bool syncOnClose = true);
+        bool syncOnClose = true,
+        bool enableWriteDirectIO = false);
 
     // IChunkWriter implementation.
     virtual TFuture<void> Open() override;
@@ -60,12 +62,15 @@ private:
     const TChunkId ChunkId_;
     const Stroka FileName_;
     const bool SyncOnClose_;
+    const bool EnableWriteDirectIO_;
 
     bool IsOpen_ = false;
     bool IsClosed_ = false;
     i64 DataSize_ = 0;
 
+    // Classes don't share common interface.
     std::unique_ptr<TFile> DataFile_;
+    std::unique_ptr<TDirectIOBufferedFile> DirectIOFile_;
 
     NChunkClient::NProto::TChunkInfo ChunkInfo_;
     NChunkClient::NProto::TBlocksExt BlocksExt_;
