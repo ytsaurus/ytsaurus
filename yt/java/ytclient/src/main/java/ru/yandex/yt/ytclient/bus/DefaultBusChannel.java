@@ -109,7 +109,7 @@ public class DefaultBusChannel implements Bus, BusLifecycle {
 
     private void logWriteResult(YtGuid packetId, Instant started) {
         long elapsed = Duration.between(started, Instant.now()).toMillis();
-        logger.debug("(DefaultBusChannel({}@{})) message `{}` sent in %d ms",
+        logger.debug("(DefaultBusChannel({}@{})) message `{}` sent in {} ms",
             channel.remoteAddress(), hashCode(), packetId, elapsed);
         packetsHistogram.update(elapsed);
     }
