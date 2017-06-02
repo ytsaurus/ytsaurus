@@ -16,8 +16,6 @@ list(APPEND YT_SRCS
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 
-protoc( ${CMAKE_CURRENT_LIST_DIR}/rpc_ut.proto SRCS )
-
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/malloc_udf.c YT_SRCS_RESOLVED )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs.c
   YT_SRCS_RESOLVED
