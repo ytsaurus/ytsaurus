@@ -71,7 +71,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
     // ExpectConversion(column, source, condition, result) <=>
     //     <=> check that if |condition| is held, |source| transforms to
     //         |result| in column |column|, otherwise |source| remains as is.
-    auto ExpectConversion = [&mock, &lexer] (Stroka column, Stroka source, bool condition, Stroka result = "") {
+    auto ExpectConversion = [&mock, &lexer] (TString column, TString source, bool condition, TString result = "") {
         int id = mock.GetNameTable()->GetId(column);
         if (condition) {
             EXPECT_CALL(mock, OnMyValue(SameAs(MakeUnversionedValue(result, id, lexer))));
@@ -81,7 +81,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
         mock.OnValue(MakeUnversionedValue(source, id, lexer));
     };
 
-    auto ExpectError = [&mock, &lexer] (Stroka column, Stroka source, bool condition) {
+    auto ExpectError = [&mock, &lexer] (TString column, TString source, bool condition) {
         int id = mock.GetNameTable()->GetId(column);
         if (condition) {
             EXPECT_THROW(mock.OnValue(MakeUnversionedValue(source, id, lexer)), std::exception);
@@ -94,7 +94,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
     static const bool Never = false;
 
     // Arbitrary type can be used in Any column without conversion under any circumstances.
-    for (Stroka value : {"42", "18u", "abc", "%true", "3.14", "#", "{}"}) {
+    for (TString value : {"42", "18u", "abc", "%true", "3.14", "#", "{}"}) {
         ExpectConversion("any", value, Never);
     }
 
@@ -102,7 +102,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
     ExpectError("int64", "9223372036854775808u", typeConversionConfig->EnableIntegralTypeConversion); // 2^63 leads to an integer overflow.
     ExpectConversion("int64", "\"-42\"", typeConversionConfig->EnableStringToAllConversion, "-42");
     ExpectError("int64", "abc", typeConversionConfig->EnableStringToAllConversion);
-    for (Stroka value : {"42", "%true", "3.14", "#", "{}"}) {
+    for (TString value : {"42", "%true", "3.14", "#", "{}"}) {
         ExpectConversion("int64", value, Never);
     }
 
@@ -110,7 +110,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
     ExpectError("uint64", "-42", typeConversionConfig->EnableIntegralTypeConversion);
     ExpectConversion("uint64", "\"234\"", typeConversionConfig->EnableStringToAllConversion, "234u");
     ExpectError("uint64", "abc", typeConversionConfig->EnableStringToAllConversion);
-    for (Stroka value : {"42u", "%true", "3.14", "#", "{}"}) {
+    for (TString value : {"42u", "%true", "3.14", "#", "{}"}) {
         ExpectConversion("uint64", value, Never);
     }
 
@@ -119,14 +119,14 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
     ExpectConversion("string", "3.14", typeConversionConfig->EnableAllToStringConversion, "\"3.14\"");
     ExpectConversion("string", "%true", typeConversionConfig->EnableAllToStringConversion, "\"true\"");
     ExpectConversion("string", "%false", typeConversionConfig->EnableAllToStringConversion, "\"false\"");
-    for (Stroka value : {"abc", "#", "{}"}) {
+    for (TString value : {"abc", "#", "{}"}) {
         ExpectConversion("string", value, Never);
     }
 
     ExpectConversion("boolean", "true", typeConversionConfig->EnableStringToAllConversion, "%true");
     ExpectConversion("boolean", "false", typeConversionConfig->EnableStringToAllConversion, "%false");
     ExpectError("boolean", "abc", typeConversionConfig->EnableStringToAllConversion);
-    for (Stroka value : {"42", "18u", "%true", "3.14", "#", "{}"}) {
+    for (TString value : {"42", "18u", "%true", "3.14", "#", "{}"}) {
         ExpectConversion("boolean", value, Never);
     }
 
@@ -134,7 +134,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
     ExpectConversion("double", "42u", typeConversionConfig->EnableIntegralToDoubleConversion, "42.0");
     ExpectConversion("double", "\"1.23\"", typeConversionConfig->EnableStringToAllConversion, "1.23");
     ExpectError("double", "abc", typeConversionConfig->EnableStringToAllConversion);
-    for (Stroka value : {"3.14", "%true", "#", "{}"}) {
+    for (TString value : {"3.14", "%true", "#", "{}"}) {
         ExpectConversion("double", value, Never);
     }
 }

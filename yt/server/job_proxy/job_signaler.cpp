@@ -45,7 +45,7 @@ REGISTER_TOOL(TJobSignalerTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SendSignal(const std::vector<int>& pids, const Stroka& signalName)
+void SendSignal(const std::vector<int>& pids, const TString& signalName)
 {
     ValidateSignalName(signalName);
 

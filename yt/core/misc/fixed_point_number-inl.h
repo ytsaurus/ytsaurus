@@ -85,7 +85,7 @@ void Serialize(const TFixedPointNumber<U, P>& number, NYson::IYsonConsumer* cons
 }
 
 template <typename U, int P>
-Stroka ToString(const TFixedPointNumber<U, P>& number)
+TString ToString(const TFixedPointNumber<U, P>& number)
 {
     return ToString(static_cast<double>(number));
 }

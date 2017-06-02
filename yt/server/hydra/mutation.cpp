@@ -53,7 +53,7 @@ TFuture<TMutationResponse> TMutation::CommitAndReply(NRpc::IServiceContextPtr co
     }));
 }
 
-TMutationPtr TMutation::SetRequestData(TSharedRef data, Stroka type)
+TMutationPtr TMutation::SetRequestData(TSharedRef data, TString type)
 {
     Request_.Data = std::move(data);
     Request_.Type = std::move(type);

@@ -29,14 +29,14 @@ public:
 
 protected:
     NLastGetopt::TOpts Opts_;
-    Stroka Argv0_;
+    TString Argv0_;
 
     int Exit(EProgramExitCode code) const noexcept;
     int Exit(int code) const noexcept;
 
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) = 0;
 
-    virtual void OnError(const Stroka& message) const noexcept;
+    virtual void OnError(const TString& message) const noexcept;
 
 private:
     class TOptsParseResult; // Custom handler for option parsing errors.
@@ -52,7 +52,7 @@ class TProgramException
     : public std::exception
 {
 public:
-    TProgramException(Stroka what)
+    TProgramException(TString what)
         : What_(std::move(what))
     { }
 
@@ -62,16 +62,16 @@ public:
     }
 
 private:
-    const Stroka What_;
+    const TString What_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Helper for TOpt::StoreMappedResult to validate file paths for existance.
-Stroka CheckPathExistsArgMapper(const Stroka& arg);
+TString CheckPathExistsArgMapper(const TString& arg);
 
 //! Helper for TOpt::StoreMappedResult to parse guids.
-TGuid CheckGuidArgMapper(const Stroka& arg);
+TGuid CheckGuidArgMapper(const TString& arg);
 
 //! Drop privileges and save them if running with suid-bit.
 void ConfigureUids();

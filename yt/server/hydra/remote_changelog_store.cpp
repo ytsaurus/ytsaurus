@@ -412,7 +412,7 @@ private:
             .ValueOrThrow();
         LOG_DEBUG("Changelog list received");
 
-        auto keys = ConvertTo<std::vector<Stroka>>(result);
+        auto keys = ConvertTo<std::vector<TString>>(result);
         int latestId = InvalidSegmentId;
         for (const auto& key : keys) {
             int id;

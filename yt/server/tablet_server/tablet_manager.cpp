@@ -181,7 +181,7 @@ public:
         transactionManager->RegisterAbortActionHandler(MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
     }
 
-    TTabletCellBundle* CreateTabletCellBundle(const Stroka& name, const TObjectId& hintId)
+    TTabletCellBundle* CreateTabletCellBundle(const TString& name, const TObjectId& hintId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -199,7 +199,7 @@ public:
         return DoCreateTabletCellBundle(id, name);
     }
 
-    TTabletCellBundle* DoCreateTabletCellBundle(const TTabletCellBundleId& id, const Stroka& name)
+    TTabletCellBundle* DoCreateTabletCellBundle(const TTabletCellBundleId& id, const TString& name)
     {
         auto cellBundleHolder = std::make_unique<TTabletCellBundle>(id);
         cellBundleHolder->SetName(name);
@@ -369,7 +369,7 @@ public:
 
     TTableReplica* CreateTableReplica(
         TReplicatedTableNode* table,
-        const Stroka& clusterName,
+        const TString& clusterName,
         const TYPath& replicaPath,
         TTimestamp startReplicationTimestamp)
     {
@@ -535,7 +535,7 @@ public:
     }
 
 
-    int GetAssignedTabletCellCount(const Stroka& address) const
+    int GetAssignedTabletCellCount(const TString& address) const
     {
         auto range = AddressToCell_.equal_range(address);
         return std::distance(range.first, range.second);
@@ -1439,13 +1439,13 @@ public:
         return cell;
     }
 
-    TTabletCellBundle* FindTabletCellBundleByName(const Stroka& name)
+    TTabletCellBundle* FindTabletCellBundleByName(const TString& name)
     {
         auto it = NameToTabletCellBundleMap_.find(name);
         return it == NameToTabletCellBundleMap_.end() ? nullptr : it->second;
     }
 
-    TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const Stroka& name)
+    TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const TString& name)
     {
         auto* cellBundle = FindTabletCellBundleByName(name);
         if (!cellBundle) {
@@ -1457,7 +1457,7 @@ public:
         return cellBundle;
     }
 
-    void RenameTabletCellBundle(TTabletCellBundle* cellBundle, const Stroka& newName)
+    void RenameTabletCellBundle(TTabletCellBundle* cellBundle, const TString& newName)
     {
         if (newName == cellBundle->GetName()) {
             return;
@@ -1520,9 +1520,9 @@ private:
     TEntityMap<TTablet> TabletMap_;
     TEntityMap<TTableReplica> TableReplicaMap_;
 
-    yhash<Stroka, TTabletCellBundle*> NameToTabletCellBundleMap_;
+    yhash<TString, TTabletCellBundle*> NameToTabletCellBundleMap_;
 
-    yhash_mm<Stroka, TTabletCell*> AddressToCell_;
+    yhash_mm<TString, TTabletCell*> AddressToCell_;
     yhash<TTransaction*, TTabletCell*> TransactionToCellMap_;
 
     bool InitializeCellBundles_ = false;
@@ -1705,7 +1705,7 @@ private:
         }
     }
 
-    bool EnsureBuiltinCellBundleInitialized(TTabletCellBundle*& cellBundle, const TTabletCellBundleId& id, const Stroka& name)
+    bool EnsureBuiltinCellBundleInitialized(TTabletCellBundle*& cellBundle, const TTabletCellBundleId& id, const TString& name)
     {
         if (cellBundle) {
             return false;
@@ -3196,7 +3196,7 @@ private:
     }
 
 
-    static void ValidateTabletCellBundleName(const Stroka& name)
+    static void ValidateTabletCellBundleName(const TString& name)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Tablet cell bundle name cannot be empty");
@@ -3251,7 +3251,7 @@ void TTabletManager::Initialize()
     return Impl_->Initialize();
 }
 
-int TTabletManager::GetAssignedTabletCellCount(const Stroka& address) const
+int TTabletManager::GetAssignedTabletCellCount(const TString& address) const
 {
     return Impl_->GetAssignedTabletCellCount(address);
 }
@@ -3370,17 +3370,17 @@ TTabletCell* TTabletManager::GetTabletCellOrThrow(const TTabletCellId& id)
     return Impl_->GetTabletCellOrThrow(id);
 }
 
-TTabletCellBundle* TTabletManager::FindTabletCellBundleByName(const Stroka& name)
+TTabletCellBundle* TTabletManager::FindTabletCellBundleByName(const TString& name)
 {
     return Impl_->FindTabletCellBundleByName(name);
 }
 
-TTabletCellBundle* TTabletManager::GetTabletCellBundleByNameOrThrow(const Stroka& name)
+TTabletCellBundle* TTabletManager::GetTabletCellBundleByNameOrThrow(const TString& name)
 {
     return Impl_->GetTabletCellBundleByNameOrThrow(name);
 }
 
-void TTabletManager::RenameTabletCellBundle(TTabletCellBundle* cellBundle, const Stroka& newName)
+void TTabletManager::RenameTabletCellBundle(TTabletCellBundle* cellBundle, const TString& newName)
 {
     return Impl_->RenameTabletCellBundle(cellBundle, newName);
 }
@@ -3410,7 +3410,7 @@ void TTabletManager::DestroyTabletCell(TTabletCell* cell)
     Impl_->DestroyTabletCell(cell);
 }
 
-TTabletCellBundle* TTabletManager::CreateTabletCellBundle(const Stroka& name, const TObjectId& hintId)
+TTabletCellBundle* TTabletManager::CreateTabletCellBundle(const TString& name, const TObjectId& hintId)
 {
     return Impl_->CreateTabletCellBundle(name, hintId);
 }
@@ -3422,7 +3422,7 @@ void TTabletManager::DestroyTabletCellBundle(TTabletCellBundle* cellBundle)
 
 TTableReplica* TTabletManager::CreateTableReplica(
     TReplicatedTableNode* table,
-    const Stroka& clusterName,
+    const TString& clusterName,
     const TYPath& replicaPath,
     TTimestamp startReplicationTimestamp)
 {

@@ -146,9 +146,9 @@ TChunkReplicaList AllocateWriteTargets(
     int desiredTargetCount,
     int minTargetCount,
     TNullable<int> replicationFactorOverride,
-    const Stroka& mediumName,
+    const TString& mediumName,
     bool preferLocalHost,
-    const std::vector<Stroka>& forbiddenAddresses,
+    const std::vector<TString>& forbiddenAddresses,
     TNodeDirectoryPtr nodeDirectory,
     const NLogging::TLogger& logger)
 {
@@ -422,7 +422,7 @@ void LocateChunks(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka TUserObject::GetPath() const
+TString TUserObject::GetPath() const
 {
     return Path.GetPath();
 }

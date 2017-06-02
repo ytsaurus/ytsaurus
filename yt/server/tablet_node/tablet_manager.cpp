@@ -386,9 +386,9 @@ private:
                 ->Via(invoker);
         }
 
-        virtual std::vector<Stroka> GetKeys(i64 limit) const override
+        virtual std::vector<TString> GetKeys(i64 limit) const override
         {
-            std::vector<Stroka> keys;
+            std::vector<TString> keys;
             if (auto owner = Owner_.Lock()) {
                 for (const auto& tablet : owner->Tablets()) {
                     if (keys.size() >= limit) {

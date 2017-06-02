@@ -7,7 +7,7 @@ namespace NCodegen {
 ////////////////////////////////////////////////////////////////////////////////
 
 // MangleSymbol adds underscore for Darwin platform.
-Stroka MangleSymbol(const Stroka& name)
+TString MangleSymbol(const TString& name)
 {
 #ifdef _darwin_
     return "_" + name;
@@ -18,11 +18,11 @@ Stroka MangleSymbol(const Stroka& name)
 
 // DemangleSymbol strips the prefixed underscore on Darwin,
 // returns empty string in case of non-prefixed name.
-Stroka DemangleSymbol(const Stroka& name)
+TString DemangleSymbol(const TString& name)
 {
 #ifdef _darwin_
     if (name.empty() || name[0] != '_') {
-        return Stroka();
+        return TString();
     } else {
         return name.substr(1);
     }
@@ -33,14 +33,14 @@ Stroka DemangleSymbol(const Stroka& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-uint64_t TRoutineRegistry::GetAddress(const Stroka& symbol) const
+uint64_t TRoutineRegistry::GetAddress(const TString& symbol) const
 {
     auto it = SymbolToAddress_.find(symbol);
     YCHECK(it != SymbolToAddress_.end());
     return it->second;
 }
 
-TRoutineRegistry::TTypeBuilder TRoutineRegistry::GetTypeBuilder(const Stroka& symbol) const
+TRoutineRegistry::TTypeBuilder TRoutineRegistry::GetTypeBuilder(const TString& symbol) const
 {
     auto mangledSymbol = MangleSymbol(symbol);
     auto it = SymbolToTypeBuilder_.find(mangledSymbol);

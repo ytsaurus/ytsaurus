@@ -166,7 +166,7 @@ public:
      *  Thread affinity: any
      */
     NHydra::TMutationPtr CreateExecuteMutation(
-        const Stroka& userName,
+        const TString& userName,
         const NRpc::IServiceContextPtr& context);
 
     //! Creates a mutation that destroys given objects.
@@ -212,7 +212,7 @@ public:
 
     const NProfiling::TProfiler& GetProfiler();
     NProfiling::TTagId GetTypeTagId(EObjectType type);
-    NProfiling::TTagId GetMethodTagId(const Stroka& method);
+    NProfiling::TTagId GetMethodTagId(const TString& method);
 
     TEpoch GetCurrentEpoch();
 
@@ -239,7 +239,7 @@ private:
     std::set<EObjectType> RegisteredTypes_;
     TEnumIndexedVector<TTypeEntry, EObjectType, MinObjectType, MaxObjectType> TypeToEntry_;
 
-    yhash<Stroka, NProfiling::TTagId> MethodToTag_;
+    yhash<TString, NProfiling::TTagId> MethodToTag_;
 
     TRootServicePtr RootService_;
 
@@ -278,7 +278,7 @@ private:
     virtual void OnStopLeading() override;
 
     void HydraExecuteLeader(
-        const Stroka& userName,
+        const TString& userName,
         const NRpc::IServiceContextPtr& context,
         NHydra::TMutationContext*);
     void HydraExecuteFollower(NProto::TReqExecute* request);

@@ -7,7 +7,7 @@ namespace NChunkClient {
 
 const NLogging::TLogger ChunkClientLogger("ChunkClient");
 
-const Stroka ChunkMetaSuffix(".meta");
+const TString ChunkMetaSuffix(".meta");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -39,7 +39,7 @@ class TAccount
     : public NObjectServer::TNonversionedObjectBase
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(Stroka, Name);
+    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
 
     using TMulticellStatistics = yhash<NObjectClient::TCellTag, TAccountStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TMulticellStatistics, MulticellStatistics);

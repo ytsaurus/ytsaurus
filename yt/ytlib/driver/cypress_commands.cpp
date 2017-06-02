@@ -87,7 +87,7 @@ TListCommand::TListCommand()
 {
     RegisterParameter("path", Path);
     RegisterParameter("attributes", Options.Attributes)
-        .Default(std::vector<Stroka>());
+        .Default(std::vector<TString>());
     // TODO(babenko): rename to "limit"
     RegisterParameter("max_size", Options.MaxSize)
         .Optional();

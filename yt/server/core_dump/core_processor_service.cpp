@@ -70,7 +70,7 @@ public:
 
     //! Prepares everything for writing the new core dump and returns path of
     //! the named pipe the core should be written to.
-    Stroka ProcessCore(i32 processId, const Stroka& executableName)
+    TString ProcessCore(i32 processId, const TString& executableName)
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
@@ -153,7 +153,7 @@ private:
     // This method retrieves the core from the named pipe, writes
     // it to the core table and returns the size of a core or throws
     // an exception in case of some error.
-    void DoWriteCore(TNamedPipePtr namedPipe, i32 processId, Stroka executableName, TAsyncSemaphoreGuard /* guard */)
+    void DoWriteCore(TNamedPipePtr namedPipe, i32 processId, TString executableName, TAsyncSemaphoreGuard /* guard */)
     {
         int coreId = CoreInfos_.size();
         CoreInfos_.emplace_back();

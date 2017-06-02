@@ -129,7 +129,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetOpaque(true));
 }
 
-bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
+bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
 {
     const auto* table = GetThisImpl();
     bool isDynamic = table->IsDynamic();
@@ -306,7 +306,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
-TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(const Stroka& key)
+TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(const TString& key)
 {
     const auto* table = GetThisImpl();
     auto* chunkList = table->GetChunkList();
@@ -376,14 +376,14 @@ void TTableNodeProxy::AlterTable(
     }
 }
 
-bool TTableNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
+bool TTableNodeProxy::SetBuiltinAttribute(const TString& key, const TYsonString& value)
 {
     const auto* table = GetThisImpl();
 
     if (key == "tablet_cell_bundle") {
         ValidateNoTransaction();
 
-        auto name = ConvertTo<Stroka>(value);
+        auto name = ConvertTo<TString>(value);
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* cellBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
 
@@ -425,7 +425,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& 
 }
 
 void TTableNodeProxy::ValidateCustomAttributeUpdate(
-    const Stroka& key,
+    const TString& key,
     const TYsonString& oldValue,
     const TYsonString& newValue)
 {
@@ -757,7 +757,7 @@ void TReplicatedTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescr
         .SetOpaque(true));
 }
 
-bool TReplicatedTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
+bool TReplicatedTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
 {
     const auto* table = GetThisImpl<TReplicatedTableNode>();
 

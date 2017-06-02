@@ -35,7 +35,7 @@ private:
 
     bool EnableColumnNameValidation_ = false;
 
-    std::vector<Stroka> IdToName_;
+    std::vector<TString> IdToName_;
     yhash<TStringBuf, int> NameToId_; // String values are owned by IdToName_.
     i64 ByteSize_ = 0;
 
@@ -60,7 +60,7 @@ public:
 private:
     const TNameTablePtr NameTable_;
 
-    mutable std::vector<Stroka> IdToNameCache_;
+    mutable std::vector<TString> IdToNameCache_;
 
     void Fill() const;
 
@@ -81,7 +81,7 @@ public:
 private:
     const TNameTablePtr NameTable_;
 
-    mutable std::vector<Stroka> Names_;
+    mutable std::vector<TString> Names_;
     mutable yhash<TStringBuf, int> NameToId_; // String values are owned by Names_.
 
 };

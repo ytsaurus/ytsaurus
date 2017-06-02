@@ -42,7 +42,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
+    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         return ToNames(GetValues(securityManager->Accounts(), sizeLimit));
@@ -57,7 +57,7 @@ private:
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = securityManager->FindAccountByName(Stroka(key));
+        auto* account = securityManager->FindAccountByName(TString(key));
         if (!IsObjectAlive(account)) {
             return nullptr;
         }
@@ -94,7 +94,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
+    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         return ToNames(GetValues(securityManager->Users(), sizeLimit));
@@ -109,7 +109,7 @@ private:
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->FindUserByName(Stroka(key));
+        auto* user = securityManager->FindUserByName(TString(key));
         if (!IsObjectAlive(user)) {
             return nullptr;
         }
@@ -146,7 +146,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
+    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         return ToNames(GetValues(securityManager->Groups(), sizeLimit));
@@ -161,7 +161,7 @@ private:
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* group = securityManager->FindGroupByName(Stroka(key));
+        auto* group = securityManager->FindGroupByName(TString(key));
         if (!IsObjectAlive(group)) {
             return nullptr;
         }

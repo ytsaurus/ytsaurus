@@ -79,9 +79,9 @@ public:
 
     void Enqueue(
         const NTracing::TTraceContext& context,
-        const Stroka& serviceName,
-        const Stroka& spanName,
-        const Stroka& annotationName)
+        const TString& serviceName,
+        const TString& spanName,
+        const TString& annotationName)
     {
         if (!IsEnqueueEnabled(context))
             return;
@@ -99,8 +99,8 @@ public:
 
     void Enqueue(
         const NTracing::TTraceContext& context,
-        const Stroka& annotationKey,
-        const Stroka& annotationValue)
+        const TString& annotationKey,
+        const TString& annotationValue)
     {
         if (!IsEnqueueEnabled(context))
             return;
@@ -316,9 +316,9 @@ void TTraceManager::Shutdown()
 
 void TTraceManager::Enqueue(
     const TTraceContext& context,
-    const Stroka& serviceName,
-    const Stroka& spanName,
-    const Stroka& annotationName)
+    const TString& serviceName,
+    const TString& spanName,
+    const TString& annotationName)
 {
     Impl_->Enqueue(
         context,
@@ -329,8 +329,8 @@ void TTraceManager::Enqueue(
 
 void TTraceManager::Enqueue(
     const TTraceContext& context,
-    const Stroka& annotationKey,
-    const Stroka& annotationValue)
+    const TString& annotationKey,
+    const TString& annotationValue)
 {
     Impl_->Enqueue(
         context,

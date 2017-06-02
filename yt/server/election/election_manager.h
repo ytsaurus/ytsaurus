@@ -42,7 +42,7 @@ struct IElectionCallbacks
     virtual TPeerPriority GetPriority() = 0;
 
     //! Enables pretty-printing peer priorities in logs.
-    virtual Stroka FormatPriority(TPeerPriority priority) = 0;
+    virtual TString FormatPriority(TPeerPriority priority) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IElectionCallbacks)

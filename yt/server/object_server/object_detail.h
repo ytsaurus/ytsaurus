@@ -45,7 +45,7 @@ public:
     virtual void Invoke(const NRpc::IServiceContextPtr& context) override;
     virtual void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<Stroka>>& attributeKeys,
+        const TNullable<std::vector<TString>>& attributeKeys,
         bool stable) override;
 
 
@@ -91,14 +91,14 @@ protected:
     // NYTree::ISystemAttributeProvider members
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual const yhash_set<const char*>& GetBuiltinAttributeKeys() override;
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
-    virtual bool RemoveBuiltinAttribute(const Stroka& key) override;
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const TString& key) override;
+    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override;
+    virtual bool RemoveBuiltinAttribute(const TString& key) override;
 
     //! Called before attribute #key is updated (added, removed or changed).
     virtual void ValidateCustomAttributeUpdate(
-        const Stroka& key,
+        const TString& key,
         const NYson::TYsonString& oldValue,
         const NYson::TYsonString& newValue);
 
@@ -106,7 +106,7 @@ protected:
 
     //! Same as #ValidateCustomAttributeUpdate but wraps the exceptions.
     void GuardedValidateCustomAttributeUpdate(
-        const Stroka& key,
+        const TString& key,
         const NYson::TYsonString& oldValue,
         const NYson::TYsonString& newValue);
 
@@ -164,10 +164,10 @@ protected:
         explicit TCustomAttributeDictionary(TNontemplateNonversionedObjectProxyBase* proxy);
 
         // IAttributeDictionary members
-        virtual std::vector<Stroka> List() const override;
-        virtual NYson::TYsonString FindYson(const Stroka& key) const override;
-        virtual void SetYson(const Stroka& key, const NYson::TYsonString& value) override;
-        virtual bool Remove(const Stroka& key) override;
+        virtual std::vector<TString> List() const override;
+        virtual NYson::TYsonString FindYson(const TString& key) const override;
+        virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
+        virtual bool Remove(const TString& key) override;
 
     private:
         TNontemplateNonversionedObjectProxyBase* const Proxy_;

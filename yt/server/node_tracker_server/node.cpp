@@ -135,12 +135,12 @@ void TNode::SetAddresses(const TAddressMap& addresses)
     ComputeDefaultAddress();
 }
 
-const Stroka& TNode::GetDefaultAddress() const
+const TString& TNode::GetDefaultAddress() const
 {
     return DefaultAddress_;
 }
 
-bool TNode::HasTag(const TNullable<Stroka>& tag) const
+bool TNode::HasTag(const TNullable<TString>& tag) const
 {
     return !tag || Tags_.find(*tag) != Tags_.end();
 }
@@ -691,13 +691,13 @@ void TNode::SetDisableWriteSessions(bool value)
     DisableWriteSessions_ = value;
 }
 
-void TNode::SetNodeTags(const std::vector<Stroka>& tags)
+void TNode::SetNodeTags(const std::vector<TString>& tags)
 {
     NodeTags_ = tags;
     RebuildTags();
 }
 
-void TNode::SetUserTags(const std::vector<Stroka>& tags)
+void TNode::SetUserTags(const std::vector<TString>& tags)
 {
     UserTags_ = tags;
     RebuildTags();
@@ -708,7 +708,7 @@ void TNode::RebuildTags()
     Tags_.clear();
     Tags_.insert(UserTags_.begin(), UserTags_.end());
     Tags_.insert(NodeTags_.begin(), NodeTags_.end());
-    Tags_.insert(Stroka(GetServiceHostName(GetDefaultAddress())));
+    Tags_.insert(TString(GetServiceHostName(GetDefaultAddress())));
     if (Rack_) {
         Tags_.insert(Rack_->GetName());
         if (auto* dc = Rack_->GetDataCenter()) {

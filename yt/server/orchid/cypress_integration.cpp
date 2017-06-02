@@ -98,7 +98,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
-        const TNullable<std::vector<Stroka>>& /*attributeKeys*/,
+        const TNullable<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
     {
         Y_UNREACHABLE();
@@ -131,7 +131,7 @@ private:
         const IServiceContextPtr& context,
         const TOrchidManifestPtr& manifest,
         const TYPath& path,
-        const Stroka& method,
+        const TString& method,
         const TOrchidServiceProxy::TErrorOrRspExecutePtr& rspOrError)
     {
         if (rspOrError.IsOK()) {
@@ -149,7 +149,7 @@ private:
         }
     }
 
-    static Stroka GetRedirectPath(TOrchidManifestPtr manifest, const TYPath& path)
+    static TString GetRedirectPath(TOrchidManifestPtr manifest, const TYPath& path)
     {
         return manifest->RemoteRoot + path;
     }

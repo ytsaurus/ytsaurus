@@ -101,7 +101,7 @@ public:
     void SyncCheck()
     { }
 
-    virtual Stroka GetLoggingId() const override
+    virtual TString GetLoggingId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Logger.GetContext();
@@ -321,7 +321,7 @@ protected:
 #endif
     }
 
-    void BindSocket(sockaddr* address, int size, const Stroka& errorMessage)
+    void BindSocket(sockaddr* address, int size, const TString& errorMessage)
     {
         for (int attempt = 1; attempt <= Config_->BindRetryCount; ++attempt) {
             if (bind(ServerSocket_, address, size) == 0) {

@@ -46,14 +46,14 @@ TDriverRequest::TDriverRequest()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor IDriver::GetCommandDescriptor(const Stroka& commandName) const
+TCommandDescriptor IDriver::GetCommandDescriptor(const TString& commandName) const
 {
     auto descriptor = FindCommandDescriptor(commandName);
     YCHECK(descriptor);
     return *descriptor;
 }
 
-TCommandDescriptor IDriver::GetCommandDescriptorOrThrow(const Stroka& commandName) const
+TCommandDescriptor IDriver::GetCommandDescriptorOrThrow(const TString& commandName) const
 {
     auto descriptor = FindCommandDescriptor(commandName);
     if (!descriptor) {
@@ -65,11 +65,11 @@ TCommandDescriptor IDriver::GetCommandDescriptorOrThrow(const Stroka& commandNam
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachedClient
-    : public TSyncCacheValueBase<Stroka, TCachedClient>
+    : public TSyncCacheValueBase<TString, TCachedClient>
 {
 public:
     TCachedClient(
-        const Stroka& user,
+        const TString& user,
         INativeClientPtr client)
         : TSyncCacheValueBase(user)
         , Client_(std::move(client))
@@ -89,7 +89,7 @@ typedef TIntrusivePtr<TDriver> TDriverPtr;
 
 class TDriver
     : public IDriver
-    , public TSyncSlruCacheBase<Stroka, TCachedClient>
+    , public TSyncSlruCacheBase<TString, TCachedClient>
 {
 public:
     explicit TDriver(TDriverConfigPtr config)
@@ -225,7 +225,7 @@ public:
             .Run();
     }
 
-    virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) const override
+    virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const TString& commandName) const override
     {
         auto it = CommandNameToEntry_.find(commandName);
         return it == CommandNameToEntry_.end() ? Null : MakeNullable(it->second.Descriptor);
@@ -274,7 +274,7 @@ private:
         TExecuteCallback Execute;
     };
 
-    yhash<Stroka, TCommandEntry> CommandNameToEntry_;
+    yhash<TString, TCommandEntry> CommandNameToEntry_;
 
 
     template <class TCommand>

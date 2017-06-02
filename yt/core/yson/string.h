@@ -20,14 +20,14 @@ public:
 
     //! Constructs an non-null instance with given type and content.
     explicit TYsonString(
-        const Stroka& data,
+        const TString& data,
         EYsonType type = EYsonType::Node);
 
     //! Returns |true| if the instance is not null.
     explicit operator bool() const;
 
     //! Returns the underlying YSON bytes. The instance must be non-null.
-    const Stroka& GetData() const;
+    const TString& GetData() const;
 
     //! Returns type of YSON contained here. The instance must be non-null.
     EYsonType GetType() const;
@@ -40,7 +40,7 @@ public:
 
 private:
     bool Null_;
-    Stroka Data_;
+    TString Data_;
     EYsonType Type_;
 
 };
@@ -52,7 +52,7 @@ void Serialize(const TYsonString& yson, IYsonConsumer* consumer);
 bool operator == (const TYsonString& lhs, const TYsonString& rhs);
 bool operator != (const TYsonString& lhs, const TYsonString& rhs);
 
-Stroka ToString(const TYsonString& yson);
+TString ToString(const TYsonString& yson);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,7 +65,7 @@ struct hash<NYT::NYson::TYsonString>
 {
     size_t operator () (const NYT::NYson::TYsonString& str) const
     {
-        return THash<Stroka>()(str.GetData());
+        return THash<TString>()(str.GetData());
     }
 };
 

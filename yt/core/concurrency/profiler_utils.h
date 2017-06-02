@@ -9,7 +9,7 @@ namespace NConcurrency {
 
 inline NProfiling::TTagIdList GetThreadTagIds(
     bool enableProfiling,
-    const Stroka& threadName)
+    const TString& threadName)
 {
     using namespace NProfiling;
     TTagIdList result;
@@ -22,8 +22,8 @@ inline NProfiling::TTagIdList GetThreadTagIds(
 
 inline NProfiling::TTagIdList GetBucketTagIds(
     bool enableProfiling,
-    const Stroka& threadName,
-    const Stroka& bucketName)
+    const TString& threadName,
+    const TString& bucketName)
 {
     using namespace NProfiling;
     TTagIdList result;
@@ -37,8 +37,8 @@ inline NProfiling::TTagIdList GetBucketTagIds(
 
 inline std::vector<NProfiling::TTagIdList> GetBucketsTagIds(
     bool enableProfiling,
-    const Stroka& threadName,
-    const std::vector<Stroka>& bucketNames)
+    const TString& threadName,
+    const std::vector<TString>& bucketNames)
 {
     using namespace NProfiling;
     std::vector<TTagIdList> result;
@@ -48,7 +48,7 @@ inline std::vector<NProfiling::TTagIdList> GetBucketsTagIds(
     return result;
 }
 
-inline NProfiling::TTagIdList GetInvokerTagIds(const Stroka& invokerName)
+inline NProfiling::TTagIdList GetInvokerTagIds(const TString& invokerName)
 {
     using namespace NProfiling;
     TTagIdList result;

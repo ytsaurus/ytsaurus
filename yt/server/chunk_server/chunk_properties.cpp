@@ -45,7 +45,7 @@ void FormatValue(TStringBuilder* builder, const TMediumChunkProperties& properti
         properties.GetDataPartsOnly());
 }
 
-Stroka ToString(const TMediumChunkProperties& properties)
+TString ToString(const TMediumChunkProperties& properties)
 {
     return ToStringViaBuilder(properties);
 }
@@ -117,7 +117,7 @@ void FormatValue(TStringBuilder* builder, const TChunkProperties& properties, co
     builder->AppendString("}}");
 }
 
-Stroka ToString(const TChunkProperties& properties)
+TString ToString(const TChunkProperties& properties)
 {
     return ToStringViaBuilder(properties);
 }
@@ -170,7 +170,7 @@ void TSerializableChunkProperties::Deserialize(INodePtr node)
 {
     YCHECK(node);
 
-    MediumProperties_ = ConvertTo<std::map<Stroka, TMediumProperties>>(node);
+    MediumProperties_ = ConvertTo<std::map<TString, TMediumProperties>>(node);
 }
 
 void Serialize(const TSerializableChunkProperties& serializer, NYson::IYsonConsumer* consumer)

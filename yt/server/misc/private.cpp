@@ -4,8 +4,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka DisabledLockFileName("disabled");
-const Stroka HealthCheckFileName("health_check~");
+const TString DisabledLockFileName("disabled");
+const TString HealthCheckFileName("health_check~");
 
 ////////////////////////////////////////////////////////////////////////////////
 

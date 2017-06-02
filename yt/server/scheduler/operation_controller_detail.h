@@ -251,7 +251,7 @@ protected:
 
     const EOperationType OperationType;
     const TInstant StartTime;
-    const Stroka AuthenticatedUser;
+    const TString AuthenticatedUser;
 
     // Usually these clients are all the same (and connected to master of the current cluster).
     // But `remote copy' operation connects AuthenticatedInputMasterClient to remote cluster master server.
@@ -310,7 +310,7 @@ protected:
 
     const NYTree::IMapNodePtr SecureVault;
 
-    const std::vector<Stroka> Owners;
+    const std::vector<TString> Owners;
 
 
     struct TLivePreviewTableBase
@@ -388,7 +388,7 @@ protected:
     {
         std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
         EOperationStage Stage = EOperationStage::None;
-        Stroka FileName;
+        TString FileName;
         std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
         bool Executable = false;
         NYson::TYsonString Format;
@@ -516,7 +516,7 @@ protected:
 
         void Initialize();
 
-        virtual Stroka GetId() const = 0;
+        virtual TString GetId() const = 0;
         virtual TTaskGroupPtr GetGroup() const = 0;
 
         virtual int GetPendingJobCount() const;
@@ -800,7 +800,7 @@ protected:
     void SuspendUnavailableInputStripes();
 
     void ParseInputQuery(
-        const Stroka& queryString,
+        const TString& queryString,
         const TNullable<NQueryClient::TTableSchema>& schema);
     void WriteInputQueryToJobSpec(
         NProto::TSchedulerJobSpecExt* schedulerJobSpecExt);
@@ -1043,7 +1043,7 @@ protected:
         NScheduler::NProto::TUserJobSpec* proto,
         TUserJobSpecPtr config,
         const std::vector<TUserFile>& files,
-        const Stroka& fileAccount);
+        const TString& fileAccount);
 
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
@@ -1073,7 +1073,7 @@ protected:
     static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(TJobIOConfigPtr ioConfig);
     static NTableClient::TTableReaderOptionsPtr CreateIntermediateTableReaderOptions();
 
-    void ValidateUserFileCount(TUserJobSpecPtr spec, const Stroka& operation);
+    void ValidateUserFileCount(TUserJobSpecPtr spec, const TString& operation);
 
     const std::vector<TExecNodeDescriptor>& GetExecNodeDescriptors();
 
@@ -1165,7 +1165,7 @@ private:
     TMemoryDigestMap JobProxyMemoryDigests_;
     TMemoryDigestMap UserJobMemoryDigests_;
 
-    const Stroka CodicilData_;
+    const TString CodicilData_;
 
     std::atomic<bool> AreTransactionsActive = {false};
 

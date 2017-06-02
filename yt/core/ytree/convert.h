@@ -48,7 +48,7 @@ extern template NYson::TYsonString ConvertToYsonString<int>(const int&);
 extern template NYson::TYsonString ConvertToYsonString<long>(const long&);
 extern template NYson::TYsonString ConvertToYsonString<unsigned int>(const unsigned int&);
 extern template NYson::TYsonString ConvertToYsonString<unsigned long>(const unsigned long&);
-extern template NYson::TYsonString ConvertToYsonString<Stroka>(const Stroka&);
+extern template NYson::TYsonString ConvertToYsonString<TString>(const TString&);
 extern template NYson::TYsonString ConvertToYsonString<TInstant>(const TInstant&);
 extern template NYson::TYsonString ConvertToYsonString<TDuration>(const TDuration&);
 extern template NYson::TYsonString ConvertToYsonString<TGuid>(const TGuid&);

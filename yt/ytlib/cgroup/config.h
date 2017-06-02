@@ -13,7 +13,7 @@ class TCGroupConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    std::vector<Stroka> SupportedCGroups;
+    std::vector<TString> SupportedCGroups;
 
     TCGroupConfig()
     {
@@ -29,7 +29,7 @@ public:
         });
     }
 
-    bool IsCGroupSupported(const Stroka& cgroupType) const;
+    bool IsCGroupSupported(const TString& cgroupType) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

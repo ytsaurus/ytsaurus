@@ -10,7 +10,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka DemangleCxxName(const char* mangledName)
+TString DemangleCxxName(const char* mangledName)
 {
 #if defined(__GNUC__)
     TTempBuf buffer;
@@ -19,9 +19,9 @@ Stroka DemangleCxxName(const char* mangledName)
     int returnedStatus = 0;
 
     abi::__cxa_demangle(mangledName, buffer.Data(), &returnedLength, &returnedStatus);
-    return Stroka(returnedStatus == 0 ? buffer.Data() : mangledName);
+    return TString(returnedStatus == 0 ? buffer.Data() : mangledName);
 #else
-    return Stroka(mangledName);
+    return TString(mangledName);
 #endif
 }
 

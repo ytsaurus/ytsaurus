@@ -27,7 +27,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TSpanId, ParentSpanId);
 };
 
-Stroka ToString(const TTraceContext& context);
+TString ToString(const TTraceContext& context);
 
 TTraceContext CreateChildTraceContext();
 TTraceContext CreateRootTraceContext();
@@ -82,8 +82,8 @@ class TTraceSpanGuard
 public:
     TTraceSpanGuard(
         const TTraceContext& parentContext,
-        const Stroka& serviceName,
-        const Stroka& spanName);
+        const TString& serviceName,
+        const TString& spanName);
     TTraceSpanGuard(TTraceSpanGuard&& other);
     ~TTraceSpanGuard();
 
@@ -92,8 +92,8 @@ public:
     void Release();
 
 private:
-    Stroka ServiceName_;
-    Stroka SpanName_;
+    TString ServiceName_;
+    TString SpanName_;
     TTraceContext Context_;
     bool Active_;
 
@@ -105,8 +105,8 @@ class TChildTraceContextGuard
 {
 public:
     TChildTraceContextGuard(
-        const Stroka& serviceName,
-        const Stroka& spanName);
+        const TString& serviceName,
+        const TString& spanName);
     TChildTraceContextGuard(TChildTraceContextGuard&& other) = default;
 
     bool IsActive() const;
@@ -126,42 +126,42 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const Stroka ClientSendAnnotation;
-extern const Stroka ClientReceiveAnnotation;
-extern const Stroka ServerSendAnnotation;
-extern const Stroka ServerReceiveAnnotation;
+extern const TString ClientSendAnnotation;
+extern const TString ClientReceiveAnnotation;
+extern const TString ServerSendAnnotation;
+extern const TString ServerReceiveAnnotation;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TraceEvent(
-    const Stroka& serviceName,
-    const Stroka& spanName,
-    const Stroka& annotationName);
+    const TString& serviceName,
+    const TString& spanName,
+    const TString& annotationName);
 
 void TraceEvent(
-    const Stroka& annotationKey,
-    const Stroka& annotationValue);
+    const TString& annotationKey,
+    const TString& annotationValue);
 
 template <class T>
 void TraceEvent(
-    const Stroka& annotationKey,
+    const TString& annotationKey,
     const T& annotationValue);
 
 void TraceEvent(
     const TTraceContext& context,
-    const Stroka& serviceName,
-    const Stroka& spanName,
-    const Stroka& annotationName);
+    const TString& serviceName,
+    const TString& spanName,
+    const TString& annotationName);
 
 void TraceEvent(
     const TTraceContext& context,
-    const Stroka& annotationKey,
-    const Stroka& annotationValue);
+    const TString& annotationKey,
+    const TString& annotationValue);
 
 template <class T>
 void TraceEvent(
     const TTraceContext& context,
-    const Stroka& annotationKey,
+    const TString& annotationKey,
     const T& annotationValue);
 
 ////////////////////////////////////////////////////////////////////////////////

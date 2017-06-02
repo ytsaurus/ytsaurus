@@ -101,7 +101,7 @@ class TJob
     DEFINE_BYVAL_RW_PROPERTY(bool, Preempted);
 
     //! String describing preemption reason.
-    DEFINE_BYVAL_RW_PROPERTY(Stroka, PreemptionReason);
+    DEFINE_BYVAL_RW_PROPERTY(TString, PreemptionReason);
 
     //! The purpose of the job interruption.
     DEFINE_BYVAL_RW_PROPERTY(EInterruptReason, InterruptReason, EInterruptReason::None);
@@ -119,7 +119,7 @@ class TJob
     DEFINE_BYVAL_RO_PROPERTY(TInstant, LastActivityTime);
 
     //! Account for node in cypress.
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Account);
+    DEFINE_BYVAL_RO_PROPERTY(TString, Account);
 
     //! Last time when statistics and resource usage from running job was updated.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<NProfiling::TCpuInstant>, LastRunningJobUpdateTime);
@@ -135,7 +135,7 @@ public:
         bool restarted,
         bool interruptible,
         TJobSpecBuilder specBuilder,
-        const Stroka& account);
+        const TString& account);
 
     //! The difference between |FinishTime| and |StartTime|.
     TDuration GetDuration() const;
@@ -148,7 +148,7 @@ public:
 
     void SetStatus(TJobStatus* status);
 
-    const Stroka& GetStatisticsSuffix() const;
+    const TString& GetStatisticsSuffix() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)
@@ -168,7 +168,7 @@ struct TJobSummary
 
     TJobResult Result;
     TJobId Id;
-    Stroka StatisticsSuffix;
+    TString StatisticsSuffix;
     TNullable<TInstant> FinishTime;
     TNullable<TDuration> PrepareDuration;
     TNullable<TDuration> DownloadDuration;
@@ -224,7 +224,7 @@ struct TJobStartRequest
         bool restarted,
         bool interruptible,
         TJobSpecBuilder specBuilder,
-        const Stroka& account);
+        const TString& account);
 
     const TJobId Id;
     const EJobType Type;
@@ -232,7 +232,7 @@ struct TJobStartRequest
     const bool Restarted;
     const bool Interruptible;
     const TJobSpecBuilder SpecBuilder;
-    const Stroka Account;
+    const TString Account;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

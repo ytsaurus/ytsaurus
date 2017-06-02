@@ -48,7 +48,7 @@ public:
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override
     {
-        auto name = attributes->GetAndRemove<Stroka>("name");
+        auto name = attributes->GetAndRemove<TString>("name");
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         return tabletManager->CreateTabletCellBundle(name, hintId);
     }
@@ -61,7 +61,7 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual Stroka DoGetName(const TTabletCellBundle* cellBundle) override
+    virtual TString DoGetName(const TTabletCellBundle* cellBundle) override
     {
         return Format("tablet cell bundle %Qv", cellBundle->GetName());
     }

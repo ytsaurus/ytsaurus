@@ -38,13 +38,13 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    const Stroka action = argv[1];
-    const Stroka codecName = argv[2];
+    const TString action = argv[1];
+    const TString codecName = argv[2];
 
     TNullable<std::vector<size_t>> sizes;
     if (argc == 4) {
         sizes = std::vector<size_t>();
-        const Stroka sizesFilename = argv[3];
+        const TString sizesFilename = argv[3];
         std::ifstream fin(sizesFilename);
         while (!(fin >> std::ws).eof()) {
             size_t size;
