@@ -32,7 +32,6 @@ set(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/intrusive_ptr_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/lexer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/lfalloc_helpers_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/lifecycle_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/logging_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/mpl_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/network_address_ut.cpp

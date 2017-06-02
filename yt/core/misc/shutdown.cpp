@@ -1,5 +1,7 @@
 #include "shutdown.h"
 
+#include <yt/core/misc/assert.h>
+
 #include <algorithm>
 
 namespace NYT {
@@ -13,16 +15,17 @@ std::vector<std::pair<double, void(*)()>>* ShutdownCallbacks()
 
 void RegisterShutdownCallback(double priority, void(*callback)())
 {
-    ShutdownCallbacks()->emplace_back(priority, callback);
+    auto item = std::make_pair(priority, callback);
+    auto& list = *ShutdownCallbacks();
+
+    YCHECK(std::find(list.begin(), list.end(), item) == list.end());
+    list.push_back(item);
 }
 
 void Shutdown()
 {
     auto& list = *ShutdownCallbacks();
     std::sort(list.begin(), list.end());
-
-    // Remove duplicates in case user messed up and registered same callback multiple times.
-    list.erase(std::unique(list.begin(), list.end()), list.end());
 
     for (auto it = list.rbegin(); it != list.rend(); ++it) {
         it->second();
