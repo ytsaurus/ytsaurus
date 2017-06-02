@@ -109,7 +109,7 @@ public class DefaultBusChannel implements Bus, BusLifecycle {
 
     private void logWriteResult(YtGuid packetId, Instant started) {
         long elapsed = Duration.between(started, Instant.now()).toMillis();
-        logger.debug("(DefaultBusChannel(%s@%d)) message `{}` sent in %d ms",
+        logger.debug("(DefaultBusChannel({}@{})) message `{}` sent in %d ms",
             channel, hashCode(), packetId, elapsed);
         packetsHistogram.update(elapsed);
     }
@@ -119,13 +119,13 @@ public class DefaultBusChannel implements Bus, BusLifecycle {
      */
     private void sendNow(BusOutgoingMessage outgoingMessage, CompletableFuture<Void> result) {
         if (connected.cause() != null) {
-            logger.debug("(DefaultBusChannel(%s@%d)) cannot send message `{}`: `{}`",
+            logger.debug("(DefaultBusChannel({}@{})) cannot send message `{}`: `{}`",
                 channel, hashCode(), outgoingMessage.getPacketId(), connected.cause());
             result.completeExceptionally(connected.cause());
         } else {
             Instant started = Instant.now();
             YtGuid packetId = outgoingMessage.getPacketId();
-            logger.debug("(DefaultBusChannel(%s@%d)) sending message `{}`",
+            logger.debug("(DefaultBusChannel({}@{})) sending message `{}`",
                 channel, hashCode(), packetId);
             ChannelFuture writeResult = channel.writeAndFlush(outgoingMessage);
 
