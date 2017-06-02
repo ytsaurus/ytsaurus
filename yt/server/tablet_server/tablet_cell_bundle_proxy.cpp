@@ -47,6 +47,8 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
+        const auto* cellBundle = GetThisImpl();
+
         attributes->push_back(TAttributeDescriptor("name")
             .SetReplicated(true)
             .SetMandatory(true));
@@ -54,7 +56,8 @@ private:
             .SetReplicated(true)
             .SetMandatory(true));
         attributes->push_back(TAttributeDescriptor("node_tag_filter")
-            .SetReplicated(true));
+            .SetReplicated(true)
+            .SetPresent(!cellBundle->NodeTagFilter().IsEmpty()));
         attributes->push_back("tablet_cell_count");
         attributes->push_back(TAttributeDescriptor("tablet_cell_ids")
             .SetOpaque(true));
@@ -78,7 +81,7 @@ private:
             return true;
         }
 
-        if (key == "node_tag_filter") {
+        if (key == "node_tag_filter" && !cellBundle->NodeTagFilter().IsEmpty()) {
             BuildYsonFluently(consumer)
                 .Value(cellBundle->NodeTagFilter().GetFormula());
             return true;
