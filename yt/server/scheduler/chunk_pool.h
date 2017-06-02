@@ -256,7 +256,7 @@ public:
     //! the old and new chunks. If building such mapping is impossible (for example,
     //! the new stripe contains more data slices, or the new data slices have different
     //! read limits or boundary keys), exception is thrown.
-    yhash_map<NChunkClient::TInputChunkPtr, NChunkClient::TInputChunkPtr> ResumeAndBuildChunkMapping(TChunkStripePtr stripe);
+    yhash<NChunkClient::TInputChunkPtr, NChunkClient::TInputChunkPtr> ResumeAndBuildChunkMapping(TChunkStripePtr stripe);
 
     //! Replaces the original stripe with the current stripe.
     void ReplaceOriginalStripe();
