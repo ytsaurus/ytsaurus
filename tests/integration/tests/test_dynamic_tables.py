@@ -1016,6 +1016,7 @@ class TestTabletActions(TestDynamicTablesBase):
         self._create_sorted_table("//tmp/t")
         self.sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        banned_peers = self._ban_all_peers(cells[1])
         action = create("tablet_action", "", attributes={
             "kind": "move",
             "keep_finished": True,
@@ -1023,6 +1024,7 @@ class TestTabletActions(TestDynamicTablesBase):
             "tablet_ids": [tablet_id],
             "cell_ids": [cells[1]]})
         remove("#" + cells[1])
+        self._unban_peers(banned_peers)
         wait(lambda: get("#{0}/@state".format(action)) == "failed")
         assert get("#{0}/@error".format(action))
         expected_state = "frozen" if freeze else "mounted"
