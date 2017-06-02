@@ -35,14 +35,6 @@ struct TTcpDispatcherStatistics
     i64 DecoderErrors = 0;
 };
 
-TTcpDispatcherStatistics operator + (
-    const TTcpDispatcherStatistics& lhs,
-    const TTcpDispatcherStatistics& rhs);
-
-TTcpDispatcherStatistics& operator += (
-    TTcpDispatcherStatistics& lhs,
-    const TTcpDispatcherStatistics& rhs);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETcpInterfaceType,
@@ -62,8 +54,6 @@ public:
 
     static void StaticShutdown();
 
-    static void SetClientThreadCount(int clientThreadCount);
-
     virtual void Shutdown() override;
 
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType);
@@ -79,7 +69,7 @@ private:
     friend class TTcpBusServerProxy;
 
     class TImpl;
-    const std::unique_ptr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 
