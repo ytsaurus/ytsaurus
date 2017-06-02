@@ -604,6 +604,9 @@ class YamrFormat(Format):
     field_separator = Format._create_property("fs")
     record_separator = Format._create_property("rs")
 
+    def __deepcopy__(self, memodict={}):
+        return copy.copy(self)
+
     def load_row(self, stream, raw=None):
         unparsed = self._is_raw(raw)
         result_of_loading = self._load_row(stream, unparsed)
