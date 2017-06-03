@@ -239,7 +239,6 @@ private:
     void OnAckPacketSent(const TPacket& packet);
     void OnMessagePacketSent(const TPacket& packet);
     void OnTerminated();
-    void OnMessageEnqueued();
     void ProcessQueuedMessages();
     void DiscardOutcomingMessages(const TError& error);
     void DiscardUnackedMessages(const TError& error);

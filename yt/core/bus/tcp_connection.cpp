@@ -228,9 +228,6 @@ void TTcpConnection::Open()
     State_ = EState::Open;
 
     LOG_DEBUG("Connection established (LocalPort: %v)", GetSocketPort());
-
-    // Flush messages that were enqueued when the connection was still opening.
-    ProcessQueuedMessages();
 }
 
 void TTcpConnection::ResolveAddress()
@@ -458,7 +455,6 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& address)
 #endif
 
     int result = HandleEintr(connect, Socket_, address.GetSockAddr(), address.GetLength());
-
     if (result != 0) {
         int error = LastSystemError();
         if (IsSocketError(error)) {
@@ -554,9 +550,6 @@ void TTcpConnection::OnEvent(EPollControl control)
 
         LOG_TRACE("Event processing started");
 
-        // Always try to handle enqueued messages first.
-        OnMessageEnqueued();
-
         // For client sockets the first write notification means that
         // connection was established (either successfully or not).
         if (Any(control & EPollControl::Write) &&
@@ -566,8 +559,10 @@ void TTcpConnection::OnEvent(EPollControl control)
             OnSocketConnected();
         }
 
+        ProcessQueuedMessages();
+
         // NB: Try to read from the socket before writing into it to avoid
-        // getting SIGPIPE when other party closes the connection.
+        // getting SIGPIPE when the other party closes the connection.
         if (Any(control & EPollControl::Read)) {
             OnSocketRead();
         }
@@ -1093,23 +1088,6 @@ void TTcpConnection::OnTerminated()
     LOG_DEBUG("Termination request received");
 
     Abort(error);
-}
-
-void TTcpConnection::OnMessageEnqueued()
-{
-    switch (State_) {
-        case EState::Resolving:
-        case EState::Opening:
-            // Do nothing.
-            break;
-
-        case EState::Open:
-            ProcessQueuedMessages();
-            break;
-
-        default:
-            Y_UNREACHABLE();
-    }
 }
 
 void TTcpConnection::ProcessQueuedMessages()
