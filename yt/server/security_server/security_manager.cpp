@@ -1497,7 +1497,7 @@ private:
                 TClusterResources StagingUsage;
             };
 
-            yhash_map<TAccount*, TStat> statMap;
+            yhash<TAccount*, TStat> statMap;
             for (const auto& pair : AccountMap_) {
                 statMap.emplace(pair.second, TStat());
             }

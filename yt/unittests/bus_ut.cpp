@@ -137,7 +137,9 @@ void TestReplies(int numRequests, int numParts, EDeliveryTrackingLevel level = E
 
     handler->WaitUntilDone();
 
-    server->Stop();
+    server->Stop()
+        .Get()
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -169,7 +171,9 @@ TEST(TBusTest, OK)
     auto result = bus->Send(message, NBus::TSendOptions(EDeliveryTrackingLevel::Full))
         .Get();
     EXPECT_TRUE(result.IsOK());
-    server->Stop();
+    server->Stop()
+        .Get()
+        .ThrowOnError();
 }
 
 TEST(TBusTest, Failed)
