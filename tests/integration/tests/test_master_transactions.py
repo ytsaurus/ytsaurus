@@ -1,5 +1,7 @@
 import pytest
 
+from flaky import flaky
+
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from yt.environment.helpers import assert_items_equal
@@ -138,6 +140,7 @@ class TestMasterTransactions(YTEnvSetup):
         sleep(3.0)
         assert not exists("//sys/transactions/" + tx)
 
+    @flaky(max_runs=5)
     def test_ping(self):
         tx = start_transaction(timeout=2000)
 
