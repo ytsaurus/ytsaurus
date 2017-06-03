@@ -131,12 +131,12 @@ public:
     TFuture<void> Run();
 
     //! Postpones an incoming request for changelog rotation.
-    void PostponeChangelogRotation(TVersion version);
+    //! Returns |false| is no more postponed are can be accepted; the caller must back off and retry.
+    bool PostponeChangelogRotation(TVersion version);
 
     //! Postpones incoming mutations.
-    void PostponeMutations(
-        TVersion version,
-        const std::vector<TSharedRef>& recordsData);
+    //! Returns |false| is no more postponed are can be accepted; the caller must back off and retry.
+    bool PostponeMutations(TVersion version, const std::vector<TSharedRef>& recordsData);
 
     //! Notifies the recovery process about the latest committed version available at leader.
     void SetCommittedVersion(TVersion version);
@@ -154,6 +154,7 @@ private:
 
     TSpinLock SpinLock_;
     std::vector<TPostponedAction> PostponedActions_;
+    bool NoMorePostponedActions_ = false;
     TVersion PostponedVersion_;
     TVersion CommittedVersion_;
 

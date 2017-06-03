@@ -410,48 +410,51 @@ void TFollowerRecovery::DoRun()
         {
             TGuard<TSpinLock> guard(SpinLock_);
             postponedActions.swap(PostponedActions_);
-        }
-
-        if (!postponedActions.empty()) {
-            LOG_INFO("Logging postponed actions (ActionCount: %v)",
-                postponedActions.size());
-
-            for (const auto& action : postponedActions) {
-                switch (action.Tag()) {
-                    case TPostponedAction::TagOf<TPostponedMutation>():
-                        DecoratedAutomaton_->LogFollowerMutation(action.As<TPostponedMutation>().RecordData, nullptr);
-                        break;
-
-                    case TPostponedAction::TagOf<TPostponedChangelogRotation>():
-                        WaitFor(DecoratedAutomaton_->RotateChangelog())
-                            .ThrowOnError();
-                        break;
-
-                    default:
-                        Y_UNREACHABLE();
-                }
+            if (postponedActions.empty() && !DecoratedAutomaton_->HasReadyMutations()) {
+                LOG_INFO("No more postponed actions accepted");
+                NoMorePostponedActions_ = true;
+                break;
             }
         }
 
-        if (postponedActions.empty() && !DecoratedAutomaton_->HasReadyMutations()) {
-            break;
+        LOG_INFO("Logging postponed actions (ActionCount: %v)",
+            postponedActions.size());
+
+        for (const auto& action : postponedActions) {
+            switch (action.Tag()) {
+                case TPostponedAction::TagOf<TPostponedMutation>():
+                    DecoratedAutomaton_->LogFollowerMutation(action.As<TPostponedMutation>().RecordData, nullptr);
+                    break;
+
+                case TPostponedAction::TagOf<TPostponedChangelogRotation>():
+                    WaitFor(DecoratedAutomaton_->RotateChangelog())
+                        .ThrowOnError();
+                    break;
+
+                default:
+                    Y_UNREACHABLE();
+            }
         }
     }
 
     LOG_INFO("Finished catching up with leader");
 }
 
-void TFollowerRecovery::PostponeChangelogRotation(TVersion version)
+bool TFollowerRecovery::PostponeChangelogRotation(TVersion version)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(SpinLock_);
 
+    if (NoMorePostponedActions_) {
+        return false;
+    }
+
     if (PostponedVersion_ > version) {
         LOG_DEBUG("Late changelog rotation received during recovery, ignored: expected %v, received %v",
             PostponedVersion_,
             version);
-        return;
+        return true;
     }
 
     if (PostponedVersion_ < version) {
@@ -466,9 +469,11 @@ void TFollowerRecovery::PostponeChangelogRotation(TVersion version)
         PostponedVersion_);
 
     PostponedVersion_ = PostponedVersion_.Rotate();
+
+    return true;
 }
 
-void TFollowerRecovery::PostponeMutations(
+bool TFollowerRecovery::PostponeMutations(
     TVersion version,
     const std::vector<TSharedRef>& recordsData)
 {
@@ -476,11 +481,15 @@ void TFollowerRecovery::PostponeMutations(
 
     TGuard<TSpinLock> guard(SpinLock_);
 
+    if (NoMorePostponedActions_) {
+        return false;
+    }
+
     if (PostponedVersion_ > version) {
-        LOG_WARNING("Late mutations received during recovery, ignored: expected %v, received %v",
+        LOG_DEBUG("Late mutations received during recovery, ignored: expected %v, received %v",
             PostponedVersion_,
             version);
-        return;
+        return true;
     }
 
     if (PostponedVersion_ != version) {
@@ -498,6 +507,8 @@ void TFollowerRecovery::PostponeMutations(
     }
 
     PostponedVersion_ = PostponedVersion_.Advance(recordsData.size());
+
+    return true;
 }
 
 void TFollowerRecovery::SetCommittedVersion(TVersion version)
