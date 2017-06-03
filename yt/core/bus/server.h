@@ -17,18 +17,21 @@ namespace NBus {
 struct IBusServer
     : public virtual TRefCounted
 {
-    //! Starts the listener.
+    //! Synchronously starts the listener.
     /*
      *  \param handler Incoming messages handler.
      */
     virtual void Start(IMessageHandlerPtr handler) = 0;
 
-    //! Stops the listener.
+    //! Asynchronously stops the listener.
     /*!
      *  After this call the instance is no longer usable.
      *  No new incoming messages are accepted.
+     *
+     *  \returns the future indicating the moment when the server is fully stopped;
+     *  e.g. the server socket is closed.
      */
-    virtual void Stop() = 0;
+    virtual TFuture<void> Stop() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBusServer)

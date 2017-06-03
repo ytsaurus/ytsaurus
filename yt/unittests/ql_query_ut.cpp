@@ -5,7 +5,7 @@
 #ifdef YT_IN_ARCADIA
 #include <library/resource/resource.h>
 #else
-#include "udf/test_udfs.h"
+#include "udf/test_udfs.h" // Y_IGNORE
 #endif
 
 #include <yt/ytlib/query_client/callbacks.h>

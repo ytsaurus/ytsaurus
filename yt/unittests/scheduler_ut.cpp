@@ -16,7 +16,6 @@
 
 #include <yt/core/misc/lazy_ptr.h>
 
-
 #include <util/system/thread.h>
 
 #include <exception>
