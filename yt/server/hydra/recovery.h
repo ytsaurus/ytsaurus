@@ -12,6 +12,7 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/ref.h>
+#include <yt/core/misc/variant.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -106,11 +107,6 @@ DEFINE_REFCOUNTED_TYPE(TLeaderRecovery)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EPostponedMutationType,
-    (Mutation)
-    (ChangelogRotation)
-);
-
 //! Drives the follower recovery.
 /*!
  *  \note
@@ -148,32 +144,16 @@ public:
 private:
     struct TPostponedMutation
     {
-        using EType = EPostponedMutationType;
-
-        EType Type;
         TSharedRef RecordData;
-
-        static TPostponedMutation CreateMutation(const TSharedRef& recordData)
-        {
-            return TPostponedMutation(EType::Mutation, recordData);
-        }
-
-        static TPostponedMutation CreateChangelogRotation()
-        {
-            return TPostponedMutation(EType::ChangelogRotation, TSharedRef());
-        }
-
-        TPostponedMutation(EType type, const TSharedRef& recordData)
-            : Type(type)
-            , RecordData(recordData)
-        { }
-
     };
 
-    typedef std::vector<TPostponedMutation> TPostponedMutations;
+    struct TPostponedChangelogRotation
+    { };
+
+    using TPostponedAction = TVariant<TPostponedMutation, TPostponedChangelogRotation>;
 
     TSpinLock SpinLock_;
-    TPostponedMutations PostponedMutations_;
+    std::vector<TPostponedAction> PostponedActions_;
     TVersion PostponedVersion_;
     TVersion CommittedVersion_;
 
