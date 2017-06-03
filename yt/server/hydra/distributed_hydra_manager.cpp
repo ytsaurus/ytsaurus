@@ -706,8 +706,6 @@ private:
         context->SetRequestInfo("SetReadOnly: %v",
             setReadOnly);
 
-        //SetReadOnly(setReadOnly);
-
         int snapshotId = WaitFor(BuildSnapshot(setReadOnly))
             .ValueOrThrow();
 
