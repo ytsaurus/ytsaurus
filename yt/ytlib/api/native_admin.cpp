@@ -103,12 +103,8 @@ private:
 
     int DoBuildSnapshot(const TBuildSnapshotOptions& options)
     {
-        WaitFor(Connection_->SyncCellDirectory())
-            .ThrowOnError();
-
         auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
-        const auto& cellDirectory = Connection_->GetCellDirectory();
-        auto channel = cellDirectory->GetChannelOrThrow(cellId);
+        auto channel = GetCellChannelOrThrow(cellId);
 
         THydraServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(TDuration::Hours(1)); // effective infinity
@@ -124,12 +120,8 @@ private:
 
     void DoGCCollect(const TGCCollectOptions& options)
     {
-        WaitFor(Connection_->SyncCellDirectory())
-            .ThrowOnError();
-
         auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
-        const auto& cellDirectory = Connection_->GetCellDirectory();
-        auto channel = cellDirectory->GetChannelOrThrow(cellId);
+        auto channel = GetCellChannelOrThrow(cellId);
 
         TObjectServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(Null); // infinity
@@ -164,6 +156,21 @@ private:
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
         return rsp->path();
+    }
+
+
+    IChannelPtr GetCellChannelOrThrow(const TCellId& cellId)
+    {
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        auto channel = cellDirectory->FindChannel(cellId);
+        if (channel) {
+            return channel;
+        }
+
+        WaitFor(Connection_->SyncCellDirectory())
+            .ThrowOnError();
+
+       return cellDirectory->GetChannelOrThrow(cellId);
     }
 };
 
