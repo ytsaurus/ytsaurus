@@ -10,6 +10,7 @@ from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, upd
                               chunk_iter_rows
 from yt.wrapper.cli_helpers import write_silently, run_main
 from yt.wrapper.default_config import get_default_config
+import yt.wrapper.job_tool as job_tool
 import yt.wrapper.completers as completers
 import yt.json as json
 
@@ -917,6 +918,18 @@ def add_transform_parser(add_parser):
                         help="check if table already has proper codecs before transforming")
     add_structured_argument(parser, "--spec")
 
+def execute_job_tool(**args):
+    commands = {
+        "prepare-job-environment": job_tool.prepare_job_environment,
+        "run-job": job_tool.run_job
+    }
+    command = args.pop("command")
+    commands[command](**args)
+
+def add_job_tool_parser(add_parser):
+    parser = add_parser("job-tool", function=execute_job_tool, pythonic_help=job_tool.DESCRIPTION)
+    job_tool.create_job_tool_parser(parser)
+
 @copy_docstring_from(get_default_config)
 def show_default_config(**args):
     print(dump_data(get_default_config()))
@@ -1037,6 +1050,8 @@ def main():
     add_execute_parser(add_parser)
 
     add_transform_parser(add_parser)
+
+    add_job_tool_parser(add_parser)
 
     add_show_default_config_parser(add_parser)
 
