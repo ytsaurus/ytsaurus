@@ -15,6 +15,7 @@ from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManag
 from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs
 from yt.wrapper.table import TablePath
+from yt.local import start, stop
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
 
@@ -32,6 +33,7 @@ import random
 import logging
 import pytest
 import signal
+import uuid
 
 class AggregateMapper(object):
     def __init__(self):
@@ -1367,3 +1369,42 @@ if __name__ == "__main__":
             if old_ld_library_path:
                 os.environ["LD_LIBRARY_PATH"] = old_ld_library_path
             sys.platform = old_platform
+
+    def test_remote_copy(self):
+        mode = yt.config["backend"]
+        if mode == "http":
+            mode = yt.config["api_version"]
+
+        test_name = "TestYtWrapper" + mode.capitalize()
+        dir = os.path.join(TESTS_SANDBOX, test_name)
+        id = "run_" + uuid.uuid4().hex[:8]
+        try:
+            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1)
+            second_cluster_client = instance.create_client()
+            second_cluster_connection = second_cluster_client.get("//sys/@cluster_connection")
+            second_cluster_client.create("map_node", TEST_DIR)
+            table = TEST_DIR + "/test_table"
+
+            second_cluster_client.write_table(table, [{"a": 1, "b": 2, "c": 3}])
+            yt.run_remote_copy(table, table, cluster_connection=second_cluster_connection)
+            assert list(yt.read_table(table)) == [{"a": 1, "b": 2, "c": 3}]
+
+            second_cluster_client.write_table(table, [{"a": 1, "b": True, "c": "abacaba"}])
+            yt.run_remote_copy(table, table, cluster_connection=second_cluster_connection)
+            assert list(yt.read_table(table)) == [{"a": 1, "b": True, "c": "abacaba"}]
+
+            second_cluster_client.write_table(table, [])
+            yt.run_remote_copy(table, table, cluster_connection=second_cluster_connection)
+            assert list(yt.read_table(table)) == []
+
+            second_cluster_client.remove(table)
+            second_cluster_client.create("table", table, attributes={"compression_codec": "zlib_6"})
+
+            second_cluster_client.write_table(table, [{"a": [i, 2, 3]} for i in xrange(100)])
+            yt.run_remote_copy(table, table, cluster_connection=second_cluster_connection)
+            assert list(yt.read_table(table)) == [{"a": [i, 2, 3]} for i in xrange(100)]
+            assert second_cluster_client.get(table + "/@compressed_data_size") == \
+                   yt.get(table + "/@compressed_data_size")
+
+        finally:
+            stop(instance.id, path=dir)
