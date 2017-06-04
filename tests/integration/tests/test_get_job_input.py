@@ -80,24 +80,25 @@ class TestGetJobInput(YTEnvSetup):
         shutil.rmtree(self._tmpdir)
 
     def _create_jobs_archive_table(self):
-        attributes = {}
-        attributes["dynamic"] = True
-        attributes["schema"] = [
-            {"name": "operation_id_hi", "sort_order": "ascending", "type": "uint64"},
-            {"name": "operation_id_lo", "sort_order": "ascending", "type": "uint64"},
-            {"name": "job_id_hi", "sort_order": "ascending", "type": "uint64"},
-            {"name": "job_id_lo", "sort_order": "ascending", "type": "uint64"},
-            {"name": "type", "type": "string"},
-            {"name": "state", "type": "string"},
-            {"name": "start_time", "type": "int64"},
-            {"name": "finish_time", "type": "int64"},
-            {"name": "address", "type": "string"},
-            {"name": "error", "type": "any"},
-            {"name": "spec", "type": "string"},
-            {"name": "spec_version", "type": "int64"},
-            {"name": "statistics", "type": "any"},
-            {"name": "events", "type": "any"}
-        ]
+        attributes = {
+            "dynamic": True,
+            "schema": [
+                {"name": "operation_id_hi", "sort_order": "ascending", "type": "uint64"},
+                {"name": "operation_id_lo", "sort_order": "ascending", "type": "uint64"},
+                {"name": "job_id_hi", "sort_order": "ascending", "type": "uint64"},
+                {"name": "job_id_lo", "sort_order": "ascending", "type": "uint64"},
+                {"name": "type", "type": "string"},
+                {"name": "state", "type": "string"},
+                {"name": "start_time", "type": "int64"},
+                {"name": "finish_time", "type": "int64"},
+                {"name": "address", "type": "string"},
+                {"name": "error", "type": "any"},
+                {"name": "spec", "type": "string"},
+                {"name": "spec_version", "type": "int64"},
+                {"name": "statistics", "type": "any"},
+                {"name": "events", "type": "any"}
+            ]
+        }
         create("table", OPERATION_JOB_ARCHIVE_TABLE, attributes=attributes, recursive=True)
         self.sync_create_cells(1)
         self.sync_mount_table(OPERATION_JOB_ARCHIVE_TABLE)
