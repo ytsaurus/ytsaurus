@@ -98,11 +98,8 @@ void CommitTransaction(ITransactionPtr& transaction)
     transaction.Reset();
 
     auto result = WaitFor(asyncResult);
-    if (!result.IsOK()) {
-        THROW_ERROR_EXCEPTION("Transaction %v has failed to commit",
-            transactionId)
-            << result;
-    }
+    THROW_ERROR_EXCEPTION_IF_FAILED(result, "Transaction %v has failed to commit",
+        transactionId);
 }
 
 } // namespace
