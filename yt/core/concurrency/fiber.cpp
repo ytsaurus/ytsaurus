@@ -244,7 +244,7 @@ int GetFiberStackPoolSize(EExecutionStackKind stackKind)
     }
 }
 
-int SetFiberStackPoolSize(EExecutionStackKind stackKind, int poolSize)
+void SetFiberStackPoolSize(EExecutionStackKind stackKind, int poolSize)
 {
     if (poolSize < 0) {
         THROW_ERROR_EXCEPTION("Invalid fiber stack pool size %v is given for %Qlv stacks",
