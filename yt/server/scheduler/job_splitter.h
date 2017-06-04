@@ -10,6 +10,8 @@ namespace NScheduler {
 
 struct IJobSplitter
 {
+    virtual ~IJobSplitter() = default;
+
     virtual void OnJobStarted(
         const TJobId& jobId,
         const TChunkStripeListPtr& inputStripeList) = 0;
