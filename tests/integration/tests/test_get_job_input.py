@@ -41,6 +41,7 @@ class TestGetJobInput(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
