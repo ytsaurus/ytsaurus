@@ -89,7 +89,7 @@ class Checker(Thread):
             self._check_function()
             delta = time() - now
             if delta > 0.1:
-                print >>sys.stderr, "check takes %lf seconds" % delta
+                print >>sys.stderr, "Check took %lf seconds" % delta
             sleep(1.0)
 
     def stop(self):
@@ -101,7 +101,7 @@ class YTEnvSetup(object):
     NUM_NONVOTING_MASTERS = 0
     NUM_SECONDARY_MASTER_CELLS = 0
     START_SECONDARY_MASTER_CELLS = True
-    MULTICELL_TEARDOWN_ENABLE = True
+    ENABLE_MULTICELL_TEARDOWN = True
     NUM_NODES = 5
     NUM_SCHEDULERS = 0
 
@@ -334,26 +334,27 @@ class YTEnvSetup(object):
                                 "opaque": True
                                },
                                driver=driver)
-            yt_commands.gc_collect(driver=driver)
-            yt_commands.clear_metadata_caches(driver=driver)
-            self._remove_operations(driver=driver)
             self._reset_nodes(driver=driver)
-            self._wait_jobs_to_abort(driver=driver)
+            if self.NUM_SCHEDULERS > 0:
+                self._wait_jobs_to_abort(driver=driver)
+                self._remove_operations(driver=driver)
+                self._remove_pools(driver=driver)
             self._reenable_chunk_replicator(driver=driver)
             self._remove_accounts(driver=driver)
             self._remove_users(driver=driver)
             self._remove_groups(driver=driver)
-            self._remove_tablet_cells(driver=driver)
-            self._remove_tablet_cell_bundles(driver=driver)
+            if self.USE_DYNAMIC_TABLES:
+                self._remove_tablet_cells(driver=driver)
+                self._remove_tablet_cell_bundles(driver=driver)
+                self._reenable_tablet_balancer(driver=driver)
             self._remove_racks(driver=driver)
             self._remove_data_centers(driver=driver)
-            self._remove_pools(driver=driver)
-            self._reenable_tablet_balancer(driver=driver)
-            if self.MULTICELL_TEARDOWN_ENABLE:
+            if self.ENABLE_MULTICELL_TEARDOWN:
                 self._remove_tablet_actions(driver=driver)
 
             yt_commands.gc_collect(driver=driver)
-
+            yt_commands.clear_metadata_caches(driver=driver)
+            
     def set_node_banned(self, address, flag, driver=None):
         yt_commands.set("//sys/nodes/%s/@banned" % address, flag, driver=driver)
         ban, state = ("banned", "offline") if flag else ("unbanned", "online")
@@ -557,9 +558,9 @@ class YTEnvSetup(object):
         yt_commands.remove("//sys/pools/*", driver=driver)
 
     def _remove_tablet_actions(self, driver=None):
-        actions = yt_commands.ls("//sys/tablet_actions", driver=driver)
+        actions = yt_commands.get_tablet_actions()
         for action in actions:
-            yt_commands.remove("#" + str(action), driver=driver)
+            yt_commands.remove_tablet_action(action, driver=driver)
 
     def _reenable_tablet_balancer(self, driver=None):
         if yt_commands.exists("//sys/@disable_tablet_balancer", driver=driver):

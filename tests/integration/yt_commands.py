@@ -840,8 +840,8 @@ def create_account(name, **kwargs):
     execute_command("create", kwargs)
 
 def remove_account(name, **kwargs):
-    remove("//sys/accounts/" + name, **kwargs)
     gc_collect(kwargs.get("driver"))
+    remove("//sys/accounts/" + name, **kwargs)
 
 def create_user(name, **kwargs):
     kwargs["type"] = "user"
@@ -852,7 +852,6 @@ def create_user(name, **kwargs):
 
 def remove_user(name, **kwargs):
     remove("//sys/users/" + name, **kwargs)
-    gc_collect(kwargs.get("driver"))
 
 def create_group(name, **kwargs):
     kwargs["type"] = "group"
@@ -863,7 +862,6 @@ def create_group(name, **kwargs):
 
 def remove_group(name, **kwargs):
     remove("//sys/groups/" + name, **kwargs)
-    gc_collect(kwargs.get("driver"))
 
 def add_member(member, group, **kwargs):
     kwargs["member"] = member
@@ -890,11 +888,12 @@ def create_tablet_cell_bundle(name, **kwargs):
 
 def remove_tablet_cell_bundle(name, driver=None):
     remove("//sys/tablet_cell_bundles/" + name, driver=driver)
-    gc_collect(driver=driver)
 
 def remove_tablet_cell(id, driver=None):
     remove("//sys/tablet_cells/" + id, driver=driver)
-    gc_collect(driver=driver)
+
+def remove_tablet_action(id, driver=None):
+    remove("//sys/tablet_actions/" + id, driver=driver)
 
 def create_table_replica(table_path, cluster_name, replica_path, **kwargs):
     kwargs["type"] = "table_replica"
@@ -921,7 +920,6 @@ def create_data_center(name, **kwargs):
 
 def remove_data_center(name, **kwargs):
     remove("//sys/data_centers/" + name, **kwargs)
-    gc_collect(kwargs.get("driver"))
 
 def create_rack(name, **kwargs):
     kwargs["type"] = "rack"
@@ -932,7 +930,6 @@ def create_rack(name, **kwargs):
 
 def remove_rack(name, **kwargs):
     remove("//sys/racks/" + name, **kwargs)
-    gc_collect(kwargs.get("driver"))
 
 def create_medium(name, **kwargs):
     kwargs["type"] = "medium"
@@ -957,34 +954,30 @@ def get_chunks(driver=None):
     return ls("//sys/chunks", driver=driver)
 
 def get_accounts(driver=None):
-    gc_collect(driver=driver)
     return ls("//sys/accounts", driver=driver)
 
 def get_users(driver=None):
-    gc_collect(driver=driver)
     return ls("//sys/users", driver=driver)
 
 def get_groups(driver=None):
-    gc_collect(driver=driver)
     return ls("//sys/groups", driver=driver)
 
 def get_tablet_cells(driver=None):
-    gc_collect(driver=driver)
     return ls("//sys/tablet_cells", driver=driver)
 
+def get_tablet_actions(driver=None):
+    return ls("//sys/tablet_actions", driver=driver)
+
 def get_data_centers(driver=None):
-    gc_collect(driver=driver)
     return ls("//sys/data_centers", driver=driver)
 
 def get_racks(driver=None):
-    gc_collect(driver=driver)
     return ls("//sys/racks", driver=driver)
 
 def get_nodes(driver=None):
     return ls("//sys/nodes", driver=driver)
 
 def get_media(driver=None):
-    gc_collect(driver=driver)
     return ls("//sys/media", driver=driver)
 
 def get_chunk_owner_disk_space(path, *args, **kwargs):
