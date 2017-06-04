@@ -252,9 +252,14 @@ int SetFiberStackPoolSize(EExecutionStackKind stackKind, int poolSize)
             stackKind);
     }
     switch (stackKind) {
-        case EExecutionStackKind::Small: SmallFiberStackPoolSize = poolSize;
-        case EExecutionStackKind::Large: LargeFiberStackPoolSize = poolSize;
-        default:                         Y_UNREACHABLE();
+        case EExecutionStackKind::Small:
+            SmallFiberStackPoolSize = poolSize;
+            break;
+        case EExecutionStackKind::Large:
+            LargeFiberStackPoolSize = poolSize;
+            break;
+        default:
+            Y_UNREACHABLE();
     }
 }
 
