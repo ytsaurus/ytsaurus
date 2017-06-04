@@ -12,26 +12,38 @@ namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger::TLogger(const char* category)
-    : Category_(category)
+TLogger::TLogger()
+    : CategoryName_(nullptr)
+    , CachedLogManager_(nullptr)
+    , CachedCategory_(nullptr)
 { }
 
-const char* TLogger::GetCategory() const
+TLogger::TLogger(const char* categoryName)
+    : CategoryName_(categoryName)
+    , CachedLogManager_(nullptr)
+    , CachedCategory_(nullptr)
+{ }
+
+const TLoggingCategory* TLogger::GetCategory() const
 {
-    return Category_;
+    if (!CachedCategory_ && CategoryName_) {
+        CachedCategory_ = GetLogManager()->GetCategory(CategoryName_);
+    }
+    return CachedCategory_;
 }
 
 bool TLogger::IsEnabled(ELogLevel level) const
 {
-    if (!Category_) {
+    auto* category = GetCategory();
+    if (!category) {
         return false;
     }
 
-    if (GetLogManager()->GetVersion() != Version_) {
-        const_cast<TLogger*>(this)->Update();
+    if (category->CurrentVersion != category->ActualVersion->load(std::memory_order_relaxed)) {
+        GetLogManager()->UpdateCategory(category);
     }
 
-    return level >= MinLevel_;
+    return level >= category->MinLevel;
 }
 
 void TLogger::Write(TLogEvent&& event) const
@@ -39,6 +51,7 @@ void TLogger::Write(TLogEvent&& event) const
     if (!Context_.empty()) {
         event.Message = GetMessageWithContext(event.Message, Context_);
     }
+
     GetLogManager()->Enqueue(std::move(event));
 }
 
@@ -56,18 +69,12 @@ const Stroka& TLogger::GetContext() const
     return Context_;
 }
 
-void TLogger::Update()
-{
-    MinLevel_ = GetLogManager()->GetMinLevel(Category_);
-    Version_ = GetLogManager()->GetVersion();
-}
-
 TLogManager* TLogger::GetLogManager() const
 {
-    if (!LogManager_) {
-        LogManager_ = TLogManager::Get();
+    if (!CachedLogManager_) {
+        CachedLogManager_ = TLogManager::Get();
     }
-    return LogManager_;
+    return CachedLogManager_;
 }
 
 Stroka TLogger::GetMessageWithContext(const Stroka& originalMessage, const Stroka& context)
