@@ -197,11 +197,34 @@ public:
         }
     }
 
+    void OccupyPoolSlotIndex(const Stroka& poolName, int slotIndex)
+    {
+        auto minUnusedIndexIt = PoolToMinUnusedSlotIndex.find(poolName);
+        YCHECK(minUnusedIndexIt != PoolToMinUnusedSlotIndex.end());
+
+        auto& spareSlotIndices = PoolToSpareSlotIndices[poolName];
+
+        if (slotIndex >= minUnusedIndexIt->second) {
+            for (int index = minUnusedIndexIt->second; index < slotIndex; ++index) {
+                spareSlotIndices.insert(index);
+            }
+
+            minUnusedIndexIt->second = slotIndex + 1;
+        } else {
+            YCHECK(spareSlotIndices.erase(slotIndex) == 1);
+        }
+    }
+
     void AssignOperationSlotIndex(const TOperationPtr& operation, const Stroka& poolName)
     {
-        auto operationElement = GetOperationElement(operation->GetId());
         auto it = PoolToSpareSlotIndices.find(poolName);
-        auto slotIndex = -1;
+        auto slotIndex = operation->GetSlotIndex();
+
+        if (slotIndex != -1) {
+            // Revive case
+            OccupyPoolSlotIndex(poolName, slotIndex);
+            return;
+        }
 
         if (it == PoolToSpareSlotIndices.end() || it->second.empty()) {
             auto minUnusedIndexIt = PoolToMinUnusedSlotIndex.find(poolName);
@@ -214,17 +237,16 @@ public:
             it->second.erase(spareIndexIt);
         }
 
-        operationElement->SetSlotIndex(slotIndex);
+        operation->SetSlotIndex(slotIndex);
     }
 
     void UnassignOperationSlotIndex(const TOperationPtr& operation, const Stroka& poolName)
     {
-        auto operationElement = GetOperationElement(operation->GetId());
-        auto slotIndex = operationElement->GetSlotIndex();
+        auto slotIndex = operation->GetSlotIndex();
 
         auto it = PoolToSpareSlotIndices.find(poolName);
         if (it == PoolToSpareSlotIndices.end()) {
-            PoolToSpareSlotIndices.insert(std::make_pair(poolName, yhash_set<int>{slotIndex}));
+            YCHECK(PoolToSpareSlotIndices.insert(std::make_pair(poolName, yhash_set<int>{slotIndex})).second);
         } else {
             it->second.insert(slotIndex);
         }

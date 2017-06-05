@@ -429,6 +429,53 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         assert sorted(read_table("//tmp/t_out")) == [{"foo": i} for i in xrange(10)]
 
+class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operation_time_limit_check_period" : 100,
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+            "profiling_update_period": 100,
+            "fair_share_profiling_period": 100,
+        }
+    }
+
+    def test_preserve_slot_index_after_revive(self):
+        self._create_table("//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": "y"}])
+
+        get_slot_index = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/slot_index".format(op_id))
+
+        for i in xrange(3):
+            self._create_table("//tmp/t_out_" + str(i))
+
+        op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_0", dont_track=True)
+        op2 = map(command="sleep 2; cat", in_="//tmp/t_in", out="//tmp/t_out_1", dont_track=True)
+        op3 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", dont_track=True)
+
+        assert get_slot_index(op1.id) == 0
+        assert get_slot_index(op2.id) == 1
+        assert get_slot_index(op3.id) == 2
+
+        op2.track()  # this makes slot index 1 available again since operation is completed
+
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+
+        time.sleep(2.0)
+
+        assert get_slot_index(op1.id) == 0
+        assert get_slot_index(op3.id) == 2
+
+        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", dont_track=True)
+
+        assert get_slot_index(op2.id) == 1
+
 class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 3
     NUM_NODES = 3

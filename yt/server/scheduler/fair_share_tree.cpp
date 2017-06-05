@@ -1840,6 +1840,11 @@ int TOperationElement::GetAggressivelyPreemptableJobCount() const
     return SharedState_->GetAggressivelyPreemptableJobCount();
 }
 
+int TOperationElement::GetSlotIndex() const
+{
+    return Operation_->GetSlotIndex();
+}
+
 void TOperationElement::OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage)
 {
     auto delta = SharedState_->AddJob(jobId, resourceUsage);
