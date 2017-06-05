@@ -146,6 +146,7 @@
 %type <TExpressionList> unary-expr
 %type <TExpressionList> atomic-expr
 %type <TExpressionList> comma-expr
+%type <TNullableExpressionList> join-predicate
 
 %type <TNullable<TLiteralValue>> literal-value
 %type <TNullable<TLiteralValue>> const-value
@@ -218,14 +219,22 @@ from-clause
         }
 ;
 
-join-clause
-    : join-clause is-left[isLeft] KwJoin table-descriptor[table] KwUsing identifier-list[fields]
+join-predicate
+    : KwAnd and-op-expr[predicate]
         {
-            head->first.As<TQuery>().Joins.emplace_back($isLeft, $table, $fields);
+            $$ = $predicate;
         }
-    | join-clause is-left[isLeft] KwJoin table-descriptor[table] KwOn bitor-op-expr[lhs] OpEqual bitor-op-expr[rhs]
+    |
+;
+
+join-clause
+    : join-clause is-left[isLeft] KwJoin table-descriptor[table] KwUsing identifier-list[fields] join-predicate[predicate]
         {
-            head->first.As<TQuery>().Joins.emplace_back($isLeft, $table, $lhs, $rhs);
+            head->first.As<TQuery>().Joins.emplace_back($isLeft, $table, $fields, $predicate);
+        }
+    | join-clause is-left[isLeft] KwJoin table-descriptor[table] KwOn bitor-op-expr[lhs] OpEqual bitor-op-expr[rhs] join-predicate[predicate]
+        {
+            head->first.As<TQuery>().Joins.emplace_back($isLeft, $table, $lhs, $rhs, $predicate);
         }
     |
 ;

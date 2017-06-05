@@ -1345,10 +1345,11 @@ private:
 
 };
 
-TConstExpressionPtr BuildWhereClause(
+TConstExpressionPtr BuildPredicate(
     const NAst::TExpressionList& expressionAst,
     const TSchemaProxyPtr& schemaProxy,
-    const TTypedExpressionBuilder& builder)
+    const TTypedExpressionBuilder& builder,
+    const TStringBuf& name)
 {
     if (expressionAst.size() != 1) {
         THROW_ERROR_EXCEPTION("Expecting scalar expression")
@@ -1362,7 +1363,7 @@ TConstExpressionPtr BuildWhereClause(
     auto actualType = typedPredicate->Type;
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
-        THROW_ERROR_EXCEPTION("WHERE-clause is not a boolean expression")
+        THROW_ERROR_EXCEPTION("%v is not a boolean expression")
             << TErrorAttribute("source", InferName(expressionAst))
             << TErrorAttribute("actual_type", actualType)
             << TErrorAttribute("expected_type", expectedType);
@@ -1442,10 +1443,11 @@ void PrepareQuery(
     const TTypedExpressionBuilder& builder)
 {
     if (const auto* wherePredicate = ast.WherePredicate.GetPtr()) {
-        query->WhereClause = BuildWhereClause(
+        query->WhereClause = BuildPredicate(
             *wherePredicate,
             schemaProxy,
-            builder);
+            builder,
+            "WHERE-clause");
     }
 
     if (const auto* groupExprs = ast.GroupExprs.GetPtr()) {
@@ -1767,6 +1769,14 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
             joinClause->ForeignEquations = std::move(foreignEquations);
             LOG_DEBUG("Creating join via IN clause");
             commonKeyPrefix = 0;
+        }
+
+        if (join.Predicate) {
+            joinClause->Predicate = BuildPredicate(
+                *join.Predicate,
+                foreignSourceProxy,
+                builder,
+                "JOIN-PREDICATE-clause");
         }
 
         schemaProxy = New<TJoinSchemaProxy>(
