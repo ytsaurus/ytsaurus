@@ -172,7 +172,6 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
 
     if not client.exists("//sys/accounts/tmp_jobs"):
         client.create("account", attributes={"name": "tmp_jobs", 
-                                            "acl": [{}],
                                              "resource_limits": get_default_resource_limits(client)})
     else:
         logger.warning("Account 'tmp_jobs' already exists")
