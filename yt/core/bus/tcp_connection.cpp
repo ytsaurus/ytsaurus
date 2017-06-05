@@ -531,7 +531,8 @@ void TTcpConnection::UnsubscribeTerminated(const TCallback<void(const TError&)>&
 
 void TTcpConnection::OnEvent(EPollControl control)
 {
-    {
+    bool hasUnsentData;
+    do {
         TTryGuard<TSpinLock> guard(EventHandlerSpinLock_);
         if (!guard.WasAcquired()) {
             LOG_TRACE("Event handler is already running");
@@ -571,10 +572,12 @@ void TTcpConnection::OnEvent(EPollControl control)
             OnSocketWrite();
         }
 
-        LOG_TRACE("Event processing finished");
-    }
+        hasUnsentData = HasUnsentData();
 
-    RearmPoller();
+        LOG_TRACE("Event processing finished (HasUnsentData: %v)", hasUnsentData);
+    } while (ArmedForQueuedMessages_);
+
+    RearmPoller(hasUnsentData);
 }
 
 void TTcpConnection::OnShutdown()
@@ -1199,7 +1202,7 @@ void TTcpConnection::DoArmPoller()
     LOG_TRACE("Poller armed");
 }
 
-void TTcpConnection::RearmPoller()
+void TTcpConnection::RearmPoller(bool hasUnsentData)
 {
     NConcurrency::TReaderGuard guard(ControlSpinLock_);
 
@@ -1213,7 +1216,6 @@ void TTcpConnection::RearmPoller()
         return;
     }
 
-    bool hasUnsentData = HasUnsentData();
     if (hasUnsentData) {
         LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
     } else {

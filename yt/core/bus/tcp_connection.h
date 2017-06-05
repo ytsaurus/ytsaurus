@@ -247,7 +247,7 @@ private:
 
     void TryArmPoller();
     void DoArmPoller();
-    void RearmPoller();
+    void RearmPoller(bool hasUnsentData);
 
     void UpdateConnectionCount(bool increment);
     void UpdatePendingOut(int countDelta, i64 sizeDelta);
