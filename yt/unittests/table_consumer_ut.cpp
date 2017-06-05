@@ -6,6 +6,7 @@
 #include <yt/ytlib/table_client/unversioned_row.h>
 
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/yson/parser.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -17,6 +18,35 @@ using ::testing::NiceMock;
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NTableClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TEmptyValueConsumer
+    : public IValueConsumer
+{
+    virtual const TNameTablePtr& GetNameTable() const
+    {
+        return NameTable;
+    }
+
+    virtual bool GetAllowUnknownColumns() const
+    {
+        return true;
+    }
+
+    virtual void OnBeginRow()
+    { }
+
+    virtual void OnValue(const TUnversionedValue& /*value*/)
+    { }
+
+    virtual void OnEndRow()
+    { }
+
+private:
+    TNameTablePtr NameTable = New<TNameTable>();
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +73,22 @@ TEST(TTableConsumer, TopLevelAttributes)
     consumer->OnBeginMap();
         consumer->OnKeyedItem("a");
         EXPECT_THROW(consumer->OnBeginAttributes(), std::exception);
+}
+
+TEST(TYsonParserTest, ContextInExceptions_TableConsumer)
+{
+    try {
+        TEmptyValueConsumer emptyValueConsumer;
+        TYsonParser parser(new TTableConsumer(&emptyValueConsumer), EYsonType::ListFragment);
+        parser.Read("{foo=bar};");
+        parser.Read("{bar=baz};LOG_IN");
+        parser.Read("FO something happened");
+        parser.Finish();
+    } catch (const std::exception& ex) {
+        EXPECT_THAT(ex.what(), testing::HasSubstr("LOG_INFO something happened"));
+        return;
+    }
+    GTEST_FAIL() << "Expected exception to be thrown";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
