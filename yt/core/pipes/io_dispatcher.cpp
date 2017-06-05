@@ -2,6 +2,7 @@
 #include "io_dispatcher_impl.h"
 
 #include <yt/core/misc/singleton.h>
+#include <yt/core/misc/shutdown.h>
 
 namespace NYT {
 namespace NPipes {
@@ -45,6 +46,10 @@ void TIODispatcher::Shutdown()
 {
     return Impl_->Shutdown();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_SHUTDOWN_CALLBACK(6, TIODispatcher::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 
