@@ -13,14 +13,26 @@
 
 #include <util/system/thread.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLoggingCategory
+{
+    const char* Name;
+    ELogLevel MinLevel;
+    int CurrentVersion;
+    std::atomic<int>* ActualVersion;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TLogEvent
 {
-    const char* Category = nullptr;
+    const TLoggingCategory* Category = nullptr;
     ELogLevel Level;
     Stroka Message;
     NProfiling::TCpuInstant Instant;
@@ -34,10 +46,11 @@ struct TLogEvent
 class TLogger
 {
 public:
-    explicit TLogger(const char* category = nullptr);
+    TLogger();
+    explicit TLogger(const char* categoryName);
     TLogger(const TLogger& other) = default;
 
-    const char* GetCategory() const;
+    const TLoggingCategory* GetCategory() const;
     bool IsEnabled(ELogLevel level) const;
     void Write(TLogEvent&& event) const;
 
@@ -47,14 +60,13 @@ public:
     const Stroka& GetContext() const;
 
 private:
-    const char* Category_;
+    const char* CategoryName_;
     Stroka Context_;
-    int Version_ = -1;
-    mutable TLogManager* LogManager_ = nullptr;
-    ELogLevel MinLevel_;
+
+    mutable TLogManager* CachedLogManager_;
+    mutable const TLoggingCategory* CachedCategory_;
 
     TLogManager* GetLogManager() const;
-    void Update();
     static Stroka GetMessageWithContext(const Stroka& originalMessage, const Stroka& context);
 
 };
