@@ -1,6 +1,5 @@
 package ru.yandex.yt.ytclient.examples;
 
-import com.codahale.metrics.JmxReporter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -19,6 +18,7 @@ import java.util.stream.Stream;
 
 import com.codahale.metrics.ConsoleReporter;
 import com.codahale.metrics.Histogram;
+import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
@@ -164,7 +164,7 @@ public class SelectRowsBenchmark {
             new RpcOptions().setDefaultTimeout(Duration.ofSeconds(5)));
 
         // TODO: wait connected
-        TimeUnit.MILLISECONDS.sleep(3000);
+        TimeUnit.MILLISECONDS.sleep(10000);
 
         for (int i = 0; i < threads; ++i) {
             executorService.execute(() -> {
