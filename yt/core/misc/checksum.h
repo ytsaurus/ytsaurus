@@ -12,6 +12,8 @@ namespace NYT {
 
 TChecksum GetChecksum(const TRef& data);
 
+TChecksum CombineChecksums(const std::vector<TChecksum>& blockChecksums);
+
 namespace NDetail {
 namespace NCrcSSE0xE543279765927881 {
 

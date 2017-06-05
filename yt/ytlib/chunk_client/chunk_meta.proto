@@ -84,6 +84,8 @@ message TErasurePlacementExt
     required int32 parity_block_count = 3;
     required int64 parity_block_size = 4;
     required int64 parity_last_block_size = 5;
+
+    repeated fixed64 part_checksums = 6;
 }
 
 // TChunkMeta is stored in *.meta files on data nodes
