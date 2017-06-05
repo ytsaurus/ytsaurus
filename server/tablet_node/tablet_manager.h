@@ -54,6 +54,7 @@ public:
         TDuration transactionTimeout,
         TTransactionSignature signature,
         int rowCount,
+        bool lockless,
         NTabletClient::TWireProtocolReader* reader,
         TFuture<void>* commitResult);
 

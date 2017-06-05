@@ -79,6 +79,7 @@ private:
         auto signature = request->signature();
         auto rowCount = request->row_count();
         auto requestCodecId = NCompression::ECodec(request->request_codec());
+        auto lockless = request->lockless();
 
         ValidateTabletTransactionId(transactionId);
 
@@ -87,7 +88,7 @@ private:
 
         context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %v, "
             "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x, RowCount: %v, "
-            "RequestCodec: %v",
+            "RequestCodec: %v, Lockless: %v",
             tabletId,
             transactionId,
             transactionStartTimestamp,
@@ -96,7 +97,8 @@ private:
             durability,
             signature,
             rowCount,
-            requestCodecId);
+            requestCodecId,
+            lockless);
 
         // NB: Must serve the whole request within a single epoch.
         TCurrentInvokerGuard invokerGuard(Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
@@ -138,6 +140,7 @@ private:
                 transactionTimeout,
                 signature,
                 rowCount,
+                lockless,
                 &reader,
                 &commitResult);
         }
@@ -220,7 +223,7 @@ private:
     {
         return Slot_->GetHydraManager();
     }
-    
+
 };
 
 IServicePtr CreateTabletService(TTabletSlotPtr slot, NCellNode::TBootstrap* bootstrap)
