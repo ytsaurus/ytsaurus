@@ -15,27 +15,34 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TObjectPool<T>::TObjectPool()
-    : PoolSize_(0)
-{ }
+TObjectPool<T>::~TObjectPool()
+{
+    T* obj;
+    while (PooledObjects_.Dequeue(&obj)) {
+        FreeInstance(obj);
+    }
+}
 
 template <class T>
 auto TObjectPool<T>::Allocate() -> TObjectPtr
 {
+    auto now = NProfiling::GetCpuInstant();
+
     T* obj = nullptr;
     while (PooledObjects_.Dequeue(&obj)) {
         --PoolSize_;
 
         auto* header = GetHeader(obj);
-        if (!IsExpired(header))
+        if (!IsExpired(header, now)) {
             break;
+        }
 
         FreeInstance(obj);
         obj = nullptr;
     }
 
     if (!obj) {
-        obj = AllocateInstance();
+        obj = AllocateInstance(now);
     }
 
     return TObjectPtr(obj, [] (T* obj) {
@@ -47,7 +54,8 @@ template <class T>
 void TObjectPool<T>::Reclaim(T* obj)
 {
     auto* header = GetHeader(obj);
-    if (IsExpired(header)) {
+    auto now = NProfiling::GetCpuInstant();
+    if (IsExpired(header, now)) {
         FreeInstance(obj);
         return;
     }
@@ -75,7 +83,7 @@ void TObjectPool<T>::Reclaim(T* obj)
 }
 
 template <class T>
-T* TObjectPool<T>::AllocateInstance()
+T* TObjectPool<T>::AllocateInstance(NProfiling::TCpuInstant now)
 {
     auto cookie = GetRefCountedTypeCookie<T>();
     TRefCountedTracker::Get()->Allocate(cookie, sizeof (T));
@@ -84,7 +92,7 @@ T* TObjectPool<T>::AllocateInstance()
     auto* obj = reinterpret_cast<T*>(header + 1);
     new (obj) T();
     header->ExpireInstant =
-        NProfiling::GetCpuInstant() +
+        now +
         NProfiling::DurationToCpuDuration(
             TPooledObjectTraits<T>::GetMaxLifetime() +
             RandomDuration(TPooledObjectTraits<T>::GetMaxLifetimeSplay()));
@@ -108,9 +116,9 @@ typename TObjectPool<T>::THeader* TObjectPool<T>::GetHeader(T* obj)
 }
 
 template <class T>
-bool TObjectPool<T>::IsExpired(const THeader* header)
+bool TObjectPool<T>::IsExpired(const THeader* header, NProfiling::TCpuInstant now)
 {
-    return NProfiling::GetCpuInstant() > header->ExpireInstant;
+    return now > header->ExpireInstant;
 }
 
 template <class T>

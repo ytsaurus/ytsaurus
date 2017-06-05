@@ -53,3 +53,4 @@ if(NOT APPLE)
 endif()
 
 add_subdirectory(test_framework)
+add_subdirectory(unittests)

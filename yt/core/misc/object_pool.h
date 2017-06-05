@@ -28,6 +28,8 @@ class TObjectPool
 public:
     using TObjectPtr = std::shared_ptr<TObject>;
 
+    ~TObjectPool();
+
     //! Either creates a fresh instance or returns a pooled one.
     TObjectPtr Allocate();
 
@@ -43,15 +45,13 @@ private:
     static_assert(sizeof(THeader) % 8 == 0, "THeader must be padded to ensure proper alignment.");
 
     TLockFreeQueue<TObject*> PooledObjects_;
-    std::atomic<int> PoolSize_;
+    std::atomic<int> PoolSize_ = {0};
 
-    TObjectPool();
-
-    TObject* AllocateInstance();
+    TObject* AllocateInstance(NProfiling::TCpuInstant now);
     void FreeInstance(TObject* obj);
 
     THeader* GetHeader(TObject* obj);
-    bool IsExpired(const THeader* header);
+    bool IsExpired(const THeader* header, NProfiling::TCpuInstant now);
 
     Y_DECLARE_SINGLETON_FRIEND();
 };
