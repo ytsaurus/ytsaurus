@@ -312,8 +312,12 @@ void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
         .DoIf(!path.Ranges_.empty(), [&] (TFluentAttributes fluent) {
             fluent.Item("ranges").List(path.Ranges_);
         })
-        .DoIf(!path.Columns_.Parts_.empty(), [&] (TFluentAttributes fluent) {
-            fluent.Item("columns").Value(path.Columns_);
+        .DoIf(path.ColumnsNew_.Defined() || !path.Columns_.Parts_.empty(), [&] (TFluentAttributes fluent) {
+            if (path.ColumnsNew_.Defined()) {
+                fluent.Item("columns").Value(*path.ColumnsNew_);
+            } else {
+                fluent.Item("columns").Value(path.Columns_);
+            }
         })
         .DoIf(path.Append_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("append").Value(*path.Append_);
@@ -357,6 +361,7 @@ void Deserialize(TRichYPath& path, const TNode& node)
     const auto& attributesMap = node.GetAttributes().AsMap();
     DESERIALIZE_ATTR("ranges", path.Ranges_);
     DESERIALIZE_ATTR("columns", path.Columns_);
+    DESERIALIZE_ATTR("columns", path.ColumnsNew_);
     DESERIALIZE_ATTR("append", path.Append_);
     DESERIALIZE_ATTR("sorted_by", path.SortedBy_);
     DESERIALIZE_ATTR("teleport", path.Teleport_);
