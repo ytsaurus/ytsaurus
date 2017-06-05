@@ -12,6 +12,8 @@
 #include <yt/core/misc/variant.h>
 #include <yt/core/misc/random.h>
 
+#include <yt/core/utilex/random.h>
+
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
