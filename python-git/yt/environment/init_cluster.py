@@ -186,7 +186,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
         else:
             logger.warning("Pool \"research\" already exists")
     else:
-        logger.warning("Can not create pool \"research\". Parent pool does not exist")
+        logger.warning("Can not create pool \"//sys/pools/research\". \"//sys/pools\" does not exist")
 
 def main():
     parser = argparse.ArgumentParser(description="new YT cluster init script")
