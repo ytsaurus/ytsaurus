@@ -654,6 +654,7 @@ void BuildRunningOperationAttributes(TOperationPtr operation, NYson::IYsonConsum
         .Item("suspended").Value(operation->GetSuspended())
         .Item("user_transaction_id").Value(userTransaction ? userTransaction->GetId() : NullTransactionId)
         .Item("events").Value(operation->GetEvents())
+        .Item("slot_index").Value(operation->GetSlotIndex())
         .DoIf(static_cast<bool>(controller), BIND(&IOperationController::BuildOperationAttributes, controller));
 }
 

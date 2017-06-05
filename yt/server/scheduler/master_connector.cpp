@@ -675,7 +675,8 @@ private:
                             "start_time",
                             "state",
                             "suspended",
-                            "events"
+                            "events",
+                            "slot_index"
                         };
                         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                         batchReq->AddRequest(req, "get_op_attr");
@@ -887,7 +888,8 @@ private:
             attributes.Get<TInstant>("start_time"),
             attributes.Get<EOperationState>("state"),
             attributes.Get<bool>("suspended"),
-            attributes.Get<std::vector<TOperationEvent>>("events", {}));
+            attributes.Get<std::vector<TOperationEvent>>("events", {}),
+            attributes.Get<int>("slot_index", -1));
 
         result.Operation->SetSecureVault(std::move(secureVault));
 
