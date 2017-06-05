@@ -2,6 +2,7 @@
 #include "tcp_dispatcher_impl.h"
 
 #include <yt/core/misc/singleton.h>
+#include <yt/core/misc/shutdown.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -35,6 +36,10 @@ TTcpDispatcherStatistics TTcpDispatcher::GetStatistics(ETcpInterfaceType interfa
 {
     return Impl_->GetStatistics(interfaceType);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_SHUTDOWN_CALLBACK(6, TTcpDispatcher::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -16,6 +16,7 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/raw_formatter.h>
 #include <yt/core/misc/singleton.h>
+#include <yt/core/misc/shutdown.h>
 #include <yt/core/misc/variant.h>
 
 #include <yt/core/profiling/profiler.h>
@@ -1013,6 +1014,10 @@ TDuration TLogManager::GetPerThreadBatchingPeriod() const
 {
     return Impl_->GetPerThreadBatchingPeriod();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_SHUTDOWN_CALLBACK(5, TLogManager::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 
