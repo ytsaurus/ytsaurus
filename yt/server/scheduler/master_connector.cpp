@@ -35,6 +35,8 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
+#include <yt/core/utilex/random.h>
+
 namespace NYT {
 namespace NScheduler {
 
