@@ -22,17 +22,14 @@ namespace NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Stack sizes.
-const size_t SmallExecutionStackSize = 1 << 18; // 256 Kb
-const size_t LargeExecutionStackSize = 1 << 23; //   8 Mb
+static constexpr size_t SmallExecutionStackSize = 1 << 18; // 256 Kb
+static constexpr size_t LargeExecutionStackSize = 1 << 23; //   8 Mb
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TExecutionStackBase::TExecutionStackBase(size_t size)
     : Stack_(nullptr)
     , Size_(RoundUpToPage(size))
-{ }
-
-TExecutionStackBase::~TExecutionStackBase()
 { }
 
 void* TExecutionStackBase::GetStack() const
