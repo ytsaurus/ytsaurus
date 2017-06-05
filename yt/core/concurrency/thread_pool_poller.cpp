@@ -10,6 +10,8 @@
 
 #include <util/system/thread.h>
 
+#include <util/thread/lfqueue.h>
+
 #include <util/network/pollerimpl.h>
 
 #include <array>
