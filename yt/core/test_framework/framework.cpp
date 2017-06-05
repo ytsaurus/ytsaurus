@@ -27,9 +27,6 @@ Stroka GenerateRandomFileName(const char* prefix)
         RandomNumber<ui64>());
 }
 
-TShadowingLifecycle::TShadowingLifecycle() = default;
-TShadowingLifecycle::~TShadowingLifecycle() = default;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
