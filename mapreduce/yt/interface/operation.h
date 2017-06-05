@@ -192,7 +192,7 @@ struct TSortOperationSpec
     FLUENT_FIELD(TKeyColumns, SortBy);
 };
 
-enum EMergeMode
+enum EMergeMode : int
 {
     MM_UNORDERED,
     MM_ORDERED,
@@ -336,7 +336,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum EOperationStatus
+enum EOperationStatus : int
 {
     OS_RUNNING,
     OS_COMPLETED

@@ -185,4 +185,43 @@ namespace NYT {
     struct TTableReaderOptions;
 
     struct TTableWriterOptions;
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // operation.h
+    ////////////////////////////////////////////////////////////////////////////////
+
+    struct TUserJobSpec;
+
+    struct TMapOperationSpec;
+
+    struct TReduceOperationSpec;
+
+    struct TMapReduceOperationSpec;
+
+    struct TJoinReduceOperationSpec;
+
+    struct TSortOperationSpec;
+
+    class IJob;
+
+    enum EMergeMode : int;
+
+    struct TMergeOperationSpec;
+
+    struct TEraseOperationSpec;
+
+    template <class TR, class TW>
+    class IMapper;
+
+    template <class TR, class TW>
+    class IReducer;
+
+    template <class TR, class TW>
+    class IAggregatorReducer;
+
+    enum EOperationStatus : int;
+
+    struct TOperationOptions;
+
+    struct IOperationClient;
 }
