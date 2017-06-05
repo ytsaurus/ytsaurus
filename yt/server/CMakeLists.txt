@@ -81,6 +81,20 @@ target_link_libraries(ytserver-job-proxy
 
 set_target_properties(ytserver-job-proxy PROPERTIES LINK_FLAGS "-static-libstdc++")
 
+### job proxy
+
+add_executable(ytserver-bfs
+  ${CMAKE_CURRENT_LIST_DIR}/bfs_program/main.cpp
+)
+
+target_link_libraries(ytserver-bfs
+  yt-library-server
+  deps-arcadia-library-getopt
+  deps-arcadia-library-lfalloc
+)
+
+set_target_properties(ytserver-bfs PROPERTIES LINK_FLAGS "-static-libstdc++")
+
 ### executor & shell
 
 add_executable(ytserver-exec
