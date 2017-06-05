@@ -31,6 +31,7 @@ DECLARE_REFCOUNTED_CLASS(TLogConfig)
 DECLARE_REFCOUNTED_CLASS(TWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TRuleConfig)
 
+struct TLoggingCategory;
 struct TLogEvent;
 class TLogger;
 class TLogManager;

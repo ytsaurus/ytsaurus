@@ -56,7 +56,7 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TLogger Logger(SystemLoggingCategory);
+static const TLogger Logger(SystemLoggingCategoryName);
 static const auto& Profiler = LoggingProfiler;
 
 static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
@@ -247,6 +247,7 @@ public:
     {
         SystemWriters_.push_back(New<TStderrLogWriter>());
         UpdateConfig(TLogConfig::CreateDefault(), false);
+        SystemCategory_ = GetCategory(SystemLoggingCategoryName);
     }
 
     void EnsureStarted()
@@ -383,20 +384,31 @@ public:
      */
     int GetVersion() const
     {
-        return Version_;
+        return Version_.load();
     }
 
-    ELogLevel GetMinLevel(const Stroka& category) const
+    const TLoggingCategory* GetCategory(const char* categoryName)
+    {
+        if (!categoryName) {
+            return nullptr;
+        }
+
+        TGuard<TForkAwareSpinLock> guard(SpinLock_);
+        auto it = NameToCategory_.find(categoryName);
+        if (it == NameToCategory_.end()) {
+            auto category = std::make_unique<TLoggingCategory>();
+            category->Name = categoryName;
+            category->ActualVersion = &Version_;
+            it = NameToCategory_.emplace(categoryName, std::move(category)).first;
+            DoUpdateCategory(it->second.get());
+        }
+        return it->second.get();
+    }
+
+    void UpdateCategory(const TLoggingCategory* category)
     {
         TGuard<TForkAwareSpinLock> guard(SpinLock_);
-
-        ELogLevel level = ELogLevel::Maximum;
-        for (const auto& rule : Config_->Rules) {
-            if (rule->IsApplicable(category)) {
-                level = Min(level, rule->MinLevel);
-            }
-        }
-        return level;
+        DoUpdateCategory(category);
     }
 
     void Enqueue(TLogEvent&& event)
@@ -456,7 +468,7 @@ public:
         }
 
         // NB: Always allow system messages to pass through.
-        if (Suspended_ && event.Category != SystemLoggingCategory) {
+        if (Suspended_ && event.Category != SystemCategory_) {
             return;
         }
 
@@ -503,7 +515,7 @@ private:
         explicit TThread(TImpl* owner)
             : TSchedulerThread(
                 owner->EventCount_,
-                "Logging",
+                SystemLoggingCategoryName,
                 NProfiling::EmptyTagIds,
                 false,
                 false)
@@ -562,11 +574,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
-        if (event.Category == SystemLoggingCategory) {
+        if (event.Category == SystemCategory_) {
             return SystemWriters_;
         }
 
-        std::pair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
+        std::pair<Stroka, ELogLevel> cacheKey(event.Category->Name, event.Level);
         auto it = CachedWriters_.find(cacheKey);
         if (it != CachedWriters_.end()) {
             return it->second;
@@ -574,7 +586,7 @@ private:
 
         yhash_set<Stroka> writerIds;
         for (const auto& rule : Config_->Rules) {
-            if (rule->IsApplicable(event.Category, event.Level)) {
+            if (rule->IsApplicable(event.Category->Name, event.Level)) {
                 writerIds.insert(rule->Writers.begin(), rule->Writers.end());
             }
         }
@@ -871,6 +883,21 @@ private:
     }
 
 
+    void DoUpdateCategory(const TLoggingCategory* category)
+    {
+        auto level = ELogLevel::Maximum;
+        for (const auto& rule : Config_->Rules) {
+            if (rule->IsApplicable(category->Name)) {
+                level = std::min(level, rule->MinLevel);
+            }
+        }
+
+        auto* mutableCategory = const_cast<TLoggingCategory*>(category);
+        mutableCategory->MinLevel = level;
+        mutableCategory->CurrentVersion = GetVersion();
+    }
+
+
     const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr EventQueue_;
 
@@ -885,6 +912,8 @@ private:
     // default configuration (default level etc.).
     std::atomic<int> Version_ = {-1};
     TLogConfigPtr Config_;
+    yhash_map<const char*, std::unique_ptr<TLoggingCategory>> NameToCategory_;
+    const TLoggingCategory* SystemCategory_;
 
     // These are just copies from _Config.
     // The values are being read from arbitrary threads but stale values are fine.
@@ -955,9 +984,14 @@ int TLogManager::GetVersion() const
     return Impl_->GetVersion();
 }
 
-ELogLevel TLogManager::GetMinLevel(const Stroka& category) const
+const TLoggingCategory* TLogManager::GetCategory(const char* categoryName)
 {
-    return Impl_->GetMinLevel(category);
+    return Impl_->GetCategory(categoryName);
+}
+
+void TLogManager::UpdateCategory(const TLoggingCategory* category)
+{
+    Impl_->UpdateCategory(category);
 }
 
 void TLogManager::Enqueue(TLogEvent&& event)

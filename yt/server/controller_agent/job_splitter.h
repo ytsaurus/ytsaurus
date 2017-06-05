@@ -13,6 +13,8 @@ namespace NControllerAgent {
 
 struct IJobSplitter
 {
+    virtual ~IJobSplitter() = default;
+
     virtual void OnJobStarted(
         const TJobId& jobId,
         const NChunkPools::TChunkStripeListPtr& inputStripeList) = 0;
