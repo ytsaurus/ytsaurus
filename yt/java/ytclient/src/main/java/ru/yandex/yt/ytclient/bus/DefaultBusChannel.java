@@ -1,8 +1,5 @@
 package ru.yandex.yt.ytclient.bus;
 
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.SharedMetricRegistries;
 import java.net.SocketAddress;
 import java.time.Duration;
 import java.time.Instant;
@@ -10,15 +7,18 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.SharedMetricRegistries;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import ru.yandex.yt.ytclient.bus.internal.BusOutgoingMessage;
 import ru.yandex.yt.ytclient.misc.YtGuid;
 

@@ -1,6 +1,5 @@
 package ru.yandex.yt.ytclient.examples;
 
-import io.netty.channel.nio.NioEventLoopGroup;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -10,6 +9,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.function.Consumer;
+
+import io.netty.channel.nio.NioEventLoopGroup;
 
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;

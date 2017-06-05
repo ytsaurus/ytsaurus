@@ -172,8 +172,6 @@ public class BalancingRpcClient implements RpcClient {
             if (b instanceof CancellationException) {
                 // TODO: log here
                 control.cancel();
-            } else if (b == null) {
-                dst.setAlive();
             }
 
             inflight.dec();
