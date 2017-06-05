@@ -180,6 +180,13 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
     if ui_address is not None:
         client.set("//sys/@cluster_ui_address", ui_address)
 
+    if client.exists("//sys/pools"):
+        if not client.exists("//sys/pools/research"):
+            client.create("map_node", attributes={"name": "research", "forbid_immediate_operations": "true"})
+        else:
+            logger.warning("Pool \"research\" already exists")
+    else:
+        logger.warning("Can not create pool \"research\". Parent pool does not exist")
 
 def main():
     parser = argparse.ArgumentParser(description="new YT cluster init script")
