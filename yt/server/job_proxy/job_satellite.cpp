@@ -39,7 +39,7 @@
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/ytlib/shutdown.h>
+#include <yt/core/misc/shutdown.h>
 
 #include <util/generic/guid.h>
 #include <util/system/fs.h>
