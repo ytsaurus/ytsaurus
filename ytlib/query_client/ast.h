@@ -191,21 +191,25 @@ struct TQuery
         TJoin(
             bool isLeft,
             const TTableDescriptor& table,
-            const TIdentifierList& fields)
+            const TIdentifierList& fields,
+            const TNullableExpressionList& predicate)
             : IsLeft(isLeft)
             , Table(table)
             , Fields(fields)
+            , Predicate(predicate)
         { }
 
         TJoin(
             bool isLeft,
             const TTableDescriptor& table,
             const TExpressionList& left,
-            const TExpressionList& right)
+            const TExpressionList& right,
+            const TNullableExpressionList& predicate)
             : IsLeft(isLeft)
             , Table(table)
             , Left(left)
             , Right(right)
+            , Predicate(predicate)
         { }
 
         bool IsLeft;
@@ -214,6 +218,8 @@ struct TQuery
 
         TExpressionList Left;
         TExpressionList Right;
+
+        TNullableExpressionList Predicate;
     };
 
     std::vector<TJoin> Joins;
