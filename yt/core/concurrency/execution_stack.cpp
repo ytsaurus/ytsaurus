@@ -3,6 +3,7 @@
 #include "fiber.h"
 
 #include <yt/core/misc/serialize.h>
+#include <yt/core/misc/ref_tracked.h>
 
 #if defined(_unix_)
 #   include <sys/mman.h>
@@ -134,6 +135,7 @@ VOID CALLBACK TExecutionStack::FiberTrampoline(PVOID opaque)
 template <EExecutionStackKind Kind, size_t Size>
 class TPooledExecutionStack
     : public TExecutionStack
+    , public TRefTracked<TPooledExecutionStack<Kind, Size>>
 {
 public:
     TPooledExecutionStack()

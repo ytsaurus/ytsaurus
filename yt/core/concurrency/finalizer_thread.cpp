@@ -1,6 +1,8 @@
 #include "single_queue_scheduler_thread.h"
 #include "profiler_utils.h"
 
+#include <yt/core/misc/ref_counted_tracker.h>
+
 namespace NYT {
 namespace NConcurrency {
 

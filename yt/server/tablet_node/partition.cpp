@@ -12,6 +12,8 @@
 
 #include <yt/core/misc/serialize.h>
 
+#include <yt/core/utilex/random.h>
+
 namespace NYT {
 namespace NTabletNode {
 
