@@ -32,6 +32,7 @@ target_link_libraries(yt-core
   deps-yt-contrib-farmhash
   deps-yt-contrib-quicklz
   deps-yt-contrib-zstd-legacy
+  deps-yt-contrib-portoapi
   protobuf
   yt-build
   yt-contrib-jerasure
