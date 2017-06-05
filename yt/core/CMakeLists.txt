@@ -51,3 +51,5 @@ endif()
 if(NOT APPLE)
   target_link_libraries(yt-core -lutil)
 endif()
+
+add_subdirectory(test_framework)
