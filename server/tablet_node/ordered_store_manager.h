@@ -28,8 +28,6 @@ public:
         NApi::INativeClientPtr client = nullptr);
 
     // IStoreManager overrides.
-    virtual bool IsLockless() override;
-
     virtual void Mount(
         const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) override;
 

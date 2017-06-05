@@ -3265,7 +3265,7 @@ public:
 
     virtual TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options) override
     {
-    	auto guard = Guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         auto result = ValidateActiveAsync<TTransactionCommitResult>();
         if (result) {
@@ -3280,7 +3280,7 @@ public:
 
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options) override
     {
-    	auto guard = Guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         if (State_ == ETransactionState::Abort) {
             return AbortResult_;
@@ -3298,14 +3298,14 @@ public:
 
     virtual void Detach() override
     {
-    	auto guard = Guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         State_ = ETransactionState::Detach;
         Transaction_->Detach();
     }
 
     virtual TFuture<TTransactionFlushResult> Flush() override
     {
-    	auto guard = Guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         auto result = ValidateActiveAsync<TTransactionFlushResult>();
         if (result) {
@@ -3475,10 +3475,10 @@ public:
         TSharedRange<TRowModification> modifications,
         const TModifyRowsOptions& options = TModifyRowsOptions()) override
     {
-    	auto guard = Guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         ValidateTabletTransaction();
-    	ValidateActiveSync();
+        ValidateActiveSync();
 
         Requests_.push_back(std::make_unique<TModificationRequest>(
             this,
@@ -3760,7 +3760,7 @@ private:
     protected:
         TNativeTransaction* const Transaction_;
         const INativeConnectionPtr Connection_;
-		const TYPath Path_;
+        const TYPath Path_;
         const TNameTablePtr NameTable_;
         const TNullable<int> TabletIndexColumnId_;
         const TSharedRange<TRowModification> Modifications_;
@@ -3834,6 +3834,11 @@ private:
 
         int Prepare()
         {
+            if (!VersionedSubmittedRows_.empty() && !UnversionedSubmittedRows_.empty()) {
+                THROW_ERROR_EXCEPTION("Cannot intermix versioned and unversioned writes to a single table "
+                    "within a transaction");
+            }
+
             if (TableInfo_->IsSorted()) {
                 PrepareSortedBatches();
             } else {
@@ -4047,13 +4052,19 @@ private:
             req->set_signature(cellSession->AllocateRequestSignature());
             req->set_request_codec(static_cast<int>(Config_->WriteRequestCodec));
             req->set_row_count(batch->RowCount);
+            req->set_lockless(
+                owner->GetAtomicity() == EAtomicity::None ||
+                TableInfo_->IsOrdered() ||
+                TableInfo_->ReplicationMode == ETableReplicationMode::Source ||
+                !VersionedSubmittedRows_.empty());
             req->Attachments().push_back(batch->RequestData);
 
-            LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x)",
+            LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x, Lockless: %v)",
                 InvokeBatchIndex_,
                 Batches_.size(),
                 batch->RowCount,
-                req->signature());
+                req->signature(),
+                req->lockless());
 
             req->Invoke().Subscribe(
                 BIND(&TTabletCommitSession::OnResponse, MakeStrong(this))

@@ -65,11 +65,6 @@ void TReplicatedStoreManager::StopEpoch()
     LogStoreManager_->StopEpoch();
 }
 
-bool TReplicatedStoreManager::IsLockless()
-{
-    return true;
-}
-
 bool TReplicatedStoreManager::ExecuteWrites(
     TWireProtocolReader* reader,
     TWriteContext* context)
