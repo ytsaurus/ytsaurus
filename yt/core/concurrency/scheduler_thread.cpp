@@ -432,6 +432,7 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
 
     RunQueue_.emplace_front(std::move(CurrentFiber_));
     CurrentFiber_ = std::move(other);
+    SetCurrentFiberId(target->GetId());
 
     caller->SetSuspended();
     target->SetRunning();
