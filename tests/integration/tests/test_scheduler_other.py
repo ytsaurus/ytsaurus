@@ -317,10 +317,10 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             result = max(result, value["value"])
         return result
 
-    def _get_operation_last_metric_value(self, metric_key, pool, child_index):
+    def _get_operation_last_metric_value(self, metric_key, pool, slot_index):
         results = []
         for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/operations/" + metric_key, verbose=False)):
-            if value["tags"]["pool"] != pool or value["tags"]["child_index"] != str(child_index):
+            if value["tags"]["pool"] != pool or value["tags"]["slot_index"] != str(slot_index):
                 continue
             results.append((value["value"], value["time"]))
         last_metric = sorted(results, key=lambda x: x[1])[-1]
@@ -355,11 +355,11 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert op1.get_state() == "running"
         assert op2.get_state() == "running"
 
-        get_child_index = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/child_index".format(op_id))
+        get_slot_index = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/slot_index".format(op_id))
 
-        assert get_child_index(op1.id) == 0
-        assert get_child_index(op2.id) == 1
+        assert get_slot_index(op1.id) == 0
+        assert get_slot_index(op2.id) == 1
 
         range_ = (49999, 50000, 50001)
 
