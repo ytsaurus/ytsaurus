@@ -1,6 +1,6 @@
 #include "framework.h"
 
-#include <yt/ytlib/shutdown.h>
+#include <yt/core/misc/shutdown.h>
 #include <yt/core/logging/log_manager.h>
 
 class TYTEnvironment
