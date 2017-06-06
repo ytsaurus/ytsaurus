@@ -479,6 +479,10 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
         },
     }
 
+    def _verify_resource_usage(self, account, resource, expected):
+        assert get("//sys/accounts/{0}/@resource_usage/{1}".format(account, resource)) == expected
+        assert get("//sys/accounts/{0}/@committed_resource_usage/{1}".format(account, resource)) == expected
+
     @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
     def test_resource_limits(self, resource):
         create_account("test_account")
@@ -520,9 +524,9 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
 
         set("//sys/accounts/test_account/@resource_limits/tablet_count", 4)
         self._create_ordered_table("//tmp/t1", account="test_account", tablet_count=2)
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_count") == 2
+        self._verify_resource_usage("test_account", "tablet_count", 2)
         self._create_sorted_table("//tmp/t2", account="test_account", pivot_keys=[[], [1]])
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_count") == 4
+        self._verify_resource_usage("test_account", "tablet_count", 4)
 
     def test_tablet_count_limit_reshard(self):
         create_account("test_account")
@@ -539,7 +543,7 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
         set("//sys/accounts/test_account/@resource_limits/tablet_count", 4)
         reshard_table("//tmp/t1", [[], [1]])
         reshard_table("//tmp/t2", 2)
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_count") == 4
+        self._verify_resource_usage("test_account", "tablet_count", 4)
 
     def test_tablet_count_limit_copy(self):
         create_account("test_account")
@@ -552,16 +556,16 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
 
         set("//sys/accounts/test_account/@resource_limits/tablet_count", 2)
         copy("//tmp/t", "//tmp/t_copy", preserve_account=True)
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_count") == 2
+        self._verify_resource_usage("test_account", "tablet_count", 2)
 
     def test_tablet_count_remove(self):
         create_account("test_account")
         self.sync_create_cells(1)
         self._create_sorted_table("//tmp/t", account="test_account")
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_count") == 1
+        self._verify_resource_usage("test_account", "tablet_count", 1)
         remove("//tmp/t")
         sleep(1)
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_count") == 0
+        self._verify_resource_usage("test_account", "tablet_count", 0)
 
     def test_tablet_count_set_account(self):
         create_account("test_account")
@@ -575,7 +579,7 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
 
         set("//sys/accounts/test_account/@resource_limits/tablet_count", 2)
         set("//tmp/t/@account", "test_account")
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_count") == 2
+        self._verify_resource_usage("test_account", "tablet_count", 2)
 
     def test_tablet_count_alter_table(self):
         create_account("test_account")
@@ -583,9 +587,9 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
         self._create_ordered_table("//tmp/t")
         set("//tmp/t/@account", "test_account")
 
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_count") == 1
+        self._verify_resource_usage("test_account", "tablet_count", 1)
         alter_table("//tmp/t", dynamic=False)
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_count") == 0
+        self._verify_resource_usage("test_account", "tablet_count", 0)
 
         set("//sys/accounts/test_account/@resource_limits/tablet_count", 0)
         with pytest.raises(YtError):
@@ -593,7 +597,7 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
 
         set("//sys/accounts/test_account/@resource_limits/tablet_count", 1)
         alter_table("//tmp/t", dynamic=True)
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_count") == 1
+        self._verify_resource_usage("test_account", "tablet_count", 1)
 
     @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
     def test_in_memory_accounting(self, mode):
@@ -610,17 +614,19 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
         with pytest.raises(YtError):
             mount_table("//tmp/t")
 
+        def _verify():
+            data_size = get("//tmp/t/@{0}_data_size".format(mode))
+            resource_usage = get("//sys/accounts/test_account/@resource_usage")
+            committed_resource_usage = get("//sys/accounts/test_account/@committed_resource_usage")
+            assert resource_usage["tablet_static_memory"] == data_size
+            assert resource_usage == committed_resource_usage
+
         set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", 1000)
         self.sync_mount_table("//tmp/t")
-
-        actual = get("//sys/accounts/test_account/@resource_usage/tablet_static_memory")
-        expected = get("//tmp/t/@{0}_data_size".format(mode))
-        assert actual == expected
+        _verify()
 
         self.sync_compact_table("//tmp/t")
-
-        actual = get("//sys/accounts/test_account/@resource_usage/tablet_static_memory")
-        assert actual == expected
+        _verify();
 
         set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", 0)
         with pytest.raises(YtError):
@@ -629,8 +635,11 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
         set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", 1000)
         insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
 
+        self.sync_compact_table("//tmp/t")
+        _verify();
+
         self.sync_unmount_table("//tmp/t")
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == 0
+        self._verify_resource_usage("test_account", "tablet_static_memory", 0)
 
     def test_remount_in_memory_accounting(self):
         create_account("test_account")
@@ -649,7 +658,10 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
             data_size = get("//tmp/t/@{0}_data_size".format(mode))
             set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", data_size)
             remount_table("//tmp/t")
-            assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == data_size
+            resource_usage = get("//sys/accounts/test_account/@resource_usage")
+            committed_resource_usage = get("//sys/accounts/test_account/@committed_resource_usage")
+            assert resource_usage["tablet_static_memory"] == data_size
+            assert resource_usage == committed_resource_usage
 
         _test("compressed")
         _test("uncompressed")
@@ -666,8 +678,9 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
         set("//tmp/t/@account", "test_account")
 
         data_size = get("//tmp/t/@compressed_data_size")
-        assert get("//sys/accounts/tmp/@resource_usage/tablet_static_memory") == 0
-        assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == data_size
+
+        self._verify_resource_usage("tmp", "tablet_static_memory", 0)
+        self._verify_resource_usage("test_account", "tablet_static_memory", data_size)
 
         assert get("//tmp/t/@resource_usage/tablet_count") == 1
         assert get("//tmp/t/@resource_usage/tablet_static_memory") == data_size
