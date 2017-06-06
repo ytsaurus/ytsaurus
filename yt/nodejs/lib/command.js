@@ -230,6 +230,7 @@ YtCommand.prototype._epilogue = function(result, bytes_in, bytes_out) {
     }
 
     var sent_headers = !!this.rsp._header;
+
     if (result.isUnavailable() || result.isAllTargetNodesFailed()) {
         this.rsp.statusCode = 503;
         if (!sent_headers) {
