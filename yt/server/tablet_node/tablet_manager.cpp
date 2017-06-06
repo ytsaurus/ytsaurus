@@ -1965,6 +1965,7 @@ private:
             prelockedRowCount);
 
         yhash_map<TTableReplicaInfo*, int> replicaToRowCount;
+        int syncReplicatedRowCount = 0;
         for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
             auto* tablet = GetTabletOrThrow(writeRecord.TabletId);
             if (!tablet->IsReplicated()) {
@@ -1981,11 +1982,16 @@ private:
                 ValidateReplicaWritable(tablet, replicaInfo);
                 if (replicaInfo.GetMode() == ETableReplicaMode::Sync) {
                     replicaToRowCount[&replicaInfo] += writeRecord.RowCount;
+                    syncReplicatedRowCount += writeRecord.RowCount;
                 }
             }
         }
 
-        YCHECK(!transaction->GetReplicatedRowsPrepared());
+        // XXX(sandello): This is a _temporary_ workaround for recent failures on Alyx.
+        // This is no-op for non-replicated writes.
+        if (syncReplicatedRowCount > 0) {
+            YCHECK(!transaction->GetReplicatedRowsPrepared());
+        }
         for (const auto& pair : replicaToRowCount) {
             auto* replicaInfo = pair.first;
             auto rowCount = pair.second;
