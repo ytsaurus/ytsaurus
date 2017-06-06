@@ -1,5 +1,5 @@
 from yt.transfer_manager.client import TransferManager
-from yt.wrapper.client import Yt
+from yt.wrapper import YtClient
 
 import yt.logger as logger
 
@@ -23,7 +23,7 @@ def _wait_task(task_id, client):
 def test_copy_between_clusters(backend_url):
     client = TransferManager(url=backend_url)
 
-    hahn_client = Yt(proxy="hahn")
+    hahn_client = YtClient(proxy="hahn")
     table = hahn_client.create_temp_table()
     hahn_client.write_table(table, ["a\tb\n", "c\td\n", "e\tf\n"], format="yamr", raw=True)
 
@@ -54,19 +54,19 @@ def test_copy_between_clusters(backend_url):
 def test_copy_no_retries(backend_url):
     client = TransferManager(url=backend_url, enable_retries=False)
 
-    hahn_client = Yt(proxy="hahn")
+    hahn_client = YtClient(proxy="hahn")
     table = hahn_client.create_temp_table()
     client.add_task("hahn", table, "banach", "//tmp/tm_client_test_table", sync=True)
 
 def test_copy_dir(backend_url):
     client = TransferManager(url=backend_url, enable_retries=False)
 
-    hahn_client = Yt(proxy="hahn")
+    hahn_client = YtClient(proxy="hahn")
     hahn_client.mkdir("//tmp/test_dir_tm", recursive=True)
     for i in xrange(10):
         hahn_client.create("table", "//tmp/test_dir_tm/" + str(i), ignore_existing=True)
 
-    banach_client = Yt(proxy="banach")
+    banach_client = YtClient(proxy="banach")
     banach_client.remove("//tmp/test_dir_tm", recursive=True, force=True)
 
     client.add_tasks("hahn", "//tmp/test_dir_tm", "banach", "//tmp/test_dir_tm", sync=True, running_tasks_limit=2)
@@ -76,11 +76,11 @@ def test_copy_dir(backend_url):
 def test_early_task_skipping(backend_url):
     client = TransferManager(url=backend_url)
 
-    hahn_client = Yt(proxy="hahn")
+    hahn_client = YtClient(proxy="hahn")
     # NOTE: Creating intermediate dir here to avoid long listing //tmp directory in match.
     hahn_client.mkdir("//tmp/test_dir_tm_early_task_skipping", recursive=True)
     hahn_client.create("table", "//tmp/test_dir_tm_early_task_skipping/tm_client_test_table", ignore_existing=True)
-    banach_client = Yt(proxy="banach")
+    banach_client = YtClient(proxy="banach")
     banach_client.create("table", "//tmp/tm_client_test_table", ignore_existing=True)
 
     task_ids = client.add_tasks(
