@@ -201,7 +201,7 @@ struct TRichYPath
     // TODO: DEPRECATED way of specifing columns, that is going to be removed,
     // Specifies columns that should be read.
     // If empty TKeyColumns is specified then all columns will be read
-    FLUENT_FIELD(TKeyColumns, Columns);
+    FLUENT_FIELD(TKeyColumns, ColumnsDeprecated);
 
     FLUENT_FIELD_OPTION(bool, Teleport);
     FLUENT_FIELD_OPTION(bool, Primary);
