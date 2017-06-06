@@ -12,7 +12,7 @@ namespace NConcurrency {
 bool VerifyInvokerAffinity(const IInvokerPtr& invoker);
 
 template <class T>
-bool VerifyInvokerAffinity(const T& invokers)
+bool VerifyInvokersAffinity(const T& invokers)
 {
     for (const auto& invoker : invokers) {
         if (VerifyInvokerAffinity(invoker)) {
