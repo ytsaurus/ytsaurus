@@ -880,6 +880,7 @@ protected:
     virtual void InitializeConnections();
     virtual void InitializeTransactions();
     virtual void InitializeStructures();
+    virtual void SyncPrepare();
     void InitUpdatingTables();
 
 
