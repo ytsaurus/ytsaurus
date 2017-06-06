@@ -1370,6 +1370,8 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
 
         InitializeTransactions();
         InitializeStructures();
+
+        SyncPrepare();
     }
 
     MasterConnector->RegisterOperation(OperationId, MakeStrong(this));
@@ -1389,6 +1391,7 @@ void TOperationControllerBase::Initialize()
         InitializeConnections();
         InitializeTransactions();
         InitializeStructures();
+        SyncPrepare();
     });
 
     auto initializeFuture = initializeAction
@@ -1490,15 +1493,20 @@ void TOperationControllerBase::InitUpdatingTables()
 void TOperationControllerBase::DoInitialize()
 { }
 
+
+void TOperationControllerBase::SyncPrepare()
+{
+    PrepareInputTables();
+    LockInputTables();
+    LockUserFiles();
+}
+
 void TOperationControllerBase::SafePrepare()
 {
     YCHECK(!(Config->EnableFailControllerSpecOption && Spec->FailController));
 
-    PrepareInputTables();
-
     // Process input tables.
     {
-        LockInputTables();
         GetInputTablesAttributes();
     }
 
@@ -1506,7 +1514,6 @@ void TOperationControllerBase::SafePrepare()
 
     // Process files.
     {
-        LockUserFiles();
         GetUserFilesAttributes();
     }
 
