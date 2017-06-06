@@ -56,7 +56,7 @@ TChunk* TChunkScanner::DequeueChunk()
     if (GlobalIterator_) {
         auto* chunk = GlobalIterator_;
         AdvanceGlobalIterator();
-        return chunk;
+        return IsObjectAlive(chunk) ? chunk : nullptr;
     }
 
     if (Queue_.empty()) {
@@ -71,11 +71,11 @@ TChunk* TChunkScanner::DequeueChunk()
     if (IsObjectAlive(chunk)) {
         Y_ASSERT(chunk->GetScanFlag(Kind_, epoch));
         chunk->ClearScanFlag(Kind_, epoch);
+        return chunk;
+    } else {
+        ObjectManager_->WeakUnrefObject(chunk);
+        return nullptr;
     }
-
-    ObjectManager_->WeakUnrefObject(chunk);
-
-    return chunk;
 }
 
 bool TChunkScanner::HasUnscannedChunk(NProfiling::TCpuInstant deadline) const
