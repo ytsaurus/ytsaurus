@@ -170,6 +170,11 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
     else:
         logger.warning("Account 'tmp_files' already exists")
 
+    client.create("//tmp/yt_wrapper/file_storage",
+                  attributes={"account": "tmp_files"},
+                  recursive=True,
+                  ignore_existing=True)
+
     if not client.exists("//sys/tablet_cell_bundles/sys"):
         client.create("tablet_cell_bundle", attributes={"name": "sys"})
     else:
