@@ -229,9 +229,12 @@ YtCommand.prototype._epilogue = function(result, bytes_in, bytes_out) {
         this.rsp.statusCode = 400;
     }
 
+    var sent_headers = !!this.rsp._header;
     if (result.isUnavailable() || result.isAllTargetNodesFailed()) {
         this.rsp.statusCode = 503;
-        this.rsp.setHeader("Retry-After", "60");
+        if (!sent_headers) {
+            this.rsp.setHeader("Retry-After", "60");
+        }
     }
 
     if (result.isUserBanned()) {
@@ -255,7 +258,7 @@ YtCommand.prototype._epilogue = function(result, bytes_in, bytes_out) {
         "X-YT-Response-Message": utils.escapeHeader(result.getMessage()),
         "X-YT-Response-Parameters": this.response_parameters.Print(binding.ECompression_None, this.header_format),
     };
-    var sent_headers = !!this.rsp._header;
+
     if (!sent_headers) {
         this.rsp.removeHeader("Trailer");
         for (var p in extra_headers) {
