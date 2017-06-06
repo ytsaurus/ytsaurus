@@ -32,7 +32,7 @@ SIMPLE_UNIT_TEST_SUITE(TableReader) {
             writer->Finish();
         }
 
-        auto reader = client->CreateTableReader<TNode>(TRichYPath("//testing/table").ColumnsNew({"key1", "key3"}));
+        auto reader = client->CreateTableReader<TNode>(TRichYPath("//testing/table").Columns({"key1", "key3"}));
         UNIT_ASSERT(reader->IsValid());
         UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("key1", "value1")("key3", "value3"));
         reader->Next();
@@ -48,7 +48,7 @@ SIMPLE_UNIT_TEST_SUITE(TableReader) {
             writer->Finish();
         }
 
-        auto reader = client->CreateTableReader<TNode>(TRichYPath("//testing/table").ColumnsNew({}));
+        auto reader = client->CreateTableReader<TNode>(TRichYPath("//testing/table").Columns({}));
         UNIT_ASSERT(reader->IsValid());
         UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode::CreateMap());
         reader->Next();

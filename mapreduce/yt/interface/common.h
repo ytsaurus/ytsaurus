@@ -196,7 +196,7 @@ struct TRichYPath
     // Specifies columns that should be read.
     // If it's set to Nothing then all columns will be read.
     // If empty TKeyColumns is specified then each read row will be empty.
-    FLUENT_FIELD_OPTION(TKeyColumns, ColumnsNew);
+    FLUENT_FIELD_OPTION(TKeyColumns, Columns);
 
     // TODO: DEPRECATED way of specifing columns, that is going to be removed,
     // Specifies columns that should be read.
