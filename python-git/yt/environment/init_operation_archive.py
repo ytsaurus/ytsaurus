@@ -446,15 +446,16 @@ def main():
 
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-    if yt.exists(archive_path):
-        current_version = yt.get("{}/@".format(archive_path)).get("version", 0)
+    client = YtClient(proxy=yt.config["proxy"]["url"], token=yt.config["token"])
+
+    if client.exists(archive_path):
+        current_version = client.get("{}/@".format(archive_path)).get("version", 0)
     else:
         current_version = -1
 
     next_version = current_version + 1
 
     target_version = args.target_version
-    client = YtClient(proxy=yt.config["proxy"]["url"], token=yt.config["token"])
     transform_archive(client, next_version, target_version, args.force, archive_path, shard_count=args.shard_count)
 
 if __name__ == "__main__":
