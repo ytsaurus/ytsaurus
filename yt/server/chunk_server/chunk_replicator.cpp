@@ -1721,7 +1721,7 @@ void TChunkReplicator::OnRefresh()
 
             ++totalCount;
             auto* chunk = RefreshScanner_->DequeueChunk();
-            if (!IsObjectAlive(chunk)) {
+            if (!chunk) {
                 continue;
             }
 
@@ -1961,7 +1961,7 @@ void TChunkReplicator::OnPropertiesUpdate()
 
             ++totalCount;
             auto* chunk = PropertiesUpdateScanner_->DequeueChunk();
-            if (!IsObjectAlive(chunk)) {
+            if (!chunk) {
                 continue;
             }
 
