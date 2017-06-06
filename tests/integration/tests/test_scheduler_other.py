@@ -869,7 +869,7 @@ class TestSchedulerRevive(YTEnvSetup):
         self.Env.start_schedulers()
 
         op.track()
-        
+
         assert "completed" == get("//sys/operations/" + op.id + "/@state")
 
         assert read_table("//tmp/t_out") == []
@@ -910,7 +910,7 @@ class TestSchedulerRevive(YTEnvSetup):
         self.Env.start_schedulers()
 
         op.track()
-        
+
         events = get("//sys/operations/{0}/@events".format(op.id))
 
         events_prefix = ["initializing", "preparing", "materializing", "running", "completing"]
@@ -3024,8 +3024,6 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         time.sleep(1.0)
 
         assert "lost_input_chunks" not in get("//sys/operations/{0}/@alerts".format(op.id))
-
-        abort_op(op.id)
 
     @pytest.mark.skipif("True", reason="YT-6717")
     def test_woodpecker_jobs_alert(self):
