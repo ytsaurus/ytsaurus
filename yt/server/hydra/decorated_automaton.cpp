@@ -968,8 +968,9 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
         while (!PendingMutations_.empty()) {
             auto& pendingMutation = PendingMutations_.front();
-            if (pendingMutation.Version >= CommittedVersion_)
+            if (pendingMutation.Version >= CommittedVersion_) {
                 break;
+            }
 
             RotateAutomatonVersionIfNeeded(pendingMutation.Version);
 
@@ -979,10 +980,13 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
                 pendingMutation.Timestamp,
                 pendingMutation.RandomSeed);
 
+            // Cf. YT-6908; see below.
+            auto commitPromise = pendingMutation.CommitPromise;
+
             DoApplyMutation(&context);
 
-            if (pendingMutation.CommitPromise) {
-                pendingMutation.CommitPromise.Set(context.Response());
+            if (commitPromise) {
+                commitPromise.Set(context.Response());
             }
 
             PendingMutations_.pop();
