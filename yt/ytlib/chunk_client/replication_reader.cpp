@@ -1162,8 +1162,8 @@ private:
                 RegisterError(TError("Failed to validate received block checksum")
                     << TErrorAttribute("block_id", ToString(blockId))
                     << TErrorAttribute("peer", peerAddress)
-                    << TErrorAttribute("actual", ex.GetActual())
-                    << TErrorAttribute("expected", ex.GetExpected()));
+                    << TErrorAttribute("actual", ex.Actual)
+                    << TErrorAttribute("expected", ex.Expected));
 
                 BanPeer(peerAddress, false);
                 RequestBlocks();
@@ -1375,8 +1375,8 @@ private:
                 RegisterError(TError("Failed to validate received block checksum")
                     << TErrorAttribute("block_id", ToString(TBlockId(reader->ChunkId_, FirstBlockIndex_ + blocksReceived)))
                     << TErrorAttribute("peer", peerAddress)
-                    << TErrorAttribute("actual", ex.GetActual())
-                    << TErrorAttribute("expected", ex.GetExpected()));
+                    << TErrorAttribute("actual", ex.Actual)
+                    << TErrorAttribute("expected", ex.Expected));
 
                 BanPeer(peerAddress, false);
                 RequestBlocks();
