@@ -1349,7 +1349,8 @@ void TOperationControllerBase::InitializeReviving(TControllerTransactionsPtr con
             OutputTransaction = controllerTransactions->Output;
             DebugOutputTransaction = controllerTransactions->DebugOutput;
 
-            StartAsyncSchedulerTransaction();
+            WaitFor(StartAsyncSchedulerTransaction())
+                .ThrowOnError();
 
             AreTransactionsActive = true;
         }
@@ -1703,14 +1704,18 @@ void TOperationControllerBase::SafeRevive()
 
 void TOperationControllerBase::InitializeTransactions()
 {
-    StartAsyncSchedulerTransaction();
-    StartInputTransaction(UserTransactionId);
-    StartOutputTransaction(UserTransactionId);
-    StartDebugOutputTransaction();
+    std::vector<TFuture<void>> startFutures {
+        StartAsyncSchedulerTransaction(),
+        StartInputTransaction(UserTransactionId),
+        StartOutputTransaction(UserTransactionId),
+        StartDebugOutputTransaction(),
+    };
+    WaitFor(Combine(startFutures))
+        .ThrowOnError();
     AreTransactionsActive = true;
 }
 
-ITransactionPtr TOperationControllerBase::StartTransaction(
+TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     ETransactionType type,
     INativeClientPtr client,
     const TTransactionId& parentTransactionId)
@@ -1735,49 +1740,72 @@ ITransactionPtr TOperationControllerBase::StartTransaction(
     options.ParentId = parentTransactionId;
     options.Timeout = Config->OperationTransactionTimeout;
 
-    auto transactionOrError = WaitFor(
-        client->StartTransaction(NTransactionClient::ETransactionType::Master, options));
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        transactionOrError,
-        "Error starting %Qlv transaction",
-        type);
-    auto transaction = transactionOrError.Value();
+    auto transactionFuture = client->StartTransaction(NTransactionClient::ETransactionType::Master, options);
 
-    LOG_INFO("Transaction started (Type: %v, TransactionId: %v)",
-        type,
-        transaction->GetId());
+    return transactionFuture.Apply(BIND([=] (const TErrorOr<ITransactionPtr>& transactionOrError){
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            transactionOrError,
+            "Error starting %Qlv transaction",
+            type);
 
-    return transaction;
+        auto transaction = transactionOrError.Value();
+
+        LOG_INFO("Transaction started (Type: %v, TransactionId: %v)",
+            type,
+            transaction->GetId());
+
+        return transaction;
+    }));
 }
 
-void TOperationControllerBase::StartAsyncSchedulerTransaction()
+TFuture<void> TOperationControllerBase::StartAsyncSchedulerTransaction()
 {
-    AsyncSchedulerTransaction = StartTransaction(
+    auto transactionFuture = StartTransaction(
         ETransactionType::Async,
         AuthenticatedMasterClient);
+
+    return transactionFuture.Apply(
+        BIND([this, this_ = MakeStrong(this)] (const ITransactionPtr& transaction) {
+            AsyncSchedulerTransaction = transaction;
+        }));
 }
 
-void TOperationControllerBase::StartInputTransaction(const TTransactionId& parentTransactionId)
+TFuture<void> TOperationControllerBase::StartInputTransaction(const TTransactionId& parentTransactionId)
 {
-    InputTransaction = StartTransaction(
+    auto transactionFuture = StartTransaction(
         ETransactionType::Input,
         AuthenticatedInputMasterClient,
         parentTransactionId);
+
+    return transactionFuture.Apply(
+        BIND([this, this_ = MakeStrong(this)] (const ITransactionPtr& transaction) {
+            InputTransaction = transaction;
+        }));
 }
 
-void TOperationControllerBase::StartOutputTransaction(const TTransactionId& parentTransactionId)
+TFuture<void> TOperationControllerBase::StartOutputTransaction(const TTransactionId& parentTransactionId)
 {
-    OutputTransaction = StartTransaction(
+    auto transactionFuture = StartTransaction(
         ETransactionType::Output,
         AuthenticatedOutputMasterClient,
         parentTransactionId);
+
+    return transactionFuture.Apply(
+        BIND([this, this_ = MakeStrong(this)] (const ITransactionPtr& transaction) {
+            OutputTransaction = transaction;
+        }));
 }
 
-void TOperationControllerBase::StartDebugOutputTransaction()
+TFuture<void> TOperationControllerBase::StartDebugOutputTransaction()
 {
-    DebugOutputTransaction = StartTransaction(
+    auto transactionFuture = StartTransaction(
         ETransactionType::DebugOutput,
         AuthenticatedMasterClient);
+
+    return transactionFuture.Apply(
+        BIND([this, this_ = MakeStrong(this)] (const ITransactionPtr& transaction) {
+            DebugOutputTransaction = transaction;
+        }));
 }
 
 void TOperationControllerBase::PickIntermediateDataCell()
@@ -1932,10 +1960,11 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
 
 void TOperationControllerBase::StartCompletionTransaction()
 {
-    CompletionTransaction = StartTransaction(
+    CompletionTransaction = WaitFor(StartTransaction(
         ETransactionType::Completion,
         AuthenticatedOutputMasterClient,
-        OutputTransaction->GetId());
+        OutputTransaction->GetId()))
+        .ValueOrThrow();
 
     // Set transaction id to cypress.
     {

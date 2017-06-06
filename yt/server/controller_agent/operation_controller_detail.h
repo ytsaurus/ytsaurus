@@ -800,7 +800,7 @@ protected:
         void Persist(const TPersistenceContext& context);
     };
 
-    NApi::ITransactionPtr StartTransaction(
+    TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
         NApi::INativeClientPtr client,
         const NTransactionClient::TTransactionId& parentTransactionId = NTransactionClient::NullTransactionId);
@@ -915,10 +915,10 @@ protected:
     void InitChunkListPool();
 
     // Initialize transactions
-    void StartAsyncSchedulerTransaction();
-    void StartInputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
-    void StartOutputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
-    void StartDebugOutputTransaction();
+    TFuture<void> StartAsyncSchedulerTransaction();
+    TFuture<void> StartInputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
+    TFuture<void> StartOutputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
+    TFuture<void> StartDebugOutputTransaction();
 
     // Completion.
     void TeleportOutputChunks();
