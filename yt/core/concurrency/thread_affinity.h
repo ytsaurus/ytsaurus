@@ -49,8 +49,6 @@ private:
 
 };
 
-bool VerifyInvokerAffinity(const IInvokerPtr& invoker);
-
 #define DECLARE_THREAD_AFFINITY_SLOT(slot) \
     mutable ::NYT::NConcurrency::TThreadAffinitySlot PP_CONCAT(slot, _Slot)
 
@@ -62,6 +60,9 @@ bool VerifyInvokerAffinity(const IInvokerPtr& invoker);
 
 #define VERIFY_INVOKER_AFFINITY(invoker) \
     YCHECK(::NYT::NConcurrency::VerifyInvokerAffinity(invoker))
+
+#define VERIFY_INVOKERS_AFFINITY(invokers) \
+    YCHECK(::NYT::NConcurrency::VerifyInvokersAffinity(invokers))
 
 #define VERIFY_INVOKER_THREAD_AFFINITY(invoker, slot) \
     PP_CONCAT(slot, _Slot).Check((invoker)->GetThreadId());
@@ -84,3 +85,7 @@ bool VerifyInvokerAffinity(const IInvokerPtr& invoker);
 
 } // namespace NConcurrency
 } // namespace NYT
+
+#define THREAD_AFFINITY_INL_H_
+#include "thread_affinity-inl.h"
+#undef THREAD_AFFINITY_INL_H_
