@@ -96,7 +96,11 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
         Load(context, TabletStaticMemory);
     } else {
         TabletCount = 1000000;
-        TabletStaticMemory = 10 * (1LL << 12);
+        TabletStaticMemory = 100 * (1LL << 40);
+    }
+    //COMPAT(savrus)
+    if (context.GetVersion() == 604) {
+        TabletStaticMemory = 100 * (1LL << 40);
     }
 }
 
