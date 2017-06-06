@@ -2,7 +2,7 @@ from .cluster_configuration import modify_cluster_configuration, NODE_MEMORY_LIM
 
 from yt.environment import YTInstance
 from yt.environment.init_cluster import initialize_world
-from yt.environment.helpers import wait_for_removing_file_lock, is_file_locked
+from yt.environment.helpers import wait_for_removing_file_lock, is_file_locked, is_dead_or_zombie
 from yt.wrapper.common import generate_uuid, GB
 from yt.common import YtError, require, get_value, is_process_alive
 
@@ -25,6 +25,8 @@ from functools import partial
 
 logger = logging.getLogger("Yt.local")
 
+YT_LOCAL_STOP_WAIT_TIME = 5
+
 def _load_config(path, is_proxy_config=False):
     if path is None:
         return {}
@@ -39,6 +41,9 @@ def get_root_path(path=None):
         return path
     else:
         return os.environ.get("YT_LOCAL_ROOT_PATH", os.getcwd())
+
+def get_main_process_pid_file_path(path=None):
+    return os.path.join(get_root_path(path), "main_process_pid.txt")
 
 def touch(path):
     open(path, 'a').close()
@@ -136,9 +141,9 @@ def log_started_instance_info(environment, start_proxy, prepare_only):
     if start_proxy:
         logger.info("Proxy address: {0}".format(environment.get_proxy_address()))
 
-def _safe_kill(pid):
+def _safe_kill(pid, signal_number=signal.SIGKILL):
     try:
-        os.killpg(pid, signal.SIGKILL)
+        os.killpg(pid, signal_number)
     except OSError as err:
         if err.errno == errno.EPERM:
             logger.error("Failed to kill process with pid {0}, access denied".format(pid))
@@ -147,6 +152,13 @@ def _safe_kill(pid):
         else:
             # According to "man 2 killpg" possible error values are
             # (EINVAL, EPERM, ESRCH)
+            raise
+
+def _safe_remove(path):
+    try:
+        os.remove(path)
+    except OSError as err:
+        if err.errno != errno.ENOENT:
             raise
 
 def _initialize_world(client, environment, wait_tablet_cell_initialization,
@@ -304,9 +316,30 @@ def stop(id, remove_working_dir=False, path=None):
             lambda: yt.YtError("Local YT with id {0} is already stopped".format(id)))
 
     pids_file_path = os.path.join(get_root_path(path), id, "pids.txt")
-    for pid in _read_pids_file(pids_file_path):
-        _safe_kill(pid)
-    os.remove(pids_file_path)
+    main_process_pid_file = get_main_process_pid_file_path(path)
+
+    if os.path.exists(main_process_pid_file):
+        pid = _read_pids_file(main_process_pid_file)[0]
+        _safe_kill(pid, signal_number=signal.SIGINT)
+
+        start_time = time.time()
+        killed = False
+
+        while time.time() - start_time < YT_LOCAL_STOP_WAIT_TIME:
+            if is_dead_or_zombie(pid):
+                killed = True
+                break
+
+        if not killed:
+            logger.warning("Failed to kill YT local main process with SIGINT, SIGKILL will be used")
+            _safe_kill(pid, signal_number=signal.SIGKILL)
+
+            for path in (pids_file_path, main_process_pid_file):
+                _safe_remove(path)
+    else:
+        for pid in _read_pids_file(pids_file_path):
+            _safe_kill(pid)
+        os.remove(pids_file_path)
 
     wait_for_removing_file_lock(os.path.join(get_root_path(path), id, "lock_file"))
 
