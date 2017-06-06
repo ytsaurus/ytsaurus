@@ -385,7 +385,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
         if (oldAccount) {
-            IncrementAccountResourceUsage(node, oldAccount, -1);
+            AddNodeCachedResourceUsageToAccount(node, oldAccount, -1);
             objectManager->UnrefObject(oldAccount);
         }
 
@@ -393,7 +393,7 @@ public:
 
         UpdateNodeCachedResourceUsage(node);
 
-        IncrementAccountResourceUsage(node, account, +1);
+        AddNodeCachedResourceUsageToAccount(node, account, +1);
 
         objectManager->RefObject(account);
     }
@@ -405,7 +405,7 @@ public:
             return;
         }
 
-        IncrementAccountResourceUsage(node, account, -1);
+        AddNodeCachedResourceUsageToAccount(node, account, -1);
 
         node->CachedResourceUsage() = TClusterResources();
         node->SetAccount(nullptr);
@@ -446,11 +446,11 @@ public:
             return;
         }
 
-        IncrementAccountResourceUsage(node, account, -1);
+        AddNodeCachedResourceUsageToAccount(node, account, -1);
 
         UpdateNodeCachedResourceUsage(node);
 
-        IncrementAccountResourceUsage(node, account, +1);
+        AddNodeCachedResourceUsageToAccount(node, account, +1);
     }
 
     void SetNodeResourceAccounting(TCypressNodeBase* node, bool enable)
@@ -464,16 +464,6 @@ public:
         UpdateAccountNodeUsage(node);
     }
 
-    void IncrementAccountResourceUsage(
-        TAccount* account,
-        const TClusterResources& delta)
-    {
-        account->ClusterStatistics().ResourceUsage += delta;
-        account->LocalStatistics().ResourceUsage += delta;
-
-        CheckSanity(account);
-    }
-
     void UpdateAccountStagingUsage(
         TTransaction* transaction,
         TAccount* account,
@@ -483,7 +473,7 @@ public:
             return;
         }
 
-        IncrementAccountResourceUsage(account, delta);
+        IncrementAccountResourceUsage(account, delta, false);
 
         auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
         *transactionUsage += delta;
@@ -1193,29 +1183,39 @@ private:
             node->CachedResourceUsage() += delta;
             auto* account = node->GetAccount();
             if (account) {
-                IncrementAccountResourceUsage(account, delta);
+                IncrementAccountResourceUsage(account, delta, node->IsTrunk());
             }
         }
     }
 
-    static void IncrementAccountResourceUsage(TCypressNodeBase* node, TAccount* account, int delta)
+    static void AddNodeCachedResourceUsageToAccount(TCypressNodeBase* node, TAccount* account, int delta)
     {
         auto resourceUsage = node->CachedResourceUsage() * delta;
 
-        account->ClusterStatistics().ResourceUsage += resourceUsage;
-        account->LocalStatistics().ResourceUsage += resourceUsage;
-        if (node->IsTrunk()) {
-            account->ClusterStatistics().CommittedResourceUsage += resourceUsage;
-            account->LocalStatistics().CommittedResourceUsage += resourceUsage;
-        }
-
-        CheckSanity(account);
+        IncrementAccountResourceUsage(account, resourceUsage, node->IsTrunk());
 
         auto* transactionUsage = FindTransactionAccountUsage(node);
         if (transactionUsage) {
             *transactionUsage += resourceUsage;
         }
     }
+
+    static void IncrementAccountResourceUsage(
+        TAccount* account,
+        const TClusterResources& delta,
+        bool incrementCommittedResourceUsage)
+    {
+        account->ClusterStatistics().ResourceUsage += delta;
+        account->LocalStatistics().ResourceUsage += delta;
+
+        if (incrementCommittedResourceUsage) {
+            account->ClusterStatistics().CommittedResourceUsage += delta;
+            account->LocalStatistics().CommittedResourceUsage += delta;
+        }
+
+        CheckSanity(account);
+    }
+
 
     static TClusterResources* FindTransactionAccountUsage(TCypressNodeBase* node)
     {
