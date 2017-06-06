@@ -238,7 +238,7 @@ int TTableNodeTypeHandlerBase<TImpl>::GetDefaultReplicationFactor() const
 }
 
 template <class TImpl>
-TClusterResources TTableNodeTypeHandlerBase<TImpl>::GetAccountingResourceUsage(
+TClusterResources TTableNodeTypeHandlerBase<TImpl>::GetTabletResourceUsage(
     const TCypressNodeBase* node)
 {
     int tabletCount = 0;
@@ -254,10 +254,23 @@ TClusterResources TTableNodeTypeHandlerBase<TImpl>::GetAccountingResourceUsage(
         }
     }
 
-    auto resourceUsage = TClusterResources()
+    return TClusterResources()
         .SetTabletCount(tabletCount)
         .SetTabletStaticMemory(memorySize);
-    return TBase::GetAccountingResourceUsage(node) + resourceUsage;
+}
+
+template <class TImpl>
+TClusterResources TTableNodeTypeHandlerBase<TImpl>::GetTotalResourceUsage(
+    const TCypressNodeBase* node)
+{
+    return TBase::GetTotalResourceUsage(node) + GetTabletResourceUsage(node);
+}
+
+template <class TImpl>
+TClusterResources TTableNodeTypeHandlerBase<TImpl>::GetAccountingResourceUsage(
+    const TCypressNodeBase* node)
+{
+    return TBase::GetAccountingResourceUsage(node) + GetTabletResourceUsage(node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
