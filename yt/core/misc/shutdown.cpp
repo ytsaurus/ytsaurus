@@ -3,15 +3,17 @@
 #include <yt/core/misc/assert.h>
 
 #include <algorithm>
+#include <vector>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::pair<double, void(*)()>>* ShutdownCallbacks()
 {
     static std::vector<std::pair<double, void(*)()>> shutdownCallbacks;
     return &shutdownCallbacks;
 }
-
 
 void RegisterShutdownCallback(double priority, void(*callback)())
 {
@@ -31,5 +33,7 @@ void Shutdown()
         it->second();
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
