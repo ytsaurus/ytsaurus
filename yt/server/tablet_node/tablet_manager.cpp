@@ -713,7 +713,7 @@ private:
                 GetTransactionWriteLogMemoryUsage(transaction->DelayedLocklessWriteLog()));
 
             if (transaction->GetState() == ETransactionState::PersistentCommitPrepared) {
-                OnTransactionPrepared(transaction, true);
+                PrepareLockedRows(transaction);
             }
         }
     }
@@ -1935,34 +1935,10 @@ private:
         }
     }
 
+
     void OnTransactionPrepared(TTransaction* transaction, bool persistent)
     {
-        auto prepareRow = [&] (const TSortedDynamicRowRef& rowRef) {
-            // NB: Don't call ValidateAndDiscardRowRef, row refs are just scanned.
-            if (ValidateRowRef(rowRef)) {
-                rowRef.StoreManager->PrepareRow(transaction, rowRef);
-            }
-        };
-
-        auto lockedRowCount = transaction->LockedRows().size();
-        auto prelockedRowCount = transaction->PrelockedRows().size();
-
-        for (const auto& rowRef : transaction->LockedRows()) {
-            prepareRow(rowRef);
-        }
-
-        for (auto it = transaction->PrelockedRows().begin();
-             it != transaction->PrelockedRows().end();
-             transaction->PrelockedRows().move_forward(it))
-        {
-            prepareRow(*it);
-        }
-
-        LOG_DEBUG_UNLESS(IsRecovery() || (lockedRowCount + prelockedRowCount == 0),
-            "Locked rows prepared (TransactionId: %v, LockedRowCount: %v, PrelockedRowCount: %v)",
-            transaction->GetId(),
-            lockedRowCount,
-            prelockedRowCount);
+        PrepareLockedRows(transaction);
 
         yhash_map<TTableReplicaInfo*, int> replicaToRowCount;
         int syncReplicatedRowCount = 0;
@@ -2311,6 +2287,37 @@ private:
             YCHECK(OrphanedTablets_.erase(id) == 1);
         }
         return lockCount;
+    }
+
+
+    void PrepareLockedRows(TTransaction* transaction)
+    {
+        auto prepareRow = [&] (const TSortedDynamicRowRef& rowRef) {
+            // NB: Don't call ValidateAndDiscardRowRef, row refs are just scanned.
+            if (ValidateRowRef(rowRef)) {
+                rowRef.StoreManager->PrepareRow(transaction, rowRef);
+            }
+        };
+
+        auto lockedRowCount = transaction->LockedRows().size();
+        auto prelockedRowCount = transaction->PrelockedRows().size();
+
+        for (const auto& rowRef : transaction->LockedRows()) {
+            prepareRow(rowRef);
+        }
+
+        for (auto it = transaction->PrelockedRows().begin();
+             it != transaction->PrelockedRows().end();
+             transaction->PrelockedRows().move_forward(it))
+        {
+            prepareRow(*it);
+        }
+
+        LOG_DEBUG_UNLESS(IsRecovery() || (lockedRowCount + prelockedRowCount == 0),
+            "Locked rows prepared (TransactionId: %v, LockedRowCount: %v, PrelockedRowCount: %v)",
+            transaction->GetId(),
+            lockedRowCount,
+            prelockedRowCount);
     }
 
 
