@@ -669,6 +669,11 @@ class TestDynamicTablesResourceLimits(TestDynamicTablesBase):
         assert get("//sys/accounts/tmp/@resource_usage/tablet_static_memory") == 0
         assert get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == data_size
 
+        assert get("//tmp/t/@resource_usage/tablet_count") == 1
+        assert get("//tmp/t/@resource_usage/tablet_static_memory") == data_size
+        assert get("//tmp/@recursive_resource_usage/tablet_count") == 1
+        assert get("//tmp/@recursive_resource_usage/tablet_static_memory") == data_size
+
 ##################################################################
 
 class TestDynamicTableStateTransitions(TestDynamicTablesBase):

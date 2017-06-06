@@ -47,9 +47,14 @@ protected:
 
     virtual int GetDefaultReplicationFactor() const override;
 
+    virtual NSecurityServer::TClusterResources GetTotalResourceUsage(
+        const NCypressServer::TCypressNodeBase* table) override;
     virtual NSecurityServer::TClusterResources GetAccountingResourceUsage(
         const NCypressServer::TCypressNodeBase* table) override;
 
+private:
+    NSecurityServer::TClusterResources GetTabletResourceUsage(
+        const NCypressServer::TCypressNodeBase* table);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
