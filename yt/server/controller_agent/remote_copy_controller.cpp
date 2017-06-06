@@ -253,10 +253,14 @@ private:
     // Custom bits of preparation pipeline.
     void InitializeTransactions() override
     {
-        StartAsyncSchedulerTransaction();
-        StartInputTransaction(NullTransactionId);
-        StartOutputTransaction(UserTransactionId);
-        StartDebugOutputTransaction();
+        std::vector<TFuture<void>> startFutures {
+            StartAsyncSchedulerTransaction(),
+            StartInputTransaction(NullTransactionId),
+            StartOutputTransaction(UserTransactionId),
+            StartDebugOutputTransaction(),
+        };
+        WaitFor(Combine(startFutures))
+            .ThrowOnError();
         AreTransactionsActive = true;
     }
 
