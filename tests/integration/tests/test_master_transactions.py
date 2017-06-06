@@ -165,6 +165,7 @@ class TestMasterTransactions(YTEnvSetup):
         assert not exists("//sys/transactions/" + tx_inner)
         assert not exists("//sys/transactions/" + tx_outer)
 
+    @flaky(max_runs=5)
     def test_ping_ancestors(self):
         tx_outer = start_transaction(timeout=2000)
         tx_inner = start_transaction(tx = tx_outer)
