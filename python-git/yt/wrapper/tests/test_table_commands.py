@@ -4,7 +4,6 @@ from .helpers import TEST_DIR, check, set_config_option
 
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.table import TablePath, TempTable
-from yt.wrapper.client import Yt
 from yt.wrapper.common import parse_bool
 
 import yt.zip as zip
@@ -246,7 +245,7 @@ class TestTableCommands(object):
             while yt.get("{0}/@tablets/0/state".format(table)) != "mounted":
                 time.sleep(0.1)
 
-            vanilla_client = Yt(config=yt.config)
+            vanilla_client = yt.YtClient(config=yt.config)
 
             assert list(vanilla_client.select_rows("* from [{0}]".format(table), raw=False)) == []
             assert list(vanilla_client.lookup_rows(table, [{"x": "a"}], raw=False)) == []
@@ -441,7 +440,7 @@ class TestTableCommands(object):
 
     def _set_banned(self, value):
         # NB: we cannot unban proxy using proxy, so we must using client for that.
-        client = Yt(config={"backend": "native", "driver_config": yt.config["driver_config"]})
+        client = yt.YtClient(config={"backend": "native", "driver_config": yt.config["driver_config"]})
         proxy = "//sys/proxies/" + client.list("//sys/proxies")[0]
         client.set(proxy + "/@banned".format(proxy), value)
         time.sleep(1)

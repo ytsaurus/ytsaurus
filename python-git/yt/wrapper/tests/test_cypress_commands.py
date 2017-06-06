@@ -4,7 +4,6 @@ from __future__ import print_function
 
 from .helpers import TEST_DIR
 
-from yt.wrapper.client import Yt
 from yt.wrapper.common import parse_bool
 import yt.json as json
 import yt.yson as yson
@@ -382,7 +381,7 @@ class TestCypressCommands(object):
 
     @pytest.mark.skipif("True")  # Enable when st/YT-4182 is done.
     def test_signal_in_transactions(self):
-        new_client = yt.client.Yt(token=yt.config["token"], config=yt.config)
+        new_client = yt.YtClient(token=yt.config["token"], config=yt.config)
 
         yt.config["transaction_use_signal_if_ping_failed"] = True
         old_request_timeout = yt.config["proxy"]["request_timeout"]
@@ -450,7 +449,7 @@ class TestCypressCommands(object):
 
         tx = yt.start_transaction(timeout=2000)
         yt.config.COMMAND_PARAMS["transaction_id"] = tx
-        client = Yt(config=yt.config.config)
+        client = yt.YtClient(config=yt.config.config)
         try:
             assert yt.lock(dir) != "0-0-0-0"
             if yt_env.version <= "18.5":
