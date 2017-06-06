@@ -12,10 +12,9 @@ void Shutdown();
 ////////////////////////////////////////////////////////////////////////////////
 
 #define REGISTER_SHUTDOWN_CALLBACK(priority, callback) \
-static int dummy_shutdown ## __LINE__ = [] \
-{ \
-    RegisterShutdownCallback(priority, callback); \
-    return 0; \
-}();
+    static int dummy_shutdown ## __LINE__ = [] { \
+        RegisterShutdownCallback(priority, callback); \
+        return 0; \
+    }();
 
 } // namespace NYT

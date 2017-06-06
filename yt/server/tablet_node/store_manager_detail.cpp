@@ -13,6 +13,8 @@
 
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 
+#include <yt/core/utilex/random.h>
+
 namespace NYT {
 namespace NTabletNode {
 

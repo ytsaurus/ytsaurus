@@ -32,7 +32,8 @@ TOperation::TOperation(
     IInvokerPtr controlInvoker,
     EOperationState state,
     bool suspended,
-    const std::vector<TOperationEvent>& events)
+    const std::vector<TOperationEvent>& events,
+    int slotIndex)
     : Id_(id)
     , Type_(type)
     , MutationId_(mutationId)
@@ -46,6 +47,7 @@ TOperation::TOperation(
     , Owners_(owners)
     , StartTime_(startTime)
     , Events_(events)
+    , SlotIndex_(slotIndex)
     , CodicilData_(MakeOperationCodicilString(Id_))
     , CancelableContext_(New<TCancelableContext>())
     , CancelableInvoker_(CancelableContext_->CreateInvoker(controlInvoker))

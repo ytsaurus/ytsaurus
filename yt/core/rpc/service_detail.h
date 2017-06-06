@@ -23,6 +23,8 @@
 
 #include <yt/core/tracing/trace_context.h>
 
+#include <util/thread/lfqueue.h>
+
 #include <atomic>
 
 namespace NYT {

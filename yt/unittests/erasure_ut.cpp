@@ -9,6 +9,7 @@
 #include <yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/core/erasure/codec.h>
+#include <yt/core/misc/checksum.h>
 
 #include <util/stream/file.h>
 
@@ -134,7 +135,7 @@ public:
         EXPECT_TRUE(erasureWriter->Open().Get().IsOK());
 
         for (const auto& ref : data) {
-            erasureWriter->WriteBlock(TBlock(ref));
+            erasureWriter->WriteBlock(TBlock(ref, GetChecksum(ref)));
             dataSize += ref.Size();
         }
         EXPECT_TRUE(erasureWriter->Close(meta).Get().IsOK());

@@ -240,7 +240,7 @@ def run_unit_tests(options):
                 os.path.join(options.working_directory, "bin", unittest_binary),
                 "--gtest_color=no",
                 "--gtest_death_test_style=threadsafe",
-                "--gtest_output=xml:" + os.path.join(options.working_directory, "gtest_unittester.xml")],
+                "--gtest_output=xml:" + os.path.join(options.working_directory, "gtest_" + unittest_binary + ".xml")],
                 cwd=sandbox_current,
                 timeout=20 * 60)
     except ChildHasNonZeroExitCode as err:
