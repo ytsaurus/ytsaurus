@@ -5,6 +5,7 @@ from yt.environment.helpers import assert_almost_equal
 from yt_commands import *
 
 import time
+from datetime import datetime, timedelta
 import __builtin__
 
 import os
@@ -60,13 +61,21 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     }
 
     def test_revive(self):
+        def get_connection_time():
+            return datetime.strptime(get("//sys/scheduler/@connection_time"), "%Y-%m-%dT%H:%M:%S.%fZ")
+
         self._prepare_tables()
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 3")
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 4")
 
-        time.sleep(2)
+        time.sleep(3)
+
+        assert datetime.utcnow() - get_connection_time() > timedelta(seconds=3)
+
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
+
+        assert datetime.utcnow() - get_connection_time() < timedelta(seconds=3)
 
         op.track()
 
