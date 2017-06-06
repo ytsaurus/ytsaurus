@@ -1,4 +1,5 @@
 #include "operation.h"
+#include "operation_tracker.h"
 
 #include <mapreduce/yt/interface/errors.h>
 
@@ -85,41 +86,6 @@ bool IsLocalMode(const TAuth& auth)
 
     return isLocalMode;
 }
-
-class TOperationTracker
-{
-public:
-    void Start(const TOperationId& operationId)
-    {
-        with_lock(Lock_) {
-            StartTimes_[operationId] = TInstant::Now();
-        }
-    }
-
-    TString Finish(const TOperationId& operationId)
-    {
-        TDuration duration;
-        with_lock(Lock_) {
-            auto i = StartTimes_.find(operationId);
-            if (i == StartTimes_.end()) {
-                ythrow yexception() <<
-                    "Operation " << GetGuidAsString(operationId) << " did not start";
-            }
-            duration = TInstant::Now() - i->second;
-            StartTimes_.erase(i);
-        }
-        return ToString(duration);
-    }
-
-    static TOperationTracker* Get()
-    {
-        return Singleton<TOperationTracker>();
-    }
-
-private:
-    yhash<TOperationId, TInstant> StartTimes_;
-    TMutex Lock_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -609,7 +575,7 @@ EOperationStatus CheckOperation(
         LOG_ERROR("Operation %s %s (%s)",
             ~opIdStr,
             ~state,
-            ~TOperationTracker::Get()->Finish(operationId));
+            ~ToString(TOperationTracker::Get()->Finish(operationId)));
 
         auto errorPath = opPath + "/@result/error";
         TString error;
@@ -646,7 +612,7 @@ void WaitForOperation(
         if (status == OS_COMPLETED) {
             LOG_INFO("Operation %s completed (%s)",
                 ~GetGuidAsString(operationId),
-                ~TOperationTracker::Get()->Finish(operationId));
+                ~ToString(TOperationTracker::Get()->Finish(operationId)));
             break;
         }
         Sleep(checkOperationStateInterval);
