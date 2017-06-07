@@ -23,7 +23,6 @@ import org.slf4j.LoggerFactory;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
 import ru.yandex.yt.rpcproxy.TRspGetNode;
 import ru.yandex.yt.ytclient.proxy.ApiService;
-import ru.yandex.yt.ytclient.ytree.YTreeNode;
 
 /**
  * Created by aozeritsky on 24.05.2017.
