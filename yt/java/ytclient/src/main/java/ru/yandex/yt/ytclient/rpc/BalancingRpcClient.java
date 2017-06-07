@@ -306,7 +306,12 @@ public class BalancingRpcClient implements RpcClient {
 
         for (Destination client : destinations) {
             long delay = delta * i;
-            CompletionStage<List<byte[]>> currentStep = delayedExecute(builder.build(), delay, () -> sendOnce(client, request));
+            CompletionStage<List<byte[]>> currentStep;
+            if (delay == 0) {
+                currentStep = sendOnce(client, request);
+            } else {
+                currentStep = delayedExecute(builder.build(), delay, () -> sendOnce(client, request));
+            }
             builder.add(currentStep);
             i ++;
         }
