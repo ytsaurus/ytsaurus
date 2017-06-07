@@ -275,6 +275,7 @@ public class BalancingRpcClient implements RpcClient {
                 destinations[idx] = destinations[count-1];
                 destinations[count-1] = t;
                 result.add(t);
+                --count;
             }
         }
 
