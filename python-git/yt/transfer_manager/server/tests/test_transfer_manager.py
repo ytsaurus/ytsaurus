@@ -8,6 +8,7 @@ from yt.environment.helpers import OpenPortIterator
 import yt.subprocess_wrapper as subprocess
 import yt.json as json
 import yt.wrapper as yt
+import yt.logger as logger
 
 from yt.packages.six import PY3
 from yt.packages.requests.exceptions import ConnectionError
@@ -20,6 +21,7 @@ import tarfile
 import time
 import uuid
 import signal
+import platform
 
 TM_CONFIG_PATH = "config.json"
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
@@ -51,6 +53,19 @@ def _write_node_content(path, node_type, client):
     else:
         client.write_table(path, [{"a": 1}, {"b": 2}, {"c": 3}])
 
+def _prepare_activate_file(env_path):
+    activate_file_path = os.path.join(env_path, "bin", "activate")
+
+    with open(activate_file_path) as activate_file:
+        activate_file_content = activate_file.read().split("\n")
+
+    for row_index, row in enumerate(activate_file_content):
+        if row.startswith("VIRTUAL_ENV="):
+            activate_file_content[row_index] = "VIRTUAL_ENV={0}".format(env_path)
+
+    with open(activate_file_path, "w") as activate_file:
+        activate_file.write("\n".join(activate_file_content))
+
 def _start_transfer_manager(yt_client, config):
     config_path = os.path.join(TEST_RUN_PATH, TM_CONFIG_PATH)
     json.dump(config, open(config_path, "w"))
@@ -59,23 +74,53 @@ def _start_transfer_manager(yt_client, config):
     tm_server_path = os.path.split(tests_path)[0]
 
     tm_binary_path = os.path.join(tm_server_path, "bin", "transfer-manager-server")
-    script_binary_path = os.path.join(tests_path, "prepare_and_start_tm.sh")
+    script_binary_path = os.path.join(tests_path, "start_tm.sh")
     venv_path = os.path.join(TESTS_SANDBOX, "tmvenv")
 
-    if not os.path.exists(venv_path):
-        os.mkdir(venv_path)
-        content = yt_client.read_file("//home/files/test_data/transfer_manager/tmvenv.tar")
+    _, _, distribution_codename = platform.linux_distribution()
 
+    start_tm_command = [script_binary_path, tm_binary_path, config_path, venv_path]
+    logger.info("Preparing TM environment...")
+
+    if not os.path.exists(venv_path):
+        logger.info("Path with TM environment doesn't exists")
+        os.mkdir(venv_path)
+        cache_path = None
+        with open(os.path.join(tests_path, "cache_path")) as fin:
+            cache_path = fin.read()
+
+        cache_file_path = "{0}/{1}-tmvenv.tar".format(cache_path, distribution_codename)
+        if not yt_client.exists(cache_file_path):
+            logger.info("Cached TM environment doesn't exists for '{0}'.".format(distribution_codename))
+            prepare_tm_script_path = os.path.join(tests_path, "prepare_tm_environment.sh")
+            tm_path = os.path.split(tm_server_path)[0]
+            yt_path = os.path.split(tm_path)[0]
+            python_path = os.path.split(yt_path)[0]
+
+            tm_requirements_path = os.path.join(python_path, "yandex-yt-transfer-manager", "requirements.txt")
+            prepare_tm_command = [prepare_tm_script_path, tm_requirements_path, venv_path]
+            prepare_and_start_tm_command = "{0} && {1}".format(" ".join(prepare_tm_command), " ".join(start_tm_command))
+            return subprocess.Popen(prepare_and_start_tm_command, shell=True, preexec_fn=os.setsid)
+
+        logger.info("TM environment will be used from cache")
+        logger.info("Starting to download TM environment...")
+        content = yt_client.read_file(cache_file_path)
         archive_path = os.path.join(venv_path, "tmvenv.tar")
-        with open(archive_path, "wb") as file:
-            file.write(content.read())
+        with open(archive_path, "wb") as fin:
+            fin.write(content.read())
+
+        logger.info("Extracting files from an archive...")
 
         tar = tarfile.open(archive_path)
         tar.extractall(venv_path)
         tar.close()
 
-    return subprocess.Popen([script_binary_path, tm_binary_path, config_path, venv_path],
-                            preexec_fn=os.setsid)
+        _prepare_activate_file(venv_path)
+        logger.info("TM environment is ready")
+    else:
+        logger.info("Path with TM environment already exists")
+
+    return subprocess.Popen(start_tm_command, preexec_fn=os.setsid)
 
 def _abort_operations_and_transactions(client):
     for operation in client.list("//sys/operations"):

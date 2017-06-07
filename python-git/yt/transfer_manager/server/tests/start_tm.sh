@@ -10,7 +10,6 @@ _term() {
 }
 trap _term SIGTERM
 
-virtualenv $TM_VENV_PATH
 source "$TM_VENV_PATH/bin/activate"
 
 $TM_SERVER_BIN --config "$TM_CONFIG" & PID=$!
