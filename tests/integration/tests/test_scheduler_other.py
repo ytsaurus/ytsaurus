@@ -2462,7 +2462,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "enable_fail_controller_spec_option": True,
+            "enable_controller_failure_spec_option": True,
         },
         "core_dumper": {
             "component_name": "",
@@ -2471,7 +2471,8 @@ class TestSafeAssertionsMode(YTEnvSetup):
     }
 
     @unix_only
-    def test_failed_assertion_inside_controller(self):
+    @pytest.mark.parametrize("controller_failure", ["assertion_failure_in_prepare", "exception_thrown_in_on_job_completed"])
+    def test_assertion_failure_in_prepare(self, controller_failure):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
         create("table", "//tmp/t_out")
@@ -2479,11 +2480,11 @@ class TestSafeAssertionsMode(YTEnvSetup):
             dont_track=True,
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"fail_controller": True},
+            spec={"testing": {"controller_failure": controller_failure}},
             command="cat")
-        with pytest.raises(YtError):
+        with pytest.raises(YtError) as excinfo:
             op.track()
-
+        print >>sys.stderr, str(excinfo.value)
 
 class TestMaxTotalSliceCount(YTEnvSetup):
     NUM_MASTERS = 1
