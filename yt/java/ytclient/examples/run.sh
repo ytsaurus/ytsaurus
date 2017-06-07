@@ -39,6 +39,11 @@ then
 	JVM_OPTS="$JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$JVM_DEBUG_PORT"
 fi
 
+if [ -f "/usr/lib64/libyjpagent.so" ]
+then
+    JVM_OPTS="$JVM_OPTS -agentpath:/usr/lib64/libyjpagent.so=logdir=/dev/null "
+fi
+
 echo "CLASSPATH=$CLASSPATH"
 echo "JVM_OPTS=$JVM_OPTS"
 export CLASSPATH
