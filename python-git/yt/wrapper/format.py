@@ -21,6 +21,7 @@ from yt.packages.six.moves import xrange, map as imap, zip as izip, filter as if
 import os
 from abc import ABCMeta, abstractmethod
 from codecs import getwriter
+from types import MethodType
 import copy
 import struct
 try:
@@ -604,9 +605,14 @@ class YamrFormat(Format):
     field_separator = Format._create_property("fs")
     record_separator = Format._create_property("rs")
 
-    def __deepcopy__(self, memodict={}):
-        result = copy.copy(self)
-        result._load_row = lambda *args, **kwargs: self._load_row(*args, **kwargs)
+    def __deepcopy__(self, memodict=None):
+        # Fix python2.6 bug http://bugs.python.org/issue1515
+        result = YamrFormat()
+        for attr_name, attr_value in iteritems(self.__dict__):
+            if isinstance(attr_value, MethodType):
+                setattr(result, attr_name, attr_value)
+            else:
+                setattr(result, attr_name, copy.deepcopy(attr_value))
         return result
 
     def load_row(self, stream, raw=None):
