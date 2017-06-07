@@ -4,8 +4,8 @@ package NYT.NRpcProxy.NProto;
 
 option java_package = "protocol";
 
-import "rpc.proto";
-import "guid.proto";
+import "yt/java/yt-dt-rpc-client/proto/rpc.proto";
+import "yt/java/yt-dt-rpc-client/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 // Authentication.

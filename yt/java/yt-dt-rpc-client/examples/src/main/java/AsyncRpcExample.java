@@ -6,8 +6,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import ru.yandex.yt.rpc.client.YtDtAsyncClient;
 import ru.yandex.yt.rpc.client.ValueType;
+import ru.yandex.yt.rpc.client.YtDtAsyncClient;
 import ru.yandex.yt.rpc.client.requests.LookupReqInfo;
 import ru.yandex.yt.rpc.client.schema.ColumnSchema;
 import ru.yandex.yt.rpc.client.schema.TableSchema;
