@@ -28,6 +28,12 @@ size_t TInputStreamWrap::DoRead(void* buf, size_t len)
 
     auto args = Py::TupleN(Py::Long(static_cast<long>(len)));
     Py::Object result = ReadFunction_.apply(args);
+
+    PyObject* exception = PyErr_Occurred();
+    if (exception) {
+        throw Py::Exception();
+    }
+
 #if PY_MAJOR_VERSION < 3
     // COMPAT: Due to implicit promotion to unicode it is sane to work with
     // unicode objects too.
