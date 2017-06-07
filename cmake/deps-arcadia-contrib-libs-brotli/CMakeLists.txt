@@ -1,4 +1,4 @@
-set(NAME deps-contrib-libs-brotli)
+set(NAME deps-arcadia-contrib-libs-brotli)
 set(BASE ${CMAKE_SOURCE_DIR}/contrib/libs/brotli)
 set(SRCS
   ${BASE}/enc/backward_references.cc
@@ -21,8 +21,6 @@ set(SRCS
   ${BASE}/dec/state.c
   ${BASE}/dec/streams.c
 )
-
-#set_source_files_properties(${SRCS} PROPERTIES LANGUAGE C)
 
 include_directories(${CMAKE_SOURCE_DIR})
 

@@ -1,8 +1,13 @@
 set(NAME deps-arcadia-contrib-libs-re2)
 set(BASE ${CMAKE_SOURCE_DIR}/contrib/libs/re2)
 set(SRCS
-  ${BASE}/generated/unicode_casefold.cc
-  ${BASE}/generated/unicode_groups.cc
+  ${BASE}/re2/unicode_casefold.cc
+  ${BASE}/re2/unicode_groups.cc
+
+  ${BASE}/util/rune.cc
+  ${BASE}/util/strutil.cc
+
+  ${BASE}/re2/stringpiece.cc
   ${BASE}/re2/bitstate.cc
   ${BASE}/re2/compile.cc
   ${BASE}/re2/dfa.cc
@@ -20,13 +25,6 @@ set(SRCS
   ${BASE}/re2/set.cc
   ${BASE}/re2/simplify.cc
   ${BASE}/re2/tostring.cc
-  ${BASE}/stubs/output.cc
-  ${BASE}/stubs/stringpiece.cc
-  ${BASE}/util/hash.cc
-  ${BASE}/util/rune.cc
-  ${BASE}/util/stringprintf.cc
-  ${BASE}/util/strutil.cc
-  ${BASE}/util/valgrind.cc
 )
 
 include_directories(
