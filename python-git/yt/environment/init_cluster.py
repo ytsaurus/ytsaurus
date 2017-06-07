@@ -170,7 +170,8 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
     else:
         logger.warning("Account 'tmp_files' already exists")
 
-    client.create("//tmp/yt_wrapper/file_storage",
+    client.create("map_node",
+                  "//tmp/yt_wrapper/file_storage",
                   attributes={"account": "tmp_files"},
                   recursive=True,
                   ignore_existing=True)
