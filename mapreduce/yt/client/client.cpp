@@ -44,25 +44,6 @@ ITransactionPtr CreateTransactionObject(
     bool isOwning,
     const TStartTransactionOptions& options = TStartTransactionOptions());
 
-static TString DebugString(const yvector<TYPath>& lst)
-{
-    constexpr size_t limit = 3;
-    TString result = "{";
-    for (size_t i = 0; i < lst.size() && i < limit; ++i) {
-        if (i != 0) {
-            result += ", ";
-        }
-        result += '`';
-        result += lst[i];
-        result += '\'';
-    }
-    if (lst.size() > limit) {
-        result += ", ...";
-    }
-    result += '}';
-    return result;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClientBase
@@ -92,12 +73,7 @@ public:
         THttpHeader header("POST", "create");
         header.AddMutationId();
         header.SetParameters(NDetail::SerializeParamsForCreate(TransactionId_, path, type, options));
-        auto nodeId = ParseGuidFromResponse(RetryRequest(Auth_, header));
-
-        LOG_INFO("Create completed; path: `%s' type: %s",
-            ~path, ~NDetail::ToString(type));
-
-        return nodeId;
+        return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
     void Remove(
@@ -108,7 +84,6 @@ public:
         header.AddMutationId();
         header.SetParameters(NDetail::SerializeParamsForRemove(TransactionId_, path, options));
         RetryRequest(Auth_, header);
-        LOG_INFO("Remove completed; path: `%s'", ~path);
     }
 
     bool Exists(
@@ -116,10 +91,7 @@ public:
     {
         THttpHeader header("GET", "exists");
         header.SetParameters(NDetail::SerializeParamsForExists(TransactionId_, path));
-        const bool result = ParseBoolFromResponse(RetryRequest(Auth_, header));
-        LOG_INFO("Exists completed; path: `%s' result: %s",
-            ~path, result ? "true" : "false");
-        return result;
+        return ParseBoolFromResponse(RetryRequest(Auth_, header));
     }
 
     TNode Get(
@@ -128,9 +100,7 @@ public:
     {
         THttpHeader header("GET", "get");
         header.SetParameters(NDetail::SerializeParamsForGet(TransactionId_, path, options));
-        auto result = NodeFromYsonString(RetryRequest(Auth_, header));
-        LOG_INFO("Get completed; path: `%s'", ~path);
-        return result;
+        return NodeFromYsonString(RetryRequest(Auth_, header));
     }
 
     void Set(
@@ -141,7 +111,6 @@ public:
         header.AddMutationId();
         header.SetParameters(NDetail::SerializeParamsForSet(TransactionId_, path));
         RetryRequest(Auth_, header, NodeToYsonString(value));
-        LOG_INFO("Set completed; path: `%s'", ~path);
     }
 
     TNode::TList List(
@@ -158,9 +127,7 @@ public:
             updatedPath.pop_back();
         }
         header.SetParameters(NDetail::SerializeParamsForList(TransactionId_, updatedPath, options));
-        const auto result = NodeFromYsonString(RetryRequest(Auth_, header)).AsList();
-        LOG_INFO("List completed; path: `%s'", ~path);
-        return result;
+        return NodeFromYsonString(RetryRequest(Auth_, header)).AsList();
     }
 
     TNodeId Copy(
@@ -180,10 +147,7 @@ public:
         if (options.PreserveExpirationTime_) {
             header.AddParam("preserve_expiration_time", *options.PreserveExpirationTime_);
         }
-        const auto result = ParseGuidFromResponse(RetryRequest(Auth_, header));
-        LOG_INFO("Copy completed; source path: `%s'; destination path: `%s'",
-            ~sourcePath, ~destinationPath);
-        return result;
+        return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
     TNodeId Move(
@@ -203,10 +167,7 @@ public:
         if (options.PreserveExpirationTime_) {
             header.AddParam("preserve_expiration_time", *options.PreserveExpirationTime_);
         }
-        const auto result = ParseGuidFromResponse(RetryRequest(Auth_, header));
-        LOG_INFO("Move completed; source path: `%s'; destination path: `%s'",
-            ~sourcePath, ~destinationPath);
-        return result;
+        return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
     TNodeId Link(
@@ -225,10 +186,7 @@ public:
         if (options.Attributes_) {
             header.SetParameters(AttributesToYsonString(*options.Attributes_));
         }
-        const auto result = ParseGuidFromResponse(RetryRequest(Auth_, header));
-        LOG_INFO("Link completed; target path: `%s'; link path: `%s'",
-            ~targetPath, ~linkPath);
-        return result;
+        return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
     void Concatenate(
@@ -251,9 +209,6 @@ public:
         .EndMap());
 
         RetryRequest(Auth_, header);
-
-        LOG_INFO("Concatenate completed; source paths: `%s'; destination path: `%s'",
-            ~DebugString(sourcePaths), ~destinationPath);
     }
 
     // io
