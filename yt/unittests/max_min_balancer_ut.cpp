@@ -63,7 +63,8 @@ std::vector<int> Shuffle(TTestBalancer& balancer)
 
 TEST(TMaxMinBalancerTest, Basic)
 {
-    auto decayInterval = TDuration::MilliSeconds(100);
+    auto decayInterval = TDuration::MilliSeconds(200);
+    auto sleepInterval = TDuration::MilliSeconds(300);
 
     TTestBalancer balancer(0.1, decayInterval);
     for (int i = 0; i < 5; ++i) {
@@ -79,7 +80,7 @@ TEST(TMaxMinBalancerTest, Basic)
         balancer.AddWeight(*winner, 1000); // Just to shift to the back of the queue.
     }
 
-    Sleep(decayInterval);
+    Sleep(sleepInterval);
 
     {
         auto winner = balancer.TakeWinner();
