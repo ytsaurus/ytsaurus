@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+option java_package = "protocol";
+
+message TestProto
+{
+    required int32 id = 1;
+    optional string name = 2;
+}
