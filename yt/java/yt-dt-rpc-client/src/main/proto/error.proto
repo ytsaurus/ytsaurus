@@ -1,0 +1,19 @@
+syntax = "proto2";
+
+package NYT.NProto;
+
+option java_package = "protocol";
+
+import "attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TError
+{
+    required int32 code = 1;
+    optional string message = 2;
+    optional NYTree.NProto.TAttributes attributes = 3;
+    repeated TError inner_errors = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
