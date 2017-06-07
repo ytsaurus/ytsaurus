@@ -929,7 +929,8 @@ private:
 
             // We additionally slice maniac slices by evenly by row indices.
             auto chunk = chunkSlice->GetInputChunk();
-            if (chunk->IsCompleteChunk() &&
+            if (!EnableKeyGuarantee_ &&
+                chunk->IsCompleteChunk() &&
                 CompareRows(chunk->BoundaryKeys()->MinKey, chunk->BoundaryKeys()->MaxKey, PrimaryPrefixLength_) == 0 &&
                 chunkSlice->GetDataSize() > JobSizeConstraints_->GetInputSliceDataSize())
             {
