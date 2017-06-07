@@ -607,12 +607,18 @@ class YamrFormat(Format):
 
     def __deepcopy__(self, memodict=None):
         # Fix python2.6 bug http://bugs.python.org/issue1515
-        result = YamrFormat()
+        result = type(self)()
+
         for attr_name, attr_value in iteritems(self.__dict__):
-            if isinstance(attr_value, MethodType):
-                setattr(result, attr_name, attr_value)
-            else:
-                setattr(result, attr_name, copy.deepcopy(attr_value))
+            if attr_name == "_load_row":
+                continue
+            setattr(result, attr_name, copy.deepcopy(attr_value, memo=memodict))
+
+        if result.lenval:
+            result._load_row = result._read_lenval_values
+        else:
+            result._load_row = result._read_delimited_values
+
         return result
 
     def load_row(self, stream, raw=None):
