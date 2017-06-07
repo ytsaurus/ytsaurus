@@ -7,8 +7,8 @@ import com.google.protobuf.GeneratedMessageV3;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Parser;
 import io.netty.buffer.ByteBufUtil;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import protocol.Rpc;
 
 import ru.yandex.yt.rpc.protocol.bus.BusPackage;
@@ -21,7 +21,7 @@ import static ru.yandex.yt.rpc.utils.Utility.toInt;
  * @author valri
  */
 public class ProtobufHelpers {
-    private static Logger logger = LogManager.getLogger(ProtobufHelpers.class);
+    private static Logger logger = LoggerFactory.getLogger(ProtobufHelpers.class);
 
     /**
      * Retrieve request Id from rpc-style message.

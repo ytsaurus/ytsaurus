@@ -2,8 +2,8 @@ package ru.yandex.yt.rpc.protocol.rpc.lookup;
 
 import java.util.Map;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import protocol.ApiService;
 
 import ru.yandex.yt.rpc.client.ValueType;
@@ -14,7 +14,7 @@ import ru.yandex.yt.rpc.protocol.rpc.RpcReqHeader;
  * @author valri
  */
 public class RpcReqLookupRows extends RpcReqLookupMessage {
-    private static Logger logger = LogManager.getLogger(RpcReqLookupRows.class);
+    private static Logger logger = LoggerFactory.getLogger(RpcReqLookupRows.class);
 
     protected ApiService.TReqLookupRows request;
     private ApiService.ERowsetKind rowSetKind = ApiService.ERowsetKind.UNVERSIONED;

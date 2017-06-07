@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.google.common.primitives.Bytes;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
 
 import ru.yandex.yt.rpc.client.ValueType;
 import ru.yandex.yt.rpc.client.requests.LookupReqInfo;

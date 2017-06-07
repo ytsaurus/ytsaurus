@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
 
 import ru.yandex.yt.rpc.client.responses.VersionedLookupRow;
 import ru.yandex.yt.rpc.client.schema.ColumnSchema;

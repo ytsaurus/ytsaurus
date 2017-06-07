@@ -9,8 +9,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.tuple.Pair;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.rpc.client.schema.TableSchema;
 import ru.yandex.yt.rpc.utils.Utility;
@@ -19,7 +19,7 @@ import ru.yandex.yt.rpc.utils.Utility;
  * @author valri
  */
 public class RpcRspLookupRows extends RpsLookupRspMessage {
-    private static Logger logger = LogManager.getLogger(RpcRspLookupRows.class);
+    private static Logger logger = LoggerFactory.getLogger(RpcRspLookupRows.class);
 
     public RpcRspLookupRows(TableSchema tableSchema) {
         this.schema = tableSchema;

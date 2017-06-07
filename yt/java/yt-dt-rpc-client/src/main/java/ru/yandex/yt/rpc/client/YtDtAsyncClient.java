@@ -9,8 +9,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.rpc.channel.ClientChannelPool;
 import ru.yandex.yt.rpc.client.requests.LookupReqInfo;
@@ -25,7 +25,7 @@ import ru.yandex.yt.rpc.protocol.rpc.RpcReqFactory;
  * @author valri
  */
 public class YtDtAsyncClient extends YtClient {
-    private static Logger logger = LogManager.getLogger(YtDtAsyncClient.class);
+    private static Logger logger = LoggerFactory.getLogger(YtDtAsyncClient.class);
     private static final int CHANNEL_READ_TIMEOUT_SECONDS = 5;
 
     private RpcReqFactory rpcReqFactory;
