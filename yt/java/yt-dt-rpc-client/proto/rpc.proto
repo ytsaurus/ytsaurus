@@ -4,8 +4,8 @@ package NYT.NRpc.NProto;
 
 option java_package = "protocol";
 
-import "guid.proto";
-import "error.proto";
+import "yt/java/yt-dt-rpc-client/proto/guid.proto";
+import "yt/java/yt-dt-rpc-client/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 
 import ru.yandex.yt.rpc.channel.ClientChannelPool;
 import ru.yandex.yt.rpc.client.requests.LookupReqInfo;
-import ru.yandex.yt.rpc.client.schema.TableSchema;
 import ru.yandex.yt.rpc.protocol.RpcRequestMessage;
 import ru.yandex.yt.rpc.protocol.bus.BusMessage;
 import ru.yandex.yt.rpc.protocol.bus.BusPackage;

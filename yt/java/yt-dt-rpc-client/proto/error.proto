@@ -4,7 +4,7 @@ package NYT.NProto;
 
 option java_package = "protocol";
 
-import "attributes.proto";
+import "yt/java/yt-dt-rpc-client/proto/attributes.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

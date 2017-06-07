@@ -1,9 +1,6 @@
 package ru.yandex.yt.rpc.client;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -16,7 +13,6 @@ import ru.yandex.yt.rpc.protocol.bus.BusPackage;
 import ru.yandex.yt.rpc.protocol.proto.ProtobufHelpers;
 import ru.yandex.yt.rpc.protocol.rpc.lookup.RpcRspLookupRows;
 import ru.yandex.yt.rpc.protocol.rpc.lookup.RpcRspVersionedLookupRows;
-import ru.yandex.yt.rpc.utils.Utility;
 
 /**
  * @author valri
