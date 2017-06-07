@@ -55,12 +55,21 @@ DEFINE_REFCOUNTED_TYPE(TJobIOConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EControllerFailureType,
+    (None)
+    (AssertionFailureInPrepare)
+    (ExceptionThrownInOnJobCompleted)
+)
+
 class TTestingOperationOptions
     : public NYTree::TYsonSerializable
 {
 public:
     TDuration SchedulingDelay;
     ESchedulingDelayType SchedulingDelayType;
+
+    //! Intentionally fails the operation controller. Used only for testing purposes.
+    EControllerFailureType ControllerFailure;
 
     TTestingOperationOptions();
 };
@@ -141,9 +150,6 @@ public:
     //! A storage keeping YSON map that is hidden under ACL in Cypress. It will be exported
     //! to all user jobs via environment variables.
     NYTree::IMapNodePtr SecureVault;
-
-    //! Intentionally fails the operation controller. Used only for testing purposes.
-    bool FailController;
 
     //! If candidate exec nodes are not found for more than timeout time then operation will be failed.
     TDuration AvailableNodesMissingTimeout;

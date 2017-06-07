@@ -1337,7 +1337,10 @@ void TOperationControllerBase::DoInitialize()
 
 void TOperationControllerBase::SafePrepare()
 {
-    YCHECK(!(Config->EnableFailControllerSpecOption && Spec->FailController));
+    // Testing purpose code.
+    if (Config->EnableControllerFailureSpecOption) {
+        YCHECK(Spec->TestingOperationOptions->ControllerFailure != EControllerFailureType::AssertionFailureInPrepare);
+    }
 
     PrepareInputTables();
 
@@ -2116,6 +2119,13 @@ void TOperationControllerBase::UpdateActualHistogram(const TStatistics& statisti
 
 void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
+    // Testing purpose code.
+    if (Config->EnableControllerFailureSpecOption &&
+        Spec->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
+    {
+        THROW_ERROR_EXCEPTION("Testing exception");
+    }
+
     const auto& jobId = jobSummary->Id;
     const auto& result = jobSummary->Result;
 
@@ -3265,6 +3275,12 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
     BuildAndSaveProgress();
 
     Host->OnOperationFailed(OperationId, error);
+}
+
+void TOperationControllerBase::FailOperation(const std::exception& ex)
+{
+    OnOperationFailed(TError("Exception thrown in operation controller that led to operation failure")
+        << ex);
 }
 
 void TOperationControllerBase::FailOperation(const TAssertionFailedException& ex)
