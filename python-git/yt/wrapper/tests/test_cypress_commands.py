@@ -5,6 +5,7 @@ from __future__ import print_function
 from .helpers import TEST_DIR
 
 from yt.wrapper.common import parse_bool
+from yt.ypath import YPathError
 import yt.json as json
 import yt.yson as yson
 
@@ -267,7 +268,7 @@ class TestCypressCommands(object):
         yt.create_table(table)
         assert list(yt.read_table(table, format=yt.format.DsvFormat())) == []
 
-        with pytest.raises(yt.YtError):
+        with pytest.raises(YPathError):
             yt.copy([], table)
         with pytest.raises(yt.YtError):
             yt.copy(table, table)
