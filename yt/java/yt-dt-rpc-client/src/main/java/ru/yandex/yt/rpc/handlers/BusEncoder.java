@@ -17,7 +17,7 @@ public class BusEncoder extends MessageToByteEncoder<BusPackage> {
     @Override
     protected void encode(ChannelHandlerContext ctx, BusPackage msg, ByteBuf out) throws Exception {
         out.writeBytes(msg.getBytes());
-        logger.info("Bus package ({}) encoded successfully", msg.toString());
+        logger.debug("Bus package ({}) encoded successfully", msg.toString());
     }
 
     @Override
