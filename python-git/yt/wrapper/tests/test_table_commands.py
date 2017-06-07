@@ -1,10 +1,11 @@
 from __future__ import with_statement
 
-from .helpers import TEST_DIR, check, set_config_option
+from .helpers import TEST_DIR, check, set_config_option, TESTS_SANDBOX
 
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.common import parse_bool
+from yt.local import start, stop
 
 import yt.zip as zip
 
@@ -17,6 +18,7 @@ import pytest
 import tempfile
 import shutil
 import time
+import uuid
 from io import BytesIO
 from copy import deepcopy
 
@@ -577,3 +579,52 @@ class TestTableCommands(object):
 
             yt.trim_rows(table, tablet_index, 3)
             assert [] == list(yt.select_rows("* from [{0}]".format(table), raw=False))
+
+    def test_alter_table_replica(self):
+        mode = yt.config["backend"]
+        if mode != "native":
+            mode = yt.config["api_version"]
+
+        test_name = "TestYtWrapper" + mode.capitalize()
+        dir = os.path.join(TESTS_SANDBOX, test_name)
+        id = "run_" + uuid.uuid4().hex[:8]
+        try:
+            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1)
+            second_cluster_client = instance.create_client()
+            second_cluster_connection = second_cluster_client.get("//sys/@cluster_connection")
+            yt.set("//sys/clusters", {"second_cluster": second_cluster_connection})
+
+            table = TEST_DIR + "/test_replicated_table"
+            schema = [{"name": "x", "type": "string", "sort_order": "ascending"},
+                      {"name": "y", "type": "string"}]
+            yt.create("replicated_table", table, attributes={"dynamic": True, "schema": schema})
+            replica_id = yt.create("table_replica", attributes={"table_path": table,
+                                                                "cluster_name": "second_cluster",
+                                                                "replica_path": table + "_replica"})
+
+            tablet_id = yt.get(table + "/@tablets/0/tablet_id")
+            attributes = yt.get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
+            assert attributes["state"] == "disabled"
+            assert len(attributes["tablets"]) == 1
+            assert attributes["tablets"][tablet_id]["state"] == "none"
+
+            yt.alter_table_replica(replica_id, enabled=True)
+            attributes = yt.get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
+            assert attributes["state"] == "enabled"
+            assert len(attributes["tablets"]) == 1
+            assert attributes["tablets"][tablet_id]["state"] == "none"
+
+            yt.alter_table_replica(replica_id, enabled=False)
+            attributes = yt.get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
+            assert attributes["state"] == "disabled"
+            assert len(attributes["tablets"]) == 1
+            assert attributes["tablets"][tablet_id]["state"] == "none"
+
+            yt.alter_table_replica(replica_id, enabled=True, mode="sync")
+            attributes = yt.get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
+            assert attributes["state"] == "enabled"
+            assert len(attributes["tablets"]) == 1
+            assert attributes["tablets"][tablet_id]["state"] == "none"
+
+        finally:
+            stop(instance.id, path=dir)
