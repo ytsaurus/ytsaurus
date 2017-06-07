@@ -60,6 +60,11 @@ constexpr int NullDataCenterIndex = 0;
 // NB: +1 is because of null dataCenter.
 using TDataCenterSet = std::bitset<MaxDataCenterCount + 1>;
 
+constexpr int TypicalInterDCEdgeCount = 9; // (2 DCs + null DC)^2
+static_assert(
+    TypicalInterDCEdgeCount <= NNodeTrackerServer::MaxDataCenterCount * NNodeTrackerServer::MaxDataCenterCount,
+    "TypicalInterDCEdgeCount is too large.");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NNodeTrackerServer

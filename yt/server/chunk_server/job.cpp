@@ -5,8 +5,6 @@
 
 #include <yt/core/misc/string.h>
 
-#include <yt/core/erasure/codec.h>
-
 namespace NYT {
 namespace NChunkServer {
 
@@ -43,13 +41,7 @@ TJobPtr TJob::CreateReplicate(
     const TNodePtrWithIndexesList& targetReplicas)
 {
     auto* chunk = chunkWithIndexes.GetPtr();
-    i64 dataSize = chunk->ChunkInfo().disk_space();
-
-    auto codecId = chunk->GetErasureCodec();
-    if (codecId != ECodec::None) {
-        auto* codec = NErasure::GetCodec(codecId);
-        dataSize /= codec->GetTotalPartCount();
-    }
+    auto dataSize = chunk->GetPartDiskSpace();
 
     TNodeResources resourceUsage;
     resourceUsage.set_replication_slots(1);
@@ -90,9 +82,7 @@ TJobPtr TJob::CreateRepair(
     const TNodePtrWithIndexesList& targetReplicas,
     i64 memoryUsage)
 {
-    auto codecId = chunk->GetErasureCodec();
-    auto* codec = NErasure::GetCodec(codecId);
-    i64 dataSize = chunk->ChunkInfo().disk_space() / codec->GetTotalPartCount();
+    auto dataSize = chunk->GetPartDiskSpace();
 
     TNodeResources resourceUsage;
     resourceUsage.set_repair_slots(1);
