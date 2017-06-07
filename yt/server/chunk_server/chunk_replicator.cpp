@@ -21,6 +21,7 @@
 #include <yt/server/cypress_server/node.h>
 #include <yt/server/cypress_server/cypress_manager.h>
 
+#include <yt/server/node_tracker_server/data_center.h>
 #include <yt/server/node_tracker_server/node.h>
 #include <yt/server/node_tracker_server/node_directory_builder.h>
 #include <yt/server/node_tracker_server/node_tracker.h>
@@ -130,6 +131,8 @@ TChunkReplicator::TChunkReplicator(
         // We "balance" medium indexes, not the repair queues themselves.
         ChunkRepairQueueBalancer_.AddContender(i);
     }
+
+    InitInterDCEdges();
 }
 
 void TChunkReplicator::Start(TChunk* frontChunk, int chunkCount)
@@ -749,6 +752,8 @@ void TChunkReplicator::ScheduleJobs(
     std::vector<TJobPtr>* jobsToAbort,
     std::vector<TJobPtr>* jobsToRemove)
 {
+    UpdateInterDCEdgeCapacities(); // Pull capacity changes, react on DC removal (if any).
+
     ProcessExistingJobs(
         node,
         runningJobs,
@@ -984,6 +989,7 @@ bool TChunkReplicator::CreateReplicationJob(
         replicasNeeded,
         1,
         Null,
+        UnsaturatedInterDCEdges[sourceNode->GetDataCenter()],
         ESessionType::Replication);
     if (targetNodes.empty()) {
         return false;
@@ -1029,7 +1035,11 @@ bool TChunkReplicator::CreateBalancingJob(
     auto replicaIndex = chunkWithIndexes.GetReplicaIndex();
     auto mediumIndex = chunkWithIndexes.GetMediumIndex();
 
-    auto* targetNode = ChunkPlacement_->AllocateBalancingTarget(mediumIndex, chunk, maxFillFactor);
+    auto* targetNode = ChunkPlacement_->AllocateBalancingTarget(
+        mediumIndex,
+        chunk,
+        maxFillFactor,
+        UnsaturatedInterDCEdges[sourceNode->GetDataCenter()]);
     if (!targetNode) {
         return false;
     }
@@ -1137,6 +1147,7 @@ bool TChunkReplicator::CreateRepairJob(
         erasedPartCount,
         erasedPartCount,
         Null,
+        UnsaturatedInterDCEdges[node->GetDataCenter()],
         ESessionType::Repair);
     if (targetNodes.empty()) {
         return false;
@@ -1216,6 +1227,7 @@ void TChunkReplicator::ScheduleNewJobs(
 
     const auto& resourceLimits = node->ResourceLimits();
     auto& resourceUsage = node->ResourceUsage();
+    const auto* nodeDataCenter = node->GetDataCenter();
 
     auto registerJob = [&] (const TJobPtr& job) {
         if (job) {
@@ -1263,7 +1275,10 @@ void TChunkReplicator::ScheduleNewJobs(
         // Schedule replication jobs.
         for (auto& queue : node->ChunkReplicationQueues()) {
             auto it = queue.begin();
-            while (it != queue.end() && hasSpareReplicationResources()) {
+            while (it != queue.end() &&
+                   hasSpareReplicationResources() &&
+                   HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter))
+            {
                 auto jt = it++;
                 const auto& chunkWithIndexes = jt->first;
                 auto& mediumIndexSet = jt->second;
@@ -1296,7 +1311,9 @@ void TChunkReplicator::ScheduleNewJobs(
                     return repairQueue.begin();
                 });
 
-            while (hasSpareRepairResources()) {
+            while (hasSpareRepairResources() &&
+                   HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter))
+            {
                 auto winner = ChunkRepairQueueBalancer_.TakeWinnerIf(
                     [&] (int mediumIndex) {
                         // Don't repair chunks on nodes without relevant medium.
@@ -1378,7 +1395,8 @@ void TChunkReplicator::ScheduleNewJobs(
             double targetFillFactor = *sourceFillFactor - Config_->MinBalancingFillFactorDiff;
             if (hasSpareReplicationResources() &&
                 *sourceFillFactor > Config_->MinBalancingFillFactor &&
-                ChunkPlacement_->HasBalancingTargets(mediumIndex, targetFillFactor))
+                ChunkPlacement_->HasBalancingTargets(mediumIndex, targetFillFactor) &&
+                HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter))
             {
                 int maxJobs = std::max(0, resourceLimits.replication_slots() - resourceUsage.replication_slots());
                 auto chunksToBalance = ChunkPlacement_->GetBalancingChunks(mediumIndex, node, maxJobs);
@@ -2099,6 +2117,8 @@ void TChunkReplicator::RegisterJob(const TJobPtr& job)
     if (chunk) {
         chunk->SetJob(job);
     }
+
+    UpdateInterDCEdgeConsumption(job, 1);
 }
 
 void TChunkReplicator::UnregisterJob(const TJobPtr& job, EJobUnregisterFlags flags)
@@ -2118,6 +2138,8 @@ void TChunkReplicator::UnregisterJob(const TJobPtr& job, EJobUnregisterFlags fla
             ScheduleChunkRefresh(chunk);
         }
     }
+
+    UpdateInterDCEdgeConsumption(job, -1);
 }
 
 void TChunkReplicator::AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes)
@@ -2141,6 +2163,140 @@ void TChunkReplicator::RemoveFromChunkRepairQueue(TChunkPtrWithIndexes chunkWith
         ChunkRepairQueues_[mediumIndex].erase(*it);
         chunk->SetRepairQueueIterator(mediumIndex, Null);
     }
+}
+
+void TChunkReplicator::InitInterDCEdges()
+{
+    UpdateInterDCEdgeCapacities();
+    UpdateUnsaturatedInterDCEdges();
+}
+
+void TChunkReplicator::UpdateInterDCEdgeCapacities()
+{
+    if (GetCpuInstant() - InterDCEdgeCapacitiesLastUpdateTime <= Config_->InterDCLimits->GetUpdateInterval()) {
+        return;
+    }
+
+    // This will soon be replaced by getting capacities from node tracker.
+
+    InterDCEdgeCapacities.clear();
+
+    auto capacities = Config_->InterDCLimits->GetCapacities();
+
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+
+    auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter, const TNullable<Stroka>& srcDataCenterName) {
+        auto& interDCEdgeCapacities = InterDCEdgeCapacities[srcDataCenter];
+        const auto& newInterDCEdgeCapacities = capacities[srcDataCenterName];
+
+        auto updateForDstDC = [&] (const TDataCenter* dstDataCenter, const TNullable<Stroka>& dstDataCenterName) {
+            auto it = newInterDCEdgeCapacities.find(dstDataCenterName);
+            if (it != newInterDCEdgeCapacities.end()) {
+                interDCEdgeCapacities[dstDataCenter] = it->second;
+            }
+        };
+
+        updateForDstDC(nullptr, Null);
+        for (const auto& pair : nodeTracker->DataCenters()) {
+            if (IsObjectAlive(pair.second)) {
+                updateForDstDC(pair.second, pair.second->GetName());
+            }
+        }
+    };
+
+    updateForSrcDC(nullptr, Null);
+    for (const auto& pair : nodeTracker->DataCenters()) {
+        if (IsObjectAlive(pair.second)) {
+            updateForSrcDC(pair.second, pair.second->GetName());
+        }
+    }
+
+    InterDCEdgeCapacitiesLastUpdateTime = GetCpuInstant();
+}
+
+void TChunkReplicator::UpdateUnsaturatedInterDCEdges()
+{
+    UnsaturatedInterDCEdges.clear();
+
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+
+    auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter) {
+        auto& interDCEdgeConsumption = InterDCEdgeConsumption[srcDataCenter];
+        const auto& interDCEdgeCapacities = InterDCEdgeCapacities[srcDataCenter];
+
+        auto updateForDstDC = [&] (const TDataCenter* dstDataCenter) {
+            if (interDCEdgeConsumption.Value(dstDataCenter, 0) <
+                interDCEdgeCapacities.Value(dstDataCenter, Config_->InterDCLimits->GetDefaultCapacity()))
+            {
+                UnsaturatedInterDCEdges[srcDataCenter].insert(dstDataCenter);
+            }
+        };
+
+        updateForDstDC(nullptr);
+        for (const auto& pair : nodeTracker->DataCenters()) {
+            if (IsObjectAlive(pair.second)) {
+                updateForDstDC(pair.second);
+            }
+        }
+    };
+
+    updateForSrcDC(nullptr);
+    for (const auto& pair : nodeTracker->DataCenters()) {
+        if (IsObjectAlive(pair.second)) {
+            updateForSrcDC(pair.second);
+        }
+    }
+}
+
+void TChunkReplicator::UpdateInterDCEdgeConsumption(const TJobPtr& job, int sizeMultiplier)
+{
+    if (job->GetType() != EJobType::ReplicateChunk &&
+        job->GetType() != EJobType::RepairChunk)
+    {
+        return;
+    }
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+    const auto* srcDataCenter = job->GetNode()->GetDataCenter();
+    auto& interDCEdgeConsumption = InterDCEdgeConsumption[srcDataCenter];
+    const auto& interDCEdgeCapacities = InterDCEdgeCapacities[srcDataCenter];
+
+    for (const auto& nodePtrWithIndexes : job->TargetReplicas()) {
+        const auto* dstDataCenter = nodePtrWithIndexes.GetPtr()->GetDataCenter();
+
+        i64 chunkPartSize = 0;
+        switch (job->GetType()) {
+            case EJobType::ReplicateChunk:
+                chunkPartSize = job->ResourceUsage().replication_data_size();
+                break;
+            case EJobType::RepairChunk:
+                chunkPartSize = job->ResourceUsage().repair_data_size();
+                break;
+            default:
+                Y_UNREACHABLE();
+        }
+
+        auto& consumption = interDCEdgeConsumption[dstDataCenter];
+        consumption += sizeMultiplier * chunkPartSize;
+
+        if (consumption < interDCEdgeCapacities.Value(dstDataCenter, Config_->InterDCLimits->GetDefaultCapacity())) {
+            UnsaturatedInterDCEdges[srcDataCenter].insert(dstDataCenter);
+        } else {
+            auto it = UnsaturatedInterDCEdges.find(srcDataCenter);
+            if (it != UnsaturatedInterDCEdges.end()) {
+                it->second.erase(dstDataCenter);
+                // Don't do UnsaturatedInterDCEdges.erase(it) here - the memory
+                // saving is negligible, but the slowdown may be noticeable. Plus,
+                // the removal is very likely to be undone by a soon-to-follow insertion.
+            }
+        }
+    }
+}
+
+bool TChunkReplicator::HasUnsaturatedInterDCEdgeStartingFrom(const TDataCenter* srcDataCenter)
+{
+    return !UnsaturatedInterDCEdges[srcDataCenter].empty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

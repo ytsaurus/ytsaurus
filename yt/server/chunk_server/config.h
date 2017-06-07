@@ -14,6 +14,79 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TInterDCLimitsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    explicit TInterDCLimitsConfig()
+    {
+        RegisterParameter("default_capacity", DefaultCapacity)
+            .Default(1024LL * 1024LL * 1024LL * 1024LL)
+            .GreaterThanOrEqual(0);
+
+        RegisterParameter("update_interval", UpdateInterval)
+            .Default(TDuration::Seconds(30));
+
+        // Soon to be removed. All inter-DC edge-related info will be moved to Cypress.
+        RegisterParameter("capacities", Capacities)
+            .Default();
+
+        RegisterValidator([&] () {
+            for (const auto& pair : Capacities) {
+                for (const auto& pair2 : pair.second) {
+                    if (pair2.second < 0) {
+                        THROW_ERROR_EXCEPTION(
+                            "Negative capacity %v for inter-DC edge %v->%v",
+                            pair2.second,
+                            pair.first,
+                            pair2.first);
+                    }
+                }
+            }
+        });
+    }
+
+    yhash<TNullable<Stroka>, yhash<TNullable<Stroka>, i64>> GetCapacities() const
+    {
+        yhash<TNullable<Stroka>, yhash<TNullable<Stroka>, i64>> result;
+        for (const auto& pair : Capacities) {
+            auto srcDataCenter = MakeNullable(!pair.first.empty(), pair.first);
+            auto& srcDataCenterCapacities = result[srcDataCenter];
+            for (const auto& pair2 : pair.second) {
+                auto dstDataCenter = MakeNullable(!pair2.first.empty(), pair2.first);
+                srcDataCenterCapacities.emplace(dstDataCenter, pair2.second);
+            }
+        }
+        return result;
+    }
+
+    i64 GetDefaultCapacity() const
+    {
+        return DefaultCapacity;
+    }
+
+    NProfiling::TCpuDuration GetUpdateInterval() const
+    {
+        return CpuUpdateInterval;
+    }
+
+private:
+    void OnLoaded() override
+    {
+        CpuUpdateInterval = NProfiling::DurationToCpuDuration(UpdateInterval);
+    }
+
+    // src DC -> dst DC -> data size.
+    // NB: that null DC is encoded as an empty string here.
+    yhash<Stroka, yhash<Stroka, i64>> Capacities;
+    i64 DefaultCapacity;
+    TDuration UpdateInterval;
+    NProfiling::TCpuDuration CpuUpdateInterval;
+};
+
+DECLARE_REFCOUNTED_CLASS(TInterDCLimitsConfig)
+DEFINE_REFCOUNTED_TYPE(TInterDCLimitsConfig)
+
 class TChunkManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -125,6 +198,9 @@ public:
     //! The number by which chunk repair queue weights are multiplied during decay.
     double RepairQueueBalancerWeightDecayFactor;
 
+    //! Limits data size to be replicated/repaired along an inter-DC edge at any given moment.
+    TInterDCLimitsConfigPtr InterDCLimits;
+
     TChunkManagerConfig()
     {
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
@@ -225,6 +301,9 @@ public:
 
         RegisterParameter("repair_queue_balancer_weight_decay_factor", RepairQueueBalancerWeightDecayFactor)
             .Default(0.5);
+
+        RegisterParameter("inter_dc_limits", InterDCLimits)
+            .DefaultNew();
     }
 };
 
