@@ -62,6 +62,7 @@ public class SelectRowsBenchmark {
         final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
         final Histogram requestsHistogram = metrics.histogram(MetricRegistry.name(SelectRowsBenchmark.class, "requests", "histogram"));
         final Meter requestsMeter = metrics.meter(MetricRegistry.name(SelectRowsBenchmark.class,"requests", "meter"));
+        final Histogram callHistogram = metrics.histogram(MetricRegistry.name(SelectRowsBenchmark.class,"calls", "histogram"));
 
         OptionParser parser = new OptionParser();
 
@@ -195,7 +196,13 @@ public class SelectRowsBenchmark {
                         long t0 = System.nanoTime();
                         List<CompletableFuture<UnversionedRowset>> futures = request
                             .requests.stream()
-                            .map(s -> client.selectRows(s)).collect(Collectors.toList());
+                            .map(s -> {
+                                long t00 = System.nanoTime();
+                                CompletableFuture<UnversionedRowset> r = client.selectRows(s);
+                                long t11 = System.nanoTime();
+                                callHistogram.update((t11 - t00) / 1000000);
+                                return r;
+                            }).collect(Collectors.toList());
 
                         CompletableFuture
                             .allOf(futures.toArray(new CompletableFuture[futures.size()]))
