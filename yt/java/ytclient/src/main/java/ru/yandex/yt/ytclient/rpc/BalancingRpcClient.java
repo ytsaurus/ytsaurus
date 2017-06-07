@@ -20,8 +20,12 @@ import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.yt.rpcproxy.TReqGetNode;
-import ru.yandex.yt.rpcproxy.TRspGetNode;
+import ru.yandex.yt.rpcproxy.ETransactionType;
+import ru.yandex.yt.rpcproxy.TReqPingTransaction;
+import ru.yandex.yt.rpcproxy.TReqStartTransaction;
+import ru.yandex.yt.rpcproxy.TRspPingTransaction;
+import ru.yandex.yt.rpcproxy.TRspStartTransaction;
+import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.ytclient.proxy.ApiService;
 
 /**
@@ -50,6 +54,7 @@ public class BalancingRpcClient implements RpcClient {
         int index;
 
         final ApiService service;
+        YtGuid transaction = null;
 
         Destination(RpcClient client, int index) {
             this.client = Objects.requireNonNull(client);
@@ -86,24 +91,42 @@ public class BalancingRpcClient implements RpcClient {
                     index = aliveCount;
 
                     logger.info("backend `{}` is dead", client);
+                    transaction = null;
                 }
             }
         }
 
+        CompletableFuture<YtGuid> createTransaction() {
+            if (transaction == null) {
+                RpcClientRequestBuilder<TReqStartTransaction.Builder, RpcClientResponse<TRspStartTransaction>> builder =
+                    service.startTransaction();
+                builder.body().setType(ETransactionType.TABLET);
+                return RpcUtil.apply(builder.invoke(), response -> {
+                    YtGuid id = YtGuid.fromProto(response.body().getId());
+                    return id;
+                });
+            } else {
+                return CompletableFuture.completedFuture(transaction);
+            }
+        }
+
+        CompletableFuture<Void> pingTransaction(YtGuid id) {
+            RpcClientRequestBuilder<TReqPingTransaction.Builder, RpcClientResponse<TRspPingTransaction>> builder =
+                service.pingTransaction();
+            builder.body().setTransactionId(id.toProto());
+            builder.body().setSticky(false);
+            return RpcUtil.apply(builder.invoke(), response -> null).thenAccept(unused -> {
+               transaction = id;
+            });
+        }
+
         CompletableFuture<Void> ping() {
-            RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> builder = service.getNode();
-            builder.body().setPath("//tmp");
-            CompletableFuture<Void> f = RpcUtil
-                .apply(builder.invoke(), response -> response)
-                .thenAccept(node -> {
-                    setAlive();
-                }).exceptionally(ex -> {
-                    logger.debug("ping error", ex);
+            return createTransaction().thenCompose(id -> pingTransaction(id))
+                .thenAccept(unused -> setAlive())
+                .exceptionally(unused -> {
                     setDead();
                     return null;
-                }); // ignore exceptions ?
-
-            return f;
+                });
         }
     }
 
