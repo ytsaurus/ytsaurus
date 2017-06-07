@@ -145,7 +145,8 @@ private:
         options.SyncOnClose = request->sync_on_close();
         options.EnableMultiplexing = request->enable_multiplexing();
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
-        options.EnableWriteDirectIO = Config_->EnableWriteDirectIO;
+        // DirectIO have the same effect, as fsync after every write.
+        options.EnableWriteDirectIO = request->sync_on_close() && Config_->EnableWriteDirectIO;
 
         context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, "
             "PlacementId: %v",
