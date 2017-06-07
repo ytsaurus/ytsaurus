@@ -3739,7 +3739,8 @@ void TOperationControllerBase::GetOutputTablesSchema()
                     "schema",
                     "optimize_for",
                     "compression_codec",
-                    "erasure_codec"
+                    "erasure_codec",
+                    "dynamic"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 if (table->OutputType == EOutputTableType::Output) {
@@ -3763,6 +3764,11 @@ void TOperationControllerBase::GetOutputTablesSchema()
 
             const auto& rsp = getOutAttributesRspsOrError[index].Value();
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+            if (attributes->Get<bool>("dynamic")) {
+                THROW_ERROR_EXCEPTION("Output to dynamic table is not supported")
+                    << TErrorAttribute("table_path", path);
+            }
 
             table->TableUploadOptions = GetTableUploadOptions(
                 path,
