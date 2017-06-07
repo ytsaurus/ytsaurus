@@ -52,9 +52,6 @@ def main():
         module_locations = ["./modules", "./tmpfs/modules"]
         sys.path = __python_eggs + module_locations + sys.path
 
-        # Should be imported as early as possible to check python interpreter version.
-        import yt.wrapper.version_check
-
         client_version = modules_info["platform_version"]
         server_version = get_platform_version()
 
@@ -64,6 +61,9 @@ def main():
                 yson_bindings_path = os.path.join(location, "yt_yson_bindings")
                 if os.path.exists(yson_bindings_path):
                     rmtree(yson_bindings_path)
+
+        # Should be imported as early as possible to check python interpreter version.
+        import yt.wrapper.version_check
 
         if "." in __main_module_name:
             __main_module_package = __main_module_name.rsplit(".", 1)[0]
