@@ -79,7 +79,7 @@ TEST(TMaxMinBalancerTest, Basic)
         balancer.AddWeight(*winner, 1000); // Just to shift to the back of the queue.
     }
 
-    Sleep(3 * decayInterval);
+    Sleep(decayInterval * 3);
 
     {
         auto winner = balancer.TakeWinner();
