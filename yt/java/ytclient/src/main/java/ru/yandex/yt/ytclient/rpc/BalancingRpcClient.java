@@ -91,14 +91,13 @@ public class BalancingRpcClient implements RpcClient {
             }
         }
 
-        CompletableFuture<YTreeNode> ping() {
+        CompletableFuture<Void> ping() {
             RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> builder = service.getNode();
             builder.body().setPath("//tmp");
-            CompletableFuture<YTreeNode> f = RpcUtil
-                .apply(builder.invoke(), response -> YTreeNode.parseByteString(response.body().getData()))
-                .thenApply(node -> {
+            CompletableFuture<Void> f = RpcUtil
+                .apply(builder.invoke(), response -> response)
+                .thenAccept(node -> {
                     setAlive();
-                    return node;
                 }).exceptionally(ex -> {
                     logger.debug("ping error", ex);
                     setDead();
@@ -260,8 +259,8 @@ public class BalancingRpcClient implements RpcClient {
         return result;
     }
 
-    private CompletableFuture<YTreeNode> pingDestination(Destination client) {
-        CompletableFuture<YTreeNode> f = client.ping();
+    private CompletableFuture<Void> pingDestination(Destination client) {
+        CompletableFuture<Void> f = client.ping();
 
         timer.schedule(new TimerTask() {
             @Override
@@ -286,7 +285,7 @@ public class BalancingRpcClient implements RpcClient {
         // logger.info("ping");
 
         synchronized (destinations) {
-            CompletableFuture<YTreeNode> futures[] = new CompletableFuture[destinations.length];
+            CompletableFuture<Void> futures[] = new CompletableFuture[destinations.length];
             for (int i = 0; i < destinations.length; ++i) {
                 futures[i] = pingDestination(destinations[i]);
             }
