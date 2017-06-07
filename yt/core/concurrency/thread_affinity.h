@@ -74,8 +74,8 @@ private:
 #define VERIFY_THREAD_AFFINITY(slot)                     do { } while (0)
 #define VERIFY_SPINLOCK_AFFINITY(spinLock)               do { } while (0)
 #define VERIFY_INVOKER_AFFINITY(invoker)                 do { } while (0)
+#define VERIFY_INVOKERS_AFFINITY(invokers)               do { } while (0)
 #define VERIFY_INVOKER_THREAD_AFFINITY(invoker, slot)    do { } while (0)
-#define VERIFY_INVOKERS_THREAD_AFFINITY(invokers, slot)  do { } while (0)
 
 #endif
 
