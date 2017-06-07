@@ -28,7 +28,7 @@ abstract class YtClient {
             protocol.ApiService.TRspGetNode response = ProtobufHelpers.getProtoFromRsp(
                     pack, protocol.ApiService.TRspGetNode.parser(), protocol.ApiService.TRspGetNode.class);
             if (response != null) {
-                getLogger().info("Successfully received answer for request requestId={}.",
+                getLogger().debug("Successfully received answer for request requestId={}.",
                         ProtobufHelpers.getUuidFromHeader(responseHeader));
                 return new String(response.getData().toByteArray());
             }
@@ -42,7 +42,7 @@ abstract class YtClient {
             protocol.ApiService.TRspLookupRows tRspLookupRows = ProtobufHelpers.getProtoFromRsp(
                     pack, protocol.ApiService.TRspLookupRows.parser(), protocol.ApiService.TRspLookupRows.class);
             if (tRspLookupRows != null) {
-                getLogger().info("Successfully received answer for request requestId={}.",
+                getLogger().debug("Successfully received answer for request requestId={}.",
                         ProtobufHelpers.getUuidFromHeader(responseHeader));
                 RpcRspLookupRows resp = new RpcRspLookupRows(schema);
                 return resp.parseRpcResponse(pack.getBlobPart());
@@ -58,7 +58,7 @@ abstract class YtClient {
             protocol.ApiService.TRspSelectRows tRspLookupRows = ProtobufHelpers.getProtoFromRsp(
                     pack, protocol.ApiService.TRspSelectRows.parser(), protocol.ApiService.TRspSelectRows.class);
             if (tRspLookupRows != null) {
-                getLogger().info("Successfully received answer for request requestId={}.",
+                getLogger().debug("Successfully received answer for request requestId={}.",
                         ProtobufHelpers.getUuidFromHeader(responseHeader));
 
                 List<ColumnSchema> columnSchema = new ArrayList<>(tRspLookupRows.getRowsetDescriptor().getColumnsList().size());
@@ -83,7 +83,7 @@ abstract class YtClient {
                     pack, protocol.ApiService.TRspVersionedLookupRows.parser(),
                     protocol.ApiService.TRspVersionedLookupRows.class);
             if (tRspLookupRows != null) {
-                getLogger().info("Successfully received answer for request requestId={}.",
+                getLogger().debug("Successfully received answer for request requestId={}.",
                         ProtobufHelpers.getUuidFromHeader(responseHeader));
                 RpcRspVersionedLookupRows resp = new RpcRspVersionedLookupRows(tRspLookupRows.getRowsetDescriptor(),
                                                                                schema);

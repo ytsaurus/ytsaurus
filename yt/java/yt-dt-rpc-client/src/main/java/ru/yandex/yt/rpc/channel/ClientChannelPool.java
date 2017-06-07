@@ -56,12 +56,12 @@ public class ClientChannelPool {
         this.channelPool = new VerySimpleChannelPool(clientBootstrap, new AbstractChannelPoolHandler() {
             @Override
             public void channelCreated(Channel ch) throws Exception {
-                logger.info("New channel created ({})", ch);
+                logger.debug("New channel created ({})", ch);
             }
 
             @Override
             public void channelReleased(Channel ch) throws Exception {
-                logger.info("Released channel ({})", ch);
+                logger.debug("Released channel ({})", ch);
             }
         });
     }
@@ -125,7 +125,7 @@ public class ClientChannelPool {
                 final Channel ch = futureListener.getNow();
                 ch.pipeline().get(ChannelPoolHandler.class).setCompletableFuture(busFuture);
                 ch.writeAndFlush(pack).addListener(genericFutureListener -> {
-                    logger.info("Send request requestId={} with channel {}", pack, ch);
+                    logger.debug("Send request requestId={} with channel {}", pack, ch);
                     if (!genericFutureListener.isSuccess()) {
                         logger.error("Failed to write message ({}) to TCP channel", pack,
                                      genericFutureListener.cause());

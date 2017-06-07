@@ -24,13 +24,13 @@ public class ChannelPoolHandler extends SimpleChannelInboundHandler<BusPackage> 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, BusPackage msg) throws Exception {
         if (msg.getType() == BusPackage.PacketType.ACK) {
-            logger.info("ACK received for request ({})", msg.toString());
+            logger.debug("ACK received for request ({})", msg.toString());
         } else {
             if (msg.getFlags() == BusPackage.PacketFlags.REQUEST_ACK) {
-                logger.info("RPC server requested ACK for response ({})", msg.toString());
+                logger.debug("RPC server requested ACK for response ({})", msg.toString());
                 ctx.writeAndFlush(new BusPackage(msg).makeACK()).addListener(f -> {
                     if (f.isSuccess()) {
-                        logger.info("Successfully send ACK for response ({})", msg.toString());
+                        logger.debug("Successfully send ACK for response ({})", msg.toString());
                     } else {
                         logger.warn("Failed to send ACK for response ({})", msg.toString());
                     }
