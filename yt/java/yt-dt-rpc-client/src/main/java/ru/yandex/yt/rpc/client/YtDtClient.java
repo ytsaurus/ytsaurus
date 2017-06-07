@@ -13,8 +13,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.rpc.channel.ClientChannelPool;
 import ru.yandex.yt.rpc.client.requests.LookupReqInfo;
@@ -30,7 +30,7 @@ import ru.yandex.yt.rpc.protocol.rpc.RpcReqFactory;
  * @author valri
  */
 public class YtDtClient extends YtClient {
-    private static Logger logger = LogManager.getLogger(YtDtClient.class);
+    private static Logger logger = LoggerFactory.getLogger(YtDtClient.class);
 
     private static final int NUMBER_OF_TRIES = 1;
     private static final int CHANNEL_READ_TIMEOUT_SECONDS = 5;

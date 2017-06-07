@@ -6,8 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.lang3.tuple.Pair;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.rpc.client.ValueType;
 import ru.yandex.yt.rpc.client.responses.VersionedLookupRow;
@@ -18,7 +18,7 @@ import ru.yandex.yt.rpc.utils.Utility;
  * @author valri
  */
 public class RpcRspVersionedLookupRows extends RpsLookupRspMessage {
-    private static Logger logger = LogManager.getLogger(RpcRspVersionedLookupRows.class);
+    private static Logger logger = LoggerFactory.getLogger(RpcRspVersionedLookupRows.class);
 
     private static final int SMALLEST_KEY = 8;
     private static final int HEADER_SIZE = 16;

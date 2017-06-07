@@ -4,8 +4,8 @@ import java.util.concurrent.CompletableFuture;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.rpc.protocol.bus.BusPackage;
 
@@ -13,7 +13,7 @@ import ru.yandex.yt.rpc.protocol.bus.BusPackage;
  * @author valri
  */
 public class ChannelPoolHandler extends SimpleChannelInboundHandler<BusPackage> {
-    private static final Logger logger = LogManager.getLogger(ChannelPoolHandler.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(ChannelPoolHandler.class.getName());
 
     CompletableFuture<BusPackage> future;
 

@@ -4,7 +4,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
 
 import ru.yandex.yt.rpc.client.ValueType;
 import ru.yandex.yt.rpc.client.schema.TableSchema;

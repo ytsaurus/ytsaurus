@@ -14,8 +14,8 @@ import io.netty.channel.pool.AbstractChannelPoolHandler;
 import io.netty.channel.pool.ChannelPool;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.concurrent.Future;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.rpc.handlers.ChannelPoolHandler;
 import ru.yandex.yt.rpc.protocol.bus.BusPackage;
@@ -24,7 +24,7 @@ import ru.yandex.yt.rpc.protocol.bus.BusPackage;
  * @author valri
  */
 public class ClientChannelPool {
-    private static Logger logger = LogManager.getLogger(ClientChannelPool.class);
+    private static Logger logger = LoggerFactory.getLogger(ClientChannelPool.class);
 
     private EventLoopGroup group = new NioEventLoopGroup(0);
     private ChannelPool channelPool;
