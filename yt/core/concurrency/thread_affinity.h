@@ -70,11 +70,12 @@ private:
 #else
 
 // Expand macros to null but take care of the trailing semicolon.
-#define DECLARE_THREAD_AFFINITY_SLOT(slot)             struct PP_CONCAT(TNullThreadAffinitySlot_,  __LINE__) { }
-#define VERIFY_THREAD_AFFINITY(slot)                   do { } while (0)
-#define VERIFY_SPINLOCK_AFFINITY(spinLock)             do { } while (0)
-#define VERIFY_INVOKER_AFFINITY(invoker)               do { } while (0)
-#define VERIFY_INVOKER_THREAD_AFFINITY(invoker, slot)  do { } while (0)
+#define DECLARE_THREAD_AFFINITY_SLOT(slot)               struct PP_CONCAT(TNullThreadAffinitySlot_,  __LINE__) { }
+#define VERIFY_THREAD_AFFINITY(slot)                     do { } while (0)
+#define VERIFY_SPINLOCK_AFFINITY(spinLock)               do { } while (0)
+#define VERIFY_INVOKER_AFFINITY(invoker)                 do { } while (0)
+#define VERIFY_INVOKER_THREAD_AFFINITY(invoker, slot)    do { } while (0)
+#define VERIFY_INVOKERS_THREAD_AFFINITY(invokers, slot)  do { } while (0)
 
 #endif
 
