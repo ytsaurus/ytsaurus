@@ -1,3 +1,4 @@
+from .common import YPathError
 from .tokenizer import YPathTokenizer
 
 from yt.yson.yson_token import *
@@ -170,6 +171,9 @@ class RichYPath(object):
 
         path = ypath_tokenizer.get_prefix()
         range_str = ypath_tokenizer.get_token()
+
+        if not path:
+            raise YPathError("Path should be non-empty")
 
         if PY3:
             range_str = range_str.encode()
