@@ -627,6 +627,6 @@ class TestCellId(object):
 
         for secondary_master in config["driver_config"]["secondary_masters"]:
             cell_id = secondary_master["cell_id"]
-            client.COMMAND_PARAMS["cell_id"] = cell_id
+            client.COMMAND_PARAMS["master_cell_id"] = cell_id
             assert client.get("//sys/@cell_id") == cell_id
 
