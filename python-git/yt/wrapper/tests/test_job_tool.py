@@ -211,3 +211,26 @@ class TestJobTool(object):
         p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
         assert p_stderr == u"vzshukh".encode("ascii")
+
+    def test_environment(self, yt_env_job_archive):
+        def copy_mapper(rec):
+            import os
+            if os.environ["YT_JOB_TOOL_TEST_VARIABLE"] != "present":
+                raise RuntimeError
+            sys.stderr.write("vzshukh")
+            sys.stderr.flush()
+            yield rec
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"key": "1", "value": "2"}])
+
+        file_ = TEST_DIR + "/_test_file"
+        yt.write_file(file_, b"stringdata")
+
+        op = yt.run_map(copy_mapper, table, TEST_DIR + "/output", format="yamr", yt_files=[file_],
+                        spec={"mapper": {"environment": {"YT_JOB_TOOL_TEST_VARIABLE": "present"}}})
+        job_id = yt.list("//sys/operations/{0}/jobs".format(op.id))[0]
+        path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
+        p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        _, p_stderr = p.communicate()
+        assert p_stderr == u"vzshukh".encode("ascii")
