@@ -137,7 +137,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
     if client.exists("//sys/admin/snapshots"):
         client.set("//sys/admin/snapshots/@acl",
                    [
-                       {"action": "allow", "subjects": ["admin_snapshots"], "permissions": ["write", "read", "remove"]}
+                       {"action": "allow", "subjects": ["admin_snapshots"], "permissions": ["read"]}
                    ])
 
     # add_acl to schemas
