@@ -244,7 +244,7 @@ DECLARE_REFCOUNTED_STRUCT(IChunkLookupHashTable)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkState)
 
-struct TBoundaryKeys;
+struct TOwningBoundaryKeys;
 
 class TSaveContext;
 class TLoadContext;

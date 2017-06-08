@@ -79,6 +79,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/map_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/merge_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/operation_controller_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/controller_agent/output_chunk_tree.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/progress_counter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/controller_agent/remote_copy_controller.cpp

@@ -1,5 +1,7 @@
 #include "helpers.h"
 
+#include "serialize.h"
+
 #include <yt/server/scheduler/config.h>
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -51,7 +53,7 @@ public:
 
         JobCount_ = std::min(JobCount_, maxJobCount);
         JobCount_ = std::min(JobCount_, InputRowCount_);
-   
+
         if (JobCount_ * outputTableCount > Options_->MaxOutputTablesTimesJobsCount) {
             // ToDo(psushin): register alert if explicit job count or data size per job were given.
             JobCount_ = DivCeil(Options_->MaxOutputTablesTimesJobsCount, outputTableCount);
@@ -91,7 +93,7 @@ public:
             ? DivCeil(PrimaryInputDataSize_, JobCount_)
             : 1;
     }
-    
+
     virtual i64 GetMaxDataSlicesPerJob() const override
     {
         return Options_->MaxDataSlicesPerJob;
@@ -463,7 +465,7 @@ public:
     {
         return PrimaryDataSizePerJob_;
     }
-    
+
     virtual i64 GetMaxDataSizePerJob() const override
     {
         return MaxDataSizePerJob_;
@@ -612,7 +614,6 @@ Stroka TLockedUserObject::GetPath() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NControllerAgent
 } // namespace NYT

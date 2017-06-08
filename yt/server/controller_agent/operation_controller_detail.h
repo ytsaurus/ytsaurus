@@ -6,6 +6,7 @@
 #include "job_memory.h"
 #include "job_splitter.h"
 #include "operation_controller.h"
+#include "output_chunk_tree.h"
 #include "serialize.h"
 #include "helpers.h"
 #include "master_connector.h"
@@ -402,11 +403,10 @@ protected:
         NChunkClient::NProto::TDataStatistics DataStatistics;
 
         //! Chunk trees comprising the output (the order matters).
-        //! Keys are used when the output is sorted (e.g. in sort operations).
-        //! Trees are sorted w.r.t. key and appended to #OutputChunkListId.
-        std::multimap<int, NChunkClient::TChunkTreeId> OutputChunkTreeIds;
-
-        std::vector<TJobBoundaryKeys> BoundaryKeys;
+        //! Chunk trees are sorted according to either:
+        //! * integer key (e.g. in remote copy);
+        //! * boundary keys (when the output is sorted).
+        std::vector<std::pair<TOutputChunkTreeKey, NChunkClient::TChunkTreeId>> OutputChunkTreeIds;
 
         NYson::TYsonString EffectiveAcl;
 
@@ -1095,31 +1095,25 @@ protected:
 
     void RegisterInputStripe(NChunkPools::TChunkStripePtr stripe, TTaskPtr task);
 
-
-    void RegisterBoundaryKeys(
+    TOutputChunkTreeKey BuildChunkTreeKeyFromBoundaryKeys(
         const NScheduler::NProto::TOutputResult& boundaryKeys,
-        const NChunkClient::TChunkTreeId& chunkTreeId,
-        TOutputTable* outputTable);
+        const TOutputTable& outputTable);
 
     const NObjectClient::TTransactionId& GetTransactionIdForOutputTable(const TOutputTable& table);
+
+    void AttachToLivePreview(NChunkClient::TChunkTreeId chunkTreeId, NCypressClient::TNodeId& tableId);
 
     virtual void RegisterOutput(TJobletPtr joblet, int key, const NScheduler::TCompletedJobSummary& jobSummary);
 
     virtual void RegisterOutput(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
-        int key,
+        TOutputChunkTreeKey key,
         const NScheduler::TCompletedJobSummary& jobSummary);
 
-    void RegisterOutput(
+    void RegisterTeleportChunk(
         NChunkClient::TInputChunkPtr chunkSpec,
-        int key,
+        TOutputChunkTreeKey key,
         int tableIndex);
-
-    void RegisterOutput(
-        const NChunkClient::TChunkTreeId& chunkTreeId,
-        int key,
-        int tableIndex,
-        TOutputTable& table);
 
     void RegisterIntermediate(
         TJobletPtr joblet,

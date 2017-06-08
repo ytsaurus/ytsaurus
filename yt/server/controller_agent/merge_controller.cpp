@@ -467,7 +467,7 @@ protected:
                 CurrentPartitionIndex);
 
             // Place the chunk directly to the output table.
-            RegisterOutput(chunkSpec, CurrentPartitionIndex, *tableIndex);
+            RegisterTeleportChunk(chunkSpec, CurrentPartitionIndex, *tableIndex);
             ++CurrentPartitionIndex;
         }
     }
