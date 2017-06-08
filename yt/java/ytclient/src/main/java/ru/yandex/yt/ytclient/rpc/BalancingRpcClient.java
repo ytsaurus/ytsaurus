@@ -103,6 +103,7 @@ public class BalancingRpcClient implements RpcClient {
                 RpcClientRequestBuilder<TReqStartTransaction.Builder, RpcClientResponse<TRspStartTransaction>> builder =
                     service.startTransaction();
                 builder.body().setType(ETransactionType.TABLET);
+                builder.body().setSticky(true);
                 return RpcUtil.apply(builder.invoke(), response -> {
                     YtGuid id = YtGuid.fromProto(response.body().getId());
                     return id;
@@ -116,7 +117,7 @@ public class BalancingRpcClient implements RpcClient {
             RpcClientRequestBuilder<TReqPingTransaction.Builder, RpcClientResponse<TRspPingTransaction>> builder =
                 service.pingTransaction();
             builder.body().setTransactionId(id.toProto());
-            builder.body().setSticky(false);
+            builder.body().setSticky(true);
             return RpcUtil.apply(builder.invoke(), response -> null).thenAccept(unused -> {
                transaction = id;
             });
