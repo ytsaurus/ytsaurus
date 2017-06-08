@@ -46,8 +46,16 @@ OPERATION_ARCHIVE_JOBS_PATH = "//sys/operations_archive/jobs"
 
 JobInfo = collections.namedtuple("JobInfo", ["job_type", "is_running"])
 
-def make_run_sh(run_sh_path, operation_id, job_id, sandbox_path, command, input,
-                output_path, output_table_count, use_yamr_descriptors):
+def shellquote(s):
+    # https://stackoverflow.com/questions/35817/how-to-escape-os-system-calls-in-python
+    return "'" + s.replace("'", "'\\''") + "'"
+
+def make_environment_string(environment):
+    return ''.join("export {var}={value}\n".format(var=var, value=shellquote(environment[var]))
+                   for var in environment)
+
+def make_run_sh(run_sh_path, operation_id, job_id, sandbox_path, command, environment,
+                input, output_path, output_table_count, use_yamr_descriptors):
     output_descriptor_list = get_output_descriptor_list(output_table_count, use_yamr_descriptors)
 
     # We don't want to redirect stderr.
@@ -68,6 +76,7 @@ export YT_JOB_START_ROW_INDEX=0
 export YT_OPERATION_ID={operation_id}
 export YT_JOB_ID={job_id}
 export YT_STARTED_BY_JOB_TOOL=1
+{environment}
 
 INPUT_DATA="{input}"
 
@@ -77,6 +86,7 @@ INPUT_DATA="{input}"
     operation_id=operation_id,
     job_id=job_id,
     command=command,
+    environment=make_environment_string(environment),
     input=input,
     output_path=output_path,
     output_descriptors_spec=output_descriptors_spec)
@@ -245,6 +255,7 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
 
     command_path = os.path.join(job_path, "command")
     job_command = attributes["spec"][op_type]["command"]
+    job_environment = attributes["spec"][op_type].get("environment", {})
     with open(command_path, "w") as fout:
         fout.write(job_command)
     logger.info("Command was written to %s", command_path)
@@ -261,7 +272,8 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
         "output_table_count": output_table_count,
         "use_yamr_descriptors": use_yamr_descriptors,
         "job_id": job_id,
-        "operation_id": operation_id
+        "operation_id": operation_id,
+        "environment": job_environment,
     }
     with open(os.path.join(job_path, "run_config"), "wb") as fout:
         yson.dump(run_config, fout, yson_format="pretty")
@@ -272,6 +284,7 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
         job_id=run_config["job_id"],
         sandbox_path=sandbox_path,
         command=job_command,
+        environment=job_environment,
         input=job_input_path,
         output_path=output_path,
         output_table_count=output_table_count,

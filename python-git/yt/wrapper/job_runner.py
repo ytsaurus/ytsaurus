@@ -8,6 +8,7 @@ import yt.logger as logger
 import yt.yson as yson
 
 from yt.packages.six.moves import xrange
+from yt.packages.six import iteritems
 
 import yt.wrapper as yt
 
@@ -61,6 +62,9 @@ def main():
         "YT_JOB_ID": config["job_id"],
         "YT_STARTED_BY_JOB_TOOL": "1"
     }
+    for var, value in iteritems(config.get("environment", {})):
+        env[var] = value
+
     process = subprocess.Popen(command, shell=True, close_fds=False, stdin=subprocess.PIPE,
                                preexec_fn=partial(preexec_dup2, new_fds=new_fds, output_path=config["output_path"]),
                                cwd=config["sandbox_path"], env=env)
