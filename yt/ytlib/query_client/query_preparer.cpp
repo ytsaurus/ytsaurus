@@ -828,6 +828,18 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(ISchemaProxy)
 
+bool Unify(TTypeSet* genericAssignments, const TTypeSet& types)
+{
+    auto intersection = *genericAssignments & types;
+
+    if (intersection.IsEmpty()) {
+        return false;
+    } else {
+        *genericAssignments = intersection;
+        return true;
+    }
+}
+
 TTypeSet InferFunctionTypes(
     const TFunctionTypeInferrer* inferrer,
     const std::vector<TTypeSet>& effectiveTypes,
@@ -845,19 +857,6 @@ TTypeSet InferFunctionTypes(
 
     *genericAssignments = typeConstraints;
 
-    auto unify = [&] (size_t constraintIndex, TTypeSet typeSet) {
-        auto& constraints = (*genericAssignments)[constraintIndex];
-
-        auto intersection = constraints & typeSet;
-
-        if (!intersection.IsEmpty()) {
-            constraints = intersection;
-            return true;
-        } else {
-            return false;
-        }
-    };
-
     auto argIndex = 1;
     auto arg = effectiveTypes.begin();
     auto formalArg = formalArguments.begin();
@@ -865,12 +864,13 @@ TTypeSet InferFunctionTypes(
         formalArg != formalArguments.end() && arg != effectiveTypes.end();
         arg++, formalArg++, argIndex++)
     {
-        if (!unify(*formalArg, *arg)) {
+        auto& constraints = (*genericAssignments)[*formalArg];
+        if (!Unify(&constraints, *arg)) {
             THROW_ERROR_EXCEPTION(
                 "Wrong type for argument %v to function %Qv: expected %Qv, got %Qv",
                 argIndex,
                 functionName,
-                (*genericAssignments)[*formalArg],
+                constraints,
                 *arg)
                 << TErrorAttribute("expression", source);
         }
@@ -895,11 +895,12 @@ TTypeSet InferFunctionTypes(
             constraintIndex = genericAssignments->size();
             genericAssignments->push_back((*genericAssignments)[repeatedType->first]);
         }
-        if (!unify(constraintIndex, *arg)) {
+        auto& constraints = (*genericAssignments)[constraintIndex];
+        if (!Unify(&constraints, *arg)) {
             THROW_ERROR_EXCEPTION(
                 "Wrong type for repeated argument to function %Qv: expected %Qv, got %Qv",
                 functionName,
-                (*genericAssignments)[constraintIndex],
+                constraints,
                 *arg)
                 << TErrorAttribute("expression", source);
         }
@@ -1076,30 +1077,22 @@ TTypeSet InferBinaryExprTypes(
 
     *genericAssignments = binaryOperators[opCode].Constraint;
 
-    auto intersection = *genericAssignments & lhsTypes;
-
-    if (intersection.IsEmpty()) {
+    if (!Unify(genericAssignments, lhsTypes)) {
         THROW_ERROR_EXCEPTION("Type mismatch in expression %Qv: expected %Qv, got %Qv",
             opCode,
             *genericAssignments,
             lhsTypes)
             << TErrorAttribute("lhs_source", lhsSource)
             << TErrorAttribute("rhs_source", rhsSource);
-    } else {
-        *genericAssignments = intersection;
     }
 
-    intersection = *genericAssignments & rhsTypes;
-
-    if (intersection.IsEmpty()) {
+    if (!Unify(genericAssignments, rhsTypes)) {
         THROW_ERROR_EXCEPTION("Type mismatch in expression %Qv: expected %Qv, got %Qv",
             opCode,
             *genericAssignments,
             rhsTypes)
             << TErrorAttribute("lhs_source", lhsSource)
             << TErrorAttribute("rhs_source", rhsSource);
-    } else {
-        *genericAssignments = intersection;
     }
 
     TTypeSet resultTypes;
@@ -1124,6 +1117,7 @@ std::pair<EValueType, EValueType> RefineBinaryExprTypes(
         YCHECK(!genericAssignments->IsEmpty());
         argType = genericAssignments->GetFront();
     } else {
+        YCHECK(genericAssignments->Get(resultType));
         argType = resultType;
     }
 
@@ -1140,16 +1134,12 @@ TTypeSet InferUnaryExprTypes(
 
     *genericAssignments = unaryOperators[opCode].Constraint;
 
-    auto intersection = *genericAssignments & argTypes;
-
-    if (intersection.IsEmpty()) {
+    if (!Unify(genericAssignments, argTypes)) {
         THROW_ERROR_EXCEPTION("Type mismatch in expression %Qv: expected %Qv, got %Qv",
             opCode,
             *genericAssignments,
             argTypes)
             << TErrorAttribute("op_source", opSource);
-    } else {
-        *genericAssignments = intersection;
     }
 
     TTypeSet resultTypes;
@@ -1174,6 +1164,7 @@ EValueType RefineUnaryExprTypes(
         YCHECK(!genericAssignments->IsEmpty());
         argType = genericAssignments->GetFront();
     } else {
+        YCHECK(genericAssignments->Get(resultType));
         argType = resultType;
     }
 
@@ -1786,16 +1777,12 @@ public:
         TTypeSet resultTypes;
         TTypeSet genericAssignments = constraint;
 
-        auto intersection = genericAssignments & untypedOperand.FeasibleTypes;
-
-        if (intersection.IsEmpty()) {
+        if (!Unify(&genericAssignments, untypedOperand.FeasibleTypes)) {
             THROW_ERROR_EXCEPTION("Type mismatch in function %Qv: expected %Qv, got %Qv",
                 name,
                 genericAssignments,
                 untypedOperand.FeasibleTypes)
                 << TErrorAttribute("source", subexprName);
-        } else {
-            genericAssignments = intersection;
         }
 
         if (resultType) {
