@@ -925,6 +925,39 @@ class TestSchedulerRevive(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
+    def test_abort_during_complete(self):
+        self._create_table("//tmp/t_in")
+        write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
+
+        remove("//tmp/t_out", force=True)
+        self._create_table("//tmp/t_out")
+
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; if [ \"$YT_JOB_INDEX\" != \"0\" ]; then sleep 10; fi;",
+                 spec={
+                     "testing": {
+                         "delay_inside_operation_commit": 4000,
+                         "delay_inside_operation_commit_stage": "stage4",
+                     },
+                     "job_count": 2
+                 })
+
+        self._wait_state(op, "running")
+
+        # Wait for snapshot and job completion.
+        time.sleep(3)
+
+        op.complete(ignore_result=True)
+
+        self._wait_state(op, "completing")
+
+        # Wait to perform complete before sleep.
+        time.sleep(2)
+
+        op.abort()
+        op.track()
+
+        assert "completed" == get("//sys/operations/" + op.id + "/@state")
+
     def test_failing(self):
         self._prepare_tables()
 
