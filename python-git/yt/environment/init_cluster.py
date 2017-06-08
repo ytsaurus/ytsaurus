@@ -213,9 +213,9 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
     client.create("map_node", "//tmp/trash", ignore_existing=True)
 
     client.set("//tmp/trash/@acl",
-                 [
-                   {"action": "deny", "subjects": ["everyone"], "permissions": ["remove"], "inheritance_mode" = "object_only"}
-                 ])
+        [
+            {"action": "deny", "subjects": ["everyone"], "permissions": ["remove"], "inheritance_mode" = "object_only"}
+        ])
 
     client.link("//tmp/trash", "//trash", ignore_existing=True)
 
