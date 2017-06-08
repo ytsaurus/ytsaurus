@@ -31,6 +31,10 @@ DEFINE_ENUM(EFoldingObjectType,
     (AggregateItem)
 
     (TableSchema)
+    (IsFinal)
+    (IsMerge)
+    (UseDisjointGroupBy)
+    (TotalsMode)
 );
 
 //! Computes a strong structural hash used to cache query fragments.
@@ -261,8 +265,15 @@ void TQueryProfiler::Profile(
 
     bool isFinal = query->IsFinal;
     bool isIntermediate = isMerge && !isFinal;
-
     bool useDisjointGroupBy = query->UseDisjointGroupBy;
+
+    Fold(static_cast<int>(EFoldingObjectType::IsFinal));
+    Fold(static_cast<int>(isFinal));
+    Fold(static_cast<int>(EFoldingObjectType::IsMerge));
+    Fold(static_cast<int>(isMerge));
+    Fold(static_cast<int>(EFoldingObjectType::UseDisjointGroupBy));
+    Fold(static_cast<int>(useDisjointGroupBy));
+
     if (auto groupClause = query->GroupClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::GroupOp));
 
@@ -327,6 +338,9 @@ void TQueryProfiler::Profile(
             isMerge,
             keySize + codegenAggregates.size(),
             groupClause->TotalsMode != ETotalsMode::None);
+
+        Fold(static_cast<int>(EFoldingObjectType::TotalsMode));
+        Fold(static_cast<int>(groupClause->TotalsMode));
 
         schema = groupClause->GetTableSchema(query->IsFinal);
 
