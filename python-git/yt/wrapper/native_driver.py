@@ -101,7 +101,7 @@ def make_request(command_name, params,
                  client=None):
     driver = get_driver_instance(client)
 
-    cell_id = params.get("cell_id")
+    cell_id = params.get("master_cell_id")
     if cell_id is not None:
         driver = create_driver_for_cell(driver, cell_id)
 
