@@ -204,17 +204,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
         BuildYsonFluently(consumer)
             .Value(trunkTable->TabletCountByState());
         return true;
-#if 0
-        TEnumIndexedVector<int, ETabletState> counts;
-        for (const auto& tablet : trunkTable->Tablets()) {
-            ++counts[tablet->GetState()];
-        }
-        BuildYsonFluently(consumer)
-            .DoMapFor(TEnumTraits<ETabletState>::GetDomainValues(), [&] (TFluentMap fluent, ETabletState state) {
-                fluent.Item(FormatEnum(state)).Value(counts[state]);
-            });
-        return true;
-#endif
     }
 
     if (key == "tablet_state" && isDynamic) {
