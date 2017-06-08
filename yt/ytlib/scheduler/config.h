@@ -33,6 +33,102 @@ const double MaxSchedulableWeight = 1.0 / MinSchedulableWeight;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSupportsSchedulingTagsConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TBooleanFormula SchedulingTagFilter;
+
+    TSupportsSchedulingTagsConfig();
+
+    virtual void OnLoaded() override;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSupportsSchedulingTagsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TResourceLimitsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TNullable<int> UserSlots;
+    TNullable<int> Cpu;
+    TNullable<int> Network;
+    TNullable<i64> Memory;
+
+    TResourceLimitsConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
+
+class TSchedulableConfig
+    : public TSupportsSchedulingTagsConfig
+{
+public:
+    double Weight;
+
+    // Specifies resource limits in terms of a share of all cluster resources.
+    double MaxShareRatio;
+    // Specifies resource limits in absolute values.
+    TResourceLimitsConfigPtr ResourceLimits;
+
+    // Specifies guaranteed resources in terms of a share of all cluster resources.
+    double MinShareRatio;
+    // Specifies guaranteed resources in absolute values.
+    TResourceLimitsConfigPtr MinShareResources;
+
+    // The following settings override scheduler configuration.
+    TNullable<TDuration> MinSharePreemptionTimeout;
+    TNullable<TDuration> FairSharePreemptionTimeout;
+    TNullable<double> FairShareStarvationTolerance;
+
+    TNullable<TDuration> MinSharePreemptionTimeoutLimit;
+    TNullable<TDuration> FairSharePreemptionTimeoutLimit;
+    TNullable<double> FairShareStarvationToleranceLimit;
+
+    TNullable<bool> AllowAggressiveStarvationPreemption;
+
+    TSchedulableConfig();
+};
+
+class TPoolConfig
+    : public TSchedulableConfig
+{
+public:
+    ESchedulingMode Mode;
+
+    TNullable<int> MaxRunningOperationCount;
+    TNullable<int> MaxOperationCount;
+
+    std::vector<EFifoSortParameter> FifoSortParameters;
+
+    bool EnableAggressiveStarvation;
+
+    bool ForbidImmediateOperations;
+
+    TPoolConfig();
+
+    void Validate();
+};
+
+DEFINE_REFCOUNTED_TYPE(TPoolConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStrategyOperationSpec
+    : public TSchedulableConfig
+{
+public:
+    TNullable<Stroka> Pool;
+
+    TStrategyOperationSpec();
+};
+
+DEFINE_REFCOUNTED_TYPE(TStrategyOperationSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobIOConfig
     : public NYTree::TYsonSerializable
 {
@@ -82,23 +178,8 @@ DEFINE_REFCOUNTED_TYPE(TTestingOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSupportsSchedulingTagsConfig
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    TBooleanFormula SchedulingTagFilter;
-
-    TSupportsSchedulingTagsConfig();
-
-    virtual void OnLoaded() override;
-};
-
-DEFINE_REFCOUNTED_TYPE(TSupportsSchedulingTagsConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TOperationSpecBase
-    : public TSupportsSchedulingTagsConfig
+    : public TStrategyOperationSpec
 {
 public:
     //! Account holding intermediate data produces by the operation.
@@ -596,87 +677,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationSpec)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TResourceLimitsConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    TNullable<int> UserSlots;
-    TNullable<int> Cpu;
-    TNullable<int> Network;
-    TNullable<i64> Memory;
-
-    TResourceLimitsConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
-
-class TSchedulableConfig
-    : public TSupportsSchedulingTagsConfig
-{
-public:
-    double Weight;
-
-    // Specifies resource limits in terms of a share of all cluster resources.
-    double MaxShareRatio;
-    // Specifies resource limits in absolute values.
-    TResourceLimitsConfigPtr ResourceLimits;
-
-    // Specifies guaranteed resources in terms of a share of all cluster resources.
-    double MinShareRatio;
-    // Specifies guaranteed resources in absolute values.
-    TResourceLimitsConfigPtr MinShareResources;
-
-    // The following settings override scheduler configuration.
-    TNullable<TDuration> MinSharePreemptionTimeout;
-    TNullable<TDuration> FairSharePreemptionTimeout;
-    TNullable<double> FairShareStarvationTolerance;
-
-    TNullable<TDuration> MinSharePreemptionTimeoutLimit;
-    TNullable<TDuration> FairSharePreemptionTimeoutLimit;
-    TNullable<double> FairShareStarvationToleranceLimit;
-
-    TNullable<bool> AllowAggressiveStarvationPreemption;
-
-    TSchedulableConfig();
-};
-
-class TPoolConfig
-    : public TSchedulableConfig
-{
-public:
-    ESchedulingMode Mode;
-
-    TNullable<int> MaxRunningOperationCount;
-    TNullable<int> MaxOperationCount;
-
-    std::vector<EFifoSortParameter> FifoSortParameters;
-
-    bool EnableAggressiveStarvation;
-
-    bool ForbidImmediateOperations;
-
-    TPoolConfig();
-
-    void Validate();
-};
-
-DEFINE_REFCOUNTED_TYPE(TPoolConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TStrategyOperationSpec
-    : public TSchedulableConfig
-{
-public:
-    TNullable<Stroka> Pool;
-
-    TStrategyOperationSpec();
-};
-
-DEFINE_REFCOUNTED_TYPE(TStrategyOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
