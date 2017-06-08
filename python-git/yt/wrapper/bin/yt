@@ -535,11 +535,13 @@ def add_mount_table_parser(add_parser):
     parser.add_argument("--cell-id", help="tablet cell id where the tablets will be mounted to, "
                                           "if omitted then an appropriate cell is chosen automatically")
     parser.add_argument("--freeze", action="store_true")
+    parser.add_argument("--sync", action="store_true")
 
 def add_unmount_table_parser(add_parser):
     parser = add_parser("unmount-table", yt.unmount_table)
     tablet_args(parser)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--sync", action="store_true")
 
 def add_remount_table_parser(add_parser):
     parser = add_parser("remount-table", yt.remount_table)
@@ -548,10 +550,12 @@ def add_remount_table_parser(add_parser):
 def add_freeze_table_parser(add_parser):
     parser = add_parser("freeze-table", yt.freeze_table)
     tablet_args(parser)
+    parser.add_argument("--sync", action="store_true")
 
 def add_unfreeze_table_parser(add_parser):
     parser = add_parser("unfreeze-table", yt.unfreeze_table)
     tablet_args(parser)
+    parser.add_argument("--sync", action="store_true")
 
 @copy_docstring_from(yt.reshard_table)
 def reshard_table(**args):

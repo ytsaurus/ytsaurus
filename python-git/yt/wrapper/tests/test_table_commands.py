@@ -182,13 +182,18 @@ class TestTableCommands(object):
         while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
             time.sleep(0.1)
 
-        yt.mount_table(table)
-        while yt.get("{0}/@tablets/0/state".format(table)) != "mounted":
-            time.sleep(0.1)
+        yt.mount_table(table, sync=True)
+        assert yt.get("{0}/@tablets/0/state".format(table)) == "mounted"
+
+        yt.unmount_table(table, sync=True)
+        assert yt.get("{0}/@tablets/0/state".format(table)) == "unmounted"
+
+        yt.unmount_table(table, sync=True)
+        yt.mount_table(table, sync=True, freeze=True)
+        assert yt.get("{0}/@tablets/0/state".format(table)) == "frozen"
 
         yt.unmount_table(table)
-        while yt.get("{0}/@tablets/0/state".format(table)) != "unmounted":
-            time.sleep(0.1)
+        assert yt.get("{0}/@tablets/0/state".format(table)) == "unmounting"
 
     @pytest.mark.xfail(run = False, reason = "In progress")
     def test_select(self):
@@ -232,10 +237,7 @@ class TestTableCommands(object):
             while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
                 time.sleep(0.1)
 
-            yt.mount_table(table)
-            while yt.get("{0}/@tablets/0/state".format(table)) != "mounted":
-                time.sleep(0.1)
-
+            yt.mount_table(table, sync=True)
             yt.insert_rows(table, [{"x": "a", "y": "b"}], raw=False)
             assert [{"x": "a", "y": "b"}] == list(yt.select_rows("* from [{0}]".format(table), raw=False))
 
@@ -264,10 +266,7 @@ class TestTableCommands(object):
             while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
                 time.sleep(0.1)
 
-            yt.mount_table(table)
-            while yt.get("{0}/@tablets/0/state".format(table)) != "mounted":
-                time.sleep(0.1)
-
+            yt.mount_table(table, sync=True)
             vanilla_client = yt.YtClient(config=yt.config)
 
             assert list(vanilla_client.select_rows("* from [{0}]".format(table), raw=False)) == []
@@ -548,9 +547,7 @@ class TestTableCommands(object):
         while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
             time.sleep(0.1)
 
-        yt.mount_table(table)
-        while yt.get("{0}/@tablets/0/state".format(table)) != "mounted":
-            time.sleep(0.1)
+        yt.mount_table(table, sync=True)
 
         with pytest.raises(yt.YtResponseError):
             yt.select_rows("* from [//none]")
@@ -582,10 +579,7 @@ class TestTableCommands(object):
             while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
                 time.sleep(0.1)
 
-            yt.mount_table(table)
-            while yt.get("{0}/@tablets/0/state".format(table)) != "mounted":
-                time.sleep(0.1)
-
+            yt.mount_table(table, sync=True)
             yt.insert_rows(table, [{"x": "a", "y": "b"}, {"x": "c", "y": "d"}, {"x": "e", "y": "f"}], raw=False)
             rows = list(yt.select_rows("* from [{0}]".format(table), raw=False))
             tablet_index = rows[0].get("$tablet_index")

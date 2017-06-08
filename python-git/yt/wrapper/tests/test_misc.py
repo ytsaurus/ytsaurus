@@ -371,10 +371,7 @@ class TestRetries(object):
         while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
             time.sleep(0.1)
 
-        yt.mount_table(table)
-        while yt.get("{0}/@tablets/0/state".format(table)) != "mounted":
-            time.sleep(0.1)
-
+        yt.mount_table(table, sync=True)
         yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = True
         override_options = {
             "write_retries/enable": True,
