@@ -1,5 +1,6 @@
 package ru.yandex.yt.rpc.handlers;
 
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -26,7 +27,7 @@ public class BusDecoder extends ReplayingDecoder {
 
     @SuppressWarnings("OverlyComplexMethod")
     @Override
-    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
+    protected void decode(ChannelHandlerContext ctx, ByteBuf tmp, List<Object> out) throws Exception {
         /*
             DEFINE_ENUM_WITH_UNDERLYING_TYPE(EPacketType, i16,
                 ((ExtraMessage)(0))
@@ -54,17 +55,18 @@ public class BusDecoder extends ReplayingDecoder {
                 ui64 PartChecksums[PartCount];
                 ui64 Checksum;
         */
+        ByteBuf in = tmp.order(ByteOrder.LITTLE_ENDIAN);
         if (in.readableBytes() < BusPackage.SMALLEST_BUS_PACKAGE_BYTES_LEN) {
             return;
         }
         in.markReaderIndex();
-        final int signature = in.readIntLE();
-        final short type = in.readShortLE();
-        final short flags = in.readShortLE();
-        final long part1 = in.readLongLE();
-        final long part2 = in.readLongLE();
-        final int partCount = in.readIntLE();
-        final long checkSum = in.readLongLE();
+        final int signature = in.readInt();
+        final short type = in.readShort();
+        final short flags = in.readShort();
+        final long part1 = in.readLong();
+        final long part2 = in.readLong();
+        final int partCount = in.readInt();
+        final long checkSum = in.readLong();
         final List<List<Byte>> res = new ArrayList<>();
         final UUID packId = new UUID(part1, part2);
         if (type == BusPackage.PacketType.MESSAGE.getValue()) {
@@ -77,7 +79,7 @@ public class BusDecoder extends ReplayingDecoder {
             }
             final int[] partSizes = new int[partCount];
             for (int i = 0; i < partCount; ++i) {
-                partSizes[i] = in.readIntLE();
+                partSizes[i] = in.readInt();
             }
             for (int i = 0; i < partCount; ++i) {
                 // handle checksums
