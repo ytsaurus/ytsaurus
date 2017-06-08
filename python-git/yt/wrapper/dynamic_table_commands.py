@@ -1,7 +1,8 @@
 from .driver import make_request
 from .table_helpers import _prepare_format, _to_chunk_stream
-from .common import set_param, bool_to_string, require, is_master_transaction, YtError
+from .common import set_param, bool_to_string, require, is_master_transaction, YtError, get_value
 from .config import get_config, get_option, get_command_param
+from .cypress_commands import get
 from .transaction_commands import _make_transactional_request
 from .ypath import TablePath
 from .http_helpers import get_retriable_errors
@@ -16,6 +17,25 @@ except ImportError:  # Python 3
 import yt.logger as logger
 
 from copy import deepcopy
+import time
+
+def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index=None, client=None):
+    tablet_count = get(path + "/@tablet_count", client=client)
+    first_tablet_index = get_value(first_tablet_index, 0)
+    last_tablet_index = get_value(last_tablet_index, tablet_count - 1)
+
+    is_tablets_ready = lambda: all(tablet["state"] == state for tablet in
+                                   get(path + "/@tablets", client=client)[first_tablet_index:last_tablet_index + 1])
+
+    check_interval = get_config(client)["tablets_check_interval"] / 1000.0
+    timeout = get_config(client)["tablets_ready_timeout"] / 1000.0
+
+    start_time = time.time()
+    while not is_tablets_ready():
+        if time.time() - start_time > timeout:
+            raise YtError("Timed out while waiting for tablets")
+
+        time.sleep(check_interval)
 
 def _check_transaction_type(client):
     transaction_id = get_command_param("transaction_id", client=client)
@@ -250,14 +270,17 @@ def alter_table(path, schema=None, dynamic=None, client=None):
 
     _make_transactional_request("alter_table", params, client=client)
 
-
 def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=None,
-                freeze=False, client=None):
+                freeze=False, sync=False, client=None):
     """Mounts table.
 
     TODO
     """
-    params = {"path": TablePath(path, client=client)}
+    if sync and get_option("_client_type", client) == "batch":
+        raise YtError("Sync mode is not available with batch client")
+
+    path = TablePath(path, client=client)
+    params = {"path": path}
     set_param(params, "first_tablet_index", first_tablet_index)
     set_param(params, "last_tablet_index", last_tablet_index)
     set_param(params, "cell_id", cell_id)
@@ -265,12 +288,18 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
 
     make_request("mount_table", params, client=client)
 
+    if sync:
+        state = "frozen" if freeze else "mounted"
+        _waiting_for_tablets(path, state, first_tablet_index, last_tablet_index, client)
 
-def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None, client=None):
+def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None, sync=False, client=None):
     """Unmounts table.
 
     TODO
     """
+    if sync and get_option("_client_type", client) == "batch":
+        raise YtError("Sync mode is not available with batch client")
+
     params = {"path": TablePath(path, client=client)}
     set_param(params, "first_tablet_index", first_tablet_index)
     set_param(params, "last_tablet_index", last_tablet_index)
@@ -278,6 +307,8 @@ def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=N
 
     make_request("unmount_table", params, client=client)
 
+    if sync:
+        _waiting_for_tablets(path, "unmounted", first_tablet_index, last_tablet_index, client)
 
 def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
     """Remounts table.
@@ -291,28 +322,39 @@ def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=
     make_request("remount_table", params, client=client)
 
 
-def freeze_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
+def freeze_table(path, first_tablet_index=None, last_tablet_index=None, sync=False, client=None):
     """Freezes table.
 
     TODO
     """
+    if sync and get_option("_client_type", client) == "batch":
+        raise YtError("Sync mode is not available with batch client")
+
     params = {"path": TablePath(path, client=client)}
     set_param(params, "first_tablet_index", first_tablet_index)
     set_param(params, "last_tablet_index", last_tablet_index)
 
     make_request("freeze_table", params, client=client)
 
+    if sync:
+        _waiting_for_tablets(path, "frozen", first_tablet_index, last_tablet_index, client)
 
-def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
+def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, sync=False, client=None):
     """Unfreezes table.
 
     TODO
     """
+    if sync and get_option("_client_type", client) == "batch":
+        raise YtError("Sync mode is not available with batch client")
+
     params = {"path": TablePath(path, client=client)}
     set_param(params, "first_tablet_index", first_tablet_index)
     set_param(params, "last_tablet_index", last_tablet_index)
 
     make_request("unfreeze_table", params, client=client)
+
+    if sync:
+        _waiting_for_tablets(path, "mounted", first_tablet_index, last_tablet_index, client)
 
 
 def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None, client=None):

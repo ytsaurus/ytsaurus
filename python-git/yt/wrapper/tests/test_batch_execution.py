@@ -172,6 +172,9 @@ class TestBatchExecution(object):
         while yt.get("{0}/@tablets/0/state".format(table)) != "mounted":
             time.sleep(0.1)
 
+        with pytest.raises(yt.YtError):
+            client.unmount_table(table, sync=True)
+
         client.unmount_table(table)
         client.commit_batch()
 

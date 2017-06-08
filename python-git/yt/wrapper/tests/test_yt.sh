@@ -58,24 +58,6 @@ run_test() {
     tear_down
 }
 
-sync_mount_unmount_table() {
-    local table="$1" && shift
-    local action="$1" && shift
-
-    if [ "$action" != "mount" ] && [ "$action" != "unmount" ]; then
-        die "Invalid action $action"
-    fi
-
-    $YT $action-table "$table"
-
-    while true; do
-        if [ "$($YT get "$table/@tablets/0/state")" = '"'"${action}"'ed"' ]; then
-            break
-        fi
-        sleep 0.1
-    done
-}
-
 # Directory creation, list, get and set commands
 test_cypress_commands()
 {
@@ -476,14 +458,14 @@ test_dynamic_table_commands()
         sleep 0.1
     done
 
-    sync_mount_unmount_table "$table" mount
+    $YT mount-table "$table" --sync
 
     echo -ne "{x=a; y=1};{x=b;y=2}" | $YT insert-rows "$table" --format "<format=text>yson"
     echo -ne "{x=a}" | $YT delete-rows "$table" --format "<format=text>yson"
 
     check '{"x"="b"}' "$($YT select-rows "x FROM [$table]" --format "<format=text>yson" | tr -d ";\n")"
 
-    sync_mount_unmount_table "$table" unmount
+    $YT unmount-table "$table" --sync
 }
 
 test_sandbox_file_name_specification()

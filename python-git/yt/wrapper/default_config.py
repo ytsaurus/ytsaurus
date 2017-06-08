@@ -127,6 +127,12 @@ default_config = {
         }
     },
 
+    # Timeout for waiting for tablets to become ready.
+    "tablets_ready_timeout": 60 * 1000,
+
+    # Check interval for waiting for tablets to become ready.
+    "tablets_check_interval": 0.1 * 1000,
+
     # This option enables logging on info level of all requests.
     "enable_request_logging": False,
 
