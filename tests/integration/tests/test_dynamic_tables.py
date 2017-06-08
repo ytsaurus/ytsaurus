@@ -59,19 +59,15 @@ class TestDynamicTables(YTEnvSetup):
         tablets = get(path + "/@tablets")
         return [tablet["pivot_key"] for tablet in tablets]
 
-    def _ban_all_peers(self, cell_id):
-        address_list = []
+    def _decommission_all_peers(self, cell_id):
+        addresses = []
         peers = get("#" + cell_id + "/@peers")
         for x in peers:
             addr = x["address"]
-            address_list.append(addr)
-            self.set_node_banned(addr, True)
+            addresses.append(addr)
+            self.set_node_decommissioned(addr, True)
         clear_metadata_caches()
-        return address_list
-
-    def _unban_peers(self, address_list):
-        for addr in address_list:
-            self.set_node_banned(addr, False)
+        return addresses
 
 
     def test_force_unmount_on_remove(self):
@@ -261,15 +257,17 @@ class TestDynamicTables(YTEnvSetup):
         cell_id = ls("//sys/tablet_cells")[0]
         peers = get("#" + cell_id + "/@peers")
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
-        self.set_node_banned(follower_address, True)
 
+        self.set_node_decommissioned(follower_address, True)
+        sleep(3.0)
+        clear_metadata_caches()
+
+        assert get("#" + cell_id + "/@health") == "good"
         for i in xrange(0, 100):
             rows = [{"key": i, "value": "test"}]
             keys = [{"key": i}]
             insert_rows("//tmp/t", rows)
             assert lookup_rows("//tmp/t", keys) == rows
-
-        assert get("#" + cell_id + "/@health") == "good"
 
     def test_run_reassign_leader(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
@@ -286,7 +284,7 @@ class TestDynamicTables(YTEnvSetup):
         leader_address = list(x["address"] for x in peers if x["state"] == "leading")[0]
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
-        self.set_node_banned(leader_address, True)
+        self.set_node_decommissioned(leader_address, True)
         sleep(3.0)
         clear_metadata_caches()
 
@@ -309,7 +307,7 @@ class TestDynamicTables(YTEnvSetup):
         insert_rows("//tmp/t", rows)
 
         cell_id = ls("//sys/tablet_cells")[0]
-        self._ban_all_peers(cell_id)
+        self._decommission_all_peers(cell_id)
         sleep(3.0)
 
         assert get("#" + cell_id + "/@health") == "good"
