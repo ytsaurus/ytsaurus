@@ -222,9 +222,10 @@ void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
 TTablet::TTablet(const TTabletId& id)
     : TNonversionedObjectBase(id)
     , Index_(-1)
-    , State_(ETabletState::Unmounted)
     , InMemoryMode_(EInMemoryMode::None)
     , RetainedTimestamp_(MinTimestamp)
+    , State_(ETabletState::Unmounted)
+    , Table_(nullptr)
 { }
 
 void TTablet::Save(TSaveContext& context) const
@@ -380,6 +381,37 @@ i64 TTablet::GetTabletStaticMemorySize(EInMemoryMode mode) const
 i64 TTablet::GetTabletStaticMemorySize() const
 {
     return GetTabletStaticMemorySize(GetInMemoryMode());
+}
+
+ETabletState TTablet::GetState() const
+{
+    return State_;
+}
+
+void TTablet::SetState(ETabletState state)
+{
+    if (Table_) {
+        auto* table = Table_->GetTrunkNode();
+        --table->TabletCountByState()[State_];
+        ++table->TabletCountByState()[state];
+    }
+    State_ = state;
+}
+
+TTableNode* TTablet::GetTable() const
+{
+    return Table_;
+}
+
+void TTablet::SetTable(TTableNode* table)
+{
+    if (Table_) {
+        --Table_->TabletCountByState()[State_];
+    }
+    if (table) {
+        ++table->TabletCountByState()[State_];
+    }
+    Table_ = table;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
