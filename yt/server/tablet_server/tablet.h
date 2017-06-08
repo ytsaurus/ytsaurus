@@ -165,8 +165,8 @@ public:
     void SetTable(NTableServer::TTableNode* table);
 
 private:
-    ETabletState State_;
-    NTableServer::TTableNode* Table_;
+    ETabletState State_ = ETabletState::Unmounted;
+    NTableServer::TTableNode* Table_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

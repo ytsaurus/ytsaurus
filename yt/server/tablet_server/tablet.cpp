@@ -224,8 +224,6 @@ TTablet::TTablet(const TTabletId& id)
     , Index_(-1)
     , InMemoryMode_(EInMemoryMode::None)
     , RetainedTimestamp_(MinTimestamp)
-    , State_(ETabletState::Unmounted)
-    , Table_(nullptr)
 { }
 
 void TTablet::Save(TSaveContext& context) const
@@ -406,7 +404,7 @@ TTableNode* TTablet::GetTable() const
 void TTablet::SetTable(TTableNode* table)
 {
     if (Table_) {
-        --Table_->TabletCountByState()[State_];
+        --Table_->GetTrunkNode()->TabletCountByState()[State_];
     }
     if (table) {
         ++table->TabletCountByState()[State_];
