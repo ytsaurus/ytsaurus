@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.bus;
 import java.net.SocketAddress;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import io.netty.bootstrap.Bootstrap;
@@ -152,5 +153,10 @@ public class DefaultBusConnector implements BusConnector {
             // N.B.: Если не указать quietPeriod=0, то shutdown растягивается на многие секунды
             group.shutdownGracefully(0, 500, TimeUnit.MILLISECONDS).syncUninterruptibly();
         }
+    }
+
+    @Override
+    public ScheduledExecutorService executorService() {
+        return group;
     }
 }

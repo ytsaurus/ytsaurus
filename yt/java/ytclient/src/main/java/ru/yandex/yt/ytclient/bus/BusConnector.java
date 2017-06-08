@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.bus;
 
 import java.net.SocketAddress;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Интерфейс для установки соединений по протоколу bus
@@ -19,6 +20,8 @@ public interface BusConnector extends AutoCloseable {
      * Начинает принимать bus соединения по адресу address
      */
     BusServer listen(SocketAddress address, BusListener listener);
+
+    ScheduledExecutorService executorService();
 
     @Override
     void close();

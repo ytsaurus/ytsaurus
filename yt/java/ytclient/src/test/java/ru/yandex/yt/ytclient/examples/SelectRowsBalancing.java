@@ -30,6 +30,7 @@ public class SelectRowsBalancing {
         RpcClient rpcClient = new BalancingRpcClient(
             Duration.ofMillis(60),
             Duration.ofSeconds(1),
+            connector,
             ExamplesUtil.createRpcClient(connector, user, token),
             ExamplesUtil.createRpcClient(connector, user, token),
             ExamplesUtil.createRpcClient(connector, user, token),
