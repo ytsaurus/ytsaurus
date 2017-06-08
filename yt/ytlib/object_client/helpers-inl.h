@@ -60,6 +60,7 @@ inline bool IsVersionedType(EObjectType type)
         type == EObjectType::TabletCellMap ||
         type == EObjectType::TabletCellNode ||
         type == EObjectType::TabletCellBundleMap ||
+        type == EObjectType::TabletActionMap ||
         type == EObjectType::SysNode;
 }
 
