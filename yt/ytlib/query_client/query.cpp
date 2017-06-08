@@ -130,29 +130,57 @@ Stroka InferName(TConstBaseQueryPtr query, bool omitValues)
     } else {
         str = "*";
     }
+
     clauses.emplace_back("SELECT " + str);
 
     if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
+        for (const auto& joinClause : derivedQuery->JoinClauses) {
+            std::vector<Stroka> selfJoinEquation;
+            for (const auto& equation : joinClause->SelfEquations) {
+                selfJoinEquation.push_back(InferName(equation.first, omitValues));
+            }
+            std::vector<Stroka> foreignJoinEquation;
+            for (const auto& equation : joinClause->ForeignEquations) {
+                foreignJoinEquation.push_back(InferName(equation, omitValues));
+            }
+
+            clauses.push_back(Format("%v JOIN[via ranges: %v, common key prefix: %v] (%v) = (%v)",
+                joinClause->IsLeft ? "LEFT" : "INNER",
+                joinClause->CanUseSourceRanges,
+                joinClause->CommonKeyPrefix,
+                JoinToString(selfJoinEquation),
+                JoinToString(foreignJoinEquation)));
+
+            if (joinClause->Predicate) {
+                clauses.push_back("AND" + InferName(joinClause->Predicate, omitValues));
+            }
+        }
+
         if (derivedQuery->WhereClause) {
-            str = InferName(derivedQuery->WhereClause, omitValues);
-            clauses.push_back(Stroka("WHERE ") + str);
+            clauses.push_back(Stroka("WHERE ") + InferName(derivedQuery->WhereClause, omitValues));
         }
     }
+
     if (query->GroupClause) {
-        str = JoinToString(query->GroupClause->GroupItems, namedItemFormatter);
-        clauses.push_back(Stroka("GROUP BY ") + str);
+        clauses.push_back(Stroka("GROUP BY ") + JoinToString(query->GroupClause->GroupItems, namedItemFormatter));
+        if (query->GroupClause->TotalsMode == ETotalsMode::BeforeHaving) {
+            clauses.push_back("WITH TOTALS");
+        }
     }
+
     if (query->HavingClause) {
-        str = InferName(query->HavingClause, omitValues);
-        clauses.push_back(Stroka("HAVING ") + str);
+        clauses.push_back(Stroka("HAVING ") + InferName(query->HavingClause, omitValues));
+        if (query->GroupClause->TotalsMode == ETotalsMode::AfterHaving) {
+            clauses.push_back("WITH TOTALS");
+        }
     }
+
     if (query->OrderClause) {
-        str = JoinToString(query->OrderClause->OrderItems, orderItemFormatter);
-        clauses.push_back(Stroka("ORDER BY ") + str);
+        clauses.push_back(Stroka("ORDER BY ") + JoinToString(query->OrderClause->OrderItems, orderItemFormatter));
     }
+
     if (query->Limit < std::numeric_limits<i64>::max()) {
-        str = ToString(query->Limit);
-        clauses.push_back(Stroka("LIMIT ") + str);
+        clauses.push_back(Stroka("LIMIT ") + ToString(query->Limit));
     }
 
     return JoinToString(clauses, STRINGBUF(" "));
