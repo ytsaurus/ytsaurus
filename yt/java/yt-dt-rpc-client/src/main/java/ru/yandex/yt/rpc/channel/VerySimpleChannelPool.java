@@ -88,7 +88,10 @@ public class VerySimpleChannelPool implements ChannelPool {
 
     @Override
     public final Future<Channel> acquire() {
-        return acquire(bootstrap.config().group().next().<Channel>newPromise());
+        /* for netty >= 4.1
+            return acquire(bootstrap.config().group().next().<Channel>newPromise());
+            */
+        return acquire(bootstrap.group().next().newPromise());
     }
 
     @Override
