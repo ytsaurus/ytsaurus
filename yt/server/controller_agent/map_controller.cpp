@@ -303,7 +303,7 @@ protected:
                         currentPartitionIndex);
 
                     // Place the chunk directly to the output table.
-                    RegisterOutput(chunk, currentPartitionIndex, 0);
+                    RegisterTeleportChunk(chunk, currentPartitionIndex, 0);
                     ++currentPartitionIndex;
                 } else {
                     mergedChunks.push_back(chunk);

@@ -1900,14 +1900,9 @@ protected:
         Host->SetOperationAlert(OperationId, EOperationAlertType::IntermediateDataSkew, error);
     }
 
-    virtual void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary) override
-    {
-        TOperationControllerBase::RegisterOutput(std::move(joblet), key, jobSummary);
-    }
-
     virtual void RegisterOutput(
         const std::vector<TChunkListId>& chunkListIds,
-        int key,
+        TOutputChunkTreeKey key,
         const TCompletedJobSummary& jobSummary) override
     {
         YCHECK(jobSummary.Statistics);

@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include "serialize.h"
+
 #include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/core/misc/phoenix.h>
@@ -34,13 +36,13 @@ struct IJobSizeConstraints
     //! Recommended upper limit on the data size per job.
     //! Can be overflown if exact job count is provided.
     virtual i64 GetMaxDataSizePerJob() const = 0;
-    
+
     virtual i64 GetInputSliceDataSize() const = 0;
     virtual i64 GetInputSliceRowCount() const = 0;
 
     //! Approximate primary data size. Has meaning only in context of sorted operation.
     virtual i64 GetPrimaryDataSizePerJob() const = 0;
-    
+
     virtual void Persist(const NPhoenix::TPersistenceContext& context) = 0;
 };
 

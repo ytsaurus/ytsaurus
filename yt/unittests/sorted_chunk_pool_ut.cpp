@@ -166,7 +166,7 @@ protected:
         inputChunk->ChunkId() = TChunkId::Create();
         inputChunk->SetCompressedDataSize(size);
         inputChunk->SetUncompressedDataSize(size);
-        inputChunk->BoundaryKeys() = std::make_unique<TBoundaryKeys>(TBoundaryKeys {
+        inputChunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(TOwningBoundaryKeys {
             TOwningKey(minBoundaryKey),
             TOwningKey(maxBoundaryKey)
         });
@@ -191,7 +191,7 @@ protected:
         TInputChunkPtr chunkCopy = New<TInputChunk>();
         chunkCopy->ChunkId() = chunk->ChunkId();
         chunkCopy->SetCompressedDataSize(chunk->GetCompressedDataSize());
-        chunkCopy->BoundaryKeys() = std::make_unique<TBoundaryKeys>(*chunk->BoundaryKeys());
+        chunkCopy->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(*chunk->BoundaryKeys());
         int tableIndex = chunk->GetTableIndex();
         chunkCopy->SetTableIndex(tableIndex);
         chunkCopy->SetTableRowIndex(chunk->GetTableRowIndex());

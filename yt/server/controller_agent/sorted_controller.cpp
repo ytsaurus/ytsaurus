@@ -425,7 +425,7 @@ protected:
 
         for (const auto& teleportChunk : SortedTask_->GetChunkPoolOutput()->GetTeleportChunks()) {
             // If teleport chunks were found, then teleport table index should be non-Null.
-            RegisterOutput(teleportChunk, 0, *GetOutputTeleportTableIndex());
+            RegisterTeleportChunk(teleportChunk, 0, *GetOutputTeleportTableIndex());
         }
 
         RegisterTask(SortedTask_);

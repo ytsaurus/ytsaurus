@@ -27,7 +27,7 @@ DECLARE_PROTO_EXTENSION(NTableClient::NProto::TKeyColumnsExt, 14)
 
 namespace NTableClient {
 
-struct TBoundaryKeys
+struct TOwningBoundaryKeys
 {
     TOwningKey MinKey;
     TOwningKey MaxKey;
@@ -36,13 +36,13 @@ struct TBoundaryKeys
 
     size_t SpaceUsed() const;
 
-    bool operator ==(const TBoundaryKeys& other) const;
-    bool operator !=(const TBoundaryKeys& other) const;
+    bool operator ==(const TOwningBoundaryKeys& other) const;
+    bool operator !=(const TOwningBoundaryKeys& other) const;
 };
 
-Stroka ToString(const TBoundaryKeys& keys);
+Stroka ToString(const TOwningBoundaryKeys& keys);
 
-void Serialize(const TBoundaryKeys& keys, NYson::IYsonConsumer* consumer);
+void Serialize(const TOwningBoundaryKeys& keys, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,15 +51,14 @@ bool FindBoundaryKeys(
     TOwningKey* minKey,
     TOwningKey* maxKey);
 
-std::unique_ptr<TBoundaryKeys> FindBoundaryKeys(
+std::unique_ptr<TOwningBoundaryKeys> FindBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
 NChunkClient::NProto::TChunkMeta FilterChunkMetaByPartitionTag(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     int partitionTag);
 
-} // namespace NTableClient
-
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTableClient
 } // namespace NYT
