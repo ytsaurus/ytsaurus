@@ -463,6 +463,31 @@ class TestDynamicTables(TestDynamicTablesBase):
         for peer in get("#{0}/@peers".format(default_cell)):
             assert peer["address"] != node
 
+    def test_tablet_count_by_state(self):
+        self.sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+
+        def _verify(unmounted, frozen, mounted):
+            count_by_state = get("//tmp/t/@tablet_count_by_state")
+            assert count_by_state["unmounted"] == unmounted
+            assert count_by_state["frozen"] == frozen
+            assert count_by_state["mounted"] == mounted
+            for state, count in count_by_state.items():
+                if state not in ["unmounted", "mounted", "frozen"]:
+                    assert count == 0
+
+        _verify(1, 0, 0)
+        reshard_table("//tmp/t", [[], [0], [1]])
+        _verify(3, 0, 0)
+        mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1, freeze=True)
+        self._wait_for_tablets("//tmp/t", "frozen", first_tablet_index=1, last_tablet_index=1)
+        _verify(2, 1, 0)
+        mount_table("//tmp/t", first_tablet_index=2, last_tablet_index=2)
+        self._wait_for_tablets("//tmp/t", "mounted", first_tablet_index=2, last_tablet_index=2)
+        _verify(1, 1, 1)
+        self.sync_unmount_table("//tmp/t")
+        _verify(3, 0, 0)
+
 ##################################################################
 
 class TestDynamicTablesResourceLimits(TestDynamicTablesBase):

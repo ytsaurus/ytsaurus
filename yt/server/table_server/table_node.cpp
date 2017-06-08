@@ -83,16 +83,16 @@ bool TTableNode::IsPhysicallySorted() const
 
 ETabletState TTableNode::GetTabletState() const
 {
-    auto result = ETabletState::None;
-    for (const auto* tablet : GetTrunkNode()->Tablets_) {
-        auto state = tablet->GetState();
-        if (result == ETabletState::None) {
-            result = state;
-        } else if (result != state) {
-            result = ETabletState::Mixed;
+    auto* trunkNode = GetTrunkNode();
+    if (trunkNode->Tablets_.empty()) {
+        return ETabletState::None;
+    }
+    for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
+        if (trunkNode->Tablets_.size() == trunkNode->TabletCountByState_[state]) {
+            return state;
         }
     }
-    return result;
+    return ETabletState::Mixed;
 }
 
 void TTableNode::Save(NCellMaster::TSaveContext& context) const
@@ -111,6 +111,7 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, UnflushedTimestamp_);
     Save(context, UpstreamReplicaId_);
     Save(context, OptimizeFor_);
+    Save(context, TabletCountByState_);
 }
 
 void TTableNode::Load(NCellMaster::TLoadContext& context)
@@ -159,6 +160,14 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
             if (Attributes_->Attributes().empty()) {
                 Attributes_.reset();
             }
+        }
+    }
+    //COMPAT(savrus)
+    if (context.GetVersion() >= 607) {
+        Load(context, TabletCountByState_);
+    } else {
+        for (const auto* tablet : Tablets_) {
+            ++TabletCountByState_[tablet->GetState()];
         }
     }
 }
@@ -224,7 +233,7 @@ TTableNode::TTabletList& TTableNode::Tablets()
 
 TTimestamp TTableNode::CalculateUnflushedTimestamp() const
 {
-    auto trunkNode = GetTrunkNode();
+    auto* trunkNode = GetTrunkNode();
     auto result = MaxTimestamp;
     for (const auto* tablet : trunkNode->Tablets()) {
         auto timestamp = static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp());
@@ -235,7 +244,7 @@ TTimestamp TTableNode::CalculateUnflushedTimestamp() const
 
 TTimestamp TTableNode::CalculateRetainedTimestamp() const
 {
-    auto trunkNode = GetTrunkNode();
+    auto* trunkNode = GetTrunkNode();
     auto result = MinTimestamp;
     for (const auto* tablet : trunkNode->Tablets()) {
         auto timestamp = tablet->GetRetainedTimestamp();

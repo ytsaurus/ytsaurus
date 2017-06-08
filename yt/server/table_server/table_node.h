@@ -27,6 +27,9 @@ namespace NTableServer {
 class TTableNode
     : public NChunkServer::TChunkOwnerBase
 {
+private:
+    using TTabletStateIndexedVector = TEnumIndexedVector<int, NTabletClient::ETabletState>;
+
 public:
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TTableSchema, TableSchema);
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableSchemaMode, SchemaMode, NTableClient::ETableSchemaMode::Weak);
@@ -41,6 +44,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, UnflushedTimestamp, NTransactionClient::NullTimestamp);
+
+    DEFINE_BYREF_RW_PROPERTY(TTabletStateIndexedVector, TabletCountByState);
 
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TTableNode, NTableClient::EOptimizeFor, OptimizeFor);
 
