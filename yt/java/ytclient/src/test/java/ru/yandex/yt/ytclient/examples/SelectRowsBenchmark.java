@@ -158,6 +158,7 @@ public class SelectRowsBenchmark {
         RpcClient rpcClient = new BalancingRpcClient(
             localTimeout,
             pingTimeout,
+            connector,
             proxiesConnections.toArray(new RpcClient[proxiesConnections.size()])
         );
 

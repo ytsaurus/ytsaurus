@@ -5,11 +5,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -25,6 +26,7 @@ import ru.yandex.yt.rpcproxy.TReqPingTransaction;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
 import ru.yandex.yt.rpcproxy.TRspPingTransaction;
 import ru.yandex.yt.rpcproxy.TRspStartTransaction;
+import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.misc.YtGuid;
 import ru.yandex.yt.ytclient.proxy.ApiService;
 
@@ -38,9 +40,9 @@ public class BalancingRpcClient implements RpcClient {
     final private Duration pingTimeout;
     final private Destination[] destinations;
     final private Random rnd = new Random();
+    final private ScheduledExecutorService executorService;
 
     private int aliveCount;
-    final private Timer timer = new Timer();
 
     // TODO: move somewhere to core
     private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
@@ -130,9 +132,10 @@ public class BalancingRpcClient implements RpcClient {
         }
     }
 
-    public BalancingRpcClient(Duration failoverTimeout, Duration pingTimeout, RpcClient ... destinations) {
+    public BalancingRpcClient(Duration failoverTimeout, Duration pingTimeout, BusConnector connector, RpcClient ... destinations) {
         this.failoverTimeout = failoverTimeout;
         this.pingTimeout = pingTimeout;
+        this.executorService = connector.executorService();
         this.destinations = new Destination[destinations.length];
         int i = 0;
         for (RpcClient client : destinations) {
@@ -149,7 +152,6 @@ public class BalancingRpcClient implements RpcClient {
         for (Destination client : destinations) {
             client.close();
         }
-        timer.cancel();
     }
 
     private CompletionStage<List<byte[]>> sendOnce(Destination dst, RpcClientRequest request) {
@@ -201,10 +203,10 @@ public class BalancingRpcClient implements RpcClient {
 
     private static class DelayedFutureTask {
         CompletableFuture<List<byte[]>> f;
-        TimerTask task;
+        ScheduledFuture<?> task;
 
         void cancel() {
-            task.cancel();
+            task.cancel(true);
             if (f != null) {
                 f.cancel(true);
             }
@@ -215,9 +217,7 @@ public class BalancingRpcClient implements RpcClient {
         CompletableFuture<List<byte[]>> result = new CompletableFuture<>();
         DelayedFutureTask task = new DelayedFutureTask();
 
-        task.task = new TimerTask() {
-            @Override
-            public void run() {
+        task.task = executorService.schedule(() -> {
                 try {
                     boolean completeAny = false;
                     for (CompletionStage<List<byte[]>> step : prevSteps) {
@@ -244,10 +244,9 @@ public class BalancingRpcClient implements RpcClient {
                     logger.error("timer error", e);
                     // System.exit(1);
                 }
-            }
-        };
-
-        timer.schedule(task.task, delay);
+            },
+            delay, TimeUnit.MILLISECONDS
+        );
 
         return result.whenComplete((a, error) -> {
             if (error instanceof CancellationException) {
@@ -285,23 +284,21 @@ public class BalancingRpcClient implements RpcClient {
     private CompletableFuture<Void> pingDestination(Destination client) {
         CompletableFuture<Void> f = client.ping();
 
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                f.cancel(true);
-            }
-        }, pingTimeout.toMillis());
+        executorService.schedule(
+            () -> {
+                if (!f.isDone()) { f.cancel(true); }
+            },
+            pingTimeout.toMillis(), TimeUnit.MILLISECONDS
+        );
 
         return f;
     }
 
     private void schedulePing() {
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                pingDeadDestinations();
-            }
-        }, 2*pingTimeout.toMillis());
+        executorService.schedule(
+            () -> pingDeadDestinations(),
+            2*pingTimeout.toMillis(),
+            TimeUnit.MILLISECONDS);
     }
 
     private void pingDeadDestinations() {
