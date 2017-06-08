@@ -1077,8 +1077,8 @@ def main():
     if config_args.tx is not None:
         yt.config.COMMAND_PARAMS["transaction_id"] = config_args.tx
         yt.config.COMMAND_PARAMS["ping_ancestor_transactions"]  = config_args.ping_ancestor_txs
-    if config_args.cell_id is not None:
-        yt.config.COMMAND_PARAMS["cell_id"] = config_args.cell_id
+    if config_args.master_cell_id is not None:
+        yt.config.COMMAND_PARAMS["master_cell_id"] = config_args.master_cell_id
     if config_args.proxy is not None:
         yt.config["backend"] = "http"
         yt.config["proxy"]["url"] = config_args.proxy
@@ -1098,7 +1098,7 @@ def main():
         for key in params:
             yt.config.COMMAND_PARAMS[key] = params[key]
 
-    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config", "cell_id", "params"):
+    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config", "master_cell_id", "params"):
         func_args.pop(key)
     args.func(**func_args)
 
