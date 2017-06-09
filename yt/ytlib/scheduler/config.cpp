@@ -37,15 +37,12 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(TDuration::Seconds(0));
     RegisterParameter("scheduling_delay_type", SchedulingDelayType)
         .Default(ESchedulingDelayType::Sync);
-<<<<<<< HEAD
     RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)
         .Default(TDuration::Seconds(0));
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
         .Default(EDelayInsideOperationCommitStage::Stage1);
-=======
     RegisterParameter("controller_failure", ControllerFailure)
         .Default(EControllerFailureType::None);
->>>>>>> prestable/19.1
 }
 
 TSupportsSchedulingTagsConfig::TSupportsSchedulingTagsConfig()
