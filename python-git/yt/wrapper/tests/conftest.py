@@ -6,7 +6,6 @@ from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update
 from yt.common import which, makedirp
 import yt.logger as logger
-import yt.tests_runner as tests_runner
 import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
 
@@ -17,14 +16,12 @@ import yt.wrapper as yt
 
 import os
 import imp
-import re
 import sys
 import uuid
 from copy import deepcopy
 import shutil
 import logging
 import pytest
-from collections import defaultdict
 
 def pytest_ignore_collect(path, config):
     path = str(path)
@@ -38,27 +35,6 @@ def _pytest_finalize_func(environment, process_call_args):
     pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \
                 .format(" ".join(process_call_args)))
     environment.stop()
-
-def pytest_configure(config):
-    def scheduling_func(test_items, process_count):
-        suites = defaultdict(list)
-        for index, test in enumerate(test_items):
-            match = re.search(r"\[([a-zA-Z0-9.-]+)\]$", test.name)
-            suite_name = None
-            if match:
-                # py.test uses "-" as delimiter when
-                # it writes parameters for test.
-                parameters = match.group(1).split("-")
-                for param in parameters:
-                    if param in ["v3", "native"]:
-                        suite_name = param
-                        break
-
-            suites[suite_name].append(index)
-
-        return tests_runner.split_test_suites(suites, process_count)
-
-    tests_runner.set_scheduling_func(scheduling_func)
 
 class YtTestEnvironment(object):
     def __init__(self,
@@ -80,7 +56,8 @@ class YtTestEnvironment(object):
         logging.getLogger("Yt.local").setLevel(logging.INFO)
         logger.LOGGER.setLevel(logging.WARNING)
 
-        dir = os.path.join(TESTS_SANDBOX, self.test_name, "run_" + uuid.uuid4().hex[:8])
+        run_id = uuid.uuid4().hex[:8]
+        dir = os.path.join(TESTS_SANDBOX, self.test_name, "run_" + run_id)
 
         common_delta_proxy_config = {
             "proxy": {
@@ -144,7 +121,7 @@ class YtTestEnvironment(object):
                 if delta_proxy_config:
                     update(config, delta_proxy_config)
 
-        local_temp_directory = os.path.join(TESTS_SANDBOX, "tmp")
+        local_temp_directory = os.path.join(TESTS_SANDBOX, "tmp_" + run_id)
         if not os.path.exists(local_temp_directory):
             os.mkdir(local_temp_directory)
 

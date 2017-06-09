@@ -68,21 +68,22 @@ def test_ypath_join():
 
 @pytest.mark.timeout(1200)
 @pytest.mark.usefixtures("yt_env")
-def test_yt_binary():
-    env = get_environment_for_binary_test()
-    env["FALSE"] = "%false"
-    env["TRUE"] = "%true"
+class TestYtBinary(object):
+    def test_yt_binary(self):
+        env = get_environment_for_binary_test()
+        env["FALSE"] = "%false"
+        env["TRUE"] = "%true"
 
-    sandbox_dir = os.path.join(TESTS_SANDBOX, "TestYtBinary_" + uuid.uuid4().hex[:8])
-    binaries_dir = os.path.join(os.path.dirname(TESTS_LOCATION), "bin")
-    makedirp(sandbox_dir)
-    try:
-        test_binary = os.path.join(TESTS_LOCATION, "test_yt.sh")
-        proc = subprocess.Popen([test_binary, sandbox_dir], env=env, cwd=binaries_dir)
-        proc.communicate()
-        assert proc.returncode == 0
-    finally:
-        shutil.rmtree(sandbox_dir, ignore_errors=True)
+        sandbox_dir = os.path.join(TESTS_SANDBOX, "TestYtBinary_" + uuid.uuid4().hex[:8])
+        binaries_dir = os.path.join(os.path.dirname(TESTS_LOCATION), "bin")
+        makedirp(sandbox_dir)
+        try:
+            test_binary = os.path.join(TESTS_LOCATION, "test_yt.sh")
+            proc = subprocess.Popen([test_binary, sandbox_dir], env=env, cwd=binaries_dir)
+            proc.communicate()
+            assert proc.returncode == 0
+        finally:
+            shutil.rmtree(sandbox_dir, ignore_errors=True)
 
 @pytest.mark.usefixtures("yt_env")
 class TestMutations(object):
