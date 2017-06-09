@@ -239,7 +239,7 @@ def _run_tests(options, python_version):
         additional_args = []
         if options.enable_parallel_testing:
             # Currently python tests can only scale up to three processes.
-            additional_args.append("--process-count=3")
+            additional_args.append("--process-count=15")
 
         try:
             run([
