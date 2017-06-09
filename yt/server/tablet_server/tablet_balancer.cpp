@@ -205,7 +205,7 @@ private:
         // TODO(savrus) balance other tablets.
     }
 
-    void ReassignInMemoryTablets(const TTabletCellBundle* bundle)
+    void ReassignInMemoryTablets(const TTabletCellBundle* bundle, int* actionCount)
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         std::vector<const TTabletCell*> cells;
@@ -288,7 +288,8 @@ private:
                     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
                     CreateMutation(hydraManager, request)
                         ->CommitAndLog(Logger);
-                    Profiler.Increment(MemoryMoveCounter_);
+
+                    ++(*actionCount);
                 }
             }
         }
@@ -300,10 +301,13 @@ private:
             return;
         }
 
+        int actionCount = 0;
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         for (const auto& pair : tabletManager->TabletCellBundles()) {
-            ReassignInMemoryTablets(pair.second);
+            ReassignInMemoryTablets(pair.second, &actionCount);
         }
+
+        Profiler.Update(MemoryMoveCounter_, actionCount);
     }
 
 
