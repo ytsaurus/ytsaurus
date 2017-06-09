@@ -194,6 +194,12 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
     else:
         logger.warning("Account 'tmp_files' already exists")
 
+    if not client.exists("//sys/accounts/tmp_jobs"):
+        client.create("account", attributes={"name": "tmp_jobs", 
+                                             "resource_limits": get_default_resource_limits(client)})
+    else:
+        logger.warning("Account 'tmp_jobs' already exists")
+
     client.create("map_node",
                   "//tmp/yt_wrapper/file_storage",
                   attributes={"account": "tmp_files"},
@@ -203,7 +209,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
     if not client.exists("//sys/tablet_cell_bundles/sys"):
         client.create("tablet_cell_bundle", attributes={"name": "sys"})
     else:
-        logger.warning("Tablet cell bundle \"sys\" already exists")
+        logger.warning('Tablet cell bundle "sys" already exists')
 
     if proxy_address is not None:
         client.set("//sys/@cluster_proxy_address", proxy_address)
@@ -218,6 +224,14 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
         ])
 
     client.link("//tmp/trash", "//trash", ignore_existing=True)
+
+    if client.exists("//sys/pools"):
+        if not client.exists("//sys/pools/research"):
+            client.create("map_node", attributes={"name": "research", "forbid_immediate_operations": "true"})
+        else:
+            logger.warning('Pool "research" already exists')
+    else:
+        logger.warning('Can not create pool "//sys/pools/research". "//sys/pools" does not exist')
 
 def main():
     parser = argparse.ArgumentParser(description="new YT cluster init script")
