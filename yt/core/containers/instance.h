@@ -37,6 +37,7 @@ struct IInstance
     virtual void SetStdErr(const Stroka& errorPath) = 0;
     virtual void SetCwd(const Stroka& pwd) = 0;
     virtual void Kill(int signal) = 0;
+    virtual void Destroy() = 0;
     virtual TUsage GetResourceUsage(const std::vector<EStatField>& fields) const = 0;
     virtual void SetCpuLimit(double cores) = 0;
     virtual void SetCpuShare(double cores) = 0;

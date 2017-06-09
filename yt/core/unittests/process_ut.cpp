@@ -240,6 +240,7 @@ TEST(TPortoProcessTest, Basic)
     auto error = WaitFor(finished);
     EXPECT_TRUE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p->IsFinished());
+    portoInstance->Destroy();
 }
 
 TEST(TPortoProcessTest, RunFromPathEnv)
@@ -252,6 +253,7 @@ TEST(TPortoProcessTest, RunFromPathEnv)
     auto error = WaitFor(finished);
     EXPECT_TRUE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p->IsFinished());
+    portoInstance->Destroy();
 }
 
 TEST(TPortoProcessTest, MultiBasic)
@@ -269,6 +271,8 @@ TEST(TPortoProcessTest, MultiBasic)
     EXPECT_TRUE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p1->IsFinished());
     EXPECT_TRUE(p2->IsFinished());
+    c1->Destroy();
+    c2->Destroy();
 }
 
 TEST(TPortoProcessTest, InvalidPath)
@@ -281,6 +285,7 @@ TEST(TPortoProcessTest, InvalidPath)
     auto error = WaitFor(finished);
     EXPECT_TRUE(p->IsFinished());
     EXPECT_FALSE(error.IsOK());
+    portoInstance->Destroy();
 }
 
 TEST(TPortoProcessTest, StdOut)
@@ -301,6 +306,7 @@ TEST(TPortoProcessTest, StdOut)
     TErrorOr<size_t> result = WaitFor(future);
     size_t sz = result.ValueOrThrow();
     EXPECT_TRUE(sz > 0);
+    portoInstance->Destroy();
 }
 
 TEST(TPortoProcessTest, GetCommandLine)
@@ -312,6 +318,7 @@ TEST(TPortoProcessTest, GetCommandLine)
     EXPECT_EQ("/bin/bash -c", p->GetCommandLine());
     p->AddArgument("exit 0");
     EXPECT_EQ("/bin/bash -c \"exit 0\"", p->GetCommandLine());
+    portoInstance->Destroy();
 }
 
 TEST(TPortoProcessTest, ProcessReturnCode0)
@@ -327,6 +334,7 @@ TEST(TPortoProcessTest, ProcessReturnCode0)
     auto error = WaitFor(finished);
     EXPECT_TRUE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p->IsFinished());
+    portoInstance->Destroy();
 }
 
 TEST(TPortoProcessTest, ProcessReturnCode123)
@@ -343,6 +351,7 @@ TEST(TPortoProcessTest, ProcessReturnCode123)
     EXPECT_EQ(EProcessErrorCode::NonZeroExitCode, error.GetCode());
     EXPECT_EQ(123, error.Attributes().Get<int>("exit_code"));
     EXPECT_TRUE(p->IsFinished());
+    portoInstance->Destroy();
 }
 
 TEST(TPortoProcessTest, Params1)
@@ -355,6 +364,7 @@ TEST(TPortoProcessTest, Params1)
     auto error = WaitFor(p->Spawn());
     EXPECT_FALSE(error.IsOK());
     EXPECT_TRUE(p->IsFinished());
+    portoInstance->Destroy();
 }
 
 TEST(TPortoProcessTest, Params2)
@@ -367,6 +377,7 @@ TEST(TPortoProcessTest, Params2)
     auto error = WaitFor(p->Spawn());
     EXPECT_TRUE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p->IsFinished());
+    portoInstance->Destroy();
 }
 
 TEST(TPortoProcessTest, InheritEnvironment)
@@ -385,6 +396,7 @@ TEST(TPortoProcessTest, InheritEnvironment)
     EXPECT_TRUE(p->IsFinished());
 
     unsetenv(name);
+    portoInstance->Destroy();
 }
 
 TEST(TPortoProcessTest, Kill)
@@ -404,6 +416,7 @@ TEST(TPortoProcessTest, Kill)
     auto error = WaitFor(finished);
     EXPECT_FALSE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p->IsFinished());
+    portoInstance->Destroy();
 }
 
 TEST(TPortoProcessTest, KillFinished)
@@ -419,6 +432,7 @@ TEST(TPortoProcessTest, KillFinished)
     EXPECT_TRUE(error.IsOK());
 
     p->Kill(SIGKILL);
+    portoInstance->Destroy();
 }
 
 TEST(TPortoProcessTest, PollDuration)
@@ -430,6 +444,7 @@ TEST(TPortoProcessTest, PollDuration)
     auto error = WaitFor(p->Spawn());
     EXPECT_TRUE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p->IsFinished());
+    portoInstance->Destroy();
 }
 #endif
 
