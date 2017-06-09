@@ -60,6 +60,7 @@ static i64 ExtractSum(const Stroka& input, const Stroka& pattern, const Stroka& 
             break;
         }
 
+        pos++;
         auto end = input.find(terminator, pos);
         sum += std::stol(input.substr(pos, (end == input.npos) ? end : end - pos));
     }
