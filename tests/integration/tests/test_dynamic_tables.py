@@ -954,6 +954,29 @@ class TestTabletActions(TestDynamicTablesBase):
         cell1 = get("//tmp/t2/@tablets/0/cell_id")
         assert cell0 != cell1
 
+    def test_cells_balance_in_bundle(self):
+        set("//sys/@disable_tablet_balancer", True)
+        create_tablet_cell_bundle("b")
+        cells = self.sync_create_cells(2)
+        cells_b = self.sync_create_cells(4, tablet_cell_bundle="b")
+        self._create_sorted_table("//tmp/t1", pivot_keys=[[], [1], [2], [3]])
+        self._create_sorted_table("//tmp/t2", pivot_keys=[[], [1], [2], [3]], tablet_cell_bundle="b")
+        pairs = [("//tmp/t1", cells), ("//tmp/t2", cells_b)]
+        for pair in pairs:
+            table = pair[0]
+            set(table + "/@in_memory_mode", "compressed")
+            self.sync_mount_table(table, cell_id=pair[1][0])
+            insert_rows(table, [{"key": i, "value": "A"*128} for i in xrange(4)])
+            self.sync_flush_table(table)
+
+        remove("//sys/@disable_tablet_balancer")
+        for pair in pairs:
+            table = pair[0]
+            self._wait_for_tablets(table, "mounted")
+            dcells = [tablet["cell_id"] for tablet in get(table + "/@tablets")]
+            count = [cells.count(cell) for cell in pair[1]]
+            assert all(c == count[0] for c in count)
+
     def test_tablet_merge(self):
         self.sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
