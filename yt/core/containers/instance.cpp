@@ -81,7 +81,7 @@ public:
 
     static IInstancePtr GetSelf(IPortoExecutorPtr executor)
     {
-         return New<TPortoInstance>("self", executor);
+        return New<TPortoInstance>("self", executor);
     }
 
     ~TPortoInstance()

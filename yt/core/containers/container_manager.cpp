@@ -20,34 +20,58 @@ static NLogging::TLogger& Logger = ContainersLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static Stroka GetRelativeName(IPortoExecutorPtr executor)
+{
+    auto properties = WaitFor(executor->GetProperties(
+        "self",
+        std::vector<Stroka>{"absolute_name", "absolute_namespace"}))
+            .ValueOrThrow();
+
+    auto absoluteName = properties.at("absolute_name")
+        .ValueOrThrow();
+    auto absoluteNameSpace = properties.at("absolute_namespace")
+        .ValueOrThrow();
+
+    // Container without porto_namespace:
+    // absolute_name = /porto/foo
+    // absolute_namespace = /porto/
+    //
+    // Container with porto_namespace:
+    // absolute_name = /porto/foo
+    // absolute_namespace = /porto/foo/
+    //
+    // Root container (host):
+    // absolute_name = /
+    // absolute_namespace = /porto/
+    //
+    // root container is a special case - return empty string
+
+    if (absoluteNameSpace.size() > absoluteName.size()) {
+        return {};
+    }
+    return absoluteName.substr(absoluteNameSpace.size()) + "/";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPortoManager
     : public IContainerManager
 {
 public:
-    TPortoManager(
-        const Stroka& prefix,
-        TCallback<void(const TError&)> errorHandler,
-        const TPortoManagerConfig& portoManagerConfig)
-        : Prefix_(prefix)
-        , ErrorHandler_(errorHandler)
-        , PortoManagerConfig_(portoManagerConfig)
-    { }
-
     virtual IInstancePtr CreateInstance() override
     {
-        EnsureExecutor();
-        return CreatePortoInstance(Prefix_ + '_' + ToString(InstanceId_++), Executor_);
+        return CreatePortoInstance(
+            RelativeName_ + Prefix_ + '_' + ToString(InstanceId_++),
+            Executor_);
     }
 
     virtual IInstancePtr GetSelfInstance() override
     {
-        EnsureExecutor();
         return GetSelfPortoInstance(Executor_);
     }
 
     virtual TFuture<std::vector<Stroka>> GetInstanceNames() const override
     {
-        EnsureExecutor();
         return Executor_->ListContainers();
     }
 
@@ -56,27 +80,43 @@ public:
         TCallback<void(const TError&)> errorHandler,
         const TPortoManagerConfig& portoManagerConfig)
     {
-        auto manager = New<TPortoManager>(prefix, errorHandler, portoManagerConfig);
+        auto executor = CreatePortoExecutor(
+            portoManagerConfig.RetryTime,
+            portoManagerConfig.PollPeriod);
+        executor->SubscribeFailed(errorHandler);
+
+        auto relativeName = GetRelativeName(executor);
+
+        auto manager = New<TPortoManager>(
+            prefix,
+            relativeName,
+            portoManagerConfig,
+            executor);
         manager->CleanContainers();
         return manager;
     }
 
 private:
     const Stroka Prefix_;
-    const TCallback <void(const TError&)> ErrorHandler_;
+    const Stroka RelativeName_;
     const TPortoManagerConfig PortoManagerConfig_;
 
-    std::atomic<ui64> InstanceId_ = {0};
     mutable IPortoExecutorPtr Executor_;
+    std::atomic<ui64> InstanceId_ = {0};
 
-    void EnsureExecutor() const
+    TPortoManager(
+        const Stroka& prefix,
+        const Stroka& relativeName,
+        const TPortoManagerConfig& portoManagerConfig,
+        IPortoExecutorPtr executor)
+        : Prefix_(prefix)
+        , RelativeName_(relativeName)
+        , PortoManagerConfig_(portoManagerConfig)
+        , Executor_(executor)
     {
-        if (!Executor_) {
-            Executor_ = CreatePortoExecutor(
-                PortoManagerConfig_.RetryTime,
-                PortoManagerConfig_.PollPeriod);
-            Executor_->SubscribeFailed(ErrorHandler_);
-        }
+        LOG_DEBUG("Porto manager initialized (Prefix: %v, RelativeName: %v)",
+            Prefix_,
+            RelativeName_);
     }
 
     Stroka GetState(const Stroka& name) const
@@ -100,14 +140,17 @@ private:
 
         const auto containers = WaitFor(GetInstanceNames())
             .ValueOrThrow();
-        LOG_DEBUG("Cleaning requested (Prefix: %v, Containers: %v)", Prefix_, containers);
+        LOG_DEBUG("Cleaning requested (Prefix: %v, Containers: %v, RelativeName: %v)",
+            Prefix_,
+            containers,
+            RelativeName_);
 
         std::vector<TFuture<void>> actions;
         for (const auto& name : containers) {
             if (name == "/") {
                 continue;
             }
-            if (!name.StartsWith(Prefix_)) {
+            if (!name.StartsWith(RelativeName_ + Prefix_)) {
                 continue;
             }
             if (PortoManagerConfig_.CleanMode == ECleanMode::Dead) {
@@ -122,6 +165,8 @@ private:
         WaitFor(Combine(actions))
             .ThrowOnError();
     }
+
+    DECLARE_NEW_FRIEND();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
