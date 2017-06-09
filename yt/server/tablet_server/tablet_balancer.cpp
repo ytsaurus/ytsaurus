@@ -205,21 +205,26 @@ private:
         // TODO(savrus) balance other tablets.
     }
 
-    void ReassignInMemoryTablets()
+    void ReassignInMemoryTablets(const TTabletCellBundle* bundle)
     {
-        if (!Config_->EnableInMemoryBalancer) {
-            return;
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        std::vector<const TTabletCell*> cells;
+
+        for (const auto& pair : tabletManager->TabletCells()) {
+            if (pair.second->GetCellBundle() == bundle) {
+                cells.push_back(pair.second);
+            }
         }
 
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        const auto& cells = tabletManager->TabletCells();
+        if (cells.empty()) {
+            return;
+        }
 
         using TMemoryUsage = std::pair<i64, const TTabletCell*>;
         std::vector<TMemoryUsage> memoryUsage;
         i64 total = 0;
         memoryUsage.reserve(cells.size());
-        for (const auto& pair : cells) {
-            const auto* cell = pair.second;
+        for (const auto* cell : cells) {
             i64 size = cell->TotalStatistics().MemorySize;
             total += size;
             memoryUsage.emplace_back(size, cell);
@@ -286,6 +291,18 @@ private:
                     Profiler.Increment(MemoryMoveCounter_);
                 }
             }
+        }
+    }
+
+    void ReassignInMemoryTablets()
+    {
+        if (!Config_->EnableInMemoryBalancer) {
+            return;
+        }
+
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        for (const auto& pair : tabletManager->TabletCellBundles()) {
+            ReassignInMemoryTablets(pair.second);
         }
     }
 
