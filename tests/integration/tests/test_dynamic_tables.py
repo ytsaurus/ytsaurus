@@ -937,8 +937,8 @@ class TestTabletActions(TestDynamicTablesBase):
         set("//tmp/t2/@in_memory_mode", "compressed")
         self.sync_mount_table("//tmp/t1", cell_id=cells[0])
         self.sync_mount_table("//tmp/t2", cell_id=cells[0])
-        insert_rows("//tmp/t1", [{"key": 0, "value": "0"}])
-        insert_rows("//tmp/t2", [{"key": 1, "value": "1"}])
+        insert_rows("//tmp/t1", [{"key": 0, "value": "A"*128}])
+        insert_rows("//tmp/t2", [{"key": 1, "value": "A"*128}])
         self.sync_flush_table("//tmp/t1")
         self.sync_flush_table("//tmp/t2")
         if freeze:
