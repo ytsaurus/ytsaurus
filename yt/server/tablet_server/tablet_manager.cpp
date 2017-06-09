@@ -1935,7 +1935,7 @@ private:
         for (auto& tabletInfo : request->tablets()) {
             auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
             auto* tablet = FindTablet(tabletId);
-            if (!IsObjectAlive(tablet)) {
+            if (!IsObjectAlive(tablet) || tablet->GetState() == ETabletState::Unmounted) {
                 continue;
             }
 
