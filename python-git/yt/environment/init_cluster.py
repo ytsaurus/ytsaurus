@@ -195,7 +195,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
         logger.warning("Account 'tmp_files' already exists")
 
     if not client.exists("//sys/accounts/tmp_jobs"):
-        client.create("account", attributes={"name": "tmp_jobs", 
+        client.create("account", attributes={"name": "tmp_jobs",
                                              "resource_limits": get_default_resource_limits(client)})
     else:
         logger.warning("Account 'tmp_jobs' already exists")
@@ -227,7 +227,8 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
 
     if client.exists("//sys/pools"):
         if not client.exists("//sys/pools/research"):
-            client.create("map_node", attributes={"name": "research", "forbid_immediate_operations": "true"})
+            client.create("map_node", "//sys/pools/research",
+                          attributes={"forbid_immediate_operations": "true"})
         else:
             logger.warning('Pool "research" already exists')
     else:
