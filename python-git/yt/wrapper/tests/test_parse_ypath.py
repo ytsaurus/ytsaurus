@@ -74,7 +74,8 @@ FAILED_TEST_PATHS = ["<ds>><test",
                      "//home/{!@#.,/$%^&*()|_+}",
                      "//home/[|/~`\;]",
                      "//home/[!@#$%/.,^&*()_+|]",
-                     "//home/[\xd1]"]
+                     "//home/[\xd1]",
+                     "[//home]"]
 
 @pytest.mark.usefixtures("yt_env")
 class TestParseYpath(object):

@@ -3,7 +3,6 @@
 from __future__ import print_function
 
 from yt.transfer_manager.client import TransferManager
-from yt.wrapper.client import Yt
 
 from yt.packages.six import iteritems
 from yt.packages.six.moves import queue
@@ -22,7 +21,7 @@ SRC_YT_CLUSTER = "banach"
 DST_YT_CLUSTER = "freud"
 
 def waiting_thread(client, token, queue_, semaphore):
-    dst_client = Yt(proxy=DST_YT_CLUSTER, token=token)
+    dst_client = yt.YtClient(proxy=DST_YT_CLUSTER, token=token)
 
     running_tasks = {}
     while True:
@@ -52,7 +51,7 @@ def run_tasks(client, task_limit):
     yt.config["proxy"]["url"] = SRC_YT_CLUSTER
     yt.write_table(SRC_TEST_TABLE_NAME, ["key=a\tvalue=b\n"], format="yamr", raw=True)
 
-    dst_yt_client = Yt(proxy=DST_YT_CLUSTER, token=yt.config["token"])
+    dst_yt_client = yt.YtClient(proxy=DST_YT_CLUSTER, token=yt.config["token"])
     dst_yt_client.create("map_node", DST_TEST_TABLES_PATH, ignore_existing=True)
 
     tasks_queue = queue.Queue()

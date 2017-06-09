@@ -4,7 +4,7 @@ from __future__ import print_function
 
 from yt.local import start, stop, delete, get_proxy, list_instances
 from yt.local.helpers import YTCheckingThread
-from yt.local.commands import _START_DEFAULTS
+from yt.local.commands import _START_DEFAULTS, get_main_process_pid_file_path
 
 from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
@@ -13,6 +13,7 @@ import argparse
 import logging
 import time
 import sys
+import os
 
 DESCRIPTION = """Command-line utility to work with local YT instances."""
 
@@ -93,6 +94,11 @@ def start_func(**kwargs):
     environment = start(**kwargs)
 
     if sync:
+        main_process_pid_file = get_main_process_pid_file_path(kwargs["path"])
+
+        with open(main_process_pid_file, "w") as f:
+            f.write(str(os.getpid()))
+
         if quiet:
             print(environment.id)
 
@@ -103,6 +109,7 @@ def start_func(**kwargs):
             logger.info("Stopping local YT instance")
             checking_thread.stop()
             environment.stop()
+            os.remove(main_process_pid_file)
             sys.exit(0)
 
         with KeyboardInterruptsCatcher(interrupt_action):

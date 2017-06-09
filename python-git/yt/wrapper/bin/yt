@@ -10,6 +10,7 @@ from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, upd
                               chunk_iter_rows
 from yt.wrapper.cli_helpers import write_silently, run_main
 from yt.wrapper.default_config import get_default_config
+import yt.wrapper.job_tool as job_tool
 import yt.wrapper.completers as completers
 import yt.json as json
 
@@ -581,7 +582,7 @@ def add_alter_table_parser(add_parser):
 def add_alter_table_replica_parser(add_parser):
     parser = add_parser("alter-table-replica", yt.alter_table_replica)
     parser.add_argument("replica_id")
-    parser.add_argument("--enable", default=False, action="store_true")
+    parser.add_argument("--enabled", default=False, action="store_true")
     parser.add_argument("--mode", default="async")
 
 @copy_docstring_from(yt.select_rows)
@@ -917,6 +918,18 @@ def add_transform_parser(add_parser):
                         help="check if table already has proper codecs before transforming")
     add_structured_argument(parser, "--spec")
 
+def execute_job_tool(**args):
+    commands = {
+        "prepare-job-environment": job_tool.prepare_job_environment,
+        "run-job": job_tool.run_job
+    }
+    command = args.pop("command")
+    commands[command](**args)
+
+def add_job_tool_parser(add_parser):
+    parser = add_parser("job-tool", function=execute_job_tool, pythonic_help=job_tool.DESCRIPTION)
+    job_tool.create_job_tool_parser(parser)
+
 @copy_docstring_from(get_default_config)
 def show_default_config(**args):
     print(dump_data(get_default_config()))
@@ -934,8 +947,8 @@ def main():
     config_parser.add_argument("--config", action=ParseStructuredArgument, help="specify configuration")
     config_parser.add_argument("--tx", help="perform command in the context of the given "
                                             "transaction, by default 0-0-0-0")
-    config_parser.add_argument("--cell-id", help="perform command in master specified by this id; "
-                                                 "supported only for native driver and testing purposes ")
+    config_parser.add_argument("--master-cell-id", help="perform command in master specified by this id; "
+                                                        "supported only for native driver and testing purposes ")
     config_parser.add_argument("--ping-ancestor-txs", action="store_true",
                                help="turn on pinging ancestor transactions")
     config_parser.add_argument("--trace", action="store_true")
@@ -1038,6 +1051,8 @@ def main():
 
     add_transform_parser(add_parser)
 
+    add_job_tool_parser(add_parser)
+
     add_show_default_config_parser(add_parser)
 
     if "_ARGCOMPLETE" in os.environ:
@@ -1062,8 +1077,8 @@ def main():
     if config_args.tx is not None:
         yt.config.COMMAND_PARAMS["transaction_id"] = config_args.tx
         yt.config.COMMAND_PARAMS["ping_ancestor_transactions"]  = config_args.ping_ancestor_txs
-    if config_args.cell_id is not None:
-        yt.config.COMMAND_PARAMS["cell_id"] = config_args.cell_id
+    if config_args.master_cell_id is not None:
+        yt.config.COMMAND_PARAMS["master_cell_id"] = config_args.master_cell_id
     if config_args.proxy is not None:
         yt.config["backend"] = "http"
         yt.config["proxy"]["url"] = config_args.proxy
@@ -1083,7 +1098,7 @@ def main():
         for key in params:
             yt.config.COMMAND_PARAMS[key] = params[key]
 
-    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config", "cell_id", "params"):
+    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config", "master_cell_id", "params"):
         func_args.pop(key)
     args.func(**func_args)
 

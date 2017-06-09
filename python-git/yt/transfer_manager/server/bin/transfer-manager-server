@@ -19,7 +19,6 @@ from yt.tools.logging_server import LogRecordSocketReceiver
 
 from yt.common import remove_file
 from yt.wrapper.common import generate_uuid, get_value, update, parse_bool
-from yt.wrapper.client import Yt
 import yt.json as json
 
 from yt.packages.expiringdict import ExpiringDict
@@ -108,7 +107,7 @@ class Application(object):
         self._mutex = CountedRLock()
         self._cypress_mutexes = defaultdict(CountedRLock)
         self._user_mutexes = defaultdict(CountedRLock)
-        self._yt = Yt(**self._config["yt_backend_options"])
+        self._yt = yt.YtClient(**self._config["yt_backend_options"])
 
         self._profiling_mutex = RLock()
         self._profiling = {
@@ -584,7 +583,7 @@ class Application(object):
                 self.logger.info("Task %s takes %d bytes in python (>%d)", id, object_size, object_size_limit)
 
             os.path.join(self._tasks_path, id)
-            client = Yt(**self._config["yt_backend_options"])
+            client = yt.YtClient(**self._config["yt_backend_options"])
             with self._mutex.discharge():
                 with self._cypress_mutexes[path]:
                     start_set_time = time.time()
@@ -627,13 +626,13 @@ class Application(object):
         task.pool = pool
 
     def _check_permission(self, id, headers, action_name):
-        _, user = get_token_and_user(request, Yt(**self._config["yt_backend_options"]))
+        _, user = get_token_and_user(request, yt.YtClient(**self._config["yt_backend_options"]))
         if self._tasks[id].user != user:
             with self._mutex.discharge():
                 self._check_administer_permission(action_name, headers=headers, user=user)
 
     def _check_administer_permission(self, action_name, headers=None, user=None):
-        client = Yt(**self._config["yt_backend_options"])
+        client = yt.YtClient(**self._config["yt_backend_options"])
         if user is None:
             _, user = get_token_and_user(request, client)
         if client.check_permission(user, "administer", self._auth_path)["action"] != "allow":
@@ -1004,7 +1003,7 @@ class Application(object):
                                 http_code=500)
 
         if task.queue_name is not None:
-            client = Yt(**self._config["yt_backend_options"])
+            client = yt.YtClient(**self._config["yt_backend_options"])
             try:
                 if client.check_permission(task.user, "write",
                                            "{0}/queues/{1}".format(self._path, task.queue_name))["action"] != "allow":
@@ -1032,7 +1031,7 @@ class Application(object):
         if not dry_run:
             self._initialize_pool(task, clusters_configuration)
 
-            client = Yt(**self._config["yt_backend_options"])
+            client = yt.YtClient(**self._config["yt_backend_options"])
             client.create("document", os.path.join(self._tasks_path, task.id), attributes={"value": task.dict()})
 
             if task.lease_timeout is not None:
@@ -1053,7 +1052,7 @@ class Application(object):
         return task.id
 
     def _delete_tasks(self, ids):
-        client = Yt(**self._config["yt_backend_options"])
+        client = yt.YtClient(**self._config["yt_backend_options"])
 
         failed_ids = []
         ids_to_delete = []
@@ -1100,7 +1099,7 @@ class Application(object):
             raise RequestFailed("Cannot parse JSON from body '{}'".format(request.data),
                                 inner_errors=[yt.YtError(error.message)], http_code=500)
 
-        token, user = get_token_and_user(request, Yt(**self._config["yt_backend_options"]))
+        token, user = get_token_and_user(request, yt.YtClient(**self._config["yt_backend_options"]))
         dry_run = request.args.get("dry_run", False)
 
         if isinstance(params, list):
@@ -1332,7 +1331,7 @@ class Application(object):
             raise yt.YtError("Unknown cluster " + source_cluster)
         client = clusters_configuration.clusters[source_cluster]
         if client._type == "yt":
-            token, _ = get_token_and_user(request, Yt(**self._config["yt_backend_options"]))
+            token, _ = get_token_and_user(request, yt.YtClient(**self._config["yt_backend_options"]))
             new_client = clone_client(client)
             new_client.config["token"] = get_value(params.get("source_cluster_token"), token)
             new_client._type = client._type

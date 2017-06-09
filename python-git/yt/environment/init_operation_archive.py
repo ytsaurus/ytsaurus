@@ -10,6 +10,8 @@ import logging
 from yt.tools.dynamic_tables import make_dynamic_table_attributes, mount_table_new, unmount_table_new, DynamicTablesClient
 
 from yt.packages.six.moves import xrange
+from yt.packages.six import iteritems
+
 
 class TableInfo(object):
     def __init__(self, key_columns, value_columns, in_memory=False, get_pivot_keys=None):
@@ -34,11 +36,11 @@ class TableInfo(object):
 
     def create_table(self, client, path, shards, attributes):
         attrs = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
-        for attr, value in attrs.iteritems():
-            attributes[attr] = value
+        for attribute, value in iteritems(attributes):
+            attrs[attribute] = value
 
-        logging.info("Creating table %s with attributes %s", path, attributes)
-        client.create("table", path, recursive=True, attributes=attributes)
+        logging.info("Creating table %s with attributes %s", path, attrs)
+        client.create("table", path, recursive=True, attributes=attrs)
 
         if self.get_pivot_keys:
             client.reshard_table(path, self.get_pivot_keys(shards))
@@ -48,14 +50,14 @@ class TableInfo(object):
     def alter_table(self, client, path, shards, attributes):
         logging.info("Unmounting table %s", path)
         unmount_table_new(client, path)
-        dynamic_attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
-        schema = dynamic_attributes["schema"]
+        attrs = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
+        schema = attrs["schema"]
 
         logging.info("Altering table %s with schema %s and attributes %s", path, schema, attributes)
         client.alter_table(path, schema=schema)
-        for attr, value in attributes.iteritems():
-            if attr != "schema":
-                client.set(path + "/@" + attr, value)
+        for attribute, value in iteritems(attributes):
+            if attribute != "schema":
+                client.set(path + "/@" + attribute, value)
 
         if self.get_pivot_keys:
             client.reshard_table(path, self.get_pivot_keys(shards))
@@ -446,15 +448,16 @@ def main():
 
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-    if yt.exists(archive_path):
-        current_version = yt.get("{}/@".format(archive_path)).get("version", 0)
+    client = YtClient(proxy=yt.config["proxy"]["url"], token=yt.config["token"])
+
+    if client.exists(archive_path):
+        current_version = client.get("{}/@".format(archive_path)).get("version", 0)
     else:
         current_version = -1
 
     next_version = current_version + 1
 
     target_version = args.target_version
-    client = YtClient(proxy=yt.config["proxy"]["url"], token=yt.config["token"])
     transform_archive(client, next_version, target_version, args.force, archive_path, shard_count=args.shard_count)
 
 if __name__ == "__main__":

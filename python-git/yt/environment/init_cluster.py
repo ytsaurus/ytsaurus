@@ -18,12 +18,17 @@ def create(type_, name, client):
         else:
             raise
 
+def is_member_of(subject, group, client):
+    members = client.get("//sys/groups/{}/@members".format(group))
+    return subject in members
+
 def add_member(subject, group, client):
     try:
         client.add_member(subject, group)
-    except yt.YtResponseError as err:
-        if "is already present in group" in err.message:
-            logger.warning(err.message)
+    except:
+        if is_member_of(subject, group, client):
+            logger.warning("'{}' is already present in group '{}'".format(subject, group))
+            return True
         else:
             raise
 
@@ -78,8 +83,8 @@ def get_default_resource_limits(client):
 
 def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None):
     client = get_value(client, yt)
-    users = ["odin", "cron", "nightly_tester", "application_operations"]
-    groups = ["devs", "admins"]
+    users = ["odin", "cron", "nightly_tester", "application_operations", "robot-yt-mon"]
+    groups = ["devs", "admins", "admin_snapshots"]
     if idm:
         groups.append("yandex")
     everyone_group = "everyone" if not idm else "yandex"
@@ -88,8 +93,11 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
         create("user", user, client)
     for group in groups:
         create("group", group, client)
+
     add_member("cron", "superusers", client)
     add_member("devs", "admins", client)
+    add_member("robot-yt-mon", "admin_snapshots", client)
+
     if idm:
         add_member("users", "yandex", client)
     add_member("application_operations", "superusers", client)
@@ -116,6 +124,22 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
                       attributes={
                           "opaque": "true",
                           "account": "tmp"})
+
+    client.create("map_node", "//sys/admin", ignore_existing=True)
+    client.create("map_node", "//sys/admin/snapshots", ignore_existing=True)
+
+    if client.exists("//sys/admin"):
+        client.set("//sys/admin/@acl",
+                   [
+                       {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "read", "mount", "administer"]}
+                   ])
+
+    if client.exists("//sys/admin/snapshots"):
+        client.set("//sys/admin/snapshots/@acl",
+                   [
+                       {"action": "allow", "subjects": ["admin_snapshots"], "permissions": ["read"]}
+                   ])
+
     # add_acl to schemas
     for schema in ["user", "group", "tablet_cell"]:
         if client.exists("//sys/schemas/%s" % schema):
@@ -176,6 +200,11 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
     else:
         logger.warning("Account 'tmp_jobs' already exists")
 
+    client.create("map_node",
+                  "//tmp/yt_wrapper/file_storage",
+                  attributes={"account": "tmp_files"},
+                  recursive=True,
+                  ignore_existing=True)
 
     if not client.exists("//sys/tablet_cell_bundles/sys"):
         client.create("tablet_cell_bundle", attributes={"name": "sys"})
