@@ -1940,7 +1940,7 @@ private:
             }
 
             auto* cell = tablet->GetCell();
-            if (IsObjectAlive(cell) || expectedCells.find(cell) == expectedCells.end()) {
+            if (!IsObjectAlive(cell) || expectedCells.find(cell) == expectedCells.end()) {
                 continue;
             }
 
