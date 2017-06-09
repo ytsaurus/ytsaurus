@@ -344,6 +344,7 @@ class YTEnvSetup(object):
             self._remove_users(driver=driver)
             self._remove_groups(driver=driver)
             if self.USE_DYNAMIC_TABLES:
+                yt_commands.gc_collect(driver=driver)
                 self._remove_tablet_cells(driver=driver)
                 self._remove_tablet_cell_bundles(driver=driver)
                 self._reenable_tablet_balancer(driver=driver)
