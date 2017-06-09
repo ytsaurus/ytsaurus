@@ -151,6 +151,7 @@ DEFINE_REFCOUNTED_TYPE(TJobIOConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+<<<<<<< HEAD
 DEFINE_ENUM(EDelayInsideOperationCommitStage,
     (Stage1)
     (Stage2)
@@ -160,6 +161,13 @@ DEFINE_ENUM(EDelayInsideOperationCommitStage,
     (Stage6)
     (Stage7)
 );
+=======
+DEFINE_ENUM(EControllerFailureType,
+    (None)
+    (AssertionFailureInPrepare)
+    (ExceptionThrownInOnJobCompleted)
+)
+>>>>>>> prestable/19.1
 
 class TTestingOperationOptions
     : public NYTree::TYsonSerializable
@@ -168,8 +176,13 @@ public:
     TDuration SchedulingDelay;
     ESchedulingDelayType SchedulingDelayType;
 
+<<<<<<< HEAD
     TDuration DelayInsideOperationCommit;
     EDelayInsideOperationCommitStage DelayInsideOperationCommitStage;
+=======
+    //! Intentionally fails the operation controller. Used only for testing purposes.
+    EControllerFailureType ControllerFailure;
+>>>>>>> prestable/19.1
 
     TTestingOperationOptions();
 };
@@ -234,9 +247,6 @@ public:
     //! A storage keeping YSON map that is hidden under ACL in Cypress. It will be exported
     //! to all user jobs via environment variables.
     NYTree::IMapNodePtr SecureVault;
-
-    //! Intentionally fails the operation controller. Used only for testing purposes.
-    bool FailController;
 
     //! If candidate exec nodes are not found for more than timeout time then operation will be failed.
     TDuration AvailableNodesMissingTimeout;

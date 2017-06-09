@@ -1504,7 +1504,10 @@ void TOperationControllerBase::SyncPrepare()
 
 void TOperationControllerBase::SafePrepare()
 {
-    YCHECK(!(Config->EnableFailControllerSpecOption && Spec->FailController));
+    // Testing purpose code.
+    if (Config->EnableControllerFailureSpecOption) {
+        YCHECK(Spec->TestingOperationOptions->ControllerFailure != EControllerFailureType::AssertionFailureInPrepare);
+    }
 
     // Process input tables.
     {
@@ -2326,8 +2329,14 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    auto jobId = jobSummary->Id;
+    // Testing purpose code.
+    if (Config->EnableControllerFailureSpecOption &&
+        Spec->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
+    {
+        THROW_ERROR_EXCEPTION("Testing exception");
+    }
 
+    auto jobId = jobSummary->Id;
     const auto& result = jobSummary->Result;
 
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -3977,7 +3986,13 @@ void TOperationControllerBase::CheckFailedJobsStatusReceived()
     }
 }
 
-void TOperationControllerBase::OnOperationCrashed(const TAssertionFailedException& ex)
+void TOperationControllerBase::ProcessSafeException(const std::exception& ex)
+{
+    OnOperationFailed(TError("Exception thrown in operation controller that led to operation failure")
+        << ex);
+}
+
+void TOperationControllerBase::ProcessSafeException(const TAssertionFailedException& ex)
 {
     OnOperationFailed(TError("Operation controller crashed; please file a ticket at YTADMINREQ and attach a link to this operation")
         << TErrorAttribute("failed_condition", ex.GetExpression())

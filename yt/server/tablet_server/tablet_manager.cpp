@@ -2796,6 +2796,10 @@ private:
             }
 
             auto* cell = tablet->GetCell();
+            if (!IsObjectAlive(cell) || expectedCells.find(cell) == expectedCells.end()) {
+                continue;
+            }
+
             cell->TotalStatistics() -= GetTabletStatistics(tablet);
             tablet->NodeStatistics() = tabletInfo.statistics();
             cell->TotalStatistics() += GetTabletStatistics(tablet);

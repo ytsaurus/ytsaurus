@@ -70,8 +70,7 @@ class TestChunkServer(YTEnvSetup):
         node_to_decommission = nodes[0]
         assert node_has_chunk(node_to_decommission, chunk_id)
 
-        print >>sys.stderr, "Decommissioning node", node_to_decommission
-        set("//sys/nodes/%s/@decommissioned" % node_to_decommission, True)
+        self.set_node_decommissioned(node_to_decommission, True)
 
         sleep(2) # wait for background replication
 

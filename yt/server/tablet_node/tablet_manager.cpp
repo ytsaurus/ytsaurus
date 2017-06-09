@@ -2597,6 +2597,7 @@ private:
                                     .Item(ToString(store->GetId()))
                                     .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
                             })
+                        .Item("total_row_count").Value(tablet->GetTotalRowCount())
                         .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount());
                 })
             .EndMap();
