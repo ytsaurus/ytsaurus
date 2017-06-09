@@ -216,6 +216,15 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None)
     if ui_address is not None:
         client.set("//sys/@cluster_ui_address", ui_address)
 
+    client.create("map_node", "//tmp/trash", ignore_existing=True)
+
+    client.set("//tmp/trash/@acl",
+        [
+            {"action": "deny", "subjects": ["everyone"], "permissions": ["remove"], "inheritance_mode": "object_only"}
+        ])
+
+    client.link("//tmp/trash", "//trash", ignore_existing=True)
+
     if client.exists("//sys/pools"):
         if not client.exists("//sys/pools/research"):
             client.create("map_node", attributes={"name": "research", "forbid_immediate_operations": "true"})
