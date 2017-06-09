@@ -490,6 +490,9 @@ TServiceBase::TServiceBase(
 
     ServiceTagId_ = NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
 
+    // This logger will be extensively copied; let's pre-populate it.
+    Logger.GetCategory();
+
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
         .SetInvoker(TDispatcher::Get()->GetLightInvoker())
         .SetSystem(true));
