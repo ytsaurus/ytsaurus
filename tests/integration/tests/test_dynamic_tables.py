@@ -104,6 +104,10 @@ class TestDynamicTablesBase(YTEnvSetup):
         clear_metadata_caches()
         return addresses
 
+    def _set_nodes_decommission(self, addresses, decomission):
+        for addr in addresses:
+            self.set_node_decommissioned(addr, decomission)
+
 ##################################################################
 
 class TestDynamicTables(TestDynamicTablesBase):
@@ -787,7 +791,7 @@ class TestDynamicTableStateTransitions(TestDynamicTablesBase):
                 self._get_callback(second_command)("//tmp/t")
         else:
             self._get_callback(second_command)("//tmp/t")
-            self._unban_peers(banned_peers)
+            self._set_nodes_decommission(banned_peers, False)
             self._wait_for_tablets("//tmp/t", expected)
 
     @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
@@ -798,7 +802,7 @@ class TestDynamicTableStateTransitions(TestDynamicTablesBase):
         self._create_sorted_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
         cell = get("//tmp/t/@tablets/0/cell_id")
-        banned_peers = self._ban_all_peers(cell)
+        banned_peers = self._decommission_all_peers(cell)
         self.sync_create_cells(1)
         self._do_test_transition("mounted", first_command, second_command, banned_peers)
 
@@ -811,7 +815,7 @@ class TestDynamicTableStateTransitions(TestDynamicTablesBase):
         self._create_sorted_table("//tmp/t")
         self.sync_mount_table("//tmp/t", freeze=True)
         cell = get("//tmp/t/@tablets/0/cell_id")
-        banned_peers = self._ban_all_peers(cell)
+        banned_peers = self._decommission_all_peers(cell)
         self.sync_create_cells(1)
         self._do_test_transition("frozen", first_command, second_command, banned_peers)
 
@@ -1017,7 +1021,7 @@ class TestTabletActions(TestDynamicTablesBase):
         cells = self.sync_create_cells(2)
         self._create_sorted_table("//tmp/t")
         self.sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
-        self._ban_all_peers(cells[0])
+        self._decommission_all_peers(cells[0])
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         action = create("tablet_action", "", attributes={
             "kind": "move",
@@ -1049,7 +1053,7 @@ class TestTabletActions(TestDynamicTablesBase):
         self._create_sorted_table("//tmp/t")
         reshard_table("//tmp/t", [[], [1]])
         self.sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
-        banned_peers = self._ban_all_peers(cells[0])
+        banned_peers = self._decommission_all_peers(cells[0])
         tablet1 = get("//tmp/t/@tablets/0/tablet_id")
         tablet2 = get("//tmp/t/@tablets/1/tablet_id")
         action = create("tablet_action", "", attributes={
@@ -1063,7 +1067,7 @@ class TestTabletActions(TestDynamicTablesBase):
         except Exception as e:
             expected_touch_state = expected_state
             expected_action_state = "completed"
-        self._unban_peers(banned_peers)
+        self._set_nodes_decommission(banned_peers, False)
         wait(lambda: get("#{0}/@state".format(action)) == expected_action_state)
         if expected_action_state == "failed":
             assert get("#{0}/@error".format(action))
@@ -1078,7 +1082,7 @@ class TestTabletActions(TestDynamicTablesBase):
         self._create_sorted_table("//tmp/t")
         self.sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        banned_peers = self._ban_all_peers(cells[1])
+        banned_peers = self._decommission_all_peers(cells[1])
         action = create("tablet_action", "", attributes={
             "kind": "move",
             "keep_finished": True,
@@ -1086,7 +1090,7 @@ class TestTabletActions(TestDynamicTablesBase):
             "tablet_ids": [tablet_id],
             "cell_ids": [cells[1]]})
         remove("#" + cells[1])
-        self._unban_peers(banned_peers)
+        self._set_nodes_decommission(banned_peers, False)
         wait(lambda: get("#{0}/@state".format(action)) == "failed")
         assert get("#{0}/@error".format(action))
         expected_state = "frozen" if freeze else "mounted"
