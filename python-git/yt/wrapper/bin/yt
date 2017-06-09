@@ -947,8 +947,8 @@ def main():
     config_parser.add_argument("--config", action=ParseStructuredArgument, help="specify configuration")
     config_parser.add_argument("--tx", help="perform command in the context of the given "
                                             "transaction, by default 0-0-0-0")
-    config_parser.add_argument("--cell-id", help="perform command in master specified by this id; "
-                                                 "supported only for native driver and testing purposes ")
+    config_parser.add_argument("--master-cell-id", help="perform command in master specified by this id; "
+                                                        "supported only for native driver and testing purposes ")
     config_parser.add_argument("--ping-ancestor-txs", action="store_true",
                                help="turn on pinging ancestor transactions")
     config_parser.add_argument("--trace", action="store_true")
