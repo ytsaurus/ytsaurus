@@ -129,11 +129,11 @@ public: \
         try { \
             return Safe ## method args; \
         } catch (const TAssertionFailedException& ex) { \
-            OnOperationCrashed(ex); \
+            ProcessSafeException(ex); \
             return defaultValue; \
         } catch (const std::exception& ex) { \
             if (catchStdException) { \
-                FailOperation(ex); \
+                ProcessSafeException(ex); \
                 return defaultValue; \
             } \
             throw; \
