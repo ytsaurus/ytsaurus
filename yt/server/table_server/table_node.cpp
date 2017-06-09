@@ -236,10 +236,12 @@ TTimestamp TTableNode::CalculateUnflushedTimestamp() const
     auto* trunkNode = GetTrunkNode();
     auto result = MaxTimestamp;
     for (const auto* tablet : trunkNode->Tablets()) {
-        auto timestamp = static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp());
-        result = std::min(result, timestamp);
+        if (tablet->GetState() != ETabletState::Unmounted) {
+            auto timestamp = static_cast<TTimestamp>(tablet->NodeStatistics().unflushed_timestamp());
+            result = std::min(result, timestamp);
+        }
     }
-    return result;
+    return result != MaxTimestamp ? result : NullTimestamp;
 }
 
 TTimestamp TTableNode::CalculateRetainedTimestamp() const

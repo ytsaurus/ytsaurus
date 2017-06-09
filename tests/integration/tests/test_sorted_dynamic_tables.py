@@ -120,6 +120,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         },
     }
 
+    DELTA_MASTER_CONFIG = {
+        "timestamp_provider": {
+            "update_period": 500
+        }
+    }
+
     def test_mount(self):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -1781,7 +1787,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self.sync_create_cells(1)
         self._create_simple_table("//tmp/t")
 
+        t12 = get("//tmp/t/@retained_timestamp")
+        t13 = get("//tmp/t/@unflushed_timestamp")
+        assert t13 > t12
+
         t1 = generate_timestamp()
+        assert t1 > t12
         # Wait for timestamp provider at the node.
         sleep(1)
         self.sync_mount_table("//tmp/t")
@@ -1822,6 +1833,11 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert t5 < t7
         assert t6 < t8
         abort_transaction(tx)
+
+        self.sync_freeze_table("//tmp/t")
+        sleep(1)
+        t14 = get("//tmp/t/@unflushed_timestamp")
+        assert t14 > t8
 
     def test_expired_timestamp(self):
         self.sync_create_cells(1)

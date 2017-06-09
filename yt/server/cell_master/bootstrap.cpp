@@ -113,6 +113,7 @@ using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
+using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NChunkServer;
 using namespace NJournalServer;
@@ -128,6 +129,9 @@ using namespace NTableServer;
 using namespace NJournalServer;
 using namespace NSecurityServer;
 using namespace NTabletServer;
+
+using NTransactionServer::TTransactionManager;
+using NTransactionServer::TTransactionManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -237,6 +241,11 @@ const TTransactionManagerPtr& TBootstrap::GetTransactionManager() const
 const TTransactionSupervisorPtr& TBootstrap::GetTransactionSupervisor() const
 {
     return TransactionSupervisor_;
+}
+
+const ITimestampProviderPtr& TBootstrap::GetTimestampProvider() const
+{
+    return TimestampProvider_;
 }
 
 const TCypressManagerPtr& TBootstrap::GetCypressManager() const
@@ -499,9 +508,10 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton());
 
-    auto timestampProvider = CreateRemoteTimestampProvider(
+    TimestampProvider_ = CreateRemoteTimestampProvider(
         Config_->TimestampProvider,
         lightChannelFactory);
+    TimestampProvider_->GetLatestTimestamp();
 
     TransactionSupervisor_ = New<TTransactionSupervisor>(
         Config_->TransactionSupervisor,
@@ -512,11 +522,11 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetResponseKeeper(),
         TransactionManager_,
         CellId_,
-        timestampProvider,
+        TimestampProvider_,
         std::vector<ITransactionParticipantProviderPtr>{
             CreateTransactionParticipantProvider(
                 CellDirectory_,
-                timestampProvider,
+                TimestampProvider_,
                 CellTag_)
         });
 
