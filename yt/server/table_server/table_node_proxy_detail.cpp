@@ -24,6 +24,8 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+
 #include <yt/core/erasure/codec.h>
 
 #include <yt/core/misc/serialize.h>
@@ -132,13 +134,15 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
 bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     const auto* table = GetThisImpl();
-    bool isDynamic = table->IsDynamic();
-    bool isSorted = table->IsSorted();
-
     const auto* trunkTable = table->GetTrunkNode();
     auto statistics = table->ComputeTotalStatistics();
+    bool isDynamic = table->IsDynamic();
+    bool isSorted = table->IsSorted();
+    bool isUnmounted = trunkTable->Tablets().size() ==
+        trunkTable->TabletCountByState()[ETabletState::Unmounted];
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
+    const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
 
     if (key == "chunk_row_count") {
         BuildYsonFluently(consumer)
@@ -265,7 +269,9 @@ bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
 
     if (key == "unflushed_timestamp" && isDynamic && isSorted) {
         BuildYsonFluently(consumer)
-            .Value(table->GetCurrentUnflushedTimestamp());
+            .Value(isUnmounted
+                ? timestampProvider->GetLatestTimestamp()
+                : table->GetCurrentUnflushedTimestamp());
         return true;
     }
 
