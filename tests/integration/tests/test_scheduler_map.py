@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, skip_if_porto, unix_only, porto_env_only
+from yt_env_setup import YTEnvSetup, unix_only, porto_env_only
 from yt_commands import *
 
 from yt.yson import *
@@ -3369,6 +3369,12 @@ class TestFilesInSandbox(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
+            
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "static_orchid_cache_update_period": 100,
+        }
+    }
 
     def test_operation_abort_with_lost_file(self):
         create("file", "//tmp/script", attributes={"replication_factor": 1, "executable": True})
