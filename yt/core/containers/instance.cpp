@@ -88,7 +88,9 @@ public:
     {
         // We can't wait here, but even if this request fails
         // it is not a big issue - porto has its own GC.
-        Executor_->DestroyContainer(Name_);
+        if (!Destroyed_) {
+            Executor_->DestroyContainer(Name_);
+        }
     }
 
     virtual void SetStdIn(const Stroka& inputPath) override
@@ -124,6 +126,13 @@ public:
                 << TErrorAttribute("container", Name_)
                 << error;
         }
+    }
+
+    virtual void Destroy() override
+    {
+        WaitFor(Executor_->DestroyContainer(Name_))
+            .ThrowOnError();
+        Destroyed_ = true;
     }
 
     virtual TUsage GetResourceUsage(const std::vector<EStatField>& fields) const override
@@ -267,6 +276,7 @@ private:
     std::vector<TFuture<void>> Actions_;
     static const std::map<EStatField, TPortoStatRule> StatRules_;
     const NLogging::TLogger Logger;
+    bool Destroyed_ = false;
 
     TPortoInstance(
         const Stroka& name,
