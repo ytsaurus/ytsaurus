@@ -1,6 +1,5 @@
 from .helpers import TEST_DIR, set_config_option
 
-from yt.wrapper.client import Yt
 from yt.wrapper.table import TablePath
 import yt.wrapper.http_helpers as http
 
@@ -24,9 +23,9 @@ class TestClient(object):
         yt.remove("//sys/groups/testers", force=True)
 
     def test_client(self, yt_env):
-        client = Yt(config=yt.config.config)
+        client = yt.YtClient(config=yt.config.config)
 
-        other_client = Yt(config=yt.config.config)
+        other_client = yt.YtClient(config=yt.config.config)
         other_client.config["proxy"]["force_ipv4"] = True
         other_client.config["tabular_data_format"] = yt.JsonFormat()
 
@@ -161,12 +160,12 @@ class TestClient(object):
 
     def test_default_api_version(self):
         if yt.config["backend"] != "native":
-            client = Yt(proxy=yt.config["proxy"]["url"])
+            client = yt.YtClient(proxy=yt.config["proxy"]["url"])
             client.get("/")
             assert client._api_version == "v3"
 
     def test_client_with_unknown_api_version(self):
-        client = Yt(config=yt.config.config)
+        client = yt.YtClient(config=yt.config.config)
         client.config["api_version"] = None
         client.config["default_api_version_for_http"] = None
         if client.config["backend"] == "native":
@@ -187,7 +186,7 @@ class TestClient(object):
         #assert get_user_name(token) == "user"
 
     def test_get_token(self):
-        client = Yt(token="a" * 32)
+        client = yt.YtClient(token="a" * 32)
         client.config["enable_token"] = True
         client.config["cache_token"] = False
 
