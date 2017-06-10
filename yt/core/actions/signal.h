@@ -89,13 +89,22 @@ public:
 
     //! Adds a new handler to the list.
     /*!
-     * \param callback A handler to be added.
+     *  If the list was already fired then #callback is invoked in situ.
+     *  \param callback A handler to be added.
      */
     void Subscribe(const TCallback& callback);
 
+    //! Tries to add a new handler to the list.
+    /*!
+     *  If the list was already fired then returns |false|.
+     *  Otherwise atomically installs the handler.
+     *  \param callback A handler to be added.
+     */
+    bool TrySubscribe(const TCallback& callback);
+
     //! Removes a handler from the list.
     /*!
-     * \param callback A handler to be removed.
+     *  \param callback A handler to be removed.
      */
     void Unsubscribe(const TCallback& callback);
 
