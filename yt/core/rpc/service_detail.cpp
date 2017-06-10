@@ -88,7 +88,7 @@ public:
         , RuntimeInfo_(std::move(runtimeInfo))
         , PerformanceCounters_(Service_->LookupMethodPerformanceCounters(RuntimeInfo_, User_))
         , TraceContext_(traceContext)
-        , ArrivalTime_(GetCpuInstant())
+        , ArrivalInstant_(GetCpuInstant())
     {
         Y_ASSERT(RequestMessage_);
         Y_ASSERT(ReplyBus_);
@@ -171,7 +171,7 @@ public:
 
     void HandleTimeout()
     {
-        if (TimedOut_.test_and_set()) {
+        if (TimedOutLatch_.test_and_set()) {
             return;
         }
 
@@ -180,9 +180,10 @@ public:
         Profiler.Increment(PerformanceCounters_->TimedOutRequestCounter);
         Canceled_.Fire();
 
-        // NB: We can only mark as complete those requests that have not started running yet
-        // as there's no guarantee that the method handler will respond promptly to cancelation.
-        if (!Started_) {
+        // Guards from race with DoGuardedRun.
+        // We can only mark as complete those requests that will not be run
+        // as there's no guarantee that, if started,  the method handler will respond promptly to cancelation.
+        if (!RunLatch_.test_and_set()) {
             SetComplete();
         }
     }
@@ -197,16 +198,20 @@ private:
 
     TDelayedExecutorCookie TimeoutCookie_;
 
-    TSpinLock SpinLock_;
-    bool Started_ = false;
-    bool RunningSync_ = false;
     TSingleShotCallbackList<void()> Canceled_;
-    NProfiling::TCpuInstant ArrivalTime_ = 0;
-    NProfiling::TCpuInstant StartTime_ = 0;
 
-    std::atomic_flag Completed_ = ATOMIC_FLAG_INIT;
-    std::atomic_flag TimedOut_ = ATOMIC_FLAG_INIT;
-    bool Finalized_ = false;
+    const NProfiling::TCpuInstant ArrivalInstant_;
+    NProfiling::TCpuInstant StartInstant_ = 0;
+    NProfiling::TCpuInstant ReplyInstant_ = 0;
+
+    TDuration ExecutionTime_;
+    TDuration TotalTime_;
+    TDuration LocalWaitTime_;
+
+    std::atomic_flag CompletedLatch_ = ATOMIC_FLAG_INIT;
+    std::atomic_flag TimedOutLatch_ = ATOMIC_FLAG_INIT;
+    std::atomic_flag RunLatch_ = ATOMIC_FLAG_INIT;
+    bool FinalizeLatch_ = false;
 
     void Initialize()
     {
@@ -220,7 +225,7 @@ private:
             // Make sanity adjustments to account for possible clock skew.
             retryStart = std::min(retryStart, now);
 
-            Profiler.Update(PerformanceCounters_->RemoteWaitTimeCounter, (now - retryStart).MicroSeconds());
+            Profiler.Update(PerformanceCounters_->RemoteWaitTimeCounter, DurationToValue(now - retryStart));
         }
 
         if (!RuntimeInfo_->Descriptor.OneWay) {
@@ -247,11 +252,11 @@ private:
         }
 
         // Finalize is called from DoReply and ~TServiceContext.
-        // Clearly there could be no race between these two.
-        if (Finalized_) {
+        // Clearly there could be no race between these two and thus no atomics are needed.
+        if (FinalizeLatch_) {
             return;
         }
-        Finalized_ = true;
+        FinalizeLatch_ = true;
 
         if (RuntimeInfo_->Descriptor.Cancelable) {
             Service_->UnregisterCancelableRequest(this);
@@ -283,15 +288,9 @@ private:
 
     void DoBeforeRun()
     {
-        // No need for a lock here.
-        RunningSync_ = true;
-        Started_ = true;
-        StartTime_ = GetCpuInstant();
-
-        if (Profiler.GetEnabled()) {
-            auto value = CpuDurationToValue(StartTime_ - ArrivalTime_);
-            Profiler.Update(PerformanceCounters_->LocalWaitTimeCounter, value);
-        }
+        StartInstant_ = GetCpuInstant();
+        LocalWaitTime_ = CpuDurationToDuration(StartInstant_ - ArrivalInstant_);
+        Profiler.Update(PerformanceCounters_->LocalWaitTimeCounter, DurationToValue(LocalWaitTime_));
     }
 
     void DoGuardedRun(const TLiteHandler& handler)
@@ -303,8 +302,8 @@ private:
         }
 
         auto timeout = GetTimeout();
-        if (timeout && NProfiling::GetCpuInstant() > ArrivalTime_ + NProfiling::DurationToCpuDuration(*timeout)) {
-            if (!TimedOut_.test_and_set()) {
+        if (timeout && NProfiling::GetCpuInstant() > ArrivalInstant_ + NProfiling::DurationToCpuDuration(*timeout)) {
+            if (!TimedOutLatch_.test_and_set()) {
                 LOG_DEBUG("Request dropped due to timeout before being run (RequestId: %v)",
                     RequestId_);
                 Profiler.Increment(PerformanceCounters_->TimedOutRequestCounter);
@@ -313,15 +312,17 @@ private:
         }
 
         if (descriptor.Cancelable) {
-            TGuard<TSpinLock> guard(SpinLock_);
-
-            if (Canceled_.IsFired()) {
+            auto canceler = GetCurrentFiberCanceler();
+            if (canceler && !Canceled_.TrySubscribe(std::move(canceler))) {
                 LOG_DEBUG("Request was canceled before being run (RequestId: %v)",
                     RequestId_);
                 return;
             }
+        }
 
-            Canceled_.Subscribe(GetCurrentFiberCanceler());
+        // Guards from race with HandleTimout.
+        if (RunLatch_.test_and_set()) {
+            return;
         }
 
         handler.Run(this, descriptor.Options);
@@ -329,56 +330,39 @@ private:
 
     void DoAfterRun()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-
         TDelayedExecutor::CancelAndClear(TimeoutCookie_);
 
-        Y_ASSERT(RunningSync_);
-        RunningSync_ = false;
-
-        if (Profiler.GetEnabled() && RuntimeInfo_->Descriptor.OneWay) {
-            auto value = CpuDurationToValue(GetCpuInstant() - ArrivalTime_);
-            Profiler.Update(PerformanceCounters_->TotalTimeCounter, value);
+        if (RuntimeInfo_->Descriptor.OneWay) {
+            TotalTime_ = CpuDurationToDuration(GetCpuInstant() - ArrivalInstant_);
+            Profiler.Update(PerformanceCounters_->TotalTimeCounter, DurationToValue(TotalTime_));
         }
     }
 
     virtual void DoReply() override
     {
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
+        TRACE_ANNOTATION(
+            TraceContext_,
+            Service_->ServiceId_.ServiceName,
+            RuntimeInfo_->Descriptor.Method,
+            NTracing::ServerSendAnnotation);
 
-            TRACE_ANNOTATION(
-                TraceContext_,
-                Service_->ServiceId_.ServiceName,
-                RuntimeInfo_->Descriptor.Method,
-                NTracing::ServerSendAnnotation);
+        auto responseMessage = GetResponseMessage();
 
-            auto responseMessage = GetResponseMessage();
+        NBus::TSendOptions busOptions;
+        busOptions.TrackingLevel = EDeliveryTrackingLevel::None;
+        busOptions.ChecksummedPartCount = RuntimeInfo_->Descriptor.GenerateAttachmentChecksums
+            ? NBus::TSendOptions::AllParts
+            : 2; // RPC header + response body
+        ReplyBus_->Send(std::move(responseMessage), busOptions);
 
-            NBus::TSendOptions busOptions;
-            busOptions.TrackingLevel = EDeliveryTrackingLevel::None;
-            busOptions.ChecksummedPartCount = RuntimeInfo_->Descriptor.GenerateAttachmentChecksums
-                ? NBus::TSendOptions::AllParts
-                : 2; // RPC header + response body
-            ReplyBus_->Send(std::move(responseMessage), busOptions);
+        ReplyInstant_ = GetCpuInstant();
+        ExecutionTime_ = StartInstant_ != 0
+            ? CpuDurationToDuration(ReplyInstant_ - StartInstant_)
+            : TDuration();
+        TotalTime_ = CpuDurationToDuration(ReplyInstant_ - ArrivalInstant_);
 
-            if (Profiler.GetEnabled()) {
-                auto now = GetCpuInstant();
-
-                {
-                    i64 value = 0;
-                    if (Started_) {
-                        value = CpuDurationToValue(now - StartTime_);
-                    }
-                    Profiler.Update(PerformanceCounters_->ExecutionTimeCounter, value);
-                }
-
-                {
-                    auto value = CpuDurationToValue(now - ArrivalTime_);
-                    Profiler.Update(PerformanceCounters_->TotalTimeCounter, value);
-                }
-            }
-        }
+        Profiler.Update(PerformanceCounters_->ExecutionTimeCounter, DurationToValue(ExecutionTime_));
+        Profiler.Update(PerformanceCounters_->TotalTimeCounter, DurationToValue(TotalTime_));
 
         Finalize();
     }
@@ -386,12 +370,10 @@ private:
     void DoSetComplete()
     {
         // DoSetComplete could be called from anywhere so it is racy.
-        if (Completed_.test_and_set()) {
+        if (CompletedLatch_.test_and_set()) {
             return;
         }
 
-        // NB: This counter is also used to track queue size limit so
-        // it must be maintained even if the profiler is OFF.
         Profiler.Increment(RuntimeInfo_->QueueSizeCounter, -1);
         if (--Service_->ActiveRequestCount_ == 0 && Service_->Stopped_.load()) {
             Service_->StopResult_.TrySet();
@@ -462,11 +444,9 @@ private:
             AppendInfo(&builder, "%v", ResponseInfo_);
         }
 
-        if (Profiler.GetEnabled()) {
-            AppendInfo(&builder, "ExecutionTime: %v, TotalTime: %v",
-                ValueToDuration(PerformanceCounters_->ExecutionTimeCounter.GetCurrent()),
-                ValueToDuration(PerformanceCounters_->TotalTimeCounter.GetCurrent()));
-        }
+        AppendInfo(&builder, "ExecutionTime: %v, TotalTime: %v",
+            ExecutionTime_,
+            TotalTime_);
 
         LOG_EVENT(Logger, LogLevel_, "%v -> %v",
             GetMethod(),
@@ -678,21 +658,24 @@ void TServiceBase::ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeI
     --runtimeInfo->ConcurrencySemaphore;
 }
 
-static PER_THREAD bool ScheduleRequestsRunning = false;
+static PER_THREAD bool ScheduleRequestsLatch = false;
 
 void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
     // Prevent reentrant invocations.
-    if (ScheduleRequestsRunning)
+    if (ScheduleRequestsLatch) {
         return;
-    ScheduleRequestsRunning = true;
+    }
+    ScheduleRequestsLatch = true;
 
     while (true) {
-        if (runtimeInfo->RequestQueue.IsEmpty())
+        if (runtimeInfo->RequestQueue.IsEmpty()) {
             break;
+        }
 
-        if (!TryAcquireRequestSemaphore(runtimeInfo))
+        if (!TryAcquireRequestSemaphore(runtimeInfo)) {
             break;
+        }
 
         TServiceContextPtr context;
         if (runtimeInfo->RequestQueue.Dequeue(&context)) {
@@ -703,7 +686,7 @@ void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
         ReleaseRequestSemaphore(runtimeInfo);
     }
 
-    ScheduleRequestsRunning = false;
+    ScheduleRequestsLatch = false;
 }
 
 void TServiceBase::RunRequest(const TServiceContextPtr& context)
