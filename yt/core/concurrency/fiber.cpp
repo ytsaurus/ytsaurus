@@ -6,6 +6,8 @@
 #include "scheduler.h"
 #include "thread_affinity.h"
 
+#include <util/generic/singleton.h>
+
 namespace NYT {
 namespace NConcurrency {
 
@@ -14,9 +16,40 @@ namespace NConcurrency {
 static const auto& Logger = ConcurrencyLogger;
 
 #ifdef DEBUG
-// TODO(sandello): Make it an intrusive list.
-static std::atomic_flag FiberRegistryLock = ATOMIC_FLAG_INIT;
-static std::list<TFiber*> FiberRegistry;
+
+class TFiberRegistry
+{
+public:
+    std::list<TFiber*>::iterator Register(TFiber* fiber)
+    {
+        TGuard<std::atomic_flag> guard(Lock_);
+        return Fibers_.insert(Fibers_.begin(), fiber);
+    }
+
+    void Unregister(std::list<TFiber*>::iterator iterator)
+    {
+        TGuard<std::atomic_flag> guard(Lock_);
+        Fibers_.erase(iterator);
+    }
+
+private:
+    // TODO(sandello): Make it an intrusive list.
+    std::atomic_flag Lock_ = ATOMIC_FLAG_INIT;
+    std::list<TFiber*> Fibers_;
+
+};
+
+// Cache registry in static variable to simplify introspection.
+static TFiberRegistry* FiberRegistry;
+
+TFiberRegistry* GetFiberRegistry()
+{
+    if (!FiberRegistry) {
+        FiberRegistry = Singleton<TFiberRegistry>();
+    }
+    return FiberRegistry;
+}
+
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,8 +61,7 @@ TFiber::TFiber(TClosure callee, EExecutionStackKind stackKind)
 {
     RegenerateId();
 #ifdef DEBUG
-    TGuard<std::atomic_flag> guard(FiberRegistryLock);
-    Iterator_ = FiberRegistry.insert(FiberRegistry.begin(), this);
+    Iterator_ = GetFiberRegistry()->Register(this);
 #endif
 }
 
@@ -43,8 +75,7 @@ TFiber::~TFiber()
         }
     }
 #ifdef DEBUG
-    TGuard<std::atomic_flag> guard(FiberRegistryLock);
-    FiberRegistry.erase(Iterator_);
+    GetFiberRegistry()->Unregister(Iterator_);
 #endif
 }
 
