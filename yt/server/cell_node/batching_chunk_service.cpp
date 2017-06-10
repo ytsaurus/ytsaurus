@@ -54,7 +54,8 @@ public:
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TChunkServiceProxy::GetDescriptor(),
-            CellNodeLogger,
+            NLogging::TLogger(CellNodeLogger)
+                .AddTag("CellTag: %v", CellTagFromId(cellId)),
             cellId)
         , ServiceConfig_(std::move(serviceConfig))
         , ConnectionConfig_(std::move(connectionConfig))
@@ -68,8 +69,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AllocateWriteTargets));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteBatch));
-
-        Logger.AddTag("CellTag: %v", CellTagFromId(cellId));
     }
 
 private:
