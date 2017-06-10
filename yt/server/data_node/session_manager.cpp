@@ -215,7 +215,7 @@ int TSessionManager::GetSessionCount(ESessionType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return PerTypeSessionCounters_[type].Current.load();
+    return PerTypeSessionCounters_[type].GetCurrent();
 }
 
 void TSessionManager::RegisterSession(ISessionPtr session)

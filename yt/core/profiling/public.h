@@ -12,19 +12,22 @@ class TProfileManager;
 
 class TResourceTracker;
 
-struct TTimer;
+class TTimer;
+class TSimpleCounter;
+class TAggregateCounter;
+
 struct TQueuedSample;
 
 //! Generic value for samples.
-typedef i64 TValue;
+using TValue = i64;
 
-typedef ui64 TCpuInstant;
-typedef i64  TCpuDuration;
+using TCpuInstant = ui64;
+using TCpuDuration = i64;
 
-typedef int TTagId;
+using TTagId = int;
 
-const int TypicalTagCount = 8;
-typedef SmallVector<TTagId, TypicalTagCount> TTagIdList;
+constexpr int TypicalTagCount = 8;
+using TTagIdList = SmallVector<TTagId, TypicalTagCount>;
 
 extern const TTagIdList EmptyTagIds;
 

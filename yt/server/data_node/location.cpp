@@ -245,7 +245,7 @@ i64 TLocation::GetPendingIOSize(
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto category = ToIOCategory(workloadDescriptor);
-    return GetPendingIOSizeCounter(direction, category).Current.load();
+    return GetPendingIOSizeCounter(direction, category).GetCurrent();
 }
 
 TPendingIOGuard TLocation::IncreasePendingIOSize(

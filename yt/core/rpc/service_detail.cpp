@@ -464,8 +464,8 @@ private:
 
         if (Profiler.GetEnabled()) {
             AppendInfo(&builder, "ExecutionTime: %v, TotalTime: %v",
-                ValueToDuration(PerformanceCounters_->ExecutionTimeCounter.Current),
-                ValueToDuration(PerformanceCounters_->TotalTimeCounter.Current));
+                ValueToDuration(PerformanceCounters_->ExecutionTimeCounter.GetCurrent()),
+                ValueToDuration(PerformanceCounters_->TotalTimeCounter.GetCurrent()));
         }
 
         LOG_EVENT(Logger, LogLevel_, "%v -> %v",
@@ -567,7 +567,7 @@ void TServiceBase::HandleRequest(
     }
 
     // Not actually atomic but should work fine as long as some small error is OK.
-    if (runtimeInfo->QueueSizeCounter.Current > runtimeInfo->Descriptor.MaxQueueSize) {
+    if (runtimeInfo->QueueSizeCounter.GetCurrent() > runtimeInfo->Descriptor.MaxQueueSize) {
         handleError(
             TError(
                 NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
