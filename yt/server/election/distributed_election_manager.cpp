@@ -507,7 +507,10 @@ TDistributedElectionManager::TDistributedElectionManager(
     : TServiceBase(
         controlInvoker,
         TElectionServiceProxy::GetDescriptor(),
-        ElectionLogger,
+        NLogging::TLogger(ElectionLogger)
+            .AddTag("CellId: %v, SelfPeerId: %v",
+                cellManager->GetCellId(),
+                cellManager->GetSelfPeerId()),
         cellManager->GetCellId())
     , Config(config)
     , CellManager(cellManager)
@@ -520,10 +523,6 @@ TDistributedElectionManager::TDistributedElectionManager(
     YCHECK(ControlInvoker);
     YCHECK(ElectionCallbacks);
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker, ControlThread);
-
-    Logger.AddTag("CellId: %v, SelfPeerId: %v",
-        CellManager->GetCellId(),
-        CellManager->GetSelfPeerId());
 
     Reset();
 
