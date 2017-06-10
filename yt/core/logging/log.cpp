@@ -1,49 +1,37 @@
 #include "log.h"
 #include "log_manager.h"
 
-#include <yt/core/misc/pattern_formatter.h>
-
-#include <yt/core/ytree/node.h>
-
-#include <util/folder/dirut.h>
-
 namespace NYT {
 namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TLogger::TLogger()
-    : CategoryName_(nullptr)
-    , CachedLogManager_(nullptr)
-    , CachedCategory_(nullptr)
+    : LogManager_(nullptr)
+    , Category_(nullptr)
 { }
 
 TLogger::TLogger(const char* categoryName)
-    : CategoryName_(categoryName)
-    , CachedLogManager_(nullptr)
-    , CachedCategory_(nullptr)
+    : LogManager_(TLogManager::Get())
+    , Category_(LogManager_->GetCategory(categoryName))
 { }
 
 const TLoggingCategory* TLogger::GetCategory() const
 {
-    if (!CachedCategory_ && CategoryName_) {
-        CachedCategory_ = GetLogManager()->GetCategory(CategoryName_);
-    }
-    return CachedCategory_;
+    return Category_;
 }
 
 bool TLogger::IsEnabled(ELogLevel level) const
 {
-    auto* category = GetCategory();
-    if (!category) {
+    if (!Category_) {
         return false;
     }
 
-    if (category->CurrentVersion != category->ActualVersion->load(std::memory_order_relaxed)) {
-        GetLogManager()->UpdateCategory(category);
+    if (Category_->CurrentVersion != Category_->ActualVersion->load(std::memory_order_relaxed)) {
+        LogManager_->UpdateCategory(Category_);
     }
 
-    return level >= category->MinLevel;
+    return level >= Category_->MinLevel;
 }
 
 void TLogger::Write(TLogEvent&& event) const
@@ -52,7 +40,7 @@ void TLogger::Write(TLogEvent&& event) const
         event.Message = GetMessageWithContext(event.Message, Context_);
     }
 
-    GetLogManager()->Enqueue(std::move(event));
+    LogManager_->Enqueue(std::move(event));
 }
 
 TLogger& TLogger::AddRawTag(const Stroka& tag)
@@ -67,14 +55,6 @@ TLogger& TLogger::AddRawTag(const Stroka& tag)
 const Stroka& TLogger::GetContext() const
 {
     return Context_;
-}
-
-TLogManager* TLogger::GetLogManager() const
-{
-    if (!CachedLogManager_) {
-        CachedLogManager_ = TLogManager::Get();
-    }
-    return CachedLogManager_;
 }
 
 Stroka TLogger::GetMessageWithContext(const Stroka& originalMessage, const Stroka& context)

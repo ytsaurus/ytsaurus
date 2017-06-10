@@ -244,41 +244,15 @@ public:
             false,
             false))
         , LoggingThread_(New<TThread>(this))
+        , SystemWriters_({New<TStderrLogWriter>()})
     {
-        SystemWriters_.push_back(New<TStderrLogWriter>());
-        UpdateConfig(TLogConfig::CreateDefault(), false);
+        DoUpdateConfig(TLogConfig::CreateDefault());
         SystemCategory_ = GetCategory(SystemLoggingCategoryName);
     }
 
-    void EnsureStarted()
+    void Configure(INodePtr node)
     {
-        if (LoggingThread_->IsShutdown()) {
-            return;
-        }
-
-        if (LoggingThread_->IsStarted()) {
-            return;
-        }
-
-        LoggingThread_->Start();
-        EventQueue_->SetThreadId(LoggingThread_->GetId());
-
-        ProfilingExecutor_ = New<TPeriodicExecutor>(
-            EventQueue_,
-            BIND(&TImpl::OnProfiling, MakeStrong(this)),
-            ProfilingPeriod);
-        ProfilingExecutor_->Start();
-
-        DequeueExecutor_ = New<TPeriodicExecutor>(
-            EventQueue_,
-            BIND(&TImpl::OnDequeue, MakeStrong(this)),
-            DequeuePeriod);
-        DequeueExecutor_->Start();
-    }
-
-    void Configure(INodePtr node, const TYPath& path = "")
-    {
-        auto config = TLogConfig::CreateFromNode(node, path);
+        auto config = TLogConfig::CreateFromNode(node);
         Configure(std::move(config));
     }
 
@@ -346,7 +320,7 @@ public:
 
         config->WriterConfigs.insert(std::make_pair(stderrWriterName, std::move(stderrWriter)));
 
-        TLogManager::Get()->Configure(std::move(config));
+        Configure(std::move(config));
     }
 
     void ConfigureFromEnv()
@@ -570,6 +544,32 @@ private:
     }
 
 
+    void EnsureStarted()
+    {
+        if (LoggingThread_->IsShutdown()) {
+            return;
+        }
+
+        if (LoggingThread_->IsStarted()) {
+            return;
+        }
+
+        LoggingThread_->Start();
+        EventQueue_->SetThreadId(LoggingThread_->GetId());
+
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            EventQueue_,
+            BIND(&TImpl::OnProfiling, MakeStrong(this)),
+            ProfilingPeriod);
+        ProfilingExecutor_->Start();
+
+        DequeueExecutor_ = New<TPeriodicExecutor>(
+            EventQueue_,
+            BIND(&TImpl::OnDequeue, MakeStrong(this)),
+            DequeuePeriod);
+        DequeueExecutor_->Start();
+    }
+
     const std::vector<ILogWriterPtr>& GetWriters(const TLogEvent& event)
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
@@ -621,11 +621,9 @@ private:
         return nullptr;
     }
 
-    void UpdateConfig(const TLogConfigPtr& config, bool verifyThreadAffinity = true)
+    void UpdateConfig(const TLogConfigPtr& config)
     {
-        if (verifyThreadAffinity) {
-            VERIFY_THREAD_AFFINITY(LoggingThread);
-        }
+        VERIFY_THREAD_AFFINITY(LoggingThread);
 
         if (ShutdownRequested_) {
             return;
@@ -639,6 +637,48 @@ private:
 
         FlushWriters();
 
+        DoUpdateConfig(config);
+
+        if (FlushExecutor_) {
+            FlushExecutor_->Stop();
+            FlushExecutor_.Reset();
+        }
+
+        if (WatchExecutor_) {
+            WatchExecutor_->Stop();
+            WatchExecutor_.Reset();
+        }
+
+        auto flushPeriod = Config_->FlushPeriod;
+        if (flushPeriod) {
+            FlushExecutor_ = New<TPeriodicExecutor>(
+                EventQueue_,
+                BIND(&TImpl::FlushWriters, MakeStrong(this)),
+                *flushPeriod);
+            FlushExecutor_->Start();
+        }
+
+        auto watchPeriod = Config_->WatchPeriod;
+        if (watchPeriod) {
+            WatchExecutor_ = New<TPeriodicExecutor>(
+                EventQueue_,
+                BIND(&TImpl::WatchWriters, MakeStrong(this)),
+                *watchPeriod);
+            WatchExecutor_->Start();
+        }
+
+        auto checkSpacePeriod = Config_->CheckSpacePeriod;
+        if (checkSpacePeriod) {
+            CheckSpaceExecutor_ = New<TPeriodicExecutor>(
+                EventQueue_,
+                BIND(&TImpl::CheckSpace, MakeStrong(this)),
+                *checkSpacePeriod);
+            CheckSpaceExecutor_->Start();
+        }
+    }
+
+    void DoUpdateConfig(const TLogConfigPtr& config)
+    {
         {
             decltype(Writers_) writers;
             decltype(CachedWriters_) cachedWriters;
@@ -652,7 +692,7 @@ private:
 
             guard.Release();
 
-            // writers and cachedWriter will die here where we don't
+            // writers and cachedWriters will die here where we don't
             // hold the spinlock anymore.
         }
 
@@ -692,43 +732,6 @@ private:
         }
 
         Version_++;
-
-        if (FlushExecutor_) {
-            FlushExecutor_->Stop();
-            FlushExecutor_.Reset();
-        }
-
-        if (WatchExecutor_) {
-            WatchExecutor_->Stop();
-            WatchExecutor_.Reset();
-        }
-
-        auto flushPeriod = Config_->FlushPeriod;
-        if (flushPeriod) {
-            FlushExecutor_ = New<TPeriodicExecutor>(
-                EventQueue_,
-                BIND(&TImpl::FlushWriters, MakeStrong(this)),
-                *flushPeriod);
-            FlushExecutor_->Start();
-        }
-
-        auto watchPeriod = Config_->WatchPeriod;
-        if (watchPeriod) {
-            WatchExecutor_ = New<TPeriodicExecutor>(
-                EventQueue_,
-                BIND(&TImpl::WatchWriters, MakeStrong(this)),
-                *watchPeriod);
-            WatchExecutor_->Start();
-        }
-
-        auto checkSpacePeriod = Config_->CheckSpacePeriod;
-        if (checkSpacePeriod) {
-            CheckSpaceExecutor_ = New<TPeriodicExecutor>(
-                EventQueue_,
-                BIND(&TImpl::CheckSpace, MakeStrong(this)),
-                *checkSpacePeriod);
-            CheckSpaceExecutor_->Start();
-        }
     }
 
     void WriteEvent(const TLogEvent& event)
