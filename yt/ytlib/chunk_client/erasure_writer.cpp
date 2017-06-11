@@ -456,7 +456,13 @@ void TErasureWriter::OnBlocksWritten()
     placementExt.set_parity_last_block_size(ParityDataSize_ - (Config_->ErasureWindowSize * (WindowCount_ - 1)));
 
     for (const auto& blockChecksums : PartwiseBlockChecksums_) {
-        placementExt.add_part_checksums(CombineChecksums(blockChecksums));
+        auto checksum = CombineChecksums(blockChecksums);
+        YCHECK(checksum != NullChecksum ||
+            blockChecksums.empty() ||
+            std::all_of(blockChecksums.begin(), blockChecksums.end(), [] (TChecksum value) {
+                return value == NullChecksum;
+            }));
+        placementExt.add_part_checksums(checksum);
     }
 
     SetProtoExtension(ChunkMeta_.mutable_extensions(), placementExt);
