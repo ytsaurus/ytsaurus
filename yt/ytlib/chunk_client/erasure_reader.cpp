@@ -753,7 +753,8 @@ private:
                 for (auto partIndex : ErasedIndices_) {
                     auto writerIndex = PartIndexToWriterIndex_[partIndex];
                     auto checksum = CombineChecksums(partwiseBlockChecksums[writerIndex]);
-                    YCHECK(checksum == placementExt.part_checksums(partIndex));
+                    auto metaChecksum = placementExt.part_checksums(partIndex);
+                    YCHECK(metaChecksum == NullChecksum || checksum == metaChecksum);
                 }
             }
         }
