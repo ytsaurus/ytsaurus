@@ -85,6 +85,8 @@ message TErasurePlacementExt
     required int64 parity_block_size = 4;
     required int64 parity_last_block_size = 5;
 
+    // We cannot store checksums in TPartInfo,
+    // since part infos are present only for non-empty data parts.
     repeated fixed64 part_checksums = 6;
 }
 
