@@ -571,7 +571,7 @@ class Operation(object):
             timeout -= self._poll_frequency
 
         if timeout <= 0:
-            raise TimeoutError("Jobs didn't actually started within timeout")
+            raise TimeoutError("Could not start jobs within timeout")
 
     def ensure_running(self, timeout=2.0):
         print >>sys.stderr, "Ensure operation is running %s" % self.id
