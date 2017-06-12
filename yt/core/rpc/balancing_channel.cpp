@@ -70,19 +70,21 @@ public:
 
     TFuture<void> Terminate(const TError& error)
     {
-        decltype(AddressToViableChannel_) addressToViableChannel;
+        decltype(AddressToIndex_) addressToIndex;
+        decltype(ViablePeers_) viablePeers;
         decltype(HashToViableChannel_) hashToViableChannel;
         {
             TWriterGuard guard(SpinLock_);
             Terminated_ = true;
             TerminationError_ = error;
-            AddressToViableChannel_.swap(addressToViableChannel);
+            AddressToIndex_.swap(addressToIndex);
+            ViablePeers_.swap(viablePeers);
             HashToViableChannel_.swap(hashToViableChannel);
         }
 
         std::vector<TFuture<void>> asyncResults;
-        for (const auto& pair : addressToViableChannel) {
-            asyncResults.push_back(pair.second->Terminate(error));
+        for (const auto& peer : viablePeers) {
+            asyncResults.push_back(peer.Channel->Terminate(error));
         }
 
         return Combine(asyncResults);
@@ -105,7 +107,14 @@ private:
     yhash_set<Stroka> ActiveAddresses_;
     yhash_set<Stroka> BannedAddresses_;
 
-    yhash<Stroka, IChannelPtr> AddressToViableChannel_;
+    struct TViablePeer
+    {
+        Stroka Address;
+        IChannelPtr Channel;
+    };
+
+    yhash<Stroka, int> AddressToIndex_;
+    std::vector<TViablePeer> ViablePeers_;
     std::map<std::pair<size_t, Stroka>, IChannelPtr> HashToViableChannel_;
 
     NLogging::TLogger Logger;
@@ -331,24 +340,20 @@ private:
 
     IChannelPtr PickRandomViableChannel(const IClientRequestPtr& request)
     {
-        auto hash = RandomNumber<size_t>();
-
         TReaderGuard guard(SpinLock_);
 
-        if (HashToViableChannel_.empty()) {
+        if (ViablePeers_.empty()) {
             return nullptr;
         }
 
-        auto it = HashToViableChannel_.lower_bound(std::make_pair(hash, Stroka()));
-        if (it == HashToViableChannel_.end()) {
-            it = HashToViableChannel_.begin();
-        }
+        auto index = RandomNumber<size_t>(ViablePeers_.size());
+        const auto& peer = ViablePeers_[index];
 
         LOG_DEBUG("Random peer selected (RequestId: %v, Address: %v)",
             request->GetRequestId(),
-            it->first.second);
+            peer.Address);
 
-        return it->second;
+        return peer.Channel;
     }
 
 
@@ -502,20 +507,10 @@ private:
             channel,
             BIND(&TBalancingChannelSubprovider::OnChannelFailed, MakeWeak(this), address));
 
-        bool updated = false;
-
+        bool updated;
         {
             TWriterGuard guard(SpinLock_);
-            auto it = AddressToViableChannel_.find(address);
-            if (it == AddressToViableChannel_.end()) {
-                YCHECK(AddressToViableChannel_.emplace(address, wrappedChannel).second);
-            } else {
-                it->second = wrappedChannel;
-                updated = true;
-            }
-            GeneratePeerHashes(address, [&] (size_t hash) {
-                HashToViableChannel_[std::make_pair(hash, address)] = wrappedChannel;
-            });
+            updated = RegisterViablePeer(address, wrappedChannel);
         }
 
         LOG_DEBUG("Peer is viable (Address: %v, Updated: %v)",
@@ -528,33 +523,65 @@ private:
     void InvalidatePeer(const Stroka& address)
     {
         TWriterGuard guard(SpinLock_);
-        auto it = AddressToViableChannel_.find(address);
-        if (it != AddressToViableChannel_.end()) {
-            AddressToViableChannel_.erase(it);
-            GeneratePeerHashes(address, [&] (size_t hash) {
-                HashToViableChannel_.erase(std::make_pair(hash, address));
-            });
+        auto it = AddressToIndex_.find(address);
+        if (it != AddressToIndex_.end()) {
+            UnregisterViablePeer(it);
         }
     }
 
     void OnChannelFailed(const Stroka& address, const IChannelPtr& channel)
     {
         bool evicted = false;
-
         {
             TWriterGuard guard(SpinLock_);
-            auto it = AddressToViableChannel_.find(address);
-            if (it != AddressToViableChannel_.end() && it->second == channel) {
-                AddressToViableChannel_.erase(it);
-                GeneratePeerHashes(address, [&] (size_t hash) {
-                    HashToViableChannel_.erase(std::make_pair(hash, address));
-                });
+            auto it = AddressToIndex_.find(address);
+            if (it != AddressToIndex_.end() && ViablePeers_[it->second].Channel == channel) {
+                evicted = true;
+                UnregisterViablePeer(it);
             }
         }
 
         LOG_DEBUG("Peer is no longer viable (Address: %v, Evicted: %v)",
             address,
             evicted);
+    }
+
+
+    bool RegisterViablePeer(const Stroka& address, const IChannelPtr& channel)
+    {
+        GeneratePeerHashes(address, [&] (size_t hash) {
+            HashToViableChannel_[std::make_pair(hash, address)] = channel;
+        });
+
+        bool updated = false;
+        auto it = AddressToIndex_.find(address);
+        if (it == AddressToIndex_.end()) {
+            int index = static_cast<int>(ViablePeers_.size());
+            ViablePeers_.push_back(TViablePeer{address, channel});
+            YCHECK(AddressToIndex_.emplace(address, index).second);
+        } else {
+            int index = it->second;
+            ViablePeers_[index].Channel = channel;
+            updated = true;
+        }
+        return updated;
+    }
+
+    void UnregisterViablePeer(yhash<Stroka, int>::iterator it)
+    {
+        const auto& address = it->first;
+        GeneratePeerHashes(address, [&] (size_t hash) {
+            HashToViableChannel_.erase(std::make_pair(hash, address));
+        });
+
+        int index1 = it->second;
+        int index2 = static_cast<int>(ViablePeers_.size() - 1);
+        if (index1 != index2) {
+            std::swap(ViablePeers_[index1], ViablePeers_[index2]);
+            AddressToIndex_[ViablePeers_[index1].Address] = index1;
+        }
+        ViablePeers_.pop_back();
+        AddressToIndex_.erase(it);
     }
 };
 
