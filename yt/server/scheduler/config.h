@@ -145,6 +145,7 @@ DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
 
 class TOperationOptions
     : public NYTree::TYsonSerializable
+    , public virtual NPhoenix::TDynamicTag
 {
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOperationOptions, 0x6d2a0bdd);
@@ -267,7 +268,7 @@ class TEraseOperationOptions
     : public TOrderedMergeOperationOptions
 {
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TStrategyOperationSpec, 0x73cb9f3b);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TEraseOperationOptions, 0x73cb9f3b);
 };
 
 DEFINE_REFCOUNTED_TYPE(TEraseOperationOptions)

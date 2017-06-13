@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/logging/log.h>
+
 #include <yt/core/misc/phoenix.h>
 
 #include <yt/ytlib/table_client/serialize.h>
@@ -22,10 +24,16 @@ DECLARE_REFCOUNTED_CLASS(TJobManager)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkStripe)
 
+DECLARE_REFCOUNTED_CLASS(TOutputOrder)
+
 struct IChunkPoolInput;
 struct IChunkPoolOutput;
 struct IChunkPool;
 struct IShuffleChunkPool;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NLogging::TLogger ChunkPoolLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

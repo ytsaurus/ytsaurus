@@ -2527,11 +2527,8 @@ print row + table_index
         assert get("#" + chunks[0] + "/@compressed_data_size") > 1024 * 10
         assert get("#" + chunks[0] + "/@max_block_size") < 1024 * 2
 
-    # ToDo(psushin): uncomment and use parameter after YT-7064.
-    #@pytest.mark.parametrize("ordered", [False, True])
-    def test_map_interrupt_job(self):
-        ordered = False
-
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_map_interrupt_job(self, ordered):
         create("table", "//tmp/in_1")
         write_table(
             "//tmp/in_1",
@@ -3369,7 +3366,7 @@ class TestFilesInSandbox(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-            
+
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "static_orchid_cache_update_period": 100,

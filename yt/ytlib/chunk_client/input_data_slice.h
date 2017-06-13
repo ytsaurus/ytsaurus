@@ -30,8 +30,8 @@ public:
     TInputDataSlice(
         EDataSourceType type,
         TChunkSliceList chunkSlices,
-        TInputSliceLimit lowerLimit,
-        TInputSliceLimit upperLimit,
+        TInputSliceLimit lowerLimit = TInputSliceLimit(),
+        TInputSliceLimit upperLimit = TInputSliceLimit(),
         TNullable<i64> tag = Null);
 
     int GetChunkCount() const;

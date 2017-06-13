@@ -166,6 +166,8 @@ struct IChunkPoolOutput
 
     virtual const std::vector<NChunkClient::TInputChunkPtr>& GetTeleportChunks() const = 0;
 
+    virtual TOutputOrderPtr GetOutputOrder() const = 0;
+
     virtual void Completed(TCookie cookie, const NScheduler::TCompletedJobSummary& jobSummary) = 0;
     virtual void Failed(TCookie cookie) = 0;
     virtual void Aborted(TCookie cookie, NScheduler::EAbortReason reason) = 0;
@@ -202,6 +204,8 @@ public:
     virtual void Persist(const TPersistenceContext& context) override;
 
     virtual const std::vector<NChunkClient::TInputChunkPtr>& GetTeleportChunks() const override;
+
+    virtual TOutputOrderPtr GetOutputOrder() const override;
 
 public:
     DEFINE_SIGNAL(void(const TError& error), PoolOutputInvalidated)

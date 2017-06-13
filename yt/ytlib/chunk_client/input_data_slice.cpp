@@ -92,7 +92,7 @@ bool TInputDataSlice::IsTrivial() const
 
 bool TInputDataSlice::IsEmpty() const
 {
-    return LowerLimit_.Key >= UpperLimit_.Key;
+    return LowerLimit_.Key && UpperLimit_.Key && LowerLimit_.Key >= UpperLimit_.Key;
 }
 
 std::pair<TInputDataSlicePtr, TInputDataSlicePtr> TInputDataSlice::SplitByRowIndex(i64 rowIndex) const
