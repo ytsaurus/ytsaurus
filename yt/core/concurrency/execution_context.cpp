@@ -63,10 +63,27 @@ TExecutionContext::TExecutionContext()
     memset(EH_, 0, EH_SIZE);
 }
 
+TExecutionContext::TExecutionContext(void* stackBottom, size_t stackSize)
+    : SP_(nullptr)
+#if defined(_asan_enabled_)
+    , San_(stackBottom, stackSize)
+#endif
+{
+#if !defined(_asan_enabled_)
+    Y_UNUSED(stackBottom);
+    Y_UNUSED(stackSize);
+#endif
+    memset(EH_, 0, EH_SIZE);
+}
+
 TExecutionContext::TExecutionContext(TExecutionContext&& other)
 {
     SP_ = other.SP_;
     other.SP_ = nullptr;
+
+#if defined(_asan_enabled_)
+    San_ = std::move(other.San_);
+#endif
 
 #ifdef CXXABIv1
     memcpy(EH_, other.EH_, EH_SIZE);
@@ -74,20 +91,37 @@ TExecutionContext::TExecutionContext(TExecutionContext&& other)
 #endif
 }
 
+#if defined(_asan_enabled_)
+static void SanitizerTrampoline(
+    void* opaque,
+    void* rsi,
+    void* rdx,
+    void (*trampoline)(void*))
+{
+    NSan::TFiberContext::AfterStart();
+    trampoline(opaque);
+};
+#endif
+
 TExecutionContext CreateExecutionContext(
     TExecutionStack* stack,
     void (*trampoline)(void*))
 {
-    TExecutionContext context;
-    memset(&context, 0, sizeof(context));
+    TExecutionContext context(stack->GetStack(), stack->GetSize());
 
     auto* sp = reinterpret_cast<void**>(reinterpret_cast<char*>(stack->GetStack()) + stack->GetSize());
     // We pad an extra nullptr to align %rsp before callq after jmpq.
     // Effectively, this nullptr mimics a return address.
     *--sp = nullptr;
+#if !defined(_asan_enabled_)
     *--sp = reinterpret_cast<void*>(trampoline);
     // No need to set any extra registers, so just pad for them.
     sp -= 6;
+#else
+    *--sp = reinterpret_cast<void*>(SanitizerTrampoline);
+    sp -= 5;
+    *--sp = reinterpret_cast<void*>(trampoline);
+#endif
     context.SP_ = sp;
 
     return context;
@@ -98,12 +132,22 @@ void* SwitchExecutionContext(
     TExecutionContext* target,
     void* opaque)
 {
+#if defined(_asan_enabled_)
+    target->San_.BeforeSwitch();
+    // XXX: Or BeforeFinish(). There is no "finish" flag in
+    // SwitchExecutionContext interface now. It will leak when
+    // using ASan with detect_stack_use_after_return option enabled.
+#endif
 #ifdef CXXABIv1
     auto* eh = __cxxabiv1::__cxa_get_globals();
     memcpy(caller->EH_, eh, TExecutionContext::EH_SIZE);
     memcpy(eh, target->EH_, TExecutionContext::EH_SIZE);
 #endif
-    return SwitchExecutionContextImpl(&caller->SP_, &target->SP_, opaque);
+    void* result = SwitchExecutionContextImpl(&caller->SP_, &target->SP_, opaque);
+#if defined(_asan_enabled_)
+    target->San_.AfterSwitch();
+#endif
+    return result;
 }
 
 #elif defined(_win_)

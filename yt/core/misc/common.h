@@ -5,7 +5,7 @@
 #include <util/generic/hash.h>
 #include <util/generic/hash_set.h>
 #include <util/generic/singleton.h>
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 #include <util/string/cast.h>
 #include <util/string/printf.h>

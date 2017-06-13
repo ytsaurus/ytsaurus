@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <yt/core/yson/public.h>
-
+#include <yt/core/yson/string.h>
 #include <yt/core/ytree/public.h>
 
 #include <typeinfo>

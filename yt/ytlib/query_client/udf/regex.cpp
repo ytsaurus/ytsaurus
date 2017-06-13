@@ -2,17 +2,17 @@
 
 #include <functional>
 
-namespace google { namespace re2 {
+namespace re2 {
     class RE2;
-} }
+}
 
-extern "C" google::re2::RE2* RegexCreate(TUnversionedValue*);
-extern "C" void RegexDestroy(google::re2::RE2*);
-extern "C" bool RegexFullMatch(google::re2::RE2*, TUnversionedValue*);
-extern "C" bool RegexPartialMatch(google::re2::RE2*, TUnversionedValue*);
-extern "C" void RegexReplaceFirst(TExpressionContext*, google::re2::RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
-extern "C" void RegexReplaceAll(TExpressionContext*, google::re2::RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
-extern "C" void RegexExtract(TExpressionContext*, google::re2::RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
+extern "C" re2::RE2* RegexCreate(TUnversionedValue*);
+extern "C" void RegexDestroy(re2::RE2*);
+extern "C" bool RegexFullMatch(re2::RE2*, TUnversionedValue*);
+extern "C" bool RegexPartialMatch(re2::RE2*, TUnversionedValue*);
+extern "C" void RegexReplaceFirst(TExpressionContext*, re2::RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
+extern "C" void RegexReplaceAll(TExpressionContext*, re2::RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
+extern "C" void RegexExtract(TExpressionContext*, re2::RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
 extern "C" void RegexEscape(TExpressionContext*, TUnversionedValue*, TUnversionedValue*);
 
 struct TRe2Regex
@@ -29,7 +29,7 @@ struct TRe2Regex
     TRe2Regex(const TRe2Regex& other) = delete;
     TRe2Regex& operator= (const TRe2Regex& other) = delete;
 
-    google::re2::RE2* Re2;
+    re2::RE2* Re2;
 };
 
 static void regex_apply(
@@ -168,4 +168,3 @@ extern "C" void regex_escape(
         RegexEscape(expressionContext, input, result);
     }
 }
-

@@ -9,7 +9,7 @@
 #include <yt/core/misc/zigzag.h>
 #include <yt/core/misc/parser_helpers.h>
 
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 #include <util/string/escape.h>
 
