@@ -155,106 +155,102 @@ public class BalancingRpcClient implements RpcClient {
         }
     }
 
-    private CompletionStage<List<byte[]>> sendOnce(Destination dst, RpcClientRequest request) {
-        CompletableFuture<List<byte[]>> f = new CompletableFuture<>();
+    private static class ResponseHandler implements RpcClientResponseHandler {
+        private final CompletableFuture<List<byte[]>> f;
+        private List<Destination> clients;
+        private final RpcClientRequest request;
+        private final boolean isOneWay;
+        private int step;
+        private final BalancingRpcClient parent;
+        private final List<RpcClientRequestControl> cancelation;
 
-        RpcClientResponseHandler handler = new RpcClientResponseHandler() {
-            @Override
-            public void onAcknowledgement() {
-                if (request.isOneWay()) {
-                    //logger.error("cancel `{}`", s.task);
-                    f.complete(null);
+        ResponseHandler(BalancingRpcClient parent, CompletableFuture<List<byte[]>> f, RpcClientRequest request, List<Destination> clients) {
+            this.f = f;
+            this.request = request;
+            this.isOneWay = request.isOneWay();
+            this.clients = clients;
+            this.parent = parent;
+            cancelation = new ArrayList<>();
+            step = 0;
+            send();
+        }
+
+        private void send() {
+            RpcClient client;
+            Destination dst = clients.get(0);
+            clients = clients.subList(1, clients.size());
+            client = dst.client;
+
+            if (step > 0) {
+                failover.inc();
+            }
+
+            step ++;
+
+            inflight.inc();
+            total.inc();
+
+            cancelation.add(client.send(request, this));
+            parent.executorService.schedule(() ->
+                onTimeout()
+            , step * parent.failoverTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        }
+
+        private void onTimeout() {
+            synchronized (f) {
+                if (!f.isDone()) {
+                    if (!clients.isEmpty()){
+                        send();
+                    } else {
+                        // global timeout
+                    }
                 }
-            }
-
-            @Override
-            public void onResponse(List<byte[]> attachments) {
-                //logger.error("cancel `{}`", s.task);
-                if (request.isOneWay()) {
-                    f.completeExceptionally(new IllegalStateException("Server replied to a one-way request"));
-                } else {
-                    f.complete(attachments);
-                }
-            }
-
-            @Override
-            public void onError(Throwable error) {
-                try {
-                    f.completeExceptionally(error);
-                } catch (Throwable e) {
-                    // ignore
-                }
-            }
-        };
-
-        inflight.inc();
-        total.inc();
-
-        final RpcClientRequestControl control = dst.client.send(request, handler);
-
-        return f.whenComplete((a, b) -> {
-            if (b instanceof CancellationException) {
-                // TODO: log here
-                control.cancel();
-            }
-
-            inflight.dec();
-        });
-    }
-
-    private static class DelayedFutureTask {
-        CompletableFuture<List<byte[]>> f;
-        ScheduledFuture<?> task;
-
-        void cancel() {
-            task.cancel(true);
-            if (f != null) {
-                f.cancel(true);
             }
         }
-    }
 
-    private CompletionStage<List<byte[]>> delayedExecute(List<CompletionStage<List<byte[]>>> prevSteps, long delay, Supplier<CompletionStage<List<byte[]>>> what) {
-        CompletableFuture<List<byte[]>> result = new CompletableFuture<>();
-        DelayedFutureTask task = new DelayedFutureTask();
-
-        task.task = executorService.schedule(() -> {
-                try {
-                    boolean completeAny = false;
-                    for (CompletionStage<List<byte[]>> step : prevSteps) {
-                        CompletableFuture s = step.toCompletableFuture();
-                        completeAny |= s.isDone() && !s.isCompletedExceptionally();
-                    }
-
-                    if (!completeAny) {
-                        // run new future
-                        if (delay > 0) {
-                            failover.inc();
-                        }
-
-                        task.f = what.get().toCompletableFuture();
-                        task.f.whenComplete((res, error) -> {
-                            if (error != null) {
-                                result.completeExceptionally(error);
-                            } else {
-                                result.complete(res);
-                            }
-                        });
-                    }
-                } catch (Throwable e) {
-                    logger.error("timer error", e);
-                    // System.exit(1);
+        void cancel() {
+            synchronized (f) {
+                for (RpcClientRequestControl control : cancelation) {
+                    inflight.dec();
+                    control.cancel();
                 }
-            },
-            delay, TimeUnit.MILLISECONDS
-        );
-
-        return result.whenComplete((a, error) -> {
-            if (error instanceof CancellationException) {
-                //logger.error("cancel `{}`", task);
-                task.cancel();
             }
-        });
+        }
+
+        @Override
+        public void onAcknowledgement() {
+            if (isOneWay) {
+                synchronized (f) {
+                    if (!f.isDone()) {
+                        f.complete(null);
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void onResponse(List<byte[]> attachments) {
+            synchronized (f) {
+                if (!f.isDone()) {
+                    if (isOneWay) {
+                        // FATAL error, cannot recover
+                        f.completeExceptionally(new IllegalStateException("Server replied to a one-way request"));
+                    } else {
+                        f.complete(attachments);
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void onError(Throwable error) {
+            synchronized (f) {
+                if (!f.isDone()) {
+                    // maybe use other proxy here?
+                    f.completeExceptionally(error);
+                }
+            }
+        }
     }
 
     private List<Destination> selectDestinations() {
@@ -262,6 +258,7 @@ public class BalancingRpcClient implements RpcClient {
         final ArrayList<Destination> result = new ArrayList<>();
         result.ensureCapacity(maxSelect);
 
+        rnd.ints(3);
         synchronized (destinations) {
             int count = aliveCount;
             if (count == 0) {
@@ -321,63 +318,23 @@ public class BalancingRpcClient implements RpcClient {
     public RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler) {
         List<Destination> destinations = selectDestinations();
 
-        ImmutableList.Builder<CompletionStage<List<byte[]>>> builder = ImmutableList.builder();
+        CompletableFuture<List<byte[]>> f = new CompletableFuture<>();
 
-        long delta = failoverTimeout.toMillis();
-        int i = 0;
+        ResponseHandler h = new ResponseHandler(this, f, request, destinations);
 
-        for (Destination client : destinations) {
-            long delay = delta * i;
-            CompletionStage<List<byte[]>> currentStep;
-            if (delay == 0) {
-                currentStep = sendOnce(client, request);
-            } else {
-                currentStep = delayedExecute(builder.build(), delay, () -> sendOnce(client, request));
-            }
-            builder.add(currentStep);
-            i ++;
-        }
-
-        CompletableFuture<List<byte[]>> result = new CompletableFuture<>();
-
-        AtomicInteger count = new AtomicInteger(0);
-        int totalCount = destinations.size();
-        final ImmutableList<CompletionStage<List<byte[]>>> allSteps = builder.build();
-
-        for (CompletionStage<List<byte[]>> step : allSteps) {
-            step.whenComplete((value, error) -> {
-                if (error != null) {
-                    if (count.incrementAndGet() == totalCount) {
-                        result.completeExceptionally(error);
-                    }
+        f.whenComplete((result, error) -> {
+            h.cancel();
+            if (error == null) {
+                if (request.isOneWay()) {
+                    handler.onAcknowledgement();
                 } else {
-                    result.complete(value);
-                    for (CompletionStage<List<byte[]>> stepLocal : allSteps) {
-                        if (step != stepLocal) {
-                            stepLocal.toCompletableFuture().cancel(true);
-                        }
-                    }
+                    handler.onResponse(result);
                 }
-            });
-        }
-
-        result.whenComplete((a, b) -> {
-            if (b instanceof CancellationException) {
-                for (CompletionStage<List<byte[]>> step : allSteps) {
-                    step.toCompletableFuture().cancel(true);
-                }
-            }
-        }).thenAccept(r -> {
-            if (request.isOneWay()) {
-                handler.onAcknowledgement();
             } else {
-                handler.onResponse(r);
+                handler.onError(error);
             }
-        }).exceptionally(error -> {
-            handler.onError(error);
-            return null;
         });
 
-        return () -> result.toCompletableFuture().cancel(true);
+        return () -> f.cancel(true);
     }
 }
