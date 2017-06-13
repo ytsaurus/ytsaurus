@@ -42,9 +42,11 @@ public:
     void AddDataSlice(const NChunkClient::TInputDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie, bool isPrimary);
     void AddPreliminaryForeignDataSlice(const NChunkClient::TInputDataSlicePtr& dataSlice);
 
-    //! Removes all empty stripes, sets `Foreign` = true for all foreign stripes
-    //! and calculates the statistics for the stripe list.
-    void Finalize();
+    //! Removes all empty stripes, sets `Foreign` = true for all foreign stripes,
+    //! calculates the statistics for the stripe list and maybe additionally sorts slices
+    //! in all stripes according to their original table position in order to satisfy
+    //! silly^W tricky sorted operation guarantees.
+    void Finalize(bool sortByPosition);
 
     i64 GetDataSize() const;
     i64 GetRowCount() const;
@@ -92,7 +94,7 @@ public:
     void AddJobs(std::vector<std::unique_ptr<TJobStub>> jobStubs);
 
     //! Add a job that is built from the given stub.
-    void AddJob(std::unique_ptr<TJobStub> jobStub);
+    IChunkPoolOutput::TCookie AddJob(std::unique_ptr<TJobStub> jobStub);
 
     void Completed(IChunkPoolOutput::TCookie cookie, NScheduler::EInterruptReason reason);
     void Failed(IChunkPoolOutput::TCookie cookie);

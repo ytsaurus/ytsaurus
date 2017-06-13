@@ -290,7 +290,7 @@ void TOperationWithUserJobSpec::OnLoaded()
 TOperationWithLegacyControllerSpec::TOperationWithLegacyControllerSpec()
 {
     RegisterParameter("use_legacy_controller", UseLegacyController)
-        .Default(true);
+        .Default(false);
 }
 
 TSimpleOperationSpecBase::TSimpleOperationSpecBase()
@@ -519,8 +519,6 @@ TSortOperationSpecBase::TSortOperationSpecBase()
     RegisterValidator([&] () {
         NTableClient::ValidateKeyColumns(SortBy);
     });
-
-
 }
 
 void TSortOperationSpecBase::OnLoaded()
@@ -844,6 +842,26 @@ TSchedulerConnectionConfig::TSchedulerConnectionConfig()
     RegisterParameter("rpc_timeout", RpcTimeout)
         .Default(TDuration::Seconds(60));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TMapOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationSpecBase);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpecBase);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSimpleOperationSpecBase);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpecBase);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TStrategyOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationSpecBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 

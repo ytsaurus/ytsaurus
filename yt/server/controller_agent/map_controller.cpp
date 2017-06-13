@@ -1,5 +1,5 @@
 #include "map_controller.h"
-#include "merge_controller.h"
+#include "legacy_merge_controller.h"
 #include "chunk_list_pool.h"
 #include "helpers.h"
 #include "job_memory.h"
@@ -633,9 +633,7 @@ IOperationControllerPtr CreateMapController(
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-    return spec->Ordered
-        ? CreateOrderedMapController(config, host, operation)
-        : New<TMapController>(config, spec, config->MapOperationOptions, host, operation);
+    return New<TMapController>(config, spec, config->MapOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

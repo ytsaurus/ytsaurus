@@ -22,11 +22,13 @@ namespace NChunkPools {
 using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
 using namespace NChunkServer;
+using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NScheduler;
 
 using NTableClient::NProto::TPartitionsExt;
+using NTableClient::TOwningBoundaryKeys;
 using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -268,14 +270,17 @@ yhash<TInputChunkPtr, TInputChunkPtr> TSuspendableStripe::ResumeAndBuildChunkMap
             if (originalSlice->Type == EDataSourceType::UnversionedTable) {
                 const auto& originalChunk = originalSlice->GetSingleUnversionedChunkOrThrow();
                 const auto& newChunk = newSlice->GetSingleUnversionedChunkOrThrow();
-                if (*originalChunk->BoundaryKeys() != *newChunk->BoundaryKeys()) {
+                TNullable<TOwningBoundaryKeys> originalBoundaryKeys =
+                    originalChunk->BoundaryKeys() ? MakeNullable(*originalChunk->BoundaryKeys()) : Null;
+                TNullable<TOwningBoundaryKeys> newBoundaryKeys =
+                    newChunk->BoundaryKeys() ? MakeNullable(*newChunk->BoundaryKeys()) : Null;
+                if (originalBoundaryKeys != newBoundaryKeys) {
                     THROW_ERROR_EXCEPTION("Corresponding chunks in original and new stripes have different boundary keys")
                         << TErrorAttribute("data_slice_tag", *originalSlice->Tag)
                         << TErrorAttribute("original_chunk_id", originalChunk->ChunkId())
-                        << TErrorAttribute("original_boundary_keys", *originalChunk->BoundaryKeys())
+                        << TErrorAttribute("original_boundary_keys", originalBoundaryKeys)
                         << TErrorAttribute("new_chunk_id", newChunk->ChunkId())
-                        << TErrorAttribute("new_boundary_keys", *newChunk->BoundaryKeys());
-                    break;
+                        << TErrorAttribute("new_boundary_keys", newBoundaryKeys);
                 }
                 if (originalChunk->GetRowCount() != newChunk->GetRowCount()) {
                     THROW_ERROR_EXCEPTION("Corresponding chunks in original and new stripes have different row counts")
@@ -374,6 +379,11 @@ void TChunkPoolOutputBase::Persist(const TPersistenceContext& context)
 const std::vector<TInputChunkPtr>& TChunkPoolOutputBase::GetTeleportChunks() const
 {
     return TeleportChunks_;
+}
+
+TOutputOrderPtr TChunkPoolOutputBase::GetOutputOrder() const
+{
+    return nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

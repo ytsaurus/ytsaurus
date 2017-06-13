@@ -772,7 +772,7 @@ protected:
 
         void RegisterOutput(
             TJobletPtr joblet,
-            int key,
+            TOutputChunkTreeKey key,
             const NScheduler::TCompletedJobSummary& jobSummary);
 
         void AddFootprintAndUserJobResources(NScheduler::TExtendedJobResources& jobResources) const;
@@ -1075,6 +1075,8 @@ protected:
     //! Enables verification that the output is sorted.
     virtual bool ShouldVerifySortedOutput() const;
 
+    virtual NChunkPools::TOutputOrderPtr GetOutputOrder() const;
+
     //! Enables fetching all input replicas (not only data)
     virtual bool IsParityReplicasFetchEnabled() const;
 
@@ -1106,7 +1108,7 @@ protected:
 
     void AttachToLivePreview(NChunkClient::TChunkTreeId chunkTreeId, NCypressClient::TNodeId& tableId);
 
-    virtual void RegisterOutput(TJobletPtr joblet, int key, const NScheduler::TCompletedJobSummary& jobSummary);
+    virtual void RegisterOutput(TJobletPtr joblet, TOutputChunkTreeKey key, const NScheduler::TCompletedJobSummary& jobSummary);
 
     virtual void RegisterOutput(
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
@@ -1140,6 +1142,9 @@ protected:
     std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryVersionedChunks() const;
     std::pair<i64, i64> CalculatePrimaryVersionedChunksStatistics() const;
     std::vector<NChunkClient::TInputDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize) const;
+
+    //! Returns the list of all input data slices collected from all primary input tables.
+    std::vector<NChunkClient::TInputDataSlicePtr> CollectPrimaryInputDataSlices(i64 versionedSliceSize) const;
 
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
     std::vector<std::deque<NChunkClient::TInputDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;

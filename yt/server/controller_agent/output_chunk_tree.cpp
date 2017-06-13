@@ -3,6 +3,8 @@
 namespace NYT {
 namespace NControllerAgent {
 
+using namespace NChunkPools;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TBoundaryKeys::Persist(const TPersistenceContext& context)
@@ -22,6 +24,10 @@ TOutputChunkTreeKey::TOutputChunkTreeKey(TBoundaryKeys boundaryKeys)
     : Key_(boundaryKeys)
 { }
 
+TOutputChunkTreeKey::TOutputChunkTreeKey(TOutputOrder::TEntry Entry)
+    : Key_(Entry)
+{ }
+
 TOutputChunkTreeKey::TOutputChunkTreeKey()
     : Key_(-1)
 { }
@@ -34,6 +40,11 @@ bool TOutputChunkTreeKey::IsIndex() const
 bool TOutputChunkTreeKey::IsBoundaryKeys() const
 {
     return Key_.template Is<TBoundaryKeys>();
+}
+
+bool TOutputChunkTreeKey::IsOutputOrderEntry() const
+{
+    return Key_.template Is<TOutputOrder::TEntry>();
 }
 
 int& TOutputChunkTreeKey::AsIndex()
@@ -56,6 +67,16 @@ const TBoundaryKeys& TOutputChunkTreeKey::AsBoundaryKeys() const
     return Key_.template As<TBoundaryKeys>();
 }
 
+TOutputOrder::TEntry& TOutputChunkTreeKey::AsOutputOrderEntry()
+{
+    return Key_.template As<TOutputOrder::TEntry>();
+}
+
+const TOutputOrder::TEntry& TOutputChunkTreeKey::AsOutputOrderEntry() const
+{
+    return Key_.template As<TOutputOrder::TEntry>();
+}
+
 void TOutputChunkTreeKey::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -66,11 +87,15 @@ void TOutputChunkTreeKey::Persist(const TPersistenceContext& context)
 
 TString ToString(const TOutputChunkTreeKey& key)
 {
+    using NYT::ToString;
+
     if (key.IsIndex()) {
-        return "index@" + ::ToString(key.AsIndex());
+        return "index@" + ToString(key.AsIndex());
     } else if (key.IsBoundaryKeys()) {
         auto boundaryKeys = key.AsBoundaryKeys();
         return "bnd_keys@{" + ToString(boundaryKeys.MinKey) + ", " + ToString(boundaryKeys.MaxKey) + "}";
+    } else if (key.IsOutputOrderEntry()) {
+        return ToString(key.AsOutputOrderEntry());
     } else {
         Y_UNREACHABLE();
     }

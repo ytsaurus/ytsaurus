@@ -1,10 +1,8 @@
-#include "merge_controller.h"
-#include "sorted_controller.h"
+#include "legacy_merge_controller.h"
 #include "private.h"
 #include "chunk_list_pool.h"
 #include "helpers.h"
 #include "job_memory.h"
-#include "map_controller.h"
 #include "operation_controller_detail.h"
 
 #include <yt/server/chunk_pools/atomic_chunk_pool.h>
@@ -54,11 +52,11 @@ static const NProfiling::TProfiler Profiler("/operations/merge");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMergeControllerBase
+class TLegacyMergeControllerBase
     : public TOperationControllerBase
 {
 public:
-    TMergeControllerBase(
+    TLegacyMergeControllerBase(
         TSchedulerConfigPtr config,
         TSimpleOperationSpecBasePtr spec,
         TSimpleOperationOptionsPtr options,
@@ -156,7 +154,7 @@ protected:
         { }
 
         TMergeTask(
-            TMergeControllerBase* controller,
+            TLegacyMergeControllerBase* controller,
             int taskIndex,
             int partitionIndex = -1)
             : TTask(controller)
@@ -235,7 +233,7 @@ protected:
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TMergeTask, 0x72736bac);
 
-        TMergeControllerBase* Controller;
+        TLegacyMergeControllerBase* Controller;
 
         std::unique_ptr<IChunkPool> ChunkPool;
 
@@ -540,11 +538,7 @@ protected:
 
             ResetCurrentTaskStripes();
 
-            for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
-                ProcessInputDataSlice(CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk)));
-                yielder.TryYield();
-            }
-            for (const auto& slice : CollectPrimaryVersionedDataSlices(ChunkSliceSize)) {
+            for (const auto& slice : CollectPrimaryInputDataSlices(ChunkSliceSize)) {
                 ProcessInputDataSlice(slice);
                 yielder.TryYield();
             }
@@ -665,22 +659,22 @@ protected:
     }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeControllerBase::TMergeTask);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyMergeControllerBase::TMergeTask);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Handles ordered merge and (sic!) erase operations.
-class TOrderedMergeControllerBase
-    : public TMergeControllerBase
+class TLegacyOrderedMergeControllerBase
+    : public TLegacyMergeControllerBase
 {
 public:
-    TOrderedMergeControllerBase(
+    TLegacyOrderedMergeControllerBase(
         TSchedulerConfigPtr config,
         TSimpleOperationSpecBasePtr spec,
         TSimpleOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TMergeControllerBase(config, spec, options, host, operation)
+        : TLegacyMergeControllerBase(config, spec, options, host, operation)
     { }
 
 private:
@@ -709,17 +703,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOrderedMapController
-    : public TOrderedMergeControllerBase
+class TLegacyOrderedMapController
+    : public TLegacyOrderedMergeControllerBase
 {
 public:
-    TOrderedMapController(
+    TLegacyOrderedMapController(
         TSchedulerConfigPtr config,
         TMapOperationSpecPtr spec,
         TMapOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TOrderedMergeControllerBase(config, spec, options, host, operation)
+        : TLegacyOrderedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
         , Options(options)
     {
@@ -729,7 +723,7 @@ public:
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
-        TOrderedMergeControllerBase::BuildBriefSpec(consumer);
+        TLegacyOrderedMergeControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)
             .Item("mapper").BeginMap()
                 .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
@@ -739,7 +733,7 @@ public:
     // Persistence.
     virtual void Persist(const TPersistenceContext& context) override
     {
-        TOrderedMergeControllerBase::Persist(context);
+        TLegacyOrderedMergeControllerBase::Persist(context);
 
         using NYT::Persist;
         Persist(context, StartRowIndex);
@@ -757,7 +751,7 @@ protected:
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController, 0x1e5a7e32);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TLegacyOrderedMapController, 0x1e5a7e32);
 
     TMapOperationSpecPtr Spec;
     TMapOperationOptionsPtr Options;
@@ -829,7 +823,7 @@ private:
 
     virtual void DoInitialize() override
     {
-        TOrderedMergeControllerBase::DoInitialize();
+        TLegacyOrderedMergeControllerBase::DoInitialize();
 
         ValidateUserFileCount(Spec->Mapper, "mapper");
     }
@@ -923,32 +917,32 @@ private:
     }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyOrderedMapController);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IOperationControllerPtr CreateOrderedMapController(
+IOperationControllerPtr CreateLegacyOrderedMapController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-    return New<TOrderedMapController>(config, spec, config->MapOperationOptions, host, operation);
+    return New<TLegacyOrderedMapController>(config, spec, config->MapOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOrderedMergeController
-    : public TOrderedMergeControllerBase
+class TLegacyOrderedMergeController
+    : public TLegacyOrderedMergeControllerBase
 {
 public:
-    TOrderedMergeController(
+    TLegacyOrderedMergeController(
         TSchedulerConfigPtr config,
         TOrderedMergeOperationSpecPtr spec,
         TOrderedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TOrderedMergeControllerBase(config, spec, options, host, operation)
+        : TLegacyOrderedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
@@ -966,7 +960,7 @@ protected:
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController, 0x1f748c56);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TLegacyOrderedMergeController, 0x1f748c56);
 
     TOrderedMergeOperationSpecPtr Spec;
 
@@ -1042,7 +1036,7 @@ private:
 
     virtual bool IsRowCountPreserved() const override
     {
-        return Spec->InputQuery ? false : TMergeControllerBase::IsRowCountPreserved();
+        return Spec->InputQuery ? false : TLegacyMergeControllerBase::IsRowCountPreserved();
     }
 
     virtual void InitJobSpecTemplate() override
@@ -1068,20 +1062,20 @@ private:
     }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyOrderedMergeController);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEraseController
-    : public TOrderedMergeControllerBase
+class TLegacyEraseController
+    : public TLegacyOrderedMergeControllerBase
 {
 public:
-    TEraseController(
+    TLegacyEraseController(
         TSchedulerConfigPtr config,
         TEraseOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TOrderedMergeControllerBase(config, spec, config->EraseOperationOptions, host, operation)
+        : TLegacyOrderedMergeControllerBase(config, spec, config->EraseOperationOptions, host, operation)
         , Spec(spec)
     {
         RegisterJobProxyMemoryDigest(EJobType::OrderedMerge, spec->JobProxyMemoryDigest);
@@ -1089,7 +1083,7 @@ public:
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
-        TOrderedMergeControllerBase::BuildBriefSpec(consumer);
+        TLegacyOrderedMergeControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)
             // In addition to "input_table_paths" and "output_table_paths".
             // Quite messy, only needed for consistency with the regular spec.
@@ -1108,7 +1102,7 @@ protected:
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TEraseController, 0x1cc6ba39);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TLegacyEraseController, 0x1cc6ba39);
 
     TEraseOperationSpecPtr Spec;
 
@@ -1140,7 +1134,7 @@ private:
 
     virtual void DoInitialize() override
     {
-        TOrderedMergeControllerBase::DoInitialize();
+        TLegacyOrderedMergeControllerBase::DoInitialize();
 
         // For erase operation the rowset specified by the user must actually be negated.
         {
@@ -1232,15 +1226,15 @@ private:
     }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseController);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacyEraseController);
 
-IOperationControllerPtr CreateEraseController(
+IOperationControllerPtr CreateLegacyEraseController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TEraseOperationSpec>(operation->GetSpec());
-    return New<TEraseController>(config, spec, host, operation);
+    return New<TLegacyEraseController>(config, spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1252,7 +1246,7 @@ DEFINE_ENUM(EEndpointType,
 
 //! Handles sorted merge and reduce operations.
 class TLegacySortedMergeControllerBase
-    : public TMergeControllerBase
+    : public TLegacyMergeControllerBase
 {
 public:
     TLegacySortedMergeControllerBase(
@@ -1261,13 +1255,13 @@ public:
         TSortedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TMergeControllerBase(config, spec, options, host, operation)
+        : TLegacyMergeControllerBase(config, spec, options, host, operation)
     { }
 
     // Persistence.
     virtual void Persist(const TPersistenceContext& context) override
     {
-        TMergeControllerBase::Persist(context);
+        TLegacyMergeControllerBase::Persist(context);
 
         using NYT::Persist;
         Persist(context, Endpoints);
@@ -1915,41 +1909,22 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TLegacySortedMergeController);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IOperationControllerPtr CreateMergeController(
+IOperationControllerPtr CreateLegacyOrderedMergeController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = operation->GetSpec();
-    auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(spec);
-    switch (baseSpec->Mode) {
-        case EMergeMode::Unordered: {
-            return CreateUnorderedMergeController(config, host, operation);
-        }
-        case EMergeMode::Ordered: {
-            return New<TOrderedMergeController>(
-                config,
-                ParseOperationSpec<TOrderedMergeOperationSpec>(spec),
-                config->OrderedMergeOperationOptions,
-                host,
-                operation);
-        }
-        case EMergeMode::Sorted: {
-            auto legacySpec = ParseOperationSpec<TOperationWithLegacyControllerSpec>(spec);
-            if (legacySpec->UseLegacyController) {
-                return New<TLegacySortedMergeController>(
-                    config,
-                    ParseOperationSpec<TSortedMergeOperationSpec>(spec),
-                    config->SortedMergeOperationOptions,
-                    host,
-                    operation);
-            } else {
-                return CreateSortedMergeController(config, host, operation);
-            }
-        }
-        default:
-            Y_UNREACHABLE();
-    }
+    auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(operation->GetSpec());
+    return New<TLegacyOrderedMergeController>(config, spec, config->OrderedMergeOperationOptions, host, operation);
+}
+
+IOperationControllerPtr CreateLegacySortedMergeController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation)
+{
+    auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(operation->GetSpec());
+    return New<TLegacySortedMergeController>(config, spec, config->SortedMergeOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

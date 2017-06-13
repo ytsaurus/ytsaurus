@@ -44,7 +44,7 @@ void TJobStub::AddPreliminaryForeignDataSlice(const TInputDataSlicePtr& dataSlic
     ++PreliminaryForeignSliceCount_;
 }
 
-void TJobStub::Finalize()
+void TJobStub::Finalize(bool sortByPosition)
 {
     int nonEmptyStripeCount = 0;
     for (int index = 0; index < StripeList_->Stripes.size(); ++index) {
@@ -56,35 +56,37 @@ void TJobStub::Finalize()
             StripeList_->TotalDataSize += statistics.DataSize;
             StripeList_->TotalRowCount += statistics.RowCount;
             StripeList_->TotalChunkCount += statistics.ChunkCount;
-            // This is done to ensure that all the data slices inside a stripe
-            // are not only sorted by key, but additionally by their position
-            // in the original table.
-            std::sort(
-                stripe->DataSlices.begin(),
-                stripe->DataSlices.end(),
-                [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
-                    if (lhs->Type == EDataSourceType::UnversionedTable) {
-                        auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
-                        auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
-                        if (lhsChunk != rhsChunk) {
-                            return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
+            if (sortByPosition) {
+                // This is done to ensure that all the data slices inside a stripe
+                // are not only sorted by key, but additionally by their position
+                // in the original table.
+                std::sort(
+                    stripe->DataSlices.begin(),
+                    stripe->DataSlices.end(),
+                    [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
+                        if (lhs->Type == EDataSourceType::UnversionedTable) {
+                            auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
+                            auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
+                            if (lhsChunk != rhsChunk) {
+                                return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
+                            }
                         }
-                    }
 
-                    if (lhs->LowerLimit().RowIndex &&
-                        rhs->LowerLimit().RowIndex &&
-                        *lhs->LowerLimit().RowIndex != *rhs->LowerLimit().RowIndex)
-                    {
-                        return *lhs->LowerLimit().RowIndex < *rhs->LowerLimit().RowIndex;
-                    }
+                        if (lhs->LowerLimit().RowIndex &&
+                            rhs->LowerLimit().RowIndex &&
+                            *lhs->LowerLimit().RowIndex != *rhs->LowerLimit().RowIndex)
+                        {
+                            return *lhs->LowerLimit().RowIndex < *rhs->LowerLimit().RowIndex;
+                        }
 
-                    auto cmpResult = CompareRows(lhs->LowerLimit().Key, rhs->LowerLimit().Key);
-                    if (cmpResult != 0) {
-                        return cmpResult < 0;
-                    }
+                        auto cmpResult = CompareRows(lhs->LowerLimit().Key, rhs->LowerLimit().Key);
+                        if (cmpResult != 0) {
+                            return cmpResult < 0;
+                        }
 
-                    return false;
-                });
+                        return false;
+                    });
+            }
         }
     }
     StripeList_->Stripes.resize(nonEmptyStripeCount);
@@ -292,7 +294,7 @@ void TJobManager::AddJobs(std::vector<std::unique_ptr<TJobStub>> jobStubs)
 }
 
 //! Add a job that is built from the given stub.
-void TJobManager::AddJob(std::unique_ptr<TJobStub> jobStub)
+IChunkPoolOutput::TCookie TJobManager::AddJob(std::unique_ptr<TJobStub> jobStub)
 {
     YCHECK(jobStub);
     IChunkPoolOutput::TCookie outputCookie = Jobs_.size();
@@ -332,6 +334,7 @@ void TJobManager::AddJob(std::unique_ptr<TJobStub> jobStub)
     JobCounter_.Increment(1);
     DataSizeCounter_.Increment(Jobs_.back().GetDataSize());
     RowCounter_.Increment(Jobs_.back().GetRowCount());
+    return outputCookie;
 }
 
 void TJobManager::Completed(IChunkPoolOutput::TCookie cookie, EInterruptReason reason)
