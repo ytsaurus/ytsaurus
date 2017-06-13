@@ -1080,7 +1080,6 @@ protected:
     void InitFinalOutputConfig(TJobIOConfigPtr config);
 
     static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(TJobIOConfigPtr ioConfig);
-    static NTableClient::TTableReaderOptionsPtr CreateIntermediateTableReaderOptions();
 
     void ValidateUserFileCount(TUserJobSpecPtr spec, const Stroka& operation);
 
