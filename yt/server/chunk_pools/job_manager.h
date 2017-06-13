@@ -5,6 +5,8 @@
 
 #include <yt/server/controller_agent/progress_counter.h>
 
+#include <yt/ytlib/chunk_pools/public.h>
+
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -69,7 +71,7 @@ DEFINE_ENUM(EJobState,
     (Completed)
 );
 
-//! A helper class that is used in TSortedChunkPool to store all the jobs with their cookies
+//! A helper class that is used in TSortedChunkPool and TOrderedChunkPool to store all the jobs with their cookies
 //! and deal with their suspends, resumes etc.
 class TJobManager
     : public TRefCounted
@@ -82,7 +84,10 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, SuspendedJobCount);
 
 public:
+    //! Used only for persistence.
     TJobManager();
+
+    explicit TJobManager(EStripeListExtractionOrder extractionOrder);
 
     void AddJobs(std::vector<std::unique_ptr<TJobStub>> jobStubs);
 
@@ -116,14 +121,25 @@ public:
     void SetLogger(NLogging::TLogger logger);
 
 private:
-    //! бассейн с печеньками^W^W^W
-    //! The list of all job cookies that are in state `Pending` (i.e. do not depend on suspended data).
-    std::list<IChunkPoolOutput::TCookie> CookiePool_;
+    class TStripeListComparator
+    {
+    public:
+        TStripeListComparator(TJobManager* owner);
 
-    //! The size of a cookie pool.
-    //! TODO(max42): std::list<T>::size() works in O(1) only since gcc 5. Remove this
-    //! when release binaries are built under newer version of compiler.
-    int CookiePoolSize_ = 0;
+        bool operator ()(IChunkPoolOutput::TCookie lhs, IChunkPoolOutput::TCookie rhs) const;
+    private:
+        TJobManager* Owner_;
+    };
+
+    //! Order in which cookies are extracted from pool.
+    EStripeListExtractionOrder ExtractionOrder_;
+
+    //! бассейн с печеньками^W^W^W
+    typedef std::multiset<IChunkPoolOutput::TCookie, TStripeListComparator> TCookiePool;
+
+    //! The list of all job cookies that are in state `Pending` (i.e. do not depend on suspended data).
+    //! Cookies are stored according to `ExtractionOrder_`.
+    std::unique_ptr<TCookiePool> CookiePool_;
 
     //! A mapping between input cookie and all jobs that are affected by its suspension.
     std::vector<std::vector<IChunkPoolOutput::TCookie>> InputCookieToAffectedOutputCookies_;
@@ -161,7 +177,7 @@ private:
     private:
         TJobManager* Owner_ = nullptr;
         int SuspendedStripeCount_ = 0;
-        std::list<int>::iterator CookiePoolIterator_;
+        TCookiePool::iterator CookiePoolIterator_;
         IChunkPoolOutput::TCookie Cookie_;
 
         //! Is true for a job if it is present in owner's CookiePool_.

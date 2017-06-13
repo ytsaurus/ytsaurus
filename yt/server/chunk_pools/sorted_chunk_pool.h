@@ -4,7 +4,10 @@
 #include "chunk_pool.h"
 #include "input_stream.h"
 
+#include <yt/ytlib/chunk_pools/public.h>
+
 #include <yt/ytlib/table_client/public.h>
+
 #include <yt/ytlib/job_tracker_client/public.h>
 
 namespace NYT {
@@ -30,6 +33,7 @@ struct TSortedJobOptions
 
 struct TSortedChunkPoolOptions
 {
+    EStripeListExtractionOrder ExtractionOrder = EStripeListExtractionOrder::DataSizeDescending;
     TSortedJobOptions SortedJobOptions;
     i64 MinTeleportChunkSize = 0;
     bool SupportLocality = false;

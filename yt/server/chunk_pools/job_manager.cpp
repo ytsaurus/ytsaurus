@@ -143,11 +143,9 @@ TJobManager::TJob::TJob(TJobManager* owner, std::unique_ptr<TJobStub> jobBuilder
     , RowCount_(jobBuilder->GetRowCount())
     , StripeList_(std::move(jobBuilder->StripeList_))
     , Owner_(owner)
-    , CookiePoolIterator_(Owner_->CookiePool_.end())
+    , CookiePoolIterator_(Owner_->CookiePool_->end())
     , Cookie_(cookie)
-{
-    UpdateSelf();
-}
+{ }
 
 void TJobManager::TJob::SetState(EJobState state)
 {
@@ -188,7 +186,7 @@ void TJobManager::TJob::Persist(const TPersistenceContext& context)
     Persist(context, Invalidated_);
     if (context.IsLoad()) {
         // We must add ourselves to the job pool.
-        CookiePoolIterator_ = Owner_->CookiePool_.end();
+        CookiePoolIterator_ = Owner_->CookiePool_->end();
         UpdateSelf();
     }
 }
@@ -218,18 +216,16 @@ void TJobManager::TJob::UpdateSelf()
 
 void TJobManager::TJob::RemoveSelf()
 {
-    YCHECK(CookiePoolIterator_ != Owner_->CookiePool_.end());
-    Owner_->CookiePool_.erase(CookiePoolIterator_);
-    --Owner_->CookiePoolSize_;
-    CookiePoolIterator_ = Owner_->CookiePool_.end();
+    YCHECK(CookiePoolIterator_ != Owner_->CookiePool_->end());
+    Owner_->CookiePool_->erase(CookiePoolIterator_);
+    CookiePoolIterator_ = Owner_->CookiePool_->end();
     InPool_ = false;
 }
 
 void TJobManager::TJob::AddSelf()
 {
-    YCHECK(CookiePoolIterator_ == Owner_->CookiePool_.end());
-    ++Owner_->CookiePoolSize_;
-    CookiePoolIterator_ = Owner_->CookiePool_.insert(Owner_->CookiePool_.end(), Cookie_);
+    YCHECK(CookiePoolIterator_ == Owner_->CookiePool_->end());
+    CookiePoolIterator_ = Owner_->CookiePool_->insert(Owner_->CookiePool_->end(), Cookie_);
     InPool_ = true;
 }
 
@@ -249,7 +245,39 @@ void TJobManager::TJob::ResumeSelf()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJobManager::TStripeListComparator::TStripeListComparator(TJobManager* owner)
+    : Owner_(owner)
+{ }
+
+bool TJobManager::TStripeListComparator::operator()(IChunkPoolOutput::TCookie lhs, IChunkPoolOutput::TCookie rhs) const
+{
+    const auto& lhsJob = Owner_->Jobs_[lhs];
+    const auto& rhsJob = Owner_->Jobs_[rhs];
+    switch (Owner_->ExtractionOrder_) {
+        case EStripeListExtractionOrder::DataSizeDescending: {
+            if (lhsJob.GetDataSize() != rhsJob.GetDataSize()) {
+                return lhsJob.GetDataSize() > rhsJob.GetDataSize();
+            }
+            return lhs < rhs;
+        }
+        case EStripeListExtractionOrder::RowCountDescending: {
+            if (lhsJob.GetRowCount() != rhsJob.GetRowCount()) {
+                return lhsJob.GetRowCount() > rhsJob.GetRowCount();
+            }
+            return lhs < rhs;
+        }
+    }
+    Y_UNREACHABLE();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJobManager::TJobManager()
+{ }
+
+TJobManager::TJobManager(EStripeListExtractionOrder extractionOrder)
+    : ExtractionOrder_(extractionOrder)
+    , CookiePool_(std::make_unique<TCookiePool>(TJobManager::TStripeListComparator(this /* owner */)))
 {
     DataSizeCounter_.Set(0);
     RowCounter_.Set(0);
@@ -298,6 +326,7 @@ void TJobManager::AddJob(std::unique_ptr<TJobStub> jobStub)
     }
 
     Jobs_.emplace_back(this /* owner */, std::move(jobStub), outputCookie);
+    Jobs_.back().SetState(EJobState::Pending);
     Jobs_.back().ChangeSuspendedStripeCountBy(initialSuspendedStripeCount);
 
     JobCounter_.Increment(1);
@@ -317,7 +346,7 @@ void TJobManager::Completed(IChunkPoolOutput::TCookie cookie, EInterruptReason r
 
 IChunkPoolOutput::TCookie TJobManager::ExtractCookie()
 {
-    auto cookie = *(CookiePool_.begin());
+    auto cookie = *(CookiePool_->begin());
 
     JobCounter_.Start(1);
     DataSizeCounter_.Start(Jobs_[cookie].GetDataSize());
@@ -401,6 +430,11 @@ std::vector<TInputDataSlicePtr> TJobManager::ReleaseForeignSlices(IChunkPoolInpu
 void TJobManager::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
+    if (context.IsLoad()) {
+        CookiePool_ = std::make_unique<TCookiePool>(TStripeListComparator(this /* owner */));
+    }
+
+    Persist(context, ExtractionOrder_);
     Persist(context, InputCookieToAffectedOutputCookies_);
     Persist(context, DataSizeCounter_);
     Persist(context, RowCounter_);
@@ -412,17 +446,17 @@ void TJobManager::Persist(const TPersistenceContext& context)
 
 TChunkStripeStatisticsVector TJobManager::GetApproximateStripeStatistics() const
 {
-    if (CookiePoolSize_ == 0) {
+    if (CookiePool_->size() == 0) {
         return TChunkStripeStatisticsVector();
     }
-    auto cookie = *(CookiePool_.begin());
+    auto cookie = *(CookiePool_->begin());
     const auto& job = Jobs_[cookie];
     return job.StripeList()->GetStatistics();
 }
 
 int TJobManager::GetPendingJobCount() const
 {
-    return CookiePoolSize_;
+    return CookiePool_->size();
 }
 
 const TChunkStripeListPtr& TJobManager::GetStripeList(IChunkPoolOutput::TCookie cookie)

@@ -2640,6 +2640,44 @@ TEST_F(TSortedChunkPoolTest, SliceByPrimaryDataSize)
     EXPECT_GE(20, stripeLists.size());
 }
 
+TEST_F(TSortedChunkPoolTest, ExtractByDataSize)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    InitTables(
+        {false} /* isForeign */,
+        {false} /* isTeleportable */,
+        {false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    DataSizePerJob_ = 1;
+    auto chunkA1 = CreateChunk(BuildRow({0}), BuildRow({5}), 0, 10 * KB);
+    auto chunkA2 = CreateChunk(BuildRow({6}), BuildRow({10}), 0, 5 * KB);
+    auto chunkA3 = CreateChunk(BuildRow({11}), BuildRow({15}), 0, 15 * KB);
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddChunk(chunkA1);
+    AddChunk(chunkA2);
+    AddChunk(chunkA3);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_EQ(stripeLists.size(), 3);
+    std::vector<i64> stripeListDataSizes;
+    for (auto cookie : ExtractedCookies_) {
+        stripeListDataSizes.emplace_back(ChunkPool_->GetStripeList(cookie)->TotalDataSize);
+    }
+    EXPECT_GT(stripeListDataSizes[0], stripeListDataSizes[1]);
+    EXPECT_GT(stripeListDataSizes[1], stripeListDataSizes[2]);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedChunkPoolTestRandomized
