@@ -675,6 +675,14 @@ public:
     bool CopyAttributes;
     TNullable<std::vector<TString>> AttributeKeys;
 
+    // Specifies how many chunks to read/write concurrently.
+    int Concurrency;
+
+    // Specifies buffer size for blocks of one chunk.
+    // At least one block will be read so this buffer size can be violated
+    // if block is bigger than this value.
+    i64 BlockBufferSize;
+
     ESchemaInferenceMode SchemaInferenceMode;
 
     TRemoteCopyOperationSpec();

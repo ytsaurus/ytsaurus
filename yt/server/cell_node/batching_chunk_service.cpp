@@ -398,6 +398,7 @@ private:
         std::vector<int> CreateIndexes;
         std::vector<int> ConfirmIndexes;
         std::vector<int> SealIndexes;
+        std::vector<int> AttachIndexes;
     };
 
     class TExecuteBatchBatcher
@@ -425,6 +426,7 @@ private:
             BatchSubrequests(request->create_chunk_subrequests(), batchRequest->mutable_create_chunk_subrequests(), &state->CreateIndexes);
             BatchSubrequests(request->confirm_chunk_subrequests(), batchRequest->mutable_confirm_chunk_subrequests(), &state->ConfirmIndexes);
             BatchSubrequests(request->seal_chunk_subrequests(), batchRequest->mutable_seal_chunk_subrequests(), &state->SealIndexes);
+            BatchSubrequests(request->attach_chunk_trees_subrequests(), batchRequest->mutable_attach_chunk_trees_subrequests(), &state->AttachIndexes);
         }
 
         virtual void UnbatchResponse(
@@ -435,6 +437,7 @@ private:
             UnbatchSubresponses(batchResponse->create_chunk_subresponses(), response->mutable_create_chunk_subresponses(), state.CreateIndexes);
             UnbatchSubresponses(batchResponse->confirm_chunk_subresponses(), response->mutable_confirm_chunk_subresponses(), state.ConfirmIndexes);
             UnbatchSubresponses(batchResponse->seal_chunk_subresponses(), response->mutable_seal_chunk_subresponses(), state.SealIndexes);
+            UnbatchSubresponses(batchResponse->attach_chunk_trees_subresponses(), response->mutable_attach_chunk_trees_subresponses(), state.AttachIndexes);
         }
 
         virtual int GetCost(const TRequestPtr& request) const override
@@ -442,7 +445,8 @@ private:
             return
                 request->create_chunk_subrequests_size() +
                 request->confirm_chunk_subrequests_size() +
-                request->seal_chunk_subrequests_size();
+                request->seal_chunk_subrequests_size() +
+                request->attach_chunk_trees_subrequests_size();
         }
     };
 
@@ -452,7 +456,6 @@ private:
     {
         YCHECK(request->create_chunk_lists_subrequests_size() == 0);
         YCHECK(request->unstage_chunk_tree_subrequests_size() == 0);
-        YCHECK(request->attach_chunk_trees_subrequests_size() == 0);
         ExecuteBatchBatcher_->HandleRequest(context);
     }
 };

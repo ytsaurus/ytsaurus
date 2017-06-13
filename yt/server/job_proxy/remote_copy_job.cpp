@@ -28,6 +28,9 @@
 
 #include <yt/core/erasure/codec.h>
 
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/async_semaphore.h>
+
 namespace NYT {
 namespace NJobProxy {
 
@@ -66,6 +69,8 @@ public:
         , RemoteCopyJobSpecExt_(host->GetJobSpecHelper()->GetJobSpec().GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext))
         , ReaderConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader)
         , WriterConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter)
+        , RemoteCopyQueue_(New<TActionQueue>("RemoteCopy"))
+        , CopySemaphore_(New<TAsyncSemaphore>(RemoteCopyJobSpecExt_.concurrency()))
     {
         YCHECK(SchedulerJobSpecExt_.input_table_specs_size() == 1);
         YCHECK(SchedulerJobSpecExt_.output_table_specs_size() == 1);
@@ -91,19 +96,76 @@ public:
         RemoteConnection_ = CreateNativeConnection(remoteConnectionConfig);
 
         RemoteClient_ = RemoteConnection_->CreateNativeClient(TClientOptions(NSecurityClient::JobUserName));
+
+        for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
+            TotalChunkCount_ += dataSliceDescriptor.ChunkSpecs.size();
+        }
+
+        auto outputCellTag = CellTagFromId(OutputChunkListId_);
+        MasterChannel_ = Host_->GetClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader, outputCellTag);
+    }
+
+    IInvokerPtr GetRemoteCopyInvoker() const
+    {
+        return RemoteCopyQueue_->GetInvoker();
+    }
+
+    void AttachChunksToChunkList(const std::vector<TChunkId>& chunksIds) const
+    {
+        TChunkServiceProxy proxy(MasterChannel_);
+
+        auto batchReq = proxy.ExecuteBatch();
+        GenerateMutationId(batchReq);
+        batchReq->set_suppress_upstream_sync(true);
+
+        auto* req = batchReq->add_attach_chunk_trees_subrequests();
+        ToProto(req->mutable_parent_id(), OutputChunkListId_);
+        ToProto(req->mutable_child_ids(), chunksIds);
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            GetCumulativeError(batchRspOrError),
+            NChunkClient::EErrorCode::MasterCommunicationFailed,
+            "Failed to attach chunks to chunk list");
+    }
+
+    void DoRun()
+    {
+        std::vector<TFuture<void>> chunkCopyResults;
+        std::vector<TChunkId> outputChunkIds;
+
+        PROFILE_TIMING ("/remote_copy_time") {
+            for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
+                for (const auto& inputChunkSpec : dataSliceDescriptor.ChunkSpecs) {
+                    auto outputSessionId = CreateOutputChunk(inputChunkSpec);
+
+                    auto result = BIND(&TRemoteCopyJob::CopyChunk, MakeStrong(this))
+                        .AsyncVia(GetRemoteCopyInvoker())
+                        .Run(inputChunkSpec, outputSessionId);
+
+                    chunkCopyResults.push_back(result);
+                    outputChunkIds.push_back(outputSessionId.ChunkId);
+                }
+            }
+
+            WaitFor(Combine(chunkCopyResults))
+                .ThrowOnError();
+
+            LOG_INFO("Attaching chunks to output chunk list (ChunkListId: %v)", OutputChunkListId_);
+            AttachChunksToChunkList(outputChunkIds);
+        }
     }
 
     virtual TJobResult Run() override
     {
         Host_->OnPrepared();
 
-        PROFILE_TIMING ("/remote_copy_time") {
-            for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
-                for (const auto& inputChunkSpec : dataSliceDescriptor.ChunkSpecs) {
-                    CopyChunk(inputChunkSpec);
-                }
-            }
-        }
+        auto runResult = BIND(&TRemoteCopyJob::DoRun, MakeStrong(this))
+            .AsyncVia(GetRemoteCopyInvoker())
+            .Run();
+
+        WaitFor(runResult)
+            .ThrowOnError();
 
         TJobResult result;
         ToProto(result.mutable_error(), TError());
@@ -116,8 +178,8 @@ public:
     virtual double GetProgress() const override
     {
         // Caution: progress calculated approximately (assuming all chunks have equal size).
-        double chunkProgress = TotalChunkSize_ ? static_cast<double>(CopiedChunkSize_) / *TotalChunkSize_ : 0.0;
-        return (CopiedChunkCount_ + chunkProgress) / DataSliceDescriptors_.size();
+        double currentProgress = TotalSize_ > 0 ? static_cast<double>(CopiedSize_) / TotalSize_ : 0.0;
+        return (CopiedChunkCount_ + currentProgress) / TotalChunkCount_;
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
@@ -157,50 +219,51 @@ private:
     INativeConnectionPtr RemoteConnection_;
     INativeClientPtr RemoteClient_;
 
+    IChannelPtr MasterChannel_;
+
     int CopiedChunkCount_ = 0;
-    i64 CopiedChunkSize_ = 0;
-    TNullable<i64> TotalChunkSize_;
+    int TotalChunkCount_ = 0;
+    i64 CopiedSize_ = 0;
+    i64 TotalSize_ = 0;
 
     TDataStatistics DataStatistics_;
 
     TNullable<TChunkId> FailedChunkId_;
 
+    const TActionQueuePtr RemoteCopyQueue_;
+    TAsyncSemaphorePtr CopySemaphore_;
 
-    void CopyChunk(const TChunkSpec& inputChunkSpec)
+    NChunkClient::TSessionId CreateOutputChunk(const TChunkSpec& inputChunkSpec)
     {
-        CopiedChunkSize_ = 0;
-
         auto writerOptions = CloneYsonSerializable(WriterOptionsTemplate_);
-        auto inputChunkId = NYT::FromProto<TChunkId>(inputChunkSpec.chunk_id());
-
-        LOG_INFO("Copying input chunk (ChunkId: %v)",
-            inputChunkId);
-
-        auto erasureCodecId = NErasure::ECodec(inputChunkSpec.erasure_codec());
-        writerOptions->ErasureCodec = erasureCodecId;
-
-        auto inputReplicas = NYT::FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
+        writerOptions->ErasureCodec = NErasure::ECodec(inputChunkSpec.erasure_codec());
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
-        LOG_INFO("Creating output chunk");
 
-        // Create output chunk.
-        auto outputSessionId = CreateChunk(
+        return CreateChunk(
             Host_->GetClient(),
             CellTagFromId(OutputChunkListId_),
             writerOptions,
             transactionId,
-            OutputChunkListId_,
+            NullChunkListId,
             Logger);
+    }
 
-        LOG_INFO("Output chunk created (ChunkId: %v)",
-            outputSessionId);
+    void CopyChunk(const TChunkSpec& inputChunkSpec, const NChunkClient::TSessionId& outputSessionId)
+    {
+        auto inputChunkId = NYT::FromProto<TChunkId>(inputChunkSpec.chunk_id());
+
+        LOG_INFO("Copying chunk (InputChunkId: %v, OutputChunkId: %v)",
+            inputChunkId, outputSessionId);
+
+        auto erasureCodecId = NErasure::ECodec(inputChunkSpec.erasure_codec());
+
+        auto inputReplicas = NYT::FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
 
         // Copy chunk.
-        LOG_INFO("Copying chunk data");
-
         TChunkInfo chunkInfo;
         TChunkMeta chunkMeta;
         TChunkReplicaList writtenReplicas;
+        i64 totalChunkSize;
 
         if (erasureCodecId != NErasure::ECodec::None) {
             auto erasureCodec = NErasure::GetCodec(erasureCodecId);
@@ -229,29 +292,54 @@ private:
             auto erasurePlacementExt = GetProtoExtension<TErasurePlacementExt>(chunkMeta.extensions());
 
             // Compute an upper bound for total size.
-            TotalChunkSize_ =
+            totalChunkSize =
                 GetProtoExtension<TMiscExt>(chunkMeta.extensions()).compressed_data_size() +
                 erasurePlacementExt.parity_block_count() * erasurePlacementExt.parity_block_size() * erasurePlacementExt.parity_part_count();
 
+            TotalSize_ += totalChunkSize;
+
+            std::vector<TFuture<void>> copyResults;
+            for (int index = 0; index < static_cast<int>(readers.size()); ++index) {
+                std::vector<i64> blockSizes;
+                int blockCount;
+                if (index < erasureCodec->GetDataPartCount()) {
+                    blockCount = erasurePlacementExt.part_infos(index).block_sizes_size();
+                    for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
+                        blockSizes.push_back(
+                            erasurePlacementExt.part_infos(index).block_sizes(blockIndex));
+                    }
+                } else {
+                    blockCount = erasurePlacementExt.parity_block_count();
+                    blockSizes.resize(blockCount, erasurePlacementExt.parity_block_size());
+                    blockSizes[blockSizes.size() - 1] = erasurePlacementExt.parity_last_block_size();
+                }
+
+                auto resultFuture = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
+                    .AsyncVia(GetRemoteCopyInvoker())
+                    .Run(readers[index], writers[index], blockSizes, chunkMeta);
+
+                copyResults.push_back(resultFuture);
+            }
+
+            LOG_INFO("Waiting for erasure parts data to be copied");
+
+            WaitFor(Combine(copyResults))
+                .ThrowOnError();
+
             i64 diskSpace = 0;
-            for (int i = 0; i < static_cast<int>(readers.size()); ++i) {
-                int blockCount = (i < erasureCodec->GetDataPartCount())
-                    ? erasurePlacementExt.part_infos(i).block_sizes_size()
-                    : erasurePlacementExt.parity_block_count();
+            for (int index = 0; index < static_cast<int>(readers.size()); ++index) {
+                diskSpace += writers[index]->GetChunkInfo().disk_space();
 
-                // ToDo(psushin): copy chunk parts is parallel.
-                DoCopy(readers[i], writers[i], blockCount, chunkMeta);
-                diskSpace += writers[i]->GetChunkInfo().disk_space();
-
-                auto replicas = writers[i]->GetWrittenChunkReplicas();
+                auto replicas = writers[index]->GetWrittenChunkReplicas();
                 YCHECK(replicas.size() == 1);
                 auto replica = TChunkReplica(
                     replicas.front().GetNodeId(),
-                    i,
+                    index,
                     replicas.front().GetMediumIndex());
 
                 writtenReplicas.push_back(replica);
             }
+
             chunkInfo.set_disk_space(diskSpace);
         } else {
             auto reader = CreateReplicationReader(
@@ -261,7 +349,7 @@ private:
                 Host_->GetInputNodeDirectory(),
                 Host_->LocalDescriptor(),
                 inputChunkId,
-                TChunkReplicaList(),
+                inputReplicas,
                 Host_->GetBlockCache());
 
             chunkMeta = GetChunkMeta(reader);
@@ -275,11 +363,22 @@ private:
                 Host_->GetClient());
 
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
-            int blockCount = static_cast<int>(blocksExt.blocks_size());
 
-            TotalChunkSize_ = GetProtoExtension<TMiscExt>(chunkMeta.extensions()).compressed_data_size();
+            std::vector<i64> blockSizes;
+            for (const auto& block : blocksExt.blocks()) {
+                blockSizes.push_back(block.size());
+            }
 
-            DoCopy(reader, writer, blockCount, chunkMeta);
+            totalChunkSize = GetProtoExtension<TMiscExt>(chunkMeta.extensions()).compressed_data_size();
+
+            auto result = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
+                .AsyncVia(GetRemoteCopyInvoker())
+                .Run(reader, writer, blockSizes, chunkMeta);
+
+            LOG_INFO("Waiting for chunk data to be copied");
+
+            WaitFor(result)
+                .ThrowOnError();
 
             chunkInfo = writer->GetChunkInfo();
             writtenReplicas = writer->GetWrittenChunkReplicas();
@@ -289,69 +388,113 @@ private:
         DataStatistics_.set_chunk_count(DataStatistics_.chunk_count() + 1);
 
         // Confirm chunk.
-        LOG_INFO("Confirming output chunk");
+        LOG_INFO("Confirming output chunk (ChunkId: %v)", outputSessionId);
+        ConfirmChunkReplicas(outputSessionId, chunkInfo, writtenReplicas, chunkMeta);
+
+        TotalSize_ -= totalChunkSize;
+        CopiedChunkCount_ += 1;
+    }
+
+    void ConfirmChunkReplicas(
+        const NChunkClient::TSessionId& outputSessionId,
+        const TChunkInfo& chunkInfo,
+        const TChunkReplicaList& writtenReplicas,
+        const TChunkMeta& inputChunkMeta)
+    {
+        static const yhash_set<int> masterMetaTags {
+            TProtoExtensionTag<TMiscExt>::Value,
+            TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value
+        };
+
         YCHECK(!writtenReplicas.empty());
-        {
-            static const yhash_set<int> masterMetaTags{
-                TProtoExtensionTag<TMiscExt>::Value,
-                TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value
-            };
 
-            auto masterChunkMeta = chunkMeta;
-            FilterProtoExtensions(
-                masterChunkMeta.mutable_extensions(),
-                chunkMeta.extensions(),
-                masterMetaTags);
+        auto masterChunkMeta = inputChunkMeta;
 
-            auto outputCellTag = CellTagFromId(OutputChunkListId_);
-            auto outputMasterChannel = Host_->GetClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader, outputCellTag);
-            TChunkServiceProxy proxy(outputMasterChannel);
+        FilterProtoExtensions(
+            masterChunkMeta.mutable_extensions(),
+            inputChunkMeta.extensions(),
+            masterMetaTags);
 
-            auto batchReq = proxy.ExecuteBatch();
-            GenerateMutationId(batchReq);
-            batchReq->set_suppress_upstream_sync(true);
+        TChunkServiceProxy proxy(MasterChannel_);
 
-            auto* req = batchReq->add_confirm_chunk_subrequests();
-            ToProto(req->mutable_chunk_id(), outputSessionId.ChunkId);
-            *req->mutable_chunk_info() = chunkInfo;
-            *req->mutable_chunk_meta() = masterChunkMeta;
-            NYT::ToProto(req->mutable_replicas(), writtenReplicas);
+        auto batchReq = proxy.ExecuteBatch();
+        GenerateMutationId(batchReq);
+        batchReq->set_suppress_upstream_sync(true);
 
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                GetCumulativeError(batchRspOrError),
-                NChunkClient::EErrorCode::MasterCommunicationFailed,
-                "Failed to confirm chunk %v",
-                outputSessionId);
-        }
+        auto* req = batchReq->add_confirm_chunk_subrequests();
+        ToProto(req->mutable_chunk_id(), outputSessionId.ChunkId);
+        *req->mutable_chunk_info() = chunkInfo;
+        *req->mutable_chunk_meta() = masterChunkMeta;
+        NYT::ToProto(req->mutable_replicas(), writtenReplicas);
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            GetCumulativeError(batchRspOrError),
+            NChunkClient::EErrorCode::MasterCommunicationFailed,
+            "Failed to confirm chunk %v",
+            outputSessionId.ChunkId);
     }
 
     void DoCopy(
         IChunkReaderPtr reader,
         IChunkWriterPtr writer,
-        int blockCount,
+        const std::vector<i64>& blockSizes,
         const TChunkMeta& meta)
     {
+        WaitFor(CopySemaphore_->GetReadyEvent())
+            .ThrowOnError();
+
+        auto semaphoreGuard = TAsyncSemaphoreGuard::Acquire(CopySemaphore_);
+
         auto error = WaitFor(writer->Open());
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error opening writer");
 
-        for (int i = 0; i < blockCount; ++i) {
-            auto asyncResult = reader->ReadBlocks(ReaderConfig_->WorkloadDescriptor, i, 1);
-            auto result = WaitFor(asyncResult);
-            if (!result.IsOK()) {
-                FailedChunkId_ = reader->GetChunkId();
-                THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reading block");
+        int blockCount = static_cast<int>(blockSizes.size());
+
+        for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
+            int startBlockIndex = blockIndex;
+            i64 sizeToRead = 0;
+
+            while (blockIndex < blockCount && sizeToRead <= RemoteCopyJobSpecExt_.block_buffer_size()) {
+                sizeToRead += blockSizes[blockIndex];
+                blockIndex += 1;
             }
 
-            auto block = result.Value().front();
-            CopiedChunkSize_ += block.Size();
+            int blocksToRead = blockIndex - startBlockIndex;
+            // This can happen if we encounter block which is bigger than block buffer size.
+            // In this case at least one block should be read (this memory overhead is taken
+            // into account in operation controller)
+            if (blocksToRead == 0) {
+                blocksToRead += 1;
+            }
 
-            if (!writer->WriteBlock(block)) {
+            auto asyncResult = reader->ReadBlocks(
+                ReaderConfig_->WorkloadDescriptor,
+                startBlockIndex,
+                blocksToRead);
+
+            auto result = WaitFor(asyncResult);
+
+            if (!result.IsOK()) {
+                FailedChunkId_ = reader->GetChunkId();
+                THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reading blocks");
+            }
+
+            auto blocks = result.Value();
+
+            i64 blocksSize = 0;
+            for (const auto& block : blocks) {
+                blocksSize += block.Size();
+            }
+
+            CopiedSize_ += blocksSize;
+
+            if (!writer->WriteBlocks(blocks)) {
                 auto result = WaitFor(writer->GetReadyEvent());
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error writing block");
             }
 
-            DataStatistics_.set_compressed_data_size(DataStatistics_.compressed_data_size() + block.Size());
+            DataStatistics_.set_compressed_data_size(DataStatistics_.compressed_data_size() + blocksSize);
         }
 
         {
