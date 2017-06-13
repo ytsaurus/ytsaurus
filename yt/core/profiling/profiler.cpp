@@ -69,13 +69,13 @@ TCounterBase& TCounterBase::operator=(const TCounterBase& other)
     TagIds_ = other.TagIds_;
     Interval_ = other.Interval_;
     Deadline_ = 0;
-    Current_ = other.Current_.load();
+    Current_ = other.Current_.load(std::memory_order_relaxed);
     return *this;
 }
 
 TValue TCounterBase::GetCurrent() const
 {
-    return Current_.load();
+    return Current_.load(std::memory_order_relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
