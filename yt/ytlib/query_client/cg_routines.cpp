@@ -855,7 +855,7 @@ re2::RE2* RegexCreate(TUnversionedValue* regexp)
         THROW_ERROR_EXCEPTION(
             "Error parsing regular expression %Qv",
             TString(regexp->Data.String, regexp->Length))
-            << TError(re2->Error());
+            << TError(re2->error().c_str());
     }
     return re2.release();
 }

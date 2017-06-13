@@ -268,11 +268,7 @@ public:
     TCompositeSchedulerElement(
         ISchedulerStrategyHost* host,
         TFairShareStrategyConfigPtr strategyConfig,
-<<<<<<< HEAD
         NProfiling::TTagId profilingTag);
-=======
-        const TString& profilingName);
->>>>>>> arcadia_merge_2906765
     TCompositeSchedulerElement(
         const TCompositeSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
