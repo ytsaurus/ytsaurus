@@ -31,7 +31,7 @@ TStringBuf ConvertToStringBuf(const Bytes& pyString)
     return TStringBuf(stringData, length);
 }
 
-TString ConvertStringObjectToStroka(const Object& obj)
+TString ConvertStringObjectToString(const Object& obj)
 {
     Object pyString = obj;
     if (!PyBytes_Check(pyString.ptr())) {
@@ -110,7 +110,7 @@ void ValidateArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs)
         throw Py::RuntimeError("Excessive positinal argument");
     }
     if (kwargs.length() > 0) {
-        auto name = ConvertStringObjectToStroka(kwargs.keys()[0]);
+        auto name = ConvertStringObjectToString(kwargs.keys()[0]);
         throw Py::RuntimeError("Excessive named argument '" + name + "'");
     }
 

@@ -612,7 +612,7 @@ void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumn
 
 void ValidateColumnSchema(const TColumnSchema& columnSchema, bool isTableDynamic)
 {
-    static const auto allowedAggregates = yhash_set<Stroka>{"sum", "min", "max", "first"};
+    static const auto allowedAggregates = yhash_set<TString>{"sum", "min", "max", "first"};
 
     try {
         if (columnSchema.Name.empty()) {

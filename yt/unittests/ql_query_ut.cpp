@@ -2648,8 +2648,8 @@ TEST_F(TQueryEvaluateTest, TestLeftJoin)
 
 TEST_F(TQueryEvaluateTest, TestLeftJoinWithCondition)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}

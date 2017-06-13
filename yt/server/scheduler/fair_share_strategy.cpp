@@ -197,7 +197,7 @@ public:
         }
     }
 
-    void AssignOperationPoolIndex(const TOperationPtr& operation, const Stroka& poolName)
+    void AssignOperationPoolIndex(const TOperationPtr& operation, const TString& poolName)
     {
         auto operationElement = GetOperationElement(operation->GetId());
         auto it = PoolToSpareChildIndices.find(poolName);
@@ -217,7 +217,7 @@ public:
         operationElement->SetChildIndex(childIndex);
     }
 
-    void UnassignOperationPoolIndex(const TOperationPtr& operation, const Stroka& poolName)
+    void UnassignOperationPoolIndex(const TOperationPtr& operation, const TString& poolName)
     {
         auto operationElement = GetOperationElement(operation->GetId());
         auto childIndex = operationElement->GetChildIndex();
@@ -1293,7 +1293,7 @@ private:
         return pool;
     }
 
-    NProfiling::TTagId GetPoolProfilingTag(const Stroka& id)
+    NProfiling::TTagId GetPoolProfilingTag(const TString& id)
     {
         auto it = PoolIdToProfilingTagId.find(id);
         if (it == PoolIdToProfilingTagId.end()) {
@@ -1543,7 +1543,7 @@ private:
             {tag});
     }
 
-    void ProfileSchedulerElement(TSchedulerElementPtr element, const Stroka& profilingPrefix, const TTagIdList& tags)
+    void ProfileSchedulerElement(TSchedulerElementPtr element, const TString& profilingPrefix, const TTagIdList& tags)
     {
         Profiler.Enqueue(
             profilingPrefix + "/fair_share_ratio_x100000",

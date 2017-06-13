@@ -27,7 +27,7 @@ class TServerConfig
 {
 public:
     // Singletons.
-    yhash_map<Stroka, int> FiberStackPoolSizes;
+    yhash_map<TString, int> FiberStackPoolSizes;
     TAddressResolverConfigPtr AddressResolver;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
     NLogging::TLogConfigPtr Logging;
