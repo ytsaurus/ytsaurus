@@ -22,7 +22,7 @@ struct IInvoker
 
     //! Returns |true| if this invoker is either equal to #invoker or wraps it,
     //! in some sense.
-    virtual bool CheckAffinity(IInvokerPtr invoker) const = 0;
+    virtual bool CheckAffinity(const IInvokerPtr& invoker) const = 0;
 #endif
 };
 

@@ -21,7 +21,7 @@ TThreadId TEVSchedulerThread::TInvoker::GetThreadId() const
     return Owner_->ThreadId_;
 }
 
-bool TEVSchedulerThread::TInvoker::CheckAffinity(IInvokerPtr invoker) const
+bool TEVSchedulerThread::TInvoker::CheckAffinity(const IInvokerPtr& invoker) const
 {
     return invoker.Get() == this;
 }
