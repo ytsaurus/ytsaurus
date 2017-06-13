@@ -205,16 +205,19 @@ private:
         {
             i64 result = 0;
 
+            int concurrency = Controller_->Spec_->Concurrency;
+
             // Replication writer
-            result += Controller_->Spec_->JobIO->TableWriter->SendWindowSize +
-                Controller_->Spec_->JobIO->TableWriter->GroupSize;
+            result += concurrency * (Controller_->Spec_->JobIO->TableWriter->SendWindowSize +
+                Controller_->Spec_->JobIO->TableWriter->GroupSize);
 
             // Max block size
             i64 maxBlockSize = 0;
             for (const auto& stat : statistics) {
                  maxBlockSize = std::max(maxBlockSize, stat.MaxBlockSize);
             }
-            result += maxBlockSize;
+
+            result += concurrency * std::max(maxBlockSize, Controller_->Spec_->BlockBufferSize);
 
             return result;
         }
@@ -532,6 +535,8 @@ private:
 
         auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
         remoteCopyJobSpecExt->set_connection_config(ConvertToYsonString(connectionConfig).GetData());
+        remoteCopyJobSpecExt->set_concurrency(Spec_->Concurrency);
+        remoteCopyJobSpecExt->set_block_buffer_size(Spec_->BlockBufferSize);
     }
 
 };

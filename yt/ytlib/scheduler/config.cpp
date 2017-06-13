@@ -706,6 +706,10 @@ TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
         .Default(false);
     RegisterParameter("attribute_keys", AttributeKeys)
         .Default();
+    RegisterParameter("concurrency", Concurrency)
+        .Default(4);
+    RegisterParameter("block_buffer_size", BlockBufferSize)
+        .Default((i64) 64 * 1024 * 1024);
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
 }

@@ -367,6 +367,10 @@ message TRemoteCopyJobSpecExt
     }
 
     required string connection_config = 1;
+
+    required int32 concurrency = 2;
+
+    required int64 block_buffer_size = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
