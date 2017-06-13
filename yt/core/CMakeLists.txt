@@ -2,6 +2,15 @@ SET(PROTO_NAMESPACE yt/${YT_ABI})
 
 include(Sources.txt)
 
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+  SET(YT_SRCS ${YT_SRCS}
+    ${CMAKE_CURRENT_LIST_DIR}/containers/container_manager.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/containers/instance.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/containers/porto_executor.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/containers/private.cpp
+  )
+endif()
+
 IF(NOT OS_WINDOWS)
   SET(YT_SRCS ${YT_SRCS} ${CMAKE_CURRENT_LIST_DIR}/concurrency/execution_context-supp.S)
 ENDIF()
@@ -32,7 +41,6 @@ target_link_libraries(yt-core
   deps-yt-contrib-farmhash
   deps-yt-contrib-quicklz
   deps-yt-contrib-zstd-legacy
-  deps-yt-contrib-portoapi
   protobuf
   yt-build
   yt-contrib-jerasure
@@ -43,6 +51,7 @@ target_link_libraries(yt-core
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   target_link_libraries(yt-core deps-yt-contrib-coredumper)
+  target_link_libraries(yt-core deps-yt-contrib-portoapi)
 endif()
 
 if(CMAKE_COMPILER_IS_CLANG AND NOT APPLE)

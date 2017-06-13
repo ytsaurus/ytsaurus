@@ -37,10 +37,21 @@ struct TPortoManagerConfig {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#if defined(_linux_)
 IContainerManagerPtr CreatePortoManager(
     const Stroka& prefix,
     TCallback<void(const TError&)> errorHandler,
     const TPortoManagerConfig& portoManagerConfig);
+#else
+inline IContainerManagerPtr CreatePortoManager(
+    const Stroka& /*prefix*/,
+    TCallback<void(const TError&)> /*errorHandler*/,
+    const TPortoManagerConfig& /*portoManagerConfig*/)
+{
+    Y_UNIMPLEMENTED();
+    return nullptr;
+}
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
