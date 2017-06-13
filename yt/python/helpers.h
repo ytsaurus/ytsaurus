@@ -2,7 +2,7 @@
 
 #include <util/generic/noncopyable.h>
 #include <util/generic/strbuf.h>
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 #include <contrib/libs/pycxx/Objects.hxx>
 
