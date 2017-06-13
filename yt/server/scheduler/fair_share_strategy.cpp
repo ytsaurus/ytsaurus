@@ -34,7 +34,7 @@ namespace {
 
 TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 {
-    static yhash_map<EScheduleJobFailReason, TTagId> tagId;
+    static yhash<EScheduleJobFailReason, TTagId> tagId;
 
     auto it = tagId.find(reason);
     if (it == tagId.end()) {
@@ -48,7 +48,7 @@ TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
 
 TTagId GetChildIndexProfilingTag(int childIndex)
 {
-    static yhash_map<int, TTagId> childIndexToTagIdMap;
+    static yhash<int, TTagId> childIndexToTagIdMap;
 
     auto it = childIndexToTagIdMap.find(childIndex);
     if (it == childIndexToTagIdMap.end()) {
