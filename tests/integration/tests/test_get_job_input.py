@@ -1,5 +1,7 @@
 from yt_env_setup import wait, YTEnvSetup
 from yt_commands import *
+import yt.environment.init_operation_archive as init_operation_archive
+from yt.wrapper.common import uuid_hash_pair
 
 import __builtin__
 import datetime
@@ -26,16 +28,18 @@ def get_stderr_dict_from_table(table_path):
         result[job_id] = job_stderr
     return result
 
+def get_job_rows_for_operation(operation_id):
+    hash_pair = uuid_hash_pair(operation_id)
+    return select_rows("* from [{0}] where operation_id_lo = {1}u and operation_id_hi = {2}u".format(
+        OPERATION_JOB_ARCHIVE_TABLE,  hash_pair.lo, hash_pair.hi))
+
 def check_all_jobs_in_operation_archive(job_id_list):
     rows = select_rows("job_id_hi,job_id_lo from [{0}]".format(OPERATION_JOB_ARCHIVE_TABLE))
     job_ids_in_archive = __builtin__.set(get_guid_from_parts(r["job_id_lo"], r["job_id_hi"]) for r in rows)
     return all(job_id in job_ids_in_archive for job_id in job_id_list)
 
-def wait_data_in_operation_table_archive(job_id_list=None):
-    if job_id_list is None:
-        wait(lambda: len(select_rows("* from [{0}]".format(OPERATION_JOB_ARCHIVE_TABLE))) > 0)
-    else:
-        wait(lambda: check_all_jobs_in_operation_archive(job_id_list))
+def wait_data_in_operation_table_archive(job_id_list):
+    wait(lambda: check_all_jobs_in_operation_archive(job_id_list))
 
 class TestGetJobInput(YTEnvSetup):
     NUM_MASTERS = 1
@@ -72,40 +76,13 @@ class TestGetJobInput(YTEnvSetup):
     }
 
     def setup(self):
-        self._create_jobs_archive_table()
         self._tmpdir = create_tmpdir("inputs")
+        self.sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client())
 
     def teardown(self):
-        self._destroy_jobs_archive_table()
         shutil.rmtree(self._tmpdir)
-
-    def _create_jobs_archive_table(self):
-        attributes = {
-            "dynamic": True,
-            "schema": [
-                {"name": "operation_id_hi", "sort_order": "ascending", "type": "uint64"},
-                {"name": "operation_id_lo", "sort_order": "ascending", "type": "uint64"},
-                {"name": "job_id_hi", "sort_order": "ascending", "type": "uint64"},
-                {"name": "job_id_lo", "sort_order": "ascending", "type": "uint64"},
-                {"name": "type", "type": "string"},
-                {"name": "state", "type": "string"},
-                {"name": "start_time", "type": "int64"},
-                {"name": "finish_time", "type": "int64"},
-                {"name": "address", "type": "string"},
-                {"name": "error", "type": "any"},
-                {"name": "spec", "type": "string"},
-                {"name": "spec_version", "type": "int64"},
-                {"name": "statistics", "type": "any"},
-                {"name": "events", "type": "any"}
-            ]
-        }
-        create("table", OPERATION_JOB_ARCHIVE_TABLE, attributes=attributes, recursive=True)
-        self.sync_create_cells(1)
-        self.sync_mount_table(OPERATION_JOB_ARCHIVE_TABLE)
-
-    def _destroy_jobs_archive_table(self):
-        self.sync_unmount_table(OPERATION_JOB_ARCHIVE_TABLE)
-        remove(OPERATION_JOB_ARCHIVE_TABLE)
+        remove("//sys/operations_archive")
 
 
     @pytest.mark.parametrize("format", FORMAT_LIST)
@@ -122,7 +99,9 @@ class TestGetJobInput(YTEnvSetup):
             format=format,
         )
 
-        wait_data_in_operation_table_archive()
+        job_id_list = os.listdir(self._tmpdir)
+        assert job_id_list
+        wait_data_in_operation_table_archive(job_id_list)
 
         job_id_list = os.listdir(self._tmpdir)
         assert job_id_list
@@ -231,7 +210,9 @@ class TestGetJobInput(YTEnvSetup):
             format=format,
         )
 
-        wait_data_in_operation_table_archive()
+        job_id_list = os.listdir(self._tmpdir)
+        assert job_id_list
+        wait_data_in_operation_table_archive(job_id_list)
 
         job_id_list = os.listdir(self._tmpdir)
         assert job_id_list
@@ -251,8 +232,9 @@ class TestGetJobInput(YTEnvSetup):
             out="//tmp/t_output",
             sort_by=["foo"]
         )
-        wait_data_in_operation_table_archive()
-        rows = select_rows("* from [{0}]".format(OPERATION_JOB_ARCHIVE_TABLE))
+        wait(lambda: get_job_rows_for_operation(op.id))
+
+        rows = get_job_rows_for_operation(op.id)
         assert len(rows) == 1
 
         op_id = get_guid_from_parts(
@@ -284,7 +266,9 @@ class TestGetJobInput(YTEnvSetup):
             }
         )
 
-        wait_data_in_operation_table_archive()
+        job_id_list = os.listdir(self._tmpdir)
+        assert job_id_list
+        wait_data_in_operation_table_archive(job_id_list)
 
         write_table("//tmp/t_input", [{"bar": i} for i in xrange(100)])
 
@@ -313,12 +297,19 @@ class TestGetJobInput(YTEnvSetup):
             command="cat > {0}/$YT_JOB_ID".format(self._tmpdir),
         )
 
-        wait_data_in_operation_table_archive()
+        job_id_list = os.listdir(self._tmpdir)
+        assert job_id_list
+        wait_data_in_operation_table_archive(job_id_list)
 
-        rows = select_rows("* from [{0}]".format(OPERATION_JOB_ARCHIVE_TABLE))
+        rows = get_job_rows_for_operation(op.id)
+        updated = []
         for r in rows:
-            r["spec"] = "junk"
-        insert_rows(OPERATION_JOB_ARCHIVE_TABLE, rows)
+            new_r = {}
+            for key in ["operation_id_hi", "operation_id_lo", "job_id_hi", "job_id_lo"]:
+                new_r[key] = r[key]
+            new_r["spec"] = "junk"
+            updated.append(new_r)
+        insert_rows(OPERATION_JOB_ARCHIVE_TABLE, updated, update=True)
 
         job_id_list = os.listdir(self._tmpdir)
         assert job_id_list
@@ -349,7 +340,9 @@ class TestGetJobInput(YTEnvSetup):
                     {"name": "b", "type": "int64"},
                 ]})
 
-        wait_data_in_operation_table_archive()
+        job_id_list = os.listdir(self._tmpdir)
+        assert job_id_list
+        wait_data_in_operation_table_archive(job_id_list)
 
         assert read_table("//tmp/t_output") == [{"c": i * 4} for i in xrange(1, 10)]
 
