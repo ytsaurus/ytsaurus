@@ -18,7 +18,7 @@ bool IsInteger(const Object& obj);
 bool IsFloat(const Object& obj);
 TStringBuf ConvertToStringBuf(const Bytes& pyString);
 Bytes ConvertToPythonString(const TString& string);
-TString ConvertStringObjectToStroka(const Object& obj);
+TString ConvertStringObjectToString(const Object& obj);
 Object GetAttr(const Object& obj, const std::string& fieldName);
 i64 ConvertToLongLong(const Object& obj);
 std::string Repr(const Object& obj);

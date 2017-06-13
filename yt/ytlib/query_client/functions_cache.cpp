@@ -374,17 +374,17 @@ public:
         , Invoker_(invoker)
     { }
 
-    virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(const std::vector<Stroka>& names) override
+    virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(const std::vector<TString>& names) override
     {
         return Get(names);
     }
 
 private:
-    const Stroka RegistryPath_;
+    const TString RegistryPath_;
     const TWeakPtr<INativeClient> Client_;
     const IInvokerPtr Invoker_;
 
-    virtual TFuture<TExternalFunctionSpec> DoGet(const Stroka& key) override
+    virtual TFuture<TExternalFunctionSpec> DoGet(const TString& key) override
     {
         return DoGetMany({key})
             .Apply(BIND([] (const std::vector<TExternalFunctionSpec>& result) {
@@ -392,7 +392,7 @@ private:
             }));
     }
 
-    virtual TFuture<std::vector<TExternalFunctionSpec>> DoGetMany(const std::vector<Stroka>& keys) override
+    virtual TFuture<std::vector<TExternalFunctionSpec>> DoGetMany(const std::vector<TString>& keys) override
     {
         return BIND(LookupAllUdfDescriptors, keys, RegistryPath_, Client_.Lock())
             .AsyncVia(Invoker_)

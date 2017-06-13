@@ -37,7 +37,7 @@ class TDispatcherPoller
     : public IDispatcherPoller
 {
 public:
-    TDispatcherPoller(int threadCount, const Stroka& threadNamePrefix)
+    TDispatcherPoller(int threadCount, const TString& threadNamePrefix)
         : ThreadCount_(threadCount)
           , ThreadNamePrefix_(threadNamePrefix)
           , Threads_(ThreadCount_)
@@ -109,7 +109,7 @@ public:
 
 private:
     const int ThreadCount_;
-    const Stroka ThreadNamePrefix_;
+    const TString ThreadNamePrefix_;
 
     struct TUnregisterEntry
         : public TIntrinsicRefCounted
@@ -162,7 +162,7 @@ private:
             return nullptr;
         }
 
-        Stroka GenerateThreadName()
+        TString GenerateThreadName()
         {
             return Poller_->ThreadCount_ == 1
                 ? Poller_->ThreadNamePrefix_

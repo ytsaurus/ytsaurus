@@ -38,17 +38,17 @@ TEST(TTools, MultiplyByTwo)
     EXPECT_EQ(4, result);
 }
 
-struct TStrokaToVoid
+struct TStringToVoid
 {
     void operator()(const TString& arg) const
     { }
 };
 
-REGISTER_TOOL(TStrokaToVoid);
+REGISTER_TOOL(TStringToVoid);
 
 TEST(TTools, ToVoid)
 {
-    RunToolInProcess<TStrokaToVoid>("Hello world");
+    RunToolInProcess<TStringToVoid>("Hello world");
 }
 
 struct TFaulty

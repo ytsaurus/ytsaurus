@@ -705,7 +705,7 @@ protected:
     }
 
     template <class TResponsePtr>
-    void BanSeedIfUncomplete(const TResponsePtr& rsp, const Stroka& address)
+    void BanSeedIfUncomplete(const TResponsePtr& rsp, const TString& address)
     {
         if (IsSeed(address) && !rsp->has_complete_chunk()) {
             LOG_DEBUG("Seed does not contain the chunk (Address: %v)", address);

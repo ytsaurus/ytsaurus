@@ -9,19 +9,19 @@ namespace NConcurrency {
 
 NProfiling::TTagIdList GetThreadTagIds(
     bool enableProfiling,
-    const Stroka& threadName);
+    const TString& threadName);
 
 NProfiling::TTagIdList GetBucketTagIds(
     bool enableProfiling,
-    const Stroka& threadName,
-    const Stroka& bucketName);
+    const TString& threadName,
+    const TString& bucketName);
 
 std::vector<NProfiling::TTagIdList> GetBucketsTagIds(
     bool enableProfiling,
-    const Stroka& threadName,
-    const std::vector<Stroka>& bucketNames);
+    const TString& threadName,
+    const std::vector<TString>& bucketNames);
 
-NProfiling::TTagIdList GetInvokerTagIds(const Stroka& invokerName);
+NProfiling::TTagIdList GetInvokerTagIds(const TString& invokerName);
 
 ///////////////////////////////////////////////////////////////////////////////
 

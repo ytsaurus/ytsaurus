@@ -492,12 +492,12 @@ void LoadLlvmBitcode(
 
     for (auto& function : implModule->getFunctionList()) {
         auto name = function.getName();
-        auto nameStroka = TString(name.begin(), name.size());
-        if (builder.Module->SymbolIsLoaded(nameStroka)) {
+        auto nameString = TString(name.begin(), name.size());
+        if (builder.Module->SymbolIsLoaded(nameString)) {
             THROW_ERROR_EXCEPTION(
                 "LLVM bitcode for function %Qv redefines already defined symbol %Qv",
                 functionName,
-                nameStroka);
+                nameString);
         }
     }
 

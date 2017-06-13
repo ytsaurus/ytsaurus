@@ -159,13 +159,13 @@ public:
         auto* response = pythonResponse.getCxxObject();
 
         TDriverRequest request;
-        request.CommandName = ConvertStringObjectToStroka(GetAttr(pyRequest, "command_name"));
+        request.CommandName = ConvertStringObjectToString(GetAttr(pyRequest, "command_name"));
         request.Parameters = ConvertObjectToNode(GetAttr(pyRequest, "parameters"))->AsMap();
         request.ResponseParametersConsumer = response->GetResponseParametersConsumer();
 
         auto user = GetAttr(pyRequest, "user");
         if (!user.isNone()) {
-            request.AuthenticatedUser = ConvertStringObjectToStroka(user);
+            request.AuthenticatedUser = ConvertStringObjectToString(user);
         }
 
         if (pyRequest.hasAttr("id")) {
@@ -218,7 +218,7 @@ public:
 
     Py::Object GetCommandDescriptor(Py::Tuple& args, Py::Dict& kwargs)
     {
-        auto commandName = ConvertStringObjectToStroka(ExtractArgument(args, kwargs, "command_name"));
+        auto commandName = ConvertStringObjectToString(ExtractArgument(args, kwargs, "command_name"));
         ValidateArgumentsEmpty(args, kwargs);
 
         Py::Callable class_type(TCommandDescriptor::type());
@@ -266,7 +266,7 @@ public:
         if (!HasArgument(args, kwargs, "address")) {
             throw CreateYtError("Missing argument 'address'");
         }
-        auto address = ConvertStringObjectToStroka(ExtractArgument(args, kwargs, "address"));
+        auto address = ConvertStringObjectToString(ExtractArgument(args, kwargs, "address"));
 
         if (HasArgument(args, kwargs, "exit_code")) {
             options.ExitCode = static_cast<int>(Py::Int(ExtractArgument(args, kwargs, "exit_code")));
@@ -290,7 +290,7 @@ public:
         if (!HasArgument(args, kwargs, "address")) {
             throw CreateYtError("Missing argument 'address'");
         }
-        auto address = ConvertStringObjectToStroka(ExtractArgument(args, kwargs, "address"));
+        auto address = ConvertStringObjectToString(ExtractArgument(args, kwargs, "address"));
 
         ValidateArgumentsEmpty(args, kwargs);
 
@@ -317,7 +317,7 @@ public:
 
         auto cellId = ExtractArgument(args, kwargs, "cell_id");
         if (!cellId.isNone()) {
-            options.CellId = TTabletCellId::FromString(ConvertStringObjectToStroka(cellId));
+            options.CellId = TTabletCellId::FromString(ConvertStringObjectToString(cellId));
         }
 
         ValidateArgumentsEmpty(args, kwargs);
