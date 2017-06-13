@@ -3679,9 +3679,7 @@ private:
             if (!IsObjectAlive(cell)) {
                 continue;
             }
-            if (cell->GetCellBundle() == table->GetTabletCellBundle() &&
-                cell->GetHealth() == ETabletCellHealth::Good)
-            {
+            if (cell->GetCellBundle() == table->GetTabletCellBundle()) {
                 YCHECK(cellKeys.insert(TCellKey{getCellSize(cell), cell}).second);
             }
         }
