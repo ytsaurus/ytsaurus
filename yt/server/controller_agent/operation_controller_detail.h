@@ -507,8 +507,8 @@ protected:
         bool Restarted = false;
 
         NScheduler::TExtendedJobResources EstimatedResourceUsage;
-        double JobProxyMemoryReserveFactor = -1;
-        double UserJobMemoryReserveFactor = -1;
+        TNullable<double> JobProxyMemoryReserveFactor;
+        TNullable<double> UserJobMemoryReserveFactor;
         TJobResources ResourceLimits;
 
         NChunkPools::TChunkStripeListPtr InputStripeList;

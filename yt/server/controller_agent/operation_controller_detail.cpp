@@ -2264,7 +2264,7 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TSta
             // During resource overdraft actual max memory values may be outdated,
             // since statistics are updated periodically. To ensure that digest converge to large enough
             // values we introduce additional factor.
-            actualFactor = std::max(actualFactor, joblet->UserJobMemoryReserveFactor * Config->ResourceOverdraftFactor);
+            actualFactor = std::max(actualFactor, *joblet->UserJobMemoryReserveFactor * Config->ResourceOverdraftFactor);
         }
         LOG_TRACE("Adding sample to the job proxy memory digest (JobType: %v, Sample: %v, JobId: %v)",
             jobType,
@@ -2280,7 +2280,7 @@ void TOperationControllerBase::UpdateMemoryDigests(TJobletPtr joblet, const TSta
         double actualFactor = static_cast<double>(*jobProxyMaxMemoryUsage) /
             (joblet->EstimatedResourceUsage.GetJobProxyMemory() + joblet->EstimatedResourceUsage.GetFootprintMemory());
         if (resourceOverdraft) {
-            actualFactor = std::max(actualFactor, joblet->JobProxyMemoryReserveFactor * Config->ResourceOverdraftFactor);
+            actualFactor = std::max(actualFactor, *joblet->JobProxyMemoryReserveFactor * Config->ResourceOverdraftFactor);
         }
         LOG_TRACE("Adding sample to the user job memory digest (JobType: %v, Sample: %v, JobId: %v)",
             jobType,
@@ -2599,8 +2599,9 @@ void TOperationControllerBase::FinalizeJoblet(
     if (jobSummary->ExecDuration) {
         statistics.AddSample("/time/exec", jobSummary->ExecDuration->MilliSeconds());
     }
-
-    statistics.AddSample("/job_proxy/memory_reserve_factor_x10000", static_cast<int>(1e4 * joblet->JobProxyMemoryReserveFactor));
+    if (joblet->JobProxyMemoryReserveFactor) {
+        statistics.AddSample("/job_proxy/memory_reserve_factor_x10000", static_cast<int>(1e4 * *joblet->JobProxyMemoryReserveFactor));
+    }
 }
 
 void TOperationControllerBase::BuildJobAttributes(
@@ -6333,7 +6334,7 @@ void TOperationControllerBase::InitUserJobSpec(
 {
     ToProto(jobSpec->mutable_async_scheduler_transaction_id(), AsyncSchedulerTransaction->GetId());
 
-    i64 memoryReserve = joblet->EstimatedResourceUsage.GetUserJobMemory() * joblet->UserJobMemoryReserveFactor;
+    i64 memoryReserve = joblet->EstimatedResourceUsage.GetUserJobMemory() * *joblet->UserJobMemoryReserveFactor;
     // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).
     // This is ensured by adjusting memory reserve factor in user job config as initialization,
     // but just in case we also limit the actual memory_reserve value here.
