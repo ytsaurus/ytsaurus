@@ -5,8 +5,10 @@
 #include <yt/core/actions/future.h>
 #include <yt/core/actions/signal.h>
 
+#if defined(_linux_)
 #include <yt/contrib/portoapi/rpc.pb.h>
 #include <yt/contrib/portoapi/libporto.hpp>
+#endif
 
 namespace NYT {
 namespace NContainers {
@@ -22,9 +24,16 @@ struct TVolumeID
 
 const int ContainerErrorCodeBase = 12000;
 
+#if defined(_linux_)
 DEFINE_ENUM(EContainerErrorCode,
     ((InvalidState)((ContainerErrorCodeBase + ::rpc::EError::InvalidState)))
 );
+#else
+DEFINE_ENUM(EContainerErrorCode,
+    ((InvalidState)((ContainerErrorCodeBase + 1)))
+);
+#endif
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,9 +71,21 @@ DEFINE_REFCOUNTED_TYPE(IPortoExecutor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#if defined(_linux_)
 IPortoExecutorPtr CreatePortoExecutor(
     TDuration retryTime = TDuration::Seconds(10),
     TDuration pollPeriod = TDuration::MilliSeconds(100));
+#else
+inline IPortoExecutorPtr CreatePortoExecutor(
+    TDuration retryTime = TDuration::Seconds(10),
+    TDuration pollPeriod = TDuration::MilliSeconds(100))
+{
+    Y_UNUSED(retryTime);
+    Y_UNUSED(pollPeriod);
+    Y_UNIMPLEMENTED();
+    return nullptr;
+}
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -56,8 +56,22 @@ DEFINE_REFCOUNTED_TYPE(IInstance)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#if defined(_linux_)
 IInstancePtr CreatePortoInstance(const Stroka& name, IPortoExecutorPtr executor);
 IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor);
+#else
+inline IInstancePtr CreatePortoInstance(const Stroka& /*name*/, IPortoExecutorPtr /*executor*/)
+{
+    Y_UNIMPLEMENTED();
+    return nullptr;
+}
+
+inline IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr /*executor*/)
+{
+    Y_UNIMPLEMENTED();
+    return nullptr;
+}
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
