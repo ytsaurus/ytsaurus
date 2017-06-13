@@ -154,6 +154,9 @@ private:
     NProfiling::TSimpleCounter SplitCounter_;
     NProfiling::TSimpleCounter QueueSizeCounter_;
 
+    int MergeCount_ = 0;
+    int SplitCount_ = 0;
+
     void Balance()
     {
         if (!Enabled_) {
@@ -360,6 +363,10 @@ private:
         }
 
         Profiler.Update(QueueSizeCounter_, TabletIdQueue_.size());
+        Profiler.Update(MergeCounter_, MergeCount_);
+        Profiler.Update(SplitCounter_, SplitCount_);
+        MergeCount_ = 0;
+        SplitCount_ = 0;
     }
 
     i64 GetTabletSize(TTablet* tablet)
@@ -419,7 +426,7 @@ private:
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         CreateMutation(hydraManager, request)
             ->CommitAndLog(Logger);
-        Profiler.Increment(MergeCounter_);
+        ++MergeCount_;
     }
 
     void SplitTablet(TTablet* tablet)
@@ -446,7 +453,7 @@ private:
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         CreateMutation(hydraManager, request)
             ->CommitAndLog(Logger);
-        Profiler.Increment(SplitCounter_);
+        ++SplitCount_;
     }
 
 
