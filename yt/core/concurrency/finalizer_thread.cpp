@@ -42,9 +42,9 @@ private:
             return Owner_->Queue_->GetThreadId();
         }
 
-        virtual bool CheckAffinity(IInvokerPtr invoker) const override
+        virtual bool CheckAffinity(const IInvokerPtr& invoker) const override
         {
-            return Owner_->Queue_->CheckAffinity(std::move(invoker));
+            return Owner_->Queue_->CheckAffinity(invoker);
         }
 #endif
     private:
