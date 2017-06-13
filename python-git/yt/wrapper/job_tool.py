@@ -72,7 +72,7 @@ cd {sandbox_path}
 mkdir -p {output_path}
 
 export YT_JOB_INDEX=0
-export YT_JOB_START_ROW_INDEX=0
+export YT_START_ROW_INDEX=0
 export YT_OPERATION_ID={operation_id}
 export YT_JOB_ID={job_id}
 export YT_STARTED_BY_JOB_TOOL=1
