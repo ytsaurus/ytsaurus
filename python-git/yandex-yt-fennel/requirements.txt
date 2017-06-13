@@ -1,4 +1,4 @@
-yandex-yt>=0.8.1-0
+yandex-yt>=0.8.16-0
 yandex-yt-tools>=0.2.109-0
 raven>=5.0.0
 statbox_bindings2>=0.22.0
