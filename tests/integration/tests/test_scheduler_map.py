@@ -2647,6 +2647,8 @@ print row + table_index
         assert get("//tmp/t_output/@sorted_by") == ["key"]
         assert read_table("//tmp/t_output") == original_data
 
+    # NB(psushin): remove flaky flag from 19.2 and further.
+    @flaky(max_runs=5)
     def test_job_with_exit_immediately_flag(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
