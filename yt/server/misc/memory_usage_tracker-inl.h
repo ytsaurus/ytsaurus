@@ -102,7 +102,7 @@ void TMemoryUsageTracker<ECategory>::Acquire(ECategory category, i64 size)
 
     DoAcquire(category, size);
 
-    if (TotalFreeCounter_.GetCurrent()< 0) {
+    if (TotalFreeCounter_.GetCurrent() < 0) {
         LOG_WARNING("Total memory overcommit by %v after %Qlv request for %v",
             -TotalFreeCounter_.GetCurrent(),
             category,
