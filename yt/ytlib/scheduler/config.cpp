@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/server/chunk_pools/sorted_chunk_pool.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -303,6 +305,8 @@ TSimpleOperationSpecBase::TSimpleOperationSpecBase()
         .Default(TDuration::Seconds(5));
     RegisterParameter("job_io", JobIO)
         .DefaultNew();
+    RegisterParameter("stripe_list_extraction_order", StripeListExtractionOrder)
+        .Default(NChunkPools::EStripeListExtractionOrder::DataSizeDescending);
 
     RegisterParameter("job_proxy_memory_digest", JobProxyMemoryDigest)
         .Default(New<TLogDigestConfig>(0.5, 2.0, 1.0));

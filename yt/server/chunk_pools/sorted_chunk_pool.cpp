@@ -42,6 +42,7 @@ void TSortedChunkPoolOptions::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 
+    Persist(context, ExtractionOrder);
     Persist(context, SortedJobOptions);
     Persist(context, MinTeleportChunkSize);
     Persist(context, JobSizeConstraints);
@@ -537,7 +538,8 @@ public:
         const TSortedChunkPoolOptions& options,
         IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
         TInputStreamDirectory inputStreamDirectory)
-        : SortedJobOptions_(options.SortedJobOptions)
+        : JobManager_(New<TJobManager>(options.ExtractionOrder))
+        , SortedJobOptions_(options.SortedJobOptions)
         , ChunkSliceFetcherFactory_(std::move(chunkSliceFetcherFactory))
         , EnableKeyGuarantee_(options.SortedJobOptions.EnableKeyGuarantee)
         , InputStreamDirectory_(std::move(inputStreamDirectory))
@@ -807,7 +809,7 @@ private:
 
     //! A data structure responsible for keeping the prepared jobs, extracting them and dealing with suspend/resume
     //! events.
-    TJobManagerPtr JobManager_ = New<TJobManager>();
+    TJobManagerPtr JobManager_;
 
     //! All options necessary for sorted job builder.
     TSortedJobOptions SortedJobOptions_;
