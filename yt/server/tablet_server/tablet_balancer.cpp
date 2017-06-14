@@ -110,7 +110,7 @@ public:
             TabletIdQueue_.push_back(tablet->GetId());
             QueuedTabletIds_.insert(tablet->GetId());
             Profiler.Increment(QueueSizeCounter_);
-            LOG_DEBUG("Put tablet %v into balancer queue", tablet->GetId());
+            LOG_DEBUG("Tablet is put into balancer queue (TabletId: %v)", tablet->GetId());
         }
     }
 
