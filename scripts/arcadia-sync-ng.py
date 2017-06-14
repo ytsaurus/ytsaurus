@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 """
+## Introduction
+
 This script provides assistance functions to synchronize YT in Arcadia and in GitHub.
 
 Main source tree is composed of different directories with two main synchronization strategies.
@@ -15,6 +17,15 @@ Second, `yt/` is mirrored from GitHub to Arcadia as a snapshot. `git-svn` is use
 subtree into SVN, and lineage is preserved with commit marks. Namely, for every push commit in SVN
 contains a textual reference to original Git commit. This information is used to properly pull changes
 from SVN to Git.
+
+## Glossary
+
+**(Git) Commit**. Changeset for a repository with lineage information. Identified by a SHA1 hash.
+
+**(Git) Reference**. Named pointed to a particular commit. Fully qualified reference starts with `refs/`.
+Examples: `HEAD`, `origin/master`, `refs/remotes/origin/master`, `branch`, `refs/heads/branch`.
+
+**(Svn) Revision**. Changeset for a repository. Identified by a natural number. Revisions are totally ordered.
 """
 
 import os
@@ -36,6 +47,10 @@ except ImportError:
 
 
 def strip_margin(s):
+    """
+    Strips left margin from multiline strings.
+    This is a helper function that improves readability, see usages in the file.
+    """
     r = []
     for line in s.splitlines():
         i = line.find("|")
@@ -45,6 +60,9 @@ def strip_margin(s):
 
 
 def trim_for_logging(s):
+    """
+    Trims long strings to bound length of log messages.
+    """
     if len(s) > 80:
         return s[:80] + "[trimmed].."
     else:
