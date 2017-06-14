@@ -328,6 +328,10 @@ class YTEnvSetup(object):
         print "Waiting for node %s to become %s..." % (address, ban)
         wait(lambda: yt_commands.get("//sys/nodes/%s/@state" % address, driver=driver) == state)
 
+    def set_node_decommissioned(self, address, flag, driver=None):
+        yt_commands.set("//sys/nodes/%s/@decommissioned" % address, flag, driver=driver)
+        print "Node %s is %s" % (address, "decommissioned" if flag else "not decommissioned")
+
     def wait_for_nodes(self, driver=None):
         print "Waiting for nodes to become online..."
         wait(lambda: all(n.attributes["state"] == "online"
@@ -424,12 +428,14 @@ class YTEnvSetup(object):
         wait(lambda: yt_commands.get("#{0}/@state".format(replica_id), driver=driver) == "disabled")
 
     def _reset_nodes(self, driver=None):
-        nodes = yt_commands.ls("//sys/nodes", attributes=["banned", "resource_limits_overrides", "user_tags"],
+        nodes = yt_commands.ls("//sys/nodes", attributes=["banned", "decommissioned", "resource_limits_overrides", "user_tags"],
                                driver=driver)
         for node in nodes:
             node_name = str(node)
             if node.attributes["banned"]:
                 yt_commands.set("//sys/nodes/%s/@banned" % node_name, False, driver=driver)
+            if node.attributes["decommissioned"]:
+                yt_commands.set("//sys/nodes/%s/@decommissioned" % node_name, False, driver=driver)
             if node.attributes["resource_limits_overrides"] != {}:
                 yt_commands.set("//sys/nodes/%s/@resource_limits_overrides" % node_name, {}, driver=driver)
             if node.attributes["user_tags"] != []:

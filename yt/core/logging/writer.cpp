@@ -1,6 +1,7 @@
 #include "writer.h"
 #include "private.h"
 #include "log.h"
+#include "log_manager.h"
 
 #include <yt/build/build.h>
 
@@ -18,8 +19,8 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TLogger Logger(SystemLoggingCategory);
-static const size_t BufferSize = 1 << 16;
+static const TLogger Logger(SystemLoggingCategoryName);
+static constexpr size_t BufferSize = 1 << 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +30,7 @@ TLogEvent GetBannerEvent()
 {
     TLogEvent event;
     event.Instant = GetCpuInstant();
-    event.Category = SystemLoggingCategory;
+    event.Category = Logger.GetCategory();
     event.Level = ELogLevel::Info;
     event.Message = Format("Logging started (Version: %v, BuildHost: %v, BuildTime: %v)",
         GetVersion(),
@@ -95,7 +96,7 @@ void TStreamLogWriterBase::Write(const TLogEvent& event)
     FormatLevel(buffer, event.Level);
     buffer->AppendChar('\t');
 
-    buffer->AppendString(event.Category);
+    buffer->AppendString(event.Category->Name);
     buffer->AppendChar('\t');
 
     FormatMessage(buffer, event.Message);

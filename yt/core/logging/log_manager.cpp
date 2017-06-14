@@ -16,6 +16,7 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/raw_formatter.h>
 #include <yt/core/misc/singleton.h>
+#include <yt/core/misc/shutdown.h>
 #include <yt/core/misc/variant.h>
 
 #include <yt/core/profiling/profiler.h>
@@ -56,7 +57,7 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TLogger Logger(SystemLoggingCategory);
+static const TLogger Logger(SystemLoggingCategoryName);
 static const auto& Profiler = LoggingProfiler;
 
 static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
@@ -244,40 +245,15 @@ public:
             false,
             false))
         , LoggingThread_(New<TThread>(this))
+        , SystemWriters_({New<TStderrLogWriter>()})
     {
-        SystemWriters_.push_back(New<TStderrLogWriter>());
-        UpdateConfig(TLogConfig::CreateDefault(), false);
+        DoUpdateConfig(TLogConfig::CreateDefault());
+        SystemCategory_ = GetCategory(SystemLoggingCategoryName);
     }
 
-    void EnsureStarted()
+    void Configure(INodePtr node)
     {
-        if (LoggingThread_->IsShutdown()) {
-            return;
-        }
-
-        if (LoggingThread_->IsStarted()) {
-            return;
-        }
-
-        LoggingThread_->Start();
-        EventQueue_->SetThreadId(LoggingThread_->GetId());
-
-        ProfilingExecutor_ = New<TPeriodicExecutor>(
-            EventQueue_,
-            BIND(&TImpl::OnProfiling, MakeStrong(this)),
-            ProfilingPeriod);
-        ProfilingExecutor_->Start();
-
-        DequeueExecutor_ = New<TPeriodicExecutor>(
-            EventQueue_,
-            BIND(&TImpl::OnDequeue, MakeStrong(this)),
-            DequeuePeriod);
-        DequeueExecutor_->Start();
-    }
-
-    void Configure(INodePtr node, const TYPath& path = "")
-    {
-        auto config = TLogConfig::CreateFromNode(node, path);
+        auto config = TLogConfig::CreateFromNode(node);
         Configure(std::move(config));
     }
 
@@ -345,7 +321,7 @@ public:
 
         config->WriterConfigs.insert(std::make_pair(stderrWriterName, std::move(stderrWriter)));
 
-        TLogManager::Get()->Configure(std::move(config));
+        Configure(std::move(config));
     }
 
     void ConfigureFromEnv()
@@ -383,20 +359,31 @@ public:
      */
     int GetVersion() const
     {
-        return Version_;
+        return Version_.load();
     }
 
-    ELogLevel GetMinLevel(const TString& category) const
+    const TLoggingCategory* GetCategory(const char* categoryName)
+    {
+        if (!categoryName) {
+            return nullptr;
+        }
+
+        TGuard<TForkAwareSpinLock> guard(SpinLock_);
+        auto it = NameToCategory_.find(categoryName);
+        if (it == NameToCategory_.end()) {
+            auto category = std::make_unique<TLoggingCategory>();
+            category->Name = categoryName;
+            category->ActualVersion = &Version_;
+            it = NameToCategory_.emplace(categoryName, std::move(category)).first;
+            DoUpdateCategory(it->second.get());
+        }
+        return it->second.get();
+    }
+
+    void UpdateCategory(const TLoggingCategory* category)
     {
         TGuard<TForkAwareSpinLock> guard(SpinLock_);
-
-        ELogLevel level = ELogLevel::Maximum;
-        for (const auto& rule : Config_->Rules) {
-            if (rule->IsApplicable(category)) {
-                level = Min(level, rule->MinLevel);
-            }
-        }
-        return level;
+        DoUpdateCategory(category);
     }
 
     void Enqueue(TLogEvent&& event)
@@ -456,7 +443,7 @@ public:
         }
 
         // NB: Always allow system messages to pass through.
-        if (Suspended_ && event.Category != SystemLoggingCategory) {
+        if (Suspended_ && event.Category != SystemCategory_) {
             return;
         }
 
@@ -503,7 +490,7 @@ private:
         explicit TThread(TImpl* owner)
             : TSchedulerThread(
                 owner->EventCount_,
-                "Logging",
+                SystemLoggingCategoryName,
                 NProfiling::EmptyTagIds,
                 false,
                 false)
@@ -558,15 +545,41 @@ private:
     }
 
 
+    void EnsureStarted()
+    {
+        if (LoggingThread_->IsShutdown()) {
+            return;
+        }
+
+        if (LoggingThread_->IsStarted()) {
+            return;
+        }
+
+        LoggingThread_->Start();
+        EventQueue_->SetThreadId(LoggingThread_->GetId());
+
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            EventQueue_,
+            BIND(&TImpl::OnProfiling, MakeStrong(this)),
+            ProfilingPeriod);
+        ProfilingExecutor_->Start();
+
+        DequeueExecutor_ = New<TPeriodicExecutor>(
+            EventQueue_,
+            BIND(&TImpl::OnDequeue, MakeStrong(this)),
+            DequeuePeriod);
+        DequeueExecutor_->Start();
+    }
+
     const std::vector<ILogWriterPtr>& GetWriters(const TLogEvent& event)
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
-        if (event.Category == SystemLoggingCategory) {
+        if (event.Category == SystemCategory_) {
             return SystemWriters_;
         }
 
-        std::pair<TString, ELogLevel> cacheKey(event.Category, event.Level);
+        std::pair<TString, ELogLevel> cacheKey(event.Category->Name, event.Level);
         auto it = CachedWriters_.find(cacheKey);
         if (it != CachedWriters_.end()) {
             return it->second;
@@ -574,7 +587,7 @@ private:
 
         yhash_set<TString> writerIds;
         for (const auto& rule : Config_->Rules) {
-            if (rule->IsApplicable(event.Category, event.Level)) {
+            if (rule->IsApplicable(event.Category->Name, event.Level)) {
                 writerIds.insert(rule->Writers.begin(), rule->Writers.end());
             }
         }
@@ -609,11 +622,9 @@ private:
         return nullptr;
     }
 
-    void UpdateConfig(const TLogConfigPtr& config, bool verifyThreadAffinity = true)
+    void UpdateConfig(const TLogConfigPtr& config)
     {
-        if (verifyThreadAffinity) {
-            VERIFY_THREAD_AFFINITY(LoggingThread);
-        }
+        VERIFY_THREAD_AFFINITY(LoggingThread);
 
         if (ShutdownRequested_) {
             return;
@@ -627,6 +638,48 @@ private:
 
         FlushWriters();
 
+        DoUpdateConfig(config);
+
+        if (FlushExecutor_) {
+            FlushExecutor_->Stop();
+            FlushExecutor_.Reset();
+        }
+
+        if (WatchExecutor_) {
+            WatchExecutor_->Stop();
+            WatchExecutor_.Reset();
+        }
+
+        auto flushPeriod = Config_->FlushPeriod;
+        if (flushPeriod) {
+            FlushExecutor_ = New<TPeriodicExecutor>(
+                EventQueue_,
+                BIND(&TImpl::FlushWriters, MakeStrong(this)),
+                *flushPeriod);
+            FlushExecutor_->Start();
+        }
+
+        auto watchPeriod = Config_->WatchPeriod;
+        if (watchPeriod) {
+            WatchExecutor_ = New<TPeriodicExecutor>(
+                EventQueue_,
+                BIND(&TImpl::WatchWriters, MakeStrong(this)),
+                *watchPeriod);
+            WatchExecutor_->Start();
+        }
+
+        auto checkSpacePeriod = Config_->CheckSpacePeriod;
+        if (checkSpacePeriod) {
+            CheckSpaceExecutor_ = New<TPeriodicExecutor>(
+                EventQueue_,
+                BIND(&TImpl::CheckSpace, MakeStrong(this)),
+                *checkSpacePeriod);
+            CheckSpaceExecutor_->Start();
+        }
+    }
+
+    void DoUpdateConfig(const TLogConfigPtr& config)
+    {
         {
             decltype(Writers_) writers;
             decltype(CachedWriters_) cachedWriters;
@@ -640,7 +693,7 @@ private:
 
             guard.Release();
 
-            // writers and cachedWriter will die here where we don't
+            // writers and cachedWriters will die here where we don't
             // hold the spinlock anymore.
         }
 
@@ -680,43 +733,6 @@ private:
         }
 
         Version_++;
-
-        if (FlushExecutor_) {
-            FlushExecutor_->Stop();
-            FlushExecutor_.Reset();
-        }
-
-        if (WatchExecutor_) {
-            WatchExecutor_->Stop();
-            WatchExecutor_.Reset();
-        }
-
-        auto flushPeriod = Config_->FlushPeriod;
-        if (flushPeriod) {
-            FlushExecutor_ = New<TPeriodicExecutor>(
-                EventQueue_,
-                BIND(&TImpl::FlushWriters, MakeStrong(this)),
-                *flushPeriod);
-            FlushExecutor_->Start();
-        }
-
-        auto watchPeriod = Config_->WatchPeriod;
-        if (watchPeriod) {
-            WatchExecutor_ = New<TPeriodicExecutor>(
-                EventQueue_,
-                BIND(&TImpl::WatchWriters, MakeStrong(this)),
-                *watchPeriod);
-            WatchExecutor_->Start();
-        }
-
-        auto checkSpacePeriod = Config_->CheckSpacePeriod;
-        if (checkSpacePeriod) {
-            CheckSpaceExecutor_ = New<TPeriodicExecutor>(
-                EventQueue_,
-                BIND(&TImpl::CheckSpace, MakeStrong(this)),
-                *checkSpacePeriod);
-            CheckSpaceExecutor_->Start();
-        }
     }
 
     void WriteEvent(const TLogEvent& event)
@@ -871,6 +887,21 @@ private:
     }
 
 
+    void DoUpdateCategory(const TLoggingCategory* category)
+    {
+        auto level = ELogLevel::Maximum;
+        for (const auto& rule : Config_->Rules) {
+            if (rule->IsApplicable(category->Name)) {
+                level = std::min(level, rule->MinLevel);
+            }
+        }
+
+        auto* mutableCategory = const_cast<TLoggingCategory*>(category);
+        mutableCategory->MinLevel = level;
+        mutableCategory->CurrentVersion = GetVersion();
+    }
+
+
     const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr EventQueue_;
 
@@ -885,6 +916,8 @@ private:
     // default configuration (default level etc.).
     std::atomic<int> Version_ = {-1};
     TLogConfigPtr Config_;
+    yhash<const char*, std::unique_ptr<TLoggingCategory>> NameToCategory_;
+    const TLoggingCategory* SystemCategory_;
 
     // These are just copies from _Config.
     // The values are being read from arbitrary threads but stale values are fine.
@@ -955,9 +988,14 @@ int TLogManager::GetVersion() const
     return Impl_->GetVersion();
 }
 
-ELogLevel TLogManager::GetMinLevel(const TString& category) const
+const TLoggingCategory* TLogManager::GetCategory(const char* categoryName)
 {
-    return Impl_->GetMinLevel(category);
+    return Impl_->GetCategory(categoryName);
+}
+
+void TLogManager::UpdateCategory(const TLoggingCategory* category)
+{
+    Impl_->UpdateCategory(category);
 }
 
 void TLogManager::Enqueue(TLogEvent&& event)
@@ -979,6 +1017,10 @@ TDuration TLogManager::GetPerThreadBatchingPeriod() const
 {
     return Impl_->GetPerThreadBatchingPeriod();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_SHUTDOWN_CALLBACK(5, TLogManager::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 

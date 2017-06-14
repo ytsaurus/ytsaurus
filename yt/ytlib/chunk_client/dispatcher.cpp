@@ -6,6 +6,7 @@
 
 #include <yt/core/misc/lazy_ptr.h>
 #include <yt/core/misc/singleton.h>
+#include <yt/core/misc/shutdown.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -121,6 +122,10 @@ IPrioritizedInvokerPtr TDispatcher::GetErasurePoolInvoker()
 {
     return Impl_->GetErasurePoolInvoker();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_SHUTDOWN_CALLBACK(9, TDispatcher::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 

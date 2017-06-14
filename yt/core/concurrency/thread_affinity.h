@@ -49,8 +49,6 @@ private:
 
 };
 
-bool VerifyInvokerAffinity(const IInvokerPtr& invoker);
-
 #define DECLARE_THREAD_AFFINITY_SLOT(slot) \
     mutable ::NYT::NConcurrency::TThreadAffinitySlot PP_CONCAT(slot, _Slot)
 
@@ -63,17 +61,21 @@ bool VerifyInvokerAffinity(const IInvokerPtr& invoker);
 #define VERIFY_INVOKER_AFFINITY(invoker) \
     YCHECK(::NYT::NConcurrency::VerifyInvokerAffinity(invoker))
 
+#define VERIFY_INVOKERS_AFFINITY(invokers) \
+    YCHECK(::NYT::NConcurrency::VerifyInvokersAffinity(invokers))
+
 #define VERIFY_INVOKER_THREAD_AFFINITY(invoker, slot) \
     PP_CONCAT(slot, _Slot).Check((invoker)->GetThreadId());
 
 #else
 
 // Expand macros to null but take care of the trailing semicolon.
-#define DECLARE_THREAD_AFFINITY_SLOT(slot)             struct PP_CONCAT(TNullThreadAffinitySlot_,  __LINE__) { }
-#define VERIFY_THREAD_AFFINITY(slot)                   do { } while (0)
-#define VERIFY_SPINLOCK_AFFINITY(spinLock)             do { } while (0)
-#define VERIFY_INVOKER_AFFINITY(invoker)               do { } while (0)
-#define VERIFY_INVOKER_THREAD_AFFINITY(invoker, slot)  do { } while (0)
+#define DECLARE_THREAD_AFFINITY_SLOT(slot)               struct PP_CONCAT(TNullThreadAffinitySlot_,  __LINE__) { }
+#define VERIFY_THREAD_AFFINITY(slot)                     do { } while (0)
+#define VERIFY_SPINLOCK_AFFINITY(spinLock)               do { } while (0)
+#define VERIFY_INVOKER_AFFINITY(invoker)                 do { } while (0)
+#define VERIFY_INVOKERS_AFFINITY(invokers)               do { } while (0)
+#define VERIFY_INVOKER_THREAD_AFFINITY(invoker, slot)    do { } while (0)
 
 #endif
 
@@ -84,3 +86,7 @@ bool VerifyInvokerAffinity(const IInvokerPtr& invoker);
 
 } // namespace NConcurrency
 } // namespace NYT
+
+#define THREAD_AFFINITY_INL_H_
+#include "thread_affinity-inl.h"
+#undef THREAD_AFFINITY_INL_H_

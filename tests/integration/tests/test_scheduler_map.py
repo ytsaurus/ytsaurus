@@ -2464,6 +2464,16 @@ print row + table_index
                 assert stat1["uncompressed_data_size"] > stat2["uncompressed_data_size"]
                 assert stat1["compressed_data_size"] > stat2["compressed_data_size"]
 
+    def test_output_to_dynamic_table_fails(self):
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                command="cat")
+
     def test_pipe_statistics(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -2637,6 +2647,8 @@ print row + table_index
         assert get("//tmp/t_output/@sorted_by") == ["key"]
         assert read_table("//tmp/t_output") == original_data
 
+    # NB(psushin): remove flaky flag from 19.2 and further.
+    @flaky(max_runs=5)
     def test_job_with_exit_immediately_flag(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")

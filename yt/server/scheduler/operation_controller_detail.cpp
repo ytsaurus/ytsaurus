@@ -98,11 +98,8 @@ void CommitTransaction(ITransactionPtr& transaction)
     transaction.Reset();
 
     auto result = WaitFor(asyncResult);
-    if (!result.IsOK()) {
-        THROW_ERROR_EXCEPTION("Transaction %v has failed to commit",
-            transactionId)
-            << result;
-    }
+    THROW_ERROR_EXCEPTION_IF_FAILED(result, "Transaction %v has failed to commit",
+        transactionId);
 }
 
 } // namespace
@@ -1340,7 +1337,10 @@ void TOperationControllerBase::DoInitialize()
 
 void TOperationControllerBase::SafePrepare()
 {
-    YCHECK(!(Config->EnableFailControllerSpecOption && Spec->FailController));
+    // Testing purpose code.
+    if (Config->EnableControllerFailureSpecOption) {
+        YCHECK(Spec->TestingOperationOptions->ControllerFailure != EControllerFailureType::AssertionFailureInPrepare);
+    }
 
     PrepareInputTables();
 
@@ -2119,6 +2119,13 @@ void TOperationControllerBase::UpdateActualHistogram(const TStatistics& statisti
 
 void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
+    // Testing purpose code.
+    if (Config->EnableControllerFailureSpecOption &&
+        Spec->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
+    {
+        THROW_ERROR_EXCEPTION("Testing exception");
+    }
+
     const auto& jobId = jobSummary->Id;
     const auto& result = jobSummary->Result;
 
@@ -3270,6 +3277,12 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
     Host->OnOperationFailed(OperationId, error);
 }
 
+void TOperationControllerBase::FailOperation(const std::exception& ex)
+{
+    OnOperationFailed(TError("Exception thrown in operation controller that led to operation failure")
+        << ex);
+}
+
 void TOperationControllerBase::FailOperation(const TAssertionFailedException& ex)
 {
     OnOperationFailed(TError("Operation controller crashed; please file a ticket at YTADMINREQ and attach a link to this operation")
@@ -3742,7 +3755,8 @@ void TOperationControllerBase::GetOutputTablesSchema()
                     "schema",
                     "optimize_for",
                     "compression_codec",
-                    "erasure_codec"
+                    "erasure_codec",
+                    "dynamic"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 if (table->OutputType == EOutputTableType::Output) {
@@ -3766,6 +3780,11 @@ void TOperationControllerBase::GetOutputTablesSchema()
 
             const auto& rsp = getOutAttributesRspsOrError[index].Value();
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+            if (attributes->Get<bool>("dynamic")) {
+                THROW_ERROR_EXCEPTION("Output to dynamic table is not supported")
+                    << TErrorAttribute("table_path", path);
+            }
 
             table->TableUploadOptions = GetTableUploadOptions(
                 path,
@@ -5583,13 +5602,6 @@ NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReader
     options->EnableRowIndex = ioConfig->ControlAttributes->EnableRowIndex;
     options->EnableTableIndex = ioConfig->ControlAttributes->EnableTableIndex;
     options->EnableRangeIndex = ioConfig->ControlAttributes->EnableRangeIndex;
-    return options;
-}
-
-NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateIntermediateTableReaderOptions()
-{
-    auto options = New<TTableReaderOptions>();
-    options->AllowFetchingSeedsFromMaster = true;
     return options;
 }
 

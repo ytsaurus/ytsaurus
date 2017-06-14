@@ -4,7 +4,6 @@
 #include <yt/core/actions/public.h>
 
 #include <yt/core/misc/enum.h>
-#include <yt/core/misc/lifecycle.h>
 #include <yt/core/misc/preprocessor.h>
 
 // Include Google Test and Google Mock headers.
@@ -19,22 +18,6 @@ namespace NYT {
 
 //! A tiny helper function to generate random file names.
 TString GenerateRandomFileName(const char* prefix);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TShadowingLifecycle
-    : public TLifecycle
-{
-public:
-    TShadowingLifecycle();
-
-    ~TShadowingLifecycle();
-
-    using TLifecycle::FireAtExit;
-    using TLifecycle::FireAtForkPrepare;
-    using TLifecycle::FireAtForkParent;
-    using TLifecycle::FireAtForkChild;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

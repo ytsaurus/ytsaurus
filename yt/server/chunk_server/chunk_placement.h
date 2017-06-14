@@ -8,6 +8,7 @@
 #include <yt/server/node_tracker_server/node.h>
 
 #include <yt/core/misc/nullable.h>
+#include <yt/core/misc/small_set.h>
 
 #include <util/generic/map.h>
 
@@ -20,6 +21,8 @@ class TChunkPlacement
     : public TRefCounted
 {
 public:
+    using TDataCenterSet = SmallSet<const NNodeTrackerServer::TDataCenter*, NNodeTrackerServer::TypicalInterDCEdgeCount>;
+
     TChunkPlacement(
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
@@ -45,6 +48,7 @@ public:
         int desiredCount,
         int minCount,
         TNullable<int> replicationFactorOverride,
+        const TDataCenterSet& dataCenters,
         NChunkClient::ESessionType sessionType);
 
     TNode* GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes);
@@ -59,7 +63,8 @@ public:
     TNode* AllocateBalancingTarget(
         int mediumIndex,
         TChunk* chunk,
-        double maxFillFactor);
+        double maxFillFactor,
+        const TDataCenterSet& dataCenters);
 
     int GetMaxReplicasPerRack(
         TChunk* chunk,
@@ -93,11 +98,13 @@ private:
         int minCount,
         bool forceRackAwareness,
         TNullable<int> replicationFactorOverride,
+        const TDataCenterSet* dataCenters,
         const TNodeList* forbiddenNodes = nullptr,
         const TNullable<TString>& preferredHostName = Null);
 
     TNode* GetBalancingTarget(
         int mediumIndex,
+        const TDataCenterSet* dataCenters,
         TChunk* chunk,
         double maxFillFactor);
 
@@ -109,9 +116,10 @@ private:
     bool IsValidWriteTarget(
         int mediumIndex,
         TNode* node);
-    
+
     bool IsValidWriteTarget(
         int mediumIndex,
+        const TDataCenterSet* dataCenters,
         TNode* node,
         NObjectClient::EObjectType chunkType,
         TTargetCollector* collector,
@@ -123,6 +131,7 @@ private:
 
     bool IsValidBalancingTarget(
         int mediumIndex,
+        const TDataCenterSet* dataCenters,
         TNode* node,
         NObjectClient::EObjectType chunkType,
         TTargetCollector* collector,

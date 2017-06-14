@@ -37,6 +37,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(TDuration::Seconds(0));
     RegisterParameter("scheduling_delay_type", SchedulingDelayType)
         .Default(ESchedulingDelayType::Sync);
+    RegisterParameter("controller_failure", ControllerFailure)
+        .Default(EControllerFailureType::None);
 }
 
 TSupportsSchedulingTagsConfig::TSupportsSchedulingTagsConfig()
@@ -140,9 +142,6 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("secure_vault", SecureVault)
         .Default();
-
-    RegisterParameter("fail_controller", FailController)
-        .Default(false);
 
     RegisterParameter("available_nodes_missing_timeout", AvailableNodesMissingTimeout)
         .Default(TDuration::Hours(1));

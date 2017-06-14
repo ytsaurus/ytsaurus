@@ -50,7 +50,8 @@ void ExtractFunctionNames(
     } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
         ExtractFunctionNames(binaryExpr->Lhs, functions);
         ExtractFunctionNames(binaryExpr->Rhs, functions);
-    } else if (expr->As<NAst::TInExpression>()) {
+    } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
+        ExtractFunctionNames(inExpr->Expr, functions);
     } else if (expr->As<NAst::TLiteralExpression>()) {
     } else if (expr->As<NAst::TReferenceExpression>()) {
     } else {
@@ -137,9 +138,10 @@ void CheckExpressionDepth(TConstExpressionPtr op, int depth = 0)
 
 TValue CastValueWithCheck(TValue value, EValueType targetType)
 {
-    if (value.Type == targetType) {
+    if (value.Type == targetType || value.Type == EValueType::Null) {
         return value;
     }
+
     if (value.Type == EValueType::Int64) {
         if (targetType == EValueType::Uint64) {
             if (value.Data.Int64 < 0) {
@@ -192,46 +194,6 @@ TValue CastValueWithCheck(TValue value, EValueType targetType)
     return value;
 }
 
-EValueType InferUnaryExprType(EUnaryOp opCode, EValueType operandType, const TStringBuf& source)
-{
-    if (operandType == EValueType::Null) {
-        return EValueType::Null;
-    }
-
-    switch (opCode) {
-        case EUnaryOp::Plus:
-        case EUnaryOp::Minus:
-            if (!IsArithmeticType(operandType)) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %Qv requires either integral or floating-point operand",
-                    source)
-                    << TErrorAttribute("operand_type", ToString(operandType));
-            }
-            return operandType;
-
-        case EUnaryOp::BitNot:
-            if (!IsIntegralType(operandType)) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %Qv requires integral operand",
-                    source)
-                    << TErrorAttribute("operand_type", ToString(operandType));
-            }
-            return operandType;
-
-        case EUnaryOp::Not:
-            if (operandType != EValueType::Boolean) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %Qv requires boolean operand",
-                    source)
-                    << TErrorAttribute("operand_type", ToString(operandType));
-            }
-            return operandType;
-
-        default:
-            Y_UNREACHABLE();
-    }
-}
-
 EValueType GetType(const NAst::TLiteralValue& literalValue)
 {
     switch (literalValue.Tag()) {
@@ -247,6 +209,38 @@ EValueType GetType(const NAst::TLiteralValue& literalValue)
             return EValueType::Boolean;
         case NAst::TLiteralValue::TagOf<TString>():
             return EValueType::String;
+        default:
+            Y_UNREACHABLE();
+    }
+}
+
+TTypeSet GetTypes(const NAst::TLiteralValue& literalValue)
+{
+    switch (literalValue.Tag()) {
+        case NAst::TLiteralValue::TagOf<NAst::TNullLiteralValue>():
+            return TTypeSet({
+                EValueType::Null,
+                EValueType::Int64,
+                EValueType::Uint64,
+                EValueType::Double,
+                EValueType::Boolean,
+                EValueType::String,
+                EValueType::Any});
+        case NAst::TLiteralValue::TagOf<i64>():
+            return TTypeSet({
+                EValueType::Int64,
+                EValueType::Uint64,
+                EValueType::Double});
+        case NAst::TLiteralValue::TagOf<ui64>():
+            return TTypeSet({
+                EValueType::Uint64,
+                EValueType::Double});
+        case NAst::TLiteralValue::TagOf<double>():
+            return TTypeSet({EValueType::Double});
+        case NAst::TLiteralValue::TagOf<bool>():
+            return TTypeSet({EValueType::Boolean});
+        case NAst::TLiteralValue::TagOf<TString>():
+            return TTypeSet({EValueType::String});
         default:
             Y_UNREACHABLE();
     }
@@ -313,416 +307,456 @@ TSharedRange<TRow> LiteralTupleListToRows(
     return MakeSharedRange(std::move(rows), std::move(rowBuffer));
 }
 
-TConstExpressionPtr FoldConstants(
+TNullable<TUnversionedValue> FoldConstants(
     EUnaryOp opcode,
     TConstExpressionPtr operand)
 {
-    auto foldConstants = [] (EUnaryOp opcode, TConstExpressionPtr operand) -> TNullable<TUnversionedValue> {
-        if (auto literalExpr = operand->As<TLiteralExpression>()) {
-            if (opcode == EUnaryOp::Plus) {
-                return static_cast<TUnversionedValue>(literalExpr->Value);
-            } else if (opcode == EUnaryOp::Minus) {
-                TUnversionedValue value = literalExpr->Value;
-                switch (value.Type) {
-                    case EValueType::Int64:
-                        value.Data.Int64 = -value.Data.Int64;
-                        break;
-                    case EValueType::Uint64:
-                        value.Data.Uint64 = -value.Data.Uint64;
-                        break;
-                    case EValueType::Double:
-                        value.Data.Double = -value.Data.Double;
-                        break;
-                    default:
-                        Y_UNREACHABLE();
-                }
-                return value;
-            } else if (opcode == EUnaryOp::BitNot) {
-                TUnversionedValue value = literalExpr->Value;
-                switch (value.Type) {
-                    case EValueType::Int64:
-                        value.Data.Int64 = ~value.Data.Int64;
-                        break;
-                    case EValueType::Uint64:
-                        value.Data.Uint64 = ~value.Data.Uint64;
-                        break;
-                        break;
-                    default:
-                        Y_UNREACHABLE();
-                }
-                return value;
+    if (auto literalExpr = operand->As<TLiteralExpression>()) {
+        if (opcode == EUnaryOp::Plus) {
+            return static_cast<TUnversionedValue>(literalExpr->Value);
+        } else if (opcode == EUnaryOp::Minus) {
+            TUnversionedValue value = literalExpr->Value;
+            switch (value.Type) {
+                case EValueType::Int64:
+                    value.Data.Int64 = -value.Data.Int64;
+                    break;
+                case EValueType::Uint64:
+                    value.Data.Uint64 = -value.Data.Uint64;
+                    break;
+                case EValueType::Double:
+                    value.Data.Double = -value.Data.Double;
+                    break;
+                default:
+                    Y_UNREACHABLE();
             }
+            return value;
+        } else if (opcode == EUnaryOp::BitNot) {
+            TUnversionedValue value = literalExpr->Value;
+            switch (value.Type) {
+                case EValueType::Int64:
+                    value.Data.Int64 = ~value.Data.Int64;
+                    break;
+                case EValueType::Uint64:
+                    value.Data.Uint64 = ~value.Data.Uint64;
+                    break;
+                default:
+                    Y_UNREACHABLE();
+            }
+            return value;
         }
-        return TNullable<TUnversionedValue>();
-    };
-
-    if (auto value = foldConstants(opcode, operand)) {
-        return New<TLiteralExpression>(value->Type, *value);
     }
-
-    return TConstExpressionPtr();
+    return Null;
 }
 
-TConstExpressionPtr FoldConstants(
+TNullable<TUnversionedValue> FoldConstants(
     EBinaryOp opcode,
     TConstExpressionPtr lhsExpr,
     TConstExpressionPtr rhsExpr)
 {
-    auto foldConstants = [] (
-        EBinaryOp opcode,
-        TConstExpressionPtr lhsExpr,
-        TConstExpressionPtr rhsExpr)
-        -> TNullable<TUnversionedValue>
-    {
-        auto lhsLiteral = lhsExpr->As<TLiteralExpression>();
-        auto rhsLiteral = rhsExpr->As<TLiteralExpression>();
-        if (lhsLiteral && rhsLiteral) {
-            auto lhs = static_cast<TUnversionedValue>(lhsLiteral->Value);
-            auto rhs = static_cast<TUnversionedValue>(rhsLiteral->Value);
+    auto lhsLiteral = lhsExpr->As<TLiteralExpression>();
+    auto rhsLiteral = rhsExpr->As<TLiteralExpression>();
+    if (lhsLiteral && rhsLiteral) {
+        auto lhs = static_cast<TUnversionedValue>(lhsLiteral->Value);
+        auto rhs = static_cast<TUnversionedValue>(rhsLiteral->Value);
 
-            auto checkType = [&] () {
-                if (lhs.Type != rhs.Type) {
-                    if (IsArithmeticType(lhs.Type) && IsArithmeticType(rhs.Type)) {
-                        auto targetType = std::max(lhs.Type, rhs.Type);
-                        lhs = CastValueWithCheck(lhs, targetType);
-                        rhs = CastValueWithCheck(rhs, targetType);
-                    } else {
-                        ThrowTypeMismatchError(lhs.Type, rhs.Type, "", InferName(lhsExpr), InferName(rhsExpr));
-                    }
-                }
-
-                YCHECK(lhs.Type == rhs.Type);
-            };
-
-            auto checkTypeIfNotNull = [&] () {
-                if (lhs.Type != EValueType::Null && rhs.Type != EValueType::Null) {
-                    checkType();
-                }
-            };
-
-            #define CHECK_TYPE() \
-                if (lhs.Type == EValueType::Null) { \
-                    return MakeUnversionedSentinelValue(EValueType::Null); \
-                } \
-                if (rhs.Type == EValueType::Null) { \
-                    return MakeUnversionedSentinelValue(EValueType::Null); \
-                } \
-                checkType();
-
-            auto evaluateLogicalOp = [&] (bool parameter) {
-                YCHECK(lhs.Type == EValueType::Null || lhs.Type == EValueType::Boolean);
-                YCHECK(rhs.Type == EValueType::Null || rhs.Type == EValueType::Boolean);
-
-                if (lhs.Type == EValueType::Null) {
-                    if (rhs.Type != EValueType::Null && rhs.Data.Boolean == parameter) {
-                        return rhs;
-                    } else {
-                        return lhs;
-                    }
-                } else if (lhs.Data.Boolean == parameter) {
-                    return lhs;
+        auto checkType = [&] () {
+            if (lhs.Type != rhs.Type) {
+                if (IsArithmeticType(lhs.Type) && IsArithmeticType(rhs.Type)) {
+                    auto targetType = std::max(lhs.Type, rhs.Type);
+                    lhs = CastValueWithCheck(lhs, targetType);
+                    rhs = CastValueWithCheck(rhs, targetType);
                 } else {
-                    return rhs;
+                    ThrowTypeMismatchError(lhs.Type, rhs.Type, "", InferName(lhsExpr), InferName(rhsExpr));
                 }
-            };
-
-            switch (opcode) {
-                case EBinaryOp::Plus:
-                    CHECK_TYPE();
-                    switch (lhs.Type) {
-                        case EValueType::Int64:
-                            lhs.Data.Int64 += rhs.Data.Int64;
-                            return lhs;
-                        case EValueType::Uint64:
-                            lhs.Data.Uint64 += rhs.Data.Uint64;
-                            return lhs;
-                        case EValueType::Double:
-                            lhs.Data.Double += rhs.Data.Double;
-                            return lhs;
-                        default:
-                            break;
-                    }
-                    break;
-                case EBinaryOp::Minus:
-                    CHECK_TYPE();
-                    switch (lhs.Type) {
-                        case EValueType::Int64:
-                            lhs.Data.Int64 -= rhs.Data.Int64;
-                            return lhs;
-                        case EValueType::Uint64:
-                            lhs.Data.Uint64 -= rhs.Data.Uint64;
-                            return lhs;
-                        case EValueType::Double:
-                            lhs.Data.Double -= rhs.Data.Double;
-                            return lhs;
-                        default:
-                            break;
-                    }
-                    break;
-                case EBinaryOp::Multiply:
-                    CHECK_TYPE();
-                    switch (lhs.Type) {
-                        case EValueType::Int64:
-                            lhs.Data.Int64 *= rhs.Data.Int64;
-                            return lhs;
-                        case EValueType::Uint64:
-                            lhs.Data.Uint64 *= rhs.Data.Uint64;
-                            return lhs;
-                        case EValueType::Double:
-                            lhs.Data.Double *= rhs.Data.Double;
-                            return lhs;
-                        default:
-                            break;
-                    }
-                    break;
-                case EBinaryOp::Divide:
-                    CHECK_TYPE();
-                    switch (lhs.Type) {
-                        case EValueType::Int64:
-                            if (rhs.Data.Int64 == 0) {
-                                THROW_ERROR_EXCEPTION("Division by zero");
-                            }
-                            lhs.Data.Int64 /= rhs.Data.Int64;
-                            return lhs;
-                        case EValueType::Uint64:
-                            if (rhs.Data.Uint64 == 0) {
-                                THROW_ERROR_EXCEPTION("Division by zero");
-                            }
-                            lhs.Data.Uint64 /= rhs.Data.Uint64;
-                            return lhs;
-                        case EValueType::Double:
-                            lhs.Data.Double /= rhs.Data.Double;
-                            return lhs;
-                        default:
-                            break;
-                    }
-                    break;
-                case EBinaryOp::Modulo:
-                    CHECK_TYPE();
-                    switch (lhs.Type) {
-                        case EValueType::Int64:
-                            if (rhs.Data.Int64 == 0) {
-                                THROW_ERROR_EXCEPTION("Division by zero");
-                            }
-                            lhs.Data.Int64 %= rhs.Data.Int64;
-                            return lhs;
-                        case EValueType::Uint64:
-                            if (rhs.Data.Uint64 == 0) {
-                                THROW_ERROR_EXCEPTION("Division by zero");
-                            }
-                            lhs.Data.Uint64 %= rhs.Data.Uint64;
-                            return lhs;
-                        default:
-                            break;
-                    }
-                    break;
-                case EBinaryOp::LeftShift:
-                    CHECK_TYPE();
-                    switch (lhs.Type) {
-                        case EValueType::Int64:
-                            lhs.Data.Int64 <<= rhs.Data.Int64;
-                            return lhs;
-                        case EValueType::Uint64:
-                            lhs.Data.Uint64 <<= rhs.Data.Uint64;
-                            return lhs;
-                        default:
-                            break;
-                    }
-                    break;
-                case EBinaryOp::RightShift:
-                    CHECK_TYPE();
-                    switch (lhs.Type) {
-                        case EValueType::Int64:
-                            lhs.Data.Int64 >>= rhs.Data.Int64;
-                            return lhs;
-                        case EValueType::Uint64:
-                            lhs.Data.Uint64 >>= rhs.Data.Uint64;
-                            return lhs;
-                        default:
-                            break;
-                    }
-                    break;
-                case EBinaryOp::BitOr:
-                    CHECK_TYPE();
-                    switch (lhs.Type) {
-                        case EValueType::Uint64:
-                            lhs.Data.Uint64 = lhs.Data.Uint64 | rhs.Data.Uint64;
-                            return lhs;
-                        case EValueType::Int64:
-                            lhs.Data.Int64 = lhs.Data.Int64 | rhs.Data.Int64;
-                            return lhs;
-                        default:
-                            break;
-                    }
-                    break;
-                case EBinaryOp::BitAnd:
-                    CHECK_TYPE();
-                    switch (lhs.Type) {
-                        case EValueType::Uint64:
-                            lhs.Data.Uint64 = lhs.Data.Uint64 & rhs.Data.Uint64;
-                            return lhs;
-                        case EValueType::Int64:
-                            lhs.Data.Int64 = lhs.Data.Int64 & rhs.Data.Int64;
-                            return lhs;
-                        default:
-                            break;
-                    }
-                    break;
-                case EBinaryOp::And:
-                    return evaluateLogicalOp(false);
-                    break;
-                case EBinaryOp::Or:
-                    return evaluateLogicalOp(true);
-                    break;
-                case EBinaryOp::Equal:
-                    checkTypeIfNotNull();
-                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) == 0);
-                    break;
-                case EBinaryOp::NotEqual:
-                    checkTypeIfNotNull();
-                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) != 0);
-                    break;
-                case EBinaryOp::Less:
-                    checkTypeIfNotNull();
-                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) < 0);
-                    break;
-                case EBinaryOp::Greater:
-                    checkTypeIfNotNull();
-                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) > 0);
-                    break;
-                case EBinaryOp::LessOrEqual:
-                    checkTypeIfNotNull();
-                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) <= 0);
-                    break;
-                case EBinaryOp::GreaterOrEqual:
-                    checkTypeIfNotNull();
-                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) >= 0);
-                    break;
-                default:
-                    break;
             }
-        }
-        return TNullable<TUnversionedValue>();
-    };
+        };
 
-    if (auto value = foldConstants(opcode, lhsExpr, rhsExpr)) {
-        return New<TLiteralExpression>(value->Type, *value);
-    }
+        auto checkTypeIfNotNull = [&] () {
+            if (lhs.Type != EValueType::Null && rhs.Type != EValueType::Null) {
+                checkType();
+            }
+        };
 
-    if (opcode == EBinaryOp::Divide) {
-        auto lhsBinaryExpr = lhsExpr->As<TBinaryOpExpression>();
-        auto rhsLiteralExpr = rhsExpr->As<TLiteralExpression>();
-        if (lhsBinaryExpr && rhsLiteralExpr && lhsBinaryExpr->Opcode == EBinaryOp::Divide) {
-            auto targetType = lhsBinaryExpr->Type;
-            auto lhsLiteralExpr = lhsBinaryExpr->Rhs->As<TLiteralExpression>();
-            if (lhsLiteralExpr) {
-                TUnversionedValue lhs = lhsLiteralExpr->Value;
-                TUnversionedValue rhs = rhsLiteralExpr->Value;
+        #define CHECK_TYPE() \
+            if (lhs.Type == EValueType::Null) { \
+                return MakeUnversionedSentinelValue(EValueType::Null); \
+            } \
+            if (rhs.Type == EValueType::Null) { \
+                return MakeUnversionedSentinelValue(EValueType::Null); \
+            } \
+            checkType();
 
-                YCHECK(targetType == lhs.Type);
-                YCHECK(IsArithmeticType(targetType));
+        auto evaluateLogicalOp = [&] (bool parameter) {
+            YCHECK(lhs.Type == EValueType::Null || lhs.Type == EValueType::Boolean);
+            YCHECK(rhs.Type == EValueType::Null || rhs.Type == EValueType::Boolean);
 
-                if (lhs.Type != rhs.Type) {
-                    if (IsArithmeticType(rhs.Type)) {
-                        rhs = CastValueWithCheck(rhs, targetType);
-                    } else {
-                        ThrowTypeMismatchError(
-                            lhs.Type,
-                            rhs.Type,
-                            "",
-                            InferName(lhsLiteralExpr),
-                            InferName(rhsLiteralExpr));
-                    }
+            if (lhs.Type == EValueType::Null) {
+                if (rhs.Type != EValueType::Null && rhs.Data.Boolean == parameter) {
+                    return rhs;
+                } else {
+                    return lhs;
                 }
+            } else if (lhs.Data.Boolean == parameter) {
+                return lhs;
+            } else {
+                return rhs;
+            }
+        };
 
-                YCHECK(lhs.Type == rhs.Type);
-
-                auto overflow = [] (ui64 a, ui64 b, bool isSigned) {
-                    auto rsh = [] (ui64 base, int amount) {return base >> amount;};
-                    auto lower = [] (ui64 base) {return base & 0xffffffff;};
-                    ui64 a1 = lower(a);
-                    ui64 a2 = rsh(a, 32);
-                    ui64 b1 = lower(b);
-                    ui64 b2 = rsh(b, 32);
-                    int shift = isSigned ? 31 : 32;
-                    return (a2 * b2 != 0 ||
-                        rsh(a1 * b2, shift) != 0 ||
-                        rsh(a2 * b1, shift) != 0 ||
-                        rsh(lower(a1 * b2) + lower(a2 * b1) + rsh(a1 * b1, 32), shift) != 0);
-                };
-
-                auto makeBinaryExpr = [&] (TUnversionedValue divisor) {
-                    return New<TBinaryOpExpression>(
-                        divisor.Type,
-                        EBinaryOp::Divide,
-                        lhsBinaryExpr->Lhs,
-                        New<TLiteralExpression>(
-                            divisor.Type,
-                            divisor));
-                };
-
+        switch (opcode) {
+            case EBinaryOp::Plus:
+                CHECK_TYPE();
                 switch (lhs.Type) {
                     case EValueType::Int64:
-                        if (!overflow(lhs.Data.Int64, rhs.Data.Int64, true)) {
-                            lhs.Data.Int64 *= rhs.Data.Int64;
-                            return makeBinaryExpr(lhs);
-                        }
-                        break;
+                        lhs.Data.Int64 += rhs.Data.Int64;
+                        return lhs;
                     case EValueType::Uint64:
-                        if (!overflow(lhs.Data.Uint64, rhs.Data.Uint64, false)) {
-                            lhs.Data.Uint64 *= rhs.Data.Uint64;
-                            return makeBinaryExpr(lhs);
-                        }
-                        break;
+                        lhs.Data.Uint64 += rhs.Data.Uint64;
+                        return lhs;
+                    case EValueType::Double:
+                        lhs.Data.Double += rhs.Data.Double;
+                        return lhs;
                     default:
                         break;
                 }
-            }
+                break;
+            case EBinaryOp::Minus:
+                CHECK_TYPE();
+                switch (lhs.Type) {
+                    case EValueType::Int64:
+                        lhs.Data.Int64 -= rhs.Data.Int64;
+                        return lhs;
+                    case EValueType::Uint64:
+                        lhs.Data.Uint64 -= rhs.Data.Uint64;
+                        return lhs;
+                    case EValueType::Double:
+                        lhs.Data.Double -= rhs.Data.Double;
+                        return lhs;
+                    default:
+                        break;
+                }
+                break;
+            case EBinaryOp::Multiply:
+                CHECK_TYPE();
+                switch (lhs.Type) {
+                    case EValueType::Int64:
+                        lhs.Data.Int64 *= rhs.Data.Int64;
+                        return lhs;
+                    case EValueType::Uint64:
+                        lhs.Data.Uint64 *= rhs.Data.Uint64;
+                        return lhs;
+                    case EValueType::Double:
+                        lhs.Data.Double *= rhs.Data.Double;
+                        return lhs;
+                    default:
+                        break;
+                }
+                break;
+            case EBinaryOp::Divide:
+                CHECK_TYPE();
+                switch (lhs.Type) {
+                    case EValueType::Int64:
+                        if (rhs.Data.Int64 == 0) {
+                            THROW_ERROR_EXCEPTION("Division by zero");
+                        }
+                        lhs.Data.Int64 /= rhs.Data.Int64;
+                        return lhs;
+                    case EValueType::Uint64:
+                        if (rhs.Data.Uint64 == 0) {
+                            THROW_ERROR_EXCEPTION("Division by zero");
+                        }
+                        lhs.Data.Uint64 /= rhs.Data.Uint64;
+                        return lhs;
+                    case EValueType::Double:
+                        lhs.Data.Double /= rhs.Data.Double;
+                        return lhs;
+                    default:
+                        break;
+                }
+                break;
+            case EBinaryOp::Modulo:
+                CHECK_TYPE();
+                switch (lhs.Type) {
+                    case EValueType::Int64:
+                        if (rhs.Data.Int64 == 0) {
+                            THROW_ERROR_EXCEPTION("Division by zero");
+                        }
+                        lhs.Data.Int64 %= rhs.Data.Int64;
+                        return lhs;
+                    case EValueType::Uint64:
+                        if (rhs.Data.Uint64 == 0) {
+                            THROW_ERROR_EXCEPTION("Division by zero");
+                        }
+                        lhs.Data.Uint64 %= rhs.Data.Uint64;
+                        return lhs;
+                    default:
+                        break;
+                }
+                break;
+            case EBinaryOp::LeftShift:
+                CHECK_TYPE();
+                switch (lhs.Type) {
+                    case EValueType::Int64:
+                        lhs.Data.Int64 <<= rhs.Data.Int64;
+                        return lhs;
+                    case EValueType::Uint64:
+                        lhs.Data.Uint64 <<= rhs.Data.Uint64;
+                        return lhs;
+                    default:
+                        break;
+                }
+                break;
+            case EBinaryOp::RightShift:
+                CHECK_TYPE();
+                switch (lhs.Type) {
+                    case EValueType::Int64:
+                        lhs.Data.Int64 >>= rhs.Data.Int64;
+                        return lhs;
+                    case EValueType::Uint64:
+                        lhs.Data.Uint64 >>= rhs.Data.Uint64;
+                        return lhs;
+                    default:
+                        break;
+                }
+                break;
+            case EBinaryOp::BitOr:
+                CHECK_TYPE();
+                switch (lhs.Type) {
+                    case EValueType::Uint64:
+                        lhs.Data.Uint64 = lhs.Data.Uint64 | rhs.Data.Uint64;
+                        return lhs;
+                    case EValueType::Int64:
+                        lhs.Data.Int64 = lhs.Data.Int64 | rhs.Data.Int64;
+                        return lhs;
+                    default:
+                        break;
+                }
+                break;
+            case EBinaryOp::BitAnd:
+                CHECK_TYPE();
+                switch (lhs.Type) {
+                    case EValueType::Uint64:
+                        lhs.Data.Uint64 = lhs.Data.Uint64 & rhs.Data.Uint64;
+                        return lhs;
+                    case EValueType::Int64:
+                        lhs.Data.Int64 = lhs.Data.Int64 & rhs.Data.Int64;
+                        return lhs;
+                    default:
+                        break;
+                }
+                break;
+            case EBinaryOp::And:
+                return evaluateLogicalOp(false);
+                break;
+            case EBinaryOp::Or:
+                return evaluateLogicalOp(true);
+                break;
+            case EBinaryOp::Equal:
+                checkTypeIfNotNull();
+                return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) == 0);
+                break;
+            case EBinaryOp::NotEqual:
+                checkTypeIfNotNull();
+                return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) != 0);
+                break;
+            case EBinaryOp::Less:
+                checkTypeIfNotNull();
+                return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) < 0);
+                break;
+            case EBinaryOp::Greater:
+                checkTypeIfNotNull();
+                return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) > 0);
+                break;
+            case EBinaryOp::LessOrEqual:
+                checkTypeIfNotNull();
+                return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) <= 0);
+                break;
+            case EBinaryOp::GreaterOrEqual:
+                checkTypeIfNotNull();
+                return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) >= 0);
+                break;
+            default:
+                break;
+        }
+    }
+    return Null;
+}
+
+template <class TResult, class TDerived>
+struct TBaseVisitor
+{
+    TDerived* Derived()
+    {
+        return static_cast<TDerived*>(this);
+    }
+
+    TResult Visit(TConstExpressionPtr expr)
+    {
+        if (auto referenceExpr = expr->As<TReferenceExpression>()) {
+            return Derived()->OnReference(referenceExpr);
+        } else if (auto literalExpr = expr->As<TLiteralExpression>()) {
+            return Derived()->OnLiteral(literalExpr);
+        } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
+            return Derived()->OnUnary(unaryOp);
+        } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
+            return Derived()->OnBinary(binaryOp);
+        } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
+            return Derived()->OnFunction(functionExpr);
+        } else if (auto inExpr = expr->As<TInOpExpression>()) {
+            return Derived()->OnIn(inExpr);
+        }
+        Y_UNREACHABLE();
+    }
+};
+
+template <class TDerived>
+struct TVisitor
+    : public TBaseVisitor<void, TDerived>
+{
+    using TBase = TBaseVisitor<TConstExpressionPtr, TDerived>;
+    using TBase::Derived;
+    using TBase::Visit;
+
+    void OnLiteral(const TLiteralExpression* literalExpr)
+    { }
+
+    void OnReference(const TReferenceExpression* referenceExpr)
+    { }
+
+    void OnUnary(const TUnaryOpExpression* unaryExpr)
+    {
+        Derived()->Visit(unaryExpr->Operand);
+    }
+
+    void OnBinary(const TBinaryOpExpression* binaryExpr)
+    {
+        Derived()->Visit(binaryExpr->Lhs);
+        Derived()->Visit(binaryExpr->Rhs);
+    }
+
+    void OnFunction(const TFunctionExpression* functionExpr)
+    {
+        for (auto argument : functionExpr->Arguments) {
+            Derived()->Visit(argument);
         }
     }
 
-    return TConstExpressionPtr();
-}
-
-TConstExpressionPtr PropagateNotExpression(TConstExpressionPtr expr)
-{
-    if (expr->As<TReferenceExpression>() ||
-        expr->As<TLiteralExpression>())
+    void OnIn(const TInOpExpression* inExpr)
     {
-        return expr;
-    } else if (auto inExpr = expr->As<TInOpExpression>()) {
-        std::vector<TConstExpressionPtr> propagatedArgumenst;
         for (auto argument : inExpr->Arguments) {
-            propagatedArgumenst.push_back(PropagateNotExpression(argument));
+            Derived()->Visit(argument);
         }
-        return New<TInOpExpression>(
-            std::move(propagatedArgumenst),
-            inExpr->Values);
-    } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        std::vector<TConstExpressionPtr> propagatedArgumenst;
+    }
+
+};
+
+template <class TDerived>
+struct TRewriter
+    : public TBaseVisitor<TConstExpressionPtr, TDerived>
+{
+    using TBase = TBaseVisitor<TConstExpressionPtr, TDerived>;
+    using TBase::Derived;
+    using TBase::Visit;
+
+    TConstExpressionPtr OnLiteral(const TLiteralExpression* literalExpr)
+    {
+        return literalExpr;
+    }
+
+    TConstExpressionPtr OnReference(const TReferenceExpression* referenceExpr)
+    {
+        return referenceExpr;
+    }
+
+    TConstExpressionPtr OnUnary(const TUnaryOpExpression* unaryExpr)
+    {
+        auto newOperand = Visit(unaryExpr->Operand);
+
+        if (newOperand == unaryExpr->Operand) {
+            return unaryExpr;
+        }
+
+        return New<TUnaryOpExpression>(
+            unaryExpr->Type,
+            unaryExpr->Opcode,
+            newOperand);
+    }
+
+    TConstExpressionPtr OnBinary(const TBinaryOpExpression* binaryExpr)
+    {
+        auto newLhs = Visit(binaryExpr->Lhs);
+        auto newRhs = Visit(binaryExpr->Rhs);
+
+        if (newLhs == binaryExpr->Lhs && newRhs == binaryExpr->Rhs) {
+            return binaryExpr;
+        }
+
+        return New<TBinaryOpExpression>(
+            binaryExpr->Type,
+            binaryExpr->Opcode,
+            newLhs,
+            newRhs);
+    }
+
+    TConstExpressionPtr OnFunction(const TFunctionExpression* functionExpr)
+    {
+        std::vector<TConstExpressionPtr> newArguments;
+        bool allEqual = true;
         for (auto argument : functionExpr->Arguments) {
-            propagatedArgumenst.push_back(PropagateNotExpression(argument));
+            auto newArgument = Visit(argument);
+            allEqual = allEqual && newArgument == argument;
+            newArguments.push_back(newArgument);
         }
+
+        if (allEqual) {
+            return functionExpr;
+        }
+
         return New<TFunctionExpression>(
             functionExpr->Type,
             functionExpr->FunctionName,
-            std::move(propagatedArgumenst));
-    } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-        return New<TBinaryOpExpression>(
-            binaryOp->Type,
-            binaryOp->Opcode,
-            PropagateNotExpression(binaryOp->Lhs),
-            PropagateNotExpression(binaryOp->Rhs));
-    } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
-        auto& operand = unaryOp->Operand;
-        if (unaryOp->Opcode == EUnaryOp::Not) {
+            std::move(newArguments));
+    }
+
+    TConstExpressionPtr OnIn(const TInOpExpression* inExpr)
+    {
+        std::vector<TConstExpressionPtr> newArguments;
+        bool allEqual = true;
+        for (auto argument : inExpr->Arguments) {
+            auto newArgument = Visit(argument);
+            allEqual = allEqual && newArgument == argument;
+            newArguments.push_back(newArgument);
+        }
+
+        if (allEqual) {
+            return inExpr;
+        }
+
+        return New<TInOpExpression>(
+            std::move(newArguments),
+            inExpr->Values);
+    }
+
+};
+
+struct TNotExpressionPropagator
+    : TRewriter<TNotExpressionPropagator>
+{
+    using TBase = TRewriter<TNotExpressionPropagator>;
+
+    TConstExpressionPtr OnUnary(const TUnaryOpExpression* unaryExpr)
+    {
+        auto& operand = unaryExpr->Operand;
+        if (unaryExpr->Opcode == EUnaryOp::Not) {
             if (auto operandUnaryOp = operand->As<TUnaryOpExpression>()) {
                 if (operandUnaryOp->Opcode == EUnaryOp::Not) {
-                    return PropagateNotExpression(operandUnaryOp->Operand);
+                    return Visit(operandUnaryOp->Operand);
                 }
             } else if (auto operandBinaryOp = operand->As<TBinaryOpExpression>()) {
                 if (operandBinaryOp->Opcode == EBinaryOp::And) {
-                    return PropagateNotExpression(MakeOrExpression(
+                    return Visit(New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Or,
                         New<TUnaryOpExpression>(
                             operandBinaryOp->Lhs->Type,
                             EUnaryOp::Not,
@@ -732,7 +766,9 @@ TConstExpressionPtr PropagateNotExpression(TConstExpressionPtr expr)
                             EUnaryOp::Not,
                             operandBinaryOp->Rhs)));
                 } else if (operandBinaryOp->Opcode == EBinaryOp::Or) {
-                    return PropagateNotExpression(MakeAndExpression(
+                    return Visit(New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::And,
                         New<TUnaryOpExpression>(
                             operandBinaryOp->Lhs->Type,
                             EUnaryOp::Not,
@@ -742,7 +778,7 @@ TConstExpressionPtr PropagateNotExpression(TConstExpressionPtr expr)
                             EUnaryOp::Not,
                             operandBinaryOp->Rhs)));
                 } else if (IsRelationalBinaryOp(operandBinaryOp->Opcode)) {
-                    return PropagateNotExpression(New<TBinaryOpExpression>(
+                    return Visit(New<TBinaryOpExpression>(
                         operandBinaryOp->Type,
                         GetInversedBinaryOpcode(operandBinaryOp->Opcode),
                         operandBinaryOp->Lhs,
@@ -756,15 +792,21 @@ TConstExpressionPtr PropagateNotExpression(TConstExpressionPtr expr)
                     value);
             }
         }
-        return New<TUnaryOpExpression>(
-            unaryOp->Type,
-            unaryOp->Opcode,
-            PropagateNotExpression(operand));
+
+        return TBase::OnUnary(unaryExpr);
     }
-    Y_UNREACHABLE();
-}
+};
 
 struct TTypedExpressionBuilder;
+
+typedef std::function<TConstExpressionPtr(EValueType)> TExpressionGenerator;
+
+struct TUntypedExpression
+{
+    TTypeSet FeasibleTypes;
+    TExpressionGenerator Generator;
+    bool IsConstant;
+};
 
 DECLARE_REFCOUNTED_CLASS(ISchemaProxy)
 
@@ -776,7 +818,7 @@ public:
         const TString& name,
         const TString& tableName) = 0;
 
-    virtual TBaseColumn GetAggregateColumnPtr(
+    virtual TUntypedExpression GetAggregateColumnPtr(
         const TString& name,
         const TAggregateTypeInferrer* aggregateFunction,
         const NAst::TExpression* arguments,
@@ -786,13 +828,356 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(ISchemaProxy)
 
+bool Unify(TTypeSet* genericAssignments, const TTypeSet& types)
+{
+    auto intersection = *genericAssignments & types;
+
+    if (intersection.IsEmpty()) {
+        return false;
+    } else {
+        *genericAssignments = intersection;
+        return true;
+    }
+}
+
+TTypeSet InferFunctionTypes(
+    const TFunctionTypeInferrer* inferrer,
+    const std::vector<TTypeSet>& effectiveTypes,
+    std::vector<TTypeSet>* genericAssignments,
+    const TStringBuf& functionName,
+    const TStringBuf& source)
+{
+    std::vector<TTypeSet> typeConstraints;
+    std::vector<size_t> formalArguments;
+    TNullable<std::pair<size_t, bool>> repeatedType;
+    size_t formalResultType = inferrer->GetNormalizedConstraints(
+        &typeConstraints,
+        &formalArguments,
+        &repeatedType);
+
+    *genericAssignments = typeConstraints;
+
+    auto argIndex = 1;
+    auto arg = effectiveTypes.begin();
+    auto formalArg = formalArguments.begin();
+    for (;
+        formalArg != formalArguments.end() && arg != effectiveTypes.end();
+        arg++, formalArg++, argIndex++)
+    {
+        auto& constraints = (*genericAssignments)[*formalArg];
+        if (!Unify(&constraints, *arg)) {
+            THROW_ERROR_EXCEPTION(
+                "Wrong type for argument %v to function %Qv: expected %Qv, got %Qv",
+                argIndex,
+                functionName,
+                constraints,
+                *arg)
+                << TErrorAttribute("expression", source);
+        }
+    }
+
+    bool hasNoRepeatedArgument = !repeatedType.HasValue();
+
+    if (formalArg != formalArguments.end() ||
+        (arg != effectiveTypes.end() && hasNoRepeatedArgument))
+    {
+        THROW_ERROR_EXCEPTION(
+            "Wrong number of arguments to function %Qv: expected %v, got %v",
+            functionName,
+            formalArguments.size(),
+            effectiveTypes.size())
+            << TErrorAttribute("expression", source);
+    }
+
+    for (; arg != effectiveTypes.end(); arg++) {
+        size_t constraintIndex = repeatedType->first;
+        if (repeatedType->second) {
+            constraintIndex = genericAssignments->size();
+            genericAssignments->push_back((*genericAssignments)[repeatedType->first]);
+        }
+        auto& constraints = (*genericAssignments)[constraintIndex];
+        if (!Unify(&constraints, *arg)) {
+            THROW_ERROR_EXCEPTION(
+                "Wrong type for repeated argument to function %Qv: expected %Qv, got %Qv",
+                functionName,
+                constraints,
+                *arg)
+                << TErrorAttribute("expression", source);
+        }
+    }
+
+    return (*genericAssignments)[formalResultType];
+}
+
+std::vector<EValueType> RefineFunctionTypes(
+    const TFunctionTypeInferrer* inferrer,
+    EValueType resultType,
+    size_t argumentCount,
+    std::vector<TTypeSet>* genericAssignments)
+{
+    std::vector<TTypeSet> typeConstraints;
+    std::vector<size_t> formalArguments;
+    TNullable<std::pair<size_t, bool>> repeatedType;
+    size_t formalResultType = inferrer->GetNormalizedConstraints(
+        &typeConstraints,
+        &formalArguments,
+        &repeatedType);
+
+    (*genericAssignments)[formalResultType] = TTypeSet({resultType});
+
+    std::vector<EValueType> genericAssignmentsMin;
+    for (auto& constraint : *genericAssignments) {
+        YCHECK(!constraint.IsEmpty());
+        genericAssignmentsMin.push_back(constraint.GetFront());
+    }
+
+    std::vector<EValueType> effectiveTypes;
+    auto argIndex = 0;
+    auto formalArg = formalArguments.begin();
+    for (;
+        formalArg != formalArguments.end() && argIndex < argumentCount;
+        ++formalArg, ++argIndex)
+    {
+        effectiveTypes.push_back(genericAssignmentsMin[*formalArg]);
+    }
+
+    for (; argIndex < argumentCount; ++argIndex) {
+        size_t constraintIndex = repeatedType->first;
+        if (repeatedType->second) {
+            constraintIndex = genericAssignments->size() - (argumentCount - argIndex);
+        }
+
+        effectiveTypes.push_back(genericAssignmentsMin[constraintIndex]);
+    }
+
+    return effectiveTypes;
+}
+
+// 1. Init generic assignments with constraints
+//    Intersect generic assignments with argument types and save them
+//    Infer feasible result types
+// 2. Apply result types and restrict generic assignments and argument types
+
+struct TOperatorTyper
+{
+    TTypeSet Constraint;
+    TNullable<EValueType> ResultType;
+};
+
+TEnumIndexedVector<TOperatorTyper, EBinaryOp> BuildBinaryOperatorTypers()
+{
+    TEnumIndexedVector<TOperatorTyper, EBinaryOp> result;
+
+    for (auto op : {
+        EBinaryOp::Plus,
+        EBinaryOp::Minus,
+        EBinaryOp::Multiply,
+        EBinaryOp::Divide})
+    {
+        result[op] = {
+            TTypeSet({EValueType::Null, EValueType::Int64, EValueType::Uint64, EValueType::Double}),
+            Null
+        };
+    }
+
+    for (auto op : {
+        EBinaryOp::Modulo,
+        EBinaryOp::LeftShift,
+        EBinaryOp::RightShift,
+        EBinaryOp::BitOr,
+        EBinaryOp::BitAnd})
+    {
+        result[op] = {
+            TTypeSet({EValueType::Null, EValueType::Int64, EValueType::Uint64}),
+            Null
+        };
+    }
+
+    for (auto op : {
+        EBinaryOp::And,
+        EBinaryOp::Or})
+    {
+        result[op] = {
+            TTypeSet({EValueType::Null, EValueType::Boolean}),
+            EValueType::Boolean
+        };
+    }
+
+    for (auto op : {
+        EBinaryOp::Equal,
+        EBinaryOp::NotEqual,
+        EBinaryOp::Less,
+        EBinaryOp::Greater,
+        EBinaryOp::LessOrEqual,
+        EBinaryOp::GreaterOrEqual})
+    {
+        result[op] = {
+            TTypeSet({
+                EValueType::Null,
+                EValueType::Int64,
+                EValueType::Uint64,
+                EValueType::Double,
+                EValueType::Boolean,
+                EValueType::String}),
+            EValueType::Boolean
+        };
+    }
+
+    return result;
+}
+
+const TEnumIndexedVector<TOperatorTyper, EBinaryOp>& GetBinaryOperatorTypers()
+{
+    static auto result = BuildBinaryOperatorTypers();
+    return result;
+}
+
+TEnumIndexedVector<TOperatorTyper, EUnaryOp> BuildUnaryOperatorTypers()
+{
+    TEnumIndexedVector<TOperatorTyper, EUnaryOp> result;
+
+    for (auto op : {
+        EUnaryOp::Plus,
+        EUnaryOp::Minus})
+    {
+        result[op] = {
+            TTypeSet({EValueType::Null, EValueType::Int64, EValueType::Uint64, EValueType::Double}),
+            Null
+        };
+    }
+
+    result[EUnaryOp::BitNot] = {
+        TTypeSet({EValueType::Null, EValueType::Int64, EValueType::Uint64}),
+        Null
+    };
+
+    result[EUnaryOp::Not] = {
+        TTypeSet({EValueType::Null, EValueType::Boolean}),
+        Null
+    };
+
+    return result;
+}
+
+const TEnumIndexedVector<TOperatorTyper, EUnaryOp>& GetUnaryOperatorTypers()
+{
+    static auto result = BuildUnaryOperatorTypers();
+    return result;
+}
+
+TTypeSet InferBinaryExprTypes(
+    EBinaryOp opCode,
+    const TTypeSet& lhsTypes,
+    const TTypeSet& rhsTypes,
+    TTypeSet* genericAssignments,
+    const TStringBuf& lhsSource,
+    const TStringBuf& rhsSource)
+{
+    const auto& binaryOperators = GetBinaryOperatorTypers();
+
+    *genericAssignments = binaryOperators[opCode].Constraint;
+
+    if (!Unify(genericAssignments, lhsTypes)) {
+        THROW_ERROR_EXCEPTION("Type mismatch in expression %Qv: expected %Qv, got %Qv",
+            opCode,
+            *genericAssignments,
+            lhsTypes)
+            << TErrorAttribute("lhs_source", lhsSource)
+            << TErrorAttribute("rhs_source", rhsSource);
+    }
+
+    if (!Unify(genericAssignments, rhsTypes)) {
+        THROW_ERROR_EXCEPTION("Type mismatch in expression %Qv: expected %Qv, got %Qv",
+            opCode,
+            *genericAssignments,
+            rhsTypes)
+            << TErrorAttribute("lhs_source", lhsSource)
+            << TErrorAttribute("rhs_source", rhsSource);
+    }
+
+    TTypeSet resultTypes;
+    if (binaryOperators[opCode].ResultType) {
+        resultTypes = TTypeSet({*binaryOperators[opCode].ResultType});
+    } else {
+        resultTypes = *genericAssignments;
+    }
+
+    return resultTypes;
+}
+
+std::pair<EValueType, EValueType> RefineBinaryExprTypes(
+    EBinaryOp opCode,
+    EValueType resultType,
+    TTypeSet* genericAssignments)
+{
+    const auto& binaryOperators = GetBinaryOperatorTypers();
+
+    EValueType argType;
+    if (binaryOperators[opCode].ResultType) {
+        YCHECK(!genericAssignments->IsEmpty());
+        argType = genericAssignments->GetFront();
+    } else {
+        YCHECK(genericAssignments->Get(resultType));
+        argType = resultType;
+    }
+
+    return std::make_pair(argType, argType);
+}
+
+TTypeSet InferUnaryExprTypes(
+    EUnaryOp opCode,
+    const TTypeSet& argTypes,
+    TTypeSet* genericAssignments,
+    const TStringBuf& opSource)
+{
+    const auto& unaryOperators = GetUnaryOperatorTypers();
+
+    *genericAssignments = unaryOperators[opCode].Constraint;
+
+    if (!Unify(genericAssignments, argTypes)) {
+        THROW_ERROR_EXCEPTION("Type mismatch in expression %Qv: expected %Qv, got %Qv",
+            opCode,
+            *genericAssignments,
+            argTypes)
+            << TErrorAttribute("op_source", opSource);
+    }
+
+    TTypeSet resultTypes;
+    if (unaryOperators[opCode].ResultType) {
+        resultTypes = TTypeSet({*unaryOperators[opCode].ResultType});
+    } else {
+        resultTypes = *genericAssignments;
+    }
+
+    return resultTypes;
+}
+
+EValueType RefineUnaryExprTypes(
+    EUnaryOp opCode,
+    EValueType resultType,
+    TTypeSet* genericAssignments)
+{
+    const auto& unaryOperators = GetUnaryOperatorTypers();
+
+    EValueType argType;
+    if (unaryOperators[opCode].ResultType) {
+        YCHECK(!genericAssignments->IsEmpty());
+        argType = genericAssignments->GetFront();
+    } else {
+        YCHECK(genericAssignments->Get(resultType));
+        argType = resultType;
+    }
+
+    return argType;
+}
+
 struct TTypedExpressionBuilder
 {
     const TString& Source;
     const TConstTypeInferrerMapPtr& Functions;
     const NAst::TAliasMap& AliasMap;
 
-    TConstExpressionPtr DoBuildTypedExpression(
+    TUntypedExpression DoBuildUntypedExpression(
         const NAst::TExpression* expr,
         ISchemaProxyPtr schema,
         std::set<TString>& usedAliases) const
@@ -800,9 +1185,13 @@ struct TTypedExpressionBuilder
         if (auto literalExpr = expr->As<NAst::TLiteralExpression>()) {
             const auto& literalValue = literalExpr->Value;
 
-            return New<TLiteralExpression>(
-                GetType(literalValue),
-                GetValue(literalValue));
+            auto resultTypes = GetTypes(literalValue);
+            TExpressionGenerator generator = [literalValue] (EValueType type) {
+                return New<TLiteralExpression>(
+                    type,
+                    CastValueWithCheck(GetValue(literalValue), type));
+            };
+            return TUntypedExpression{resultTypes, std::move(generator), true};
         } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
             auto column = schema->GetColumnPtr(referenceExpr->ColumnName, referenceExpr->TableName);
             if (!column) {
@@ -816,7 +1205,7 @@ struct TTypedExpressionBuilder
                         }
 
                         usedAliases.insert(columnName);
-                        auto aliasExpr = DoBuildTypedExpression(
+                        auto aliasExpr = DoBuildUntypedExpression(
                             found->second.Get(),
                             schema,
                             usedAliases);
@@ -830,7 +1219,11 @@ struct TTypedExpressionBuilder
                     NAst::FormatColumn(referenceExpr->ColumnName, referenceExpr->TableName));
             }
 
-            return New<TReferenceExpression>(column->Type, column->Name);
+            TTypeSet resultTypes({column->Type});
+            TExpressionGenerator generator = [name = column->Name] (EValueType type) {
+                return New<TReferenceExpression>(type, name);
+            };
+            return TUntypedExpression{resultTypes, std::move(generator), false};
         } else if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
             auto functionName = functionExpr->FunctionName;
             functionName.to_lower();
@@ -854,37 +1247,53 @@ struct TTypedExpressionBuilder
                         subexprName,
                         *this);
 
-                    return New<TReferenceExpression>(aggregateColumn.Type, aggregateColumn.Name);
-
+                    return aggregateColumn;
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error creating aggregate")
                         << TErrorAttribute("source", functionExpr->GetSource(Source))
                         << ex;
                 }
             } else if (const auto* regularFunction = descriptor->As<TFunctionTypeInferrer>()) {
-                std::vector<EValueType> types;
-                std::vector<TConstExpressionPtr> typedOperands;
+                std::vector<TTypeSet> argTypes;
+                std::vector<TExpressionGenerator> operandTypers;
                 for (const auto& argument : functionExpr->Arguments) {
-                    auto typedArgument = DoBuildTypedExpression(
+                    auto untypedArgument = DoBuildUntypedExpression(
                         argument.Get(),
                         schema,
                         usedAliases);
-                    types.push_back(typedArgument->Type);
-                    typedOperands.push_back(typedArgument);
+                    argTypes.push_back(untypedArgument.FeasibleTypes);
+                    operandTypers.push_back(untypedArgument.Generator);
                 }
 
-                auto type = regularFunction->InferResultType(types, functionName, functionExpr->GetSource(Source));
+                std::vector<TTypeSet> genericAssignments;
+                auto resultTypes = InferFunctionTypes(
+                    regularFunction,
+                    argTypes,
+                    &genericAssignments,
+                    functionName,
+                    functionExpr->GetSource(Source));
 
-                if (type == EValueType::Null) {
-                    return New<TLiteralExpression>(
-                        EValueType::Null,
-                        MakeUnversionedSentinelValue(EValueType::Null));
-                } else {
-                    return New<TFunctionExpression>(
+                TExpressionGenerator generator = [
+                    functionName,
+                    regularFunction,
+                    operandTypers,
+                    genericAssignments] (EValueType type) mutable
+                {
+                    auto effectiveTypes = RefineFunctionTypes(
+                        regularFunction,
                         type,
-                        functionName,
-                        typedOperands);
-                }
+                        operandTypers.size(),
+                        &genericAssignments);
+
+                    std::vector<TConstExpressionPtr> typedOperands;
+                    for (size_t index = 0; index < effectiveTypes.size(); ++index) {
+                        typedOperands.push_back(operandTypers[index](effectiveTypes[index]));
+                    }
+
+                    return New<TFunctionExpression>(type, functionName, typedOperands);
+                };
+
+                return TUntypedExpression{resultTypes, std::move(generator), false};
             }
         } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
             if (unaryExpr->Operand.size() != 1) {
@@ -893,113 +1302,125 @@ struct TTypedExpressionBuilder
                     unaryExpr->Opcode);
             }
 
-            auto typedOperand = DoBuildTypedExpression(
+            auto untypedOperand = DoBuildUntypedExpression(
                 unaryExpr->Operand.front().Get(),
                 schema,
                 usedAliases);
 
-            if (auto foldedExpr = FoldConstants(unaryExpr->Opcode, typedOperand)) {
-                return foldedExpr;
-            } else {
-                auto type = InferUnaryExprType(
-                    unaryExpr->Opcode,
-                    typedOperand->Type,
-                    unaryExpr->GetSource(Source));
+            TTypeSet genericAssignments;
+            auto resultTypes = InferUnaryExprTypes(
+                unaryExpr->Opcode,
+                untypedOperand.FeasibleTypes,
+                &genericAssignments,
+                unaryExpr->Operand.front()->GetSource(Source));
 
-                if (type == EValueType::Null) {
-                    return New<TLiteralExpression>(
-                        EValueType::Null,
-                        MakeUnversionedSentinelValue(EValueType::Null));
-                } else {
-                    return New<TUnaryOpExpression>(
-                        type,
-                        unaryExpr->Opcode,
-                        typedOperand);
+            if (untypedOperand.IsConstant) {
+                auto value = untypedOperand.Generator(untypedOperand.FeasibleTypes.GetFront());
+                if (auto foldedExpr = FoldConstants(unaryExpr->Opcode, value)) {
+                    TExpressionGenerator generator = [foldedExpr] (EValueType type) {
+                        return New<TLiteralExpression>(
+                            type,
+                            CastValueWithCheck(*foldedExpr, type));
+                    };
+                    return TUntypedExpression{resultTypes, std::move(generator), true};
                 }
             }
+
+            TExpressionGenerator generator = [
+                op = unaryExpr->Opcode,
+                untypedOperand,
+                genericAssignments
+            ] (EValueType type) mutable {
+                auto argType = RefineUnaryExprTypes(op, type, &genericAssignments);
+                return New<TUnaryOpExpression>(type, op, untypedOperand.Generator(argType));
+            };
+            return TUntypedExpression{resultTypes, std::move(generator), false};
+
         } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
-            auto makeBinaryExpr = [&] (EBinaryOp op, TConstExpressionPtr lhs, TConstExpressionPtr rhs) -> TConstExpressionPtr {
-                if (auto foldedExpr = FoldConstants(op, lhs, rhs)) {
-                    return foldedExpr;
-                } else {
-                    auto cast = [] (
-                        const TLiteralExpression* literalExpr,
-                        EValueType targetType) -> TConstExpressionPtr
-                    {
-                        auto literalType = literalExpr->Type;
-                        if (literalType != targetType) {
-                            if (IsArithmeticType(literalType) && IsArithmeticType(targetType)) {
-                                // Cast literalType to targetType
-                                return New<TLiteralExpression>(targetType, CastValueWithCheck(literalExpr->Value, targetType));
-                            }
-                        }
+            auto makeBinaryExpr = [&] (
+                EBinaryOp op,
+                TUntypedExpression lhs,
+                TUntypedExpression rhs,
+                TNullable<size_t> offset) -> TUntypedExpression
+            {
+                TTypeSet genericAssignments;
+                auto resultTypes = InferBinaryExprTypes(
+                    op,
+                    lhs.FeasibleTypes,
+                    rhs.FeasibleTypes,
+                    &genericAssignments,
+                    offset ? binaryExpr->Lhs[*offset]->GetSource(Source) : "",
+                    offset ? binaryExpr->Rhs[*offset]->GetSource(Source) : "");
 
-                        return literalExpr;
-                    };
-
-                    auto lhsLiteral = lhs->As<TLiteralExpression>();
-                    auto rhsLiteral = rhs->As<TLiteralExpression>();
-
-                    YCHECK(!lhsLiteral || !rhsLiteral);
-
-                    auto lhsType = lhs->Type;
-                    auto rhsType = rhs->Type;
-
-                    if (lhsLiteral) {
-                        lhs = cast(lhsLiteral, rhsType);
+                if (lhs.IsConstant && rhs.IsConstant) {
+                    auto lhsValue = lhs.Generator(lhs.FeasibleTypes.GetFront());
+                    auto rhsValue = rhs.Generator(rhs.FeasibleTypes.GetFront());
+                    if (auto foldedExpr = FoldConstants(op, lhsValue, rhsValue)) {
+                        TExpressionGenerator generator = [foldedExpr] (EValueType type) {
+                            return New<TLiteralExpression>(
+                                type,
+                                CastValueWithCheck(*foldedExpr, type));
+                        };
+                        return TUntypedExpression{resultTypes, std::move(generator), true};
                     }
-
-                    if (rhsLiteral) {
-                        rhs = cast(rhsLiteral, lhsType);
-                    }
-
-                    auto type = InferBinaryExprType(
-                        op,
-                        lhs->Type,
-                        rhs->Type,
-                        binaryExpr->GetSource(Source),
-                        InferName(lhs),
-                        InferName(rhs));
-
-                    if (type == EValueType::Null) {
-                        return New<TLiteralExpression>(
-                            EValueType::Null,
-                            MakeUnversionedSentinelValue(EValueType::Null));
-                    } else {
-                        return New<TBinaryOpExpression>(type, op, lhs, rhs);
-                    }
-
                 }
+
+                TExpressionGenerator generator = [op, lhs, rhs, genericAssignments] (EValueType type) mutable {
+                    auto argTypes = RefineBinaryExprTypes(
+                        op,
+                        type,
+                        &genericAssignments);
+
+                    return New<TBinaryOpExpression>(
+                        type,
+                        op,
+                        lhs.Generator(argTypes.first),
+                        rhs.Generator(argTypes.second));
+                };
+                return TUntypedExpression{resultTypes, std::move(generator), false};
+
             };
 
-            std::function<TConstExpressionPtr(int, int, EBinaryOp)> gen = [&] (int offset, int keySize, EBinaryOp op) -> TConstExpressionPtr {
-                auto typedLhs = DoBuildTypedExpression(
+            std::function<TUntypedExpression(int, int, EBinaryOp)> gen = [&] (int offset, int keySize, EBinaryOp op)
+             -> TUntypedExpression
+             {
+                auto untypedLhs = DoBuildUntypedExpression(
                     binaryExpr->Lhs[offset].Get(),
                     schema,
                     usedAliases);
-                auto typedRhs = DoBuildTypedExpression(
+                auto untypedRhs = DoBuildUntypedExpression(
                     binaryExpr->Rhs[offset].Get(),
                     schema,
                     usedAliases);
 
                 if (offset + 1 < keySize) {
                     auto next = gen(offset + 1, keySize, op);
-                    auto eq = MakeAndExpression(
-                            makeBinaryExpr(EBinaryOp::Equal, typedLhs, typedRhs),
-                            next);
+                    auto eq = makeBinaryExpr(
+                        EBinaryOp::And,
+                        makeBinaryExpr(
+                            EBinaryOp::Equal,
+                            untypedLhs,
+                            untypedRhs,
+                            offset),
+                        std::move(next),
+                        Null);
                     if (op == EBinaryOp::Less || op == EBinaryOp::LessOrEqual) {
-                        return MakeOrExpression(
-                            makeBinaryExpr(EBinaryOp::Less, typedLhs, typedRhs),
-                            eq);
+                        return makeBinaryExpr(
+                                EBinaryOp::Or,
+                                makeBinaryExpr(EBinaryOp::Less, std::move(untypedLhs), std::move(untypedRhs), offset),
+                                std::move(eq),
+                                Null);
                     } else if (op == EBinaryOp::Greater || op == EBinaryOp::GreaterOrEqual)  {
-                        return MakeOrExpression(
-                            makeBinaryExpr(EBinaryOp::Greater, typedLhs, typedRhs),
-                            eq);
+                        return makeBinaryExpr(
+                                EBinaryOp::Or,
+                                makeBinaryExpr(EBinaryOp::Greater, std::move(untypedLhs), std::move(untypedRhs), offset),
+                                std::move(eq),
+                                Null);
                     } else {
                         return eq;
                     }
                 } else {
-                    return makeBinaryExpr(op, typedLhs, typedRhs);
+                    return makeBinaryExpr(op, std::move(untypedLhs), std::move(untypedRhs), offset);
                 }
             };
 
@@ -1029,16 +1450,16 @@ struct TTypedExpressionBuilder
                         << TErrorAttribute("source", InferName(binaryExpr->Rhs));
                 }
 
-                auto typedLhs = DoBuildTypedExpression(
+                auto untypedLhs = DoBuildUntypedExpression(
                     binaryExpr->Lhs.front().Get(),
                     schema,
                     usedAliases);
-                auto typedRhs = DoBuildTypedExpression(
+                auto untypedRhs = DoBuildUntypedExpression(
                     binaryExpr->Rhs.front().Get(),
                     schema,
                     usedAliases);
 
-                return makeBinaryExpr(binaryExpr->Opcode, typedLhs, typedRhs);
+                return makeBinaryExpr(binaryExpr->Opcode, std::move(untypedLhs), std::move(untypedRhs), 0);
             }
         } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
             std::vector<TConstExpressionPtr> typedArguments;
@@ -1046,34 +1467,53 @@ struct TTypedExpressionBuilder
             std::vector<EValueType> argTypes;
 
             for (const auto& argument : inExpr->Expr) {
-                auto typedArgument = DoBuildTypedExpression(
-                    argument.Get(),
-                    schema,
-                    usedAliases);
+                auto untypedArgument = DoBuildUntypedExpression(argument.Get(), schema, usedAliases);
+
+                if (untypedArgument.FeasibleTypes.GetSize() != 1) {
+                    THROW_ERROR_EXCEPTION("Cannot infer argument type for IN operator")
+                        << TErrorAttribute("source", argument->GetSource(Source));
+                }
+                EValueType argType = untypedArgument.FeasibleTypes.GetFront();
+                auto typedArgument = untypedArgument.Generator(argType);
 
                 typedArguments.push_back(typedArgument);
-                argTypes.push_back(typedArgument->Type);
+                argTypes.push_back(argType);
                 if (auto reference = typedArgument->As<TReferenceExpression>()) {
                     if (!columnNames.insert(reference->ColumnName).second) {
                         THROW_ERROR_EXCEPTION("IN operator has multiple references to column %Qv", reference->ColumnName)
-                            << TErrorAttribute("source", Source);
+                            << TErrorAttribute("source", inExpr->GetSource(Source));
                     }
                 }
             }
 
             auto capturedRows = LiteralTupleListToRows(inExpr->Values, argTypes, inExpr->GetSource(Source));
-            return New<TInOpExpression>(std::move(typedArguments), std::move(capturedRows));
+            auto result = New<TInOpExpression>(std::move(typedArguments), std::move(capturedRows));
+
+            TTypeSet resultTypes({EValueType::Boolean});
+            TExpressionGenerator generator = [result] (EValueType type) mutable {
+                return result;
+            };
+            return TUntypedExpression{resultTypes, std::move(generator), false};
         }
 
         Y_UNREACHABLE();
+    }
+
+    TUntypedExpression BuildUntypedExpression(
+        const NAst::TExpression* expr,
+        ISchemaProxyPtr schema) const
+    {
+        std::set<TString> usedAliases;
+        return DoBuildUntypedExpression(expr, schema, usedAliases);
     }
 
     TConstExpressionPtr BuildTypedExpression(
         const NAst::TExpression* expr,
         ISchemaProxyPtr schema) const
     {
-        std::set<TString> usedAliases;
-        return PropagateNotExpression(DoBuildTypedExpression(expr, schema, usedAliases));
+        auto expressionTyper = BuildUntypedExpression(expr, schema);
+        YCHECK(!expressionTyper.FeasibleTypes.IsEmpty());
+        return TNotExpressionPropagator().Visit(expressionTyper.Generator(expressionTyper.FeasibleTypes.GetFront()));
     }
 
 };
@@ -1107,28 +1547,33 @@ public:
         }
     }
 
-    virtual TBaseColumn GetAggregateColumnPtr(
+    virtual TUntypedExpression GetAggregateColumnPtr(
         const TString& name,
         const TAggregateTypeInferrer* aggregateFunction,
         const NAst::TExpression* arguments,
         TString subexprName,
         const TTypedExpressionBuilder& builder) override
     {
-        auto key = std::make_pair(subexprName, TString());
-        auto found = Lookup_.find(key);
-        if (found != Lookup_.end()) {
-            return found->second;
-        }
-
-        auto column = ProvideAggregateColumn(
+        auto typer = ProvideAggregateColumn(
             name,
             aggregateFunction,
             arguments,
             subexprName,
             builder);
 
-        YCHECK(Lookup_.emplace(key, column).second);
-        return column;
+        TExpressionGenerator generator = [=] (EValueType type) {
+            auto found = AggregateLookup_.find(std::make_pair(subexprName, type));
+            if (found != AggregateLookup_.end()) {
+                TBaseColumn columnInfo = found->second;
+                return New<TReferenceExpression>(columnInfo.Type, columnInfo.Name);
+            } else {
+                TBaseColumn columnInfo = typer.second(type);
+                YCHECK(AggregateLookup_.emplace(std::make_pair(subexprName, type), columnInfo).second);
+                return New<TReferenceExpression>(columnInfo.Type, columnInfo.Name);
+            }
+        };
+
+        return TUntypedExpression{typer.first, std::move(generator), false};
     }
 
     virtual void Finish()
@@ -1141,6 +1586,7 @@ public:
 
 private:
     yhash<std::pair<TString, TString>, TBaseColumn> Lookup_;
+    yhash<std::pair<TString, EValueType>, TBaseColumn> AggregateLookup_;
 
 protected:
     virtual TNullable<TBaseColumn> ProvideColumn(const TString& name, const TString& tableName)
@@ -1148,7 +1594,7 @@ protected:
         return Null;
     }
 
-    virtual TBaseColumn ProvideAggregateColumn(
+    virtual std::pair<TTypeSet, std::function<TBaseColumn(EValueType)>> ProvideAggregateColumn(
         const TString& name,
         const TAggregateTypeInferrer* aggregateFunction,
         const NAst::TExpression* arguments,
@@ -1311,30 +1757,68 @@ public:
         return FindColumn(*GroupItems_, name);
     }
 
-    virtual TBaseColumn ProvideAggregateColumn(
+    virtual std::pair<TTypeSet, std::function<TBaseColumn(EValueType)>> ProvideAggregateColumn(
         const TString& name,
         const TAggregateTypeInferrer* aggregateFunction,
         const NAst::TExpression* argument,
         TString subexprName,
         const TTypedExpressionBuilder& builder) override
     {
-        auto typedOperand = builder.BuildTypedExpression(
+        auto untypedOperand = builder.BuildUntypedExpression(
             argument,
             Base_);
 
-        auto stateType = aggregateFunction->InferStateType(typedOperand->Type, name, subexprName);
-        auto resultType = aggregateFunction->InferResultType(typedOperand->Type, name, subexprName);
+        TTypeSet constraint;
+        TNullable<EValueType> stateType;
+        TNullable<EValueType> resultType;
 
-        CheckExpressionDepth(typedOperand);
+        aggregateFunction->GetNormalizedConstraints(&constraint, &stateType, &resultType, name);
 
-        AggregateItems_->emplace_back(
-            typedOperand,
-            name,
-            subexprName,
-            stateType,
-            resultType);
+        TTypeSet resultTypes;
+        TTypeSet genericAssignments = constraint;
 
-        return TBaseColumn(subexprName, resultType);
+        if (!Unify(&genericAssignments, untypedOperand.FeasibleTypes)) {
+            THROW_ERROR_EXCEPTION("Type mismatch in function %Qv: expected %Qv, got %Qv",
+                name,
+                genericAssignments,
+                untypedOperand.FeasibleTypes)
+                << TErrorAttribute("source", subexprName);
+        }
+
+        if (resultType) {
+            resultTypes = TTypeSet({*resultType});
+        } else {
+            resultTypes = genericAssignments;
+        }
+
+        return std::make_pair(resultTypes, [=] (EValueType type) {
+            EValueType argType;
+            if (resultType) {
+                YCHECK(!genericAssignments.IsEmpty());
+                argType = genericAssignments.GetFront();
+            } else {
+                argType = type;
+            }
+
+            EValueType effectiveStateType;
+            if (stateType) {
+                effectiveStateType = *stateType;
+            } else {
+                effectiveStateType = argType;
+            }
+
+            auto typedOperand = untypedOperand.Generator(argType);
+            CheckExpressionDepth(typedOperand);
+
+            AggregateItems_->emplace_back(
+                typedOperand,
+                name,
+                subexprName,
+                effectiveStateType,
+                type);
+
+            return TBaseColumn(subexprName, type);
+        });
     }
 
 private:
@@ -1941,6 +2425,13 @@ TConstExpressionPtr PrepareExpression(
         astHead.second};
 
     auto result = builder.BuildTypedExpression(expr.Get(), schemaProxy);
+
+    auto actualType = result->Type;
+    if (actualType == EValueType::Null) {
+        THROW_ERROR_EXCEPTION("Type inference failed")
+            << TErrorAttribute("source", InferName(expr.Get()))
+            << TErrorAttribute("actual_type", actualType);
+    }
 
     if (references) {
         for (const auto& item : mapping) {

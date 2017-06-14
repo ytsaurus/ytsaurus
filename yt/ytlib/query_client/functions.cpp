@@ -5,205 +5,106 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-TString TypeToString(TType tp, std::unordered_map<TTypeArgument, EValueType> genericAssignments)
+size_t TFunctionTypeInferrer::GetNormalizedConstraints(
+    std::vector<TTypeSet>* typeConstraints,
+    std::vector<size_t>* formalArguments,
+    TNullable<std::pair<size_t, bool>>* repeatedType) const
 {
-    if (auto genericId = tp.TryAs<TTypeArgument>()) {
-        return TypeToString(genericAssignments[*genericId], genericAssignments);
-    } else if (auto unionType = tp.TryAs<TUnionType>()) {
-        TString unionString = "one of { ";
-        for (auto tp = (*unionType).begin(); tp != (*unionType).end(); tp++) {
-            if (tp != (*unionType).begin()) {
-                unionString += ", ";
-            }
-            unionString += TypeToString(*tp, genericAssignments);
-        }
-        return unionString + " }";
-    } else {
-        return ToString(tp.As<EValueType>());
-    }
-}
+    std::unordered_map<TTypeArgument, size_t> idToIndex;
 
-EValueType TypingFunction(
-    const std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-    const std::vector<TType>& expectedArgTypes,
-    TType repeatedArgType,
-    TType resultType,
-    const TString& functionName,
-    const std::vector<EValueType>& argTypes,
-    const TStringBuf& source)
-{
-    std::unordered_map<TTypeArgument, EValueType> genericAssignments;
-
-    auto typeInUnion = [&] (TUnionType unionType, EValueType type) {
-        return std::find(
-            unionType.begin(),
-            unionType.end(),
-            type) != unionType.end();
-    };
-
-    auto isSubtype = [&] (EValueType type1, TType type2) {
-        YCHECK(!type2.TryAs<TTypeArgument>());
-        if (type1 == EValueType::Null) {
-            return true;
-        }
-        if (auto* unionType = type2.TryAs<TUnionType>()) {
-            return typeInUnion(*unionType, type1);
-        } else if (auto* concreteType = type2.TryAs<EValueType>()) {
-            return type1 == *concreteType;
-        }
-        return false;
-    };
-
-    auto unify = [&] (TType type1, EValueType type2) {
-        if (auto* genericId = type1.TryAs<TTypeArgument>()) {
-            if (genericAssignments.count(*genericId)) {
-                if (type2 == EValueType::Null) {
-                    return true;
-                } else if (genericAssignments[*genericId] == EValueType::Null) {
-                    genericAssignments[*genericId] = type2;
-                    return true;
-                } else {
-                    return genericAssignments[*genericId] == type2;
-                }
+    auto getIndex = [&] (const TType& type) {
+        if (auto* genericId = type.TryAs<TTypeArgument>()) {
+            auto itIndex = idToIndex.find(*genericId);
+            if (itIndex != idToIndex.end()) {
+                return itIndex->second;
             } else {
-                genericAssignments[*genericId] = type2;
-                return true;
+                size_t index = typeConstraints->size();
+                auto it = TypeArgumentConstraints_.find(*genericId);
+                if (it == TypeArgumentConstraints_.end()) {
+                    typeConstraints->push_back(TTypeSet({
+                        EValueType::Null,
+                        EValueType::Int64,
+                        EValueType::Uint64,
+                        EValueType::Double,
+                        EValueType::Boolean,
+                        EValueType::String,
+                        EValueType::Any}));
+                } else {
+                    typeConstraints->push_back(TTypeSet(it->second.begin(), it->second.end()));
+                }
+                idToIndex.emplace(*genericId, index);
+                return index;
             }
+        } else if (auto* fixedType = type.TryAs<EValueType>()) {
+            size_t index = typeConstraints->size();
+            typeConstraints->push_back(TTypeSet({*fixedType}));
+            return index;
+        } else if (auto* unionType = type.TryAs<TUnionType>()) {
+            size_t index = typeConstraints->size();
+            typeConstraints->push_back(TTypeSet(unionType->begin(), unionType->end()));
+            return index;
         } else {
-            return isSubtype(type2, type1);
+            Y_UNREACHABLE();
         }
     };
 
-    auto argIndex = 1;
-    auto arg = argTypes.begin();
-    auto expectedArg = expectedArgTypes.begin();
-    for (;
-        expectedArg != expectedArgTypes.end() && arg != argTypes.end();
-        arg++, expectedArg++, argIndex++)
-    {
-        if (!unify(*expectedArg, *arg)) {
-            THROW_ERROR_EXCEPTION(
-                "Wrong type for argument %v to function %Qv: expected %Qv, got %Qv",
-                argIndex,
-                functionName,
-                TypeToString(*expectedArg, genericAssignments),
-                TypeToString(*arg, genericAssignments))
-                << TErrorAttribute("expression", source);
-        }
+    for (const auto& argumentType : ArgumentTypes_) {
+        formalArguments->push_back(getIndex(argumentType));
     }
 
-    bool hasNoRepeatedArgument = repeatedArgType.Is<EValueType>() &&
-        repeatedArgType.As<EValueType>() == EValueType::Null;
-
-    if (expectedArg != expectedArgTypes.end() ||
-        (arg != argTypes.end() && hasNoRepeatedArgument))
-    {
-        THROW_ERROR_EXCEPTION(
-            "Wrong number of arguments to function %Qv: expected %v, got %v",
-            functionName,
-            expectedArgTypes.size(),
-            argTypes.size())
-            << TErrorAttribute("expression", source);
+    if (!(RepeatedArgumentType_.Is<EValueType>() && RepeatedArgumentType_.As<EValueType>() == EValueType::Null)) {
+        *repeatedType = std::make_pair(getIndex(RepeatedArgumentType_), RepeatedArgumentType_.TryAs<TUnionType>());
     }
 
-    for (; arg != argTypes.end(); arg++) {
-        if (!unify(repeatedArgType, *arg)) {
-            THROW_ERROR_EXCEPTION(
-                "Wrong type for repeated argument to function %Qv: expected %Qv, got %Qv",
-                functionName,
-                TypeToString(repeatedArgType, genericAssignments),
-                TypeToString(*arg, genericAssignments))
-                << TErrorAttribute("expression", source);
-        }
+    return getIndex(ResultType_);
+}
+
+void TAggregateTypeInferrer::GetNormalizedConstraints(
+    TTypeSet* constraint,
+    TNullable<EValueType>* stateType,
+    TNullable<EValueType>* resultType,
+    const TStringBuf& name) const
+{
+    if (TypeArgumentConstraints_.size() > 1) {
+        THROW_ERROR_EXCEPTION("Too many constraints for aggregate function");
     }
 
-    for (auto constraint : typeArgumentConstraints) {
-        auto typeArg = constraint.first;
-        auto allowedTypes = constraint.second;
-        if (genericAssignments.count(typeArg)
-            && genericAssignments[typeArg] != EValueType::Null
-            && !typeInUnion(allowedTypes, genericAssignments[typeArg]))
-        {
-            THROW_ERROR_EXCEPTION(
-                "Invalid type inferred for type argument %v to function %Qv: expected %Qv, got %Qv",
-                typeArg,
-                functionName,
-                TypeToString(allowedTypes, genericAssignments),
-                TypeToString(typeArg, genericAssignments))
-                << TErrorAttribute("expression", source);
+    auto setType = [&] (const TType& targetType, bool allowGeneric) -> TNullable<EValueType> {
+        if (auto* fixedType = targetType.TryAs<EValueType>()) {
+            return *fixedType;
         }
-    }
+        if (allowGeneric) {
+            if (auto* typeId = targetType.TryAs<TTypeArgument>()) {
+                auto found = TypeArgumentConstraints_.find(*typeId);
+                if (found != TypeArgumentConstraints_.end()) {
+                    return Null;
+                }
+            }
+        }
+        THROW_ERROR_EXCEPTION("Invalid type constraints for aggregate function %Qv", name);
+    };
 
-    if (auto* genericResult = resultType.TryAs<TTypeArgument>()) {
-        if (!genericAssignments.count(*genericResult)) {
-            THROW_ERROR_EXCEPTION(
-                "Ambiguous result type for function %Qv",
-                functionName)
-                << TErrorAttribute("expression", source);
+    if (auto* unionType = ArgumentType_.TryAs<TUnionType>()) {
+        *constraint = TTypeSet(unionType->begin(), unionType->end());
+        *resultType = setType(ResultType_, false);
+        *stateType = setType(StateType_, false);
+    } else if (auto* fixedType = ArgumentType_.TryAs<EValueType>()) {
+        *constraint = TTypeSet({*fixedType});
+        *resultType = setType(ResultType_, false);
+        *stateType = setType(StateType_, false);
+    } else if (auto* typeId = ArgumentType_.TryAs<TTypeArgument>()) {
+        auto found = TypeArgumentConstraints_.find(*typeId);
+        if (found == TypeArgumentConstraints_.end()) {
+            THROW_ERROR_EXCEPTION("Invalid type constraints for aggregate function %Qv", name);
         }
-        return genericAssignments[*genericResult];
-    } else if (!resultType.TryAs<EValueType>()) {
-        THROW_ERROR_EXCEPTION(
-            "Ambiguous result type for function %Qv",
-            functionName)
-            << TErrorAttribute("expression", source);
+        *constraint = TTypeSet(found->second.begin(), found->second.end());
+
+        *resultType = setType(ResultType_, true);
+        *stateType = setType(StateType_, true);
     } else {
-        return resultType.As<EValueType>();
+        Y_UNREACHABLE();
     }
-
-    Y_UNREACHABLE();
 }
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-EValueType TFunctionTypeInferrer::InferResultType(
-    const std::vector<EValueType>& argumentTypes,
-    const TString& name,
-    const TStringBuf& source) const
-{
-    return TypingFunction(
-        TypeArgumentConstraints_,
-        ArgumentTypes_,
-        RepeatedArgumentType_,
-        ResultType_,
-        name,
-        argumentTypes,
-        source);
-}
-
-EValueType TAggregateTypeInferrer::InferStateType(
-    EValueType type,
-    const TString& aggregateName,
-    const TStringBuf& source) const
-{
-    return TypingFunction(
-        TypeArgumentConstraints_,
-        std::vector<TType>{ArgumentType_},
-        EValueType::Null,
-        StateType_,
-        aggregateName,
-        std::vector<EValueType>{type},
-        source);
-}
-
-EValueType TAggregateTypeInferrer::InferResultType(
-    EValueType argumentType,
-    const TString& aggregateName,
-    const TStringBuf& source) const
-{
-    return TypingFunction(
-        TypeArgumentConstraints_,
-        std::vector<TType>{ArgumentType_},
-        EValueType::Null,
-        ResultType_,
-        aggregateName,
-        std::vector<EValueType>{argumentType},
-        source);
-    }
 
 ////////////////////////////////////////////////////////////////////////////////
 

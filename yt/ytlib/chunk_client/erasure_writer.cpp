@@ -155,6 +155,7 @@ public:
         YCHECK(writers.size() == codec->GetTotalPartCount());
         VERIFY_INVOKER_THREAD_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
 
+        PartwiseBlockChecksums_.resize(codec->GetTotalPartCount());
         ChunkInfo_.set_disk_space(0);
     }
 
@@ -228,8 +229,6 @@ public:
 private:
     void PrepareBlocks();
 
-    void PrepareChunkMeta(const TChunkMeta& chunkMeta);
-
     void DoOpen();
 
     TFuture<void> WriteDataBlocks();
@@ -240,9 +239,9 @@ private:
 
     TFuture<void> WriteParityBlocks(const std::vector<TBlock>& blocks);
 
-    TFuture<void> CloseParityWriters();
+    TFuture<void> CloseWriters();
 
-    void OnClosed();
+    void OnBlocksWritten();
 
 
     const TErasureWriterConfigPtr Config_;
@@ -266,6 +265,8 @@ private:
     TChunkMeta ChunkMeta_;
     TChunkInfo ChunkInfo_;
 
+    std::vector<std::vector<TChecksum>> PartwiseBlockChecksums_;
+
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 };
 
@@ -279,12 +280,16 @@ void TErasureWriter::PrepareBlocks()
 
     // Calculate size of parity blocks and form slicers
     ParityDataSize_ = 0;
+    int partIndex = 0;
     for (const auto& group : Groups_) {
+        auto& blockChecksums = PartwiseBlockChecksums_[partIndex++];
+
         i64 size = 0;
         i64 maxBlockSize = 0;
         for (const auto& block : group) {
             size += block.Size();
             maxBlockSize = std::max(maxBlockSize, (i64)block.Size());
+            blockChecksums.push_back(block.Checksum);
         }
         ParityDataSize_ = std::max(ParityDataSize_, size);
 
@@ -298,27 +303,6 @@ void TErasureWriter::PrepareBlocks()
     if (ParityDataSize_ % Config_->ErasureWindowSize != 0) {
         WindowCount_ += 1;
     }
-}
-
-void TErasureWriter::PrepareChunkMeta(const TChunkMeta& chunkMeta)
-{
-    int start = 0;
-    TErasurePlacementExt placementExt;
-    for (const auto& group : Groups_) {
-        auto* info = placementExt.add_part_infos();
-        info->set_first_block_index(start);
-        for (const auto& block : group) {
-            info->add_block_sizes(block.Size());
-        }
-        start += group.size();
-    }
-    placementExt.set_parity_part_count(Codec_->GetParityPartCount());
-    placementExt.set_parity_block_count(WindowCount_);
-    placementExt.set_parity_block_size(Config_->ErasureWindowSize);
-    placementExt.set_parity_last_block_size(ParityDataSize_ - (Config_->ErasureWindowSize * (WindowCount_ - 1)));
-
-    ChunkMeta_ = chunkMeta;
-    SetProtoExtension(ChunkMeta_.mutable_extensions(), placementExt);
 }
 
 void TErasureWriter::DoOpen()
@@ -364,9 +348,6 @@ void TErasureWriter::WriteDataPart(IChunkWriterPtr writer, const std::vector<TBl
                 .ThrowOnError();
         }
     }
-
-    WaitFor(writer->Close(ChunkMeta_))
-        .ThrowOnError();
 }
 
 void TErasureWriter::EncodeAndWriteParityBlocks()
@@ -395,9 +376,6 @@ void TErasureWriter::EncodeAndWriteParityBlocks()
         WaitFor(WriteParityBlocks(parityBlocks))
             .ThrowOnError();
     }
-
-    WaitFor(CloseParityWriters())
-        .ThrowOnError();
 }
 
 TFuture<void> TErasureWriter::WriteParityBlocks(const std::vector<TBlock>& blocks)
@@ -407,22 +385,34 @@ TFuture<void> TErasureWriter::WriteParityBlocks(const std::vector<TBlock>& block
     // Write blocks of current window in parallel manner.
     std::vector<TFuture<void>> asyncResults;
     for (int index = 0; index < Codec_->GetParityPartCount(); ++index) {
+        auto& blockChecksums = PartwiseBlockChecksums_[Codec_->GetDataPartCount() + index];
+        blockChecksums.push_back(blocks[index].Checksum);
+
         const auto& writer = Writers_[Codec_->GetDataPartCount() + index];
-        writer->WriteBlock(TBlock(blocks[index]));
+        writer->WriteBlock(blocks[index]);
         asyncResults.push_back(writer->GetReadyEvent());
     }
     return Combine(asyncResults);
 }
 
-TFuture<void> TErasureWriter::CloseParityWriters()
+TFuture<void> TErasureWriter::CloseWriters()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     std::vector<TFuture<void>> asyncResults;
+
+    // Close writer for each non-empty group.
+    for (int index = 0; index < Groups_.size(); ++index) {
+        auto& writer = Writers_[index];
+        asyncResults.push_back(writer->Close(ChunkMeta_));
+    }
+
+    // Close writer for each parity part.
     for (int index = 0; index < Codec_->GetParityPartCount(); ++index) {
         const auto& writer = Writers_[Codec_->GetDataPartCount() + index];
         asyncResults.push_back(writer->Close(ChunkMeta_));
     }
+
     return Combine(asyncResults);
 }
 
@@ -431,7 +421,7 @@ TFuture<void> TErasureWriter::Close(const TChunkMeta& chunkMeta)
     YCHECK(IsOpen_);
 
     PrepareBlocks();
-    PrepareChunkMeta(chunkMeta);
+    ChunkMeta_ = chunkMeta;
 
     auto invoker = TDispatcher::Get()->GetWriterInvoker();
 
@@ -445,12 +435,41 @@ TFuture<void> TErasureWriter::Close(const TChunkMeta& chunkMeta)
     };
 
     return Combine(asyncResults).Apply(
-        BIND(&TErasureWriter::OnClosed, MakeStrong(this)));
+        BIND(&TErasureWriter::OnBlocksWritten, MakeStrong(this)));
 }
 
-
-void TErasureWriter::OnClosed()
+void TErasureWriter::OnBlocksWritten()
 {
+    int start = 0;
+    TErasurePlacementExt placementExt;
+    for (const auto& group : Groups_) {
+        auto* info = placementExt.add_part_infos();
+        info->set_first_block_index(start);
+        for (const auto& block : group) {
+            info->add_block_sizes(block.Size());
+        }
+        start += group.size();
+    }
+    placementExt.set_parity_part_count(Codec_->GetParityPartCount());
+    placementExt.set_parity_block_count(WindowCount_);
+    placementExt.set_parity_block_size(Config_->ErasureWindowSize);
+    placementExt.set_parity_last_block_size(ParityDataSize_ - (Config_->ErasureWindowSize * (WindowCount_ - 1)));
+
+    for (const auto& blockChecksums : PartwiseBlockChecksums_) {
+        auto checksum = CombineChecksums(blockChecksums);
+        YCHECK(checksum != NullChecksum ||
+            blockChecksums.empty() ||
+            std::all_of(blockChecksums.begin(), blockChecksums.end(), [] (TChecksum value) {
+                return value == NullChecksum;
+            }));
+        placementExt.add_part_checksums(checksum);
+    }
+
+    SetProtoExtension(ChunkMeta_.mutable_extensions(), placementExt);
+
+    WaitFor(CloseWriters())
+        .ThrowOnError();
+
     i64 diskSpace = 0;
     for (auto writer : Writers_) {
         diskSpace += writer->GetChunkInfo().disk_space();

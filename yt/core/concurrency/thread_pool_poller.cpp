@@ -1,7 +1,30 @@
-#include "poller_thread_pool.h"
+#include "thread_pool_poller.h"
+#include "poller.h"
+#include "count_down_latch.h"
+#include "private.h"
+
+#include <yt/core/misc/lock_free.h>
+#include <yt/core/misc/proc.h>
+
+#include <yt/core/concurrency/notification_handle.h>
+
+#include <util/system/thread.h>
+
+#include <util/thread/lfqueue.h>
+
+#include <util/network/pollerimpl.h>
+
+#include <array>
 
 namespace NYT {
 namespace NConcurrency {
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = ConcurrencyLogger;
+
+static constexpr auto PollerThreadQuantum = TDuration::MilliSeconds(100);
+static constexpr int MaxEventsPerPoll = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,15 +56,16 @@ EPollControl FromImplControl(int implControl)
 
 } // namespace
 
-class TDispatcherPoller
-    : public IDispatcherPoller
+class TThreadPoolPoller
+    : public IPoller
 {
 public:
-    TDispatcherPoller(int threadCount, const TString& threadNamePrefix)
+    TThreadPoolPoller(int threadCount, const TString& threadNamePrefix)
         : ThreadCount_(threadCount)
-          , ThreadNamePrefix_(threadNamePrefix)
-          , Threads_(ThreadCount_)
-          , Invoker_(New<TInvoker>(this))
+        , ThreadNamePrefix_(threadNamePrefix)
+        , Threads_(ThreadCount_)
+        , StartLatch_(ThreadCount_)
+        , Invoker_(New<TInvoker>(this))
     {
         for (int index = 0; index < ThreadCount_; ++index) {
             Threads_[index] = std::make_unique<TThread>(this, index);
@@ -53,17 +77,19 @@ public:
         for (const auto& thread : Threads_) {
             thread->Start();
         }
+        StartLatch_.Wait();
         Invoker_->Start();
     }
 
-    ~TDispatcherPoller()
+    ~TThreadPoolPoller()
     {
         Shutdown();
     }
 
-    // IDispatcherPoller implementation.
+    // IPoller implementation.
     virtual void Shutdown() override
     {
+        ShutdownRequested_.store(true);
         for (const auto& thread : Threads_) {
             thread->Stop();
         }
@@ -71,22 +97,16 @@ public:
 
     virtual void Register(const IPollablePtr& pollable) override
     {
+        LOG_DEBUG("Pollable registered (%v)", pollable->GetLoggingId());
         {
             auto guard = Guard(SpinLock_);
             YCHECK(Pollables_.insert(pollable).second);
         }
-        LOG_DEBUG("Pollable registered (%v)", pollable->GetLoggingId());
     }
 
     virtual TFuture<void> Unregister(const IPollablePtr& pollable) override
     {
-        LOG_DEBUG("Pollable unregistration requested (%v)", pollable->GetLoggingId());
-
-        int fd = pollable->GetFD();
-        if (fd >= 0) {
-            Impl_.Remove(fd);
-        }
-
+        LOG_DEBUG("Requesting pollable unregistration (%v)", pollable->GetLoggingId());
         auto entry = New<TUnregisterEntry>();
         entry->Pollable = pollable;
         for (const auto& thread : Threads_) {
@@ -95,11 +115,14 @@ public:
         return entry->Promise;
     }
 
-    virtual void Arm(const IPollablePtr& pollable, EPollControl control) override
+    virtual void Arm(int fd, const IPollablePtr& pollable, EPollControl control) override
     {
-        int fd = pollable->GetFD();
-        Y_ASSERT(fd >= 0);
         Impl_.Set(pollable.Get(), fd, ToImplControl(control));
+    }
+
+    virtual void Unarm(int fd) override
+    {
+        Impl_.Remove(fd);
     }
 
     virtual IInvokerPtr GetInvoker() const override
@@ -124,10 +147,10 @@ private:
     class TThread
     {
     public:
-        TThread(TDispatcherPoller* poller, int index)
+        TThread(TThreadPoolPoller* poller, int index)
             : Poller_(poller)
-              , Index_(index)
-              , Thread_(&TThread::ThreadMainTrampoline, this)
+            , Index_(index)
+            , Thread_(&TThread::ThreadMainTrampoline, this)
         { }
 
         void Start()
@@ -137,7 +160,6 @@ private:
 
         void Stop()
         {
-            ShutdownRequested_.store(true);
             Thread_.Join();
         }
 
@@ -147,10 +169,8 @@ private:
         }
 
     private:
-        TDispatcherPoller* const Poller_;
+        TThreadPoolPoller* const Poller_;
         const int Index_;
-
-        std::atomic<bool> ShutdownRequested_ = {false};
 
         ::TThread Thread_;
 
@@ -176,30 +196,36 @@ private:
 
             LOG_DEBUG("Poller thread started (Name: %v)", threadName);
 
-            while (!ShutdownRequested_.load()) {
+            Poller_->StartLatch_.CountDown();
+
+            while (!Poller_->ShutdownRequested_.load()) {
                 // While this is not a fiber-friendly environment, it's nice to have a unique
                 // fiber id installed, for diagnostic purposes.
                 SetCurrentFiberId(GenerateFiberId());
-                HandleEvent();
+                HandleEvents();
                 HandleUnregister();
             }
 
             LOG_DEBUG("Poller thread stopped (Name: %v)", threadName);
         }
 
-        void HandleEvent()
+        void HandleEvents()
         {
-            decltype(Poller_->Impl_)::TEvent event;
-            if (Poller_->Impl_.Wait(&event, 1, PollerThreadQuantum.MicroSeconds()) == 0) {
+            std::array<decltype(Poller_->Impl_)::TEvent, MaxEventsPerPoll> events;
+            int eventCount = Poller_->Impl_.Wait(events.data(), MaxEventsPerPoll, PollerThreadQuantum.MicroSeconds());
+            if (eventCount == 0) {
                 return;
             }
 
-            auto control = FromImplControl(Poller_->Impl_.ExtractFilter(&event));
-            auto* pollable = static_cast<IPollable*>(Poller_->Impl_.ExtractEvent(&event));
-            if (pollable) {
-                pollable->OnEvent(control);
-            } else {
-                Poller_->Invoker_->OnCallback();
+            for (int index = 0; index < eventCount; ++index) {
+                const auto& event = events[index];
+                auto control = FromImplControl(Poller_->Impl_.ExtractFilter(&event));
+                auto* pollable = static_cast<IPollable*>(Poller_->Impl_.ExtractEvent(&event));
+                if (pollable) {
+                    pollable->OnEvent(control);
+                } else {
+                    Poller_->Invoker_->OnCallback();
+                }
             }
         }
 
@@ -230,6 +256,9 @@ private:
 
     std::vector<std::unique_ptr<TThread>> Threads_;
 
+    TCountDownLatch StartLatch_;
+    std::atomic<bool> ShutdownRequested_ = {false};
+
     TSpinLock SpinLock_;
     yhash_set<IPollablePtr> Pollables_;
 
@@ -237,24 +266,24 @@ private:
         : public IInvoker
     {
     public:
-        explicit TInvoker(TDispatcherPoller* owner)
+        explicit TInvoker(TThreadPoolPoller* owner)
             : Owner_(owner)
         { }
 
         void Start()
         {
-            SafePipe(PipeFDs);
-            YCHECK(fcntl(PipeFDs[0], F_SETFL, O_NONBLOCK) == 0);
             ArmPoller();
         }
 
         void OnCallback()
         {
+            WakeupHandle_.Clear();
+
             TClosure callback;
             while (Callbacks_.Dequeue(&callback)) {
                 callback.Run();
             }
-            ReadFromPipe();
+
             ArmPoller();
         }
 
@@ -262,7 +291,7 @@ private:
         virtual void Invoke(TClosure callback) override
         {
             Callbacks_.Enqueue(std::move(callback));
-            WriteToPipe();
+            WakeupHandle_.Raise();
         }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
@@ -277,26 +306,14 @@ private:
         }
 #endif
     private:
-        TDispatcherPoller* const Owner_;
+        TThreadPoolPoller* const Owner_;
 
         TLockFreeQueue<TClosure> Callbacks_;
-        int PipeFDs[2];
-
-        void WriteToPipe()
-        {
-            char dummy = 0;
-            YCHECK(write(PipeFDs[1], &dummy, 1) == 1);
-        }
-
-        void ReadFromPipe()
-        {
-            char dummy;
-            while (read(PipeFDs[0], &dummy, 1) > 0);
-        }
+        TNotificationHandle WakeupHandle_;
 
         void ArmPoller()
         {
-            Owner_->Impl_.Set(nullptr, PipeFDs[0], CONT_POLL_READ|CONT_POLL_ONE_SHOT);
+            Owner_->Impl_.Set(nullptr, WakeupHandle_.GetFD(), CONT_POLL_READ|CONT_POLL_ONE_SHOT);
         }
     };
 
@@ -310,6 +327,17 @@ private:
 
     TPollerImpl<TMutexLocking> Impl_;
 };
+
+IPollerPtr CreateThreadPoolPoller(
+    int threadCount,
+    const TString& threadNamePrefix)
+{
+    auto poller = New<TThreadPoolPoller>(
+        threadCount,
+        threadNamePrefix);
+    poller->Start();
+    return poller;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

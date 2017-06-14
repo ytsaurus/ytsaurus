@@ -5,6 +5,7 @@ from yt.environment.helpers import assert_almost_equal
 from yt_commands import *
 
 import time
+from datetime import datetime, timedelta
 import __builtin__
 
 import os
@@ -60,13 +61,21 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     }
 
     def test_revive(self):
+        def get_connection_time():
+            return datetime.strptime(get("//sys/scheduler/@connection_time"), "%Y-%m-%dT%H:%M:%S.%fZ")
+
         self._prepare_tables()
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 3")
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 4")
 
-        time.sleep(2)
+        time.sleep(3)
+
+        assert datetime.utcnow() - get_connection_time() > timedelta(seconds=3)
+
         self.Env.kill_schedulers()
         self.Env.start_schedulers()
+
+        assert datetime.utcnow() - get_connection_time() < timedelta(seconds=3)
 
         op.track()
 
@@ -317,10 +326,10 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             result = max(result, value["value"])
         return result
 
-    def _get_operation_last_metric_value(self, metric_key, pool, child_index):
+    def _get_operation_last_metric_value(self, metric_key, pool, slot_index):
         results = []
         for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/operations/" + metric_key, verbose=False)):
-            if value["tags"]["pool"] != pool or value["tags"]["child_index"] != str(child_index):
+            if value["tags"]["pool"] != pool or value["tags"]["slot_index"] != str(slot_index):
                 continue
             results.append((value["value"], value["time"]))
         last_metric = sorted(results, key=lambda x: x[1])[-1]
@@ -355,11 +364,11 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert op1.get_state() == "running"
         assert op2.get_state() == "running"
 
-        get_child_index = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/child_index".format(op_id))
+        get_slot_index = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/slot_index".format(op_id))
 
-        assert get_child_index(op1.id) == 0
-        assert get_child_index(op2.id) == 1
+        assert get_slot_index(op1.id) == 0
+        assert get_slot_index(op2.id) == 1
 
         range_ = (49999, 50000, 50001)
 
@@ -419,6 +428,53 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         op.track()
 
         assert sorted(read_table("//tmp/t_out")) == [{"foo": i} for i in xrange(10)]
+
+class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operation_time_limit_check_period" : 100,
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+            "profiling_update_period": 100,
+            "fair_share_profiling_period": 100,
+        }
+    }
+
+    def test_preserve_slot_index_after_revive(self):
+        self._create_table("//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": "y"}])
+
+        get_slot_index = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/slot_index".format(op_id))
+
+        for i in xrange(3):
+            self._create_table("//tmp/t_out_" + str(i))
+
+        op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_0", dont_track=True)
+        op2 = map(command="sleep 2; cat", in_="//tmp/t_in", out="//tmp/t_out_1", dont_track=True)
+        op3 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", dont_track=True)
+
+        assert get_slot_index(op1.id) == 0
+        assert get_slot_index(op2.id) == 1
+        assert get_slot_index(op3.id) == 2
+
+        op2.track()  # this makes slot index 1 available again since operation is completed
+
+        self.Env.kill_schedulers()
+        self.Env.start_schedulers()
+
+        time.sleep(2.0)
+
+        assert get_slot_index(op1.id) == 0
+        assert get_slot_index(op3.id) == 2
+
+        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", dont_track=True)
+
+        assert get_slot_index(op2.id) == 1
 
 class TestSchedulerFunctionality2(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 3
@@ -2622,7 +2678,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "enable_fail_controller_spec_option": True,
+            "enable_controller_failure_spec_option": True,
         },
         "core_dumper": {
             "component_name": "",
@@ -2631,7 +2687,8 @@ class TestSafeAssertionsMode(YTEnvSetup):
     }
 
     @unix_only
-    def test_failed_assertion_inside_controller(self):
+    @pytest.mark.parametrize("controller_failure", ["assertion_failure_in_prepare", "exception_thrown_in_on_job_completed"])
+    def test_assertion_failure_in_prepare(self, controller_failure):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
         create("table", "//tmp/t_out")
@@ -2639,11 +2696,11 @@ class TestSafeAssertionsMode(YTEnvSetup):
             dont_track=True,
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"fail_controller": True},
+            spec={"testing": {"controller_failure": controller_failure}},
             command="cat")
-        with pytest.raises(YtError):
+        with pytest.raises(YtError) as excinfo:
             op.track()
-
+        print >>sys.stderr, str(excinfo.value)
 
 class TestMaxTotalSliceCount(YTEnvSetup):
     NUM_MASTERS = 1

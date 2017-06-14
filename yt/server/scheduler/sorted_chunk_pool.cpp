@@ -1084,7 +1084,6 @@ public:
         , JobSizeConstraints_(options.JobSizeConstraints)
         , SupportLocality_(options.SupportLocality)
         , OperationId_(options.OperationId)
-        , EnablePeriodicYielder_(options.SortedJobOptions.EnablePeriodicYielder)
     {
         ForeignStripeCookiesByStreamIndex_.resize(InputStreamDirectory_.GetDescriptorCount());
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
@@ -1397,8 +1396,6 @@ private:
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
-    bool EnablePeriodicYielder_;
-
     TOutputDataSliceRegistry Registry_;
 
     void InitInputChunkMapping()
@@ -1469,7 +1466,8 @@ private:
 
             // We additionally slice maniac slices by evenly by row indices.
             auto chunk = chunkSlice->GetInputChunk();
-            if (chunk->IsCompleteChunk() &&
+            if (!EnableKeyGuarantee_ &&
+                chunk->IsCompleteChunk() &&
                 CompareRows(chunk->BoundaryKeys()->MinKey, chunk->BoundaryKeys()->MaxKey, PrimaryPrefixLength_) == 0 &&
                 chunkSlice->GetDataSize() > JobSizeConstraints_->GetInputSliceDataSize())
             {
@@ -1692,7 +1690,7 @@ private:
 
     TPeriodicYielder CreatePeriodicYielder()
     {
-        if (EnablePeriodicYielder_) {
+        if (SortedJobOptions_.EnablePeriodicYielder) {
             return TPeriodicYielder(PrepareYieldPeriod);
         } else {
             return TPeriodicYielder();

@@ -118,7 +118,7 @@ class TOperationControllerBase
     // Welcome to the beautiful world of preprocessor!
 #define VERIFY_PASTER(affinity) VERIFY_ ## affinity
 #define VERIFY_EVALUATOR(affinity) VERIFY_PASTER(affinity)
-#define IMPLEMENT_SAFE_METHOD(returnType, method, signature, args, affinity, defaultValue) \
+#define IMPLEMENT_SAFE_METHOD(returnType, method, signature, args, affinity, catchStdException, defaultValue) \
 public: \
     virtual returnType method signature final \
     { \
@@ -129,28 +129,34 @@ public: \
         } catch (const TAssertionFailedException& ex) { \
             FailOperation(ex); \
             return defaultValue; \
+        } catch (const std::exception& ex) { \
+            if (catchStdException) { \
+                FailOperation(ex); \
+                return defaultValue; \
+            } \
+            throw; \
         } \
     } \
 private: \
     returnType Safe ## method signature;
 
-#define IMPLEMENT_SAFE_VOID_METHOD(method, signature, args, affinity) \
-    IMPLEMENT_SAFE_METHOD(void, method, signature, args, affinity, )
+#define IMPLEMENT_SAFE_VOID_METHOD(method, signature, args, affinity, catchStdException) \
+    IMPLEMENT_SAFE_METHOD(void, method, signature, args, affinity, catchStdException, )
 
-    IMPLEMENT_SAFE_VOID_METHOD(Prepare, (), (), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(Materialize, (), (), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(Revive, (), (), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(Prepare, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
+    IMPLEMENT_SAFE_VOID_METHOD(Materialize, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
+    IMPLEMENT_SAFE_VOID_METHOD(Revive, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
 
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (const TJobId& jobId, TInstant startTime), (jobId, startTime), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<TJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker))
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobStarted, (const TJobId& jobId, TInstant startTime), (jobId, startTime), INVOKER_AFFINITY(CancelableInvoker), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobCompleted, (std::unique_ptr<TCompletedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobFailed, (std::unique_ptr<TFailedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
+    IMPLEMENT_SAFE_VOID_METHOD(OnJobRunning, (std::unique_ptr<TJobSummary> jobSummary), (std::move(jobSummary)), INVOKER_AFFINITY(CancelableInvoker), true)
 
-    IMPLEMENT_SAFE_VOID_METHOD(Commit, (), (), INVOKER_AFFINITY(CancelableInvoker))
-    IMPLEMENT_SAFE_VOID_METHOD(Abort, (), (), THREAD_AFFINITY(ControlThread))
-    IMPLEMENT_SAFE_VOID_METHOD(Forget, (), (), THREAD_AFFINITY(ControlThread))
-    IMPLEMENT_SAFE_VOID_METHOD(Complete, (), (), THREAD_AFFINITY(ControlThread))
+    IMPLEMENT_SAFE_VOID_METHOD(Commit, (), (), INVOKER_AFFINITY(CancelableInvoker), false)
+    IMPLEMENT_SAFE_VOID_METHOD(Abort, (), (), THREAD_AFFINITY(ControlThread), false)
+    IMPLEMENT_SAFE_VOID_METHOD(Forget, (), (), THREAD_AFFINITY(ControlThread), false)
+    IMPLEMENT_SAFE_VOID_METHOD(Complete, (), (), THREAD_AFFINITY(ControlThread), false)
 
     IMPLEMENT_SAFE_METHOD(
         TScheduleJobResultPtr,
@@ -158,6 +164,7 @@ private: \
         (ISchedulingContextPtr context, const TJobResources& jobLimits),
         (context, jobLimits),
         INVOKER_AFFINITY(CancelableInvoker),
+        true,
         New<TScheduleJobResult>())
 
     //! Callback called by TChunkScraper when get information on some chunk.
@@ -165,14 +172,16 @@ private: \
         OnInputChunkLocated,
         (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas),
         (chunkId, replicas),
-        THREAD_AFFINITY_ANY())
+        THREAD_AFFINITY_ANY(),
+        false)
 
     //! Called by #IntermediateChunkScraper.
     IMPLEMENT_SAFE_VOID_METHOD(
         OnIntermediateChunkLocated,
         (const NChunkClient::TChunkId& chunkId, const NChunkClient::TChunkReplicaList& replicas),
         (chunkId, replicas),
-        THREAD_AFFINITY_ANY())
+        THREAD_AFFINITY_ANY(),
+        false)
 
 public:
     // These are "pure" interface methods, i. e. those that do not involve YCHECKs.
@@ -1071,7 +1080,6 @@ protected:
     void InitFinalOutputConfig(TJobIOConfigPtr config);
 
     static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(TJobIOConfigPtr ioConfig);
-    static NTableClient::TTableReaderOptionsPtr CreateIntermediateTableReaderOptions();
 
     void ValidateUserFileCount(TUserJobSpecPtr spec, const TString& operation);
 
@@ -1225,6 +1233,7 @@ private:
 
     //! An internal helper for invoking OnOperationFailed with an error
     //! built by data from `ex`.
+    void FailOperation(const std::exception& ex);
     void FailOperation(const TAssertionFailedException& ex);
 };
 

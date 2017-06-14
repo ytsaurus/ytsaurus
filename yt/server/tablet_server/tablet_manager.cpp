@@ -1935,11 +1935,15 @@ private:
         for (auto& tabletInfo : request->tablets()) {
             auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
             auto* tablet = FindTablet(tabletId);
-            if (!IsObjectAlive(tablet) || tablet->GetState() != ETabletState::Mounted) {
+            if (!IsObjectAlive(tablet) || tablet->GetState() == ETabletState::Unmounted) {
                 continue;
             }
 
             auto* cell = tablet->GetCell();
+            if (!IsObjectAlive(cell) || expectedCells.find(cell) == expectedCells.end()) {
+                continue;
+            }
+
             cell->TotalStatistics() -= GetTabletStatistics(tablet);
             tablet->NodeStatistics() = tabletInfo.statistics();
             cell->TotalStatistics() += GetTabletStatistics(tablet);

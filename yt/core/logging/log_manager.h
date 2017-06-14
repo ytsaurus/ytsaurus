@@ -27,8 +27,10 @@ public:
 
     virtual void Shutdown() override;
 
+    const TLoggingCategory* GetCategory(const char* categoryName);
+    void UpdateCategory(const TLoggingCategory* category);
+
     int GetVersion() const;
-    ELogLevel GetMinLevel(const TString& category) const;
 
     void Enqueue(TLogEvent&& event);
 

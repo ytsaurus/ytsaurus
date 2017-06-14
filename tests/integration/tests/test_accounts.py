@@ -740,7 +740,12 @@ class TestAccounts(YTEnvSetup):
         chunk_list_id = get("//tmp/t/@chunk_list_id")
         assert get("//tmp/t/@resource_usage/disk_space_per_medium/default") == \
                get("#{0}/@statistics/erasure_disk_space".format(chunk_list_id))
-        
+
+    
+    def test_create_with_invalid_attrs_yt_7093(self):
+        with pytest.raises(YtError):create_account("x", attributes={"resource_limits": 123})
+        assert not exists("//sys/accounts/x")
+
 ##################################################################
 
 class TestAccountsMulticell(TestAccounts):

@@ -338,7 +338,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TMedium* medium, TTransaction* transaction) override;
 
-    virtual void DoDestroyObject(TMedium* medium) override;
+    virtual void DoZombifyObject(TMedium* medium) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -931,35 +931,9 @@ public:
             priority);
     }
 
-    TMedium* DoCreateMedium(
-        const TMediumId& id,
-        int mediumIndex,
-        const TString& name,
-        TNullable<bool> transient,
-        TNullable<bool> cache,
-        TNullable<int> priority)
+    void DestroyMedium(TMedium* medium)
     {
-        auto mediumHolder = std::make_unique<TMedium>(id);
-        mediumHolder->SetName(name);
-        mediumHolder->SetIndex(mediumIndex);
-        if (transient) {
-            mediumHolder->SetTransient(*transient);
-        }
-        if (cache) {
-            mediumHolder->SetCache(*cache);
-        }
-        if (priority) {
-            ValidateMediumPriority(*priority);
-            mediumHolder->SetPriority(*priority);
-        }
-
-        auto* medium = MediumMap_.Insert(id, std::move(mediumHolder));
-        RegisterMedium(medium);
-
-        // Make the fake reference.
-        YCHECK(medium->RefObject() == 1);
-
-        return medium;
+        UnregisterMedium(medium);
     }
 
     void RenameMedium(TMedium* medium, const TString& newName)
@@ -994,16 +968,6 @@ public:
         ValidateMediumPriority(priority);
 
         medium->SetPriority(priority);
-    }
-
-    int GetFreeMediumIndex()
-    {
-        for (int index = 0; index < MaxMediumCount; ++index) {
-            if (!UsedMediumIndexes_[index]) {
-                return index;
-            }
-        }
-        Y_UNREACHABLE();
     }
 
     TMedium* FindMediumByName(const TString& name) const
@@ -2423,17 +2387,69 @@ private:
     }
 
 
+    int GetFreeMediumIndex()
+    {
+        for (int index = 0; index < MaxMediumCount; ++index) {
+            if (!UsedMediumIndexes_[index]) {
+                return index;
+            }
+        }
+        Y_UNREACHABLE();
+    }
+
+    TMedium* DoCreateMedium(
+        const TMediumId& id,
+        int mediumIndex,
+        const TString& name,
+        TNullable<bool> transient,
+        TNullable<bool> cache,
+        TNullable<int> priority)
+    {
+        auto mediumHolder = std::make_unique<TMedium>(id);
+        mediumHolder->SetName(name);
+        mediumHolder->SetIndex(mediumIndex);
+        if (transient) {
+            mediumHolder->SetTransient(*transient);
+        }
+        if (cache) {
+            mediumHolder->SetCache(*cache);
+        }
+        if (priority) {
+            ValidateMediumPriority(*priority);
+            mediumHolder->SetPriority(*priority);
+        }
+
+        auto* medium = MediumMap_.Insert(id, std::move(mediumHolder));
+        RegisterMedium(medium);
+
+        // Make the fake reference.
+        YCHECK(medium->RefObject() == 1);
+
+        return medium;
+    }
+
     void RegisterMedium(TMedium* medium)
     {
         YCHECK(NameToMediumMap_.emplace(medium->GetName(), medium).second);
 
         auto mediumIndex = medium->GetIndex();
-
         YCHECK(!UsedMediumIndexes_[mediumIndex]);
         UsedMediumIndexes_.set(mediumIndex);
 
         YCHECK(!IndexToMediumMap_[mediumIndex]);
         IndexToMediumMap_[mediumIndex] = medium;
+    }
+
+    void UnregisterMedium(TMedium* medium)
+    {
+        YCHECK(NameToMediumMap_.erase(medium->GetName()) == 1);
+
+        auto mediumIndex = medium->GetIndex();
+        YCHECK(UsedMediumIndexes_[mediumIndex]);
+        UsedMediumIndexes_.reset(mediumIndex);
+
+        YCHECK(IndexToMediumMap_[mediumIndex] == medium);
+        IndexToMediumMap_[mediumIndex] = nullptr;
     }
 
     static void ValidateMediumName(const TString& name)
@@ -2553,9 +2569,12 @@ TObjectBase* TChunkManager::TMediumTypeHandler::CreateObject(
     return Owner_->CreateMedium(name, transient, cache, priority, hintId);
 }
 
-void TChunkManager::TMediumTypeHandler::DoDestroyObject(TMedium* /*medium*/)
+void TChunkManager::TMediumTypeHandler::DoZombifyObject(TMedium* medium)
 {
-    Y_UNREACHABLE();
+    // NB: Destroying arbitrary media is not currently supported.
+    // This handler, however, is needed to destroy just-created media
+    // for which attribute initialization has failed.
+    Owner_->DestroyMedium(medium);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

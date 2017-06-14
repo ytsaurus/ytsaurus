@@ -1,10 +1,7 @@
 #include "framework.h"
 
-#include <yt/ytlib/shutdown.h>
+#include <yt/core/misc/shutdown.h>
 #include <yt/core/logging/log_manager.h>
-
-// XXX(sandello): This is a dirty hack. :(
-#include <yt/server/hydra/private.h>
 
 class TYTEnvironment
     : public ::testing::Environment
@@ -17,8 +14,6 @@ public:
 
     virtual void TearDown() override
     {
-        // TODO(sandello): Replace me with a better shutdown mechanism.
-        NYT::NHydra::ShutdownHydraIOInvoker();
         NYT::Shutdown();
     }
 };

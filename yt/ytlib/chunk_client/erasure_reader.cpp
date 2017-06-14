@@ -21,6 +21,7 @@
 #include <yt/core/erasure/helpers.h>
 
 #include <numeric>
+#include <yt/core/misc/checksum.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -672,18 +673,19 @@ public:
         , Writers_(writers)
         , WorkloadDescriptor_(workloadDescriptor)
         , OnProgress_(std::move(onProgress))
+        , ErasedIndices_(erasedIndices)
     {
         YCHECK(erasedIndices.size() == writers.size());
 
         for (int i = 0; i < erasedIndices.size(); ++i) {
-            IndexToWriter_[erasedIndices[i]] = writers[i];
+            PartIndexToWriterIndex_[erasedIndices[i]] = i;
         }
     }
 
     TFuture<void> Run()
     {
         // Check if any blocks are missing at all.
-        if (IndexToWriter_.empty()) {
+        if (PartIndexToWriterIndex_.empty()) {
             YCHECK(Readers_.empty());
             YCHECK(Writers_.empty());
             return VoidFuture;
@@ -713,19 +715,27 @@ private:
 
         // Repair all blocks with the help of TRepairReader and push them to the
         // corresponding writers.
+        std::vector<std::vector<TChecksum>> partwiseBlockChecksums;
+        partwiseBlockChecksums.resize(Writers_.size());
+
         while (Reader_->HasNextBlock()) {
-            auto block = WaitFor(Reader_->RepairNextBlock())
+            auto repairedBlock = WaitFor(Reader_->RepairNextBlock())
                 .ValueOrThrow();
 
-            RepairedDataSize_ += block.Data.Size();
+            RepairedDataSize_ += repairedBlock.Data.Size();
 
             if (OnProgress_) {
                 double progress = static_cast<double>(RepairedDataSize_) / Reader_->GetErasedDataSize();
                 OnProgress_.Run(progress);
             }
 
-            auto writer = GetWriterForIndex(block.Index);
-            if (!writer->WriteBlock(TBlock(block.Data))) {
+            auto block = TBlock(repairedBlock.Data, GetChecksum(repairedBlock.Data));
+
+            auto writerIndex = PartIndexToWriterIndex_[repairedBlock.Index];
+            partwiseBlockChecksums[writerIndex].push_back(block.Checksum);
+            auto writer = Writers_[writerIndex];
+
+            if (!writer->WriteBlock(block)) {
                 WaitFor(writer->GetReadyEvent())
                     .ThrowOnError();
             }
@@ -735,6 +745,19 @@ private:
         auto reader = Readers_.front(); // an arbitrary one will do
         auto meta = WaitFor(reader->GetMeta(WorkloadDescriptor_))
             .ValueOrThrow();
+
+        // Validate parts checksums.
+        {
+            auto placementExt = GetProtoExtension<TErasurePlacementExt>(meta.extensions());
+            if (placementExt.part_checksums_size() > 0) {
+                for (auto partIndex : ErasedIndices_) {
+                    auto writerIndex = PartIndexToWriterIndex_[partIndex];
+                    auto checksum = CombineChecksums(partwiseBlockChecksums[writerIndex]);
+                    auto metaChecksum = placementExt.part_checksums(partIndex);
+                    YCHECK(metaChecksum == NullChecksum || checksum == metaChecksum);
+                }
+            }
+        }
 
         // Close all writers.
         {
@@ -747,21 +770,14 @@ private:
         }
     }
 
-    IChunkWriterPtr GetWriterForIndex(int index)
-    {
-        auto it = IndexToWriter_.find(index);
-        YCHECK(it != IndexToWriter_.end());
-        return it->second;
-    }
-
-
     const TRepairReaderPtr Reader_;
     const std::vector<IChunkReaderPtr> Readers_;
     const std::vector<IChunkWriterPtr> Writers_;
     const TWorkloadDescriptor WorkloadDescriptor_;
     const TRepairProgressHandler OnProgress_;
 
-    yhash<int, IChunkWriterPtr> IndexToWriter_;
+    TPartIndexList ErasedIndices_;
+    yhash<int, int> PartIndexToWriterIndex_;
 
     i64 RepairedDataSize_ = 0;
 
