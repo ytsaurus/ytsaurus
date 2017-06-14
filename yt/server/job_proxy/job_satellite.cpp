@@ -63,11 +63,12 @@ using NJobTrackerClient::TJobId;
 using NYson::TYsonString;
 using NJobProberClient::IJobProbe;
 
-static NLogging::TLogger Logger("JobSatellite");
+static const NLogging::TLogger JobSatelliteLogger("JobSatellite");
+static const auto& Logger = JobSatelliteLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TJobProbeTools)
+DECLARE_REFCOUNTED_CLASS(TJobProbeTools)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,7 +128,12 @@ class TJobProbeTools
 {
 public:
     ~TJobProbeTools();
-    static TJobProbeToolsPtr Create(const TJobId& jobId, pid_t rootPid, int uid, const std::vector<Stroka>& env, bool useContainer);
+    static TJobProbeToolsPtr Create(
+        const TJobId& jobId,
+        pid_t rootPid,
+        int uid,
+        const std::vector<Stroka>& env,
+        bool useContainer);
 
     TYsonString StraceJob();
     void SignalJob(const Stroka& signalName);
@@ -154,6 +160,8 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProbeTools)
+
+////////////////////////////////////////////////////////////////////////////////
 
 TJobProbeTools::TJobProbeTools(
     pid_t rootPid,
@@ -292,7 +300,12 @@ class TJobSatelliteWorker
     : public IJobProbe
 {
 public:
-    TJobSatelliteWorker(pid_t rootPid, int uid, const std::vector<Stroka>& env, const TJobId& jobId, bool useContainer);
+    TJobSatelliteWorker(
+        pid_t rootPid,
+        int uid,
+        const std::vector<Stroka>& env,
+        const TJobId& jobId,
+        bool useContainer);
     void GracefulShutdown(const TError& error);
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
@@ -310,6 +323,8 @@ private:
     const TJobId JobId_;
     const bool UseContainer_;
 
+    const NLogging::TLogger Logger;
+
     TJobProbeToolsPtr JobProbe_;
 
     void EnsureJobProbe();
@@ -326,9 +341,10 @@ TJobSatelliteWorker::TJobSatelliteWorker(
     , Env_(env)
     , JobId_(jobId)
     , UseContainer_(useContainer)
+    , Logger(NLogging::TLogger(JobSatelliteLogger)
+        .AddTag("JobId: %v", JobId_))
 {
     YCHECK(JobId_);
-    Logger.AddTag("JobId: %v", JobId_);
     LOG_DEBUG("Starting job satellite service");
 }
 
