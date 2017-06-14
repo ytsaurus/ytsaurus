@@ -25,7 +25,11 @@ struct TSafeAssertionsContext
     TAsyncSemaphorePtr CoreSemaphore;
 };
 
-TFls<TNullable<TSafeAssertionsContext>> SafeAssertionsContext;
+TNullable<TSafeAssertionsContext>& SafeAssertionsContext()
+{
+    static TFls<TNullable<TSafeAssertionsContext>> context;
+    return *context;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,28 +80,28 @@ void SetSafeAssertionsMode(TCoreDumperPtr coreDumper, TAsyncSemaphorePtr coreSem
     // throwing an exception (possibly, failing an innocent operation controller, or
     // something else). This behaviour is intended.
     YCHECK(!SafeAssertionsModeEnabled());
-    SafeAssertionsContext->Assign(TSafeAssertionsContext{std::move(coreDumper), std::move(coreSemaphore)});
+    SafeAssertionsContext().Assign(TSafeAssertionsContext{std::move(coreDumper), std::move(coreSemaphore)});
 }
 
 bool SafeAssertionsModeEnabled()
 {
-    return SafeAssertionsContext->HasValue();
+    return SafeAssertionsContext().HasValue();
 }
 
 TCoreDumperPtr GetSafeAssertionsCoreDumper()
 {
-    return SafeAssertionsContext->Get().CoreDumper;
+    return SafeAssertionsContext()->CoreDumper;
 }
 
 TAsyncSemaphorePtr GetSafeAssertionsCoreSemaphore()
 {
-    return SafeAssertionsContext->Get().CoreSemaphore;
+    return SafeAssertionsContext()->CoreSemaphore;
 }
 
 void ResetSafeAssertionsMode()
 {
     YCHECK(SafeAssertionsModeEnabled());
-    SafeAssertionsContext->Reset();
+    SafeAssertionsContext().Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

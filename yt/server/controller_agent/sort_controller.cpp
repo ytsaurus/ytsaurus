@@ -2426,7 +2426,6 @@ private:
         }
 
         auto intermediateReaderOptions = New<TTableReaderOptions>();
-        intermediateReaderOptions->AllowFetchingSeedsFromMaster = false;
 
         TJobSpec sortJobSpecTemplate;
         {

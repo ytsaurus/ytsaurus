@@ -21,6 +21,7 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/property.h>
+#include <yt/core/misc/small_set.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -170,6 +171,12 @@ private:
 
     TNullable<bool> Enabled_;
 
+    NProfiling::TCpuInstant InterDCEdgeCapacitiesLastUpdateTime = {};
+    // src DC -> dst DC -> data size
+    yhash<const NNodeTrackerServer::TDataCenter*, yhash<const NNodeTrackerServer::TDataCenter*, i64>> InterDCEdgeConsumption;
+    yhash<const NNodeTrackerServer::TDataCenter*, yhash<const NNodeTrackerServer::TDataCenter*, i64>> InterDCEdgeCapacities;
+    // Cached from the above fields.
+    yhash<const NNodeTrackerServer::TDataCenter*, SmallSet<const NNodeTrackerServer::TDataCenter*, NNodeTrackerServer::TypicalInterDCEdgeCount>> UnsaturatedInterDCEdges;
 
     void ProcessExistingJobs(
         TNode* node,
@@ -266,6 +273,12 @@ private:
 
     void AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes);
     void RemoveFromChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes);
+
+    void InitInterDCEdges();
+    void UpdateInterDCEdgeCapacities();
+    void UpdateUnsaturatedInterDCEdges();
+    void UpdateInterDCEdgeConsumption(const TJobPtr& job, int sizeMultiplier);
+    bool HasUnsaturatedInterDCEdgeStartingFrom(const NNodeTrackerServer::TDataCenter* srcDataCenter);
 
     void OnCheckEnabled();
     void OnCheckEnabledPrimary();

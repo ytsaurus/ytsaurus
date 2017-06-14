@@ -48,7 +48,7 @@ ui32 TSaveContext::FindId(void* basePtr, const std::type_info* typeInfo) const
     } else {
         const auto& entry = it->second;
         // Failure here means an attempt was made to serialize a polymorphic type
-        // not marked with TDynamicPhoenixBase.
+        // not marked with TDynamicTag.
         YCHECK(entry.TypeInfo == typeInfo);
         return entry.Id;
     }
