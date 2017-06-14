@@ -147,6 +147,7 @@ private:
     bool Started_ = false;
     std::deque<TTabletId> TabletIdQueue_;
     yhash_set<TTabletId> QueuedTabletIds_;
+    yhash_set<const TTablet*> TouchedTablets_;
 
     const NProfiling::TProfiler Profiler;
     NProfiling::TSimpleCounter MemoryMoveCounter_;
@@ -157,19 +158,25 @@ private:
     int MergeCount_ = 0;
     int SplitCount_ = 0;
 
+    bool BalanceCells_ = false;
+
     void Balance()
     {
         if (!Enabled_) {
             return;
         }
 
-        if (TabletIdQueue_.empty()) {
+        if (CheckActiveTabletActions()) {
+            return;
+        }
+
+        if (BalanceCells_) {
             BalanceTabletCells();
         } else {
-            PROFILE_TIMING("/balance_tablets") {
-                BalanceTablets();
-            }
+            BalanceTablets();
         }
+
+        BalanceCells_ = !BalanceCells_;
     }
 
     bool CheckActiveTabletActions()
@@ -192,10 +199,6 @@ private:
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         const auto& cells = tabletManager->TabletCells();
-
-        if (CheckActiveTabletActions()) {
-            return;
-        }
 
         if (cells.size() < 2) {
             return;
@@ -313,8 +316,22 @@ private:
         Profiler.Update(MemoryMoveCounter_, actionCount);
     }
 
-
     void BalanceTablets()
+    {
+        PROFILE_TIMING("/balance_tablets") {
+            DoBalanceTablets();
+        }
+
+        TouchedTablets_.clear();
+
+        Profiler.Update(QueueSizeCounter_, TabletIdQueue_.size());
+        Profiler.Update(MergeCounter_, MergeCount_);
+        Profiler.Update(SplitCounter_, SplitCount_);
+        MergeCount_ = 0;
+        SplitCount_ = 0;
+    }
+
+    void DoBalanceTablets()
     {
         // TODO(savrus) limit duration of single execution.
         const auto& tabletManager = Bootstrap_->GetTabletManager();
@@ -361,12 +378,6 @@ private:
                 SplitTablet(tablet);
             }
         }
-
-        Profiler.Update(QueueSizeCounter_, TabletIdQueue_.size());
-        Profiler.Update(MergeCounter_, MergeCount_);
-        Profiler.Update(SplitCounter_, SplitCount_);
-        MergeCount_ = 0;
-        SplitCount_ = 0;
     }
 
     i64 GetTabletSize(TTablet* tablet)
@@ -378,8 +389,17 @@ private:
             : statistics.MemorySize;
     }
 
+    bool IsTabletUntouched(TTablet* tablet)
+    {
+        return TouchedTablets_.find(tablet) == TouchedTablets_.end();
+    }
+
     void MergeTablet(TTablet* tablet)
     {
+        if (!IsTabletUntouched(tablet)) {
+            return;
+        }
+
         auto* table = tablet->GetTable();
 
         if (table->Tablets().size() == 1) {
@@ -398,20 +418,31 @@ private:
         int startIndex = tablet->GetIndex();
         int endIndex = tablet->GetIndex();
 
-        while (size < minSize && startIndex > 0) {
+        while (size < minSize &&
+            startIndex > 0 &&
+            IsTabletUntouched(table->Tablets()[startIndex - 1]))
+        {
             --startIndex;
             size += GetTabletSize(table->Tablets()[startIndex]);
         }
-        while (size < minSize && endIndex < table->Tablets().size() - 1) {
+        while (size < minSize &&
+            endIndex < table->Tablets().size() - 1 &&
+            IsTabletUntouched(table->Tablets()[endIndex + 1]))
+        {
             ++endIndex;
             size += GetTabletSize(table->Tablets()[endIndex]);
         }
 
         int newTabletCount = size == 0 ? 1 : DivCeil(size, desiredSize);
 
+        if (newTabletCount == endIndex - startIndex + 1) {
+            return;
+        }
+
         std::vector<TTabletId> tabletIds;
         for (int index = startIndex; index <= endIndex; ++index) {
             tabletIds.push_back(table->Tablets()[index]->GetId());
+            TouchedTablets_.insert(table->Tablets()[index]);
         }
 
         LOG_DEBUG("Tablet balancer would like to reshard tablets (TabletIds: %v, NewTabletCount: %v)",
@@ -431,6 +462,10 @@ private:
 
     void SplitTablet(TTablet* tablet)
     {
+        if (!IsTabletUntouched(tablet)) {
+            return;
+        }
+
         i64 desiredSize = tablet->GetInMemoryMode() == EInMemoryMode::None
             ? Config_->DesiredTabletSize
             : Config_->DesiredInMemoryTabletSize;
@@ -444,6 +479,8 @@ private:
         LOG_DEBUG("Tablet balancer would like to reshard tablet (TabletId: %v, NewTabletCount: %v)",
             tablet->GetId(),
             newTabletCount);
+
+        TouchedTablets_.insert(tablet);
 
         TReqCreateTabletAction request;
         request.set_kind(static_cast<int>(ETabletActionKind::Reshard));
