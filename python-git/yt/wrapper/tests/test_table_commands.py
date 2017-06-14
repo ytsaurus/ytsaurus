@@ -3,6 +3,7 @@ from __future__ import with_statement
 from .helpers import TEST_DIR, check, set_config_option, TESTS_SANDBOX
 
 import yt.wrapper.py_wrapper as py_wrapper
+from yt.wrapper.http_helpers import get_api_commands
 from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.common import parse_bool
 from yt.local import start, stop
@@ -584,6 +585,10 @@ class TestTableCommands(object):
         mode = yt.config["backend"]
         if mode != "native":
             mode = yt.config["api_version"]
+
+        commands = get_api_commands()
+        if "alter_table_replica" not in commands:
+            pytest.skip()
 
         test_name = "TestYtWrapper" + mode.capitalize()
         dir = os.path.join(TESTS_SANDBOX, test_name)
