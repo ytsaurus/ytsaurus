@@ -289,7 +289,7 @@ class YtStuff(object):
                 stderr=self.yt_local_err,
             )
             # Wait until special file will appear. It means that yt_local had been started. See YT-4425 for details.
-            MAX_WAIT_TIME, SLEEP_TIME = 60, 0.1 # in seconds
+            MAX_WAIT_TIME, SLEEP_TIME = 600, 0.1 # in seconds
             NUM_TRIES = int(MAX_WAIT_TIME / SLEEP_TIME)
             for i in xrange(NUM_TRIES):
                 if os.path.lexists(special_file):
