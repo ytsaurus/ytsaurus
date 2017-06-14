@@ -60,13 +60,11 @@ public:
     const Stroka& GetContext() const;
 
 private:
-    const char* CategoryName_;
+    TLogManager* LogManager_;
+    const TLoggingCategory* Category_;
+
     Stroka Context_;
 
-    mutable TLogManager* CachedLogManager_;
-    mutable const TLoggingCategory* CachedCategory_;
-
-    TLogManager* GetLogManager() const;
     static Stroka GetMessageWithContext(const Stroka& originalMessage, const Stroka& context);
 
 };

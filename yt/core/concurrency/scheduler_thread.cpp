@@ -261,7 +261,7 @@ void TSchedulerThread::FiberMain(ui64 spawnedEpoch)
     }
 
     {
-        auto createdFibers = CreatedFibersCounter_.Current.load();
+        auto createdFibers = CreatedFibersCounter_.GetCurrent();
         auto aliveFibers = Profiler.Increment(AliveFibersCounter_, -1);
         LOG_TRACE_IF(EnableLogging_, "Fiber finished (Name: %v, Created: %v, Alive: %v)",
             ThreadName_,

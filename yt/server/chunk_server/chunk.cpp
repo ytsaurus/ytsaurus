@@ -76,6 +76,18 @@ TClusterResources TChunk::GetResourceUsage() const
     return result;
 }
 
+i64 TChunk::GetPartDiskSpace() const
+{
+    auto result = ChunkInfo_.disk_space();
+    auto codecId = GetErasureCodec();
+    if (codecId != NErasure::ECodec::None) {
+        auto* codec = NErasure::GetCodec(codecId);
+        result /= codec->GetTotalPartCount();
+    }
+
+    return result;
+}
+
 void TChunk::Save(NCellMaster::TSaveContext& context) const
 {
     TChunkTree::Save(context);

@@ -130,7 +130,8 @@ public:
         : THydraServiceBase(
             controlInvoker,
             THydraServiceProxy::GetDescriptor(),
-            HydraLogger,
+            NLogging::TLogger(HydraLogger)
+                .AddTag("CellId: %v", cellManager->GetCellId()),
             cellManager->GetCellId())
         , Config_(config)
         , RpcServer_(rpcServer)
@@ -146,8 +147,6 @@ public:
     {
         VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
         VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
-
-        Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 
         DecoratedAutomaton_ = New<TDecoratedAutomaton>(
             Config_,

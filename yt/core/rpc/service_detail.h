@@ -584,7 +584,7 @@ protected:
     virtual std::vector<Stroka> SuggestAddresses();
 
 protected:
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
 private:
     const IInvokerPtr DefaultInvoker_;

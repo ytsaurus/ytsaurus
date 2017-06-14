@@ -1191,7 +1191,6 @@ protected:
     void InitFinalOutputConfig(NScheduler::TJobIOConfigPtr config);
 
     static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(NScheduler::TJobIOConfigPtr ioConfig);
-    static NTableClient::TTableReaderOptionsPtr CreateIntermediateTableReaderOptions();
 
     void ValidateUserFileCount(NScheduler::TUserJobSpecPtr spec, const Stroka& operation);
 

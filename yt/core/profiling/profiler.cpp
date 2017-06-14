@@ -29,8 +29,8 @@ TTagIdList& operator += (TTagIdList& a, const TTagIdList& b)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTimer::TTimer()
-    : Start(0)
-    , LastCheckpoint(0)
+    : Start_(0)
+    , LastCheckpoint_(0)
 { }
 
 TTimer::TTimer(
@@ -38,11 +38,11 @@ TTimer::TTimer(
     TCpuInstant start,
     ETimerMode mode,
     const TTagIdList& tagIds)
-    : Path(path)
-    , Start(start)
-    , LastCheckpoint(0)
-    , Mode(mode)
-    , TagIds(tagIds)
+    : Path_(path)
+    , Start_(start)
+    , LastCheckpoint_(0)
+    , Mode_(mode)
+    , TagIds_(tagIds)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,10 +51,11 @@ TCounterBase::TCounterBase(
     const TYPath& path,
     const TTagIdList& tagIds,
     TDuration interval)
-    : Path(path)
-    , TagIds(tagIds)
-    , Interval(DurationToCpuDuration(interval))
-    , Deadline(0)
+    : Path_(path)
+    , TagIds_(tagIds)
+    , Interval_(DurationToCpuDuration(interval))
+    , Deadline_(0)
+    , Current_(0)
 { }
 
 TCounterBase::TCounterBase(const TCounterBase& other)
@@ -64,11 +65,17 @@ TCounterBase::TCounterBase(const TCounterBase& other)
 
 TCounterBase& TCounterBase::operator=(const TCounterBase& other)
 {
-    Path = other.Path;
-    TagIds = other.TagIds;
-    Interval = other.Interval;
-    Deadline = 0;
+    Path_ = other.Path_;
+    TagIds_ = other.TagIds_;
+    Interval_ = other.Interval_;
+    Deadline_ = 0;
+    Current_ = other.Current_.load(std::memory_order_relaxed);
     return *this;
+}
+
+TValue TCounterBase::GetCurrent() const
+{
+    return Current_.load(std::memory_order_relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,15 +86,13 @@ TAggregateCounter::TAggregateCounter(
     EAggregateMode mode,
     TDuration interval)
     : TCounterBase(path, tagIds, interval)
-    , Mode(mode)
-    , Current(0)
+    , Mode_(mode)
 {
     Reset();
 }
 
 TAggregateCounter::TAggregateCounter(const TAggregateCounter& other)
     : TCounterBase(other)
-    , Current(0)
 {
     *this = other;
     Reset();
@@ -96,17 +101,16 @@ TAggregateCounter::TAggregateCounter(const TAggregateCounter& other)
 TAggregateCounter& TAggregateCounter::operator=(const TAggregateCounter& other)
 {
     static_cast<TCounterBase&>(*this) = static_cast<const TCounterBase&>(other);
-    Current = other.Current;
     Reset();
     return *this;
 }
 
 void TAggregateCounter::Reset()
 {
-    Min = std::numeric_limits<TValue>::max();
-    Max = std::numeric_limits<TValue>::min();
-    Sum = 0;
-    SampleCount = 0;
+    Min_ = std::numeric_limits<TValue>::max();
+    Max_ = std::numeric_limits<TValue>::min();
+    Sum_ = 0;
+    SampleCount_ = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,7 +120,6 @@ TSimpleCounter::TSimpleCounter(
     const TTagIdList& tagIds,
     TDuration interval)
     : TCounterBase(path, tagIds, interval)
-    , Current(0)
 { }
 
 TSimpleCounter::TSimpleCounter(const TSimpleCounter& other)
@@ -128,7 +131,6 @@ TSimpleCounter::TSimpleCounter(const TSimpleCounter& other)
 TSimpleCounter& TSimpleCounter::operator=(const TSimpleCounter& other)
 {
     static_cast<TCounterBase&>(*this) = static_cast<const TCounterBase&>(other);
-    Current = other.Current.load();
     return *this;
 }
 
@@ -154,8 +156,9 @@ void TProfiler::Enqueue(
     EMetricType metricType,
     const TTagIdList& tagIds) const
 {
-    if (!Enabled_)
+    if (!Enabled_) {
         return;
+    }
 
     TQueuedSample sample;
     sample.Time = GetCpuInstant();
@@ -200,18 +203,18 @@ TDuration TProfiler::DoTimingStop(
     const TNullable<TTagIdList>& totalTagIds) const
 {
     // Failure here means that the timer was not started or already stopped.
-    Y_ASSERT(timer.Start != 0);
+    Y_ASSERT(timer.Start_ != 0);
 
     auto now = GetCpuInstant();
-    auto cpuDuration = now - timer.Start;
+    auto cpuDuration = now - timer.Start_;
     auto value = CpuDurationToValue(cpuDuration);
     Y_ASSERT(value >= 0);
 
-    auto path = key ? timer.Path + "/" + ToYPathLiteral(*key) : timer.Path;
-    auto tagIds = totalTagIds ? timer.TagIds + *totalTagIds : timer.TagIds;
+    auto path = key ? timer.Path_ + "/" + ToYPathLiteral(*key) : timer.Path_;
+    auto tagIds = totalTagIds ? timer.TagIds_ + *totalTagIds : timer.TagIds_;
     Enqueue(path, value, EMetricType::Gauge, tagIds);
 
-    timer.Start = 0;
+    timer.Start_ = 0;
 
     return CpuDurationToDuration(cpuDuration);
 }
@@ -236,30 +239,30 @@ TDuration TProfiler::DoTimingCheckpoint(
     const TNullable<TTagIdList>& checkpointTagIds) const
 {
     // Failure here means that the timer was not started or already stopped.
-    Y_ASSERT(timer.Start != 0);
+    Y_ASSERT(timer.Start_ != 0);
 
     auto now = GetCpuInstant();
 
     // Upon receiving the first checkpoint Simple timer
     // is automatically switched into Sequential.
-    if (timer.Mode == ETimerMode::Simple) {
-        timer.Mode = ETimerMode::Sequential;
+    if (timer.Mode_ == ETimerMode::Simple) {
+        timer.Mode_ = ETimerMode::Sequential;
     }
 
-    auto path = key ? timer.Path + "/" + ToYPathLiteral(*key) : timer.Path;
-    auto tagIds = checkpointTagIds ? timer.TagIds + *checkpointTagIds : timer.TagIds;
-    switch (timer.Mode) {
+    auto path = key ? timer.Path_ + "/" + ToYPathLiteral(*key) : timer.Path_;
+    auto tagIds = checkpointTagIds ? timer.TagIds_ + *checkpointTagIds : timer.TagIds_;
+    switch (timer.Mode_) {
         case ETimerMode::Sequential: {
-            auto lastCheckpoint = timer.LastCheckpoint == 0 ? timer.Start : timer.LastCheckpoint;
+            auto lastCheckpoint = timer.LastCheckpoint_ == 0 ? timer.Start_ : timer.LastCheckpoint_;
             auto duration = CpuDurationToValue(now - lastCheckpoint);
             Y_ASSERT(duration >= 0);
             Enqueue(path, duration, EMetricType::Gauge, tagIds);
-            timer.LastCheckpoint = now;
+            timer.LastCheckpoint_ = now;
             return CpuDurationToDuration(duration);
         }
 
         case ETimerMode::Parallel: {
-            auto duration = CpuDurationToValue(now - timer.Start);
+            auto duration = CpuDurationToValue(now - timer.Start_);
             Y_ASSERT(duration >= 0);
             Enqueue(path, duration, EMetricType::Gauge, tagIds);
             return CpuDurationToDuration(duration);
@@ -272,112 +275,141 @@ TDuration TProfiler::DoTimingCheckpoint(
 
 void TProfiler::Update(TAggregateCounter& counter, TValue value) const
 {
-    TGuard<TSpinLock> guard(counter.SpinLock);
-
-    if (IsCounterEnabled(counter)) {
-        DoUpdate(counter, value);
-    } else {
-        counter.Current = value;
-    }
+    counter.Current_ = value;
+    OnUpdated(counter, value);
 }
 
 TValue TProfiler::Increment(TAggregateCounter& counter, TValue delta) const
 {
-    TGuard<TSpinLock> guard(counter.SpinLock);
-
-    auto result = (counter.Current + delta);
-
-    if (IsCounterEnabled(counter)) {
-        DoUpdate(counter, counter.Current + delta);
-    } else {
-        counter.Current = result;
-    }
-
-    return result;
+    auto value = (counter.Current_ += delta);
+    OnUpdated(counter, value);
+    return value;
 }
 
 void TProfiler::Update(TSimpleCounter& counter, TValue value) const
 {
-    counter.Current = value;
-
-    if (IsCounterEnabled(counter)) {
-        OnUpdated(counter);
-    }
+    counter.Current_ = value;
+    OnUpdated(counter);
 }
 
 TValue TProfiler::Increment(TSimpleCounter& counter, TValue delta) const
 {
-    auto result = (counter.Current += delta);
-
-    if (IsCounterEnabled(counter)) {
-        OnUpdated(counter);
-    }
-
+    auto result = (counter.Current_ += delta);
+    OnUpdated(counter);
     return result;
 }
 
 bool TProfiler::IsCounterEnabled(const TCounterBase& counter) const
 {
-    return Enabled_ && !counter.Path.empty();
+    return Enabled_ && !counter.Path_.empty();
 }
 
-void TProfiler::DoUpdate(TAggregateCounter& counter, TValue value) const
+void TProfiler::OnUpdated(TAggregateCounter& counter, TValue value) const
 {
-    ++counter.SampleCount;
-    counter.Current = value;
-    counter.Min = std::min(counter.Min, value);
-    counter.Max = std::max(counter.Max, value);
-    counter.Sum += value;
-    auto now = GetCpuInstant();
-    if (now > counter.Deadline) {
-        auto min = counter.Min;
-        auto max = counter.Max;
-        auto avg = counter.Sum / counter.SampleCount;
-        counter.Reset();
-        counter.Deadline = now + counter.Interval;
-        switch (counter.Mode) {
-            case EAggregateMode::All:
-                Enqueue(counter.Path + "/min", min, EMetricType::Gauge, counter.TagIds);
-                Enqueue(counter.Path + "/max", max, EMetricType::Gauge, counter.TagIds);
-                Enqueue(counter.Path + "/avg", avg, EMetricType::Gauge, counter.TagIds);
-                break;
+    if (!IsCounterEnabled(counter)) {
+        return;
+    }
 
-            case EAggregateMode::Min:
-                Enqueue(counter.Path, min, EMetricType::Gauge, counter.TagIds);
-                break;
+    counter.SampleCount_ += 1;
+    counter.Sum_ += value;
 
-            case EAggregateMode::Max:
-                Enqueue(counter.Path, max, EMetricType::Gauge, counter.TagIds);
-                break;
+    auto mode = counter.Mode_;
 
-            case EAggregateMode::Avg:
-                Enqueue(counter.Path, avg, EMetricType::Gauge, counter.TagIds);
+    if (mode == EAggregateMode::All || mode == EAggregateMode::Min) {
+        while (true) {
+            auto min = counter.Min_.load(std::memory_order_relaxed);
+            if (min <= value) {
                 break;
-
-            default:
-                Y_UNREACHABLE();
+            }
+            if (counter.Min_.compare_exchange_weak(min, value)) {
+                break;
+            }
         }
+    }
+
+    if (mode == EAggregateMode::All || mode == EAggregateMode::Max) {
+        while (true) {
+            auto max = counter.Max_.load(std::memory_order_relaxed);
+            if (max >= value) {
+                break;
+            }
+            if (counter.Max_.compare_exchange_weak(max, value)) {
+                break;
+            }
+        }
+    }
+
+    auto now = GetCpuInstant();
+    if (now < counter.Deadline_.load(std::memory_order_relaxed)) {
+        return;
+    }
+
+    TGuard<TSpinLock> guard(counter.SpinLock_);
+
+    if (now < counter.Deadline_ || counter.SampleCount_ == 0) {
+        return;
+    }
+
+    auto sampleCount = counter.SampleCount_.load();
+    if (sampleCount == 0) {
+        return;
+    }
+
+    auto min = counter.Min_.load();
+    auto max = counter.Max_.load();
+    auto avg = counter.Sum_.load() / sampleCount;
+    counter.Reset();
+    counter.Deadline_ = now + counter.Interval_;
+
+    guard.Release();
+
+    switch (counter.Mode_) {
+        case EAggregateMode::All:
+            Enqueue(counter.Path_ + "/min", min, EMetricType::Gauge, counter.TagIds_);
+            Enqueue(counter.Path_ + "/max", max, EMetricType::Gauge, counter.TagIds_);
+            Enqueue(counter.Path_ + "/avg", avg, EMetricType::Gauge, counter.TagIds_);
+            break;
+
+        case EAggregateMode::Min:
+            Enqueue(counter.Path_, min, EMetricType::Gauge, counter.TagIds_);
+            break;
+
+        case EAggregateMode::Max:
+            Enqueue(counter.Path_, max, EMetricType::Gauge, counter.TagIds_);
+            break;
+
+        case EAggregateMode::Avg:
+            Enqueue(counter.Path_, avg, EMetricType::Gauge, counter.TagIds_);
+            break;
+
+        default:
+            Y_UNREACHABLE();
     }
 }
 
 void TProfiler::OnUpdated(TSimpleCounter& counter) const
 {
-    auto now = GetCpuInstant();
-    if (now < counter.Deadline)
+    if (!IsCounterEnabled(counter)) {
         return;
-
-    TValue sampleValue;
-    {
-        TGuard<TSpinLock> guard(counter.SpinLock);
-
-        if (now < counter.Deadline)
-            return;
-
-        sampleValue = counter.Current;
-        counter.Deadline = now + counter.Interval;
     }
 
-    Enqueue(counter.Path, sampleValue, EMetricType::Counter, counter.TagIds);
+    auto now = GetCpuInstant();
+    if (now < counter.Deadline_.load(std::memory_order_relaxed)) {
+        return;
+    }
+
+    TGuard<TSpinLock> guard(counter.SpinLock_);
+
+    if (now < counter.Deadline_) {
+        return;
+    }
+
+    auto current = counter.Current_.load();
+    counter.Deadline_ = now + counter.Interval_;
+
+    guard.Release();
+
+    Enqueue(counter.Path_, current, EMetricType::Counter, counter.TagIds_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
