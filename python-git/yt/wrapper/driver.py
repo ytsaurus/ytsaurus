@@ -1,7 +1,7 @@
 from . import http_driver
 from . import native_driver
 from .batch_response import apply_function_to_result
-from .common import bool_to_string, YtError, update
+from .common import YtError, update
 from .config import get_option, get_config, get_backend_type
 from .format import create_format
 
