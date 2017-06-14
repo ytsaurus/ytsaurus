@@ -16,7 +16,7 @@ public:
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     virtual NConcurrency::TThreadId GetThreadId() const override;
-    virtual bool CheckAffinity(IInvokerPtr invoker) const override;
+    virtual bool CheckAffinity(const IInvokerPtr& invoker) const override;
 #endif
 
 protected:

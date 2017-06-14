@@ -21,7 +21,7 @@ NConcurrency::TThreadId TInvokerWrapper::GetThreadId() const
     return UnderlyingInvoker_->GetThreadId();
 }
 
-bool TInvokerWrapper::CheckAffinity(IInvokerPtr invoker) const
+bool TInvokerWrapper::CheckAffinity(const IInvokerPtr& invoker) const
 {
     return
         invoker.Get() == this ||

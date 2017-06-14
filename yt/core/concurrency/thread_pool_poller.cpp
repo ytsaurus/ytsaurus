@@ -300,7 +300,7 @@ private:
             return InvalidThreadId;
         }
 
-        virtual bool CheckAffinity(IInvokerPtr /*invoker*/) const
+        virtual bool CheckAffinity(const IInvokerPtr& /*invoker*/) const
         {
             return true;
         }

@@ -2033,8 +2033,6 @@ public:
             }
         }
 
-        securityManager->UpdateAccountNodeUsage(table);
-
         // Replace root chunk list.
         table->SetChunkList(newRootChunkList);
         newRootChunkList->AddOwningNode(table);
@@ -2043,6 +2041,8 @@ public:
         objectManager->UnrefObject(oldRootChunkList);
 
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
+
+        securityManager->UpdateAccountNodeUsage(table);
     }
 
     void CloneTable(
@@ -3679,9 +3679,7 @@ private:
             if (!IsObjectAlive(cell)) {
                 continue;
             }
-            if (cell->GetCellBundle() == table->GetTabletCellBundle() &&
-                cell->GetHealth() == ETabletCellHealth::Good)
-            {
+            if (cell->GetCellBundle() == table->GetTabletCellBundle()) {
                 YCHECK(cellKeys.insert(TCellKey{getCellSize(cell), cell}).second);
             }
         }
