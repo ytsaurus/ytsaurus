@@ -27,7 +27,7 @@ public:
         return CreateChannel(address);
     }
 
-    virtual IChannelPtr CreateChannel(const Stroka& address) override
+    virtual IChannelPtr CreateChannel(const TString& address) override
     {
         return ChannelFactory_->CreateChannel(address);
     }

@@ -63,7 +63,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
     {
         auto* replica = GetThisImpl();
         auto* table = replica->GetTable();

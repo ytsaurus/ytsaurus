@@ -33,7 +33,7 @@ public:
         , Invoker_(std::move(invoker))
     { }
 
-    virtual TFuture<INodePtr> Call(const Stroka& method, const yhash<Stroka, Stroka>& params) override
+    virtual TFuture<INodePtr> Call(const TString& method, const yhash<TString, TString>& params) override
     {
         auto deadline = TInstant::Now() + Config_->RequestTimeout;
         return BIND(&TDefaultBlackboxService::DoCall, MakeStrong(this), method, params, deadline)
@@ -42,7 +42,7 @@ public:
     }
 
 private:
-    static std::pair<Stroka, Stroka> BuildUrl(const Stroka& method, const yhash<Stroka, Stroka>& params)
+    static std::pair<TString, TString> BuildUrl(const TString& method, const yhash<TString, TString>& params)
     {
         TStringBuilder realUrl;
         TStringBuilder safeUrl;
@@ -57,7 +57,7 @@ private:
             safeUrl.AppendChar(ch);
         };
 
-        auto appendParam = [&] (const Stroka& key, const Stroka& value) {
+        auto appendParam = [&] (const TString& key, const TString& value) {
             auto size = key.length() + 4 + CgiEscapeBufLen(value.length());
 
             char* realBegin = realUrl.Preallocate(size);
@@ -95,12 +95,12 @@ private:
         return std::make_pair(realUrl.Flush(), safeUrl.Flush());
     }
 
-    INodePtr DoCall(const Stroka& method, const yhash<Stroka, Stroka>& params, TInstant deadline)
+    INodePtr DoCall(const TString& method, const yhash<TString, TString>& params, TInstant deadline)
     {
-        auto host = AddSchemePrefix(Stroka(GetHost(Config_->Host)), Config_->Secure ? "https" : "http");
+        auto host = AddSchemePrefix(TString(GetHost(Config_->Host)), Config_->Secure ? "https" : "http");
         auto port = Config_->Port;
 
-        Stroka realUrl, safeUrl;
+        TString realUrl, safeUrl;
         std::tie(realUrl, safeUrl) = BuildUrl(method, params);
 
         ui64 callId = RandomNumber<ui64>();
@@ -169,15 +169,15 @@ private:
     INodePtr DoCallOnce(
         ui64 callId,
         int attempt,
-        const Stroka& host,
+        const TString& host,
         ui16 port,
-        const Stroka& realUrl,
-        const Stroka& safeUrl,
+        const TString& realUrl,
+        const TString& safeUrl,
         TInstant deadline)
     {
         auto timeout = std::min(deadline - TInstant::Now(), Config_->AttemptTimeout);
 
-        Stroka buffer;
+        TString buffer;
         INodePtr result;
 
         LOG_DEBUG(
@@ -229,10 +229,10 @@ private:
     const TDefaultBlackboxServiceConfigPtr Config_;
     const IInvokerPtr Invoker_;
 
-    static const yhash_set<Stroka> PrivateUrlParams_;
+    static const yhash_set<TString> PrivateUrlParams_;
 };
 
-const yhash_set<Stroka> TDefaultBlackboxService::PrivateUrlParams_ = {
+const yhash_set<TString> TDefaultBlackboxService::PrivateUrlParams_ = {
     "userip",
     "oauth_token",
     "sessionid",

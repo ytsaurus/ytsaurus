@@ -15,7 +15,7 @@ TChannelWrapper::TChannelWrapper(IChannelPtr underlyingChannel)
     Y_ASSERT(UnderlyingChannel_);
 }
 
-const Stroka& TChannelWrapper::GetEndpointDescription() const
+const TString& TChannelWrapper::GetEndpointDescription() const
 {
     return UnderlyingChannel_->GetEndpointDescription();
 }

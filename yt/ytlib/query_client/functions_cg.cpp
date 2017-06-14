@@ -30,7 +30,7 @@ static const char* FunctionContextStructName = "struct.NYT::NQueryClient::TFunct
 static const char* UnversionedValueStructName = "struct.TUnversionedValue";
 
 namespace {
-StringRef ToStringRef(const Stroka& stroka)
+StringRef ToStringRef(const TString& stroka)
 {
     return StringRef(stroka.c_str(), stroka.length());
 }
@@ -40,12 +40,12 @@ StringRef ToStringRef(const TSharedRef& sharedRef)
     return StringRef(sharedRef.Begin(), sharedRef.Size());
 }
 
-Stroka ToString(llvm::Type* tp)
+TString ToString(llvm::Type* tp)
 {
     std::string str;
     llvm::raw_string_ostream stream(str);
     tp->print(stream);
-    return Stroka(stream.str());
+    return TString(stream.str());
 }
 
 Type* GetOpaqueType(
@@ -93,7 +93,7 @@ void PushFunctionContext(
 
 void CheckCallee(
     TCGBaseContext& builder,
-    const Stroka& functionName,
+    const TString& functionName,
     llvm::Function* callee,
     llvm::FunctionType* functionType)
 {
@@ -152,7 +152,7 @@ TCGValue PropagateNullArguments(
     std::function<Value*(std::vector<Value*>)> codegenBody,
     std::function<TCGValue(Value*)> codegenReturn,
     EValueType type,
-    const Stroka& name,
+    const TString& name,
     TCGExprContext& builder,
     Value* row)
 {
@@ -195,7 +195,7 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
     std::vector<TCodegenExpression> codegenArgs,
     std::function<Value*(std::vector<Value*>, TCGExprContext&)> codegenBody,
     EValueType type,
-    const Stroka& name) const
+    const TString& name) const
 {
     std::reverse(codegenArgs.begin(), codegenArgs.end());
     return [
@@ -312,7 +312,7 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
     std::vector<TCodegenExpression> codegenArgs,
     std::function<Value*(std::vector<Value*>, TCGExprContext&)> codegenBody,
     EValueType type,
-    const Stroka& name) const
+    const TString& name) const
 {
     return [=] (TCGExprContext& builder, Value* row) {
         auto unversionedValueType =
@@ -462,8 +462,8 @@ ICallingConventionPtr GetCallingConvention(ECallingConvention callingConvention)
 
 void LoadLlvmBitcode(
     TCGBaseContext& builder,
-    const Stroka& functionName,
-    std::vector<Stroka> requiredSymbols,
+    const TString& functionName,
+    std::vector<TString> requiredSymbols,
     TSharedRef implementationFile)
 {
     auto diag = SMDiagnostic();
@@ -492,12 +492,12 @@ void LoadLlvmBitcode(
 
     for (auto& function : implModule->getFunctionList()) {
         auto name = function.getName();
-        auto nameStroka = Stroka(name.begin(), name.size());
-        if (builder.Module->SymbolIsLoaded(nameStroka)) {
+        auto nameString = TString(name.begin(), name.size());
+        if (builder.Module->SymbolIsLoaded(nameString)) {
             THROW_ERROR_EXCEPTION(
                 "LLVM bitcode for function %Qv redefines already defined symbol %Qv",
                 functionName,
-                nameStroka);
+                nameString);
         }
     }
 
@@ -525,8 +525,8 @@ void LoadLlvmBitcode(
 
 void LoadLlvmFunctions(
     TCGBaseContext& builder,
-    const Stroka& functionName,
-    std::vector<std::pair<Stroka, llvm::FunctionType*>> functions,
+    const TString& functionName,
+    std::vector<std::pair<TString, llvm::FunctionType*>> functions,
     TSharedRef implementationFile)
 {
     if (!implementationFile) {
@@ -537,7 +537,7 @@ void LoadLlvmFunctions(
         return;
     }
 
-    auto requiredSymbols = std::vector<Stroka>();
+    auto requiredSymbols = std::vector<TString>();
     for (auto function : functions) {
         requiredSymbols.push_back(function.first);
     }
@@ -568,7 +568,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
     std::vector<TCodegenExpression> codegenArgs,
     std::vector<EValueType> argumentTypes,
     EValueType type,
-    const Stroka& name,
+    const TString& name,
     llvm::FoldingSetNodeID* id) const
 {
     YCHECK(!ImplementationFile_.Empty());
@@ -615,7 +615,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     EValueType argumentType,
     EValueType stateType,
     EValueType resultType,
-    const Stroka& name,
+    const TString& name,
     llvm::FoldingSetNodeID* id) const
 {
     YCHECK(!ImplementationFile_.Empty());
@@ -638,7 +638,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         updateName,
         mergeName,
         finalizeName
-    ] (const Stroka& functionName) {
+    ] (const TString& functionName) {
         return [
             this_,
             argumentType,
@@ -650,7 +650,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             mergeName,
             finalizeName
         ] (std::vector<Value*> argumentValues, TCGExprContext& builder) {
-            auto aggregateFunctions = std::vector<std::pair<Stroka, llvm::FunctionType*>>();
+            auto aggregateFunctions = std::vector<std::pair<TString, llvm::FunctionType*>>();
 
             auto initType = this_->CallingConvention_->GetCalleeType(
                 builder,

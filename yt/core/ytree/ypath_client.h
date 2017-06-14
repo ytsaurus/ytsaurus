@@ -22,8 +22,8 @@ public:
     explicit TYPathRequest(const NRpc::NProto::TRequestHeader& header);
 
     TYPathRequest(
-        const Stroka& service,
-        const Stroka& method,
+        const TString& service,
+        const TString& method,
         const NYPath::TYPath& path,
         bool mutating);
 
@@ -31,11 +31,11 @@ public:
 
     virtual NRpc::TRequestId GetRequestId() const override;
     virtual NRpc::TRealmId GetRealmId() const override;
-    virtual const Stroka& GetMethod() const override;
-    virtual const Stroka& GetService() const override;
+    virtual const TString& GetMethod() const override;
+    virtual const TString& GetService() const override;
 
-    virtual const Stroka& GetUser() const;
-    virtual void SetUser(const Stroka& user);
+    virtual const TString& GetUser() const;
+    virtual void SetUser(const TString& user);
 
     virtual bool GetRetry() const override;
     virtual void SetRetry(bool value) override;
@@ -77,8 +77,8 @@ public:
     { }
 
     TTypedYPathRequest(
-        const Stroka& service,
-        const Stroka& method,
+        const TString& service,
+        const TString& method,
         const NYPath::TYPath& path,
         bool mutating)
         : TYPathRequest(
@@ -196,7 +196,7 @@ SyncExecuteVerb(
     const TIntrusivePtr<TTypedRequest>& request);
 
 //! Synchronously executes |GetKey| verb. Throws if an error has occurred.
-Stroka SyncYPathGetKey(
+TString SyncYPathGetKey(
     const IYPathServicePtr& service,
     const TYPath& path);
 
@@ -204,13 +204,13 @@ Stroka SyncYPathGetKey(
 TFuture<NYson::TYsonString> AsyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TNullable<std::vector<Stroka>>& attributeKeys = Null);
+    const TNullable<std::vector<TString>>& attributeKeys = Null);
 
 //! Synchronously executes |Get| verb. Throws if an error has occurred.
 NYson::TYsonString SyncYPathGet(
     const IYPathServicePtr& service,
     const TYPath& path,
-    const TNullable<std::vector<Stroka>>& attributeKeys = Null);
+    const TNullable<std::vector<TString>>& attributeKeys = Null);
 
 //! Asynchronously executes |Exists| verb.
 TFuture<bool> AsyncYPathExists(
@@ -236,13 +236,13 @@ void SyncYPathRemove(
     bool force = false);
 
 //! Synchronously executes |List| verb. Throws if an error has occurred.
-std::vector<Stroka> SyncYPathList(
+std::vector<TString> SyncYPathList(
     const IYPathServicePtr& service,
     const TYPath& path,
     TNullable<i64> limit = Null);
 
 //! Asynchronously executes |List| verb.
-TFuture<std::vector<Stroka>> AsyncYPathList(
+TFuture<std::vector<TString>> AsyncYPathList(
     const IYPathServicePtr& service,
     const TYPath& path,
     TNullable<i64> limit = Null);

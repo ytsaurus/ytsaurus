@@ -82,7 +82,7 @@ private:
         try {
             LOG_DEBUG("Started synchronizing cell directory");
 
-            yhash_map<TCellId, int> idToVersion;
+            yhash<TCellId, int> idToVersion;
             for (const auto& info : CellDirectory_->GetRegisteredCells()) {
                 YCHECK(idToVersion.emplace(info.CellId, info.ConfigVersion).second);
             }

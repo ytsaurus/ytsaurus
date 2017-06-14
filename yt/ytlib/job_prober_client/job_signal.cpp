@@ -9,9 +9,9 @@ namespace NJobProberClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<int> FindSignalIdBySignalName(const Stroka& signalName)
+TNullable<int> FindSignalIdBySignalName(const TString& signalName)
 {
-    static yhash<Stroka, int> SignalNameToNumber = {
+    static yhash<TString, int> SignalNameToNumber = {
         { "SIGHUP",  SIGHUP },
         { "SIGINT",  SIGINT },
         { "SIGALRM", SIGALRM },
@@ -26,7 +26,7 @@ TNullable<int> FindSignalIdBySignalName(const Stroka& signalName)
     return it == SignalNameToNumber.end() ? Null : MakeNullable(it->second);
 }
 
-void ValidateSignalName(const Stroka& signalName)
+void ValidateSignalName(const TString& signalName)
 {
     auto signal = FindSignalIdBySignalName(signalName);
     if (!signal.HasValue()) {

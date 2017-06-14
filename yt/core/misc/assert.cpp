@@ -45,7 +45,7 @@ void AssertTrapImpl(
 
     if (SafeAssertionsModeEnabled()) {
         auto semaphore = GetSafeAssertionsCoreSemaphore();
-        TNullable<Stroka> corePath;
+        TNullable<TString> corePath;
         if (auto semaphoreGuard = TAsyncSemaphoreGuard::TryAcquire(semaphore)) {
             try {
                 auto coreDump = GetSafeAssertionsCoreDumper()->WriteCoreDump({
@@ -62,7 +62,7 @@ void AssertTrapImpl(
         DumpStackTrace([&stackTrace] (const char* buffer, int length) {
             stackTrace.AppendString(TStringBuf(buffer, length));
         });
-        Stroka expression(formatter.GetData(), formatter.GetBytesWritten());
+        TString expression(formatter.GetData(), formatter.GetBytesWritten());
         throw TAssertionFailedException(std::move(expression), stackTrace.Flush(), std::move(corePath));
     } else {
         HandleEintr(::write, 2, formatter.GetData(), formatter.GetBytesWritten());

@@ -8,11 +8,11 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const Stroka AllPermissionsName("all");
+static const TString AllPermissionsName("all");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EPermissionSet ParsePermissions(const std::vector<Stroka>& items)
+EPermissionSet ParsePermissions(const std::vector<TString>& items)
 {
     auto result = NonePermissions;
     for (const auto& item : items) {
@@ -26,9 +26,9 @@ EPermissionSet ParsePermissions(const std::vector<Stroka>& items)
     return result;
 }
 
-std::vector<Stroka> FormatPermissions(EPermissionSet permissions)
+std::vector<TString> FormatPermissions(EPermissionSet permissions)
 {
-    std::vector<Stroka> result;
+    std::vector<TString> result;
     for (auto value : TEnumTraits<EPermission>::GetDomainValues()) {
         if ((permissions & value) != NonePermissions) {
             result.push_back(FormatEnum(value));

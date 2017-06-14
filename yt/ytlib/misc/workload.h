@@ -18,7 +18,7 @@ struct TWorkloadDescriptor
         EWorkloadCategory category = EWorkloadCategory::Idle,
         int band = 0,
         TInstant instant = TInstant::Zero(),
-        std::vector<Stroka> annotations = std::vector<Stroka>());
+        std::vector<TString> annotations = std::vector<TString>());
 
     //! The type of the workload defining its basic priority.
     EWorkloadCategory Category;
@@ -33,7 +33,7 @@ struct TWorkloadDescriptor
     TInstant Instant;
 
     //! Arbitrary client-supplied strings to be logged at server-side.
-    std::vector<Stroka> Annotations;
+    std::vector<TString> Annotations;
 
     //! Updates the instant field with the current time.
     TWorkloadDescriptor SetCurrentInstant() const;
@@ -49,7 +49,7 @@ void FormatValue(
     TStringBuilder* builder,
     const TWorkloadDescriptor& descriptor,
     const TStringBuf& format);
-Stroka ToString(const TWorkloadDescriptor& descriptor);
+TString ToString(const TWorkloadDescriptor& descriptor);
 
 void ToProto(NYT::NProto::TWorkloadDescriptor* protoDescriptor, const TWorkloadDescriptor& descriptor);
 void FromProto(TWorkloadDescriptor* descriptor, const NYT::NProto::TWorkloadDescriptor& protoDescriptor);

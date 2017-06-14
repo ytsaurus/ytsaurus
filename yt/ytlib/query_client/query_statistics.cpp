@@ -59,7 +59,7 @@ TQueryStatistics FromProto(const NProto::TQueryStatistics& serialized)
     return result;
 }
 
-Stroka ToString(const TQueryStatistics& stats)
+TString ToString(const TQueryStatistics& stats)
 {
     return Format(
         "{"

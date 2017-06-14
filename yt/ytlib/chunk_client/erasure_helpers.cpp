@@ -292,7 +292,7 @@ private:
     const IBlocksReaderPtr Reader_;
     const std::vector<TPartRange> BlockRanges_;
 
-    yhash_map<int, TSharedRef> RequestedBlocks_;
+    yhash<int, TSharedRef> RequestedBlocks_;
     TNullable<TPartRange> PreviousRange_;
 
     void OnBlocksRead(const std::vector<int>& indicesToRequest, const std::vector<TSharedRef>& blocks)

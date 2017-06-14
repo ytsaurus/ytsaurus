@@ -38,12 +38,12 @@ TTypeSet operator & (const TTypeSet& lhs, const TTypeSet& rhs) {
     return TTypeSet(lhs.Value_ & rhs.Value_);
 }
 
-Stroka ToString(const TTypeSet& typeSet)
+TString ToString(const TTypeSet& typeSet)
 {
     if (typeSet.GetSize() == 1) {
         return ToString(typeSet.GetFront());
     } else {
-        Stroka unionString = "one of { ";
+        TString unionString = "one of { ";
         bool isFirst = true;
         typeSet.ForEach([&] (EValueType type) {
             if (!isFirst) {

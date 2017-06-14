@@ -28,12 +28,12 @@ public:
         // One should extract tools into a separate binary!
         Opts_
             .AddLongOption("operation-id", "operation id")
-            .StoreMappedResultT<Stroka>(&OperationId_, &CheckGuidArgMapper)
+            .StoreMappedResultT<TString>(&OperationId_, &CheckGuidArgMapper)
             .RequiredArgument("ID")
             .Optional();
         Opts_
             .AddLongOption("job-id", "job id")
-            .StoreMappedResultT<Stroka>(&JobId_, &CheckGuidArgMapper)
+            .StoreMappedResultT<TString>(&JobId_, &CheckGuidArgMapper)
             .RequiredArgument("ID")
             .Optional();
     }

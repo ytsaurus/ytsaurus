@@ -43,7 +43,7 @@ private:
     TVariant<int, TBoundaryKeys> Key_;
 };
 
-Stroka ToString(const TOutputChunkTreeKey& key);
+TString ToString(const TOutputChunkTreeKey& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 

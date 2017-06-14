@@ -22,32 +22,32 @@ class TNodeDescriptor
 {
 public:
     TNodeDescriptor();
-    explicit TNodeDescriptor(const Stroka& defaultAddress);
-    explicit TNodeDescriptor(const TNullable<Stroka>& defaultAddress);
+    explicit TNodeDescriptor(const TString& defaultAddress);
+    explicit TNodeDescriptor(const TNullable<TString>& defaultAddress);
     explicit TNodeDescriptor(
         TAddressMap addresses,
-        TNullable<Stroka> rack = Null,
-        TNullable<Stroka> dc = Null);
+        TNullable<TString> rack = Null,
+        TNullable<TString> dc = Null);
 
     bool IsNull() const;
 
     const TAddressMap& Addresses() const;
 
-    const Stroka& GetDefaultAddress() const;
+    const TString& GetDefaultAddress() const;
 
-    const Stroka& GetAddress(const TNetworkPreferenceList& networks) const;
-    TNullable<Stroka> FindAddress(const TNetworkPreferenceList& networks) const;
+    const TString& GetAddress(const TNetworkPreferenceList& networks) const;
+    TNullable<TString> FindAddress(const TNetworkPreferenceList& networks) const;
 
-    const TNullable<Stroka>& GetRack() const;
-    const TNullable<Stroka>& GetDataCenter() const;
+    const TNullable<TString>& GetRack() const;
+    const TNullable<TString>& GetDataCenter() const;
 
     void Persist(const TStreamPersistenceContext& context);
 
 private:
     TAddressMap Addresses_;
-    Stroka DefaultAddress_;
-    TNullable<Stroka> Rack_;
-    TNullable<Stroka> DataCenter_;
+    TString DefaultAddress_;
+    TNullable<TString> Rack_;
+    TNullable<TString> DataCenter_;
 
 };
 
@@ -58,14 +58,14 @@ bool operator == (const TNodeDescriptor& lhs, const NProto::TNodeDescriptor& rhs
 bool operator != (const TNodeDescriptor& lhs, const NProto::TNodeDescriptor& rhs);
 
 void FormatValue(TStringBuilder* builder, const TNodeDescriptor& descriptor, const TStringBuf& spec);
-Stroka ToString(const TNodeDescriptor& descriptor);
+TString ToString(const TNodeDescriptor& descriptor);
 
 // Accessors for some well-known addresses.
-const Stroka& GetDefaultAddress(const TAddressMap& addresses);
-const Stroka& GetDefaultAddress(const NProto::TAddressMap& addresses);
+const TString& GetDefaultAddress(const TAddressMap& addresses);
+const TString& GetDefaultAddress(const NProto::TAddressMap& addresses);
 
-const Stroka& GetAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
-TNullable<Stroka> FindAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
+const TString& GetAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
+TNullable<TString> FindAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks);
 
 //! Please keep the items in this particular order: the further the better.
 DEFINE_ENUM(EAddressLocality,
@@ -109,8 +109,8 @@ public:
     const TNodeDescriptor& GetDescriptor(NChunkClient::TChunkReplica replica) const;
     std::vector<TNodeDescriptor> GetDescriptors(const NChunkClient::TChunkReplicaList& replicas) const;
 
-    const TNodeDescriptor* FindDescriptor(const Stroka& address);
-    const TNodeDescriptor& GetDescriptor(const Stroka& address);
+    const TNodeDescriptor* FindDescriptor(const TString& address);
+    const TNodeDescriptor& GetDescriptor(const TString& address);
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
@@ -118,7 +118,7 @@ public:
 private:
     NConcurrency::TReaderWriterSpinLock SpinLock_;
     yhash<TNodeId, const TNodeDescriptor*> IdToDescriptor_;
-    yhash<Stroka, const TNodeDescriptor*> AddressToDescriptor_;
+    yhash<TString, const TNodeDescriptor*> AddressToDescriptor_;
     std::vector<std::unique_ptr<TNodeDescriptor>> Descriptors_;
 
     void DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor);

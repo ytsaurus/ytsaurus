@@ -96,7 +96,7 @@ private:
 
 };
 
-Stroka ToString(const TTypeSet& typeSet);
+TString ToString(const TTypeSet& typeSet);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -170,7 +170,7 @@ void TCypressNodeBase::Load(TLoadContext& context)
     } else {
         if (Attributes_) {
             auto& attributes = Attributes_->Attributes();
-            static const Stroka opaqueAttributeName("opaque");
+            static const TString opaqueAttributeName("opaque");
             auto it = attributes.find(opaqueAttributeName);
             if (it != attributes.end()) {
                 const auto& value = it->second;

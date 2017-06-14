@@ -13,9 +13,9 @@ using namespace NTransactionClient;
 
 TDataSource::TDataSource(
     EDataSourceType type,
-    const TNullable<Stroka>& path,
+    const TNullable<TString>& path,
     const TNullable<TTableSchema>& schema,
-    const TNullable<std::vector<Stroka>>& columns,
+    const TNullable<std::vector<TString>>& columns,
     TTimestamp timestamp)
     : Type_(type)
     , Path_(path)
@@ -59,7 +59,7 @@ void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSour
     }
 
     if (protoDataSource.has_column_filter()) {
-        dataSource->Columns_ = FromProto<std::vector<Stroka>>(protoDataSource.columns());
+        dataSource->Columns_ = FromProto<std::vector<TString>>(protoDataSource.columns());
     }
 
     if (protoDataSource.has_path()) {
@@ -72,23 +72,23 @@ void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSour
 }
 
 TDataSource MakeVersionedDataSource(
-    const TNullable<Stroka>& path,
+    const TNullable<TString>& path,
     const NTableClient::TTableSchema& schema,
-    const TNullable<std::vector<Stroka>>& columns,
+    const TNullable<std::vector<TString>>& columns,
     NTransactionClient::TTimestamp timestamp)
 {
     return TDataSource(EDataSourceType::VersionedTable, path, schema, columns, timestamp);
 }
 
 TDataSource MakeUnversionedDataSource(
-    const TNullable<Stroka>& path,
+    const TNullable<TString>& path,
     const TNullable<NTableClient::TTableSchema>& schema,
-    const TNullable<std::vector<Stroka>>& columns)
+    const TNullable<std::vector<TString>>& columns)
 {
     return TDataSource(EDataSourceType::UnversionedTable, path, schema, columns, NullTimestamp);
 }
 
-TDataSource MakeFileDataSource(const TNullable<Stroka>& path)
+TDataSource MakeFileDataSource(const TNullable<TString>& path)
 {
     return TDataSource(EDataSourceType::File, path, Null, Null, NullTimestamp);
 }

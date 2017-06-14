@@ -67,7 +67,7 @@ void TVirtualMapBase::GetSelf(
     Y_ASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(NYT::FromProto<std::vector<Stroka>>(request->attributes().keys()))
+        ? MakeNullable(NYT::FromProto<std::vector<TString>>(request->attributes().keys()))
         : Null;
 
     i64 limit = request->has_limit()
@@ -122,7 +122,7 @@ void TVirtualMapBase::ListSelf(
     const TCtxListPtr& context)
 {
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
+        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
         : Null;
 
     i64 limit = request->has_limit()
@@ -174,7 +174,7 @@ const yhash_set<const char*>& TVirtualMapBase::GetBuiltinAttributeKeys()
     return BuiltinAttributeKeysCache_.GetBuiltinAttributeKeys(this);
 }
 
-bool TVirtualMapBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
+bool TVirtualMapBase::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
 {
     if (key == "count") {
         BuildYsonFluently(consumer)
@@ -185,7 +185,7 @@ bool TVirtualMapBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
     return false;
 }
 
-TFuture<TYsonString> TVirtualMapBase::GetBuiltinAttributeAsync(const Stroka& /*key*/)
+TFuture<TYsonString> TVirtualMapBase::GetBuiltinAttributeAsync(const TString& /*key*/)
 {
     return Null;
 }
@@ -195,12 +195,12 @@ ISystemAttributeProvider* TVirtualMapBase::GetBuiltinAttributeProvider()
     return this;
 }
 
-bool TVirtualMapBase::SetBuiltinAttribute(const Stroka& /*key*/, const TYsonString& /*value*/)
+bool TVirtualMapBase::SetBuiltinAttribute(const TString& /*key*/, const TYsonString& /*value*/)
 {
     return false;
 }
 
-bool TVirtualMapBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
+bool TVirtualMapBase::RemoveBuiltinAttribute(const TString& /*key*/)
 {
     return false;
 }
@@ -211,9 +211,9 @@ class TCompositeMapService::TImpl
     : public TIntrinsicRefCounted
 {
 public:
-    std::vector<Stroka> GetKeys(i64 limit) const
+    std::vector<TString> GetKeys(i64 limit) const
     {
-        std::vector<Stroka> keys;
+        std::vector<TString> keys;
         int index = 0;
         auto it = Services_.begin();
         while (it != Services_.end() && index < limit) {
@@ -242,7 +242,7 @@ public:
         }
     }
 
-    bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const
+    bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) const
     {
         auto it = Attributes_.find(key);
         if (it != Attributes_.end()) {
@@ -253,19 +253,19 @@ public:
         return false;
     }
 
-    void AddChild(const Stroka& key, IYPathServicePtr service)
+    void AddChild(const TString& key, IYPathServicePtr service)
     {
         YCHECK(Services_.insert(std::make_pair(key, service)).second);
     }
 
-    void AddAttribute(const Stroka& key, TYsonCallback producer)
+    void AddAttribute(const TString& key, TYsonCallback producer)
     {
         YCHECK(Attributes_.insert(std::make_pair(key, producer)).second);
     }
 
 private:
-    yhash<Stroka, IYPathServicePtr> Services_;
-    yhash<Stroka, TYsonCallback> Attributes_;
+    yhash<TString, IYPathServicePtr> Services_;
+    yhash<TString, TYsonCallback> Attributes_;
 
 };
 
@@ -275,7 +275,7 @@ TCompositeMapService::TCompositeMapService()
     : Impl_(New<TImpl>())
 { }
 
-std::vector<Stroka> TCompositeMapService::GetKeys(i64 limit) const
+std::vector<TString> TCompositeMapService::GetKeys(i64 limit) const
 {
     return Impl_->GetKeys(limit);
 }
@@ -297,7 +297,7 @@ void TCompositeMapService::ListSystemAttributes(std::vector<TAttributeDescriptor
     TVirtualMapBase::ListSystemAttributes(descriptors);
 }
 
-bool TCompositeMapService::GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer)
+bool TCompositeMapService::GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer)
 {
     if (Impl_->GetBuiltinAttribute(key, consumer)) {
         return true;
@@ -306,13 +306,13 @@ bool TCompositeMapService::GetBuiltinAttribute(const Stroka& key, NYson::IYsonCo
     return TVirtualMapBase::GetBuiltinAttribute(key, consumer);
 }
 
-TIntrusivePtr<TCompositeMapService> TCompositeMapService::AddChild(const Stroka& key, IYPathServicePtr service)
+TIntrusivePtr<TCompositeMapService> TCompositeMapService::AddChild(const TString& key, IYPathServicePtr service)
 {
     Impl_->AddChild(key, std::move(service));
     return this;
 }
 
-TIntrusivePtr<TCompositeMapService> TCompositeMapService::AddAttribute(const Stroka& key, TYsonCallback producer)
+TIntrusivePtr<TCompositeMapService> TCompositeMapService::AddAttribute(const TString& key, TYsonCallback producer)
 {
     Impl_->AddAttribute(key, producer);
     return this;
@@ -366,7 +366,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
-        const TNullable<std::vector<Stroka>>& /*attributeKeys*/,
+        const TNullable<std::vector<TString>>& /*attributeKeys*/,
         bool /*stable*/) override
     { }
 

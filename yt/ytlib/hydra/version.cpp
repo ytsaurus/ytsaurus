@@ -75,7 +75,7 @@ void FormatValue(TStringBuilder* builder, TVersion version, const TStringBuf& /*
     builder->AppendFormat("%v:%v", version.SegmentId, version.RecordId);
 }
 
-Stroka ToString(TVersion version)
+TString ToString(TVersion version)
 {
     return ToStringViaBuilder(version);
 }

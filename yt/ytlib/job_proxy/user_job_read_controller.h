@@ -51,7 +51,7 @@ public:
         NNodeTrackerClient::TNodeDescriptor nodeDescriptor,
         TClosure onNetworkRelease,
         IUserJobIOFactoryPtr userJobIOFactory,
-        TNullable<Stroka> udfDirectory);
+        TNullable<TString> udfDirectory);
 
     //! Returns closure that launches data transfer to given async output.
     TCallback<TFuture<void>()> PrepareJobInputTransfer(const NConcurrency::IAsyncOutputStreamPtr& asyncOutput);
@@ -85,7 +85,7 @@ private:
     const IUserJobIOFactoryPtr UserJobIOFactory_;
     NTableClient::ISchemalessMultiChunkReaderPtr Reader_;
     std::vector<NFormats::ISchemalessFormatWriterPtr> FormatWriters_;
-    TNullable<Stroka> UdfDirectory_;
+    TNullable<TString> UdfDirectory_;
     std::atomic<bool> Initialized_ = {false};
     std::atomic<bool> Interrupted_ = {false};
 
@@ -102,7 +102,7 @@ TUserJobReadControllerPtr CreateUserJobReadController(
         IInvokerPtr invoker,
         NNodeTrackerClient::TNodeDescriptor nodeDescriptor,
         TClosure onNetworkRelease,
-        TNullable<Stroka> udfDirectory);
+        TNullable<TString> udfDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

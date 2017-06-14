@@ -41,7 +41,7 @@ public:
     NChunkClient::TChunkId GetChunkId() const;
 
     size_t GetCurrentSize() const;
-    Stroka GetCurrentData() const;
+    TString GetCurrentData() const;
 
 private:
     virtual void DoWrite(const void* buf, size_t len) override;

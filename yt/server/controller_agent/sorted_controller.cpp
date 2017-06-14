@@ -117,7 +117,7 @@ protected:
             SetupCallbacks();
         }
 
-        virtual Stroka GetId() const override
+        virtual TString GetId() const override
         {
             return Format("Sorted");
         }
@@ -234,8 +234,8 @@ protected:
     TSortedTaskPtr SortedTask_;
 
     //! The (adjusted) key columns that define the sort order inside sorted chunk pool.
-    std::vector<Stroka> PrimaryKeyColumns_;
-    std::vector<Stroka> ForeignKeyColumns_;
+    std::vector<TString> PrimaryKeyColumns_;
+    std::vector<TString> ForeignKeyColumns_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
@@ -339,7 +339,7 @@ protected:
 
     // Progress reporting.
 
-    virtual Stroka GetLoggingProgress() const override
+    virtual TString GetLoggingProgress() const override
     {
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
@@ -884,7 +884,7 @@ public:
     }
 
 protected:
-    std::vector<Stroka> SortKeyColumns_;
+    std::vector<TString> SortKeyColumns_;
 
 private:
     TReduceOperationSpecBasePtr Spec_;

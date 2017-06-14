@@ -43,7 +43,7 @@ void IServiceContext::ReplyFrom(TFuture<void> asyncError)
 
 TServiceId::TServiceId() = default;
 
-TServiceId::TServiceId(const Stroka& serviceName, const TRealmId& realmId)
+TServiceId::TServiceId(const TString& serviceName, const TRealmId& realmId)
     : ServiceName(serviceName)
     , RealmId(realmId)
 { }
@@ -58,7 +58,7 @@ bool operator != (const TServiceId& lhs, const TServiceId& rhs)
     return !(lhs == rhs);
 }
 
-Stroka ToString(const TServiceId& serviceId)
+TString ToString(const TServiceId& serviceId)
 {
     auto result = serviceId.ServiceName;
     if (!serviceId.RealmId.IsEmpty()) {

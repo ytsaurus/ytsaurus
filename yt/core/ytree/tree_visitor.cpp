@@ -24,7 +24,7 @@ class TTreeVisitor
 public:
     TTreeVisitor(
         IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<Stroka>>& attributeKeys,
+        const TNullable<std::vector<TString>>& attributeKeys,
         bool stable)
         : Consumer(consumer)
         , AttributeKeys(attributeKeys)
@@ -38,14 +38,14 @@ public:
 
 private:
     IAsyncYsonConsumer* const Consumer;
-    const TNullable<std::vector<Stroka>> AttributeKeys;
+    const TNullable<std::vector<TString>> AttributeKeys;
     const bool Stable_;
 
     void VisitAny(const INodePtr& node, bool isRoot = false)
     {
         node->WriteAttributes(Consumer, AttributeKeys, Stable_);
 
-        static const Stroka opaqueAttributeName("opaque");
+        static const TString opaqueAttributeName("opaque");
         if (!isRoot &&
             node->Attributes().Get<bool>(opaqueAttributeName, false))
         {
@@ -84,7 +84,7 @@ private:
     {
         switch (node->GetType()) {
             case ENodeType::String:
-                Consumer->OnStringScalar(node->GetValue<Stroka>());
+                Consumer->OnStringScalar(node->GetValue<TString>());
                 break;
 
             case ENodeType::Int64:
@@ -128,7 +128,7 @@ private:
         Consumer->OnBeginMap();
         auto children = node->GetChildren();
         if (Stable_) {
-            typedef std::pair<Stroka, INodePtr> TPair;
+            typedef std::pair<TString, INodePtr> TPair;
             std::sort(
                 children.begin(),
                 children.end(),
@@ -150,7 +150,7 @@ private:
 void VisitTree(
     INodePtr root,
     IYsonConsumer* consumer,
-    const TNullable<std::vector<Stroka>>& attributeKeys,
+    const TNullable<std::vector<TString>>& attributeKeys,
     bool stable)
 {
     TAsyncYsonConsumerAdapter adapter(consumer);
@@ -164,7 +164,7 @@ void VisitTree(
 void VisitTree(
     INodePtr root,
     IAsyncYsonConsumer* consumer,
-    const TNullable<std::vector<Stroka>>& attributeKeys,
+    const TNullable<std::vector<TString>>& attributeKeys,
     bool stable)
 {
     TTreeVisitor treeVisitor(

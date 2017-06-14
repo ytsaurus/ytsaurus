@@ -12,21 +12,21 @@ TTcpBusServerConfigPtr TTcpBusServerConfig::CreateTcp(int port)
     return config;
 }
 
-TTcpBusServerConfigPtr TTcpBusServerConfig::CreateUnixDomain(const Stroka& address)
+TTcpBusServerConfigPtr TTcpBusServerConfig::CreateUnixDomain(const TString& address)
 {
     auto config = New<TTcpBusServerConfig>();
     config->UnixDomainName = address;
     return config;
 }
 
-TTcpBusClientConfigPtr TTcpBusClientConfig::CreateTcp(const Stroka& address)
+TTcpBusClientConfigPtr TTcpBusClientConfig::CreateTcp(const TString& address)
 {
     auto config = New<TTcpBusClientConfig>();
     config->Address = address;
     return config;
 }
 
-TTcpBusClientConfigPtr TTcpBusClientConfig::CreateUnixDomain(const Stroka& address)
+TTcpBusClientConfigPtr TTcpBusClientConfig::CreateUnixDomain(const TString& address)
 {
     auto config = New<TTcpBusClientConfig>();
     config->UnixDomainName = address;

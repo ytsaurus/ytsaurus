@@ -35,7 +35,7 @@ struct ISchedulerStrategyHost
 
     virtual void ValidatePoolPermission(
         const NYPath::TYPath& path,
-        const Stroka& user,
+        const TString& user,
         NYTree::EPermission permission) const = 0;
 
     virtual void SetSchedulerAlert(EAlertType alertType, const TError& alert) = 0;
@@ -165,7 +165,7 @@ struct ISchedulerStrategy
     virtual void BuildOrchid(NYson::IYsonConsumer* consumer) = 0;
 
     //! Provides a string describing operation status and statistics.
-    virtual Stroka GetOperationLoggingProgress(const TOperationId& operationId) = 0;
+    virtual TString GetOperationLoggingProgress(const TOperationId& operationId) = 0;
 
     //! Called for a just initialized operation to construct its brief spec
     //! to be used by UI.

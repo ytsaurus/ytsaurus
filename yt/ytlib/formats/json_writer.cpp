@@ -108,7 +108,7 @@ static void CheckYajlCode(int yajlCode)
         return;
     }
 
-    Stroka errorMessage;
+    TString errorMessage;
     switch (yajlCode)
     {
         case yajl_gen_keys_must_be_strings:
@@ -449,7 +449,7 @@ void TJsonConsumer::OnKeyedItem(const TStringBuf& name)
 {
     if (IsWriteAllowed()) {
         if (IsSpecialJsonKey(name)) {
-            WriteStringScalar(Stroka("$") + name);
+            WriteStringScalar(TString("$") + name);
         } else {
             WriteStringScalar(name);
         }

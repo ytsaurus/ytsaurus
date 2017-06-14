@@ -9,7 +9,7 @@ namespace NConcurrency {
 
 IPollerPtr CreateThreadPoolPoller(
     int threadCount,
-    const Stroka& threadNamePrefix);
+    const TString& threadNamePrefix);
 
 ////////////////////////////////////////////////////////////////////////////////
 

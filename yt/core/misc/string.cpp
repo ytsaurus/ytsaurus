@@ -31,7 +31,7 @@ void UnderscoreCaseToCamelCase(TStringBuilder* builder, const TStringBuf& str)
     }
 }
 
-Stroka UnderscoreCaseToCamelCase(const TStringBuf& str)
+TString UnderscoreCaseToCamelCase(const TStringBuf& str)
 {
     TStringBuilder builder;
     UnderscoreCaseToCamelCase(&builder, str);
@@ -53,7 +53,7 @@ void CamelCaseToUnderscoreCase(TStringBuilder* builder, const TStringBuf& str)
     }
 }
 
-Stroka CamelCaseToUnderscoreCase(const TStringBuf& str)
+TString CamelCaseToUnderscoreCase(const TStringBuf& str)
 {
     TStringBuilder builder;
     CamelCaseToUnderscoreCase(&builder, str);
@@ -62,7 +62,7 @@ Stroka CamelCaseToUnderscoreCase(const TStringBuf& str)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka TrimLeadingWhitespaces(const Stroka& str)
+TString TrimLeadingWhitespaces(const TString& str)
 {
     for (int i = 0; i < str.size(); ++i) {
         if (str[i] != ' ') {
@@ -72,7 +72,7 @@ Stroka TrimLeadingWhitespaces(const Stroka& str)
     return "";
 }
 
-Stroka Trim(const Stroka& str, const Stroka& whitespaces)
+TString Trim(const TString& str, const TString& whitespaces)
 {
     size_t end = str.size();
     while (end > 0) {
@@ -95,14 +95,14 @@ Stroka Trim(const Stroka& str, const Stroka& whitespaces)
     }
 
     size_t begin = str.find_first_not_of(whitespaces);
-    YCHECK(begin != Stroka::npos);
+    YCHECK(begin != TString::npos);
     YCHECK(begin < end);
     return str.substr(begin, end - begin);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ParseBool(const Stroka& value)
+bool ParseBool(const TString& value)
 {
     if (value == "true") {
         return true;
@@ -314,7 +314,7 @@ char* WriteGuidToBuffer(char* ptr, const TGuid& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka DecodeEnumValue(const Stroka& value)
+TString DecodeEnumValue(const TString& value)
 {
     auto camelValue = UnderscoreCaseToCamelCase(value);
     auto underscoreValue = CamelCaseToUnderscoreCase(camelValue);
@@ -326,7 +326,7 @@ Stroka DecodeEnumValue(const Stroka& value)
     return camelValue;
 }
 
-Stroka EncodeEnumValue(const Stroka& value)
+TString EncodeEnumValue(const TString& value)
 {
     return CamelCaseToUnderscoreCase(value);
 }

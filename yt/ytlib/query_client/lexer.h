@@ -12,7 +12,7 @@ class TLexer
 {
 public:
     TLexer(
-        const Stroka& source,
+        const TString& source,
         TParser::token_type strayToken);
 
     TParser::token_type GetNextToken(

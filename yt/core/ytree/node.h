@@ -145,7 +145,7 @@ struct IScalarNode
         typedef I##name##Node TNode; \
         typedef type TType; \
         typedef NMpl::TConditional< \
-            NMpl::TIsSame<type, Stroka>::Value, \
+            NMpl::TIsSame<type, TString>::Value, \
             /* if-true  */ const TStringBuf&, \
             /* if-false */ type \
         >::TType TConsumerType; \
@@ -166,7 +166,7 @@ struct IScalarNode
     }
 
 // Don't forget to define a #TScalarTypeTraits<>::NodeType constant in "node.cpp".
-DECLARE_SCALAR_TYPE(String, Stroka)
+DECLARE_SCALAR_TYPE(String, TString)
 DECLARE_SCALAR_TYPE(Int64, i64)
 DECLARE_SCALAR_TYPE(Uint64, ui64)
 DECLARE_SCALAR_TYPE(Double, double)
@@ -199,7 +199,7 @@ DEFINE_REFCOUNTED_TYPE(ICompositeNode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A map node, which keeps a dictionary mapping strings (Stroka) to child nodes.
+//! A map node, which keeps a dictionary mapping strings (TString) to child nodes.
 struct IMapNode
     : public virtual ICompositeNode
 {
@@ -209,20 +209,20 @@ struct IMapNode
     /*!
      *  Map items are returned in unspecified order.
      */
-    virtual std::vector< std::pair<Stroka, INodePtr> > GetChildren() const = 0;
+    virtual std::vector< std::pair<TString, INodePtr> > GetChildren() const = 0;
 
     //! Returns map keys.
     /*!
      *  Keys are returned in unspecified order.
      */
-    virtual std::vector<Stroka> GetKeys() const = 0;
+    virtual std::vector<TString> GetKeys() const = 0;
 
     //! Gets a child by its key.
     /*!
      *  \param key A key.
      *  \return A child with the given key or NULL if the index is not valid.
      */
-    virtual INodePtr FindChild(const Stroka& key) const = 0;
+    virtual INodePtr FindChild(const TString& key) const = 0;
 
     //! Adds a new child with a given key.
     /*!
@@ -233,24 +233,24 @@ struct IMapNode
      *  \note
      *  #child must be a root.
      */
-    virtual bool AddChild(INodePtr child, const Stroka& key) = 0;
+    virtual bool AddChild(INodePtr child, const TString& key) = 0;
 
     //! Removes a child by its key.
     /*!
      *  \param key A key.
      *  \return True iff there was a child with the given key.
      */
-    virtual bool RemoveChild(const Stroka& key) = 0;
+    virtual bool RemoveChild(const TString& key) = 0;
 
     //! Similar to #FindChild but throws if no child is found.
-    INodePtr GetChild(const Stroka& key) const;
+    INodePtr GetChild(const TString& key) const;
 
     //! Returns the key for a given child.
     /*!
      *  \param child A node that must be a child.
      *  \return Child's key.
      */
-    virtual Stroka GetChildKey(IConstNodePtr child) = 0;
+    virtual TString GetChildKey(IConstNodePtr child) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMapNode)

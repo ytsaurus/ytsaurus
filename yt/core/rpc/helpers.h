@@ -31,10 +31,10 @@ IChannelFactoryPtr CreateDefaultTimeoutChannelFactory(
 //! Returns a wrapper that sets "authenticated_user" attribute in every request.
 IChannelPtr CreateAuthenticatedChannel(
     IChannelPtr underlyingChannel,
-    const Stroka& user);
+    const TString& user);
 IChannelFactoryPtr CreateAuthenticatedChannelFactory(
     IChannelFactoryPtr underlyingFactory,
-    const Stroka& user);
+    const TString& user);
 
 //! Returns a wrapper that sets realm id in every request.
 IChannelPtr CreateRealmChannel(

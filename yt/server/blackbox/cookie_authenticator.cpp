@@ -27,10 +27,10 @@ public:
     { }
 
     virtual TFuture<TAuthenticationResult> Authenticate(
-        const Stroka& sessionId,
-        const Stroka& sslSessionId,
-        const Stroka& host,
-        const Stroka& userIP) override
+        const TString& sessionId,
+        const TString& sslSessionId,
+        const TString& host,
+        const TString& userIP) override
     {
         auto sessionIdMD5 = ComputeMD5(sessionId);
         auto sslSessionIdMD5 = ComputeMD5(sslSessionId);
@@ -49,7 +49,7 @@ public:
     }
 
 private:
-    TFuture<TAuthenticationResult> OnCallResult(const Stroka& sessionIdMD5, const Stroka& sslSessionIdMD5, const INodePtr& data)
+    TFuture<TAuthenticationResult> OnCallResult(const TString& sessionIdMD5, const TString& sslSessionIdMD5, const INodePtr& data)
     {
         auto result = OnCallResultImpl(data);
         if (!result.IsOK()) {
@@ -76,13 +76,13 @@ private:
         }
 
         if (statusId.Value() != EBlackboxStatusId::Valid && statusId.Value() != EBlackboxStatusId::NeedReset) {
-            auto error = GetByYPath<Stroka>(data, "/error");
+            auto error = GetByYPath<TString>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
             return TError("Blackbox rejected session cookie")
                 << TErrorAttribute("reason", reason);
         }
 
-        auto login = GetByYPath<Stroka>(data, "/login");
+        auto login = GetByYPath<TString>(data, "/login");
 
         // Sanity checks.
         if (!login.IsOK()) {

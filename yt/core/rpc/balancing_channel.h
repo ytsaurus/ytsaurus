@@ -18,7 +18,7 @@ using TDiscoverRequestHook = TCallback<void(NProto::TReqDiscover*)>;
 IChannelPtr CreateBalancingChannel(
     TBalancingChannelConfigPtr config,
     IChannelFactoryPtr channelFactory,
-    const Stroka& endpointDescription,
+    const TString& endpointDescription,
     const NYTree::IAttributeDictionary& endpointAttributes,
     TDiscoverRequestHook discoverRequestHook = TDiscoverRequestHook());
 

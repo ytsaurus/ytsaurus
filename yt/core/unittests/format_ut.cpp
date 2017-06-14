@@ -31,16 +31,16 @@ TEST(TFormatTest, Strings)
 {
     EXPECT_EQ("test", Format("%s", "test"));
     EXPECT_EQ("test", Format("%s", STRINGBUF("test")));
-    EXPECT_EQ("test", Format("%s", Stroka("test")));
+    EXPECT_EQ("test", Format("%s", TString("test")));
 
-    EXPECT_EQ("   abc", Format("%6s", Stroka("abc")));
-    EXPECT_EQ("abc   ", Format("%-6s", Stroka("abc")));
-    EXPECT_EQ("       abc", Format("%10v", Stroka("abc")));
-    EXPECT_EQ("abc       ", Format("%-10v", Stroka("abc")));
-    EXPECT_EQ("abc", Format("%2s", Stroka("abc")));
-    EXPECT_EQ("abc", Format("%-2s", Stroka("abc")));
-    EXPECT_EQ("abc", Format("%0s", Stroka("abc")));
-    EXPECT_EQ("abc", Format("%-0s", Stroka("abc")));
+    EXPECT_EQ("   abc", Format("%6s", TString("abc")));
+    EXPECT_EQ("abc   ", Format("%-6s", TString("abc")));
+    EXPECT_EQ("       abc", Format("%10v", TString("abc")));
+    EXPECT_EQ("abc       ", Format("%-10v", TString("abc")));
+    EXPECT_EQ("abc", Format("%2s", TString("abc")));
+    EXPECT_EQ("abc", Format("%-2s", TString("abc")));
+    EXPECT_EQ("abc", Format("%0s", TString("abc")));
+    EXPECT_EQ("abc", Format("%-0s", TString("abc")));
     EXPECT_EQ(100, Format("%100v", "abc").size());
 }
 
@@ -74,7 +74,7 @@ TEST(TFormatTest, Floats)
     EXPECT_EQ("3.14", Format("%.2v", 3.1415F));
     EXPECT_EQ("3.14", Format("%.2lf", 3.1415));
     EXPECT_EQ("3.14", Format("%.2v", 3.1415));
-    EXPECT_EQ(Stroka(std::to_string(std::numeric_limits<double>::max())),
+    EXPECT_EQ(TString(std::to_string(std::numeric_limits<double>::max())),
             Format("%lF", std::numeric_limits<double>::max()));
 }
 

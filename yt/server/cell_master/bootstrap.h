@@ -94,7 +94,7 @@ public:
 
     void Initialize();
     void Run();
-    void TryLoadSnapshot(const Stroka& fileName, bool dump);
+    void TryLoadSnapshot(const TString& fileName, bool dump);
 
 private:
     const TCellMasterConfigPtr Config_;
@@ -142,11 +142,11 @@ private:
 
     static NElection::TPeerId ComputePeerId(
         NElection::TCellConfigPtr config,
-        const Stroka& localAddress);
+        const TString& localAddress);
 
     void DoInitialize();
     void DoRun();
-    void DoLoadSnapshot(const Stroka& fileName, bool dump);
+    void DoLoadSnapshot(const TString& fileName, bool dump);
 
 };
 

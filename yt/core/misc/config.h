@@ -175,10 +175,10 @@ class TCoreDumperConfig
 {
 public:
     //! A path to store the core files.
-    Stroka Path;
+    TString Path;
 
     //! A name that identifies current component (master/scheduler/node).
-    Stroka ComponentName;
+    TString ComponentName;
 
     TCoreDumperConfig()
     {

@@ -281,7 +281,7 @@ TUnversionedOwningRow CreateOperationJobKey(const TOperationId& operationId, con
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError TCheckPermissionResult::ToError(const Stroka& user, EPermission permission) const
+TError TCheckPermissionResult::ToError(const TString& user, EPermission permission) const
 {
     switch (Action) {
         case NSecurityClient::ESecurityAction::Allow:
@@ -604,7 +604,7 @@ public:
         const TVersionedLookupRowsOptions& options),
         (path, std::move(nameTable), std::move(keys), options))
     IMPLEMENT_METHOD(TSelectRowsResult, SelectRows, (
-        const Stroka& query,
+        const TString& query,
         const TSelectRowsOptions& options),
         (query, options))
     IMPLEMENT_METHOD(std::vector<NTabletClient::TTableReplicaId>, GetInSyncReplicas, (
@@ -762,17 +762,17 @@ public:
     }
 
     IMPLEMENT_METHOD(void, AddMember, (
-        const Stroka& group,
-        const Stroka& member,
+        const TString& group,
+        const TString& member,
         const TAddMemberOptions& options),
         (group, member, options))
     IMPLEMENT_METHOD(void, RemoveMember, (
-        const Stroka& group,
-        const Stroka& member,
+        const TString& group,
+        const TString& member,
         const TRemoveMemberOptions& options),
         (group, member, options))
     IMPLEMENT_METHOD(TCheckPermissionResult, CheckPermission, (
-        const Stroka& user,
+        const TString& user,
         const TYPath& path,
         EPermission permission,
         const TCheckPermissionOptions& options),
@@ -825,7 +825,7 @@ public:
         (jobId, options))
     IMPLEMENT_METHOD(void, SignalJob, (
         const TJobId& jobId,
-        const Stroka& signalName,
+        const TString& signalName,
         const TSignalJobOptions& options),
         (jobId, signalName, options))
     IMPLEMENT_METHOD(void, AbandonJob, (
@@ -873,7 +873,7 @@ private:
 
     template <class T>
     TFuture<T> Execute(
-        const Stroka& commandName,
+        const TString& commandName,
         const TTimeoutOptions& options,
         TCallback<T()> callback)
     {
@@ -1480,7 +1480,7 @@ private:
     }
 
     TSelectRowsResult DoSelectRows(
-        const Stroka& queryString,
+        const TString& queryString,
         const TSelectRowsOptions& options)
     {
         return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
@@ -1489,17 +1489,17 @@ private:
     }
 
     TSelectRowsResult DoSelectRowsOnce(
-        const Stroka& queryString,
+        const TString& queryString,
         const TSelectRowsOptions& options)
     {
         auto inputRowLimit = options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit);
         auto outputRowLimit = options.OutputRowLimit.Get(Connection_->GetConfig()->DefaultOutputRowLimit);
 
         auto externalCGInfo = New<TExternalCGInfo>();
-        auto fetchFunctions = [&] (const std::vector<Stroka>& names, const TTypeInferrerMapPtr& typeInferrers) {
+        auto fetchFunctions = [&] (const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers) {
             MergeFrom(typeInferrers.Get(), *BuiltinTypeInferrersMap);
 
-            std::vector<Stroka> externalNames;
+            std::vector<TString> externalNames;
             for (const auto& name : names) {
                 auto found = typeInferrers->find(name);
                 if (found == typeInferrers->end()) {
@@ -2143,7 +2143,7 @@ private:
                 const auto& batchRsp = batchRspOrError.Value();
 
                 TNullable<EObjectType> commonType;
-                TNullable<Stroka> pathWithCommonType;
+                TNullable<TString> pathWithCommonType;
                 auto checkType = [&] (EObjectType type, const TYPath& path) {
                     if (type != EObjectType::Table && type != EObjectType::File) {
                         THROW_ERROR_EXCEPTION("Type of %v must be either %Qlv or %Qlv",
@@ -2394,8 +2394,8 @@ private:
 
 
     void DoAddMember(
-        const Stroka& group,
-        const Stroka& member,
+        const TString& group,
+        const TString& member,
         const TAddMemberOptions& options)
     {
         auto req = TGroupYPathProxy::AddMember(GetGroupPath(group));
@@ -2408,8 +2408,8 @@ private:
     }
 
     void DoRemoveMember(
-        const Stroka& group,
-        const Stroka& member,
+        const TString& group,
+        const TString& member,
         const TRemoveMemberOptions& options)
     {
         auto req = TGroupYPathProxy::RemoveMember(GetGroupPath(group));
@@ -2422,7 +2422,7 @@ private:
     }
 
     TCheckPermissionResult DoCheckPermission(
-        const Stroka& user,
+        const TString& user,
         const TYPath& path,
         EPermission permission,
         const TCheckPermissionOptions& options)
@@ -2883,7 +2883,7 @@ private:
         };
 
         if (options.IncludeArchive) {
-            Stroka conditions = Format("(operation_id_hi, operation_id_lo) = (%vu, %vu)",
+            TString conditions = Format("(operation_id_hi, operation_id_lo) = (%vu, %vu)",
                 operationId.Parts64[0], operationId.Parts64[1]);
 
             if (options.JobType) {
@@ -2908,7 +2908,7 @@ private:
                 "statistics",
                 "stderr_size"});
 
-            Stroka orderBy;
+            TString orderBy;
             if (options.SortField != EJobSortField::None) {
                 switch (options.SortField) {
                     case EJobSortField::JobType:
@@ -2968,9 +2968,9 @@ private:
                 TJob job;
                 job.JobId = jobId;
                 checkIsNotNull(row[4], "type");
-                job.JobType = ParseEnum<EJobType>(Stroka(row[4].Data.String, row[4].Length));
+                job.JobType = ParseEnum<EJobType>(TString(row[4].Data.String, row[4].Length));
                 checkIsNotNull(row[5], "state");
-                job.JobState = ParseEnum<EJobState>(Stroka(row[5].Data.String, row[5].Length));
+                job.JobState = ParseEnum<EJobState>(TString(row[5].Data.String, row[5].Length));
                 checkIsNotNull(row[6], "start_time");
                 job.StartTime = TInstant(row[6].Data.Int64);
 
@@ -2979,15 +2979,15 @@ private:
                 }
 
                 if (row[8].Type != EValueType::Null) {
-                    job.Address = Stroka(row[8].Data.String, row[8].Length);
+                    job.Address = TString(row[8].Data.String, row[8].Length);
                 }
 
                 if (row[9].Type != EValueType::Null) {
-                    job.Error = TYsonString(Stroka(row[9].Data.String, row[9].Length));
+                    job.Error = TYsonString(TString(row[9].Data.String, row[9].Length));
                 }
 
                 if (row[10].Type != EValueType::Null) {
-                    job.Statistics = TYsonString(Stroka(row[10].Data.String, row[10].Length));
+                    job.Statistics = TYsonString(TString(row[10].Data.String, row[10].Length));
                 }
 
                 if (row[11].Type != EValueType::Null) {
@@ -3004,7 +3004,7 @@ private:
             TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
 
             auto getReq = TYPathProxy::Get(GetJobsPath(operationId));
-            auto attributeFilter = std::vector<Stroka>{
+            auto attributeFilter = std::vector<TString>{
                 "job_type",
                 "state",
                 "start_time",
@@ -3031,8 +3031,8 @@ private:
             for (const auto& item : items->GetChildren()) {
                 const auto& attributes = item.second->Attributes();
 
-                auto jobType = ParseEnum<NJobTrackerClient::EJobType>(attributes.Get<Stroka>("job_type"));
-                auto jobState = ParseEnum<NJobTrackerClient::EJobState>(attributes.Get<Stroka>("state"));
+                auto jobType = ParseEnum<NJobTrackerClient::EJobType>(attributes.Get<TString>("job_type"));
+                auto jobState = ParseEnum<NJobTrackerClient::EJobState>(attributes.Get<TString>("state"));
 
                 if (options.JobType && jobType != *options.JobType) {
                     continue;
@@ -3050,9 +3050,9 @@ private:
                 job.JobId = jobId;
                 job.JobType = jobType;
                 job.JobState = jobState;
-                job.StartTime = ConvertTo<TInstant>(attributes.Get<Stroka>("start_time"));
-                job.FinishTime = ConvertTo<TInstant>(attributes.Get<Stroka>("finish_time"));
-                job.Address = attributes.Get<Stroka>("address");
+                job.StartTime = ConvertTo<TInstant>(attributes.Get<TString>("start_time"));
+                job.FinishTime = ConvertTo<TInstant>(attributes.Get<TString>("finish_time"));
+                job.Address = attributes.Get<TString>("address");
                 job.Error = attributes.FindYson("error");
                 job.Statistics = attributes.FindYson("statistics");
                 if (auto stderr = values->FindChild("stderr")) {
@@ -3060,7 +3060,7 @@ private:
                 }
 
                 job.Progress = attributes.Find<double>("progress");
-                job.CoreInfos = attributes.Find<Stroka>("core_infos");
+                job.CoreInfos = attributes.Find<TString>("core_infos");
                 cypressJobs.push_back(job);
             }
 
@@ -3169,7 +3169,7 @@ private:
 
     void DoSignalJob(
         const TJobId& jobId,
-        const Stroka& signalName,
+        const TString& signalName,
         const TSignalJobOptions& /*options*/)
     {
         auto req = JobProberProxy_->SignalJob();
@@ -3630,7 +3630,7 @@ public:
         (path, nameTable, keys, options))
 
     DELEGATE_TIMESTAMPED_METHOD(TFuture<TSelectRowsResult>, SelectRows, (
-        const Stroka& query,
+        const TString& query,
         const TSelectRowsOptions& options),
         (query, options))
 
@@ -3999,7 +3999,7 @@ private:
     };
 
     //! Maintains per-table commit info.
-    yhash_map<TYPath, TTableCommitSessionPtr> TablePathToSession_;
+    yhash<TYPath, TTableCommitSessionPtr> TablePathToSession_;
 
     class TTabletCommitSession
         : public TIntrinsicRefCounted
@@ -4442,7 +4442,7 @@ private:
     yhash<TCellId, TCellCommitSessionPtr> CellIdToSession_;
 
     //! Maps replica cluster name to sync replica transaction.
-    yhash_map<Stroka, ITransactionPtr> ClusterNameToSyncReplicaTransaction_;
+    yhash<TString, ITransactionPtr> ClusterNameToSyncReplicaTransaction_;
 
     //! Caches mappings from name table ids to schema ids.
     yhash<std::pair<TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;

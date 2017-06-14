@@ -20,11 +20,11 @@ static NLogging::TLogger& Logger = ContainersLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static Stroka GetRelativeName(IPortoExecutorPtr executor)
+static TString GetRelativeName(IPortoExecutorPtr executor)
 {
     auto properties = WaitFor(executor->GetProperties(
         "self",
-        std::vector<Stroka>{"absolute_name", "absolute_namespace"}))
+        std::vector<TString>{"absolute_name", "absolute_namespace"}))
             .ValueOrThrow();
 
     auto absoluteName = properties.at("absolute_name")
@@ -70,13 +70,13 @@ public:
         return GetSelfPortoInstance(Executor_);
     }
 
-    virtual TFuture<std::vector<Stroka>> GetInstanceNames() const override
+    virtual TFuture<std::vector<TString>> GetInstanceNames() const override
     {
         return Executor_->ListContainers();
     }
 
     static IContainerManagerPtr Create(
-        const Stroka& prefix,
+        const TString& prefix,
         TCallback<void(const TError&)> errorHandler,
         const TPortoManagerConfig& portoManagerConfig)
     {
@@ -97,16 +97,16 @@ public:
     }
 
 private:
-    const Stroka Prefix_;
-    const Stroka RelativeName_;
+    const TString Prefix_;
+    const TString RelativeName_;
     const TPortoManagerConfig PortoManagerConfig_;
 
     mutable IPortoExecutorPtr Executor_;
     std::atomic<ui64> InstanceId_ = {0};
 
     TPortoManager(
-        const Stroka& prefix,
-        const Stroka& relativeName,
+        const TString& prefix,
+        const TString& relativeName,
         const TPortoManagerConfig& portoManagerConfig,
         IPortoExecutorPtr executor)
         : Prefix_(prefix)
@@ -119,15 +119,15 @@ private:
             RelativeName_);
     }
 
-    Stroka GetState(const Stroka& name) const
+    TString GetState(const TString& name) const
     {
-        auto state = WaitFor(Executor_->GetProperties(name, std::vector<Stroka>{"state"}))
+        auto state = WaitFor(Executor_->GetProperties(name, std::vector<TString>{"state"}))
             .ValueOrThrow();
         return state.at("state")
             .ValueOrThrow();
     }
 
-    virtual TFuture<void> Destroy(const Stroka& name)
+    virtual TFuture<void> Destroy(const TString& name)
     {
         return Executor_->DestroyContainer(name);
     }
@@ -172,7 +172,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IContainerManagerPtr CreatePortoManager(
-    const Stroka& prefix,
+    const TString& prefix,
     TCallback<void(const TError&)> errorHandler,
     const TPortoManagerConfig& portoManagerConfig)
 {

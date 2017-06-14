@@ -27,7 +27,7 @@ static const auto FileMode =
 
 TFileWriter::TFileWriter(
     const TChunkId& chunkId,
-    const Stroka& fileName,
+    const TString& fileName,
     bool syncOnClose,
     bool enableWriteDirectIO)
     : ChunkId_(chunkId)

@@ -13,15 +13,15 @@ namespace NCGroup {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RemoveAllSubcgroups(const Stroka& path);
+void RemoveAllSubcgroups(const TString& path);
 
-void RunKiller(const Stroka& processGroupPath);
+void RunKiller(const TString& processGroupPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TKillProcessGroupTool
 {
-    void operator()(const Stroka& processGroupPath) const;
+    void operator()(const TString& processGroupPath) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,8 +31,8 @@ class TNonOwningCGroup
 {
 public:
     TNonOwningCGroup() = default;
-    explicit TNonOwningCGroup(const Stroka& fullPath);
-    TNonOwningCGroup(const Stroka& type, const Stroka& name);
+    explicit TNonOwningCGroup(const TString& fullPath);
+    TNonOwningCGroup(const TString& type, const TString& name);
     TNonOwningCGroup(TNonOwningCGroup&& other);
 
     void AddTask(int pid) const;
@@ -43,7 +43,7 @@ public:
     bool Exists() const;
 
     std::vector<int> GetTasks() const;
-    const Stroka& GetFullPath() const;
+    const TString& GetFullPath() const;
 
     std::vector<TNonOwningCGroup> GetChildren() const;
 
@@ -58,9 +58,9 @@ public:
     void RemoveRecursive() const;
 
 protected:
-    Stroka Get(const Stroka& name) const;
-    void Set(const Stroka& name, const Stroka& value) const;
-    void Append(const Stroka& name, const Stroka& value) const;
+    TString Get(const TString& name) const;
+    void Set(const TString& name, const TString& value) const;
+    void Append(const TString& name, const TString& value) const;
 
     void DoLock() const;
     void DoUnlock() const;
@@ -75,9 +75,9 @@ protected:
         const TCallback<void(const TNonOwningCGroup&)>& preorderAction,
         const TCallback<void(const TNonOwningCGroup&)>& postorderAction) const;
 
-    Stroka GetPath(const Stroka& filename) const;
+    TString GetPath(const TString& filename) const;
 
-    Stroka FullPath_;
+    TString FullPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,7 +86,7 @@ class TCGroup
     : public TNonOwningCGroup
 {
 protected:
-    TCGroup(const Stroka& type, const Stroka& name);
+    TCGroup(const TString& type, const TString& name);
     TCGroup(TNonOwningCGroup&& other);
     TCGroup(TCGroup&& other);
 
@@ -109,7 +109,7 @@ class TCpuAccounting
     : public TCGroup
 {
 public:
-    static const Stroka Name;
+    static const TString Name;
 
     struct TStatistics
     {
@@ -117,7 +117,7 @@ public:
         TDuration SystemTime;
     };
 
-    explicit TCpuAccounting(const Stroka& name);
+    explicit TCpuAccounting(const TString& name);
 
     TStatistics GetStatisticsRecursive() const;
     TStatistics GetStatistics() const;
@@ -134,9 +134,9 @@ class TCpu
     : public TCGroup
 {
 public:
-    static const Stroka Name;
+    static const TString Name;
 
-    explicit TCpu(const Stroka& name);
+    explicit TCpu(const TString& name);
 
     void SetShare(double share);
 };
@@ -147,7 +147,7 @@ class TBlockIO
     : public TCGroup
 {
 public:
-    static const Stroka Name;
+    static const TString Name;
 
     struct TStatistics
     {
@@ -160,12 +160,12 @@ public:
 
     struct TStatisticsItem
     {
-        Stroka DeviceId;
-        Stroka Type;
+        TString DeviceId;
+        TString Type;
         ui64 Value = 0;
     };
 
-    explicit TBlockIO(const Stroka& name);
+    explicit TBlockIO(const TString& name);
 
     TStatistics GetStatistics() const;
     void ThrottleOperations(i64 iops) const;
@@ -174,7 +174,7 @@ private:
     //! Guards device ids.
     TSpinLock SpinLock_;
     //! Set of all seen device ids.
-    mutable yhash_set<Stroka> DeviceIds_;
+    mutable yhash_set<TString> DeviceIds_;
 
     std::vector<TBlockIO::TStatisticsItem> GetDetailedStatistics(const char* filename) const;
 
@@ -190,7 +190,7 @@ class TMemory
     : public TCGroup
 {
 public:
-    static const Stroka Name;
+    static const TString Name;
 
     struct TStatistics
     {
@@ -199,7 +199,7 @@ public:
         ui64 MajorPageFaults = 0;
     };
 
-    explicit TMemory(const Stroka& name);
+    explicit TMemory(const TString& name);
 
     TStatistics GetStatistics() const;
     i64 GetMaxMemoryUsage() const;
@@ -217,18 +217,18 @@ class TFreezer
     : public TCGroup
 {
 public:
-    static const Stroka Name;
+    static const TString Name;
 
-    explicit TFreezer(const Stroka& name);
+    explicit TFreezer(const TString& name);
 
-    Stroka GetState() const;
+    TString GetState() const;
     void Freeze() const;
     void Unfreeze() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::map<Stroka, Stroka> ParseProcessCGroups(const Stroka& str);
+std::map<TString, TString> ParseProcessCGroups(const TString& str);
 
 template <typename T>
 T GetCurrentCGroup()
@@ -236,7 +236,7 @@ T GetCurrentCGroup()
     return T("");
 }
 
-bool IsValidCGroupType(const Stroka& type);
+bool IsValidCGroupType(const TString& type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

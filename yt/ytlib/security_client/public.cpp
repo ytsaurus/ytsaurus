@@ -5,19 +5,19 @@ namespace NSecurityClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka TmpAccountName("tmp");
-const Stroka SysAccountName("sys");
-const Stroka IntermediateAccountName("intermediate");
+const TString TmpAccountName("tmp");
+const TString SysAccountName("sys");
+const TString IntermediateAccountName("intermediate");
 
-const Stroka GuestUserName("guest");
-const Stroka JobUserName("job");
-const Stroka SchedulerUserName("scheduler");
-const Stroka ReplicatorUserName("replicator");
-const Stroka OwnerUserName("owner");
+const TString GuestUserName("guest");
+const TString JobUserName("job");
+const TString SchedulerUserName("scheduler");
+const TString ReplicatorUserName("replicator");
+const TString OwnerUserName("owner");
 
-const Stroka EveryoneGroupName("everyone");
-const Stroka UsersGroupName("users");
-const Stroka SuperusersGroupName("superusers");
+const TString EveryoneGroupName("everyone");
+const TString UsersGroupName("users");
+const TString SuperusersGroupName("superusers");
 
 ////////////////////////////////////////////////////////////////////////////////
 

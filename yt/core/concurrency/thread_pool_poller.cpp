@@ -60,7 +60,7 @@ class TThreadPoolPoller
     : public IPoller
 {
 public:
-    TThreadPoolPoller(int threadCount, const Stroka& threadNamePrefix)
+    TThreadPoolPoller(int threadCount, const TString& threadNamePrefix)
         : ThreadCount_(threadCount)
         , ThreadNamePrefix_(threadNamePrefix)
         , Threads_(ThreadCount_)
@@ -132,7 +132,7 @@ public:
 
 private:
     const int ThreadCount_;
-    const Stroka ThreadNamePrefix_;
+    const TString ThreadNamePrefix_;
 
     struct TUnregisterEntry
         : public TIntrinsicRefCounted
@@ -182,7 +182,7 @@ private:
             return nullptr;
         }
 
-        Stroka GenerateThreadName()
+        TString GenerateThreadName()
         {
             return Poller_->ThreadCount_ == 1
                 ? Poller_->ThreadNamePrefix_
@@ -330,7 +330,7 @@ private:
 
 IPollerPtr CreateThreadPoolPoller(
     int threadCount,
-    const Stroka& threadNamePrefix)
+    const TString& threadNamePrefix)
 {
     auto poller = New<TThreadPoolPoller>(
         threadCount,

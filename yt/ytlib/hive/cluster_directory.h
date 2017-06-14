@@ -27,19 +27,19 @@ public:
 
     //! Returns the connection to cluster with a given #clusterName.
     //! Returns |nullptr| if no connection is found.
-    NApi::INativeConnectionPtr FindConnection(const Stroka& clusterName) const;
+    NApi::INativeConnectionPtr FindConnection(const TString& clusterName) const;
     //! Same as #FindConnection but throws instead of failing.
-    NApi::INativeConnectionPtr GetConnectionOrThrow(const Stroka& clusterName) const;
+    NApi::INativeConnectionPtr GetConnectionOrThrow(const TString& clusterName) const;
 
     //! Returns the list of names of all registered clusters.
-    std::vector<Stroka> GetClusterNames() const;
+    std::vector<TString> GetClusterNames() const;
 
     //! Removes the cluster of a given #name.
     //! Does nothing if no such cluster is registered.
-    void RemoveCluster(const Stroka& name);
+    void RemoveCluster(const TString& name);
 
     //! Updates the configuration of a cluster with a given #name, recreates the connection.
-    void UpdateCluster(const Stroka& name, NYTree::INodePtr config);
+    void UpdateCluster(const TString& name, NYTree::INodePtr config);
 
     //! Updates configuration of all clusters given in #protoDirectory.
     //! Removes all clusters that are currently known but are missing in #protoDirectory.
@@ -54,10 +54,10 @@ private:
 
     TSpinLock Lock_;
     yhash<NObjectClient::TCellTag, TCluster> CellTagToCluster_;
-    yhash<Stroka, TCluster> NameToCluster_;
+    yhash<TString, TCluster> NameToCluster_;
 
 
-    TCluster CreateCluster(const Stroka& name, NYTree::INodePtr config) const;
+    TCluster CreateCluster(const TString& name, NYTree::INodePtr config) const;
     static NObjectClient::TCellTag GetCellTag(const TCluster& cluster);
 
 };

@@ -83,7 +83,7 @@ public:
     virtual TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
     virtual void DoWriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<Stroka>>& attributeKeys,
+        const TNullable<std::vector<TString>>& attributeKeys,
         bool stable) override;
     virtual bool ShouldHideAttributes() override;
 
@@ -224,10 +224,10 @@ private:
     public:
         explicit TCombinedAttributeDictionary(TSupportsAttributes* owner);
 
-        virtual std::vector<Stroka> List() const override;
-        virtual NYson::TYsonString FindYson(const Stroka& key) const override;
-        virtual void SetYson(const Stroka& key, const NYson::TYsonString& value) override;
-        virtual bool Remove(const Stroka& key) override;
+        virtual std::vector<TString> List() const override;
+        virtual NYson::TYsonString FindYson(const TString& key) const override;
+        virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
+        virtual bool Remove(const TString& key) override;
 
     private:
         TSupportsAttributes* const Owner_;
@@ -236,24 +236,24 @@ private:
 
     TCombinedAttributeDictionary CombinedAttributes_;
 
-    TFuture<NYson::TYsonString> DoFindAttribute(const Stroka& key);
+    TFuture<NYson::TYsonString> DoFindAttribute(const TString& key);
 
     static NYson::TYsonString DoGetAttributeFragment(
-        const Stroka& key,
+        const TString& key,
         const TYPath& path,
         const NYson::TYsonString& wholeYson);
     TFuture<NYson::TYsonString> DoGetAttribute(
         const TYPath& path,
-        const TNullable<std::vector<Stroka>>& attributeKeys);
+        const TNullable<std::vector<TString>>& attributeKeys);
 
     static bool DoExistsAttributeFragment(
-        const Stroka& key,
+        const TString& key,
         const TYPath& path,
         const TErrorOr<NYson::TYsonString>& wholeYsonOrError);
     TFuture<bool> DoExistsAttribute(const TYPath& path);
 
     static NYson::TYsonString DoListAttributeFragment(
-        const Stroka& key,
+        const TString& key,
         const TYPath& path,
         const NYson::TYsonString& wholeYson);
     TFuture<NYson::TYsonString> DoListAttribute(const TYPath& path);
@@ -261,8 +261,8 @@ private:
     void DoSetAttribute(const TYPath& path, const NYson::TYsonString& newYson);
     void DoRemoveAttribute(const TYPath& path, bool force);
 
-    bool GuardedSetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value);
-    bool GuardedRemoveBuiltinAttribute(const Stroka& key);
+    bool GuardedSetBuiltinAttribute(const TString& key, const NYson::TYsonString& value);
+    bool GuardedRemoveBuiltinAttribute(const TString& key);
 
 };
 
@@ -351,7 +351,7 @@ class TNodeSetter
         } \
     }
 
-DECLARE_SCALAR_TYPE(String, Stroka);
+DECLARE_SCALAR_TYPE(String, TString);
 DECLARE_SCALAR_TYPE(Int64,  i64);
 DECLARE_SCALAR_TYPE(Uint64,  ui64);
 DECLARE_SCALAR_TYPE(Double, double);
@@ -374,7 +374,7 @@ public:
 private:
     IMapNode* const Map_;
 
-    Stroka ItemKey_;
+    TString ItemKey_;
 
 
     virtual ENodeType GetExpectedType() override
@@ -494,16 +494,16 @@ NRpc::IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
     const NLogging::TLogger& logger = NLogging::TLogger(),
     NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug,
-    const Stroka& requestInfo = Stroka(),
-    const Stroka& responseInfo = Stroka());
+    const TString& requestInfo = TString(),
+    const TString& responseInfo = TString());
 
 NRpc::IServiceContextPtr CreateYPathContext(
     std::unique_ptr<NRpc::NProto::TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
     const NLogging::TLogger& logger = NLogging::TLogger(),
     NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug,
-    const Stroka& requestInfo = Stroka(),
-    const Stroka& responseInfo = Stroka());
+    const TString& requestInfo = TString(),
+    const TString& responseInfo = TString());
 
 IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
 

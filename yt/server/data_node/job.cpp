@@ -221,7 +221,7 @@ public:
         THROW_ERROR_EXCEPTION("Input context dumping is not supported");
     }
 
-    virtual Stroka GetStderr() override
+    virtual TString GetStderr() override
     {
         THROW_ERROR_EXCEPTION("Getting stderr is not supported");
     }
@@ -231,7 +231,7 @@ public:
         THROW_ERROR_EXCEPTION("Stracing is not supported");
     }
 
-    virtual void SignalJob(const Stroka& /*signalName*/) override
+    virtual void SignalJob(const TString& /*signalName*/) override
     {
         THROW_ERROR_EXCEPTION("Signaling is not supported");
     }

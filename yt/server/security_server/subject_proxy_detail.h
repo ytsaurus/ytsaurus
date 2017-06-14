@@ -47,7 +47,7 @@ protected:
         descriptors->push_back("member_of_closure");
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
     {
         const auto* subject = this->GetThisImpl();
 
@@ -78,13 +78,13 @@ protected:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override
+    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override
     {
         auto* subject = this->GetThisImpl();
         const auto& securityManager = this->Bootstrap_->GetSecurityManager();
 
         if (key == "name") {
-            auto newName = NYTree::ConvertTo<Stroka>(value);
+            auto newName = NYTree::ConvertTo<TString>(value);
             securityManager->RenameSubject(subject, newName);
             return true;
         }

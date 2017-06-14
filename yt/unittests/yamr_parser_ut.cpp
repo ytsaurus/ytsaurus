@@ -46,7 +46,7 @@ TEST(TYamrParserTest, Simple)
         EXPECT_CALL(Mock, OnStringScalar("value2"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input =
+    TString input =
         "key1\tvalue1\n"
         "2\n"
         "key2\tvalue2\n";
@@ -74,7 +74,7 @@ TEST(TYamrParserTest, ValueWithTabs)
         EXPECT_CALL(Mock, OnStringScalar(TStringBuf("another\0 value with \t", 21)));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input(
+    TString input(
         "key1\0\tvalue with \t and some other\n"
         "key2\tanother\0 value with \t\n",
         34 +
@@ -107,7 +107,7 @@ TEST(TYamrParserTest, SimpleWithSubkey)
         EXPECT_CALL(Mock, OnStringScalar("value2"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input =
+    TString input =
         "key1\tsubkey1\tvalue1\n"
         "key2\tsubkey2\tvalue2\n";
 
@@ -150,7 +150,7 @@ TEST(TYamrParserTest, IncompleteRows)
         EXPECT_CALL(Mock, OnStringScalar("value2"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input =
+    TString input =
         "key1\tsubkey1\tvalue1\n"
         "key\tsubkey\n"
         "key2\tsubkey2\tvalue2\n";
@@ -187,7 +187,7 @@ TEST(TYamrParserTest, TabsInValue)
     EXPECT_CALL(Mock, OnEndMap());
 
     auto config = New<TYamrFormatConfig>();
-    Stroka input = "key\ta\tb\\tc\t";
+    TString input = "key\ta\tb\\tc\t";
     ParseYamr(input, &Mock, config);
 }
 
@@ -210,7 +210,7 @@ TEST(TYamrParserTest, Escaping)
     config->HasSubkey = true;
     config->EnableEscaping = true;
 
-    Stroka input = "\\tkey\\t\t\\n\ta\tb\t\\n\n";
+    TString input = "\\tkey\\t\t\\n\ta\tb\t\\n\n";
     ParseYamr(input, &Mock, config);
 }
 
@@ -238,7 +238,7 @@ TEST(TYamrParserTest, CustomSeparators)
     config->RecordSeparator = 'Y';
     config->FieldSeparator = 'X';
 
-    Stroka input = "keyXvalueYkey2Xvalue2Y";
+    TString input = "keyXvalueYkey2Xvalue2Y";
     ParseYamr(input, &Mock, config);
 }
 
@@ -272,7 +272,7 @@ TEST(TYamrLenvalParserTest, Simple)
         EXPECT_CALL(Mock, OnStringScalar("value2"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = Stroka(
+    TString input = TString(
         "\x04\x00\x00\x00" "key1"
         "\x06\x00\x00\x00" "value1"
 
@@ -314,7 +314,7 @@ TEST(TYamrLenvalParserTest, SimpleWithSubkey)
         EXPECT_CALL(Mock, OnStringScalar("value2"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = Stroka(
+    TString input = TString(
         "\x04\x00\x00\x00" "key1"
         "\x07\x00\x00\x00" "subkey1"
         "\x06\x00\x00\x00" "value1"
@@ -347,7 +347,7 @@ TEST(TYamrLenvalParserTest, EmptyFields)
         EXPECT_CALL(Mock, OnStringScalar(""));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = Stroka(
+    TString input = TString(
         "\x00\x00\x00\x00"
         "\x00\x00\x00\x00"
         "\x00\x00\x00\x00"
@@ -363,7 +363,7 @@ TEST(TYamrLenvalParserTest, EmptyFields)
 
 TEST(TYamrLenvalParserTest, HugeLength)
 {
-    Stroka input = Stroka(
+    TString input = TString(
         "\xFF\xFF\xFF\xFF"
         "\x00\x00\x00\x00"
         "\x00\x00\x00\x00"

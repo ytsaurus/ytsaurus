@@ -53,8 +53,8 @@ DEFINE_ENUM(EResourceType,
     (SealSlots)
 );
 
-Stroka FormatResourceUsage(const NProto::TNodeResources& usage, const NProto::TNodeResources& limits);
-Stroka FormatResources(const NProto::TNodeResources& resources);
+TString FormatResourceUsage(const NProto::TNodeResources& usage, const NProto::TNodeResources& limits);
+TString FormatResources(const NProto::TNodeResources& resources);
 
 void ProfileResources(NProfiling::TProfiler& profiler, const NProto::TNodeResources& resources);
 
@@ -64,7 +64,7 @@ const NProto::TNodeResources& InfiniteNodeResources();
 NObjectClient::TObjectId ObjectIdFromNodeId(TNodeId nodeId, NObjectClient::TCellTag);
 TNodeId NodeIdFromObjectId(const NObjectClient::TObjectId& objectId);
 
-void ValidateNodeTags(const std::vector<Stroka>& tags);
+void ValidateNodeTags(const std::vector<TString>& tags);
 
 ////////////////////////////////////////////////////////////////////////////////
 

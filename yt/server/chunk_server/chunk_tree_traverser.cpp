@@ -850,7 +850,7 @@ public:
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
-    const Stroka UserName_;
+    const TString UserName_;
     const NCellMaster::EAutomatonThreadQueue ThreadQueue_;
 
 };

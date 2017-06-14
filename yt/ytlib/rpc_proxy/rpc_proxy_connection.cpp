@@ -76,7 +76,7 @@ IClientPtr TRpcProxyConnection::CreateClient(const TClientOptions& options)
     localAddressString = localAddressString.substr(6);
     {
         auto index = localAddressString.rfind(':');
-        if (index != Stroka::npos) {
+        if (index != TString::npos) {
             localAddressString = localAddressString.substr(0, index);
         }
     }
@@ -100,8 +100,8 @@ IClientPtr TRpcProxyConnection::CreateClient(const TClientOptions& options)
             channel,
             options.User,
             "yt.yandex-team.ru", // TODO(sandello): where to get this?
-            options.SessionId.Get(Stroka()),
-            options.SslSessionId.Get(Stroka()),
+            options.SessionId.Get(TString()),
+            options.SslSessionId.Get(TString()),
             localAddressString);
     }
 

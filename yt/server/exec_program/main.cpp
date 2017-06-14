@@ -43,7 +43,7 @@ public:
             .Optional();
         Opts_
             .AddLongOption("pipe", "configure a data pipe (could be used multiple times)")
-            .Handler1T<Stroka>([&] (const Stroka& arg) {
+            .Handler1T<TString>([&] (const TString& arg) {
                 try {
                     auto config = ConvertTo<NPipes::TNamedPipeConfig>(TYsonString(arg));
                     Pipes_.push_back(std::move(config));
@@ -60,8 +60,8 @@ public:
             .Optional();
         Opts_
             .AddLongOption("env", "set up environment for a child process (could be used multiple times)")
-            .Handler1T<Stroka>([&] (const Stroka& arg) {
-                if (arg.find('=') == Stroka::npos) {
+            .Handler1T<TString>([&] (const TString& arg) {
+                if (arg.find('=') == TString::npos) {
                     throw TProgramException(Format("Bad environment variable: missing '=' in %Qv", arg));
                 }
                 Environment_.push_back(arg);
@@ -187,7 +187,7 @@ protected:
         std::vector<const char*> args;
         args.push_back("/bin/bash");
 
-        Stroka command;
+        TString command;
         if (!Command_.empty()) {
             // :; is added avoid fork/exec (one-shot) optimization.
             command = ":; " + Command_;
@@ -221,10 +221,10 @@ protected:
     }
 
 private:
-    Stroka Command_;
+    TString Command_;
     std::vector<NPipes::TNamedPipeConfig> Pipes_;
-    std::vector<Stroka> Environment_;
-    Stroka JobId_;
+    std::vector<TString> Environment_;
+    TString JobId_;
     int Uid_ = -1;
     int Pty_ = -1;
     bool EnableCoreDump_ = false;

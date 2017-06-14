@@ -63,7 +63,7 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual Stroka DoGetName(const TTabletCell* cell) override
+    virtual TString DoGetName(const TTabletCell* cell) override
     {
         return Format("tablet cell %v", cell->GetId());
     }

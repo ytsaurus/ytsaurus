@@ -84,7 +84,7 @@ EAbortReason GetAbortReason(const NJobTrackerClient::NProto::TJobResult& result)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka MakeOperationCodicilString(const TOperationId& operationId)
+TString MakeOperationCodicilString(const TOperationId& operationId)
 {
     return Format("OperationId: %v", operationId);
 }

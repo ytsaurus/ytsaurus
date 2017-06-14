@@ -43,7 +43,7 @@ public:
 
     TNode* TryAllocate(
         TTabletCell* cell,
-        const SmallSet<Stroka, TypicalPeerCount>& forbiddenAddresses)
+        const SmallSet<TString, TypicalPeerCount>& forbiddenAddresses)
     {
         const auto& data = GetData(cell->GetCellBundle());
         for (const auto& pair : data.Nodes) {
@@ -66,11 +66,7 @@ private:
         yhash<TNode*, std::multimap<int, TNode*>::iterator> NodeToIterator;
     };
 
-//<<<<<<< HEAD
-    yhash_map<Stroka, TPerTagData> TagToData_;
-//=======
-//    yhash<TNullable<Stroka>, TPerTagData> TagToData_;
-//>>>>>>> prestable/19.1
+    yhash<TString, TPerTagData> TagToData_;
 
 
     void InsertNode(TPerTagData* data, TNode* node)
@@ -261,7 +257,7 @@ void TTabletTracker::SchedulePeerAssignment(TTabletCell* cell, TCandidatePool* p
     TReqAssignPeers request;
     ToProto(request.mutable_cell_id(), cell->GetId());
 
-    SmallSet<Stroka, TypicalPeerCount> forbiddenAddresses;
+    SmallSet<TString, TypicalPeerCount> forbiddenAddresses;
     for (const auto& peer : peers) {
         if (!peer.Descriptor.IsNull()) {
             forbiddenAddresses.insert(peer.Descriptor.GetDefaultAddress());

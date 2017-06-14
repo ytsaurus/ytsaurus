@@ -42,7 +42,7 @@ TTraceContext TTraceContext::CreateChild() const
     return TTraceContext(TraceId_, GenerateSpanId(), SpanId_);
 }
 
-Stroka ToString(const TTraceContext& context)
+TString ToString(const TTraceContext& context)
 {
     return Format("%08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
         context.GetTraceId(),
@@ -103,8 +103,8 @@ TTraceContext CreateRootTraceContext()
 
 TTraceSpanGuard::TTraceSpanGuard(
     const TTraceContext& parentContext,
-    const Stroka& serviceName,
-    const Stroka& spanName)
+    const TString& serviceName,
+    const TString& spanName)
     : ServiceName_(serviceName)
     , SpanName_(spanName)
     , Context_(parentContext.CreateChild())
@@ -156,8 +156,8 @@ void TTraceSpanGuard::Release()
 ////////////////////////////////////////////////////////////////////////////////
 
 TChildTraceContextGuard::TChildTraceContextGuard(
-    const Stroka& serviceName,
-    const Stroka& spanName)
+    const TString& serviceName,
+    const TString& spanName)
     : SpanGuard_(
         GetCurrentTraceContext(),
         serviceName,
@@ -178,17 +178,17 @@ void TChildTraceContextGuard::Release()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka ClientSendAnnotation("cs");
-const Stroka ClientReceiveAnnotation("cr");
-const Stroka ServerSendAnnotation("ss");
-const Stroka ServerReceiveAnnotation("sr");
+const TString ClientSendAnnotation("cs");
+const TString ClientReceiveAnnotation("cr");
+const TString ServerSendAnnotation("ss");
+const TString ServerReceiveAnnotation("sr");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TraceEvent(
-    const Stroka& serviceName,
-    const Stroka& spanName,
-    const Stroka& annotationName)
+    const TString& serviceName,
+    const TString& spanName,
+    const TString& annotationName)
 {
     TraceEvent(
         GetCurrentTraceContext(),
@@ -198,8 +198,8 @@ void TraceEvent(
 }
 
 void TraceEvent(
-    const Stroka& annotationKey,
-    const Stroka& annotationValue)
+    const TString& annotationKey,
+    const TString& annotationValue)
 {
     TraceEvent(
         GetCurrentTraceContext(),
@@ -209,9 +209,9 @@ void TraceEvent(
 
 void TraceEvent(
     const TTraceContext& context,
-    const Stroka& serviceName,
-    const Stroka& spanName,
-    const Stroka& annotationName)
+    const TString& serviceName,
+    const TString& spanName,
+    const TString& annotationName)
 {
     if (context.IsEnabled()) {
         TTraceManager::Get()->Enqueue(
@@ -224,8 +224,8 @@ void TraceEvent(
 
 void TraceEvent(
     const TTraceContext& context,
-    const Stroka& annotationKey,
-    const Stroka& annotationValue)
+    const TString& annotationKey,
+    const TString& annotationValue)
 {
     if (context.IsEnabled()) {
         TTraceManager::Get()->Enqueue(

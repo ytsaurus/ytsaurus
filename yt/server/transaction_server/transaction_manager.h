@@ -49,7 +49,7 @@ public:
         const NObjectClient::TCellTagList& secondaryCellTags,
         const NObjectClient::TCellTagList& replicateToCellTags,
         TNullable<TDuration> timeout,
-        const TNullable<Stroka>& title,
+        const TNullable<TString>& title,
         const NYTree::IAttributeDictionary& attributes,
         const TTransactionId& hintId = NullTransactionId);
     void CommitTransaction(

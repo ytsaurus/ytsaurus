@@ -6,7 +6,7 @@ namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TRuleConfig::IsApplicable(const Stroka& category) const
+bool TRuleConfig::IsApplicable(const TString& category) const
 {
     if (IncludeCategories && IncludeCategories->find(category) == IncludeCategories->end()) {
         // No match in include_categories.
@@ -21,14 +21,14 @@ bool TRuleConfig::IsApplicable(const Stroka& category) const
     return true;
 }
 
-bool TRuleConfig::IsApplicable(const Stroka& category, ELogLevel level) const
+bool TRuleConfig::IsApplicable(const TString& category, ELogLevel level) const
 {
     return MinLevel <= level && level <= MaxLevel && IsApplicable(category);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogConfigPtr TLogConfig::CreateLogFile(const Stroka& path)
+TLogConfigPtr TLogConfig::CreateLogFile(const TString& path)
 {
     auto rule = New<TRuleConfig>();
     rule->MinLevel = ELogLevel::Trace;
@@ -90,7 +90,7 @@ TLogConfigPtr TLogConfig::CreateSilent()
     return config;
 }
 
-TLogConfigPtr TLogConfig::CreateFromFile(const Stroka& file, const NYPath::TYPath& path)
+TLogConfigPtr TLogConfig::CreateFromFile(const TString& file, const NYPath::TYPath& path)
 {
     NYTree::INodePtr node;
     {

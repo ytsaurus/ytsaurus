@@ -213,7 +213,7 @@ const T& TErrorOr<T>::Value() const
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-Stroka ToString(const TErrorOr<T>& valueOrError)
+TString ToString(const TErrorOr<T>& valueOrError)
 {
     return ToString(TError(valueOrError));
 }

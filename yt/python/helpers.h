@@ -2,7 +2,7 @@
 
 #include <util/generic/noncopyable.h>
 #include <util/generic/strbuf.h>
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 #include <contrib/libs/pycxx/Objects.hxx>
 
@@ -17,8 +17,8 @@ bool IsInstance(const Object& obj, const Object& cls);
 bool IsInteger(const Object& obj);
 bool IsFloat(const Object& obj);
 TStringBuf ConvertToStringBuf(const Bytes& pyString);
-Bytes ConvertToPythonString(const Stroka& string);
-Stroka ConvertStringObjectToStroka(const Object& obj);
+Bytes ConvertToPythonString(const TString& string);
+TString ConvertStringObjectToString(const Object& obj);
 Object GetAttr(const Object& obj, const std::string& fieldName);
 i64 ConvertToLongLong(const Object& obj);
 std::string Repr(const Object& obj);

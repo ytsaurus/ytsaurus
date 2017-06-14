@@ -29,14 +29,14 @@ public:
 
     void Enqueue(
         const NTracing::TTraceContext& context,
-        const Stroka& serviceName,
-        const Stroka& spanName,
-        const Stroka& annotationName);
+        const TString& serviceName,
+        const TString& spanName,
+        const TString& annotationName);
 
     void Enqueue(
         const NTracing::TTraceContext& context,
-        const Stroka& annotationKey,
-        const Stroka& annotationValue);
+        const TString& annotationKey,
+        const TString& annotationValue);
 
 private:
     TTraceManager();

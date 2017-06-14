@@ -187,7 +187,7 @@ size_t ReadValue(const char* input, TUnversionedValue* value);
 void Save(TStreamSaveContext& context, const TUnversionedValue& value);
 void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryPool* pool);
 
-Stroka ToString(const TUnversionedValue& value);
+TString ToString(const TUnversionedValue& value);
 
 //! Ternary comparison predicate for TUnversionedValue-s.
 //! Returns zero, positive or negative value depending on the outcome.
@@ -467,8 +467,8 @@ const TOwningKey& ChooseMinKey(const TOwningKey& a, const TOwningKey& b);
 //! Ties are broken in favour of the first argument.
 const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b);
 
-Stroka SerializeToString(TUnversionedRow row);
-Stroka SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end);
+TString SerializeToString(TUnversionedRow row);
+TString SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end);
 
 void ToProto(TProtoStringType* protoRow, TUnversionedRow row);
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
@@ -486,9 +486,9 @@ void Deserialize(TOwningKey& key, NYTree::INodePtr node);
 size_t GetYsonSize(const TUnversionedValue& value);
 size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue);
 
-Stroka ToString(TUnversionedRow row);
-Stroka ToString(TMutableUnversionedRow row);
-Stroka ToString(const TUnversionedOwningRow& row);
+TString ToString(TUnversionedRow row);
+TString ToString(TMutableUnversionedRow row);
+TString ToString(const TUnversionedOwningRow& row);
 
 TOwningKey RowToKey(
     const NTableClient::TTableSchema& schema,
@@ -699,15 +699,15 @@ public:
 
 private:
     friend TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType);
-    friend TUnversionedOwningRow DeserializeFromString(const Stroka& data);
+    friend TUnversionedOwningRow DeserializeFromString(const TString& data);
 
     friend class TUnversionedOwningRowBuilder;
 
     TSharedMutableRef RowData_; // TRowHeader plus TValue-s
-    Stroka StringData_;         // Holds string data
+    TString StringData_;         // Holds string data
 
 
-    TUnversionedOwningRow(TSharedMutableRef rowData, Stroka stringData)
+    TUnversionedOwningRow(TSharedMutableRef rowData, TString stringData)
         : RowData_(std::move(rowData))
         , StringData_(std::move(stringData))
     { }
@@ -779,7 +779,7 @@ private:
     int InitialValueCapacity_;
 
     TBlob RowData_;
-    Stroka StringData_;
+    TString StringData_;
 
     TUnversionedRowHeader* GetHeader();
     TUnversionedValue* GetValue(ui32 index);

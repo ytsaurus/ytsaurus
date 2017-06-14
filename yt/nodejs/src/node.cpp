@@ -150,7 +150,7 @@ Handle<Value> ProduceV8(const INodePtr& node)
 
     switch (node->GetType()) {
         case ENodeType::String: {
-            auto value = node->GetValue<Stroka>();
+            auto value = node->GetValue<TString>();
             return String::New(value.c_str(), value.length());
         }
         case ENodeType::Int64: {
@@ -231,12 +231,12 @@ INodePtr ConvertBytesToNode(
         streamStack.Top()));
 }
 
-Stroka ConvertNodeToBytes(
+TString ConvertNodeToBytes(
     INodePtr node,
     ECompression compression,
     INodePtr format)
 {
-    Stroka result;
+    TString result;
     TStringOutput baseStream(result);
     TGrowingOutputStreamStack streamStack(&baseStream);
     AddCompressionToStack(streamStack, compression);
@@ -343,7 +343,7 @@ Handle<Value> TNodeWrap::New(const Arguments& args)
                 node = ConvertV8ValueToNode(arg);
             } else if (arg->IsString()) {
                 String::Utf8Value argValue(arg->ToString());
-                node = ConvertToNode(TYsonString(Stroka(*argValue, argValue.length())));
+                node = ConvertToNode(TYsonString(TString(*argValue, argValue.length())));
             } else if (arg->IsNull() || arg->IsUndefined()) {
                 node = nullptr;
             } else {
@@ -373,12 +373,12 @@ Handle<Value> TNodeWrap::New(const Arguments& args)
                     format);
             } else if (arg->IsArray()) {
                 auto arr = Local<Array>::Cast(Local<Value>::New(arg));
-                Stroka buf1;
+                TString buf1;
                 for (ui32 i = 0; i < arr->Length(); ++i) {
                     String::Utf8Value arrValue(arr->Get(i));
                     buf1.append(*arrValue, arrValue.length());
                 }
-                Stroka buf2 = Base64Decode(buf1);
+                TString buf2 = Base64Decode(buf1);
                 node = ConvertBytesToNode(buf2.data(), buf2.size(), compression, format);
             } else {
                 THROW_ERROR_EXCEPTION(
@@ -516,7 +516,7 @@ Handle<Value> TNodeWrap::GetByYPath(const Arguments& args)
     TStringBuf path(*pathValue, pathValue.length());
 
     try {
-        node = GetNodeByYPath(std::move(node), Stroka(path));
+        node = GetNodeByYPath(std::move(node), TString(path));
     } catch (const std::exception& ex) {
         return ThrowException(ConvertErrorToV8(ex));
     }
@@ -543,7 +543,7 @@ Handle<Value> TNodeWrap::SetByYPath(const Arguments& args)
     INodePtr value = TNodeWrap::UnwrapNode(args[1]);
 
     try {
-        SetNodeByYPath(std::move(node), Stroka(path), std::move(value));
+        SetNodeByYPath(std::move(node), TString(path), std::move(value));
     } catch (const std::exception& ex) {
         return ThrowException(ConvertErrorToV8(ex));
     }
@@ -567,7 +567,7 @@ Handle<Value> TNodeWrap::GetAttribute(const Arguments& args)
     TStringBuf key(*keyValue, keyValue.length());
 
     try {
-        node = node->Attributes().Get<INodePtr>(Stroka(key));
+        node = node->Attributes().Get<INodePtr>(TString(key));
     } catch (const std::exception& ex) {
         return ThrowException(ConvertErrorToV8(ex));
     }
@@ -594,7 +594,7 @@ Handle<Value> TNodeWrap::SetAttribute(const Arguments& args)
     INodePtr value = TNodeWrap::UnwrapNode(args[1]);
 
     try {
-        node->MutableAttributes()->Set(Stroka(key), value);
+        node->MutableAttributes()->Set(TString(key), value);
     } catch (const std::exception& ex) {
         return ThrowException(ConvertErrorToV8(ex));
     }

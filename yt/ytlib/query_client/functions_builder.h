@@ -7,7 +7,7 @@
 #include <yt/core/misc/ref.h>
 
 #ifdef YT_IN_ARCADIA
-#define UDF_BC(name) TSharedRef::FromString(::NResource::Find(Stroka("/llvm_bc/") + #name))
+#define UDF_BC(name) TSharedRef::FromString(::NResource::Find(TString("/llvm_bc/") + #name))
 #else
 #define UDF_BC(name) TSharedRef(name ## _bc, name ## _bc_len, nullptr)
 #endif
@@ -33,8 +33,8 @@ struct TFunctionRegistryBuilder
     TAggregateProfilerMapPtr AggregateProfilers_;
 
     void RegisterFunction(
-        const Stroka& functionName,
-        const Stroka& symbolName,
+        const TString& functionName,
+        const TString& symbolName,
         std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
@@ -43,14 +43,14 @@ struct TFunctionRegistryBuilder
         ICallingConventionPtr callingConvention);
 
     void RegisterFunction(
-        const Stroka& functionName,
+        const TString& functionName,
         std::vector<TType> argumentTypes,
         TType resultType,
         TSharedRef implementationFile,
         ECallingConvention callingConvention);
 
     void RegisterFunction(
-        const Stroka& functionName,
+        const TString& functionName,
         std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
@@ -58,7 +58,7 @@ struct TFunctionRegistryBuilder
         TSharedRef implementationFile);
 
     void RegisterAggregate(
-        const Stroka& aggregateName,
+        const TString& aggregateName,
         std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         TType argumentType,
         TType resultType,

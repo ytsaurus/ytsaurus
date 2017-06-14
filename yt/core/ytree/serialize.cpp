@@ -64,8 +64,8 @@ void Serialize(double value, IYsonConsumer* consumer)
     consumer->OnDoubleScalar(value);
 }
 
-// Stroka
-void Serialize(const Stroka& value, IYsonConsumer* consumer)
+// TString
+void Serialize(const TString& value, IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(value);
 }
@@ -91,7 +91,7 @@ void Serialize(bool value, IYsonConsumer* consumer)
 // char
 void Serialize(char value, IYsonConsumer* consumer)
 {
-    consumer->OnStringScalar(Stroka(value));
+    consumer->OnStringScalar(TString(value));
 }
 
 // TDuration
@@ -160,8 +160,8 @@ void Deserialize(double& value, INodePtr node)
     }
 }
 
-// Stroka
-void Deserialize(Stroka& value, INodePtr node)
+// TString
+void Deserialize(TString& value, INodePtr node)
 {
     value = node->AsString()->GetValue();
 }
@@ -180,7 +180,7 @@ void Deserialize(bool& value, INodePtr node)
 // char
 void Deserialize(char& value, INodePtr node)
 {
-    Stroka stringValue = node->AsString()->GetValue();
+    TString stringValue = node->AsString()->GetValue();
     if (stringValue.size() != 1) {
         THROW_ERROR_EXCEPTION("Expected string of length 1 but found of length %v", stringValue.size());
     }

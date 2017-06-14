@@ -29,7 +29,7 @@ static constexpr auto ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNetworkAddress GetUnixDomainAddress(const Stroka& name)
+TNetworkAddress GetUnixDomainAddress(const TString& name)
 {
 #ifdef _linux_
     // Abstract unix sockets are supported only on Linux.
@@ -133,7 +133,7 @@ TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType 
 IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
     IPollerPtr* poller,
     int threadCount,
-    const Stroka& threadNamePrefix)
+    const TString& threadNamePrefix)
 {
     auto throwAlreadyTerminated = [] () {
         THROW_ERROR_EXCEPTION("Bus subsystem is already terminated");
@@ -175,13 +175,13 @@ void TTcpDispatcher::TImpl::ShutdownPoller(IPollerPtr* poller)
 
 IPollerPtr TTcpDispatcher::TImpl::GetAcceptorPoller()
 {
-    static const Stroka threadNamePrefix("BusAcceptor");
+    static const TString threadNamePrefix("BusAcceptor");
     return GetOrCreatePoller(&AcceptorPoller_, 1, threadNamePrefix);
 }
 
 IPollerPtr TTcpDispatcher::TImpl::GetXferPoller()
 {
-    static const Stroka threadNamePrefix("BusXfer");
+    static const TString threadNamePrefix("BusXfer");
     return GetOrCreatePoller(&XferPoller_, XferThreadCount, threadNamePrefix);
 }
 

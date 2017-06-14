@@ -5,14 +5,14 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka PrimaryLockName("<primary>");
+const TString PrimaryLockName("<primary>");
 
-const Stroka SystemColumnNamePrefix("$");
-const Stroka TableIndexColumnName = SystemColumnNamePrefix + "table_index";
-const Stroka RowIndexColumnName = SystemColumnNamePrefix + "row_index";
-const Stroka RangeIndexColumnName = SystemColumnNamePrefix + "range_index";
-const Stroka TabletIndexColumnName = SystemColumnNamePrefix + "tablet_index";
-const Stroka TimestampColumnName = SystemColumnNamePrefix + "timestamp";
+const TString SystemColumnNamePrefix("$");
+const TString TableIndexColumnName = SystemColumnNamePrefix + "table_index";
+const TString RowIndexColumnName = SystemColumnNamePrefix + "row_index";
+const TString RangeIndexColumnName = SystemColumnNamePrefix + "range_index";
+const TString TabletIndexColumnName = SystemColumnNamePrefix + "tablet_index";
+const TString TimestampColumnName = SystemColumnNamePrefix + "timestamp";
 
 ////////////////////////////////////////////////////////////////////////////////
 

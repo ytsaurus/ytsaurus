@@ -291,7 +291,7 @@ void TBootstrap::DoRun()
 
     ChunkCache = New<TChunkCache>(Config->DataNode, this);
 
-    auto createThrottler = [] (TThroughputThrottlerConfigPtr config, const Stroka& name) {
+    auto createThrottler = [] (TThroughputThrottlerConfigPtr config, const TString& name) {
         auto logger = DataNodeLogger;
         logger.AddTag("Throttler: %v", name);
 

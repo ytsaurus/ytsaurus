@@ -168,7 +168,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     int minCount,
     TNullable<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
-    const TNullable<Stroka>& preferredHostName,
+    const TNullable<TString>& preferredHostName,
     ESessionType sessionType)
 {
     auto targetNodes = GetWriteTargets(
@@ -274,7 +274,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     TNullable<int> replicationFactorOverride,
     const TDataCenterSet* dataCenters,
     const TNodeList* forbiddenNodes,
-    const TNullable<Stroka>& preferredHostName)
+    const TNullable<TString>& preferredHostName)
 {
     int mediumIndex = medium->GetIndex();
     int maxReplicasPerRack = GetMaxReplicasPerRack(mediumIndex, chunk, replicationFactorOverride);

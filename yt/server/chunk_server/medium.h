@@ -19,7 +19,7 @@ class TMedium
     , public TRefTracked<TMedium>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(Stroka, Name);
+    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
     DEFINE_BYVAL_RW_PROPERTY(int, Priority, MediumDefaultPriority);
     DEFINE_BYVAL_RW_PROPERTY(bool, Transient, false);

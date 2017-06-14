@@ -150,7 +150,7 @@ private:
 
             auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
             SetTransactionId(req, Transaction_);
-            std::vector<Stroka> attributeKeys{
+            std::vector<TString> attributeKeys{
                 "account",
                 "compression_codec",
                 "erasure_codec",
@@ -168,8 +168,8 @@ private:
             auto rsp = rspOrError.Value();
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
             writerOptions->ReplicationFactor = attributes->Get<int>("replication_factor");
-            writerOptions->MediumName = attributes->Get<Stroka>("primary_medium");
-            writerOptions->Account = attributes->Get<Stroka>("account");
+            writerOptions->MediumName = attributes->Get<TString>("primary_medium");
+            writerOptions->Account = attributes->Get<TString>("account");
 
             if (Options_.CompressionCodec) {
                 writerOptions->CompressionCodec = *Options_.CompressionCodec;

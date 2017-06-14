@@ -90,7 +90,7 @@ private:
         }
     }
 
-    Stroka ConfigPath_;
+    TString ConfigPath_;
     bool ConfigTemplate_;
     bool ConfigActual_;
 

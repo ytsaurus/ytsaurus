@@ -8,12 +8,12 @@ namespace NDataNode {
 const NLogging::TLogger DataNodeLogger("DataNode");
 const NProfiling::TProfiler DataNodeProfiler("/data_node");
 
-const Stroka CellIdFileName("cell_id");
-const Stroka MultiplexedDirectory("multiplexed");
-const Stroka TrashDirectory("trash");
-const Stroka CleanExtension("clean");
-const Stroka SealedFlagExtension("sealed");
-const Stroka ArtifactMetaSuffix(".artifact");
+const TString CellIdFileName("cell_id");
+const TString MultiplexedDirectory("multiplexed");
+const TString TrashDirectory("trash");
+const TString CleanExtension("clean");
+const TString SealedFlagExtension("sealed");
+const TString ArtifactMetaSuffix(".artifact");
 
 ////////////////////////////////////////////////////////////////////////////////
 

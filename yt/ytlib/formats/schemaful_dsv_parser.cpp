@@ -28,7 +28,7 @@ public:
 private:
     IYsonConsumer* Consumer_;
     TSchemafulDsvFormatConfigPtr Config_;
-    const std::vector<Stroka>& Columns_;
+    const std::vector<TString>& Columns_;
 
     TEscapeTable EscapeTable_;
 
@@ -40,7 +40,7 @@ private:
 
     int TableIndex_ = 0;
 
-    Stroka CurrentToken_;
+    TString CurrentToken_;
 
     const char* Consume(const char* begin, const char* end);
     void SwitchTable(int newTableIndex);
@@ -140,7 +140,7 @@ const char* TSchemafulDsvParser::Consume(const char* begin, const char* end)
 
 void TSchemafulDsvParser::SwitchTable(int newTableIndex)
 {
-    static const Stroka key = FormatEnum(NTableClient::EControlAttribute(
+    static const TString key = FormatEnum(NTableClient::EControlAttribute(
         NTableClient::EControlAttribute::TableIndex));
     if (newTableIndex != TableIndex_) {
         TableIndex_ = newTableIndex;

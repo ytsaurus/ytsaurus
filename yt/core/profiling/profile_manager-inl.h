@@ -14,7 +14,7 @@ namespace {
 template <class T, class = void>
 struct TTagNameFormatter
 {
-    static Stroka Do(const T& value)
+    static TString Do(const T& value)
     {
         using ::ToString;
         return ToString(value);
@@ -24,7 +24,7 @@ struct TTagNameFormatter
 template <class T>
 struct TTagNameFormatter<T, typename std::enable_if<TEnumTraits<T>::IsEnum>::type>
 {
-    static Stroka Do(T value)
+    static TString Do(T value)
     {
         return FormatEnum(value);
     }
@@ -33,7 +33,7 @@ struct TTagNameFormatter<T, typename std::enable_if<TEnumTraits<T>::IsEnum>::typ
 } // namespace
 
 template <class T>
-TTagId TProfileManager::RegisterTag(const Stroka& key, const T& value)
+TTagId TProfileManager::RegisterTag(const TString& key, const T& value)
 {
     return RegisterTag(TTag{
         key,

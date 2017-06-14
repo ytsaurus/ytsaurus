@@ -64,12 +64,12 @@ namespace NYT {
             return PP_COUNT(seq); \
         } \
         \
-        static const std::vector<Stroka>& GetDomainNames() \
+        static const std::vector<TString>& GetDomainNames() \
         { \
-            static const Stroka values[] = { \
+            static const TString values[] = { \
                 PP_FOR_EACH(ENUM__GET_DOMAIN_NAMES_ITEM, seq) \
             }; \
-            static const std::vector<Stroka> result(values, values + GetDomainSize()); \
+            static const std::vector<TString> result(values, values + GetDomainSize()); \
             return result; \
         } \
         \
@@ -88,7 +88,7 @@ namespace NYT {
             if (!FindValueByLiteral(str, &value)) { \
                 throw std::runtime_error(~Sprintf("Error parsing %s value %s", \
                     PP_STRINGIZE(name), \
-                    ~Stroka(str).Quote())); \
+                    ~TString(str).Quote())); \
             } \
             return value; \
         }
@@ -149,7 +149,7 @@ namespace NYT {
     ENUM__GET_DOMAIN_NAMES_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
 #define ENUM__GET_DOMAIN_NAMES_ITEM_ATOMIC(item) \
-    Stroka(PP_STRINGIZE(item)),
+    TString(PP_STRINGIZE(item)),
 
 #define ENUM__DECOMPOSE(name, seq) \
     static std::vector<TType> Decompose(TType value) \
@@ -204,7 +204,7 @@ namespace NYT {
         return TEnumTraitsImpl_##name(); \
     } \
     using ::ToString; \
-    inline Stroka ToString(name value) \
+    inline TString ToString(name value) \
     { \
         return ::NYT::TEnumTraits<name>::ToString(value); \
     }
@@ -224,9 +224,9 @@ auto TEnumTraits<T, true>::FromString(const TStringBuf& str) -> TType
 }
 
 template <class T>
-Stroka TEnumTraits<T, true>::ToString(TType value)
+TString TEnumTraits<T, true>::ToString(TType value)
 {
-    Stroka result;
+    TString result;
     const auto* literal = FindLiteralByValue(value);
     if (literal) {
         result = *literal;
@@ -246,7 +246,7 @@ auto TEnumTraits<T, true>::GetDomainValues() -> const std::vector<TType>&
 }
 
 template <class T>
-auto TEnumTraits<T, true>::GetDomainNames() -> const std::vector<Stroka>&
+auto TEnumTraits<T, true>::GetDomainNames() -> const std::vector<TString>&
 {
     return TImpl::GetDomainNames();
 }

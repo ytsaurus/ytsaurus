@@ -45,10 +45,10 @@ public:
         TNullable<ETcpInterfaceType> interfaceType,
         const TConnectionId& id,
         int socket,
-        const Stroka& endpointDescription,
+        const TString& endpointDescription,
         const NYTree::IAttributeDictionary& endpointAttributes,
-        const TNullable<Stroka>& address,
-        const TNullable<Stroka>& unixDomainName,
+        const TNullable<TString>& address,
+        const TNullable<TString>& unixDomainName,
         int priority,
         IMessageHandlerPtr handler,
         NConcurrency::IPollerPtr poller);
@@ -61,12 +61,12 @@ public:
     const TConnectionId& GetId() const;
 
     // IPollable implementation.
-    virtual const Stroka& GetLoggingId() const override;
+    virtual const TString& GetLoggingId() const override;
     virtual void OnEvent(NConcurrency::EPollControl control) override;
     virtual void OnShutdown() override;
 
     // IBus implementation.
-    virtual const Stroka& GetEndpointDescription() const override;
+    virtual const TString& GetEndpointDescription() const override;
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
     virtual TFuture<void> Send(TSharedRefArray message, const TSendOptions& options) override;
     virtual void Terminate(const TError& error) override;
@@ -134,10 +134,10 @@ private:
     const TTcpBusConfigPtr Config_;
     const EConnectionType ConnectionType_;
     const TConnectionId Id_;
-    const Stroka EndpointDescription_;
+    const TString EndpointDescription_;
     const std::unique_ptr<NYTree::IAttributeDictionary> EndpointAttributes_;
-    const TNullable<Stroka> Address_;
-    const TNullable<Stroka> UnixDomainName_;
+    const TNullable<TString> Address_;
+    const TNullable<TString> UnixDomainName_;
 #ifdef _linux_
     const int Priority_;
 #endif
@@ -145,7 +145,7 @@ private:
     const NConcurrency::IPollerPtr Poller_;
 
     const NLogging::TLogger Logger;
-    const Stroka LoggingId_;
+    const TString LoggingId_;
 
     TNullable<ETcpInterfaceType> InterfaceType_;
     TTcpDispatcherCountersPtr Counters_;

@@ -106,7 +106,7 @@ void TYPathServiceBase::AfterInvoke(const IServiceContextPtr& /*context*/)
 
 void TYPathServiceBase::DoWriteAttributesFragment(
     NYson::IAsyncYsonConsumer* /*consumer*/,
-    const TNullable<std::vector<Stroka>>& /*attributeKeys*/,
+    const TNullable<std::vector<TString>>& /*attributeKeys*/,
     bool /*stable*/)
 { }
 
@@ -151,14 +151,14 @@ bool TYPathServiceBase::ShouldHideAttributes()
         Y_UNUSED(path); \
         Y_UNUSED(request); \
         Y_UNUSED(response); \
-        ThrowMethodNotSupported(context->GetMethod(), Stroka("attribute")); \
+        ThrowMethodNotSupported(context->GetMethod(), TString("attribute")); \
     } \
     \
     void TSupports##method::method##Self(TReq##method* request, TRsp##method* response, const TCtx##method##Ptr& context) \
     { \
         Y_UNUSED(request); \
         Y_UNUSED(response); \
-        ThrowMethodNotSupported(context->GetMethod(), Stroka("self")); \
+        ThrowMethodNotSupported(context->GetMethod(), TString("self")); \
     } \
     \
     void TSupports##method::method##Recursive(const TYPath& path, TReq##method* request, TRsp##method* response, const TCtx##method##Ptr& context) \
@@ -166,7 +166,7 @@ bool TYPathServiceBase::ShouldHideAttributes()
         Y_UNUSED(path); \
         Y_UNUSED(request); \
         Y_UNUSED(response); \
-        ThrowMethodNotSupported(context->GetMethod(), Stroka("recursive")); \
+        ThrowMethodNotSupported(context->GetMethod(), TString("recursive")); \
     }
 
 IMPLEMENT_SUPPORTS_VERB(GetKey)
@@ -253,9 +253,9 @@ TSupportsAttributes::TCombinedAttributeDictionary::TCombinedAttributeDictionary(
     : Owner_(owner)
 { }
 
-std::vector<Stroka> TSupportsAttributes::TCombinedAttributeDictionary::List() const
+std::vector<TString> TSupportsAttributes::TCombinedAttributeDictionary::List() const
 {
-    std::vector<Stroka> keys;
+    std::vector<TString> keys;
 
     auto* provider = Owner_->GetBuiltinAttributeProvider();
     if (provider) {
@@ -277,7 +277,7 @@ std::vector<Stroka> TSupportsAttributes::TCombinedAttributeDictionary::List() co
     return keys;
 }
 
-TYsonString TSupportsAttributes::TCombinedAttributeDictionary::FindYson(const Stroka& key) const
+TYsonString TSupportsAttributes::TCombinedAttributeDictionary::FindYson(const TString& key) const
 {
     auto* provider = Owner_->GetBuiltinAttributeProvider();
     if (provider) {
@@ -294,7 +294,7 @@ TYsonString TSupportsAttributes::TCombinedAttributeDictionary::FindYson(const St
     return customAttributes->FindYson(key);
 }
 
-void TSupportsAttributes::TCombinedAttributeDictionary::SetYson(const Stroka& key, const TYsonString& value)
+void TSupportsAttributes::TCombinedAttributeDictionary::SetYson(const TString& key, const TYsonString& value)
 {
     auto* provider = Owner_->GetBuiltinAttributeProvider();
     if (provider) {
@@ -314,7 +314,7 @@ void TSupportsAttributes::TCombinedAttributeDictionary::SetYson(const Stroka& ke
     customAttributes->SetYson(key, value);
 }
 
-bool TSupportsAttributes::TCombinedAttributeDictionary::Remove(const Stroka& key)
+bool TSupportsAttributes::TCombinedAttributeDictionary::Remove(const TString& key)
 {
     auto* provider = Owner_->GetBuiltinAttributeProvider();
     if (provider) {
@@ -354,7 +354,7 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
     return TResolveResult::Here("/@" + path);
 }
 
-TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const Stroka& key)
+TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const TString& key)
 {
     auto* customAttributes = GetCustomAttributes();
     auto* builtinAttributeProvider = GetBuiltinAttributeProvider();
@@ -382,7 +382,7 @@ TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const Stroka& key)
 }
 
 TYsonString TSupportsAttributes::DoGetAttributeFragment(
-    const Stroka& key,
+    const TString& key,
     const TYPath& path,
     const TYsonString& wholeYson)
 {
@@ -395,7 +395,7 @@ TYsonString TSupportsAttributes::DoGetAttributeFragment(
 
 TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(
     const TYPath& path,
-    const TNullable<std::vector<Stroka>>& attributeKeys)
+    const TNullable<std::vector<TString>>& attributeKeys)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
@@ -418,7 +418,7 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(
                     if (!descriptor.Present)
                         continue;
 
-                    auto key = Stroka(descriptor.Key);
+                    auto key = TString(descriptor.Key);
                     TAttributeValueConsumer attributeValueConsumer(&writer, descriptor.Key);
 
                     if (descriptor.Opaque) {
@@ -475,7 +475,7 @@ void TSupportsAttributes::GetAttribute(
     context->SetRequestInfo();
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
+        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
         : Null;
 
     DoGetAttribute(path, attributeKeys).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {
@@ -489,7 +489,7 @@ void TSupportsAttributes::GetAttribute(
 }
 
 TYsonString TSupportsAttributes::DoListAttributeFragment(
-    const Stroka& key,
+    const TString& key,
     const TYPath& path,
     const TYsonString& wholeYson)
 {
@@ -586,7 +586,7 @@ void TSupportsAttributes::ListAttribute(
 }
 
 bool TSupportsAttributes::DoExistsAttributeFragment(
-    const Stroka& key,
+    const TString& key,
     const TYPath& path,
     const TErrorOr<TYsonString>& wholeYsonOrError)
 {
@@ -678,7 +678,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         case NYPath::ETokenType::EndOfStream: {
             auto newAttributes = ConvertToAttributes(newYson);
 
-            std::map<Stroka, ISystemAttributeProvider::TAttributeDescriptor> descriptorMap;
+            std::map<TString, ISystemAttributeProvider::TAttributeDescriptor> descriptorMap;
             if (builtinAttributeProvider) {
                 builtinAttributeProvider->ListSystemAttributes(&descriptorMap);
             }
@@ -822,7 +822,7 @@ void TSupportsAttributes::SetAttribute(
     const auto& requestValue = request->value();
     const auto& safeValue = requestValue.capacity() <= requestValue.length() * 5 / 4
         ? requestValue
-        : Stroka(TStringBuf(requestValue));
+        : TString(TStringBuf(requestValue));
     DoSetAttribute(path, TYsonString(safeValue));
     context->Reply();
 }
@@ -963,7 +963,7 @@ ISystemAttributeProvider* TSupportsAttributes::GetBuiltinAttributeProvider()
     return nullptr;
 }
 
-bool TSupportsAttributes::GuardedSetBuiltinAttribute(const Stroka& key, const TYsonString& yson)
+bool TSupportsAttributes::GuardedSetBuiltinAttribute(const TString& key, const TYsonString& yson)
 {
     auto* provider = GetBuiltinAttributeProvider();
 
@@ -976,7 +976,7 @@ bool TSupportsAttributes::GuardedSetBuiltinAttribute(const Stroka& key, const TY
     }
 }
 
-bool TSupportsAttributes::GuardedRemoveBuiltinAttribute(const Stroka& key)
+bool TSupportsAttributes::GuardedRemoveBuiltinAttribute(const TString& key)
 {
     auto* provider = GetBuiltinAttributeProvider();
 
@@ -1027,7 +1027,7 @@ private:
 
     virtual void OnMyKeyedItem(const TStringBuf& key) override
     {
-        Stroka keyString(key);
+        TString keyString(key);
         AttributeWriter_.reset(new TBufferedBinaryYsonWriter(&AttributeStream_));
         Forward(
             AttributeWriter_.get(),
@@ -1123,8 +1123,8 @@ public:
         TSharedRefArray requestMessage,
         const NLogging::TLogger& logger,
         NLogging::ELogLevel logLevel,
-        const Stroka& requestInfo,
-        const Stroka& responseInfo)
+        const TString& requestInfo,
+        const TString& responseInfo)
         : TServiceContextBase(
             std::move(requestMessage),
             logger,
@@ -1138,8 +1138,8 @@ public:
         TSharedRefArray requestMessage,
         const NLogging::TLogger& logger,
         NLogging::ELogLevel logLevel,
-        const Stroka& requestInfo,
-        const Stroka& responseInfo)
+        const TString& requestInfo,
+        const TString& responseInfo)
         : TServiceContextBase(
             std::move(requestHeader),
             std::move(requestMessage),
@@ -1150,8 +1150,8 @@ public:
     { }
 
 protected:
-    const Stroka ExternalRequestInfo_;
-    const Stroka ExternalResponseInfo_;
+    const TString ExternalRequestInfo_;
+    const TString ExternalResponseInfo_;
 
 
     virtual void DoReply() override
@@ -1210,8 +1210,8 @@ IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
     const NLogging::TLogger& logger,
     NLogging::ELogLevel logLevel,
-    const Stroka& requestInfo,
-    const Stroka& responseInfo)
+    const TString& requestInfo,
+    const TString& responseInfo)
 {
     Y_ASSERT(requestMessage);
 
@@ -1228,8 +1228,8 @@ IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
     const NLogging::TLogger& logger,
     NLogging::ELogLevel logLevel,
-    const Stroka& requestInfo,
-    const Stroka& responseInfo)
+    const TString& requestInfo,
+    const TString& responseInfo)
 {
     Y_ASSERT(requestMessage);
 
@@ -1271,7 +1271,7 @@ public:
 
     virtual void DoWriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
-        const TNullable<std::vector<Stroka>>& attributeKeys,
+        const TNullable<std::vector<TString>>& attributeKeys,
         bool stable) override
     {
         UnderlyingService_->WriteAttributesFragment(consumer, attributeKeys, stable);

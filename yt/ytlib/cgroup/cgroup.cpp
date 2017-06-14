@@ -27,7 +27,7 @@ using namespace NTools;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CGroupLogger;
-static const Stroka CGroupRootPath("/sys/fs/cgroup");
+static const TString CGroupRootPath("/sys/fs/cgroup");
 #ifdef _linux_
 static const int ReadByAll = S_IRUSR | S_IRGRP | S_IROTH;
 static const int ReadExecuteByAll = ReadByAll | S_IXUSR | S_IXGRP | S_IXOTH;
@@ -37,7 +37,7 @@ static const int ReadExecuteByAll = ReadByAll | S_IXUSR | S_IXGRP | S_IXOTH;
 
 namespace {
 
-Stroka GetParentFor(const Stroka& type)
+TString GetParentFor(const TString& type)
 {
 #ifdef _linux_
     auto rawData = TFileInput("/proc/self/cgroup").ReadAll();
@@ -50,7 +50,7 @@ Stroka GetParentFor(const Stroka& type)
 
 #ifdef _linux_
 
-std::vector<Stroka> ReadAllValues(const Stroka& fileName)
+std::vector<TString> ReadAllValues(const TString& fileName)
 {
     auto raw = TFileInput(fileName).ReadAll();
     LOG_DEBUG(
@@ -58,9 +58,9 @@ std::vector<Stroka> ReadAllValues(const Stroka& fileName)
         fileName,
         raw);
 
-    yvector<Stroka> values;
+    yvector<TString> values;
     Split(raw.data(), " \n", values);
-    return std::vector<Stroka>(values.begin(), values.end());
+    return std::vector<TString>(values.begin(), values.end());
 }
 
 TDuration FromJiffies(ui64 jiffies)
@@ -75,7 +75,7 @@ TDuration FromJiffies(ui64 jiffies)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RunKiller(const Stroka& processGroupPath)
+void RunKiller(const TString& processGroupPath)
 {
     LOG_INFO("Killing processes in cgroup %v", processGroupPath);
 
@@ -101,7 +101,7 @@ void RunKiller(const Stroka& processGroupPath)
 #endif
 }
 
-void TKillProcessGroupTool::operator()(const Stroka& processGroupPath) const
+void TKillProcessGroupTool::operator()(const TString& processGroupPath) const
 {
     SafeSetUid(0);
     NCGroup::TNonOwningCGroup group(processGroupPath);
@@ -110,11 +110,11 @@ void TKillProcessGroupTool::operator()(const Stroka& processGroupPath) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNonOwningCGroup::TNonOwningCGroup(const Stroka& fullPath)
+TNonOwningCGroup::TNonOwningCGroup(const TString& fullPath)
     : FullPath_(fullPath)
 { }
 
-TNonOwningCGroup::TNonOwningCGroup(const Stroka& type, const Stroka& name)
+TNonOwningCGroup::TNonOwningCGroup(const TString& type, const TString& name)
     : FullPath_(NFS::CombinePaths({
         CGroupRootPath,
         type,
@@ -144,10 +144,10 @@ void TNonOwningCGroup::AddCurrentTask() const
 #endif
 }
 
-Stroka TNonOwningCGroup::Get(const Stroka& name) const
+TString TNonOwningCGroup::Get(const TString& name) const
 {
     YCHECK(!IsNull());
-    Stroka result;
+    TString result;
 #ifdef _linux_
     const auto path = GetPath(name);
     result = TBufferedFileInput(path).ReadLine();
@@ -155,22 +155,22 @@ Stroka TNonOwningCGroup::Get(const Stroka& name) const
     return result;
 }
 
-void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const
+void TNonOwningCGroup::Set(const TString& name, const TString& value) const
 {
     YCHECK(!IsNull());
 #ifdef _linux_
     auto path = GetPath(name);
-    TFileOutput output(TFile(path, OpenMode::WrOnly));
+    TFileOutput output(TFile(path, EOpenModeFlag::WrOnly));
     output << value;
 #endif
 }
 
-void TNonOwningCGroup::Append(const Stroka& name, const Stroka& value) const
+void TNonOwningCGroup::Append(const TString& name, const TString& value) const
 {
     YCHECK(!IsNull());
 #ifdef _linux_
     auto path = GetPath(name);
-    TFileOutput output(TFile(path, OpenMode::ForAppend));
+    TFileOutput output(TFile(path, EOpenModeFlag::ForAppend));
     output << value;
 #endif
 }
@@ -205,7 +205,7 @@ std::vector<int> TNonOwningCGroup::GetTasks() const
     return results;
 }
 
-const Stroka& TNonOwningCGroup::GetFullPath() const
+const TString& TNonOwningCGroup::GetFullPath() const
 {
     return FullPath_;
 }
@@ -384,14 +384,14 @@ void TNonOwningCGroup::Traverse(
     postorderAction.Run(*this);
 }
 
-Stroka TNonOwningCGroup::GetPath(const Stroka& filename) const
+TString TNonOwningCGroup::GetPath(const TString& filename) const
 {
     return NFS::CombinePaths(FullPath_, filename);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGroup::TCGroup(const Stroka& type, const Stroka& name)
+TCGroup::TCGroup(const TString& type, const TString& name)
     : TNonOwningCGroup(type, name)
 { }
 
@@ -442,7 +442,7 @@ bool TCGroup::IsCreated() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka TCpuAccounting::Name = "cpuacct";
+const TString TCpuAccounting::Name = "cpuacct";
 
 TCpuAccounting::TStatistics& operator-=(TCpuAccounting::TStatistics& lhs, const TCpuAccounting::TStatistics& rhs)
 {
@@ -457,7 +457,7 @@ TCpuAccounting::TStatistics& operator-=(TCpuAccounting::TStatistics& lhs, const 
     return lhs;
 }
 
-TCpuAccounting::TCpuAccounting(const Stroka& name)
+TCpuAccounting::TCpuAccounting(const TString& name)
     : TCGroup(Name, name)
 { }
 
@@ -474,7 +474,7 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatisticsRecursive() const
         auto values = ReadAllValues(path);
         YCHECK(values.size() == 4);
 
-        Stroka type[2];
+        TString type[2];
         ui64 jiffies[2];
 
         for (int i = 0; i < 2; ++i) {
@@ -522,11 +522,11 @@ void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsum
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka TCpu::Name = "cpu";
+const TString TCpu::Name = "cpu";
 
 static const int DefaultCpuShare = 1024;
 
-TCpu::TCpu(const Stroka& name)
+TCpu::TCpu(const TString& name)
     : TCGroup(Name, name)
 { }
 
@@ -538,9 +538,9 @@ void TCpu::SetShare(double share)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka TBlockIO::Name = "blkio";
+const TString TBlockIO::Name = "blkio";
 
-TBlockIO::TBlockIO(const Stroka& name)
+TBlockIO::TBlockIO(const TString& name)
     : TCGroup(Name, name)
 { }
 
@@ -650,9 +650,9 @@ void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* co
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka TMemory::Name = "memory";
+const TString TMemory::Name = "memory";
 
-TMemory::TMemory(const Stroka& name)
+TMemory::TMemory(const TString& name)
     : TCGroup(Name, name)
 { }
 
@@ -714,13 +714,13 @@ void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* con
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka TFreezer::Name = "freezer";
+const TString TFreezer::Name = "freezer";
 
-TFreezer::TFreezer(const Stroka& name)
+TFreezer::TFreezer(const TString& name)
     : TCGroup(Name, name)
 { }
 
-Stroka TFreezer::GetState() const
+TString TFreezer::GetState() const
 {
     return Get("freezer.state");
 }
@@ -737,19 +737,19 @@ void TFreezer::Unfreeze() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::map<Stroka, Stroka> ParseProcessCGroups(const Stroka& str)
+std::map<TString, TString> ParseProcessCGroups(const TString& str)
 {
-    std::map<Stroka, Stroka> result;
+    std::map<TString, TString> result;
 
-    yvector<Stroka> values;
+    yvector<TString> values;
     Split(str.data(), ":\n", values);
     for (size_t i = 0; i + 2 < values.size(); i += 3) {
         FromString<int>(values[i]);
 
-        const Stroka& subsystemsSet = values[i + 1];
-        const Stroka& name = values[i + 2];
+        const TString& subsystemsSet = values[i + 1];
+        const TString& name = values[i + 2];
 
-        yvector<Stroka> subsystems;
+        yvector<TString> subsystems;
         Split(subsystemsSet.data(), ",", subsystems);
         for (const auto& subsystem : subsystems) {
             if (!subsystem.StartsWith("name=")) {
@@ -765,7 +765,7 @@ std::map<Stroka, Stroka> ParseProcessCGroups(const Stroka& str)
     return result;
 }
 
-bool IsValidCGroupType(const Stroka& type)
+bool IsValidCGroupType(const TString& type)
 {
     if (type == TCpuAccounting::Name) {
         return true;

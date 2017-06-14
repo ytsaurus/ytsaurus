@@ -143,7 +143,7 @@ bool TryResetSignals()
     return true;
 }
 
-TErrorOr<Stroka> ResolveBinaryPath(const Stroka& binary)
+TErrorOr<TString> ResolveBinaryPath(const TString& binary)
 {
     std::vector<TError> accumulatedErrors;
 
@@ -178,7 +178,7 @@ TErrorOr<Stroka> ResolveBinaryPath(const Stroka& binary)
     // XXX(sandello): Sometimes we drop PATH from environment when spawning isolated processes.
     // In this case, try to locate somewhere nearby.
     {
-        auto probe = Stroka::Join(GetDirName(GetExecPath()), "/", binary);
+        auto probe = TString::Join(GetDirName(GetExecPath()), "/", binary);
         if (test(probe.c_str())) {
             return probe;
         }
@@ -205,7 +205,7 @@ TErrorOr<Stroka> ResolveBinaryPath(const Stroka& binary)
         buffer[i] = 0;
 
         if (test(buffer.data())) {
-            return Stroka(buffer.data(), i);
+            return TString(buffer.data(), i);
         }
     }
 
@@ -218,16 +218,16 @@ TErrorOr<Stroka> ResolveBinaryPath(const Stroka& binary)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProcessBase::TProcessBase(const Stroka& path)
+TProcessBase::TProcessBase(const TString& path)
      : Path_(path)
      , ProcessId_(InvalidProcessId)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSimpleProcess::TSimpleProcess(const Stroka& path, bool copyEnv, TDuration pollPeriod)
-    // Stroka is guaranteed to be zero-terminated.
-    // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/StrokaAndTStringBuf#sobstvennosimvoly
+TSimpleProcess::TSimpleProcess(const TString& path, bool copyEnv, TDuration pollPeriod)
+    // TString is guaranteed to be zero-terminated.
+    // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/TStringAndTStringBuf#sobstvennosimvoly
     : TProcessBase(path)
     , PollPeriod_(pollPeriod)
     , PipeFactory_(3)
@@ -262,14 +262,14 @@ void TProcessBase::AddArguments(std::initializer_list<TStringBuf> args)
     }
 }
 
-void TProcessBase::AddArguments(const std::vector<Stroka>& args)
+void TProcessBase::AddArguments(const std::vector<TString>& args)
 {
     for (const auto& arg : args) {
         AddArgument(arg);
     }
 }
 
-void TProcessBase::SetWorkingDirectory(const Stroka& path)
+void TProcessBase::SetWorkingDirectory(const TString& path)
 {
     WorkingDirectory_ = path;
 }
@@ -564,7 +564,7 @@ void TSimpleProcess::Kill(int signal)
 #endif
 }
 
-Stroka TProcessBase::GetPath() const
+TString TProcessBase::GetPath() const
 {
     return Path_;
 }
@@ -584,7 +584,7 @@ bool TProcessBase::IsFinished() const
     return Finished_;
 }
 
-Stroka TProcessBase::GetCommandLine() const
+TString TProcessBase::GetCommandLine() const
 {
     TStringBuilder builder;
     builder.AppendString(Path_);
@@ -628,7 +628,7 @@ Stroka TProcessBase::GetCommandLine() const
 
 const char* TProcessBase::Capture(const TStringBuf& arg)
 {
-    StringHolders_.push_back(Stroka(arg));
+    StringHolders_.push_back(TString(arg));
     return StringHolders_.back().c_str();
 }
 
@@ -659,7 +659,7 @@ void TSimpleProcess::Child()
 ////////////////////////////////////////////////////////////////////////////////
 
 TPortoProcess::TPortoProcess(
-    const Stroka& path,
+    const TString& path,
     IInstancePtr containerInstance,
     bool copyEnv,
     TDuration pollPeriod)
@@ -718,9 +718,9 @@ void TPortoProcess::DoSpawn()
 #endif
 }
 
-static Stroka CreateStdIONamedPipePath()
+static TString CreateStdIONamedPipePath()
 {
-    const Stroka name = CreateGuidAsString();
+    const TString name = CreateGuidAsString();
     return NFS::GetRealPath(NFS::CombinePaths("/tmp", name));
 }
 

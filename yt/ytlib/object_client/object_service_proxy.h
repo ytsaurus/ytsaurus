@@ -66,18 +66,18 @@ public:
          */
         TReqExecuteBatchPtr AddRequest(
             NYTree::TYPathRequestPtr innerRequest,
-            const Stroka& key = Stroka());
+            const TString& key = TString());
 
         //! Similar to #AddRequest, but works for already serialized messages representing requests.
         TReqExecuteBatchPtr AddRequestMessage(
             TSharedRefArray innerRequestMessage,
-            const Stroka& key = Stroka());
+            const TString& key = TString());
 
         //! Returns the current number of individual requests in the batch.
         int GetSize() const;
 
     private:
-        typedef std::multimap<Stroka, int> TKeyToIndexMultimap;
+        typedef std::multimap<TString, int> TKeyToIndexMultimap;
 
         std::vector<TSharedRefArray> InnerRequestMessages;
         TKeyToIndexMultimap KeyToIndexes;
@@ -109,7 +109,7 @@ public:
         : public NRpc::TClientResponse
     {
     public:
-        typedef std::multimap<Stroka, int> TKeyToIndexMultimap;
+        typedef std::multimap<TString, int> TKeyToIndexMultimap;
 
         TPromise<TRspExecuteBatchPtr> GetPromise();
 
@@ -125,28 +125,28 @@ public:
 
         //! Returns the individual generic response with a given key or NULL if no request with
         //! this key is known. At most one such response must exist.
-        TNullable<TErrorOr<NYTree::TYPathResponsePtr>> FindResponse(const Stroka& key) const;
+        TNullable<TErrorOr<NYTree::TYPathResponsePtr>> FindResponse(const TString& key) const;
 
         //! Returns the individual generic response with a given key.
         //! Such a response must be unique.
-        TErrorOr<NYTree::TYPathResponsePtr> GetResponse(const Stroka& key) const;
+        TErrorOr<NYTree::TYPathResponsePtr> GetResponse(const TString& key) const;
 
         //! Returns the individual response with a given key or NULL if no request with
         //! this key is known. At most one such response must exist.
         template <class TTypedResponse>
-        TNullable<TErrorOr<TIntrusivePtr<TTypedResponse>>> FindResponse(const Stroka& key) const;
+        TNullable<TErrorOr<TIntrusivePtr<TTypedResponse>>> FindResponse(const TString& key) const;
 
         //! Returns the individual response with a given key.
         //! Such a response must be unique.
         template <class TTypedResponse>
-        TErrorOr<TIntrusivePtr<TTypedResponse>> GetResponse(const Stroka& key) const;
+        TErrorOr<TIntrusivePtr<TTypedResponse>> GetResponse(const TString& key) const;
 
         //! Returns all responses with a given key (all if no key is specified).
         template <class TTypedResponse>
-        std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> GetResponses(const Stroka& key = Stroka()) const;
+        std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> GetResponses(const TString& key = TString()) const;
 
         //! Returns all responses with a given key (all if no key is specified).
-        std::vector<TErrorOr<NYTree::TYPathResponsePtr>> GetResponses(const Stroka& key = Stroka()) const;
+        std::vector<TErrorOr<NYTree::TYPathResponsePtr>> GetResponses(const TString& key = TString()) const;
 
         //! Similar to #GetResponse, but returns the response message without deserializing it.
         TSharedRefArray GetResponseMessage(int index) const;
@@ -187,7 +187,7 @@ public:
  */
 TError GetCumulativeError(
     const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError,
-    const Stroka& key = Stroka());
+    const TString& key = TString());
 
 ////////////////////////////////////////////////////////////////////////////////
 

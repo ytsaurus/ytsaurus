@@ -88,7 +88,7 @@ static const auto& Logger = DataNodeLogger;
 TMasterConnector::TMasterConnector(
     TDataNodeConfigPtr config,
     const TAddressMap& localAddresses,
-    const std::vector<Stroka>& nodeTags,
+    const std::vector<TString>& nodeTags,
     TBootstrap* bootstrap)
     : Config_(config)
     , LocalAddresses_(localAddresses)
@@ -1007,7 +1007,7 @@ IChannelPtr TMasterConnector::GetMasterChannel(TCellTag cellTag)
     return cellDirectory->GetChannel(cellId, EPeerKind::Leader);
 }
 
-void TMasterConnector::UpdateRack(const TNullable<Stroka>& rack)
+void TMasterConnector::UpdateRack(const TNullable<TString>& rack)
 {
     TGuard<TSpinLock> guard(LocalDescriptorLock_);
     LocalDescriptor_ = TNodeDescriptor(
@@ -1016,7 +1016,7 @@ void TMasterConnector::UpdateRack(const TNullable<Stroka>& rack)
         LocalDescriptor_.GetDataCenter());
 }
 
-void TMasterConnector::UpdateDataCenter(const TNullable<Stroka>& dc)
+void TMasterConnector::UpdateDataCenter(const TNullable<TString>& dc)
 {
     TGuard<TSpinLock> guard(LocalDescriptorLock_);
     LocalDescriptor_ = TNodeDescriptor(

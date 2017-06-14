@@ -479,7 +479,7 @@ public:
 
     virtual void ValidatePoolPermission(
         const TYPath& path,
-        const Stroka& user,
+        const TString& user,
         EPermission permission) const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -506,7 +506,7 @@ public:
 
 
     void ValidateOperationPermission(
-        const Stroka& user,
+        const TString& user,
         const TOperationId& operationId,
         EPermission permission) override
     {
@@ -545,7 +545,7 @@ public:
         const TTransactionId& transactionId,
         const TMutationId& mutationId,
         IMapNodePtr spec,
-        const Stroka& user)
+        const TString& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -606,7 +606,7 @@ public:
         return operation->GetStarted();
     }
 
-    TFuture<void> AbortOperation(TOperationPtr operation, const TError& error, const Stroka& user)
+    TFuture<void> AbortOperation(TOperationPtr operation, const TError& error, const TString& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -626,7 +626,7 @@ public:
         return operation->GetFinished();
     }
 
-    TFuture<void> SuspendOperation(TOperationPtr operation, const Stroka& user, bool abortRunningJobs)
+    TFuture<void> SuspendOperation(TOperationPtr operation, const TString& user, bool abortRunningJobs)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -646,7 +646,7 @@ public:
         return MasterConnector_->FlushOperationNode(operation);
     }
 
-    TFuture<void> ResumeOperation(TOperationPtr operation, const Stroka& user)
+    TFuture<void> ResumeOperation(TOperationPtr operation, const TString& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -683,7 +683,7 @@ public:
         return MasterConnector_->FlushOperationNode(operation);
     }
 
-    TFuture<void> CompleteOperation(TOperationPtr operation, const TError& error, const Stroka& user)
+    TFuture<void> CompleteOperation(TOperationPtr operation, const TError& error, const TString& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -715,7 +715,7 @@ public:
         return operation->GetFinished();
     }
 
-    TFuture<TYsonString> Strace(const TJobId& jobId, const Stroka& user)
+    TFuture<TYsonString> Strace(const TJobId& jobId, const TString& user)
     {
         auto nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::StraceJob, nodeShard, jobId, user)
@@ -723,7 +723,7 @@ public:
             .Run();
     }
 
-    TFuture<void> DumpInputContext(const TJobId& jobId, const TYPath& path, const Stroka& user)
+    TFuture<void> DumpInputContext(const TJobId& jobId, const TYPath& path, const TString& user)
     {
         auto nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::DumpJobInputContext, nodeShard, jobId, path, user)
@@ -731,7 +731,7 @@ public:
             .Run();
     }
 
-    TFuture<TNodeDescriptor> GetJobNode(const TJobId& jobId, const Stroka& user)
+    TFuture<TNodeDescriptor> GetJobNode(const TJobId& jobId, const TString& user)
     {
         auto nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::GetJobNode, nodeShard, jobId, user)
@@ -739,7 +739,7 @@ public:
             .Run();
     }
 
-    TFuture<void> SignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user)
+    TFuture<void> SignalJob(const TJobId& jobId, const TString& signalName, const TString& user)
     {
         auto nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::SignalJob, nodeShard, jobId, signalName, user)
@@ -747,7 +747,7 @@ public:
             .Run();
     }
 
-    TFuture<void> AbandonJob(const TJobId& jobId, const Stroka& user)
+    TFuture<void> AbandonJob(const TJobId& jobId, const TString& user)
     {
         auto nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::AbandonJob, nodeShard, jobId, user)
@@ -755,7 +755,7 @@ public:
             .Run();
     }
 
-    TFuture<TYsonString> PollJobShell(const TJobId& jobId, const TYsonString& parameters, const Stroka& user)
+    TFuture<TYsonString> PollJobShell(const TJobId& jobId, const TYsonString& parameters, const TString& user)
     {
         auto nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::PollJobShell, nodeShard, jobId, parameters, user)
@@ -763,11 +763,11 @@ public:
             .Run();
     }
 
-    TFuture<void> AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const Stroka& user)
+    TFuture<void> AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user)
     {
         auto nodeShard = GetNodeShardByJobId(jobId);
         // A neat way to choose the proper overload.
-        typedef void (TNodeShard::*CorrectSignature)(const TJobId&, const TNullable<TDuration>&, const Stroka&);
+        typedef void (TNodeShard::*CorrectSignature)(const TJobId&, const TNullable<TDuration>&, const TString&);
         return BIND(static_cast<CorrectSignature>(&TNodeShard::AbortJob), nodeShard, jobId, interruptTimeout, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
@@ -1021,7 +1021,7 @@ public:
             .Run(path, chunkId, operationId, jobId);
     }
 
-    TJobProberServiceProxy CreateJobProberProxy(const Stroka& address) override
+    TJobProberServiceProxy CreateJobProberProxy(const TString& address) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1091,7 +1091,7 @@ private:
 
     const TAsyncSemaphorePtr CoreSemaphore_;
 
-    Stroka ServiceAddress_;
+    TString ServiceAddress_;
 
     std::vector<TNodeShardPtr> NodeShards_;
 
@@ -1429,7 +1429,7 @@ private:
         LOG_INFO("Updating nodes information");
 
         auto req = TYPathProxy::List("//sys/nodes");
-        std::vector<Stroka> attributeKeys{
+        std::vector<TString> attributeKeys{
             "id",
             "tags",
             "state",
@@ -1450,10 +1450,10 @@ private:
         try {
             const auto& rsp = rspOrError.Value();
             auto nodesList = ConvertToNode(TYsonString(rsp->value()))->AsList();
-            std::vector<std::vector<std::pair<Stroka, INodePtr>>> nodesForShard(NodeShards_.size());
+            std::vector<std::vector<std::pair<TString, INodePtr>>> nodesForShard(NodeShards_.size());
             std::vector<TFuture<void>> shardFutures;
             for (const auto& child : nodesList->GetChildren()) {
-                auto address = child->GetValue<Stroka>();
+                auto address = child->GetValue<TString>();
                 auto objectId = child->Attributes().Get<TObjectId>("id");
                 auto nodeId = NodeIdFromObjectId(objectId);
                 auto nodeShardId = GetNodeShardId(nodeId);
@@ -2368,7 +2368,7 @@ private:
                         }
                     })
                 .EndMap()
-                .Item("clusters").DoMapFor(clusterDirectory->GetClusterNames(), [=] (TFluentMap fluent, const Stroka& clusterName) {
+                .Item("clusters").DoMapFor(clusterDirectory->GetClusterNames(), [=] (TFluentMap fluent, const TString& clusterName) {
                     BuildClusterYson(clusterName, fluent);
                 })
                 .Item("config").Value(Config_)
@@ -2376,7 +2376,7 @@ private:
             .EndMap();
     }
 
-    void BuildClusterYson(const Stroka& clusterName, IYsonConsumer* consumer)
+    void BuildClusterYson(const TString& clusterName, IYsonConsumer* consumer)
     {
         const auto& clusterDirectory = Bootstrap_
             ->GetMasterClient()
@@ -2479,9 +2479,9 @@ private:
             return Scheduler_->IdToOperation_.size();
         }
 
-        virtual std::vector<Stroka> GetKeys(i64 limit) const override
+        virtual std::vector<TString> GetKeys(i64 limit) const override
         {
-            std::vector<Stroka> keys;
+            std::vector<TString> keys;
             keys.reserve(limit);
             for (const auto& pair : Scheduler_->IdToOperation_) {
                 if (static_cast<i64>(keys.size()) >= limit) {
@@ -2538,7 +2538,7 @@ private:
             Y_UNREACHABLE();
         }
 
-        virtual std::vector<Stroka> GetKeys(i64 limit) const override
+        virtual std::vector<TString> GetKeys(i64 limit) const override
         {
             Y_UNREACHABLE();
         }
@@ -2647,7 +2647,7 @@ TFuture<TOperationPtr> TScheduler::StartOperation(
     const TTransactionId& transactionId,
     const TMutationId& mutationId,
     IMapNodePtr spec,
-    const Stroka& user)
+    const TString& user)
 {
     return Impl_->StartOperation(
         type,
@@ -2660,14 +2660,14 @@ TFuture<TOperationPtr> TScheduler::StartOperation(
 TFuture<void> TScheduler::AbortOperation(
     TOperationPtr operation,
     const TError& error,
-    const Stroka& user)
+    const TString& user)
 {
     return Impl_->AbortOperation(operation, error, user);
 }
 
 TFuture<void> TScheduler::SuspendOperation(
     TOperationPtr operation,
-    const Stroka& user,
+    const TString& user,
     bool abortRunningJobs)
 {
     return Impl_->SuspendOperation(operation, user, abortRunningJobs);
@@ -2675,7 +2675,7 @@ TFuture<void> TScheduler::SuspendOperation(
 
 TFuture<void> TScheduler::ResumeOperation(
     TOperationPtr operation,
-    const Stroka& user)
+    const TString& user)
 {
     return Impl_->ResumeOperation(operation, user);
 }
@@ -2683,43 +2683,43 @@ TFuture<void> TScheduler::ResumeOperation(
 TFuture<void> TScheduler::CompleteOperation(
     TOperationPtr operation,
     const TError& error,
-    const Stroka& user)
+    const TString& user)
 {
     return Impl_->CompleteOperation(operation, error, user);
 }
 
-TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const Stroka& user)
+TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path, const TString& user)
 {
     return Impl_->DumpInputContext(jobId, path, user);
 }
 
-TFuture<TNodeDescriptor> TScheduler::GetJobNode(const TJobId& jobId, const Stroka& user)
+TFuture<TNodeDescriptor> TScheduler::GetJobNode(const TJobId& jobId, const TString& user)
 {
     return Impl_->GetJobNode(jobId, user);
 }
 
 
-TFuture<TYsonString> TScheduler::Strace(const TJobId& jobId, const Stroka& user)
+TFuture<TYsonString> TScheduler::Strace(const TJobId& jobId, const TString& user)
 {
     return Impl_->Strace(jobId, user);
 }
 
-TFuture<void> TScheduler::SignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user)
+TFuture<void> TScheduler::SignalJob(const TJobId& jobId, const TString& signalName, const TString& user)
 {
     return Impl_->SignalJob(jobId, signalName, user);
 }
 
-TFuture<void> TScheduler::AbandonJob(const TJobId& jobId, const Stroka& user)
+TFuture<void> TScheduler::AbandonJob(const TJobId& jobId, const TString& user)
 {
     return Impl_->AbandonJob(jobId, user);
 }
 
-TFuture<TYsonString> TScheduler::PollJobShell(const TJobId& jobId, const TYsonString& parameters, const Stroka& user)
+TFuture<TYsonString> TScheduler::PollJobShell(const TJobId& jobId, const TYsonString& parameters, const TString& user)
 {
     return Impl_->PollJobShell(jobId, parameters, user);
 }
 
-TFuture<void> TScheduler::AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const Stroka& user)
+TFuture<void> TScheduler::AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user)
 {
     return Impl_->AbortJob(jobId, interruptTimeout, user);
 }

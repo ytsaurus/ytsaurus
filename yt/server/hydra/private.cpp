@@ -12,9 +12,9 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka SnapshotExtension("snapshot");
-const Stroka ChangelogExtension("log");
-const Stroka ChangelogIndexExtension("index");
+const TString SnapshotExtension("snapshot");
+const TString ChangelogExtension("log");
+const TString ChangelogIndexExtension("index");
 
 static TActionQueuePtr GetHydraIOActionQueue()
 {

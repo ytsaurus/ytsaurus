@@ -36,11 +36,11 @@ typedef std::pair<NAst::TQuery, NAst::TAliasMap> TParsedQueryInfo;
 
 void ExtractFunctionNames(
     const NAst::TNullableExpressionList& exprs,
-    std::vector<Stroka>* functions);
+    std::vector<TString>* functions);
 
 void ExtractFunctionNames(
     const NAst::TExpressionPtr& expr,
-    std::vector<Stroka>* functions)
+    std::vector<TString>* functions)
 {
     if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
         functions->push_back(to_lower(functionExpr->FunctionName));
@@ -61,7 +61,7 @@ void ExtractFunctionNames(
 
 void ExtractFunctionNames(
     const NAst::TNullableExpressionList& exprs,
-    std::vector<Stroka>* functions)
+    std::vector<TString>* functions)
 {
     if (!exprs) {
         return;
@@ -72,10 +72,10 @@ void ExtractFunctionNames(
     }
 }
 
-std::vector<Stroka> ExtractFunctionNames(
+std::vector<TString> ExtractFunctionNames(
     const TParsedQueryInfo& parsedQueryInfo)
 {
-    std::vector<Stroka> functions;
+    std::vector<TString> functions;
 
     ExtractFunctionNames(parsedQueryInfo.first.WherePredicate, &functions);
     ExtractFunctionNames(parsedQueryInfo.first.HavingPredicate, &functions);
@@ -207,7 +207,7 @@ EValueType GetType(const NAst::TLiteralValue& literalValue)
             return EValueType::Double;
         case NAst::TLiteralValue::TagOf<bool>():
             return EValueType::Boolean;
-        case NAst::TLiteralValue::TagOf<Stroka>():
+        case NAst::TLiteralValue::TagOf<TString>():
             return EValueType::String;
         default:
             Y_UNREACHABLE();
@@ -239,7 +239,7 @@ TTypeSet GetTypes(const NAst::TLiteralValue& literalValue)
             return TTypeSet({EValueType::Double});
         case NAst::TLiteralValue::TagOf<bool>():
             return TTypeSet({EValueType::Boolean});
-        case NAst::TLiteralValue::TagOf<Stroka>():
+        case NAst::TLiteralValue::TagOf<TString>():
             return TTypeSet({EValueType::String});
         default:
             Y_UNREACHABLE();
@@ -259,10 +259,10 @@ TValue GetValue(const NAst::TLiteralValue& literalValue)
             return MakeUnversionedDoubleValue(literalValue.As<double>());
         case NAst::TLiteralValue::TagOf<bool>():
             return MakeUnversionedBooleanValue(literalValue.As<bool>());
-        case NAst::TLiteralValue::TagOf<Stroka>():
+        case NAst::TLiteralValue::TagOf<TString>():
             return MakeUnversionedStringValue(
-                literalValue.As<Stroka>().c_str(),
-                literalValue.As<Stroka>().length());
+                literalValue.As<TString>().c_str(),
+                literalValue.As<TString>().length());
         default:
             Y_UNREACHABLE();
     }
@@ -815,14 +815,14 @@ class ISchemaProxy
 {
 public:
     virtual TNullable<TBaseColumn> GetColumnPtr(
-        const Stroka& name,
-        const Stroka& tableName) = 0;
+        const TString& name,
+        const TString& tableName) = 0;
 
     virtual TUntypedExpression GetAggregateColumnPtr(
-        const Stroka& name,
+        const TString& name,
         const TAggregateTypeInferrer* aggregateFunction,
         const NAst::TExpression* arguments,
-        Stroka subexprName,
+        TString subexprName,
         const TTypedExpressionBuilder& builder) = 0;
 };
 
@@ -1173,14 +1173,14 @@ EValueType RefineUnaryExprTypes(
 
 struct TTypedExpressionBuilder
 {
-    const Stroka& Source;
+    const TString& Source;
     const TConstTypeInferrerMapPtr& Functions;
     const NAst::TAliasMap& AliasMap;
 
     TUntypedExpression DoBuildUntypedExpression(
         const NAst::TExpression* expr,
         ISchemaProxyPtr schema,
-        std::set<Stroka>& usedAliases) const
+        std::set<TString>& usedAliases) const
     {
         if (auto literalExpr = expr->As<NAst::TLiteralExpression>()) {
             const auto& literalValue = literalExpr->Value;
@@ -1463,7 +1463,7 @@ struct TTypedExpressionBuilder
             }
         } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
             std::vector<TConstExpressionPtr> typedArguments;
-            std::unordered_set<Stroka> columnNames;
+            std::unordered_set<TString> columnNames;
             std::vector<EValueType> argTypes;
 
             for (const auto& argument : inExpr->Expr) {
@@ -1503,7 +1503,7 @@ struct TTypedExpressionBuilder
         const NAst::TExpression* expr,
         ISchemaProxyPtr schema) const
     {
-        std::set<Stroka> usedAliases;
+        std::set<TString> usedAliases;
         return DoBuildUntypedExpression(expr, schema, usedAliases);
     }
 
@@ -1527,13 +1527,13 @@ public:
     TSchemaProxy()
     { }
 
-    TSchemaProxy(const yhash<std::pair<Stroka, Stroka>, TBaseColumn>& lookup)
+    TSchemaProxy(const yhash<std::pair<TString, TString>, TBaseColumn>& lookup)
         : Lookup_(lookup)
     { }
 
     virtual TNullable<TBaseColumn> GetColumnPtr(
-        const Stroka& name,
-        const Stroka& tableName) override
+        const TString& name,
+        const TString& tableName) override
     {
         auto key = std::make_pair(name, tableName);
         auto found = Lookup_.find(key);
@@ -1548,10 +1548,10 @@ public:
     }
 
     virtual TUntypedExpression GetAggregateColumnPtr(
-        const Stroka& name,
+        const TString& name,
         const TAggregateTypeInferrer* aggregateFunction,
         const NAst::TExpression* arguments,
-        Stroka subexprName,
+        TString subexprName,
         const TTypedExpressionBuilder& builder) override
     {
         auto typer = ProvideAggregateColumn(
@@ -1579,26 +1579,26 @@ public:
     virtual void Finish()
     { }
 
-    const yhash<std::pair<Stroka, Stroka>, TBaseColumn>& GetLookup() const
+    const yhash<std::pair<TString, TString>, TBaseColumn>& GetLookup() const
     {
         return Lookup_;
     }
 
 private:
-    yhash<std::pair<Stroka, Stroka>, TBaseColumn> Lookup_;
-    yhash<std::pair<Stroka, EValueType>, TBaseColumn> AggregateLookup_;
+    yhash<std::pair<TString, TString>, TBaseColumn> Lookup_;
+    yhash<std::pair<TString, EValueType>, TBaseColumn> AggregateLookup_;
 
 protected:
-    virtual TNullable<TBaseColumn> ProvideColumn(const Stroka& name, const Stroka& tableName)
+    virtual TNullable<TBaseColumn> ProvideColumn(const TString& name, const TString& tableName)
     {
         return Null;
     }
 
     virtual std::pair<TTypeSet, std::function<TBaseColumn(EValueType)>> ProvideAggregateColumn(
-        const Stroka& name,
+        const TString& name,
         const TAggregateTypeInferrer* aggregateFunction,
         const NAst::TExpression* arguments,
-        Stroka subexprName,
+        TString subexprName,
         const TTypedExpressionBuilder& builder)
     {
         THROW_ERROR_EXCEPTION(
@@ -1616,14 +1616,14 @@ class TScanSchemaProxy
 public:
     TScanSchemaProxy(
         const TTableSchema& sourceTableSchema,
-        const Stroka& tableName,
+        const TString& tableName,
         std::vector<TColumnDescriptor>* mapping = nullptr)
         : Mapping_(mapping)
         , SourceTableSchema_(sourceTableSchema)
         , TableName_(tableName)
     { }
 
-    virtual TNullable<TBaseColumn> ProvideColumn(const Stroka& name, const Stroka& tableName) override
+    virtual TNullable<TBaseColumn> ProvideColumn(const TString& name, const TString& tableName) override
     {
         if (tableName != TableName_) {
             return Null;
@@ -1658,9 +1658,9 @@ public:
 
 private:
     std::vector<TColumnDescriptor>* Mapping_;
-    yhash<Stroka, size_t> ColumnsCollisions_;
+    yhash<TString, size_t> ColumnsCollisions_;
     const TTableSchema SourceTableSchema_;
-    Stroka TableName_;
+    TString TableName_;
 
     DECLARE_NEW_FRIEND();
 };
@@ -1670,9 +1670,9 @@ class TJoinSchemaProxy
 {
 public:
     TJoinSchemaProxy(
-        std::vector<Stroka>* selfJoinedColumns,
-        std::vector<Stroka>* foreignJoinedColumns,
-        const std::set<std::pair<Stroka, Stroka>>& sharedColumns,
+        std::vector<TString>* selfJoinedColumns,
+        std::vector<TString>* foreignJoinedColumns,
+        const std::set<std::pair<TString, TString>>& sharedColumns,
         TSchemaProxyPtr self,
         TSchemaProxyPtr foreign)
         : SelfJoinedColumns_(selfJoinedColumns)
@@ -1682,7 +1682,7 @@ public:
         , Foreign_(foreign)
     { }
 
-    virtual TNullable<TBaseColumn> ProvideColumn(const Stroka& name, const Stroka& tableName) override
+    virtual TNullable<TBaseColumn> ProvideColumn(const TString& name, const TString& tableName) override
     {
         if (auto column = Self_->GetColumnPtr(name, tableName)) {
             if (!SharedColumns_.count(std::make_pair(name, tableName)) &&
@@ -1716,16 +1716,16 @@ public:
     }
 
 private:
-    std::vector<Stroka>* SelfJoinedColumns_;
-    std::vector<Stroka>* ForeignJoinedColumns_;
+    std::vector<TString>* SelfJoinedColumns_;
+    std::vector<TString>* ForeignJoinedColumns_;
 
-    std::set<std::pair<Stroka, Stroka>> SharedColumns_;
+    std::set<std::pair<TString, TString>> SharedColumns_;
     TSchemaProxyPtr Self_;
     TSchemaProxyPtr Foreign_;
 
 };
 
-const TNullable<TBaseColumn> FindColumn(const TNamedItemList& schema, const Stroka& name)
+const TNullable<TBaseColumn> FindColumn(const TNamedItemList& schema, const TString& name)
 {
     for (size_t index = 0; index < schema.size(); ++index) {
         if (schema[index].Name == name) {
@@ -1748,7 +1748,7 @@ public:
         , AggregateItems_(aggregateItems)
     { }
 
-    virtual TNullable<TBaseColumn> ProvideColumn(const Stroka& name, const Stroka& tableName) override
+    virtual TNullable<TBaseColumn> ProvideColumn(const TString& name, const TString& tableName) override
     {
         if (!tableName.empty()) {
             return Null;
@@ -1758,10 +1758,10 @@ public:
     }
 
     virtual std::pair<TTypeSet, std::function<TBaseColumn(EValueType)>> ProvideAggregateColumn(
-        const Stroka& name,
+        const TString& name,
         const TAggregateTypeInferrer* aggregateFunction,
         const NAst::TExpression* argument,
-        Stroka subexprName,
+        TString subexprName,
         const TTypedExpressionBuilder& builder) override
     {
         auto untypedOperand = builder.BuildUntypedExpression(
@@ -1977,7 +1977,7 @@ void PrepareQuery(
 
 void ParseYqlString(
     NAst::TAstHead* astHead,
-    const Stroka& source,
+    const TString& source,
     NAst::TParser::token::yytokentype strayToken)
 {
     NAst::TLexer lexer(source, strayToken);
@@ -1995,7 +1995,7 @@ void ParseYqlString(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void DefaultFetchFunctions(const std::vector<Stroka>& names, const TTypeInferrerMapPtr& typeInferrers)
+void DefaultFetchFunctions(const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers)
 {
     MergeFrom(typeInferrers.Get(), *BuiltinTypeInferrersMap);
 }
@@ -2003,7 +2003,7 @@ void DefaultFetchFunctions(const std::vector<Stroka>& names, const TTypeInferrer
 ////////////////////////////////////////////////////////////////////////////////
 
 // For testing
-void ParseJobQuery(const Stroka& source)
+void ParseJobQuery(const TString& source)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>(), NAst::TAliasMap()};
     ParseYqlString(
@@ -2014,7 +2014,7 @@ void ParseJobQuery(const Stroka& source)
 
 std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
-    const Stroka& source,
+    const TString& source,
     const TFetchFunctions& fetchFunctions,
     i64 inputRowLimit,
     i64 outputRowLimit,
@@ -2081,7 +2081,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
 
         std::vector<std::pair<TConstExpressionPtr, bool>> selfEquations;
         std::vector<TConstExpressionPtr> foreignEquations;
-        std::set<std::pair<Stroka, Stroka>> sharedColumns;
+        std::set<std::pair<TString, TString>> sharedColumns;
         // Merge columns.
         for (const auto& reference : join.Fields) {
             auto selfColumn = schemaProxy->GetColumnPtr(reference->ColumnName, reference->TableName);
@@ -2176,7 +2176,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
                 break;
             }
 
-            yhash_set<Stroka> references;
+            yhash_set<TString> references;
             auto evaluatedColumnExpression = PrepareExpression(
                 foreignColumnExpression.Get(),
                 foreignTableSchema,
@@ -2302,7 +2302,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
                 break;
             }
 
-            yhash_set<Stroka> references;
+            yhash_set<TString> references;
             auto evaluatedColumnExpression = PrepareExpression(
                 expression.Get(),
                 query->OriginalSchema,
@@ -2359,7 +2359,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
 }
 
 TQueryPtr PrepareJobQuery(
-    const Stroka& source,
+    const TString& source,
     const TTableSchema& tableSchema,
     const TFetchFunctions& fetchFunctions)
 {
@@ -2388,7 +2388,7 @@ TQueryPtr PrepareJobQuery(
 
     TSchemaProxyPtr schemaProxy = New<TScanSchemaProxy>(
         tableSchema,
-        Stroka(),
+        TString(),
         &query->SchemaMapping);
 
     auto functionNames = ExtractFunctionNames(parsedQueryInfo);
@@ -2411,10 +2411,10 @@ TQueryPtr PrepareJobQuery(
 }
 
 TConstExpressionPtr PrepareExpression(
-    const Stroka& source,
+    const TString& source,
     TTableSchema tableSchema,
     const TConstTypeInferrerMapPtr& functions,
-    yhash_set<Stroka>* references)
+    yhash_set<TString>* references)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TExpressionPtr>(), NAst::TAliasMap()};
     ParseYqlString(

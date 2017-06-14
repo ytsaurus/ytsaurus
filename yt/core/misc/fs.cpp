@@ -48,7 +48,7 @@ void ThrowNotSupported()
 
 } // namespace
 
-bool Exists(const Stroka& path)
+bool Exists(const TString& path)
 {
 #ifdef _win32_
     return GetFileAttributesA(~path) != 0xFFFFFFFF;
@@ -57,7 +57,7 @@ bool Exists(const Stroka& path)
 #endif
 }
 
-void Remove(const Stroka& path)
+void Remove(const TString& path)
 {
     bool ok;
 #ifdef _win_
@@ -80,7 +80,7 @@ void Remove(const Stroka& path)
     }
 }
 
-void Replace(const Stroka& source, const Stroka& destination)
+void Replace(const TString& source, const TString& destination)
 {
     if (NFS::Exists(destination)) {
         NFS::Remove(destination);
@@ -88,12 +88,12 @@ void Replace(const Stroka& source, const Stroka& destination)
     NFS::Rename(source, destination);
 }
 
-void RemoveRecursive(const Stroka& path)
+void RemoveRecursive(const TString& path)
 {
     RemoveDirWithContents(path);
 }
 
-void Rename(const Stroka& source, const Stroka& destination)
+void Rename(const TString& source, const TString& destination)
 {
     bool ok;
 #if defined(_win_)
@@ -109,26 +109,26 @@ void Rename(const Stroka& source, const Stroka& destination)
     }
 }
 
-Stroka GetFileName(const Stroka& path)
+TString GetFileName(const TString& path)
 {
     size_t slashPosition = path.find_last_of(LOCSLASH_C);
-    if (slashPosition == Stroka::npos) {
+    if (slashPosition == TString::npos) {
         return path;
     }
     return path.substr(slashPosition + 1);
 }
 
-Stroka GetDirectoryName(const Stroka& path)
+TString GetDirectoryName(const TString& path)
 {
     auto absPath = CombinePaths(NFs::CurrentWorkingDirectory(), path);
     size_t slashPosition = absPath.find_last_of(LOCSLASH_C);
     return absPath.substr(0, slashPosition);
 }
 
-Stroka GetRealPath(const Stroka& path)
+TString GetRealPath(const TString& path)
 {
     auto curPath = CombinePaths(NFs::CurrentWorkingDirectory(), path);
-    std::vector<Stroka> parts;
+    std::vector<TString> parts;
     while (!Exists(curPath)) {
         auto filename = GetFileName(curPath);
         if (filename == ".") {
@@ -150,30 +150,30 @@ Stroka GetRealPath(const Stroka& path)
     return CombinePaths(parts);
 }
 
-Stroka GetFileExtension(const Stroka& path)
+TString GetFileExtension(const TString& path)
 {
     size_t dotPosition = path.find_last_of('.');
-    if (dotPosition == Stroka::npos) {
+    if (dotPosition == TString::npos) {
         return "";
     }
     size_t slashPosition = path.find_last_of(LOCSLASH_C);
-    if (slashPosition != Stroka::npos && dotPosition < slashPosition) {
+    if (slashPosition != TString::npos && dotPosition < slashPosition) {
         return "";
     }
     return path.substr(dotPosition + 1);
 }
 
-Stroka GetFileNameWithoutExtension(const Stroka& path)
+TString GetFileNameWithoutExtension(const TString& path)
 {
     auto fileName = GetFileName(path);
     size_t dotPosition = fileName.find_last_of('.');
-    if (dotPosition == Stroka::npos) {
+    if (dotPosition == TString::npos) {
         return fileName;
     }
     return fileName.substr(0, dotPosition);
 }
 
-void CleanTempFiles(const Stroka& path)
+void CleanTempFiles(const TString& path)
 {
     LOG_INFO("Cleaning temp files in %v", path);
 
@@ -188,9 +188,9 @@ void CleanTempFiles(const Stroka& path)
     }
 }
 
-std::vector<Stroka> EnumerateFiles(const Stroka& path, int depth)
+std::vector<TString> EnumerateFiles(const TString& path, int depth)
 {
-    std::vector<Stroka> result;
+    std::vector<TString> result;
     if (NFS::Exists(path)) {
         TFileList list;
         list.Fill(path, TStringBuf(), TStringBuf(), depth);
@@ -202,9 +202,9 @@ std::vector<Stroka> EnumerateFiles(const Stroka& path, int depth)
     return result;
 }
 
-std::vector<Stroka> EnumerateDirectories(const Stroka& path, int depth)
+std::vector<TString> EnumerateDirectories(const TString& path, int depth)
 {
-    std::vector<Stroka> result;
+    std::vector<TString> result;
     if (NFS::Exists(path)) {
         TDirsList list;
         list.Fill(path, TStringBuf(), TStringBuf(), depth);
@@ -216,7 +216,7 @@ std::vector<Stroka> EnumerateDirectories(const Stroka& path, int depth)
     return result;
 }
 
-TDiskSpaceStatistics GetDiskSpaceStatistics(const Stroka& path)
+TDiskSpaceStatistics GetDiskSpaceStatistics(const TString& path)
 {
     TDiskSpaceStatistics result;
     bool ok;
@@ -243,12 +243,12 @@ TDiskSpaceStatistics GetDiskSpaceStatistics(const Stroka& path)
     return result;
 }
 
-void MakeDirRecursive(const Stroka& path, int mode)
+void MakeDirRecursive(const TString& path, int mode)
 {
     MakePathIfNotExist(~path, mode);
 }
 
-TFileStatistics GetFileStatistics(const Stroka& path)
+TFileStatistics GetFileStatistics(const TString& path)
 {
     TFileStatistics statistics;
 #ifdef _unix_
@@ -283,7 +283,7 @@ TFileStatistics GetFileStatistics(const Stroka& path)
     return statistics;
 }
 
-void Touch(const Stroka& path)
+void Touch(const TString& path)
 {
 #ifdef _unix_
     int result = ::utimes(~path, nullptr);
@@ -307,7 +307,7 @@ namespace {
     const char PATH_DELIM2 = 0;
 #endif
 
-bool IsAbsolutePath(const Stroka& path)
+bool IsAbsolutePath(const TString& path)
 {
     if (path.empty())
         return false;
@@ -322,7 +322,7 @@ bool IsAbsolutePath(const Stroka& path)
     return false;
 }
 
-Stroka JoinPaths(const Stroka& path1, const Stroka& path2)
+TString JoinPaths(const TString& path1, const TString& path2)
 {
     if (path1.empty())
         return path2;
@@ -337,18 +337,18 @@ Stroka JoinPaths(const Stroka& path1, const Stroka& path2)
         ++delim;
     if (delim == 0)
         path.append(1, PATH_DELIM);
-    path.append(path2, delim == 2 ? 1 : 0, Stroka::npos);
+    path.append(path2, delim == 2 ? 1 : 0, TString::npos);
     return path;
 }
 
 } // namespace
 
-Stroka CombinePaths(const Stroka& path1, const Stroka& path2)
+TString CombinePaths(const TString& path1, const TString& path2)
 {
     return IsAbsolutePath(path2) ? path2 : JoinPaths(path1, path2);
 }
 
-Stroka CombinePaths(const std::vector<Stroka>& paths)
+TString CombinePaths(const std::vector<TString>& paths)
 {
     YCHECK(!paths.empty());
     if (paths.size() == 1) {
@@ -361,9 +361,9 @@ Stroka CombinePaths(const std::vector<Stroka>& paths)
     return result;
 }
 
-Stroka NormalizePathSeparators(const Stroka& path)
+TString NormalizePathSeparators(const TString& path)
 {
-    Stroka result;
+    TString result;
     result.reserve(path.length());
     for (int i = 0; i < path.length(); ++i) {
         if (path[i] == '\\') {
@@ -375,7 +375,7 @@ Stroka NormalizePathSeparators(const Stroka& path)
     return result;
 }
 
-void SetExecutableMode(const Stroka& path, bool executable)
+void SetExecutableMode(const TString& path, bool executable)
 {
 #ifdef _win_
     Y_UNUSED(path);
@@ -398,7 +398,7 @@ void SetExecutableMode(const Stroka& path, bool executable)
 #endif
 }
 
-void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath)
+void MakeSymbolicLink(const TString& filePath, const TString& linkPath)
 {
 #ifdef _win_
     // From MSDN: If the function succeeds, the return value is nonzero.
@@ -417,10 +417,10 @@ void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath)
     }
 }
 
-bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath)
+bool AreInodesIdentical(const TString& lhsPath, const TString& rhsPath)
 {
 #ifdef _unix_
-    auto checkedStat = [] (const Stroka& path, struct stat* buffer) {
+    auto checkedStat = [] (const TString& path, struct stat* buffer) {
         auto result = stat(~path, buffer);
         if (result) {
             THROW_ERROR_EXCEPTION(
@@ -442,18 +442,18 @@ bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath)
 #endif
 }
 
-Stroka GetHomePath()
+TString GetHomePath()
 {
 #ifdef _win_
     std::array<char, 1024> buffer;
     SHGetSpecialFolderPath(0, buffer.data(), CSIDL_PROFILE, 0);
-    return Stroka(buffer.data());
+    return TString(buffer.data());
 #else
     return std::getenv("HOME");
 #endif
 }
 
-void FlushDirectory(const Stroka& path)
+void FlushDirectory(const TString& path)
 {
 #ifdef _unix_
     int fd = ::open(~path, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
@@ -475,7 +475,7 @@ void FlushDirectory(const Stroka& path)
 #endif
 }
 
-std::vector<TMountPoint> GetMountPoints(const Stroka& mountsFile)
+std::vector<TMountPoint> GetMountPoints(const TString& mountsFile)
 {
 #ifdef _linux_
     std::unique_ptr<FILE, decltype(&endmntent)> file(::setmntent(~mountsFile, "r"), endmntent);
@@ -501,7 +501,7 @@ std::vector<TMountPoint> GetMountPoints(const Stroka& mountsFile)
 #endif
 }
 
-void MountTmpfs(const Stroka& path, int userId, i64 size)
+void MountTmpfs(const TString& path, int userId, i64 size)
 {
 #ifdef _linux_
     auto opts = Format("mode=0700,uid=%v,size=%v", userId, size);
@@ -517,7 +517,7 @@ void MountTmpfs(const Stroka& path, int userId, i64 size)
 #endif
 }
 
-void Umount(const Stroka& path, bool detach)
+void Umount(const TString& path, bool detach)
 {
 #ifdef _linux_
     int flags = 0;
@@ -562,7 +562,7 @@ void ExpectIOErrors(std::function<void()> func)
     }
 }
 
-void Chmod(const Stroka& path, int mode)
+void Chmod(const TString& path, int mode)
 {
 #ifdef _linux_
     int result = ::Chmod(~path, mode);
@@ -577,8 +577,8 @@ void Chmod(const Stroka& path, int mode)
 }
 
 void ChunkedCopy(
-    const Stroka& existingPath,
-    const Stroka& newPath,
+    const TString& existingPath,
+    const TString& newPath,
     i64 chunkSize)
 {
 #ifdef _linux_
@@ -626,7 +626,7 @@ void ChunkedCopy(
 #endif
 }
 
-TError AttachLsofOutput(TError error, const Stroka& path)
+TError AttachLsofOutput(TError error, const TString& path)
 {
     auto lsofOutput = TShellCommand("lsof", {path})
         .Run()
@@ -636,7 +636,7 @@ TError AttachLsofOutput(TError error, const Stroka& path)
         << TErrorAttribute("lsof_output", lsofOutput);
 }
 
-TError AttachFindOutput(TError error, const Stroka& path)
+TError AttachFindOutput(TError error, const TString& path)
 {
     auto findOutput = TShellCommand("find", {path, "-name", "*"})
         .Run()

@@ -100,7 +100,7 @@ std::vector<int> GetPidsByUid(int uid)
 i64 GetProcessRss(int pid)
 {
 #ifdef _linux_
-    Stroka path = "/proc/self/statm";
+    TString path = "/proc/self/statm";
     if (pid != -1) {
         path = Format("/proc/%v/statm", pid);
     }
@@ -113,26 +113,26 @@ i64 GetProcessRss(int pid)
 #endif
 }
 
-Stroka GetProcessName(int pid)
+TString GetProcessName(int pid)
 {
 #ifdef _linux_
-    Stroka path = Format("/proc/%v/comm", pid);
+    TString path = Format("/proc/%v/comm", pid);
     return Trim(TFileInput(path).ReadAll(), "\n");
 #else
     return "";
 #endif
 }
 
-std::vector<Stroka> GetProcessCommandLine(int pid)
+std::vector<TString> GetProcessCommandLine(int pid)
 {
 #ifdef _linux_
-    Stroka path = Format("/proc/%v/cmdline", pid);
+    TString path = Format("/proc/%v/cmdline", pid);
     auto raw = TFileInput(path).ReadAll();
-    std::vector<Stroka> result;
+    std::vector<TString> result;
     auto begin = 0;
     while (begin < raw.length()) {
         auto end = raw.find('\0', begin);
-        if (end == Stroka::npos) {
+        if (end == TString::npos) {
             result.push_back(raw.substr(begin));
             begin = raw.length();
         } else {
@@ -143,13 +143,13 @@ std::vector<Stroka> GetProcessCommandLine(int pid)
 
     return result;
 #else
-    return std::vector<Stroka>();
+    return std::vector<TString>();
 #endif
 }
 
 #ifdef _unix_
 
-void RemoveDirAsRoot(const Stroka& path)
+void RemoveDirAsRoot(const TString& path)
 {
     // Child process
     SafeSetUid(0);
@@ -159,7 +159,7 @@ void RemoveDirAsRoot(const Stroka& path)
         path) << TError::FromSystem();
 }
 
-void RemoveDirContentAsRoot(const Stroka& path)
+void RemoveDirContentAsRoot(const TString& path)
 {
     // Child process
     SafeSetUid(0);
@@ -198,7 +198,7 @@ void RemoveDirContentAsRoot(const Stroka& path)
             }
         }
 
-        std::vector<Stroka> unremovableItems;
+        std::vector<TString> unremovableItems;
         {
             TDirIterator dir(path);
             for (auto it = dir.Begin(); it != dir.End(); ++it) {
@@ -390,7 +390,7 @@ void SafeSetCloexec(int fd)
     }
 }
 
-void SetPermissions(const Stroka& path, int permissions)
+void SetPermissions(const TString& path, int permissions)
 {
 #ifdef _linux_
     auto res = HandleEintr(::chmod, ~path, permissions);
@@ -578,7 +578,7 @@ void SafeSetUid(int uid)
     }
 }
 
-Stroka SafeGetUsernameByUid(int uid)
+TString SafeGetUsernameByUid(int uid)
 {
     int bufferSize = ::sysconf(_SC_GETPW_R_SIZE_MAX);
     if (bufferSize < 0) {
@@ -657,12 +657,12 @@ TError StatusToError(int /* status */)
     Y_UNIMPLEMENTED();
 }
 
-void RemoveDirAsRoot(const Stroka& /* path */)
+void RemoveDirAsRoot(const TString& /* path */)
 {
     Y_UNIMPLEMENTED();
 }
 
-void RemoveDirContentAsRoot(const Stroka& /* path */)
+void RemoveDirContentAsRoot(const TString& /* path */)
 {
     YUNIMPLEMENTED();
 }
@@ -682,7 +682,7 @@ void KillAllByUid(int /* uid */)
     Y_UNIMPLEMENTED();
 }
 
-void UmountAsRoot(const Stroka& /* path */)
+void UmountAsRoot(const TString& /* path */)
 {
     Y_UNIMPLEMENTED();
 }
@@ -737,7 +737,7 @@ void SafeSetUid(int /* uid */)
     Y_UNIMPLEMENTED();
 }
 
-Stroka SafeGetUsernameByUid(int /* uid */)
+TString SafeGetUsernameByUid(int /* uid */)
 {
     Y_UNIMPLEMENTED();
 }
@@ -776,7 +776,7 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor)
 #endif
 }
 
-void CreateStderrFile(Stroka fileName)
+void CreateStderrFile(TString fileName)
 {
 #ifdef _unix_
     YCHECK(freopen(~fileName, "a", stderr) != nullptr);
@@ -812,14 +812,14 @@ void TKillAllByUidTool::operator()(int uid) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRemoveDirAsRootTool::operator()(const Stroka& arg) const
+void TRemoveDirAsRootTool::operator()(const TString& arg) const
 {
     RemoveDirAsRoot(arg);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRemoveDirContentAsRootTool::operator()(const Stroka& arg) const
+void TRemoveDirContentAsRootTool::operator()(const TString& arg) const
 {
     RemoveDirContentAsRoot(arg);
 }

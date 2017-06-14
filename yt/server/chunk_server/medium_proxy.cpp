@@ -48,7 +48,7 @@ private:
             .SetReplicated(true));
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
     {
         const auto* medium = GetThisImpl();
 
@@ -85,13 +85,13 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(const TString& key, const TYsonString& value) override
     {
         auto* medium = GetThisImpl();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         if (key == "name") {
-            auto newName = ConvertTo<Stroka>(value);
+            auto newName = ConvertTo<TString>(value);
             chunkManager->RenameMedium(medium, newName);
             return true;
         }

@@ -179,7 +179,7 @@ std::unique_ptr<TChunkList> CreateChunkList(EChunkListKind kind = EChunkListKind
     return chunkList;
 }
 
-TUnversionedOwningRow BuildKey(const Stroka& yson)
+TUnversionedOwningRow BuildKey(const TString& yson)
 {
     return NTableClient::YsonToKey(yson);
 }

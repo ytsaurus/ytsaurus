@@ -146,7 +146,7 @@ protected:
 
 TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
 {
-    Stroka message("Hello pipe!\n");
+    TString message("Hello pipe!\n");
     auto buffer = TSharedRef::FromString(message);
     Writer->Write(buffer).Get();
     Writer->Close();
@@ -162,12 +162,12 @@ TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
         whole.Append(data.Begin(), result.Value());
     }
 
-    EXPECT_EQ(message, Stroka(whole.Begin(), whole.End()));
+    EXPECT_EQ(message, TString(whole.Begin(), whole.End()));
 }
 
 TEST_F(TNamedPipeReadWriteTest, ReadSomethingSpin)
 {
-    Stroka message("Hello pipe!\n");
+    TString message("Hello pipe!\n");
     auto buffer = TSharedRef::FromString(message);
 
     Writer->Write(buffer).Get();
@@ -183,35 +183,35 @@ TEST_F(TNamedPipeReadWriteTest, ReadSomethingSpin)
         }
         whole.Append(data.Begin(), result.Value());
     }
-    EXPECT_EQ(message, Stroka(whole.Begin(), whole.End()));
+    EXPECT_EQ(message, TString(whole.Begin(), whole.End()));
 }
 
 
 TEST_F(TPipeReadWriteTest, ReadSomethingWait)
 {
-    Stroka message("Hello pipe!\n");
+    TString message("Hello pipe!\n");
     auto buffer = TSharedRef::FromString(message);
     EXPECT_TRUE(Writer->Write(buffer).Get().IsOK());
     WaitFor(Writer->Close())
         .ThrowOnError();
     auto whole = ReadAll(Reader, false);
-    EXPECT_EQ(message, Stroka(whole.Begin(), whole.End()));
+    EXPECT_EQ(message, TString(whole.Begin(), whole.End()));
 }
 
 TEST_F(TNamedPipeReadWriteTest, ReadSomethingWait)
 {
-    Stroka message("Hello pipe!\n");
+    TString message("Hello pipe!\n");
     auto buffer = TSharedRef::FromString(message);
     EXPECT_TRUE(Writer->Write(buffer).Get().IsOK());
     WaitFor(Writer->Close())
         .ThrowOnError();
     auto whole = ReadAll(Reader, false);
-    EXPECT_EQ(message, Stroka(whole.Begin(), whole.End()));
+    EXPECT_EQ(message, TString(whole.Begin(), whole.End()));
 }
 
 TEST_F(TPipeReadWriteTest, ReadWrite)
 {
-    Stroka text("Hello cruel world!\n");
+    TString text("Hello cruel world!\n");
     auto buffer = TSharedRef::FromString(text);
     Writer->Write(buffer).Get();
     auto errorsOnClose = Writer->Close();
@@ -220,12 +220,12 @@ TEST_F(TPipeReadWriteTest, ReadWrite)
 
     auto error = errorsOnClose.Get();
     EXPECT_TRUE(error.IsOK()) << error.GetMessage();
-    EXPECT_EQ(text, Stroka(textFromPipe.Begin(), textFromPipe.End()));
+    EXPECT_EQ(text, TString(textFromPipe.Begin(), textFromPipe.End()));
 }
 
 TEST_F(TNamedPipeReadWriteTest, ReadWrite)
 {
-    Stroka text("Hello cruel world!\n");
+    TString text("Hello cruel world!\n");
     auto buffer = TSharedRef::FromString(text);
     Writer->Write(buffer).Get();
     auto errorsOnClose = Writer->Close();
@@ -234,7 +234,7 @@ TEST_F(TNamedPipeReadWriteTest, ReadWrite)
 
     auto error = errorsOnClose.Get();
     EXPECT_TRUE(error.IsOK()) << error.GetMessage();
-    EXPECT_EQ(text, Stroka(textFromPipe.Begin(), textFromPipe.End()));
+    EXPECT_EQ(text, TString(textFromPipe.Begin(), textFromPipe.End()));
 }
 
 void WriteAll(TAsyncWriterPtr writer, const char* data, size_t size, size_t blockSize)

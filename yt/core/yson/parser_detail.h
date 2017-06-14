@@ -64,7 +64,7 @@ public:
                 }
             }
         } catch (const std::exception& ex) {
-            Stroka context = TBase::GetContextFromCheckpoint();
+            TString context = TBase::GetContextFromCheckpoint();
             size_t contextPosition = TBase::GetContextPosition();
             THROW_ERROR_EXCEPTION("Error occurred while parsing YSON")
                 << TErrorAttribute("context", context)

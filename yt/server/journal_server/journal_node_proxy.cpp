@@ -61,7 +61,7 @@ private:
         descriptors->push_back("sealed");
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
     {
         auto* node = GetThisImpl();
         auto statistics = node->ComputeTotalStatistics();
@@ -93,7 +93,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const TString& key) override
     {
         const auto* node = GetThisImpl();
         auto isExternal = node->IsExternal();

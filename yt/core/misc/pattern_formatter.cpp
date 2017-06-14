@@ -14,14 +14,14 @@ static const char RightParen = ')';
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPatternFormatter::AddProperty(const Stroka& name, const Stroka& value)
+void TPatternFormatter::AddProperty(const TString& name, const TString& value)
 {
     PropertyMap[name] = value;
 }
 
-Stroka TPatternFormatter::Format(const Stroka& pattern)
+TString TPatternFormatter::Format(const TString& pattern)
 {
-    Stroka result;
+    TString result;
 
     for (size_t pos = 0; pos < pattern.size(); ++pos) {
         if (pattern[pos] == Dollar && (pos + 1 < pattern.size() && pattern[pos + 1] == LeftParen)) {

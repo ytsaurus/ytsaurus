@@ -15,7 +15,7 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(TNodePtrWithIndexes value)
+TString ToString(TNodePtrWithIndexes value)
 {
     if (value.GetReplicaIndex() == GenericChunkReplicaIndex) {
         return Format("%v@%v",
@@ -29,7 +29,7 @@ Stroka ToString(TNodePtrWithIndexes value)
     }
 }
 
-Stroka ToString(TChunkPtrWithIndexes value)
+TString ToString(TChunkPtrWithIndexes value)
 {
     auto* chunk = value.GetPtr();
     const auto& id = chunk->GetId();

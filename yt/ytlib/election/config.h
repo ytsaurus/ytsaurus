@@ -12,13 +12,13 @@ namespace NElection {
 struct TCellPeerConfig
 {
     TCellPeerConfig();
-    explicit TCellPeerConfig(const TNullable<Stroka>& address, bool voting = true);
+    explicit TCellPeerConfig(const TNullable<TString>& address, bool voting = true);
 
-    TNullable<Stroka> Address;
+    TNullable<TString> Address;
     bool Voting = true;
 };
 
-Stroka ToString(const TCellPeerConfig& config);
+TString ToString(const TCellPeerConfig& config);
 
 void Serialize(const TCellPeerConfig& config, NYson::IYsonConsumer* consumer);
 void Deserialize(TCellPeerConfig& config, NYTree::INodePtr node);

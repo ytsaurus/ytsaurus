@@ -15,11 +15,11 @@ class TProtoErrorCollector
 {
 public:
     virtual void AddError(
-        const Stroka& fileName,
-        const Stroka& elementName,
+        const TString& fileName,
+        const TString& elementName,
         const Message* descriptor,
         DescriptorPool::ErrorCollector::ErrorLocation location,
-        const Stroka& message) override
+        const TString& message) override
     {
         THROW_ERROR_EXCEPTION("Error while building protobuf descriptors: %v", message)
             << TErrorAttribute("file_name", fileName)

@@ -62,7 +62,7 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<Stroka>& encoding)
+Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<TString>& encoding)
 {
     if (PyUnicode_Check(obj.ptr())) {
         if (!encoding) {
@@ -84,7 +84,7 @@ Py::Bytes EncodeStringObject(const Py::Object& obj, const TNullable<Stroka>& enc
 void SerializeMapFragment(
     const Py::Object& map,
     IYsonConsumer* consumer,
-    const TNullable<Stroka> &encoding,
+    const TNullable<TString> &encoding,
     bool ignoreInnerAttributes,
     EYsonType ysonType,
     int depth)
@@ -169,7 +169,7 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
 void Serialize(
     const Py::Object& obj,
     IYsonConsumer* consumer,
-    const TNullable<Stroka>& encoding,
+    const TNullable<TString>& encoding,
     bool ignoreInnerAttributes,
     EYsonType ysonType,
     int depth)
@@ -233,7 +233,7 @@ void Serialize(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const TNullable<Stroka>& encoding)
+TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const TNullable<TString>& encoding)
     : YsonMap(GetYsonType("YsonMap"))
     , YsonList(GetYsonType("YsonList"))
     , YsonString(GetYsonType("YsonString"))
@@ -335,7 +335,7 @@ void TPythonObjectBuilder::OnBeginMap()
 
 void TPythonObjectBuilder::OnKeyedItem(const TStringBuf& key)
 {
-    Keys_.push(Stroka(key));
+    Keys_.push(TString(key));
 }
 
 void TPythonObjectBuilder::OnEndMap()
@@ -531,7 +531,7 @@ void TGilGuardedYsonConsumer::OnEndAttributes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Deserialize(Py::Object& obj, INodePtr node, const TNullable<Stroka>& encoding)
+void Deserialize(Py::Object& obj, INodePtr node, const TNullable<TString>& encoding)
 {
     Py::Object attributes = Py::Dict();
     if (!node->Attributes().List().empty()) {

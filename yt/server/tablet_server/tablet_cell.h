@@ -64,8 +64,8 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    TPeerId FindPeerId(const Stroka& address) const;
-    TPeerId GetPeerId(const Stroka& address) const;
+    TPeerId FindPeerId(const TString& address) const;
+    TPeerId GetPeerId(const TString& address) const;
 
     TPeerId FindPeerId(NNodeTrackerServer::TNode* node) const;
     TPeerId GetPeerId(NNodeTrackerServer::TNode* node) const;

@@ -23,7 +23,7 @@ struct TBlockId
     int BlockIndex;
 };
 
-Stroka ToString(const TBlockId& id);
+TString ToString(const TBlockId& id);
 
 bool operator == (const TBlockId& lhs, const TBlockId& rhs);
 bool operator != (const TBlockId& lhs, const TBlockId& rhs);

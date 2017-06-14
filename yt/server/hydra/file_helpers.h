@@ -15,7 +15,7 @@ namespace NHydra {
 class TFileWrapper
 {
 public:
-    TFileWrapper(const Stroka& fileName, ui32 oMode);
+    TFileWrapper(const TString& fileName, EOpenMode oMode);
 
     i64 Seek(i64 offset, SeekDir origin);
     void Flush();
@@ -84,7 +84,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RemoveChangelogFiles(const Stroka& path);
+void RemoveChangelogFiles(const TString& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

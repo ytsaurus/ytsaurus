@@ -40,13 +40,13 @@ DEFINE_REFCOUNTED_TYPE(TFileSnapshotStore)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISnapshotReaderPtr CreateFileSnapshotReader(
-    const Stroka& fileName,
+    const TString& fileName,
     int snapshotId,
     bool raw,
     i64 offset = -1);
 
 ISnapshotWriterPtr CreateFileSnapshotWriter(
-    const Stroka& fileName,
+    const TString& fileName,
     NCompression::ECodec codec,
     int snapshotId,
     const NProto::TSnapshotMeta& meta,

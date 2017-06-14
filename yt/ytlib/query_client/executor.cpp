@@ -246,7 +246,7 @@ private:
         }
     }
 
-    std::vector<std::pair<TDataRanges, Stroka>> InferRanges(
+    std::vector<std::pair<TDataRanges, TString>> InferRanges(
         TConstQueryPtr query,
         const TDataRanges& dataSource,
         const TQueryOptions& options,
@@ -283,7 +283,7 @@ private:
         };
 
         const auto& schema = dataSource.Schema;
-        std::vector<std::pair<TDataRanges, Stroka>> subsources;
+        std::vector<std::pair<TDataRanges, TString>> subsources;
 
         auto addSubsource = [&] (const TTabletInfoPtr& tabletInfo) -> TDataRanges* {
             TDataRanges dataSource;
@@ -448,7 +448,7 @@ private:
         const TQueryOptions& options,
         ISchemafulWriterPtr writer,
         int subrangesCount,
-        std::function<std::pair<std::vector<TDataRanges>, Stroka>(int)> getSubsources)
+        std::function<std::pair<std::vector<TDataRanges>, TString>(int)> getSubsources)
     {
         auto Logger = MakeQueryLogger(query);
 
@@ -474,7 +474,7 @@ private:
             refiners,
             [&] (TConstQueryPtr subquery, int index) {
                 std::vector<TDataRanges> dataSources;
-                Stroka address;
+                TString address;
                 std::tie(dataSources, address) = getSubsources(index);
 
                 LOG_DEBUG("Delegating subquery (SubQueryId: %v, Address: %v, MaxSubqueries: %v)",
@@ -517,13 +517,13 @@ private:
         LOG_DEBUG("Regrouping %v splits into groups",
             allSplits.size());
 
-        yhash<Stroka, std::vector<TDataRanges>> groupsByAddress;
+        yhash<TString, std::vector<TDataRanges>> groupsByAddress;
         for (const auto& split : allSplits) {
             const auto& address = split.second;
             groupsByAddress[address].push_back(split.first);
         }
 
-        std::vector<std::pair<std::vector<TDataRanges>, Stroka>> groupedSplits;
+        std::vector<std::pair<std::vector<TDataRanges>, TString>> groupedSplits;
         for (const auto& group : groupsByAddress) {
             groupedSplits.emplace_back(group.second, group.first);
         }
@@ -566,7 +566,7 @@ private:
         YCHECK(std::is_sorted(
             allSplits.begin(),
             allSplits.end(),
-            [] (const std::pair<TDataRanges, Stroka>& lhs, const std::pair<TDataRanges, Stroka>& rhs) {
+            [] (const std::pair<TDataRanges, TString>& lhs, const std::pair<TDataRanges, TString>& rhs) {
                 const auto& lhsData = lhs.first;
                 const auto& rhsData = rhs.first;
 
@@ -598,7 +598,7 @@ private:
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
         std::vector<TDataRanges> dataSources,
-        const Stroka& address)
+        const TString& address)
     {
         auto Logger = MakeQueryLogger(query);
 

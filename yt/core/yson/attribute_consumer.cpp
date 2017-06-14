@@ -230,7 +230,7 @@ void TAttributeValueConsumer::OnRaw(TFuture<TYsonString> asyncStr)
                 writer.Flush();
                 return TYsonString(stream.Str(), EYsonType::MapFragment);
             } else {
-                return TYsonString(Stroka(), EYsonType::MapFragment);
+                return TYsonString(TString(), EYsonType::MapFragment);
             }
         })));
     } else {

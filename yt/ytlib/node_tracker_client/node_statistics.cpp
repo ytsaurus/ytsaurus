@@ -10,7 +10,7 @@ namespace NProto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TNodeStatistics& statistics)
+TString ToString(const TNodeStatistics& statistics)
 {
     return Format(
         "Space: %v/%v, TotalStoredChunks: %v, TotalCachedChunks: %v, UserSessions: %v, "

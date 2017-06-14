@@ -86,14 +86,14 @@ public:
             builder_,
             BIND(&TResponseParametersConsumer::DoSavePair,
                 this,
-                Passed(Stroka(keyRef)),
+                Passed(TString(keyRef)),
                 Passed(std::move(builder))));
     }
 
 private:
     const Persistent<Function>& Callback_;
 
-    void DoSavePair(Stroka key, std::unique_ptr<ITreeBuilder> builder)
+    void DoSavePair(TString key, std::unique_ptr<ITreeBuilder> builder)
     {
         auto pair = std::make_pair(std::move(key), builder->EndTree());
         auto future =
@@ -181,8 +181,8 @@ public:
 
     void Prepare(
         ui64 requestId,
-        Stroka commandName,
-        Stroka authenticatedUser,
+        TString commandName,
+        TString authenticatedUser,
         INodePtr parameters,
         ECompression inputCompression,
         ECompression outputCompression)
@@ -348,7 +348,7 @@ void ExportEnumeration(
     Local<Array> mapping = Array::New();
 
     for (auto value : values) {
-        auto key = Stroka::Join(name, "_", TEnumTraits<E>::FindLiteralByValue(value)->data());
+        auto key = TString::Join(name, "_", TEnumTraits<E>::FindLiteralByValue(value)->data());
         auto keyHandle = String::NewSymbol(key.c_str());
         auto valueHandle = Integer::New(static_cast<int>(value));
         target->Set(
@@ -472,13 +472,13 @@ Handle<Value> TDriverWrap::FindCommandDescriptor(const Arguments& args)
 
     // Unwrap arguments.
     String::Utf8Value commandNameValue(args[0]);
-    Stroka commandName(*commandNameValue, commandNameValue.length());
+    TString commandName(*commandNameValue, commandNameValue.length());
 
     // Do the work.
     return scope.Close(driver->DoFindCommandDescriptor(commandName));
 }
 
-Handle<Value> TDriverWrap::DoFindCommandDescriptor(const Stroka& commandName)
+Handle<Value> TDriverWrap::DoFindCommandDescriptor(const TString& commandName)
 {
     auto maybeDescriptor = Driver->FindCommandDescriptor(commandName);
     if (maybeDescriptor) {
@@ -583,8 +583,8 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
 
     request->Prepare(
         requestId,
-        Stroka(*commandName, commandName.length()),
-        Stroka(*authenticatedUser, authenticatedUser.length()),
+        TString(*commandName, commandName.length()),
+        TString(*authenticatedUser, authenticatedUser.length()),
         std::move(parameters),
         inputCompression,
         outputCompression);

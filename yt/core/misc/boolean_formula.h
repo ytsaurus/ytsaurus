@@ -12,7 +12,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Validates that a string is a correct boolean variable name.
-void ValidateBooleanFormulaVariable(const Stroka& variable);
+void ValidateBooleanFormulaVariable(const TString& variable);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,11 +38,11 @@ public:
     size_t GetHash() const;
 
     //! Returns a human-readable representation of the formula.
-    Stroka GetFormula() const;
+    TString GetFormula() const;
 
     //! Check that a given set of true-variables satisfies the formula.
-    bool IsSatisfiedBy(const std::vector<Stroka>& value) const;
-    bool IsSatisfiedBy(const yhash_set<Stroka>& value) const;
+    bool IsSatisfiedBy(const std::vector<TString>& value) const;
+    bool IsSatisfiedBy(const yhash_set<TString>& value) const;
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
@@ -53,12 +53,12 @@ private:
 
     explicit TBooleanFormula(TIntrusivePtr<TImpl> impl);
 
-    friend TIntrusivePtr<TImpl> MakeBooleanFormulaImpl(const Stroka& formula);
-    friend TBooleanFormula MakeBooleanFormula(const Stroka& formula);
+    friend TIntrusivePtr<TImpl> MakeBooleanFormulaImpl(const TString& formula);
+    friend TBooleanFormula MakeBooleanFormula(const TString& formula);
 };
 
 //! Parse string and return formula.
-TBooleanFormula MakeBooleanFormula(const Stroka& formula);
+TBooleanFormula MakeBooleanFormula(const TString& formula);
 
 void Serialize(const TBooleanFormula& booleanFormula, NYson::IYsonConsumer* consumer);
 void Deserialize(TBooleanFormula& booleanFormula, NYTree::INodePtr node);

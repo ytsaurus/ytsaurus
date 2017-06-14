@@ -10,7 +10,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonString IAttributeDictionary::GetYson(const Stroka& key) const
+TYsonString IAttributeDictionary::GetYson(const TString& key) const
 {
     auto result = FindYson(key);
     if (!result) {
@@ -51,7 +51,7 @@ void IAttributeDictionary::Clear()
     }
 }
 
-bool IAttributeDictionary::Contains(const Stroka& key) const
+bool IAttributeDictionary::Contains(const TString& key) const
 {
     return FindYson(key).operator bool();
 }

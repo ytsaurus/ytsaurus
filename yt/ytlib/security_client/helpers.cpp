@@ -9,12 +9,12 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath GetUserPath(const Stroka& name)
+TYPath GetUserPath(const TString& name)
 {
     return "//sys/users/" + ToYPathLiteral(name);
 }
 
-TYPath GetGroupPath(const Stroka& name)
+TYPath GetGroupPath(const TString& name)
 {
     return "//sys/groups/" + ToYPathLiteral(name);
 }

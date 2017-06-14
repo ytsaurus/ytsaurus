@@ -60,11 +60,11 @@ public:
 
     TErrorOr(const std::exception& ex);
 
-    explicit TErrorOr(const Stroka& message);
+    explicit TErrorOr(const TString& message);
     template <class... TArgs>
     explicit TErrorOr(const char* format, const TArgs&... args);
 
-    TErrorOr(TErrorCode code, const Stroka& message);
+    TErrorOr(TErrorCode code, const TString& message);
     template <class... TArgs>
     TErrorOr(TErrorCode code, const char* format, const TArgs&... args);
 
@@ -77,8 +77,8 @@ public:
     TErrorCode GetCode() const;
     TError& SetCode(TErrorCode code);
 
-    const Stroka& GetMessage() const;
-    TError& SetMessage(const Stroka& message);
+    const TString& GetMessage() const;
+    TError& SetMessage(const TString& message);
 
     const NYTree::IAttributeDictionary& Attributes() const;
     NYTree::IAttributeDictionary& Attributes();
@@ -103,7 +103,7 @@ public:
 
 private:
     TErrorCode Code_;
-    Stroka Message_;
+    TString Message_;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
     std::vector<TError> InnerErrors_;
 
@@ -129,7 +129,7 @@ void Serialize(
     const std::function<void(NYson::IYsonConsumer*)>* valueProducer = nullptr);
 void Deserialize(TError& error, NYTree::INodePtr node);
 
-Stroka ToString(const TError& error);
+TString ToString(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -164,17 +164,17 @@ NYson::TYsonString ConvertToYsonString(const TStringBuf& value);
 struct TErrorAttribute
 {
     template <class T>
-    TErrorAttribute(const Stroka& key, const T& value)
+    TErrorAttribute(const TString& key, const T& value)
         : Key(key)
         , Value(NYTree::ConvertToYsonString(value))
     { }
 
-    TErrorAttribute(const Stroka& key, const NYson::TYsonString& value)
+    TErrorAttribute(const TString& key, const NYson::TYsonString& value)
         : Key(key)
         , Value(value)
     { }
 
-    Stroka Key;
+    TString Key;
     NYson::TYsonString Value;
 };
 
@@ -201,7 +201,7 @@ public:
     virtual const char* what() const throw() override;
 
 private:
-    mutable Stroka CachedWhat_;
+    mutable TString CachedWhat_;
 
 };
 
@@ -267,7 +267,7 @@ private:
 };
 
 template <class T>
-Stroka ToString(const TErrorOr<T>& valueOrError);
+TString ToString(const TErrorOr<T>& valueOrError);
 
 ////////////////////////////////////////////////////////////////////////////////
 

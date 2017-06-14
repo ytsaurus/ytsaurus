@@ -40,7 +40,7 @@ TUserJobReadController::TUserJobReadController(
     TNodeDescriptor nodeDescriptor,
     TClosure onNetworkRelease,
     IUserJobIOFactoryPtr userJobIOFactory,
-    TNullable<Stroka> udfDirectory)
+    TNullable<TString> udfDirectory)
     : JobSpecHelper_(std::move(jobSpecHelper))
     , Client_(std::move(client))
     , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
@@ -215,7 +215,7 @@ TUserJobReadControllerPtr CreateUserJobReadController(
     IInvokerPtr invoker,
     NNodeTrackerClient::TNodeDescriptor nodeDescriptor,
     TClosure onNetworkRelease,
-    TNullable<Stroka> udfDirectory)
+    TNullable<TString> udfDirectory)
 {
     return New<TUserJobReadController>(
         jobSpecHelper,

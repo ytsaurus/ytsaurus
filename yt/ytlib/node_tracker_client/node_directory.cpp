@@ -18,7 +18,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const Stroka NullAddress("<Null>");
+static const TString NullAddress("<Null>");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,12 +26,12 @@ TNodeDescriptor::TNodeDescriptor()
     : DefaultAddress_(NullAddress)
 { }
 
-TNodeDescriptor::TNodeDescriptor(const Stroka& defaultAddress)
+TNodeDescriptor::TNodeDescriptor(const TString& defaultAddress)
     : Addresses_{std::make_pair(DefaultNetworkName, defaultAddress)}
     , DefaultAddress_(defaultAddress)
 { }
 
-TNodeDescriptor::TNodeDescriptor(const TNullable<Stroka>& defaultAddress)
+TNodeDescriptor::TNodeDescriptor(const TNullable<TString>& defaultAddress)
 {
     if (defaultAddress) {
         *this = TNodeDescriptor(*defaultAddress);
@@ -40,8 +40,8 @@ TNodeDescriptor::TNodeDescriptor(const TNullable<Stroka>& defaultAddress)
 
 TNodeDescriptor::TNodeDescriptor(
     TAddressMap addresses,
-    TNullable<Stroka> rack,
-    TNullable<Stroka> dc)
+    TNullable<TString> rack,
+    TNullable<TString> dc)
     : Addresses_(std::move(addresses))
     , DefaultAddress_(NNodeTrackerClient::GetDefaultAddress(Addresses_))
     , Rack_(std::move(rack))
@@ -58,27 +58,27 @@ const TAddressMap& TNodeDescriptor::Addresses() const
     return Addresses_;
 }
 
-const Stroka& TNodeDescriptor::GetDefaultAddress() const
+const TString& TNodeDescriptor::GetDefaultAddress() const
 {
     return DefaultAddress_;
 }
 
-const Stroka& TNodeDescriptor::GetAddress(const TNetworkPreferenceList& networks) const
+const TString& TNodeDescriptor::GetAddress(const TNetworkPreferenceList& networks) const
 {
     return NNodeTrackerClient::GetAddress(Addresses(), networks);
 }
 
-TNullable<Stroka> TNodeDescriptor::FindAddress(const TNetworkPreferenceList& networks) const
+TNullable<TString> TNodeDescriptor::FindAddress(const TNetworkPreferenceList& networks) const
 {
     return NNodeTrackerClient::FindAddress(Addresses(), networks);
 }
 
-const TNullable<Stroka>& TNodeDescriptor::GetRack() const
+const TNullable<TString>& TNodeDescriptor::GetRack() const
 {
     return Rack_;
 }
 
-const TNullable<Stroka>& TNodeDescriptor::GetDataCenter() const
+const TNullable<TString>& TNodeDescriptor::GetDataCenter() const
 {
     return DataCenter_;
 }
@@ -112,12 +112,12 @@ void FormatValue(TStringBuilder* builder, const TNodeDescriptor& descriptor, con
     }
 }
 
-Stroka ToString(const TNodeDescriptor& descriptor)
+TString ToString(const TNodeDescriptor& descriptor)
 {
     return ToStringViaBuilder(descriptor);
 }
 
-const Stroka& GetDefaultAddress(const TAddressMap& addresses)
+const TString& GetDefaultAddress(const TAddressMap& addresses)
 {
     if (addresses.empty()) {
         return NullAddress;
@@ -127,7 +127,7 @@ const Stroka& GetDefaultAddress(const TAddressMap& addresses)
     return it->second;
 }
 
-const Stroka& GetDefaultAddress(const NProto::TAddressMap& addresses)
+const TString& GetDefaultAddress(const NProto::TAddressMap& addresses)
 {
     if (addresses.entries_size() == 0) {
         return NullAddress;
@@ -352,14 +352,14 @@ std::vector<TNodeDescriptor> TNodeDirectory::GetDescriptors(const TChunkReplicaL
     return result;
 }
 
-const TNodeDescriptor* TNodeDirectory::FindDescriptor(const Stroka& address)
+const TNodeDescriptor* TNodeDirectory::FindDescriptor(const TString& address)
 {
     NConcurrency::TReaderGuard guard(SpinLock_);
     auto it = AddressToDescriptor_.find(address);
     return it == AddressToDescriptor_.end() ? nullptr : it->second;
 }
 
-const TNodeDescriptor& TNodeDirectory::GetDescriptor(const Stroka& address)
+const TNodeDescriptor& TNodeDirectory::GetDescriptor(const TString& address)
 {
     const auto* result = FindDescriptor(address);
     YCHECK(result);
@@ -407,13 +407,13 @@ TAddressMap::const_iterator SelectAddress(const TAddressMap& addresses, const TN
 
 } // namespace
 
-TNullable<Stroka> FindAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks)
+TNullable<TString> FindAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks)
 {
     const auto it = SelectAddress(addresses, networks);
     return it == addresses.cend() ? Null : MakeNullable(it->second);
 }
 
-const Stroka& GetAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks)
+const TString& GetAddress(const TAddressMap& addresses, const TNetworkPreferenceList& networks)
 {
     const auto it = SelectAddress(addresses, networks);
     if (it != addresses.cend()) {

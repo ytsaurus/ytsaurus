@@ -365,7 +365,7 @@ private:
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
         ISchemafulWriterPtr writer,
-        const TNullable<Stroka>& maybeUser)
+        const TNullable<TString>& maybeUser)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, maybeUser);

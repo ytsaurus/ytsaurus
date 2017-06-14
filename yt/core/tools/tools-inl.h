@@ -43,7 +43,7 @@ template <
 >
 TResult RunTool(
     const TArg& arg,
-    std::function<NYson::TYsonString(const Stroka&, const NYson::TYsonString&)> invoker)
+    std::function<NYson::TYsonString(const TString&, const NYson::TYsonString&)> invoker)
 {
     auto name = typeid(TTool).name();
 

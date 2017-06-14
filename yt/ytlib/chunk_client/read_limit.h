@@ -75,7 +75,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TReadLimit& limit);
+TString ToString(const TReadLimit& limit);
 
 bool IsTrivial(const TReadLimit& limit);
 bool IsTrivial(const NProto::TReadLimit& limit);
@@ -110,7 +110,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TReadRange& range);
+TString ToString(const TReadRange& range);
 
 void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange);
 void FromProto(TReadRange* readRange, const NProto::TReadRange& protoReadRange);

@@ -644,13 +644,13 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
     });
 
     RegisterValidator([&] () {
-        auto throwError = [] (NTableClient::EControlAttribute attribute, const Stroka& jobType) {
+        auto throwError = [] (NTableClient::EControlAttribute attribute, const TString& jobType) {
             THROW_ERROR_EXCEPTION(
                 "%Qlv contol attribute is not supported by %v jobs in map-reduce operation",
                 attribute,
                 jobType);
         };
-        auto validateControlAttributes = [&] (const NFormats::TControlAttributesConfigPtr& attributes, const Stroka& jobType) {
+        auto validateControlAttributes = [&] (const NFormats::TControlAttributesConfigPtr& attributes, const TString& jobType) {
             if (attributes->EnableTableIndex) {
                 throwError(NTableClient::EControlAttribute::TableIndex, jobType);
             }

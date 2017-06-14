@@ -19,7 +19,7 @@ class TDataCenter
     , public TRefTracked<TDataCenter>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(Stroka, Name);
+    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
 
 public:
     explicit TDataCenter(const TDataCenterId& id);

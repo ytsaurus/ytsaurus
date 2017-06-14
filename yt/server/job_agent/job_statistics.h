@@ -82,15 +82,15 @@ public:
     DEFINE_FORWARD_RW_PROPERTY(EReportPriority, Priority)
     DEFINE_FORWARD_RW_PROPERTY(NJobTrackerClient::TOperationId, OperationId)
     DEFINE_FORWARD_RW_PROPERTY(NJobTrackerClient::TJobId, JobId)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<Stroka>, Type)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<Stroka>, State)
+    DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Type)
+    DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, State)
     DEFINE_FORWARD_RW_PROPERTY(TNullable<i64>, StartTime)
     DEFINE_FORWARD_RW_PROPERTY(TNullable<i64>, FinishTime)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<Stroka>, Error)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<Stroka>, Spec)
+    DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Error)
+    DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Spec)
     DEFINE_FORWARD_RW_PROPERTY(TNullable<i64>, SpecVersion)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<Stroka>, Statistics)
-    DEFINE_FORWARD_RW_PROPERTY(TNullable<Stroka>, Events)
+    DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Statistics)
+    DEFINE_FORWARD_RW_PROPERTY(TNullable<TString>, Events)
 };
 
 ////////////////////////////////////////////////////////////////////////////////

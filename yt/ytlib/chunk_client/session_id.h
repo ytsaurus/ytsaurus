@@ -23,7 +23,7 @@ struct TSessionId
 bool operator==(const TSessionId& lhs, const TSessionId& rhs);
 bool operator!=(const TSessionId& lhs, const TSessionId& rhs);
 
-Stroka ToString(const TSessionId& id);
+TString ToString(const TSessionId& id);
 
 void ToProto(NProto::TSessionId* protoSessionId, const TSessionId& sessionId);
 void FromProto(TSessionId* sessionId, const NProto::TSessionId& protoSessionId);

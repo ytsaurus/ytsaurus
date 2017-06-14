@@ -157,11 +157,11 @@ void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::p
 
 namespace {
 
-Stroka DumpProto(::google::protobuf::Message& message)
+TString DumpProto(::google::protobuf::Message& message)
 {
     ::google::protobuf::TextFormat::Printer printer;
     printer.SetSingleLineMode(true);
-    Stroka result;
+    TString result;
     YCHECK(printer.PrintToString(message, &result));
     return result;
 }

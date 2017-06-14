@@ -29,7 +29,7 @@ TJobSatelliteConnection::TJobSatelliteConnection(
     ConnectionConfig_->UseContainer = useContainer;
 }
 
-Stroka TJobSatelliteConnection::GetConfigPath() const
+TString TJobSatelliteConnection::GetConfigPath() const
 {
     return ConfigFile_;
 }

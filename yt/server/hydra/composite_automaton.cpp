@@ -56,7 +56,7 @@ TCompositeAutomatonPart::TCompositeAutomatonPart(
 
 void TCompositeAutomatonPart::RegisterSaver(
     ESyncSerializationPriority priority,
-    const Stroka& name,
+    const TString& name,
     TCallback<void(TSaveContext&)> callback)
 {
     // Check for duplicate part names.
@@ -72,7 +72,7 @@ void TCompositeAutomatonPart::RegisterSaver(
 
 void TCompositeAutomatonPart::RegisterSaver(
     EAsyncSerializationPriority priority,
-    const Stroka& name,
+    const TString& name,
     TCallback<TCallback<void(TSaveContext&)>()> callback)
 {
     // Check for duplicate part names.
@@ -87,7 +87,7 @@ void TCompositeAutomatonPart::RegisterSaver(
 }
 
 void TCompositeAutomatonPart::RegisterLoader(
-    const Stroka& name,
+    const TString& name,
     TCallback<void(TLoadContext&)> callback)
 {
     TCompositeAutomaton::TLoaderDescriptor descriptor;
@@ -104,7 +104,7 @@ void TCompositeAutomatonPart::RegisterLoader(
 }
 
 void TCompositeAutomatonPart::RegisterMethod(
-    const Stroka& type,
+    const TString& type,
     TCallback<void(TMutationContext*)> callback)
 {
     TCompositeAutomaton::TMethodDescriptor descriptor{
@@ -338,7 +338,7 @@ void TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
             SERIALIZATION_DUMP_WRITE(context, "parts[%v]", partCount);
             SERIALIZATION_DUMP_INDENT(context) {
                 for (int partIndex = 0; partIndex < partCount; ++partIndex) {
-                    auto name = LoadSuspended<Stroka>(context);
+                    auto name = LoadSuspended<TString>(context);
                     int version = LoadSuspended<i32>(context);
 
                     SERIALIZATION_DUMP_WRITE(context, "%v@%v =>", name, version);

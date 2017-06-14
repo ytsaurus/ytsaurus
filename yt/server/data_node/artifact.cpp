@@ -122,8 +122,8 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
         return false;
 
     if (data_source().has_column_filter()) {
-        auto lhsColumns = FromProto<std::vector<Stroka>>(data_source().columns());
-        auto rhsColumns = FromProto<std::vector<Stroka>>(other.data_source().columns());
+        auto lhsColumns = FromProto<std::vector<TString>>(data_source().columns());
+        auto rhsColumns = FromProto<std::vector<TString>>(other.data_source().columns());
         if (lhsColumns != rhsColumns) {
             return false;
         }
@@ -183,7 +183,7 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
     return true;
 }
 
-Stroka ToString(const TArtifactKey& key)
+TString ToString(const TArtifactKey& key)
 {
     return Format("{%v}", key.DebugString());
 }

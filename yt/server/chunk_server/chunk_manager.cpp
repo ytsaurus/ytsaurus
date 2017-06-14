@@ -237,7 +237,7 @@ public:
     }
 
 private:
-    virtual Stroka DoGetName(const TChunk* chunk) override
+    virtual TString DoGetName(const TChunk* chunk) override
     {
         return Format("chunk %v", chunk->GetId());
     }
@@ -263,7 +263,7 @@ public:
 private:
     const EObjectType Type_;
 
-    virtual Stroka DoGetName(const TChunk* chunk) override
+    virtual TString DoGetName(const TChunk* chunk) override
     {
         return Format("erasure chunk %v", chunk->GetId());
     }
@@ -286,7 +286,7 @@ public:
     }
 
 private:
-    virtual Stroka DoGetName(const TChunk* chunk) override
+    virtual TString DoGetName(const TChunk* chunk) override
     {
         return Format("journal chunk %v", chunk->GetId());
     }
@@ -327,7 +327,7 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual Stroka DoGetName(const TMedium* medium) override
+    virtual TString DoGetName(const TMedium* medium) override
     {
         return Format("medium %Qv", medium->GetName());
     }
@@ -359,7 +359,7 @@ private:
     TImpl* const Owner_;
 
 
-    virtual Stroka DoGetName(const TChunkList* chunkList) override
+    virtual TString DoGetName(const TChunkList* chunkList) override
     {
         return Format("chunk list %v", chunkList->GetId());
     }
@@ -488,7 +488,7 @@ public:
         int minCount,
         TNullable<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
-        const TNullable<Stroka>& preferredHostName)
+        const TNullable<TString>& preferredHostName)
     {
         return ChunkPlacement_->AllocateWriteTargets(
             medium,
@@ -900,7 +900,7 @@ public:
     }
 
     TMedium* CreateMedium(
-        const Stroka& name,
+        const TString& name,
         TNullable<bool> transient,
         TNullable<bool> cache,
         TNullable<int> priority,
@@ -937,7 +937,7 @@ public:
         UnregisterMedium(medium);
     }
 
-    void RenameMedium(TMedium* medium, const Stroka& newName)
+    void RenameMedium(TMedium* medium, const TString& newName)
     {
         if (medium->GetName() == newName) {
             return;
@@ -971,13 +971,13 @@ public:
         medium->SetPriority(priority);
     }
 
-    TMedium* FindMediumByName(const Stroka& name) const
+    TMedium* FindMediumByName(const TString& name) const
     {
         auto it = NameToMediumMap_.find(name);
         return it == NameToMediumMap_.end() ? nullptr : it->second;
     }
 
-    TMedium* GetMediumByNameOrThrow(const Stroka& name) const
+    TMedium* GetMediumByNameOrThrow(const TString& name) const
     {
         auto* medium = FindMediumByName(name);
         if (!medium) {
@@ -1118,7 +1118,7 @@ private:
     NHydra::TEntityMap<TChunkList> ChunkListMap_;
 
     NHydra::TEntityMap<TMedium> MediumMap_;
-    yhash<Stroka, TMedium*> NameToMediumMap_;
+    yhash<TString, TMedium*> NameToMediumMap_;
     std::vector<TMedium*> IndexToMediumMap_;
     TMediumSet UsedMediumIndexes_;
 
@@ -1915,7 +1915,7 @@ private:
         TMedium*& medium,
         const TMediumId& id,
         int mediumIndex,
-        const Stroka& name,
+        const TString& name,
         bool cache)
     {
         if (medium) {
@@ -2417,7 +2417,7 @@ private:
     TMedium* DoCreateMedium(
         const TMediumId& id,
         int mediumIndex,
-        const Stroka& name,
+        const TString& name,
         TNullable<bool> transient,
         TNullable<bool> cache,
         TNullable<int> priority)
@@ -2469,7 +2469,7 @@ private:
         IndexToMediumMap_[mediumIndex] = nullptr;
     }
 
-    static void ValidateMediumName(const Stroka& name)
+    static void ValidateMediumName(const TString& name)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Medium name cannot be empty");
@@ -2574,7 +2574,7 @@ TObjectBase* TChunkManager::TMediumTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<Stroka>("name");
+    auto name = attributes->GetAndRemove<TString>("name");
     // These three are optional.
     auto priority = attributes->FindAndRemove<int>("priority");
     auto transient = attributes->FindAndRemove<bool>("transient");
@@ -2641,7 +2641,7 @@ TNodeList TChunkManager::AllocateWriteTargets(
     int minCount,
     TNullable<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
-    const TNullable<Stroka>& preferredHostName)
+    const TNullable<TString>& preferredHostName)
 {
     return Impl_->AllocateWriteTargets(
         medium,
@@ -2827,7 +2827,7 @@ TMedium* TChunkManager::GetMediumByIndexOrThrow(int index) const
     return Impl_->GetMediumByIndexOrThrow(index);
 }
 
-void TChunkManager::RenameMedium(TMedium* medium, const Stroka& newName)
+void TChunkManager::RenameMedium(TMedium* medium, const TString& newName)
 {
     Impl_->RenameMedium(medium, newName);
 }
@@ -2837,12 +2837,12 @@ void TChunkManager::SetMediumPriority(TMedium* medium, int newPriority)
     Impl_->SetMediumPriority(medium, newPriority);
 }
 
-TMedium* TChunkManager::FindMediumByName(const Stroka& name) const
+TMedium* TChunkManager::FindMediumByName(const TString& name) const
 {
     return Impl_->FindMediumByName(name);
 }
 
-TMedium* TChunkManager::GetMediumByNameOrThrow(const Stroka& name) const
+TMedium* TChunkManager::GetMediumByNameOrThrow(const TString& name) const
 {
     return Impl_->GetMediumByNameOrThrow(name);
 }

@@ -38,12 +38,12 @@ TEST(TSchemafulDsvParserTest, Simple)
         EXPECT_CALL(Mock, OnStringScalar("max\tignat"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input =
+    TString input =
         "5\t6\n"
         "100\tmax\\tignat\n";
 
     auto config = New<TSchemafulDsvFormatConfig>();
-    config->Columns = std::vector<Stroka>();
+    config->Columns = std::vector<TString>();
     config->Columns->push_back("a");
     config->Columns->push_back("b");
 
@@ -89,13 +89,13 @@ TEST(TSchemafulDsvParserTest, TableIndex)
         EXPECT_CALL(Mock, OnStringScalar("z"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input =
+    TString input =
         "1\tx\n"
         "0\ty\n"
         "0\tz\n";
 
     auto config = New<TSchemafulDsvFormatConfig>();
-    config->Columns = std::vector<Stroka>();
+    config->Columns = std::vector<TString>();
     config->Columns->push_back("a");
     config->EnableTableIndex = true;
 
@@ -104,7 +104,7 @@ TEST(TSchemafulDsvParserTest, TableIndex)
 
 TEST(TSchemafulDsvParserTest, TooManyRows)
 {
-    Stroka input = "5\t6\n";
+    TString input = "5\t6\n";
 
     auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns = {"a"};
@@ -117,7 +117,7 @@ TEST(TSchemafulDsvParserTest, SpecialSymbols)
     StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
-    auto value = Stroka("6\0", 2);
+    auto value = TString("6\0", 2);
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("a"));
@@ -126,10 +126,10 @@ TEST(TSchemafulDsvParserTest, SpecialSymbols)
         EXPECT_CALL(Mock, OnStringScalar(value));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input("5\r\t6\0\n", 6);
+    TString input("5\r\t6\0\n", 6);
 
     auto config = New<TSchemafulDsvFormatConfig>();
-    config->Columns = std::vector<Stroka>();
+    config->Columns = std::vector<TString>();
     config->Columns->push_back("a");
     config->Columns->push_back("b");
 
@@ -141,7 +141,7 @@ TEST(TSchemafulDsvParserTest, EnabledEscaping)
     StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
-    auto value = Stroka("6\0", 2);
+    auto value = TString("6\0", 2);
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("a"));
@@ -150,10 +150,10 @@ TEST(TSchemafulDsvParserTest, EnabledEscaping)
         EXPECT_CALL(Mock, OnStringScalar(value));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input("5\r\\r\t6\0\n", 8);
+    TString input("5\r\\r\t6\0\n", 8);
 
     auto config = New<TSchemafulDsvFormatConfig>();
-    config->Columns = std::vector<Stroka>();
+    config->Columns = std::vector<TString>();
     config->Columns->push_back("a");
     config->Columns->push_back("b");
     config->EnableEscaping = true;
@@ -166,7 +166,7 @@ TEST(TSchemafulDsvParserTest, DisabledEscaping)
     StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
-    auto value = Stroka("6\0", 2);
+    auto value = TString("6\0", 2);
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("a"));
@@ -175,10 +175,10 @@ TEST(TSchemafulDsvParserTest, DisabledEscaping)
         EXPECT_CALL(Mock, OnStringScalar(value));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input("5\r\\r\t6\0\n", 8);
+    TString input("5\r\\r\t6\0\n", 8);
 
     auto config = New<TSchemafulDsvFormatConfig>();
-    config->Columns = std::vector<Stroka>();
+    config->Columns = std::vector<TString>();
     config->Columns->push_back("a");
     config->Columns->push_back("b");
     config->EnableEscaping = false;
@@ -188,10 +188,10 @@ TEST(TSchemafulDsvParserTest, DisabledEscaping)
 
 TEST(TSchemafulDsvParserTest, ColumnsNamesHeader)
 {
-    Stroka input("a\tb\n1\t2\n");
+    TString input("a\tb\n1\t2\n");
 
     auto config = New<TSchemafulDsvFormatConfig>();
-    config->Columns = std::vector<Stroka>();
+    config->Columns = std::vector<TString>();
     config->Columns->push_back("a");
     config->Columns->push_back("b");
     config->EnableColumnNamesHeader = true;
@@ -205,7 +205,7 @@ TEST(TSchemafulDsvParserTest, MissingValueModePrintSentinel)
     StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
-    Stroka input = "x\t\tz\n";
+    TString input = "x\t\tz\n";
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("a"));

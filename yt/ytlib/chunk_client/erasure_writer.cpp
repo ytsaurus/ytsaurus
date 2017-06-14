@@ -457,7 +457,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
         codec->GetTotalPartCount(),
         Null,
         partConfig->PreferLocalHost,
-        std::vector<Stroka>(),
+        std::vector<TString>(),
         nodeDirectory,
         ChunkClientLogger);
 

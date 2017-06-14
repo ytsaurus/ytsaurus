@@ -88,7 +88,7 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual Stroka DoGetName(const TTabletAction* action) override
+    virtual TString DoGetName(const TTabletAction* action) override
     {
         return Format("tablet action %v", action->GetId());
     }

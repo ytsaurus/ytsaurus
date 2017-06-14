@@ -36,11 +36,11 @@ int ParseListIndex(const TStringBuf& token)
     }
 }
 
-Stroka ToYPathLiteral(const TStringBuf& value)
+TString ToYPathLiteral(const TStringBuf& value)
 {
     //! Keep it synchronized with the same functions in python, C++ and other APIs.
     static const char* HexChars = "0123456789abcdef";
-    Stroka result;
+    TString result;
     result.reserve(value.length() + 16);
     for (unsigned char ch : value) {
         if (ch == '\\' || ch == '/' || ch == '@' || ch == '*' || ch == '&' || ch == '[' || ch == '{') {
@@ -58,7 +58,7 @@ Stroka ToYPathLiteral(const TStringBuf& value)
     return result;
 }
 
-Stroka ToYPathLiteral(i64 value)
+TString ToYPathLiteral(i64 value)
 {
     return ToString(value);
 }

@@ -92,7 +92,7 @@ private:
             .SetReplicated(true));
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
     {
         const auto* node = GetThisImpl();
         auto state = node->GetLocalState();
@@ -323,7 +323,7 @@ private:
         return TNonversionedObjectProxyBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(const TString& key, const TYsonString& value) override
     {
         auto* node = GetThisImpl();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -347,7 +347,7 @@ private:
         }
 
         if (key == "rack") {
-            auto rackName = ConvertTo<Stroka>(value);
+            auto rackName = ConvertTo<TString>(value);
             auto* rack = nodeTracker->GetRackByNameOrThrow(rackName);
             nodeTracker->SetNodeRack(node, rack);
             return true;
@@ -365,14 +365,14 @@ private:
         }
 
         if (key == "user_tags") {
-            nodeTracker->SetNodeUserTags(node, ConvertTo<std::vector<Stroka>>(value));
+            nodeTracker->SetNodeUserTags(node, ConvertTo<std::vector<TString>>(value));
             return true;
         }
 
         return TNonversionedObjectProxyBase::SetBuiltinAttribute(key, value);
     }
 
-    virtual bool RemoveBuiltinAttribute(const Stroka& key) override
+    virtual bool RemoveBuiltinAttribute(const TString& key) override
     {
         auto* node = GetThisImpl();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();

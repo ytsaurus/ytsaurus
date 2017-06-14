@@ -87,8 +87,8 @@ struct TSerializableAccessControlEntry
     : public TYsonSerializable
 {
     ESecurityAction Action;
-    std::vector<Stroka> Subjects;
-    std::vector<Stroka> Permissions;
+    std::vector<TString> Subjects;
+    std::vector<TString> Permissions;
     EAceInheritanceMode InheritanceMode;
 
     TSerializableAccessControlEntry()

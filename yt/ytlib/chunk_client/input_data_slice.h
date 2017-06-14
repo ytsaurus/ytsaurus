@@ -69,7 +69,7 @@ DEFINE_REFCOUNTED_TYPE(TInputDataSlice)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TInputDataSlicePtr& dataSlice);
+TString ToString(const TInputDataSlicePtr& dataSlice);
 
 void ToProto(
     NProto::TDataSliceDescriptor* dataSliceDescriptor,

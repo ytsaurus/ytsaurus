@@ -17,8 +17,8 @@ struct IBlackboxService
     : public virtual TRefCounted
 {
     virtual TFuture<NYTree::INodePtr> Call(
-        const Stroka& method,
-        const yhash<Stroka, Stroka>& params) = 0;
+        const TString& method,
+        const yhash<TString, TString>& params) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBlackboxService)

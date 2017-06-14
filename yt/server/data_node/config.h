@@ -46,7 +46,7 @@ public:
 
     // NB: actually registered as parameter by subclasses (because default value
     // is subclass-specific).
-    Stroka MediumName;
+    TString MediumName;
 
     TStoreLocationConfigBase()
     {

@@ -19,7 +19,7 @@ TJobMetrics TJobMetrics::FromJobTrackerStatistics(const NJobTrackerClient::TStat
 
 void TJobMetrics::SendToProfiler(
     const NProfiling::TProfiler& profiler,
-    const Stroka& prefix,
+    const TString& prefix,
     const NProfiling::TTagIdList& tagIds) const
 {
     profiler.Enqueue(prefix + "/disk_reads", DiskReads_, EMetricType::Counter, tagIds);

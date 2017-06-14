@@ -213,8 +213,8 @@ private:
         int ReplicationFactor_ = -1;
         int ReadQuorum_ = -1;
         int WriteQuorum_ = -1;
-        Stroka Account_;
-        Stroka PrimaryMedium_;
+        TString Account_;
+        TString PrimaryMedium_;
 
         TObjectId ObjectId_;
         TChunkListId ChunkListId_;
@@ -295,7 +295,7 @@ private:
 
         TNonblockingQueue<TCommand> CommandQueue_;
 
-        yhash<Stroka, TInstant> BannedNodeToDeadline_;
+        yhash<TString, TInstant> BannedNodeToDeadline_;
 
 
         void EnqueueCommand(TCommand command)
@@ -310,7 +310,7 @@ private:
         }
 
 
-        void BanNode(const Stroka& address)
+        void BanNode(const TString& address)
         {
             if (BannedNodeToDeadline_.find(address) == BannedNodeToDeadline_.end()) {
                 BannedNodeToDeadline_.insert(std::make_pair(address, TInstant::Now() + Config_->NodeBanTimeout));
@@ -318,9 +318,9 @@ private:
             }
         }
 
-        std::vector<Stroka> GetBannedNodes()
+        std::vector<TString> GetBannedNodes()
         {
-            std::vector<Stroka> result;
+            std::vector<TString> result;
             auto now = TInstant::Now();
             auto it = BannedNodeToDeadline_.begin();
             while (it != BannedNodeToDeadline_.end()) {
@@ -371,7 +371,7 @@ private:
 
                 auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
                 SetTransactionId(req, Transaction_);
-                std::vector<Stroka> attributeKeys{
+                std::vector<TString> attributeKeys{
                     "type",
                     "replication_factor",
                     "read_quorum",
@@ -392,8 +392,8 @@ private:
                 ReplicationFactor_ = attributes->Get<int>("replication_factor");
                 ReadQuorum_ = attributes->Get<int>("read_quorum");
                 WriteQuorum_ = attributes->Get<int>("write_quorum");
-                Account_ = attributes->Get<Stroka>("account");
-                PrimaryMedium_ = attributes->Get<Stroka>("primary_medium");
+                Account_ = attributes->Get<TString>("account");
+                PrimaryMedium_ = attributes->Get<TString>("primary_medium");
 
                 LOG_INFO("Extended journal attributes received (ReplicationFactor: %v, WriteQuorum: %v, Account: %v, "
                     "PrimaryMedium: %v)",

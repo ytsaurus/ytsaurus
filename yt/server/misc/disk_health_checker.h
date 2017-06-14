@@ -26,7 +26,7 @@ class TDiskHealthChecker
 public:
     TDiskHealthChecker(
         TDiskHealthCheckerConfigPtr config,
-        const Stroka& path,
+        const TString& path,
         IInvokerPtr invoker,
         NLogging::TLogger logger,
         const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
@@ -41,7 +41,7 @@ public:
 
 private:
     const TDiskHealthCheckerConfigPtr Config_;
-    const Stroka Path_;
+    const TString Path_;
     const IInvokerPtr CheckInvoker_;
 
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;

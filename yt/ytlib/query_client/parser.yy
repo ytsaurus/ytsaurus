@@ -14,7 +14,7 @@
 
 %parse-param {TLexer& lexer}
 %parse-param {TAstHead* head}
-%parse-param {const Stroka& source}
+%parse-param {const TString& source}
 
 %code requires {
     #include "ast.h"
@@ -91,7 +91,7 @@
 %token <i64> Int64Literal "int64 literal"
 %token <ui64> Uint64Literal "uint64 literal"
 %token <double> DoubleLiteral "double literal"
-%token <Stroka> StringLiteral "string literal"
+%token <TString> StringLiteral "string literal"
 
 
 
@@ -200,15 +200,15 @@ select-clause
 table-descriptor
     : Identifier[path] Identifier[alias]
         {
-            $$ = TTableDescriptor(Stroka($path), Stroka($alias));
+            $$ = TTableDescriptor(TString($path), TString($alias));
         }
     | Identifier[path] KwAs Identifier[alias]
         {
-            $$ = TTableDescriptor(Stroka($path), Stroka($alias));
+            $$ = TTableDescriptor(TString($path), TString($alias));
         }
     |   Identifier[path]
         {
-            $$ = TTableDescriptor(Stroka($path), Stroka());
+            $$ = TTableDescriptor(TString($path), TString());
         }
 ;
 
@@ -359,7 +359,7 @@ expression
             if ($expr.size() != 1) {
                 THROW_ERROR_EXCEPTION("Aliased expression %Qv must be scalar", GetSource(@$, source));
             }
-            auto inserted = head->second.insert(std::make_pair(Stroka($name), $expr.front()));
+            auto inserted = head->second.insert(std::make_pair(TString($name), $expr.front()));
             if (!inserted.second) {
                 THROW_ERROR_EXCEPTION("Alias %Qv has been already used", $name);
             }

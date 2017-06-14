@@ -236,7 +236,7 @@ void TTableConsumer::ThrowMapExpected()
     THROW_ERROR AttachLocationAttributes(TError("Invalid row format, map expected"));
 }
 
-void TTableConsumer::ThrowInvalidControlAttribute(const Stroka& whatsWrong)
+void TTableConsumer::ThrowInvalidControlAttribute(const TString& whatsWrong)
 {
     THROW_ERROR AttachLocationAttributes(TError("Control attribute %Qlv cannot %v",
         ControlAttribute_,

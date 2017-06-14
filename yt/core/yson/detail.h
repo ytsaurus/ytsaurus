@@ -9,7 +9,7 @@
 #include <yt/core/misc/zigzag.h>
 #include <yt/core/misc/parser_helpers.h>
 
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 #include <util/string/escape.h>
 
@@ -162,9 +162,9 @@ public:
         return ContextPosition;
     }
 
-    Stroka GetContextFromCheckpoint()
+    TString GetContextFromCheckpoint()
     {
-        Stroka result;
+        TString result;
         if (ContextSize == 0) {
             SaveLeftContextToContextBuffer();
         }
@@ -253,7 +253,7 @@ public:
     void CheckpointContext()
     { }
 
-    Stroka GetContextFromCheckpoint() const
+    TString GetContextFromCheckpoint() const
     {
         return "<context is disabled>";
     }

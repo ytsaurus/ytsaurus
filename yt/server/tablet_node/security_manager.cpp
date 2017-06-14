@@ -33,7 +33,7 @@ static const auto& Logger = TabletNodeLogger;
 
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     TSecurityManagerPtr securityManager,
-    const TNullable<Stroka>& maybeUser)
+    const TNullable<TString>& maybeUser)
     : SecurityManager_(std::move(securityManager))
     , IsNull_(!maybeUser)
 {
@@ -54,7 +54,7 @@ TAuthenticatedUserGuard::~TAuthenticatedUserGuard()
 struct TTablePermissionKey
 {
     TObjectId TableId;
-    Stroka User;
+    TString User;
     EPermission Permission;
 
     // Hasher.
@@ -77,7 +77,7 @@ struct TTablePermissionKey
     }
 
     // Formatter.
-    friend Stroka ToString(const TTablePermissionKey& key)
+    friend TString ToString(const TTablePermissionKey& key)
     {
         return Format("%v:%v:%v",
             key.TableId,
@@ -142,8 +142,8 @@ DEFINE_REFCOUNTED_TYPE(TTablePermissionCache)
 
 struct TResourceLimitsKey
 {
-    Stroka Account;
-    Stroka MediumName;
+    TString Account;
+    TString MediumName;
 
     // Hasher.
     operator size_t() const
@@ -163,7 +163,7 @@ struct TResourceLimitsKey
     }
 
     // Formatter.
-    friend Stroka ToString(const TResourceLimitsKey& key)
+    friend TString ToString(const TResourceLimitsKey& key)
     {
         return Format("%v:%v",
             key.Account,
@@ -252,7 +252,7 @@ public:
         , ResourceLimitsCache_(New<TResourceLimitsCache>(Config_->ResourceLimitsCache, Bootstrap_))
     { }
 
-    void SetAuthenticatedUser(const Stroka& user)
+    void SetAuthenticatedUser(const TString& user)
     {
         Y_ASSERT(!*AuthenticatedUser_);
         *AuthenticatedUser_ = user;
@@ -264,7 +264,7 @@ public:
         AuthenticatedUser_->Reset();
     }
 
-    TNullable<Stroka> GetAuthenticatedUser()
+    TNullable<TString> GetAuthenticatedUser()
     {
         return *AuthenticatedUser_;
     }
@@ -300,15 +300,15 @@ public:
     }
 
     TFuture<void> CheckResourceLimits(
-        const Stroka& account,
-        const Stroka& mediumName)
+        const TString& account,
+        const TString& mediumName)
     {
         return ResourceLimitsCache_->Get(TResourceLimitsKey{account, mediumName});
     }
 
     void ValidateResourceLimits(
-        const Stroka& account,
-        const Stroka& mediumName)
+        const TString& account,
+        const TString& mediumName)
     {
         auto asyncResult = CheckResourceLimits(account, mediumName);
         auto maybeResult = asyncResult.TryGet();
@@ -323,7 +323,7 @@ private:
     const TTablePermissionCachePtr TablePermissionCache_;
     const TResourceLimitsCachePtr ResourceLimitsCache_;
 
-    TFls<TNullable<Stroka>> AuthenticatedUser_;
+    TFls<TNullable<TString>> AuthenticatedUser_;
 
 };
 
@@ -339,7 +339,7 @@ TSecurityManager::TSecurityManager(
 
 TSecurityManager::~TSecurityManager() = default;
 
-void TSecurityManager::SetAuthenticatedUser(const Stroka& user)
+void TSecurityManager::SetAuthenticatedUser(const TString& user)
 {
     Impl_->SetAuthenticatedUser(user);
 }
@@ -349,7 +349,7 @@ void TSecurityManager::ResetAuthenticatedUser()
     Impl_->ResetAuthenticatedUser();
 }
 
-TNullable<Stroka> TSecurityManager::GetAuthenticatedUser()
+TNullable<TString> TSecurityManager::GetAuthenticatedUser()
 {
     return Impl_->GetAuthenticatedUser();
 }
@@ -369,15 +369,15 @@ void TSecurityManager::ValidatePermission(
 }
 
 TFuture<void> TSecurityManager::CheckResourceLimits(
-    const Stroka& account,
-    const Stroka& mediumName)
+    const TString& account,
+    const TString& mediumName)
 {
     return Impl_->CheckResourceLimits(account, mediumName);
 }
 
 void TSecurityManager::ValidateResourceLimits(
-    const Stroka& account,
-    const Stroka& mediumName)
+    const TString& account,
+    const TString& mediumName)
 {
     Impl_->ValidateResourceLimits(account, mediumName);
 }

@@ -243,7 +243,7 @@ struct TVersionedObjectId
 void FormatValue(TStringBuilder* builder, const TVersionedObjectId& id, const TStringBuf& spec);
 
 //! Converts id into a string (for debugging and logging purposes mainly).
-Stroka ToString(const TVersionedObjectId& id);
+TString ToString(const TVersionedObjectId& id);
 
 //! Compares TVersionedNodeId s for equality.
 bool operator == (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs);

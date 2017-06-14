@@ -83,14 +83,14 @@ namespace NDataNode {
 
 namespace {
 
-Stroka ChopExtension(Stroka* fileName)
+TString ChopExtension(TString* fileName)
 {
     auto extension = NFS::GetFileExtension(*fileName);
     *fileName = NFS::GetFileNameWithoutExtension(*fileName);
     return extension;
 }
 
-int ParseChangelogId(const Stroka& str, const Stroka& fileName)
+int ParseChangelogId(const TString& str, const TString& fileName)
 {
     try {
         return FromString<int>(str);
@@ -303,7 +303,7 @@ private:
 
     void DumpAnalysisResults()
     {
-        auto dumpChunkIds = [&] (const yhash_set<TChunkId>& chunkIds, const Stroka& action) {
+        auto dumpChunkIds = [&] (const yhash_set<TChunkId>& chunkIds, const TString& action) {
             for (const auto& chunkId : chunkIds) {
                 LOG_INFO("Replay may %v journal chunk (ChunkId: %v, FirstRelevantVersion: %v)",
                     action,
@@ -478,7 +478,7 @@ public:
     TMultiplexedWriter(
         TMultiplexedChangelogConfigPtr config,
         TFileChangelogDispatcherPtr multiplexedChangelogDispatcher,
-        const Stroka& path,
+        const TString& path,
         const NLogging::TLogger& logger)
         : Config_(config)
         , MultiplexedChangelogDispatcher_(multiplexedChangelogDispatcher)
@@ -597,7 +597,7 @@ public:
 private:
     const TMultiplexedChangelogConfigPtr Config_;
     const TFileChangelogDispatcherPtr MultiplexedChangelogDispatcher_;
-    const Stroka Path_;
+    const TString Path_;
     const NLogging::TLogger Logger;
 
     //! Protects a section of members.
@@ -788,7 +788,7 @@ private:
         }
     }
 
-    Stroka GetMultiplexedChangelogPath(int changelogId)
+    TString GetMultiplexedChangelogPath(int changelogId)
     {
         return NFS::CombinePaths(
             Path_,
@@ -1028,7 +1028,7 @@ private:
         TFile file(GetSealedFlagFileName(chunk->GetId()), CreateNew);
     }
 
-    Stroka GetSealedFlagFileName(const TChunkId& chunkId)
+    TString GetSealedFlagFileName(const TChunkId& chunkId)
     {
         return Location_->GetChunkPath(chunkId) + "." + SealedFlagExtension;
     }

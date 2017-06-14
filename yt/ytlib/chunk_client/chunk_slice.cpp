@@ -128,7 +128,7 @@ void TChunkSlice::SetKeys(const NTableClient::TOwningKey& lowerKey, const NTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TChunkSlice& slice)
+TString ToString(const TChunkSlice& slice)
 {
     return Format("LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataSize: %v",
         slice.LowerLimit(),

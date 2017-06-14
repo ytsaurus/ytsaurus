@@ -54,7 +54,7 @@ private:
     }
 
     virtual void ValidateCustomAttributeUpdate(
-        const Stroka& key,
+        const TString& key,
         const TYsonString& oldValue,
         const TYsonString& newValue) override
     {
@@ -64,7 +64,7 @@ private:
         }
 
         if (key == "file_name" && newValue) {
-            ConvertTo<Stroka>(newValue);
+            ConvertTo<TString>(newValue);
             return;
         }
 

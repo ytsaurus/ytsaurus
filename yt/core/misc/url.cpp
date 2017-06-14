@@ -36,9 +36,9 @@ static inline int Unescape(char *str) {
 
 }
 
-Stroka UnescapeUrl(const Stroka& url)
+TString UnescapeUrl(const TString& url)
 {
-    Stroka result = url;
+    TString result = url;
     int dlen = Unescape(result.begin());
     result.resize(url.size() - dlen);
     return result;

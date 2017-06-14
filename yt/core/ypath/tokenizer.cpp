@@ -220,7 +220,7 @@ TYPath TTokenizer::GetInput() const
     return TYPath(Input_);
 }
 
-const Stroka& TTokenizer::GetLiteralValue() const
+const TString& TTokenizer::GetLiteralValue() const
 {
     return LiteralValue_;
 }

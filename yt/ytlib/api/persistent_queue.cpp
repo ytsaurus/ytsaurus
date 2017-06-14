@@ -48,14 +48,14 @@ struct TStateTableRow
 
 struct TStateTable
 {
-    static const Stroka TabletIndexColumnName;
-    static const Stroka RowIndexColumnName;
-    static const Stroka StateColumnName;
+    static const TString TabletIndexColumnName;
+    static const TString RowIndexColumnName;
+    static const TString StateColumnName;
 };
 
-const Stroka TStateTable::TabletIndexColumnName("tablet_index");
-const Stroka TStateTable::RowIndexColumnName("row_index");
-const Stroka TStateTable::StateColumnName("state");
+const TString TStateTable::TabletIndexColumnName("tablet_index");
+const TString TStateTable::RowIndexColumnName("row_index");
+const TString TStateTable::StateColumnName("state");
 
 std::vector<int> PrepareTabletIndexes(std::vector<int> tabletIndexes)
 {

@@ -31,7 +31,7 @@ public:
     { }
 
 protected:
-    Stroka SomeDate;
+    TString SomeDate;
     int DateLength;
 
     TLogger Logger;
@@ -51,11 +51,11 @@ protected:
         writer->Flush();
     }
 
-    std::vector<Stroka> ReadFile(const Stroka& fileName)
+    std::vector<TString> ReadFile(const TString& fileName)
     {
-        std::vector<Stroka> lines;
+        std::vector<TString> lines;
 
-        Stroka line;
+        TString line;
         auto input = TFileInput(fileName);
         while (input.ReadLine(line)) {
             lines.push_back(line + "\n");

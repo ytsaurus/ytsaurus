@@ -60,9 +60,12 @@ BEGIN(SWITCH_EXECUTION_CONTEXT_IMPL)
     popq %r12
     popq %rbx
     popq %rbp
-    popq %rcx /* Extract return address. */
+    popq %r8 /* Extract return address. */
     mov %rdx, %rax /* Use third argument as a return value. */
     mov %rdx, %rdi /* Use third argument as a first argument. */
-    jmpq *%rcx
+    mov %r15, %rcx /* Use top value from the stack as fourth argument to pass
+                      a real trampoline through the sanitizer trampoline.
+                      Real trampolines just ignore it.  */
+    jmpq *%r8
 END(SWITCH_EXECUTION_CONTEXT_IMPL)
 

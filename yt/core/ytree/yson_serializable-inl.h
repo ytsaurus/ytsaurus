@@ -381,14 +381,14 @@ bool TYsonSerializableLite::TParameter<T>::HasValue() const
 }
 
 template <class T>
-TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Alias(const Stroka& name)
+TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Alias(const TString& name)
 {
     Aliases.push_back(name);
     return *this;
 }
 
 template <class T>
-const std::vector<Stroka>& TYsonSerializableLite::TParameter<T>::GetAliases() const
+const std::vector<TString>& TYsonSerializableLite::TParameter<T>::GetAliases() const
 {
     return Aliases;
 }
@@ -496,7 +496,7 @@ DEFINE_VALIDATOR(
 
 template <class T>
 TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::RegisterParameter(
-    const Stroka& parameterName,
+    const TString& parameterName,
     T& value)
 {
     auto parameter = New<TParameter<T>>(value);

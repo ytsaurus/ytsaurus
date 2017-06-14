@@ -82,8 +82,8 @@ protected:
     }
 
 private:
-    Stroka DumpSnapshot_;
-    Stroka ValidateSnapshot_;
+    TString DumpSnapshot_;
+    TString ValidateSnapshot_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

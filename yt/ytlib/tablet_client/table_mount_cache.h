@@ -47,8 +47,8 @@ struct TTableReplicaInfo
     : public TRefCounted
 {
     NTabletClient::TTableReplicaId ReplicaId;
-    Stroka ClusterName;
-    Stroka ReplicaPath;
+    TString ClusterName;
+    TString ReplicaPath;
     NTabletClient::ETableReplicaMode Mode;
 };
 

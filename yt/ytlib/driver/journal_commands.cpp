@@ -155,7 +155,7 @@ private:
         }
 
         std::vector<TSharedRef> rows;
-        rows.push_back(TSharedRef::FromString(Stroka(value)));
+        rows.push_back(TSharedRef::FromString(TString(value)));
 
         WaitFor(Writer_->Write(rows))
             .ThrowOnError();

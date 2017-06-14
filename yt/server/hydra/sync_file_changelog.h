@@ -24,7 +24,7 @@ class TSyncFileChangelog
 public:
     //! Basic constructor.
     TSyncFileChangelog(
-        const Stroka& fileName,
+        const TString& fileName,
         TFileChangelogConfigPtr config);
 
     ~TSyncFileChangelog();
@@ -33,7 +33,7 @@ public:
     const TFileChangelogConfigPtr& GetConfig();
 
     //! Returns the data file name of the changelog.
-    const Stroka& GetFileName() const;
+    const TString& GetFileName() const;
 
     //! Opens an existing changelog.
     //! Throws an exception on failure.

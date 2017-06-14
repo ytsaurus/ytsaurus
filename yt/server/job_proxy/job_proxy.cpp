@@ -99,7 +99,7 @@ std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext()
     return Job_->DumpInputContext();
 }
 
-Stroka TJobProxy::GetStderr()
+TString TJobProxy::GetStderr()
 {
     return Job_->GetStderr();
 }
@@ -109,7 +109,7 @@ TYsonString TJobProxy::StraceJob()
     return Job_->StraceJob();
 }
 
-void TJobProxy::SignalJob(const Stroka& signalName)
+void TJobProxy::SignalJob(const TString& signalName)
 {
     Job_->SignalJob(signalName);
 }
@@ -213,7 +213,7 @@ void TJobProxy::RetrieveJobSpec()
     TotalMaxMemoryUsage_ = JobProxyMemoryReserve_ - Config_->AheadMemoryReserve;
     ApprovedMemoryReserve_ = JobProxyMemoryReserve_;
 
-    std::vector<Stroka> annotations{
+    std::vector<TString> annotations{
         Format("OperationId: %v", OperationId_),
         Format("JobId: %v", JobId_),
         Format("JobType: %v", GetJobSpecHelper()->GetJobType()),

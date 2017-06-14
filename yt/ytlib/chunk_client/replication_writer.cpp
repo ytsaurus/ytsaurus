@@ -89,7 +89,7 @@ struct TNode
 
 };
 
-Stroka ToString(const TNodePtr& node)
+TString ToString(const TNodePtr& node)
 {
     return node->Descriptor.GetDefaultAddress();
 }
@@ -228,7 +228,7 @@ private:
 
     int AllocateWriteTargetsRetryIndex_ = 0;
 
-    std::vector<Stroka> BannedNodes_;
+    std::vector<TString> BannedNodes_;
 
 
     void DoOpen();
@@ -538,7 +538,7 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
     AllocateWriteTargetsTimestamp_ = TInstant::Now();
 
     int activeTargets = Nodes_.size();
-    std::vector<Stroka> forbiddenAddresses;
+    std::vector<TString> forbiddenAddresses;
     for (const auto& node : Nodes_) {
         forbiddenAddresses.push_back(node->Descriptor.GetDefaultAddress());
     }

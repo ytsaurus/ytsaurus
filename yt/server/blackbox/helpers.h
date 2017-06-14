@@ -22,7 +22,7 @@ TErrorOr<T> GetByYPath(const NYTree::INodePtr& node, const NYPath::TYPath& path)
     }
 }
 
-Stroka ComputeMD5(const Stroka& token);
+TString ComputeMD5(const TString& token);
 
 ////////////////////////////////////////////////////////////////////////////////
 

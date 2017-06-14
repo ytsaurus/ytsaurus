@@ -75,7 +75,7 @@ class TFileChangelogStoreConfig
 {
 public:
     //! A path where changelogs are stored.
-    Stroka Path;
+    TString Path;
 
     //! Maximum number of cached changelogs.
     TSlruCacheConfigPtr ChangelogReaderCache;
@@ -99,7 +99,7 @@ class TLocalSnapshotStoreConfig
 {
 public:
     //! A path where snapshots are stored.
-    Stroka Path;
+    TString Path;
 
     //! Codec used to write snapshots.
     NCompression::ECodec Codec;

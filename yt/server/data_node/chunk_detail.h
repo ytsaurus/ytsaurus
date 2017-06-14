@@ -37,7 +37,7 @@ class TChunkBase
 public:
     virtual const TChunkId& GetId() const override;
     virtual TLocationPtr GetLocation() const override;
-    virtual Stroka GetFileName() const override;
+    virtual TString GetFileName() const override;
 
     virtual int GetVersion() const override;
     virtual void IncrementVersion() override;

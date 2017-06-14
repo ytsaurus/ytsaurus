@@ -41,7 +41,7 @@ public:
         TCGExprContext& builder,
         const std::vector<TCodegenExpression>& codegenArgs,
         EValueType type,
-        const Stroka& name,
+        const TString& name,
         Value* row)
     {
         auto nameTwine = Twine(name.c_str());
@@ -82,7 +82,7 @@ public:
         std::vector<TCodegenExpression> codegenArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
-        const Stroka& name,
+        const TString& name,
         llvm::FoldingSetNodeID* id) const override
     {
         return [
@@ -153,7 +153,7 @@ public:
         std::vector<TCodegenExpression> codegenArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
-        const Stroka& name,
+        const TString& name,
         llvm::FoldingSetNodeID* id) const override
     {
         YCHECK(codegenArgs.size() == 1);
@@ -189,7 +189,7 @@ public:
         std::vector<TCodegenExpression> codegenArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
-        const Stroka& name,
+        const TString& name,
         llvm::FoldingSetNodeID* id) const override
     {
         YCHECK(codegenArgs.size() == 1);
@@ -454,7 +454,7 @@ void RegisterBuiltinFunctions(
         UDF_BC(dates),
         ECallingConvention::Simple);
 
-    std::vector<Stroka> timestampFloorFunctions = {
+    std::vector<TString> timestampFloorFunctions = {
         "timestamp_floor_hour",
         "timestamp_floor_day",
         "timestamp_floor_week",
@@ -470,7 +470,7 @@ void RegisterBuiltinFunctions(
             ECallingConvention::Simple);
     }
 
-    std::vector<std::pair<Stroka, EValueType>> ypathGetFunctions = {
+    std::vector<std::pair<TString, EValueType>> ypathGetFunctions = {
         {"try_get_int64", EValueType::Int64},
         {"get_int64", EValueType::Int64},
         {"try_get_uint64", EValueType::Uint64},

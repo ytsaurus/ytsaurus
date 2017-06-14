@@ -94,7 +94,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, Simple)
         .Get()
         .ThrowOnError();
 
-    Stroka expectedOutput =
+    TString expectedOutput =
         "-42\ttrue\tvalue_a\n"
         "false\tvalue_c\t23\n";
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
@@ -117,7 +117,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TrickyDoubleRepresentations)
     Writer_->Close()
         .Get()
         .ThrowOnError();
-    Stroka expectedOutput = "1.234567890123456\t42.\t1e+300\t-1e-300\n";
+    TString expectedOutput = "1.234567890123456\t42.\t1e+300\t-1e-300\n";
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
@@ -157,7 +157,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, IntegralTypeRepresentations)
     Writer_->Close()
         .Get()
         .ThrowOnError();
-    Stroka expectedOutput =
+    TString expectedOutput =
         "0\t-1\t1\t99\n"
         "123\t-123\t1234\t-1234\n"
         "0\t98\t987\t9876\n"
@@ -167,7 +167,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, IntegralTypeRepresentations)
 
 TEST_F(TSchemalessWriterForSchemafulDsvTest, EmptyColumnList)
 {
-    Config_->Columns = std::vector<Stroka>();
+    Config_->Columns = std::vector<TString>();
     CreateStandardWriter();
 
     TUnversionedRowBuilder row1;
@@ -180,7 +180,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, EmptyColumnList)
     Writer_->Close()
         .Get()
         .ThrowOnError();
-    Stroka expectedOutput = "\n";
+    TString expectedOutput = "\n";
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
@@ -212,7 +212,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
         Writer_->Close()
             .Get()
             .ThrowOnError();
-        Stroka expectedOutput =
+        TString expectedOutput =
             "Value1A\tValue1B\tValue1C\n"
             "Value3A\tValue3B\tValue3C\n";
         EXPECT_EQ(expectedOutput, OutputStream_.Str());
@@ -237,7 +237,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
         Writer_->Close()
             .Get()
             .ThrowOnError();
-        Stroka expectedOutput =
+        TString expectedOutput =
             "Value1A\tValue1B\tValue1C\n"
             "Value2A\t~\tValue2C\n"
             "Value3A\tValue3B\tValue3C\n";
@@ -301,7 +301,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
     Writer_->Close()
         .Get()
         .ThrowOnError();
-    Stroka expectedOutput =
+    TString expectedOutput =
         "42\t0\t1\t2\t3\n"
         "42\t4\t5\t6\t7\n"
         "23\t8\t9\t10\t11\n";
@@ -333,7 +333,7 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, ColumnsHeader)
         .Get()
         .ThrowOnError();
 
-    Stroka expectedOutput =
+    TString expectedOutput =
         "column_b\tcolumn_c\tcolumn_a\n"
         "-42\ttrue\tvalue_a\n";
     EXPECT_EQ(expectedOutput, OutputStream_.Str());

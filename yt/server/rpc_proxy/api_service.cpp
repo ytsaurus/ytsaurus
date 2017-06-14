@@ -98,7 +98,7 @@ private:
 
     TSpinLock SpinLock_;
     // TODO(sandello): Introduce expiration times for clients.
-    yhash<Stroka, INativeClientPtr> AuthenticatedClients_;
+    yhash<TString, INativeClientPtr> AuthenticatedClients_;
 
     INativeClientPtr GetAuthenticatedClientOrAbortContext(
         const IServiceContextPtr& context,
@@ -474,7 +474,7 @@ private:
             if (protoAttributes.all()) {
                 options.Attributes.Reset();
             } else {
-                options.Attributes = std::vector<Stroka>();
+                options.Attributes = std::vector<TString>();
                 options.Attributes->reserve(protoAttributes.columns_size());
                 for (int i = 0; i < protoAttributes.columns_size(); ++i) {
                     const auto& protoItem = protoAttributes.columns(i);
@@ -527,7 +527,7 @@ private:
             if (protoAttributes.all()) {
                 options.Attributes.Reset();
             } else {
-                options.Attributes = std::vector<Stroka>();
+                options.Attributes = std::vector<TString>();
                 options.Attributes->reserve(protoAttributes.columns_size());
                 for (int i = 0; i < protoAttributes.columns_size(); ++i) {
                     const auto& protoItem = protoAttributes.columns(i);

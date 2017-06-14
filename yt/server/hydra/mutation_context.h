@@ -23,7 +23,7 @@ struct TMutationRequest
     TMutationRequest& operator = (const TMutationRequest& other) = default;
     TMutationRequest& operator = (TMutationRequest&& other) = default;
 
-    Stroka Type;
+    TString Type;
     TSharedRef Data;
     TCallback<void(TMutationContext*)> Handler;
     bool AllowLeaderForwarding = false;

@@ -30,10 +30,10 @@ public:
     virtual bool IsRetry() const override;
     virtual TMutationId GetMutationId() const override;
 
-    virtual const Stroka& GetService() const override;
-    virtual const Stroka& GetMethod() const override;
+    virtual const TString& GetService() const override;
+    virtual const TString& GetMethod() const override;
     virtual const TRealmId& GetRealmId() const override;
-    virtual const Stroka& GetUser() const override;
+    virtual const TString& GetUser() const override;
 
     virtual bool IsReplied() const override;
     virtual bool IsOneWay() const override;
@@ -66,8 +66,8 @@ public:
     virtual const NProto::TRequestHeader& RequestHeader() const override;
     virtual NProto::TRequestHeader& RequestHeader() override;
 
-    virtual void SetRawRequestInfo(const Stroka& info) override;
-    virtual void SetRawResponseInfo(const Stroka& info) override;
+    virtual void SetRawRequestInfo(const TString& info) override;
+    virtual void SetRawResponseInfo(const TString& info) override;
 
     virtual const NLogging::TLogger& GetLogger() const override;
     virtual NLogging::ELogLevel GetLogLevel() const override;
@@ -80,7 +80,7 @@ protected:
 
     TRequestId RequestId_;
     TRealmId RealmId_;
-    Stroka User_;
+    TString User_;
 
     TSharedRef RequestBody_;
     std::vector<TSharedRef> RequestAttachments_;
@@ -91,8 +91,8 @@ protected:
     TSharedRef ResponseBody_;
     std::vector<TSharedRef> ResponseAttachments_;
 
-    Stroka RequestInfo_;
-    Stroka ResponseInfo_;
+    TString RequestInfo_;
+    TString ResponseInfo_;
 
     TServiceContextBase(
         std::unique_ptr<NProto::TRequestHeader> header,
@@ -154,10 +154,10 @@ public:
     virtual bool IsRetry() const override;
     virtual TMutationId GetMutationId() const override;
 
-    virtual const Stroka& GetService() const override;
-    virtual const Stroka& GetMethod() const override;
+    virtual const TString& GetService() const override;
+    virtual const TString& GetMethod() const override;
     virtual const TRealmId& GetRealmId() const override;
-    virtual const Stroka& GetUser() const override;
+    virtual const TString& GetUser() const override;
 
     virtual bool IsOneWay() const override;
 
@@ -189,8 +189,8 @@ public:
     virtual const NProto::TRequestHeader& RequestHeader() const override;
     virtual NProto::TRequestHeader& RequestHeader() override;
 
-    virtual void SetRawRequestInfo(const Stroka& info) override;
-    virtual void SetRawResponseInfo(const Stroka& info) override;
+    virtual void SetRawRequestInfo(const TString& info) override;
+    virtual void SetRawResponseInfo(const TString& info) override;
 
     virtual const NLogging::TLogger& GetLogger() const override;
     virtual NLogging::ELogLevel GetLogLevel() const override;
@@ -226,7 +226,7 @@ protected:
     virtual void DoStart();
     virtual TFuture<void> DoStop(bool graceful);
 
-    std::vector<IServicePtr> DoFindServices(const Stroka& serviceName);
+    std::vector<IServicePtr> DoFindServices(const TString& serviceName);
 
 };
 

@@ -39,7 +39,7 @@ auto StringValue = STRINGBUF("She sells sea shells on a sea shore");
 auto AnyValueList = STRINGBUF("[one; two; three]");
 auto AnyValueMap = STRINGBUF("{a=b; c=d}");
 
-std::vector<Stroka> ColumnNames = {"c0", "c1", "c2", "c3", "c4", "c5", "c6"};
+std::vector<TString> ColumnNames = {"c0", "c1", "c2", "c3", "c4", "c5", "c6"};
 
 class TSchemalessChunksTest
     : public ::testing::TestWithParam<std::tuple<EOptimizeFor, TTableSchema, TColumnFilter, TReadRange>>

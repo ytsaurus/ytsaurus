@@ -89,7 +89,7 @@ public:
     }
 
     // IPollable implementation.
-    virtual const Stroka& GetLoggingId() const override
+    virtual const TString& GetLoggingId() const override
     {
         return Logger.GetContext();
     }
@@ -305,7 +305,7 @@ protected:
         return result != EINPROGRESS && result != EWOULDBLOCK;
     }
 
-    void BindSocket(sockaddr* address, int size, const Stroka& errorMessage)
+    void BindSocket(sockaddr* address, int size, const TString& errorMessage)
     {
         for (int attempt = 1; attempt <= Config_->BindRetryCount; ++attempt) {
             if (bind(ServerSocket_, address, size) == 0) {

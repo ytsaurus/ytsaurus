@@ -217,12 +217,12 @@ void EscapeAndWrite(
     }
 }
 
-Stroka Escape(
+TString Escape(
     const TStringBuf& string,
     const TEscapeTable& escapeTable)
 {
     if (escapeTable.EscapingSymbol) {
-        Stroka result;
+        TString result;
         // In worst case result length will be twice the original length.
         result.reserve(2 * string.length());
         auto* begin = string.begin();
@@ -239,7 +239,7 @@ Stroka Escape(
         }
         return result;
     } else {
-        return Stroka(string);
+        return TString(string);
     }
 }
 

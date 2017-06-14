@@ -168,7 +168,7 @@ namespace {
 } // namespace anonymous
 
 TLexer::TLexer(
-    const Stroka& source,
+    const TString& source,
     TParser::token_type strayToken)
     : StrayToken_(strayToken)
     , InjectedStrayToken_(false)

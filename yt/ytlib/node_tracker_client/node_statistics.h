@@ -38,7 +38,7 @@ struct TTotalNodeStatistics
 
 namespace NProto {
 
-Stroka ToString(const TNodeStatistics& statistics);
+TString ToString(const TNodeStatistics& statistics);
 
 } // namespace NProto
 

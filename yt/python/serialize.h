@@ -21,12 +21,12 @@ namespace NYTree {
 void Serialize(
     const Py::Object& obj,
     NYson::IYsonConsumer* consumer,
-    const TNullable<Stroka>& encoding = Null,
+    const TNullable<TString>& encoding = Null,
     bool ignoreInnerAttributes = false,
     NYson::EYsonType ysonType = NYson::EYsonType::Node,
     int depth = 0);
 
-void Deserialize(Py::Object& obj, NYTree::INodePtr node, const TNullable<Stroka>& encoding = Null);
+void Deserialize(Py::Object& obj, NYTree::INodePtr node, const TNullable<TString>& encoding = Null);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +41,7 @@ class TPythonObjectBuilder
     : public NYson::TYsonConsumerBase
 {
 public:
-    explicit TPythonObjectBuilder(bool alwaysCreateAttributes, const TNullable<Stroka>& encoding);
+    explicit TPythonObjectBuilder(bool alwaysCreateAttributes, const TNullable<TString>& encoding);
 
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnInt64Scalar(i64 value) override;
@@ -75,13 +75,13 @@ private:
     Py::Callable YsonEntity;
 
     bool AlwaysCreateAttributes_;
-    TNullable<Stroka> Encoding_;
+    TNullable<TString> Encoding_;
 
     std::queue<Py::Object> Objects_;
 
     std::stack<std::pair<Py::Object, EPythonObjectType>> ObjectStack_;
-    // NB(ignat): to avoid using Stroka we need to make tricky bufferring while reading from input stream.
-    std::stack<Stroka> Keys_;
+    // NB(ignat): to avoid using TString we need to make tricky bufferring while reading from input stream.
+    std::stack<TString> Keys_;
     TNullable<Py::Object> Attributes_;
 
     void AddObject(

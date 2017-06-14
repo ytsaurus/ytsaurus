@@ -29,7 +29,7 @@ void RunQuery(
     const NScheduler::NProto::TQuerySpec& querySpec,
     const NTableClient::TSchemalessReaderFactory& readerFactory,
     const NTableClient::TSchemalessWriterFactory& writerFactory,
-    const TNullable<Stroka>& udfDirectory);
+    const TNullable<TString>& udfDirectory);
 
 std::vector<NChunkClient::TDataSliceDescriptor> UnpackDataSliceDescriptors(const NScheduler::NProto::TTableInputSpec& inputTableSpec);
 

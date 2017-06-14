@@ -48,7 +48,7 @@ TEST(TDsvWriterTest, ListContainingDifferentTypes)
     consumer.OnEndMap();
     consumer.OnEndList();
 
-    Stroka output =
+    TString output =
         "100\n"
         "foo\n"
         "\n"
@@ -97,7 +97,7 @@ TEST(TDsvWriterTest, WithoutEsacping)
 
     consumer.OnStringScalar("string_with_\t_\\_=_and_\n");
 
-    Stroka output = "string_with_\t_\\_=_and_\n";
+    TString output = "string_with_\t_\\_=_and_\n";
 
     EXPECT_EQ(output, outputStream.Str());
 }
@@ -108,7 +108,7 @@ TEST(TDsvWriterTest, ListUsingOnRaw)
     TDsvNodeConsumer consumer(&outputStream);
 
     consumer.OnRaw("[10; 20; 30]", EYsonType::Node);
-    Stroka output =
+    TString output =
         "10\n"
         "20\n"
         "30\n";
@@ -122,7 +122,7 @@ TEST(TDsvWriterTest, MapUsingOnRaw)
     TDsvNodeConsumer consumer(&outputStream);
 
     consumer.OnRaw("{a=b; c=d}", EYsonType::Node);
-    Stroka output = "a=b\tc=d";
+    TString output = "a=b\tc=d";
 
     EXPECT_EQ(output, outputStream.Str());
 }
@@ -177,7 +177,7 @@ TEST(TDsvWriterTest, SimpleTabular)
         .Get()
         .ThrowOnError();
 
-    Stroka output =
+    TString output =
         "integer=42\tstring=some\tdouble=10.\t@table_index=2\n"
         "foo=bar\tone=1\t@table_index=2\n";
     EXPECT_EQ(output, outputStream.Str());
@@ -252,7 +252,7 @@ TEST(TTskvWriterTest, SimpleTabular)
         .Get()
         .ThrowOnError();
 
-    Stroka output =
+    TString output =
         "tskv\n"
         "tskv\tid=1\tguid=100500\n"
         "tskv\tid=2\tguid=20025\n";
@@ -262,7 +262,7 @@ TEST(TTskvWriterTest, SimpleTabular)
 
 TEST(TTskvWriterTest, Escaping)
 {
-    auto key1 = Stroka("\0 is escaped", 12);
+    auto key1 = TString("\0 is escaped", 12);
 
     auto nameTable = New<TNameTable>();
     auto id1 = nameTable->RegisterName(key1);
@@ -292,7 +292,7 @@ TEST(TTskvWriterTest, Escaping)
         .Get()
         .ThrowOnError();
 
-    Stroka output =
+    TString output =
         "tskv"
         "\t"
 

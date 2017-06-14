@@ -46,7 +46,7 @@ private:
     std::unique_ptr<IParser> DsvParser;
 
     void ConsumeFields(
-        const std::vector<Stroka>& fieldNames,
+        const std::vector<TString>& fieldNames,
         const TStringBuf& wholeField)
     {
         static const char* emptyString = "";

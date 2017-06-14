@@ -90,23 +90,23 @@ public:
 
     // Security
     virtual TFuture<void> AddMember(
-        const Stroka& group,
-        const Stroka& member,
+        const TString& group,
+        const TString& member,
         const NApi::TAddMemberOptions& options) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<void> RemoveMember(
-        const Stroka& group,
-        const Stroka& member,
+        const TString& group,
+        const TString& member,
         const NApi::TRemoveMemberOptions& options) override
     {
         Y_UNIMPLEMENTED();
     }
 
     virtual TFuture<NApi::TCheckPermissionResult> CheckPermission(
-        const Stroka& user,
+        const TString& user,
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const NApi::TCheckPermissionOptions& options) override
@@ -191,7 +191,7 @@ public:
 
     virtual TFuture<void> SignalJob(
         const NJobTrackerClient::TJobId& jobId,
-        const Stroka& signalName,
+        const TString& signalName,
         const NApi::TSignalJobOptions& options) override
     {
         Y_UNIMPLEMENTED();

@@ -738,7 +738,7 @@ private:
         TNodeDirectoryPtr nodeDirectory,
         TInsertCookie cookie)
     {
-        static const Stroka CachedSourcePath = "<cached_data_source>";
+        static const TString CachedSourcePath = "<cached_data_source>";
 
         auto nameTable = New<TNameTable>();
 

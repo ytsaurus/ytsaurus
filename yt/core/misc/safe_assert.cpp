@@ -9,9 +9,9 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 TAssertionFailedException::TAssertionFailedException(
-    const Stroka& expression,
-    const Stroka& stackTrace,
-    const TNullable<Stroka>& corePath)
+    const TString& expression,
+    const TString& stackTrace,
+    const TNullable<TString>& corePath)
     : Expression_(expression)
     , StackTrace_(stackTrace)
     , CorePath_(corePath)

@@ -9,9 +9,9 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-std::vector<Stroka> ToNames(const std::vector<T>& objects)
+std::vector<TString> ToNames(const std::vector<T>& objects)
 {
-    std::vector<Stroka> names;
+    std::vector<TString> names;
     names.reserve(objects.size());
     for (const auto* object : objects) {
         names.push_back(object->GetName());

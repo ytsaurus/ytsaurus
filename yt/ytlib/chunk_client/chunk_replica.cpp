@@ -16,7 +16,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(TChunkReplica replica)
+TString ToString(TChunkReplica replica)
 {
     if (replica.GetReplicaIndex() == GenericChunkReplicaIndex) {
         return Format("%v@%v", replica.GetNodeId(), replica.GetMediumIndex());
@@ -28,7 +28,7 @@ Stroka ToString(TChunkReplica replica)
     }
 }
 
-Stroka ToString(const TChunkIdWithIndex& id)
+TString ToString(const TChunkIdWithIndex& id)
 {
     if (id.ReplicaIndex == GenericChunkReplicaIndex) {
         return ToString(id.Id);
@@ -43,7 +43,7 @@ Stroka ToString(const TChunkIdWithIndex& id)
     }
 }
 
-Stroka ToString(const TChunkIdWithIndexes& id)
+TString ToString(const TChunkIdWithIndexes& id)
 {
     if (TypeFromId(id.Id) == EObjectType::JournalChunk) {
         return Format("%v/%v",

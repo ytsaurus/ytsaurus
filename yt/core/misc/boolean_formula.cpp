@@ -15,7 +15,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateBooleanFormulaVariable(const Stroka& variable)
+void ValidateBooleanFormulaVariable(const TString& variable)
 {
     for (auto c : variable) {
         if (c == '|' || c == '&' || c == '!' || c == '(' || c == ')' || c == ' ') {
@@ -39,7 +39,7 @@ struct TBooleanFormulaToken
 {
     EBooleanFormulaTokenType Type;
     int Position;
-    Stroka Name;
+    TString Name;
 };
 
 bool operator==(const TBooleanFormulaToken& lhs, const TBooleanFormulaToken& rhs)
@@ -58,11 +58,11 @@ class TBooleanFormula::TImpl
     : public TIntrinsicRefCounted
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Formula);
+    DEFINE_BYVAL_RO_PROPERTY(TString, Formula);
     DEFINE_BYVAL_RO_PROPERTY(size_t, Hash);
 
 public:
-    TImpl(const Stroka& formula, size_t hash, std::vector<TBooleanFormulaToken> parsedFormula);
+    TImpl(const TString& formula, size_t hash, std::vector<TBooleanFormulaToken> parsedFormula);
 
     bool operator==(const TImpl& other) const;
 
@@ -70,24 +70,24 @@ public:
 
     int Size() const;
 
-    bool IsSatisfiedBy(const std::vector<Stroka>& value) const;
-    bool IsSatisfiedBy(const yhash_set<Stroka>& value) const;
+    bool IsSatisfiedBy(const std::vector<TString>& value) const;
+    bool IsSatisfiedBy(const yhash_set<TString>& value) const;
 
 private:
     std::vector<TBooleanFormulaToken> ParsedFormula_;
 
-    static std::vector<TBooleanFormulaToken> Tokenize(const Stroka& formula);
+    static std::vector<TBooleanFormulaToken> Tokenize(const TString& formula);
     static std::vector<TBooleanFormulaToken> Parse(
-        const Stroka& formula,
+        const TString& formula,
         const std::vector<TBooleanFormulaToken>& tokens);
     static size_t CalculateHash(const std::vector<TBooleanFormulaToken> tokens);
 
-    friend TIntrusivePtr<TImpl> MakeBooleanFormulaImpl(const Stroka& formula);
+    friend TIntrusivePtr<TImpl> MakeBooleanFormulaImpl(const TString& formula);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBooleanFormula::TImpl::TImpl(const Stroka& formula, size_t hash, std::vector<TBooleanFormulaToken> parsedFormula)
+TBooleanFormula::TImpl::TImpl(const TString& formula, size_t hash, std::vector<TBooleanFormulaToken> parsedFormula)
     : Formula_(formula)
     , Hash_(hash)
     , ParsedFormula_(std::move(parsedFormula))
@@ -118,13 +118,13 @@ int TBooleanFormula::TImpl::Size() const
     return ParsedFormula_.size();
 }
 
-bool TBooleanFormula::TImpl::IsSatisfiedBy(const std::vector<Stroka>& value) const
+bool TBooleanFormula::TImpl::IsSatisfiedBy(const std::vector<TString>& value) const
 {
-    yhash_set<Stroka> set(value.begin(), value.end());
+    yhash_set<TString> set(value.begin(), value.end());
     return IsSatisfiedBy(set);
 }
 
-bool TBooleanFormula::TImpl::IsSatisfiedBy(const yhash_set<Stroka>& value) const
+bool TBooleanFormula::TImpl::IsSatisfiedBy(const yhash_set<TString>& value) const
 {
     std::vector<bool> stack;
 
@@ -164,7 +164,7 @@ bool TBooleanFormula::TImpl::IsSatisfiedBy(const yhash_set<Stroka>& value) const
     return stack.empty() ? true : stack[0];
 }
 
-std::vector<TBooleanFormulaToken> TBooleanFormula::TImpl::Tokenize(const Stroka& formula)
+std::vector<TBooleanFormulaToken> TBooleanFormula::TImpl::Tokenize(const TString& formula)
 {
     std::vector<TBooleanFormulaToken> result;
     int begin = 0;
@@ -175,7 +175,7 @@ std::vector<TBooleanFormulaToken> TBooleanFormula::TImpl::Tokenize(const Stroka&
             result.push_back(TBooleanFormulaToken{
                 EBooleanFormulaTokenType::Variable,
                 begin,
-                Stroka(TStringBuf(formula).SubStr(begin, end - begin))});
+                TString(TStringBuf(formula).SubStr(begin, end - begin))});
         }
     };
 
@@ -230,7 +230,7 @@ std::vector<TBooleanFormulaToken> TBooleanFormula::TImpl::Tokenize(const Stroka&
 }
 
 std::vector<TBooleanFormulaToken> TBooleanFormula::TImpl::Parse(
-    const Stroka& formula,
+    const TString& formula,
     const std::vector<TBooleanFormulaToken>& tokens)
 {
     std::vector<TBooleanFormulaToken> result;
@@ -241,7 +241,7 @@ std::vector<TBooleanFormulaToken> TBooleanFormula::TImpl::Parse(
         return result;
     }
 
-    auto throwError = [&] (int position, const Stroka& message) {
+    auto throwError = [&] (int position, const TString& message) {
         TStringBuilder builder;
         Format(&builder, "Error while parsing boolean formula:\n%v\n", formula);
         builder.AppendChar(' ', position);
@@ -336,7 +336,7 @@ size_t TBooleanFormula::TImpl::CalculateHash(const std::vector<TBooleanFormulaTo
     return result;
 }
 
-TIntrusivePtr<TBooleanFormula::TImpl> MakeBooleanFormulaImpl(const Stroka& formula)
+TIntrusivePtr<TBooleanFormula::TImpl> MakeBooleanFormulaImpl(const TString& formula)
 {
     auto tokens = TBooleanFormula::TImpl::Tokenize(formula);
     auto parsed = TBooleanFormula::TImpl::Parse(formula, tokens);
@@ -347,7 +347,7 @@ TIntrusivePtr<TBooleanFormula::TImpl> MakeBooleanFormulaImpl(const Stroka& formu
 ////////////////////////////////////////////////////////////////////////////////
 
 TBooleanFormula::TBooleanFormula()
-    : Impl_(MakeBooleanFormulaImpl(Stroka()))
+    : Impl_(MakeBooleanFormulaImpl(TString()))
 { }
 
 TBooleanFormula::TBooleanFormula(TIntrusivePtr<TBooleanFormula::TImpl> impl)
@@ -380,22 +380,22 @@ size_t TBooleanFormula::GetHash() const
     return Impl_->GetHash();
 }
 
-Stroka TBooleanFormula::GetFormula() const
+TString TBooleanFormula::GetFormula() const
 {
     return Impl_->GetFormula();
 }
 
-bool TBooleanFormula::IsSatisfiedBy(const std::vector<Stroka>& value) const
+bool TBooleanFormula::IsSatisfiedBy(const std::vector<TString>& value) const
 {
     return Impl_->IsSatisfiedBy(value);
 }
 
-bool TBooleanFormula::IsSatisfiedBy(const yhash_set<Stroka>& value) const
+bool TBooleanFormula::IsSatisfiedBy(const yhash_set<TString>& value) const
 {
     return Impl_->IsSatisfiedBy(value);
 }
 
-TBooleanFormula MakeBooleanFormula(const Stroka& formula)
+TBooleanFormula MakeBooleanFormula(const TString& formula)
 {
     auto impl = MakeBooleanFormulaImpl(formula);
     return TBooleanFormula(std::move(impl));
@@ -421,7 +421,7 @@ void TBooleanFormula::Save(TStreamSaveContext& context) const
 void TBooleanFormula::Load(TStreamLoadContext& context)
 {
     using NYT::Load;
-    auto formula = Load<Stroka>(context);
+    auto formula = Load<TString>(context);
     Impl_ = MakeBooleanFormulaImpl(formula);
 }
 

@@ -336,7 +336,7 @@ void TBootstrap::Run()
     Sleep(TDuration::Max());
 }
 
-void TBootstrap::TryLoadSnapshot(const Stroka& fileName, bool dump)
+void TBootstrap::TryLoadSnapshot(const TString& fileName, bool dump)
 {
     BIND(&TBootstrap::DoLoadSnapshot, this, fileName, dump)
         .AsyncVia(HydraFacade_->GetAutomatonInvoker())
@@ -345,7 +345,7 @@ void TBootstrap::TryLoadSnapshot(const Stroka& fileName, bool dump)
         .ThrowOnError();
 }
 
-TPeerId TBootstrap::ComputePeerId(TCellConfigPtr config, const Stroka& localAddress)
+TPeerId TBootstrap::ComputePeerId(TCellConfigPtr config, const TString& localAddress)
 {
     for (TPeerId id = 0; id < config->Peers.size(); ++id) {
         const auto& peerAddress = config->Peers[id].Address;
@@ -650,7 +650,7 @@ void TBootstrap::DoRun()
     RpcServer_->Start();
 }
 
-void TBootstrap::DoLoadSnapshot(const Stroka& fileName, bool dump)
+void TBootstrap::DoLoadSnapshot(const TString& fileName, bool dump)
 {
     auto reader = CreateFileSnapshotReader(fileName, InvalidSegmentId, false);
     HydraFacade_->LoadSnapshot(reader, dump);

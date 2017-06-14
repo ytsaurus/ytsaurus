@@ -86,7 +86,7 @@ private:
         descriptors->push_back("multicell_resource_usage");
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
     {
         const auto* transaction = GetThisImpl();
 
@@ -175,7 +175,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const TString& key) override
     {
         const auto* transaction = GetThisImpl();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -270,7 +270,7 @@ private:
     }
 
     // Account name -> cluster resources.
-    using TAccountResourcesMap = yhash<Stroka, NSecurityServer::TClusterResources>;
+    using TAccountResourcesMap = yhash<TString, NSecurityServer::TClusterResources>;
     // Cell tag -> account name -> cluster resources.
     using TMulticellAccountResourcesMap = yhash<TCellTag, TAccountResourcesMap>;
 
@@ -352,7 +352,7 @@ private:
     {
         TAccountResourcesMap result;
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto serializableAccountResources = ConvertTo<yhash<Stroka, TSerializableClusterResourcesPtr>>(value);
+        auto serializableAccountResources = ConvertTo<yhash<TString, TSerializableClusterResourcesPtr>>(value);
         for (const auto& pair : serializableAccountResources) {
             result.insert(std::make_pair(pair.first, pair.second->ToClusterResources(chunkManager)));
         }
@@ -363,7 +363,7 @@ private:
     template <class TSession>
     TFuture<void> FetchCombinedAttributeFromRemote(
         const TIntrusivePtr<TSession>& session,
-        const Stroka& attributeKey,
+        const TString& attributeKey,
         TCellTag cellTag,
         const TCallback<void(const TIntrusivePtr<TSession>& session, const TYsonString& yson)>& accumulator)
     {
@@ -401,7 +401,7 @@ private:
 
     template <class TSession>
     TFuture<TYsonString> FetchCombinedAttribute(
-        const Stroka& attributeKey,
+        const TString& attributeKey,
         const TCallback<TYsonString()>& localFetcher,
         const TCallback<void(const TIntrusivePtr<TSession>& session, const TYsonString& yson)>& accumulator,
         const TCallback<TYsonString(const TIntrusivePtr<TSession>& session)>& finalizer)
@@ -426,13 +426,13 @@ private:
 
 
     TFuture<TYsonString> FetchMergeableAttribute(
-        const Stroka& attributeKey,
+        const TString& attributeKey,
         const TCallback<TYsonString()>& localFetcher)
     {
         struct TSession
             : public TIntrinsicRefCounted
         {
-            yhash<Stroka, TYsonString> Map;
+            yhash<TString, TYsonString> Map;
         };
 
         using TSessionPtr = TIntrusivePtr<TSession>;
@@ -446,21 +446,21 @@ private:
                     .EndMap();
             }),
             BIND([] (const TSessionPtr& session, const TYsonString& yson) {
-                auto map = ConvertTo<yhash<Stroka, INodePtr>>(yson);
+                auto map = ConvertTo<yhash<TString, INodePtr>>(yson);
                 for (const auto& pair : map) {
                     session->Map.emplace(pair.first, ConvertToYsonString(pair.second));
                 }
             }),
             BIND([] (const TSessionPtr& session) {
                 return BuildYsonStringFluently()
-                    .DoMapFor(session->Map, [&] (TFluentMap fluent, const std::pair<const Stroka&, TYsonString>& pair) {
+                    .DoMapFor(session->Map, [&] (TFluentMap fluent, const std::pair<const TString&, TYsonString>& pair) {
                         fluent.Item(pair.first).Value(pair.second);
                     });
             }));
     }
 
     TFuture<TYsonString> FetchSummableAttribute(
-        const Stroka& attributeKey,
+        const TString& attributeKey,
         const TCallback<TYsonString()>& localFetcher)
     {
         struct TSession

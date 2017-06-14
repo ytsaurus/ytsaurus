@@ -18,8 +18,8 @@ class TFairShareActionQueue
 {
 public:
     TFairShareActionQueue(
-        const Stroka& threadName,
-        const std::vector<Stroka>& bucketNames,
+        const TString& threadName,
+        const std::vector<TString>& bucketNames,
         bool enableLogging = true,
         bool enableProfiling = true);
 

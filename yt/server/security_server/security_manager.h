@@ -81,10 +81,10 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup);
 
     //! Returns account with a given name (|nullptr| if none).
-    TAccount* FindAccountByName(const Stroka& name);
+    TAccount* FindAccountByName(const TString& name);
 
     //! Returns user with a given name (throws if none).
-    TAccount* GetAccountByNameOrThrow(const Stroka& name);
+    TAccount* GetAccountByNameOrThrow(const TString& name);
 
     //! Returns "root" built-in account.
     TAccount* GetSysAccount();
@@ -103,7 +103,7 @@ public:
     void ResetAccount(NCypressServer::TCypressNodeBase* node);
 
     //! Updates the name of the account.
-    void RenameAccount(TAccount* account, const Stroka& newName);
+    void RenameAccount(TAccount* account, const TString& newName);
 
     //! Updates the account to accommodate recent changes in #node resource usage.
     void UpdateAccountNodeUsage(NCypressServer::TCypressNodeBase* node);
@@ -121,10 +121,10 @@ public:
         const TClusterResources& delta);
 
     //! Returns user with a given name (|nullptr| if none).
-    TUser* FindUserByName(const Stroka& name);
+    TUser* FindUserByName(const TString& name);
 
     //! Returns user with a given name (throws if none).
-    TUser* GetUserByNameOrThrow(const Stroka& name);
+    TUser* GetUserByNameOrThrow(const TString& name);
 
     //! Finds user by id, throws if nothing is found.
     TUser* GetUserOrThrow(const TUserId& id);
@@ -140,7 +140,7 @@ public:
 
 
     //! Returns group with a given name (|nullptr| if none).
-    TGroup* FindGroupByName(const Stroka& name);
+    TGroup* FindGroupByName(const TString& name);
 
     //! Returns "everyone" built-in group.
     TGroup* GetEveryoneGroup();
@@ -153,10 +153,10 @@ public:
 
 
     //! Returns subject (a user or a group) with a given name (|nullptr| if none).
-    TSubject* FindSubjectByName(const Stroka& name);
+    TSubject* FindSubjectByName(const TString& name);
 
     //! Returns subject (a user or a group) with a given name (throws if none).
-    TSubject* GetSubjectByNameOrThrow(const Stroka& name);
+    TSubject* GetSubjectByNameOrThrow(const TString& name);
 
     //! Adds a new member into the group. Throws on failure.
     void AddMember(TGroup* group, TSubject* member, bool ignoreExisting);
@@ -166,7 +166,7 @@ public:
 
 
     //! Updates the name of the subject.
-    void RenameSubject(TSubject* subject, const Stroka& newName);
+    void RenameSubject(TSubject* subject, const TString& newName);
 
 
     //! Returns the object ACD or |nullptr| if access is not controlled.

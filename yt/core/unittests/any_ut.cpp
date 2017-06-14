@@ -43,8 +43,8 @@ TEST(TAnyTest, Pod2)
 
 TEST(TAnyTest, NonPod1)
 {
-    TAny v(Stroka("hello"));
-    EXPECT_EQ("hello", v.As<Stroka>());
+    TAny v(TString("hello"));
+    EXPECT_EQ("hello", v.As<TString>());
 }
 
 struct S
@@ -98,8 +98,8 @@ TEST(TAnyTest, NonPod2)
 {
     S::Reset();
     {
-        TAny v(Stroka("hello"));
-        EXPECT_EQ("hello", v.As<Stroka>());
+        TAny v(TString("hello"));
+        EXPECT_EQ("hello", v.As<TString>());
     }
     EXPECT_EQ(0, S::CtorCalls);
     EXPECT_EQ(0, S::DtorCalls);
@@ -197,7 +197,7 @@ TEST(TAnyTest, AssignCopy)
     {
         S s(123);
         TAny v1(s);
-        TAny v2(Stroka("hello"));
+        TAny v2(TString("hello"));
         v2 = v1;
 
         EXPECT_EQ(123, v1.As<S>().Value);
@@ -216,7 +216,7 @@ TEST(TAnyTest, MoveCopy)
     {
         S s(123);
         TAny v1(s);
-        TAny v2(Stroka("hello"));
+        TAny v2(TString("hello"));
         v2 = std::move(v1);
 
         EXPECT_FALSE(v1);

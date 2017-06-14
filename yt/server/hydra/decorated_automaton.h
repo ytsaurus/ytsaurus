@@ -249,13 +249,13 @@ private:
 
     NProfiling::TAggregateCounter BatchCommitTimeCounter_;
 
-    yhash<Stroka, TMutationTypeDescriptor> TypeToDescriptor_;
+    yhash<TString, TMutationTypeDescriptor> TypeToDescriptor_;
 
     const NLogging::TLogger Logger;
 
 
     void RotateAutomatonVersionIfNeeded(TVersion mutationVersion);
-    TMutationTypeDescriptor* GetTypeDescriptor(const Stroka& type);
+    TMutationTypeDescriptor* GetTypeDescriptor(const TString& type);
     void DoApplyMutation(TMutationContext* context);
 
     bool TryAcquireUserLock();

@@ -17,12 +17,12 @@ NHiveClient::NProto::TEncapsulatedMessage SerializeMessage(
 template <class TCallback>
 struct TTransactionActionHandlerDescriptor
 {
-    Stroka Type;
+    TString Type;
     TCallback Handler;
 };
 
 template <class TTransaction*, class TProto, class... TArgs>
-TTransactionActionHandlerDescriptor<TCallback<void(TTransaction*, const Stroka&, TArgs...)>>
+TTransactionActionHandlerDescriptor<TCallback<void(TTransaction*, const TString&, TArgs...)>>
 MakeTransactionActionHandlerDescriptor(
     TCallback<void(TTransaction*, TProto*, TArgs...)> handler);
 

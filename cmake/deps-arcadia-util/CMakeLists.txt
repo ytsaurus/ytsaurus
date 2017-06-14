@@ -15,6 +15,7 @@ set(STRING_SRCS
   ${STRING_BASE}/cast.cc
   ${STRING_BASE}/cgiparam.cpp
   ${STRING_BASE}/cstriter.cpp
+  ${STRING_BASE}/delim_stroka_iter.cpp
   ${STRING_BASE}/escape.cpp
   ${STRING_BASE}/hex.cpp
   ${STRING_BASE}/iterator.cpp
@@ -37,25 +38,78 @@ set(STRING_SRCS
 
 set(GENERIC_BASE ${CMAKE_SOURCE_DIR}/util/generic)
 set(GENERIC_SRCS
-  ${GENERIC_BASE}/buffer.cpp
+  ${GENERIC_BASE}/adaptor.cpp
+  ${GENERIC_BASE}/algorithm.cpp
+  ${GENERIC_BASE}/array_ref.cpp
+  ${GENERIC_BASE}/array_size.cpp
+  ${GENERIC_BASE}/avltree.cpp
+  ${GENERIC_BASE}/bitmap.cpp
   ${GENERIC_BASE}/bitops.cpp
+  ${GENERIC_BASE}/bt_exception.cpp
+  ${GENERIC_BASE}/buffer.cpp
+  ${GENERIC_BASE}/cast.cpp
   ${GENERIC_BASE}/chartraits.cpp
+  ${GENERIC_BASE}/deque.cpp
+  ${GENERIC_BASE}/explicit_type.cpp
+  ${GENERIC_BASE}/fastqueue.cpp
+  ${GENERIC_BASE}/flags.cpp
+  ${GENERIC_BASE}/function.cpp
+  ${GENERIC_BASE}/fuzz/vector/main.cpp
+  ${GENERIC_BASE}/fwd.cpp
   ${GENERIC_BASE}/guid.cpp
-  ${GENERIC_BASE}/ptr.cpp
-  ${GENERIC_BASE}/singleton.cpp
-  ${GENERIC_BASE}/strbuf.cpp
-  ${GENERIC_BASE}/strfcpy.cpp
-  ${GENERIC_BASE}/stroka.cpp
-  ${GENERIC_BASE}/yexception.cpp
-  ${GENERIC_BASE}/ymath.cpp
   ${GENERIC_BASE}/hash.cpp
   ${GENERIC_BASE}/hash_primes.cpp
+  ${GENERIC_BASE}/hash_set.cpp
+  ${GENERIC_BASE}/hide_ptr.cpp
+  ${GENERIC_BASE}/intrlist.cpp
+  ${GENERIC_BASE}/is_in.cpp
+  ${GENERIC_BASE}/iterator.cpp
+  ${GENERIC_BASE}/iterator_range.cpp
+  ${GENERIC_BASE}/lazy_value.cpp
+  ${GENERIC_BASE}/list.cpp
+  ${GENERIC_BASE}/map.cpp
+  ${GENERIC_BASE}/mapfindptr.cpp
+  ${GENERIC_BASE}/maybe.cpp
+  ${GENERIC_BASE}/mem_copy.cpp
+  ${GENERIC_BASE}/noncopyable.cpp
+  ${GENERIC_BASE}/object_counter.cpp
+  ${GENERIC_BASE}/ptr.cpp
+  ${GENERIC_BASE}/queue.cpp
+  ${GENERIC_BASE}/refcount.cpp
+  ${GENERIC_BASE}/ref.cpp
+  ${GENERIC_BASE}/region.cpp
+  ${GENERIC_BASE}/reinterpretcast.cpp
+  ${GENERIC_BASE}/set.cpp
+  ${GENERIC_BASE}/singleton.cpp
+  ${GENERIC_BASE}/stack.cpp
+  ${GENERIC_BASE}/stlfwd.cpp
+  ${GENERIC_BASE}/store_policy.cpp
+  ${GENERIC_BASE}/strbuf.cpp
+  ${GENERIC_BASE}/strfcpy.cpp
+  ${GENERIC_BASE}/string.cpp
+  ${GENERIC_BASE}/typelist.cpp
+  ${GENERIC_BASE}/type_name.cpp
+  ${GENERIC_BASE}/typetraits.cpp
+  ${GENERIC_BASE}/utility.cpp
+  ${GENERIC_BASE}/va_args.cpp
+  #${GENERIC_BASE}/variant.cpp
+  ${GENERIC_BASE}/vector.cpp
+  ${GENERIC_BASE}/vector_ops.cpp
+  ${GENERIC_BASE}/xrange.cpp
+  ${GENERIC_BASE}/yexception.cpp
+  ${GENERIC_BASE}/ylimits.cpp
+  ${GENERIC_BASE}/ymath.cpp
 )
 
 set(DIGEST_BASE ${CMAKE_SOURCE_DIR}/util/digest)
 set(DIGEST_SRCS
   ${DIGEST_BASE}/city.cpp
+  ${DIGEST_BASE}/fnv.cpp
+  ${DIGEST_BASE}/iterator.cpp
+  ${DIGEST_BASE}/multi.cpp
   ${DIGEST_BASE}/murmur.cpp
+  ${DIGEST_BASE}/numeric.cpp
+  ${DIGEST_BASE}/sequence.cpp
 )
 
 set(SYSTEM_BASE ${CMAKE_SOURCE_DIR}/util/system)
@@ -72,7 +126,6 @@ set(SYSTEM_SRCS
   ${SYSTEM_BASE}/cpu_id.cpp
   ${SYSTEM_BASE}/daemon.cpp
   ${SYSTEM_BASE}/datetime.cpp
-  ${SYSTEM_BASE}/defaults.c
   ${SYSTEM_BASE}/demangle.cpp
   ${SYSTEM_BASE}/direct_io.cpp
   ${SYSTEM_BASE}/dynlib.cpp
@@ -108,13 +161,13 @@ set(SYSTEM_SRCS
   ${SYSTEM_BASE}/protect.cpp
   ${SYSTEM_BASE}/rusage.cpp
   ${SYSTEM_BASE}/rwlock.cpp
+  ${SYSTEM_BASE}/sanitizers.cpp
   ${SYSTEM_BASE}/sem.cpp
   ${SYSTEM_BASE}/shellcommand.cpp
   ${SYSTEM_BASE}/shmat.cpp
   ${SYSTEM_BASE}/sigset.cpp
   ${SYSTEM_BASE}/spinlock.cpp
   ${SYSTEM_BASE}/src_location.cpp
-  ${SYSTEM_BASE}/src_root.cpp
   ${SYSTEM_BASE}/strlcpy.c
   ${SYSTEM_BASE}/sys_alloc.cpp
   ${SYSTEM_BASE}/sysstat.cpp
@@ -125,24 +178,22 @@ set(SYSTEM_SRCS
   ${SYSTEM_BASE}/unaligned_mem.cpp
   ${SYSTEM_BASE}/user.cpp
   ${SYSTEM_BASE}/utime.cpp
+  ${SYSTEM_BASE}/valgrind.cpp
   ${SYSTEM_BASE}/yassert.cpp
   ${SYSTEM_BASE}/yield.cpp
   ${SYSTEM_BASE}/context_x86.asm
 )
 
-if(WIN32)
-  set(SYSTEM_SRCS ${SYSTEM_SRCS}
-    ${SYSTEM_BASE}/fs_win.cpp
-    ${SYSTEM_BASE}/winint.cpp
-  )
-endif()
-
 set(MEMORY_BASE ${CMAKE_SOURCE_DIR}/util/memory)
 set(MEMORY_SRCS
+  ${MEMORY_BASE}/addstorage.cpp
   ${MEMORY_BASE}/alloc.cpp
   ${MEMORY_BASE}/blob.cpp
   ${MEMORY_BASE}/mmapalloc.cpp
   ${MEMORY_BASE}/pool.cpp
+  ${MEMORY_BASE}/segmented_string_pool.cpp
+  ${MEMORY_BASE}/segpool_alloc.cpp
+  ${MEMORY_BASE}/smallobj.cpp
   ${MEMORY_BASE}/tempbuf.cpp
 )
 
@@ -185,6 +236,7 @@ set(NETWORK_SRCS
   ${NETWORK_BASE}/interface.cpp
   ${NETWORK_BASE}/iovec.cpp
   ${NETWORK_BASE}/ip.cpp
+  ${NETWORK_BASE}/netloss.cpp
   ${NETWORK_BASE}/nonblock.cpp
   ${NETWORK_BASE}/pair.cpp
   ${NETWORK_BASE}/poller.cpp
@@ -204,13 +256,6 @@ set(FOLDER_SRCS
   ${FOLDER_BASE}/tempdir.cpp
 )
 
-if(WIN32)
-  set(FOLDER_SRCS ${FOLDER_SRCS}
-    ${FOLDER_BASE}/dirent_win.cpp
-    ${FOLDER_BASE}/lstat_win.cpp
-  )
-endif()
-
 set(DATETIME_BASE ${CMAKE_SOURCE_DIR}/util/datetime)
 set(DATETIME_SRCS
   ${DATETIME_BASE}/base.cpp
@@ -220,12 +265,6 @@ set(DATETIME_SRCS
   ${DATETIME_BASE}/strptime.cpp
   ${DATETIME_BASE}/systime.cpp
 )
-
-if(WIN32)
-  set(DATETIME_SRCS ${DATETIME_SRCS}
-    ${DATETIME_BASE}/strptime.cpp
-  )
-endif()
 
 set(THREAD_BASE ${CMAKE_SOURCE_DIR}/util/thread)
 set(THREAD_SRCS
@@ -297,6 +336,7 @@ add_library(deps-arcadia-util STATIC
 )
 
 target_link_libraries(deps-arcadia-util
+  deps-arcadia-contrib-libs-double--conversion
   deps-arcadia-contrib-libs-zlib
 )
 

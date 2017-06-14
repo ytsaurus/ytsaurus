@@ -151,8 +151,8 @@ Handle<Value> EscapeC(const Arguments& args)
     // Unwrap arguments.
     String::Utf8Value value(args[0]);
 
-    Stroka unescaped(*value, value.length());
-    Stroka escaped = ::EscapeC(unescaped);
+    TString unescaped(*value, value.length());
+    TString escaped = ::EscapeC(unescaped);
 
     return scope.Close(String::New(escaped.c_str()));
 }

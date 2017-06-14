@@ -14,16 +14,16 @@ struct TShellParameters
 {
     TShellId ShellId;
     EShellOperation Operation;
-    TNullable<Stroka> Term;
-    Stroka Keys;
+    TNullable<TString> Term;
+    TString Keys;
     TNullable<ui64> InputOffset;
     int Height;
     int Width;
     //! Timeout for inactive shell after failed or completed job.
     TDuration InactivityTimeout;
     //! Environment variables passed to job shell.
-    std::vector<Stroka> Environment;
-    TNullable<Stroka> Command;
+    std::vector<TString> Environment;
+    TNullable<TString> Command;
 
     TShellParameters()
     {
@@ -68,7 +68,7 @@ struct TShellResult
     : public NYTree::TYsonSerializableLite
 {
     TShellId ShellId;
-    TNullable<Stroka> Output;
+    TNullable<TString> Output;
     TNullable<ui64> ConsumedOffset;
 
     TShellResult()

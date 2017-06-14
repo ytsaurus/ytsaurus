@@ -57,7 +57,7 @@ class TTcpBusServerConfig
 {
 public:
     TNullable<int> Port;
-    TNullable<Stroka> UnixDomainName;
+    TNullable<TString> UnixDomainName;
     int MaxBacklogSize;
     int MaxSimultaneousConnections;
 
@@ -75,7 +75,7 @@ public:
 
     static TTcpBusServerConfigPtr CreateTcp(int port);
 
-    static TTcpBusServerConfigPtr CreateUnixDomain(const Stroka& address);
+    static TTcpBusServerConfigPtr CreateUnixDomain(const TString& address);
 
 };
 
@@ -85,8 +85,8 @@ class TTcpBusClientConfig
     : public TTcpBusConfig
 {
 public:
-    TNullable<Stroka> Address;
-    TNullable<Stroka> UnixDomainName;
+    TNullable<TString> Address;
+    TNullable<TString> UnixDomainName;
 
     TTcpBusClientConfig()
     {
@@ -102,9 +102,9 @@ public:
         });
     }
 
-    static TTcpBusClientConfigPtr CreateTcp(const Stroka& address);
+    static TTcpBusClientConfigPtr CreateTcp(const TString& address);
 
-    static TTcpBusClientConfigPtr CreateUnixDomain(const Stroka& address);
+    static TTcpBusClientConfigPtr CreateUnixDomain(const TString& address);
 
 };
 

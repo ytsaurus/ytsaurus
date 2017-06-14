@@ -121,8 +121,8 @@ using NChunkClient::TDataSliceDescriptor;
 #ifdef _unix_
 
 static const int JobStatisticsFD = 5;
-static Stroka CGroupBase = "user_jobs";
-static Stroka CGroupPrefix = CGroupBase + "/yt-job-";
+static TString CGroupBase = "user_jobs";
+static TString CGroupPrefix = CGroupBase + "/yt-job-";
 
 static const size_t BufferSize = (size_t) 1024 * 1024;
 
@@ -132,20 +132,20 @@ static TNullOutput NullOutput;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static Stroka CreateNamedPipePath()
+static TString CreateNamedPipePath()
 {
-    const Stroka& name = CreateGuidAsString();
+    const TString& name = CreateGuidAsString();
     return NFS::GetRealPath(NFS::CombinePaths("./pipes", name));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka& GetCGroupUserJobBase()
+const TString& GetCGroupUserJobBase()
 {
     return CGroupBase;
 }
 
-const Stroka& GetCGroupUserJobPrefix()
+const TString& GetCGroupUserJobPrefix()
 {
     return CGroupPrefix;
 }
@@ -389,7 +389,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    Stroka InputPipePath_;
+    TString InputPipePath_;
 
     TNullable<int> UserId_;
 
@@ -433,7 +433,7 @@ private:
     std::vector<TCallback<void()>> FinalizeActions_;
 
     TFuture<void> ProcessFinished_;
-    std::vector<Stroka> Environment_;
+    std::vector<TString> Environment_;
 
     NJobProberClient::IJobProbePtr JobProberClient_;
 
@@ -629,7 +629,7 @@ private:
         return result;
     }
 
-    virtual Stroka GetStderr() override
+    virtual TString GetStderr() override
     {
         ValidatePrepared();
 
@@ -645,7 +645,7 @@ private:
         return JobProberClient_->StraceJob();
     }
 
-    virtual void SignalJob(const Stroka& signalName) override
+    virtual void SignalJob(const TString& signalName) override
     {
         JobProberClient_->SignalJob(signalName);
     }
@@ -979,7 +979,7 @@ private:
         return statistics;
     }
 
-    void OnIOErrorOrFinished(const TError& error, const Stroka& message)
+    void OnIOErrorOrFinished(const TError& error, const TString& message)
     {
         if (error.IsOK() || error.FindMatching(NPipes::EErrorCode::Aborted)) {
             return;

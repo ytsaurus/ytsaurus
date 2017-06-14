@@ -22,7 +22,7 @@ struct IJobEnvironment
 {
     virtual TFuture<void> RunJobProxy(
         int slotIndex,
-        const Stroka& workingDirectory,
+        const TString& workingDirectory,
         const TJobId& jobId,
         const TOperationId& operationId) = 0;
 

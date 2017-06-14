@@ -330,7 +330,7 @@ protected:
             , Controller(controller)
         { }
 
-        virtual Stroka GetId() const override
+        virtual TString GetId() const override
         {
             return "Partition";
         }
@@ -880,7 +880,7 @@ protected:
             : TSortTask(controller, partition)
         { }
 
-        virtual Stroka GetId() const override
+        virtual TString GetId() const override
         {
             return Format("Sort(%v)", Partition->Index);
         }
@@ -963,7 +963,7 @@ protected:
             : TSortTask(controller, partition)
         { }
 
-        virtual Stroka GetId() const override
+        virtual TString GetId() const override
         {
             return "SimpleSort";
         }
@@ -1027,7 +1027,7 @@ protected:
             SetupCallbacks();
         }
 
-        virtual Stroka GetId() const override
+        virtual TString GetId() const override
         {
             return Format("SortedMerge(%v)", Partition->Index);
         }
@@ -1252,7 +1252,7 @@ protected:
             : TMergeTask(controller, partition)
         { }
 
-        virtual Stroka GetId() const override
+        virtual TString GetId() const override
         {
             return Format("UnorderedMerge(%v)", Partition->Index);
         }
@@ -2599,7 +2599,7 @@ private:
 
     // Progress reporting.
 
-    virtual Stroka GetLoggingProgress() const override
+    virtual TString GetLoggingProgress() const override
     {
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "
@@ -3275,7 +3275,7 @@ private:
 
     // Progress reporting.
 
-    virtual Stroka GetLoggingProgress() const override
+    virtual TString GetLoggingProgress() const override
     {
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "

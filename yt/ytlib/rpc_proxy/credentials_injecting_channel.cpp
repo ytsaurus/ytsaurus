@@ -20,9 +20,9 @@ class TTokenInjectingChannel
 public:
     TTokenInjectingChannel(
         IChannelPtr underlyingChannel,
-        const Stroka& user,
-        const Stroka& token,
-        const Stroka& userIP)
+        const TString& user,
+        const TString& token,
+        const TString& userIP)
         : TChannelWrapper(std::move(underlyingChannel))
         , User_(user)
         , Token_(token)
@@ -45,16 +45,16 @@ public:
     }
 
 private:
-    const Stroka User_;
-    const Stroka Token_;
-    const Stroka UserIP_;
+    const TString User_;
+    const TString Token_;
+    const TString UserIP_;
 };
 
 IChannelPtr CreateTokenInjectingChannel(
     IChannelPtr underlyingChannel,
-    const Stroka& user,
-    const Stroka& token,
-    const Stroka& userIP)
+    const TString& user,
+    const TString& token,
+    const TString& userIP)
 {
     YCHECK(underlyingChannel);
     return New<TTokenInjectingChannel>(
@@ -72,11 +72,11 @@ class TCookieInjectingChannel
 public:
     TCookieInjectingChannel(
         IChannelPtr underlyingChannel,
-        const Stroka& user,
-        const Stroka& domain,
-        const Stroka& sessionId,
-        const Stroka& sslSessionId,
-        const Stroka& userIP)
+        const TString& user,
+        const TString& domain,
+        const TString& sessionId,
+        const TString& sslSessionId,
+        const TString& userIP)
         : TChannelWrapper(std::move(underlyingChannel))
         , User_(user)
         , Domain_(domain)
@@ -103,20 +103,20 @@ public:
     }
 
 private:
-    const Stroka User_;
-    const Stroka Domain_;
-    const Stroka SessionId_;
-    const Stroka SslSessionId_;
-    const Stroka UserIP_;
+    const TString User_;
+    const TString Domain_;
+    const TString SessionId_;
+    const TString SslSessionId_;
+    const TString UserIP_;
 };
 
 IChannelPtr CreateCookieInjectingChannel(
     IChannelPtr underlyingChannel,
-    const Stroka& user,
-    const Stroka& domain,
-    const Stroka& sessionId,
-    const Stroka& sslSessionId,
-    const Stroka& userIP)
+    const TString& user,
+    const TString& domain,
+    const TString& sessionId,
+    const TString& sslSessionId,
+    const TString& userIP)
 {
     YCHECK(underlyingChannel);
     return New<TCookieInjectingChannel>(

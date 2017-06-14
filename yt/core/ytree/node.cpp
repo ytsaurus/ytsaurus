@@ -14,7 +14,7 @@ using namespace NYson;
 
 namespace NDetail {
 
-const ENodeType TScalarTypeTraits<Stroka>::NodeType = ENodeType::String;
+const ENodeType TScalarTypeTraits<TString>::NodeType = ENodeType::String;
 const ENodeType TScalarTypeTraits<i64>::NodeType = ENodeType::Int64;
 const ENodeType TScalarTypeTraits<ui64>::NodeType = ENodeType::Uint64;
 const ENodeType TScalarTypeTraits<double>::NodeType = ENodeType::Double;
@@ -29,7 +29,7 @@ TYPath INode::GetPath() const
     return GetResolver()->GetPath(const_cast<INode*>(this));
 }
 
-INodePtr IMapNode::GetChild(const Stroka& key) const
+INodePtr IMapNode::GetChild(const TString& key) const
 {
     auto child = FindChild(key);
     if (!child) {

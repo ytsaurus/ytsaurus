@@ -570,7 +570,7 @@ TCodegenExpression MakeCodegenLiteralExpr(
 TCodegenExpression MakeCodegenReferenceExpr(
     int index,
     EValueType type,
-    Stroka name)
+    TString name)
 {
     return [
             index,
@@ -600,7 +600,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
     EUnaryOp opcode,
     TCodegenExpression codegenOperand,
     EValueType type,
-    Stroka name)
+    TString name)
 {
     return [
         MOVE(opcode),
@@ -673,7 +673,7 @@ TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
     TCodegenExpression codegenLhs,
     TCodegenExpression codegenRhs,
     EValueType type,
-    Stroka name)
+    TString name)
 {
     return [
         MOVE(opcode),
@@ -754,7 +754,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
     TCodegenExpression codegenLhs,
     TCodegenExpression codegenRhs,
     EValueType type,
-    Stroka name)
+    TString name)
 {
     return [
         MOVE(opcode),
@@ -947,7 +947,7 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
     TCodegenExpression codegenLhs,
     TCodegenExpression codegenRhs,
     EValueType type,
-    Stroka name)
+    TString name)
 {
     return [
         MOVE(opcode),
@@ -1074,7 +1074,7 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
     TCodegenExpression codegenLhs,
     TCodegenExpression codegenRhs,
     EValueType type,
-    Stroka name)
+    TString name)
 {
     if (IsLogicalBinaryOp(opcode)) {
         return MakeCodegenLogicalBinaryOpExpr(
@@ -1958,7 +1958,7 @@ TCGQueryCallback CodegenEvaluate(
     size_t opaqueValuesCount)
 {
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
-    const auto entryFunctionName = Stroka("EvaluateQuery");
+    const auto entryFunctionName = TString("EvaluateQuery");
 
     MakeFunction<TCGQuerySignature>(module->GetModule(), entryFunctionName.c_str(), [&] (
         TCGIRBuilderPtr& baseBuilder,
@@ -1984,7 +1984,7 @@ TCGQueryCallback CodegenEvaluate(
 TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression, size_t opaqueValuesCount)
 {
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
-    const auto entryFunctionName = Stroka("EvaluateExpression");
+    const auto entryFunctionName = TString("EvaluateExpression");
 
     MakeFunction<TCGExpressionSignature>(module->GetModule(), entryFunctionName.c_str(), [&] (
         TCGIRBuilderPtr& baseBuilder,
@@ -2009,7 +2009,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
 {
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
 
-    const auto initName = Stroka("init");
+    const auto initName = TString("init");
     {
         MakeFunction<TCGAggregateInitSignature>(module->GetModule(), initName.c_str(), [&] (
             TCGIRBuilderPtr& baseBuilder,
@@ -2026,7 +2026,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         module->ExportSymbol(initName);
     }
 
-    const auto updateName = Stroka("update");
+    const auto updateName = TString("update");
     {
         MakeFunction<TCGAggregateUpdateSignature>(module->GetModule(), updateName.c_str(), [&] (
             TCGIRBuilderPtr& baseBuilder,
@@ -2045,7 +2045,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         module->ExportSymbol(updateName);
     }
 
-    const auto mergeName = Stroka("merge");
+    const auto mergeName = TString("merge");
     {
         MakeFunction<TCGAggregateMergeSignature>(module->GetModule(), mergeName.c_str(), [&] (
             TCGIRBuilderPtr& baseBuilder,
@@ -2064,7 +2064,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         module->ExportSymbol(mergeName);
     }
 
-    const auto finalizeName = Stroka("finalize");
+    const auto finalizeName = TString("finalize");
     {
         MakeFunction<TCGAggregateFinalizeSignature>(module->GetModule(), finalizeName.c_str(), [&] (
             TCGIRBuilderPtr& baseBuilder,

@@ -53,7 +53,7 @@ protected:
 
 TEST_F(TYsonWriterTest, String)
 {
-    Stroka value = "YSON";
+    TString value = "YSON";
     TEST_SCALAR(value, String)
 }
 
@@ -185,14 +185,14 @@ TEST_F(TYsonWriterTest, Escaping)
     TStringStream outputStream;
     TYsonWriter writer(&outputStream, EYsonFormat::Text);
 
-    Stroka input;
+    TString input;
     for (int i = 0; i < 256; ++i) {
         input.push_back(char(i));
     }
 
     writer.OnStringScalar(input);
 
-    Stroka output =
+    TString output =
         "\"\\0\\1\\2\\3\\4\\5\\6\\7\\x08\\t\\n\\x0B\\x0C\\r\\x0E\\x0F"
         "\\x10\\x11\\x12\\x13\\x14\\x15\\x16\\x17\\x18\\x19\\x1A\\x1B"
         "\\x1C\\x1D\\x1E\\x1F !\\\"#$%&'()*+,-./0123456789:;<=>?@ABCD"
@@ -217,14 +217,14 @@ TEST_F(TYsonWriterTest, ConvertToYson)
     TStringStream outputStream;
     TYsonWriter writer(&outputStream, EYsonFormat::Text);
 
-    Stroka input;
+    TString input;
     for (int i = 0; i < 256; ++i) {
         input.push_back(char(i));
     }
 
     writer.OnStringScalar(input);
 
-    Stroka output =
+    TString output =
         "\"\\0\\1\\2\\3\\4\\5\\6\\7\\x08\\t\\n\\x0B\\x0C\\r\\x0E\\x0F"
         "\\x10\\x11\\x12\\x13\\x14\\x15\\x16\\x17\\x18\\x19\\x1A\\x1B"
         "\\x1C\\x1D\\x1E\\x1F !\\\"#$%&'()*+,-./0123456789:;<=>?@ABCD"
@@ -348,7 +348,7 @@ TEST(TYsonFragmentWriterTest, NewLinesInList)
     writer.OnListItem();
         writer.OnStringScalar("bbb");
 
-    Stroka output =
+    TString output =
         "200;\n"
         "{\"key\"=42;\"yek\"=24;\"list\"=[];};\n"
         "\"aaa\";\n"
@@ -367,7 +367,7 @@ TEST(TYsonFragmentWriterTest, BinaryList)
     writer.OnListItem();
         writer.OnStringScalar("aaa");
 
-    Stroka output =
+    TString output =
         "\x2\x90\x3;"
         "\x1\x6""aaa;";
 
@@ -397,7 +397,7 @@ TEST(TYsonFragmentWriterTest, NewLinesInMap)
     writer.OnKeyedItem("c");
         writer.OnStringScalar("word");
 
-    Stroka output =
+    TString output =
         "\"a\"=100;\n"
         "\"b\"=[{\"key\"=42;\"yek\"=24;};-1;];\n"
         "\"c\"=\"word\";\n";
@@ -418,7 +418,7 @@ TEST(TYsonFragmentWriterTest, NoFirstIndent)
     writer.OnKeyedItem("a2");
         writer.OnInt64Scalar(0);
 
-    Stroka output =
+    TString output =
         "\"a1\" = {\n"
         "    \"key\" = 42;\n"
         "};\n"

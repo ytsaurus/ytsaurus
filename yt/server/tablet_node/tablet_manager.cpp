@@ -464,9 +464,9 @@ private:
                 ->Via(invoker);
         }
 
-        virtual std::vector<Stroka> GetKeys(i64 limit) const override
+        virtual std::vector<TString> GetKeys(i64 limit) const override
         {
-            std::vector<Stroka> keys;
+            std::vector<TString> keys;
             if (auto owner = Owner_.Lock()) {
                 for (const auto& tablet : owner->Tablets()) {
                     if (keys.size() >= limit) {
@@ -581,7 +581,7 @@ private:
     TRingQueue<TTablet*> PrelockedTablets_;
 
     yhash_set<IDynamicStorePtr> OrphanedStores_;
-    yhash_map<TTabletId, std::unique_ptr<TTablet>> OrphanedTablets_;
+    yhash<TTabletId, std::unique_ptr<TTablet>> OrphanedTablets_;
 
     TNodeMemoryTrackerGuard DynamicStoresMemoryTrackerGuard_;
     TNodeMemoryTrackerGuard StaticStoresMemoryTrackerGuard_;
@@ -1940,7 +1940,7 @@ private:
     {
         PrepareLockedRows(transaction);
 
-        yhash_map<TTableReplicaInfo*, int> replicaToRowCount;
+        yhash<TTableReplicaInfo*, int> replicaToRowCount;
         int syncReplicatedRowCount = 0;
         for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
             auto* tablet = GetTabletOrThrow(writeRecord.TabletId);
@@ -2134,7 +2134,7 @@ private:
             lockedTabletCount);
 
         if (transaction->GetReplicatedRowsPrepared()) {
-            yhash_map<TTableReplicaInfo*, int> replicaToRowCount;
+            yhash<TTableReplicaInfo*, int> replicaToRowCount;
             for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
                 auto* tablet = FindTablet(writeRecord.TabletId);
                 if (!tablet || !tablet->IsReplicated()) {

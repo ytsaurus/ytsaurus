@@ -61,7 +61,7 @@ void TPeerBlockUpdater::Update()
         ->GetHeavyChannelFactory();
 
     typedef TDataNodeServiceProxy TProxy;
-    yhash<Stroka, TProxy::TReqUpdatePeerPtr> requests;
+    yhash<TString, TProxy::TReqUpdatePeerPtr> requests;
 
     auto blocks = Bootstrap_->GetChunkBlockManager()->GetAllBlocks();
     for (const auto& block : blocks) {

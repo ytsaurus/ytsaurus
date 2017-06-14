@@ -93,7 +93,7 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
 TYsonString TTransaction::GetErrorDescription() const
 {
     auto customAttributes = CreateEphemeralAttributes();
-    auto copyCustomAttribute = [&] (const Stroka& key) {
+    auto copyCustomAttribute = [&] (const TString& key) {
         if (!Attributes_) {
             return;
         }

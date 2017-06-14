@@ -168,14 +168,14 @@ private:
     const TCtxExecutePtr Context_;
 
     const int SubrequestCount_;
-    const Stroka UserName_;
+    const TString UserName_;
     const TRequestId RequestId_;
     const THydraFacadePtr HydraFacade_;
     const IHydraManagerPtr HydraManager_;
     const TObjectManagerPtr ObjectManager_;
     const TSecurityManagerPtr SecurityManager_;
     const TResponseKeeperPtr ResponseKeeper_;
-    const Stroka CodicilData_;
+    const TString CodicilData_;
 
     struct TSubrequest
     {
@@ -526,7 +526,7 @@ private:
 
     static void DoDecreaseRequestQueueSize(
         const TSecurityManagerPtr& securityManager,
-        const Stroka& userName)
+        const TString& userName)
     {
         auto* user = securityManager->FindUserByName(userName);
         if (user) {

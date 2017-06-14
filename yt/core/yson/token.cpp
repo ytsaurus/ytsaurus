@@ -52,9 +52,9 @@ char TokenTypeToChar(ETokenType type)
     }
 }
 
-Stroka TokenTypeToString(ETokenType type)
+TString TokenTypeToString(ETokenType type)
 {
-    return Stroka(TokenTypeToChar(type));
+    return TString(TokenTypeToChar(type));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,14 +220,14 @@ void TToken::Reset()
     BooleanValue_ = false;
 }
 
-Stroka ToString(const TToken& token)
+TString ToString(const TToken& token)
 {
     switch (token.GetType()) {
         case ETokenType::EndOfStream:
-            return Stroka();
+            return TString();
 
         case ETokenType::String:
-            return Stroka(token.GetStringValue());
+            return TString(token.GetStringValue());
 
         case ETokenType::Int64:
             return ::ToString(token.GetInt64Value());
@@ -239,7 +239,7 @@ Stroka ToString(const TToken& token)
             return ::ToString(token.GetDoubleValue());
 
         case ETokenType::Boolean:
-            return Stroka(FormatBool(token.GetBooleanValue()));
+            return TString(FormatBool(token.GetBooleanValue()));
 
         default:
             return TokenTypeToString(token.GetType());

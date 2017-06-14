@@ -130,7 +130,7 @@ bool TChunkTreeStatistics::operator != (const TChunkTreeStatistics& other) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TChunkTreeStatistics& statistics)
+TString ToString(const TChunkTreeStatistics& statistics)
 {
     return ConvertToYsonString(statistics, EYsonFormat::Text).GetData();
 }

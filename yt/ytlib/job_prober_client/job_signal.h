@@ -9,8 +9,8 @@ namespace NJobProberClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<int> FindSignalIdBySignalName(const Stroka& signalName);
-void ValidateSignalName(const Stroka& signalName);
+TNullable<int> FindSignalIdBySignalName(const TString& signalName);
+void ValidateSignalName(const TString& signalName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

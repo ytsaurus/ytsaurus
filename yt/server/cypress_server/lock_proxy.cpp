@@ -50,7 +50,7 @@ private:
             .SetPresent(request.Key.Kind == ELockKeyKind::Attribute));
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
     {
         const auto* lock = GetThisImpl();
         const auto& request = lock->Request();

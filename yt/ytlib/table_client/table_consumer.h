@@ -53,7 +53,7 @@ protected:
 
     void ThrowMapExpected();
     void ThrowControlAttributesNotSupported();
-    void ThrowInvalidControlAttribute(const Stroka& whatsWrong);
+    void ThrowInvalidControlAttribute(const TString& whatsWrong);
 
     virtual void OnEndList() override;
     virtual void OnEndAttributes() override;

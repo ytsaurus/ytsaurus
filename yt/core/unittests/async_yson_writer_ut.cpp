@@ -62,7 +62,7 @@ TEST(TAsyncYsonWriterTest, SyncList)
         writer.OnStringScalar("c");
     writer.OnEndList();
     EXPECT_EQ(
-        ConvertToYsonString(std::vector<Stroka>{"a", "b", "c"}),
+        ConvertToYsonString(std::vector<TString>{"a", "b", "c"}),
         writer.Finish().Get().ValueOrThrow());
 }
 
@@ -76,7 +76,7 @@ TEST(TAsyncYsonWriterTest, SyncListFragment)
     writer.OnListItem();
     writer.OnStringScalar("c");
     EXPECT_EQ(
-        ConvertToListFragment(std::vector<Stroka>{"a", "b", "c"}),
+        ConvertToListFragment(std::vector<TString>{"a", "b", "c"}),
         writer.Finish().Get().ValueOrThrow());
 }
 
@@ -90,7 +90,7 @@ TEST(TAsyncYsonWriterTest, SyncMapFragment)
     writer.OnKeyedItem("c");
     writer.OnInt64Scalar(3);
     EXPECT_EQ(
-        ConvertToMapFragment(std::vector<std::pair<Stroka, int>>{{"a", 1}, {"b", 2}, {"c", 3}}),
+        ConvertToMapFragment(std::vector<std::pair<TString, int>>{{"a", 1}, {"b", 2}, {"c", 3}}),
         writer.Finish().Get().ValueOrThrow());
 }
 
@@ -146,7 +146,7 @@ TEST(TAsyncYsonWriterTest, AsyncMap)
     writer.OnEndMap();
 
     EXPECT_EQ(
-        ConvertToYsonString(yhash<Stroka, int>{{"a", 1}, {"b", 2}, {"c", 3}}),
+        ConvertToYsonString(yhash<TString, int>{{"a", 1}, {"b", 2}, {"c", 3}}),
         writer.Finish().Get().ValueOrThrow());
 }
 

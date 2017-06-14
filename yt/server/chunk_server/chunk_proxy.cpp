@@ -148,7 +148,7 @@ private:
             .SetPresent(miscExt.has_creation_time()));
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -505,7 +505,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const TString& key) override
     {
         auto* chunk = GetThisImpl();
 

@@ -75,7 +75,7 @@ void TInputChunkBase::SetReplicaList(const TChunkReplicaList& replicas)
 }
 
 // Workaround for TSerializationDumpPodWriter.
-Stroka ToString(const TInputChunkBase&)
+TString ToString(const TInputChunkBase&)
 {
     Y_UNREACHABLE();
 }
@@ -214,9 +214,9 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, ED
     }
 }
 
-Stroka ToString(const TInputChunkPtr& inputChunk)
+TString ToString(const TInputChunkPtr& inputChunk)
 {
-    Stroka boundaryKeys;
+    TString boundaryKeys;
     if (inputChunk->BoundaryKeys()) {
         boundaryKeys = Format(
             "MinKey: %v, MaxKey: %v",

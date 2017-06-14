@@ -85,7 +85,7 @@ template <class T>
 NYson::TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format)
 {
     auto type = GetYsonType(value);
-    Stroka result;
+    TString result;
     TStringOutput stringOutput(result);
     WriteYson(&stringOutput, value, type, format);
     return NYson::TYsonString(result, type);
@@ -95,7 +95,7 @@ template <class T>
 NYson::TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format, int indent)
 {
     auto type = GetYsonType(value);
-    Stroka result;
+    TString result;
     TStringOutput stringOutput(result);
     WriteYson(&stringOutput, value, type, format, indent);
     return NYson::TYsonString(result, type);
@@ -222,13 +222,13 @@ inline double ConvertTo(const NYson::TYsonString& str)
 }
 
 template <>
-inline Stroka ConvertTo(const NYson::TYsonString& str)
+inline TString ConvertTo(const NYson::TYsonString& str)
 {
     NYson::TTokenizer tokenizer(str.GetData());
     const auto& token = SkipAttributes(&tokenizer);
     switch (token.GetType()) {
         case NYson::ETokenType::String:
-            return Stroka(token.GetStringValue());
+            return TString(token.GetStringValue());
         default:
             THROW_ERROR_EXCEPTION("Cannot parse \"string\" from %Qlv value",
                 token.GetType())

@@ -14,7 +14,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConjunctiveClause::TConjunctiveClause(const std::vector<Stroka>& include, const std::vector<Stroka>& exclude)
+TConjunctiveClause::TConjunctiveClause(const std::vector<TString>& include, const std::vector<TString>& exclude)
     : Include_(include)
     , Exclude_(exclude)
 {
@@ -49,12 +49,12 @@ bool TConjunctiveClause::IsSatisfiedByImpl(const TContainer& value) const
     return includeCount == Include_.size();
 }
 
-bool TConjunctiveClause::IsSatisfiedBy(const std::vector<Stroka>& value) const
+bool TConjunctiveClause::IsSatisfiedBy(const std::vector<TString>& value) const
 {
     return IsSatisfiedByImpl(value);
 }
 
-bool TConjunctiveClause::IsSatisfiedBy(const yhash_set<Stroka>& value) const
+bool TConjunctiveClause::IsSatisfiedBy(const yhash_set<TString>& value) const
 {
     return IsSatisfiedByImpl(value);
 }
@@ -63,7 +63,7 @@ size_t TConjunctiveClause::GetHash() const
 {
     const size_t multiplier = 1000003;
 
-    auto hashOfSet = [] (const std::vector<Stroka>& container) {
+    auto hashOfSet = [] (const std::vector<TString>& container) {
         const size_t multiplier = 67;
 
         size_t result = 0;
@@ -88,7 +88,7 @@ void Serialize(const TConjunctiveClause& clause, IYsonConsumer* consumer)
 void Deserialize(TConjunctiveClause& clause, INodePtr node)
 {
     if (node->GetType() == ENodeType::String) {
-        clause.Include() = std::vector<Stroka>({node->AsString()->GetValue()});
+        clause.Include() = std::vector<TString>({node->AsString()->GetValue()});
     } else if (node->GetType() == ENodeType::Map) {
         auto mapNode = node->AsMap();
         auto includeNode = mapNode->FindChild("include");
@@ -96,7 +96,7 @@ void Deserialize(TConjunctiveClause& clause, INodePtr node)
             if (includeNode->GetType() != ENodeType::List) {
                 THROW_ERROR_EXCEPTION("Conjunction include item must be \"list\"");
             }
-            clause.Include() = ConvertTo<std::vector<Stroka>>(includeNode);
+            clause.Include() = ConvertTo<std::vector<TString>>(includeNode);
         }
 
         auto excludeNode = mapNode->FindChild("exclude");
@@ -104,7 +104,7 @@ void Deserialize(TConjunctiveClause& clause, INodePtr node)
             if (excludeNode->GetType() != ENodeType::List) {
                 THROW_ERROR_EXCEPTION("Conjunction exclude item must be \"list\"");
             }
-            clause.Exclude() = ConvertTo<std::vector<Stroka>>(excludeNode);
+            clause.Exclude() = ConvertTo<std::vector<TString>>(excludeNode);
         }
     } else {
         THROW_ERROR_EXCEPTION("Conjunction clause can only be parsed from \"string\" or \"map\"");
@@ -144,12 +144,12 @@ bool TDnfFormula::IsSatisfiedByImpl(const TContainer& value) const
     return false;
 }
 
-bool TDnfFormula::IsSatisfiedBy(const std::vector<Stroka>& value) const
+bool TDnfFormula::IsSatisfiedBy(const std::vector<TString>& value) const
 {
     return IsSatisfiedByImpl(value);
 }
 
-bool TDnfFormula::IsSatisfiedBy(const yhash_set<Stroka>& value) const
+bool TDnfFormula::IsSatisfiedBy(const yhash_set<TString>& value) const
 {
     return IsSatisfiedByImpl(value);
 }

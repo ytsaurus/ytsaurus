@@ -68,14 +68,14 @@ protected:
         New<TColumnEvaluatorCacheConfig>());
 
     TVersionedRow BuildVersionedRow(
-        const Stroka& keyYson,
-        const Stroka& valueYson,
+        const TString& keyYson,
+        const TString& valueYson,
         const std::vector<TTimestamp>& deleteTimestamps = std::vector<TTimestamp>())
     {
         return NTableClient::YsonToVersionedRow(Buffer_, keyYson, valueYson, deleteTimestamps);
     }
 
-    TUnversionedRow BuildUnversionedRow(const Stroka& valueYson)
+    TUnversionedRow BuildUnversionedRow(const TString& valueYson)
     {
         auto row = NTableClient::YsonToSchemalessRow(valueYson);
         return Buffer_->Capture(row);
@@ -118,7 +118,7 @@ protected:
             TColumnSchema("l", EValueType::Int64),
             TColumnSchema("m", EValueType::Int64),
             TColumnSchema("n", EValueType::Int64)
-                .SetAggregate(Stroka("sum"))
+                .SetAggregate(TString("sum"))
         });
         return schema;
     }

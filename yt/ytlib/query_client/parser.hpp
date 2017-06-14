@@ -290,7 +290,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       char dummy3[sizeof(EUnaryOp)];
 
       // "string literal"
-      char dummy4[sizeof(Stroka)];
+      char dummy4[sizeof(TString)];
 
       // expression
       // or-op-expr
@@ -464,7 +464,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   basic_symbol (typename Base::kind_type t, const EUnaryOp v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const Stroka v, const location_type& l);
+  basic_symbol (typename Base::kind_type t, const TString v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TExpressionList v, const location_type& l);
 
@@ -678,7 +678,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
     static inline
     symbol_type
-    make_StringLiteral (const Stroka& v, const location_type& l);
+    make_StringLiteral (const TString& v, const location_type& l);
 
     static inline
     symbol_type
@@ -766,7 +766,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
     /// Build a parser object.
-    TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, const Stroka& source_yyarg);
+    TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, const TString& source_yyarg);
     virtual ~TParser ();
 
     /// Parse.
@@ -977,7 +977,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     // User arguments.
     TLexer& lexer;
     TAstHead* head;
-    const Stroka& source;
+    const TString& source;
   };
 
 

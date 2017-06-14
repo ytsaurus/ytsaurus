@@ -11,8 +11,8 @@ namespace NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYson::TYsonString DoRunTool(const Stroka& toolName, const NYson::TYsonString& serializedArgument);
-NYson::TYsonString DoRunToolInProcess(const Stroka& toolName, const NYson::TYsonString& serializedArgument);
+NYson::TYsonString DoRunTool(const TString& toolName, const NYson::TYsonString& serializedArgument);
+NYson::TYsonString DoRunToolInProcess(const TString& toolName, const NYson::TYsonString& serializedArgument);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,11 +22,11 @@ template <
     typename TResult = typename TFunctionTraits<TTool>::TResult>
 TResult RunTool(
     const TArg& arg,
-    std::function<NYson::TYsonString(const Stroka&, const NYson::TYsonString&)> invoker = DoRunTool);
+    std::function<NYson::TYsonString(const TString&, const NYson::TYsonString&)> invoker = DoRunTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYson::TYsonString ExecuteTool(const Stroka& toolName, const NYson::TYsonString& serializedArgument);
+NYson::TYsonString ExecuteTool(const TString& toolName, const NYson::TYsonString& serializedArgument);
 
 ////////////////////////////////////////////////////////////////////////////////
 

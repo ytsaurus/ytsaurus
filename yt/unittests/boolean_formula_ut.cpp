@@ -12,7 +12,7 @@ class TBooleanFormulaTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
         const char*,
-        std::vector<Stroka>,
+        std::vector<TString>,
         bool>>
 { };
 
@@ -35,21 +35,21 @@ INSTANTIATE_TEST_CASE_P(
     TBooleanFormulaTest,
     TBooleanFormulaTest,
     ::testing::Values(
-        std::make_tuple("", std::vector<Stroka>{}, true),
-        std::make_tuple("", std::vector<Stroka>{"b"}, true),
-        std::make_tuple("a", std::vector<Stroka>{"b"}, false),
-        std::make_tuple("!a", std::vector<Stroka>{"b"}, true),
-        std::make_tuple("b", std::vector<Stroka>{"b"}, true),
-        std::make_tuple("a|b", std::vector<Stroka>{"b"}, true),
-        std::make_tuple("a & b", std::vector<Stroka>{"b"}, false),
-        std::make_tuple("(b)", std::vector<Stroka>{"b"}, true),
-        std::make_tuple("a|(a|b)", std::vector<Stroka>{"b"}, true),
-        std::make_tuple("(a|b)&(!a&b)", std::vector<Stroka>{"b"}, true),
-        std::make_tuple("a&b", std::vector<Stroka>{"a", "b"}, true),
-        std::make_tuple("(a|c)&(b|c)", std::vector<Stroka>{"a", "b"}, true),
-        std::make_tuple("(a|b)&c", std::vector<Stroka>{"a", "b"}, false),
-        std::make_tuple("a|b|c", std::vector<Stroka>{"b"}, true),
-        std::make_tuple("!a & b & !c", std::vector<Stroka>{"b"}, true)
+        std::make_tuple("", std::vector<TString>{}, true),
+        std::make_tuple("", std::vector<TString>{"b"}, true),
+        std::make_tuple("a", std::vector<TString>{"b"}, false),
+        std::make_tuple("!a", std::vector<TString>{"b"}, true),
+        std::make_tuple("b", std::vector<TString>{"b"}, true),
+        std::make_tuple("a|b", std::vector<TString>{"b"}, true),
+        std::make_tuple("a & b", std::vector<TString>{"b"}, false),
+        std::make_tuple("(b)", std::vector<TString>{"b"}, true),
+        std::make_tuple("a|(a|b)", std::vector<TString>{"b"}, true),
+        std::make_tuple("(a|b)&(!a&b)", std::vector<TString>{"b"}, true),
+        std::make_tuple("a&b", std::vector<TString>{"a", "b"}, true),
+        std::make_tuple("(a|c)&(b|c)", std::vector<TString>{"a", "b"}, true),
+        std::make_tuple("(a|b)&c", std::vector<TString>{"a", "b"}, false),
+        std::make_tuple("a|b|c", std::vector<TString>{"b"}, true),
+        std::make_tuple("!a & b & !c", std::vector<TString>{"b"}, true)
 ));
 
 ////////////////////////////////////////////////////////////////////////////////

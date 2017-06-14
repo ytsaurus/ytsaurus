@@ -17,7 +17,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A tiny helper function to generate random file names.
-Stroka GenerateRandomFileName(const char* prefix);
+TString GenerateRandomFileName(const char* prefix);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -162,40 +162,40 @@ public:
         : internal::MatcherBase<const TStringBuf&>(impl)
     {}
 
-    Matcher(const Stroka& s); // NOLINT
+    Matcher(const TString& s); // NOLINT
     Matcher(const char* s); // NOLINT
     Matcher(const TStringBuf& s); // NOLINT
 };
 
-//! Argument matcher for (const Stroka&).
+//! Argument matcher for (const TString&).
 //! Semantics: Match by equality.
 template <>
-class Matcher<const Stroka&>
-    : public internal::MatcherBase<const Stroka&> {
+class Matcher<const TString&>
+    : public internal::MatcherBase<const TString&> {
 public:
     Matcher() {}
 
-    explicit Matcher(const MatcherInterface<const Stroka&>* impl)
-        : internal::MatcherBase<const Stroka&>(impl)
+    explicit Matcher(const MatcherInterface<const TString&>* impl)
+        : internal::MatcherBase<const TString&>(impl)
     {}
 
-    Matcher(const Stroka& s); // NOLINT
+    Matcher(const TString& s); // NOLINT
     Matcher(const char* s); // NOLINT
 };
 
-//! Argument matcher for (Stroka)
+//! Argument matcher for (TString)
 //! Semantics: Match by equality.
 template <>
-class Matcher<Stroka>
-    : public internal::MatcherBase<Stroka> {
+class Matcher<TString>
+    : public internal::MatcherBase<TString> {
 public:
     Matcher() {}
 
-    explicit Matcher(const MatcherInterface<Stroka>* impl)
-        : internal::MatcherBase<Stroka>(impl)
+    explicit Matcher(const MatcherInterface<TString>* impl)
+        : internal::MatcherBase<TString>(impl)
     {}
 
-    Matcher(const Stroka& s); // NOLINT
+    Matcher(const TString& s); // NOLINT
     Matcher(const char* s);
 };
 
@@ -240,7 +240,7 @@ void GTEST_TEST_CLASS_NAME_(test_case_name, test_name)::TestInnerBody()
 
 } // namespace testing
 
-void PrintTo(const Stroka& string, ::std::ostream* os);
+void PrintTo(const TString& string, ::std::ostream* os);
 void PrintTo(const TStringBuf& string, ::std::ostream* os);
 
 #define FRAMEWORK_INL_H_

@@ -22,8 +22,8 @@ class TFairShareActionQueue::TImpl
 {
 public:
     TImpl(
-        const Stroka& threadName,
-        const std::vector<Stroka>& bucketNames,
+        const TString& threadName,
+        const std::vector<TString>& bucketNames,
         bool enableLogging,
         bool enableProfiling)
         : Queue_(New<TFairShareInvokerQueue>(
@@ -106,8 +106,8 @@ private:
 };
 
 TFairShareActionQueue::TFairShareActionQueue(
-    const Stroka& threadName,
-    const std::vector<Stroka>& bucketNames,
+    const TString& threadName,
+    const std::vector<TString>& bucketNames,
     bool enableLogging,
     bool enableProfiling)
     : Impl_(New<TImpl>(

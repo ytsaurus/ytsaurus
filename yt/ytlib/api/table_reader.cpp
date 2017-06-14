@@ -187,7 +187,7 @@ void TSchemalessTableReader::DoOpen()
         auto req = TYPathProxy::Get(objectIdPath + "/@");
         SetTransactionId(req, Transaction_);
         SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
-        std::vector<Stroka> attributeKeys{
+        std::vector<TString> attributeKeys{
             "chunk_count",
             "dynamic",
             "schema"
@@ -461,8 +461,8 @@ class TBlobTableReader
 public:
     TBlobTableReader(
         ISchemalessMultiChunkReaderPtr reader,
-        const TNullable<Stroka>& partIndexColumnName,
-        const TNullable<Stroka>& dataColumnName)
+        const TNullable<TString>& partIndexColumnName,
+        const TNullable<TString>& dataColumnName)
         : Reader_(std::move(reader))
         , PartIndexColumnName_(partIndexColumnName ? *partIndexColumnName : TBlobTableSchema::PartIndexColumn)
         , DataColumnName_(dataColumnName ? *dataColumnName : TBlobTableSchema::DataColumn)
@@ -489,8 +489,8 @@ public:
 
 private:
     const ISchemalessMultiChunkReaderPtr Reader_;
-    const Stroka PartIndexColumnName_;
-    const Stroka DataColumnName_;
+    const TString PartIndexColumnName_;
+    const TString DataColumnName_;
 
     std::vector<TUnversionedRow> Rows_;
     size_t Index_ = 0;
@@ -513,7 +513,7 @@ private:
 
     TUnversionedValue GetAndValidateValue(
         TUnversionedRow row,
-        const Stroka& name,
+        const TString& name,
         EColumnType columnType,
         EValueType expectedType)
     {
@@ -574,8 +574,8 @@ private:
 
 IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
     ISchemalessMultiChunkReaderPtr reader,
-    const TNullable<Stroka>& partIndexColumnName,
-    const TNullable<Stroka>& dataColumnName)
+    const TNullable<TString>& partIndexColumnName,
+    const TNullable<TString>& dataColumnName)
 {
     return New<TBlobTableReader>(
         std::move(reader),

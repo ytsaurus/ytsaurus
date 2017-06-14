@@ -14,7 +14,7 @@ TDriverResponse::TDriverResponse(Py::PythonClassInstance *self, Py::Tuple& args,
 #if PY_MAJOR_VERSION < 3
     , ResponseParametersBuilder_(new NYTree::TPythonObjectBuilder(true, Null))
 #else
-    , ResponseParametersBuilder_(new NYTree::TPythonObjectBuilder(true, MakeNullable<Stroka>("utf-8")))
+    , ResponseParametersBuilder_(new NYTree::TPythonObjectBuilder(true, MakeNullable<TString>("utf-8")))
 #endif
     , ResponseParametersConsumer_(new NYTree::TGilGuardedYsonConsumer(ResponseParametersBuilder_.get()))
     , ResponseParameters_(Py::None())
@@ -86,7 +86,7 @@ Py::Object TDriverResponse::Error(Py::Tuple& args, Py::Dict& kwargs)
 #if PY_MAJOR_VERSION < 3
     Deserialize(object, NYTree::ConvertToNode(Response_.Get()), Null);
 #else
-    Deserialize(object, NYTree::ConvertToNode(Response_.Get()), MakeNullable<Stroka>("utf-8"));
+    Deserialize(object, NYTree::ConvertToNode(Response_.Get()), MakeNullable<TString>("utf-8"));
 #endif
     return object;
 }

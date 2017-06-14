@@ -24,7 +24,7 @@ class TThreadPool::TImpl
 public:
     TImpl(
         int threadCount,
-        const Stroka& threadNamePrefix,
+        const TString& threadNamePrefix,
         bool enableLogging,
         bool enableProfiling)
         : ThreadNamePrefix_(threadNamePrefix)
@@ -130,7 +130,7 @@ public:
     }
 
 private:
-    const Stroka ThreadNamePrefix_;
+    const TString ThreadNamePrefix_;
     const bool EnableLogging_;
     const bool EnableProfiling_;
 
@@ -162,7 +162,7 @@ private:
 
 TThreadPool::TThreadPool(
     int threadCount,
-    const Stroka& threadNamePrefix,
+    const TString& threadNamePrefix,
     bool enableLogging,
     bool enableProfiling)
     : Impl_(New<TImpl>(

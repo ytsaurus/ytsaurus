@@ -10,9 +10,9 @@ namespace {
 
 using namespace NConcurrency;
 
-Stroka GetString(const TSharedRef& sharedRef)
+TString GetString(const TSharedRef& sharedRef)
 {
-    return Stroka(sharedRef.Begin(), sharedRef.Size());
+    return TString(sharedRef.Begin(), sharedRef.Size());
 }
 
 TSharedRef ReadAlreadySetValue(const IAsyncZeroCopyInputStreamPtr& input)

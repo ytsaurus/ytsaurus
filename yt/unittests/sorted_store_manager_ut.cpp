@@ -713,8 +713,8 @@ protected:
         // NB: Key columns must go first.
         TTableSchema schema({
             TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("a", EValueType::Int64).SetLock(Stroka("l1")),
-            TColumnSchema("b", EValueType::Double).SetLock(Stroka("l2")),
+            TColumnSchema("a", EValueType::Int64).SetLock(TString("l1")),
+            TColumnSchema("b", EValueType::Double).SetLock(TString("l2")),
             TColumnSchema("c", EValueType::String)
         });
         return schema;

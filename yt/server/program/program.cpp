@@ -81,7 +81,7 @@ int TProgram::Run(int argc, const char** argv)
     srand(time(nullptr));
 
     try {
-        Argv0_ = Stroka(argv[0]);
+        Argv0_ = TString(argv[0]);
         TOptsParseResult result(this, argc, argv);
 
         DoRun(result);
@@ -109,7 +109,7 @@ int TProgram::Exit(int code) const noexcept
 }
 
 
-void TProgram::OnError(const Stroka& message) const noexcept
+void TProgram::OnError(const TString& message) const noexcept
 {
     try {
         Cerr << message << Endl;
@@ -121,7 +121,7 @@ void TProgram::OnError(const Stroka& message) const noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka CheckPathExistsArgMapper(const Stroka& arg)
+TString CheckPathExistsArgMapper(const TString& arg)
 {
     if (!NFS::Exists(arg)) {
         throw TProgramException(Format("File %v does not exist", arg));
@@ -129,7 +129,7 @@ Stroka CheckPathExistsArgMapper(const Stroka& arg)
     return arg;
 }
 
-TGuid CheckGuidArgMapper(const Stroka& arg)
+TGuid CheckGuidArgMapper(const TString& arg)
 {
     TGuid result;
     if (!TGuid::FromString(arg, &result)) {

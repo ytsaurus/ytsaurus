@@ -44,7 +44,7 @@ void TNodeBase::GetSelf(
     const TCtxGetPtr& context)
 {
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
+        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
         : Null;
 
     // TODO(babenko): make use of limit
@@ -88,7 +88,7 @@ void TNodeBase::GetKeySelf(
         THROW_ERROR_EXCEPTION("Node has no parent");
     }
 
-    Stroka key;
+    TString key;
     switch (parent->GetType()) {
         case ENodeType::Map:
             key = parent->AsMap()->GetChildKey(this);
@@ -261,7 +261,7 @@ void TMapNodeMixin::ListSelf(
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
+        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
         : Null;
 
     auto limit = request->has_limit()

@@ -8,33 +8,33 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef std::function<void(
-    const std::vector<Stroka>& names,
+    const std::vector<TString>& names,
     const TTypeInferrerMapPtr& typeInferrers)> TFetchFunctions;
 
-void DefaultFetchFunctions(const std::vector<Stroka>& names, const TTypeInferrerMapPtr& typeInferrers);
+void DefaultFetchFunctions(const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseJobQuery(const Stroka& source);
+void ParseJobQuery(const TString& source);
 
 std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
-    const Stroka& source,
+    const TString& source,
     const TFetchFunctions& fetchFunctions = DefaultFetchFunctions,
     i64 inputRowLimit = std::numeric_limits<i64>::max(),
     i64 outputRowLimit = std::numeric_limits<i64>::max(),
     TTimestamp timestamp = NullTimestamp);
 
 TQueryPtr PrepareJobQuery(
-    const Stroka& source,
+    const TString& source,
     const TTableSchema& tableSchema,
     const TFetchFunctions& fetchFunctions);
 
 TConstExpressionPtr PrepareExpression(
-    const Stroka& source,
+    const TString& source,
     TTableSchema initialTableSchema,
     const TConstTypeInferrerMapPtr& functions = BuiltinTypeInferrersMap,
-    yhash_set<Stroka>* references = nullptr);
+    yhash_set<TString>* references = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

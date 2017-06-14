@@ -39,7 +39,7 @@ void RunQuery(
     const TQuerySpec& querySpec,
     const TSchemalessReaderFactory& readerFactory,
     const TSchemalessWriterFactory& writerFactory,
-    const TNullable<Stroka>& udfDirectory)
+    const TNullable<TString>& udfDirectory)
 {
     auto query = FromProto<TConstQueryPtr>(querySpec.query());
     auto resultSchema = query->GetTableSchema();

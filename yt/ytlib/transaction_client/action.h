@@ -12,9 +12,9 @@ namespace NTransactionClient {
 struct TTransactionActionData
 {
     //! Protobuf message type.
-    Stroka Type;
+    TString Type;
     //! Protobuf-encoded value.
-    Stroka Value;
+    TString Value;
 
     void Persist(TStreamPersistenceContext& context);
 };

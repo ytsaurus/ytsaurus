@@ -5,7 +5,7 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka RootPoolName = "<Root>";
+const TString RootPoolName = "<Root>";
 
 const NLogging::TLogger SchedulerLogger("Scheduler");
 const NProfiling::TProfiler SchedulerProfiler("/scheduler");

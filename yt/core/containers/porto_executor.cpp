@@ -23,13 +23,13 @@ static NLogging::TLogger& Logger = ContainersLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TPortoResult = std::map<Stroka, std::map<Stroka, Porto::GetResponse>>;
+using TPortoResult = std::map<TString, std::map<TString, Porto::GetResponse>>;
 
-static std::map<Stroka, TErrorOr<Stroka>> ParsePortoResult(
-    const Stroka& name,
+static std::map<TString, TErrorOr<TString>> ParsePortoResult(
+    const TString& name,
     const TPortoResult& portoResult)
 {
-    std::map<Stroka, TErrorOr<Stroka>> result;
+    std::map<TString, TErrorOr<TString>> result;
     for (const auto& portoProperty : portoResult.at(name)) {
         if (portoProperty.second.Error == 0) {
             result[portoProperty.first] = portoProperty.second.Value;
@@ -61,49 +61,49 @@ public:
         PollExecutor_->Start();
     }
 
-    virtual TFuture<void> CreateContainer(const Stroka& name) override
+    virtual TFuture<void> CreateContainer(const TString& name) override
     {
         return BIND(&TPortoExecutor::DoCreate, MakeStrong(this), name)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<void> SetProperty(const Stroka& name, const Stroka& key, const Stroka& value) override
+    virtual TFuture<void> SetProperty(const TString& name, const TString& key, const TString& value) override
     {
         return BIND(&TPortoExecutor::DoSetProperty, MakeStrong(this), name, key, value)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<void> DestroyContainer(const Stroka& name) override
+    virtual TFuture<void> DestroyContainer(const TString& name) override
     {
         return BIND(&TPortoExecutor::DoDestroy, MakeStrong(this), name)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<void> Start(const Stroka& name) override
+    virtual TFuture<void> Start(const TString& name) override
     {
         return BIND(&TPortoExecutor::DoStart, MakeStrong(this), name)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<void> Kill(const Stroka& name, int signal) override
+    virtual TFuture<void> Kill(const TString& name, int signal) override
     {
         return BIND(&TPortoExecutor::DoKill, MakeStrong(this), name, signal)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<std::vector<Stroka>> ListContainers() override
+    virtual TFuture<std::vector<TString>> ListContainers() override
     {
         return BIND(&TPortoExecutor::DoList, MakeStrong(this))
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<int> AsyncPoll(const Stroka& name) override
+    virtual TFuture<int> AsyncPoll(const TString& name) override
     {
         return BIND(&TPortoExecutor::AddToPoll, MakeStrong(this), name)
             .AsyncVia(Queue_->GetInvoker())
@@ -120,11 +120,11 @@ public:
         Failed_.Unsubscribe(callback);
     }
 
-    virtual TFuture<std::map<Stroka, TErrorOr<Stroka>>> GetProperties(const Stroka& name, const std::vector<Stroka>& properties) override
+    virtual TFuture<std::map<TString, TErrorOr<TString>>> GetProperties(const TString& name, const std::vector<TString>& properties) override
     {
         return BIND([=, this_ = MakeStrong(this)] () {
             TPortoResult portoResult;
-            const std::vector<Stroka> containers{name};
+            const std::vector<TString> containers{name};
             DoGet(containers, properties, portoResult);
             if (portoResult.empty() || portoResult.at(name).empty()) {
                 THROW_ERROR_EXCEPTION("Unable to get %v properties from porto", properties.size())
@@ -138,8 +138,8 @@ public:
     }
 
     virtual TFuture<TVolumeID> CreateVolume(
-        const Stroka& path,
-        const std::map<Stroka, Stroka>& properties) override
+        const TString& path,
+        const std::map<TString, TString>& properties) override
     {
         return BIND(&TPortoExecutor::DoCreateVolume, MakeStrong(this), path, properties)
             .AsyncVia(Queue_->GetInvoker())
@@ -147,8 +147,8 @@ public:
     }
 
     virtual TFuture<void> LinkVolume(
-        const Stroka& path,
-        const Stroka& name) override
+        const TString& path,
+        const TString& name) override
     {
         return BIND(&TPortoExecutor::DoLinkVolume, MakeStrong(this), path, name)
             .AsyncVia(Queue_->GetInvoker())
@@ -156,8 +156,8 @@ public:
     }
 
     virtual TFuture<void> UnlinkVolume(
-        const Stroka& path,
-        const Stroka& name) override
+        const TString& path,
+        const TString& name) override
     {
         return BIND(&TPortoExecutor::DoUnlinkVolume, MakeStrong(this), path, name)
             .AsyncVia(Queue_->GetInvoker())
@@ -177,13 +177,13 @@ private:
 
     const TActionQueuePtr Queue_ = New<TActionQueue>("PortoQueue");
     TPeriodicExecutorPtr PollExecutor_;
-    std::vector<Stroka> Containers_;
-    yhash_map<Stroka, TPromise<int>> ContainersMap_;
+    std::vector<TString> Containers_;
+    yhash<TString, TPromise<int>> ContainersMap_;
     TSingleShotCallbackList<void(const TError&)> Failed_;
 
-    static const std::vector<Stroka> ContainerRequestVars_;
+    static const std::vector<TString> ContainerRequestVars_;
 
-    static TError ConvertPortoError(int errorCode, const Stroka& message)
+    static TError ConvertPortoError(int errorCode, const TString& message)
     {
         return TError(errorCode + ContainerErrorCodeBase, "Porto api error")
             << TErrorAttribute("original_porto_error_code", errorCode)
@@ -195,10 +195,10 @@ private:
         WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(100)));
     }
 
-    void HandleApiErrors(const Stroka& command, TInstant time)
+    void HandleApiErrors(const TString& command, TInstant time)
     {
         int error;
-        Stroka message;
+        TString message;
         Api_->GetLastError(error, message);
         LOG_ERROR("Porto api error (Error: %v, Command: %v, Message: %v)",
             error,
@@ -212,39 +212,39 @@ private:
         THROW_ERROR_EXCEPTION(ConvertPortoError(error, message));
     }
 
-    void DoCreate(const Stroka& name)
+    void DoCreate(const TString& name)
     {
         RunWithRetries([&] () { return Api_->Create(name); }, "Create");
     }
 
-    void DoSetProperty(const Stroka& name, const Stroka& key, const Stroka& value)
+    void DoSetProperty(const TString& name, const TString& key, const TString& value)
     {
         RunWithRetries([&] () { return Api_->SetProperty(name, key, value); }, "SetProperty");
     }
 
-    void DoDestroy(const Stroka& name)
+    void DoDestroy(const TString& name)
     {
         RunWithRetries([&] () { return Api_->Destroy(name); }, "Destroy");
     }
 
-    void DoStart(const Stroka& name)
+    void DoStart(const TString& name)
     {
         RunWithRetries([&] () { return Api_->Start(name); }, "Start");
     }
 
-    void DoKill(const Stroka& name, int signal)
+    void DoKill(const TString& name, int signal)
     {
         RunWithRetries([&] () { return Api_->Kill(name, signal); }, "Kill");
     }
 
-    std::vector<Stroka> DoList()
+    std::vector<TString> DoList()
     {
-        std::vector<Stroka> clist;
+        std::vector<TString> clist;
         RunWithRetries([&] () { return Api_->List(clist); }, "List");
         return clist;
     }
 
-    TFuture<int> AddToPoll(const Stroka& name)
+    TFuture<int> AddToPoll(const TString& name)
     {
         auto entry = ContainersMap_.insert({name, NewPromise<int>()});
         if (!entry.second) {
@@ -257,16 +257,16 @@ private:
     }
 
     void DoGet(
-        const std::vector<Stroka>& containers,
-        const std::vector<Stroka>& vars,
-        std::map<Stroka, std::map<Stroka, Porto::GetResponse>>& result)
+        const std::vector<TString>& containers,
+        const std::vector<TString>& vars,
+        std::map<TString, std::map<TString, Porto::GetResponse>>& result)
     {
         RunWithRetries([&]() { return Api_->Get(containers, vars, result); }, "Get");
     }
 
     void DoPoll()
     {
-        std::map<Stroka, std::map<Stroka, Porto::GetResponse>> pollResults;
+        std::map<TString, std::map<TString, Porto::GetResponse>> pollResults;
         try {
             pollResults.clear();
             if (Containers_.empty()) {
@@ -298,20 +298,20 @@ private:
     }
 
     TVolumeID DoCreateVolume(
-        const Stroka& path,
-        const std::map<Stroka, Stroka>& properties)
+        const TString& path,
+        const std::map<TString, TString>& properties)
     {
         Porto::Volume volume;
         RunWithRetries([&]() { return Api_->CreateVolume(path, properties, volume); }, "CreateVolume");
         return { volume.Path };
     }
 
-    void DoLinkVolume(const Stroka& path, const Stroka& container)
+    void DoLinkVolume(const TString& path, const TString& container)
     {
         RunWithRetries([&]() { return Api_->LinkVolume(path, container); }, "LinkVolume");
     }
 
-    void DoUnlinkVolume(const Stroka& path, const Stroka& container)
+    void DoUnlinkVolume(const TString& path, const TString& container)
     {
         RunWithRetries([&]() { return Api_->UnlinkVolume(path, container); }, "UnlinkVolume");
     }
@@ -323,7 +323,7 @@ private:
         return volumes;
     }
 
-    void RunWithRetries(std::function<bool()> action, const Stroka& name) {
+    void RunWithRetries(std::function<bool()> action, const TString& name) {
         TInstant now = TInstant::Now();
         while (action()) {
             HandleApiErrors(name, now);
@@ -331,7 +331,7 @@ private:
         }
     }
 
-    void HandleResult(const Stroka& name, const Porto::GetResponse& rsp)
+    void HandleResult(const TString& name, const Porto::GetResponse& rsp)
     {
         auto it = ContainersMap_.find(name);
         if (it == ContainersMap_.end()) {
@@ -358,7 +358,7 @@ private:
         RemoveFromPoller(name);
     }
 
-    void RemoveFromPoller(const Stroka& name)
+    void RemoveFromPoller(const TString& name)
     {
         ContainersMap_.erase(name);
         Containers_.clear();
@@ -369,7 +369,7 @@ private:
     }
 };
 
-const std::vector<Stroka> TPortoExecutor::ContainerRequestVars_ = { "state", "exit_status" };
+const std::vector<TString> TPortoExecutor::ContainerRequestVars_ = { "state", "exit_status" };
 
 ////////////////////////////////////////////////////////////////////////////////
 

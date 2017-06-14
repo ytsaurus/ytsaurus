@@ -182,7 +182,7 @@ TUnversionedValue ToUnversionedValue(TNullable<T> value)
 void TListJobsCommand::DoExecute(ICommandContextPtr context)
 {
     std::vector<TColumnSchema> columns;
-    auto addColumn = [&] (const Stroka& name, EValueType type) {
+    auto addColumn = [&] (const TString& name, EValueType type) {
         size_t id = columns.size();
         columns.emplace_back(name, type);
         return id;

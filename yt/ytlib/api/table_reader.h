@@ -16,8 +16,8 @@ TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
 
 NConcurrency::IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
     NTableClient::ISchemalessMultiChunkReaderPtr reader,
-    const TNullable<Stroka>& partIndexColumnName,
-    const TNullable<Stroka>& dataColumnName);
+    const TNullable<TString>& partIndexColumnName,
+    const TNullable<TString>& dataColumnName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -93,7 +93,7 @@ TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::IMapNodePtr specNode);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka TrimCommandForBriefSpec(const Stroka& command);
+TString TrimCommandForBriefSpec(const TString& command);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,7 +102,7 @@ Stroka TrimCommandForBriefSpec(const Stroka& command);
 struct TLockedUserObject
     : public NChunkClient::TUserObject
 {
-    virtual Stroka GetPath() const override;
+    virtual TString GetPath() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

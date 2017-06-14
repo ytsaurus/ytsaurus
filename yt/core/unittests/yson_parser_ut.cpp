@@ -25,7 +25,7 @@ public:
     StrictMock<TMockYsonConsumer> Mock;
 
     void Run(
-        const Stroka& input,
+        const TString& input,
         EYsonType mode = EYsonType::Node,
         i64 memoryLimit = std::numeric_limits<i64>::max())
     {
@@ -35,7 +35,7 @@ public:
     }
 
     void Run(
-        const std::vector<Stroka>& input,
+        const std::vector<TString>& input,
         EYsonType mode = EYsonType::Node,
         i64 memoryLimit = std::numeric_limits<i64>::max())
     {
@@ -105,14 +105,14 @@ TEST_F(TYsonParserTest, BinaryInt64)
         EXPECT_CALL(Mock, OnInt64Scalar(1ull << 21));
 
         //Int64Marker + (1 << 21) as VarInt ZigZagEncoded
-        Run(Stroka(" \x02\x80\x80\x80\x02  ", 1 + 5 + 2));
+        Run(TString(" \x02\x80\x80\x80\x02  ", 1 + 5 + 2));
     }
 
     {
         EXPECT_CALL(Mock, OnInt64Scalar(1ull << 21));
 
         //Uint64Marker + (1 << 21) as VarInt ZigZagEncoded
-        std::vector<Stroka> parts = {Stroka("\x02"), Stroka("\x80\x80\x80\x02")};
+        std::vector<TString> parts = {TString("\x02"), TString("\x80\x80\x80\x02")};
         Run(parts);
     }
 }
@@ -124,14 +124,14 @@ TEST_F(TYsonParserTest, BinaryUint64)
         EXPECT_CALL(Mock, OnUint64Scalar(1ull << 22));
 
         //Int64Marker + (1 << 21) as VarInt ZigZagEncoded
-        Run(Stroka(" \x06\x80\x80\x80\x02  ", 1 + 5 + 2));
+        Run(TString(" \x06\x80\x80\x80\x02  ", 1 + 5 + 2));
     }
 
     {
         EXPECT_CALL(Mock, OnUint64Scalar(1ull << 22));
 
         //Uint64Marker + (1 << 21) as VarInt ZigZagEncoded
-        std::vector<Stroka> parts = {Stroka("\x06"), Stroka("\x80\x80\x80\x02")};
+        std::vector<TString> parts = {TString("\x06"), TString("\x80\x80\x80\x02")};
         Run(parts);
     }
 }
@@ -144,20 +144,20 @@ TEST_F(TYsonParserTest, BinaryDouble)
     {
         EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(x)));
 
-        Run(Stroka("\x03", 1) + Stroka((char*) &x, sizeof(double))); // DoubleMarker
+        Run(TString("\x03", 1) + TString((char*) &x, sizeof(double))); // DoubleMarker
     }
 
     {
         EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(x)));
 
-        std::vector<Stroka> parts = {Stroka("\x03", 1), Stroka((char*) &x, sizeof(double))};
+        std::vector<TString> parts = {TString("\x03", 1), TString((char*) &x, sizeof(double))};
         Run(parts); // DoubleMarker
     }
 
     {
         EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(x)));
 
-        std::vector<Stroka> parts = {Stroka("\x03", 1), Stroka((char*) &x, 4), Stroka(((char*) &x) + 4, 4)};
+        std::vector<TString> parts = {TString("\x03", 1), TString((char*) &x, 4), TString(((char*) &x) + 4, 4)};
         Run(parts); // DoubleMarker
     }
 }
@@ -167,16 +167,16 @@ TEST_F(TYsonParserTest, BinaryBoolean)
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnBooleanScalar(false));
-    Run(Stroka("\x04", 1));
+    Run(TString("\x04", 1));
 
     EXPECT_CALL(Mock, OnBooleanScalar(true));
-    Run(Stroka("\x05", 1));
+    Run(TString("\x05", 1));
 }
 
 
 TEST_F(TYsonParserTest, InvalidBinaryDouble)
 {
-    EXPECT_THROW(Run(Stroka("\x03", 1)), std::exception);
+    EXPECT_THROW(Run(TString("\x03", 1)), std::exception);
 }
 
 TEST_F(TYsonParserTest, BinaryString)
@@ -184,7 +184,7 @@ TEST_F(TYsonParserTest, BinaryString)
     InSequence dummy;
     EXPECT_CALL(Mock, OnStringScalar("YSON"));
 
-    Run(Stroka(" \x01\x08YSON", 1 + 6)); // StringMarker + length ( = 4) + String
+    Run(TString(" \x01\x08YSON", 1 + 6)); // StringMarker + length ( = 4) + String
 }
 
 TEST_F(TYsonParserTest, EmptyBinaryString)
@@ -192,7 +192,7 @@ TEST_F(TYsonParserTest, EmptyBinaryString)
     InSequence dummy;
     EXPECT_CALL(Mock, OnStringScalar(""));
 
-    Run(Stroka("\x01\x00", 2)); // StringMarker + length ( = 0 )
+    Run(TString("\x01\x00", 2)); // StringMarker + length ( = 0 )
 }
 
 TEST_F(TYsonParserTest, EmptyList)
@@ -243,7 +243,7 @@ TEST_F(TYsonParserTest, OneElementBinaryMap)
     EXPECT_CALL(Mock, OnStringScalar("world"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Run(Stroka("{\x01\x0Ahello=\x01\x0Aworld}",1 + 7 + 1 + 7 + 1));
+    Run(TString("{\x01\x0Ahello=\x01\x0Aworld}",1 + 7 + 1 + 7 + 1));
 }
 
 
@@ -312,7 +312,7 @@ TEST_F(TYsonParserTest, MapWithAttributes)
         EXPECT_CALL(Mock, OnInt64Scalar(755));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input;
+    TString input;
     input = "<acl = { read = [ \"*\" ]; write = [ sandello ] } ;  \n"
             "  lock_scope = mytables> \n"
             "{ path = \"/home/sandello\" ; mode = 0755 }";
@@ -321,7 +321,7 @@ TEST_F(TYsonParserTest, MapWithAttributes)
 
 TEST_F(TYsonParserTest, Unescaping)
 {
-    Stroka output;
+    TString output;
     for (int i = 0; i < 256; ++i) {
         output.push_back(char(i));
     }
@@ -349,9 +349,9 @@ TEST_F(TYsonParserTest, Unescaping)
 
 TEST_F(TYsonParserTest, TrailingSlashes)
 {
-    Stroka slash = "\\";
-    Stroka escapedSlash = slash + slash;
-    Stroka quote = "\"";
+    TString slash = "\\";
+    TString escapedSlash = slash + slash;
+    TString quote = "\"";
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnStringScalar(slash));
@@ -466,7 +466,7 @@ TEST_F(TYsonParserTest, MemoryLimitOK)
 
 TEST_F(TYsonParserTest, MemoryLimitFit)
 {
-    auto s = Stroka(777, 'a');
+    auto s = TString(777, 'a');
 
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnKeyedItem("key"));
@@ -481,7 +481,7 @@ TEST_F(TYsonParserTest, MemoryLimitExceeded)
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnKeyedItem("key"));
 
-    EXPECT_THROW(Run("{key=" + Stroka(1025, 'a') + "}", EYsonType::Node, 1024), std::exception);
+    EXPECT_THROW(Run("{key=" + TString(1025, 'a') + "}", EYsonType::Node, 1024), std::exception);
 }
 
 TEST_F(TYsonParserTest, DepthLimitExceeded)
@@ -493,8 +493,8 @@ TEST_F(TYsonParserTest, DepthLimitExceeded)
     EXPECT_CALL(Mock, OnInt64Scalar(1));
 
     auto yson = "[" +
-        Stroka(126, '[') + "1" + Stroka(126, ']') + ";" +
-        Stroka(127, '[') + "1" + Stroka(127, ']') +
+        TString(126, '[') + "1" + TString(126, ']') + ";" +
+        TString(127, '[') + "1" + TString(127, ']') +
         "]";
 
     EXPECT_THROW(Run(yson, EYsonType::Node, 1024), std::exception);
@@ -518,7 +518,7 @@ TEST_F(TYsonParserTest, ContextInExceptions_ManyBlocks)
     try {
         TYsonParser parser(GetNullYsonConsumer(), EYsonType::Node);
         parser.Read("{fo");
-        parser.Read(Stroka(100, 'o')); // try to overflow 64 byte context
+        parser.Read(TString(100, 'o')); // try to overflow 64 byte context
         parser.Read("o bar = 580}");
         parser.Finish();
     } catch (const std::exception& ex) {

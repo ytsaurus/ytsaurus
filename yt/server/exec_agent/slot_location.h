@@ -25,7 +25,7 @@ public:
     TSlotLocation(
         const TSlotLocationConfigPtr& config,
         const NCellNode::TBootstrap* bootstrap,
-        const Stroka& id,
+        const TString& id,
         bool detachedTmpfsUmount);
 
     TFuture<void> CreateSandboxDirectories(int slotIndex);
@@ -33,23 +33,23 @@ public:
     TFuture<void> MakeSandboxCopy(
         int slotIndex,
         ESandboxKind kind,
-        const Stroka& sourcePath,
-        const Stroka& destinationName,
+        const TString& sourcePath,
+        const TString& destinationName,
         bool executable);
 
     TFuture<void> MakeSandboxLink(
         int slotIndex,
         ESandboxKind kind,
-        const Stroka& targetPath,
-        const Stroka& linkName,
+        const TString& targetPath,
+        const TString& linkName,
         bool executable);
 
-    TFuture<Stroka> MakeSandboxTmpfs(
+    TFuture<TString> MakeSandboxTmpfs(
         int slotIndex,
         ESandboxKind kind,
         i64 size,
         int userId,
-        const Stroka& path,
+        const TString& path,
         bool enable,
         IMounterPtr mounter);
 
@@ -57,7 +57,7 @@ public:
 
     TFuture<void> CleanSandboxes(int slotIndex, IMounterPtr mounter);
 
-    Stroka GetSlotPath(int slotIndex) const;
+    TString GetSlotPath(int slotIndex) const;
 
     void IncreaseSessionCount();
     void DecreaseSessionCount();
@@ -72,23 +72,23 @@ private:
 
     bool HasRootPermissions_;
 
-    yhash_set<Stroka> TmpfsPaths_;
+    yhash_set<TString> TmpfsPaths_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 
     void Disable(const TError& error);
     void ValidateEnabled() const;
 
-    static void ValidateNotExists(const Stroka& path);
+    static void ValidateNotExists(const TString& path);
 
-    bool IsInsideTmpfs(const Stroka& path) const;
+    bool IsInsideTmpfs(const TString& path) const;
 
-    void EnsureNotInUse(const Stroka& path) const;
+    void EnsureNotInUse(const TString& path) const;
 
-    void ForceSubdirectories(const Stroka& filePath, const Stroka& sandboxPath) const;
+    void ForceSubdirectories(const TString& filePath, const TString& sandboxPath) const;
 
-    Stroka GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const;
-    Stroka GetConfigPath(int slotIndex) const;
+    TString GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const;
+    TString GetConfigPath(int slotIndex) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotLocation)

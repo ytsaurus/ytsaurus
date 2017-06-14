@@ -21,7 +21,7 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Exception CreateYsonError(const Stroka& message, const NYT::TError& error = TError())
+Py::Exception CreateYsonError(const TString& message, const NYT::TError& error = TError())
 {
     auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), true);
     auto ysonErrorClass = Py::Callable(GetAttr(ysonModule, "YsonError"));
@@ -58,7 +58,7 @@ public:
     { }
 
     void Init(TInputStream* inputStream, std::unique_ptr<TInputStream> inputStreamOwner,
-              bool alwaysCreateAttributes, const TNullable<Stroka>& encoding)
+              bool alwaysCreateAttributes, const TNullable<TString>& encoding)
     {
         YCHECK(!inputStreamOwner || inputStreamOwner.get() == inputStream);
         InputStream_ = inputStream;
@@ -233,7 +233,7 @@ public:
             throw Py::TypeError("Only binary strings parsing is supported, got unicode");
         }
 #endif
-        auto string = ConvertStringObjectToStroka(stringArgument);
+        auto string = ConvertStringObjectToString(stringArgument);
         std::unique_ptr<TInputStream> stringStream(new TOwningStringInput(string));
 
         try {
@@ -258,7 +258,7 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
 
-        Stroka result;
+        TString result;
         TStringOutput stringOutput(result);
 
         try {
@@ -273,7 +273,7 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
 
-        auto path = ConvertStringObjectToStroka(ExtractArgument(args, kwargs, "path"));
+        auto path = ConvertStringObjectToString(ExtractArgument(args, kwargs, "path"));
         ValidateArgumentsEmpty(args, kwargs);
 
         auto richPath = TRichYPath::Parse(path);
@@ -310,7 +310,7 @@ private:
         auto ysonType = NYson::EYsonType::Node;
         if (HasArgument(args, kwargs, "yson_type")) {
             auto arg = ExtractArgument(args, kwargs, "yson_type");
-                ysonType = ParseEnum<NYson::EYsonType>(ConvertStringObjectToStroka(arg));
+                ysonType = ParseEnum<NYson::EYsonType>(ConvertStringObjectToString(arg));
         }
 
         bool alwaysCreateAttributes = true;
@@ -325,14 +325,14 @@ private:
             raw = Py::Boolean(arg);
         }
 
-        TNullable<Stroka> encoding;
+        TNullable<TString> encoding;
         if (HasArgument(args, kwargs, "encoding")) {
             auto arg = ExtractArgument(args, kwargs, "encoding");
             if (!arg.isNone()) {
 #if PY_MAJOR_VERSION < 3
                 throw Py::RuntimeError("Encoding parameter is not supported for Python 2");
 #else
-                encoding = ConvertStringObjectToStroka(arg);
+                encoding = ConvertStringObjectToString(arg);
 #endif
             }
 #if PY_MAJOR_VERSION >= 3
@@ -423,13 +423,13 @@ private:
         auto ysonFormat = NYson::EYsonFormat::Text;
         if (HasArgument(args, kwargs, "yson_format")) {
             auto arg = ExtractArgument(args, kwargs, "yson_format");
-            ysonFormat = ParseEnum<NYson::EYsonFormat>(ConvertStringObjectToStroka(arg));
+            ysonFormat = ParseEnum<NYson::EYsonFormat>(ConvertStringObjectToString(arg));
         }
 
         NYson::EYsonType ysonType = NYson::EYsonType::Node;
         if (HasArgument(args, kwargs, "yson_type")) {
             auto arg = ExtractArgument(args, kwargs, "yson_type");
-            ysonType = ParseEnum<NYson::EYsonType>(ConvertStringObjectToStroka(arg));
+            ysonType = ParseEnum<NYson::EYsonType>(ConvertStringObjectToString(arg));
         }
 
         int indent = NYson::TYsonWriter::DefaultIndent;
@@ -455,13 +455,13 @@ private:
             ignoreInnerAttributes = Py::Boolean(arg);
         }
 
-        TNullable<Stroka> encoding("utf-8");
+        TNullable<TString> encoding("utf-8");
         if (HasArgument(args, kwargs, "encoding")) {
             auto arg = ExtractArgument(args, kwargs, "encoding");
             if (arg.isNone()) {
                 encoding = Null;
             } else {
-                encoding = ConvertStringObjectToStroka(arg);
+                encoding = ConvertStringObjectToString(arg);
             }
         }
 

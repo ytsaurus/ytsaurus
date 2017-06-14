@@ -68,12 +68,12 @@ void WriteLocalHostName(const char* data, size_t length) noexcept
     LocalHostNamePtr.store(ptr, std::memory_order_seq_cst);
 }
 
-Stroka GetLocalHostName()
+TString GetLocalHostName()
 {
-    return Stroka(ReadLocalHostName());
+    return TString(ReadLocalHostName());
 }
 
-void SetLocalHostName(const Stroka& hostname)
+void SetLocalHostName(const TString& hostname)
 {
     WriteLocalHostName(hostname.c_str(), hostname.length());
 }

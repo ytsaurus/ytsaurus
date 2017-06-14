@@ -17,7 +17,7 @@ namespace NContainers {
 
 struct TVolumeID
 {
-    Stroka Path;
+    TString Path;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,29 +40,29 @@ DEFINE_ENUM(EContainerErrorCode,
 struct IPortoExecutor
     : public TRefCounted
 {
-    virtual TFuture<void> CreateContainer(const Stroka& name) = 0;
+    virtual TFuture<void> CreateContainer(const TString& name) = 0;
     virtual TFuture<void> SetProperty(
-        const Stroka& name,
-        const Stroka& key,
-        const Stroka& value) = 0;
-    virtual TFuture<std::map<Stroka, TErrorOr<Stroka>>> GetProperties(
-        const Stroka& name,
-        const std::vector<Stroka>& value) = 0;
-    virtual TFuture<void> DestroyContainer(const Stroka& name) = 0;
-    virtual TFuture<void> Start(const Stroka& name) = 0;
-    virtual TFuture<void> Kill(const Stroka& name, int signal) = 0;
-    virtual TFuture<std::vector<Stroka>> ListContainers() = 0;
+        const TString& name,
+        const TString& key,
+        const TString& value) = 0;
+    virtual TFuture<std::map<TString, TErrorOr<TString>>> GetProperties(
+        const TString& name,
+        const std::vector<TString>& value) = 0;
+    virtual TFuture<void> DestroyContainer(const TString& name) = 0;
+    virtual TFuture<void> Start(const TString& name) = 0;
+    virtual TFuture<void> Kill(const TString& name, int signal) = 0;
+    virtual TFuture<std::vector<TString>> ListContainers() = 0;
     // Starts polling a given container, returns future with exit code of finished process.
-    virtual TFuture<int> AsyncPoll(const Stroka& name) = 0;
+    virtual TFuture<int> AsyncPoll(const TString& name) = 0;
     virtual TFuture<TVolumeID> CreateVolume(
-        const Stroka& path,
-        const std::map<Stroka, Stroka>& properties) = 0;
+        const TString& path,
+        const std::map<TString, TString>& properties) = 0;
     virtual TFuture<void> LinkVolume(
-        const Stroka& path,
-        const Stroka& name) = 0;
+        const TString& path,
+        const TString& name) = 0;
     virtual TFuture<void> UnlinkVolume(
-        const Stroka& path,
-        const Stroka& name) = 0;
+        const TString& path,
+        const TString& name) = 0;
     virtual TFuture<std::vector<Porto::Volume>> ListVolumes() = 0;
     DECLARE_INTERFACE_SIGNAL(void(const TError&), Failed)
 };

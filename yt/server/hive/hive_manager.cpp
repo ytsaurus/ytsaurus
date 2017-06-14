@@ -51,8 +51,8 @@ using NHiveClient::NProto::TEncapsulatedMessage;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto HiveTracingService = Stroka("HiveManager");
-static const auto ClientHostAnnotation = Stroka("client_host");
+static const auto HiveTracingService = TString("HiveManager");
+static const auto ClientHostAnnotation = TString("client_host");
 
 ////////////////////////////////////////////////////////////////////////////////
 

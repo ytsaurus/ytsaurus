@@ -16,8 +16,8 @@ class TUpdateMembershipCommand
     : public TTypedCommand<TOptions>
 {
 protected:
-    Stroka Group;
-    Stroka Member;
+    TString Group;
+    TString Member;
 
     TUpdateMembershipCommand()
     {
@@ -53,7 +53,7 @@ public:
     TParseYPathCommand();
 
 private:
-    Stroka Path;
+    TString Path;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };
@@ -76,7 +76,7 @@ public:
     TCheckPermissionCommand();
 
 private:
-    Stroka User;
+    TString User;
     NYPath::TRichYPath Path;
     NYTree::EPermission Permission;
 
@@ -102,7 +102,7 @@ private:
         : public NYTree::TYsonSerializable
     {
     public:
-        Stroka Command;
+        TString Command;
         NYTree::IMapNodePtr Parameters;
         NYTree::INodePtr Input;
 

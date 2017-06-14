@@ -64,7 +64,7 @@ private:
         descriptors->push_back("violated_resource_limits");
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
     {
         const auto* account = GetThisImpl();
 
@@ -122,7 +122,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override
+    virtual bool SetBuiltinAttribute(const TString& key, const NYson::TYsonString& value) override
     {
         auto* account = GetThisImpl();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -135,7 +135,7 @@ private:
         }
 
         if (key == "name") {
-            auto newName = ConvertTo<Stroka>(value);
+            auto newName = ConvertTo<TString>(value);
             securityManager->RenameAccount(account, newName);
             return true;
         }

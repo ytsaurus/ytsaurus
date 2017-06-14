@@ -47,7 +47,7 @@ public:
         .Run();
     }
 
-    explicit TAsyncReaderImpl(const Stroka& str)
+    explicit TAsyncReaderImpl(const TString& str)
     {
         BIND([=, this_ = MakeStrong(this)] () {
             if (!InitFD(str)) {
@@ -255,7 +255,7 @@ private:
 #endif
     }
 
-    bool InitFD(const Stroka& str)
+    bool InitFD(const TString& str)
     {
         FD_ = HandleEintr(::open, str.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
         if (FD_ == -1) {

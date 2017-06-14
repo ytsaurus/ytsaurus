@@ -41,14 +41,14 @@ INativeConnectionPtr TClusterDirectory::GetConnectionOrThrow(TCellTag cellTag) c
     return connection;
 }
 
-INativeConnectionPtr TClusterDirectory::FindConnection(const Stroka& clusterName) const
+INativeConnectionPtr TClusterDirectory::FindConnection(const TString& clusterName) const
 {
     TGuard<TSpinLock> guard(Lock_);
     auto it = NameToCluster_.find(clusterName);
     return it == NameToCluster_.end() ? nullptr : it->second.Connection;
 }
 
-INativeConnectionPtr TClusterDirectory::GetConnectionOrThrow(const Stroka& clusterName) const
+INativeConnectionPtr TClusterDirectory::GetConnectionOrThrow(const TString& clusterName) const
 {
     auto connection = FindConnection(clusterName);
     if (!connection) {
@@ -57,13 +57,13 @@ INativeConnectionPtr TClusterDirectory::GetConnectionOrThrow(const Stroka& clust
     return connection;
 }
 
-std::vector<Stroka> TClusterDirectory::GetClusterNames() const
+std::vector<TString> TClusterDirectory::GetClusterNames() const
 {
     TGuard<TSpinLock> guard(Lock_);
     return GetKeys(NameToCluster_);
 }
 
-void TClusterDirectory::RemoveCluster(const Stroka& name)
+void TClusterDirectory::RemoveCluster(const TString& name)
 {
     TGuard<TSpinLock> guard(Lock_);
     auto it = NameToCluster_.find(name);
@@ -77,7 +77,7 @@ void TClusterDirectory::RemoveCluster(const Stroka& name)
         name);
 }
 
-void TClusterDirectory::UpdateCluster(const Stroka& name, INodePtr config)
+void TClusterDirectory::UpdateCluster(const TString& name, INodePtr config)
 {
     auto addNewCluster = [&] (const TCluster& cluster) {
         auto cellTag = GetCellTag(cluster);
@@ -110,7 +110,7 @@ void TClusterDirectory::UpdateCluster(const Stroka& name, INodePtr config)
 
 void TClusterDirectory::UpdateDirectory(const NProto::TClusterDirectory& protoDirectory)
 {
-    yhash<Stroka, INodePtr> nameToConfig;
+    yhash<TString, INodePtr> nameToConfig;
     for (const auto& item : protoDirectory.items()) {
         YCHECK(nameToConfig.emplace(
             item.name(),
@@ -128,7 +128,7 @@ void TClusterDirectory::UpdateDirectory(const NProto::TClusterDirectory& protoDi
     }
 }
 
-TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const Stroka& name, INodePtr config) const
+TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const TString& name, INodePtr config) const
 {
     TCluster cluster;
     cluster.Config = config;

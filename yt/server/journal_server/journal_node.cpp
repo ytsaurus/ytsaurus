@@ -164,7 +164,7 @@ protected:
         int replicationFactor = attributes->GetAndRemove<int>("replication_factor", config->DefaultJournalReplicationFactor);
         int readQuorum = attributes->GetAndRemove<int>("read_quorum", config->DefaultJournalReadQuorum);
         int writeQuorum = attributes->GetAndRemove<int>("write_quorum", config->DefaultJournalWriteQuorum);
-        auto primaryMediumName = attributes->GetAndRemove<Stroka>("primary_medium", DefaultStoreMediumName);
+        auto primaryMediumName = attributes->GetAndRemove<TString>("primary_medium", DefaultStoreMediumName);
 
         ValidateReplicationFactor(replicationFactor);
         if (readQuorum > replicationFactor) {

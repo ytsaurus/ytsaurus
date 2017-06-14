@@ -35,7 +35,7 @@ DEFINE_ENUM(ESchedulableStatus,
     (BelowFairShare)
 );
 
-extern const Stroka RootPoolName;
+extern const TString RootPoolName;
 
 extern const NLogging::TLogger SchedulerLogger;
 extern const NProfiling::TProfiler SchedulerProfiler;

@@ -63,7 +63,7 @@ bool operator==(const TMediumChunkProperties& lhs, const TMediumChunkProperties&
 bool operator!=(const TMediumChunkProperties& lhs, const TMediumChunkProperties& rhs);
 
 void FormatValue(TStringBuilder* builder, const TMediumChunkProperties& properties, const TStringBuf& format);
-Stroka ToString(const TMediumChunkProperties& properties);
+TString ToString(const TMediumChunkProperties& properties);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -123,7 +123,7 @@ bool operator==(const TChunkProperties& lhs, const TChunkProperties& rhs);
 bool operator!=(const TChunkProperties& lhs, const TChunkProperties& rhs);
 
 void FormatValue(TStringBuilder* builder, const TChunkProperties& properties, const TStringBuf& format);
-Stroka ToString(const TChunkProperties& properties);
+TString ToString(const TChunkProperties& properties);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -158,7 +158,7 @@ private:
 
     //! Media are sorted by name at serialization. This is by no means required,
     //! we're just being nice here.
-    std::map<Stroka, TMediumProperties> MediumProperties_;
+    std::map<TString, TMediumProperties> MediumProperties_;
 
     friend void Serialize(const TMediumProperties& serializer, NYson::IYsonConsumer* consumer);
     friend void Deserialize(TMediumProperties& serializer, NYTree::INodePtr node);

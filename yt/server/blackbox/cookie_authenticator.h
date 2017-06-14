@@ -13,10 +13,10 @@ struct ICookieAuthenticator
     : public virtual TRefCounted
 {
     virtual TFuture<TAuthenticationResult> Authenticate(
-        const Stroka& sessionId,
-        const Stroka& sslSessionId,
-        const Stroka& host,
-        const Stroka& userIP) = 0;
+        const TString& sessionId,
+        const TString& sslSessionId,
+        const TString& host,
+        const TString& userIP) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICookieAuthenticator)

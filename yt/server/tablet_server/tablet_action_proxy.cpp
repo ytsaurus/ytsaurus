@@ -60,7 +60,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer) override
     {
         const auto* action = GetThisImpl();
 
@@ -136,7 +136,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(const TString& key, const TYsonString& value) override
     {
         auto* action = GetThisImpl();
 

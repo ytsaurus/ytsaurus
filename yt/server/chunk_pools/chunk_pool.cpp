@@ -233,12 +233,12 @@ void TSuspendableStripe::Resume(TChunkStripePtr stripe)
     Stripe_ = stripe;
 }
 
-yhash_map<TInputChunkPtr, TInputChunkPtr> TSuspendableStripe::ResumeAndBuildChunkMapping(TChunkStripePtr stripe)
+yhash<TInputChunkPtr, TInputChunkPtr> TSuspendableStripe::ResumeAndBuildChunkMapping(TChunkStripePtr stripe)
 {
     YCHECK(Stripe_);
     YCHECK(Suspended_);
 
-    yhash_map<TInputChunkPtr, TInputChunkPtr> mapping;
+    yhash<TInputChunkPtr, TInputChunkPtr> mapping;
 
     // Our goal is to restore the correspondence between the old data slices and new data slices
     // in order to be able to substitute old references to input chunks in newly created jobs with current
@@ -253,7 +253,7 @@ yhash_map<TInputChunkPtr, TInputChunkPtr> TSuspendableStripe::ResumeAndBuildChun
         }
     };
 
-    yhash_map<i64, TInputDataSlicePtr> tagToDataSlice;
+    yhash<i64, TInputDataSlicePtr> tagToDataSlice;
 
     for (const auto& dataSlice : stripe->DataSlices) {
         YCHECK(dataSlice->Tag);
