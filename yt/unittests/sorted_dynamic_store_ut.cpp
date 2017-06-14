@@ -202,7 +202,7 @@ private:
 
     TUnversionedValue ToUnversionedValue(const TDynamicValueData& data, int index)
     {
-        TUnversionedValue value;
+        TUnversionedValue value{};
         value.Id = index;
         value.Type = Tablet_->PhysicalSchema().Columns()[index].Type;
         if (IsStringLikeType(value.Type)) {
