@@ -242,7 +242,7 @@ public:
         RegisterParameter("node_channel", NodeChannel)
             .DefaultNew();
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
-            .Default(TDuration::Seconds(120));
+            .Default(TDuration::Seconds(300));
         RegisterParameter("upload_replication_factor", UploadReplicationFactor)
             .GreaterThanOrEqual(1)
             .Default(2);

@@ -6,7 +6,7 @@
 
 #include <util/generic/singleton.h>
 
-#include <util/thread/lfqueue.h>
+#include <util/thread/lfstack.h>
 
 #include <atomic>
 
@@ -28,6 +28,8 @@ class TObjectPool
 public:
     using TObjectPtr = std::shared_ptr<TObject>;
 
+    ~TObjectPool();
+
     //! Either creates a fresh instance or returns a pooled one.
     TObjectPtr Allocate();
 
@@ -35,23 +37,11 @@ public:
     void Reclaim(TObject* obj);
 
 private:
-    struct THeader
-    {
-        NProfiling::TCpuInstant ExpireInstant;
-    };
-
-    static_assert(sizeof(THeader) % 8 == 0, "THeader must be padded to ensure proper alignment.");
-
-    TLockFreeQueue<TObject*> PooledObjects_;
-    std::atomic<int> PoolSize_;
-
-    TObjectPool();
+    TLockFreeStack<TObject*> PooledObjects_;
+    std::atomic<int> PoolSize_ = {0};
 
     TObject* AllocateInstance();
     void FreeInstance(TObject* obj);
-
-    THeader* GetHeader(TObject* obj);
-    bool IsExpired(const THeader* header);
 
     Y_DECLARE_SINGLETON_FRIEND();
 };
@@ -67,10 +57,6 @@ TObjectPool<TObject>& ObjectPool();
  *
  * |GetMaxPoolSize| method is called to determine the maximum number of
  * objects allowed to be pooled.
- *
- * |GetMaxLifetime| method is called to determine the maximum amount of
- * time a pooled instance is allowed to live (plus a random duration not
- * in the range from 0 to |GetMaxLifetimeSplay|).
  */
 template <class TObject, class = void>
 struct TPooledObjectTraits
@@ -86,16 +72,6 @@ struct TPooledObjectTraitsBase
     static int GetMaxPoolSize()
     {
         return 256;
-    }
-
-    static TDuration GetMaxLifetime()
-    {
-        return TDuration::Seconds(60);
-    }
-
-    static TDuration GetMaxLifetimeSplay()
-    {
-        return TDuration::Seconds(60);
     }
 };
 

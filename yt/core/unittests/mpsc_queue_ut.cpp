@@ -5,6 +5,7 @@
 #include <yt/core/misc/mpsc_queue.h>
 
 #include <thread>
+#include <array>
 
 namespace NYT {
 namespace {

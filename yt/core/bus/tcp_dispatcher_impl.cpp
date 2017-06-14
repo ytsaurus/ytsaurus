@@ -2,11 +2,12 @@
 #include "config.h"
 #include "tcp_connection.h"
 
-#include <yt/core/misc/address.h>
-
 #include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/thread_pool_poller.h>
+
+#include <yt/core/actions/invoker_util.h>
 
 #ifdef _linux_
     #include <sys/socket.h>
@@ -21,13 +22,10 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = BusLogger;
 static const auto& Profiler = BusProfiler;
 
-static const int DefaultClientThreadCount = 8;
-
-static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
-static const auto CheckPeriod = TDuration::Seconds(15);
+static constexpr auto XferThreadCount = 8;
+static constexpr auto ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,163 +64,132 @@ bool IsLocalBusTransportEnabled()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTcpDispatcherThread::TTcpDispatcherThread(const TString& threadName)
-    : TEVSchedulerThread(threadName, false)
-    , CheckExecutor_(New<TPeriodicExecutor>(
-        GetInvoker(),
-        BIND(&TTcpDispatcherThread::OnCheck, MakeWeak(this)),
-        CheckPeriod))
+TTcpDispatcherStatistics TTcpDispatcherCounters::ToStatistics() const
 {
-    CheckExecutor_->Start();
-}
+    TTcpDispatcherStatistics result;
+#define XX(name) result.name = name.load();
+    XX(InBytes)
+    XX(InPackets)
 
-const ev::loop_ref& TTcpDispatcherThread::GetEventLoop() const
-{
-    return EventLoop_;
-}
+    XX(OutBytes)
+    XX(OutPackets)
 
-TFuture<void> TTcpDispatcherThread::AsyncRegister(IEventLoopObjectPtr object)
-{
-    LOG_DEBUG("Object registration enqueued (%v)", object->GetLoggingId());
+    XX(PendingOutPackets)
+    XX(PendingOutBytes)
 
-    return BIND(&TTcpDispatcherThread::DoRegister, MakeStrong(this), object)
-        .AsyncVia(GetInvoker())
-        .Run();
-}
+    XX(ClientConnections)
+    XX(ServerConnections)
 
-TFuture<void> TTcpDispatcherThread::AsyncUnregister(IEventLoopObjectPtr object)
-{
-    LOG_DEBUG("Object unregistration enqueued (%v)", object->GetLoggingId());
+    XX(StalledReads)
+    XX(StalledWrites)
 
-    return BIND(&TTcpDispatcherThread::DoUnregister, MakeStrong(this), object)
-        .AsyncVia(GetInvoker())
-        .Run();
-}
+    XX(ReadErrors)
+    XX(WriteErrors)
 
-TTcpDispatcherStatistics* TTcpDispatcherThread::GetStatistics(ETcpInterfaceType interfaceType)
-{
-    return &Statistics_[interfaceType];
-}
-
-void TTcpDispatcherThread::DoRegister(IEventLoopObjectPtr object)
-{
-    object->SyncInitialize();
-    YCHECK(Objects_.insert(object).second);
-
-    LOG_DEBUG("Object registered (%v)", object->GetLoggingId());
-}
-
-void TTcpDispatcherThread::DoUnregister(IEventLoopObjectPtr object)
-{
-    object->SyncFinalize();
-    YCHECK(Objects_.erase(object) == 1);
-
-    LOG_DEBUG("Object unregistered (%v)", object->GetLoggingId());
-}
-
-void TTcpDispatcherThread::BeforeShutdown()
-{
-    CheckExecutor_->Stop();
-    TEVSchedulerThread::BeforeShutdown();
-}
-
-void TTcpDispatcherThread::OnCheck()
-{
-    for (const auto& object : Objects_) {
-        object->SyncCheck();
-    }
+    XX(EncoderErrors)
+    XX(DecoderErrors)
+#undef XX
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TTcpDispatcher::TImpl::TImpl()
+    : ProfilingExecutor_(New<TPeriodicExecutor>(
+        GetSyncInvoker(),
+        BIND(&TImpl::OnProfiling, MakeWeak(this)),
+        ProfilingPeriod))
 {
     auto* profileManager = TProfileManager::Get();
     for (auto interfaceType : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
-        InterfaceTypeToProfilingTag_[interfaceType] = profileManager->RegisterTag("interface", interfaceType);
+        InterfaceTypeMap_[interfaceType].Tag = profileManager->RegisterTag("interface", interfaceType);
     }
 
-    auto serverThread = New<TTcpDispatcherThread>("BusServer");
-    Threads_.push_back(serverThread);
-
-    SetClientThreadCount(DefaultClientThreadCount);
-
-    ProfilingExecutor_ = New<TPeriodicExecutor>(
-        GetServerThread()->GetInvoker(),
-        BIND(&TImpl::OnProfiling, this),
-        ProfilingPeriod);
     ProfilingExecutor_->Start();
 }
 
-TTcpDispatcher::TImpl* TTcpDispatcher::TImpl::Get()
+const TIntrusivePtr<TTcpDispatcher::TImpl>& TTcpDispatcher::TImpl::Get()
 {
-    return TTcpDispatcher::Get()->Impl_.get();
+    return TTcpDispatcher::Get()->Impl_;
 }
 
 void TTcpDispatcher::TImpl::Shutdown()
 {
-    TReaderGuard guard(SpinLock_);
-
     ProfilingExecutor_->Stop();
+    ShutdownPoller(&AcceptorPoller_);
+    ShutdownPoller(&XferPoller_);
+}
 
-    for (const auto& thread : Threads_) {
-        thread->Shutdown();
+const TTcpDispatcherCountersPtr& TTcpDispatcher::TImpl::GetCounters(ETcpInterfaceType interfaceType)
+{
+    return InterfaceTypeMap_[interfaceType].Counters;
+}
+
+TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType interfaceType)
+{
+    return GetCounters(interfaceType)->ToStatistics();
+}
+
+IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
+    IPollerPtr* poller,
+    int threadCount,
+    const TString& threadNamePrefix)
+{
+    auto throwAlreadyTerminated = [] () {
+        THROW_ERROR_EXCEPTION("Bus subsystem is already terminated");
+    };
+    {
+        TReaderGuard guard(SpinLock_);
+        if (Terminated_) {
+            throwAlreadyTerminated();
+        }
+        if (*poller) {
+            return *poller;
+        }
+    }
+    {
+        TWriterGuard guard(SpinLock_);
+        if (Terminated_) {
+            throwAlreadyTerminated();
+        }
+        if (!*poller) {
+            auto aPoller = CreateThreadPoolPoller(threadCount, threadNamePrefix);
+            *poller = aPoller;
+        }
+        return *poller;
     }
 }
 
-TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType interfaceType) const
+void TTcpDispatcher::TImpl::ShutdownPoller(IPollerPtr* poller)
 {
-    TReaderGuard guard(SpinLock_);
-
-    // This is racy but should be OK as an approximation.
-    TTcpDispatcherStatistics result;
-    for (const auto& thread : Threads_) {
-        result += *thread->GetStatistics(interfaceType);
+    IPollerPtr swappedPoller;
+    {
+        TWriterGuard guard(SpinLock_);
+        Terminated_ = true;
+        std::swap(*poller, swappedPoller);
     }
-    return result;
+    if (swappedPoller) {
+        swappedPoller->Shutdown();
+    }
 }
 
-int TTcpDispatcher::TImpl::GetServerConnectionCount(ETcpInterfaceType interfaceType) const
+IPollerPtr TTcpDispatcher::TImpl::GetAcceptorPoller()
 {
-    TReaderGuard guard(SpinLock_);
-
-    // A variation of GetStatistics optimized for this single parameter.
-    // This is, again, racy but should be OK as an approximation.
-    int result = 0;
-    for (const auto& thread : Threads_) {
-        result += thread->GetStatistics(interfaceType)->ServerConnections;
-    }
-    return result;
+    static const TString threadNamePrefix("BusAcceptor");
+    return GetOrCreatePoller(&AcceptorPoller_, 1, threadNamePrefix);
 }
 
-TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetServerThread()
+IPollerPtr TTcpDispatcher::TImpl::GetXferPoller()
 {
-    TReaderGuard guard(SpinLock_);
-
-    const auto& thread = Threads_[0];
-    if (Y_UNLIKELY(!thread->IsStarted())) {
-        thread->Start();
-    }
-    return thread;
-}
-
-TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetClientThread()
-{
-    TReaderGuard guard(SpinLock_);
-
-    auto index = CurrentClientThreadIndex_++ % ClientThreadCount_;
-    const auto& thread = Threads_[index + 1];
-    if (Y_UNLIKELY(!thread->IsStarted())) {
-        thread->Start();
-    }
-    return thread;
+    static const TString threadNamePrefix("BusXfer");
+    return GetOrCreatePoller(&XferPoller_, XferThreadCount, threadNamePrefix);
 }
 
 void TTcpDispatcher::TImpl::OnProfiling()
 {
     for (auto interfaceType : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
         TTagIdList tagIds{
-            InterfaceTypeToProfilingTag_[interfaceType]
+            InterfaceTypeMap_[interfaceType].Tag
         };
 
         auto statistics = GetStatistics(interfaceType);
@@ -242,22 +209,6 @@ void TTcpDispatcher::TImpl::OnProfiling()
         Profiler.Enqueue("/encoder_errors", statistics.EncoderErrors, EMetricType::Counter, tagIds);
         Profiler.Enqueue("/decoder_errors", statistics.DecoderErrors, EMetricType::Counter, tagIds);
     }
-}
-
-void TTcpDispatcher::TImpl::SetClientThreadCount(int clientThreadCount)
-{
-    TWriterGuard guard(SpinLock_);
-
-    if (clientThreadCount <= ClientThreadCount_) {
-        Threads_.resize(clientThreadCount + 1);
-    } else {
-        for (int index = ClientThreadCount_; index < clientThreadCount; ++index) {
-            auto clientThread = New<TTcpDispatcherThread>(Format("BusClient:%v", index));
-            Threads_.push_back(clientThread);
-        }
-    }
-
-    ClientThreadCount_ = clientThreadCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

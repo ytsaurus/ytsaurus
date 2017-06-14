@@ -177,6 +177,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         minCount,
         sessionType == ESessionType::Replication,
         replicationFactorOverride,
+        nullptr,
         forbiddenNodes,
         preferredHostName);
 
@@ -264,6 +265,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     int minCount,
     bool forceRackAwareness,
     TNullable<int> replicationFactorOverride,
+    const TDataCenterSet* dataCenters,
     const TNodeList* forbiddenNodes,
     const TNullable<TString>& preferredHostName)
 {
@@ -271,7 +273,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     TTargetCollector collector(chunk, mediumIndex, maxReplicasPerRack, forbiddenNodes);
 
     auto tryAdd = [&] (TNode* node, bool enableRackAwareness) {
-        if (IsValidWriteTarget(mediumIndex, node, chunk->GetType(), &collector, enableRackAwareness)) {
+        if (IsValidWriteTarget(mediumIndex, dataCenters, node, chunk->GetType(), &collector, enableRackAwareness)) {
             collector.AddNode(node);
         }
     };
@@ -308,6 +310,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     int desiredCount,
     int minCount,
     TNullable<int> replicationFactorOverride,
+    const TDataCenterSet& dataCenters,
     ESessionType sessionType)
 {
     auto targetNodes = GetWriteTargets(
@@ -316,7 +319,8 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         desiredCount,
         minCount,
         sessionType == ESessionType::Replication,
-        replicationFactorOverride);
+        replicationFactorOverride,
+        &dataCenters);
 
     for (auto* target : targetNodes) {
         AddSessionHint(target, sessionType);
@@ -396,9 +400,10 @@ bool TChunkPlacement::HasBalancingTargets(int mediumIndex, double maxFillFactor)
 TNode* TChunkPlacement::AllocateBalancingTarget(
     int mediumIndex,
     TChunk* chunk,
-    double maxFillFactor)
+    double maxFillFactor,
+    const TDataCenterSet& dataCenters)
 {
-    auto* target = GetBalancingTarget(mediumIndex, chunk, maxFillFactor);
+    auto* target = GetBalancingTarget(mediumIndex, &dataCenters, chunk, maxFillFactor);
 
     if (target) {
         AddSessionHint(target, ESessionType::Replication);
@@ -409,6 +414,7 @@ TNode* TChunkPlacement::AllocateBalancingTarget(
 
 TNode* TChunkPlacement::GetBalancingTarget(
     int mediumIndex,
+    const TDataCenterSet* dataCenters,
     TChunk* chunk,
     double maxFillFactor)
 {
@@ -422,7 +428,7 @@ TNode* TChunkPlacement::GetBalancingTarget(
         if (*nodeFillFactor > maxFillFactor) {
             break;
         }
-        if (IsValidBalancingTarget(mediumIndex, node, chunk->GetType(), &collector, true)) {
+        if (IsValidBalancingTarget(mediumIndex, dataCenters, node, chunk->GetType(), &collector, true)) {
             return node;
         }
     }
@@ -443,7 +449,7 @@ bool TChunkPlacement::IsValidWriteTarget(
         // Do not write anything to full nodes.
         return false;
     }
-    
+
     if (node->GetDecommissioned()) {
         // Do not write anything to decommissioned nodes.
         return false;
@@ -460,6 +466,7 @@ bool TChunkPlacement::IsValidWriteTarget(
 
 bool TChunkPlacement::IsValidWriteTarget(
     int mediumIndex,
+    const TDataCenterSet* dataCenters,
     TNode* node,
     EObjectType chunkType,
     TTargetCollector* collector,
@@ -472,6 +479,10 @@ bool TChunkPlacement::IsValidWriteTarget(
 
     if (!IsAcceptedChunkType(mediumIndex, node, chunkType)) {
         // Do not write anything to nodes not accepting this type of chunks.
+        return false;
+    }
+
+    if (dataCenters && dataCenters->count(node->GetDataCenter()) == 0) {
         return false;
     }
 
@@ -510,6 +521,7 @@ bool TChunkPlacement::IsValidBalancingTarget(
 
 bool TChunkPlacement::IsValidBalancingTarget(
     int mediumIndex,
+    const TDataCenterSet* dataCenters,
     TNode* node,
     NObjectClient::EObjectType chunkType,
     TTargetCollector* collector,
@@ -521,7 +533,7 @@ bool TChunkPlacement::IsValidBalancingTarget(
     }
 
     // Balancing implies write, after all.
-    if (!IsValidWriteTarget(mediumIndex, node, chunkType, collector, enableRackAwareness)) {
+    if (!IsValidWriteTarget(mediumIndex, dataCenters, node, chunkType, collector, enableRackAwareness)) {
         return false;
     }
 

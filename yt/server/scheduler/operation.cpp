@@ -29,7 +29,8 @@ TOperation::TOperation(
     TInstant startTime,
     EOperationState state,
     bool suspended,
-    const std::vector<TOperationEvent>& events)
+    const std::vector<TOperationEvent>& events,
+    int slotIndex)
     : Id_(id)
     , Type_(type)
     , MutationId_(mutationId)
@@ -45,6 +46,7 @@ TOperation::TOperation(
     , Events_(events)
     , StderrCount_(0)
     , JobNodeCount_(0)
+    , SlotIndex_(slotIndex)
     , CodicilData_(MakeOperationCodicilString(Id_))
 {
     auto parsedSpec = ConvertTo<TOperationSpecBasePtr>(Spec_);

@@ -95,6 +95,9 @@ public:
     //! Last time the progress was logged.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastLogProgressTime);
 
+    //! Numeric index of operation in pool.
+    DEFINE_BYVAL_RW_PROPERTY(int, SlotIndex);
+
     //! Gets set when the operation is started.
     TFuture<TOperationPtr> GetStarted();
 
@@ -143,7 +146,8 @@ public:
         TInstant startTime,
         EOperationState state = EOperationState::None,
         bool suspended = false,
-        const std::vector<TOperationEvent>& events = {});
+        const std::vector<TOperationEvent>& events = {},
+        int slotIndex = -1);
 
 private:
     const TString CodicilData_;

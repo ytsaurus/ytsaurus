@@ -149,7 +149,7 @@ DEFINE_REFCOUNTED_TYPE(TFiber)
 int GetFiberStackPoolSize(EExecutionStackKind stackKind);
 
 //! Sets the global limit for the number of pooled fiber stacks of a given size.
-int SetFiberStackPoolSize(EExecutionStackKind stackKind, int poolSize);
+void SetFiberStackPoolSize(EExecutionStackKind stackKind, int poolSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 

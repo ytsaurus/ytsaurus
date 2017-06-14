@@ -5,19 +5,18 @@
 #include "tcp_connection.h"
 #include "tcp_dispatcher_impl.h"
 
-#include <yt/core/concurrency/thread_affinity.h>
-
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/address.h>
 #include <yt/core/misc/string.h>
 
-#include <yt/core/rpc/public.h>
-
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
-#include <errno.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/rw_spinlock.h>
+
+#include <cerrno>
 
 #ifdef _unix_
     #include <netinet/tcp.h>
@@ -31,32 +30,40 @@ namespace NYT {
 namespace NBus {
 
 using namespace NYTree;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Profiler = BusProfiler;
+static const auto& Profiler = BusProfiler;
+
+static constexpr auto CheckPeriod = TDuration::Seconds(15);
 
 static NProfiling::TAggregateCounter AcceptTime("/accept_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpBusServerBase
-    : public IEventLoopObject
+    : public IPollable
 {
 public:
     TTcpBusServerBase(
         TTcpBusServerConfigPtr config,
-        TTcpDispatcherThreadPtr dispatcherThread,
+        IPollerPtr poller,
         IMessageHandlerPtr handler,
         ETcpInterfaceType interfaceType)
         : Config_(std::move(config))
-        , DispatcherThread_(std::move(dispatcherThread))
+        , Poller_(std::move(poller))
         , Handler_(std::move(handler))
         , InterfaceType_(interfaceType)
+        , CheckExecutor_(New<TPeriodicExecutor>(
+            GetSyncInvoker(),
+            BIND(&TTcpBusServerBase::OnCheck, MakeWeak(this)),
+            CheckPeriod))
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YCHECK(Config_);
+        YCHECK(Poller_);
         YCHECK(Handler_);
- 
+
         if (Config_->Port) {
             Logger.AddTag("ServerPort: %v", *Config_->Port);
         }
@@ -64,68 +71,67 @@ public:
             Logger.AddTag("UnixDomainName: %v", *Config_->UnixDomainName);
         }
         Logger.AddTag("InterfaceType: %v", InterfaceType_);
-   }
 
-    // IEventLoopObject implementation.
-
-    virtual void SyncInitialize() override
-    {
-        VERIFY_THREAD_AFFINITY(EventLoop);
-
-        // This may throw.
-        OpenServerSocket();
-
-        AcceptWatcher_.reset(new ev::io(DispatcherThread_->GetEventLoop()));
-        AcceptWatcher_->set<TTcpBusServerBase, &TTcpBusServerBase::OnAccept>(this);
-        AcceptWatcher_->start(ServerFD_, ev::READ);
+        CheckExecutor_->Start();
     }
 
-    virtual void SyncFinalize() override
+    void Start()
     {
-        VERIFY_THREAD_AFFINITY(EventLoop);
+        OpenServerSocket();
+        Poller_->Register(this);
+        RearmPoller();
+    }
 
-        AcceptWatcher_.reset();
+    TFuture<void> Stop()
+    {
+        UnarmPoller();
+        return Poller_->Unregister(this);
+    }
 
+    // IPollable implementation.
+    virtual const TString& GetLoggingId() const override
+    {
+        return Logger.GetContext();
+    }
+
+    virtual void OnEvent(EPollControl /*control*/) override
+    {
+        OnAccept();
+        RearmPoller();
+    }
+
+    virtual void OnShutdown() override
+    {
         CloseServerSocket();
 
+        decltype(Connections_) connections;
         {
-            TGuard<TSpinLock> guard(ConnectionsLock_);
-            for (auto connection : Connections_) {
-                connection->Terminate(TError(
-                    NRpc::EErrorCode::TransportError,
-                    "Bus server terminated"));
-            }
+            TWriterGuard guard(ConnectionsSpinLock_);
+            std::swap(connections, Connections_);
         }
-    }
 
-    void SyncCheck()
-    { }
-
-    virtual TString GetLoggingId() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-        return Logger.GetContext();
+        for (const auto& connection : connections) {
+            connection->Terminate(TError(
+                NRpc::EErrorCode::TransportError,
+                "Bus server terminated"));
+        }
     }
 
 protected:
     const TTcpBusServerConfigPtr Config_;
-    const TTcpDispatcherThreadPtr DispatcherThread_;
+    const IPollerPtr Poller_;
     const IMessageHandlerPtr Handler_;
     const ETcpInterfaceType InterfaceType_;
 
-    std::unique_ptr<ev::io> AcceptWatcher_;
+    const TPeriodicExecutorPtr CheckExecutor_;
 
+    TSpinLock ControlSpinLock_;
     int ServerSocket_ = INVALID_SOCKET;
-    int ServerFD_ = INVALID_SOCKET;
 
-    //! Protects the following members.
-    TSpinLock ConnectionsLock_;
-    //! The set of all currently active connections.
+    TReaderWriterSpinLock ConnectionsSpinLock_;
     yhash_set<TTcpConnectionPtr> Connections_;
 
     NLogging::TLogger Logger = BusLogger;
-
-    DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 
 
     virtual void CreateServerSocket() = 0;
@@ -143,19 +149,18 @@ protected:
     }
 
 
-    void OnConnectionTerminated(TTcpConnectionPtr connection, TError /*error*/)
+    void OnConnectionTerminated(const TTcpConnectionPtr& connection, const TError& /*error*/)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        {
-            TGuard<TSpinLock> guard(ConnectionsLock_);
-            YCHECK(Connections_.erase(connection) == 1);
-        }
+        TWriterGuard guard(ConnectionsSpinLock_);
+        // NB: Connection could be missing, see OnShutdown.
+        Connections_.erase(connection);
     }
 
 
     void OpenServerSocket()
     {
+        auto guard = Guard(ControlSpinLock_);
+
         LOG_DEBUG("Opening server socket");
 
         CreateServerSocket();
@@ -174,28 +179,24 @@ protected:
 
     void CloseServerSocket()
     {
-        if (ServerFD_ != INVALID_SOCKET) {
-            close(ServerFD_);
+        auto guard = Guard(ControlSpinLock_);
+        if (ServerSocket_ != INVALID_SOCKET) {
+            close(ServerSocket_);
+            ServerSocket_ = INVALID_SOCKET;
             LOG_DEBUG("Server socket closed");
         }
-        ServerSocket_ = INVALID_SOCKET;
-        ServerFD_ = INVALID_SOCKET;
     }
 
     void InitSocket(SOCKET socket)
     {
-#ifdef _win_
-        unsigned long value = 1;
-        int result = ioctlsocket(socket, FIONBIO, &value);
-#else
-        int flags = fcntl(socket, F_GETFL);
-        int result = fcntl(socket, F_SETFL, flags | O_NONBLOCK);
-#endif
-        if (result != 0) {
-            THROW_ERROR_EXCEPTION("Failed to enable nonblocking mode")
-                << TError::FromSystem();
+        {
+            int flags = fcntl(socket, F_GETFL);
+            int result = fcntl(socket, F_SETFL, flags | O_NONBLOCK);
+            if (result != 0) {
+                THROW_ERROR_EXCEPTION("Failed to enable nonblocking mode")
+                    << TError::FromSystem();
+            }
         }
-#if defined _unix_ && !defined _linux_
         {
             int flags = fcntl(socket, F_GETFD);
             int result = fcntl(socket, F_SETFD, flags | FD_CLOEXEC);
@@ -204,19 +205,10 @@ protected:
                     << TError::FromSystem();
             }
         }
-#endif
     }
 
-
-    void OnAccept(ev::io&, int revents)
+    void OnAccept()
     {
-        VERIFY_THREAD_AFFINITY(EventLoop);
-
-        if (revents & ev::ERROR) {
-            LOG_WARNING("Accept error");
-            return;
-        }
-
         while (true) {
             TNetworkAddress clientAddress;
             socklen_t clientAddressLen = clientAddress.GetLength();
@@ -251,7 +243,7 @@ protected:
 
             auto connectionId = TConnectionId::Create();
 
-            auto connectionCount = TTcpDispatcher::TImpl::Get()->GetServerConnectionCount(InterfaceType_);
+            auto connectionCount = TTcpDispatcher::TImpl::Get()->GetCounters(InterfaceType_)->ServerConnections.load();
             auto connectionLimit = Config_->MaxSimultaneousConnections;
             if (connectionCount >= connectionLimit) {
                 LOG_DEBUG("Connection dropped (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
@@ -271,8 +263,6 @@ protected:
             InitClientSocket(clientSocket);
             InitSocket(clientSocket);
 
-            auto dispatcherThread = TTcpDispatcher::TImpl::Get()->GetClientThread();
-
             auto address = ToString(clientAddress);
             auto endpointDescription = address;
             auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
@@ -282,7 +272,6 @@ protected:
 
             auto connection = New<TTcpConnection>(
                 Config_,
-                dispatcherThread,
                 EConnectionType::Server,
                 InterfaceType_,
                 connectionId,
@@ -292,33 +281,28 @@ protected:
                 address,
                 Null,
                 0,
-                Handler_);
+                Handler_,
+                TTcpDispatcher::TImpl::Get()->GetXferPoller());
+
+            {
+                TWriterGuard guard(ConnectionsSpinLock_);
+                YCHECK(Connections_.insert(connection).second);
+            }
 
             connection->SubscribeTerminated(BIND(
                 &TTcpBusServerBase::OnConnectionTerminated,
                 MakeWeak(this),
                 connection));
 
-            {
-                TGuard<TSpinLock> guard(ConnectionsLock_);
-                YCHECK(Connections_.insert(connection).second);
-            }
-
-            dispatcherThread->AsyncRegister(connection);
+            connection->Start();
         }
     }
 
 
     bool IsSocketError(ssize_t result)
     {
-#ifdef _WIN32
-        return
-        result != WSAEWOULDBLOCK &&
-        result != WSAEINPROGRESS;
-#else
         YCHECK(result != EINTR);
         return result != EINPROGRESS && result != EWOULDBLOCK;
-#endif
     }
 
     void BindSocket(sockaddr* address, int size, const TString& errorMessage)
@@ -341,6 +325,32 @@ protected:
         }
     }
 
+    void UnarmPoller()
+    {
+        auto guard = Guard(ControlSpinLock_);
+        if (ServerSocket_ == INVALID_SOCKET) {
+            return;
+        }
+        Poller_->Unarm(ServerSocket_);
+    }
+
+    void RearmPoller()
+    {
+        auto guard = Guard(ControlSpinLock_);
+        if (ServerSocket_ == INVALID_SOCKET) {
+            return;
+        }
+        Poller_->Arm(ServerSocket_, this, EPollControl::Read);
+    }
+
+
+    void OnCheck()
+    {
+        TReaderGuard guard(ConnectionsSpinLock_);
+        for (const auto& connection : Connections_) {
+            connection->Check();
+        }
+    }
 };
 
 class TRemoteTcpBusServer
@@ -349,11 +359,11 @@ class TRemoteTcpBusServer
 public:
     TRemoteTcpBusServer(
         TTcpBusServerConfigPtr config,
-        TTcpDispatcherThreadPtr dispatcherThread,
+        IPollerPtr poller,
         IMessageHandlerPtr handler)
         : TTcpBusServerBase(
             std::move(config),
-            std::move(dispatcherThread),
+            std::move(poller),
             std::move(handler),
             ETcpInterfaceType::Remote)
     { }
@@ -374,12 +384,6 @@ private:
                 "Failed to create a server socket")
                 << TError::FromSystem();
         }
-
-#ifdef _win_
-        ServerFD = _open_osfhandle(ServerSocket, 0);
-#else
-        ServerFD_ = ServerSocket_;
-#endif
 
         {
             int flag = 0;
@@ -433,11 +437,11 @@ class TLocalTcpBusServer
 public:
     TLocalTcpBusServer(
         TTcpBusServerConfigPtr config,
-        TTcpDispatcherThreadPtr dispatcherThread,
+        IPollerPtr poller,
         IMessageHandlerPtr handler)
         : TTcpBusServerBase(
             std::move(config),
-            std::move(dispatcherThread),
+            std::move(poller),
             std::move(handler),
             ETcpInterfaceType::Local)
     { }
@@ -458,8 +462,6 @@ private:
                 "Failed to create a local server socket")
                 << TError::FromSystem();
         }
-
-        ServerFD_ = ServerSocket_;
 
         {
             TNetworkAddress netAddress;
@@ -490,7 +492,6 @@ class TTcpBusServerProxy
 public:
     explicit TTcpBusServerProxy(TTcpBusServerConfigPtr config)
         : Config_(std::move(config))
-        , DispatcherThread_(TTcpDispatcher::TImpl::Get()->GetServerThread())
     {
         YCHECK(Config_);
     }
@@ -502,45 +503,37 @@ public:
 
     virtual void Start(IMessageHandlerPtr handler)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-
-        YCHECK(!Running_);
-
         auto server = New<TServer>(
             Config_,
-            DispatcherThread_,
+            TTcpDispatcher::TImpl::Get()->GetAcceptorPoller(),
             std::move(handler));
 
-        DispatcherThread_->AsyncRegister(server)
-            .Get()
-            .ThrowOnError();
-
-        Server_ = server;
-        Running_ = true;
-    }
-
-    virtual void Stop()
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-
-        if (!Running_) {
-            return;
+        {
+            auto guard = Guard(SpinLock_);
+            YCHECK(!Server_);
+            Server_ = server;
         }
 
-        auto error = DispatcherThread_->AsyncUnregister(Server_).Get();
-        // Shutdown will hopefully never fail.
-        YCHECK(error.IsOK());
+        server->Start();
+    }
 
-        Server_.Reset();
-        Running_ = false;
+    virtual TFuture<void> Stop()
+    {
+        TIntrusivePtr<TServer> server;
+        {
+            auto guard = Guard(SpinLock_);
+            if (!Server_) {
+                return VoidFuture;
+            }
+            std::swap(server, Server_);
+        }
+        return server->Stop();
     }
 
 private:
     const TTcpBusServerConfigPtr Config_;
 
     TSpinLock SpinLock_;
-    TTcpDispatcherThreadPtr DispatcherThread_;
-    volatile bool Running_ = false;
     TIntrusivePtr<TServer> Server_;
 
 };
@@ -557,16 +550,18 @@ public:
 
     virtual void Start(IMessageHandlerPtr handler) override
     {
-        for (auto server : Servers_) {
+        for (const auto& server : Servers_) {
             server->Start(handler);
         }
     }
 
-    virtual void Stop() override
+    virtual TFuture<void> Stop() override
     {
-        for (auto server : Servers_) {
-            server->Stop();
+        std::vector<TFuture<void>> asyncResults;
+        for (const auto& server : Servers_) {
+            asyncResults.push_back(server->Stop());
         }
+        return Combine(asyncResults);
     }
 
 private:
@@ -582,7 +577,7 @@ IBusServerPtr CreateTcpBusServer(TTcpBusServerConfigPtr config)
     }
 #ifdef _linux_
     // Abstract unix sockets are supported only on Linux.
-    servers.push_back(New< TTcpBusServerProxy<TLocalTcpBusServer> >(config));
+    servers.push_back(New<TTcpBusServerProxy<TLocalTcpBusServer>>(config));
 #endif
     return New<TCompositeBusServer>(servers);
 }

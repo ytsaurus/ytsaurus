@@ -23,6 +23,8 @@
 
 #include <yt/core/tracing/trace_context.h>
 
+#include <util/thread/lfqueue.h>
+
 #include <atomic>
 
 namespace NYT {
@@ -582,7 +584,7 @@ protected:
     virtual std::vector<TString> SuggestAddresses();
 
 protected:
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
 private:
     const IInvokerPtr DefaultInvoker_;

@@ -2859,7 +2859,7 @@ namespace NAst {
 
 void TParser::error(const location_type& location, const std::string& message)
 {
-    auto leftContextStart = std::max<size_t>(location.first - 16, 0);
+    auto leftContextStart = std::max<size_t>(location.first, 16) - 16;
     auto rightContextEnd = std::min<size_t>(location.second + 16, source.size());
 
     THROW_ERROR_EXCEPTION("Error while parsing query: %v", message)

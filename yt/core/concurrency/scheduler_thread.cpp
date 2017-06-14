@@ -261,7 +261,7 @@ void TSchedulerThread::FiberMain(ui64 spawnedEpoch)
     }
 
     {
-        auto createdFibers = CreatedFibersCounter_.Current.load();
+        auto createdFibers = CreatedFibersCounter_.GetCurrent();
         auto aliveFibers = Profiler.Increment(AliveFibersCounter_, -1);
         LOG_TRACE_IF(EnableLogging_, "Fiber finished (Name: %v, Created: %v, Alive: %v)",
             ThreadName_,
@@ -432,6 +432,7 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
 
     RunQueue_.emplace_front(std::move(CurrentFiber_));
     CurrentFiber_ = std::move(other);
+    SetCurrentFiberId(target->GetId());
 
     caller->SetSuspended();
     target->SetRunning();

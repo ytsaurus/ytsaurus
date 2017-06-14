@@ -1159,6 +1159,20 @@ private:
             int blockIndex = req->block_indexes(index);
             auto blockId = TBlockId(reader->ChunkId_, blockIndex);
 
+            try {
+                block.ValidateChecksum();
+            } catch (const TBlockChecksumValidationException& ex) {
+                RegisterError(TError("Failed to validate received block checksum")
+                    << TErrorAttribute("block_id", ToString(blockId))
+                    << TErrorAttribute("peer", peerAddress)
+                    << TErrorAttribute("actual", ex.GetActual())
+                    << TErrorAttribute("expected", ex.GetExpected()));
+
+                BanPeer(peerAddress, false);
+                RequestBlocks();
+                return;
+             }
+
             auto sourceDescriptor = reader->Options_->EnableP2P
                 ? TNullable<TNodeDescriptor>(GetPeerDescriptor(peerAddress))
                 : TNullable<TNodeDescriptor>(Null);
@@ -1349,13 +1363,29 @@ private:
 
         int blocksReceived = 0;
         i64 bytesReceived = 0;
+
         for (auto& block : blocks) {
             if (!block)
                 break;
+
             blocksReceived += 1;
             bytesReceived += block.Size();
 
-            FetchedBlocks_.emplace_back(std::move(block));
+            try {
+                block.ValidateChecksum();
+            } catch (const TBlockChecksumValidationException& ex) {
+                RegisterError(TError("Failed to validate received block checksum")
+                    << TErrorAttribute("block_id", ToString(TBlockId(reader->ChunkId_, FirstBlockIndex_ + blocksReceived)))
+                    << TErrorAttribute("peer", peerAddress)
+                    << TErrorAttribute("actual", ex.GetActual())
+                    << TErrorAttribute("expected", ex.GetExpected()));
+
+                BanPeer(peerAddress, false);
+                RequestBlocks();
+                return;
+             }
+
+             FetchedBlocks_.emplace_back(std::move(block));
          }
 
         BanSeedIfUncomplete(rsp, peerAddress);

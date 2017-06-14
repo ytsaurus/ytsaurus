@@ -924,13 +924,33 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
 
             const auto& name = *columnSchema.Aggregate;
             if (auto descriptor = BuiltinTypeInferrersMap->GetFunction(name)->As<TAggregateTypeInferrer>()) {
-                const auto& stateType = descriptor->InferStateType(columnSchema.Type, name, name);
-                if (stateType != columnSchema.Type) {
+                TTypeSet constraint;
+                TNullable<EValueType> stateType;
+                TNullable<EValueType> resultType;
+
+                descriptor->GetNormalizedConstraints(&constraint, &stateType, &resultType, name);
+                if (!constraint.Get(columnSchema.Type)) {
+                    THROW_ERROR_EXCEPTION("Argument type mismatch in aggregate function %Qv from column %Qv: expected %Qv, got %Qv",
+                        columnSchema.Aggregate.Get(),
+                        columnSchema.Name,
+                        constraint,
+                        columnSchema.Type);
+                }
+
+                if (stateType && *stateType != columnSchema.Type) {
                     THROW_ERROR_EXCEPTION("Aggregate function %Qv state type %Qv differs from column %Qv type %Qv",
                         columnSchema.Aggregate.Get(),
                         columnSchema.Type,
                         columnSchema.Name,
                         stateType);
+                }
+
+                if (resultType && *resultType != columnSchema.Type) {
+                    THROW_ERROR_EXCEPTION("Aggregate function %Qv result type %Qv differs from column %Qv type %Qv",
+                        columnSchema.Aggregate.Get(),
+                        columnSchema.Type,
+                        columnSchema.Name,
+                        resultType);
                 }
             } else {
                 THROW_ERROR_EXCEPTION("Unknown aggregate function %Qv at column %Qv",

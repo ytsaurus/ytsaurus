@@ -1,6 +1,6 @@
 #include "shutdown.h"
 
-#include <yt/ytlib/shutdown.h>
+#include <yt/core/misc/shutdown.h>
 
 #include <contrib/libs/pycxx/Objects.hxx>
 

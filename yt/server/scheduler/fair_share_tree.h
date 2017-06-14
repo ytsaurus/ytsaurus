@@ -441,7 +441,6 @@ class TOperationElementFixedState
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(IOperationControllerPtr, Controller);
-    DEFINE_BYVAL_RW_PROPERTY(int, ChildIndex, -1);
 
 protected:
     explicit TOperationElementFixedState(TOperationPtr operation);
@@ -692,6 +691,8 @@ public:
     int GetRunningJobCount() const;
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
+
+    int GetSlotIndex() const;
 
     void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage);
     void OnJobFinished(const TJobId& jobId);

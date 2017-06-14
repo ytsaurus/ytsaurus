@@ -5,6 +5,7 @@
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/singleton.h>
+#include <yt/core/misc/shutdown.h>
 
 #include <util/datetime/base.h>
 
@@ -382,6 +383,10 @@ void TDelayedExecutor::StaticShutdown()
 {
     GetImpl()->Shutdown();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_SHUTDOWN_CALLBACK(3, TDelayedExecutor::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 

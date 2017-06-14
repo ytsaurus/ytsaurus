@@ -201,6 +201,15 @@ protected:
             return unreadDescriptors;
         }
 
+        unreadDescriptors.emplace_back(TDataSliceDescriptor(chunkSpec));
+        // Check if whole chunk is unread.
+        // Make this check before messing with keys; YCHECK below is only valid
+        // if we read some data, since lowerKey may be longer than firstUnreadKey.
+
+        if (rowIndex == lowerRowIndex) {
+            return unreadDescriptors;
+        }
+
         // Verify the first unread key is in the chunk range
         auto lowerKey = lowerLimit.HasKey() ? lowerLimit.GetKey() : TOwningKey();
         auto lastChunkKey = FromProto<TOwningKey>(blockMeta.blocks().rbegin()->last_key());
@@ -213,13 +222,6 @@ protected:
             !firstUnreadKey || (
                 (!lowerKey || CompareRows(firstUnreadKey, lowerKey) >= 0) &&
                 (!upperKey || CompareRows(firstUnreadKey, upperKey) <= 0)));
-
-        unreadDescriptors.emplace_back(TDataSliceDescriptor(chunkSpec));
-
-        // Check if whole chunk is unread
-        if (rowIndex == lowerRowIndex) {
-            return unreadDescriptors;
-        }
 
         auto& chunk = unreadDescriptors[0].ChunkSpecs[0];
         chunk.mutable_lower_limit()->set_row_index(std::max(rowIndex, lowerRowIndex));

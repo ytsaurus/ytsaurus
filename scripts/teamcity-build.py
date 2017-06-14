@@ -25,6 +25,7 @@ import re
 import socket
 import tempfile
 import shutil
+import fnmatch
 import xml.etree.ElementTree as etree
 import xml.parsers.expat
 
@@ -225,20 +226,23 @@ def run_unit_tests(options):
     sandbox_archive = os.path.join(options.failed_tests_path,
         "__".join([options.btid, options.build_number, "unit_tests"]))
 
+    all_unittests = fnmatch.filter(os.listdir(os.path.join(options.working_directory, "bin")), "unittester*")
+
     mkdirp(sandbox_current)
     try:
-        run([
-            "gdb",
-            "--batch",
-            "--return-child-result",
-            "--command={0}/scripts/teamcity-build/teamcity-gdb-script".format(options.checkout_directory),
-            "--args",
-            os.path.join(options.working_directory, "bin", "unittester"),
-            "--gtest_color=no",
-            "--gtest_death_test_style=threadsafe",
-            "--gtest_output=xml:" + os.path.join(options.working_directory, "gtest_unittester.xml")],
-            cwd=sandbox_current,
-            timeout=20 * 60)
+        for unittest_binary in all_unittests:
+            run([
+                "gdb",
+                "--batch",
+                "--return-child-result",
+                "--command={0}/scripts/teamcity-build/teamcity-gdb-script".format(options.checkout_directory),
+                "--args",
+                os.path.join(options.working_directory, "bin", unittest_binary),
+                "--gtest_color=no",
+                "--gtest_death_test_style=threadsafe",
+                "--gtest_output=xml:" + os.path.join(options.working_directory, "gtest_" + unittest_binary + ".xml")],
+                cwd=sandbox_current,
+                timeout=20 * 60)
     except ChildHasNonZeroExitCode as err:
         teamcity_message('Copying unit tests sandbox from "{0}" to "{1}"'.format(
             sandbox_current, sandbox_archive), status="WARNING")

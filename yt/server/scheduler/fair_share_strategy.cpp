@@ -46,15 +46,15 @@ TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
     return {it->second};
 };
 
-TTagId GetChildIndexProfilingTag(int childIndex)
+TTagId GetSlotIndexProfilingTag(int slotIndex)
 {
-    static yhash<int, TTagId> childIndexToTagIdMap;
+    static yhash<int, TTagId> slotIndexToTagIdMap;
 
-    auto it = childIndexToTagIdMap.find(childIndex);
-    if (it == childIndexToTagIdMap.end()) {
-        it = childIndexToTagIdMap.emplace(
-            childIndex,
-            TProfileManager::Get()->RegisterTag("child_index", ToString(childIndex))
+    auto it = slotIndexToTagIdMap.find(slotIndex);
+    if (it == slotIndexToTagIdMap.end()) {
+        it = slotIndexToTagIdMap.emplace(
+            slotIndex,
+            TProfileManager::Get()->RegisterTag("slot_index", ToString(slotIndex))
         ).first;
     }
     return it->second;
@@ -188,7 +188,7 @@ public:
         pool->IncreaseResourceUsage(operationElement->GetResourceUsage());
         operationElement->SetParent(pool.Get());
 
-        AssignOperationPoolIndex(operation, poolId);
+        AssignOperationSlotIndex(operation, poolId);
 
         if (CanAddOperationToPool(pool.Get())) {
             ActivateOperation(operation->GetId());
@@ -197,36 +197,58 @@ public:
         }
     }
 
-    void AssignOperationPoolIndex(const TOperationPtr& operation, const TString& poolName)
+    void OccupyPoolSlotIndex(const TString& poolName, int slotIndex)
     {
-        auto operationElement = GetOperationElement(operation->GetId());
-        auto it = PoolToSpareChildIndices.find(poolName);
-        auto childIndex = -1;
+        auto minUnusedIndexIt = PoolToMinUnusedSlotIndex.find(poolName);
+        YCHECK(minUnusedIndexIt != PoolToMinUnusedSlotIndex.end());
 
-        if (it == PoolToSpareChildIndices.end() || it->second.empty()) {
-            auto minUnusedIndexIt = PoolToMinUnusedChildIndex.find(poolName);
-            YCHECK(minUnusedIndexIt != PoolToMinUnusedChildIndex.end());
-            childIndex = minUnusedIndexIt->second;
+        auto& spareSlotIndices = PoolToSpareSlotIndices[poolName];
+
+        if (slotIndex >= minUnusedIndexIt->second) {
+            for (int index = minUnusedIndexIt->second; index < slotIndex; ++index) {
+                spareSlotIndices.insert(index);
+            }
+
+            minUnusedIndexIt->second = slotIndex + 1;
+        } else {
+            YCHECK(spareSlotIndices.erase(slotIndex) == 1);
+        }
+    }
+
+    void AssignOperationSlotIndex(const TOperationPtr& operation, const TString& poolName)
+    {
+        auto it = PoolToSpareSlotIndices.find(poolName);
+        auto slotIndex = operation->GetSlotIndex();
+
+        if (slotIndex != -1) {
+            // Revive case
+            OccupyPoolSlotIndex(poolName, slotIndex);
+            return;
+        }
+
+        if (it == PoolToSpareSlotIndices.end() || it->second.empty()) {
+            auto minUnusedIndexIt = PoolToMinUnusedSlotIndex.find(poolName);
+            YCHECK(minUnusedIndexIt != PoolToMinUnusedSlotIndex.end());
+            slotIndex = minUnusedIndexIt->second;
             ++minUnusedIndexIt->second;
         } else {
             auto spareIndexIt = it->second.begin();
-            childIndex = *spareIndexIt;
+            slotIndex = *spareIndexIt;
             it->second.erase(spareIndexIt);
         }
 
-        operationElement->SetChildIndex(childIndex);
+        operation->SetSlotIndex(slotIndex);
     }
 
     void UnassignOperationPoolIndex(const TOperationPtr& operation, const TString& poolName)
     {
-        auto operationElement = GetOperationElement(operation->GetId());
-        auto childIndex = operationElement->GetChildIndex();
+        auto slotIndex = operation->GetSlotIndex();
 
-        auto it = PoolToSpareChildIndices.find(poolName);
-        if (it == PoolToSpareChildIndices.end()) {
-            PoolToSpareChildIndices.insert(std::make_pair(poolName, yhash_set<int>{childIndex}));
+        auto it = PoolToSpareSlotIndices.find(poolName);
+        if (it == PoolToSpareSlotIndices.end()) {
+            YCHECK(PoolToSpareSlotIndices.insert(std::make_pair(poolName, yhash_set<int>{slotIndex})).second);
         } else {
-            it->second.insert(childIndex);
+            it->second.insert(slotIndex);
         }
     }
 
@@ -500,7 +522,7 @@ public:
         auto* parent = element->GetParent();
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(parent->GetId())
-            .Item("child_index").Value(element->GetChildIndex())
+            .Item("slot_index").Value(element->GetSlotIndex())
             .Item("start_time").Value(element->GetStartTime())
             .Item("preemptable_job_count").Value(element->GetPreemptableJobCount())
             .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())
@@ -668,8 +690,8 @@ private:
 
     yhash<TString, yhash_set<TString>> UserToEphemeralPools;
 
-    yhash<TString, yhash_set<int>> PoolToSpareChildIndices;
-    yhash<TString, int> PoolToMinUnusedChildIndex;
+    yhash<TString, yhash_set<int>> PoolToSpareSlotIndices;
+    yhash<TString, int> PoolToMinUnusedSlotIndex;
 
     typedef yhash<TOperationId, TOperationElementPtr> TOperationElementPtrByIdMap;
     TOperationElementPtrByIdMap OperationIdToElement;
@@ -1146,7 +1168,7 @@ private:
         int index = RegisterSchedulingTagFilter(TSchedulingTagFilter(pool->GetConfig()->SchedulingTagFilter));
         pool->SetSchedulingTagFilterIndex(index);
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
-        YCHECK(PoolToMinUnusedChildIndex.insert(std::make_pair(pool->GetId(), 0)).second);
+        YCHECK(PoolToMinUnusedSlotIndex.insert(std::make_pair(pool->GetId(), 0)).second);
         LOG_INFO("Pool registered (Pool: %v)", pool->GetId());
     }
 
@@ -1155,7 +1177,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
-        YCHECK(PoolToMinUnusedChildIndex.insert(std::make_pair(pool->GetId(), 0)).second);
+        YCHECK(PoolToMinUnusedSlotIndex.insert(std::make_pair(pool->GetId(), 0)).second);
         pool->SetParent(parent.Get());
         parent->AddChild(pool);
 
@@ -1175,8 +1197,8 @@ private:
 
         UnregisterSchedulingTagFilter(pool->GetSchedulingTagFilterIndex());
 
-        YCHECK(PoolToMinUnusedChildIndex.erase(pool->GetId()) == 1);
-        YCHECK(PoolToSpareChildIndices.erase(pool->GetId()) <= 1);
+        YCHECK(PoolToMinUnusedSlotIndex.erase(pool->GetId()) == 1);
+        YCHECK(PoolToSpareSlotIndices.erase(pool->GetId()) <= 1);
         YCHECK(Pools.erase(pool->GetId()) == 1);
 
         pool->SetAlive(false);
@@ -1521,9 +1543,9 @@ private:
     void ProfileOperationElement(TOperationElementPtr element)
     {
         auto poolTag = element->GetParent()->GetProfilingTag();
-        auto childIndexTag = GetChildIndexProfilingTag(element->GetChildIndex());
+        auto slotIndexTag = GetSlotIndexProfilingTag(element->GetSlotIndex());
 
-        ProfileSchedulerElement(element, "/operations", {poolTag, childIndexTag});
+        ProfileSchedulerElement(element, "/operations", {poolTag, slotIndexTag});
     }
 
     void ProfileCompositeSchedulerElement(TCompositeSchedulerElementPtr element)

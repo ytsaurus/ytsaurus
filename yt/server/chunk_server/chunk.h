@@ -88,6 +88,15 @@ public:
     TChunkTreeStatistics GetStatistics() const;
     NSecurityServer::TClusterResources GetResourceUsage() const;
 
+    //! Get disk size of a single part of the chunk.
+    /*!
+     *  For a non-erasure chunk, simply returns its size
+     *  (same as ChunkInfo().disk_space()).
+     *  For an erasure chunk, returns that size divided by the number of parts
+     *  used by the codec.
+     */
+    i64 GetPartDiskSpace() const;
+
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 

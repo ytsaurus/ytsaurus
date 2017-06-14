@@ -140,6 +140,12 @@ const TString& TNode::GetDefaultAddress() const
     return DefaultAddress_;
 }
 
+TDataCenter* TNode::GetDataCenter() const
+{
+    auto* rack = GetRack();
+    return rack ? rack->GetDataCenter() : nullptr;
+}
+
 bool TNode::HasTag(const TNullable<TString>& tag) const
 {
     return !tag || Tags_.find(*tag) != Tags_.end();

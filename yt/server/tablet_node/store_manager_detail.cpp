@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/core/utilex/random.h>
+
 namespace NYT {
 namespace NTabletNode {
 

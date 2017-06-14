@@ -9,6 +9,7 @@
 #include <yt/core/misc/address.h>
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/singleton.h>
+#include <yt/core/misc/shutdown.h>
 
 #include <yt/core/rpc/bus_channel.h>
 
@@ -337,6 +338,10 @@ void TTraceManager::Enqueue(
         annotationKey,
         annotationValue);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_SHUTDOWN_CALLBACK(8, TTraceManager::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
 

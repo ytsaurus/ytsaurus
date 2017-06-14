@@ -7,23 +7,18 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
-
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/address.h>
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/ring_queue.h>
 
+#include <yt/core/concurrency/poller.h>
+#include <yt/core/concurrency/rw_spinlock.h>
+
 #include <util/network/init.h>
 
-#include <yt/contrib/libev/ev++.h>
-
 #include <atomic>
-
-#ifdef _unix_
-    #include <sys/uio.h>
-#endif
 
 namespace NYT {
 namespace NBus {
@@ -31,20 +26,21 @@ namespace NBus {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETcpConnectionState,
+    (None)
     (Resolving)
     (Opening)
     (Open)
     (Closed)
+    (Aborted)
 );
 
 class TTcpConnection
     : public IBus
-    , public IEventLoopObject
+    , public NConcurrency::IPollable
 {
 public:
     TTcpConnection(
         TTcpBusConfigPtr config,
-        TTcpDispatcherThreadPtr dispatcherThread,
         EConnectionType connectionType,
         TNullable<ETcpInterfaceType> interfaceType,
         const TConnectionId& id,
@@ -54,17 +50,20 @@ public:
         const TNullable<TString>& address,
         const TNullable<TString>& unixDomainName,
         int priority,
-        IMessageHandlerPtr handler);
+        IMessageHandlerPtr handler,
+        NConcurrency::IPollerPtr poller);
 
     ~TTcpConnection();
 
+    void Start();
+    void Check();
+
     const TConnectionId& GetId() const;
 
-    // IEventLoopObject implementation.
-    virtual void SyncInitialize() override;
-    virtual void SyncFinalize() override;
-    virtual void SyncCheck() override;
-    virtual TString GetLoggingId() const override;
+    // IPollable implementation.
+    virtual const TString& GetLoggingId() const override;
+    virtual void OnEvent(NConcurrency::EPollControl control) override;
+    virtual void OnShutdown() override;
 
     // IBus implementation.
     virtual const TString& GetEndpointDescription() const override;
@@ -133,10 +132,8 @@ private:
     };
 
     const TTcpBusConfigPtr Config_;
-    const TTcpDispatcherThreadPtr DispatcherThread_;
     const EConnectionType ConnectionType_;
     const TConnectionId Id_;
-    int Socket_;
     const TString EndpointDescription_;
     const std::unique_ptr<NYTree::IAttributeDictionary> EndpointAttributes_;
     const TNullable<TString> Address_;
@@ -145,32 +142,39 @@ private:
     const int Priority_;
 #endif
     const IMessageHandlerPtr Handler_;
+    const NConcurrency::IPollerPtr Poller_;
 
-    NLogging::TLogger Logger;
-
-    int FD_ = INVALID_SOCKET;
+    const NLogging::TLogger Logger;
+    const TString LoggingId_;
 
     TNullable<ETcpInterfaceType> InterfaceType_;
-    TTcpDispatcherStatistics* Statistics_ = nullptr;
+    TTcpDispatcherCountersPtr Counters_;
     bool GenerateChecksums_ = true;
-    bool ConnectionCounterUpdated_ = false;
+    bool ConnectionCounterIncremented_ = false;
 
     // Only used by client sockets.
     int Port_ = 0;
 
-    std::atomic<EState> State_;
+    std::atomic<EState> State_ = {EState::None};
 
-    const TClosure MessageEnqueuedCallback_;
-    std::atomic<bool> MessageEnqueuedCallbackPending_ = {false};
-    TMultipleProducerSingleConsumerLockFreeStack<TQueuedMessage> QueuedMessages_;
+    TSpinLock EventHandlerSpinLock_;
+    NConcurrency::TReaderWriterSpinLock ControlSpinLock_;
+
+    TError TerminateError_;
+    bool TerminateRequested_ = false;
+    int Socket_;
+
+    bool Unregistered_ = false;
+    TError CloseError_;
 
     TSingleShotCallbackList<void(const TError&)> Terminated_;
 
-    std::unique_ptr<ev::io> SocketWatcher_;
+    std::atomic<bool> ArmedForQueuedMessages_ = {false};
+    TMultipleProducerSingleConsumerLockFreeStack<TQueuedMessage> QueuedMessages_;
 
     TPacketDecoder Decoder_;
     NProfiling::TCpuDuration ReadStallTimeout_;
-    NProfiling::TCpuInstant LastReadTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
+    std::atomic<NProfiling::TCpuInstant> LastIncompleteReadTime_ = {std::numeric_limits<NProfiling::TCpuInstant>::max()};
     TBlob ReadBuffer_;
 
     TRingQueue<TPacket*> QueuedPackets_;
@@ -178,44 +182,36 @@ private:
 
     TPacketEncoder Encoder_;
     NProfiling::TCpuDuration WriteStallTimeout_;
-    NProfiling::TCpuInstant LastWriteScheduleTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
+    std::atomic<NProfiling::TCpuInstant> LastIncompleteWriteTime_ = {std::numeric_limits<NProfiling::TCpuInstant>::max()};
     std::vector<std::unique_ptr<TBlob>> WriteBuffers_;
     TRingQueue<TRef> EncodedFragments_;
     TRingQueue<size_t> EncodedPacketSizes_;
 
-#ifdef _WIN32
-    std::vector<WSABUF> SendVector_;
-#else
     std::vector<struct iovec> SendVector_;
-#endif
 
     TRingQueue<TUnackedMessage> UnackedMessages_;
 
-    DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
-
     void Cleanup();
 
-    void SyncOpen();
-    void SyncResolve();
-    void SyncClose(const TError& error);
+    void Open();
+    void ResolveAddress();
+    void Abort(const TError& error);
 
     void InitBuffers();
-    void InitFD();
-    void InitSocketWatcher();
 
     int GetSocketPort();
 
-    void ConnectSocket(const TNetworkAddress& netAddress);
+    void ConnectSocket(const TNetworkAddress& address);
     void CloseSocket();
 
-    void OnAddressResolutionFinished(const TErrorOr<TNetworkAddress>& result);
-    void OnAddressResolved(TNetworkAddress address);
-    void OnInterfaceTypeEstablished(ETcpInterfaceType interfaceType);
-
-    void OnSocket(ev::io&, int revents);
+    void OnAddressResolveFinished(const TErrorOr<TNetworkAddress>& result);
+    void OnAddressResolved(const TNetworkAddress& address, ETcpInterfaceType interfaceType, NConcurrency::TWriterGuard& guard);
+    void SetupInterfaceType(ETcpInterfaceType interfaceType);
 
     int GetSocketError() const;
     bool IsSocketError(ssize_t result);
+
+    void OnSocketConnected();
 
     void OnSocketRead();
     bool HasUnreadData() const;
@@ -242,16 +238,18 @@ private:
     void OnPacketSent();
     void OnAckPacketSent(const TPacket& packet);
     void OnMessagePacketSent(const TPacket& packet);
-    static void OnMessageEnqueuedThunk(const TWeakPtr<TTcpConnection>& weakConnection);
-    void OnMessageEnqueued();
-    void ProcessOutcomingMessages();
+    void OnTerminated();
+    void ProcessQueuedMessages();
     void DiscardOutcomingMessages(const TError& error);
     void DiscardUnackedMessages(const TError& error);
-    void UpdateSocketWatcher();
 
-    void OnTerminated(const TError& error);
+    void UnregisterFromPoller();
 
-    void UpdateConnectionCount(int delta);
+    void TryArmPoller();
+    void DoArmPoller();
+    void RearmPoller(bool hasUnsentData);
+
+    void UpdateConnectionCount(bool increment);
     void UpdatePendingOut(int countDelta, i64 sizeDelta);
 
 };

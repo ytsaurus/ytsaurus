@@ -406,52 +406,55 @@ void TFollowerRecovery::DoRun()
 
         DecoratedAutomaton_->CommitMutations(committedVersion, false);
 
-        TPostponedMutations postponedMutations;
+        decltype(PostponedActions_) postponedActions;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            postponedMutations.swap(PostponedMutations_);
-        }
-
-        if (!postponedMutations.empty()) {
-            LOG_INFO("Logging %v postponed mutations",
-                postponedMutations.size());
-
-            for (const auto& mutation : postponedMutations) {
-                switch (mutation.Type) {
-                    case TPostponedMutation::EType::Mutation:
-                        DecoratedAutomaton_->LogFollowerMutation(mutation.RecordData, nullptr);
-                        break;
-
-                    case TPostponedMutation::EType::ChangelogRotation: {
-                        WaitFor(DecoratedAutomaton_->RotateChangelog())
-                            .ThrowOnError();
-                        break;
-                    }
-
-                    default:
-                        Y_UNREACHABLE();
-                }
+            postponedActions.swap(PostponedActions_);
+            if (postponedActions.empty() && !DecoratedAutomaton_->HasReadyMutations()) {
+                LOG_INFO("No more postponed actions accepted");
+                NoMorePostponedActions_ = true;
+                break;
             }
         }
 
-        if (postponedMutations.empty() && !DecoratedAutomaton_->HasReadyMutations())
-            break;
+        LOG_INFO("Logging postponed actions (ActionCount: %v)",
+            postponedActions.size());
+
+        for (const auto& action : postponedActions) {
+            switch (action.Tag()) {
+                case TPostponedAction::TagOf<TPostponedMutation>():
+                    DecoratedAutomaton_->LogFollowerMutation(action.As<TPostponedMutation>().RecordData, nullptr);
+                    break;
+
+                case TPostponedAction::TagOf<TPostponedChangelogRotation>():
+                    WaitFor(DecoratedAutomaton_->RotateChangelog())
+                        .ThrowOnError();
+                    break;
+
+                default:
+                    Y_UNREACHABLE();
+            }
+        }
     }
 
     LOG_INFO("Finished catching up with leader");
 }
 
-void TFollowerRecovery::PostponeChangelogRotation(TVersion version)
+bool TFollowerRecovery::PostponeChangelogRotation(TVersion version)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(SpinLock_);
 
+    if (NoMorePostponedActions_) {
+        return false;
+    }
+
     if (PostponedVersion_ > version) {
         LOG_DEBUG("Late changelog rotation received during recovery, ignored: expected %v, received %v",
             PostponedVersion_,
             version);
-        return;
+        return true;
     }
 
     if (PostponedVersion_ < version) {
@@ -460,15 +463,17 @@ void TFollowerRecovery::PostponeChangelogRotation(TVersion version)
             version);
     }
 
-    PostponedMutations_.push_back(TPostponedMutation::CreateChangelogRotation());
+    PostponedActions_.push_back(TPostponedChangelogRotation());
 
     LOG_INFO("Postponing changelog rotation at version %v",
         PostponedVersion_);
 
     PostponedVersion_ = PostponedVersion_.Rotate();
+
+    return true;
 }
 
-void TFollowerRecovery::PostponeMutations(
+bool TFollowerRecovery::PostponeMutations(
     TVersion version,
     const std::vector<TSharedRef>& recordsData)
 {
@@ -476,11 +481,15 @@ void TFollowerRecovery::PostponeMutations(
 
     TGuard<TSpinLock> guard(SpinLock_);
 
+    if (NoMorePostponedActions_) {
+        return false;
+    }
+
     if (PostponedVersion_ > version) {
-        LOG_WARNING("Late mutations received during recovery, ignored: expected %v, received %v",
+        LOG_DEBUG("Late mutations received during recovery, ignored: expected %v, received %v",
             PostponedVersion_,
             version);
-        return;
+        return true;
     }
 
     if (PostponedVersion_ != version) {
@@ -494,10 +503,12 @@ void TFollowerRecovery::PostponeMutations(
         recordsData.size());
 
     for (const auto& data : recordsData) {
-        PostponedMutations_.push_back(TPostponedMutation::CreateMutation(data));
+        PostponedActions_.push_back(TPostponedMutation{data});
     }
 
     PostponedVersion_ = PostponedVersion_.Advance(recordsData.size());
+
+    return true;
 }
 
 void TFollowerRecovery::SetCommittedVersion(TVersion version)

@@ -168,6 +168,13 @@ public:
     void SetAddresses(const TAddressMap& addresses);
     const TString& GetDefaultAddress() const;
 
+    //! Get data center to which this node belongs.
+    /*!
+     *  May return nullptr if the node belongs to no rack or its rack belongs to
+     *  no data center.
+     */
+    TDataCenter* GetDataCenter() const;
+
     bool HasTag(const TNullable<TString>& tag) const;
 
     //! Prepares per-cell state map.

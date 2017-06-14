@@ -38,8 +38,11 @@ protected:
 
     void WriteEvent(ILogWriter* writer)
     {
+        TLoggingCategory category;
+        category.Name = "category";
+
         TLogEvent event;
-        event.Category = "category";
+        event.Category = &category;
         event.Level = ELogLevel::Debug;
         event.Message = "message";
         event.ThreadId = 0xba;

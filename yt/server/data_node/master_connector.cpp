@@ -44,11 +44,11 @@
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/string.h>
 
+#include <yt/core/utilex/random.h>
+
 #include <yt/core/rpc/client.h>
 
 #include <yt/core/ytree/convert.h>
-
-#include <util/random/random.h>
 
 namespace NYT {
 namespace NDataNode {

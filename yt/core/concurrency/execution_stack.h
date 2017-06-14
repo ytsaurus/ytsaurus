@@ -10,7 +10,7 @@ namespace NConcurrency {
 class TExecutionStackBase
 {
 public:
-    virtual ~TExecutionStackBase();
+    virtual ~TExecutionStackBase() = default;
 
     void* GetStack() const;
     size_t GetSize() const;

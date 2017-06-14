@@ -113,9 +113,10 @@ if(_is_gcc)
   if(CPU_VENDOR STREQUAL "GenuineIntel" OR CPU_VENDOR STREQUAL "AuthenticAMD")
     set(ARCH_FLAGS "-march=sandybridge -msse -msse2 -msse3")
     set(ARCH_FLAGS "${ARCH_FLAGS} -mno-avx -mpclmul")
-    if(YT_USE_SSE)
-      set(ARCH_FLAGS "${ARCH_FLAGS} -msse4 -msse4.1 -msse4.2")
-    endif()
+  endif()
+
+  if(YT_USE_SSE)
+    set(ARCH_FLAGS "${ARCH_FLAGS} -msse4 -msse4.1 -msse4.2")
   endif()
 
   if(NOT _is_clang)

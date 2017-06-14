@@ -1,22 +1,22 @@
 #include "log.h"
 #include "log_manager.h"
 
-#include <yt/core/misc/pattern_formatter.h>
-
-#include <yt/core/ytree/node.h>
-
-#include <util/folder/dirut.h>
-
 namespace NYT {
 namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger::TLogger(const char* category)
-    : Category_(category)
+TLogger::TLogger()
+    : LogManager_(nullptr)
+    , Category_(nullptr)
 { }
 
-const char* TLogger::GetCategory() const
+TLogger::TLogger(const char* categoryName)
+    : LogManager_(TLogManager::Get())
+    , Category_(LogManager_->GetCategory(categoryName))
+{ }
+
+const TLoggingCategory* TLogger::GetCategory() const
 {
     return Category_;
 }
@@ -27,11 +27,11 @@ bool TLogger::IsEnabled(ELogLevel level) const
         return false;
     }
 
-    if (GetLogManager()->GetVersion() != Version_) {
-        const_cast<TLogger*>(this)->Update();
+    if (Category_->CurrentVersion != Category_->ActualVersion->load(std::memory_order_relaxed)) {
+        LogManager_->UpdateCategory(Category_);
     }
 
-    return level >= MinLevel_;
+    return level >= Category_->MinLevel;
 }
 
 void TLogger::Write(TLogEvent&& event) const
@@ -39,7 +39,8 @@ void TLogger::Write(TLogEvent&& event) const
     if (!Context_.empty()) {
         event.Message = GetMessageWithContext(event.Message, Context_);
     }
-    GetLogManager()->Enqueue(std::move(event));
+
+    LogManager_->Enqueue(std::move(event));
 }
 
 TLogger& TLogger::AddRawTag(const TString& tag)
@@ -54,20 +55,6 @@ TLogger& TLogger::AddRawTag(const TString& tag)
 const TString& TLogger::GetContext() const
 {
     return Context_;
-}
-
-void TLogger::Update()
-{
-    MinLevel_ = GetLogManager()->GetMinLevel(Category_);
-    Version_ = GetLogManager()->GetVersion();
-}
-
-TLogManager* TLogger::GetLogManager() const
-{
-    if (!LogManager_) {
-        LogManager_ = TLogManager::Get();
-    }
-    return LogManager_;
 }
 
 TString TLogger::GetMessageWithContext(const TString& originalMessage, const TString& context)

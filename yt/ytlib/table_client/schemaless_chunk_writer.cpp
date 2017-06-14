@@ -1043,7 +1043,7 @@ private:
         if (cmp == 0) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::UniqueKeyViolation,
-                "Duplicated key: %v",
+                "Duplicate key %v",
                 leftBuilder.FinishRow().Get());
         } else {
             if (Options_->ExplodeOnValidationError) {

@@ -780,19 +780,15 @@ TEST_F(TPrepareExpressionTest, Negative1)
 
     EXPECT_THROW_THAT(
         [&] { PrepareExpression(TString("ki = 18446744073709551606u"), schema); },
-        HasSubstr("to int64: value is greater than maximum"));
+        HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
         [&] { PrepareExpression(TString("ku = 1.5"), schema); },
-        HasSubstr("to uint64: inaccurate conversion"));
-
-    EXPECT_THROW_THAT(
-        [&] { PrepareExpression(TString("ku = -1.0"), schema); },
-        HasSubstr("to uint64: inaccurate conversion"));
+        HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
         [&] { PrepareExpression(TString("ki = 1.5"), schema); },
-        HasSubstr("to int64: inaccurate conversion"));
+        HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
         [&] { PrepareExpression(TString("(1u - 2) / 3.0"), schema); },
@@ -809,24 +805,9 @@ INSTANTIATE_TEST_CASE_P(
     ::testing::Values(
         std::tuple<TConstExpressionPtr, const char*>(
             Make<TBinaryOpExpression>(EBinaryOp::Equal,
-                Make<TReferenceExpression>("ki"),
-                Make<TLiteralExpression>(MakeInt64(1))),
-            "ki = 1u"),
-        std::tuple<TConstExpressionPtr, const char*>(
-            Make<TBinaryOpExpression>(EBinaryOp::Equal,
-                Make<TReferenceExpression>("ki"),
-                Make<TLiteralExpression>(MakeInt64(1))),
-            "ki = 1.0"),
-        std::tuple<TConstExpressionPtr, const char*>(
-            Make<TBinaryOpExpression>(EBinaryOp::Equal,
                 Make<TReferenceExpression>("ku"),
                 Make<TLiteralExpression>(MakeUint64(1))),
             "ku = 1"),
-        std::tuple<TConstExpressionPtr, const char*>(
-            Make<TBinaryOpExpression>(EBinaryOp::Equal,
-                Make<TReferenceExpression>("ku"),
-                Make<TLiteralExpression>(MakeUint64(1))),
-            "ku = 1.0"),
         std::tuple<TConstExpressionPtr, const char*>(
             Make<TBinaryOpExpression>(EBinaryOp::Equal,
                 Make<TReferenceExpression>("kd"),
@@ -873,18 +854,8 @@ INSTANTIATE_TEST_CASE_P(
         std::tuple<TConstExpressionPtr, const char*>(
             Make<TBinaryOpExpression>(EBinaryOp::Equal,
                 Make<TReferenceExpression>("ku"),
-                Make<TLiteralExpression>(MakeUint64(61489146912365176llu))),
-            "ku = 184467440737095520u / 3.0"),
-        std::tuple<TConstExpressionPtr, const char*>(
-            Make<TBinaryOpExpression>(EBinaryOp::Equal,
-                Make<TReferenceExpression>("ku"),
                 Make<TLiteralExpression>(MakeUint64(61489146912365173llu))),
-            "ku = 184467440737095520u / 3"),
-        std::tuple<TConstExpressionPtr, const char*>(
-            Make<TBinaryOpExpression>(EBinaryOp::Divide,
-                Make<TReferenceExpression>("ki"),
-                Make<TLiteralExpression>(MakeInt64(6))),
-            "ki / 2u / 3")
+            "ku = 184467440737095520u / 3")
 ));
 
 INSTANTIATE_TEST_CASE_P(
@@ -980,36 +951,6 @@ TEST_P(TExpressionTest, ConstantFolding)
         << "expected: " <<  ::testing::PrintToString(expected) << std::endl;
 }
 
-TEST_F(TExpressionTest, ConstantDivisorsFolding)
-{
-    auto schema = GetSampleTableSchema();
-    auto expr1 = PrepareExpression("k / 100 / 2", schema);
-    auto expr2 = PrepareExpression("k / 200", schema);
-
-    EXPECT_TRUE(Equal(expr1, expr2))
-        << "expr1: " <<  ::testing::PrintToString(expr1) << std::endl
-        << "expr2: " <<  ::testing::PrintToString(expr2) << std::endl;
-
-    expr1 = PrepareExpression("k / 3102228988 / 4021316745", schema);
-    expr2 = PrepareExpression("k / (3102228988 * 4021316745)", schema);
-
-    EXPECT_FALSE(Equal(expr1, expr2))
-        << "expr1: " <<  ::testing::PrintToString(expr1) << std::endl
-        << "expr2: " <<  ::testing::PrintToString(expr2) << std::endl;
-
-    EXPECT_THROW_THAT(
-        [&] { PrepareExpression("k / 1000.0 / 55.9606", schema); },
-        HasSubstr("Failed to cast 55.960600 to int64: inaccurate conversion"));
-
-    auto expr3 = PrepareExpression("k / 1000.0 / 55.0", schema);
-    auto expr4 = PrepareExpression("k / 55000", schema);
-
-    EXPECT_TRUE(Equal(expr3, expr4))
-        << "expr3: " <<  ::testing::PrintToString(expr3) << std::endl
-        << "expr4: " <<  ::testing::PrintToString(expr4) << std::endl;
-
-}
-
 TEST_F(TExpressionTest, FunctionNullArgument)
 {
     auto schema = GetSampleTableSchema();
@@ -1029,13 +970,9 @@ TEST_F(TExpressionTest, FunctionNullArgument)
 
     EXPECT_EQ(result, MakeNull());
 
-    expr = PrepareExpression("if(null, null, null)", schema);
-    EXPECT_EQ(expr->Type, EValueType::Null);
-
-    callback = Profile(expr, schema, nullptr, &variables)();
-    callback(variables.GetOpaqueData(), &result, row, buffer.Get());
-
-    EXPECT_EQ(result, MakeNull());
+    EXPECT_THROW_THAT(
+        [&] { PrepareExpression("if(null, null, null)", schema); },
+        HasSubstr("Type inference failed"));
 
     expr = PrepareExpression("if(null, 1, 2)", schema);
     EXPECT_EQ(expr->Type, EValueType::Int64);
@@ -1212,8 +1149,7 @@ INSTANTIATE_TEST_CASE_P(
         TArithmeticTestParam(EValueType::Int64, "1", "=", "#", MakeBoolean(false)),
         TArithmeticTestParam(EValueType::Int64, "1", "!=", "#", MakeBoolean(true)),
 
-        TArithmeticTestParam(EValueType::Int64, "1", "+", "#", MakeNull()),
-        TArithmeticTestParam(EValueType::Int64, "#", "+", "#", MakeNull())
+        TArithmeticTestParam(EValueType::Int64, "1", "+", "#", MakeNull())
 ));
 ////////////////////////////////////////////////////////////////////////////////
 
