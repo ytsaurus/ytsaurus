@@ -226,6 +226,13 @@ public:
         Y_UNIMPLEMENTED();
     }
 
+    virtual TFuture<NApi::TSkynetSharePartsLocationsPtr> LocateSkynetShare(
+        const NYPath::TRichYPath& path,
+        const NApi::TLocateSkynetShareOptions& options = NApi::TLocateSkynetShareOptions()) override
+    {
+        Y_UNIMPLEMENTED();
+    }
+
 private:
     const TRpcProxyConnectionPtr Connection_;
     const NRpc::IChannelPtr Channel_;

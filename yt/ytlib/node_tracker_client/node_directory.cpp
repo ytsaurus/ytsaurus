@@ -4,6 +4,10 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
+#include <yt/core/yson/consumer.h>
+
+#include <yt/core/ytree/fluent.h>
+
 #include <yt/core/misc/address.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
@@ -12,6 +16,8 @@ namespace NYT {
 namespace NNodeTrackerClient {
 
 using namespace NChunkClient;
+using namespace NYson;
+using namespace NYTree;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -285,6 +291,28 @@ void TNodeDirectory::DumpTo(NProto::TNodeDirectory* destination)
         item->set_node_id(pair.first);
         ToProto(item->mutable_node_descriptor(), *pair.second);
     }
+}
+
+void TNodeDirectory::Serialize(IYsonConsumer* consumer) const
+{
+    NConcurrency::TReaderGuard guard(SpinLock_);
+
+    BuildYsonFluently(consumer)
+        .BeginList()
+            .DoFor(IdToDescriptor_, [&] (TFluentList fluent, const std::pair<TNodeId, const TNodeDescriptor*>& pair) {
+                fluent
+                    .Item()
+                        .BeginMap()
+                            .Item("node_id").Value(pair.first)
+                            .Item("addresses").Value(pair.second->Addresses())
+                        .EndMap();
+            })
+        .EndList();
+}
+
+void Serialize(const TNodeDirectory& nodeDirectory, NYson::IYsonConsumer* consumer)
+{
+    nodeDirectory.Serialize(consumer);
 }
 
 void TNodeDirectory::AddDescriptor(TNodeId id, const TNodeDescriptor& descriptor)

@@ -372,6 +372,8 @@ public:
     //! Use DIRECT_IO flag when writing chunks data to disk.
     bool EnableWriteDirectIO;
 
+    bool EnableExperimentalSkynetHttpApi;
+
     //! The time after which any registered placement info expires.
     TDuration PlacementExpirationTime;
 
@@ -494,6 +496,9 @@ public:
 
         RegisterParameter("enable_write_direct_io", EnableWriteDirectIO)
             .Default(true);
+
+        RegisterParameter("enable_experimental_skynet_http_api", EnableExperimentalSkynetHttpApi)
+            .Default(false);
 
         RegisterInitializer([&] () {
             ChunkMetaCache->Capacity = (i64) 1024 * 1024 * 1024;

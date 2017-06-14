@@ -1,4 +1,5 @@
 #include "client.h"
+#include "native_client.h"
 
 #include <yt/ytlib/table_client/public.h>
 
@@ -15,9 +16,10 @@ TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
     const TTableReaderOptions& options);
 
 NConcurrency::IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
-    NTableClient::ISchemalessMultiChunkReaderPtr reader,
+    NTableClient::ISchemalessChunkReaderPtr reader,
     const TNullable<TString>& partIndexColumnName,
-    const TNullable<TString>& dataColumnName);
+    const TNullable<TString>& dataColumnName,
+    i64 startPartIndex = 0);
 
 ////////////////////////////////////////////////////////////////////////////////
 

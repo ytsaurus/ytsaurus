@@ -460,12 +460,14 @@ class TBlobTableReader
 {
 public:
     TBlobTableReader(
-        ISchemalessMultiChunkReaderPtr reader,
+        ISchemalessChunkReaderPtr reader,
         const TNullable<TString>& partIndexColumnName,
-        const TNullable<TString>& dataColumnName)
+        const TNullable<TString>& dataColumnName,
+        const TNullable<i64>& startPartIndex)
         : Reader_(std::move(reader))
         , PartIndexColumnName_(partIndexColumnName ? *partIndexColumnName : TBlobTableSchema::PartIndexColumn)
         , DataColumnName_(dataColumnName ? *dataColumnName : TBlobTableSchema::DataColumn)
+        , NextPartIndex_(startPartIndex.Get(0))
     {
         Rows_.reserve(1);
         ColumnIndex_[EColumnType::PartIndex] = Reader_->GetNameTable()->GetIdOrRegisterName(PartIndexColumnName_);
@@ -488,13 +490,13 @@ public:
     }
 
 private:
-    const ISchemalessMultiChunkReaderPtr Reader_;
+    const ISchemalessChunkReaderPtr Reader_;
     const TString PartIndexColumnName_;
     const TString DataColumnName_;
 
     std::vector<TUnversionedRow> Rows_;
     size_t Index_ = 0;
-    TNullable<size_t> PreviousPartIndex_;
+    size_t NextPartIndex_ = 0;
 
     TEnumIndexedVector<TNullable<size_t>, EColumnType> ColumnIndex_;
 
@@ -551,36 +553,31 @@ private:
     {
         auto partIndexValue = GetAndValidateValue(row, PartIndexColumnName_, EColumnType::PartIndex, EValueType::Int64);
         auto partIndex = partIndexValue.Data.Int64;
-        if (PreviousPartIndex_) {
-            if (partIndex != *PreviousPartIndex_ + 1) {
-                THROW_ERROR_EXCEPTION("Values of column %Qv must be consecutive but values %v and %v violate this property",
-                    PartIndexColumnName_,
-                    *PreviousPartIndex_,
-                    partIndex);
-            }
-        } else {
-            if (partIndex != 0) {
-                THROW_ERROR_EXCEPTION("Value of column %Qv expected to be 0, but found %v",
-                    PartIndexColumnName_,
-                    partIndex);
-            }
+
+        if (partIndex != NextPartIndex_) {
+            THROW_ERROR_EXCEPTION("Values of column %Qv must be consecutive but values %v and %v violate this property",
+                PartIndexColumnName_,
+                NextPartIndex_,
+                partIndex);
         }
 
-        PreviousPartIndex_ = partIndex;
+        NextPartIndex_ = partIndex + 1;
 
         return GetAndValidateValue(row, DataColumnName_, EColumnType::Data, EValueType::String);
     }
 };
 
 IAsyncZeroCopyInputStreamPtr CreateBlobTableReader(
-    ISchemalessMultiChunkReaderPtr reader,
+    ISchemalessChunkReaderPtr reader,
     const TNullable<TString>& partIndexColumnName,
-    const TNullable<TString>& dataColumnName)
+    const TNullable<TString>& dataColumnName,
+    const i64 startPartIndex)
 {
     return New<TBlobTableReader>(
         std::move(reader),
         partIndexColumnName,
-        dataColumnName);
+        dataColumnName,
+        startPartIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
