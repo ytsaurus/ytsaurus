@@ -542,7 +542,7 @@ Handle<Value> TNodeWrap::FindByYPath(const Arguments& args)
     TStringBuf path(*pathValue, pathValue.length());
 
     try {
-        node = FindNodeByYPath(std::move(node), Stroka(path));
+        node = FindNodeByYPath(std::move(node), TString(path));
     } catch (const std::exception& ex) {
         return ThrowException(ConvertErrorToV8(ex));
     }
