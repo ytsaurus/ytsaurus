@@ -80,6 +80,15 @@ SIMPLE_UNIT_TEST_SUITE(CypressClient) {
         UNIT_ASSERT_VALUES_EQUAL(
             client->Get("//testing/node_with_attributes/@attr_name"),
             TNode("attr_value"));
+
+        {
+            auto initialNodeId = client->Create("//testing/existing_table_for_force", NT_TABLE);
+
+            auto nonForceNodeId = client->Create("//testing/existing_table_for_force", NT_TABLE, TCreateOptions().IgnoreExisting(true));
+            UNIT_ASSERT_VALUES_EQUAL(initialNodeId, nonForceNodeId);
+            auto forceNodeId = client->Create("//testing/existing_table_for_force", NT_TABLE, TCreateOptions().Force(true));
+            UNIT_ASSERT(forceNodeId != initialNodeId);
+        }
     }
 
     SIMPLE_UNIT_TEST(TestRemove)
