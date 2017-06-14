@@ -125,7 +125,7 @@ TProgramException::TProgramException(TString what)
     : What_(std::move(what))
 { }
 
-const char* TProgramException::what() const
+const char* TProgramException::what() const noexcept
 {
     return What_.c_str();
 }
