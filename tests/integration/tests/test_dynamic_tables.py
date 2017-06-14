@@ -843,6 +843,9 @@ class TestTabletActions(TestDynamicTablesBase):
                 "min_tablet_size": 128,
                 "max_tablet_size": 512,
                 "desired_tablet_size": 512,
+                "min_in_memory_tablet_size": 0,
+                "max_in_memory_tablet_size": 512,
+                "desired_in_memory_tablet_size": 256,
             }
         }
     }
@@ -935,8 +938,8 @@ class TestTabletActions(TestDynamicTablesBase):
         cells = self.sync_create_cells(2)
         self._create_sorted_table("//tmp/t1")
         self._create_sorted_table("//tmp/t2")
-        set("//tmp/t1/@in_memory_mode", "compressed")
-        set("//tmp/t2/@in_memory_mode", "compressed")
+        set("//tmp/t1/@in_memory_mode", "uncompressed")
+        set("//tmp/t2/@in_memory_mode", "uncompressed")
         self.sync_mount_table("//tmp/t1", cell_id=cells[0])
         self.sync_mount_table("//tmp/t2", cell_id=cells[0])
         insert_rows("//tmp/t1", [{"key": 0, "value": "A"*128}])
@@ -966,7 +969,7 @@ class TestTabletActions(TestDynamicTablesBase):
         pairs = [("//tmp/t1", cells), ("//tmp/t2", cells_b)]
         for pair in pairs:
             table = pair[0]
-            set(table + "/@in_memory_mode", "compressed")
+            set(table + "/@in_memory_mode", "uncompressed")
             self.sync_mount_table(table, cell_id=pair[1][0])
             insert_rows(table, [{"key": i, "value": "A"*128} for i in xrange(4)])
             self.sync_flush_table(table)
