@@ -121,6 +121,17 @@ void TProgram::OnError(const TString& message) const noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TProgramException::TProgramException(TString what)
+    : What_(std::move(what))
+{ }
+
+const char* TProgramException::what() const
+{
+    return What_.c_str();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TString CheckPathExistsArgMapper(const TString& arg)
 {
     if (!NFS::Exists(arg)) {
