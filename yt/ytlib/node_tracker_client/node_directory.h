@@ -8,6 +8,8 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
+#include <yt/core/yson/public.h>
+
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/property.h>
@@ -101,6 +103,7 @@ public:
     void MergeFrom(const NProto::TNodeDirectory& source);
     void MergeFrom(const TNodeDirectoryPtr& source);
     void DumpTo(NProto::TNodeDirectory* destination);
+    void Serialize(NYson::IYsonConsumer* consumer) const;
 
     void AddDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
 
@@ -116,7 +119,7 @@ public:
     void Load(TStreamLoadContext& context);
 
 private:
-    NConcurrency::TReaderWriterSpinLock SpinLock_;
+    mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
     yhash<TNodeId, const TNodeDescriptor*> IdToDescriptor_;
     yhash<TString, const TNodeDescriptor*> AddressToDescriptor_;
     std::vector<std::unique_ptr<TNodeDescriptor>> Descriptors_;
@@ -126,6 +129,8 @@ private:
     void DoAddCapturedDescriptor(TNodeId id, std::unique_ptr<TNodeDescriptor> descriptorHolder);
 
 };
+
+void Serialize(const TNodeDirectory& nodeDirectory, NYson::IYsonConsumer* consumer);
 
 DEFINE_REFCOUNTED_TYPE(TNodeDirectory)
 

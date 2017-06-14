@@ -21,6 +21,7 @@
 #include <yt/server/data_node/session_manager.h>
 #include <yt/server/data_node/ytree_integration.h>
 #include <yt/server/data_node/chunk_meta_manager.h>
+#include <yt/server/data_node/skynet_http_handler.h>
 
 #include <yt/server/exec_agent/config.h>
 #include <yt/server/exec_agent/job_environment.h>
@@ -501,6 +502,12 @@ void TBootstrap::DoRun()
         "/orchid",
         NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
 
+    if (Config->DataNode->EnableExperimentalSkynetHttpApi) {
+        HttpServer->Register(
+            "/read_skynet_part",
+            MakeSkynetHttpHandler(this));
+    }
+
     RpcServer->RegisterService(CreateOrchidService(
         OrchidRoot,
         GetControlInvoker()));
@@ -758,7 +765,17 @@ const IThroughputThrottlerPtr& TBootstrap::GetOutThrottler(const TWorkloadDescri
 
 TAddressMap TBootstrap::GetLocalAddresses()
 {
-    return NYT::GetLocalAddresses(Config->Addresses, Config->RpcPort);
+    auto localAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->RpcPort);
+
+    if (Config->DataNode->EnableExperimentalSkynetHttpApi) {
+        auto httpAddresses = NYT::GetLocalAddresses(Config->Addresses, Config->MonitoringPort);
+
+        for (const auto& addr : httpAddresses) {
+            localAddresses.emplace(addr.first + ".http", addr.second);
+        }
+    }
+
+    return localAddresses;
 }
 
 TNetworkPreferenceList TBootstrap::GetLocalNetworks()

@@ -25,6 +25,7 @@
 #include <yt/ytlib/tablet_client/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
@@ -531,6 +532,12 @@ struct TTableWriterOptions
     NTableClient::TTableWriterConfigPtr Config;
 };
 
+struct TLocateSkynetShareOptions
+    : public TTimeoutOptions
+{
+    NChunkClient::TFetchChunkSpecConfigPtr Config;
+};
+
 struct TStartOperationOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
@@ -711,7 +718,6 @@ struct IClientBase
         const TSharedRange<NTableClient::TKey>& keys,
         const TGetInSyncReplicasOptions& options = TGetInSyncReplicasOptions()) = 0;
 
-
     // Cypress
     virtual TFuture<NYson::TYsonString> GetNode(
         const NYPath::TYPath& path,
@@ -865,6 +871,10 @@ struct IClient
     virtual TFuture<void> AlterTableReplica(
         const NTabletClient::TTableReplicaId& replicaId,
         const TAlterTableReplicaOptions& options = TAlterTableReplicaOptions()) = 0;
+
+    virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
+        const NYPath::TRichYPath& path,
+        const TLocateSkynetShareOptions& options = TLocateSkynetShareOptions()) = 0;
 
     // Security
     virtual TFuture<void> AddMember(

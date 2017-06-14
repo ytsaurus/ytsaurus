@@ -305,6 +305,13 @@ def write_table(path, value, is_raw=False, **kwargs):
     kwargs["path"] = yson.to_yson_type(path, attributes=attributes)
     return execute_command("write_table", kwargs, input_stream=StringIO(value))
 
+def locate_skynet_share(path, **kwargs):
+    kwargs["path"] = path
+
+    output = StringIO()
+    execute_command("locate_skynet_share", kwargs, output_stream=output)
+    return yson.loads(output.getvalue(), yson_type="map")
+
 def select_rows(query, **kwargs):
     kwargs["query"] = query
     kwargs["verbose_logging"] = True
@@ -1019,7 +1026,6 @@ def make_ace(action, subjects, permissions, inheritance_mode="object_and_descend
         "permissions": _to_list(permissions),
         "inheritance_mode": inheritance_mode
     }
-
 
 #########################################
 

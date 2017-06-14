@@ -12,6 +12,7 @@
 #include "table_reader.h"
 #include "table_writer.h"
 #include "tablet_helpers.h"
+#include "skynet.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_replica.h>
@@ -713,6 +714,13 @@ public:
         const TTableReaderOptions& options) override
     {
         return NApi::CreateTableReader(this, path, options);
+    }
+
+    virtual TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
+        const NYPath::TRichYPath& path,
+        const TLocateSkynetShareOptions& options) override
+    {
+        return NApi::LocateSkynetShare(this, path, options);
     }
 
     virtual TFuture<NTableClient::ISchemalessWriterPtr> CreateTableWriter(

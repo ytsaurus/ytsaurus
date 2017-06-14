@@ -51,6 +51,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLocateSkynetShareCommand
+    : public TTypedCommand<NApi::TLocateSkynetShareOptions>
+{
+public:
+    TLocateSkynetShareCommand();
+
+private:
+    NYPath::TRichYPath Path;
+
+    virtual void OnLoaded() override;
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TWriteTableCommand
     : public TTypedCommand<NApi::TTableWriterOptions>
 {

@@ -4,6 +4,7 @@
 #include <yt/ytlib/api/rowset.h>
 #include <yt/ytlib/api/transaction.h>
 #include <yt/ytlib/api/table_reader.h>
+#include <yt/ytlib/api/skynet.h>
 
 #include <yt/ytlib/query_client/query_statistics.h>
 
@@ -163,6 +164,44 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
         WaitFor(output->Write(block))
             .ThrowOnError();
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLocateSkynetShareCommand::TLocateSkynetShareCommand()
+{
+    RegisterParameter("path", Path);
+}
+
+void TLocateSkynetShareCommand::OnLoaded()
+{
+    TCommandBase::OnLoaded();
+
+    Path = Path.Normalize();
+}
+
+void TLocateSkynetShareCommand::DoExecute(ICommandContextPtr context)
+{
+    Options.Config = context->GetConfig()->TableReader;
+
+    auto asyncSkynetPartsLocations = context->GetClient()->LocateSkynetShare(
+        Path,
+        Options);
+
+    auto skynetPartsLocations = WaitFor(asyncSkynetPartsLocations);
+
+    auto format = context->GetOutputFormat();
+    auto syncOutputStream = CreateSyncAdapter(context->Request().OutputStream);
+
+    TBufferedOutput bufferedOutputStream(syncOutputStream.get());
+
+    auto consumer = CreateConsumerForFormat(
+        format,
+        EDataType::Structured,
+        &bufferedOutputStream);
+
+    Serialize(*skynetPartsLocations.ValueOrThrow(), consumer.get());
+    consumer->Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
