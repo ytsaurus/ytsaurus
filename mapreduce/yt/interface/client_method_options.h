@@ -11,8 +11,19 @@ struct TCreateOptions
 {
     using TSelf = TCreateOptions;
 
+    // Create missing parent directories if required.
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
+
+    // Do not raise error if node exists already.
+    // Node is not recreated.
+    // Force and IgnoreExisting MUST NOT be used simultaneously.
     FLUENT_FIELD_DEFAULT(bool, IgnoreExisting, false);
+
+    // Recreate node if it exists.
+    // Force and IgnoreExisting MUST NOT be used simultaneously.
+    FLUENT_FIELD_DEFAULT(bool, Force, false);
+
+    // Set attributes when creating node.
     FLUENT_FIELD_OPTION(TNode, Attributes);
 };
 
