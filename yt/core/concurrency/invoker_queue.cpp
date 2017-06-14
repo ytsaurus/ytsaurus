@@ -282,7 +282,7 @@ TThreadId TInvokerQueue::GetThreadId() const
     return ThreadId;
 }
 
-bool TInvokerQueue::CheckAffinity(IInvokerPtr invoker) const
+bool TInvokerQueue::CheckAffinity(const IInvokerPtr& invoker) const
 {
     return invoker.Get() == this;
 }

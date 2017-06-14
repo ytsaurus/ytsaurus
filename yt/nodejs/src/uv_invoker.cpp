@@ -50,7 +50,7 @@ public:
         return NConcurrency::InvalidThreadId;
     }
 
-    virtual bool CheckAffinity(IInvokerPtr invoker) const override
+    virtual bool CheckAffinity(const IInvokerPtr& invoker) const override
     {
         return invoker.Get() == this;
     }

@@ -29,7 +29,7 @@ public:
     }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual bool CheckAffinity(IInvokerPtr invoker) const override
+    virtual bool CheckAffinity(const IInvokerPtr& invoker) const override
     {
         return invoker.Get() == this;
     }
@@ -56,7 +56,7 @@ public:
     { }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual bool CheckAffinity(IInvokerPtr /*invoker*/) const override
+    virtual bool CheckAffinity(const IInvokerPtr& /*invoker*/) const override
     {
         return false;
     }
