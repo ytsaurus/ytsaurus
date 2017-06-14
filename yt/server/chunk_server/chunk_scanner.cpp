@@ -68,14 +68,13 @@ TChunk* TChunkScanner::DequeueChunk()
 
     auto epoch = ObjectManager_->GetCurrentEpoch();
 
-    if (IsObjectAlive(chunk)) {
+    bool alive = IsObjectAlive(chunk);
+    if (alive) {
         Y_ASSERT(chunk->GetScanFlag(Kind_, epoch));
         chunk->ClearScanFlag(Kind_, epoch);
-        return chunk;
-    } else {
-        ObjectManager_->WeakUnrefObject(chunk);
-        return nullptr;
     }
+    ObjectManager_->WeakUnrefObject(chunk);
+    return alive ? chunk : nullptr;
 }
 
 bool TChunkScanner::HasUnscannedChunk(NProfiling::TCpuInstant deadline) const
