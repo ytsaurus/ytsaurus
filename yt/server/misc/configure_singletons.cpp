@@ -10,12 +10,16 @@
 
 #include <yt/core/concurrency/fiber.h>
 
+#include <yt/core/misc/lfalloc_helpers.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void ConfigureServerSingletons(const TServerConfigPtr& config)
 {
+    NLFAlloc::SetEnableDefrag(false);
+
     for (const auto& pair : config->FiberStackPoolSizes) {
         NConcurrency::SetFiberStackPoolSize(ParseEnum<NConcurrency::EExecutionStackKind>(pair.first), pair.second);
     }

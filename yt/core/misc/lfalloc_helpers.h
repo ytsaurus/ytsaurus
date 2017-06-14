@@ -11,6 +11,7 @@ const void* SafeMallocGetParam(const char* param);
 void SafeMallocSetParam(const char* param, const void* value);
 
 void SetBufferSize(i64);
+void SetEnableDefrag(bool flag);
 
 i64 GetCurrentUsed();
 i64 GetCurrentMmapped();
