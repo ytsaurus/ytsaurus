@@ -56,7 +56,7 @@ protected:
 
         ParseFreeArgs(parseResult);
 
-        Stroka jobProxySocketNameFile = JobProxySocketNameDirectory_ + "/" + ToString(UserId_);
+        TString jobProxySocketNameFile = JobProxySocketNameDirectory_ + "/" + ToString(UserId_);
         if (Exists(jobProxySocketNameFile)) {
             auto jobProxySocketName = TFileInput(jobProxySocketNameFile).ReadLine();
             ForwardCore(jobProxySocketName);
@@ -65,7 +65,7 @@ protected:
         }
     }
 
-    virtual void OnError(const Stroka& message) const noexcept override
+    virtual void OnError(const TString& message) const noexcept override
     {
         syslog(LOG_ERR, "%s", message.c_str());
     }
@@ -108,7 +108,7 @@ protected:
         }
     }
 
-    void ForwardCore(const Stroka& socketName)
+    void ForwardCore(const TString& socketName)
     {
         syslog(LOG_INFO, "Sending core to job proxy (SocketName: %s)", socketName.c_str());
 
@@ -117,7 +117,7 @@ protected:
 
         TCoreProcessorServiceProxy proxy(coreProcessorChannel);
 
-        Stroka namedPipePath;
+        TString namedPipePath;
 
         // Ask job proxy if it needs such a core dump.
         {
@@ -139,12 +139,12 @@ protected:
     int ProcessId_ = -1;
     int UserId_ = -1;
 
-    Stroka ExecutableName_;
+    TString ExecutableName_;
 
     ui64 RLimitCore_ = -1;
 
-    Stroka JobProxySocketNameDirectory_;
-    Stroka FallbackPath_;
+    TString JobProxySocketNameDirectory_;
+    TString FallbackPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

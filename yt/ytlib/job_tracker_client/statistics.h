@@ -67,7 +67,7 @@ public:
 
     void Update(const TStatistics& statistics);
 
-    void AddSuffixToNames(const Stroka& suffix);
+    void AddSuffixToNames(const TString& suffix);
 
     void Persist(NPhoenix::TPersistenceContext& context);
 
@@ -77,10 +77,10 @@ private:
     friend class TStatisticsBuildingConsumer;
 };
 
-i64 GetNumericValue(const TStatistics& statistics, const Stroka& path);
+i64 GetNumericValue(const TStatistics& statistics, const TString& path);
 
-TNullable<i64> FindNumericValue(const TStatistics& statistics, const Stroka& path);
-TNullable<TSummary> FindSummary(const TStatistics& statistics, const Stroka& path);
+TNullable<i64> FindNumericValue(const TStatistics& statistics, const TString& path);
+TNullable<TSummary> FindSummary(const TStatistics& statistics, const TString& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

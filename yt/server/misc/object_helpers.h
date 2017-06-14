@@ -1,6 +1,6 @@
 #pragma once
 
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 #include <vector>
 
@@ -10,7 +10,7 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-std::vector<Stroka> ToNames(const std::vector<T>& objects);
+std::vector<TString> ToNames(const std::vector<T>& objects);
 
 ////////////////////////////////////////////////////////////////////////////////
 

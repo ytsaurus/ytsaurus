@@ -2,7 +2,7 @@
 
 #include <yt/core/misc/nullable.h>
 
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 #include <set>
 
@@ -24,7 +24,7 @@ void DumpStackTrace(TCallback flushCallback);
 // useful stuff like backtrace) the content of the latter stack.
 
 //! Installs a new codicil into the stack.
-void PushCodicil(const Stroka& data);
+void PushCodicil(const TString& data);
 //! Removes the top codicils from the stack.
 void PopCodicil();
 
@@ -33,7 +33,7 @@ class TCodicilGuard
 {
 public:
     TCodicilGuard();
-    explicit TCodicilGuard(const Stroka& data);
+    explicit TCodicilGuard(const TString& data);
     ~TCodicilGuard();
 
     TCodicilGuard(const TCodicilGuard& other) = delete;

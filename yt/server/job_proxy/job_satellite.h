@@ -3,7 +3,7 @@
 #include "public.h"
 #include "job_satellite_connection.h"
 
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -13,8 +13,8 @@ namespace NJobProxy {
 void RunJobSatellite(
     TJobSatelliteConnectionConfigPtr config,
     int uid,
-    const std::vector<Stroka>& env,
-    const Stroka& jobId);
+    const std::vector<TString>& env,
+    const TString& jobId);
 void NotifyExecutorPrepared(TJobSatelliteConnectionConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////

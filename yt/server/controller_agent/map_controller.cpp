@@ -101,7 +101,7 @@ protected:
             , Controller(controller)
         { }
 
-        virtual Stroka GetId() const override
+        virtual TString GetId() const override
         {
             return "Unordered";
         }
@@ -368,7 +368,7 @@ protected:
 
 
     // Progress reporting.
-    virtual Stroka GetLoggingProgress() const override
+    virtual TString GetLoggingProgress() const override
     {
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "

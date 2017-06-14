@@ -19,7 +19,7 @@ extern const NLogging::TLogger JobProxyLogger;
 extern const NProfiling::TProfiler JobProxyProfiler;
 extern const TDuration RpcServerShutdownTimeout;
 
-const Stroka SatelliteConfigFileName("satellite_config.yson");
+const TString SatelliteConfigFileName("satellite_config.yson");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -31,8 +31,8 @@ struct TQueuedSample
 //! A pre-registered key-value pair used to mark samples.
 struct TTag
 {
-    Stroka Key;
-    Stroka Value;
+    TString Key;
+    TString Value;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,7 +90,7 @@ public:
 
     //! Registers a tag and returns its unique id.
     template <class T>
-    TTagId RegisterTag(const Stroka& key, const T& value);
+    TTagId RegisterTag(const TString& key, const T& value);
 
 private:
     TProfileManager();

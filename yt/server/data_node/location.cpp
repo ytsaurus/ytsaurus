@@ -48,7 +48,7 @@ static const auto TrashCheckPeriod = TDuration::Seconds(10);
 
 TLocation::TLocation(
     ELocationType type,
-    const Stroka& id,
+    const TString& id,
     TStoreLocationConfigBasePtr config,
     TBootstrap* bootstrap)
     : TDiskLocation(config, id, DataNodeLogger)
@@ -98,12 +98,12 @@ ELocationType TLocation::GetType() const
     return Type_;
 }
 
-const Stroka& TLocation::GetId() const
+const TString& TLocation::GetId() const
 {
     return Id_;
 }
 
-const Stroka& TLocation::GetMediumName() const
+const TString& TLocation::GetMediumName() const
 {
     return Config_->MediumName;
 }
@@ -123,7 +123,7 @@ const NProfiling::TProfiler& TLocation::GetProfiler() const
     return Profiler_;
 }
 
-Stroka TLocation::GetPath() const
+TString TLocation::GetPath() const
 {
     return Config_->Path;
 }
@@ -367,7 +367,7 @@ int TLocation::GetChunkCount() const
     return ChunkCount_;
 }
 
-Stroka TLocation::GetChunkPath(const TChunkId& chunkId) const
+TString TLocation::GetChunkPath(const TChunkId& chunkId) const
 {
     return NFS::CombinePaths(GetPath(), GetRelativeChunkPath(chunkId));
 }
@@ -405,13 +405,13 @@ void TLocation::RemoveChunkFiles(const TChunkId& chunkId, bool force)
     RemoveChunkFilesPermanently(chunkId);
 }
 
-Stroka TLocation::GetRelativeChunkPath(const TChunkId& chunkId)
+TString TLocation::GetRelativeChunkPath(const TChunkId& chunkId)
 {
     int hashByte = chunkId.Parts32[0] & 0xff;
     return NFS::CombinePaths(Format("%02x", hashByte), ToString(chunkId));
 }
 
-void TLocation::ForceHashDirectories(const Stroka& rootPath)
+void TLocation::ForceHashDirectories(const TString& rootPath)
 {
     for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
         auto hashDirectory = Format("%02x", hashByte);
@@ -482,7 +482,7 @@ i64 TLocation::GetAdditionalSpace() const
     return 0;
 }
 
-bool TLocation::ShouldSkipFileName(const Stroka& fileName) const
+bool TLocation::ShouldSkipFileName(const TString& fileName) const
 {
     // Skip cell_id file.
     if (fileName == CellIdFileName)
@@ -564,7 +564,7 @@ void TLocation::DoStart()
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoreLocation::TStoreLocation(
-    const Stroka& id,
+    const TString& id,
     TStoreLocationConfigPtr config,
     TBootstrap* bootstrap)
     : TLocation(
@@ -630,12 +630,12 @@ void TStoreLocation::RemoveChunkFiles(const TChunkId& chunkId, bool force)
     }
 }
 
-Stroka TStoreLocation::GetTrashPath() const
+TString TStoreLocation::GetTrashPath() const
 {
     return NFS::CombinePaths(GetPath(), TrashDirectory);
 }
 
-Stroka TStoreLocation::GetTrashChunkPath(const TChunkId& chunkId) const
+TString TStoreLocation::GetTrashChunkPath(const TChunkId& chunkId) const
 {
     return NFS::CombinePaths(GetTrashPath(), GetRelativeChunkPath(chunkId));
 }
@@ -898,7 +898,7 @@ TNullable<TChunkDescriptor> TStoreLocation::RepairChunk(const TChunkId& chunkId)
     return maybeDescriptor;
 }
 
-std::vector<Stroka> TStoreLocation::GetChunkPartNames(const TChunkId& chunkId) const
+std::vector<TString> TStoreLocation::GetChunkPartNames(const TChunkId& chunkId) const
 {
     auto primaryName = ToString(chunkId);
     switch (TypeFromId(DecodeChunkId(chunkId).Id)) {
@@ -921,7 +921,7 @@ std::vector<Stroka> TStoreLocation::GetChunkPartNames(const TChunkId& chunkId) c
     }
 }
 
-bool TStoreLocation::ShouldSkipFileName(const Stroka& fileName) const
+bool TStoreLocation::ShouldSkipFileName(const TString& fileName) const
 {
     if (TLocation::ShouldSkipFileName(fileName)) {
         return true;
@@ -984,7 +984,7 @@ void TStoreLocation::DoStart()
 ////////////////////////////////////////////////////////////////////////////////
 
 TCacheLocation::TCacheLocation(
-    const Stroka& id,
+    const TString& id,
     TCacheLocationConfigPtr config,
     TBootstrap* bootstrap)
     : TLocation(
@@ -1003,7 +1003,7 @@ IThroughputThrottlerPtr TCacheLocation::GetInThrottler() const
 
 TNullable<TChunkDescriptor> TCacheLocation::Repair(
     const TChunkId& chunkId,
-    const Stroka& metaSuffix)
+    const TString& metaSuffix)
 {
     auto fileName = GetChunkPath(chunkId);
 
@@ -1066,7 +1066,7 @@ TNullable<TChunkDescriptor> TCacheLocation::RepairChunk(const TChunkId& chunkId)
     return maybeDescriptor;
 }
 
-std::vector<Stroka> TCacheLocation::GetChunkPartNames(const TChunkId& chunkId) const
+std::vector<TString> TCacheLocation::GetChunkPartNames(const TChunkId& chunkId) const
 {
     auto primaryName = ToString(chunkId);
     switch (TypeFromId(DecodeChunkId(chunkId).Id)) {

@@ -21,9 +21,9 @@ using namespace NConcurrency;
 
 // Porto passes command string to wordexp, where quota (') symbol
 // is delimiter. So we must replace it with concatenation ('"'"').
-static Stroka EscapeForWordexp(const char* in)
+static TString EscapeForWordexp(const char* in)
 {
-    Stroka buffer;
+    TString buffer;
     while (*in) {
         if (*in == '\'') {
             buffer.append(R"('"'"')");
@@ -35,19 +35,19 @@ static Stroka EscapeForWordexp(const char* in)
     return buffer;
 }
 
-using TPortoStatRule = std::pair<Stroka, TCallback<i64(const Stroka& input)>>;
+using TPortoStatRule = std::pair<TString, TCallback<i64(const TString& input)>>;
 
-static i64 Extract(const Stroka& input, const Stroka& pattern, const Stroka& terminator = "\n")
+static i64 Extract(const TString& input, const TString& pattern, const TString& terminator = "\n")
 {
     auto start = input.find(pattern) + pattern.length();
     auto end = input.find(terminator, start);
     return std::stol(input.substr(start, (end == input.npos) ? end : end - start));
 }
 
-static i64 ExtractSum(const Stroka& input, const Stroka& pattern, const Stroka& delimiter, const Stroka& terminator = "\n")
+static i64 ExtractSum(const TString& input, const TString& pattern, const TString& delimiter, const TString& terminator = "\n")
 {
     i64 sum = 0;
-    Stroka::size_type pos = 0;
+    TString::size_type pos = 0;
     while (pos < input.length()) {
         pos = input.find(pattern, pos);
         if (pos == input.npos) {
@@ -73,7 +73,7 @@ class TPortoInstance
     : public IInstance
 {
 public:
-    static IInstancePtr Create(const Stroka& name, IPortoExecutorPtr executor)
+    static IInstancePtr Create(const TString& name, IPortoExecutorPtr executor)
     {
         auto error = WaitFor(executor->CreateContainer(name));
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to create container");
@@ -94,22 +94,22 @@ public:
         }
     }
 
-    virtual void SetStdIn(const Stroka& inputPath) override
+    virtual void SetStdIn(const TString& inputPath) override
     {
         SetProperty("stdin_path", inputPath);
     }
 
-    virtual void SetStdOut(const Stroka& outPath) override
+    virtual void SetStdOut(const TString& outPath) override
     {
         SetProperty("stdout_path", outPath);
     }
 
-    virtual void SetStdErr(const Stroka& errorPath) override
+    virtual void SetStdErr(const TString& errorPath) override
     {
         SetProperty("stderr_path", errorPath);
     }
 
-    virtual void SetCwd(const Stroka& cwd) override
+    virtual void SetCwd(const TString& cwd) override
     {
         SetProperty("cwd", cwd);
     }
@@ -138,7 +138,7 @@ public:
 
     virtual TUsage GetResourceUsage(const std::vector<EStatField>& fields) const override
     {
-        std::vector<Stroka> properties;
+        std::vector<TString> properties;
         TUsage result;
         try {
             for (auto field : fields) {
@@ -186,14 +186,14 @@ public:
         SetProperty("io_ops_limit", ToString(operations));
     }
 
-    virtual Stroka GetName() const override
+    virtual TString GetName() const override
     {
         return Name_;
     }
 
     virtual pid_t GetPid() const override
     {
-        auto pid = WaitFor(Executor_->GetProperties(Name_, std::vector<Stroka>{"root_pid"}))
+        auto pid = WaitFor(Executor_->GetProperties(Name_, std::vector<TString>{"root_pid"}))
             .ValueOrThrow();
         return std::stoi(pid.at("root_pid")
             .ValueOrThrow());
@@ -203,10 +203,10 @@ public:
         const std::vector<const char*>& argv,
         const std::vector<const char*>& env) override
     {
-        Stroka command;
+        TString command;
 
         for (auto arg : argv) {
-            command += Stroka("'") + EscapeForWordexp(arg) + Stroka("'");
+            command += TString("'") + EscapeForWordexp(arg) + TString("'");
             command += " ";
         }
 
@@ -219,7 +219,7 @@ public:
         SetProperty("porto_namespace", Name_ + "/");
 
         for (auto arg : env) {
-            SetProperty("env", Stroka(arg) + ";");
+            SetProperty("env", TString(arg) + ";");
         }
 
         // Wait for all pending actions - do not start real execution if
@@ -236,9 +236,9 @@ public:
         return Executor_->AsyncPoll(Name_);
     }
 
-    virtual void MountTmpfs(const Stroka& path, const size_t size, const Stroka& user) override
+    virtual void MountTmpfs(const TString& path, const size_t size, const TString& user) override
     {
-        std::map<Stroka, Stroka> config;
+        std::map<TString, TString> config;
         config["backend"] = "tmpfs";
         config["user"] = user;
         config["space_limit"] = ToString(size);
@@ -251,7 +251,7 @@ public:
         WaitFor(Combine(mountActions)).ThrowOnError();
     }
 
-    virtual void Umount(const Stroka& path) override
+    virtual void Umount(const TString& path) override
     {
         WaitFor(Executor_->UnlinkVolume(path, Name_)).ThrowOnError();
     }
@@ -264,7 +264,7 @@ public:
         for (const auto& volume : volumes) {
             for (auto container : volume.Containers) {
                 if (container == Name_) {
-                    result.push_back({Stroka(), volume.Path});
+                    result.push_back({TString(), volume.Path});
                 }
             }
         }
@@ -272,7 +272,7 @@ public:
     }
 
 private:
-    const Stroka Name_;
+    const TString Name_;
     mutable IPortoExecutorPtr Executor_;
     std::vector<TFuture<void>> Actions_;
     static const std::map<EStatField, TPortoStatRule> StatRules_;
@@ -280,7 +280,7 @@ private:
     bool Destroyed_ = false;
 
     TPortoInstance(
-        const Stroka& name,
+        const TString& name,
         IPortoExecutorPtr executor)
         : Name_(name)
         , Executor_(executor)
@@ -288,7 +288,7 @@ private:
             .AddTag("Container: %v", Name_))
     { }
 
-    void SetProperty(const Stroka& key, const Stroka& value)
+    void SetProperty(const TString& key, const TString& value)
     {
         Actions_.push_back(Executor_->SetProperty(Name_, key, value));
     }
@@ -305,30 +305,30 @@ private:
 
 const std::map<EStatField, TPortoStatRule> TPortoInstance::StatRules_ = {
     { EStatField::CpuUsageUser,    { "cpu_usage",
-        BIND([](const Stroka& in) { return std::stol(in);                     } ) } },
+        BIND([](const TString& in) { return std::stol(in);                     } ) } },
     { EStatField::CpuUsageSystem,  { "cpu_usage_system",
-        BIND([](const Stroka& in) { return std::stol(in);                     } ) } },
+        BIND([](const TString& in) { return std::stol(in);                     } ) } },
     { EStatField::CpuStolenTime,   { "cpu_wait_time",
-        BIND([](const Stroka& in) { return std::stol(in);                     } ) } },
+        BIND([](const TString& in) { return std::stol(in);                     } ) } },
     { EStatField::Rss,             { "memory.stat",
-        BIND([](const Stroka& in) { return Extract(in, "rss");                } ) } },
+        BIND([](const TString& in) { return Extract(in, "rss");                } ) } },
     { EStatField::MappedFiles,     { "memory.stat",
-        BIND([](const Stroka& in) { return Extract(in, "mapped_file");        } ) } },
+        BIND([](const TString& in) { return Extract(in, "mapped_file");        } ) } },
     { EStatField::IOOperations,    { "io_ops",
-        BIND([](const Stroka& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
+        BIND([](const TString& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
     { EStatField::IOReadByte,      { "io_read",
-        BIND([](const Stroka& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
+        BIND([](const TString& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
     { EStatField::IOWriteByte,      { "io_write",
-        BIND([](const Stroka& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
+        BIND([](const TString& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
     { EStatField::MaxMemoryUsage,  { "memory.max_usage_in_bytes",
-        BIND([](const Stroka& in) { return std::stol(in);                     } ) } },
+        BIND([](const TString& in) { return std::stol(in);                     } ) } },
     { EStatField::MajorFaults,     { "major_faults",
-        BIND([](const Stroka& in) { return std::stol(in);                     } ) } }
+        BIND([](const TString& in) { return std::stol(in);                     } ) } }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IInstancePtr CreatePortoInstance(const Stroka& name, IPortoExecutorPtr executor)
+IInstancePtr CreatePortoInstance(const TString& name, IPortoExecutorPtr executor)
 {
     return TPortoInstance::Create(name, executor);
 }

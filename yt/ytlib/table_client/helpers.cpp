@@ -236,7 +236,7 @@ void ValidateKeyColumns(const TKeyColumns& keyColumns, const TKeyColumns& chunkK
     }
 }
 
-TColumnFilter CreateColumnFilter(const TNullable<std::vector<Stroka>>& columns, TNameTablePtr nameTable)
+TColumnFilter CreateColumnFilter(const TNullable<std::vector<TString>>& columns, TNameTablePtr nameTable)
 {
     TColumnFilter columnFilter;
     if (!columns) {
@@ -435,13 +435,13 @@ TTableUploadOptions GetTableUploadOptions(
 ////////////////////////////////////////////////////////////////////////////////
 
 TUnversionedOwningRow YsonToSchemafulRow(
-    const Stroka& yson,
+    const TString& yson,
     const TTableSchema& tableSchema,
     bool treatMissingAsNull)
 {
     auto nameTable = TNameTable::FromSchema(tableSchema);
 
-    auto rowParts = ConvertTo<yhash<Stroka, INodePtr>>(
+    auto rowParts = ConvertTo<yhash<TString, INodePtr>>(
         TYsonString(yson, EYsonType::MapFragment));
 
     TUnversionedOwningRowBuilder rowBuilder;
@@ -460,7 +460,7 @@ TUnversionedOwningRow YsonToSchemafulRow(
                 rowBuilder.AddValue(MakeUnversionedBooleanValue(value->GetValue<bool>(), id));
                 break;
             case ENodeType::String:
-                rowBuilder.AddValue(MakeUnversionedStringValue(value->GetValue<Stroka>(), id));
+                rowBuilder.AddValue(MakeUnversionedStringValue(value->GetValue<TString>(), id));
                 break;
             case ENodeType::Entity:
                 rowBuilder.AddValue(MakeUnversionedSentinelValue(
@@ -505,7 +505,7 @@ TUnversionedOwningRow YsonToSchemafulRow(
     return rowBuilder.FinishRow();
 }
 
-TUnversionedOwningRow YsonToSchemalessRow(const Stroka& valueYson)
+TUnversionedOwningRow YsonToSchemalessRow(const TString& valueYson)
 {
     TUnversionedOwningRowBuilder builder;
 
@@ -527,7 +527,7 @@ TUnversionedOwningRow YsonToSchemalessRow(const Stroka& valueYson)
                 builder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id, aggregate));
                 break;
             case ENodeType::String:
-                builder.AddValue(MakeUnversionedStringValue(value->GetValue<Stroka>(), id, aggregate));
+                builder.AddValue(MakeUnversionedStringValue(value->GetValue<TString>(), id, aggregate));
                 break;
             default:
                 builder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id, aggregate));
@@ -540,8 +540,8 @@ TUnversionedOwningRow YsonToSchemalessRow(const Stroka& valueYson)
 
 TVersionedRow YsonToVersionedRow(
     const TRowBufferPtr& rowBuffer,
-    const Stroka& keyYson,
-    const Stroka& valueYson,
+    const TString& keyYson,
+    const TString& valueYson,
     const std::vector<TTimestamp>& deleteTimestamps)
 {
     TVersionedRowBuilder builder(rowBuffer);
@@ -561,7 +561,7 @@ TVersionedRow YsonToVersionedRow(
                 builder.AddKey(MakeUnversionedDoubleValue(key->GetValue<double>(), keyId));
                 break;
             case ENodeType::String:
-                builder.AddKey(MakeUnversionedStringValue(key->GetValue<Stroka>(), keyId));
+                builder.AddKey(MakeUnversionedStringValue(key->GetValue<TString>(), keyId));
                 break;
             default:
                 Y_UNREACHABLE();
@@ -589,7 +589,7 @@ TVersionedRow YsonToVersionedRow(
                 builder.AddValue(MakeVersionedDoubleValue(value->GetValue<double>(), timestamp, id, aggregate));
                 break;
             case ENodeType::String:
-                builder.AddValue(MakeVersionedStringValue(value->GetValue<Stroka>(), timestamp, id, aggregate));
+                builder.AddValue(MakeVersionedStringValue(value->GetValue<TString>(), timestamp, id, aggregate));
                 break;
             default:
                 builder.AddValue(MakeVersionedAnyValue(ConvertToYsonString(value).GetData(), timestamp, id, aggregate));
@@ -604,7 +604,7 @@ TVersionedRow YsonToVersionedRow(
     return builder.FinishRow();
 }
 
-TUnversionedOwningRow YsonToKey(const Stroka& yson)
+TUnversionedOwningRow YsonToKey(const TString& yson)
 {
     TUnversionedOwningRowBuilder keyBuilder;
     auto keyParts = ConvertTo<std::vector<INodePtr>>(
@@ -630,7 +630,7 @@ TUnversionedOwningRow YsonToKey(const Stroka& yson)
                 break;
             case ENodeType::String:
                 keyBuilder.AddValue(MakeUnversionedStringValue(
-                    keyPart->GetValue<Stroka>(),
+                    keyPart->GetValue<TString>(),
                     id));
                 break;
             case ENodeType::Entity:
@@ -649,7 +649,7 @@ TUnversionedOwningRow YsonToKey(const Stroka& yson)
     return keyBuilder.FinishRow();
 }
 
-Stroka KeyToYson(TUnversionedRow row)
+TString KeyToYson(TUnversionedRow row)
 {
     return ConvertToYsonString(row, EYsonFormat::Text).GetData();
 }

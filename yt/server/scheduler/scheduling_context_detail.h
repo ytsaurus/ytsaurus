@@ -52,7 +52,7 @@ private:
     const NObjectClient::TCellTag CellTag_;
     const TExecNodePtr Node_;
     const TExecNodeDescriptor NodeDescriptor_;
-    const yhash_set<Stroka> NodeTags_;
+    const yhash_set<TString> NodeTags_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

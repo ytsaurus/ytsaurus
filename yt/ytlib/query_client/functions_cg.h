@@ -18,7 +18,7 @@ struct IFunctionCodegen
         std::vector<TCodegenExpression> codegenArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
-        const Stroka& name,
+        const TString& name,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
 };
@@ -32,7 +32,7 @@ struct IAggregateCodegen
         EValueType argumentType,
         EValueType stateType,
         EValueType resultType,
-        const Stroka& name,
+        const TString& name,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
 };
@@ -49,7 +49,7 @@ struct ICallingConvention
         std::vector<TCodegenExpression> codegenArgs,
         std::function<Value*(std::vector<Value*>, TCGExprContext&)> codegenBody,
         EValueType type,
-        const Stroka& name) const = 0;
+        const TString& name) const = 0;
 
     virtual llvm::FunctionType* GetCalleeType(
         TCGExprContext& builder,
@@ -71,7 +71,7 @@ public:
         std::vector<TCodegenExpression> codegenArgs,
         std::function<Value*(std::vector<Value*>, TCGExprContext&)> codegenBody,
         EValueType type,
-        const Stroka& name) const override;
+        const TString& name) const override;
 
     virtual llvm::FunctionType* GetCalleeType(
         TCGExprContext& builder,
@@ -92,7 +92,7 @@ public:
         std::vector<TCodegenExpression> codegenArgs,
         std::function<Value*(std::vector<Value*>, TCGExprContext&)> codegenBody,
         EValueType type,
-        const Stroka& name) const override;
+        const TString& name) const override;
 
     virtual llvm::FunctionType* GetCalleeType(
         TCGExprContext& builder,
@@ -115,8 +115,8 @@ struct TExternalFunctionCodegen
 {
 public:
     TExternalFunctionCodegen(
-        const Stroka& functionName,
-        const Stroka& symbolName,
+        const TString& functionName,
+        const TString& symbolName,
         TSharedRef implementationFile,
         ICallingConventionPtr callingConvention,
         TSharedRef fingerprint)
@@ -128,8 +128,8 @@ public:
     { }
 
     TExternalFunctionCodegen(
-        const Stroka& functionName,
-        const Stroka& symbolName,
+        const TString& functionName,
+        const TString& symbolName,
         TSharedRef implementationFile,
         ECallingConvention callingConvention,
         TType repeatedArgType,
@@ -149,12 +149,12 @@ public:
         std::vector<TCodegenExpression> codegenArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
-        const Stroka& name,
+        const TString& name,
         llvm::FoldingSetNodeID* id) const override;
 
 private:
-    Stroka FunctionName_;
-    Stroka SymbolName_;
+    TString FunctionName_;
+    TString SymbolName_;
     TSharedRef ImplementationFile_;
     ICallingConventionPtr CallingConvention_;
     TSharedRef Fingerprint_;
@@ -166,7 +166,7 @@ struct TExternalAggregateCodegen
 {
 public:
     TExternalAggregateCodegen(
-        const Stroka& aggregateName,
+        const TString& aggregateName,
         TSharedRef implementationFile,
         ECallingConvention callingConvention,
         TSharedRef fingerprint)
@@ -180,11 +180,11 @@ public:
         EValueType argumentType,
         EValueType stateType,
         EValueType resultType,
-        const Stroka& name,
+        const TString& name,
         llvm::FoldingSetNodeID* id) const override;
 
 private:
-    Stroka AggregateName_;
+    TString AggregateName_;
     TSharedRef ImplementationFile_;
     ICallingConventionPtr CallingConvention_;
     TSharedRef Fingerprint_;

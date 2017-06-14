@@ -64,7 +64,7 @@ void TOutputChunkTreeKey::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TOutputChunkTreeKey& key)
+TString ToString(const TOutputChunkTreeKey& key)
 {
     if (key.IsIndex()) {
         return "index@" + ::ToString(key.AsIndex());

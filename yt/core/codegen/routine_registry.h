@@ -1,7 +1,7 @@
 #pragma once
 
 #include <util/generic/hash.h>
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 #include <llvm/IR/TypeBuilder.h>
 
@@ -10,8 +10,8 @@ namespace NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka MangleSymbol(const Stroka& name);
-Stroka DemangleSymbol(const Stroka& name);
+TString MangleSymbol(const TString& name);
+TString DemangleSymbol(const TString& name);
 
 template <typename TSignature, bool Cross>
 class FunctionTypeBuilder;
@@ -46,8 +46,8 @@ public:
             std::bind(&FunctionTypeBuilder<TResult(TArgs...), false>::get, _1));
     }
 
-    uint64_t GetAddress(const Stroka& symbol) const;
-    TTypeBuilder GetTypeBuilder(const Stroka& symbol) const;
+    uint64_t GetAddress(const TString& symbol) const;
+    TTypeBuilder GetTypeBuilder(const TString& symbol) const;
 
 private:
     void RegisterRoutineImpl(
@@ -56,8 +56,8 @@ private:
         TTypeBuilder typeBuilder);
 
 private:
-    yhash<Stroka, uint64_t> SymbolToAddress_;
-    yhash<Stroka, TTypeBuilder> SymbolToTypeBuilder_;
+    yhash<TString, uint64_t> SymbolToAddress_;
+    yhash<TString, TTypeBuilder> SymbolToTypeBuilder_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -410,7 +410,7 @@ struct IOperationController
      *  \note Invoker affinity: Controller invoker
      */
     //! Provides a string describing operation status and statistics.
-    virtual Stroka GetLoggingProgress() const = 0;
+    virtual TString GetLoggingProgress() const = 0;
 
     //! Called to construct a YSON representing the current state of memory digests for jobs of each type.
     virtual void BuildMemoryDigestStatistics(NYson::IYsonConsumer* consumer) const = 0;

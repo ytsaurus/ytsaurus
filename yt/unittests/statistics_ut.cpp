@@ -56,7 +56,7 @@ TStatistics CreateStatistics(std::initializer_list<std::pair<NYPath::TYPath, i64
 
 TEST(TStatistics, AddSample)
 {
-    std::map<Stroka, int> origin = {{"x", 5}, {"y", 7}};
+    std::map<TString, int> origin = {{"x", 5}, {"y", 7}};
 
     TStatistics statistics;
     statistics.AddSample(

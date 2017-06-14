@@ -45,7 +45,7 @@ public:
     }
 
 private:
-    TFuture<TAuthenticationResult> OnCallResult(const Stroka& tokenMD5, const INodePtr& data)
+    TFuture<TAuthenticationResult> OnCallResult(const TString& tokenMD5, const INodePtr& data)
     {
         auto result = OnCallResultImpl(data);
         if (!result.IsOK()) {
@@ -70,16 +70,16 @@ private:
         }
 
         if (EBlackboxStatusId(statusId.Value()) != EBlackboxStatusId::Valid) {
-            auto error = GetByYPath<Stroka>(data, "/error");
+            auto error = GetByYPath<TString>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
             return TError("Blackbox rejected token")
                 << TErrorAttribute("reason", reason);
         }
 
-        auto login = GetByYPath<Stroka>(data, "/login");
-        auto oauthClientId = GetByYPath<Stroka>(data, "/oauth/client_id");
-        auto oauthClientName = GetByYPath<Stroka>(data, "/oauth/client_name");
-        auto oauthScope = GetByYPath<Stroka>(data, "/oauth/scope");
+        auto login = GetByYPath<TString>(data, "/login");
+        auto oauthClientId = GetByYPath<TString>(data, "/oauth/client_id");
+        auto oauthClientName = GetByYPath<TString>(data, "/oauth/client_name");
+        auto oauthScope = GetByYPath<TString>(data, "/oauth/scope");
 
         // Sanity checks.
         if (!login.IsOK() || !oauthClientId.IsOK() || !oauthClientName.IsOK() || !oauthScope.IsOK()) {

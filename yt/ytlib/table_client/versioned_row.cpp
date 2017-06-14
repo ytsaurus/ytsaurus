@@ -37,7 +37,7 @@ size_t WriteValue(char* output, const TVersionedValue& value)
     return result;
 }
 
-Stroka ToString(const TVersionedValue& value)
+TString ToString(const TVersionedValue& value)
 {
     return Format("%v@%llx",
         static_cast<TUnversionedValue>(value),
@@ -172,7 +172,7 @@ bool operator != (TVersionedRow lhs, TVersionedRow rhs)
     return !(lhs == rhs);
 }
 
-Stroka ToString(TVersionedRow row)
+TString ToString(TVersionedRow row)
 {
     if (!row) {
         return "<Null>";
@@ -215,12 +215,12 @@ Stroka ToString(TVersionedRow row)
     return builder.Flush();
 }
 
-Stroka ToString(TMutableVersionedRow row)
+TString ToString(TMutableVersionedRow row)
 {
     return ToString(TVersionedRow(row));
 }
 
-Stroka ToString(const TVersionedOwningRow& row)
+TString ToString(const TVersionedOwningRow& row)
 {
     return ToString(row.Get());
 }

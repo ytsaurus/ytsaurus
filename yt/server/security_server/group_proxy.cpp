@@ -45,7 +45,7 @@ private:
         descriptors->push_back("members");
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
     {
         const auto* group = GetThisImpl();
 
@@ -68,7 +68,7 @@ private:
         return TBase::DoInvoke(context);
     }
 
-    TSubject* GetSubject(const Stroka& name)
+    TSubject* GetSubject(const TString& name)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* subject = securityManager->FindSubjectByName(name);

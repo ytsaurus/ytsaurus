@@ -67,11 +67,11 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TMulticellStates, MulticellStates);
 
     //! Tags specified by user in "user_tags" attribute.
-    DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, UserTags);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, UserTags);
     //! Tags received from node during registration (those typically come from config).
-    DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, NodeTags);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, NodeTags);
     //! User tags plus node tags.
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<Stroka>, Tags);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TString>, Tags);
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, RegisterTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
@@ -166,7 +166,7 @@ public:
 
     const TAddressMap& GetAddresses() const;
     void SetAddresses(const TAddressMap& addresses);
-    const Stroka& GetDefaultAddress() const;
+    const TString& GetDefaultAddress() const;
 
     //! Get data center to which this node belongs.
     /*!
@@ -175,7 +175,7 @@ public:
      */
     TDataCenter* GetDataCenter() const;
 
-    bool HasTag(const TNullable<Stroka>& tag) const;
+    bool HasTag(const TNullable<TString>& tag) const;
 
     //! Prepares per-cell state map.
     //! Inserts new entries into the map, fills missing onces with ENodeState::Offline value.
@@ -255,7 +255,7 @@ public:
 
 private:
     TAddressMap Addresses_;
-    Stroka DefaultAddress_;
+    TString DefaultAddress_;
 
     int HintedUserSessionCount_;
     int HintedReplicationSessionCount_;
@@ -283,8 +283,8 @@ private:
     void SetDecommissioned(bool value);
     void SetDisableWriteSessions(bool value);
 
-    void SetNodeTags(const std::vector<Stroka>& tags);
-    void SetUserTags(const std::vector<Stroka>& tags);
+    void SetNodeTags(const std::vector<TString>& tags);
+    void SetUserTags(const std::vector<TString>& tags);
     void RebuildTags();
 
 };

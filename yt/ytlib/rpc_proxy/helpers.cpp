@@ -159,7 +159,7 @@ std::vector<TSharedRef> SerializeRowset(
     descriptor->set_rowset_kind(NProto::ERowsetKind::UNVERSIONED);
     for (size_t id = 0; id < nameTable->GetSize(); ++id) {
         auto* columnDescriptor = descriptor->add_columns();
-        columnDescriptor->set_name(Stroka(nameTable->GetName(id)));
+        columnDescriptor->set_name(TString(nameTable->GetName(id)));
     }
     TWireProtocolWriter writer;
     writer.WriteUnversionedRowset(rows);

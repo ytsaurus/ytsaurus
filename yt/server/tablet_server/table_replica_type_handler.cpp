@@ -49,9 +49,9 @@ public:
         const TObjectId& hintId,
         IAttributeDictionary* attributes) override
     {
-        auto tablePath = attributes->GetAndRemove<Stroka>("table_path");
-        auto clusterName = attributes->GetAndRemove<Stroka>("cluster_name");
-        auto replicaPath = attributes->GetAndRemove<Stroka>("replica_path");
+        auto tablePath = attributes->GetAndRemove<TString>("table_path");
+        auto clusterName = attributes->GetAndRemove<TString>("cluster_name");
+        auto replicaPath = attributes->GetAndRemove<TString>("replica_path");
         auto startReplicationTimestamp = attributes->GetAndRemove<NTransactionClient::TTimestamp>("start_replication_timestamp", NTransactionClient::MinTimestamp);
         auto mode = attributes->GetAndRemove<ETableReplicaMode>("mode", ETableReplicaMode::Async);
 
@@ -80,7 +80,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual Stroka DoGetName(const TTableReplica* replica) override
+    virtual TString DoGetName(const TTableReplica* replica) override
     {
         return Format("table replica %v", replica->GetId());
     }

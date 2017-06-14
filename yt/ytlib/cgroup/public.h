@@ -1,6 +1,6 @@
 #pragma once
 
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 namespace NYT {
 namespace NCGroup {
@@ -15,7 +15,7 @@ class TMemory;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsValidCGroupType(const Stroka& type);
+bool IsValidCGroupType(const TString& type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

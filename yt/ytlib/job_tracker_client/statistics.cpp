@@ -156,7 +156,7 @@ void TStatistics::Update(const TStatistics& statistics)
     }
 }
 
-void TStatistics::AddSuffixToNames(const Stroka& suffix)
+void TStatistics::AddSuffixToNames(const TString& suffix)
 {
     TSummaryMap newData;
     for (const auto& pair : Data_) {
@@ -193,7 +193,7 @@ i64 GetSum(const TSummary& summary)
     return summary.GetSum();
 }
 
-i64 GetNumericValue(const TStatistics& statistics, const Stroka& path)
+i64 GetNumericValue(const TStatistics& statistics, const TString& path)
 {
     auto value = FindNumericValue(statistics, path);
     if (!value) {
@@ -204,13 +204,13 @@ i64 GetNumericValue(const TStatistics& statistics, const Stroka& path)
     }
 }
 
-TNullable<i64> FindNumericValue(const TStatistics& statistics, const Stroka& path)
+TNullable<i64> FindNumericValue(const TStatistics& statistics, const TString& path)
 {
     auto summary = FindSummary(statistics, path);
     return summary ? MakeNullable(summary->GetSum()) : Null;
 }
 
-TNullable<TSummary> FindSummary(const TStatistics& statistics, const Stroka& path)
+TNullable<TSummary> FindSummary(const TStatistics& statistics, const TString& path)
 {
     const auto& data = statistics.Data();
     auto iterator = data.lower_bound(path);
@@ -363,13 +363,13 @@ public:
 private:
     TStatistics Statistics_;
 
-    Stroka CurrentPath_;
+    TString CurrentPath_;
     std::vector<int> DirectoryNameLengths_;
 
     TSummary CurrentSummary_;
     i64 FilledSummaryFields_ = 0;
 
-    Stroka LastKey_;
+    TString LastKey_;
 
     bool AtSummaryMap_ = false;
     bool AtAttributes_ = false;
@@ -383,8 +383,8 @@ void CreateBuildingYsonConsumer(std::unique_ptr<IBuildingYsonConsumer<TStatistic
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka inputPrefix = "/data/input";
-const Stroka outputPrefix = "/data/output";
+const TString inputPrefix = "/data/input";
+const TString outputPrefix = "/data/output";
 
 TDataStatistics GetTotalInputDataStatistics(const TStatistics& jobStatistics)
 {
@@ -412,7 +412,7 @@ yhash<int, TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatis
             // Looks like a malformed path in /data/output, let's skip it.
             continue;
         }
-        int tableIndex = a2i(Stroka(currentPath.substr(0, slashPos)));
+        int tableIndex = a2i(TString(currentPath.substr(0, slashPos)));
         SetDataStatisticsField(result[tableIndex], currentPath.substr(slashPos + 1), iterator->second.GetSum());
     }
 

@@ -80,7 +80,7 @@ private:
         }
 
         for (int i = descriptor.Fields.size(); i < NameTable_->GetSize(); ++i) {
-            auto name = Stroka(NameTable_->GetName(i));
+            auto name = TString(NameTable_->GetName(i));
             if (name.StartsWith(SystemColumnNamePrefix)) {
                 descriptor.Fields.push_back(TDescriptor::TField());
                 continue;
@@ -208,7 +208,7 @@ private:
                         if (value.Type == EValueType::Uint64) {
                             size += WireFormatLite::UInt32Size(value.Data.Uint64);
                         } else if (value.Type == EValueType::String) {
-                            auto enumString = Stroka(value.Data.String, value.Length);
+                            auto enumString = TString(value.Data.String, value.Length);
                             auto* enumDescriptor = field.Descriptor->enum_type();
                             auto* enumValueDescriptor = enumDescriptor->FindValueByName(enumString);
                             if (!enumValueDescriptor) {
@@ -372,7 +372,7 @@ private:
             { }
         };
         std::vector<TField> Fields;
-        yhash<Stroka, const FieldDescriptor*> NameToField_;
+        yhash<TString, const FieldDescriptor*> NameToField_;
         const Descriptor* MessageDescriptor;
     };
     std::vector<TDescriptor> Descriptors_;

@@ -132,7 +132,7 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual Stroka DoGetName(const TAccount* object) override
+    virtual TString DoGetName(const TAccount* object) override
     {
         return Format("account %Qv", object->GetName());
     }
@@ -181,7 +181,7 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual Stroka DoGetName(const TUser* user) override
+    virtual TString DoGetName(const TUser* user) override
     {
         return Format("user %Qv", user->GetName());
     }
@@ -229,7 +229,7 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual Stroka DoGetName(const TGroup* group) override
+    virtual TString DoGetName(const TGroup* group) override
     {
         return Format("group %Qv", group->GetName());
     }
@@ -316,7 +316,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup);
 
 
-    TAccount* CreateAccount(const Stroka& name, const TObjectId& hintId)
+    TAccount* CreateAccount(const TString& name, const TObjectId& hintId)
     {
         ValidateAccountName(name);
 
@@ -337,13 +337,13 @@ public:
         YCHECK(AccountNameMap_.erase(account->GetName()) == 1);
     }
 
-    TAccount* FindAccountByName(const Stroka& name)
+    TAccount* FindAccountByName(const TString& name)
     {
         auto it = AccountNameMap_.find(name);
         return it == AccountNameMap_.end() ? nullptr : it->second;
     }
 
-    TAccount* GetAccountByNameOrThrow(const Stroka& name)
+    TAccount* GetAccountByNameOrThrow(const TString& name)
     {
         auto* account = FindAccountByName(name);
         if (!account) {
@@ -414,7 +414,7 @@ public:
         objectManager->UnrefObject(account);
     }
 
-    void RenameAccount(TAccount* account, const Stroka& newName)
+    void RenameAccount(TAccount* account, const TString& newName)
     {
         ValidateAccountName(newName);
 
@@ -494,7 +494,7 @@ public:
     }
 
 
-    TUser* CreateUser(const Stroka& name, const TObjectId& hintId)
+    TUser* CreateUser(const TString& name, const TObjectId& hintId)
     {
         ValidateSubjectName(name);
 
@@ -523,13 +523,13 @@ public:
         DestroySubject(user);
     }
 
-    TUser* FindUserByName(const Stroka& name)
+    TUser* FindUserByName(const TString& name)
     {
         auto it = UserNameMap_.find(name);
         return it == UserNameMap_.end() ? nullptr : it->second;
     }
 
-    TUser* GetUserByNameOrThrow(const Stroka& name)
+    TUser* GetUserByNameOrThrow(const TString& name)
     {
         auto* user = FindUserByName(name);
         if (!IsObjectAlive(user)) {
@@ -570,7 +570,7 @@ public:
     }
 
 
-    TGroup* CreateGroup(const Stroka& name, const TObjectId& hintId)
+    TGroup* CreateGroup(const TString& name, const TObjectId& hintId)
     {
         ValidateSubjectName(name);
 
@@ -607,7 +607,7 @@ public:
         RecomputeMembershipClosure();
     }
 
-    TGroup* FindGroupByName(const Stroka& name)
+    TGroup* FindGroupByName(const TString& name)
     {
         auto it = GroupNameMap_.find(name);
         return it == GroupNameMap_.end() ? nullptr : it->second;
@@ -630,7 +630,7 @@ public:
     }
 
 
-    TSubject* FindSubjectByName(const Stroka& name)
+    TSubject* FindSubjectByName(const TString& name)
     {
         auto* user = FindUserByName(name);
         if (user) {
@@ -645,7 +645,7 @@ public:
         return nullptr;
     }
 
-    TSubject* GetSubjectByNameOrThrow(const Stroka& name)
+    TSubject* GetSubjectByNameOrThrow(const TString& name)
     {
         auto* subject = FindSubjectByName(name);
         if (!IsObjectAlive(subject)) {
@@ -705,7 +705,7 @@ public:
     }
 
 
-    void RenameSubject(TSubject* subject, const Stroka& newName)
+    void RenameSubject(TSubject* subject, const TString& newName)
     {
         ValidateSubjectName(newName);
 
@@ -1113,7 +1113,7 @@ private:
     TPeriodicExecutorPtr UserStatisticsGossipExecutor_;
 
     NHydra::TEntityMap<TAccount> AccountMap_;
-    yhash<Stroka, TAccount*> AccountNameMap_;
+    yhash<TString, TAccount*> AccountNameMap_;
 
     TAccountId SysAccountId_;
     TAccount* SysAccount_ = nullptr;
@@ -1125,8 +1125,8 @@ private:
     TAccount* IntermediateAccount_ = nullptr;
 
     NHydra::TEntityMap<TUser> UserMap_;
-    yhash<Stroka, TUser*> UserNameMap_;
-    yhash<Stroka, TTagId> UserNameToProfilingTagId_;
+    yhash<TString, TUser*> UserNameMap_;
+    yhash<TString, TTagId> UserNameToProfilingTagId_;
 
     TUserId RootUserId_;
     TUser* RootUser_ = nullptr;
@@ -1147,7 +1147,7 @@ private:
     TUser* OwnerUser_ = nullptr;
 
     NHydra::TEntityMap<TGroup> GroupMap_;
-    yhash<Stroka, TGroup*> GroupNameMap_;
+    yhash<TString, TGroup*> GroupNameMap_;
 
     TGroupId EveryoneGroupId_;
     TGroup* EveryoneGroup_ = nullptr;
@@ -1241,7 +1241,7 @@ private:
     }
 
 
-    TAccount* DoCreateAccount(const TAccountId& id, const Stroka& name)
+    TAccount* DoCreateAccount(const TAccountId& id, const TString& name)
     {
         auto accountHolder = std::make_unique<TAccount>(id);
         accountHolder->SetName(name);
@@ -1283,7 +1283,7 @@ private:
         }
     }
 
-    TUser* DoCreateUser(const TUserId& id, const Stroka& name)
+    TUser* DoCreateUser(const TUserId& id, const TString& name)
     {
         auto userHolder = std::make_unique<TUser>(id);
         userHolder->SetName(name);
@@ -1315,7 +1315,7 @@ private:
         return tagId;
     }
 
-    TGroup* DoCreateGroup(const TGroupId& id, const Stroka& name)
+    TGroup* DoCreateGroup(const TGroupId& id, const TString& name)
     {
         auto groupHolder = std::make_unique<TGroup>(id);
         groupHolder->SetName(name);
@@ -1746,7 +1746,7 @@ private:
         }
     }
 
-    bool EnsureBuiltinGroupInitialized(TGroup*& group, const TGroupId& id, const Stroka& name)
+    bool EnsureBuiltinGroupInitialized(TGroup*& group, const TGroupId& id, const TString& name)
     {
         if (group) {
             return false;
@@ -1759,7 +1759,7 @@ private:
         return true;
     }
 
-    bool EnsureBuiltinUserInitialized(TUser*& user, const TUserId& id, const Stroka& name)
+    bool EnsureBuiltinUserInitialized(TUser*& user, const TUserId& id, const TString& name)
     {
         if (user) {
             return false;
@@ -1772,7 +1772,7 @@ private:
         return true;
     }
 
-    bool EnsureBuiltinAccountInitialized(TAccount*& account, const TAccountId& id, const Stroka& name)
+    bool EnsureBuiltinAccountInitialized(TAccount*& account, const TAccountId& id, const TString& name)
     {
         if (account) {
             return false;
@@ -2087,14 +2087,14 @@ private:
     }
 
 
-    static void ValidateAccountName(const Stroka& name)
+    static void ValidateAccountName(const TString& name)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Account name cannot be empty");
         }
     }
 
-    static void ValidateSubjectName(const Stroka& name)
+    static void ValidateSubjectName(const TString& name)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Subject name cannot be empty");
@@ -2129,7 +2129,7 @@ TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<Stroka>("name");
+    auto name = attributes->GetAndRemove<TString>("name");
 
     return Owner_->CreateAccount(name, hintId);
 }
@@ -2158,7 +2158,7 @@ TObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<Stroka>("name");
+    auto name = attributes->GetAndRemove<TString>("name");
 
     return Owner_->CreateUser(name, hintId);
 }
@@ -2187,7 +2187,7 @@ TObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<Stroka>("name");
+    auto name = attributes->GetAndRemove<TString>("name");
 
     return Owner_->CreateGroup(name, hintId);
 }
@@ -2220,12 +2220,12 @@ void TSecurityManager::Initialize()
     return Impl_->Initialize();
 }
 
-TAccount* TSecurityManager::FindAccountByName(const Stroka& name)
+TAccount* TSecurityManager::FindAccountByName(const TString& name)
 {
     return Impl_->FindAccountByName(name);
 }
 
-TAccount* TSecurityManager::GetAccountByNameOrThrow(const Stroka& name)
+TAccount* TSecurityManager::GetAccountByNameOrThrow(const TString& name)
 {
     return Impl_->GetAccountByNameOrThrow(name);
 }
@@ -2255,7 +2255,7 @@ void TSecurityManager::ResetAccount(TCypressNodeBase* node)
     Impl_->ResetAccount(node);
 }
 
-void TSecurityManager::RenameAccount(TAccount* account, const Stroka& newName)
+void TSecurityManager::RenameAccount(TAccount* account, const TString& newName)
 {
     Impl_->RenameAccount(account, newName);
 }
@@ -2283,12 +2283,12 @@ void TSecurityManager::UpdateAccountStagingUsage(
     Impl_->UpdateAccountStagingUsage(transaction, account, delta);
 }
 
-TUser* TSecurityManager::FindUserByName(const Stroka& name)
+TUser* TSecurityManager::FindUserByName(const TString& name)
 {
     return Impl_->FindUserByName(name);
 }
 
-TUser* TSecurityManager::GetUserByNameOrThrow(const Stroka& name)
+TUser* TSecurityManager::GetUserByNameOrThrow(const TString& name)
 {
     return Impl_->GetUserByNameOrThrow(name);
 }
@@ -2313,7 +2313,7 @@ TUser* TSecurityManager::GetOwnerUser()
     return Impl_->GetOwnerUser();
 }
 
-TGroup* TSecurityManager::FindGroupByName(const Stroka& name)
+TGroup* TSecurityManager::FindGroupByName(const TString& name)
 {
     return Impl_->FindGroupByName(name);
 }
@@ -2333,12 +2333,12 @@ TGroup* TSecurityManager::GetSuperusersGroup()
     return Impl_->GetSuperusersGroup();
 }
 
-TSubject* TSecurityManager::FindSubjectByName(const Stroka& name)
+TSubject* TSecurityManager::FindSubjectByName(const TString& name)
 {
     return Impl_->FindSubjectByName(name);
 }
 
-TSubject* TSecurityManager::GetSubjectByNameOrThrow(const Stroka& name)
+TSubject* TSecurityManager::GetSubjectByNameOrThrow(const TString& name)
 {
     return Impl_->GetSubjectByNameOrThrow(name);
 }
@@ -2353,7 +2353,7 @@ void TSecurityManager::RemoveMember(TGroup* group, TSubject* member, bool ignore
     Impl_->RemoveMember(group, member, ignoreMissing);
 }
 
-void TSecurityManager::RenameSubject(TSubject* subject, const Stroka& newName)
+void TSecurityManager::RenameSubject(TSubject* subject, const TString& newName)
 {
     Impl_->RenameSubject(subject, newName);
 }

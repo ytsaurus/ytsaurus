@@ -52,7 +52,7 @@ public:
     void Stop();
 
     TFuture<TNetworkAddress> ResolveName(
-        Stroka hostname,
+        TString hostname,
         bool enableIPv4,
         bool enableIPv6);
 
@@ -66,7 +66,7 @@ private:
     {
         TImpl* Owner;
         TPromise<TNetworkAddress> Promise;
-        Stroka HostName;
+        TString HostName;
         bool EnableIPv4;
         bool EnableIPv6;
         NProfiling::TCpuInstant Start;
@@ -184,7 +184,7 @@ void TDnsResolver::TImpl::Stop()
 }
 
 TFuture<TNetworkAddress> TDnsResolver::TImpl::ResolveName(
-    Stroka hostName,
+    TString hostName,
     bool enableIPv4,
     bool enableIPv6)
 {
@@ -500,7 +500,7 @@ void TDnsResolver::Stop()
 }
 
 TFuture<TNetworkAddress> TDnsResolver::ResolveName(
-    Stroka hostName,
+    TString hostName,
     bool enableIPv4,
     bool enableIPv6)
 {

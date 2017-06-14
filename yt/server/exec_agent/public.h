@@ -49,9 +49,9 @@ DEFINE_ENUM(EJobEnvironmentType,
     (Porto)
 );
 
-extern const TEnumIndexedVector<Stroka, ESandboxKind> SandboxDirectoryNames;
+extern const TEnumIndexedVector<TString, ESandboxKind> SandboxDirectoryNames;
 
-extern const Stroka ProxyConfigFileName;
+extern const TString ProxyConfigFileName;
 
 DECLARE_REFCOUNTED_CLASS(TSlotManager)
 DECLARE_REFCOUNTED_CLASS(TSlotLocation)

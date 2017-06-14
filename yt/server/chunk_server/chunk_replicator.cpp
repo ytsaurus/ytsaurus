@@ -2202,11 +2202,11 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities()
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
-    auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter, const TNullable<Stroka>& srcDataCenterName) {
+    auto updateForSrcDC = [&] (const TDataCenter* srcDataCenter, const TNullable<TString>& srcDataCenterName) {
         auto& interDCEdgeCapacities = InterDCEdgeCapacities[srcDataCenter];
         const auto& newInterDCEdgeCapacities = capacities[srcDataCenterName];
 
-        auto updateForDstDC = [&] (const TDataCenter* dstDataCenter, const TNullable<Stroka>& dstDataCenterName) {
+        auto updateForDstDC = [&] (const TDataCenter* dstDataCenter, const TNullable<TString>& dstDataCenterName) {
             auto it = newInterDCEdgeCapacities.find(dstDataCenterName);
             if (it != newInterDCEdgeCapacities.end()) {
                 interDCEdgeCapacities[dstDataCenter] = it->second;

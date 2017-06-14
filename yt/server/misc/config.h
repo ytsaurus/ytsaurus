@@ -27,7 +27,7 @@ class TServerConfig
 {
 public:
     // Singletons.
-    yhash_map<Stroka, int> FiberStackPoolSizes;
+    yhash<TString, int> FiberStackPoolSizes;
     TAddressResolverConfigPtr AddressResolver;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
     NLogging::TLogConfigPtr Logging;
@@ -93,7 +93,7 @@ class TDiskLocationConfig
 {
 public:
     //! Root directory for the location.
-    Stroka Path;
+    TString Path;
 
     //! Minimum size the disk partition must have to make this location usable.
     TNullable<i64> MinDiskSpace;

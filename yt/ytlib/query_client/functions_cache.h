@@ -26,8 +26,8 @@ struct TExternalFunctionSpec
 struct TExternalFunctionImpl
 {
     bool IsAggregate = false;
-    Stroka Name;
-    Stroka SymbolName;
+    TString Name;
+    TString SymbolName;
     ECallingConvention CallingConvention;
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
 
@@ -48,14 +48,14 @@ struct TExternalCGInfo
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
-    const std::vector<Stroka>& functionNames,
-    const Stroka& udfRegistryPath,
+    const std::vector<TString>& functionNames,
+    const TString& udfRegistryPath,
     NApi::INativeClientPtr client);
 
 void AppendUdfDescriptors(
     const TTypeInferrerMapPtr& typers,
     const TExternalCGInfoPtr& cgInfo,
-    const std::vector<Stroka>& names,
+    const std::vector<TString>& names,
     const std::vector<TExternalFunctionSpec>& external);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,13 +63,13 @@ void AppendUdfDescriptors(
 struct IFunctionRegistry
     : public virtual TRefCounted
 {
-    virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(const std::vector<Stroka>& names) = 0;
+    virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(const std::vector<TString>& names) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IFunctionRegistryPtr CreateFunctionRegistryCache(
-    const Stroka& udfRegistryPath,
+    const TString& udfRegistryPath,
     TExpiringCacheConfigPtr config,
     TWeakPtr<NApi::INativeClient> client,
     IInvokerPtr invoker);
@@ -90,7 +90,7 @@ void FetchJobImplementations(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
-    Stroka implementationPath);
+    TString implementationPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

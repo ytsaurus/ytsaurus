@@ -21,7 +21,7 @@ struct TSubprocessResult
 class TSubprocess
 {
 public:
-    explicit TSubprocess(const Stroka& path);
+    explicit TSubprocess(const TString& path);
 
     static TSubprocess CreateCurrentProcessSpawner();
 
@@ -31,7 +31,7 @@ public:
     TSubprocessResult Execute();
     void Kill(int signal);
 
-    Stroka GetCommandLine() const;
+    TString GetCommandLine() const;
 
 private:
     const TProcessBasePtr Process_;

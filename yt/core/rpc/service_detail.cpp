@@ -35,7 +35,7 @@ static const auto& Profiler = RpcServerProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceBase::TMethodDescriptor::TMethodDescriptor(
-    const Stroka& method,
+    const TString& method,
     TLiteHandler liteHandler,
     THeavyHandler heavyHandler)
     : Method(method)
@@ -756,7 +756,7 @@ TServiceBase::TServiceContextPtr TServiceBase::FindCancelableRequest(const TRequ
 
 TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanceCounters(
     const TRuntimeMethodInfoPtr& runtimeInfo,
-    const Stroka& userName)
+    const TString& userName)
 {
     auto tagIds = runtimeInfo->TagIds;
     tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("user", userName));
@@ -765,7 +765,7 @@ TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanc
 
 TServiceBase::TMethodPerformanceCounters* TServiceBase::LookupMethodPerformanceCounters(
     const TRuntimeMethodInfoPtr& runtimeInfo,
-    const Stroka& user)
+    const TString& user)
 {
     // Fast path.
     if (user == RootUserName) {
@@ -860,7 +860,7 @@ TFuture<void> TServiceBase::Stop()
     return StopResult_.ToFuture();
 }
 
-TServiceBase::TRuntimeMethodInfoPtr TServiceBase::FindMethodInfo(const Stroka& method)
+TServiceBase::TRuntimeMethodInfoPtr TServiceBase::FindMethodInfo(const TString& method)
 {
     TReaderGuard guard(MethodMapLock_);
 
@@ -868,7 +868,7 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::FindMethodInfo(const Stroka& m
     return it == MethodMap_.end() ? nullptr : it->second;
 }
 
-TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const Stroka& method)
+TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const TString& method)
 {
     auto runtimeInfo = FindMethodInfo(method);
     YCHECK(runtimeInfo);
@@ -890,11 +890,11 @@ bool TServiceBase::IsUp(TCtxDiscoverPtr /*context*/)
     return true;
 }
 
-std::vector<Stroka> TServiceBase::SuggestAddresses()
+std::vector<TString> TServiceBase::SuggestAddresses()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return std::vector<Stroka>();
+    return std::vector<TString>();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)

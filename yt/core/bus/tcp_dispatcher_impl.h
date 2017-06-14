@@ -17,7 +17,7 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNetworkAddress GetUnixDomainAddress(const Stroka& name);
+TNetworkAddress GetUnixDomainAddress(const TString& name);
 TNetworkAddress GetLocalBusAddress(int port);
 bool IsLocalBusTransportEnabled();
 
@@ -78,7 +78,7 @@ private:
     NConcurrency::IPollerPtr GetOrCreatePoller(
         NConcurrency::IPollerPtr* poller,
         int threadCount,
-        const Stroka& threadNamePrefix);
+        const TString& threadNamePrefix);
     void ShutdownPoller(NConcurrency::IPollerPtr* poller);
 
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;

@@ -14,7 +14,7 @@ namespace NAst {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNullLiteralValue {};
-typedef TVariant<TNullLiteralValue, i64, ui64, double, bool, Stroka> TLiteralValue;
+typedef TVariant<TNullLiteralValue, i64, ui64, double, bool, TString> TLiteralValue;
 typedef std::vector<TLiteralValue> TLiteralValueList;
 typedef std::vector<std::vector<TLiteralValue>> TLiteralValueTupleList;
 
@@ -81,8 +81,8 @@ struct TReferenceExpression
         , TableName(tableName)
     { }
 
-    Stroka ColumnName;
-    Stroka TableName;
+    TString ColumnName;
+    TString TableName;
 };
 
 DECLARE_REFCOUNTED_STRUCT(TReferenceExpression)
@@ -100,7 +100,7 @@ struct TFunctionExpression
         , Arguments(std::move(arguments))
     { }
 
-    Stroka FunctionName;
+    TString FunctionName;
     TExpressionList Arguments;
 };
 
@@ -155,9 +155,9 @@ struct TInExpression
     TLiteralValueTupleList Values;
 };
 
-Stroka FormatColumn(const TStringBuf& name, const TStringBuf& tableName = TStringBuf());
-Stroka InferName(const TExpressionList& exprs, bool omitValues = false);
-Stroka InferName(const TExpression* expr, bool omitValues = false);
+TString FormatColumn(const TStringBuf& name, const TStringBuf& tableName = TStringBuf());
+TString InferName(const TExpressionList& exprs, bool omitValues = false);
+TString InferName(const TExpression* expr, bool omitValues = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -172,14 +172,14 @@ struct TTableDescriptor
     { }
 
     TTableDescriptor(
-        const Stroka& path,
-        const Stroka& alias)
+        const TString& path,
+        const TString& alias)
         : Path(NYPath::TRichYPath::Parse(path))
         , Alias(alias)
     { }
 
     NYPath::TRichYPath Path;
-    Stroka Alias;
+    TString Alias;
 };
 
 struct TQuery
@@ -234,7 +234,7 @@ struct TQuery
     i64 Limit = 0;
 };
 
-typedef yhash<Stroka, TExpressionPtr> TAliasMap;
+typedef yhash<TString, TExpressionPtr> TAliasMap;
 
 typedef std::pair<TVariant<TQuery, TExpressionPtr>, TAliasMap> TAstHead;
 

@@ -408,7 +408,7 @@ TFuture<NApi::IUnversionedRowsetPtr> TRpcProxyClientBase::LookupRows(
 
     if (!options.ColumnFilter.All) {
         for (auto id : options.ColumnFilter.Indexes) {
-            req->add_columns(Stroka(nameTable->GetName(id)));
+            req->add_columns(TString(nameTable->GetName(id)));
         }
     }
     req->set_timestamp(options.Timestamp);
@@ -437,7 +437,7 @@ TFuture<NApi::IVersionedRowsetPtr> TRpcProxyClientBase::VersionedLookupRows(
 
     if (!options.ColumnFilter.All) {
         for (auto id : options.ColumnFilter.Indexes) {
-            req->add_columns(Stroka(nameTable->GetName(id)));
+            req->add_columns(TString(nameTable->GetName(id)));
         }
     }
     req->set_timestamp(options.Timestamp);
@@ -452,7 +452,7 @@ TFuture<NApi::IVersionedRowsetPtr> TRpcProxyClientBase::VersionedLookupRows(
 }
 
 TFuture<NApi::TSelectRowsResult> TRpcProxyClientBase::SelectRows(
-    const Stroka& query,
+    const TString& query,
     const NApi::TSelectRowsOptions& options)
 {
     TApiServiceProxy proxy(GetChannel());

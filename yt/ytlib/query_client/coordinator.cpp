@@ -138,7 +138,7 @@ TRowRanges GetPrunedRanges(
         rangeExtractors,
         options);
 
-    auto keyRangeFormatter = [] (const TRowRange& range) -> Stroka {
+    auto keyRangeFormatter = [] (const TRowRange& range) -> TString {
         return Format("[%v .. %v]",
             range.first,
             range.second);

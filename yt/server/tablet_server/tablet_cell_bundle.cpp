@@ -47,7 +47,7 @@ void TTabletCellBundle::Load(TLoadContext& context)
         if (context.GetVersion() >= 600) {
             Load(context, NodeTagFilter_);
         } else {
-            if (auto filter = Load<TNullable<Stroka>>(context)) {
+            if (auto filter = Load<TNullable<TString>>(context)) {
                 NodeTagFilter_ = MakeBooleanFormula(*filter);
             }
         }

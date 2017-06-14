@@ -23,26 +23,26 @@ TEST_F(TTableSchemaTest, ColumnSchemaValidation)
         // Names starting from SystemColumnNamePrefix are not ok.
         TColumnSchema(SystemColumnNamePrefix + "Name", EValueType::String),
         // Names longer than MaxColumnNameLength are not ok.
-        TColumnSchema(Stroka(MaxColumnNameLength + 1, 'z'), EValueType::String),
+        TColumnSchema(TString(MaxColumnNameLength + 1, 'z'), EValueType::String),
         // Empty lock names are not ok.
         TColumnSchema("Name", EValueType::String)
-            .SetLock(Stroka("")),
+            .SetLock(TString("")),
         // Locks on key columns are not ok.
         TColumnSchema("Name", EValueType::String)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetLock(Stroka("LockName")),
+            .SetLock(TString("LockName")),
         // Locks longer than MaxColumnLockLength are not ok.
         TColumnSchema("Name", EValueType::String)
-            .SetLock(Stroka(MaxColumnLockLength + 1, 'z')),
+            .SetLock(TString(MaxColumnLockLength + 1, 'z')),
         // Column type should be valid according to the ValidateSchemaValueType function.
         TColumnSchema("Name", EValueType::TheBottom),
         // Non-key columns can't be computed.
         TColumnSchema("Name", EValueType::String)
-            .SetExpression(Stroka("SomeExpression")),
+            .SetExpression(TString("SomeExpression")),
         // Key columns can't be aggregated.
         TColumnSchema("Name", EValueType::String)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetAggregate(Stroka("sum"))
+            .SetAggregate(TString("sum"))
     };
 
     for (const auto& columnSchema : invalidSchemas) {
@@ -52,13 +52,13 @@ TEST_F(TTableSchemaTest, ColumnSchemaValidation)
     std::vector<TColumnSchema> validSchemas{
         TColumnSchema("Name", EValueType::String),
         TColumnSchema("Name", EValueType::Any),
-        TColumnSchema(Stroka(256, 'z'), EValueType::String)
-            .SetLock(Stroka(256, 'z')),
+        TColumnSchema(TString(256, 'z'), EValueType::String)
+            .SetLock(TString(256, 'z')),
         TColumnSchema("Name", EValueType::String)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("SomeExpression")),
+            .SetExpression(TString("SomeExpression")),
         TColumnSchema("Name", EValueType::String)
-            .SetAggregate(Stroka("sum"))
+            .SetAggregate(TString("sum"))
     };
 
     for (const auto& columnSchema : validSchemas) {
@@ -86,34 +86,34 @@ TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidation)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("Name", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(Stroka("SomeExpression"))
+                .SetExpression(TString("SomeExpression"))
         },
         {
             TColumnSchema("Name", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(Stroka("SomeExpression")),
+                .SetExpression(TString("SomeExpression")),
             TColumnSchema("Name", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
         },
         {
             TColumnSchema("Name", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(Stroka("SomeExpression")),
+                .SetExpression(TString("SomeExpression")),
             TColumnSchema("Name", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(Stroka("SomeOtherExpression"))
+                .SetExpression(TString("SomeOtherExpression"))
         },
         // Changing column aggregate is only allowed if columns was not aggregated.
         {
             TColumnSchema("Name", EValueType::String)
-                .SetAggregate(Stroka("sum")),
+                .SetAggregate(TString("sum")),
             TColumnSchema("Name", EValueType::String)
         },
         {
             TColumnSchema("Name", EValueType::String)
-                .SetAggregate(Stroka("sum")),
+                .SetAggregate(TString("sum")),
             TColumnSchema("Name", EValueType::String)
-                .SetAggregate(Stroka("max"))
+                .SetAggregate(TString("max"))
         },
     };
 
@@ -128,13 +128,13 @@ TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidation)
         {
             TColumnSchema("Name", EValueType::String),
             TColumnSchema("Name", EValueType::String)
-                .SetAggregate(Stroka("sum"))
+                .SetAggregate(TString("sum"))
         },
         // Changing column lock is ok.
         {
             TColumnSchema("Name", EValueType::String),
             TColumnSchema("Name", EValueType::String)
-                .SetLock(Stroka("Lock"))
+                .SetLock(TString("Lock"))
         },
         // Making a column not sorted is ok.
         {
@@ -144,14 +144,14 @@ TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidation)
         },
         {
             TColumnSchema("Name", EValueType::String)
-                .SetLock(Stroka("Lock")),
+                .SetLock(TString("Lock")),
             TColumnSchema("Name", EValueType::String)
         },
         {
             TColumnSchema("Name", EValueType::String)
-                .SetLock(Stroka("Lock")),
+                .SetLock(TString("Lock")),
             TColumnSchema("Name", EValueType::String)
-                .SetLock(Stroka("OtherLock"))
+                .SetLock(TString("OtherLock"))
         }
     };
 
@@ -186,7 +186,7 @@ TEST_F(TTableSchemaTest, TableSchemaValidation)
             // Expression type should match the type of a column.
             TColumnSchema("Key1", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(Stroka("Key2")),
+                .SetExpression(TString("Key2")),
             TColumnSchema("Key2", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
         },
@@ -194,29 +194,29 @@ TEST_F(TTableSchemaTest, TableSchemaValidation)
             // Computed columns may only depend on key columns.
             TColumnSchema("Key1", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(Stroka("Key2")),
+                .SetExpression(TString("Key2")),
             TColumnSchema("Key2", EValueType::String)
         },
         {
             // Computed columns may only depend on non-computed columns.
             TColumnSchema("Key1", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(Stroka("Key2")),
+                .SetExpression(TString("Key2")),
             TColumnSchema("Key2", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(Stroka("Key3")),
+                .SetExpression(TString("Key3")),
             TColumnSchema("Key3", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
         },
         {
             // Aggregate function should appear in a pre-defined list.
             TColumnSchema("Key1", EValueType::String)
-                .SetAggregate(Stroka("MyFancyAggregateFunction")),
+                .SetAggregate(TString("MyFancyAggregateFunction")),
         },
         {
             // Type of aggregate function should match the type of a column.
             TColumnSchema("Key1", EValueType::String)
-                .SetAggregate(Stroka("sum"))
+                .SetAggregate(TString("sum"))
         }
     };
 
@@ -250,9 +250,9 @@ TEST_F(TTableSchemaTest, TableSchemaValidation)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("HeightPlusWeight", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(Stroka("Height + Weight")),
+                .SetExpression(TString("Height + Weight")),
             TColumnSchema("MaximumActivity", EValueType::Int64)
-                .SetAggregate(Stroka("max"))
+                .SetAggregate(TString("max"))
         }
     };
 
@@ -319,11 +319,11 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
             // Changing columns attributes should be validated by ValidateColumnSchemaUpdate function.
             TTableSchema({
                 TColumnSchema("Name", EValueType::Int64)
-                    .SetAggregate(Stroka("sum"))
+                    .SetAggregate(TString("sum"))
             }),
             TTableSchema({
                 TColumnSchema("Name", EValueType::Int64)
-                    .SetAggregate(Stroka("max"))
+                    .SetAggregate(TString("max"))
             })
         },
         {
@@ -336,7 +336,7 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Name2", EValueType::Int64)
                     .SetSortOrder(ESortOrder::Ascending)
-                    .SetExpression(Stroka("Name"))
+                    .SetExpression(TString("Name"))
             })
         },
         {
@@ -544,7 +544,7 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("Name2", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(Stroka("Name"))
+                .SetExpression(TString("Name"))
         }), false /* isDynamicTable */, true /* isEmptyTable */);
 }
 

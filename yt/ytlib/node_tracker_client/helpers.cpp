@@ -19,7 +19,7 @@ using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka FormatResourceUsage(
+TString FormatResourceUsage(
     const TNodeResources& usage,
     const TNodeResources& limits)
 {
@@ -63,7 +63,7 @@ Stroka FormatResourceUsage(
         limits.seal_slots());
 }
 
-Stroka FormatResources(const TNodeResources& resources)
+TString FormatResources(const TNodeResources& resources)
 {
     return Format(
         "{"
@@ -132,7 +132,7 @@ TNodeId NodeIdFromObjectId(const TObjectId& objectId)
     return CounterFromId(objectId);
 }
 
-void ValidateNodeTags(const std::vector<Stroka>& tags)
+void ValidateNodeTags(const std::vector<TString>& tags)
 {
     for (const auto& tag : tags) {
         try {

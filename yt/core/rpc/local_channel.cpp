@@ -24,7 +24,7 @@ using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const Stroka EndpointDescription = "<local>";
+static const TString EndpointDescription = "<local>";
 static const std::unique_ptr<IAttributeDictionary> EndpointAttributes =
     ConvertToAttributes(BuildYsonStringFluently()
         .BeginMap()
@@ -41,7 +41,7 @@ public:
         : Server_(std::move(server))
     { }
 
-    virtual const Stroka& GetEndpointDescription() const override
+    virtual const TString& GetEndpointDescription() const override
     {
         return EndpointDescription;
     }
@@ -117,7 +117,7 @@ private:
             }
         }
 
-        virtual const Stroka& GetEndpointDescription() const
+        virtual const TString& GetEndpointDescription() const
         {
             return EndpointDescription;
         }

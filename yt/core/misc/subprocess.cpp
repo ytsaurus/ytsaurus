@@ -22,7 +22,7 @@ static NLogging::TLogger Logger("Subprocess");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSubprocess::TSubprocess(const Stroka& path)
+TSubprocess::TSubprocess(const TString& path)
     : Process_(New<TSimpleProcess>(path))
 { }
 
@@ -98,7 +98,7 @@ void TSubprocess::Kill(int signal)
     Process_->Kill(signal);
 }
 
-Stroka TSubprocess::GetCommandLine() const
+TString TSubprocess::GetCommandLine() const
 {
     return Process_->GetCommandLine();
 }

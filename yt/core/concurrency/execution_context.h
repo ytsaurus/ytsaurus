@@ -1,6 +1,7 @@
 #pragma once
 
 #include <util/system/defaults.h>
+#include <util/system/sanitizers.h>
 
 #if defined(__GNUC__) || defined(__clang__)
 #   define CXXABIv1
@@ -19,6 +20,7 @@ class TExecutionContext
 {
 public:
     TExecutionContext();
+    TExecutionContext(void* stackBottom, size_t stackSize);
     TExecutionContext(TExecutionContext&& other);
     TExecutionContext(const TExecutionContext&) = delete;
 
@@ -29,6 +31,10 @@ private:
 
 #ifdef CXXABIv1
     char EH_[EH_SIZE];
+#endif
+
+#if defined(_asan_enabled_)
+    NSan::TFiberContext San_;
 #endif
 
     friend TExecutionContext CreateExecutionContext(

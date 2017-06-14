@@ -19,11 +19,11 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const Stroka InputRowCountPath = "/data/input/row_count";
-static const Stroka InputUncompressedDataSizePath = "/data/input/uncompressed_data_size";
-static const Stroka InputCompressedDataSizePath = "/data/input/compressed_data_size";
-static const Stroka InputPipeIdleTimePath = "/user_job/pipes/input/idle_time";
-static const Stroka JobProxyCpuUsagePath = "/job_proxy/cpu/user";
+static const TString InputRowCountPath = "/data/input/row_count";
+static const TString InputUncompressedDataSizePath = "/data/input/uncompressed_data_size";
+static const TString InputCompressedDataSizePath = "/data/input/compressed_data_size";
+static const TString InputPipeIdleTimePath = "/user_job/pipes/input/idle_time";
+static const TString JobProxyCpuUsagePath = "/job_proxy/cpu/user";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,7 +107,7 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
     briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, JobProxyCpuUsagePath);
     briefStatistics->Timestamp = statistics.GetTimestamp().Get(TInstant::Now());
 
-    // TODO(max42): GetTotalOutputDataStatistics is implemented very inefficiently (it creates yhash_map containing
+    // TODO(max42): GetTotalOutputDataStatistics is implemented very inefficiently (it creates yhash containing
     // output data statistics per output table and then aggregates them). Rewrite it without any new allocations.
     auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
     briefStatistics->ProcessedOutputUncompressedDataSize = outputDataStatistics.uncompressed_data_size();

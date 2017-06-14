@@ -65,10 +65,10 @@ DEFINE_BIT_ENUM(EReplicationLogDataFlags,
 
 struct TReplicationLogTable
 {
-    static const Stroka ChangeTypeColumnName;
-    static const Stroka KeyColumnNamePrefix;
-    static const Stroka ValueColumnNamePrefix;
-    static const Stroka FlagsColumnNamePrefix;
+    static const TString ChangeTypeColumnName;
+    static const TString KeyColumnNamePrefix;
+    static const TString ValueColumnNamePrefix;
+    static const TString FlagsColumnNamePrefix;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

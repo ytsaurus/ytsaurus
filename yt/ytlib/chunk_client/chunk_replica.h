@@ -41,7 +41,7 @@ private:
 
 };
 
-Stroka ToString(TChunkReplica replica);
+TString ToString(TChunkReplica replica);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,12 +69,12 @@ struct TChunkIdWithIndexes
 bool operator==(const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
 bool operator!=(const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
 
-Stroka ToString(const TChunkIdWithIndex& id);
+TString ToString(const TChunkIdWithIndex& id);
 
 bool operator==(const TChunkIdWithIndexes& lhs, const TChunkIdWithIndexes& rhs);
 bool operator!=(const TChunkIdWithIndexes& lhs, const TChunkIdWithIndexes& rhs);
 
-Stroka ToString(const TChunkIdWithIndexes& id);
+TString ToString(const TChunkIdWithIndexes& id);
 
 //! Returns |true| iff this is an artifact chunk.
 bool IsArtifactChunkId(const TChunkId& id);

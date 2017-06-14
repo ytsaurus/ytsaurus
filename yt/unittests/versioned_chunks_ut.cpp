@@ -32,8 +32,8 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka A("a");
-Stroka B("b");
+TString A("a");
+TString B("b");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,7 +95,7 @@ protected:
             MemoryWriter->GetBlocks());
     }
 
-    void FillKey(TMutableVersionedRow row, TNullable<Stroka> k1, TNullable<i64> k2, TNullable<double> k3)
+    void FillKey(TMutableVersionedRow row, TNullable<TString> k1, TNullable<i64> k2, TNullable<double> k3)
     {
         row.BeginKeys()[0] = k1
                              ? MakeUnversionedStringValue(*k1, 0)
@@ -305,7 +305,7 @@ public:
             TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("k4", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending),
 
-            TColumnSchema("v1", EValueType::Int64).SetAggregate(Stroka("min")),
+            TColumnSchema("v1", EValueType::Int64).SetAggregate(TString("min")),
             TColumnSchema("v2", EValueType::Int64),
             TColumnSchema("v3", EValueType::Uint64),
             TColumnSchema("v4", EValueType::String),
@@ -319,7 +319,7 @@ public:
 protected:
     std::vector<TColumnSchema> ColumnSchemas_;
 
-    std::vector<Stroka> StringData_;
+    std::vector<TString> StringData_;
 
     TRowBufferPtr RowBuffer_;
 
@@ -383,13 +383,13 @@ protected:
         CheckResult(&expected, chunkReader);
     }
 
-    Stroka NextStringValue(std::vector<char>& value)
+    TString NextStringValue(std::vector<char>& value)
     {
         int index = value.size() - 1;
         while (index >= 0) {
             if (value[index] < 'z') {
                 ++value[index];
-                return Stroka(value.data(), value.size());
+                return TString(value.data(), value.size());
             } else {
                 value[index] = 'a';
                 --index;

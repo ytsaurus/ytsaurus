@@ -3,7 +3,7 @@
 #include <yt/core/misc/hash.h>
 #include <yt/core/misc/ref_counted.h>
 
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 namespace NYT {
 namespace NBlackbox {
@@ -22,14 +22,14 @@ DECLARE_REFCOUNTED_STRUCT(ITokenAuthenticator)
 
 struct TTokenCredentials
 {
-    Stroka Token;
-    Stroka UserIp;
+    TString Token;
+    TString UserIp;
 };
 
 struct TAuthenticationResult
 {
-    Stroka Login;
-    Stroka Realm;
+    TString Login;
+    TString Realm;
 };
 
 inline bool operator==(

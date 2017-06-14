@@ -38,7 +38,7 @@ using namespace NYTree;
 TSlotLocation::TSlotLocation(
     const TSlotLocationConfigPtr& config,
     const NCellNode::TBootstrap* bootstrap,
-    const Stroka& id,
+    const TString& id,
     bool detachedTmpfsUmount)
     : TDiskLocation(config, id, ExecAgentLogger)
     , Config_(config)
@@ -101,8 +101,8 @@ TFuture<void> TSlotLocation::CreateSandboxDirectories(int slotIndex)
 TFuture<void> TSlotLocation::MakeSandboxCopy(
     int slotIndex,
     ESandboxKind kind,
-    const Stroka& sourcePath,
-    const Stroka& destinationName,
+    const TString& sourcePath,
+    const TString& destinationName,
     bool executable)
 {
     return BIND([=, this_ = MakeStrong(this)] () {
@@ -170,8 +170,8 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
 TFuture<void> TSlotLocation::MakeSandboxLink(
     int slotIndex,
     ESandboxKind kind,
-    const Stroka& targetPath,
-    const Stroka& linkName,
+    const TString& targetPath,
+    const TString& linkName,
     bool executable)
 {
     return BIND([=, this_ = MakeStrong(this)] () {
@@ -207,12 +207,12 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
     .Run();
 }
 
-TFuture<Stroka> TSlotLocation::MakeSandboxTmpfs(
+TFuture<TString> TSlotLocation::MakeSandboxTmpfs(
     int slotIndex,
     ESandboxKind kind,
     i64 size,
     int userId,
-    const Stroka& path,
+    const TString& path,
     bool enable,
     IMounterPtr mounter)
 {
@@ -309,7 +309,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex, IMounterPtr mounter)
     return BIND([=, this_ = MakeStrong(this)] () {
         ValidateEnabled();
 
-        auto removeMountPoint = [=, this_ = MakeStrong(this)] (const Stroka& path) {
+        auto removeMountPoint = [=, this_ = MakeStrong(this)] (const TString& path) {
             auto config = New<TUmountConfig>();
             config->Path = path;
             config->Detach = DetachedTmpfsUmount_;
@@ -337,12 +337,12 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex, IMounterPtr mounter)
                 LOG_DEBUG("Cleaning sandbox directory (Path: %v)", sandboxPath);
 
                 auto sandboxFullPath = NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), sandboxPath);
-                auto isInsideSandbox = [&] (const Stroka& path) {
+                auto isInsideSandbox = [&] (const TString& path) {
                     return path == sandboxFullPath || path.StartsWith(sandboxFullPath + "/");
                 };
 
                 // Unmount all known tmpfs.
-                std::vector<Stroka> tmpfsPaths;
+                std::vector<TString> tmpfsPaths;
                 for (const auto& tmpfsPath : TmpfsPaths_) {
                     if (isInsideSandbox(tmpfsPath)) {
                         tmpfsPaths.push_back(tmpfsPath);
@@ -398,14 +398,14 @@ void TSlotLocation::DecreaseSessionCount()
     --SessionCount_;
 }
 
-void TSlotLocation::ValidateNotExists(const Stroka& path)
+void TSlotLocation::ValidateNotExists(const TString& path)
 {
     if (NFS::Exists(path)) {
         THROW_ERROR_EXCEPTION("Path %v already exists", path);
     }
 }
 
-void TSlotLocation::EnsureNotInUse(const Stroka& path) const
+void TSlotLocation::EnsureNotInUse(const TString& path) const
 {
     // Take exclusive lock in blocking fashion to ensure that no
     // forked process is holding an open descriptor to the source file.
@@ -413,24 +413,24 @@ void TSlotLocation::EnsureNotInUse(const Stroka& path) const
     file.Flock(LOCK_EX);
 }
 
-Stroka TSlotLocation::GetConfigPath(int slotIndex) const
+TString TSlotLocation::GetConfigPath(int slotIndex) const
 {
     return NFS::CombinePaths(GetSlotPath(slotIndex), ProxyConfigFileName);
 }
 
-Stroka TSlotLocation::GetSlotPath(int slotIndex) const
+TString TSlotLocation::GetSlotPath(int slotIndex) const
 {
     return NFS::CombinePaths(Config_->Path, Format("%v", slotIndex));
 }
 
-Stroka TSlotLocation::GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const
+TString TSlotLocation::GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const
 {
     const auto& sandboxName = SandboxDirectoryNames[sandboxKind];
     Y_ASSERT(sandboxName);
     return NFS::CombinePaths(GetSlotPath(slotIndex), sandboxName);
 }
 
-bool TSlotLocation::IsInsideTmpfs(const Stroka& path) const
+bool TSlotLocation::IsInsideTmpfs(const TString& path) const
 {
     for (const auto& tmpfsPath : TmpfsPaths_) {
         if (path.StartsWith(tmpfsPath)) {
@@ -441,7 +441,7 @@ bool TSlotLocation::IsInsideTmpfs(const Stroka& path) const
     return false;
 }
 
-void TSlotLocation::ForceSubdirectories(const Stroka& filePath, const Stroka& sandboxPath) const
+void TSlotLocation::ForceSubdirectories(const TString& filePath, const TString& sandboxPath) const
 {
     auto dirPath = NFS::GetDirectoryName(filePath);
     if (!dirPath.StartsWith(sandboxPath)) {

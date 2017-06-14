@@ -33,7 +33,7 @@ class TCGroupResourceController
 public:
     TCGroupResourceController(
         TCGroupJobEnvironmentConfigPtr config,
-        const Stroka& path = Stroka())
+        const TString& path = TString())
         : CGroupsConfig_(config)
         , CGroups_(path)
         , Path_(path)
@@ -101,12 +101,12 @@ public:
         }
     }
 
-    virtual IResourceControllerPtr CreateSubcontroller(const Stroka& name) override
+    virtual IResourceControllerPtr CreateSubcontroller(const TString& name) override
     {
         return New<TCGroupResourceController>(CGroupsConfig_, Path_ + name);
     }
 
-    virtual TProcessBasePtr CreateControlledProcess(const Stroka& path) override
+    virtual TProcessBasePtr CreateControlledProcess(const TString& path) override
     {
         auto process = New<TSimpleProcess>(path, false);
         try {
@@ -143,7 +143,7 @@ private:
 
     struct TCGroups
     {
-        explicit TCGroups(const Stroka& name)
+        explicit TCGroups(const TString& name)
             : Freezer(name)
             , CpuAccounting(name)
             , BlockIO(name)
@@ -158,7 +158,7 @@ private:
         TCpu Cpu;
     } CGroups_;
 
-    const Stroka Path_;
+    const TString Path_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -276,13 +276,13 @@ public:
         }
     }
 
-    virtual IResourceControllerPtr CreateSubcontroller(const Stroka& name) override
+    virtual IResourceControllerPtr CreateSubcontroller(const TString& name) override
     {
         auto instance = ContainerManager_->CreateInstance();
         return New<TPortoResourceController>(ContainerManager_, instance, BlockIOWatchdogPeriod_, UseResourceLimits_);
     }
 
-    virtual TProcessBasePtr CreateControlledProcess(const Stroka& path) override
+    virtual TProcessBasePtr CreateControlledProcess(const TString& path) override
     {
         return New<TPortoProcess>(path, Container_, false);
     }

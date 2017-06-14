@@ -36,7 +36,7 @@ static const auto& Logger = TabletServerLogger;
 
 // Formatter for TMemoryUsage.
 template <class T, class U>
-Stroka ToString(const std::pair<T, U>& pair)
+TString ToString(const std::pair<T, U>& pair)
 {
     return Format("(%v, %v)", pair.first, pair.second);
 }

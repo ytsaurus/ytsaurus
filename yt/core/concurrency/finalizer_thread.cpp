@@ -156,7 +156,7 @@ private:
     const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const std::shared_ptr<TEventCount> ShutdownEventCount_ = std::make_shared<TEventCount>();
 
-    const Stroka ThreadName_;
+    const TString ThreadName_;
     const TInvokerQueuePtr Queue_;
     const TSingleQueueSchedulerThreadPtr Thread_;
 

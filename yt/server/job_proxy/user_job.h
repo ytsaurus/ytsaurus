@@ -17,8 +17,8 @@ IJobPtr CreateUserJob(IJobHostPtr host,
     const NJobAgent::TJobId& jobId,
     std::unique_ptr<IUserJobIO> userJobIO);
 
-const Stroka& GetCGroupUserJobBase();
-const Stroka& GetCGroupUserJobPrefix();
+const TString& GetCGroupUserJobBase();
+const TString& GetCGroupUserJobPrefix();
 
 ////////////////////////////////////////////////////////////////////////////////
 

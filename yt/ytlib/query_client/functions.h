@@ -109,9 +109,9 @@ typedef std::function<TKeyTriePtr(
 
 struct TTypeInferrerMap
     : public TRefCounted
-    , public std::unordered_map<Stroka, ITypeInferrerPtr>
+    , public std::unordered_map<TString, ITypeInferrerPtr>
 {
-    const ITypeInferrerPtr& GetFunction(const Stroka& functionName) const;
+    const ITypeInferrerPtr& GetFunction(const TString& functionName) const;
 
 };
 
@@ -119,16 +119,16 @@ DEFINE_REFCOUNTED_TYPE(TTypeInferrerMap)
 
 struct TRangeExtractorMap
     : public TRefCounted
-    , public std::unordered_map<Stroka, TRangeExtractor>
+    , public std::unordered_map<TString, TRangeExtractor>
 { };
 
 DEFINE_REFCOUNTED_TYPE(TRangeExtractorMap)
 
 struct TFunctionProfilerMap
     : public TRefCounted
-    , public std::unordered_map<Stroka, IFunctionCodegenPtr>
+    , public std::unordered_map<TString, IFunctionCodegenPtr>
 {
-    const IFunctionCodegenPtr& GetFunction(const Stroka& functionName) const;
+    const IFunctionCodegenPtr& GetFunction(const TString& functionName) const;
 
 };
 
@@ -136,9 +136,9 @@ DEFINE_REFCOUNTED_TYPE(TFunctionProfilerMap)
 
 struct TAggregateProfilerMap
     : public TRefCounted
-    , public std::unordered_map<Stroka, IAggregateCodegenPtr>
+    , public std::unordered_map<TString, IAggregateCodegenPtr>
 {
-    const IAggregateCodegenPtr& GetAggregate(const Stroka& functionName) const;
+    const IAggregateCodegenPtr& GetAggregate(const TString& functionName) const;
 
 };
 

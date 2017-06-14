@@ -57,10 +57,10 @@ TTcpConnection::TTcpConnection(
     TNullable<ETcpInterfaceType> interfaceType,
     const TConnectionId& id,
     int socket,
-    const Stroka& endpointDescription,
+    const TString& endpointDescription,
     const IAttributeDictionary& endpointAttributes,
-    const TNullable<Stroka>& address,
-    const TNullable<Stroka>& unixDomainName,
+    const TNullable<TString>& address,
+    const TNullable<TString>& unixDomainName,
     int priority,
     IMessageHandlerPtr handler,
     IPollerPtr poller)
@@ -181,7 +181,7 @@ void TTcpConnection::Check()
     }
 }
 
-const Stroka& TTcpConnection::GetLoggingId() const
+const TString& TTcpConnection::GetLoggingId() const
 {
     return LoggingId_;
 }
@@ -249,7 +249,7 @@ void TTcpConnection::ResolveAddress()
             return;
         }
 
-        TAddressResolver::Get()->Resolve(Stroka(hostName)).Subscribe(
+        TAddressResolver::Get()->Resolve(TString(hostName)).Subscribe(
             BIND(&TTcpConnection::OnAddressResolveFinished, MakeStrong(this))
                 .Via(Poller_->GetInvoker()));
     }
@@ -467,7 +467,7 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& address)
     }
 }
 
-const Stroka& TTcpConnection::GetEndpointDescription() const
+const TString& TTcpConnection::GetEndpointDescription() const
 {
     return EndpointDescription_;
 }

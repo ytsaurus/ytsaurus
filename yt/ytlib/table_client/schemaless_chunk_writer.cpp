@@ -510,7 +510,7 @@ public:
         , DataToBlockFlush_(Config_->BlockSize)
     {
         // Only scan-optimized version for now.
-        yhash<Stroka, TDataBlockWriter*> groupBlockWriters;
+        yhash<TString, TDataBlockWriter*> groupBlockWriters;
         for (const auto& column : Schema_.Columns()) {
             if (column.Group && groupBlockWriters.find(*column.Group) == groupBlockWriters.end()) {
                 auto blockWriter = std::make_unique<TDataBlockWriter>();
@@ -1557,7 +1557,7 @@ private:
 
             auto req = TCypressYPathProxy::Get(objectIdPath);
             SetTransactionId(req, Transaction_);
-            std::vector<Stroka> attributeKeys{
+            std::vector<TString> attributeKeys{
                 "account",
                 "chunk_writer",
                 "compression_codec",
@@ -1589,10 +1589,10 @@ private:
             );
 
             Options_->ReplicationFactor = attributes.Get<int>("replication_factor");
-            Options_->MediumName = attributes.Get<Stroka>("primary_medium");
+            Options_->MediumName = attributes.Get<TString>("primary_medium");
             Options_->CompressionCodec = TableUploadOptions_.CompressionCodec;
             Options_->ErasureCodec = TableUploadOptions_.ErasureCodec;
-            Options_->Account = attributes.Get<Stroka>("account");
+            Options_->Account = attributes.Get<TString>("account");
             Options_->ChunksVital = attributes.Get<bool>("vital");
             Options_->ValidateSorted = TableUploadOptions_.TableSchema.IsSorted();
             Options_->ValidateUniqueKeys = TableUploadOptions_.TableSchema.GetUniqueKeys();

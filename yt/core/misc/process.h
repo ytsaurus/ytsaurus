@@ -24,15 +24,15 @@ class TProcessBase
     : public TRefCounted
 {
 public:
-    explicit TProcessBase(const Stroka& path);
+    explicit TProcessBase(const TString& path);
 
     void AddArgument(TStringBuf arg);
     void AddEnvVar(TStringBuf var);
 
     void AddArguments(std::initializer_list<TStringBuf> args);
-    void AddArguments(const std::vector<Stroka>& args);
+    void AddArguments(const std::vector<TString>& args);
 
-    void SetWorkingDirectory(const Stroka& path);
+    void SetWorkingDirectory(const TString& path);
 
     virtual NPipes::TAsyncWriterPtr GetStdInWriter() = 0;
     virtual NPipes::TAsyncReaderPtr GetStdOutReader() = 0;
@@ -41,26 +41,26 @@ public:
     TFuture<void> Spawn();
     virtual void Kill(int signal) = 0;
 
-    Stroka GetPath() const;
+    TString GetPath() const;
     int GetProcessId() const;
     bool IsStarted() const;
     bool IsFinished() const;
 
-    Stroka GetCommandLine() const;
+    TString GetCommandLine() const;
 
 protected:
-    const Stroka Path_;
+    const TString Path_;
 
     int ProcessId_;
     std::atomic<bool> Started_ = {false};
     std::atomic<bool> Finished_ = {false};
     int MaxSpawnActionFD_ = - 1;
     NPipes::TPipe Pipe_;
-    std::vector<Stroka> StringHolders_;
+    std::vector<TString> StringHolders_;
     std::vector<const char*> Args_;
     std::vector<const char*> Env_;
-    Stroka ResolvedPath_;
-    Stroka WorkingDirectory_;
+    TString ResolvedPath_;
+    TString WorkingDirectory_;
     TPromise<void> FinishedPromise_ = NewPromise<void>();
 
     virtual void DoSpawn() = 0;
@@ -86,7 +86,7 @@ class TSimpleProcess
 {
 public:
     explicit TSimpleProcess(
-        const Stroka& path,
+        const TString& path,
         bool copyEnv = true,
         TDuration pollPeriod = TDuration::MilliSeconds(100));
     virtual void Kill(int signal) override;
@@ -104,7 +104,7 @@ private:
     struct TSpawnAction
     {
         std::function<bool()> Callback;
-        Stroka ErrorMessage;
+        TString ErrorMessage;
     };
 
     std::vector<TSpawnAction> SpawnActions_;
@@ -124,7 +124,7 @@ class TPortoProcess
 {
 public:
     TPortoProcess(
-        const Stroka& path,
+        const TString& path,
         NContainers::IInstancePtr containerInstance,
         bool copyEnv = true,
         TDuration pollPeriod = TDuration::MilliSeconds(100));

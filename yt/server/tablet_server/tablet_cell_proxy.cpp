@@ -74,7 +74,7 @@ private:
             .SetMandatory(true));
     }
 
-    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const TString& key, NYson::IYsonConsumer* consumer) override
     {
         const auto* cell = GetThisImpl();
 

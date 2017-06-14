@@ -28,7 +28,7 @@ TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::G
 }
 
 template <class TTypedResponse>
-TNullable<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const Stroka& key) const
+TNullable<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const TString& key) const
 {
     YCHECK(!key.empty());
     auto range = KeyToIndexes.equal_range(key);
@@ -43,7 +43,7 @@ TNullable<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExec
 }
 
 template <class TTypedResponse>
-TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
+TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const TString& key) const
 {
     auto result = FindResponse<TTypedResponse>(key);
     YCHECK(result);
@@ -51,7 +51,7 @@ TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::G
 }
 
 template <class TTypedResponse>
-std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key) const
+std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const TString& key) const
 {
     std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> responses;
     if (key.empty()) {

@@ -146,7 +146,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
         if (Attributes_) {
             auto& attributes = Attributes_->Attributes();
             {
-                static const Stroka optimizeForAttributeName("optimize_for");
+                static const TString optimizeForAttributeName("optimize_for");
                 auto it = attributes.find(optimizeForAttributeName);
                 if (it != attributes.end()) {
                     const auto& value = it->second;

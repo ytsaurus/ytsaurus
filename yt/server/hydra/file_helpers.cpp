@@ -8,8 +8,8 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileWrapper::TFileWrapper(const Stroka& fileName, ui32 oMode)
-    : File_(fileName, OpenMode(oMode))
+TFileWrapper::TFileWrapper(const TString& fileName, EOpenMode oMode)
+    : File_(fileName, oMode)
 { }
 
 i64 TFileWrapper::Seek(i64 offset, SeekDir origin)
@@ -103,7 +103,7 @@ void TLengthMeasureOutputStream::DoFinish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RemoveChangelogFiles(const Stroka& path)
+void RemoveChangelogFiles(const TString& path)
 {
     auto dataFileName = path;
     NFS::Remove(dataFileName);

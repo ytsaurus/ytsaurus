@@ -34,7 +34,7 @@ TColumnSchema::TColumnSchema()
 { }
 
 TColumnSchema::TColumnSchema(
-    const Stroka& name,
+    const TString& name,
     EValueType type,
     TNullable<ESortOrder> SortOrder)
     : Name(name)
@@ -48,25 +48,25 @@ TColumnSchema& TColumnSchema::SetSortOrder(const TNullable<ESortOrder>& value)
     return *this;
 }
 
-TColumnSchema& TColumnSchema::SetLock(const TNullable<Stroka>& value)
+TColumnSchema& TColumnSchema::SetLock(const TNullable<TString>& value)
 {
     Lock = value;
     return *this;
 }
 
-TColumnSchema& TColumnSchema::SetGroup(const TNullable<Stroka>& value)
+TColumnSchema& TColumnSchema::SetGroup(const TNullable<TString>& value)
 {
     Group = value;
     return *this;
 }
 
-TColumnSchema& TColumnSchema::SetExpression(const TNullable<Stroka>& value)
+TColumnSchema& TColumnSchema::SetExpression(const TNullable<TString>& value)
 {
     Expression = value;
     return *this;
 }
 
-TColumnSchema& TColumnSchema::SetAggregate(const TNullable<Stroka>& value)
+TColumnSchema& TColumnSchema::SetAggregate(const TNullable<TString>& value)
 {
     Aggregate = value;
     return *this;
@@ -266,7 +266,7 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
         UniqueKeys_ && (newKeyColumnCount == GetKeyColumnCount()));
 }
 
-TTableSchema TTableSchema::Filter(const yhash_set<Stroka>& columns) const
+TTableSchema TTableSchema::Filter(const yhash_set<TString>& columns) const
 {
     TColumnFilter filter;
     filter.All = false;
@@ -279,13 +279,13 @@ TTableSchema TTableSchema::Filter(const yhash_set<Stroka>& columns) const
     return Filter(filter);
 }
 
-TTableSchema TTableSchema::Filter(const TNullable<std::vector<Stroka>>& columns) const
+TTableSchema TTableSchema::Filter(const TNullable<std::vector<TString>>& columns) const
 {
     if (!columns) {
         return *this;
     }
 
-    return Filter(yhash_set<Stroka>(columns->begin(), columns->end()));
+    return Filter(yhash_set<TString>(columns->begin(), columns->end()));
 }
 
 bool TTableSchema::HasComputedColumns() const
@@ -519,7 +519,7 @@ void TTableSchema::Load(TStreamLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TTableSchema& schema)
+TString ToString(const TTableSchema& schema)
 {
     return ConvertToYsonString(schema, EYsonFormat::Text).GetData();
 }
@@ -612,7 +612,7 @@ void ValidateKeyColumns(const TKeyColumns& keyColumns)
 {
     ValidateKeyColumnCount(keyColumns.size());
 
-    yhash_set<Stroka> names;
+    yhash_set<TString> names;
     for (const auto& name : keyColumns) {
         if (!names.insert(name).second) {
             THROW_ERROR_EXCEPTION("Duplicate key column name %Qv",
@@ -646,7 +646,7 @@ void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumn
 
 void ValidateColumnSchema(const TColumnSchema& columnSchema, bool isTableDynamic)
 {
-    static const auto allowedAggregates = yhash_set<Stroka>{"sum", "min", "max", "first"};
+    static const auto allowedAggregates = yhash_set<TString>{"sum", "min", "max", "first"};
 
     try {
         if (columnSchema.Name.empty()) {
@@ -856,7 +856,7 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
 //! Validates that there are no duplicates among the column names.
 void ValidateColumnUniqueness(const TTableSchema& schema)
 {
-    yhash_set<Stroka> columnNames;
+    yhash_set<TString> columnNames;
     for (const auto& column : schema.Columns()) {
         if (!columnNames.insert(column.Name).second) {
             THROW_ERROR_EXCEPTION("Duplicate column name %Qv in table schema",
@@ -868,7 +868,7 @@ void ValidateColumnUniqueness(const TTableSchema& schema)
 //! Validates that number of locks doesn't exceed #MaxColumnLockCount.
 void ValidateLocks(const TTableSchema& schema)
 {
-    yhash_set<Stroka> lockNames;
+    yhash_set<TString> lockNames;
     YCHECK(lockNames.insert(PrimaryLockName).second);
     for (const auto& column : schema.Columns()) {
         if (column.Lock) {
@@ -913,7 +913,7 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
             if (index >= schema.GetKeyColumnCount() && isTableDynamic) {
                 THROW_ERROR_EXCEPTION("Non-key column %Qv cannot be computed", columnSchema.Name);
             }
-            yhash_set<Stroka> references;
+            yhash_set<TString> references;
             auto expr = PrepareExpression(columnSchema.Expression.Get(), schema, BuiltinTypeInferrersMap, &references);
             if (expr->Type != columnSchema.Type) {
                 THROW_ERROR_EXCEPTION(
@@ -1163,8 +1163,8 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
         }
     }
 
-    yhash<Stroka, TColumnSchema> nameToColumnSchema;
-    std::vector<Stroka> columnNames;
+    yhash<TString, TColumnSchema> nameToColumnSchema;
+    std::vector<TString> columnNames;
 
     for (const auto& schema : schemas) {
         for (int columnIndex = 0; columnIndex < schema.Columns().size(); ++columnIndex) {

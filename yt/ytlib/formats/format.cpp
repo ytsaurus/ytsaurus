@@ -80,7 +80,7 @@ void Deserialize(TFormat& value, INodePtr node)
         THROW_ERROR_EXCEPTION("Format name must be a string");
     }
 
-    auto typeStr = node->GetValue<Stroka>();
+    auto typeStr = node->GetValue<TString>();
     EFormatType type;
     try {
         type = ParseEnum<EFormatType>(typeStr);

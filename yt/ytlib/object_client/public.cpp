@@ -51,7 +51,7 @@ void FormatValue(TStringBuilder* builder, const TVersionedObjectId& id, const TS
     builder->AppendFormat("%v:%v", id.ObjectId, id.TransactionId);
 }
 
-Stroka ToString(const TVersionedObjectId& id)
+TString ToString(const TVersionedObjectId& id)
 {
     return ToStringViaBuilder(id);
 }

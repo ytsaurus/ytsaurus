@@ -292,7 +292,7 @@ void TNodeShard::RemoveOutdatedSchedulingTagFilter(const TSchedulingTagFilter& f
     SchedulingTagFilterToResources_.erase(filter);
 }
 
-void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<Stroka, INodePtr>>& nodeMaps)
+void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<TString, INodePtr>>& nodeMaps)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -302,7 +302,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<Stroka, INode
         auto objectId = attributes.Get<TObjectId>("id");
         auto nodeId = NodeIdFromObjectId(objectId);
         auto newState = attributes.Get<ENodeState>("state");
-        auto ioWeights = attributes.Get<yhash<Stroka, double>>("io_weights", {});
+        auto ioWeights = attributes.Get<yhash<TString, double>>("io_weights", {});
 
         LOG_DEBUG("Handling node attributes (NodeId: %v, Address: %v, ObjectId: %v, NewState: %v)",
             nodeId,
@@ -324,7 +324,7 @@ void TNodeShard::HandleNodesAttributes(const std::vector<std::pair<Stroka, INode
         auto execNode = IdToNode_[nodeId];
         auto oldState = execNode->GetMasterState();
 
-        auto tags = attributes.Get<std::vector<Stroka>>("tags");
+        auto tags = attributes.Get<std::vector<TString>>("tags");
         UpdateNodeTags(execNode, tags);
 
         if (oldState != newState) {
@@ -399,7 +399,7 @@ void TNodeShard::ResumeOperationJobs(const TOperationId& operationId)
     operationState->JobsAborted = false;
 }
 
-TYsonString TNodeShard::StraceJob(const TJobId& jobId, const Stroka& user)
+TYsonString TNodeShard::StraceJob(const TJobId& jobId, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -428,7 +428,7 @@ TYsonString TNodeShard::StraceJob(const TJobId& jobId, const Stroka& user)
     return TYsonString(rsp->trace());
 }
 
-void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, const Stroka& user)
+void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -466,7 +466,7 @@ void TNodeShard::DumpJobInputContext(const TJobId& jobId, const TYPath& path, co
         job->GetOperationId());
 }
 
-TNodeDescriptor TNodeShard::GetJobNode(const TJobId& jobId, const Stroka& user)
+TNodeDescriptor TNodeShard::GetJobNode(const TJobId& jobId, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     auto job = GetJobOrThrow(jobId);
@@ -476,7 +476,7 @@ TNodeDescriptor TNodeShard::GetJobNode(const TJobId& jobId, const Stroka& user)
     return job->GetNode()->NodeDescriptor();
 }
 
-void TNodeShard::SignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user)
+void TNodeShard::SignalJob(const TJobId& jobId, const TString& signalName, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -504,7 +504,7 @@ void TNodeShard::SignalJob(const TJobId& jobId, const Stroka& signalName, const 
         job->GetOperationId());
 }
 
-void TNodeShard::AbandonJob(const TJobId& jobId, const Stroka& user)
+void TNodeShard::AbandonJob(const TJobId& jobId, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -544,7 +544,7 @@ void TNodeShard::AbandonJob(const TJobId& jobId, const Stroka& user)
     OnJobCompleted(job, nullptr /* jobStatus */, true /* abandoned */);
 }
 
-TYsonString TNodeShard::PollJobShell(const TJobId& jobId, const TYsonString& parameters, const Stroka& user)
+TYsonString TNodeShard::PollJobShell(const TJobId& jobId, const TYsonString& parameters, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -577,7 +577,7 @@ TYsonString TNodeShard::PollJobShell(const TJobId& jobId, const TYsonString& par
     return TYsonString(rsp->result());
 }
 
-void TNodeShard::AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const Stroka& user)
+void TNodeShard::AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -957,7 +957,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     }
 }
 
-NLogging::TLogger TNodeShard::CreateJobLogger(const TJobId& jobId, EJobState state, const Stroka& address)
+NLogging::TLogger TNodeShard::CreateJobLogger(const TJobId& jobId, EJobState state, const TString& address)
 {
     auto logger = Logger;
     logger.AddTag("Address: %v, JobId: %v, State: %v",
@@ -1112,9 +1112,9 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     return job;
 }
 
-void TNodeShard::UpdateNodeTags(TExecNodePtr node, const std::vector<Stroka>& tagsList)
+void TNodeShard::UpdateNodeTags(TExecNodePtr node, const std::vector<TString>& tagsList)
 {
-    yhash_set<Stroka> newTags(tagsList.begin(), tagsList.end());
+    yhash_set<TString> newTags(tagsList.begin(), tagsList.end());
 
     if (node->GetMasterState() == ENodeState::Online) {
         TWriterGuard guard(ResourcesLock_);
@@ -1564,7 +1564,7 @@ void TNodeShard::DoInterruptJob(
     const TJobPtr& job,
     EInterruptReason reason,
     TCpuDuration interruptTimeout,
-    TNullable<Stroka> interruptUser)
+    TNullable<TString> interruptUser)
 {
     LOG_DEBUG("Interrupting job (Reason: %v, InterruptTimeout: %.3g, JobId: %v, OperationId: %v)",
         reason,

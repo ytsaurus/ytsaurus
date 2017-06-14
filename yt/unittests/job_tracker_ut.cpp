@@ -42,7 +42,7 @@ TEST(TYsonTest, ConvertToUsingBuildingYsonConsumer)
     auto statistics = ConvertTo<TStatistics>(statisticsYson);
     auto data = statistics.Data();
     
-    std::map<Stroka, TSummary> expectedData {
+    std::map<TString, TSummary> expectedData {
         { "/abc/def", TSummary(42, 3, 5, 21) },
         { "/abc/degh", TSummary(27, 1, 27, 27) },
         { "/xyz", TSummary(50, 5, 8, 12) },

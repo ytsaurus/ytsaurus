@@ -870,7 +870,7 @@ void TSortedDynamicStore::WaitOnBlockedRow(
             break;
         }
 
-        auto throwError = [&] (const Stroka& message) {
+        auto throwError = [&] (const TString& message) {
             THROW_ERROR_EXCEPTION(message)
                 << TErrorAttribute("lock", LockIndexToName_[lockIndex])
                 << TErrorAttribute("tablet_id", TabletId_)

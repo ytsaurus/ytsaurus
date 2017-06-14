@@ -56,11 +56,11 @@ class TShellManager
 {
 public:
     TShellManager(
-        const Stroka& workingDir,
+        const TString& workingDir,
         TNullable<int> userId,
-        TNullable<Stroka> freezerFullPath,
-        TNullable<Stroka> messageOfTheDay,
-        std::vector<Stroka> environment)
+        TNullable<TString> freezerFullPath,
+        TNullable<TString> messageOfTheDay,
+        std::vector<TString> environment)
         : WorkingDir_(workingDir)
         , UserId_(userId)
         , FreezerFullPath_(freezerFullPath)
@@ -199,12 +199,12 @@ public:
     }
 
 private:
-    const Stroka WorkingDir_;
+    const TString WorkingDir_;
     TNullable<int> UserId_;
-    TNullable<Stroka> FreezerFullPath_;
-    TNullable<Stroka> MessageOfTheDay_;
+    TNullable<TString> FreezerFullPath_;
+    TNullable<TString> MessageOfTheDay_;
 
-    std::vector<Stroka> Environment_;
+    std::vector<TString> Environment_;
     yhash<TShellId, IShellPtr> IdToShell_;
     bool Terminated_ = false;
 
@@ -240,11 +240,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IShellManagerPtr CreateShellManager(
-    const Stroka& workingDir,
+    const TString& workingDir,
     TNullable<int> userId,
-    TNullable<Stroka> freezerFullPath,
-    TNullable<Stroka> messageOfTheDay,
-    std::vector<Stroka> environment)
+    TNullable<TString> freezerFullPath,
+    TNullable<TString> messageOfTheDay,
+    std::vector<TString> environment)
 {
     return New<TShellManager>(workingDir, userId, freezerFullPath, messageOfTheDay, std::move(environment));
 }
@@ -252,11 +252,11 @@ IShellManagerPtr CreateShellManager(
 #else
 
 IShellManagerPtr CreateShellManager(
-    const Stroka& workingDir,
+    const TString& workingDir,
     TNullable<int> userId,
-    TNullable<Stroka> freezerFullPath,
-    TNullable<Stroka> messageOfTheDay,
-    std::vector<Stroka> environment)
+    TNullable<TString> freezerFullPath,
+    TNullable<TString> messageOfTheDay,
+    std::vector<TString> environment)
 {
     THROW_ERROR_EXCEPTION("Shell manager is supported only under Unix");
 }

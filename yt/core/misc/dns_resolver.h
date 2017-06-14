@@ -26,7 +26,7 @@ public:
     // which does not support fibers. So please use Via/AsyncVia when
     // using this method.
     TFuture<TNetworkAddress> ResolveName(
-        Stroka hostName,
+        TString hostName,
         bool enableIPv4,
         bool enableIPv6);
 

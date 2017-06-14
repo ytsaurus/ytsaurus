@@ -19,7 +19,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka GenerateRandomFileName(const char* prefix)
+TString GenerateRandomFileName(const char* prefix)
 {
     return Format("%s-%016" PRIx64 "-%016" PRIx64,
         prefix,
@@ -38,7 +38,7 @@ using namespace NYT::NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Matcher<const TStringBuf&>::Matcher(const Stroka& s)
+Matcher<const TStringBuf&>::Matcher(const TString& s)
 {
     *this = Eq(TStringBuf(s));
 }
@@ -53,24 +53,24 @@ Matcher<const TStringBuf&>::Matcher(const TStringBuf& s)
     *this = Eq(s);
 }
 
-Matcher<const Stroka&>::Matcher(const Stroka& s)
+Matcher<const TString&>::Matcher(const TString& s)
 {
     *this = Eq(s);
 }
 
-Matcher<const Stroka&>::Matcher(const char* s)
+Matcher<const TString&>::Matcher(const char* s)
 {
-    *this = Eq(Stroka(s));
+    *this = Eq(TString(s));
 }
 
-Matcher<Stroka>::Matcher(const Stroka& s)
+Matcher<TString>::Matcher(const TString& s)
 {
     *this = Eq(s);
 }
 
-Matcher<Stroka>::Matcher(const char* s)
+Matcher<TString>::Matcher(const char* s)
 {
-    *this = Eq(Stroka(s));
+    *this = Eq(TString(s));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,7 +118,7 @@ void RunAndTrackFiber(TClosure closure)
 
 } // namespace testing
 
-void PrintTo(const Stroka& string, ::std::ostream* os)
+void PrintTo(const TString& string, ::std::ostream* os)
 {
     ::testing::internal::PrintTo(string.c_str(), os);
 }

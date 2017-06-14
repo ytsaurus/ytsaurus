@@ -194,7 +194,7 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
 
 void TObjectProxyBase::DoWriteAttributesFragment(
     IAsyncYsonConsumer* consumer,
-    const TNullable<std::vector<Stroka>>& attributeKeys,
+    const TNullable<std::vector<TString>>& attributeKeys,
     bool stable)
 {
     const auto& customAttributes = Attributes();
@@ -245,7 +245,7 @@ void TObjectProxyBase::DoWriteAttributesFragment(
         }
 
         for (const auto& descriptor : builtinAttributes) {
-            auto key = Stroka(descriptor.Key);
+            auto key = TString(descriptor.Key);
             TAttributeValueConsumer attributeValueConsumer(consumer, key);
 
             if (descriptor.Opaque) {
@@ -364,7 +364,7 @@ const yhash_set<const char*>& TObjectProxyBase::GetBuiltinAttributeKeys()
     return Metadata_->BuiltinAttributeKeysCache.GetBuiltinAttributeKeys(this);
 }
 
-bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
+bool TObjectProxyBase::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -443,12 +443,12 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
     return false;
 }
 
-TFuture<TYsonString> TObjectProxyBase::GetBuiltinAttributeAsync(const Stroka& /*key*/)
+TFuture<TYsonString> TObjectProxyBase::GetBuiltinAttributeAsync(const TString& /*key*/)
 {
     return Null;
 }
 
-bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
+bool TObjectProxyBase::SetBuiltinAttribute(const TString& key, const TYsonString& value)
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* acd = FindThisAcd();
@@ -478,7 +478,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString&
         if (key == "owner") {
             ValidateNoTransaction();
 
-            auto name = ConvertTo<Stroka>(value);
+            auto name = ConvertTo<TString>(value);
             auto* owner = securityManager->GetSubjectByNameOrThrow(name);
             auto* user = securityManager->GetAuthenticatedUser();
             auto* superusers = securityManager->GetSuperusersGroup();
@@ -496,19 +496,19 @@ bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString&
     return false;
 }
 
-bool TObjectProxyBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
+bool TObjectProxyBase::RemoveBuiltinAttribute(const TString& /*key*/)
 {
     return false;
 }
 
 void TObjectProxyBase::ValidateCustomAttributeUpdate(
-    const Stroka& /*key*/,
+    const TString& /*key*/,
     const TYsonString& /*oldValue*/,
     const TYsonString& /*newValue*/)
 { }
 
 void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
-    const Stroka& key,
+    const TString& key,
     const TYsonString& oldValue,
     const TYsonString& newValue)
 {
@@ -639,11 +639,11 @@ TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::TCustomAttr
     : Proxy_(proxy)
 { }
 
-std::vector<Stroka> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::List() const
+std::vector<TString> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::List() const
 {
     const auto* object = Proxy_->Object_;
     const auto* attributes = object->GetAttributes();
-    std::vector<Stroka> keys;
+    std::vector<TString> keys;
     if (attributes) {
         for (const auto& pair : attributes->Attributes()) {
             // Attribute cannot be empty (i.e. deleted) in null transaction.
@@ -654,7 +654,7 @@ std::vector<Stroka> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDic
     return keys;
 }
 
-TYsonString TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::FindYson(const Stroka& key) const
+TYsonString TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::FindYson(const TString& key) const
 {
     const auto* object = Proxy_->Object_;
     const auto* attributes = object->GetAttributes();
@@ -672,7 +672,7 @@ TYsonString TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary:
     return it->second;
 }
 
-void TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::SetYson(const Stroka& key, const TYsonString& value)
+void TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::SetYson(const TString& key, const TYsonString& value)
 {
     auto oldValue = FindYson(key);
     Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
@@ -682,7 +682,7 @@ void TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::SetYso
     attributes->Attributes()[key] = value;
 }
 
-bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove(const Stroka& key)
+bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove(const TString& key)
 {
     auto oldValue = FindYson(key);
     Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, TYsonString());

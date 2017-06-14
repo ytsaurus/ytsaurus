@@ -107,7 +107,7 @@ class TRefCountedProto;
 DECLARE_REFCOUNTED_CLASS(TProcessBase)
 
 const ui32 YTCoreNoteType = 0x5f59545f; // = hex("_YT_") ;)
-extern const Stroka YTCoreNoteName;
+extern const TString YTCoreNoteName;
 
 DECLARE_REFCOUNTED_CLASS(TCoreDumperConfig)
 DECLARE_REFCOUNTED_CLASS(TCoreDumper)

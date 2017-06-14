@@ -200,7 +200,7 @@ const TProgressCounter NullProgressCounter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TProgressCounter& counter)
+TString ToString(const TProgressCounter& counter)
 {
     return counter.IsTotalEnabled()
         ? Format("{T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v, I: %v}",

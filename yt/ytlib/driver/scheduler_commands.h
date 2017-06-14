@@ -92,7 +92,7 @@ public:
 
 private:
     NJobTrackerClient::TJobId JobId;
-    Stroka SignalName;
+    TString SignalName;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

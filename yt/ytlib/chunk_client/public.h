@@ -76,8 +76,8 @@ const int TypicalReplicaCount = 24;
 constexpr int MaxMediumCount = 7;
 constexpr int DefaultStoreMediumIndex = 0;
 constexpr int DefaultCacheMediumIndex = 1;
-extern const Stroka DefaultStoreMediumName;
-extern const Stroka DefaultCacheMediumName;
+extern const TString DefaultStoreMediumName;
+extern const TString DefaultCacheMediumName;
 constexpr int MaxMediumPriority = 10;
 
 const i64 DefaultMaxBlockSize = (i64) 16 * 1024 * 1024;;

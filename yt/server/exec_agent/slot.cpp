@@ -41,7 +41,7 @@ class TSlot
     : public ISlot
 {
 public:
-    TSlot(int slotIndex, TSlotLocationPtr location, IJobEnvironmentPtr environment, const Stroka& nodeTag)
+    TSlot(int slotIndex, TSlotLocationPtr location, IJobEnvironmentPtr environment, const TString& nodeTag)
         : SlotIndex_(slotIndex)
         , JobEnvironment_(std::move(environment))
         , Location_(std::move(location))
@@ -95,8 +95,8 @@ public:
 
     virtual TFuture<void> MakeLink(
         ESandboxKind sandboxKind,
-        const Stroka& targetPath,
-        const Stroka& linkName,
+        const TString& targetPath,
+        const TString& linkName,
         bool executable) override
     {
         return RunPrepareAction<void>([&] () {
@@ -111,8 +111,8 @@ public:
 
     virtual TFuture<void> MakeCopy(
         ESandboxKind sandboxKind,
-        const Stroka& sourcePath,
-        const Stroka& destinationName,
+        const TString& sourcePath,
+        const TString& destinationName,
         bool executable) override
     {
         return RunPrepareAction<void>([&] () {
@@ -125,13 +125,13 @@ public:
             });
     }
 
-    virtual TFuture<Stroka> PrepareTmpfs(
+    virtual TFuture<TString> PrepareTmpfs(
         ESandboxKind sandboxKind,
         i64 size,
-        Stroka path,
+        TString path,
         bool enable) override
     {
-        return RunPrepareAction<Stroka>([&] () {
+        return RunPrepareAction<TString>([&] () {
                 return Location_->MakeSandboxTmpfs(
                     SlotIndex_,
                     sandboxKind,
@@ -176,7 +176,7 @@ private:
 
     //! Uniquely identifies a node process on the current host.
     //! Used for unix socket name generation, to communicate between node and job proxies.
-    const Stroka NodeTag_;
+    const TString NodeTag_;
 
     IJobProbePtr JobProberClient_;
 
@@ -224,7 +224,7 @@ ISlotPtr CreateSlot(
     int slotIndex,
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
-    const Stroka& nodeTag)
+    const TString& nodeTag)
 {
     auto slot = New<TSlot>(
         slotIndex,

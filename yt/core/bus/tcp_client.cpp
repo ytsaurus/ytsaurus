@@ -53,7 +53,7 @@ public:
         Connection_->Terminate(TError(NRpc::EErrorCode::TransportError, "Bus terminated"));
     }
 
-    virtual const Stroka& GetEndpointDescription() const override
+    virtual const TString& GetEndpointDescription() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection_->GetEndpointDescription();
@@ -111,7 +111,7 @@ public:
             .EndMap()))
     { }
 
-    virtual const Stroka& GetEndpointDescription() const override
+    virtual const TString& GetEndpointDescription() const override
     {
         return EndpointDescription_;
     }
@@ -157,7 +157,7 @@ public:
 
 private:
     const TTcpBusClientConfigPtr Config_;
-    const Stroka EndpointDescription_;
+    const TString EndpointDescription_;
     const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
 
 };

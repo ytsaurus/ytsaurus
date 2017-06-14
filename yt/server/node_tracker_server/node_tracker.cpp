@@ -104,7 +104,7 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual Stroka DoGetName(const TNode* node) override
+    virtual TString DoGetName(const TNode* node) override
     {
         return Format("node %v", node->GetDefaultAddress());
     }
@@ -148,7 +148,7 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual Stroka DoGetName(const TRack* rack) override
+    virtual TString DoGetName(const TRack* rack) override
     {
         return Format("rack %Qv", rack->GetName());
     }
@@ -193,7 +193,7 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual Stroka DoGetName(const TDataCenter* dc) override
+    virtual TString DoGetName(const TDataCenter* dc) override
     {
         return Format("DC %Qv", dc->GetName());
     }
@@ -367,20 +367,20 @@ public:
         return node;
     }
 
-    TNode* FindNodeByAddress(const Stroka& address)
+    TNode* FindNodeByAddress(const TString& address)
     {
         auto it = AddressToNodeMap_.find(address);
         return it == AddressToNodeMap_.end() ? nullptr : it->second;
     }
 
-    TNode* GetNodeByAddress(const Stroka& address)
+    TNode* GetNodeByAddress(const TString& address)
     {
         auto* node = FindNodeByAddress(address);
         YCHECK(node);
         return node;
     }
 
-    TNode* GetNodeByAddressOrThrow(const Stroka& address)
+    TNode* GetNodeByAddressOrThrow(const TString& address)
     {
         auto* node = FindNodeByAddress(address);
         if (!node) {
@@ -389,7 +389,7 @@ public:
         return node;
     }
 
-    TNode* FindNodeByHostName(const Stroka& hostName)
+    TNode* FindNodeByHostName(const TString& hostName)
     {
         auto it = HostNameToNodeMap_.find(hostName);
         return it == HostNameToNodeMap_.end() ? nullptr : it->second;
@@ -492,13 +492,13 @@ public:
         }
     }
 
-    void SetNodeUserTags(TNode* node, const std::vector<Stroka>& tags)
+    void SetNodeUserTags(TNode* node, const std::vector<TString>& tags)
     {
         node->SetUserTags(tags);
     }
 
 
-    TRack* CreateRack(const Stroka& name, const TObjectId& hintId)
+    TRack* CreateRack(const TString& name, const TObjectId& hintId)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Rack name cannot be empty");
@@ -544,7 +544,7 @@ public:
         FreeRackIndex(rack->GetIndex());
     }
 
-    void RenameRack(TRack* rack, const Stroka& newName)
+    void RenameRack(TRack* rack, const TString& newName)
     {
         if (rack->GetName() == newName)
             return;
@@ -568,13 +568,13 @@ public:
         }
     }
 
-    TRack* FindRackByName(const Stroka& name)
+    TRack* FindRackByName(const TString& name)
     {
         auto it = NameToRackMap_.find(name);
         return it == NameToRackMap_.end() ? nullptr : it->second;
     }
 
-    TRack* GetRackByNameOrThrow(const Stroka& name)
+    TRack* GetRackByNameOrThrow(const TString& name)
     {
         auto* rack = FindRackByName(name);
         if (!rack) {
@@ -609,7 +609,7 @@ public:
     }
 
 
-    TDataCenter* CreateDataCenter(const Stroka& name, const TObjectId& hintId)
+    TDataCenter* CreateDataCenter(const TString& name, const TObjectId& hintId)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Data center name cannot be empty");
@@ -653,7 +653,7 @@ public:
         YCHECK(NameToDataCenterMap_.erase(dc->GetName()) == 1);
     }
 
-    void RenameDataCenter(TDataCenter* dc, const Stroka& newName)
+    void RenameDataCenter(TDataCenter* dc, const TString& newName)
     {
         if (dc->GetName() == newName)
             return;
@@ -680,13 +680,13 @@ public:
         }
     }
 
-    TDataCenter* FindDataCenterByName(const Stroka& name)
+    TDataCenter* FindDataCenterByName(const TString& name)
     {
         auto it = NameToDataCenterMap_.find(name);
         return it == NameToDataCenterMap_.end() ? nullptr : it->second;
     }
 
-    TDataCenter* GetDataCenterByNameOrThrow(const Stroka& name)
+    TDataCenter* GetDataCenterByNameOrThrow(const TString& name)
     {
         auto* dc = FindDataCenterByName(name);
         if (!dc) {
@@ -769,11 +769,11 @@ private:
     int RackCount_ = 0;
     TRackSet UsedRackIndexes_;
 
-    yhash<Stroka, TNode*> AddressToNodeMap_;
-    yhash_mm<Stroka, TNode*> HostNameToNodeMap_;
+    yhash<TString, TNode*> AddressToNodeMap_;
+    yhash_mm<TString, TNode*> HostNameToNodeMap_;
     yhash<TTransaction*, TNode*> TransactionToNodeMap_;
-    yhash<Stroka, TRack*> NameToRackMap_;
-    yhash<Stroka, TDataCenter*> NameToDataCenterMap_;
+    yhash<TString, TRack*> NameToRackMap_;
+    yhash<TString, TDataCenter*> NameToDataCenterMap_;
 
     TPeriodicExecutorPtr NodeStatesGossipExecutor_;
 
@@ -809,7 +809,7 @@ private:
     }
 
 
-    static TYPath GetNodePath(const Stroka& address)
+    static TYPath GetNodePath(const TString& address)
     {
         return "//sys/nodes/" + ToYPathLiteral(address);
     }
@@ -841,7 +841,7 @@ private:
         const auto& address = GetDefaultAddress(addresses);
         const auto& statistics = request->statistics();
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
-        auto tags = FromProto<std::vector<Stroka>>(request->tags());
+        auto tags = FromProto<std::vector<TString>>(request->tags());
 
         // Check lease transaction.
         TTransaction* leaseTransaction = nullptr;
@@ -1567,7 +1567,7 @@ private:
     {
         YCHECK(AddressToNodeMap_.insert(std::make_pair(node->GetDefaultAddress(), node)).second);
         for (const auto& pair : node->GetAddresses()) {
-            HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(pair.second)), node));
+            HostNameToNodeMap_.insert(std::make_pair(TString(GetServiceHostName(pair.second)), node));
         }
     }
 
@@ -1575,7 +1575,7 @@ private:
     {
         YCHECK(AddressToNodeMap_.erase(node->GetDefaultAddress()) == 1);
         for (const auto& pair : node->GetAddresses()) {
-            auto hostNameRange = HostNameToNodeMap_.equal_range(Stroka(GetServiceHostName(pair.second)));
+            auto hostNameRange = HostNameToNodeMap_.equal_range(TString(GetServiceHostName(pair.second)));
             for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
                 if (it->second == node) {
                     HostNameToNodeMap_.erase(it);
@@ -1651,22 +1651,22 @@ TNode* TNodeTracker::GetNodeOrThrow(TNodeId id)
     return Impl_->GetNodeOrThrow(id);
 }
 
-TNode* TNodeTracker::FindNodeByAddress(const Stroka& address)
+TNode* TNodeTracker::FindNodeByAddress(const TString& address)
 {
     return Impl_->FindNodeByAddress(address);
 }
 
-TNode* TNodeTracker::GetNodeByAddress(const Stroka& address)
+TNode* TNodeTracker::GetNodeByAddress(const TString& address)
 {
     return Impl_->GetNodeByAddress(address);
 }
 
-TNode* TNodeTracker::GetNodeByAddressOrThrow(const Stroka& address)
+TNode* TNodeTracker::GetNodeByAddressOrThrow(const TString& address)
 {
     return Impl_->GetNodeByAddressOrThrow(address);
 }
 
-TNode* TNodeTracker::FindNodeByHostName(const Stroka& hostName)
+TNode* TNodeTracker::FindNodeByHostName(const TString& hostName)
 {
     return Impl_->FindNodeByHostName(hostName);
 }
@@ -1701,12 +1701,12 @@ void TNodeTracker::SetNodeRack(TNode* node, TRack* rack)
     Impl_->SetNodeRack(node, rack);
 }
 
-void TNodeTracker::SetNodeUserTags(TNode* node, const std::vector<Stroka>& tags)
+void TNodeTracker::SetNodeUserTags(TNode* node, const std::vector<TString>& tags)
 {
     Impl_->SetNodeUserTags(node, tags);
 }
 
-TRack* TNodeTracker::CreateRack(const Stroka& name)
+TRack* TNodeTracker::CreateRack(const TString& name)
 {
     return Impl_->CreateRack(name, NullObjectId);
 }
@@ -1716,17 +1716,17 @@ void TNodeTracker::DestroyRack(TRack* rack)
     Impl_->DestroyRack(rack);
 }
 
-void TNodeTracker::RenameRack(TRack* rack, const Stroka& newName)
+void TNodeTracker::RenameRack(TRack* rack, const TString& newName)
 {
     Impl_->RenameRack(rack, newName);
 }
 
-TRack* TNodeTracker::FindRackByName(const Stroka& name)
+TRack* TNodeTracker::FindRackByName(const TString& name)
 {
     return Impl_->FindRackByName(name);
 }
 
-TRack* TNodeTracker::GetRackByNameOrThrow(const Stroka& name)
+TRack* TNodeTracker::GetRackByNameOrThrow(const TString& name)
 {
     return Impl_->GetRackByNameOrThrow(name);
 }
@@ -1736,7 +1736,7 @@ void TNodeTracker::SetRackDataCenter(TRack* rack, TDataCenter* dc)
     return Impl_->SetRackDataCenter(rack, dc);
 }
 
-TDataCenter* TNodeTracker::CreateDataCenter(const Stroka& name)
+TDataCenter* TNodeTracker::CreateDataCenter(const TString& name)
 {
     return Impl_->CreateDataCenter(name, NullObjectId);
 }
@@ -1746,17 +1746,17 @@ void TNodeTracker::DestroyDataCenter(TDataCenter* dc)
     Impl_->DestroyDataCenter(dc);
 }
 
-void TNodeTracker::RenameDataCenter(TDataCenter* dc, const Stroka& newName)
+void TNodeTracker::RenameDataCenter(TDataCenter* dc, const TString& newName)
 {
     Impl_->RenameDataCenter(dc, newName);
 }
 
-TDataCenter* TNodeTracker::FindDataCenterByName(const Stroka& name)
+TDataCenter* TNodeTracker::FindDataCenterByName(const TString& name)
 {
     return Impl_->FindDataCenterByName(name);
 }
 
-TDataCenter* TNodeTracker::GetDataCenterByNameOrThrow(const Stroka& name)
+TDataCenter* TNodeTracker::GetDataCenterByNameOrThrow(const TString& name)
 {
     return Impl_->GetDataCenterByNameOrThrow(name);
 }
@@ -1832,7 +1832,7 @@ TObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->GetAndRemove<Stroka>("name");
+    auto name = attributes->GetAndRemove<TString>("name");
 
     return Owner_->CreateRack(name, hintId);
 }
@@ -1861,7 +1861,7 @@ TObjectBase* TNodeTracker::TDataCenterTypeHandler::CreateObject(
     const TObjectId& hintId,
     IAttributeDictionary* attributes)
 {
-    auto name = attributes->Get<Stroka>("name");
+    auto name = attributes->Get<TString>("name");
     attributes->Remove("name");
 
     return Owner_->CreateDataCenter(name, hintId);

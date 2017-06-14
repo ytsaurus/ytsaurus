@@ -44,15 +44,15 @@ static const NProfiling::TProfiler Profiler("/network");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka BuildServiceAddress(const TStringBuf& hostName, int port)
+TString BuildServiceAddress(const TStringBuf& hostName, int port)
 {
-    return Stroka(hostName) + ":" + ToString(port);
+    return TString(hostName) + ":" + ToString(port);
 }
 
 void ParseServiceAddress(const TStringBuf& address, TStringBuf* hostName, int* port)
 {
     int colonIndex = address.find_last_of(':');
-    if (colonIndex == Stroka::npos) {
+    if (colonIndex == TString::npos) {
         THROW_ERROR_EXCEPTION("Service address %Qv is malformed, <host>:<port> format is expected",
             address);
     }
@@ -176,14 +176,14 @@ socklen_t TNetworkAddress::GetLength() const
 TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& address)
 {
     int closingBracketIndex = address.find(']');
-    if (closingBracketIndex == Stroka::npos || address.empty() || address[0] != '[') {
+    if (closingBracketIndex == TString::npos || address.empty() || address[0] != '[') {
         return TError("Address %Qv is malformed, expected [<addr>]:<port> or [<addr>] format",
             address);
     }
 
     int colonIndex = address.find(':', closingBracketIndex + 1);
     TNullable<int> port;
-    if (colonIndex != Stroka::npos) {
+    if (colonIndex != TString::npos) {
         try {
             port = FromString<int>(address.substr(colonIndex + 1));
         } catch (const std::exception) {
@@ -192,7 +192,7 @@ TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& address)
         }
     }
 
-    auto ipAddress = Stroka(address.substr(1, closingBracketIndex - 1));
+    auto ipAddress = TString(address.substr(1, closingBracketIndex - 1));
     {
         // Try to parse as ipv4.
         struct sockaddr_in sa;
@@ -225,7 +225,7 @@ TNetworkAddress TNetworkAddress::Parse(const TStringBuf& address)
     return TryParse(address).ValueOrThrow();
 }
 
-Stroka ToString(const TNetworkAddress& address, bool withPort)
+TString ToString(const TNetworkAddress& address, bool withPort)
 {
     const auto& sockAddr = address.GetSockAddr();
 
@@ -269,7 +269,7 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
         return "invalid://";
     }
 
-    Stroka result("tcp://");
+    TString result("tcp://");
 
     if (ipv6) {
         result.append('[');
@@ -324,7 +324,7 @@ bool operator != (const TNetworkAddress& lhs, const TNetworkAddress& rhs)
 //! Performs asynchronous host name resolution.
 class TAddressResolver::TImpl
     : public virtual TRefCounted
-    , private TExpiringCache<Stroka, TNetworkAddress>
+    , private TExpiringCache<TString, TNetworkAddress>
 {
 public:
     TImpl(TAddressResolverConfigPtr config)
@@ -339,7 +339,7 @@ public:
 
     void Shutdown();
 
-    TFuture<TNetworkAddress> Resolve(const Stroka& hostName);
+    TFuture<TNetworkAddress> Resolve(const TString& hostName);
 
     bool IsLocalHostNameOK();
 
@@ -360,7 +360,7 @@ private:
 
     TDnsResolver DnsResolver_;
 
-    virtual TFuture<TNetworkAddress> DoGet(const Stroka& hostName) override;
+    virtual TFuture<TNetworkAddress> DoGet(const TString& hostName) override;
 
     const std::vector<TNetworkAddress>& GetLocalAddresses();
 };
@@ -372,7 +372,7 @@ void TAddressResolver::TImpl::Shutdown()
     Queue_->Shutdown();
 }
 
-TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const Stroka& hostName)
+TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const TString& hostName)
 {
     // Check if |address| parses into a valid IPv4 or IPv6 address.
     {
@@ -386,7 +386,7 @@ TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const Stroka& hostName
     return Get(hostName);
 }
 
-TFuture<TNetworkAddress> TAddressResolver::TImpl::DoGet(const Stroka& hostname)
+TFuture<TNetworkAddress> TAddressResolver::TImpl::DoGet(const TString& hostname)
 {
     return DnsResolver_
         .ResolveName(hostname, Config_->EnableIPv4, Config_->EnableIPv6)
@@ -502,7 +502,7 @@ void TAddressResolver::Shutdown()
     Impl_->Shutdown();
 }
 
-TFuture<TNetworkAddress> TAddressResolver::Resolve(const Stroka& address)
+TFuture<TNetworkAddress> TAddressResolver::Resolve(const TString& address)
 {
     return Impl_->Resolve(address);
 }

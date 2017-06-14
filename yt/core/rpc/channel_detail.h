@@ -13,7 +13,7 @@ class TChannelWrapper
 public:
     explicit TChannelWrapper(IChannelPtr underlyingChannel);
 
-    virtual const Stroka& GetEndpointDescription() const override;
+    virtual const TString& GetEndpointDescription() const override;
     virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
 
     virtual IClientRequestControlPtr Send(

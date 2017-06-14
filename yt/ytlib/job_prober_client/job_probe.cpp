@@ -56,7 +56,7 @@ public:
         return TYsonString(rsp->trace());
     }
 
-    virtual void SignalJob(const Stroka& signalName) override
+    virtual void SignalJob(const TString& signalName) override
     {
         EnsureJobProberProxy();
         auto req = JobProberProxy_->SignalJob();
@@ -81,7 +81,7 @@ public:
         return TYsonString(rsp->result());
     }
 
-    virtual Stroka GetStderr() override
+    virtual TString GetStderr() override
     {
         EnsureJobProberProxy();
         auto req = JobProberProxy_->GetStderr();

@@ -62,7 +62,7 @@ class TQueryPrepareTest
 protected:
     template <class TMatcher>
     void ExpectPrepareThrowsWithDiagnostics(
-        const Stroka& query,
+        const TString& query,
         TMatcher matcher)
     {
         EXPECT_THROW_THAT(
@@ -76,7 +76,7 @@ protected:
 
 TEST_F(TQueryPrepareTest, Simple)
 {
-    auto tableWithSchema = Stroka("<schema=[{name=a;type=int64;}; {name=b;type=int64;}; {name=k;type=int64;}]>//t");
+    auto tableWithSchema = TString("<schema=[{name=a;type=int64;}; {name=b;type=int64;}; {name=k;type=int64;}]>//t");
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath::Parse(tableWithSchema), _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath::Parse(tableWithSchema)))));
@@ -135,7 +135,7 @@ TEST_F(TQueryPrepareTest, BadTypecheck)
 
 TEST_F(TQueryPrepareTest, TooBigQuery)
 {
-    Stroka query = "k from [//t] where a ";
+    TString query = "k from [//t] where a ";
     for (int i = 0; i < 50 ; ++i) {
         query += "+ " + ToString(i);
     }
@@ -151,7 +151,7 @@ TEST_F(TQueryPrepareTest, TooBigQuery)
 
 TEST_F(TQueryPrepareTest, BigQuery)
 {
-    Stroka query = "k from [//t] where a in (0";
+    TString query = "k from [//t] where a in (0";
     for (int i = 1; i < 1000; ++i) {
         query += ", " + ToString(i);
     }
@@ -222,7 +222,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         TTableSchema tableSchema({
             TColumnSchema("hash", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(Stroka("int64(farm_hash(cid))")),
+                .SetExpression(TString("int64(farm_hash(cid))")),
             TColumnSchema("cid", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("pid", EValueType::Int64)
@@ -249,7 +249,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         TTableSchema tableSchema({
             TColumnSchema("ExportIDHash", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(Stroka("int64(farm_hash(ExportID))")),
+                .SetExpression(TString("int64(farm_hash(ExportID))")),
             TColumnSchema("ExportID", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("GroupExportID", EValueType::Int64)
@@ -278,7 +278,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         TTableSchema tableSchema({
             TColumnSchema("hash", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(Stroka("int64(farm_hash(pid))")),
+                .SetExpression(TString("int64(farm_hash(pid))")),
             TColumnSchema("pid", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("__shard__", EValueType::Int64)
@@ -302,7 +302,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
         TTableSchema tableSchema({
             TColumnSchema("hash", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(Stroka("int64(farm_hash(cid))")),
+                .SetExpression(TString("int64(farm_hash(cid))")),
             TColumnSchema("cid", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("__shard__", EValueType::Int64)
@@ -317,7 +317,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 
     {
-        Stroka queryString = "* from [//bids] D\n"
+        TString queryString = "* from [//bids] D\n"
             "left join [//campaigns] C on D.cid = C.cid\n"
             "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
             "left join [//phrases] P on (D.pid,D.__shard__) = (P.pid,P.__shard__)";
@@ -338,7 +338,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 
     {
-        Stroka queryString = "* from [//bids] D\n"
+        TString queryString = "* from [//bids] D\n"
             "left join [//campaigns] C on (D.cid,D.__shard__) = (C.cid,C.__shard__)\n"
             "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
             "left join [//phrases] P on (D.pid,D.__shard__) = (P.pid,P.__shard__)";
@@ -359,7 +359,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 
     {
-        Stroka queryString = "* from [//bids] D\n"
+        TString queryString = "* from [//bids] D\n"
             "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
             "left join [//campaigns] C on (D.cid,D.__shard__) = (C.cid,C.__shard__)\n"
             "left join [//phrases] P on (D.pid,D.__shard__) = (P.pid,P.__shard__)";
@@ -416,7 +416,7 @@ protected:
         MergeFrom(RangeExtractorMap.Get(), *BuiltinRangeExtractorMap);
     }
 
-    void Coordinate(const Stroka& source, const TDataSplits& dataSplits, size_t subqueriesCount)
+    void Coordinate(const TString& source, const TDataSplits& dataSplits, size_t subqueriesCount)
     {
         TQueryPtr query;
         TDataRanges dataSource;
@@ -541,7 +541,7 @@ public:
 };
 
 TOwningRow YsonToRow(
-    const Stroka& yson,
+    const TString& yson,
     const TDataSplit& dataSplit,
     bool treatMissingAsNull = true)
 {
@@ -551,7 +551,7 @@ TOwningRow YsonToRow(
 }
 
 TQueryStatistics DoExecuteQuery(
-    const std::vector<Stroka>& source,
+    const std::vector<TString>& source,
     TFunctionProfilerMapPtr functionProfilers,
     TAggregateProfilerMapPtr aggregateProfilers,
     EFailureLocation failureLocation,
@@ -595,7 +595,7 @@ TQueryStatistics DoExecuteQuery(
         true);
 }
 
-std::vector<TRow> OrderRowsBy(TRange<TRow> rows, const std::vector<Stroka>& columns, const TTableSchema& tableSchema)
+std::vector<TRow> OrderRowsBy(TRange<TRow> rows, const std::vector<TString>& columns, const TTableSchema& tableSchema)
 {
     std::vector<int> indexes;
     for (const auto& column : columns) {
@@ -631,7 +631,7 @@ TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult)
 
 TResultMatcher OrderedResultMatcher(
     std::vector<TOwningRow> expectedResult,
-    std::vector<Stroka> columns)
+    std::vector<TString> columns)
 {
     return [MOVE(expectedResult), MOVE(columns)] (TRange<TRow> result, const TTableSchema& tableSchema) {
         EXPECT_EQ(expectedResult.size(), result.Size());
@@ -753,15 +753,15 @@ protected:
     }
 
     TQueryPtr Evaluate(
-        const Stroka& query,
+        const TString& query,
         const TDataSplit& dataSplit,
-        const std::vector<Stroka>& owningSource,
+        const std::vector<TString>& owningSource,
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
-        std::vector<std::vector<Stroka>> owningSources(1, owningSource);
-        std::map<Stroka, TDataSplit> dataSplits;
+        std::vector<std::vector<TString>> owningSources(1, owningSource);
+        std::map<TString, TDataSplit> dataSplits;
         dataSplits["//t"] = dataSplit;
 
         return BIND(&TQueryEvaluateTest::DoEvaluate, this)
@@ -779,9 +779,9 @@ protected:
     }
 
     TQueryPtr Evaluate(
-        const Stroka& query,
-        const std::map<Stroka, TDataSplit>& dataSplits,
-        const std::vector<std::vector<Stroka>>& owningSources,
+        const TString& query,
+        const std::map<TString, TDataSplit>& dataSplits,
+        const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max())
@@ -801,15 +801,15 @@ protected:
     }
 
     TQueryPtr EvaluateExpectingError(
-        const Stroka& query,
+        const TString& query,
         const TDataSplit& dataSplit,
-        const std::vector<Stroka>& owningSource,
+        const std::vector<TString>& owningSource,
         EFailureLocation failureLocation,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
-        std::vector<std::vector<Stroka>> owningSources(1, owningSource);
-        std::map<Stroka, TDataSplit> dataSplits;
+        std::vector<std::vector<TString>> owningSources(1, owningSource);
+        std::map<TString, TDataSplit> dataSplits;
         dataSplits["//t"] = dataSplit;
 
         return BIND(&TQueryEvaluateTest::DoEvaluate, this)
@@ -827,9 +827,9 @@ protected:
     }
 
     TQueryPtr DoEvaluate(
-        const Stroka& query,
-        const std::map<Stroka, TDataSplit>& dataSplits,
-        const std::vector<std::vector<Stroka>>& owningSources,
+        const TString& query,
+        const std::map<TString, TDataSplit>& dataSplits,
+        const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit,
         i64 outputRowLimit,
@@ -843,7 +843,7 @@ protected:
             sourceGuids.emplace(NYT::FromProto<TGuid>(dataSplit.second.chunk_id()), index++);
         }
 
-        auto fetchFunctions = [&] (const std::vector<Stroka>& /*names*/, const TTypeInferrerMapPtr& typeInferrers) {
+        auto fetchFunctions = [&] (const std::vector<TString>& /*names*/, const TTypeInferrerMapPtr& typeInferrers) {
             MergeFrom(typeInferrers.Get(), *TypeInferers_);
         };
 
@@ -923,7 +923,7 @@ TEST_F(TQueryEvaluateTest, Simple)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=4;b=5",
         "a=10;b=11"
     };
@@ -943,7 +943,7 @@ TEST_F(TQueryEvaluateTest, SelectAll)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=4;b=5",
         "a=10;b=11"
     };
@@ -963,7 +963,7 @@ TEST_F(TQueryEvaluateTest, FilterNulls1)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=4;b=5",
         "a=6",
         "a=10;b=11"
@@ -984,7 +984,7 @@ TEST_F(TQueryEvaluateTest, FilterNulls2)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=4;b=5",
         "a=6",
         "a=10;b=11"
@@ -1006,7 +1006,7 @@ TEST_F(TQueryEvaluateTest, SimpleCmpInt)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=4;b=5",
         "a=6;b=6"
     };
@@ -1034,7 +1034,7 @@ TEST_F(TQueryEvaluateTest, SimpleCmpString)
         {"b", EValueType::String}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=\"a\";b=\"aa\"",
         "a=\"aa\";b=\"aa\""
     };
@@ -1062,7 +1062,7 @@ TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=4;b=5",
         "a=10;b=11",
         "a=15;b=11"
@@ -1082,7 +1082,7 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=4;b=5",
         "a=-10;b=11",
         "a=15;b=11"
@@ -1103,7 +1103,7 @@ TEST_F(TQueryEvaluateTest, SimpleInWithNull)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "b=1",
         "a=2",
         "a=2;b=1",
@@ -1126,7 +1126,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull)
         {"c", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=4;b=5",
         "a=10;b=11;c=9",
         "a=16"
@@ -1149,7 +1149,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull2)
         {"c", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=2;c=3",
         "a=4",
         "a=5;b=5",
@@ -1179,7 +1179,7 @@ TEST_F(TQueryEvaluateTest, SimpleStrings)
         {"s", EValueType::String}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "s=foo",
         "s=bar",
         "s=baz"
@@ -1201,7 +1201,7 @@ TEST_F(TQueryEvaluateTest, SimpleStrings2)
         {"u", EValueType::String}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "s=foo; u=x",
         "s=bar; u=y",
         "s=baz; u=x",
@@ -1222,7 +1222,7 @@ TEST_F(TQueryEvaluateTest, IsPrefixStrings)
         {"s", EValueType::String}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "s=foobar",
         "s=bar",
         "s=baz"
@@ -1241,7 +1241,7 @@ TEST_F(TQueryEvaluateTest, IsSubstrStrings)
         {"s", EValueType::String}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "s=foobar",
         "s=barfoo",
         "s=abc",
@@ -1268,7 +1268,7 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -1302,7 +1302,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotals)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -1354,7 +1354,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsNulls)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
         "b=20",
     };
@@ -1384,7 +1384,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsEmpty)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
     };
 
     auto resultSplit = MakeSplit({
@@ -1408,7 +1408,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithAliases)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -1442,7 +1442,7 @@ TEST_F(TQueryEvaluateTest, Complex)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -1476,7 +1476,7 @@ TEST_F(TQueryEvaluateTest, Complex2)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -1511,9 +1511,9 @@ TEST_F(TQueryEvaluateTest, ComplexBigResult)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source;
+    std::vector<TString> source;
     for (size_t i = 0; i < 10000; ++i) {
-        source.push_back(Stroka() + "a=" + ToString(i) + ";b=" + ToString(i * 10));
+        source.push_back(TString() + "a=" + ToString(i) + ";b=" + ToString(i * 10));
     }
 
     auto resultSplit = MakeSplit({
@@ -1524,7 +1524,7 @@ TEST_F(TQueryEvaluateTest, ComplexBigResult)
     std::vector<TOwningRow> result;
 
     for (size_t i = 2; i < 10000; ++i) {
-        result.push_back(YsonToRow(Stroka() + "x=" + ToString(i) + ";t=" + ToString(i * 10 + i), resultSplit, false));
+        result.push_back(YsonToRow(TString() + "x=" + ToString(i) + ";t=" + ToString(i * 10 + i), resultSplit, false));
     }
 
     Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a as x", split, source, ResultMatcher(result));
@@ -1537,7 +1537,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -1577,7 +1577,7 @@ TEST_F(TQueryEvaluateTest, HavingClause1)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
         "a=1;b=10",
         "a=2;b=20",
@@ -1605,7 +1605,7 @@ TEST_F(TQueryEvaluateTest, HavingClause2)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
         "a=1;b=10",
         "a=2;b=20",
@@ -1633,7 +1633,7 @@ TEST_F(TQueryEvaluateTest, HavingClause3)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
         "a=1;b=10",
         "a=2;b=20",
@@ -1660,7 +1660,7 @@ TEST_F(TQueryEvaluateTest, IsNull)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=9;b=90",
@@ -1691,7 +1691,7 @@ TEST_F(TQueryEvaluateTest, DoubleSum)
         {"a", EValueType::Double}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1.",
         "a=1.",
         ""
@@ -1716,7 +1716,7 @@ TEST_F(TQueryEvaluateTest, ComplexStrings)
         {"s", EValueType::String}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=10;s=x",
         "a=20;s=y",
         "a=30;s=x",
@@ -1755,7 +1755,7 @@ TEST_F(TQueryEvaluateTest, ComplexStringsLower)
         {"s", EValueType::String}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=XyZ;s=one",
         "a=aB1C;s=two",
         "a=cs1dv;s=three",
@@ -1787,7 +1787,7 @@ TEST_F(TQueryEvaluateTest, TestIf)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -1822,7 +1822,7 @@ TEST_F(TQueryEvaluateTest, TestInputRowLimit)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -1851,7 +1851,7 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -1881,9 +1881,9 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit2)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source;
+    std::vector<TString> source;
     for (size_t i = 0; i < 10000; ++i) {
-        source.push_back(Stroka() + "a=" + ToString(i) + ";b=" + ToString(i * 10));
+        source.push_back(TString() + "a=" + ToString(i) + ";b=" + ToString(i * 10));
     }
 
     auto resultSplit = MakeSplit({
@@ -1891,7 +1891,7 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit2)
     });
 
     std::vector<TOwningRow> result;
-    result.push_back(YsonToRow(Stroka() + "x=" + ToString(10000), resultSplit, false));
+    result.push_back(YsonToRow(TString() + "x=" + ToString(10000), resultSplit, false));
 
     Evaluate("sum(1) as x FROM [//t] group by 0 as q", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(),
              100);
@@ -1906,7 +1906,7 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -1936,8 +1936,8 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
 
 TEST_F(TQueryEvaluateTest, TestJoinEmpty)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64},
@@ -1981,8 +1981,8 @@ TEST_F(TQueryEvaluateTest, TestJoinEmpty)
 
 TEST_F(TQueryEvaluateTest, TestJoinSimple2)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
@@ -2021,8 +2021,8 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple2)
 
 TEST_F(TQueryEvaluateTest, TestJoinSimple3)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
@@ -2060,8 +2060,8 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple3)
 
 TEST_F(TQueryEvaluateTest, TestJoinSimple4)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
@@ -2099,8 +2099,8 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple4)
 
 TEST_F(TQueryEvaluateTest, TestJoinSimple5)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
@@ -2147,8 +2147,8 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
 
 TEST_F(TQueryEvaluateTest, TestJoinLimit)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
@@ -2198,8 +2198,8 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit)
 
 TEST_F(TQueryEvaluateTest, TestJoinLimit2)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
@@ -2246,8 +2246,8 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit2)
 
 TEST_F(TQueryEvaluateTest, TestJoinLimit3)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
@@ -2310,8 +2310,8 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit3)
 
 TEST_F(TQueryEvaluateTest, TestJoinLimit4)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64, ESortOrder::Ascending},
@@ -2357,8 +2357,8 @@ TEST_F(TQueryEvaluateTest, TestJoinLimit4)
 
 TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         TColumnSchema("x", EValueType::String).SetSortOrder(ESortOrder::Ascending),
@@ -2404,8 +2404,8 @@ TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
 
 TEST_F(TQueryEvaluateTest, TestJoinManySimple)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     splits["//a"] = MakeSplit({
         {"a", EValueType::Int64},
@@ -2469,8 +2469,8 @@ TEST_F(TQueryEvaluateTest, TestJoinManySimple)
 
 TEST_F(TQueryEvaluateTest, TestSortMergeJoin)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64, ESortOrder::Ascending},
@@ -2526,8 +2526,8 @@ TEST_F(TQueryEvaluateTest, TestSortMergeJoin)
 
 TEST_F(TQueryEvaluateTest, TestJoin)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64},
@@ -2584,8 +2584,8 @@ TEST_F(TQueryEvaluateTest, TestJoin)
 
 TEST_F(TQueryEvaluateTest, TestLeftJoin)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64},
@@ -2648,8 +2648,8 @@ TEST_F(TQueryEvaluateTest, TestLeftJoin)
 
 TEST_F(TQueryEvaluateTest, TestLeftJoinWithCondition)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
@@ -2718,7 +2718,7 @@ TEST_F(TQueryEvaluateTest, ComplexAlias)
         {"s", EValueType::String}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=10;s=x",
         "a=20;s=y",
         "a=30;s=x",
@@ -2752,8 +2752,8 @@ TEST_F(TQueryEvaluateTest, ComplexAlias)
 
 TEST_F(TQueryEvaluateTest, TestJoinMany)
 {
-    std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<Stroka>> sources;
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources;
 
     splits["//primary"] = MakeSplit({
         {"a", EValueType::Int64},
@@ -2831,16 +2831,16 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source;
+    std::vector<TString> source;
 
     for (int i = 0; i < 10000; ++i) {
         auto value = std::rand() % 100000 + 10000;
-        source.push_back(Stroka() + "a=" + ToString(value) + ";b=" + ToString(value * 10));
+        source.push_back(TString() + "a=" + ToString(value) + ";b=" + ToString(value * 10));
     }
 
     for (int i = 0; i < 10000; ++i) {
         auto value = 10000 - i;
-        source.push_back(Stroka() + "a=" + ToString(value) + ";b=" + ToString(value * 10));
+        source.push_back(TString() + "a=" + ToString(value) + ";b=" + ToString(value * 10));
     }
 
     std::vector<TOwningRow> result;
@@ -2862,7 +2862,7 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
     source.clear();
     for (int i = 0; i < 10; ++i) {
         auto value = 10 - i;
-        source.push_back(Stroka() + "a=" + ToString(i % 3) + ";b=" + ToString(value));
+        source.push_back(TString() + "a=" + ToString(i % 3) + ";b=" + ToString(value));
     }
 
     result.clear();
@@ -2914,9 +2914,9 @@ TEST_F(TQueryEvaluateTest, TestGroupByTotalsOrderBy)
 
     groupedValues.resize(50);
 
-    std::vector<Stroka> source;
+    std::vector<TString> source;
     for (const auto& row : sourceValues) {
-        source.push_back(Stroka() + "a=" + ToString(row.first) + ";b=" + ToString(row.second));
+        source.push_back(TString() + "a=" + ToString(row.first) + ";b=" + ToString(row.second));
     }
 
     auto resultSplit = MakeSplit({
@@ -2928,7 +2928,7 @@ TEST_F(TQueryEvaluateTest, TestGroupByTotalsOrderBy)
     result.push_back(YsonToRow("y=" + ToString(totalSum), resultSplit, true));
 
     for (const auto& row : groupedValues) {
-        Stroka resultRow = Stroka() + "x=" + ToString(row.first) + ";y=" + ToString(row.second);
+        TString resultRow = TString() + "x=" + ToString(row.first) + ";y=" + ToString(row.second);
         result.push_back(YsonToRow(resultRow, resultSplit, false));
     }
 
@@ -2945,7 +2945,7 @@ TEST_F(TQueryEvaluateTest, TestUdf)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
         "a=-2;b=20",
         "a=9;b=90",
@@ -2974,7 +2974,7 @@ TEST_F(TQueryEvaluateTest, TestZeroArgumentUdf)
         {"a", EValueType::Uint64},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1u",
         "a=2u",
         "a=75u",
@@ -3004,7 +3004,7 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfImpl)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
     };
 
@@ -3018,7 +3018,7 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
     };
 
@@ -3032,7 +3032,7 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;b=10",
     };
 
@@ -3047,7 +3047,7 @@ TEST_F(TQueryEvaluateTest, TestUdfNullPropagation)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;",
         "a=-2;b=-20",
         "a=9;",
@@ -3077,7 +3077,7 @@ TEST_F(TQueryEvaluateTest, TestUdfNullPropagation2)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1;",
         "a=2;b=10",
         "b=9",
@@ -3106,7 +3106,7 @@ TEST_F(TQueryEvaluateTest, TestUdfStringArgument)
         {"a", EValueType::String}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=\"123\"",
         "a=\"50\"",
         "a=\"\"",
@@ -3135,7 +3135,7 @@ TEST_F(TQueryEvaluateTest, TestUdfStringResult)
         {"a", EValueType::String}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=\"HELLO\"",
         "a=\"HeLlO\"",
         "a=\"\"",
@@ -3164,7 +3164,7 @@ TEST_F(TQueryEvaluateTest, TestUnversionedValueUdf)
         {"a", EValueType::String}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=\"Hello\"",
         "a=\"\"",
         ""
@@ -3192,7 +3192,7 @@ TEST_F(TQueryEvaluateTest, YPathTryGetInt64)
         {"ypath", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "yson={b={c=4};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/1\"",
         "",
@@ -3226,7 +3226,7 @@ TEST_F(TQueryEvaluateTest, YPathGetInt64)
         {"ypath", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "yson={b={c=4};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/1\"",
         "",
@@ -3258,7 +3258,7 @@ TEST_F(TQueryEvaluateTest, YPathGetInt64Fail)
         {"ypath", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
@@ -3281,7 +3281,7 @@ TEST_F(TQueryEvaluateTest, YPathTryGetUint64)
         {"ypath", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "yson={b={c=4u};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
         "",
@@ -3315,7 +3315,7 @@ TEST_F(TQueryEvaluateTest, YPathGetUint64)
         {"ypath", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "yson={b={c=4u};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
         "",
@@ -3347,7 +3347,7 @@ TEST_F(TQueryEvaluateTest, YPathGetUint64Fail)
         {"ypath", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "yson={b={c=4u};d=[1u;2u]};ypath=\"/b/d\"",
         "yson={b={c=4u};d=[1u;2u]};ypath=\"/d/2\"",
         "yson={b={c=4u};d=[1u;2]};ypath=\"/d/1\"",
@@ -3370,7 +3370,7 @@ TEST_F(TQueryEvaluateTest, YPathTryGetDouble)
         {"ypath", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "yson={b={c=4.};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;2.]};ypath=\"/d/1\"",
         "",
@@ -3404,7 +3404,7 @@ TEST_F(TQueryEvaluateTest, YPathGetDouble)
         {"ypath", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "yson={b={c=4.};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;2.]};ypath=\"/d/1\"",
         "",
@@ -3436,7 +3436,7 @@ TEST_F(TQueryEvaluateTest, YPathGetDoubleFail)
         {"ypath", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
@@ -3459,7 +3459,7 @@ TEST_F(TQueryEvaluateTest, YPathTryGetBoolean)
         {"ypath", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "yson={b={c=%true};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;%false]};ypath=\"/d/1\"",
         "",
@@ -3493,7 +3493,7 @@ TEST_F(TQueryEvaluateTest, YPathGetBoolean)
         {"ypath", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "yson={b={c=%false};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;%true]};ypath=\"/d/1\"",
         "",
@@ -3525,7 +3525,7 @@ TEST_F(TQueryEvaluateTest, YPathGetBooleanFail)
         {"ypath", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
@@ -3548,7 +3548,7 @@ TEST_F(TQueryEvaluateTest, YPathTryGetString)
         {"ypath", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "yson={b={c=\"hello\"};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;\"world\"]};ypath=\"/d/1\"",
         "",
@@ -3582,7 +3582,7 @@ TEST_F(TQueryEvaluateTest, YPathGetString)
         {"ypath", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "yson={b={c=\"here\"};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;\"there\"]};ypath=\"/d/1\"",
         "",
@@ -3614,7 +3614,7 @@ TEST_F(TQueryEvaluateTest, YPathGetStringFail)
         {"ypath", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "",
         "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
@@ -3637,7 +3637,7 @@ TEST_F(TQueryEvaluateTest, TestVarargUdf)
         {"a", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=1",
         "a=2"
     };
@@ -3664,7 +3664,7 @@ TEST_F(TQueryEvaluateTest, TestFarmHash)
         {"c", EValueType::Boolean}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=3;b=\"hello\";c=%true",
         "a=54;c=%false"
     };
@@ -3689,7 +3689,7 @@ TEST_F(TQueryEvaluateTest, TestRegexParseError)
         {"a", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=\"hello\"",
         "a=\"hell\"",
         "",
@@ -3714,7 +3714,7 @@ TEST_F(TQueryEvaluateTest, TestRegexFullMatch)
         {"a", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=\"hello\"",
         "a=\"hell\"",
         "",
@@ -3741,7 +3741,7 @@ TEST_F(TQueryEvaluateTest, TestRegexPartialMatch)
         {"a", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=\"xx\"",
         "a=\"x43x\"",
         "",
@@ -3768,7 +3768,7 @@ TEST_F(TQueryEvaluateTest, TestRegexReplaceFirst)
         {"a", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=\"x43x43x\"",
         "",
     };
@@ -3793,7 +3793,7 @@ TEST_F(TQueryEvaluateTest, TestRegexReplaceAll)
         {"a", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=\"x43x43x\"",
         "",
     };
@@ -3818,7 +3818,7 @@ TEST_F(TQueryEvaluateTest, TestRegexExtract)
         {"a", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=\"Send root@ya.com an email.\"",
         "",
     };
@@ -3843,7 +3843,7 @@ TEST_F(TQueryEvaluateTest, TestRegexEscape)
         {"a", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=\"1.5\"",
         "",
     };
@@ -3869,7 +3869,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg)
         {"a", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=3",
         "a=53",
         "a=8",
@@ -3896,7 +3896,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg2)
         {"c", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=3;b=3;c=1",
         "a=53;b=2;c=3",
         "a=8;b=5;c=32",
@@ -3930,7 +3930,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg3)
         {"b", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=3;b=1",
         "b=1",
         "b=0",
@@ -3956,7 +3956,7 @@ TEST_F(TQueryEvaluateTest, TestStringAgg)
         {"a", EValueType::String},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=\"one\"",
         "a=\"two\"",
         "a=\"three\"",
@@ -3981,7 +3981,7 @@ TEST_F(TQueryEvaluateTest, WronglyTypedAggregate)
         {"a", EValueType::String}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=\"\""
     };
 
@@ -3994,7 +3994,7 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
         {"a", EValueType::Int64}
     });
 
-    std::vector<Stroka> source;
+    std::vector<TString> source;
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 2000; j++) {
             source.push_back("a=" + ToString(j));
@@ -4019,7 +4019,7 @@ TEST_F(TQueryEvaluateTest, TestLinkingError1)
         {"a", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=3",
     };
 
@@ -4033,7 +4033,7 @@ TEST_F(TQueryEvaluateTest, TestLinkingError2)
         {"a", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=3"
     };
 
@@ -4047,7 +4047,7 @@ TEST_F(TQueryEvaluateTest, TestLinkingError3)
         {"a", EValueType::Int64}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=3"
     };
 
@@ -4063,7 +4063,7 @@ TEST_F(TQueryEvaluateTest, TestCasts)
         {"c", EValueType::Double}
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=3u;b=34",
         "c=1.23",
         "a=12u",
@@ -4094,7 +4094,7 @@ TEST_F(TQueryEvaluateTest, TestUdfException)
         {"a", EValueType::Int64},
     });
 
-    std::vector<Stroka> source = {
+    std::vector<TString> source = {
         "a=-3",
     };
 

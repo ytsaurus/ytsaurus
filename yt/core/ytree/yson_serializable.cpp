@@ -24,9 +24,9 @@ IMapNodePtr TYsonSerializableLite::GetOptions() const
     return Options;
 }
 
-std::vector<Stroka> TYsonSerializableLite::GetRegisteredKeys() const
+std::vector<TString> TYsonSerializableLite::GetRegisteredKeys() const
 {
-    std::vector<Stroka> result;
+    std::vector<TString> result;
     for (const auto& pair : Parameters) {
         result.push_back(pair.first);
         for (const auto& key : pair.second->GetAliases()) {
@@ -52,7 +52,7 @@ void TYsonSerializableLite::Load(
     for (const auto& pair : Parameters) {
         auto name = pair.first;
         auto& parameter = pair.second;
-        Stroka key = name;
+        TString key = name;
         auto child = mapNode->FindChild(name); // can be NULL
         for (const auto& alias : parameter->GetAliases()) {
             auto otherChild = mapNode->FindChild(alias);
@@ -90,13 +90,13 @@ void TYsonSerializableLite::Save(
     IYsonConsumer* consumer,
     bool stable) const
 {
-    std::vector<std::pair<Stroka, IParameterPtr>> parameters;
+    std::vector<std::pair<TString, IParameterPtr>> parameters;
     for (const auto& pair : Parameters) {
         parameters.push_back(pair);
     }
 
     if (stable) {
-        typedef std::pair<Stroka, IParameterPtr> TPair;
+        typedef std::pair<TString, IParameterPtr> TPair;
         std::sort(
             parameters.begin(),
             parameters.end(),

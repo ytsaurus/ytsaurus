@@ -109,7 +109,7 @@ public:
      * These tags are merged with others (e.g. provided by user and provided by master) to form
      * the full set of tags.
      */
-    std::vector<Stroka> Tags;
+    std::vector<TString> Tags;
 
     //! Limits for the node process and all jobs controlled by it.
     TResourceLimitsConfigPtr ResourceLimits;

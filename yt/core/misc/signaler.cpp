@@ -38,7 +38,7 @@ void TSignalerTool::operator()(const TSignalerArgPtr& arg) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SendSignal(const std::vector<int>& pids, const Stroka& signalName)
+void SendSignal(const std::vector<int>& pids, const TString& signalName)
 {
     ValidateSignalName(signalName);
     auto sig = FindSignalIdBySignalName(signalName);
@@ -47,9 +47,9 @@ void SendSignal(const std::vector<int>& pids, const Stroka& signalName)
     }
 }
 
-TNullable<int> FindSignalIdBySignalName(const Stroka& signalName)
+TNullable<int> FindSignalIdBySignalName(const TString& signalName)
 {
-    static yhash_map<Stroka, int> SignalNameToNumber = {
+    static yhash<TString, int> SignalNameToNumber = {
         { "SIGHUP",  SIGHUP },
         { "SIGINT",  SIGINT },
         { "SIGALRM", SIGALRM },
@@ -64,7 +64,7 @@ TNullable<int> FindSignalIdBySignalName(const Stroka& signalName)
     return it == SignalNameToNumber.end() ? Null : MakeNullable(it->second);
 }
 
-void ValidateSignalName(const Stroka& signalName)
+void ValidateSignalName(const TString& signalName)
 {
     auto signal = FindSignalIdBySignalName(signalName);
     if (!signal) {

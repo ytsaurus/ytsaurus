@@ -419,7 +419,6 @@ TEST_F(TOrderedStoreManagerTest, WriteRotateWrite)
     EXPECT_EQ(0, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 }
-<<<<<<< HEAD
 */
 
 ////////////////////////////////////////////////////////////////////////////////

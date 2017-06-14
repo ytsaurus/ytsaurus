@@ -16,11 +16,11 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Computes key index for a given column name.
-int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& columnName);
+int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const TString& columnName);
 
 struct TColumnDescriptor
 {
-    Stroka Name;
+    TString Name;
     size_t Index;
 };
 
@@ -87,7 +87,7 @@ struct TReferenceExpression
         , ColumnName(columnName)
     { }
 
-    Stroka ColumnName;
+    TString ColumnName;
 };
 
 struct TFunctionExpression
@@ -99,14 +99,14 @@ struct TFunctionExpression
 
     TFunctionExpression(
         EValueType type,
-        const Stroka& functionName,
+        const TString& functionName,
         const std::vector<TConstExpressionPtr>& arguments)
         : TExpression(type)
         , FunctionName(functionName)
         , Arguments(arguments)
     { }
 
-    Stroka FunctionName;
+    TString FunctionName;
     std::vector<TConstExpressionPtr> Arguments;
 };
 
@@ -193,13 +193,13 @@ struct TNamedItem
 
     TNamedItem(
         TConstExpressionPtr expression,
-        const Stroka& name)
+        const TString& name)
         : Expression(expression)
         , Name(name)
     { }
 
     TConstExpressionPtr Expression;
-    Stroka Name;
+    TString Name;
 };
 
 typedef std::vector<TNamedItem> TNamedItemList;
@@ -212,8 +212,8 @@ struct TAggregateItem
 
     TAggregateItem(
         TConstExpressionPtr expression,
-        const Stroka& aggregateFunction,
-        const Stroka& name,
+        const TString& aggregateFunction,
+        const TString& name,
         EValueType stateType,
         EValueType resultType)
         : TNamedItem(expression, name)
@@ -222,7 +222,7 @@ struct TAggregateItem
         , ResultType(resultType)
     { }
 
-    Stroka AggregateFunction;
+    TString AggregateFunction;
     EValueType StateType;
     EValueType ResultType;
 };
@@ -236,8 +236,8 @@ struct TJoinClause
 {
     TTableSchema OriginalSchema;
     std::vector<TColumnDescriptor> SchemaMapping;
-    std::vector<Stroka> SelfJoinedColumns;
-    std::vector<Stroka> ForeignJoinedColumns;
+    std::vector<TString> SelfJoinedColumns;
+    std::vector<TString> ForeignJoinedColumns;
 
     TConstExpressionPtr Predicate;
 
@@ -321,7 +321,7 @@ struct TGroupClause
         GroupItems.push_back(namedItem);
     }
 
-    void AddGroupItem(TConstExpressionPtr expression, Stroka name)
+    void AddGroupItem(TConstExpressionPtr expression, TString name)
     {
         AddGroupItem(TNamedItem(expression, name));
     }
@@ -363,7 +363,7 @@ struct TProjectClause
         Projections.push_back(namedItem);
     }
 
-    void AddProjection(TConstExpressionPtr expression, Stroka name)
+    void AddProjection(TConstExpressionPtr expression, TString name)
     {
         AddProjection(TNamedItem(expression, name));
     }
@@ -588,8 +588,8 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original);
 void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized);
 
-Stroka InferName(TConstExpressionPtr expr, bool omitValues = false);
-Stroka InferName(TConstBaseQueryPtr query, bool omitValues = false);
+TString InferName(TConstExpressionPtr expr, bool omitValues = false);
+TString InferName(TConstBaseQueryPtr query, bool omitValues = false);
 
 bool Compare(
     TConstExpressionPtr lhs,

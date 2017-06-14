@@ -73,16 +73,16 @@ TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::TCustomAttributeDi
     : Proxy_(proxy)
 { }
 
-std::vector<Stroka> TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::List() const
+std::vector<TString> TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::List() const
 {
     auto keys = ListNodeAttributes(
         Proxy_->Bootstrap_->GetCypressManager(),
         Proxy_->TrunkNode,
         Proxy_->Transaction);
-    return std::vector<Stroka>(keys.begin(), keys.end());
+    return std::vector<TString>(keys.begin(), keys.end());
 }
 
-TYsonString TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::FindYson(const Stroka& name) const
+TYsonString TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::FindYson(const TString& name) const
 {
     const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
     auto originators = cypressManager->GetNodeOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
@@ -99,7 +99,7 @@ TYsonString TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::FindYs
     return TYsonString();
 }
 
-void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const Stroka& key, const TYsonString& value)
+void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const TString& key, const TYsonString& value)
 {
     Y_ASSERT(value);
 
@@ -118,7 +118,7 @@ void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const
     cypressManager->SetModified(Proxy_->TrunkNode, Proxy_->Transaction);
 }
 
-bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const Stroka& key)
+bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const TString& key)
 {
     const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
     auto originators = cypressManager->GetNodeReverseOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
@@ -296,7 +296,7 @@ IAttributeDictionary* TNontemplateCypressNodeProxyBase::MutableAttributes()
     return TObjectProxyBase::MutableAttributes();
 }
 
-TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(const Stroka& key)
+TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(const TString& key)
 {
     if (key == "recursive_resource_usage") {
         auto visitor = New<TResourceUsageVisitor>(Bootstrap_, this);
@@ -311,7 +311,7 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
     return TObjectProxyBase::GetBuiltinAttributeAsync(key);
 }
 
-TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttributeAsync(const Stroka& key)
+TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttributeAsync(const TString& key)
 {
     const auto* node = GetThisImpl();
     if (!node->IsExternal()) {
@@ -358,14 +358,14 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
     }));
 }
 
-bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
+bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const TString& key, const TYsonString& value)
 {
     if (key == "account") {
         ValidateNoTransaction();
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-        auto name = ConvertTo<Stroka>(value);
+        auto name = ConvertTo<TString>(value);
         auto* account = securityManager->GetAccountByNameOrThrow(name);
 
         ValidatePermission(account, EPermission::Use);
@@ -412,7 +412,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
     return TObjectProxyBase::SetBuiltinAttribute(key, value);
 }
 
-bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(const Stroka& key)
+bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(const TString& key)
 {
     if (key == "expiration_time") {
         ValidateNoTransaction();
@@ -492,7 +492,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
 }
 
 bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
-    const Stroka& key,
+    const TString& key,
     IYsonConsumer* consumer)
 {
     const auto* node = GetThisImpl();
@@ -633,7 +633,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
         ListSystemAttributes(&systemAttributes);
 
         auto customAttributes = GetCustomAttributes()->List();
-        yhash_set<Stroka> customAttributesSet(customAttributes.begin(), customAttributes.end());
+        yhash_set<TString> customAttributesSet(customAttributes.begin(), customAttributes.end());
 
         for (const auto& attribute : systemAttributes) {
             if (attribute.Custom) {
@@ -701,7 +701,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
             TCypressManagerPtr cypressManager,
             TSecurityManagerPtr securityManager,
             TTransaction* transaction,
-            TNullable<std::vector<Stroka>> attributeKeys)
+            TNullable<std::vector<TString>> attributeKeys)
             : CypressManager_(std::move(cypressManager))
             , SecurityManager_(std::move(securityManager))
             , Transaction_(transaction)
@@ -722,7 +722,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         const TCypressManagerPtr CypressManager_;
         const TSecurityManagerPtr SecurityManager_;
         TTransaction* const Transaction_;
-        const TNullable<std::vector<Stroka>> AttributeKeys_;
+        const TNullable<std::vector<TString>> AttributeKeys_;
 
         TAsyncYsonWriter Writer_;
 
@@ -797,7 +797,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         void VisitMap(TCypressNodeBase* node)
         {
             Writer_.OnBeginMap();
-            yhash<Stroka, TCypressNodeBase*> keyToChildMapStorage;
+            yhash<TString, TCypressNodeBase*> keyToChildMapStorage;
             const auto& keyToChildMap = GetMapNodeChildMap(
                 CypressManager_,
                 node,
@@ -812,7 +812,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
     };
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
+        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
         : Null;
 
     // TODO(babenko): make use of limit
@@ -1342,7 +1342,7 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
     TNontemplateCypressNodeProxyBase::ListSystemAttributes(descriptors);
 }
 
-bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
+bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
 {
     if (key == "count") {
         BuildYsonFluently(consumer)
@@ -1378,7 +1378,7 @@ void TMapNodeProxy::Clear()
     auto* impl = LockThisImpl(ELockMode::Shared);
 
     // Construct children list.
-    yhash<Stroka, TCypressNodeBase*> keyToChildMapStorage;
+    yhash<TString, TCypressNodeBase*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
@@ -1387,7 +1387,7 @@ void TMapNodeProxy::Clear()
     auto keyToChildList = SortKeyToChild(keyToChildMap);
 
     // Take shared locks for children.
-    typedef std::pair<Stroka, TCypressNodeBase*> TChild;
+    typedef std::pair<TString, TCypressNodeBase*> TChild;
     std::vector<TChild> children;
     children.reserve(keyToChildList.size());
     for (const auto& pair : keyToChildList) {
@@ -1419,16 +1419,16 @@ int TMapNodeProxy::GetChildCount() const
     return result;
 }
 
-std::vector<std::pair<Stroka, INodePtr>> TMapNodeProxy::GetChildren() const
+std::vector<std::pair<TString, INodePtr>> TMapNodeProxy::GetChildren() const
 {
-    yhash<Stroka, TCypressNodeBase*> keyToChildStorage;
+    yhash<TString, TCypressNodeBase*> keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
         Transaction,
         &keyToChildStorage);
 
-    std::vector<std::pair<Stroka, INodePtr>> result;
+    std::vector<std::pair<TString, INodePtr>> result;
     result.reserve(keyToChildMap.size());
     for (const auto& pair : keyToChildMap) {
         result.push_back(std::make_pair(pair.first, GetProxy(pair.second)));
@@ -1437,16 +1437,16 @@ std::vector<std::pair<Stroka, INodePtr>> TMapNodeProxy::GetChildren() const
     return result;
 }
 
-std::vector<Stroka> TMapNodeProxy::GetKeys() const
+std::vector<TString> TMapNodeProxy::GetKeys() const
 {
-    yhash<Stroka, TCypressNodeBase*> keyToChildStorage;
+    yhash<TString, TCypressNodeBase*> keyToChildStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         Bootstrap_->GetCypressManager(),
         TrunkNode,
         Transaction,
         &keyToChildStorage);
 
-    std::vector<Stroka> result;
+    std::vector<TString> result;
     for (const auto& pair : keyToChildMap) {
         result.push_back(pair.first);
     }
@@ -1454,7 +1454,7 @@ std::vector<Stroka> TMapNodeProxy::GetKeys() const
     return result;
 }
 
-INodePtr TMapNodeProxy::FindChild(const Stroka& key) const
+INodePtr TMapNodeProxy::FindChild(const TString& key) const
 {
     auto* childTrunkNode = FindMapNodeChild(
         Bootstrap_->GetCypressManager(),
@@ -1464,7 +1464,7 @@ INodePtr TMapNodeProxy::FindChild(const Stroka& key) const
     return childTrunkNode ? GetProxy(childTrunkNode) : nullptr;
 }
 
-bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
+bool TMapNodeProxy::AddChild(INodePtr child, const TString& key)
 {
     Y_ASSERT(!key.empty());
 
@@ -1487,7 +1487,7 @@ bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
     return true;
 }
 
-bool TMapNodeProxy::RemoveChild(const Stroka& key)
+bool TMapNodeProxy::RemoveChild(const TString& key)
 {
     auto* trunkChildImpl = FindMapNodeChild(
         Bootstrap_->GetCypressManager(),
@@ -1550,7 +1550,7 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     SetModified();
 }
 
-Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
+TString TMapNodeProxy::GetChildKey(IConstNodePtr child)
 {
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
@@ -1606,7 +1606,7 @@ IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
 
 void TMapNodeProxy::DoRemoveChild(
     TMapNode* impl,
-    const Stroka& key,
+    const TString& key,
     TCypressNodeBase* childImpl)
 {
     auto* trunkChildImpl = childImpl->GetTrunkNode();
@@ -1639,7 +1639,7 @@ void TMapNodeProxy::ListSelf(
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
+        ? MakeNullable(FromProto<std::vector<TString>>(request->attributes().keys()))
         : Null;
 
     auto limit = request->has_limit()
@@ -1655,7 +1655,7 @@ void TMapNodeProxy::ListSelf(
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-    yhash<Stroka, TCypressNodeBase*> keyToChildMapStorage;
+    yhash<TString, TCypressNodeBase*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
         cypressManager,
         TrunkNode,
@@ -1941,7 +1941,7 @@ void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* des
     descriptors->push_back("broken");
 }
 
-bool TLinkNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
+bool TLinkNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
 {
     if (key == "target_path") {
         const auto* impl = GetThisImpl();
@@ -2133,7 +2133,7 @@ void TDocumentNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>*
         .SetReplicated(true));
 }
 
-bool TDocumentNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
+bool TDocumentNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* consumer)
 {
     const auto* impl = GetThisImpl();
 
@@ -2146,7 +2146,7 @@ bool TDocumentNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* c
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
-bool TDocumentNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
+bool TDocumentNodeProxy::SetBuiltinAttribute(const TString& key, const TYsonString& value)
 {
     if (key == "value") {
         auto* impl = LockThisImpl();

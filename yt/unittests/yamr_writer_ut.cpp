@@ -85,7 +85,7 @@ TEST_F(TSchemalessWriterForYamrTest, Simple)
         .Get()
         .ThrowOnError();
 
-    Stroka output =
+    TString output =
         "key1\tvalue1\n"
         "key2\tvalue2\n";
 
@@ -114,7 +114,7 @@ TEST_F(TSchemalessWriterForYamrTest, SimpleWithSubkey)
         .Get()
         .ThrowOnError();
 
-    Stroka output =
+    TString output =
         "key1\tsubkey1\tvalue1\n"
         "key2\tsubkey2\tvalue2\n";
 
@@ -137,7 +137,7 @@ TEST_F(TSchemalessWriterForYamrTest, SubkeyCouldBeSkipped)
         .Get()
         .ThrowOnError();
 
-    Stroka output = "key\t\tvalue\n";
+    TString output = "key\t\tvalue\n";
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
@@ -158,7 +158,7 @@ TEST_F(TSchemalessWriterForYamrTest, SubkeyCouldBeNull)
         .Get()
         .ThrowOnError();
 
-    Stroka output = "key\t\tvalue\n";
+    TString output = "key\t\tvalue\n";
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
@@ -180,7 +180,7 @@ TEST_F(TSchemalessWriterForYamrTest, NonNullTerminatedStrings)
         .Get()
         .ThrowOnError();
 
-    Stroka output = "key\tsubkey\tvalue\n";
+    TString output = "key\tsubkey\tvalue\n";
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
@@ -253,7 +253,7 @@ TEST_F(TSchemalessWriterForYamrTest, ExtraItem)
         .Get()
         .ThrowOnError();
 
-    Stroka output = "key\tvalue\n";
+    TString output = "key\tvalue\n";
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
@@ -275,7 +275,7 @@ TEST_F(TSchemalessWriterForYamrTest, Escaping)
         .Get()
         .ThrowOnError();
 
-    Stroka output = "\\n\t\\t\t\\n\n";
+    TString output = "\\n\t\\t\t\\n\n";
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
@@ -312,7 +312,7 @@ TEST_F(TSchemalessWriterForYamrTest, SimpleWithTableIndex)
         .Get()
         .ThrowOnError();
 
-    Stroka output =
+    TString output =
         "42\n"
         "key1\tvalue1\n"
         "key2\tvalue2\n"
@@ -364,7 +364,7 @@ TEST_F(TSchemalessWriterForYamrTest, SimpleWithRowIndexAndTableIndex)
         .Get()
         .ThrowOnError();
 
-    Stroka output =
+    TString output =
         "42\n0\n"
         "key1\tvalue1\n"
         "key2\tvalue2\n"
@@ -400,7 +400,7 @@ TEST_F(TSchemalessWriterForYamrTest, Lenval)
         .Get()
         .ThrowOnError();
 
-    Stroka output = Stroka(
+    TString output = TString(
         "\x04\x00\x00\x00" "key1"
         "\x07\x00\x00\x00" "subkey1"
         "\x06\x00\x00\x00" "value1"
@@ -441,7 +441,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithEmptyFields)
         .Get()
         .ThrowOnError();
 
-    Stroka output = Stroka(
+    TString output = TString(
         "\x00\x00\x00\x00" ""
         "\x07\x00\x00\x00" "subkey1"
         "\x06\x00\x00\x00" "value1"
@@ -506,7 +506,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithKeySwitch)
         .Get()
         .ThrowOnError();
 
-    Stroka output = Stroka(
+    TString output = TString(
         "\x04\x00\x00\x00" "key1"
         "\x07\x00\x00\x00" "subkey1"
         "\x06\x00\x00\x00" "value1"
@@ -567,7 +567,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithTableIndex)
         .Get()
         .ThrowOnError();
 
-    Stroka output(
+    TString output(
         "\xff\xff\xff\xff" "\x2a\x00\x00\x00" // 42
 
         "\x04\x00\x00\x00" "key1"
@@ -622,7 +622,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithRangeAndRowIndex)
         .Get()
         .ThrowOnError();
 
-    Stroka output(
+    TString output(
         "\xfd\xff\xff\xff" "\x2a\x00\x00\x00" // 42
         "\xfc\xff\xff\xff" "\x17\x00\x00\x00\x00\x00\x00\x00" // 23
 

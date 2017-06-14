@@ -33,7 +33,7 @@ namespace NYT {
  *  
  *  The following argument types are supported:
  *  
- *  Strings (including |const char*|, |TStringBuf|, and |Stroka|) and chars:
+ *  Strings (including |const char*|, |TStringBuf|, and |TString|) and chars:
  *  Emitted as is. Fast.
  *  
  *  Numerics and pointers:
@@ -58,7 +58,7 @@ template <class... TArgs>
 void Format(TStringBuilder* builder, const char* format, const TArgs&... args);
 
 template <class... TArgs>
-Stroka Format(const char* format, const TArgs&... args);
+TString Format(const char* format, const TArgs&... args);
 
 ////////////////////////////////////////////////////////////////////////////////
 

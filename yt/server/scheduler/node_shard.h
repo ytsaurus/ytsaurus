@@ -44,7 +44,7 @@ struct INodeShardHost
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
 
     virtual void ValidateOperationPermission(
-        const Stroka& user,
+        const TString& user,
         const TOperationId& operationId,
         NYTree::EPermission permission) = 0;
 
@@ -54,7 +54,7 @@ struct INodeShardHost
         const TOperationId& operationId,
         const TJobId& jobId) = 0;
 
-    virtual NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const Stroka& address) = 0;
+    virtual NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const TString& address) = 0;
 
 };
 
@@ -109,7 +109,7 @@ public:
     TExecNodeDescriptorListPtr GetExecNodeDescriptors();
     void RemoveOutdatedSchedulingTagFilter(const TSchedulingTagFilter& filter);
 
-    void HandleNodesAttributes(const std::vector<std::pair<Stroka, NYTree::INodePtr>>& nodeMaps);
+    void HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
 
     void AbortAllJobs(const TError& error);
 
@@ -117,19 +117,19 @@ public:
 
     void ResumeOperationJobs(const TOperationId& operationId);
 
-    NYson::TYsonString StraceJob(const TJobId& jobId, const Stroka& user);
+    NYson::TYsonString StraceJob(const TJobId& jobId, const TString& user);
 
-    void DumpJobInputContext(const TJobId& jobId, const NYTree::TYPath& path, const Stroka& user);
+    void DumpJobInputContext(const TJobId& jobId, const NYTree::TYPath& path, const TString& user);
 
-    NNodeTrackerClient::TNodeDescriptor GetJobNode(const TJobId& jobId, const Stroka& user);
+    NNodeTrackerClient::TNodeDescriptor GetJobNode(const TJobId& jobId, const TString& user);
 
-    void SignalJob(const TJobId& jobId, const Stroka& signalName, const Stroka& user);
+    void SignalJob(const TJobId& jobId, const TString& signalName, const TString& user);
 
-    void AbandonJob(const TJobId& jobId, const Stroka& user);
+    void AbandonJob(const TJobId& jobId, const TString& user);
 
-    NYson::TYsonString PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const Stroka& user);
+    NYson::TYsonString PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters, const TString& user);
 
-    void AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const Stroka& user);
+    void AbortJob(const TJobId& jobId, const TNullable<TDuration>& interruptTimeout, const TString& user);
 
     void AbortJob(const TJobId& jobId, const TError& error);
 
@@ -197,7 +197,7 @@ private:
             : Controller(controller)
         { }
 
-        yhash_map<TJobId, TJobPtr> Jobs;
+        yhash<TJobId, TJobPtr> Jobs;
         NControllerAgent::IOperationControllerPtr Controller;
         bool Terminated = false;
         bool JobsAborted = false;
@@ -216,7 +216,7 @@ private:
     NLogging::TLogger Logger;
 
 
-    NLogging::TLogger CreateJobLogger(const TJobId& jobId, EJobState state, const Stroka& address);
+    NLogging::TLogger CreateJobLogger(const TJobId& jobId, EJobState state, const TString& address);
 
     TJobResources CalculateResourceLimits(const TSchedulingTagFilter& filter);
 
@@ -242,7 +242,7 @@ private:
         TJobStatus* jobStatus,
         bool forceJobsLogging);
 
-    void UpdateNodeTags(TExecNodePtr node, const std::vector<Stroka>& tagsList);
+    void UpdateNodeTags(TExecNodePtr node, const std::vector<TString>& tagsList);
 
     void SubtractNodeResources(TExecNodePtr node);
     void AddNodeResources(TExecNodePtr node);
@@ -280,7 +280,7 @@ private:
         const TJobPtr& job,
         EInterruptReason reason,
         NProfiling::TCpuDuration interruptTimeout = 0,
-        TNullable<Stroka> interruptUser = Null);
+        TNullable<TString> interruptUser = Null);
 
     TExecNodePtr GetNodeByJob(const TJobId& jobId);
 

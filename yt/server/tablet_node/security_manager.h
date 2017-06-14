@@ -25,7 +25,7 @@ class TAuthenticatedUserGuard
     : private TNonCopyable
 {
 public:
-    TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, const TNullable<Stroka>& maybeUser);
+    TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, const TNullable<TString>& maybeUser);
     ~TAuthenticatedUserGuard();
 
 private:
@@ -45,9 +45,9 @@ public:
         NCellNode::TBootstrap* bootstrap);
     ~TSecurityManager();
 
-    void SetAuthenticatedUser(const Stroka& user);
+    void SetAuthenticatedUser(const TString& user);
     void ResetAuthenticatedUser();
-    TNullable<Stroka> GetAuthenticatedUser();
+    TNullable<TString> GetAuthenticatedUser();
 
     TFuture<void> CheckPermission(
         const TTabletSnapshotPtr& tabletSnapshot,
@@ -58,12 +58,12 @@ public:
         NYTree::EPermission permission);
 
     TFuture<void> CheckResourceLimits(
-        const Stroka& account,
-        const Stroka& mediumName);
+        const TString& account,
+        const TString& mediumName);
 
     void ValidateResourceLimits(
-        const Stroka& account,
-        const Stroka& mediumName);
+        const TString& account,
+        const TString& mediumName);
 
 private:
     class TImpl;

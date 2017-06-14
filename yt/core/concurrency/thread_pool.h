@@ -19,7 +19,7 @@ class TThreadPool
 public:
     TThreadPool(
         int threadCount,
-        const Stroka& threadNamePrefix,
+        const TString& threadNamePrefix,
         bool enableLogging = true,
         bool enableProfiling = true);
 

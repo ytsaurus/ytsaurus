@@ -15,7 +15,7 @@ class TWriterConfig
 {
 public:
     EWriterType Type;
-    Stroka FileName;
+    TString FileName;
 
     TWriterConfig()
     {
@@ -41,12 +41,12 @@ class TRuleConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<yhash_set<Stroka>> IncludeCategories;
-    yhash_set<Stroka> ExcludeCategories;
+    TNullable<yhash_set<TString>> IncludeCategories;
+    yhash_set<TString> ExcludeCategories;
     ELogLevel MinLevel;
     ELogLevel MaxLevel;
 
-    std::vector<Stroka> Writers;
+    std::vector<TString> Writers;
 
     TRuleConfig()
     {
@@ -62,8 +62,8 @@ public:
             .NonEmpty();
     }
 
-    bool IsApplicable(const Stroka& category) const;
-    bool IsApplicable(const Stroka& category, ELogLevel level) const;
+    bool IsApplicable(const TString& category) const;
+    bool IsApplicable(const TString& category, ELogLevel level) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuleConfig)
@@ -86,7 +86,7 @@ public:
     TDuration ShutdownGraceTimeout;
 
     std::vector<TRuleConfigPtr> Rules;
-    yhash<Stroka, TWriterConfigPtr> WriterConfigs;
+    yhash<TString, TWriterConfigPtr> WriterConfigs;
 
     TLogConfig()
     {
@@ -113,7 +113,7 @@ public:
 
         RegisterValidator([&] () {
             for (const auto& rule : Rules) {
-                for (const Stroka& writer : rule->Writers) {
+                for (const TString& writer : rule->Writers) {
                     if (WriterConfigs.find(writer) == WriterConfigs.end()) {
                         THROW_ERROR_EXCEPTION("Unknown writer %Qv", writer);
                     }
@@ -123,11 +123,11 @@ public:
     }
 
     static TLogConfigPtr CreateStderrLogger(ELogLevel logLevel);
-    static TLogConfigPtr CreateLogFile(const Stroka& path);
+    static TLogConfigPtr CreateLogFile(const TString& path);
     static TLogConfigPtr CreateDefault();
     static TLogConfigPtr CreateQuiet();
     static TLogConfigPtr CreateSilent();
-    static TLogConfigPtr CreateFromFile(const Stroka& file, const NYPath::TYPath& path = "");
+    static TLogConfigPtr CreateFromFile(const TString& file, const NYPath::TYPath& path = "");
     static TLogConfigPtr CreateFromNode(NYTree::INodePtr node, const NYPath::TYPath& path = "");
 };
 

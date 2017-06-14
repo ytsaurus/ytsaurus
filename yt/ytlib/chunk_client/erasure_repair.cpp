@@ -80,7 +80,7 @@ public:
     TFuture<void> ReadMissingBlocksToSave()
     {
         std::vector<int> indexesToRead;
-        yhash_map<int, int> blockIndexToSavedBlocksIndex;
+        yhash<int, int> blockIndexToSavedBlocksIndex;
         int counter = 0;
         for (int index = 0; index < BlocksToSave_.size(); ++index) {
             if (!SavedBlocks_[index]) {

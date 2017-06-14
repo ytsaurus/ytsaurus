@@ -99,7 +99,7 @@ private:
 class TCGModule::TImpl
 {
 public:
-    TImpl(TRoutineRegistry* routineRegistry, const Stroka& moduleName)
+    TImpl(TRoutineRegistry* routineRegistry, const TString& moduleName)
         : RoutineRegistry_(routineRegistry)
     {
         InitializeCodegen();
@@ -143,7 +143,7 @@ public:
 
         if (!Engine_) {
             THROW_ERROR_EXCEPTION("Could not create llvm::ExecutionEngine")
-                << TError(Stroka(what));
+                << TError(TString(what));
         }
 
         Module_->setDataLayout(Engine_->getDataLayout()->getStringRepresentation());
@@ -159,7 +159,7 @@ public:
         return Module_;
     }
 
-    llvm::Constant* GetRoutine(const Stroka& symbol) const
+    llvm::Constant* GetRoutine(const TString& symbol) const
     {
         auto type = RoutineRegistry_->GetTypeBuilder(symbol)(
             const_cast<llvm::LLVMContext&>(Context_));
@@ -167,12 +167,12 @@ public:
         return Module_->getOrInsertFunction(symbol.c_str(), type);
     }
 
-    void ExportSymbol(const Stroka& name)
+    void ExportSymbol(const TString& name)
     {
         YCHECK(ExportedSymbols_.insert(name).second);
     }
 
-    uint64_t GetFunctionAddress(const Stroka& name)
+    uint64_t GetFunctionAddress(const TString& name)
     {
         if (!Compiled_) {
             Finalize();
@@ -187,22 +187,22 @@ public:
         Engine_->addObjectFile(std::move(sharedObject));
     }
 
-    bool SymbolIsLoaded(const Stroka& symbol)
+    bool SymbolIsLoaded(const TString& symbol)
     {
         return LoadedSymbols_.count(symbol) != 0;
     }
 
-    void AddLoadedSymbol(const Stroka& symbol)
+    void AddLoadedSymbol(const TString& symbol)
     {
         LoadedSymbols_.insert(symbol);
     }
 
-    bool FunctionIsLoaded(const Stroka& function) const
+    bool FunctionIsLoaded(const TString& function) const
     {
         return LoadedFunctions_.count(function) != 0;
     }
 
-    void AddLoadedFunction(const Stroka& function)
+    void AddLoadedFunction(const TString& function)
     {
         LoadedFunctions_.insert(function);
     }
@@ -361,17 +361,17 @@ private:
 
     std::unique_ptr<llvm::ExecutionEngine> Engine_;
 
-    std::set<Stroka> ExportedSymbols_;
+    std::set<TString> ExportedSymbols_;
 
-    std::set<Stroka> LoadedFunctions_;
-    std::set<Stroka> LoadedSymbols_;
+    std::set<TString> LoadedFunctions_;
+    std::set<TString> LoadedSymbols_;
 
     bool Compiled_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGModulePtr TCGModule::Create(TRoutineRegistry* routineRegistry, const Stroka& moduleName)
+TCGModulePtr TCGModule::Create(TRoutineRegistry* routineRegistry, const TString& moduleName)
 {
     return New<TCGModule>(std::make_unique<TImpl>(routineRegistry, moduleName));
 }
@@ -387,12 +387,12 @@ llvm::Module* TCGModule::GetModule() const
     return Impl_->GetModule();
 }
 
-llvm::Constant* TCGModule::GetRoutine(const Stroka& symbol) const
+llvm::Constant* TCGModule::GetRoutine(const TString& symbol) const
 {
     return Impl_->GetRoutine(symbol);
 }
 
-void TCGModule::ExportSymbol(const Stroka& name)
+void TCGModule::ExportSymbol(const TString& name)
 {
     Impl_->ExportSymbol(name);
 }
@@ -402,7 +402,7 @@ llvm::LLVMContext& TCGModule::GetContext()
     return Impl_->GetContext();
 }
 
-uint64_t TCGModule::GetFunctionAddress(const Stroka& name)
+uint64_t TCGModule::GetFunctionAddress(const TString& name)
 {
     return Impl_->GetFunctionAddress(name);
 }
@@ -413,22 +413,22 @@ void TCGModule::AddObjectFile(
     Impl_->AddObjectFile(std::move(sharedObject));
 }
 
-bool TCGModule::SymbolIsLoaded(const Stroka& symbol) const
+bool TCGModule::SymbolIsLoaded(const TString& symbol) const
 {
     return Impl_->SymbolIsLoaded(symbol);
 }
 
-void TCGModule::AddLoadedSymbol(const Stroka& symbol)
+void TCGModule::AddLoadedSymbol(const TString& symbol)
 {
     Impl_->AddLoadedSymbol(symbol);
 }
 
-bool TCGModule::FunctionIsLoaded(const Stroka& function) const
+bool TCGModule::FunctionIsLoaded(const TString& function) const
 {
     return Impl_->FunctionIsLoaded(function);
 }
 
-void TCGModule::AddLoadedFunction(const Stroka& function)
+void TCGModule::AddLoadedFunction(const TString& function)
 {
     Impl_->AddLoadedFunction(function);
 }

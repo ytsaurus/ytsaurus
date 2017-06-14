@@ -39,7 +39,7 @@ public:
         int minCount,
         TNullable<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
-        const TNullable<Stroka>& preferredHostName,
+        const TNullable<TString>& preferredHostName,
         NChunkClient::ESessionType sessionType);
 
     TNodeList AllocateWriteTargets(
@@ -100,7 +100,7 @@ private:
         TNullable<int> replicationFactorOverride,
         const TDataCenterSet* dataCenters,
         const TNodeList* forbiddenNodes = nullptr,
-        const TNullable<Stroka>& preferredHostName = Null);
+        const TNullable<TString>& preferredHostName = Null);
 
     TNode* GetBalancingTarget(
         TMedium* medium,

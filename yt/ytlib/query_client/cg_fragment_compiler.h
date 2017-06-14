@@ -50,30 +50,30 @@ TCodegenExpression MakeCodegenLiteralExpr(
 TCodegenExpression MakeCodegenReferenceExpr(
     int index,
     EValueType type,
-    Stroka name);
+    TString name);
 
 TCodegenValue MakeCodegenFunctionContext(
     int index);
 
 TCodegenExpression MakeCodegenFunctionExpr(
-    Stroka functionName,
+    TString functionName,
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name,
+    TString name,
     const IFunctionRegistryPtr functionRegistry);
 
 TCodegenExpression MakeCodegenUnaryOpExpr(
     EUnaryOp opcode,
     TCodegenExpression codegenOperand,
     EValueType type,
-    Stroka name);
+    TString name);
 
 TCodegenExpression MakeCodegenBinaryOpExpr(
     EBinaryOp opcode,
     TCodegenExpression codegenLhs,
     TCodegenExpression codegenRhs,
     EValueType type,
-    Stroka name);
+    TString name);
 
 TCodegenExpression MakeCodegenInOpExpr(
     std::vector<TCodegenExpression> codegenArgs,

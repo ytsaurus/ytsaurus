@@ -22,7 +22,7 @@ struct IContainerManager
 {
     virtual IInstancePtr CreateInstance() = 0;
     virtual IInstancePtr GetSelfInstance() = 0;
-    virtual TFuture<std::vector<Stroka>> GetInstanceNames() const = 0;
+    virtual TFuture<std::vector<TString>> GetInstanceNames() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IContainerManager)
@@ -39,12 +39,12 @@ struct TPortoManagerConfig {
 
 #if defined(_linux_)
 IContainerManagerPtr CreatePortoManager(
-    const Stroka& prefix,
+    const TString& prefix,
     TCallback<void(const TError&)> errorHandler,
     const TPortoManagerConfig& portoManagerConfig);
 #else
 inline IContainerManagerPtr CreatePortoManager(
-    const Stroka& /*prefix*/,
+    const TString& /*prefix*/,
     TCallback<void(const TError&)> /*errorHandler*/,
     const TPortoManagerConfig& /*portoManagerConfig*/)
 {

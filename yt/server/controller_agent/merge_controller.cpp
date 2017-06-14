@@ -166,7 +166,7 @@ protected:
             , PartitionIndex(partitionIndex)
         { }
 
-        virtual Stroka GetId() const override
+        virtual TString GetId() const override
         {
             return
                 PartitionIndex < 0
@@ -576,7 +576,7 @@ protected:
 
     // Progress reporting.
 
-    virtual Stroka GetLoggingProgress() const override
+    virtual TString GetLoggingProgress() const override
     {
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
@@ -1343,7 +1343,7 @@ protected:
     std::vector<TKeyEndpoint> Endpoints;
 
     //! The actual (adjusted) key columns.
-    std::vector<Stroka> SortKeyColumns;
+    std::vector<TString> SortKeyColumns;
 
     IChunkSliceFetcherPtr ChunkSliceFetcher;
 

@@ -68,11 +68,11 @@ public:
         const TGCCollectOptions& options),
         (options))
     IMPLEMENT_METHOD(void, KillProcess, (
-        const Stroka& address,
+        const TString& address,
         const TKillProcessOptions& options),
         (address, options))
-    IMPLEMENT_METHOD(Stroka, WriteCoreDump, (
-        const Stroka& address,
+    IMPLEMENT_METHOD(TString, WriteCoreDump, (
+        const TString& address,
         const TWriteCoreDumpOptions& options),
         (address, options))
 
@@ -84,7 +84,7 @@ private:
 
 
     template <class T>
-    TFuture<T> Execute(const Stroka& commandName, TCallback<T()> callback)
+    TFuture<T> Execute(const TString& commandName, TCallback<T()> callback)
     {
         return BIND([=, this_ = MakeStrong(this)] () {
                 try {
@@ -132,7 +132,7 @@ private:
             .ThrowOnError();
     }
 
-    void DoKillProcess(const Stroka& address, const TKillProcessOptions& options)
+    void DoKillProcess(const TString& address, const TKillProcessOptions& options)
     {
         auto channel = Connection_->GetLightChannelFactory()->CreateChannel(address);
 
@@ -147,7 +147,7 @@ private:
             .ThrowOnError();
     }
 
-    Stroka DoWriteCoreDump(const Stroka& address, const TWriteCoreDumpOptions& options)
+    TString DoWriteCoreDump(const TString& address, const TWriteCoreDumpOptions& options)
     {
         auto channel = Connection_->GetLightChannelFactory()->CreateChannel(address);
 

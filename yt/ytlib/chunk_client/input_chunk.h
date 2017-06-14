@@ -111,7 +111,7 @@ DEFINE_REFCOUNTED_TYPE(TInputChunk)
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, EDataSourceType dataSourceType);
-Stroka ToString(const TInputChunkPtr& inputChunk);
+TString ToString(const TInputChunkPtr& inputChunk);
 
 ////////////////////////////////////////////////////////////////////////////////
 

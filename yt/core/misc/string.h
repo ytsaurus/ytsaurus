@@ -79,7 +79,7 @@ public:
         Format(this, format, args...);
     }
 
-    Stroka Flush()
+    TString Flush()
     {
         Str_.resize(GetLength());
         Begin_ = Current_ = End_ = nullptr;
@@ -87,7 +87,7 @@ public:
     }
 
 private:
-    Stroka Str_;
+    TString Str_;
 
     char* Begin_ = nullptr;
     char* Current_ = nullptr;
@@ -103,7 +103,7 @@ inline void FormatValue(TStringBuilder* builder, const TStringBuilder& value, co
 }
 
 template <class T>
-Stroka ToStringViaBuilder(const T& value, const TStringBuf& spec = STRINGBUF("v"))
+TString ToStringViaBuilder(const T& value, const TStringBuf& spec = STRINGBUF("v"))
 {
     TStringBuilder builder;
     FormatValue(&builder, value, spec);
@@ -151,7 +151,7 @@ void JoinToString(
 }
 
 template <class TIterator, class TFormatter>
-Stroka JoinToString(
+TString JoinToString(
     const TIterator& begin,
     const TIterator& end,
     const TFormatter& formatter,
@@ -164,7 +164,7 @@ Stroka JoinToString(
 
 //! A handy shortcut with default formatter.
 template <class TIterator>
-Stroka JoinToString(
+TString JoinToString(
     const TIterator& begin,
     const TIterator& end,
     const TStringBuf& delimiter = DefaultJoinToStringDelimiter)
@@ -179,7 +179,7 @@ Stroka JoinToString(
  *  \param delimiter A delimiter to be inserted between items; ", " by default.
  */
 template <class TCollection, class TFormatter>
-Stroka JoinToString(
+TString JoinToString(
     const TCollection& collection,
     const TFormatter& formatter,
     const TStringBuf& delimiter = DefaultJoinToStringDelimiter)
@@ -191,7 +191,7 @@ Stroka JoinToString(
 
 //! A handy shortcut with the default formatter.
 template <class TCollection>
-Stroka JoinToString(
+TString JoinToString(
     const TCollection& collection,
     const TStringBuf& delimiter = DefaultJoinToStringDelimiter)
 {
@@ -200,13 +200,13 @@ Stroka JoinToString(
 
 //! Converts a range of items into strings.
 template <class TIter, class TFormatter>
-std::vector<Stroka> ConvertToStrings(
+std::vector<TString> ConvertToStrings(
     const TIter& begin,
     const TIter& end,
     const TFormatter& formatter,
     size_t maxSize = std::numeric_limits<size_t>::max())
 {
-    std::vector<Stroka> result;
+    std::vector<TString> result;
     for (auto it = begin; it != end; ++it) {
         TStringBuilder builder;
         formatter(&builder, *it);
@@ -220,7 +220,7 @@ std::vector<Stroka> ConvertToStrings(
 
 //! A handy shortcut with the default formatter.
 template <class TIter>
-std::vector<Stroka> ConvertToStrings(
+std::vector<TString> ConvertToStrings(
     const TIter& begin,
     const TIter& end,
     size_t maxSize = std::numeric_limits<size_t>::max())
@@ -235,7 +235,7 @@ std::vector<Stroka> ConvertToStrings(
  *  \param maxSize Size limit for the resulting vector.
  */
 template <class TCollection, class TFormatter>
-std::vector<Stroka> ConvertToStrings(
+std::vector<TString> ConvertToStrings(
     const TCollection& collection,
     const TFormatter& formatter,
     size_t maxSize = std::numeric_limits<size_t>::max())
@@ -247,7 +247,7 @@ std::vector<Stroka> ConvertToStrings(
 
 //! A handy shortcut with default formatter.
 template <class TCollection>
-std::vector<Stroka> ConvertToStrings(
+std::vector<TString> ConvertToStrings(
     const TCollection& collection,
     size_t maxSize = std::numeric_limits<size_t>::max())
 {
@@ -257,15 +257,15 @@ std::vector<Stroka> ConvertToStrings(
 ////////////////////////////////////////////////////////////////////////////////
 
 void UnderscoreCaseToCamelCase(TStringBuilder* builder, const TStringBuf& str);
-Stroka UnderscoreCaseToCamelCase(const TStringBuf& str);
+TString UnderscoreCaseToCamelCase(const TStringBuf& str);
 
 void CamelCaseToUnderscoreCase(TStringBuilder* builder, const TStringBuf& str);
-Stroka CamelCaseToUnderscoreCase(const TStringBuf& str);
+TString CamelCaseToUnderscoreCase(const TStringBuf& str);
 
-Stroka TrimLeadingWhitespaces(const Stroka& str);
-Stroka Trim(const Stroka& str, const Stroka& whitespaces);
+TString TrimLeadingWhitespaces(const TString& str);
+TString Trim(const TString& str, const TString& whitespaces);
 
-bool ParseBool(const Stroka& value);
+bool ParseBool(const TString& value);
 TStringBuf FormatBool(bool value);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -278,17 +278,17 @@ char* WriteGuidToBuffer(char* ptr, const TGuid& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka DecodeEnumValue(const Stroka& value);
-Stroka EncodeEnumValue(const Stroka& value);
+TString DecodeEnumValue(const TString& value);
+TString EncodeEnumValue(const TString& value);
 
 template <class T>
-T ParseEnum(const Stroka& value, typename TEnumTraits<T>::TType* = 0)
+T ParseEnum(const TString& value, typename TEnumTraits<T>::TType* = 0)
 {
     return TEnumTraits<T>::FromString(DecodeEnumValue(value));
 }
 
 template <class T>
-Stroka FormatEnum(T value, typename TEnumTraits<T>::TType* = 0)
+TString FormatEnum(T value, typename TEnumTraits<T>::TType* = 0)
 {
     return EncodeEnumValue(ToString(value));
 }

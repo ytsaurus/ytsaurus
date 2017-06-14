@@ -13,9 +13,9 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline Stroka SurroundWithQuotes(const Stroka& s)
+inline TString SurroundWithQuotes(const TString& s)
 {
-    Stroka quote = "\"";
+    TString quote = "\"";
     return quote + s + quote;
 }
 
@@ -35,7 +35,7 @@ TEST(TJsonWriterTest, List)
     consumer->OnEndList();
     consumer->Flush();
 
-    Stroka output = "[1,\"aaa\",3.5]";
+    TString output = "[1,\"aaa\",3.5]";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -52,7 +52,7 @@ TEST(TJsonWriterTest, Map)
     consumer->OnEndMap();
     consumer->Flush();
 
-    Stroka output = "{\"hello\":\"world\",\"foo\":\"bar\"}";
+    TString output = "{\"hello\":\"world\",\"foo\":\"bar\"}";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -73,7 +73,7 @@ TEST(TJsonWriterTest, DoubleMap)
     consumer->OnEndMap();
     consumer->Flush();
 
-    Stroka output = "{\"hello\":\"world\"}\n{\"foo\":\"bar\"}\n";
+    TString output = "{\"hello\":\"world\"}\n{\"foo\":\"bar\"}\n";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -100,7 +100,7 @@ TEST(TJsonWriterTest, ListFragmentWithEntity)
     consumer->OnEndMap();
     consumer->Flush();
 
-    Stroka output = "{\"$attributes\":{\"x\":\"y\"},\"$value\":null}\n{\"hello\":\"world\"}\n{\"foo\":\"bar\"}\n";
+    TString output = "{\"$attributes\":{\"x\":\"y\"},\"$value\":null}\n{\"hello\":\"world\"}\n{\"foo\":\"bar\"}\n";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -112,7 +112,7 @@ TEST(TJsonWriterTest, Entity)
     consumer->OnEntity();
     consumer->Flush();
 
-    Stroka output = "null";
+    TString output = "null";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -132,7 +132,7 @@ TEST(TJsonWriterTest, Infinities)
 
     consumer->Flush();
 
-    Stroka output = "{\"a\":-inf,\"b\":inf}";
+    TString output = "{\"a\":-inf,\"b\":inf}";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -144,7 +144,7 @@ TEST(TJsonWriterTest, EmptyString)
     consumer->OnStringScalar("");
     consumer->Flush();
 
-    Stroka output = SurroundWithQuotes("");
+    TString output = SurroundWithQuotes("");
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -153,11 +153,11 @@ TEST(TJsonWriterTest, AsciiString)
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
 
-    Stroka s = Stroka("\x7F\x32", 2);
+    TString s = TString("\x7F\x32", 2);
     consumer->OnStringScalar(s);
     consumer->Flush();
 
-    Stroka output = SurroundWithQuotes(s);
+    TString output = SurroundWithQuotes(s);
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -167,11 +167,11 @@ TEST(TJsonWriterTest, NonAsciiString)
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
 
-    Stroka s = Stroka("\xFF\x00\x80", 3);
+    TString s = TString("\xFF\x00\x80", 3);
     consumer->OnStringScalar(s);
     consumer->Flush();
 
-    Stroka output = SurroundWithQuotes("\xC3\xBF\\u0000\xC2\x80");
+    TString output = SurroundWithQuotes("\xC3\xBF\\u0000\xC2\x80");
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -182,11 +182,11 @@ TEST(TJsonWriterTest, NonAsciiStringWithoutEscaping)
     config->EncodeUtf8 = false;
     auto consumer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
 
-    Stroka s = Stroka("\xC3\xBF", 2);
+    TString s = TString("\xC3\xBF", 2);
     consumer->OnStringScalar(s);
     consumer->Flush();
 
-    Stroka output = SurroundWithQuotes(Stroka("\xC3\xBF", 2));
+    TString output = SurroundWithQuotes(TString("\xC3\xBF", 2));
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -197,7 +197,7 @@ TEST(TJsonWriterTest, IncorrectUtfWithoutEscaping)
     config->EncodeUtf8 = false;
     auto consumer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
 
-    Stroka s = Stroka("\xFF", 1);
+    TString s = TString("\xFF", 1);
     EXPECT_ANY_THROW(
         consumer->OnStringScalar(s);
     );
@@ -208,11 +208,11 @@ TEST(TJsonWriterTest, StringStartingWithSpecailSymbol)
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
 
-    Stroka s = "&some_string";
+    TString s = "&some_string";
     consumer->OnStringScalar(s);
     consumer->Flush();
 
-    Stroka output = SurroundWithQuotes(s);
+    TString output = SurroundWithQuotes(s);
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -235,7 +235,7 @@ TEST(TJsonWriterTest, ListWithAttributes)
     consumer->OnEndList();
     consumer->Flush();
 
-    Stroka output =
+    TString output =
         "{"
             "\"$attributes\":{\"foo\":\"bar\"}"
             ","
@@ -260,7 +260,7 @@ TEST(TJsonWriterTest, MapWithAttributes)
     consumer->OnEndMap();
     consumer->Flush();
 
-    Stroka output =
+    TString output =
         "{"
             "\"$attributes\":{\"foo\":\"bar\"}"
             ","
@@ -282,7 +282,7 @@ TEST(TJsonWriterTest, Int64WithAttributes)
     consumer->OnInt64Scalar(42);
     consumer->Flush();
 
-    Stroka output =
+    TString output =
         "{"
             "\"$attributes\":{\"foo\":\"bar\"}"
             ","
@@ -299,7 +299,7 @@ TEST(TJsonWriterTest, Uint64)
     consumer->OnUint64Scalar(42);
     consumer->Flush();
 
-    Stroka output = "42";
+    TString output = "42";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -316,7 +316,7 @@ TEST(TJsonWriterTest, EntityWithAttributes)
     consumer->OnEntity();
     consumer->Flush();
 
-    Stroka output =
+    TString output =
         "{"
             "\"$attributes\":{\"foo\":\"bar\"}"
             ","
@@ -338,7 +338,7 @@ TEST(TJsonWriterTest, StringWithAttributes)
     consumer->OnStringScalar("some_string");
     consumer->Flush();
 
-    Stroka output =
+    TString output =
         "{"
             "\"$attributes\":{\"foo\":\"bar\"}"
             ","
@@ -364,7 +364,7 @@ TEST(TJsonWriterTest, DoubleAttributes)
     consumer->OnStringScalar("some_string");
     consumer->Flush();
 
-    Stroka output =
+    TString output =
         "{"
             "\"$attributes\":{\"foo\":"
                 "{"
@@ -405,7 +405,7 @@ TEST(TJsonWriterTest, NeverAttributes)
     consumer->OnEndMap();
     consumer->Flush();
 
-    Stroka output =
+    TString output =
         "{"
             "\"answer\":42,"
             "\"question\":\"strange question\""
@@ -438,7 +438,7 @@ TEST(TJsonWriterTest, AlwaysAttributes)
     consumer->OnEndMap();
     consumer->Flush();
 
-    Stroka output =
+    TString output =
         "{"
             "\"$attributes\":{\"foo\":{\"$attributes\":{},\"$value\":\"bar\"}},"
             "\"$value\":"
@@ -469,7 +469,7 @@ TEST(TJsonWriterTest, SpecialKeys)
     consumer->OnEndMap();
     consumer->Flush();
 
-    Stroka output = "{\"$$value\":\"foo\",\"$$$attributes\":\"bar\",\"$$other\":42}";
+    TString output = "{\"$$value\":\"foo\",\"$$$attributes\":\"bar\",\"$$other\":42}";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -482,11 +482,11 @@ TEST(TJsonWriterTest, TestStringLengthLimit)
 
     consumer->OnBeginMap();
         consumer->OnKeyedItem("hello");
-        consumer->OnStringScalar(Stroka(10000, 'A'));
+        consumer->OnStringScalar(TString(10000, 'A'));
     consumer->OnEndMap();
     consumer->Flush();
 
-    Stroka output = "{\"hello\":{\"$incomplete\":true,\"$value\":\"AA\"}}";
+    TString output = "{\"hello\":{\"$incomplete\":true,\"$value\":\"AA\"}}";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -503,7 +503,7 @@ TEST(TJsonWriterTest, TestAnnotateWithTypes)
     consumer->OnEndMap();
     consumer->Flush();
 
-    Stroka output = "{\"hello\":{\"$type\":\"string\",\"$value\":\"world\"}}";
+    TString output = "{\"hello\":{\"$type\":\"string\",\"$value\":\"world\"}}";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -523,7 +523,7 @@ TEST(TJsonWriterTest, TestAnnotateWithTypesStringify)
     consumer->OnEndMap();
     consumer->Flush();
 
-    Stroka output = "{\"hello\":{\"$type\":\"uint64\",\"$value\":\"18446744073709551615\"},"
+    TString output = "{\"hello\":{\"$type\":\"uint64\",\"$value\":\"18446744073709551615\"},"
         "\"world\":{\"$type\":\"double\",\"$value\":\"1.7976931348623157e+308\"}}";
     EXPECT_EQ(output, outputStream.Str());
 }
@@ -538,11 +538,11 @@ TEST(TJsonWriterTest, SeveralOptions)
 
     consumer->OnBeginMap();
         consumer->OnKeyedItem("hello");
-        consumer->OnStringScalar(Stroka(10000, 'A'));
+        consumer->OnStringScalar(TString(10000, 'A'));
     consumer->OnEndMap();
     consumer->Flush();
 
-    Stroka output = "{\"hello\":{\"$incomplete\":true,\"$type\":\"string\",\"$value\":\"AA\"}}";
+    TString output = "{\"hello\":{\"$incomplete\":true,\"$type\":\"string\",\"$value\":\"AA\"}}";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -560,11 +560,11 @@ TEST(TJsonWriterTest, SeveralOptions2)
             consumer->OnKeyedItem("mood");
             consumer->OnInt64Scalar(42);
         consumer->OnEndAttributes();
-        consumer->OnStringScalar(Stroka(10000, 'A'));
+        consumer->OnStringScalar(TString(10000, 'A'));
     consumer->OnEndMap();
     consumer->Flush();
 
-    Stroka output = "{\"hello\":{\"$attributes\":{\"mood\":{\"$type\":\"int64\",\"$value\":42}},"
+    TString output = "{\"hello\":{\"$attributes\":{\"mood\":{\"$type\":\"int64\",\"$value\":42}},"
         "\"$incomplete\":true,\"$type\":\"string\",\"$value\":\"AAAA\"}}";
     EXPECT_EQ(output, outputStream.Str());
 }
@@ -578,10 +578,10 @@ TEST(TJsonWriterTest, SeveralOptionsFlushBuffer)
     auto consumer = CreateJsonConsumer(&outputStream, EYsonType::ListFragment, config);
 
     consumer->OnListItem();
-    consumer->OnStringScalar(Stroka(10000, 'A'));
+    consumer->OnStringScalar(TString(10000, 'A'));
     consumer->Flush();
 
-    Stroka output = "{\"$incomplete\":true,\"$type\":\"string\",\"$value\":\"AA\"}\n";
+    TString output = "{\"$incomplete\":true,\"$type\":\"string\",\"$value\":\"AA\"}\n";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -598,7 +598,7 @@ TEST(TJsonWriterTest, DISABLED_TestPrettyFormat)
     consumer->OnEndMap();
     consumer->Flush();
 
-    Stroka output = "{\n"
+    TString output = "{\n"
                     "    \"hello\": 1\n"
                     "}";
     EXPECT_EQ(output, outputStream.Str());

@@ -38,11 +38,11 @@ struct IClientRequest
 
     virtual TRequestId GetRequestId() const = 0;
     virtual TRealmId GetRealmId() const = 0;
-    virtual const Stroka& GetService() const = 0;
-    virtual const Stroka& GetMethod() const = 0;
+    virtual const TString& GetService() const = 0;
+    virtual const TString& GetMethod() const = 0;
 
-    virtual const Stroka& GetUser() const = 0;
-    virtual void SetUser(const Stroka& user) = 0;
+    virtual const TString& GetUser() const = 0;
+    virtual void SetUser(const TString& user) = 0;
 
     virtual bool GetRetry() const = 0;
     virtual void SetRetry(bool value) = 0;
@@ -63,16 +63,16 @@ class TClientContext
 public:
     DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
     DEFINE_BYVAL_RO_PROPERTY(NTracing::TTraceContext, TraceContext);
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Service);
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Method);
+    DEFINE_BYVAL_RO_PROPERTY(TString, Service);
+    DEFINE_BYVAL_RO_PROPERTY(TString, Method);
     DEFINE_BYVAL_RO_PROPERTY(bool, Heavy);
 
 public:
     TClientContext(
         const TRequestId& requestId,
         const NTracing::TTraceContext& traceContext,
-        const Stroka& service,
-        const Stroka& method,
+        const TString& service,
+        const TString& method,
         bool heavy)
         : RequestId_(requestId)
         , TraceContext_(traceContext)
@@ -107,11 +107,11 @@ public:
 
     virtual TRequestId GetRequestId() const override;
     virtual TRealmId GetRealmId() const override;
-    virtual const Stroka& GetService() const override;
-    virtual const Stroka& GetMethod() const override;
+    virtual const TString& GetService() const override;
+    virtual const TString& GetMethod() const override;
 
-    virtual const Stroka& GetUser() const override;
-    virtual void SetUser(const Stroka& user) override;
+    virtual const TString& GetUser() const override;
+    virtual void SetUser(const TString& user) override;
 
     virtual bool GetRetry() const override;
     virtual void SetRetry(bool value) override;
@@ -132,8 +132,8 @@ protected:
 
     TClientRequest(
         IChannelPtr channel,
-        const Stroka& service,
-        const Stroka& method,
+        const TString& service,
+        const TString& method,
         bool oneWay,
         int protocolVersion);
 
@@ -163,8 +163,8 @@ public:
 
     TTypedClientRequest(
         IChannelPtr channel,
-        const Stroka& path,
-        const Stroka& method,
+        const TString& path,
+        const TString& method,
         bool oneWay,
         int protocolVersion)
         : TClientRequest(
@@ -358,10 +358,10 @@ static const int GenericProtocolVersion = -1;
 
 struct TServiceDescriptor
 {
-    Stroka ServiceName;
+    TString ServiceName;
     int ProtocolVersion = DefaultProtocolVersion;
 
-    explicit TServiceDescriptor(const Stroka& serviceName)
+    explicit TServiceDescriptor(const TString& serviceName)
         : ServiceName(serviceName)
     { }
 
@@ -395,7 +395,7 @@ struct TServiceDescriptor
     \
     TReq##method##Ptr method() \
     { \
-        static Stroka MethodName(#method); \
+        static TString MethodName(#method); \
         return CreateRequest<TReq##method>(MethodName, false); \
     }
 
@@ -407,7 +407,7 @@ struct TServiceDescriptor
     \
     TReq##method##Ptr method() \
     { \
-        static Stroka MethodName(#method); \
+        static TString MethodName(#method); \
         return CreateRequest<TReq##method>(MethodName, true); \
     }
 
@@ -430,7 +430,7 @@ protected:
         const TServiceDescriptor& descriptor);
 
     template <class T>
-    TIntrusivePtr<T> CreateRequest(const Stroka& methodName, bool oneWay)
+    TIntrusivePtr<T> CreateRequest(const TString& methodName, bool oneWay)
     {
         auto request = New<T>(
             Channel_,

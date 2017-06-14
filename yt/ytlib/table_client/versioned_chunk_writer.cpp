@@ -399,7 +399,7 @@ public:
         , DataToBlockFlush_(Config_->BlockSize)
     {
         // Only scan-optimized version for now.
-        yhash<Stroka, TDataBlockWriter*> groupBlockWriters;
+        yhash<TString, TDataBlockWriter*> groupBlockWriters;
         for (const auto& column : Schema_.Columns()) {
             if (column.Group && groupBlockWriters.find(*column.Group) == groupBlockWriters.end()) {
                 auto blockWriter = std::make_unique<TDataBlockWriter>();

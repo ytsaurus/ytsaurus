@@ -17,7 +17,7 @@
 #include <yt/core/misc/small_vector.h>
 
 #include <util/generic/strbuf.h>
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 #include <climits>
 #include <cstring>

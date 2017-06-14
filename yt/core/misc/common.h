@@ -5,7 +5,7 @@
 #include <util/generic/hash.h>
 #include <util/generic/hash_set.h>
 #include <util/generic/singleton.h>
-#include <util/generic/stroka.h>
+#include <util/generic/string.h>
 
 #include <util/string/cast.h>
 #include <util/string/printf.h>
@@ -145,7 +145,7 @@ using is_trivially_move_constructible = is_trivial<T>;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Make global hash functions from util/ visible for STL.
-template <> struct hash<Stroka> : public ::hash<Stroka> { };
+template <> struct hash<TString> : public ::hash<TString> { };
 template <> struct hash<TStringBuf> : public ::hash<TStringBuf> { };
 
 } // namespace std

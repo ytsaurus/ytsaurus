@@ -248,10 +248,10 @@ TEST_P(TEliminateLookupPredicateTest, Simple)
     Deserialize(keyColumns, ConvertToNode(TYsonString(keyString)));
 
     std::vector<TOwningKey> keys;
-    Stroka keysString;
+    TString keysString;
     for (const auto& keyString : keyStrings) {
         keys.push_back(YsonToKey(keyString));
-        keysString += Stroka(keysString.size() > 0 ? ", " : "") + "[" + keyString + "]";
+        keysString += TString(keysString.size() > 0 ? ", " : "") + "[" + keyString + "]";
     }
 
     auto predicate = PrepareExpression(predicateString, tableSchema);
@@ -570,28 +570,28 @@ TEST_F(TPrepareExpressionTest, Basic)
     auto schema = GetSampleTableSchema();
 
     auto expr1 = Make<TReferenceExpression>("k");
-    auto expr2 = PrepareExpression(Stroka("k"), schema);
+    auto expr2 = PrepareExpression(TString("k"), schema);
 
     EXPECT_TRUE(Equal(expr1, expr2))
         << "expr1: " << ::testing::PrintToString(expr1) << std::endl
         << "expr2: " << ::testing::PrintToString(expr2);
 
     expr1 = Make<TLiteralExpression>(MakeInt64(90));
-    expr2 = PrepareExpression(Stroka("90"), schema);
+    expr2 = PrepareExpression(TString("90"), schema);
 
     EXPECT_TRUE(Equal(expr1, expr2))
         << "expr1: " << ::testing::PrintToString(expr1) << std::endl
         << "expr2: " << ::testing::PrintToString(expr2);
 
     expr1 = Make<TReferenceExpression>("a"),
-    expr2 = PrepareExpression(Stroka("k"), schema);
+    expr2 = PrepareExpression(TString("k"), schema);
 
     EXPECT_FALSE(Equal(expr1, expr2))
         << "expr1: " << ::testing::PrintToString(expr1) << std::endl
         << "expr2: " << ::testing::PrintToString(expr2);
 
-    auto str1 = Stroka("k + 3 - a > 4 * l and (k <= m or k + 1 < 3* l)");
-    auto str2 = Stroka("k + 3 - a > 4 * l and (k <= m or k + 2 < 3* l)");
+    auto str1 = TString("k + 3 - a > 4 * l and (k <= m or k + 1 < 3* l)");
+    auto str2 = TString("k + 3 - a > 4 * l and (k <= m or k + 2 < 3* l)");
 
     expr1 = PrepareExpression(str1, schema);
     expr2 = PrepareExpression(str1, schema);
@@ -702,7 +702,7 @@ INSTANTIATE_TEST_CASE_P(
             "not ((a < 3) and (a >= 2))")
 ));
 
-TSharedRange<TRow> MakeRows(const Stroka& yson)
+TSharedRange<TRow> MakeRows(const TString& yson)
 {
     TUnversionedRowBuilder keyBuilder;
     auto keyParts = ConvertTo<std::vector<INodePtr>>(
@@ -733,7 +733,7 @@ TSharedRange<TRow> MakeRows(const Stroka& yson)
                 break;
             case ENodeType::String:
                 keyBuilder.AddValue(MakeStringValue<TUnversionedValue>(
-                    keyPart->GetValue<Stroka>(),
+                    keyPart->GetValue<TString>(),
                     id));
                 break;
             case ENodeType::Entity:
@@ -759,43 +759,43 @@ TEST_F(TPrepareExpressionTest, Negative1)
     auto schema = GetSampleTableSchema();
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(Stroka("ki in (1, 2u, \"abc\")"), schema); },
+        [&] { PrepareExpression(TString("ki in (1, 2u, \"abc\")"), schema); },
         HasSubstr("IN operator types mismatch"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(Stroka("ku = \"abc\""), schema); },
+        [&] { PrepareExpression(TString("ku = \"abc\""), schema); },
         HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(Stroka("ku = -1"), schema); },
+        [&] { PrepareExpression(TString("ku = -1"), schema); },
         HasSubstr("to uint64: value is negative"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(Stroka("kd = 4611686018427387903"), schema); },
+        [&] { PrepareExpression(TString("kd = 4611686018427387903"), schema); },
         HasSubstr("to double: inaccurate conversion"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(Stroka("kd = 9223372036854775807u"), schema); },
+        [&] { PrepareExpression(TString("kd = 9223372036854775807u"), schema); },
         HasSubstr("to double: inaccurate conversion"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(Stroka("ki = 18446744073709551606u"), schema); },
+        [&] { PrepareExpression(TString("ki = 18446744073709551606u"), schema); },
         HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(Stroka("ku = 1.5"), schema); },
+        [&] { PrepareExpression(TString("ku = 1.5"), schema); },
         HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(Stroka("ki = 1.5"), schema); },
+        [&] { PrepareExpression(TString("ki = 1.5"), schema); },
         HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(Stroka("(1u - 2) / 3.0"), schema); },
+        [&] { PrepareExpression(TString("(1u - 2) / 3.0"), schema); },
         HasSubstr("to double: inaccurate conversion"));
 
     EXPECT_THROW_THAT(
-        [&] { PrepareExpression(Stroka("k = 1 and ku"), schema); },
+        [&] { PrepareExpression(TString("k = 1 and ku"), schema); },
         HasSubstr("Type mismatch in expression"));
 }
 
@@ -944,7 +944,7 @@ TEST_P(TExpressionTest, ConstantFolding)
     auto& rhs = std::get<3>(param);
     auto expected = Make<TLiteralExpression>(std::get<4>(param));
 
-    auto got = PrepareExpression(Stroka(lhs) + " " + op + " " + rhs, schema);
+    auto got = PrepareExpression(TString(lhs) + " " + op + " " + rhs, schema);
 
     EXPECT_TRUE(Equal(got, expected))
         << "got: " <<  ::testing::PrintToString(got) << std::endl
@@ -1008,11 +1008,11 @@ TEST_P(TExpressionTest, Evaluate)
     columns[1].Type = type;
     auto schema = TTableSchema(columns);
 
-    auto expr = PrepareExpression(Stroka("k") + " " + op + " " + "l", schema);
+    auto expr = PrepareExpression(TString("k") + " " + op + " " + "l", schema);
 
     auto callback = Profile(expr, schema, nullptr, &variables)();
 
-    auto row = YsonToSchemafulRow(Stroka("k=") + lhs + ";l=" + rhs, schema, true);
+    auto row = YsonToSchemafulRow(TString("k=") + lhs + ";l=" + rhs, schema, true);
 
     auto buffer = New<TRowBuffer>();
 
@@ -1039,11 +1039,11 @@ TEST_P(TExpressionTest, EvaluateLhsValueRhsLiteral)
     columns[1].Type = type;
     auto schema = TTableSchema(columns);
 
-    auto expr = PrepareExpression(Stroka("k") + " " + op + " " + rhs, schema);
+    auto expr = PrepareExpression(TString("k") + " " + op + " " + rhs, schema);
 
     auto callback = Profile(expr, schema, nullptr, &variables)();
 
-    auto row = YsonToSchemafulRow(Stroka("k=") + lhs, schema, true);
+    auto row = YsonToSchemafulRow(TString("k=") + lhs, schema, true);
 
     auto buffer = New<TRowBuffer>();
 
@@ -1070,11 +1070,11 @@ TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
     columns[1].Type = type;
     auto schema = TTableSchema(columns);
 
-    auto expr = PrepareExpression(Stroka(lhs) + " " + op + " " + "l", schema);
+    auto expr = PrepareExpression(TString(lhs) + " " + op + " " + "l", schema);
 
     auto callback = Profile(expr, schema, nullptr, &variables)();
 
-    auto row = YsonToSchemafulRow(Stroka("l=") + rhs, schema, true);
+    auto row = YsonToSchemafulRow(TString("l=") + rhs, schema, true);
 
     auto buffer = New<TRowBuffer>();
 
@@ -1419,7 +1419,7 @@ INSTANTIATE_TEST_CASE_P(
 
 void EvaluateExpression(
     TConstExpressionPtr expr,
-    const Stroka& rowString,
+    const TString& rowString,
     const TTableSchema& schema,
     TUnversionedValue* result,
     TRowBufferPtr buffer)

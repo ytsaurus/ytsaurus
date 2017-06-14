@@ -20,7 +20,7 @@ std::vector<T> SortedAndUnique(const std::vector<T>& vector)
     return result;
 }
 
-std::vector<TSharedRef> ConvertToSharedRefs(const std::vector<Stroka>& data)
+std::vector<TSharedRef> ConvertToSharedRefs(const std::vector<TString>& data)
 {
     std::vector<TSharedRef> refs;
     for (const auto& str : data) {
@@ -45,7 +45,7 @@ protected:
         return std::get<1>(GetParam());
     }
 
-    void TestCase(const std::vector<Stroka>& pieces)
+    void TestCase(const std::vector<TString>& pieces)
     {
         std::vector<TSharedRef> refs;
         size_t length = 0;
@@ -80,12 +80,12 @@ TEST_P(TCodecTest, HelloWorld)
 
 TEST_P(TCodecTest, 64KB)
 {
-    TestCase({Stroka(64 * 1024, 'a')});
+    TestCase({TString(64 * 1024, 'a')});
 }
 
 TEST_P(TCodecTest, 1MB)
 {
-    TestCase({Stroka(1 * 1024 * 1024, 'a')});
+    TestCase({TString(1 * 1024 * 1024, 'a')});
 }
 
 TEST_P(TCodecTest, VectorHelloWorld)
@@ -93,8 +93,8 @@ TEST_P(TCodecTest, VectorHelloWorld)
     TestCase({
         "", "", "hello",
         "", "", "world",
-        "", "", Stroka(10000, 'a'),
-        "", "", Stroka(10000, 'b'),
+        "", "", TString(10000, 'a'),
+        "", "", TString(10000, 'b'),
         "", ""});
 }
 
@@ -105,13 +105,13 @@ TEST_P(TCodecTest, VectorEmptyRefs)
 
 TEST_P(TCodecTest, VectorSingleCharacters)
 {
-    std::vector<Stroka> input(1000, "a");
+    std::vector<TString> input(1000, "a");
     TestCase(input);
 }
 
 TEST_P(TCodecTest, VectorExpBuffers)
 {
-    std::vector<Stroka> input;
+    std::vector<TString> input;
     for (int i = 0; i < 15; ++i) {
         input.emplace_back(1 << i, 'a' + i);
     }

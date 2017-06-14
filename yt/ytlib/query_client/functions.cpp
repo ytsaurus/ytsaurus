@@ -108,7 +108,7 @@ void TAggregateTypeInferrer::GetNormalizedConstraints(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const ITypeInferrerPtr& TTypeInferrerMap::GetFunction(const Stroka& functionName) const
+const ITypeInferrerPtr& TTypeInferrerMap::GetFunction(const TString& functionName) const
 {
     auto found = this->find(functionName);
     if (found == this->end()) {
@@ -118,7 +118,7 @@ const ITypeInferrerPtr& TTypeInferrerMap::GetFunction(const Stroka& functionName
     return found->second;
 }
 
-const IFunctionCodegenPtr& TFunctionProfilerMap::GetFunction(const Stroka& functionName) const
+const IFunctionCodegenPtr& TFunctionProfilerMap::GetFunction(const TString& functionName) const
 {
     auto found = this->find(functionName);
     if (found == this->end()) {
@@ -128,7 +128,7 @@ const IFunctionCodegenPtr& TFunctionProfilerMap::GetFunction(const Stroka& funct
     return found->second;
 }
 
-const IAggregateCodegenPtr& TAggregateProfilerMap::GetAggregate(const Stroka& functionName) const
+const IAggregateCodegenPtr& TAggregateProfilerMap::GetAggregate(const TString& functionName) const
 {
     auto found = this->find(functionName);
     if (found == this->end()) {

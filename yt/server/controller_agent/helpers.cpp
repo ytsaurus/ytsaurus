@@ -597,7 +597,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka TrimCommandForBriefSpec(const Stroka& command)
+TString TrimCommandForBriefSpec(const TString& command)
 {
     const int MaxBriefSpecCommandLength = 256;
     return
@@ -608,7 +608,7 @@ Stroka TrimCommandForBriefSpec(const Stroka& command)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka TLockedUserObject::GetPath() const
+TString TLockedUserObject::GetPath() const
 {
     return FromObjectId(ObjectId);
 }

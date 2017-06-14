@@ -331,7 +331,7 @@ void FormatValue(TStringBuilder* builder, const TClusterResources& resources, co
         resources.TabletStaticMemory);
 }
 
-Stroka ToString(const TClusterResources& resources)
+TString ToString(const TClusterResources& resources)
 {
     return ToStringViaBuilder(resources);
 }

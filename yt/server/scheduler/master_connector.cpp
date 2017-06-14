@@ -534,7 +534,7 @@ private:
             auto batchReq = Owner->StartObjectBatchRequest(EMasterChannelKind::Follower);
             {
                 auto req = TYPathProxy::List("//sys/operations");
-                std::vector<Stroka> attributeKeys{
+                std::vector<TString> attributeKeys{
                     "state"
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
@@ -553,7 +553,7 @@ private:
                     operationsList->GetChildCount());
                 OperationIds.clear();
                 for (auto operationNode : operationsList->GetChildren()) {
-                    auto id = TOperationId::FromString(operationNode->GetValue<Stroka>());
+                    auto id = TOperationId::FromString(operationNode->GetValue<TString>());
                     auto state = operationNode->Attributes().Get<EOperationState>("state");
                     if (IsOperationInProgress(state)) {
                         OperationIds.push_back(id);
@@ -575,7 +575,7 @@ private:
                     // Retrieve operation attributes.
                     {
                         auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
-                        std::vector<Stroka> attributeKeys{
+                        std::vector<TString> attributeKeys{
                             "operation_type",
                             "mutation_id",
                             "user_transaction_id",
@@ -671,7 +671,7 @@ private:
                         NullTransactionId})
                     {
                         auto req = TYPathProxy::Get(GetOperationPath(report.Operation->GetId()) + "/@");
-                        std::vector<Stroka> attributeKeys{
+                        std::vector<TString> attributeKeys{
                             "committed"
                         };
                         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
@@ -780,7 +780,7 @@ private:
         const IAttributeDictionary& attributes,
         IMapNodePtr secureVault)
     {
-        auto attachTransaction = [&] (const TTransactionId& transactionId, bool ping, const Stroka& name = Stroka()) -> ITransactionPtr {
+        auto attachTransaction = [&] (const TTransactionId& transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
             if (!transactionId) {
                 if (name) {
                     LOG_INFO("Missing %v transaction (OperationId: %v, TransactionId: %v)",
@@ -856,7 +856,7 @@ private:
             attributes.Get<TMutationId>("mutation_id"),
             userTransactionId,
             spec,
-            attributes.Get<Stroka>("authenticated_user"),
+            attributes.Get<TString>("authenticated_user"),
             operationSpec->Owners,
             attributes.Get<TInstant>("start_time"),
             Bootstrap->GetControlInvoker(),

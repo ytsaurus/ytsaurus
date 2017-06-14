@@ -68,20 +68,20 @@ DEFINE_ENUM(EPeerType,
 
 struct TPeer
 {
-    TPeer(const Stroka& address, TNodeDescriptor nodeDescriptor, EPeerType peerType, EAddressLocality locality)
+    TPeer(const TString& address, TNodeDescriptor nodeDescriptor, EPeerType peerType, EAddressLocality locality)
         : Address(address)
         , NodeDescriptor(nodeDescriptor)
         , Type(peerType)
         , Locality(locality)
     { }
 
-    Stroka Address;
+    TString Address;
     TNodeDescriptor NodeDescriptor;
     EPeerType Type;
     EAddressLocality Locality;
 };
 
-Stroka ToString(const TPeer& peer)
+TString ToString(const TPeer& peer)
 {
     return peer.Address;
 }
@@ -197,9 +197,9 @@ private:
 
     TSpinLock PeersSpinLock_;
     //! Peers returning NoSuchChunk error are banned forever.
-    yhash_set<Stroka> BannedForeverPeers_;
+    yhash_set<TString> BannedForeverPeers_;
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
-    yhash<Stroka, int> PeerBanCountMap_;
+    yhash<TString, int> PeerBanCountMap_;
 
     TFuture<TChunkReplicaList> AsyncGetSeeds()
     {
@@ -325,7 +325,7 @@ private:
     }
 
     //! Notifies reader about peer banned inside one of the sessions.
-    void OnPeerBanned(const Stroka& peerAddress)
+    void OnPeerBanned(const TString& peerAddress)
     {
         TGuard<TSpinLock> guard(PeersSpinLock_);
         auto pair = PeerBanCountMap_.insert(std::make_pair(peerAddress, 1));
@@ -338,13 +338,13 @@ private:
         }
     }
 
-    void BanPeerForever(const Stroka& peerAddress)
+    void BanPeerForever(const TString& peerAddress)
     {
         TGuard<TSpinLock> guard(PeersSpinLock_);
         BannedForeverPeers_.insert(peerAddress);
     }
 
-    int GetBanCount(const Stroka& peerAddress) const
+    int GetBanCount(const TString& peerAddress) const
     {
         TGuard<TSpinLock> guard(PeersSpinLock_);
         auto it = PeerBanCountMap_.find(peerAddress);
@@ -355,7 +355,7 @@ private:
         }
     }
 
-    bool IsPeerBannedForever(const Stroka& peerAddress) const
+    bool IsPeerBannedForever(const TString& peerAddress) const
     {
         TGuard<TSpinLock> guard(PeersSpinLock_);
         return BannedForeverPeers_.has(peerAddress);
@@ -397,7 +397,7 @@ protected:
     TChunkReplicaList SeedReplicas_;
 
     //! Set of peer addresses banned for the current retry.
-    yhash_set<Stroka> BannedPeers_;
+    yhash_set<TString> BannedPeers_;
 
     //! List of candidates addresses to try during current pass, prioritized by:
     //! locality, ban counter, random number.
@@ -405,7 +405,7 @@ protected:
     TPeerQueue PeerQueue_;
 
     //! Catalogue of peers, seen on current pass.
-    yhash<Stroka, TPeer> Peers_;
+    yhash<TString, TPeer> Peers_;
 
 
     TSessionBase(
@@ -435,7 +435,7 @@ protected:
         return locality;
     }
 
-    void BanPeer(const Stroka& address, bool forever)
+    void BanPeer(const TString& address, bool forever)
     {
         auto reader = Reader_.Lock();
         if (!reader) {
@@ -455,7 +455,7 @@ protected:
         }
     }
 
-    const TNodeDescriptor& GetPeerDescriptor(const Stroka& address)
+    const TNodeDescriptor& GetPeerDescriptor(const TString& address)
     {
         auto it = Peers_.find(address);
         YCHECK(it != Peers_.end());
@@ -463,7 +463,7 @@ protected:
     }
 
     //! Register peer and install into the peer queue if neccessary.
-    bool AddPeer(const Stroka& address, const TNodeDescriptor& descriptor, EPeerType type)
+    bool AddPeer(const TString& address, const TNodeDescriptor& descriptor, EPeerType type)
     {
         auto reader = Reader_.Lock();
         if (!reader) {
@@ -487,7 +487,7 @@ protected:
     }
 
     //! Reinstall peer in the peer queue.
-    void ReinstallPeer(const Stroka& address)
+    void ReinstallPeer(const TString& address)
     {
         auto reader = Reader_.Lock();
         if (!reader || IsPeerBanned(address)) {
@@ -501,7 +501,7 @@ protected:
         PeerQueue_.push(TPeerQueueEntry(it->second, reader->GetBanCount(address)));
     }
 
-    bool IsSeed(const Stroka& address)
+    bool IsSeed(const TString& address)
     {
         auto it = Peers_.find(address);
         YCHECK(it != Peers_.end());
@@ -509,7 +509,7 @@ protected:
         return it->second.Type == EPeerType::Seed;
     }
 
-    bool IsPeerBanned(const Stroka& address)
+    bool IsPeerBanned(const TString& address)
     {
         auto reader = Reader_.Lock();
         if (!reader) {
@@ -519,7 +519,7 @@ protected:
         return BannedPeers_.find(address) != BannedPeers_.end() || reader->IsPeerBannedForever(address);
     }
 
-    IChannelPtr GetHeavyChannel(const Stroka& address)
+    IChannelPtr GetHeavyChannel(const TString& address)
     {
         auto reader = Reader_.Lock();
         if (!reader) {
@@ -539,7 +539,7 @@ protected:
     }
 
     template <class TResponsePtr>
-    void ProcessError(TErrorOr<TResponsePtr> rspOrError, const Stroka& peerAddress, TError wrappingError)
+    void ProcessError(TErrorOr<TResponsePtr> rspOrError, const TString& peerAddress, TError wrappingError)
     {
         auto error = wrappingError << rspOrError;
         if (rspOrError.GetCode() != NRpc::EErrorCode::Unavailable &&
@@ -554,7 +554,7 @@ protected:
 
     std::vector<TPeer> PickPeerCandidates(
         int count,
-        std::function<bool(const Stroka&)> filter,
+        std::function<bool(const TString&)> filter,
         const TReplicationReaderPtr& reader)
     {
         std::vector<TPeer> candidates;
@@ -705,7 +705,7 @@ protected:
     }
 
     template <class TResponsePtr>
-    void BanSeedIfUncomplete(const TResponsePtr& rsp, const Stroka& address)
+    void BanSeedIfUncomplete(const TResponsePtr& rsp, const TString& address)
     {
         if (IsSeed(address) && !rsp->has_complete_chunk()) {
             LOG_DEBUG("Seed does not contain the chunk (Address: %v)", address);
@@ -864,7 +864,7 @@ private:
     yhash<int, TBlock> Blocks_;
 
     //! Maps peer addresses to block indexes.
-    yhash<Stroka, yhash_set<int>> PeerBlocksMap_;
+    yhash<TString, yhash_set<int>> PeerBlocksMap_;
 
     virtual bool IsCanceled() const override
     {
@@ -897,7 +897,7 @@ private:
         return result;
     }
 
-    bool HasUnfetchedBlocks(const Stroka& address, const std::vector<int>& indexesToFetch) const
+    bool HasUnfetchedBlocks(const TString& address, const std::vector<int>& indexesToFetch) const
     {
         auto it = PeerBlocksMap_.find(address);
         YCHECK(it != PeerBlocksMap_.end());
@@ -1095,7 +1095,7 @@ private:
         while (!maybePeer) {
             auto candidates = PickPeerCandidates(
                 Config_->ProbePeerCount,
-                [&] (const Stroka& address) {
+                [&] (const TString& address) {
                     return HasUnfetchedBlocks(address, blockIndexes);
                 },
                 reader);
@@ -1314,7 +1314,7 @@ private:
 
         auto candidates = PickPeerCandidates(
             1,
-            [] (const Stroka& address) {
+            [] (const TString& address) {
                 return true;
             },
             reader);
@@ -1513,7 +1513,7 @@ private:
 
         auto candidates = PickPeerCandidates(
             1,
-            [] (const Stroka& address) {
+            [] (const TString& address) {
                 return true;
             },
             reader);

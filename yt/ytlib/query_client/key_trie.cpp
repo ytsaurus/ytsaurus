@@ -691,18 +691,18 @@ TMutableRowRanges GetRangesFromTrieWithinRange(
     return insertUndefined ? result : MergeOverlappingRanges(std::move(result));
 }
 
-Stroka ToString(TKeyTriePtr node) {
+TString ToString(TKeyTriePtr node) {
     auto printOffset = [](int offset) {
-        Stroka str;
+        TString str;
         for (int i = 0; i < offset; ++i) {
             str += "  ";
         }
         return str;
     };
 
-    std::function<Stroka(TKeyTriePtr, size_t)> printNode =
+    std::function<TString(TKeyTriePtr, size_t)> printNode =
         [&] (TKeyTriePtr node, size_t offset) {
-            Stroka str;
+            TString str;
             str += printOffset(offset);
 
             if (!node) {

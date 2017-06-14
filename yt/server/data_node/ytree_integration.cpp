@@ -29,10 +29,10 @@ public:
 private:
     TIntrusivePtr<TCollection> Collection;
 
-    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
+    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         auto chunks = Collection->GetChunks();
-        std::vector<Stroka> keys;
+        std::vector<TString> keys;
         keys.reserve(chunks.size());
         for (auto chunk : chunks) {
             keys.push_back(ToString(chunk->GetId()));

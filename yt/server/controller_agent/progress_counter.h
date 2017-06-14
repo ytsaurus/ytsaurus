@@ -54,7 +54,7 @@ private:
     TEnumIndexedVector<i64, EAbortReason> Aborted_;
 };
 
-Stroka ToString(const TProgressCounter& counter);
+TString ToString(const TProgressCounter& counter);
 
 void Serialize(const TProgressCounter& counter, NYson::IYsonConsumer* consumer);
 

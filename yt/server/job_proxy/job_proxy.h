@@ -46,9 +46,9 @@ public:
     IInvokerPtr GetControlInvoker() const;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
-    virtual Stroka GetStderr() override;
+    virtual TString GetStderr() override;
     virtual NYson::TYsonString StraceJob() override;
-    virtual void SignalJob(const Stroka& signalName) override;
+    virtual void SignalJob(const TString& signalName) override;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;
     virtual void Interrupt() override;
     virtual void Fail() override;

@@ -11,7 +11,7 @@ namespace NChunkClient {
 
 struct TMediumDescriptor
 {
-    Stroka Name;
+    TString Name;
     int Index = InvalidMediumIndex;
     int Priority = -1;
 
@@ -26,15 +26,15 @@ public:
     const TMediumDescriptor* FindByIndex(int index) const;
     const TMediumDescriptor* GetByIndexOrThrow(int index) const;
 
-    const TMediumDescriptor* FindByName(const Stroka& name) const;
-    const TMediumDescriptor* GetByNameOrThrow(const Stroka& name) const;
+    const TMediumDescriptor* FindByName(const TString& name) const;
+    const TMediumDescriptor* GetByNameOrThrow(const TString& name) const;
 
     void LoadFrom(const NProto::TMediumDirectory& protoDirectory);
 
 private:
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
-    yhash_map<Stroka, const TMediumDescriptor*> NameToDescriptor_;
-    yhash_map<int, const TMediumDescriptor*> IndexToDescriptor_;
+    yhash<TString, const TMediumDescriptor*> NameToDescriptor_;
+    yhash<int, const TMediumDescriptor*> IndexToDescriptor_;
 
     std::vector<std::unique_ptr<TMediumDescriptor>> Descriptors_;
 

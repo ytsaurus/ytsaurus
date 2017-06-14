@@ -12,7 +12,7 @@ struct TSignalerArg
     : public NYTree::TYsonSerializable
 {
     std::vector<int> Pids;
-    Stroka SignalName;
+    TString SignalName;
 
     TSignalerArg();
 };
@@ -21,9 +21,9 @@ DEFINE_REFCOUNTED_TYPE(TSignalerArg)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SendSignal(const std::vector<int>& pids, const Stroka& signalName);
-TNullable<int> FindSignalIdBySignalName(const Stroka& signalName);
-void ValidateSignalName(const Stroka& signalName);
+void SendSignal(const std::vector<int>& pids, const TString& signalName);
+TNullable<int> FindSignalIdBySignalName(const TString& signalName);
+void ValidateSignalName(const TString& signalName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -9,9 +9,9 @@ namespace NYT {
 struct TStrace
     : public NYTree::TYsonSerializable
 {
-    Stroka Trace;
-    Stroka ProcessName;
-    std::vector<Stroka> ProcessCommandLine;
+    TString Trace;
+    TString ProcessName;
+    std::vector<TString> ProcessCommandLine;
 
     TStrace();
 };

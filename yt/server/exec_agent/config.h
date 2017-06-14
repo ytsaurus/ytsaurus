@@ -148,7 +148,7 @@ public:
 
     //! A directory that contains files defining the correspondence between slot user id
     //! and its job proxy RPC Unix Domain Socket name.
-    TNullable<Stroka> JobProxySocketNameDirectory;
+    TNullable<TString> JobProxySocketNameDirectory;
 
     TSlotManagerConfig()
     {

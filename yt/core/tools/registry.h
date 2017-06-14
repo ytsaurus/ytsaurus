@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <yt/core/yson/public.h>
-
+#include <yt/core/yson/string.h>
 #include <yt/core/ytree/public.h>
 
 #include <typeinfo>
@@ -17,11 +17,11 @@ typedef std::function<NYson::TYsonString(const NYson::TYsonString&)> TGenericToo
 
 struct TToolRegistryEntry
 {
-    Stroka Name;
+    TString Name;
     TGenericTool Tool;
 };
 
-typedef std::map<Stroka, TToolRegistryEntry> TToolRegistry;
+typedef std::map<TString, TToolRegistryEntry> TToolRegistry;
 
 TToolRegistry* GetToolRegistry();
 

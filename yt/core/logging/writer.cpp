@@ -180,7 +180,7 @@ TOutputStream* TStdoutLogWriter::GetOutputStream() const noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileLogWriter::TFileLogWriter(const Stroka& fileName)
+TFileLogWriter::TFileLogWriter(const TString& fileName)
     : FileName_(fileName)
 {
     Open();

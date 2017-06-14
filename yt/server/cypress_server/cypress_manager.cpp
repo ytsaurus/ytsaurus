@@ -188,7 +188,7 @@ public:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = GetNewNodeAccount();
-        auto maybeAccount = attributes->FindAndRemove<Stroka>("account");
+        auto maybeAccount = attributes->FindAndRemove<TString>("account");
         if (maybeAccount) {
             account = securityManager->GetAccountByNameOrThrow(*maybeAccount);
         }
@@ -411,7 +411,7 @@ private:
         return externalCellTag == NotReplicatedCellTag ? TCellTagList() : TCellTagList{externalCellTag};
     }
 
-    virtual Stroka DoGetName(const TCypressNodeBase* node);
+    virtual TString DoGetName(const TCypressNodeBase* node);
 
     virtual IObjectProxyPtr DoGetProxy(
         TCypressNodeBase* node,
@@ -446,7 +446,7 @@ public:
     }
 
 private:
-    virtual Stroka DoGetName(const TLock* lock) override
+    virtual TString DoGetName(const TLock* lock) override
     {
         return Format("lock %v", lock->GetId());
     }
@@ -981,7 +981,7 @@ public:
         auto hasChild = [&] (TCypressNodeBase* parentTrunkNode, TCypressNodeBase* childTrunkNode) {
             // Compute child key or index.
             auto parentOriginators = GetNodeOriginators(transaction, parentTrunkNode);
-            TNullable<Stroka> key;
+            TNullable<TString> key;
             for (const auto* parentNode : parentOriginators) {
                 switch (parentNode->GetNodeType()) {
                     case ENodeType::Map: {
@@ -1922,7 +1922,7 @@ private:
         switch (trunkNode->GetNodeType()) {
             case ENodeType::Map: {
                 auto originators = GetNodeReverseOriginators(transaction, trunkNode);
-                yhash<Stroka, TCypressNodeBase*> children;
+                yhash<TString, TCypressNodeBase*> children;
                 for (const auto* node : originators) {
                     const auto* mapNode = node->As<TMapNode>();
                     for (const auto& pair : mapNode->KeyToChild()) {
@@ -2322,7 +2322,7 @@ void TCypressManager::TNodeTypeHandler::DestroyObject(TObjectBase* object) throw
     Owner_->DestroyNode(object->As<TCypressNodeBase>());
 }
 
-Stroka TCypressManager::TNodeTypeHandler::DoGetName(const TCypressNodeBase* node)
+TString TCypressManager::TNodeTypeHandler::DoGetName(const TCypressNodeBase* node)
 {
     auto path = Owner_->GetNodePath(node->GetTrunkNode(), node->GetTransaction());
     return Format("node %v", path);

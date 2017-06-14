@@ -1037,7 +1037,7 @@ void TTablet::Initialize()
     }
 
     // Assign lock indexes to data components.
-    yhash<Stroka, int> groupToIndex;
+    yhash<TString, int> groupToIndex;
     for (int index = keyColumnCount; index < PhysicalSchema_.Columns().size(); ++index) {
         const auto& columnSchema = PhysicalSchema_.Columns()[index];
         int lockIndex = TSortedDynamicRow::PrimaryLockIndex;

@@ -114,33 +114,33 @@ protected:
 
     void RegisterSaver(
         ESyncSerializationPriority priority,
-        const Stroka& name,
+        const TString& name,
         TCallback<void(TSaveContext&)> callback);
 
     template <class TContext>
     void RegisterSaver(
         ESyncSerializationPriority priority,
-        const Stroka& name,
+        const TString& name,
         TCallback<void(TContext&)> callback);
 
     void RegisterSaver(
         EAsyncSerializationPriority priority,
-        const Stroka& name,
+        const TString& name,
         TCallback<TCallback<void(TSaveContext&)>()> callback);
 
     template <class TContext>
     void RegisterSaver(
         EAsyncSerializationPriority priority,
-        const Stroka& name,
+        const TString& name,
         TCallback<TCallback<void(TContext&)>()> callback);
 
     void RegisterLoader(
-        const Stroka& name,
+        const TString& name,
         TCallback<void(TLoadContext&)> callback);
 
     template <class TContext>
     void RegisterLoader(
-        const Stroka& name,
+        const TString& name,
         TCallback<void(TContext&)> callback);
 
     template <class TRequest>
@@ -180,7 +180,7 @@ private:
     friend class TCompositeAutomaton;
 
     void RegisterMethod(
-        const Stroka& name,
+        const TString& name,
         TCallback<void(TMutationContext*)> callback);
 
     void StartEpoch();
@@ -242,7 +242,7 @@ private:
 
     struct TSaverDescriptorBase
     {
-        Stroka Name;
+        TString Name;
         int SnapshotVersion;
     };
 
@@ -262,17 +262,17 @@ private:
 
     struct TLoaderDescriptor
     {
-        Stroka Name;
+        TString Name;
         TCallback<void(TLoadContext&)> Callback;
     };
 
     std::vector<TWeakPtr<TCompositeAutomatonPart>> Parts_;
 
-    yhash<Stroka, TMethodDescriptor> MethodNameToDescriptor_;
+    yhash<TString, TMethodDescriptor> MethodNameToDescriptor_;
 
-    yhash<Stroka, TLoaderDescriptor> PartNameToLoaderDescriptor_;
+    yhash<TString, TLoaderDescriptor> PartNameToLoaderDescriptor_;
 
-    yhash_set<Stroka> SaverPartNames_;
+    yhash_set<TString> SaverPartNames_;
     std::vector<TSyncSaverDescriptor> SyncSavers_;
     std::vector<TAsyncSaverDescriptor> AsyncSavers_;
 

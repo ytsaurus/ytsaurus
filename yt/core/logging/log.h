@@ -34,7 +34,7 @@ struct TLogEvent
 {
     const TLoggingCategory* Category = nullptr;
     ELogLevel Level;
-    Stroka Message;
+    TString Message;
     NProfiling::TCpuInstant Instant;
     NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
     NConcurrency::TFiberId FiberId = NConcurrency::InvalidFiberId;
@@ -54,19 +54,18 @@ public:
     bool IsEnabled(ELogLevel level) const;
     void Write(TLogEvent&& event) const;
 
-    TLogger& AddRawTag(const Stroka& tag);
+    TLogger& AddRawTag(const TString& tag);
     template <class... TArgs>
     TLogger& AddTag(const char* format, const TArgs&... args);
-    const Stroka& GetContext() const;
+    const TString& GetContext() const;
 
 private:
     TLogManager* LogManager_;
     const TLoggingCategory* Category_;
 
-    Stroka Context_;
+    TString Context_;
 
-    static Stroka GetMessageWithContext(const Stroka& originalMessage, const Stroka& context);
-
+    static TString GetMessageWithContext(const TString& originalMessage, const TString& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
