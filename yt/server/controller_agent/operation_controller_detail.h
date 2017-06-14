@@ -126,7 +126,10 @@ public: \
     virtual returnType method signature final \
     { \
         VERIFY_EVALUATOR(affinity); \
-        TSafeAssertionsGuard guard(Host->GetCoreDumper(), Host->GetCoreSemaphore()); \
+        TSafeAssertionsGuard guard( \
+            Host->GetCoreDumper(), \
+            Host->GetCoreSemaphore(), \
+            {"OperationId: " + ToString(OperationId)}); \
         try { \
             return Safe ## method args; \
         } catch (const TAssertionFailedException& ex) { \

@@ -6,6 +6,7 @@
 #include "job_helpers.h"
 #include "job_metrics_updater.h"
 #include "master_connector.h"
+#include "counter_manager.h"
 
 #include "map_controller.h"
 #include "merge_controller.h"
@@ -107,6 +108,10 @@ using NProfiling::CpuInstantToInstant;
 using NProfiling::TCpuInstant;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::TTableReaderOptions;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Profiler = ControllerAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1498,8 +1503,11 @@ void TOperationControllerBase::SyncPrepare()
 void TOperationControllerBase::SafePrepare()
 {
     // Testing purpose code.
-    if (Config->EnableControllerFailureSpecOption) {
-        YCHECK(Spec->TestingOperationOptions->ControllerFailure != EControllerFailureType::AssertionFailureInPrepare);
+    if (Config->EnableControllerFailureSpecOption &&
+        Spec->TestingOperationOptions)
+    {
+        YCHECK(Spec->TestingOperationOptions->ControllerFailure !=
+            EControllerFailureType::AssertionFailureInPrepare);
     }
 
     // Process input tables.
@@ -2332,7 +2340,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     // Testing purpose code.
-    if (Config->EnableControllerFailureSpecOption &&
+    if (Config->EnableControllerFailureSpecOption && Spec->TestingOperationOptions &&
         Spec->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
     {
         THROW_ERROR_EXCEPTION("Testing exception");
@@ -3997,6 +4005,8 @@ void TOperationControllerBase::ProcessSafeException(const std::exception& ex)
 
 void TOperationControllerBase::ProcessSafeException(const TAssertionFailedException& ex)
 {
+    TControllerAgentCounterManager::Get()->IncrementAssertionsFailed(OperationType);
+
     OnOperationFailed(TError("Operation controller crashed; please file a ticket at YTADMINREQ and attach a link to this operation")
         << TErrorAttribute("failed_condition", ex.GetExpression())
         << TErrorAttribute("stack_trace", ex.GetStackTrace())

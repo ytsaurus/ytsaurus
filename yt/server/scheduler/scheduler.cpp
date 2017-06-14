@@ -165,7 +165,7 @@ public:
         }
 
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-            JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("type", FormatEnum(type));
+            JobTypeToTag_[type] = TProfileManager::Get()->RegisterTag("job_type", FormatEnum(type));
         }
 
         for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
