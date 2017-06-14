@@ -195,7 +195,7 @@ b"""
         };
 
         transaction_manager = {
-            default_transaction_timeout = 1000;
+            default_transaction_timeout = 3000;
         };
 
         scheduler = {
