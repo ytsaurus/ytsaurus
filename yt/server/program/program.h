@@ -45,7 +45,7 @@ private:
     void AfterRun();
 };
 
-//! Simpliest exception possible.
+//! The simplest exception possible.
 //! Here we refrain from using TErrorException, as it relies on proper configuration of singleton subsystems,
 //! which might not be the case during startup.
 class TProgramException
