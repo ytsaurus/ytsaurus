@@ -325,7 +325,7 @@ struct IOperationController
 
     //! Returns whether controller was forgotten or not.
     virtual bool IsForgotten() const = 0;
-    
+
     //! Returns whether controller was revived from snapshot.
     virtual bool IsRevivedFromSnapshot() const = 0;
 

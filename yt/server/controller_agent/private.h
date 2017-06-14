@@ -35,6 +35,7 @@ extern const TDuration PrepareYieldPeriod;
 
 extern const NLogging::TLogger OperationLogger;
 extern const NLogging::TLogger MasterConnectorLogger;
+extern const NProfiling::TProfiler ControllerAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

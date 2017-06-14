@@ -2910,20 +2910,44 @@ class TestSafeAssertionsMode(YTEnvSetup):
     }
 
     @unix_only
-    @pytest.mark.parametrize("controller_failure", ["assertion_failure_in_prepare", "exception_thrown_in_on_job_completed"])
-    def test_assertion_failure_in_prepare(self, controller_failure):
+    def test_assertion_failure(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
         create("table", "//tmp/t_out")
+
         op = map(
             dont_track=True,
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"testing": {"controller_failure": controller_failure}},
+            spec={"testing": {"controller_failure": "assertion_failure_in_prepare"}},
             command="cat")
         with pytest.raises(YtError) as excinfo:
             op.track()
-        print >>sys.stderr, str(excinfo.value)
+
+        assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 1
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"testing": {"controller_failure": "exception_thrown_in_on_job_completed"}},
+            command="cat")
+        with pytest.raises(YtError) as excinfo:
+            op.track()
+
+        # Note that exception in on job completed is not a failed assertion, so it doesn't affect this counter.
+        assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 1
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"testing": {"controller_failure": "assertion_failure_in_prepare"}},
+            command="cat")
+        with pytest.raises(YtError) as excinfo:
+            op.track()
+
+        assert len(get("//sys/scheduler/orchid/profiling/controller_agent/assertions_failed")) == 2
 
 class TestMaxTotalSliceCount(YTEnvSetup):
     NUM_MASTERS = 1
@@ -3081,6 +3105,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "excessive_disk_usage" in get("//sys/operations/{0}/@alerts".format(op.id))
 
+    @flaky(max_runs=3)
     def test_long_aborted_jobs_alert(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(5)])
@@ -3103,14 +3128,14 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         wait(running_jobs_exists)
 
-        time.sleep(1.5)
-
         for job in ls(operation_orchid_path + "/running_jobs"):
             abort_job(job)
 
         time.sleep(1.5)
 
         assert "long_aborted_jobs" in get("//sys/operations/{0}/@alerts".format(op.id))
+
+        abort_op(op.id)
 
     def test_intermediate_data_skew_alert(self):
         create("table", "//tmp/t_in")

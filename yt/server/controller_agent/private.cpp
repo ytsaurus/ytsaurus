@@ -7,6 +7,7 @@ namespace NControllerAgent {
 
 const NLogging::TLogger OperationLogger("Operation");
 const NLogging::TLogger MasterConnectorLogger("MasterConnector");
+const NProfiling::TProfiler ControllerAgentProfiler("/controller_agent");
 
 const TDuration PrepareYieldPeriod = TDuration::MilliSeconds(100);
 

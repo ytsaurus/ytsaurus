@@ -35,7 +35,8 @@ public:
     TSafeAssertionsGuard() = default;
     TSafeAssertionsGuard(
         TCoreDumperPtr coreDumper,
-        NConcurrency::TAsyncSemaphorePtr coreSemaphore);
+        NConcurrency::TAsyncSemaphorePtr coreSemaphore,
+        std::vector<TString> coreNotes = {});
     ~TSafeAssertionsGuard();
 
     TSafeAssertionsGuard(const TSafeAssertionsGuard& other) = delete;
@@ -52,9 +53,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetSafeAssertionsMode(
+void PushSafeAssertionsFrame(
     TCoreDumperPtr coreDumper,
-    NConcurrency::TAsyncSemaphorePtr coreSemaphore);
+    NConcurrency::TAsyncSemaphorePtr coreSemaphore,
+    std::vector<TString> coreNotes);
 
 bool SafeAssertionsModeEnabled();
 
@@ -62,7 +64,9 @@ TCoreDumperPtr GetSafeAssertionsCoreDumper();
 
 NConcurrency::TAsyncSemaphorePtr GetSafeAssertionsCoreSemaphore();
 
-void ResetSafeAssertionsMode();
+std::vector<TString> GetSafeAssertionsCoreNotes();
+
+void PopSafeAssertionsFrame();
 
 ////////////////////////////////////////////////////////////////////////////////
 
