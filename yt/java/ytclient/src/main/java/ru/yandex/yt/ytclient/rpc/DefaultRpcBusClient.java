@@ -41,7 +41,8 @@ import ru.yandex.yt.ytclient.misc.YtGuid;
 public class DefaultRpcBusClient implements RpcClient {
     private static final Logger logger = LoggerFactory.getLogger(DefaultRpcBusClient.class);
     private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
-    private static final Histogram requestsHistogram = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "histogram"));
+    private static final Histogram requestsAckHistogram = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "ack"));
+    private static final Histogram requestsResponseHistogram = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "response"));
 
     private final BusFactory busFactory;
     private final Lock sessionLock = new ReentrantLock();
@@ -122,6 +123,7 @@ public class DefaultRpcBusClient implements RpcClient {
                         request.error(new RpcError(header.getError()));
                         return;
                     }
+
                     request.response(message.subList(1, message.size()));
                     break;
                 default:
@@ -188,6 +190,7 @@ public class DefaultRpcBusClient implements RpcClient {
         private final RpcClientRequest request;
         private final RpcClientResponseHandler handler;
         private final YtGuid requestId;
+        private Instant started;
 
         // Подписка на событие с таймаутом, если он есть
         private ScheduledFuture<?> timeoutFuture;
@@ -214,7 +217,7 @@ public class DefaultRpcBusClient implements RpcClient {
                     lock.unlock();
                 }
 
-                Instant started = Instant.now();
+                started = Instant.now();
                 Duration timeout = request.getTimeout();
                 request.header().setStartTime(RpcUtil.instantToMicros(started));
                 List<byte[]> message = request.serialize();
@@ -230,13 +233,13 @@ public class DefaultRpcBusClient implements RpcClient {
                 logger.debug("({}) starting request `{}`", session, requestId);
                 session.bus.send(message, level).whenComplete((ignored, exception) -> {
                     Duration elapsed = Duration.between(started, Instant.now());
-                    requestsHistogram.update(elapsed.toMillis());
+                    requestsAckHistogram.update(elapsed.toMillis());
                     if (exception != null) {
                         error(exception);
-                        logger.debug("({}) request `{}` finished in {} ms with error `{}`", session, requestId, elapsed.toMillis(), exception.toString());
+                        logger.debug("({}) request `{}` acked in {} ms with error `{}`", session, requestId, elapsed.toMillis(), exception.toString());
                     } else {
                         ack();
-                        logger.debug("({}) request `{}` finished in {} ms", session, requestId, elapsed.toMillis());
+                        logger.debug("({}) request `{}` acked in {} ms", session, requestId, elapsed.toMillis());
                     }
                 });
 
@@ -367,6 +370,10 @@ public class DefaultRpcBusClient implements RpcClient {
          * Вызывается при получении ответа за запрос
          */
         public void response(List<byte[]> attachments) {
+            Duration elapsed = Duration.between(started, Instant.now());
+            requestsResponseHistogram.update(elapsed.toMillis());
+            logger.debug("({}) request `{}` finished in {} ms", session, requestId, elapsed.toMillis());
+
             lock.lock();
             try {
                 if (state == RequestState.INITIALIZING) {
