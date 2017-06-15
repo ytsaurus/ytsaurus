@@ -827,14 +827,11 @@ contrib-libs-snappy
 contrib-libs-sparsehash
 contrib-libs-yajl
 contrib-libs-zlib
-library-blockcodecs
 library-colorizer
 library-getopt
 library-http
 library-lfalloc
-library-lwtrace
 library-malloc-api
-library-messagebus
 library-openssl
 library-streams-lz
 library-streams-lzop
