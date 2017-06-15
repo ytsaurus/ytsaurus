@@ -10,24 +10,26 @@ var utils = require("./utils");
 
 var __DBG = require("./debug").that("H", "Hosts");
 
-function addHostNameSuffix(name, suffix)
+function formatHostWithPattern(pattern, name)
 {
-    var index = name.indexOf(".");
-    if (index > 0) {
-        return name.substr(0, index) + suffix + name.substr(index);
-    } else {
-        return name + suffix;
-    }
+    var fragments = name.split(".");
+    var host = fragments[0];
+    var domain = fragments.slice(1).join(".");
+
+    return pattern
+        .replace("HOST", host)
+        .replace("DOMAIN", domain);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtApplicationHosts(logger, coordinator, show_ports, rewrite_yandex_team_domain)
+function YtApplicationHosts(logger, coordinator, show_ports, rewrite_yandex_team_domain, hosts)
 {
     this.logger = logger;
     this.coordinator = coordinator;
     this.show_ports = show_ports;
     this.rewrite_yandex_team_domain = rewrite_yandex_team_domain;
+    this.hosts = hosts;
 }
 
 YtApplicationHosts.prototype.dispatch = function(req, rsp, next)
@@ -39,15 +41,14 @@ YtApplicationHosts.prototype.dispatch = function(req, rsp, next)
         var parsed_url = url.parse(req.url);
         var parsed_query = qs.parse(parsed_url.query);
         var suffix = parsed_url.pathname;
-        suffix = suffix.replace(/\/+/, "-").replace(/-+$/, "");
+        suffix = suffix.replace(/\/+$/, "").substr(1);
         var role = parsed_query.role;
         role = typeof(role) !== "undefined" ? role : "data";
-        if (suffix === "-all") {
+        if (suffix === "all") {
             return self._dispatchExtended(req, rsp);
         } else {
             return self._dispatchBasic(req, rsp, suffix, role);
         }
-        throw new YtError("Unknown URI");
     }).catch(self._dispatchError.bind(self, req, rsp));
 };
 
@@ -57,12 +58,24 @@ YtApplicationHosts.prototype._dispatchError = function(req, rsp, err)
     return utils.dispatchAs(rsp, error.toJson(), "application/json");
 };
 
-YtApplicationHosts.prototype._dispatchBasic = function(req, rsp, suffix, role)
+YtApplicationHosts.prototype._dispatchBasic = function(req, rsp, suffixName, role)
 {
+    var formatHost;
+    if (this.hosts.hasOwnProperty(suffixName)) {
+        formatHost = formatHostWithPattern.bind(this, this.hosts[suffixName]);
+    } else if (!suffixName) {
+        formatHost = function (name) {
+            return name;
+        };
+    } else {
+        rsp.statusCode = 404;
+        throw new YtError("Unknown URI");
+    }
+
     var hosts = this.coordinator
     .getProxies(role, false, false)
     .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
-    .map(function(entry) { return addHostNameSuffix(entry.name, suffix); });
+    .map(function(entry) { return formatHost(entry.name); });
 
     if (this.rewrite_yandex_team_domain) {
         var need_to_rewrite = false;

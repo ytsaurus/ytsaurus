@@ -19,7 +19,14 @@ function stubServer(done)
 describe("ApplicationHosts", function() {
     beforeEach(function(done) {
         this.coordinator = {getProxies: function(){}, allocateProxy: function(){}};
-        YtRegistry.set("config", {show_ports: false, rewrite_yandex_team_domain: true});
+        YtRegistry.set("config", {
+            show_ports: false,
+            rewrite_yandex_team_domain: true,
+            hosts: {
+                fb: "HOST-fb.DOMAIN",
+                fb867: "HOST-fb867.DOMAIN"
+            }
+        });
         YtRegistry.set("logger", stubLogger());
         YtRegistry.set("coordinator", this.coordinator);
         this.server = stubServer(done);
@@ -74,6 +81,14 @@ describe("ApplicationHosts", function() {
             rsp.should.be.http2xx;
             rsp.body.should.be.eql("bar-fb.yandex.net\nbaz-fb.yandex.net\nfoo-fb.yandex.net\nabc-fb.yandex.net");
             mock.verify();
+        }, done).end();
+    });
+
+    it("should fail on unknown suffix /hosts/xxx call", function(done) {
+        var mock = mockCoordinator(this.coordinator);
+        ask("GET", "/xxx", {"accept": "text/plain"}, function(rsp) {
+            rsp.should.be.http4xx;
+            rsp.should.be.yt_error;
         }, done).end();
     });
 
