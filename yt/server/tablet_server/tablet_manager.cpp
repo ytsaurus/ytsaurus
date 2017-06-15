@@ -1738,7 +1738,7 @@ public:
 
         if (!table->Tablets().empty()) {
             int firstTabletIndex = 0;
-            int lastTabletIndex =  static_cast<int>(table->Tablets().size()) - 1;
+            int lastTabletIndex = static_cast<int>(table->Tablets().size()) - 1;
 
             TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "remove");
 
@@ -1751,7 +1751,7 @@ public:
                 objectManager->UnrefObject(tablet);
             }
 
-            table->Tablets().clear();
+            table->MutableTablets().clear();
         }
 
         if (table->GetType() == EObjectType::ReplicatedTable) {
@@ -1789,7 +1789,7 @@ public:
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
-        auto& tablets = table->Tablets();
+        auto& tablets = table->MutableTablets();
         YCHECK(tablets.size() == table->GetChunkList()->Children().size());
 
         if (newTabletCount <= 0) {
@@ -2101,7 +2101,7 @@ public:
 
         const auto& sourceTablets = trunkSourceTable->Tablets();
         YCHECK(!sourceTablets.empty());
-        auto& clonedTablets = trunkClonedTable->Tablets();
+        auto& clonedTablets = trunkClonedTable->MutableTablets();
         YCHECK(clonedTablets.empty());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -2163,6 +2163,7 @@ public:
                 lastCommitTimestamp = std::max(lastCommitTimestamp, static_cast<TTimestamp>(miscExt.max_timestamp()));
             }
         }
+
         table->SetLastCommitTimestamp(lastCommitTimestamp);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -2180,7 +2181,7 @@ public:
         if (table->IsSorted()) {
             tablet->SetPivotKey(EmptyKey());
         }
-        table->Tablets().push_back(tablet);
+        table->MutableTablets().push_back(tablet);
 
         auto* tabletChunkList = chunkManager->CreateChunkList(table->IsPhysicallySorted()
             ? EChunkListKind::SortedDynamicTablet
@@ -2246,7 +2247,7 @@ public:
             tablet->SetTable(nullptr);
             objectManager->UnrefObject(tablet);
         }
-        table->Tablets().clear();
+        table->MutableTablets().clear();
 
         table->SetLastCommitTimestamp(NullTimestamp);
 
@@ -2532,10 +2533,10 @@ private:
                     auto* table = node->As<TTableNode>();
                     if (table->IsDynamic()) {
                         for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
-                            table->TabletCountByState()[state] = 0;
+                            table->MutableTabletCountByState()[state] = 0;
                         }
                         for (const auto* tablet : table->Tablets()) {
-                            ++table->TabletCountByState()[tablet->GetState()];
+                            ++table->MutableTabletCountByState()[tablet->GetState()];
                         }
                     }
                 }

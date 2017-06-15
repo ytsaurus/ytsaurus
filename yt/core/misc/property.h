@@ -127,3 +127,60 @@ public: \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+//! Below are macro helpers for extra properites.
+//! Extra properties should be used for lazy memory allocation for properties that
+//! hold default values for the majority of objects.
+
+//! Declares an extra property holder. Holder contains extra properties values.
+//! Holder is not created until some property is set with a non-default value.
+//! If there is no holder property getter returns default value.
+#define DECLARE_EXTRA_PROPERTY_HOLDER(type, holder) \
+private: \
+    std::unique_ptr<type> holder##_; \
+    static const type Default##holder##_;
+
+//! Defines a storage for extra properties default values.
+#define DEFINE_EXTRA_PROPERTY_HOLDER(class, type, holder) \
+    const type class::Default##holder##_;
+
+//! Defines a public read-write extra property that is passed by value.
+#define DEFINE_BYVAL_RW_EXTRA_PROPERTY(holder, name) \
+public: \
+    Y_FORCE_INLINE decltype(holder##_->name) Get##name() const \
+    { \
+        if (!holder##_) { \
+            return Default##holder##_.name; \
+        } \
+        return holder##_->name; \
+    } \
+    Y_FORCE_INLINE void Set##name(decltype(holder##_->name) val) \
+    { \
+        if (!holder##_) { \
+            if (val == Default##holder##_.name) { \
+                return; \
+            } \
+            holder##_.reset(new decltype(holder##_)::element_type()); \
+        } \
+        holder##_->name = val; \
+    }
+
+//! Defines a public read-write extra property that is passed by reference.
+#define DEFINE_BYREF_RW_EXTRA_PROPERTY(holder, name) \
+public: \
+    Y_FORCE_INLINE const decltype(holder##_->name)& name() const \
+    { \
+        if (!holder##_) { \
+            return Default##holder##_.name; \
+        } \
+        return holder##_->name; \
+    } \
+    Y_FORCE_INLINE decltype(holder##_->name)& Mutable##name() \
+    { \
+        if (!holder##_) { \
+            holder##_.reset(new decltype(holder##_)::element_type()); \
+        } \
+        return holder##_->name; \
+    }
+
+////////////////////////////////////////////////////////////////////////////////

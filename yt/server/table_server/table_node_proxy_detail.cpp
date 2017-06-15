@@ -91,7 +91,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor("schema")
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor("sorted_by")
-        .SetPresent(table->TableSchema().IsSorted()));
+        .SetPresent(isSorted));
     descriptors->push_back("dynamic");
     descriptors->push_back(TAttributeDescriptor("tablet_count")
         .SetPresent(isDynamic));
@@ -116,16 +116,16 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetPresent(isDynamic)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("tablet_cell_bundle")
-        .SetPresent(table->GetTabletCellBundle() != nullptr));
+        .SetPresent(table->GetTrunkNode()->GetTabletCellBundle()));
     descriptors->push_back("atomicity");
     descriptors->push_back(TAttributeDescriptor("commit_ordering")
-        .SetPresent(!table->IsSorted()));
+        .SetPresent(!isSorted));
     descriptors->push_back(TAttributeDescriptor("optimize_for"));
     descriptors->push_back(TAttributeDescriptor("schema_mode"));
     descriptors->push_back(TAttributeDescriptor("chunk_writer")
         .SetCustom(true));
     descriptors->push_back(TAttributeDescriptor("upstream_replica_id")
-        .SetPresent(table->IsSorted() && table->IsDynamic()));
+        .SetPresent(isSorted && isDynamic));
     descriptors->push_back(TAttributeDescriptor("table_chunk_format_statistics")
         .SetExternal(table->IsExternal())
         .SetOpaque(true));
@@ -186,7 +186,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
         return true;
     }
 
-    if (key == "sorted_by" && table->TableSchema().IsSorted()) {
+    if (key == "sorted_by" && isSorted) {
         BuildYsonFluently(consumer)
             .Value(table->TableSchema().GetKeyColumns());
         return true;
@@ -309,7 +309,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(const TString& key, IYsonConsumer* con
         return true;
     }
 
-    if (key == "upstream_replica_id" && trunkTable->IsSorted() && trunkTable->IsDynamic()) {
+    if (key == "upstream_replica_id" && isSorted && isDynamic) {
         BuildYsonFluently(consumer)
             .Value(trunkTable->GetUpstreamReplicaId());
         return true;
