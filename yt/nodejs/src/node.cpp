@@ -288,6 +288,7 @@ void TNodeWrap::Initialize(Handle<Object> target)
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Print", TNodeWrap::Print);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Get", TNodeWrap::Get);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "GetByYPath", TNodeWrap::GetByYPath);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "FindByYPath", TNodeWrap::FindByYPath);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "SetByYPath", TNodeWrap::SetByYPath);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "GetAttribute", TNodeWrap::GetAttribute);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "SetAttribute", TNodeWrap::SetAttribute);
@@ -517,6 +518,31 @@ Handle<Value> TNodeWrap::GetByYPath(const Arguments& args)
 
     try {
         node = GetNodeByYPath(std::move(node), TString(path));
+    } catch (const std::exception& ex) {
+        return ThrowException(ConvertErrorToV8(ex));
+    }
+
+    Local<Object> handle = ConstructorTemplate->GetFunction()->NewInstance();
+    TNodeWrap::Unwrap(handle)->SetNode(std::move(node));
+
+    return scope.Close(handle);
+}
+
+Handle<Value> TNodeWrap::FindByYPath(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YCHECK(args.Length() == 1);
+
+    EXPECT_THAT_IS(args[0], String);
+
+    INodePtr node = TNodeWrap::UnwrapNode(args.This());
+    String::AsciiValue pathValue(args[0]->ToString());
+    TStringBuf path(*pathValue, pathValue.length());
+
+    try {
+        node = FindNodeByYPath(std::move(node), TString(path));
     } catch (const std::exception& ex) {
         return ThrowException(ConvertErrorToV8(ex));
     }
