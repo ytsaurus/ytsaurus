@@ -33,6 +33,3 @@ def execute_batch(requests, concurrency=None, client=None):
     set_param(params, "concurrency", concurrency)
     return make_formatted_request("execute_batch", params=params, format=None, client=client)
 
-def dump_job_context(job_id, path, client=None):
-    """Dumps job input context to specified path."""
-    return make_request("dump_job_context", {"job_id": job_id, "path": path}, client=client)
