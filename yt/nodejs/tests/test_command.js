@@ -1370,6 +1370,25 @@ describe("YtCommand - v3 output format selection", function() {
         }, done).end();
     });
 
+    it("should respect output format with mime type", function(done) {
+        var stub = this.stub;
+        ask("GET", V + "/read_table",
+        {
+            "Accept": "*/*",
+            "X-YT-Output-Format": JSON.stringify({
+                $attributes: { "foo": "bar" },
+                $value: "schemaful_dsv"
+            })
+        },
+        function(rsp) {
+            console.log(rsp.headers["content-type"]);
+            rsp.should.be.http2xx;
+            rsp.should.have.content_type("text/tab-separated-values");
+            stub.should.have.been.calledOnce;
+            stub.firstCall.args[6].GetByYPath("/output_format").Print().should.eql('<"foo"="bar";>"schemaful_dsv"'); 
+        }, done).end();
+    });
+
     it("should respect custom header with highest precedence and discard mime-type accordingly", function(done) {
         var stub = this.stub;
         ask("GET", V + "/read_table",
