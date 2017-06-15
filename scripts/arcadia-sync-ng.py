@@ -741,11 +741,10 @@ def action_submodule_fast_push(ctx, args):
     else:
         holder_prefixes = [
             ctx.gh_git_remote_ref + "/old",
-            ctx.gh_git_remote_ref + "/" + ctx.gh_branch,
             ctx.gh_git_remote_ref + "/" + ctx.gh_arc_branch]
         held, holder_ref = check_pinning_required(ctx.git, old_head, holder_prefixes)
 
-        if held:
+        if held or ctx.git.is_ancestor(old_head, new_head):
             push = True
         else:
             logging.warning("Manual push required in '%s'!", ctx.name)
