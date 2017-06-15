@@ -196,6 +196,10 @@ def _initialize_world(client, environment, wait_tablet_cell_initialization,
     # Cluster connection.
     client.set("//sys/@cluster_connection", cluster_connection)
 
+    # Tablet limits for tmp account.
+    client.set("//sys/accounts/tmp/@resource_limits/tablet_count", 1000)
+    client.set("//sys/accounts/tmp/@resource_limits/tablet_static_memory", 5 * 1024 ** 3)
+
 _START_DEFAULTS = {
     "master_count": 1,
     "node_count": 1,
