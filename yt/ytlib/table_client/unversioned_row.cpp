@@ -1098,7 +1098,14 @@ void ValidateReadTimestamp(TTimestamp timestamp)
         timestamp != AsyncLastCommittedTimestamp &&
         (timestamp < MinTimestamp || timestamp > MaxTimestamp))
     {
-        THROW_ERROR_EXCEPTION("Invalid timestamp %v", timestamp);
+        THROW_ERROR_EXCEPTION("Invalid timestamp %llx", timestamp);
+    }
+}
+
+void ValidateSyncTimestamp(TTimestamp timestamp)
+{
+    if (timestamp < MinTimestamp || timestamp > MaxTimestamp) {
+        THROW_ERROR_EXCEPTION("Invalid timestamp %llx", timestamp);
     }
 }
 

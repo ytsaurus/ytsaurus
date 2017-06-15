@@ -410,6 +410,15 @@ void ValidateServerKey(
 //! Checks if #timestamp is sane and can be used for reading data.
 void ValidateReadTimestamp(TTimestamp timestamp);
 
+//! Checks if #timestamp is sane and can be used for data.
+//! Allows timestamps in range [MinTimestamp, MaxTimestamp] plus some sentinels
+//! (SyncLastCommittedTimestamp and AsyncLastCommittedTimestamp).
+void ValidateReadTimestamp(TTimestamp timestamp);
+
+//! Checks if #timestamp is sane and can be used for replica synchronization.
+//! Allows timestamps in range [MinTimestamp, MaxTimestamp].
+void ValidateSyncTimestamp(TTimestamp timestamp);
+
 //! Returns the successor of |key|, i.e. the key obtained from |key|
 //! by appending a |EValueType::Min| sentinel.
 TOwningKey GetKeySuccessor(TKey key);
