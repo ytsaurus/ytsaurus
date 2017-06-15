@@ -103,33 +103,9 @@ public:
             return;
         }
 
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto statistics = tabletManager->GetTabletStatistics(tablet);
-        bool needAction = false;
-
-        switch (tablet->GetInMemoryMode()) {
-            case EInMemoryMode::None:
-                if (statistics.UncompressedDataSize < Config_->MinTabletSize ||
-                    statistics.UncompressedDataSize > Config_->MaxTabletSize)
-                {
-                    needAction = true;
-                }
-                break;
-
-            case EInMemoryMode::Compressed:
-            case EInMemoryMode::Uncompressed:
-                if (statistics.MemorySize < Config_->MinInMemoryTabletSize ||
-                    statistics.MemorySize > Config_->MaxInMemoryTabletSize)
-                {
-                    needAction = true;
-                }
-                break;
-
-            default:
-                Y_UNREACHABLE();
-        }
-
-        if (needAction) {
+        auto size = GetTabletSize(tablet);
+        auto bounds = GetTabletSizeConfig(tablet);
+        if (size < bounds.MinTabletSize || size > bounds.MaxTabletSize) {
             TabletIdQueue_.push_back(tablet->GetId());
             QueuedTabletIds_.insert(tablet->GetId());
             Profiler.Increment(QueueSizeCounter_);
@@ -138,6 +114,13 @@ public:
     }
 
 private:
+    struct TTabletSizeConfig
+    {
+        i64 MinTabletSize;
+        i64 MaxTabletSize;
+        i64 DesiredTabletSize;
+    };
+
     const TTabletBalancerConfigPtr Config_;
     const NCellMaster::TBootstrap* Bootstrap_;
     const NConcurrency::TPeriodicExecutorPtr BalanceExecutor_;
@@ -342,40 +325,14 @@ private:
             QueuedTabletIds_.erase(tabletId);
 
             auto* tablet = tabletManager->FindTablet(tabletId);
-            if (!tablet || !IsObjectAlive(tablet) || !tablet->Replicas().empty()) {
+            if (!tablet || !IsObjectAlive(tablet) || !tablet->Replicas().empty() || !IsTabletUntouched(tablet)) {
                 continue;
             }
 
-            auto statistics = tabletManager->GetTabletStatistics(tablet);
-            bool needSplit = false;
-            bool needMerge = false;
-
-            switch (tablet->GetInMemoryMode()) {
-                case EInMemoryMode::None:
-                    if (statistics.UncompressedDataSize < Config_->MinTabletSize) {
-                        needMerge = true;
-                    } else if (statistics.UncompressedDataSize > Config_->MaxTabletSize) {
-                        needSplit = true;
-                    }
-                    break;
-
-                case EInMemoryMode::Compressed:
-                case EInMemoryMode::Uncompressed:
-                    if (statistics.MemorySize < Config_->MinInMemoryTabletSize) {
-                        needMerge = true;
-                    } else if (statistics.MemorySize > Config_->MaxInMemoryTabletSize) {
-                        needSplit = true;
-                    }
-                    break;
-
-                default:
-                    Y_UNREACHABLE();
-            }
-
-            if (needMerge) {
-                MergeTablet(tablet);
-            } else if (needSplit) {
-                SplitTablet(tablet);
+            auto size = GetTabletSize(tablet);
+            auto bounds = GetTabletSizeConfig(tablet);
+            if (size < bounds.MinTabletSize || size > bounds.MaxTabletSize) {
+                MergeSplitTablet(tablet, bounds);
             }
         }
     }
@@ -394,46 +351,47 @@ private:
         return TouchedTablets_.find(tablet) == TouchedTablets_.end();
     }
 
-    void MergeTablet(TTablet* tablet)
+    void MergeSplitTablet(TTablet* tablet, const TTabletSizeConfig& bounds)
     {
-        if (!IsTabletUntouched(tablet)) {
-            return;
-        }
-
         auto* table = tablet->GetTable();
 
-        if (table->Tablets().size() == 1) {
-            return;
-        }
-
-        i64 minSize = tablet->GetInMemoryMode() == EInMemoryMode::None
-            ? Config_->MinTabletSize
-            : Config_->MinInMemoryTabletSize;
-        i64 desiredSize = tablet->GetInMemoryMode() == EInMemoryMode::None
-            ? Config_->DesiredTabletSize
-            : Config_->DesiredInMemoryTabletSize;
-
+        i64 desiredSize = bounds.DesiredTabletSize;
         i64 size = GetTabletSize(tablet);
 
         int startIndex = tablet->GetIndex();
         int endIndex = tablet->GetIndex();
 
-        while (size < minSize &&
+        auto sizeGood = [&] () {
+            i64 tabletCount = size / desiredSize;
+            if (tabletCount == 0) {
+                return false;
+            }
+
+            i64 tabletSize = size / tabletCount;
+            return tabletSize >= bounds.MinTabletSize && tabletSize <= bounds.MaxTabletSize;
+        };
+
+        while (!sizeGood() &&
             startIndex > 0 &&
-            IsTabletUntouched(table->Tablets()[startIndex - 1]))
+            IsTabletUntouched(table->Tablets()[startIndex - 1]) &&
+            table->Tablets()[startIndex - 1]->GetState() == tablet->GetState())
         {
             --startIndex;
             size += GetTabletSize(table->Tablets()[startIndex]);
         }
-        while (size < minSize &&
+        while (!sizeGood() &&
             endIndex < table->Tablets().size() - 1 &&
-            IsTabletUntouched(table->Tablets()[endIndex + 1]))
+            IsTabletUntouched(table->Tablets()[endIndex + 1]) &&
+            table->Tablets()[endIndex + 1]->GetState() == tablet->GetState())
         {
             ++endIndex;
             size += GetTabletSize(table->Tablets()[endIndex]);
         }
 
-        int newTabletCount = size == 0 ? 1 : DivCeil(size, desiredSize);
+        int newTabletCount = size / desiredSize;
+        if (newTabletCount == 0) {
+            newTabletCount = 1;
+        }
 
         if (newTabletCount == endIndex - startIndex + 1) {
             return;
@@ -460,12 +418,8 @@ private:
         ++MergeCount_;
     }
 
-    void SplitTablet(TTablet* tablet)
+    void SplitTablet(TTablet* tablet, std::pair<i64, i64> bounds)
     {
-        if (!IsTabletUntouched(tablet)) {
-            return;
-        }
-
         i64 desiredSize = tablet->GetInMemoryMode() == EInMemoryMode::None
             ? Config_->DesiredTabletSize
             : Config_->DesiredInMemoryTabletSize;
@@ -491,6 +445,43 @@ private:
         CreateMutation(hydraManager, request)
             ->CommitAndLog(Logger);
         ++SplitCount_;
+    }
+
+    TTabletSizeConfig GetTabletSizeConfig(TTablet* tablet)
+    {
+        i64 minTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
+            ? Config_->MinTabletSize
+            : Config_->MinInMemoryTabletSize;
+        i64 maxTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
+            ? Config_->MaxTabletSize
+            : Config_->MaxInMemoryTabletSize;
+        i64 desiredTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
+            ? Config_->DesiredTabletSize
+            : Config_->DesiredInMemoryTabletSize;
+
+        auto* table = tablet->GetTable();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto tableProxy = objectManager->GetProxy(table);
+        const auto& tableAttributes = tableProxy->Attributes();
+
+        if (tableAttributes.Get<bool>("disable_tablet_balancer", false)) {
+            return TTabletSizeConfig{0, std::numeric_limits<i64>::max(), 0};
+        }
+
+        auto tableMinTabletSize = tableAttributes.Find<i64>("min_tablet_size");
+        auto tableMaxTabletSize = tableAttributes.Find<i64>("max_tablet_size");
+        auto tableDesiredTabletSize = tableAttributes.Find<i64>("desired_tablet_size");
+
+        if (tableMinTabletSize && tableMaxTabletSize && tableDesiredTabletSize &&
+            *tableMinTabletSize < *tableDesiredTabletSize &&
+            *tableDesiredTabletSize < *tableMaxTabletSize)
+        {
+            minTabletSize = *tableMinTabletSize;
+            maxTabletSize = *tableMaxTabletSize;
+            desiredTabletSize = *tableDesiredTabletSize;
+        }
+
+        return TTabletSizeConfig{minTabletSize, maxTabletSize, desiredTabletSize};
     }
 
 
