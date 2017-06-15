@@ -144,9 +144,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             } else if (maybePivotKeys) {
                 tabletManager->ReshardTable(node, 0, 0, maybePivotKeys->size(), *maybePivotKeys);
             }
-        }
 
-        node->SetUpstreamReplicaId(upstreamReplicaId);
+            node->SetUpstreamReplicaId(upstreamReplicaId);
+        }
     } catch (const std::exception&) {
         DoDestroy(node);
         throw;
@@ -216,12 +216,13 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
             clonedNode,
             factory->GetTransaction(),
             mode);
+
+        clonedNode->SetLastCommitTimestamp(sourceNode->GetLastCommitTimestamp());
     }
 
     clonedNode->TableSchema() = sourceNode->TableSchema();
     clonedNode->SetSchemaMode(sourceNode->GetSchemaMode());
     clonedNode->SetAtomicity(sourceNode->GetAtomicity());
-    clonedNode->SetLastCommitTimestamp(sourceNode->GetLastCommitTimestamp());
     clonedNode->SetRetainedTimestamp(sourceNode->GetRetainedTimestamp());
     clonedNode->SetUnflushedTimestamp(sourceNode->GetUnflushedTimestamp());
     clonedNode->SetUpstreamReplicaId(sourceNode->GetUpstreamReplicaId());

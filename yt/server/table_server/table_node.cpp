@@ -19,6 +19,35 @@ using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableNode::TDynamicTableAttributes::TDynamicTableAttributes()
+{ }
+
+void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, Atomicity);
+    Save(context, CommitOrdering);
+    Save(context, UpstreamReplicaId);
+    Save(context, TabletCellBundle);
+    Save(context, LastCommitTimestamp);
+    Save(context, TabletCountByState);
+    Save(context, Tablets);
+}
+
+void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, Atomicity);
+    Load(context, CommitOrdering);
+    Load(context, UpstreamReplicaId);
+    Load(context, TabletCellBundle);
+    Load(context, LastCommitTimestamp);
+    Load(context, TabletCountByState);
+    Load(context, Tablets);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
 {
@@ -84,11 +113,11 @@ bool TTableNode::IsPhysicallySorted() const
 ETabletState TTableNode::GetTabletState() const
 {
     auto* trunkNode = GetTrunkNode();
-    if (trunkNode->Tablets_.empty()) {
+    if (trunkNode->Tablets().empty()) {
         return ETabletState::None;
     }
     for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
-        if (trunkNode->Tablets_.size() == trunkNode->TabletCountByState_[state]) {
+        if (trunkNode->Tablets().size() == trunkNode->TabletCountByState()[state]) {
             return state;
         }
     }
@@ -102,32 +131,45 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, TableSchema_);
     Save(context, SchemaMode_);
-    Save(context, Tablets_);
-    Save(context, Atomicity_);
-    Save(context, CommitOrdering_);
-    Save(context, TabletCellBundle_);
-    Save(context, LastCommitTimestamp_);
+    Save(context, OptimizeFor_);
     Save(context, RetainedTimestamp_);
     Save(context, UnflushedTimestamp_);
-    Save(context, UpstreamReplicaId_);
-    Save(context, OptimizeFor_);
-    Save(context, TabletCountByState_);
+    TUniquePtrSerializer<>::Save(context, DynamicTableAttributes_);
 }
 
 void TTableNode::Load(NCellMaster::TLoadContext& context)
 {
     TChunkOwnerBase::Load(context);
 
+    // COMPAT(savrus)
+    if (context.GetVersion() < 609) {
+        LoadPre609(context);
+        return;
+    }
+
     using NYT::Load;
     Load(context, TableSchema_);
     Load(context, SchemaMode_);
-    Load(context, Tablets_);
-    Load(context, Atomicity_);
+    Load(context, OptimizeFor_);
+    Load(context, RetainedTimestamp_);
+    Load(context, UnflushedTimestamp_);
+    TUniquePtrSerializer<>::Load(context, DynamicTableAttributes_);
+}
+
+void TTableNode::LoadPre609(NCellMaster::TLoadContext& context)
+{
+    auto dynamic = std::make_unique<TDynamicTableAttributes>();
+
+    using NYT::Load;
+    Load(context, TableSchema_);
+    Load(context, SchemaMode_);
+    Load(context, dynamic->Tablets);
+    Load(context, dynamic->Atomicity);
     // COMPAT(babenko)
     if (context.GetVersion() >= 400) {
-        Load(context, CommitOrdering_);
-        Load(context, TabletCellBundle_);
-        Load(context, LastCommitTimestamp_);
+        Load(context, dynamic->CommitOrdering);
+        Load(context, dynamic->TabletCellBundle);
+        Load(context, dynamic->LastCommitTimestamp);
         Load(context, RetainedTimestamp_);
         Load(context, UnflushedTimestamp_);
     }
@@ -137,7 +179,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     }
     // COMPAT(babenko)
     if (context.GetVersion() >= 602) {
-        Load(context, UpstreamReplicaId_);
+        Load(context, dynamic->UpstreamReplicaId);
     }
     // COMPAT(babenko)
     if (context.GetVersion() >= 601) {
@@ -164,7 +206,18 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     }
     // COMPAT(savrus)
     if (context.GetVersion() >= 607) {
-        Load(context, TabletCountByState_);
+        Load(context, dynamic->TabletCountByState);
+    }
+
+    // COMPAT(savrus)
+    if (!dynamic->Tablets.empty() ||
+        dynamic->Atomicity != DefaultDynamicTableAttributes_.Atomicity ||
+        dynamic->CommitOrdering != DefaultDynamicTableAttributes_.CommitOrdering ||
+        dynamic->UpstreamReplicaId != DefaultDynamicTableAttributes_.UpstreamReplicaId ||
+        dynamic->TabletCellBundle != DefaultDynamicTableAttributes_.TabletCellBundle ||
+        dynamic->LastCommitTimestamp != DefaultDynamicTableAttributes_.LastCommitTimestamp)
+    {
+        DynamicTableAttributes_ = std::move(dynamic);
     }
 }
 
@@ -172,20 +225,22 @@ std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTab
     const TOwningKey& minKey,
     const TOwningKey& maxKey)
 {
+    auto* trunkNode = GetTrunkNode();
+
     auto beginIt = std::upper_bound(
-        Tablets_.begin(),
-        Tablets_.end(),
+        trunkNode->Tablets().cbegin(),
+        trunkNode->Tablets().cend(),
         minKey,
         [] (const TOwningKey& key, const TTablet* tablet) {
             return key < tablet->GetPivotKey();
         });
 
-    if (beginIt != Tablets_.begin()) {
+    if (beginIt != trunkNode->Tablets().cbegin()) {
         --beginIt;
     }
 
     auto endIt = beginIt;
-    while (endIt != Tablets_.end() && maxKey >= (*endIt)->GetPivotKey()) {
+    while (endIt != trunkNode->Tablets().cend() && maxKey >= (*endIt)->GetPivotKey()) {
         ++endIt;
     }
 
@@ -216,20 +271,13 @@ TTimestamp TTableNode::GetCurrentRetainedTimestamp() const
         : CalculateRetainedTimestamp();
 }
 
-const TTableNode::TTabletList& TTableNode::Tablets() const
-{
-    return const_cast<TTableNode*>(this)->Tablets();
-}
-
-TTableNode::TTabletList& TTableNode::Tablets()
-{
-    Y_ASSERT(IsTrunk());
-    return Tablets_;
-}
-
 TTimestamp TTableNode::CalculateUnflushedTimestamp() const
 {
     auto* trunkNode = GetTrunkNode();
+    if (!trunkNode->IsDynamic()) {
+        return NullTimestamp;
+    }
+
     auto result = MaxTimestamp;
     for (const auto* tablet : trunkNode->Tablets()) {
         if (tablet->GetState() != ETabletState::Unmounted) {
@@ -243,6 +291,10 @@ TTimestamp TTableNode::CalculateUnflushedTimestamp() const
 TTimestamp TTableNode::CalculateRetainedTimestamp() const
 {
     auto* trunkNode = GetTrunkNode();
+    if (!trunkNode->IsDynamic()) {
+        return NullTimestamp;
+    }
+
     auto result = MinTimestamp;
     for (const auto* tablet : trunkNode->Tablets()) {
         auto timestamp = tablet->GetRetainedTimestamp();
@@ -250,6 +302,8 @@ TTimestamp TTableNode::CalculateRetainedTimestamp() const
     }
     return result;
 }
+
+DEFINE_EXTRA_PROPERTY_HOLDER(TTableNode, TTableNode::TDynamicTableAttributes, DynamicTableAttributes);
 
 ////////////////////////////////////////////////////////////////////////////////
 
