@@ -162,13 +162,9 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
             }
         }
     }
-    //COMPAT(savrus)
+    // COMPAT(savrus)
     if (context.GetVersion() >= 607) {
         Load(context, TabletCountByState_);
-    } else {
-        for (const auto* tablet : Tablets_) {
-            ++TabletCountByState_[tablet->GetState()];
-        }
     }
 }
 

@@ -387,6 +387,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         YCHECK(!tablet->GetCell());
+        YCHECK(!tablet->GetTable());
 
         if (auto* action = tablet->GetAction()) {
             OnTabletActionTabletsTouched(
@@ -1342,6 +1343,7 @@ public:
             serializedWriterOptions);
 
         CommitTabletStaticMemoryUpdate(table);
+        VerifyTabletCountByState(table, __LINE__);
     }
 
     void DoMountTablet(
@@ -1523,6 +1525,7 @@ public:
         TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "reshard_table");
 
         DoUnmountTable(table, force, firstTabletIndex, lastTabletIndex);
+        VerifyTabletCountByState(table, __LINE__);
     }
 
     void RemountTable(
@@ -1601,6 +1604,7 @@ public:
         }
 
         CommitTabletStaticMemoryUpdate(table);
+        VerifyTabletCountByState(table, __LINE__);
     }
 
     void FreezeTable(
@@ -1638,6 +1642,7 @@ public:
             auto* tablet = table->Tablets()[index];
             DoFreezeTablet(tablet);
         }
+        VerifyTabletCountByState(table, __LINE__);
     }
 
     void DoFreezeTablet(TTablet* tablet)
@@ -1700,6 +1705,7 @@ public:
             auto* tablet = table->Tablets()[index];
             DoUnfreezeTablet(tablet);
         }
+        VerifyTabletCountByState(table, __LINE__);
     }
 
     void DoUnfreezeTablet(TTablet* tablet)
@@ -1782,6 +1788,8 @@ public:
         if (table->IsReplicated() && !table->IsEmpty()) {
             THROW_ERROR_EXCEPTION("Cannot reshard non-empty replicated table");
         }
+
+        VerifyTabletCountByState(table, __LINE__);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -2043,6 +2051,7 @@ public:
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
 
         securityManager->UpdateAccountNodeUsage(table);
+        VerifyTabletCountByState(table, __LINE__);
     }
 
     void CloneTable(
@@ -2376,6 +2385,7 @@ private:
     TTabletCellBundle* DefaultTabletCellBundle_ = nullptr;
 
     bool UpdateChunkListsKind_ = false;
+    bool RecomputeTabletCountByState_ = false;
 
     TPeriodicExecutorPtr CleanupExecutor_;
 
@@ -2438,6 +2448,8 @@ private:
         InitializeCellBundles_ = (context.GetVersion() < 400);
         // COMPAT(savrus)
         UpdateChunkListsKind_ = (context.GetVersion() < 600);
+        // COMPAT(savrus)
+        RecomputeTabletCountByState_ = (context.GetVersion() <= 608);
     }
 
 
@@ -2513,6 +2525,25 @@ private:
                                 ? EChunkListKind::SortedDynamicTablet
                                 : EChunkListKind::OrderedDynamicTablet);
                             tabletChunkList->SetPivotKey(table->Tablets()[index]->GetPivotKey());
+                        }
+                    }
+                }
+            }
+        }
+
+        //COMPAT(savrus)
+        if (RecomputeTabletCountByState_) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            for (const auto& pair : cypressManager->Nodes()) {
+                auto* node = pair.second;
+                if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
+                    auto* table = node->As<TTableNode>();
+                    if (table->IsDynamic()) {
+                        for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
+                            table->TabletCountByState()[state] = 0;
+                        }
+                        for (const auto* tablet : table->Tablets()) {
+                            ++table->TabletCountByState()[tablet->GetState()];
                         }
                     }
                 }
@@ -2986,6 +3017,7 @@ private:
         tablet->SetState(frozen ? ETabletState::Frozen : ETabletState::Mounted);
 
         OnTabletActionStateChanged(tablet->GetAction());
+        VerifyTabletCountByState(tablet->GetTable(), __LINE__);
     }
 
     void HydraOnTabletUnmounted(TRspUnmountTablet* response)
@@ -2995,6 +3027,7 @@ private:
         if (!IsObjectAlive(tablet)) {
             return;
         }
+        VerifyTabletCountByState(tablet->GetTable(), __LINE__);
 
         auto state = tablet->GetState();
         if (state != ETabletState::Unmounting) {
@@ -3006,6 +3039,7 @@ private:
 
         DoTabletUnmounted(tablet);
         OnTabletActionStateChanged(tablet->GetAction());
+        VerifyTabletCountByState(tablet->GetTable(), __LINE__);
     }
 
     void HydraOnTabletFrozen(TRspFreezeTablet* response)
@@ -3034,6 +3068,7 @@ private:
 
         tablet->SetState(ETabletState::Frozen);
         OnTabletActionStateChanged(tablet->GetAction());
+        VerifyTabletCountByState(tablet->GetTable(), __LINE__);
     }
 
     void HydraOnTabletUnfrozen(TRspUnfreezeTablet* response)
@@ -3062,6 +3097,7 @@ private:
 
         tablet->SetState(ETabletState::Mounted);
         OnTabletActionStateChanged(tablet->GetAction());
+        VerifyTabletCountByState(tablet->GetTable(), __LINE__);
     }
 
     void HydraUpdateTableReplicaStatistics(TReqUpdateTableReplicaStatistics* request)
@@ -4196,6 +4232,32 @@ private:
         auto tabletCells = GetValuesSortedByKey(TabletCellMap_);
         for (auto* tabletCell : tabletCells) {
             objectManager->ReplicateObjectAttributesToSecondaryMaster(tabletCell, cellTag);
+        }
+    }
+
+    void VerifyTabletCountByState(const TTableNode* table, int line)
+    {
+        if (!IsObjectAlive(table)) {
+            return;
+        }
+
+        table = table->GetTrunkNode();
+
+        TEnumIndexedVector<int, NTabletClient::ETabletState> tabletCountByState;
+
+        for (const auto* tablet : table->Tablets()) {
+            ++tabletCountByState[tablet->GetState()];
+        }
+
+        for (auto state : TEnumTraits<NTabletClient::ETabletState>::GetDomainValues()) {
+            if (tabletCountByState[state] != table->TabletCountByState()[state]) {
+                LOG_ERROR("XXX Wrong tablet count by state at line %v for table %v: actual %v, expected %v",
+                    line,
+                    table->GetId(),
+                    ConvertToYsonString(table->TabletCountByState(), EYsonFormat::Text).GetData(),
+                    ConvertToYsonString(tabletCountByState, EYsonFormat::Text).GetData());
+                break;
+            }
         }
     }
 
