@@ -13,14 +13,14 @@ import logging
 
 logger.set_formatter(logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(yt.config["proxy"]["url"])))
 
-def get_time(obj):
-    return obj.attributes["modification_time"]
+def get_time(obj_attributes):
+    return obj_attributes["modification_time"]
 
-def get_age(obj):
+def get_age(obj_attributes):
     "2012-10-19T11:22:58.190448Z"
     pattern = "%Y-%m-%dT%H:%M:%S"
 
-    time_str = get_time(obj)
+    time_str = get_time(obj_attributes)
     time_str = time_str.rsplit(".")[0]
     return datetime.utcnow() - datetime.strptime(time_str, pattern)
 
@@ -75,14 +75,15 @@ def main():
     # collect table and files
     objects = []
     for obj in yt.search(args.directory, enable_batch_mode=True,
-                         node_type=["table", "file", "link"],
                          attributes=["access_time", "modification_time", "locks", "hash", "resource_usage", "account", "type", "target_path"]):
+        if obj.attributes.get("type") in ("map_node", "list_node"):
+            continue
         if is_locked(obj):
             continue
         if args.do_not_remove_objects_with_other_account and obj.attributes.get("account") != args.account:
             continue
         object_to_attributes[str(obj)] = obj.attributes
-        objects.append((get_age(obj), obj))
+        objects.append((get_age(obj.attributes), obj))
     objects.sort()
 
     to_remove = []
@@ -134,7 +135,7 @@ def main():
     for objects in chunk_iter_list(to_remove, max_batch_size):
         new_objects_info = []
         for obj in objects:
-            get_result = batch_client.get(obj, attributes=["modification_time", "access_time"])
+            get_result = batch_client.get(obj + "/@", attributes=["modification_time", "access_time"])
             new_objects_info.append((obj, get_result))
 
         batch_client.commit_batch()
@@ -147,12 +148,16 @@ def main():
                     raise error
                 continue
 
-            if get_age(new_obj_info.get_result()) <= safe_age:
+            attributes = new_obj_info.get_result()
+
+            if get_age(attributes) <= safe_age:
                 continue
 
             info = ""
             if hasattr(obj, "attributes"):
-                info = "(size=%s) (access_time=%s)" % (obj.attributes["resource_usage"]["disk_space"], get_time(obj))
+                info = "(access_time={})".format(get_time(obj.attributes))
+                if "resource_usage" in obj.attributes:
+                    info = info + " (size={})".format(obj.attributes["resource_usage"]["disk_space"])
             logger.info("Removing %s %s", obj, info)
 
             dir_sizes[os.path.dirname(obj)] -= 1
@@ -183,7 +188,7 @@ def main():
             if args.do_not_remove_objects_with_other_account and dir.attributes.get("account") != args.account:
                 continue
 
-            if dir_sizes[str(dir)] == 0 and get_age(dir).days > args.max_age:
+            if dir_sizes[str(dir)] == 0 and get_age(dir.attributes).days > args.max_age:
                 logger.info("Removing empty dir %s", dir)
                 # To avoid removing twice
                 dir_sizes[str(dir)] = -1
