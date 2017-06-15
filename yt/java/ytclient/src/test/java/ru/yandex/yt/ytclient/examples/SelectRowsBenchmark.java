@@ -86,6 +86,7 @@ public class SelectRowsBenchmark {
         List<String> proxies = null;
         final ArrayList<RequestGroup> requests = new ArrayList<>();
         Duration localTimeout = Duration.ofMillis(60);
+        Duration globalTimeout = Duration.ofMillis(200);
         Duration pingTimeout = Duration.ofMillis(1000);
         ExecutorService executorService;
         final LinkedBlockingQueue<RequestGroup> queue = new LinkedBlockingQueue<>(threads*2);
@@ -157,13 +158,13 @@ public class SelectRowsBenchmark {
 
         RpcClient rpcClient = new BalancingRpcClient(
             localTimeout,
+            globalTimeout,
             pingTimeout,
             connector,
             proxiesConnections.toArray(new RpcClient[proxiesConnections.size()])
         );
 
-        final ApiServiceClient client = new ApiServiceClient(rpcClient,
-            new RpcOptions().setDefaultTimeout(Duration.ofSeconds(5)));
+        final ApiServiceClient client = new ApiServiceClient(rpcClient, new RpcOptions());
 
         // TODO: wait connected
         TimeUnit.MILLISECONDS.sleep(10000);

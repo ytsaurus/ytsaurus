@@ -32,6 +32,7 @@ public class BalancingRpcClient implements RpcClient {
 
     final private Duration failoverTimeout;
     final private Duration pingTimeout;
+    final private Duration globalTimeout;
     final private Destination[] destinations;
     final private Random rnd = new Random();
     final private ScheduledExecutorService executorService;
@@ -127,9 +128,12 @@ public class BalancingRpcClient implements RpcClient {
         }
     }
 
-    public BalancingRpcClient(Duration failoverTimeout, Duration pingTimeout, BusConnector connector, RpcClient ... destinations) {
+    public BalancingRpcClient(Duration failoverTimeout, Duration globalTimeout, Duration pingTimeout, BusConnector connector, RpcClient ... destinations) {
+        assert failoverTimeout.compareTo(globalTimeout) <= 0;
+
         this.failoverTimeout = failoverTimeout;
         this.pingTimeout = pingTimeout;
+        this.globalTimeout = globalTimeout;
         this.executorService = connector.executorService();
         this.destinations = new Destination[destinations.length];
         int i = 0;
@@ -158,18 +162,28 @@ public class BalancingRpcClient implements RpcClient {
         private final BalancingRpcClient parent;
         private final List<RpcClientRequestControl> cancelation;
 
+        private long timeout;
+
         ResponseHandler(BalancingRpcClient parent, CompletableFuture<List<byte[]>> f, RpcClientRequest request, List<Destination> clients) {
             this.f = f;
             this.request = request;
             this.isOneWay = request.isOneWay();
             this.clients = clients;
             this.parent = parent;
+
+            timeout = parent.globalTimeout.toMillis();
+
             cancelation = new ArrayList<>();
             step = 0;
             send();
         }
 
         private void send() {
+            if (timeout <= 0) {
+                f.completeExceptionally(new RuntimeException("request timeout"));
+                return;
+            }
+
             RpcClient client;
             Destination dst = clients.get(0);
             clients = clients.subList(1, clients.size());
@@ -184,10 +198,15 @@ public class BalancingRpcClient implements RpcClient {
             inflight.inc();
             total.inc();
 
+            request.header().setTimeout(timeout*1000); // in microseconds
             cancelation.add(client.send(request, this));
+
+            // schedule next step
             parent.executorService.schedule(() ->
                 onTimeout()
             , step * parent.failoverTimeout.toMillis(), TimeUnit.MILLISECONDS);
+
+            timeout -= parent.failoverTimeout.toMillis();
         }
 
         private void onTimeout() {
