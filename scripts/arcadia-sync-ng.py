@@ -26,6 +26,16 @@ from SVN to Git.
 Examples: `HEAD`, `origin/master`, `refs/remotes/origin/master`, `branch`, `refs/heads/branch`.
 
 **(Svn) Revision**. Changeset for a repository. Identified by a natural number. Revisions are totally ordered.
+
+## How To Add New Arcadia Submodule
+
+(1) Create a Git repository on GitHub.
+(2) Add submodule to list below (search for: `SUBMODULES`)
+(3) Call `git submodule add`
+(4) Call this script with `submodule-init` and `submodule-fetch` commands
+(5) Call `git submodule add` (again!)
+(6) Create subdirectory in `cmake/` and write `CMakeLists.txt`
+(7) Add `add_subdirectory` in root `CMakeLists.txt`
 """
 
 import os
@@ -725,6 +735,21 @@ def action_submodule_fast_pull(ctx, args):
         logging.warning("Manual pull required in '%s'!", ctx.name)
 
 
+def git_dry_run(flag, ctx, *args):
+    if flag:
+        pass
+        #ctx.git.call(*args)
+    else:
+        def _escape(s):
+            if re.match(r"^[a-zA-Z0-9_]*$", s):
+                return s
+            if "'" in s:
+                return '"' + s.replace('"', '\\"') + '"'
+            else:
+                return "'" + s + "'"
+        print("git", map(_escape, args))
+
+
 def action_submodule_fast_push(ctx, args):
     old_head = ctx.git.resolve_ref(ctx.gh_git_remote_ref + "/" + ctx.gh_branch)
     new_head = ctx.git.resolve_ref("HEAD")
@@ -753,7 +778,9 @@ def action_submodule_fast_push(ctx, args):
         logging.info(
             "Pushing '%s' to '%s/%s': %s -> %s",
             ctx.name, ctx.gh_git_remote, ctx.gh_branch, abbrev(old_head), abbrev(new_head))
-        ctx.git.call("push", "--force", ctx.gh_git_remote, "%s:%s" % (new_head, make_head_ref(ctx.gh_branch)))
+        git_dry_run(
+            args.yes, ctx,
+            "push", "--force", ctx.gh_git_remote, "%s:%s" % (new_head, make_head_ref(ctx.gh_branch)))
 
 
 def submodule_main(args):
@@ -799,8 +826,11 @@ def submodule_main(args):
         def gh_arc_branch(self):
             return "upstream"
 
+    if not args.submodules:
+        logging.info("No submodules specified; use `--submodule ...` or `--all`")
+
     for submodule in args.submodules:
-        logging.info("Processing submodule '%s'", submodule)
+        logging.debug("Processing submodule '%s'", submodule)
 
         ctx = Ctx(git=None, svn=None, name=submodule)
         git = Git(repo=os.path.join(PROJECT_PATH, ctx.relpath))
@@ -815,10 +845,12 @@ contrib-libs-base64
 contrib-libs-c--ares
 contrib-libs-double--conversion
 contrib-libs-gmock
+contrib-libs-grpc
 contrib-libs-gtest
 contrib-libs-libbz2
 contrib-libs-lzmasdk
 contrib-libs-minilzo
+contrib-libs-nanopb
 contrib-libs-openssl
 contrib-libs-protobuf
 contrib-libs-re2
@@ -889,7 +921,7 @@ if __name__ == "__main__":
         return parser
 
     submodule_init_parser = add_submodule_parser(
-        "submodule-init", help="prepare submodules for further operations")
+        "submodule-init", help="prepare submodule for further operations")
     submodule_init_parser.set_defaults(action=action_submodule_init)
 
     submodule_fetch_parser = add_submodule_parser(
@@ -897,21 +929,21 @@ if __name__ == "__main__":
     submodule_fetch_parser.set_defaults(action=action_submodule_fetch)
 
     submodule_stitch_parser = add_submodule_parser(
-        "submodule-stitch", help="stitch svn revisions due to diverged git-svn history")
+        "submodule-stitch", help="(advanced) stitch svn revisions in diverged git-svn histories")
     submodule_stitch_parser.set_defaults(action=action_submodule_stitch)
 
     submodule_pin_parser = add_submodule_parser(
-        "submodule-pin", help="pin current commit in remote repository to avoid gc")
+        "submodule-pin", help="(advanced) pin current git commit in remote repository")
     submodule_pin_parser.add_argument("--commit", "-c", default="HEAD",
                                       help="commit to pin")
     submodule_pin_parser.set_defaults(action=action_submodule_pin)
 
     submodule_fast_pull_parser = add_submodule_parser(
-        "submodule-fast-pull", help="pull conflictless submodules up to upstream revision")
+        "submodule-fast-pull", help="pull submodule up to upstream revision")
     submodule_fast_pull_parser.set_defaults(action=action_submodule_fast_pull)
 
     submodule_fast_push_parser = add_submodule_parser(
-        "submodule-fast-push", help="push update to master branch if it does not break anything")
+        "submodule-fast-push", help="push submodule to master branch")
     submodule_fast_push_parser.add_argument("--yes", "-y", action="store_true", default=False,
                                             help="do something indeed")
     submodule_fast_push_parser.set_defaults(action=action_submodule_fast_push)
