@@ -4,6 +4,7 @@ from .batch_response import apply_function_to_result
 from .common import YtError, update
 from .config import get_option, get_config, get_backend_type
 from .format import create_format
+from .http_helpers import get_api_commands
 
 import yt.logger as logger
 import yt.yson as yson
@@ -36,6 +37,16 @@ def process_params(obj):
         obj.attributes = attributes
 
     return obj
+
+def get_command_list(client=None):
+    if get_option("_client_type", client) == "batch":
+        raise YtError("Command \"get_command_list\" is not supported in batch mode")
+
+    backend = get_backend_type(client)
+    if backend == "native":
+        return list(native_driver.get_command_descriptors(client))
+    else: # backend == "http"
+        return list(get_api_commands(client))
 
 def make_request(command_name,
                  params,
