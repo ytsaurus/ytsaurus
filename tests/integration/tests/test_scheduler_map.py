@@ -1217,8 +1217,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert len(res) == 2
         assert sorted(res, key=lambda item: item["start_time"], reverse=True) == res
 
-        remove("//sys/operations_archive")
-
     @unix_only
     def test_sorted_output(self):
         create("table", "//tmp/t1")
