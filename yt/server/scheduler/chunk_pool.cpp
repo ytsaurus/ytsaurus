@@ -1637,16 +1637,18 @@ private:
 
             auto list = New<TChunkStripeList>();
             list->PartitionTag = PartitionIndex;
+            list->Stripes.reserve(run.ElementaryIndexEnd - run.ElementaryIndexBegin);
+
             for (int index = run.ElementaryIndexBegin; index < run.ElementaryIndexEnd; ++index) {
-                auto stripe = Owner->ElementaryStripes[index];
-                list->Stripes.push_back(stripe);
-                list->TotalChunkCount += stripe->GetChunkCount();
+                list->Stripes.emplace_back(Owner->ElementaryStripes[index]);
             }
 
             // NB: never ever make TotalDataSize and TotalBoostFactor approximate.
             // Otherwise sort data size and row counters will be severely corrupted
             list->TotalDataSize = run.TotalDataSize;
             list->TotalRowCount = run.TotalRowCount;
+            // In shuffle chunk pools all stripes consist of a single data slice consisting of a single chunk.
+            list->TotalChunkCount = run.ElementaryIndexEnd - run.ElementaryIndexBegin;
 
             list->IsApproximate = run.IsApproximate;
 
