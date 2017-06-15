@@ -105,7 +105,7 @@ void SetBufferSize(i64 size)
     SafeMallocSetParam("LB_LIMIT_TOTAL_SIZE_BYTES", sizeAsString.c_str());
 }
 
-void SetDefrag(bool flag)
+void SetEnableDefrag(bool flag)
 {
     BindWithLFAllocOnce();
     if (flag) {
