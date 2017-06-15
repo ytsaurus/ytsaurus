@@ -504,8 +504,8 @@ class YTEnvSetup(object):
             except YtError as err:
                 print >>sys.stderr, format_error(err)
 
-        for operation in yt_commands.ls("//sys/operations", driver=driver):
-            yt_commands.remove("//sys/operations/" + operation, recursive=True, driver=driver)
+        yt_commands.remove("//sys/operations/*", driver=driver)
+        yt_commands.remove("//sys/operations_archive", force=True, driver=driver)
 
     def _wait_jobs_to_abort(self, driver=None):
         def check_jobs_are_missing():
