@@ -27,7 +27,7 @@ class TestDynamicTablesBase(YTEnvSetup):
         "max_rows_per_write_request": 2
     }
 
-    def _create_sorted_table(self, path, atomicity="full", optimize_for="lookup", pivot_keys=None, account=None, tablet_cell_bundle="default"):
+    def _create_sorted_table(self, path, atomicity="full", optimize_for="lookup", tablet_cell_bundle="default", **kwargs):
         attributes={
             "dynamic": True,
             "atomicity": atomicity,
@@ -37,13 +37,10 @@ class TestDynamicTablesBase(YTEnvSetup):
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "string"}]
         }
-        if pivot_keys is not None:
-            attributes["pivot_keys"] = pivot_keys
-        if account is not None:
-            attributes["account"] = account
+        attributes.update(kwargs)
         create("table", path, attributes=attributes)
 
-    def _create_ordered_table(self, path, atomicity="full", optimize_for="lookup", tablet_count=None, account=None, tablet_cell_bundle="default"):
+    def _create_ordered_table(self, path, atomicity="full", optimize_for="lookup", tablet_cell_bundle="default", **kwargs):
         attributes={
             "dynamic": True,
             "atomicity": atomicity,
@@ -53,10 +50,7 @@ class TestDynamicTablesBase(YTEnvSetup):
                 {"name": "key", "type": "int64"},
                 {"name": "value", "type": "string"}]
         }
-        if tablet_count is not None:
-            attributes["tablet_count"] = tablet_count
-        if account is not None:
-            attributes["account"] = account
+        attributes.update(kwargs)
         create("table", path, attributes=attributes)
 
 
@@ -842,7 +836,7 @@ class TestTabletActions(TestDynamicTablesBase):
                 "enabled_check_period": 100,
                 "min_tablet_size": 128,
                 "max_tablet_size": 512,
-                "desired_tablet_size": 512,
+                "desired_tablet_size": 256,
                 "min_in_memory_tablet_size": 0,
                 "max_in_memory_tablet_size": 512,
                 "desired_in_memory_tablet_size": 256,
@@ -1016,6 +1010,26 @@ class TestTabletActions(TestDynamicTablesBase):
         self._wait_for_tablets("//tmp/t", "mounted")
         assert len(get("//tmp/t/@chunk_ids")) > 1
         assert get("//tmp/t/@tablet_count") == 2
+
+        set("//tmp/t/@min_tablet_size", 512)
+        set("//tmp/t/@max_tablet_size", 2048)
+        set("//tmp/t/@desired_tablet_size", 1024)
+        sleep(1)
+        self._wait_for_tablets("//tmp/t", "mounted")
+        assert get("//tmp/t/@tablet_count") == 1
+
+    def test_tablet_balancer_disabled(self):
+        self.sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@disable_tablet_balancer", True)
+        reshard_table("//tmp/t", [[], [1]])
+        self.sync_mount_table("//tmp/t")
+        sleep(1)
+        assert get("//tmp/t/@tablet_count") == 2
+        remove("//tmp/t/@disable_tablet_balancer")
+        sleep(1)
+        self._wait_for_tablets("//tmp/t", "mounted")
+        assert get("//tmp/t/@tablet_count") == 1
 
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])

@@ -51,7 +51,7 @@ public:
             .Default(0.05);
 
         RegisterParameter("min_tablet_size", MinTabletSize)
-            .Default((i64) 1024 * 1024 * 1024);
+            .Default((i64) 128 * 1024 * 1024);
 
         RegisterParameter("max_tablet_size", MaxTabletSize)
             .Default((i64) 20 * 1024 * 1024 * 1024);
@@ -75,11 +75,11 @@ public:
             if (DesiredTabletSize > MaxTabletSize) {
                 THROW_ERROR_EXCEPTION("\"desired_tablet_size\" must be less than or equal to \"max_tablet_size\"");
             }
-            if (MinInMemoryTabletSize > DesiredInMemoryTabletSize) {
-                THROW_ERROR_EXCEPTION("\"min_in_memory_tablet_size\" must be less than or equal to \"desired_in_memory_tablet_size\"");
+            if (MinInMemoryTabletSize >= DesiredInMemoryTabletSize) {
+                THROW_ERROR_EXCEPTION("\"min_in_memory_tablet_size\" must be less than \"desired_in_memory_tablet_size\"");
             }
-            if (DesiredInMemoryTabletSize > MaxInMemoryTabletSize) {
-                THROW_ERROR_EXCEPTION("\"desired_in_memory_tablet_size\" must be less than or equal to \"max_in_memory_tablet_size\"");
+            if (DesiredInMemoryTabletSize >= MaxInMemoryTabletSize) {
+                THROW_ERROR_EXCEPTION("\"desired_in_memory_tablet_size\" must be less than \"max_in_memory_tablet_size\"");
             }
         });
     }
