@@ -1573,60 +1573,56 @@ private:
         const TSharedRange<NTableClient::TKey>& keys,
         const TGetInSyncReplicasOptions& options)
     {
-        if (options.Timestamp < MinTimestamp || options.Timestamp > MaxTimestamp) {
-            THROW_ERROR_EXCEPTION("Invalid timestamp specified")
-                << TErrorAttribute("timestamp", options.Timestamp);
-        }
+        ValidateSyncTimestamp(options.Timestamp);
 
         auto tableInfo = SyncGetTableInfo(path);
-
         tableInfo->ValidateDynamic();
         tableInfo->ValidateSorted();
         tableInfo->ValidateReplicated();
 
-        yhash<TCellId, std::vector<TTabletId>> channels;
-        yhash_set<TTabletId> tablets;
+        yhash<TCellId, std::vector<TTabletId>> cellToTabletIds;
+        yhash_set<TTabletId> tabletIds;
         for (const auto& key : keys) {
             auto tabletInfo = tableInfo->GetTabletForRow(key);
-            if (tablets.count(tabletInfo->TabletId) == 0) {
-                tablets.insert(tabletInfo->TabletId);
+            if (tabletIds.count(tabletInfo->TabletId) == 0) {
+                tabletIds.insert(tabletInfo->TabletId);
                 ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
-                channels[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+                cellToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
             }
         }
 
         std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> futures;
-        for (const auto& channelPair : channels) {
-            const auto& cellId = channelPair.first;
-            const auto& tablets = channelPair.second;
+        for (const auto& pair : cellToTabletIds) {
+            const auto& cellId = pair.first;
+            const auto& perCellTabletIds = pair.second;
             const auto channel = GetReadCellChannelOrThrow(cellId);
 
             TQueryServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(options.Timeout);
 
             auto req = proxy.GetTabletInfo();
-            ToProto(req->mutable_tablet_ids(), tablets);
+            ToProto(req->mutable_tablet_ids(), perCellTabletIds);
             futures.push_back(req->Invoke());
         }
         auto responsesResult = WaitFor(Combine(futures));
         auto responses = responsesResult.ValueOrThrow();
 
-        yhash<TTableReplicaId, int> replicaCounter;
+        yhash<TTableReplicaId, int> replicaIdToCount;
         for (const auto& response : responses) {
             for (const auto& protoTabletInfo : response->tablet_info()) {
                 for (const auto& protoReplicaInfo : protoTabletInfo.replica_info()) {
                     if (protoReplicaInfo.last_replication_timestamp() >= options.Timestamp) {
-                        ++replicaCounter[FromProto<TTableReplicaId>(protoReplicaInfo.replica_id())];
+                        ++replicaIdToCount[FromProto<TTableReplicaId>(protoReplicaInfo.replica_id())];
                     }
                 }
             }
         }
 
         std::vector<TTableReplicaId> replicas;
-        for (const auto& counter : replicaCounter) {
-            const auto& replicaId = counter.first;
-            auto count = counter.second;
-            if (count == tablets.size()) {
+        for (const auto& pair : replicaIdToCount) {
+            const auto& replicaId = pair.first;
+            auto count = pair.second;
+            if (count == tabletIds.size()) {
                 replicas.push_back(replicaId);
             }
         }
