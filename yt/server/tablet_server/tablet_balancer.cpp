@@ -96,6 +96,7 @@ public:
         }
 
         if (!IsObjectAlive(tablet) ||
+            !IsObjectAlive(tablet->GetTable()) ||
             tablet->GetAction() ||
             QueuedTabletIds_.find(tablet->GetId()) != QueuedTabletIds_.end() ||
             !tablet->Replicas().empty())
@@ -325,7 +326,12 @@ private:
             QueuedTabletIds_.erase(tabletId);
 
             auto* tablet = tabletManager->FindTablet(tabletId);
-            if (!tablet || !IsObjectAlive(tablet) || !tablet->Replicas().empty() || !IsTabletUntouched(tablet)) {
+            if (!tablet ||
+                !IsObjectAlive(tablet) ||
+                !IsObjectAlive(tablet->GetTable()) ||
+                !tablet->Replicas().empty() ||
+                !IsTabletUntouched(tablet))
+            {
                 continue;
             }
 
