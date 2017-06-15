@@ -57,7 +57,6 @@ def has_proper_codecs(table, erasure_codec, compression_codec):
 
     return False
 
-
 def safe_get(path, **kwargs):
     try:
         return yt.get(path, **kwargs)
@@ -71,16 +70,19 @@ def safe_get(path, **kwargs):
 
     return yson.YsonMap({}, attributes={"type": "map_node"})
 
-def make_compression_task(table, compression_codec=None, erasure_codec=None, pool=None):
-    compression_codec = get_value(compression_codec, DEFAULT_COMPRESSION_CODEC)
-    erasure_codec = get_value(erasure_codec, DEFAULT_ERASURE_CODEC)
-    pool = get_value(pool, DEFAULT_POOL)
-    return {
-        "table": table,
-        "compression_codec": compression_codec,
-        "erasure_codec": erasure_codec,
-        "pool": pool
-    }
+class CompressionTask(object):
+    __slots__ = ["table", "compression_codec", "erasure_codec", "pool", "queue"]
+
+    def __init__(self, table, compression_codec=None, erasure_codec=None, pool=None, queue=None):
+        self.table = table
+        self.compression_codec = get_value(compression_codec, DEFAULT_COMPRESSION_CODEC)
+        self.erasure_codec = get_value(erasure_codec, DEFAULT_ERASURE_CODEC)
+        self.pool = get_value(pool, DEFAULT_POOL)
+        self.queue = get_value(queue, DEFAULT_QUEUE_NAME)
+
+    def as_dict(self, ignore_keys=None):
+        return dict((k, getattr(self, k)) for k in self.__slots__
+                    if k not in get_value(ignore_keys, []))
 
 class OptimisticLockingFailedError(Exception):
     pass
@@ -161,7 +163,7 @@ def filter_out_tables_with_proper_codecs(tasks):
         end_index = min(start_index + STATISTICS_REQUEST_BATCH_SIZE, len(tasks))
 
         batch = tasks[start_index:end_index]
-        tables_in_batch = [task["table"] for task in batch]
+        tables_in_batch = [task.table for task in batch]
 
         tables_with_statistics = retrier.collect_statistics(tables_in_batch)
 
@@ -169,7 +171,7 @@ def filter_out_tables_with_proper_codecs(tasks):
             if table is None:  # table does not exist or locked
                 continue
 
-            if not has_proper_codecs(table, task["erasure_codec"], task["compression_codec"]):
+            if not has_proper_codecs(table, task.erasure_codec, task.compression_codec):
                 result.append(task)
 
     return result
@@ -194,9 +196,7 @@ def find_tables_to_compress(root):
 
         if object.attributes["type"] == "table":
             if parse_bool(object.attributes.get("force_nightly_compress", "false")):
-                task = make_compression_task(path)
-                task["queue"] = DEFAULT_QUEUE_NAME
-                tasks.append(task)
+                tasks.append(CompressionTask(path))
                 return
 
             if compression_settings is None or not isinstance(compression_settings, dict):
@@ -205,7 +205,6 @@ def find_tables_to_compress(root):
             params = filter_dict(lambda k, v: k in compression_settings_allowed_keys, deepcopy(compression_settings))
             min_table_size = params.pop("min_table_size", 0)
             min_table_age = params.pop("min_table_age", 0)
-            queue = params.pop("queue", DEFAULT_QUEUE_NAME)
             enabled = parse_bool(params.pop("enabled", "false"))
             force_recompress_to_specified_codecs = \
                 parse_bool(params.pop("force_recompress_to_specified_codecs", "true"))
@@ -214,8 +213,7 @@ def find_tables_to_compress(root):
                     not force_recompress_to_specified_codecs:
                 return
 
-            task = make_compression_task(path, **params)
-            task["queue"] = queue
+            task = CompressionTask(path, **params)
 
             table_age = time.time() - date_string_to_timestamp(object.attributes["creation_time"])
             table_size = object.attributes["uncompressed_data_size"]
@@ -239,13 +237,14 @@ def find_tables_to_compress(root):
     root_obj = safe_get(root, attributes=requested_attributes)
     walk(root, root_obj)
 
+    logger.info("Total task count before filtering: %d", len(tasks))
+
     tasks = filter_out_tables_with_proper_codecs(tasks)
     total_table_count = len(tasks)
 
     compression_queues = defaultdict(list)
     for task in tasks:
-        queue = task.pop("queue")
-        compression_queues[queue].append(task)
+        compression_queues[task.queue].append(task.as_dict(ignore_keys=["queue"]))
 
     logger.info("Collected %d tables for compression", total_table_count)
 
