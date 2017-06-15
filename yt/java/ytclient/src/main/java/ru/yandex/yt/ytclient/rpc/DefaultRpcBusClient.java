@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.rpc;
 
+import com.codahale.metrics.Counter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -43,6 +44,7 @@ public class DefaultRpcBusClient implements RpcClient {
     private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
     private static final Histogram requestsAckHistogram = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "ack"));
     private static final Histogram requestsResponseHistogram = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "response"));
+    private static final Counter errorCounter = metrics.counter(MetricRegistry.name(DefaultRpcBusClient.class, "error"));
 
     private final BusFactory busFactory;
     private final Lock sessionLock = new ReentrantLock();
@@ -349,6 +351,7 @@ public class DefaultRpcBusClient implements RpcClient {
          * Вызывается при каких-либо ошибках в обработке
          */
         public void error(Throwable cause) {
+            errorCounter.inc();
             lock.lock();
             try {
                 if (state == RequestState.FINISHED) {
