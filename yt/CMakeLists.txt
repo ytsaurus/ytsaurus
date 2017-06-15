@@ -6,6 +6,7 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src # header-only library
   ${CMAKE_SOURCE_DIR}/contrib/libs/re2 # re2 contains relative includes
   ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf # protobuf contains relative includes
+  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/google/protobuf # protobuf contains relative includes
   ${CMAKE_SOURCE_DIR}/contrib/libs/openssl/include # openssl contains relative includes
 )
 
