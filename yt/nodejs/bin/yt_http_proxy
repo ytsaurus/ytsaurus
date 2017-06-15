@@ -191,6 +191,11 @@ config = {
 
     redirect: [],
     static: [],
+
+    hosts: {
+        fb: "HOST-fb.DOMAIN",
+        fb867: "HOST-fb867.DOMAIN"
+    }
 };
 
 config = merge(config, (opts.argv.c && JSON.parse(fs.readFileSync(opts.argv.c, "utf8"))) || {});
