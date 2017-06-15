@@ -94,6 +94,10 @@ def convert_to_stream(data):
     else:
         return StringIterIO(data)
 
+def get_command_descriptors(client=None):
+    driver = get_driver_instance(client)
+    return driver.get_command_descriptors()
+
 def make_request(command_name, params,
                  data=None,
                  return_content=True,

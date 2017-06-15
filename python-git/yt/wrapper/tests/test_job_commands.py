@@ -1,7 +1,7 @@
 from .helpers import ENABLE_JOB_CONTROL, TEST_DIR, TESTS_SANDBOX
 
 from yt.wrapper.job_shell import JobShell
-from yt.wrapper.http_helpers import get_api_commands
+from yt.wrapper.driver import get_command_list
 
 import yt.wrapper as yt
 
@@ -91,7 +91,7 @@ class TestJobCommands(object):
         if yt.config["backend"] == "native":
             pytest.skip()
 
-        commands = get_api_commands()
+        commands = get_command_list()
         if "poll_job_shell" not in commands:
             pytest.skip()
 
@@ -138,7 +138,7 @@ class TestJobCommands(object):
         if yt.config["backend"] == "native" or yt_env.version <= "19.0":
             pytest.skip()
 
-        commands = get_api_commands()
+        commands = get_command_list()
         if "poll_job_shell" not in commands:
             pytest.skip()
 
