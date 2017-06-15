@@ -6,6 +6,7 @@ import pytest
 
 import yt.yson.writer
 from yt.yson import YsonUint64, YsonInt64, YsonEntity, YsonMap, YsonError
+import yt.subprocess_wrapper as subprocess
 from yt.packages.six import b, PY3
 from yt.packages.six.moves import map as imap
 
@@ -15,7 +16,6 @@ except ImportError:
     yt_yson_bindings = None
 
 import os
-import subprocess
 
 def get_debian_version(root):
     try:
