@@ -407,6 +407,7 @@ void TTablet::SetTable(TTableNode* table)
         --Table_->GetTrunkNode()->TabletCountByState()[State_];
     }
     if (table) {
+        YCHECK(table->IsTrunk());
         ++table->TabletCountByState()[State_];
     }
     Table_ = table;
