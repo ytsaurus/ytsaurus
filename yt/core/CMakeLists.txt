@@ -23,6 +23,7 @@ target_link_libraries(yt-core
   deps-arcadia-contrib-libs-c--ares
   deps-arcadia-contrib-libs-libbz2
   deps-arcadia-contrib-libs-lzmasdk
+  deps-arcadia-contrib-libs-protobuf
   deps-arcadia-contrib-libs-snappy
   deps-arcadia-contrib-libs-zstd07
   deps-arcadia-library-http
@@ -32,7 +33,6 @@ target_link_libraries(yt-core
   deps-yt-contrib-farmhash
   deps-yt-contrib-quicklz
   deps-yt-contrib-zstd-legacy
-  protobuf
   yt-build
   yt-contrib-jerasure
   yt-contrib-libev
