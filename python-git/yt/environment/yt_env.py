@@ -567,11 +567,7 @@ class YTInstance(object):
                                               stdout=stdout, stderr=stderr)
 
             time.sleep(timeout)
-            if p.poll():
-                self._print_stderrs(name, number)
-                raise YtError("Process {0} unexpectedly terminated with error code {1}. "
-                              "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
-                              .format(name_with_number, p.returncode))
+            self._validate_process_is_running(p, name, number)
 
             self._process_to_kill[name].append(p)
             self._all_processes[p.pid] = (p, args)
@@ -648,6 +644,8 @@ class YTInstance(object):
         self._run_yt_component("master", name=master_name)
 
         def quorum_ready():
+            self._validate_processes_is_running(master_name)
+
             logger = logging.getLogger("Yt")
             old_level = logger.level
             logger.setLevel(logging.ERROR)
@@ -718,6 +716,8 @@ class YTInstance(object):
         native_client = self.create_client()
 
         def nodes_ready():
+            self._validate_processes_is_running("node")
+
             nodes = native_client.list("//sys/nodes", attributes=["state"])
             return len(nodes) == self.node_count and all(node.attributes["state"] == "online" for node in nodes)
 
@@ -747,6 +747,8 @@ class YTInstance(object):
         client = self.create_client()
 
         def schedulers_ready():
+            self._validate_processes_is_running("scheduler")
+
             instances = client.list("//sys/scheduler/instances")
             if len(instances) != self.scheduler_count:
                 return False
@@ -925,6 +927,8 @@ class YTInstance(object):
                        "proxy")
 
         def proxy_ready():
+            self._validate_processes_is_running("proxy")
+
             try:
                 address = "127.0.0.1:{0}".format(self.get_proxy_address().split(":")[1])
                 resp = requests.get("http://{0}/api".format(address))
@@ -935,6 +939,25 @@ class YTInstance(object):
             return True
 
         self._wait_for(proxy_ready, "proxy", max_wait_time=20)
+
+    def _validate_process_is_running(self, process, name, number=None):
+        if number is not None:
+            name_with_number = "{0}-{1}".format(name, number)
+        else:
+            name_with_number = name
+
+        if process.poll() is not None:
+            self._print_stderrs(name, number)
+            raise YtError("Process {0} unexpectedly terminated with error code {1}. "
+                          "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
+                          .format(name_with_number, process.returncode))
+
+    def _validate_processes_is_running(self, name):
+        if name == "proxy":
+            self._validate_process_is_running(self._process_to_kill[name][-1], name)
+        else:
+            for index, process in enumerate(self._process_to_kill[name]):
+                self._validate_process_is_running(process, name, index)
 
     def _wait_for(self, condition, name, max_wait_time=40, sleep_quantum=0.1):
         condition_error = None
