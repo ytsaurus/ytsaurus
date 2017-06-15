@@ -12,8 +12,8 @@ from .lock_commands import lock
 from .table import TempTable
 from .transaction import Transaction
 from .transform import transform
-from .job_commands import run_job_shell, get_job_stderr
-from .etc_commands import execute_batch, dump_job_context
+from .job_commands import run_job_shell, get_job_stderr, dump_job_context
+from .etc_commands import execute_batch
 from .ypath import TablePath
 from .http_helpers import get_user_name
 from .batch_api import *

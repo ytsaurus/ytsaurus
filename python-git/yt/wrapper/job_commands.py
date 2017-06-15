@@ -31,3 +31,7 @@ def abort_job(job_id, interrupt_timeout, client=None):
         "abort_job",
         {"job_id": job_id, "interrupt_timeout": interrupt_timeout},
         client=client)
+
+def dump_job_context(job_id, path, client=None):
+    """Dumps job input context to specified path."""
+    return make_request("dump_job_context", {"job_id": job_id, "path": path}, client=client)
