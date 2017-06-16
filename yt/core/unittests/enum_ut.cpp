@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/public.h>

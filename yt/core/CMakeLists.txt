@@ -1,12 +1,11 @@
-SET(PROTO_NAMESPACE yt/${YT_ABI})
-
 include(Sources.txt)
 
-IF(NOT OS_WINDOWS)
-  SET(YT_SRCS ${YT_SRCS} ${CMAKE_CURRENT_LIST_DIR}/concurrency/execution_context-supp.S)
-ENDIF()
+list(APPEND YT_SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/execution_context-supp.S
+)
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
+
 add_library(yt-core ${YT_SRCS_RESOLVED})
 
 llvm_map_components_to_libraries(
@@ -52,5 +51,3 @@ if(NOT APPLE)
   target_link_libraries(yt-core -lutil)
 endif()
 
-add_subdirectory(test_framework)
-add_subdirectory(unittests)

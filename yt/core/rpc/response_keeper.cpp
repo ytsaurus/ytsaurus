@@ -50,7 +50,7 @@ public:
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
-            EvictionPeriod);
+            ProfilingPeriod);
         ProfilingExecutor_->Start();
     }
 

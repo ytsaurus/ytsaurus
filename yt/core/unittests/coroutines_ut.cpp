@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/core/concurrency/coroutine.h>
 #include <yt/core/concurrency/delayed_executor.h>
