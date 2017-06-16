@@ -169,16 +169,8 @@ MATCHER_P(HasSchema, expectedSchema, "")
 }
 
 TKeyColumns GetSampleKeyColumns();
-
 TKeyColumns GetSampleKeyColumns2();
-
 TTableSchema GetSampleTableSchema();
-
-template <class T>
-TFuture<T> WrapInFuture(const T& value)
-{
-    return MakeFuture(TErrorOr<T>(value));
-}
 
 TDataSplit MakeSimpleSplit(const TRichYPath& path, ui64 counter = 0);
 std::vector<TDataSplit> MakeSimpleSplits(const std::vector<TRichYPath>& paths, ui64 counter = 0);
