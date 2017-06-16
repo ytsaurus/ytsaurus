@@ -1,6 +1,5 @@
 set(NAME deps-arcadia-contrib-libs-grpc)
 set(BASE ${CMAKE_SOURCE_DIR}/contrib/libs/grpc)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --std=c99")
 
 set(SRCS_CORE
   #${BASE}/src/core/ext/census/base_resources.c
@@ -283,4 +282,7 @@ include_directories(
 )
 
 add_library(${NAME}-core STATIC ${SRCS_CORE})
+
+set_source_files_properties(${SRCS_CORE} PROPERTIES LANGUAGE C)
+set_target_properties(${NAME}-core PROPERTIES COMPILE_FLAGS --std=c99)
 
