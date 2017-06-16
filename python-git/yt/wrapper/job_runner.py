@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from yt.common import makedirp
-from yt.wrapper.common import MB, parse_bool, chunk_iter_stream
+from yt.wrapper.common import MB, chunk_iter_stream
 from yt.wrapper.cli_helpers import run_main
 
 import yt.logger as logger
