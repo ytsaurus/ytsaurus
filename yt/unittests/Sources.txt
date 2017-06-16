@@ -1,5 +1,3 @@
-
-# Some tests are commented due to arcadia issues.
 SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/any_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/blackbox_ut.cpp

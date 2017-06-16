@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/formats/json_writer.h>
 #include <yt/ytlib/formats/config.h>

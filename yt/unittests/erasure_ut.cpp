@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/erasure_reader.h>

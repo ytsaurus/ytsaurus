@@ -1,6 +1,6 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
-#include "yson_consumer_mock.h"
+#include <yt/core/test_framework/yson_consumer_mock.h>
 
 #include <yt/core/ytree/fluent.h>
 

@@ -7,7 +7,11 @@ namespace NYT {
 TMpscQueueBase::TMpscQueueBase()
     : Head_(&Stub_)
     , Tail_(&Stub_)
-{ }
+{
+    Y_UNUSED(StubPadding_);
+    Y_UNUSED(HeadPadding_);
+    Y_UNUSED(TailPadding_);
+}
 
 TMpscQueueBase::~TMpscQueueBase()
 {

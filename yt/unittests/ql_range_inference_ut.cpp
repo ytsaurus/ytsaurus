@@ -1,4 +1,4 @@
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 #include "ql_helpers.h"
 
 #include <yt/ytlib/query_client/query_helpers.h>

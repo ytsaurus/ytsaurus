@@ -11,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "framework.h"
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/core/misc/small_string.h>
 #include <yt/core/misc/small_vector.h>
