@@ -1381,7 +1381,6 @@ describe("YtCommand - v3 output format selection", function() {
             })
         },
         function(rsp) {
-            console.log(rsp.headers["content-type"]);
             rsp.should.be.http2xx;
             rsp.should.have.content_type("text/tab-separated-values");
             stub.should.have.been.calledOnce;
