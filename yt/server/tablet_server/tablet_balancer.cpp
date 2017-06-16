@@ -97,6 +97,7 @@ public:
 
         if (!IsObjectAlive(tablet) ||
             !IsObjectAlive(tablet->GetTable()) ||
+            !tablet->GetTable()->IsSorted() ||
             tablet->GetAction() ||
             QueuedTabletIds_.find(tablet->GetId()) != QueuedTabletIds_.end() ||
             !tablet->Replicas().empty())
