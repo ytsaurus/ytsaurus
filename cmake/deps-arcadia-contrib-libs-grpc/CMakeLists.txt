@@ -1,5 +1,6 @@
 set(NAME deps-arcadia-contrib-libs-grpc)
 set(BASE ${CMAKE_SOURCE_DIR}/contrib/libs/grpc)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --std=c99")
 
 set(SRCS_CORE
   #${BASE}/src/core/ext/census/base_resources.c
